@@ -19,7 +19,7 @@ import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
 import { notifyCapabilitySummaryMutated } from "@/features/capability/capability-summary-events";
-import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
 import { isStringArray, readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
@@ -81,6 +81,7 @@ export function useChatNotificationSocket({
       return;
     }
     syncRoomActivity(event, directoryIndexRef.current);
+    if (event.event_type === "round_status") notifyRoomDirectoryUpdated();
     recordRoomSequence(roomSeqCursorRef.current, event);
     if (event.event_type === "room_resync_required") {
       recordResyncSequence(roomSeqCursorRef.current, event);
@@ -94,6 +95,7 @@ export function useChatNotificationSocket({
       deliveryMode: event.delivery_mode,
       sessionKey: event.session_key,
     });
+    if (message?.role === "user") notifyRoomDirectoryUpdated();
     if (message && isCompletedAssistantMessage(message)) {
       notifyRoomDirectoryUpdated();
       onCompletedMessage(event, message);

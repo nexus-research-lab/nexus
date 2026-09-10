@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -26,7 +26,7 @@ func TestPruneEmptyConversationsIgnoresTitlesAndIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentA := createTestAgent(t, agentService, ctx, "空白清理助手A")
@@ -171,7 +171,7 @@ func TestPruneEmptyConversationsPreservesCanonicalGroupUserInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentA := createTestAgent(t, agentService, ctx, "历史判定助手A")
@@ -239,7 +239,7 @@ func TestPruneEmptyConversationsClearsDraftWhenNoEmptyConversationRemains(t *tes
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentA := createTestAgent(t, agentService, ctx, "无空白助手A")
@@ -279,7 +279,7 @@ func TestPruneEmptyConversationsReadsCanonicalDMHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentValue := createTestAgent(t, agentService, ctx, "DM 历史助手")
@@ -340,7 +340,7 @@ func TestPruneEmptyConversationsPreservesConservativeActivityEvidence(t *testing
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentA := createTestAgent(t, agentService, ctx, "安全证据助手A")
@@ -451,7 +451,7 @@ func TestPruneEmptyConversationsPreservesReferenceOnlyPersistentRecords(t *testi
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentValue := createTestAgent(t, agentService, ctx, "持久引用助手")
@@ -623,7 +623,7 @@ func TestPruneEmptyConversationsSkipsUnknownArtifactEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentA := createTestAgent(t, agentService, ctx, "未知证据助手A")
@@ -673,7 +673,7 @@ func TestPruneEmptyConversationsSkipsUnknownPersistentReferenceProbe(t *testing.
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
 	agentValue := createTestAgent(t, agentService, ctx, "引用探测失败助手")

@@ -1,7 +1,7 @@
 "use client";
 
 // INPUT: Slash picker 目录、读取状态与显式重载动作。
-// OUTPUT: Skill/Model 选择列表或完整的 Problem/Impact/Recovery 状态。
+// OUTPUT: 支持原生键盘/指针激活的命令、Skill/Model 列表及完整读取恢复状态。
 // POS: Composer picker 可见错误边界；只读失败不触碰输入草稿。
 
 import {
@@ -23,15 +23,17 @@ import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import {
   getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
-import { SelectMenuPanel } from "@/shared/ui/menu/select-menu-primitives";
+import {
+  SelectMenuOptionRow,
+  SelectMenuPanel,
+} from "@/shared/ui/menu/select-menu-primitives";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import {
-  resolveAnchoredOverlayPosition,
+  resolveUiAnchoredOverlayPosition,
   type UiAnchoredOverlayPosition,
-} from "@/shared/ui/overlay/anchored-overlay-model";
+} from "@/shared/ui/overlay/anchored-overlay-layout";
 import type {
   CommandCatalogStatus,
   CommandDescriptor,
@@ -44,8 +46,6 @@ import {
 } from "../slash-command-model";
 import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 
-const SLASH_COMMAND_PANEL_MAX_HEIGHT_PX = 296;
-const SLASH_PICKER_PANEL_MAX_HEIGHT_PX = 336;
 const SLASH_LIST_CLASS_NAME = cn(
   MENU_LIST_CLASS_NAME,
   "soft-scrollbar min-h-0 max-h-72 flex-1 overflow-y-auto overscroll-contain p-1",
@@ -244,7 +244,6 @@ function SlashSearchInput({
         aria-label={placeholder}
         className="w-full"
         controlSize="xs"
-        inputClassName="text-[11px] leading-4"
         onChange={onChange}
         onKeyDown={(event) => {
           onKeyDown(event);
@@ -285,11 +284,10 @@ function SlashCommandList({
         const selectable = isSelectableSlashCommand(command);
         const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[command.name];
         return (
-          <button
+          <SelectMenuOptionRow
+            active={index === activeIndex}
             aria-disabled={!selectable}
-            aria-selected={index === activeIndex}
             className={cn(
-              MENU_ITEM_BASE_CLASS_NAME,
               "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
               !selectable && "cursor-not-allowed opacity-(--disabled-opacity)",
@@ -297,21 +295,17 @@ function SlashCommandList({
             key={`${command.execution}:${command.name}`}
             onMouseDown={(event) => {
               event.preventDefault();
-              if (selectable) {
-                onSelect(command);
-              }
             }}
-            role="option"
+            onClick={() => { if (selectable) onSelect(command); }}
             title={selectable
               ? undefined
               : command.disabled_reason
                 ?? t("composer.slash_command_unavailable")}
-            type="button"
           >
-            <span className="w-28 shrink-0 truncate font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
+            <span className="w-28 shrink-0 truncate font-mono text-xs font-semibold leading-4 text-(--text-strong)">
               /{command.name}
             </span>
-            <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
+            <span className="min-w-0 flex-1 truncate text-xs leading-4 text-(--text-default)">
               {descriptionKey
                 ? t(descriptionKey)
                 : command.description || t("composer.slash_command_unavailable")}
@@ -321,7 +315,7 @@ function SlashCommandList({
                 {command.argument_hint}
               </span>
             ) : null}
-          </button>
+          </SelectMenuOptionRow>
         );
       })}
     </div>
@@ -374,21 +368,18 @@ function SlashSkillList({
         const title = skill.title?.trim() || skill.name;
         const description = getSkillDisplayDescription(skill, t);
         return (
-          <button
-            aria-selected={index === activeIndex}
+          <SelectMenuOptionRow
+            active={index === activeIndex}
             className={cn(
-              MENU_ITEM_BASE_CLASS_NAME,
               "flex min-h-10 w-full items-center gap-2 px-2 py-1.5 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
             )}
             key={skill.name}
             onMouseDown={(event) => {
               event.preventDefault();
-              onSelect(skill);
             }}
-            role="option"
+            onClick={() => onSelect(skill)}
             title={description || title}
-            type="button"
           >
             <span
               aria-hidden="true"
@@ -406,11 +397,11 @@ function SlashSkillList({
               ) : null}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-mono text-[11px] font-medium leading-4 text-(--text-strong)">
+              <span className="block truncate font-mono text-xs font-medium leading-4 text-(--text-strong)">
                 /{skill.name}
               </span>
               {description ? (
-                <span className="block truncate text-[10px] leading-4 text-(--text-muted)">
+                <span className="block truncate text-2xs leading-4 text-(--text-muted)">
                   {description}
                 </span>
               ) : null}
@@ -420,7 +411,7 @@ function SlashSkillList({
                 {t("composer.skill_use_once")}
               </span>
             ) : null}
-          </button>
+          </SelectMenuOptionRow>
         );
       })}
     </div>
@@ -470,25 +461,22 @@ function SlashModelList({
       ref={listRef}
     >
       {items.map((model, index) => (
-        <button
-          aria-selected={index === activeIndex}
+        <SelectMenuOptionRow
+          active={index === activeIndex}
           className={cn(
-            MENU_ITEM_BASE_CLASS_NAME,
             "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
             getMenuItemStateClassName({ active: index === activeIndex }),
           )}
           key={`${model.provider ?? "runtime"}:${model.id}`}
           onMouseDown={(event) => {
             event.preventDefault();
-            onSelect(model);
           }}
-          role="option"
+          onClick={() => onSelect(model)}
           title={model.providerLabel
             ? `${model.label} · ${model.providerLabel}`
             : model.label}
-          type="button"
         >
-          <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">
+          <span className="min-w-0 flex-1 truncate text-xs leading-4 text-(--text-default)">
             {model.label}
           </span>
           {model.providerLabel ? (
@@ -496,7 +484,7 @@ function SlashModelList({
               {model.providerLabel}
             </span>
           ) : null}
-        </button>
+        </SelectMenuOptionRow>
       ))}
     </div>
   );
@@ -524,7 +512,7 @@ function SlashPickerFailure({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   );
 }
@@ -538,8 +526,9 @@ function SlashEmptyState({
 }) {
   return (
     <p
+      role="status"
       className={cn(
-        "px-2.5 py-2 text-[10px] leading-4",
+        "px-2.5 py-2 text-2xs leading-4",
         tone === "danger" ? "text-(--destructive)" : "text-(--text-soft)",
       )}
     >
@@ -565,14 +554,9 @@ function getSlashCommandPopoverPosition(
   anchor: HTMLDivElement,
   mode: "commands" | "models" | "skills",
 ): UiAnchoredOverlayPosition {
-  const maxHeight = mode === "commands"
-    ? SLASH_COMMAND_PANEL_MAX_HEIGHT_PX
-    : SLASH_PICKER_PANEL_MAX_HEIGHT_PX;
-  return resolveAnchoredOverlayPosition({
+  return resolveUiAnchoredOverlayPosition({
     anchor,
-    estimatedHeight: maxHeight,
-    maxHeight,
-    minHeight: 44,
     placement: "top",
+    preset: mode === "commands" ? "command-list" : "command-picker",
   });
 }

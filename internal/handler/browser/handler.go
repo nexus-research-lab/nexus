@@ -1,5 +1,5 @@
-// INPUT: WebSocket 请求、固定 Nexus 扩展 Origin、browser.result 回执与 browser.event 生命周期事件。
-// OUTPUT: 已认证的 Browser 连接注册、协议不兼容诊断、回执投递及扩展事件转交。
+// INPUT: WebSocket 请求、固定扩展 Origin、回执、阶段/健康观测与标签生命周期事件。
+// OUTPUT: 已认证的连接注册、可取消写入、协议诊断及按精确连接身份转交的回执/事件。
 // POS: Browser transport 信任边界；不解释浏览器动作或保存 Session 状态。
 package browser
 
@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -100,14 +99,9 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	var writeMu sync.Mutex
-	send := func(parent context.Context, payload any) error {
-		writeMu.Lock()
-		defer writeMu.Unlock()
-		writeCtx, writeCancel := context.WithTimeout(parent, writeTimeout)
-		defer writeCancel()
-		return wsjson.Write(writeCtx, connection, payload)
-	}
+	send := boundedSender(func(ctx context.Context, payload any) error {
+		return wsjson.Write(ctx, connection, payload)
+	})
 	clientID, detach := h.service.Attach(
 		ready.ExtensionVersion,
 		ready.BrowserName,
@@ -135,9 +129,13 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		}
 		switch inbound.Type {
 		case "browser.result":
-			h.service.Resolve(inbound.ID, inbound.Result, inbound.Error)
+			h.service.Resolve(clientID, inbound.ID, inbound.Result, inbound.Error)
+		case "browser.progress":
+			h.service.ObserveProgress(clientID, inbound.ID, inbound.Data)
+		case "browser.pong":
+			h.service.ObserveHealth(clientID, inbound.Data)
 		case "browser.event":
-			h.service.ObserveEvent(inbound.Event, inbound.Data)
+			h.service.ObserveEvent(clientID, inbound.Event, inbound.Data)
 		}
 	}
 }
@@ -181,4 +179,23 @@ func trustedRequest(request *http.Request) bool {
 		}
 	}
 	return false
+}
+
+// boundedSender includes lock acquisition in the write deadline.
+func boundedSender(write func(context.Context, any) error) func(context.Context, any) error {
+	gate := make(chan struct{}, 1)
+	return func(parent context.Context, payload any) error {
+		ctx, cancel := context.WithTimeout(parent, writeTimeout)
+		defer cancel()
+		select {
+		case gate <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		defer func() { <-gate }()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return write(ctx, payload)
+	}
 }

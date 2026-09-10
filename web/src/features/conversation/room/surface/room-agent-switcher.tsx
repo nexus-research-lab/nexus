@@ -1,19 +1,23 @@
 /**
- * INPUT: Room 成员目录、当前选择与业务外观语境。
- * OUTPUT: 复用共享菜单生命周期的成员身份切换器及行高自适应的 Panel/Task 紧凑触发器。
+ * INPUT: Room 候选成员、可选完整姓名目录、受控选择与业务外观语境。
+ * OUTPUT: 共用头像与可区分名称的紧凑切换器；缺项显示不可用，候选或受控选择变化关闭旧菜单。
  * POS: Workspace、Subagent 与 Room 进程共用的成员切换视图。
  */
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { cn } from "@/shared/ui/class-name";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
 import {
-  getIconAvatarSrc,
-  getInitials,
-} from "@/lib/avatar";
+  buildAgentSelectionOptions,
+  includeUnavailableAgentSelection,
+} from "@/lib/agent-selection-options";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -24,6 +28,7 @@ interface RoomAgentSwitcherProps {
   ariaLabel?: string;
   variant?: "panel" | "task";
   members: Agent[];
+  directory?: readonly Agent[];
   selectedId: string;
   onSelect: (id: string) => void;
   className?: string;
@@ -32,38 +37,46 @@ interface RoomAgentSwitcherProps {
 export function RoomAgentSwitcher({
   ariaLabel,
   members,
+  directory = members,
   selectedId,
   onSelect,
   className,
   variant = "panel",
 }: RoomAgentSwitcherProps) {
   const { t } = useI18n();
-  const [isOpen, setIsOpen] = useState(false);
+  // 名称与顺序刷新不撤销正在使用的菜单；候选资格或受控身份变化才终止旧选择。
+  const menuScope = JSON.stringify([selectedId, members.map((member) => member.agent_id).sort()]);
+  const [isOpen, setIsOpen] = useResettableState(false, menuScope);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const closeMenu = useCallback(() => setIsOpen(false), []);
-  const selectedMember = useMemo(
-    () => members.find((member) => member.agent_id === selectedId) ?? members[0] ?? null,
-    [members, selectedId],
+  const closeMenu = useCallback(() => setIsOpen(false), [setIsOpen]);
+  const options = useMemo(
+    () => includeUnavailableAgentSelection(buildAgentSelectionOptions(members, t, directory), selectedId, t),
+    [directory, members, selectedId, t],
   );
+  const membersById = new Map(members.map((member) => [member.agent_id, member]));
+  const selectedMember = membersById.get(selectedId);
+  const accessibleLabel = ariaLabel ?? t("room.switch_agent");
+  const selectedLabel = options.find((option) => option.value === selectedId)?.label ?? accessibleLabel;
 
-  if (!selectedMember) {
+  if (!selectedId && members.length === 0) {
     return null;
   }
-  const accessibleLabel = ariaLabel ?? t("room.switch_agent");
 
-  const menuItems: UiActionMenuItem[] = members.map((member) => {
-    const isActive = member.agent_id === selectedId;
+  const menuItems: UiActionMenuItem[] = options.map((option) => {
+    const member = membersById.get(option.value);
+    const isActive = option.value === selectedId;
     return {
       active: isActive,
-      icon: <RoomAgentAvatar member={member} />,
-      label: member.name,
+      disabled: option.disabled,
+      icon: <UiAgentAvatar aria-hidden="true" avatar={member?.avatar} name={getAgentDisplayName(member?.name, t)} size="xxs" />,
+      label: option.label,
       trailing: (
         <Check className={cn(
-          "h-3.5 w-3.5 text-(--success) transition-opacity duration-(--motion-duration-fast)",
+          "h-3.5 w-3.5 text-(--icon-default) transition-opacity duration-(--motion-duration-fast)",
           isActive ? "opacity-100" : "opacity-0",
         )} />
       ),
-      value: member.agent_id,
+      value: option.value,
     };
   });
 
@@ -76,27 +89,29 @@ export function RoomAgentSwitcher({
       )}
       data-room-agent-switcher-variant={variant}
     >
-      <button
+      <UiButton
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={t("room.switch_agent_current", {
+        aria-label={selectedId ? t("room.switch_agent_current", {
           label: accessibleLabel,
-          name: selectedMember.name,
-        })}
-        className={cn(
-          "flex min-h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 py-1 text-compact font-semibold text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
-          isOpen && "bg-(--surface-interactive-active-background)",
-        )}
+          name: selectedLabel,
+        }) : accessibleLabel}
+        className="w-full min-w-0 justify-start"
+        disabled={members.length === 0}
         onClick={() => setIsOpen((prev) => !prev)}
-        type="button"
+        size="xs"
+        title={selectedLabel}
+        variant="ghost"
       >
-        <RoomAgentAvatar
-          className="h-4 w-4"
-          member={selectedMember}
+        <UiAgentAvatar
+          aria-hidden="true"
+          avatar={selectedMember?.avatar}
+          name={getAgentDisplayName(selectedMember?.name, t)}
+          size="xxs"
         />
-        <span className="min-w-0 flex-1 truncate text-left text-compact font-semibold leading-normal">
-          {selectedMember.name}
+        <span className="min-w-0 flex-1 truncate text-left leading-normal">
+          {selectedLabel}
         </span>
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
           <ChevronDown className={cn(
@@ -104,7 +119,7 @@ export function RoomAgentSwitcher({
             isOpen && "rotate-180 text-(--icon-default)",
           )} />
         </span>
-      </button>
+      </UiButton>
       <UiActionMenu
         anchorRef={triggerRef}
         ariaLabel={accessibleLabel}
@@ -112,36 +127,10 @@ export function RoomAgentSwitcher({
         items={menuItems}
         minWidth={220}
         onClose={closeMenu}
-        onSelect={onSelect}
+        onSelect={(id) => {
+          if (membersById.has(id)) onSelect(id);
+        }}
       />
     </div>
-  );
-}
-
-function RoomAgentAvatar({
-  className,
-  member,
-}: {
-  className?: string;
-  member: Agent;
-}) {
-  const avatarSrc = getIconAvatarSrc(member.avatar);
-  return (
-    <span className={cn(
-      "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
-      className,
-    )}>
-      {avatarSrc ? (
-        <img
-          alt={member.name}
-          className="h-full w-full object-cover"
-          src={avatarSrc}
-        />
-      ) : (
-        <span className="text-[8px] font-semibold text-(--text-strong)">
-          {getInitials(member.name)}
-        </span>
-      )}
-    </span>
   );
 }

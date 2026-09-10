@@ -17,6 +17,7 @@ target 不能扩大 authority。普通 Agent 的 self operation 固定到当前 
 
 | domain | 用途 | 常见生效时机 |
 |---|---|---|
+| `members` | 管理员主智能体私聊中的部署用户管理；密码走真人卡片 | 立即，撤权使 Session 失效 |
 | `preferences` | owner 偏好 | 立即或下一轮 |
 | `providers` | Provider、模型目录、默认模型与连接测试 | 测试立即；runtime 下一轮 |
 | `agents` | Agent profile、runtime 与 owner Agent 管理 | 撤权立即；多数设置下一轮 |

@@ -1,11 +1,16 @@
+// INPUT: 路由、Room 控制器职责分组与页面级事件。
+// OUTPUT: 活跃 Room 装配或目录降级，并转交原文件/宽度/会话命令。
+// POS: 页面入口；不重新解释分栏几何或服务端业务规则。
+
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
-import { resolveSelectedDraftConversationId } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
+import { resolveSelectedDraftConversationId } from "@/features/navigation/conversation-tabs/room-conversation-tabs-model";
 import { useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomRouteParams } from "@/types/app/route";
@@ -78,6 +83,7 @@ function ActiveRoomPage({
         onConversationSnapshotChange={conversation.handleSnapshotChange}
         onInitialDraftConsumed={navigation.consumeInitialDraft}
         onStartSidePanelResize={workspace.handleStartSidePanelResize}
+        onSidePanelWidthChange={workspace.handleSidePanelWidthChange}
         onTodosChange={workspace.setCurrentTodos}
         onValidateAgentName={actions.validateAgentName}
         surfaceSplitRef={workspace.surfaceSplitRef}
@@ -88,11 +94,12 @@ function ActiveRoomPage({
 }
 
 function RoomPageContent(props: RoomPageContentProps) {
+  const { t } = useI18n();
   const { agent, conversation, room, status } = props.controller;
   if (!status.isHydrated) {
     return (
       <WorkspacePageFrame contentPaddingClassName="p-0">
-        <WorkspaceLoadingState label="加载对话..." />
+        <WorkspaceLoadingState label={t("room.loading_conversation")} />
       </WorkspacePageFrame>
     );
   }

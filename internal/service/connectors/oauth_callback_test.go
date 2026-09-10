@@ -1,3 +1,6 @@
+// INPUT: Connector OAuth state、回调参数、已上线与已移除产品标识。
+// OUTPUT: 证明回调状态消费、owner 绑定、失败收口及未上线产品拒绝行为。
+// POS: Connector OAuth 回调生命周期的服务端回归合同。
 package connectors
 
 import (
@@ -14,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
+func TestServiceOAuthCallbackUsesStoredState(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
 
@@ -29,24 +32,23 @@ func TestServiceOAuthCallbackUsesStoredVerifier(t *testing.T) {
 		if err := request.ParseForm(); err != nil {
 			t.Fatalf("解析 token 请求失败: %v", err)
 		}
-		if request.Form.Get("code_verifier") != "stored-verifier" {
-			t.Fatalf("未使用存储的 PKCE verifier: %v", request.Form)
+		if request.Form.Get("code") != "code" {
+			t.Fatalf("未使用回调授权码: %v", request.Form)
 		}
-		_, _ = writer.Write([]byte(`{"access_token":"twitter-token","refresh_token":"refresh"}`))
+		_, _ = writer.Write([]byte(`{"access_token":"github-token","refresh_token":"refresh"}`))
 	}))
 	defer server.Close()
 
-	t.Setenv("NEXUS_CONNECTOR_TWITTER_TOKEN_URL", server.URL)
+	t.Setenv("NEXUS_CONNECTOR_GITHUB_TOKEN_URL", server.URL)
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()
 
 	//goland:noinspection SqlResolve
 	_, err = db.ExecContext(
 		ctx,
-		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+10 minutes'))",
+		"INSERT INTO connector_oauth_states (state, connector_id, redirect_uri, expires_at) VALUES (?, ?, ?, datetime('now', '+10 minutes'))",
 		"state-token",
-		"x-twitter",
-		"stored-verifier",
+		"github",
 		cfg.ConnectorOAuthRedirectURI,
 	)
 	if err != nil {
@@ -161,7 +163,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 	}))
 	defer server.Close()
 
-	t.Setenv("NEXUS_CONNECTOR_TWITTER_TOKEN_URL", server.URL)
+	t.Setenv("NEXUS_CONNECTOR_GITHUB_TOKEN_URL", server.URL)
 	service := NewService(cfg, db)
 	service.httpClient = server.Client()
 
@@ -170,7 +172,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 		ctx,
 		"INSERT INTO connector_oauth_states (state, connector_id, code_verifier, redirect_uri, expires_at) VALUES (?, ?, ?, ?, datetime('now', '+10 minutes'))",
 		"state-token",
-		"x-twitter",
+		"github",
 		"stored-verifier",
 		cfg.ConnectorOAuthRedirectURI,
 	)
@@ -197,7 +199,7 @@ func TestServiceOAuthCallbackConsumesStateBeforeTokenExchange(t *testing.T) {
 	}
 }
 
-func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
+func TestServiceOAuthCallbackRejectsRemovedPlaceholder(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
 
@@ -209,18 +211,6 @@ func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
 
 	ctx := context.Background()
 	service := NewService(cfg, db)
-	service.httpClient = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		if request.URL.Host != "demo.myshopify.com" {
-			t.Fatalf("未使用 extra_json 里的 shop 构造 token URL: %s", request.URL.String())
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK,
-			Header:     make(http.Header),
-			Body:       io.NopCloser(strings.NewReader(`{"access_token":"shopify-token"}`)),
-			Request:    request,
-		}, nil
-	})}
-
 	//goland:noinspection SqlResolve
 	_, err = db.ExecContext(
 		ctx,
@@ -234,15 +224,12 @@ func TestServiceOAuthCallbackPassesStoredExtraJSONToProvider(t *testing.T) {
 		t.Fatalf("写入 OAuth state 失败: %v", err)
 	}
 
-	info, err := service.CompleteOAuthCallback(ctx, auth.SystemUserID, OAuthCallbackRequest{
+	_, err = service.CompleteOAuthCallback(ctx, auth.SystemUserID, OAuthCallbackRequest{
 		Code:        "code",
 		State:       "shopify-state",
 		RedirectURI: cfg.ConnectorOAuthRedirectURI,
 	})
-	if err != nil {
-		t.Fatalf("完成 Shopify OAuth 回调失败: %v", err)
-	}
-	if info.ConnectorID != "shopify" || info.ConnectionState != "connected" {
-		t.Fatalf("连接状态未更新: %+v", info)
+	if err == nil || !strings.Contains(err.Error(), "未知连接器") {
+		t.Fatalf("expected removed placeholder rejection, got %v", err)
 	}
 }

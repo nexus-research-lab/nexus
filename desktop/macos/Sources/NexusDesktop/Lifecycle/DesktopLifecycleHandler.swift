@@ -47,6 +47,8 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
       handleFatalLifecycle(record: record)
     case "web.health":
       handleHealthLifecycle(record: record)
+    case "web.diagnostic":
+      startupTimeline?.mark("web.diagnostic", metadata: lifecycleMetadata(record: record))
     default:
       startupTimeline?.mark("web.lifecycle_ignored", metadata: [
         "kind": trimMetadata(kind),
@@ -105,7 +107,7 @@ final class DesktopLifecycleHandler: NSObject, WKScriptMessageHandler {
 
   private func lifecycleMetadata(record: [String: Any]) -> [String: String] {
     var metadata: [String: String] = ["surface": surfaceName]
-    for key in ["kind", "source", "status", "message", "name", "stack", "component_stack"] {
+    for key in ["kind", "source", "status", "message", "name", "stack", "component_stack", "context"] {
       if let value = record[key] {
         metadata[key] = trimMetadata(stringValue(value))
       }

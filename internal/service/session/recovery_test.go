@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -20,7 +20,7 @@ import (
 func TestSessionDeletionRecoveryCommitsCrashInterruptedDelete(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSessionDeletionRecoveryCommitsCrashInterruptedDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	recoveryService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	recoveryService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	recoveryService.SetRuntimeManager(runtimectx.NewManager())
 	reconciled, err := recoveryService.ReconcilePendingDeletions(context.Background())
 	if err != nil || reconciled != 1 {
@@ -93,7 +93,7 @@ func TestSessionDeletionRecoveryCommitsCrashInterruptedDelete(t *testing.T) {
 		t.Fatalf("pending deletion records=%d err=%v", len(pending), err)
 	}
 	restartedRuntime := runtimectx.NewManager()
-	restartedService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	restartedService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	restartedService.SetRuntimeManager(restartedRuntime)
 	if reconciled, err = restartedService.ReconcilePendingDeletions(
 		context.Background(),
@@ -187,7 +187,7 @@ func TestSessionDeletionRecoveryInvalidatesBoundAutomationTask(t *testing.T) {
 func TestDeleteSessionArtifactsFencesMissingMeta(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestDeleteSessionArtifactsFencesMissingMeta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
 	sessionService.SetRuntimeManager(runtimectx.NewManager())
 	sessionKey := protocol.BuildAgentSessionKey(
 		agentValue.AgentID,

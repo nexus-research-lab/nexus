@@ -43,7 +43,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	if params["session"] != "session-a" || params["group_title"] != "Agent A" {
 		t.Fatalf("导航缺少会话分组信息: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{
 		"tab_id": float64(42), "tab_ref": "ref-42", "owned": true, "url": "https://example.com",
 	}, "")
 	if err := <-errCh; err != nil {
@@ -64,7 +64,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	if _, exists := params["tab_id"]; exists {
 		t.Fatalf("new_tab 不应复用旧标签页: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{
 		"tab_id": float64(43), "tab_ref": "ref-43", "owned": true, "url": "https://example.org",
 	}, "")
 	if err := <-errCh; err != nil {
@@ -81,7 +81,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	if len(tabRefs) != 2 || tabRefs[0] != "ref-42" || tabRefs[1] != "ref-43" {
 		t.Fatalf("list_tabs 未携带完整会话标签页: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{
 		"scope": "session",
 		"tabs": []any{
 			map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
@@ -101,7 +101,7 @@ func TestExecuteKeepsTabOwnershipInsideRuntimeSession(t *testing.T) {
 	if params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
 		t.Fatalf("snapshot 未使用最新 Session tab: %+v", params)
 	}
-	service.Resolve(command["id"].(string), map[string]any{"snapshot": "", "truncated": false}, "")
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{"snapshot": "", "truncated": false}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("snapshot error = %v", err)
 	}
@@ -149,7 +149,7 @@ func TestExecuteBlocksRawCDPByDefault(t *testing.T) {
 		errCh <- err
 	}()
 	command := receiveCommand(t, commands)
-	service.Resolve(command["id"].(string), map[string]any{"product": "Chrome"}, "")
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{"product": "Chrome"}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("启用后的 cdp error = %v", err)
 	}
@@ -190,7 +190,7 @@ func TestExecuteBatchRunsActionsAndReturnsFinalSnapshot(t *testing.T) {
 		if want == "snapshot" {
 			response = map[string]any{"snapshot": "button \"Done\"", "snapshot_type": "diff"}
 		}
-		service.Resolve(command["id"].(string), response, "")
+		service.Resolve(service.client.id, command["id"].(string), response, "")
 	}
 	if err := <-errCh; err != nil {
 		t.Fatalf("batch error = %v", err)
@@ -317,7 +317,7 @@ func TestFinalizeRoundKeepsOnlyHandoffAndOtherRounds(t *testing.T) {
 	if got, _ := params["tab_refs"].([]string); !slices.Equal(got, wantRefs) {
 		t.Fatalf("收尾 tab_refs = %#v", got)
 	}
-	service.Resolve(command["id"].(string), map[string]any{"closed": 1, "released": 2, "handoff": 1}, "")
+	service.Resolve(service.client.id, command["id"].(string), map[string]any{"closed": 1, "released": 2, "handoff": 1}, "")
 	if err := <-errCh; err != nil {
 		t.Fatalf("FinalizeRound() error = %v", err)
 	}
@@ -376,12 +376,14 @@ func TestStatusExplainsIncompatibleExtension(t *testing.T) {
 
 func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
 	service := NewService()
+	_, detach := service.Attach("0.8.5", "Chrome", "browser", "generation", func(context.Context, any) error { return nil }, nil)
+	defer detach()
 	service.sessions["session-a"] = browserSession{
 		activeTabRef: "ref-42",
 		tabs:         map[string]browserTab{"ref-42": {id: 42, ref: "ref-42"}},
 	}
 
-	if !service.ObserveEvent("tab_created", map[string]any{
+	if !service.ObserveEvent(service.client.id, "tab_created", map[string]any{
 		"session":        "session-a",
 		"source_tab_ref": "ref-42",
 		"tab": map[string]any{
@@ -394,14 +396,14 @@ func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
 	if err != nil || params["tab_id"] != int64(43) || params["tab_ref"] != "ref-43" {
 		t.Fatalf("继承后的活动标签页 = %+v, err = %v", params, err)
 	}
-	if service.ObserveEvent("tab_created", map[string]any{
+	if service.ObserveEvent(service.client.id, "tab_created", map[string]any{
 		"session":        "session-a",
 		"source_tab_ref": "unknown",
 		"tab":            map[string]any{"tab_id": float64(44), "tab_ref": "ref-44"},
 	}) {
 		t.Fatal("未知来源标签页不应注入 Session")
 	}
-	if !service.ObserveEvent("tab_activated", map[string]any{
+	if !service.ObserveEvent(service.client.id, "tab_activated", map[string]any{
 		"session": "session-a",
 		"tab":     map[string]any{"tab_id": float64(42), "tab_ref": "ref-42"},
 	}) {
@@ -411,7 +413,7 @@ func TestObserveEventInheritsChildTabInsideSourceSession(t *testing.T) {
 	if err != nil || params["tab_ref"] != "ref-42" {
 		t.Fatalf("激活后的标签页 = %+v, err = %v", params, err)
 	}
-	if !service.ObserveEvent("tab_removed", map[string]any{
+	if !service.ObserveEvent(service.client.id, "tab_removed", map[string]any{
 		"session": "session-a", "tab_ref": "ref-42",
 	}) {
 		t.Fatal("标签页关闭事件应移除 Session 引用")

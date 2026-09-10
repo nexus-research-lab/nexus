@@ -5,11 +5,16 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import {
+  SettingsNavigationButton,
+} from "@/features/settings/shared/settings-panel-ui";
 import type {
   ProviderConfigRecord,
   ProviderPreset,
@@ -61,43 +66,40 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 sm:w-[190px] sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
+      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[190px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-4"
     >
-      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto sm:h-full sm:max-h-none sm:pr-2">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none @min-[720px]/provider:pr-2">
         {loading ? (
-          <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div role="status" aria-label={t("common.loading")} className="flex min-h-[180px] items-center justify-center text-(--text-soft)">
+            <Loader2
+              aria-hidden="true"
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-1 py-2 sm:block sm:space-y-1">
-            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 sm:block sm:space-y-1">
-              <button
-                className={cn(
-                  "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                  isCreating && draftPresetKey === "custom"
-                    ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                )}
+          <div className="grid grid-cols-2 gap-1 py-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
+            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
+              <SettingsNavigationButton
+                active={isCreating && draftPresetKey === "custom"}
                 onClick={() => onCreateFromPreset("custom")}
-                type="button"
+                size="lg"
               >
-                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-(--surface-interactive-active-border) text-primary">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center radius-control-md border border-dashed border-(--surface-interactive-active-border) text-primary">
                   <Plus className="h-3.5 w-3.5" />
                 </span>
                 <span className="min-w-0 flex-1 truncate">{t("settings.providers.custom_provider")}</span>
-              </button>
+              </SettingsNavigationButton>
 
               {showCCSwitchImport ? (
-                <button
-                  className="flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                <SettingsNavigationButton
                   onClick={onOpenCCSwitchImport}
-                  type="button"
+                  size="lg"
                 >
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-muted-background) text-(--icon-muted)">
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center radius-control-md border border-(--divider-subtle-color) bg-(--surface-muted-background) text-(--icon-muted)">
                     <ArrowDownToLine className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{t("settings.providers.ccswitch_action")}</span>
-                </button>
+                </SettingsNavigationButton>
               ) : null}
             </div>
 
@@ -108,15 +110,8 @@ export function ProviderSettingsSidebar({
                 : isCreating && draftPresetKey === preset.preset_key;
               const isUnsupportedPreset = !presetIsConfigurable(preset);
               return (
-                <button
-                  className={cn(
-                    "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                    isUnsupportedPreset
-                      ? "cursor-not-allowed text-(--text-soft) opacity-50"
-                      : isActive
-                      ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                      : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                  )}
+                <SettingsNavigationButton
+                  active={isActive}
                   disabled={isUnsupportedPreset}
                   key={preset.preset_key}
                   onClick={() => {
@@ -129,20 +124,20 @@ export function ProviderSettingsSidebar({
                       onCreateFromPreset(preset.preset_key);
                     }
                   }}
-                  type="button"
+                  size="lg"
                 >
                   <ProviderIcon
                     active={!isUnsupportedPreset && providerHasActiveConfig(item)}
                     name={preset.display_name}
                     presetKey={preset.preset_key}
                   />
-                  <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
+                  <UiTooltip label={preset.display_name}><span className="min-w-0 flex-1 truncate" >{preset.display_name}</span></UiTooltip>
                   {isUnsupportedPreset ? (
-                    <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-semibold text-(--text-soft)">
+                    <UiBadge shape="pill" size="xs" tone="idle">
                       {t("settings.providers.unsupported_badge")}
-                    </span>
+                    </UiBadge>
                   ) : null}
-                </button>
+                </SettingsNavigationButton>
               );
             })}
 
@@ -151,33 +146,26 @@ export function ProviderSettingsSidebar({
               const canShowDelete = isCustomProviderRecord(item) && item.can_manage;
               return (
                 <div
-                  className={cn(
-                    "group flex min-h-10 w-full items-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
-                    isActive
-                      ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                      : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-                  )}
+                  className="group/item relative min-w-0"
                   key={item.provider}
                 >
-                  <button
-                    className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-sm font-semibold"
+                  <SettingsNavigationButton
+                    active={isActive}
+                    className={canShowDelete ? "pr-9" : undefined}
                     onClick={() => onSelectProvider(item.provider)}
-                    type="button"
+                    size="lg"
                   >
                     <ProviderIcon
                       active={providerHasActiveConfig(item)}
                       name={getProviderTitle(item)}
                       presetKey={item.preset_key}
                     />
-                    <span className="min-w-0 flex-1 truncate">{getProviderTitle(item)}</span>
-                  </button>
+                    <UiTooltip label={getProviderTitle(item)}><span className="min-w-0 flex-1 truncate" >{getProviderTitle(item)}</span></UiTooltip>
+                  </SettingsNavigationButton>
                   {canShowDelete ? (
-                    <UiIconButton
+                    <UiListActionButton
                       aria-label={t("settings.providers.delete_aria", { name: getProviderTitle(item) })}
-                      className={cn(
-                        "mr-1 h-7 w-7 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-                        isActive ? "opacity-100" : "opacity-0",
-                      )}
+                      className="absolute right-1 top-1/2 -translate-y-1/2"
                       disabled={pendingAction !== null}
                       onClick={() => onRequestDeleteProvider(item)}
                       size="xs"
@@ -186,10 +174,10 @@ export function ProviderSettingsSidebar({
                         : t("settings.providers.delete_provider")}
                       tone={item.usage_count > 0 ? undefined : "danger"}
                       type="button"
-                      variant="ghost"
+                      visibility={isActive ? "visible" : "hover"}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                    </UiIconButton>
+                    </UiListActionButton>
                   ) : null}
                 </div>
               );

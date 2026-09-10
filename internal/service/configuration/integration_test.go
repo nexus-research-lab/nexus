@@ -4,51 +4,25 @@
 package configuration_test
 
 import (
+	"context"
 	"encoding/json"
-	"path/filepath"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/app/server"
-	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/storage"
-	"github.com/pressly/goose/v3"
 )
 
 func TestConfigurationControlPlaneAppliesAndVerifiesPreferenceChange(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, "state"))
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, "config"))
-	cfg := config.Config{
-		DatabaseDriver:  "sqlite",
-		DatabaseURL:     filepath.Join(root, "nexus.db"),
-		DefaultAgentID:  "nexus",
-		WorkspacePath:   filepath.Join(root, "workspace"),
-		DefaultTimezone: "Asia/Shanghai",
-	}
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
-		t.Fatal(err)
-	}
-	services := server.NewAppServicesWithDB(cfg, db, nil)
-	enableConfigurationTestPrincipalVerification(services)
-	if err = services.Core.Agent.EnsureReady(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	mainAgent, err := services.Core.Agent.GetDefaultAgent(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newScopedConfigurationFixture(t)
+	services, mainAgent := fixture.services, fixture.main
+	db := services.DB
 	actor := configurationsvc.Actor{
 		OwnerUserID: mainAgent.OwnerUserID, AgentID: mainAgent.AgentID, IsMainAgent: true,
 		SessionKey: "agent:nexus:ws:dm:main", ContextKind: configurationsvc.ContextKindAgent,
@@ -293,4 +267,266 @@ func hasConfigurationCheck(checks []configurationsvc.Check, code string) bool {
 		}
 	}
 	return false
+}
+
+type configurationTestPrincipalVerifier struct{}
+
+func (configurationTestPrincipalVerifier) VerifyInteractiveHuman(
+	_ context.Context,
+	principal *authctx.Principal,
+) (*authctx.Principal, error) {
+	if principal == nil {
+		return nil, fmt.Errorf("missing test principal")
+	}
+	copyPrincipal := *principal
+	return &copyPrincipal, nil
+}
+
+func (configurationTestPrincipalVerifier) AcquireBoundInteractiveHumanLease(
+	ctx context.Context,
+	userID string,
+	authMethod string,
+	sessionID string,
+) (*authctx.Principal, func(), error) {
+	principal := authctx.PrincipalFromContext(ctx)
+	if principal == nil {
+		principal = &authctx.Principal{
+			UserID: userID, Role: authctx.RoleOwner, AuthMethod: authMethod,
+		}
+		if strings.TrimSpace(sessionID) != "" {
+			value := strings.TrimSpace(sessionID)
+			principal.SessionID = &value
+		}
+	}
+	actualSessionID := ""
+	if principal.SessionID != nil {
+		actualSessionID = strings.TrimSpace(*principal.SessionID)
+	}
+	if principal.UserID != userID ||
+		principal.AuthMethod != authMethod ||
+		actualSessionID != strings.TrimSpace(sessionID) {
+		return nil, nil, fmt.Errorf("test principal lease binding mismatch")
+	}
+	copyPrincipal := *principal
+	return &copyPrincipal, func() {}, nil
+}
+
+func (configurationTestPrincipalVerifier) ResolveActivePrincipalRole(
+	_ context.Context,
+	_ string,
+) (string, error) {
+	return authctx.RoleOwner, nil
+}
+
+func enableConfigurationTestPrincipalVerification(services *app.AppServices) {
+	verifier := configurationTestPrincipalVerifier{}
+	services.Configuration.SetPrincipalVerifiers(verifier, verifier)
+}
+
+func bindConfigurationTestRound(
+	t *testing.T,
+	services *app.AppServices,
+	actor *configurationsvc.Actor,
+) {
+	t.Helper()
+	if actor == nil {
+		t.Fatal("nil configuration actor")
+	}
+	if strings.TrimSpace(actor.SessionKey) == "" {
+		t.Fatal("configuration test actor requires session key")
+	}
+	switch actor.ContextKind {
+	case configurationsvc.ContextKindRoom:
+		roomID := strings.TrimSpace(actor.RoomID)
+		if roomID == "" {
+			roomID = strings.TrimSpace(actor.ContextID)
+		}
+		actor.SourceContext = configurationsvc.ContextKindRoom + ":" + roomID
+	case configurationsvc.ContextKindAgent:
+		actor.SourceContext = configurationsvc.ContextKindAgent + ":" + strings.TrimSpace(actor.AgentID)
+	}
+	actor.RoundID = "round-" + strings.NewReplacer(":", "-", "/", "-").Replace(actor.SessionKey)
+	if strings.TrimSpace(actor.LeaseSessionKey) == "" {
+		actor.LeaseSessionKey = actor.SessionKey
+	}
+	if actor.ContextKind == configurationsvc.ContextKindRoom {
+		actor.LeaseRoundID = "agent-" + actor.RoundID
+	} else {
+		actor.LeaseRoundID = actor.RoundID
+	}
+	actor.RoundLeaseRequired = true
+	if err := services.Runtime.StartRound(
+		t.Context(),
+		actor.LeaseSessionKey,
+		actor.LeaseRoundID,
+		nil,
+	); err != nil {
+		t.Fatalf("start configuration test round %s: %v", actor.LeaseRoundID, err)
+	}
+	t.Cleanup(func() {
+		services.Runtime.MarkRoundFinished(actor.LeaseSessionKey, actor.LeaseRoundID)
+	})
+}
+
+func approveConfigurationTestChange(
+	t *testing.T,
+	services *app.AppServices,
+	ctx context.Context,
+	actor configurationsvc.Actor,
+	request configurationsvc.ChangeRequest,
+	plan *configurationsvc.ChangePlan,
+) {
+	approveConfigurationTestChangeWithSecrets(
+		t,
+		services,
+		ctx,
+		actor,
+		request,
+		plan,
+		nil,
+	)
+}
+
+func approveConfigurationTestChangeWithSecrets(
+	t *testing.T,
+	services *app.AppServices,
+	ctx context.Context,
+	actor configurationsvc.Actor,
+	request configurationsvc.ChangeRequest,
+	plan *configurationsvc.ChangePlan,
+	secrets map[string]string,
+) {
+	t.Helper()
+	if plan == nil || !plan.RequiresConfirmation {
+		return
+	}
+	if authctx.PrincipalFromContext(ctx) == nil {
+		role := strings.TrimSpace(actor.PrincipalRole)
+		if role == "" {
+			role = authctx.RoleOwner
+		}
+		authMethod := strings.TrimSpace(actor.AuthMethod)
+		if authMethod == "" {
+			authMethod = authctx.AuthMethodLocal
+		}
+		ctx = authctx.WithPrincipal(ctx, &authctx.Principal{
+			UserID: actor.OwnerUserID, Username: actor.AgentID,
+			Role: role, AuthMethod: authMethod,
+		})
+	}
+	var input any = map[string]any{}
+	if len(request.Input) > 0 {
+		if err := json.Unmarshal(request.Input, &input); err != nil {
+			t.Fatalf("decode configuration approval input: %v", err)
+		}
+	}
+	toolInput := map[string]any{
+		"request_id":        request.RequestID,
+		"domain":            request.Domain,
+		"operation":         request.Operation,
+		"target":            request.Target,
+		"input":             input,
+		"expected_revision": request.ExpectedRevision,
+		"plan_digest":       request.PlanDigest,
+	}
+	route := permissionctx.RouteContext{
+		DispatchSessionKey: actor.SessionKey,
+		AgentID:            actor.AgentID,
+		RoundID:            actor.RoundID,
+		AgentRoundID:       actor.LeaseRoundID,
+		RoomID:             actor.RoomID,
+		ConversationID:     actor.ConversationID,
+	}
+	if err := services.Configuration.RecordHumanToolApproval(
+		ctx,
+		permissionctx.HumanToolApproval{
+			PermissionRequestID:      "perm-" + request.RequestID,
+			ToolName:                 "mcp__nexus_config__apply_nexus_configuration_change",
+			ToolInput:                toolInput,
+			ConfigurationSecrets:     secrets,
+			ConfigurationSecretSlots: plan.SecretSlots,
+			RuntimeSessionKey:        actor.LeaseSessionKey,
+			DispatchSessionKey:       actor.SessionKey,
+			Route:                    route,
+			ExpiresAt:                time.Now().Add(time.Minute),
+		},
+	); err != nil {
+		t.Fatalf("record configuration human approval: %v", err)
+	}
+}
+
+type fixedConfigurationRoleResolver struct {
+	role string
+}
+
+func (r fixedConfigurationRoleResolver) ResolveActivePrincipalRole(context.Context, string) (string, error) {
+	return r.role, nil
+}
+
+func TestMemberMainAuditListingExcludesHostConfiguration(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	db, err := storage.OpenDB(fixture.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	for _, record := range []struct {
+		requestID string
+		domain    string
+	}{
+		{requestID: "audit-host-boundary", domain: configurationsvc.DomainHost},
+		{requestID: "audit-private-boundary", domain: configurationsvc.DomainPreferences},
+	} {
+		if _, err = db.ExecContext(
+			t.Context(),
+			`INSERT INTO configuration_changes (
+				request_id, owner_user_id, actor_agent_id, domain, operation,
+				scope_kind, scope_id, authority, status
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			record.requestID,
+			fixture.main.OwnerUserID,
+			fixture.main.AgentID,
+			record.domain,
+			"inspect",
+			configurationsvc.ScopeKindOwner,
+			fixture.main.OwnerUserID,
+			configurationsvc.AuthorityOwnerMain,
+			"success",
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	fixture.services.Configuration.SetPrincipalVerifiers(
+		configurationTestPrincipalVerifier{},
+		fixedConfigurationRoleResolver{role: authctx.RoleMember},
+	)
+	memberCtx := authctx.WithPrincipal(t.Context(), &authctx.Principal{
+		UserID: fixture.main.OwnerUserID, Role: authctx.RoleMember,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+	actor := configurationsvc.Actor{
+		OwnerUserID: fixture.main.OwnerUserID,
+		AgentID:     fixture.main.AgentID,
+		SessionKey:  "agent:" + fixture.main.AgentID + ":ws:dm:audit-boundary",
+		ContextKind: configurationsvc.ContextKindAgent,
+		ContextID:   fixture.main.AgentID,
+	}
+	records, err := fixture.services.Configuration.ListChanges(memberCtx, actor, "", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.Domain == configurationsvc.DomainHost {
+			t.Fatalf("member main Agent received host audit record: %+v", record)
+		}
+	}
+	if _, err = fixture.services.Configuration.ListChanges(
+		memberCtx,
+		actor,
+		configurationsvc.DomainHost,
+		20,
+	); err == nil {
+		t.Fatal("member main Agent explicitly read host audit history")
+	}
 }

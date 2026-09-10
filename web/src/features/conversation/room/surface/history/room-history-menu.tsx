@@ -1,26 +1,31 @@
 /**
  * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
- * OUTPUT: 带固定高度列表、批量操作，以及未确认删除项 Problem/Impact/Recovery 的历史菜单。
+ * OUTPUT: 固定标题/操作区与多选；按 owner/Room 隔离临时状态，写入防重并锁住未确认条目的后续修改。
  * POS: Room Header 历史交互层；只按命令结果展示恢复事实，不猜测底层提交状态。
  */
 
 "use client";
 
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
-  Check,
   ChevronDown,
   History,
   Loader2,
-  Minus,
 } from "lucide-react";
 
+import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiListSectionDivider } from "@/shared/ui/list/list-section-divider";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
@@ -34,7 +39,11 @@ import {
 
 import { deleteRoomHistoryConversationBatch } from "./room-history-bulk-delete";
 import { RoomHistoryItem } from "./room-history-item";
-import { buildRoomHistoryEntries } from "./room-history-model";
+import {
+  buildRoomHistoryEntries,
+  groupRoomHistoryEntries,
+  type RoomHistoryEntry,
+} from "./room-history-model";
 import {
   getRoomHistorySelectionState,
   useRoomHistorySelection,
@@ -51,10 +60,6 @@ interface RoomHistoryMenuProps {
   triggerVariant?: "history" | "session";
 }
 
-const HISTORY_MENU_HEIGHT = 280;
-const HISTORY_MENU_MIN_WIDTH = 330;
-const HISTORY_MENU_MIN_HEIGHT = 190;
-
 interface PendingRoomHistoryBulkDelete {
   clearsHistory: boolean;
   conversationIds: string[];
@@ -65,7 +70,13 @@ interface RoomHistoryBulkDeleteFailure {
   totalCount: number;
 }
 
-export function RoomHistoryMenu({
+export function RoomHistoryMenu(props: RoomHistoryMenuProps) {
+  const owner = useSyncExternalStore(subscribeAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration, captureAuthOwnerScopeGeneration);
+  const roomId = props.conversations[0]?.room_id ?? null;
+  return <RoomHistoryMenuContent key={JSON.stringify([owner, roomId])} {...props} />;
+}
+
+function RoomHistoryMenuContent({
   canManageConversations = true,
   conversationId,
   conversations,
@@ -76,6 +87,15 @@ export function RoomHistoryMenu({
   triggerVariant = "history",
 }: RoomHistoryMenuProps) {
   const { t } = useI18n();
+  const mounted = useRef(true);
+  const writing = useRef(false);
+
+  const [uncertainIds, setUncertainIds] = useState<Set<string>>(() => new Set());
+  const [mutationFailed, setMutationFailed] = useState(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<RoomConversationView | null>(null);
   const [
     pendingBulkDelete,
@@ -88,12 +108,19 @@ export function RoomHistoryMenu({
     canUpdateConversationTitle: onUpdateConversationTitle !== undefined,
     conversations,
     currentConversationId: conversationId,
-  }), [
+  }).map((entry) => ({
+    ...entry,
+    canDelete: entry.canDelete && !uncertainIds.has(entry.conversation.conversation_id),
+    canBulkDelete: entry.canBulkDelete && !uncertainIds.has(entry.conversation.conversation_id),
+    canRename: entry.canRename && !uncertainIds.has(entry.conversation.conversation_id),
+  })), [
+    uncertainIds,
     canManageConversations,
     conversationId,
     conversations,
     onUpdateConversationTitle,
   ]);
+  const entryGroups = useMemo(() => groupRoomHistoryEntries(entries), [entries]);
   const {
     clearSelection,
     hasSelectableEntries,
@@ -109,13 +136,10 @@ export function RoomHistoryMenu({
     entries,
   );
   const estimatePosition = useCallback((button: HTMLButtonElement) => (
-    resolveAnchoredOverlayPosition({
+    resolveUiAnchoredOverlayPosition({
       anchor: button,
-      estimatedHeight: HISTORY_MENU_HEIGHT,
-      maxHeight: HISTORY_MENU_HEIGHT,
-      minHeight: HISTORY_MENU_MIN_HEIGHT,
-      minWidth: HISTORY_MENU_MIN_WIDTH,
       placement: "auto",
+      preset: "directory-list",
     })
   ), []);
   const {
@@ -133,7 +157,12 @@ export function RoomHistoryMenu({
     disabled: isBulkDeleting,
     estimatePosition,
   });
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
   const historyTitleId = `${menuId}-title`;
+  const triggerLabel = isBulkDeleting
+    ? t("room.history_batch_deleting")
+    : t("room.history");
 
   useEffect(() => {
     if (!isOpen) {
@@ -152,7 +181,7 @@ export function RoomHistoryMenu({
   }, [closeMenu]);
   const requestBulkDelete = useCallback(() => {
     const conversationIds = entries
-      .filter((entry) => selectedIds.has(entry.conversation.conversation_id))
+      .filter((entry) => entry.canBulkDelete && selectedIds.has(entry.conversation.conversation_id))
       .map((entry) => entry.conversation.conversation_id);
     if (conversationIds.length === 0) {
       return;
@@ -174,6 +203,7 @@ export function RoomHistoryMenu({
     toggleMenu,
   ]);
   const confirmBulkDelete = useCallback(async () => {
+    if (writing.current) return;
     const pendingDelete = pendingBulkDelete;
     const conversationIds = pendingDelete?.conversationIds ?? [];
     setPendingBulkDelete(null);
@@ -182,6 +212,7 @@ export function RoomHistoryMenu({
       return;
     }
 
+    writing.current = true;
     setIsBulkDeleting(true);
     const {
       failedConversationIds,
@@ -196,11 +227,14 @@ export function RoomHistoryMenu({
           : undefined,
       },
     );
+    writing.current = false;
+    if (!mounted.current) return;
     setIsBulkDeleting(false);
     if (replacementConversationId) {
       onSelectConversation(replacementConversationId);
     }
     if (failedConversationIds.length > 0) {
+      setUncertainIds((current) => new Set([...current, ...failedConversationIds]));
       setBulkDeleteFailure({
         failedCount: failedConversationIds.length,
         totalCount: conversationIds.length,
@@ -225,35 +259,63 @@ export function RoomHistoryMenu({
     }
     startSelection();
   }, [clearSelection, isSelecting, startSelection]);
+  const runItemMutation = async (id: string, command: () => Promise<unknown>) => {
+    if (writing.current || uncertainIds.has(id)) return;
+    writing.current = true;
+    try {
+      await command();
+    } catch {
+      if (mounted.current) {
+        setUncertainIds((current) => new Set([...current, id]));
+        setMutationFailed(true);
+        if (!isOpenRef.current) toggleMenu();
+      }
+    } finally {
+      writing.current = false;
+    }
+  };
+
+  const renderHistoryEntry = (entry: RoomHistoryEntry) => (
+    <RoomHistoryItem
+      entry={entry}
+      isSelected={selectedIds.has(entry.conversation.conversation_id)}
+      isSelecting={isSelecting}
+      key={entry.conversation.conversation_id}
+      onDelete={() => requestDelete(entry.conversation)}
+      onRename={(title) => {
+        const id = entry.conversation.conversation_id;
+        void runItemMutation(id, () => onUpdateConversationTitle?.(id, title) ?? Promise.resolve());
+      }}
+      onSelect={() => selectConversation(entry.conversation.conversation_id)}
+      onToggleSelection={() => toggleSelection(
+        entry.conversation.conversation_id,
+      )}
+    />
+  );
 
   return (
     <>
-      <button
+      <UiIconButton
         aria-controls={isOpen ? menuId : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        aria-label={isBulkDeleting
-          ? t("room.history_batch_deleting")
-          : t("room.history")}
+        aria-label={triggerLabel}
         className={cn(
-          "inline-flex shrink-0 items-center justify-center bg-transparent text-(--icon-default) transition-[background-color,color] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
           triggerVariant === "session"
-            ? "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-history h-8 w-8 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]"
-            : "workspace-surface-header-control-segment workspace-surface-history-trigger h-9 w-9 rounded-[8px] focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-          isOpen && "text-(--text-strong)",
+            ? "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-history focus-visible:z-10"
+            : "workspace-surface-header-control-segment workspace-surface-history-trigger",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
         disabled={isBulkDeleting}
         onClick={toggleMenu}
         onKeyDown={handleTriggerKeyDown}
         ref={buttonRef}
-        title={isBulkDeleting
-          ? t("room.history_batch_deleting")
-          : t("room.history")}
-        type="button"
+        size={triggerVariant === "session" ? "md" : "lg"}
+        tooltip={triggerLabel}
+        variant="ghost"
       >
         {isBulkDeleting ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+          <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
         ) : triggerVariant === "session" ? (
           <ChevronDown
             className={cn(
@@ -264,14 +326,14 @@ export function RoomHistoryMenu({
         ) : (
           <History className="h-3.5 w-3.5 shrink-0" />
         )}
-      </button>
+      </UiIconButton>
 
       {isOpen && portalContainer ? createPortal(
         <div
           ref={menuRef}
           aria-labelledby={historyTitleId}
           className={cn(
-            "fixed z-[130] flex flex-col overflow-hidden",
+            "fixed ui-layer-action-menu flex flex-col overflow-hidden",
             OVERLAY_SURFACE_CLASS_NAME,
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
           )}
@@ -286,7 +348,7 @@ export function RoomHistoryMenu({
         >
           <header className="flex shrink-0 items-center border-b border-(--divider-subtle-color) px-3.5 py-2.5">
             <h2
-              className="truncate text-compact font-semibold text-(--text-strong)"
+              className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "semibold" })}
               id={historyTitleId}
             >
               {t("room.history")}
@@ -295,60 +357,29 @@ export function RoomHistoryMenu({
 
           {isSelecting ? (
             <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <button
-                  aria-checked={selectionState === "mixed"
-                    ? "mixed"
-                    : selectionState === "all"}
-                  className="inline-flex h-6 min-w-0 items-center gap-2 rounded-[7px] px-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                  disabled={!hasSelectableEntries}
-                  onClick={toggleAllSelection}
-                  role="checkbox"
-                  type="button"
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <label
+                  className={cn(
+                    "inline-flex min-h-8 min-w-0 items-center gap-2 px-1.5",
+                    getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }),
+                    hasSelectableEntries ? "cursor-pointer" : "cursor-not-allowed opacity-(--disabled-opacity)",
+                  )}
                 >
-                  <span className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border transition-colors",
-                    selectionState === "none"
-                      ? "border-(--input-shell-border) bg-transparent"
-                      : "border-(--primary) bg-(--primary) text-white",
-                  )}>
-                    {selectionState === "all" ? (
-                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
-                    ) : selectionState === "mixed" ? (
-                      <Minus className="h-2.5 w-2.5" strokeWidth={3} />
-                    ) : null}
-                  </span>
+                  <UiCheckbox
+                    checked={selectionState === "all"}
+                    checkboxSize="small"
+                    disabled={!hasSelectableEntries}
+                    indeterminate={selectionState === "mixed"}
+                    onChange={toggleAllSelection}
+                  />
                   <span className="truncate">{t("room.history_select_all")}</span>
-                </button>
-                <span className="shrink-0 text-2xs text-(--text-soft)">
+                </label>
+                <span className={cn("shrink-0", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                   {t("room.history_selection_count", {
                     count: selectedIds.size,
                   })}
                 </span>
               </div>
-              {bulkDeleteFailure ? (
-                <div
-                  aria-atomic="true"
-                  aria-live="polite"
-                  className="space-y-0.5 px-1.5 pt-1 text-2xs leading-4"
-                  role="status"
-                >
-                  <p className="font-medium text-(--destructive)">
-                    {t("room.history_batch_delete_failed", {
-                      count: bulkDeleteFailure.failedCount,
-                    })}
-                  </p>
-                  <p className="text-(--text-muted)">
-                    {t("room.history_batch_delete_impact", {
-                      completed: bulkDeleteFailure.totalCount - bulkDeleteFailure.failedCount,
-                      pending: bulkDeleteFailure.failedCount,
-                    })}
-                  </p>
-                  <p className="font-medium text-(--text-default)">
-                    {t("room.history_batch_delete_next_step")}
-                  </p>
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -356,34 +387,45 @@ export function RoomHistoryMenu({
             className="soft-scrollbar min-h-0 flex-1 overflow-auto overscroll-contain p-1.5"
             data-room-history-scroll-viewport
           >
+            {mutationFailed ? (
+              <UiInlineNotice className="mb-2" tone="warning" message={t("room.history_mutation_unconfirmed")} />
+            ) : null}
+            {isSelecting && bulkDeleteFailure ? (
+              <UiInlineNotice
+                className="mb-2"
+                message={<>
+                  <p>{t("room.history_batch_delete_impact", {
+                    completed: bulkDeleteFailure.totalCount - bulkDeleteFailure.failedCount,
+                    pending: bulkDeleteFailure.failedCount,
+                  })}</p>
+                  <p className="mt-1">{t("room.history_batch_delete_next_step")}</p>
+                </>}
+                title={t("room.history_batch_delete_failed", { count: bulkDeleteFailure.failedCount })}
+                tone="warning"
+              />
+            ) : null}
             {entries.length > 0 ? (
               <div
                 className="min-w-full space-y-1 pb-1"
                 data-room-history-scroll-content
               >
-                {entries.map((entry) => (
-                  <RoomHistoryItem
-                    entry={entry}
-                    isSelected={selectedIds.has(entry.conversation.conversation_id)}
-                    isSelecting={isSelecting}
-                    key={entry.conversation.conversation_id}
-                    onDelete={() => requestDelete(entry.conversation)}
-                    onRename={(title) => {
-                      void onUpdateConversationTitle?.(
-                        entry.conversation.conversation_id,
-                        title,
-                      );
-                    }}
-                    onSelect={() => selectConversation(entry.conversation.conversation_id)}
-                    onToggleSelection={() => toggleSelection(
-                      entry.conversation.conversation_id,
-                    )}
-                  />
-                ))}
+                {entryGroups.history.length > 0 ? (
+                  <div className="space-y-1" data-room-history-section="history">
+                    {entryGroups.history.map(renderHistoryEntry)}
+                  </div>
+                ) : null}
+                {entryGroups.im.length > 0 ? (
+                  <>
+                    <UiListSectionDivider aria-label="IM" label="IM" />
+                    <div className="space-y-1" data-room-history-section="im">
+                      {entryGroups.im.map(renderHistoryEntry)}
+                    </div>
+                  </>
+                ) : null}
               </div>
             ) : (
-              <div className="flex h-full min-h-[150px] items-center justify-center px-5 py-8 text-center">
-                <p className="text-sm text-(--text-soft)">
+              <div className="flex h-full items-center justify-center px-5 py-6 text-center">
+                <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })} role="status">
                   {t("room.no_conversations")}
                 </p>
               </div>
@@ -391,29 +433,32 @@ export function RoomHistoryMenu({
           </div>
 
           {hasSelectableEntries || isSelecting ? (
-            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
+            <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
               {hasSelectableEntries ? (
-                <button
-                  className="inline-flex h-7 shrink-0 items-center rounded-[7px] px-1.5 text-xs font-medium text-(--text-soft) outline-none transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:ring-1 focus-visible:ring-[color:color-mix(in_srgb,var(--text-default)_20%,transparent)]"
+                <UiButton
+                  className="shrink-0"
                   onClick={toggleSelectionMode}
-                  type="button"
+                  size="sm"
+                  variant="text"
                 >
                   {isSelecting
                     ? t("room.history_cancel_selection")
                     : t("room.history_select")}
-                </button>
+                </UiButton>
               ) : <span />}
               {isSelecting ? (
-                <button
-                  className="inline-flex h-7 shrink-0 items-center rounded-[8px] px-2 text-xs font-semibold text-(--destructive) transition-colors hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                  disabled={selectedIds.size === 0}
+                <UiButton
+                  className="shrink-0"
+                  disabled={selectedIds.size === 0 || !entries.some((entry) => entry.canBulkDelete && selectedIds.has(entry.conversation.conversation_id))}
                   onClick={requestBulkDelete}
-                  type="button"
+                  size="sm"
+                  tone="danger"
+                  variant="text"
                 >
                   {selectionState === "all"
                     ? t("room.history_clear")
                     : t("room.history_batch_delete")}
-                </button>
+                </UiButton>
               ) : <span />}
             </footer>
           ) : null}
@@ -440,7 +485,7 @@ export function RoomHistoryMenu({
           const target = pendingDeleteConversation;
           setPendingDeleteConversation(null);
           if (target) {
-            void onDeleteConversation(target.conversation_id);
+            void runItemMutation(target.conversation_id, () => onDeleteConversation(target.conversation_id));
           }
         }}
         title={t("room.delete_conversation_title")}

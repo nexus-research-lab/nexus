@@ -1,5 +1,5 @@
 /**
- * INPUT: 配对协议对象、Agent 目录、筛选与创建草稿。
+ * INPUT: 配对协议对象、当前 Agent 目录/语言、筛选与创建草稿。
  * OUTPUT: 配对分组、计数、搜索值、友好名称与技术绑定键。
  * POS: 配对目录的唯一纯展示与载荷模型。
  */
@@ -11,6 +11,9 @@ import type {
   PairingView,
 } from "@/lib/api/capability/channel-api";
 import type { Agent } from "@/types/agent/agent";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 import {
   CHANNEL_LABELS,
@@ -85,8 +88,9 @@ export function buildCreatePairingPayload(
 export function filterPairings(
   items: PairingView[],
   filters: PairingFilters,
+  labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS },
 ): PairingView[] {
-  const normalizedQuery = filters.query.trim().toLowerCase();
+  const search = createUiSearchMatcher(filters.query);
   return items.filter((item) => {
     if (filters.agentId && item.agent_id !== filters.agentId) {
       return false;
@@ -97,15 +101,14 @@ export function filterPairings(
     if (!matchesStatusFilter(item.status, filters.status)) {
       return false;
     }
-    return !normalizedQuery || pairingSearchValues(item).some(
-      (value) => value.toLowerCase().includes(normalizedQuery),
-    );
+    return search.matches(pairingSearchValues(item, labels));
   });
 }
 
 export function groupPairings(
   items: PairingView[],
   agents: Agent[],
+  localization: Pick<I18nContextValue, "locale" | "t">,
 ): PairingGroup[] {
   const agentNames = new Map(agents.map((agent) => [agent.agent_id, agent.name]));
   const groups = new Map<string, PairingGroup>();
@@ -117,12 +120,12 @@ export function groupPairings(
     }
     groups.set(item.agent_id, {
       agent_id: item.agent_id,
-      agent_name: item.agent_name || agentNames.get(item.agent_id) || item.agent_id,
+      agent_name: getAgentDisplayName(agentNames.get(item.agent_id)?.trim() || item.agent_name, localization.t),
       items: [item],
     });
   });
   return Array.from(groups.values()).sort(
-    (left, right) => left.agent_name.localeCompare(right.agent_name),
+    (left, right) => left.agent_name.localeCompare(right.agent_name, localization.locale),
   );
 }
 
@@ -145,13 +148,13 @@ export function countPairingStatuses(
   };
 }
 
-export function pairingDisplayName(item: PairingView): string {
+export function pairingDisplayName(item: PairingView, labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS }): string {
   const name = item.external_name?.trim();
   if (name && name !== item.external_ref.trim()) {
     return name;
   }
-  const channel = CHANNEL_LABELS[item.channel_type] ?? item.channel_type;
-  const chatType = CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type;
+  const channel = labels.channels[item.channel_type] ?? item.channel_type;
+  const chatType = labels.chatTypes[item.chat_type] ?? item.chat_type;
   return `${channel}${chatType}`;
 }
 
@@ -160,11 +163,11 @@ export function pairingTarget(item: PairingView): string {
   return `${item.external_ref}${thread}`;
 }
 
-export function pairingBindingKey(item: PairingView): string {
+export function pairingBindingKey(item: PairingView, labels = { channels: CHANNEL_LABELS, chatTypes: CHAT_TYPE_LABELS }): string {
   return [
-    CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
+    labels.channels[item.channel_type] ?? item.channel_type,
     item.account_id || "default",
-    CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type,
+    labels.chatTypes[item.chat_type] ?? item.chat_type,
     item.external_ref,
     item.thread_id || "-",
   ].join(" / ");
@@ -174,7 +177,7 @@ export function pairingSessionKey(item: PairingView): string {
   return item.session_key || "";
 }
 
-function pairingSearchValues(item: PairingView): string[] {
+function pairingSearchValues(item: PairingView, labels: { channels: typeof CHANNEL_LABELS; chatTypes: typeof CHAT_TYPE_LABELS }): string[] {
   return [
     item.external_name ?? "",
     item.external_ref,
@@ -182,6 +185,10 @@ function pairingSearchValues(item: PairingView): string[] {
     item.thread_id ?? "",
     pairingSessionKey(item),
     item.agent_name ?? "",
+    item.channel_type,
+    labels.channels[item.channel_type],
+    labels.chatTypes[item.chat_type],
+    pairingDisplayName(item, labels),
     CHANNEL_LABELS[item.channel_type] ?? item.channel_type,
   ];
 }

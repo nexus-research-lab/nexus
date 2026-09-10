@@ -1,19 +1,5 @@
-import type { CapabilitySummary } from "@/lib/api/capability/summary-api";
-
-export const EMPTY_CAPABILITY_SUMMARY: CapabilitySummary = {
-  active_pairings_count: 0,
-  configured_channels_count: 0,
-  connected_channels_count: 0,
-  connected_connectors_count: 0,
-  enabled_scheduled_tasks_count: 0,
-  loops_count: 0,
-  workgraph_distillations_count: 0,
-  skills_count: 0,
-};
-
 export interface CapabilitySummaryRefreshOptions {
   force?: boolean;
-  resetOnError?: boolean;
 }
 
 export interface CapabilitySummaryRefreshRuntime {

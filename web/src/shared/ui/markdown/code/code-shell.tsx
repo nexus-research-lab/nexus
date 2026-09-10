@@ -1,15 +1,11 @@
-/**
- * =====================================================
- * @File   : code-shell.tsx
- * @Date   : 2026-04-05 15:08
- * @Author : leemysw
- * 2026-04-05 15:08   Create
- * =====================================================
- */
-
+// INPUT: 代码语言、非交互标签与可选操作槽。
+// OUTPUT: 本地化代码组与统一操作层，键盘直接进入实际按钮。
+// POS: 静态/流式代码共用外壳，不管理复制或代码渲染。
 "use client";
 
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
+
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { cn } from "@/shared/ui/class-name";
 
@@ -24,11 +20,12 @@ interface CodeShellProps {
 /** 中文注释：代码块壳层只在消息区复用，直接收进组件层，避免全局样式继续承担细节实现。 */
 export function CodeShell({
   language,
-  rightSlot: rightSlot,
-  contentClassName: contentClassName,
-  className: className,
+  rightSlot,
+  contentClassName,
+  className,
   children,
 }: CodeShellProps) {
+  const { t } = useI18n();
   const accessibleLanguage = language?.trim() || "text";
 
   return (
@@ -37,10 +34,8 @@ export function CodeShell({
         "content-code-shell group/copy relative",
         className,
       )}
-      aria-label={`${accessibleLanguage} code`}
+      aria-label={t("markdown.code.group", { language: accessibleLanguage })}
       role="group"
-      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 代码壳需要键盘聚焦以复现操作层的 focus-within 行为。
-      tabIndex={0}
     >
       {rightSlot ? (
         <div className="content-code-copy-layer">

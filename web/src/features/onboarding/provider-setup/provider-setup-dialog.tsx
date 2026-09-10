@@ -1,7 +1,7 @@
 /**
  * INPUT: Owner 作用域、Provider 精确 key/version、连接测试与默认偏好命令。
  * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及精简失败提示。
- * POS: 首次 Provider 配置编排边界；写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
+ * POS: 首次 Provider 配置编排边界；owner 标识只消费无副作用共享投影，写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
  */
 "use client";
 
@@ -25,7 +25,7 @@ import {
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
-import { resolveAuthOwnerScope } from "@/app/auth/auth-owner-scope";
+import { resolveAuthOwnerScope } from "@/shared/auth/auth-owner-identity";
 import { ProviderIcon } from "@/features/settings/provider-settings/components/provider-settings-icon";
 import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
@@ -51,6 +51,8 @@ import {
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
@@ -59,8 +61,12 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type {
   CCSwitchSyncResult,
@@ -161,6 +167,9 @@ export function ProviderSetupDialog({
   const [verifyPhase, setVerifyPhase] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const translationRef = useRef(t);
+  translationRef.current = t;
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<SetupFailureKind>("read");
   const [result, setResult] = useState<SetupResult | null>(null);
@@ -218,6 +227,7 @@ export function ProviderSetupDialog({
     const recoveredJournal = journalRead.journal;
     setScene("provider");
     setLoading(true);
+    busyRef.current = false;
     setBusy(false);
     setCCSwitchOpen(false);
     setError(null);
@@ -270,7 +280,7 @@ export function ProviderSetupDialog({
         });
         if (recoveredJournal.outcome === "unknown") {
           setErrorKind(failureKindForUnknownStage(recoveredJournal.stage));
-          setError(t(failureMessageKeyForUnknownStage(recoveredJournal.stage)));
+          setError(translationRef.current(failureMessageKeyForUnknownStage(recoveredJournal.stage)));
         }
         return;
       }
@@ -301,7 +311,7 @@ export function ProviderSetupDialog({
       if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
         void loadError;
         setErrorKind("read");
-        setError(t("onboarding.provider_setup_load_failed"));
+        setError(translationRef.current("onboarding.provider_setup_load_failed"));
       }
     }).finally(() => {
       if (!cancelled && isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
@@ -311,7 +321,7 @@ export function ProviderSetupDialog({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, ownerScope, runtimeKind, t]);
+  }, [isOpen, ownerScope, runtimeKind]);
 
   if (!isOpen) {
     return null;
@@ -366,7 +376,7 @@ export function ProviderSetupDialog({
     draft: ProviderConnectionDraft,
     failureScene: "credentials" | "custom",
   ) => {
-    if (busy) {
+    if (busyRef.current) {
       return;
     }
     const normalizedApiKey = draft.apiKey.trim();
@@ -398,6 +408,7 @@ export function ProviderSetupDialog({
       displayName: draft.displayName.trim(),
       modelID: normalizedModelID,
     };
+    busyRef.current = true;
     setBusy(true);
     setScene("verify");
     setError(null);
@@ -415,6 +426,7 @@ export function ProviderSetupDialog({
       })
       .finally(() => {
         if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) {
+          busyRef.current = false;
           setBusy(false);
         }
       });
@@ -1001,14 +1013,14 @@ export function ProviderSetupDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
-          className="z-[11050]"
+          layer="tourDialog"
           closeOnBackdrop={!busy}
           labelledBy={DIALOG_TITLE_ID}
           onClose={close}
         >
           <UiDialogShell
-            className="h-[min(620px,calc(100dvh-2rem))] !max-w-[620px]"
             size="lg"
+            viewport="compact"
           >
             <UiDialogHeader
               appearance="plain"
@@ -1327,67 +1339,77 @@ function ProviderScene({
       />
       <div className="soft-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <div className="flex min-h-40 items-center justify-center text-(--text-muted)">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
+          <UiResourceState
+            className="min-h-40"
+            size="sm"
+            state="loading"
+            title={t("common.loading")}
+            variant="plain"
+          />
         ) : null}
         {!loading && error ? (
           <ProviderSetupFailure kind={errorKind} />
         ) : null}
         {!loading && !error && presets.length === 0 ? (
-          <div className={getDialogNoteClassName("danger")} role="status">
-            {t("onboarding.provider_setup_provider_empty")}
-          </div>
+          <UiInlineNotice
+            message={t("onboarding.provider_setup_provider_empty")}
+            tone="danger"
+          />
         ) : null}
         {!loading && !error && presets.length > 0 ? (
-          <div className="border-y border-(--divider-subtle-color)">
+          <div className="space-y-0.5">
             {visiblePresets.map((item) => {
               const presetKey = item.preset.preset_key;
               const selected = presetKey === selectedPresetKey;
               const configured = Boolean(findManageablePresetProvider(providers, presetKey));
               return (
-                <button
+                <UiListRow
+                  active={selected}
                   aria-pressed={selected}
-                  className="group flex w-full items-center gap-3 border-b border-(--divider-subtle-color) px-1 py-2.5 text-left last:border-b-0"
+                  density="compact"
                   key={presetKey}
+                  leading={(
+                    <ProviderIcon
+                      name={item.preset.display_name}
+                      presetKey={presetKey}
+                      size="sm"
+                    />
+                  )}
                   onClick={() => onSelect(item)}
-                  type="button"
-                >
-                  <ProviderIcon
-                    name={item.preset.display_name}
-                    presetKey={presetKey}
-                    size="sm"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-(--text-strong)">
-                      {item.preset.display_name}
+                  right={(
+                    <span className="flex shrink-0 items-center gap-2">
+                      {configured ? (
+                        <UiBadge size="xs" tone="success">
+                          {t("onboarding.provider_setup_provider_configured")}
+                        </UiBadge>
+                      ) : null}
+                      <Check
+                        aria-hidden="true"
+                        className={selected
+                          ? "h-4 w-4 text-(--brand-action) opacity-100"
+                          : "h-4 w-4 opacity-0"}
+                      />
                     </span>
-                  </span>
-                  {configured ? (
-                    <span className="shrink-0 text-2xs font-medium text-(--success)">
-                      {t("onboarding.provider_setup_provider_configured")}
-                    </span>
-                  ) : null}
-                  <span className={selected ? "flex h-4 w-4 items-center justify-center rounded-full bg-(--brand-action) text-white" : "h-4 w-4 rounded-full border border-(--divider-strong-color)"}>
-                    {selected ? <Check className="h-2.5 w-2.5" /> : null}
-                  </span>
-                </button>
+                  )}
+                  title={item.preset.display_name}
+                />
               );
             })}
           </div>
         ) : null}
         {!loading && presets.length > FEATURED_PROVIDER_COUNT ? (
-          <button
-            className="mt-3 text-xs font-medium text-(--text-muted) hover:text-(--text-strong)"
+          <UiButton
+            className="mt-3"
             onClick={() => onShowAllChange(!showAll)}
-            type="button"
+            size="xs"
+            variant="text"
           >
             {showAll
               ? t("onboarding.provider_setup_provider_show_less")
               : t("onboarding.provider_setup_provider_show_more", {
                 count: Math.max(0, presets.length - FEATURED_PROVIDER_COUNT),
               })}
-          </button>
+          </UiButton>
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
@@ -1806,7 +1828,9 @@ function VerifyScene({ phase }: { phase: number }) {
         role="status"
       >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--surface-muted-background)">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-(--brand-action)" />
+          <Loader2
+            className={getUiSpinnerClassName({ size: "sm", tone: "primary" })}
+          />
         </span>
         <span className="text-sm font-medium text-(--text-strong)">
           {lines[phase] ?? lines[lines.length - 1]}
@@ -1855,10 +1879,10 @@ function SceneMessage({
 }) {
   return (
     <div>
-      <h3 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
+      <h3 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong", weight: "semibold" })}>
         {title}
       </h3>
-      <p className="mt-2 max-w-[42ch] text-sm leading-5 text-(--text-muted)">
+      <p className={cn("mt-2 max-w-[42ch] wrap-anywhere", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
         {body}
       </p>
     </div>

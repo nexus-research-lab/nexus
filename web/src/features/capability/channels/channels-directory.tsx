@@ -5,21 +5,20 @@
  */
 "use client";
 
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
 import {
-  Loader2,
   MessageCircle,
   RefreshCw,
-  SlidersHorizontal,
 } from "lucide-react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
   CapabilityPageLayout,
 } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   completeFeedbackBanner,
   type FeedbackBannerProps,
@@ -27,7 +26,6 @@ import {
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import {
@@ -37,14 +35,6 @@ import {
 import { ChannelCard } from "./catalog/channel-card";
 import { useChannelsController } from "./catalog/use-channels-controller";
 import { ChannelConnectDialog } from "./connection/channel-connect-dialog";
-
-function ChannelLoadingGrid() {
-  return (
-    <div className="flex min-h-40 items-center justify-center text-sm text-(--text-muted)">
-      <Loader2 className="h-5 w-5 animate-spin" />
-    </div>
-  );
-}
 
 export function ChannelsDirectory() {
   const { t } = useI18n();
@@ -71,12 +61,15 @@ export function ChannelsDirectory() {
       >
         <CapabilityPageLayout
           actions={(
-            <WorkspaceSurfaceToolbarAction
+            <UiButton
+              disabled={controller.loading}
               onClick={() => void controller.refresh()}
+              size="2xs"
+              variant="text"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               {t("capability.refresh")}
-            </WorkspaceSurfaceToolbarAction>
+            </UiButton>
           )}
           description={t("capability.channels_intro_description")}
           title={t("capability.channels_intro_title")}
@@ -87,10 +80,8 @@ export function ChannelsDirectory() {
               placeholder={t("capability.channels_search_placeholder")}
               value={controller.searchQuery}
             />
-            <CapabilityFilterSelect
+            <UiFilterSelect
               ariaLabel={t("capability.channels_filter_aria")}
-              label={t("capability.status_label")}
-              leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
               onChange={(value) => controller.setChannelFilter(
                 value as ChannelFilter,
               )}
@@ -103,7 +94,12 @@ export function ChannelsDirectory() {
           </CapabilityFilterBar>
 
           {controller.loading && controller.channels.length === 0 ? (
-            <ChannelLoadingGrid />
+            <UiResourceState
+              className="min-h-40"
+              size="md"
+              state="loading"
+              title={t("capability.channels_loading")}
+            />
           ) : controller.readFailed && controller.channels.length === 0 ? (
             <UiResourceState
               impact={t("capability.channel_catalog_load_failed_impact")}

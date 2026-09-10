@@ -29,6 +29,7 @@ code-defined truth:
 | Plan proposal lifecycle and receipts | [`internal/protocol/execution_plan_proposal.go`](../../internal/protocol/execution_plan_proposal.go) |
 | Execution/Goal confirmation recovery receipts | [`internal/storage/orchestration/goal_confirmation.go`](../../internal/storage/orchestration/goal_confirmation.go), [`internal/service/orchestration/goal_confirmation_recovery.go`](../../internal/service/orchestration/goal_confirmation_recovery.go) |
 | Goal and Goal/Execution binding states | [`internal/protocol/goal.go`](../../internal/protocol/goal.go) |
+| Goal/Execution cross-domain coordination | [`internal/service/goalexecution/execution.go`](../../internal/service/goalexecution/execution.go), [`promotion.go`](../../internal/service/goalexecution/promotion.go); host adapters remain in `internal/app/goal` |
 | Durable Goal continuation launch receipts | [`internal/storage/goal/continuation_plan.go`](../../internal/storage/goal/continuation_plan.go), [`internal/service/goal/continuation.go`](../../internal/service/goal/continuation.go) |
 | Collection and projection limits | [`internal/protocol/execution_limits.go`](../../internal/protocol/execution_limits.go) |
 | Plan Document parsing and normalization | [`internal/service/orchestration/plan_document.go`](../../internal/service/orchestration/plan_document.go) |
@@ -37,7 +38,8 @@ code-defined truth:
 | `nexus.command` MCP envelope, operation contract, and typed receipt | [`internal/mcp/command/contract.go`](../../internal/mcp/command/contract.go), [`tool.go`](../../internal/mcp/command/tool.go), [`internal/mcp/round_state.go`](../../internal/mcp/round_state.go) |
 | Execution operation inputs, schemas, and directory | [`internal/mcp/command/execution/operation/input.go`](../../internal/mcp/command/execution/operation/input.go), [`schema.go`](../../internal/mcp/command/execution/operation/schema.go), [`registry.go`](../../internal/mcp/command/execution/operation/registry.go) |
 | Goal operation directory and contracts | [`internal/mcp/command/goal/operation/registry.go`](../../internal/mcp/command/goal/operation/registry.go), [`internal/mcp/command/goal/contract/contract.go`](../../internal/mcp/command/goal/contract/contract.go) |
-| Round-scoped structured command adapter | [`internal/mcp/command/tool.go`](../../internal/mcp/command/tool.go), [`internal/app/server/runtime/command.go`](../../internal/app/server/runtime/command.go) |
+| Round-scoped structured command adapter | [`internal/mcp/command/tool.go`](../../internal/mcp/command/tool.go), [`internal/app/runtime/command.go`](../../internal/app/runtime/command.go) |
+| Verified runtime command facts | `orchestration.RuntimeCommandFact` is produced by `orchestration/runtimehook`; MCP receipt models do not enter the core package |
 | Runtime responsibility and coordination authority | [`internal/runtime/responsibility_authority.go`](../../internal/runtime/responsibility_authority.go), [`internal/service/orchestration/work_binding.go`](../../internal/service/orchestration/work_binding.go), [`coordination_round.go`](../../internal/service/orchestration/coordination_round.go) |
 | Accepted-review completion recovery receipts | [`internal/storage/orchestration/completion_audit.go`](../../internal/storage/orchestration/completion_audit.go), [`internal/service/orchestration/completion_audit_recovery.go`](../../internal/service/orchestration/completion_audit_recovery.go) |
 | Background dispatch and recovery scheduling | [`internal/infra/duework/loop.go`](../../internal/infra/duework/loop.go), [`internal/service/orchestration/background_coordinator.go`](../../internal/service/orchestration/background_coordinator.go), [`internal/storage/orchestration/background_deadline.go`](../../internal/storage/orchestration/background_deadline.go) |
@@ -48,6 +50,19 @@ code-defined truth:
 Do not copy the complete Plan Document field list or operation input schema into this
 document. When this document and those sources disagree on a field shape or enum,
 the source above wins and this document must be corrected.
+
+
+### 1.2 生命周期实现归属
+
+| 阶段 | 唯一业务归属 | 宿主适配边界 |
+| --- | --- | --- |
+| 创建目标 | Goal 校验目标、owner、版本与用量作用域；Execution 提供真实 binding 分类 | DM/Room 验证会话和 lead，持久化各自控制记录 |
+| 规划与续跑 | Goal 持有 reservation、lease、claim、started、settle/retry 及重启恢复；Execution 持有 Plan 和责任状态 | DM/Room 在自己的派发锁内重验显式输入优先级，再 claim 和启动；Room 继续校验成员与协作阻塞 |
+| 运行观察 | `orchestration/runtimehook.Observer` 统一事件观察和 compact 证据记录 | 宿主传入可信 actor；compact ID 使用物理 Session 与 Agent round，不能替换为共享 Room 根轮次 |
+| 用量证据 | `goal/runtimeusage` 转换 provider result、assistant 与子任务消息；Goal accumulator 负责累计差额，`SubagentUsageObservation` 负责单调合并和落库确认 | DM/Room 保留 pending 容器、锁、原始观察时间和重试生命周期；旧回执不能清除新累计值或新终态证据 |
+| 最终结算与交付 | Goal 持有 durable usage fence 和完成报告身份规则；状态完成与用量已结算分别判断 | DM 等待本轮 parent/child，Room 等待共享 scope 全部 slot；公私历史、输出授权和广播分别由宿主持有 |
+
+Goal 主包不依赖 runtime。需要理解运行协议的转换位于其 `runtimeusage` 子包，依赖方向为宿主 → 适配 → Goal。共用值规则不会移动宿主锁、扩大事务，也不会增加独立恢复循环。
 
 ## 2. Stable product model
 
@@ -548,7 +563,7 @@ invocation remains denied by default on channel ingress and requires explicit
 channel/Agent approval. If admitted, the round-scoped server still derives owner/session
 identity and applies the same lane and SQL checks above.
 
-Goal and Execution share one model-visible, always-loaded MCP tool:
+Goal, Execution, Automation and Subagent share one model-visible, always-loaded MCP tool:
 `nexus.command`. The bundled Skills own model decisions; the host captures
 owner, Agent, Session, Room role, Goal revision, WorkBinding, ReviewBinding and
 coordination authority in a physical-round server instance. The model can submit
@@ -570,6 +585,37 @@ actor's running or exceptional Runtime Graph nodes, Artifacts and exact control
 returns. Bounded successful Tool/Subagent summaries remain durable but enter the
 model only through explicit Execution `inspect`; ordinary rounds and mutation
 results do not replay them.
+
+### Subagent transport and lifecycle
+
+The `subagent` domain reuses the fixed `nexus.command` schema. Its operation
+contracts are disclosed on demand; the execution-orchestrator Skill carries the
+model workflow. Nexus supplies a stable general-purpose child definition to nxs,
+while keeping the native Agent tool hidden from the parent model catalog. This
+changes the initial deployment context once; launching children does not mutate
+the tool schema or rewrite the prompt prefix.
+
+The bridge negotiates `subagent_control_v1`. During an active MCP call the host
+forwards the SDK-provided tool-use identity through a reentrant runtime control
+request. The runtime accepts that identity only in the current parent session,
+then executes the existing Agent/TaskOutput/TaskStop lifecycle and permission
+hooks. Plan Mode rejects spawn and send, while reads and stopping remain available.
+Unsupported runtimes fail explicitly; there is no CLI fallback. A child cannot
+borrow the parent caller identity to recursively spawn another child.
+
+Spawn is asynchronous. Independent children can run concurrently and retain the
+original launch identity used by WorkGraph admission and terminal observation.
+An exact current Assignment creates a managed child Attempt; missing or ambiguous
+responsibility remains runtime-only. Child completion never substitutes for parent
+Submission, Review or Acceptance. Subagent launch/lifecycle observations remain
+visible under the existing Runtime Graph rules, rather than being classified as
+Goal/Execution control-only detail.
+
+Subagent mutation receipts deduplicate exact intent within one physical round,
+including errors and unknown outcomes. They are not durable restart receipts.
+After an unknown result, inspect existing tasks before deciding any new mutation;
+never infer non-execution from an absent response or automatically replay with a
+new request identity. Read results expose only current-parent task projections.
 
 ### 5.1 Agent-facing structured command audit
 
@@ -631,7 +677,7 @@ canonical Agent service; the display projection never authorizes a runtime. The
 round-scoped SDK server is replaced in process when those profiles or authorities
 change, without expanding workspace write roots or restarting nxs.
 
-Current `nexus.command` calls are control-plane transport, not independent
+Current Goal/Execution `nexus.command` calls are control-plane transport, not independent
 WorkGraph work. The runtime observer recognizes the exact managed tool identity and
 persists only `domain + action + operation + request_id`, never business input. These
 calls remain `detail` under their direct Agent owner even when they fail, retry, carry
@@ -673,6 +719,14 @@ an existing WorkGraph continues in a new coordinator round; without it, the new
 round has no coordination capability. The capability is not persisted and does
 not make the read a graph mutation, but this coordinator-only runtime side effect
 also means the operation must not be advertised with a pure `ReadOnly` annotation.
+
+The model invokes this recovery through `nexus.command` with `domain=execution`
+and `action=inspect`; `get_execution` is its semantic name and is not invokable.
+The returned `execution_context` is XML text containing the lane and allowed actions.
+There is no user-facing coordination mode switch, and recovery alone does not
+require replanning or another user message. Terminal historical reads never mint
+or replace the current round coordination capability. Tool transport rejections
+preserve a domain `reason_code` when available without granting recovery authority.
 
 A successful `plan_execution` may also activate coordination for the current exact
 round.

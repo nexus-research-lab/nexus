@@ -6,31 +6,31 @@ import type {
   ConnectorDeviceAuthStart,
   ConnectorDeviceAuthStatus,
 } from "@/types/capability/connector";
-import { getErrorMessage } from "@/lib/error-message";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
-const DEFAULT_POLLING_MESSAGE = "等待 GitHub 授权确认";
+const DEFAULT_POLLING_MESSAGE = "capability.connector_flow_poll_wait";
 const SLOW_DOWN_DELAY_MS = 5_000;
 
 interface PollStatusRule {
   delayIncrementMs: number;
-  fallbackMessage: string;
+  fallbackMessage: TranslationKey;
   outcome: "connected" | "failed" | "waiting";
 }
 
 const POLL_STATUS_RULES: Record<ConnectorDeviceAuthStatus, PollStatusRule> = {
   connected: {
     delayIncrementMs: 0,
-    fallbackMessage: "GitHub 已授权",
+    fallbackMessage: "capability.connector_flow_poll_connected",
     outcome: "connected",
   },
   denied: {
     delayIncrementMs: 0,
-    fallbackMessage: "GitHub 授权未完成",
+    fallbackMessage: "capability.connector_flow_poll_denied",
     outcome: "failed",
   },
   expired: {
     delayIncrementMs: 0,
-    fallbackMessage: "GitHub 授权未完成",
+    fallbackMessage: "capability.connector_flow_poll_denied",
     outcome: "failed",
   },
   pending: {
@@ -49,10 +49,10 @@ export interface ConnectorDeviceAuthPollerCallbacks {
   onClose: () => void;
   onConnected: (connectorId: string) => Promise<void>;
   onError: (
-    message: string,
+    message: TranslationKey,
     kind: ConnectorDeviceAuthFailureKind,
   ) => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: TranslationKey) => void;
   onNext: (session: ConnectorDeviceAuthStart) => void;
 }
 
@@ -68,7 +68,7 @@ type PollConnectorDeviceAuth = (
 interface PollOutcome {
   delayIncrementMs: number;
   kind: PollStatusRule["outcome"];
-  message: string;
+  message: TranslationKey;
 }
 
 function resolveConnectorDeviceAuthPollOutcome(
@@ -78,7 +78,7 @@ function resolveConnectorDeviceAuthPollOutcome(
   return {
     delayIncrementMs: rule.delayIncrementMs,
     kind: rule.outcome,
-    message: result.message || rule.fallbackMessage,
+    message: rule.fallbackMessage,
   };
 }
 
@@ -127,7 +127,7 @@ export class ConnectorDeviceAuthPoller {
       if (!this.stopped) {
         if (result.next) {
           this.callbacks.onMessage(
-            result.message || "应用已选择或创建，请继续完成账号授权",
+            "capability.connector_flow_poll_next",
           );
           this.stop();
           this.callbacks.onNext(result.next);
@@ -135,16 +135,8 @@ export class ConnectorDeviceAuthPoller {
         }
         await this.handleOutcome(resolveConnectorDeviceAuthPollOutcome(result));
       }
-    } catch (error) {
-      this.fail(
-        getErrorMessage(
-          error,
-          this.session.connector_id === "feishu-docx"
-            ? "飞书授权状态暂时无法确认"
-            : "GitHub 授权状态暂时无法确认",
-        ),
-        "outcome_unknown",
-      );
+    } catch {
+      this.fail("capability.connector_flow_poll_unknown", "outcome_unknown");
     }
   }
 
@@ -165,7 +157,7 @@ export class ConnectorDeviceAuthPoller {
   }
 
   private fail(
-    message: string,
+    message: TranslationKey,
     kind: ConnectorDeviceAuthFailureKind,
   ): void {
     if (this.stopped) {

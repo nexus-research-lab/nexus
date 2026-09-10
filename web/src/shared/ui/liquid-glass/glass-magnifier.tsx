@@ -1,112 +1,39 @@
-import {
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+// INPUT: 玻璃盖板内的品牌内容。
+// OUTPUT: 复用历史位移与高光贴图的玻璃材质及悬停弹性动效。
+// POS: 仅持有视觉盖板，点击和可访问名称由外层入口负责。
+import type { ReactNode } from "react";
 
-import { cn } from "@/shared/ui/class-name";
-
-import { GlassMagnifierFilter } from "./glass-magnifier-filter";
 import { useGlassMagnifierAnimation } from "./use-glass-magnifier-animation";
-import {
-  useLiquidGlassFilterId,
-  useSupportsTrueLiquidGlass,
-} from "./use-liquid-glass-support";
+import { GlassMagnifierFilter } from "./glass-magnifier-filter";
+import { useLiquidGlassFilterId, useSupportsTrueLiquidGlass } from "./use-liquid-glass-support";
 
-interface GlassMagnifierProps {
-  children?: ReactNode;
-  className?: string;
-  contentClassName?: string;
-  height?: number;
-  underlay?: ReactNode;
-  width?: number;
-}
-
-const BASE_LENS_RADIUS = 75;
-
-function buildGlassSurfaceStyle(filterId: string | null): CSSProperties {
-  return {
-    borderRadius: `${BASE_LENS_RADIUS}px`,
-    boxShadow: "rgba(0, 0, 0, 0.16) 0px 4px 9px, rgba(0, 0, 0, 0.2) 0px 2px 24px inset, rgba(255, 255, 255, 0.2) 0px -2px 24px inset",
-    transform: "translateZ(0px)",
-    backdropFilter: filterId ? `url(#${filterId})` : "blur(16px)",
-    WebkitBackdropFilter: filterId ? `url(#${filterId})` : "blur(16px)",
-    backgroundColor: filterId ? "rgba(255, 255, 255, 0.01)" : "color-mix(in srgb, var(--surface-panel-background) 72%, transparent)",
-  };
-}
-
-export function GlassMagnifier({
-  children,
-  className,
-  contentClassName,
-  height = 36,
-  underlay,
-  width = 58,
-}: GlassMagnifierProps) {
+export function GlassMagnifier({ children, underlay }: { children: ReactNode; underlay?: ReactNode }) {
   const filterId = useLiquidGlassFilterId("glass-magnifier");
-  const canUseTrueGlass = useSupportsTrueLiquidGlass();
-  const animation = useGlassMagnifierAnimation({ height, width });
+  const animation = useGlassMagnifierAnimation();
+  const supported = useSupportsTrueLiquidGlass();
 
   return (
-    <div
-      className={cn("relative isolate shrink-0 cursor-grab select-none active:cursor-grabbing", className)}
-      onPointerCancel={animation.onHoverEnd}
+    <span
+      className="group/glass relative isolate inline-flex h-9 shrink-0 items-center rounded-[12px] px-2"
+      ref={animation.rootRef}
       onPointerEnter={animation.onHoverStart}
       onPointerLeave={animation.onHoverEnd}
-      ref={animation.rootRef}
-      style={{
-        height: `${height}px`,
-        touchAction: "none",
-        transform: animation.rootTransform,
-        transformOrigin: "50% 50%",
-        userSelect: "none",
-        willChange: "transform",
-        width: `${width}px`,
-      }}
+      onPointerCancel={animation.onHoverEnd}
+      style={{ transform: animation.rootTransform }}
     >
-      {underlay ? (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-          {underlay}
-        </div>
-      ) : null}
-
-      {canUseTrueGlass ? (
-        <GlassMagnifierFilter
-          filterId={filterId}
-          height={animation.sourceSize.height}
-          width={animation.sourceSize.width}
-        />
-      ) : null}
-
-      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-        <div
-          className="absolute left-0 top-0 origin-top-left ring-1 ring-black/10 dark:ring-white/10"
-          ref={animation.shellRef}
-          style={{
-            ...buildGlassSurfaceStyle(canUseTrueGlass ? filterId : null),
-            height: `${animation.sourceSize.height}px`,
-            transform: animation.idleTransform,
-            width: `${animation.sourceSize.width}px`,
-            willChange: "transform",
-          }}
-        />
-      </div>
-
-      {children ? (
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-0 z-10 flex items-center justify-center",
-            contentClassName,
-          )}
-          ref={animation.contentRef}
-          style={{
-            transform: animation.contentTransform,
-            transformOrigin: "50% 50%",
-            willChange: "transform",
-          }}
-        >
-          {children}
-        </div>
-      ) : null}
-    </div>
+      {underlay ? <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px] opacity-0 transition-opacity duration-200 group-hover/glass:opacity-100">{underlay}</span> : null}
+      {supported ? <GlassMagnifierFilter filterId={filterId} /> : null}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[12px] ring-1 ring-black/5 dark:ring-white/10"
+        style={{
+          backdropFilter: supported ? `url(#${filterId})` : "blur(16px)",
+          WebkitBackdropFilter: supported ? `url(#${filterId})` : "blur(16px)",
+          backgroundColor: supported ? "rgba(255,255,255,0.01)" : "color-mix(in srgb, var(--surface-panel-background) 24%, transparent)",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.06), inset 0 1px 8px rgba(0,0,0,0.05), inset 0 -1px 8px rgba(255,255,255,0.3)",
+        }}
+      />
+      <span className="relative shrink-0" ref={animation.contentRef} style={{ transform: animation.contentTransform }}>{children}</span>
+    </span>
   );
 }

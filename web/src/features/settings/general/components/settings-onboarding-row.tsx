@@ -3,10 +3,9 @@
 import { Compass, RotateCcw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 
 import {
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  SETTINGS_CONTROL_TEXT_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -36,14 +35,14 @@ export function SettingsOnboardingRow({ onReset }: SettingsOnboardingRowProps) {
           </p>
         </div>
       </div>
-      <button
-        className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)`}
+      <UiButton
         onClick={onReset}
-        type="button"
+        size="xs"
+        variant="surface"
       >
         <RotateCcw className="h-3 w-3" />
         {t("settings.onboarding_action_reset")}
-      </button>
+      </UiButton>
     </div>
   );
 }

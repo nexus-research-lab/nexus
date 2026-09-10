@@ -1,8 +1,10 @@
 /**
  * INPUT: Agent Skill 条目、忙碌状态与启停命令。
- * OUTPUT: 本地化名称、用途摘要、必要来源徽标和开关组成的能力卡片。
+ * OUTPUT: 本地化名称、用途摘要、必要来源徽标和带用途说明关联的开关组成的能力卡片。
  * POS: Agent 详情技能选择项；用途说明直接支持启停决策。
  */
+import { useId } from "react";
+
 import { Loader2, Lock } from "lucide-react";
 
 import {
@@ -12,7 +14,11 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 interface AgentSkillCardProps {
@@ -38,6 +44,7 @@ export function AgentSkillCard({
   skill,
 }: AgentSkillCardProps) {
   const { t } = useI18n();
+  const descriptionId = useId();
   const title = getSkillDisplayTitle(skill, t);
   const description = getSkillDisplayDescription(skill, t);
   const badges = [
@@ -63,11 +70,14 @@ export function AgentSkillCard({
   ].filter((badge) => badge.visible);
 
   return (
-    <div className="grid min-h-[104px] grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)">
+    <WorkspaceCatalogCard
+      className="grid grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2"
+      size="dense"
+    >
       <UiSeededAvatar seed={skill.name} />
       <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-          <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
+          <span className={cn("line-clamp-2 min-w-0 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
             {title}
           </span>
           {badges.map((badge) => (
@@ -87,10 +97,13 @@ export function AgentSkillCard({
       {!skill.locked ? (
         <div className="flex min-h-10 shrink-0 items-center gap-2">
           {busy ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
+            <Loader2
+              className={getUiSpinnerClassName({ size: "sm", tone: "muted" })}
+            />
           ) : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${title}`}
+            aria-describedby={description ? descriptionId : undefined}
             checked={skill.enabled_for_agent}
             disabled={commandBusy || blocked}
             onChange={() => onAction(skill)}
@@ -100,10 +113,10 @@ export function AgentSkillCard({
       ) : null}
 
       {description ? (
-        <p className="col-span-3 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
+        <p id={descriptionId} className={cn("col-span-3 line-clamp-2 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           {description}
         </p>
       ) : null}
-    </div>
+    </WorkspaceCatalogCard>
   );
 }

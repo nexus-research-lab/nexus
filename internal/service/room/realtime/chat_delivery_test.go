@@ -2,8 +2,13 @@ package realtime_test
 
 import (
 	"context"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -12,13 +17,9 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
-	"strings"
-	"sync/atomic"
-	"testing"
-	"time"
 )
 
-func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T) {
+func TestRealtimeServiceHandleGroupChatWithExplicitAgentMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -26,7 +27,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -103,7 +104,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		ConversationID:  roomContext.Conversation.ID,
 		ClientRequestID: "request-room-user-1",
 		ClientMessageID: "local-room-user-1",
-		Content:         "你好",
+		Content:         "@单聊助手 你好",
 		RoundID:         "room-round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
@@ -192,7 +193,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		"Before substantial execution, assess separability",
 		"members may use local subagents",
 		"Current-Room private messaging is disabled",
-		"room_host_default routes an unaddressed turn to the host",
+		"host-issued room_host_default trigger when the owner has enabled host auto-reply",
 		"managed Plan and assign_work through execution-orchestrator",
 		"never substitute raw @",
 		"If a private message wakes you, answer once in the final reply",
@@ -297,7 +298,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	privateUserContent := anyToString(privateMessages[0]["content"])
 	for _, expected := range []string{
 		"<public_feed>",
-		"User: 你好",
+		"User: @单聊助手 你好",
 	} {
 		if !strings.Contains(privateUserContent, expected) {
 			t.Fatalf("私有 round marker 应记录实际 Room dispatch prompt，缺少 %q:\n%s", expected, privateUserContent)
@@ -319,7 +320,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	}
 }
 
-func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
+func TestRealtimeServiceRoutesUnmentionedGroupMessageToConfiguredHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -327,7 +328,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-host-default",
@@ -362,11 +363,12 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "帮我拆一下这个需求",
-		RoundID:        "room-round-host-default",
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "帮我拆一下这个需求",
+		RoundID:                     "room-round-host-default",
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -378,15 +380,14 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	})
 	select {
 	case prompt := <-hostPrompt:
-		if !strings.Contains(prompt, `<latest_trigger type="room_host_default">`) ||
-			!strings.Contains(prompt, "帮我拆一下这个需求") {
-			t.Fatalf("群主 prompt 缺少默认接管上下文: %s", prompt)
+		if !strings.Contains(prompt, `type="room_host_default"`) || !strings.Contains(prompt, "帮我拆一下这个需求") {
+			t.Fatalf("群主应收到接管触发和原始输入: %s", prompt)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("未 @ 消息没有唤醒群主")
+	default:
+		t.Fatal("开启接管后，未 @ 消息必须唤醒已保存的群主")
 	}
 	if !hasChatAckPendingAgent(events, amy.AgentID) {
-		t.Fatalf("事件流缺少群主 pending slot: %+v", events)
+		t.Fatalf("未 @ 消息应创建群主 pending slot: %+v", events)
 	}
 	if hasChatAckPendingAgent(events, devin.AgentID) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
@@ -401,12 +402,12 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 		if message["round_id"] == "room-round-host-default" && message["role"] == "user" {
 			foundUserMessage = true
 			if message["content"] != "帮我拆一下这个需求" {
-				t.Fatalf("群主默认接管用户输入内容不正确: %+v", message)
+				t.Fatalf("未 @ 用户输入内容不正确: %+v", message)
 			}
 		}
 	}
 	if !foundUserMessage {
-		t.Fatalf("群主默认接管的用户输入应写入公区历史: %+v", sharedMessages)
+		t.Fatalf("未 @ 用户输入仍应写入公区历史: %+v", sharedMessages)
 	}
 }
 
@@ -418,7 +419,7 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -450,11 +451,12 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "先记一下这个背景",
-		RoundID:        "room-round-no-mention",
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "先记一下这个背景",
+		RoundID:                     "room-round-no-mention",
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -475,7 +477,7 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -612,7 +614,7 @@ func TestRealtimeServiceHostConsumesQueuedInputAsSoonAsItsSlotFinishes(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "owner-active-room-target",
 		Username: "room-owner",
@@ -775,7 +777,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1009,7 +1011,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1140,7 +1142,7 @@ func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *t
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -1365,7 +1367,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}

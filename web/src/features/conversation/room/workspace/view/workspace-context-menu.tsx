@@ -1,7 +1,13 @@
+// INPUT: Workspace 调用元素/原始指针位置、文件、桌面应用目录与外部动作/关闭命令。
+// OUTPUT: 复用公共视口定位/模态仲裁的分组与打开方式菜单；超长列表内部滚动，显式退出归还原焦点。
+// POS: Workspace 领域菜单；业务动作归调用方，几何/关闭/行节奏/键盘分别由 shared owner 负责。
 "use client";
 
 import {
+  useCallback,
   useEffect,
+  useId,
+  useMemo,
   useRef,
   useState,
   type RefObject,
@@ -34,16 +40,20 @@ import type {
   DesktopWorkspaceFileOpenTarget,
 } from "@/lib/desktop-bridge/desktop-bridge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
-import {
-  getMenuItemStateClassName,
-  MENU_ITEM_BASE_CLASS_NAME,
-  MENU_LIST_CLASS_NAME,
-} from "@/shared/ui/menu/menu-styles";
-import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
+import { focusFirstMenuItem, handleMenuKeyDown } from "@/shared/ui/menu/menu-keyboard";
+import { getMenuContentHeight, getMenuItemLayout, MENU_LIST_CLASS_NAME, MENU_SEPARATOR_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
+import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
+import { resolveUiPointOverlayPosition, resolveUiSideOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
+import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
+import { ANCHORED_OVERLAY_MOTION_CLASS_NAME, OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 interface WorkspaceContextMenuProps {
+  anchor: HTMLElement | null;
   canCreateChildren: boolean;
   entry: WorkspaceFileEntry | null;
   isLoadingOpenApplications: boolean;
@@ -77,6 +87,7 @@ interface WorkspaceMenuAction {
 }
 
 export function WorkspaceContextMenu({
+  anchor,
   canCreateChildren,
   entry,
   isLoadingOpenApplications,
@@ -94,19 +105,16 @@ export function WorkspaceContextMenu({
   position,
 }: WorkspaceContextMenuProps) {
   const { t } = useI18n();
-  const menuRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useMemo(() => ({ current: anchor }), [anchor]);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
-  useWorkspaceContextMenuDismiss(menuRef, position !== null, onClose);
+  const isOpen = position !== null && anchor !== null;
+  const restoreFocus = useCallback(() => { previousFocusRef.current?.focus(); }, []);
+  const closeAndRestoreFocus = () => { onClose(); restoreFocus(); };
 
   useEffect(() => {
     setOpenSubmenuId(null);
-  }, [entry?.path, position?.x, position?.y]);
-
-  if (!position) {
-    return null;
-  }
-
-  const isDesktopFile = isDesktopRuntime() && Boolean(entry && !entry.is_dir);
+  }, [anchor, entry?.path, position?.x, position?.y]);
   const createActions: WorkspaceMenuAction[] = canCreateChildren ? [
     {
       Icon: Upload,
@@ -145,38 +153,66 @@ export function WorkspaceContextMenu({
     }),
   ].filter((group) => group.length > 0);
 
+  const contentHeight = getMenuContentHeight(
+    actionGroups.flatMap((group) => group.map(() => getMenuItemLayout().height)),
+    Math.max(0, actionGroups.length - 1),
+  );
+  const estimatePosition = useCallback(() => resolveUiPointOverlayPosition({
+    point: position ?? { x: 0, y: 0 },
+    preset: "cascade-menu",
+    estimatedContentHeight: contentHeight,
+  }), [contentHeight, position]);
+  const { overlayRef, overlayPosition, overlayStyle, portalContainer } = useAnchoredOverlayLayer({
+    anchorRef,
+    anchorPress: "outside",
+    disabled: false,
+    estimatePosition,
+    isOpen,
+    onClose,
+    restoreFocus,
+  });
+  const isPositioned = overlayPosition !== null;
+  useEffect(() => {
+    if (!isOpen || !isPositioned) return;
+    // StrictMode 重放不会覆盖第一次保存的外部返回位置。
+    if (!overlayRef.current?.contains(document.activeElement)) {
+      previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    focusFirstMenuItem(overlayRef.current);
+  }, [anchor, isOpen, isPositioned, overlayRef]);
+
+  if (!isOpen || !portalContainer) return null;
   return createPortal(
     <div
       className={cn(
-        "fixed z-[130] overflow-visible",
+        MENU_LIST_CLASS_NAME,
+        "soft-scrollbar fixed ui-layer-action-menu overflow-y-auto overscroll-contain p-1",
         OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}
-      ref={menuRef}
+      ref={overlayRef}
+      aria-label={entry?.name ?? t("room.workspace")}
+      data-placement={overlayPosition?.placement ?? "bottom"}
+      onKeyDown={(event) => handleMenuKeyDown(event, closeAndRestoreFocus)}
       role="menu"
-      style={{
-        left: `${position.x}px`,
-        minWidth: isDesktopFile ? "200px" : "180px",
-        top: `${position.y}px`,
-      }}
+      tabIndex={-1}
+      style={overlayStyle}
+      {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
-      <div className="p-1">
-        {actionGroups.map((actions, index) => (
-          <div key={actions[0]?.id}>
-            {index > 0 ? (
-              <div className="mx-1 my-1 h-px bg-(--divider-subtle-color)" />
-            ) : null}
-            <WorkspaceContextMenuActions
-              actions={actions}
-              onClose={onClose}
-              openSubmenuId={openSubmenuId}
-              position={position}
-              setOpenSubmenuId={setOpenSubmenuId}
-            />
-          </div>
-        ))}
-      </div>
+      {actionGroups.flatMap((actions, index) => [
+        ...(index > 0 ? [<div key={`separator-${index}`} className={MENU_SEPARATOR_CLASS_NAME} role="separator" />] : []),
+        ...actions.map((action) => (
+          <WorkspaceContextMenuAction
+            key={action.id}
+            action={action}
+            onClose={closeAndRestoreFocus}
+            openSubmenuId={openSubmenuId}
+            setOpenSubmenuId={setOpenSubmenuId}
+          />
+        )),
+      ])}
     </div>,
-    document.body,
+    portalContainer,
   );
 }
 
@@ -351,174 +387,144 @@ function buildOpenWithActions({
   );
 }
 
-function WorkspaceContextMenuActions({
-  actions,
-  onClose,
-  openSubmenuId,
-  position,
-  setOpenSubmenuId,
-}: {
-  actions: WorkspaceMenuAction[];
+function WorkspaceContextMenuAction({ action, onClose, openSubmenuId, setOpenSubmenuId }: {
+  action: WorkspaceMenuAction;
   onClose: () => void;
   openSubmenuId: string | null;
-  position: { x: number; y: number };
   setOpenSubmenuId: (value: string | null) => void;
 }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const submenuId = useId();
+  const [focusSubmenu, setFocusSubmenu] = useState(false);
+  const { ariaLabel, disabled, Icon, id, label, onSelect, submenu, title, tone } = action;
+  const isSubmenuOpen = openSubmenuId === id;
+  const closeSubmenu = () => setOpenSubmenuId(null);
+  const select = () => {
+    if (disabled) return;
+    if (submenu) {
+      setFocusSubmenu(true);
+      setOpenSubmenuId(id);
+    } else {
+      onSelect?.();
+      onClose();
+    }
+  };
   return (
-    <div className={MENU_LIST_CLASS_NAME} role="none">
-      {actions.map((action) => {
-        const {
-          ariaLabel,
-          disabled,
-          Icon,
-          id,
-          label,
-          onSelect,
-          submenu,
-          title,
-          tone,
-        } = action;
-        const isSubmenuOpen = openSubmenuId === id;
-        return (
-          <div
-            className="relative"
-            key={id}
-            onPointerLeave={() => submenu && setOpenSubmenuId(null)}
-          >
-            <button
-              aria-expanded={submenu ? isSubmenuOpen : undefined}
-              aria-haspopup={submenu ? "menu" : undefined}
-              aria-label={ariaLabel}
-              className={cn(
-                MENU_ITEM_BASE_CLASS_NAME,
-                "flex min-h-9 items-center gap-2 px-2.5 py-1.5 text-sm",
-                getMenuItemStateClassName({
-                  active: isSubmenuOpen,
-                  tone: tone ?? "default",
-                }),
-              )}
-              disabled={disabled}
-              onClick={() => {
-                if (disabled) {
-                  return;
-                }
-                if (submenu) {
-                  setOpenSubmenuId(isSubmenuOpen ? null : id);
-                  return;
-                }
-                onSelect?.();
-                onClose();
-              }}
-              onKeyDown={(event) => {
-                if (submenu && event.key === "ArrowRight") {
-                  event.preventDefault();
-                  setOpenSubmenuId(id);
-                }
-              }}
-              onPointerEnter={() => setOpenSubmenuId(submenu ? id : null)}
-              role="menuitem"
-              title={title}
-              type="button"
-            >
-              {Icon ? <Icon className="h-4 w-4" /> : null}
-              <span className="min-w-0 flex-1 truncate">{label}</span>
-              {submenu ? <ChevronRight className="h-4 w-4 shrink-0" /> : null}
-            </button>
-
-            {submenu && isSubmenuOpen ? (
-              <WorkspaceContextSubmenu
-                actions={submenu}
-                maxHeight={window.innerHeight - position.y - 8}
-                onClose={onClose}
-                openOnLeft={position.x + 384 > window.innerWidth}
-              />
-            ) : null}
-          </div>
-        );
-      })}
+    <div>
+      <UiMenuActionRow
+        ref={triggerRef}
+        active={isSubmenuOpen}
+        aria-controls={submenu && isSubmenuOpen ? submenuId : undefined}
+        aria-expanded={submenu ? isSubmenuOpen : undefined}
+        aria-haspopup={submenu ? "menu" : undefined}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={select}
+        onKeyDown={(event) => {
+          if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
+          if (submenu && event.key === "ArrowRight") {
+            event.preventDefault();
+            select();
+          }
+        }}
+        onPointerEnter={(event) => {
+          if (disabled || event.pointerType !== "mouse") return;
+          setFocusSubmenu(false);
+          setOpenSubmenuId(submenu ? id : null);
+        }}
+        title={title ?? label}
+        tone={tone}
+      >
+        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {submenu ? <ChevronRight className="h-4 w-4 shrink-0" /> : null}
+      </UiMenuActionRow>
+      {submenu && isSubmenuOpen ? (
+        <WorkspaceContextSubmenu
+          actions={submenu}
+          anchorRef={triggerRef}
+          focusRequested={focusSubmenu}
+          id={submenuId}
+          label={label}
+          onClose={closeSubmenu}
+          onSelect={onClose}
+        />
+      ) : null}
     </div>
   );
 }
 
-function WorkspaceContextSubmenu({
-  actions,
-  maxHeight,
-  onClose,
-  openOnLeft,
-}: {
+function WorkspaceContextSubmenu({ actions, anchorRef, focusRequested, id, label, onClose, onSelect }: {
   actions: WorkspaceMenuAction[];
-  maxHeight: number;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  focusRequested: boolean;
+  id: string;
+  label: string;
   onClose: () => void;
-  openOnLeft: boolean;
+  onSelect: () => void;
 }) {
-  return (
+  const contentHeight = getMenuContentHeight(actions.map(() => getMenuItemLayout().height));
+  const estimatePosition = useCallback((anchor: HTMLButtonElement) => resolveUiSideOverlayPosition({
+    anchor,
+    preset: "cascade-menu",
+    estimatedContentHeight: contentHeight,
+  }), [contentHeight]);
+  const { overlayRef, overlayPosition, overlayStyle, portalContainer } = useAnchoredOverlayLayer({
+    anchorRef, disabled: false, estimatePosition, isOpen: true, onClose,
+  });
+  const isPositioned = overlayPosition !== null;
+  useEffect(() => {
+    if (focusRequested && isPositioned) focusFirstMenuItem(overlayRef.current);
+  }, [focusRequested, isPositioned, overlayRef]);
+  if (!portalContainer) return null;
+  return createPortal(
     <div
+      aria-label={label}
       className={cn(
         MENU_LIST_CLASS_NAME,
-        "absolute -top-9 w-[180px] overflow-y-auto p-1",
-        openOnLeft ? "right-[calc(100%+4px)]" : "left-[calc(100%+4px)]",
+        "soft-scrollbar fixed ui-layer-action-menu overflow-y-auto overscroll-contain p-1",
         OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
       )}
+      data-placement={overlayPosition?.placement ?? "bottom"}
+      id={id}
+      ref={overlayRef}
       role="menu"
-      style={{maxHeight: `${Math.max(36, maxHeight)}px`}}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.defaultPrevented || isImeKeyboardEvent(event.nativeEvent)) return;
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+          anchorRef.current?.focus();
+          return;
+        }
+        handleMenuKeyDown(event, onSelect);
+      }}
+      style={overlayStyle}
+      {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {actions.map((action) => (
-        <button
-          className={cn(
-            MENU_ITEM_BASE_CLASS_NAME,
-            "flex h-9 items-center px-2.5 text-sm",
-            getMenuItemStateClassName({}),
-          )}
+        <UiMenuActionRow
           key={action.id}
           onClick={() => {
-            if (action.disabled) {
-              return;
-            }
+            if (action.disabled) return;
             action.onSelect?.();
-            onClose();
+            onSelect();
           }}
-          role="menuitem"
           title={action.label}
-          type="button"
           disabled={action.disabled}
         >
           {action.Icon ? (
-            <action.Icon className={cn(
-              "mr-2 h-4 w-4 shrink-0",
-              action.id === "open-with-loading" && "animate-spin",
-            )} />
+            <action.Icon className={action.id === "open-with-loading"
+              ? getUiSpinnerClassName({ size: "md", tone: "muted" })
+              : "h-4 w-4 shrink-0"} />
           ) : null}
-          <span className="truncate">{action.label}</span>
-        </button>
+          <span className="min-w-0 flex-1 truncate">{action.label}</span>
+        </UiMenuActionRow>
       ))}
-    </div>
+    </div>,
+    portalContainer,
   );
-}
-
-function useWorkspaceContextMenuDismiss(
-  menuRef: RefObject<HTMLDivElement | null>,
-  isOpen: boolean,
-  onClose: () => void,
-): void {
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) {
-        onClose();
-      }
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, menuRef, onClose]);
 }

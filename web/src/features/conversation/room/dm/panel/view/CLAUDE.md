@@ -5,3 +5,5 @@
 - 视图不得读取会话 Hook、调用领域 API 或重新推导 Feed 数据。
 - 视图模型由消费者组件 Props 组成，不维护平行的宽接口。
 - 嵌入模式只改变外壳可见性，不分叉消息、Tool、流式状态或 Composer 的渲染实现。
+
+- DM 任务摘要把 Frame 的精确 `sessionKey` 交给公共 Task Panel 作为 scope，切换会话必须清空旧任务展开态；不以 Agent 相同推断同一会话。

@@ -5,16 +5,14 @@
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
 
-import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
+import { useTextareaHeight } from "@/shared/lib/react/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
-import {
-  focusComposerInputAtEnd,
-  type ComposerPanelProps,
-} from "../composer-model";
+import type { ComposerPanelProps } from "../composer-model";
+import { focusComposerInputAtEnd } from "./composer-textarea";
 import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
@@ -35,11 +33,9 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
-  compact,
   defaultPlaceholder,
   defaultDeliveryPolicy,
   draftScopeKey,
-  enableLoops = false,
   goalCreateDisabledReason = null,
   historyScopeKey,
   inputQueueItems,
@@ -47,7 +43,6 @@ export function useComposerController({
   isLoading,
   localDirectorySessionKey,
   onCreateGoal,
-  onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
   onSendMessage,
@@ -71,7 +66,6 @@ export function useComposerController({
     setActionMenuOpen,
     setGoalError,
     setInput,
-    setLoopPickerOpen,
     setSelectedTargetIDs,
     state: draftState,
   } = draft;
@@ -128,13 +122,11 @@ export function useComposerController({
     closeMention();
     closeSlashCommand();
     setActionMenuOpen(false);
-    setLoopPickerOpen(false);
   }, [
     interactionIdentity,
     closeMention,
     closeSlashCommand,
     setActionMenuOpen,
-    setLoopPickerOpen,
   ]);
   const history = useComposerHistory({
     clearError: clearAttachmentError,
@@ -186,14 +178,12 @@ export function useComposerController({
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,
     draft,
-    enableLoops,
     fallbackErrorMessage: t("composer.goal_create_failed"),
     failureImpact: t("composer.goal_not_applied_impact"),
     failureNextStep: t("composer.goal_not_applied_next_step"),
     focusTextarea,
     goalCreateDisabledReason,
     onCreateGoal,
-    onCreateLoopGoal,
   });
   const { submitGoal } = goal;
   const handleSend = useCallback(async () => {
@@ -257,8 +247,6 @@ export function useComposerController({
     attachmentCount: attachments.attachments.length,
     attachmentError,
     canCreateGoal: goal.canCreateGoal,
-    canUseLoop: goal.canUseLoop,
-    compact,
     copy: {
       defaultPlaceholder: defaultPlaceholder ?? t("composer.default_placeholder"),
       goalConfirm: t("composer.goal_confirm"),
@@ -275,7 +263,6 @@ export function useComposerController({
     isGoalConfirming: draftState.isGoalConfirming,
     isGoalCreating: draftState.isGoalCreating,
     isLoading,
-    isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
     isSessionSettingsSaving:
       sessionSettingsController.saving || localDirectories.saving,
@@ -341,13 +328,10 @@ export function useComposerController({
       handleCompositionStart: keyboard.handleCompositionStart,
       handleInputChange,
       handleKeyDown: keyboard.handleKeyDown,
-      handleLoopSelect: goal.handleLoopSelect,
       handleSend,
       openAttachmentPicker,
       openLocalDirectoryPicker,
-      openLoopPicker: goal.openLoopPicker,
       setIsActionMenuOpen: setActionMenuOpen,
-      setIsLoopPickerOpen: setLoopPickerOpen,
       toggleGoalInput: goal.toggleGoalInput,
     },
   };

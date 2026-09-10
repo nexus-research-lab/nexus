@@ -1,4 +1,9 @@
-import { isMainAgent } from "@/config/runtime-options";
+// INPUT: Room/Conversation 目录、已订阅的主智能体身份与活动状态。
+// OUTPUT: 主智能体禁删且优先置顶，其余聊天按最新活动排序；摘要复用消息协议清理。
+// POS: 聊天目录纯投影，不按名称猜测系统身份。
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
+import { getDefaultAgentId } from "@/config/runtime-options";
+import type { TeamRoomView } from "@/lib/api/conversation/team-api";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type { Locale } from "@/shared/i18n/messages";
 import type {
@@ -13,7 +18,7 @@ import type { RoomActivityStatus } from "../room-activity-resource";
 export interface SidebarConversationItem {
   id: string;
   isPinned: boolean;
-  kind: "room" | "dm";
+  kind: "room" | "dm" | "team";
   title: string;
   summary: string;
   timeLabel: string;
@@ -35,15 +40,12 @@ export interface SidebarConversationItem {
 }
 
 interface ConversationProjectionContext {
+  mainAgentId: string;
   roomActivity: ReadonlyMap<string, RoomActivityStatus>;
   agentById: Map<string, LauncherAgentSummary>;
   latestByRoomId: Map<string, LauncherConversationSummary>;
   locale: Locale;
   untitledRoomLabel: string;
-}
-
-export function normalizeSidebarQuery(value: string): string {
-  return value.trim().toLowerCase();
 }
 
 export function buildConversationItems({
@@ -53,16 +55,19 @@ export function buildConversationItems({
   rooms,
   untitledRoomLabel,
   roomActivity = EMPTY_ROOM_ACTIVITY,
+  mainAgentId = getDefaultAgentId(),
 }: {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
   locale?: Locale;
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
+  mainAgentId?: string;
   roomActivity?: ReadonlyMap<string, RoomActivityStatus>;
 }): SidebarConversationItem[] {
   const context: ConversationProjectionContext = {
     roomActivity,
+    mainAgentId,
     agentById: new Map(agents.map((agent) => [agent.id, agent])),
     latestByRoomId: buildLatestConversationByRoomId(conversations),
     locale,
@@ -72,7 +77,14 @@ export function buildConversationItems({
     .map((room) => projectConversationItem(room, context))
     .filter((item): item is SidebarConversationItem => item !== null);
 
-  return items.sort((left, right) => {
+  return sortConversationItems(items, locale);
+}
+
+export function sortConversationItems(
+  items: SidebarConversationItem[],
+  locale: Locale,
+): SidebarConversationItem[] {
+  return [...items].sort((left, right) => {
     if (left.isPinned !== right.isPinned) {
       return left.isPinned ? -1 : 1;
     }
@@ -83,9 +95,39 @@ export function buildConversationItems({
   });
 }
 
-function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {
+export function buildTeamConversationItem({
+  fallbackTitle,
+  locale,
+  summary,
+  team,
+}: {
+  fallbackTitle: string;
+  locale: Locale;
+  summary: string;
+  team: TeamRoomView;
+}): SidebarConversationItem {
+  const lastActivityAt = toTimestamp(team.conversation.last_activity_at);
+  return {
+    activityStatus: null,
+    avatar: team.room.avatar || null,
+    canDelete: false,
+    conversationId: team.conversation.id,
+    id: `team:${team.conversation.id}`,
+    isPinned: false,
+    kind: "team",
+    lastActivityAt,
+    members: [],
+    messageCount: team.conversation.high_water_message_seq,
+    roomId: team.room.id,
+    summary,
+    timeLabel: formatSidebarTime(lastActivityAt, locale),
+    title: team.room.name || fallbackTitle,
+  };
+}
+
+function isMainAgentDmRoom(room: LauncherRoomSummary, mainAgentId: string): boolean {
   return room.room_type === "dm" && Boolean(
-    room.dm_target_agent_id && isMainAgent(room.dm_target_agent_id),
+    mainAgentId && room.dm_target_agent_id?.trim() === mainAgentId.trim(),
   );
 }
 
@@ -98,7 +140,7 @@ function projectConversationItem(
     return null;
   }
   const isDm = room.room_type === "dm";
-  const isPinned = isMainAgentDmRoom(room);
+  const isPinned = isMainAgentDmRoom(room, context.mainAgentId);
   const dmAgent = room.dm_target_agent_id
     ? context.agentById.get(room.dm_target_agent_id)
     : undefined;
@@ -120,7 +162,7 @@ function projectConversationItem(
     routeRoomId: room.id,
     activityStatus: context.roomActivity.get(room.id) ?? null,
     sessionKey: latest.session_key,
-    summary: latest.last_reply_preview?.trim() ?? "",
+    summary: stripRoomControlMarkers(latest.last_reply_preview ?? ""),
     timeLabel: formatSidebarTime(lastActivityAt, context.locale),
     title,
   };

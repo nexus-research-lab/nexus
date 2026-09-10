@@ -5,10 +5,17 @@
 - `text-file-editor.tsx` 只连接文件控制器、状态投影和窄视图，不拥有渲染策略。
 - `text-file-editor-model.ts` 统一决定正文模式、工具栏状态和外部写入提示。
 - `text-file-editor-recovery.ts` 只根据读取 revision、保存意图和 exact live 文件事实决定保存对账与实时更新；`text-file-editor-reliability.tsx` 使用统一资源状态展示 Problem / Impact / Recovery，不解释内部请求或 revision。
-- Header 只组合文件元信息和命令；Body 只管理渲染器选择、尺寸观测和输入框焦点。
+- Reliability 只保留一处 `UiResourceState` 布局；各分支投影标题、影响、语气和已有动作。读取失败优先于保存问题；未确认结果只提供对账，冲突已读取后才提供采用/覆盖选择。动作忙碌和 revision 可用性保持控制器事实，`text-file-editor-controls.test.tsx` 覆盖这些视图边界。
+- Header 只组合文件元信息和命令；Body 只管理渲染器选择和输入框焦点。流式正文委托 TypewriterFileView，不再为行数维护宽度观察器。
+- Header 的同步提示保留轻量文字与装饰性状态图标，字号由共享 chrome 的 metadata 角色拥有；不为同步状态另建 Badge 或状态组件映射。工具栏图标尺寸复用 Workspace Header 常量。
+- Body 的编辑模式复用 `UiSourceEditor`，不自行维护 textarea 字体、滚动或焦点；默认失焦退出与显式保存消费者的 opt-out 保持不变，可选 editorId/editorLabel 只建立字段身份。
+- Body 的普通预览由按文件名命名、可 Tab 聚焦的单一 region 承载滚动与内嵌焦点；HTML 继续把滚动交给自己的内容宿主。纯文本和大型文本分段复用 `source-text-styles.ts` 的排版与 `layout/preview-viewport-styles.ts` 的视口，不另写字号、行高或滚动焦点配方；Markdown、Mermaid 和语法高亮继续归各自渲染所有者。
 - Markdown 预览可以占满滚动视口，但正文行高与块间距只由共享 Markdown 配方决定；短内容的剩余高度必须留在文末，不参与段落分配。
+- 文件编辑器与 Agent 资料编辑器必须将 exact `agentId` 透传到 Body/Content；Markdown 预览在消费侧绑定资源能力，不跟随全局当前 Agent 选择。
 - 已识别的源码文本通过文件扩展名映射到共享 Prism 语义色板，只渲染内容本身；工作区 Header、复制动作和滚动仍归预览 chrome，未知纯文本继续使用无高亮 `<pre>`。
 - API 保存反馈与外部实时写入状态分开呈现，不为同一写入事务维护重复状态。
+- 普通文本与大型文本的初始等待统一消费上层 `WorkspaceFilePreviewLoading`，文案跟随界面语言；分段读取、渲染策略与写入同步状态仍归原有所有者。
+- `use-large-text-file-preview.ts` 独占只读分段请求与分页状态：owner 代次/Agent/path 变化清空正文和历史偏移，导航按最近返回的 nextOffset 读取，重复导航不跳页；取消或过期回调不得写入当前状态。失败只显示显式从头读取，不拼接片段，不提供保存。视图保留分页按钮实例，加载/失败时禁用；窄宽允许工具行换行，错误内容保持独立可滚动。`large-text-file-preview.test.tsx` 覆盖控制器/视图；`lib/api/agent/agent-api.workspace-chunks.test.ts` 在 Node Fetch 环境验证既有 UTF-8/512KiB Range 合同。
 - 文件必须先成功读取正文和 revision 才能编辑；保存始终携带该读取 revision。owner generation、Agent 或 path 变化立即重建状态，所有迟到读取、保存和对账结果都必须拒绝写回。
 - dirty 草稿与编辑中的正文不接受实时外部内容覆盖。并发变化先保留草稿、读取最新内容，再由用户明确选择放弃草稿或以最新 revision 覆盖；任何选择都不得自动合并。
 - 保存传输结果未知时锁定后续保存，只允许 GET 当前 exact Agent/path 文件进行内容与 revision 对账；页面不自动重放 PUT。明确 `not_applied`，或 exact GET 证明当前文件仍处于提交基线时，才允许用户明确再次保存；后者不得被描述成原请求从未短暂生效。401/403 清除旧正文和草稿。

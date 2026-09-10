@@ -1,7 +1,7 @@
 /**
  * INPUT: Agent/Room Conversation identity、共享 transport、Session/runtime 子域与事件回调。
  * OUTPUT: 消息、运行态、可靠性快照和带 ACK 所有权的 Conversation 公共命令。
- * POS: Agent Conversation 的 React composition root。
+ * POS: Agent Conversation 的 React composition root；目录失效只消费基础协议事件，不导入 Feature 或决定保存策略。
  */
 import {
   useCallback,
@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
-import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/features/conversation/shared/execution/workgraph-distillation-intent";
+import { WORKGRAPH_WORKFLOWS_CHANGED_EVENT } from "@/lib/conversation/workgraph-workflow-events";
 import type {
   CommandCatalogData,
   ContextUsageData,

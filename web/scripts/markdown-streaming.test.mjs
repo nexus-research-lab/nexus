@@ -58,8 +58,8 @@ test("并行 Markdown 流共用一个帧提交且空闲后停止调度", async (
     consumptions
       .filter((entry) => entry.timestamp === 16)
       .reduce((total, entry) => total + entry.grant, 0),
-    4,
-    "the default aggregate reveal cap must stay at 4 graphemes",
+    2048,
+    "large block catch-up stays bounded per commit",
   );
   assert.equal(frames.length, 2, "active streams schedule one shared next frame");
 
@@ -238,37 +238,51 @@ test("流回报未用额度后同帧预算可交给后续流", async () => {
   unsubscribeBusy();
 });
 
-test("大块 live backlog 平滑追赶且 terminal 在有界时间排空", async () => {
+test("高速输出追赶且大块终态按固定截止时间排空", async () => {
   const { AdaptiveStreamClock } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/streaming/adaptive-stream-clock.ts",
   );
+  for (const cps of [36, 300, 3_000]) {
+    const clock = new AdaptiveStreamClock(0);
+    let backlog = 0;
+    let maxBacklog = 0;
+    for (let timestamp = 0; timestamp < 3_000; timestamp += 34) {
+      const appended = Math.round(cps * 0.034);
+      backlog += appended;
+      clock.observeAppend(timestamp, appended);
+      const frame = clock.resolveFrame({ backlog, frameIntervalMs: 34,
+        maxRevealCount: 2048, streaming: true, timestamp });
+      assert.ok(frame.revealCount >= 0 && frame.revealCount <= backlog);
+      backlog -= frame.revealCount;
+      maxBacklog = Math.max(maxBacklog, backlog);
+    }
+    assert.ok(maxBacklog < Math.max(180, cps * 0.5), `arrival ${cps}/s: backlog ${maxBacklog}`);
+  }
   const clock = new AdaptiveStreamClock(0);
-  clock.observeAppend(0, 1_200);
+  let backlog = 12_000;
+  clock.observeAppend(0, backlog);
+  const first = clock.resolveFrame({ backlog, frameIntervalMs: 34,
+    maxRevealCount: 2048, streaming: false, timestamp: 34 });
+  assert.ok(first.revealCount > 4 && first.revealCount < backlog);
+  backlog -= first.revealCount;
+  for (let timestamp = 68; timestamp <= 578 && backlog; timestamp += 34) {
+    backlog -= clock.resolveFrame({ backlog, frameIntervalMs: 34,
+      maxRevealCount: 2048, streaming: false, timestamp }).revealCount;
+  }
+  assert.equal(backlog, 0, "terminal must finish, not restart a sliding drain window");
+});
 
-  const liveFrame = clock.resolveFrame({
-    backlog: 1_200,
-    frameIntervalMs: 34,
-    streaming: true,
-    timestamp: 1_000,
-  });
-  assert.equal(liveFrame.phase, "rendering");
-  assert.ok(
-    liveFrame.cps >= 80 && liveFrame.cps <= 90 && liveFrame.revealCount > 0,
-    "a large first snapshot must advance at a visible reading pace",
+test("高积压合并完成块，低速正文仍使用字符预算", async () => {
+  const { AdaptiveStreamClock } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/adaptive-stream-clock.ts",
   );
-
-  const terminalFrame = clock.resolveFrame({
-    backlog: 1_200,
-    frameIntervalMs: 34,
-    streaming: false,
-    timestamp: 1_034,
-  });
-  assert.equal(terminalFrame.phase, "flushing");
-  assert.ok(
-    terminalFrame.cps >= 110 && terminalFrame.cps <= 120
-      && terminalFrame.revealCount > liveFrame.revealCount,
-    "terminal drain must speed up gently without one immediate full-height jump",
-  );
+  for (const [backlog, expected] of [[1_200, 800], [100, 1]]) {
+    const clock = new AdaptiveStreamClock(0);
+    clock.observeAppend(0, backlog);
+    const frame = clock.resolveFrame({ backlog, completeBlockCharacters: 800,
+      frameIntervalMs: 34, maxRevealCount: 2048, streaming: true, timestamp: 34 });
+    assert.equal(frame.revealCount, expected);
+  }
 });
 
 test("全局帧额度不足时流时钟保留未展示字符预算", async () => {
@@ -296,7 +310,7 @@ test("全局帧额度不足时流时钟保留未展示字符预算", async () =>
   });
   assert.equal(
     nextFrame.revealCount,
-    1,
+    80,
     "budget accumulated before the global cap must remain available",
   );
 });
@@ -364,20 +378,20 @@ test("公平池等待信用不会预付给未来尚未到达的正文", async ()
 });
 
 test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
+  const { splitTextGraphemes } = await server.ssrLoadModule("/src/lib/text-graphemes.ts");
   const {
     appendStreamingTextUnits,
     joinStreamingTextPrefix,
-    splitStreamingTextUnits,
   } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/streaming/stream-text-units.ts",
   );
 
   assert.deepEqual(
-    splitStreamingTextUnits("中文👨‍👩‍👧‍👦e\u0301👍🏽"),
+    splitTextGraphemes("中文👨‍👩‍👧‍👦e\u0301👍🏽"),
     ["中", "文", "👨‍👩‍👧‍👦", "e\u0301", "👍🏽"],
   );
 
-  const emojiUnits = splitStreamingTextUnits("👩");
+  const emojiUnits = splitTextGraphemes("👩");
   const emojiAppend = appendStreamingTextUnits(emojiUnits, "\u200d💻");
   assert.deepEqual(emojiUnits, ["👩‍💻"]);
   assert.deepEqual(
@@ -385,7 +399,7 @@ test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
     { appendedCount: 0, replacedTrailingUnit: true },
   );
 
-  const combiningUnits = splitStreamingTextUnits("a");
+  const combiningUnits = splitTextGraphemes("a");
   const combiningAppend = appendStreamingTextUnits(combiningUnits, "\u0301");
   assert.deepEqual(combiningUnits, ["a\u0301"]);
   assert.deepEqual(
@@ -393,7 +407,7 @@ test("流式展示不拆分 emoji ZWJ 和组合字符", async () => {
     { appendedCount: 0, replacedTrailingUnit: true },
   );
 
-  const largeSuffixUnits = splitStreamingTextUnits("a");
+  const largeSuffixUnits = splitTextGraphemes("a");
   const largeSuffixAppend = appendStreamingTextUnits(
     largeSuffixUnits,
     `\u0301${"后".repeat(1_000)}`,
@@ -434,6 +448,28 @@ test("流式 Markdown 保持空行分隔的相邻有序列表项为一个语义�
   assert.match(blocks[1].content, /\n3\./);
 });
 
+test("增量分块与全量扫描逐前缀一致，支持修正与列表续写", async () => {
+  const { MarkdownStreamBlockParser, splitStreamingMarkdownBlocks } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/markdown-stream-blocks.ts",
+  );
+  const parser = new MarkdownStreamBlockParser();
+  const samples = [
+    "# 标题\n\n段落 👩🏽‍💻\n\n1. 一\n\n2. 二\n\n后续\n\n",
+    "首段\n\n第二段\n\n```ts\na\n\nb\n```\n\n尾段",
+    "首段\n\n第二段\n\n$$\na\n\n+b\n$$\n\n尾段",
+    "# 新标题\n\n修正后\n\n- 一\n\n- 二\n\n",
+  ];
+  for (const source of samples) {
+    for (let end = 0; end <= source.length; end++) {
+      const prefix = source.slice(0, end);
+      assert.deepEqual(parser.parse(prefix), splitStreamingMarkdownBlocks(prefix), prefix);
+    }
+  }
+  const prefix = "一\n\n二\n\n三\n\n四\n\n五";
+  const frozen = parser.parse(prefix)[0];
+  assert.equal(parser.parse(prefix + "追加")[0], frozen, "completed prefixes retain object identity");
+});
+
 test("Markdown 有序列表透传非默认起始序号", async () => {
   const { createMarkdownComponents } = await server.ssrLoadModule(
     "/src/shared/ui/markdown/core/markdown-components.tsx",
@@ -466,4 +502,75 @@ test("增量 Markdown 不使用会重排既有行的 pretty wrapping", async () 
 
   assert.doesNotMatch(html, /text-pretty|text-balance/);
   assert.match(html, /wrap-anywhere/);
+});
+
+test("公式分隔符兼容保留代码与链接，流式空行不拆公式", async () => {
+  const { normalizeMarkdownContent, MARKDOWN_PLUGINS, REHYPE_PLUGINS } = await server.ssrLoadModule("/src/shared/ui/markdown/core/markdown-renderer-shared.tsx");
+  const { splitStreamingMarkdownBlocks } = await server.ssrLoadModule("/src/shared/ui/markdown/streaming/markdown-stream-blocks.ts");
+  const normalize = (text) => normalizeMarkdownContent(text, () => null);
+  for (const input of [String.raw`\(x^2\)`, String.raw`\[x^2\]`, "$x^2$", "$$\nx^2\n$$"]) {
+    const html = renderToStaticMarkup(React.createElement(ReactMarkdown, { remarkPlugins: MARKDOWN_PLUGINS, rehypePlugins: REHYPE_PLUGINS }, normalize(input)));
+    assert.match(html, /class="katex"/);
+  }
+  for (const input of ["`\\(x\\)`", "``\\(x\\)``", "```tex\n\\[x\\]\n```", "~~~tex\n\\[x\\]\n~~~", "```tex\n\\[x\\]", "[link](https://example.com/\\(x\\))", String.raw`\\(literal\\)`]) {
+    assert.equal(normalize(input), input);
+  }
+  const formula = "$$\na+b\n\n+c\n$$\n";
+  assert.deepEqual(splitStreamingMarkdownBlocks(formula).map((block) => block.content), [formula]);
+  assert.equal(splitStreamingMarkdownBlocks("$$\na+b\n\n+c").length, 1);
+  assert.equal(splitStreamingMarkdownBlocks(normalize(String.raw`\[a+b
+
++c`)).filter((block) => block.content.trim()).length, 1);
+  assert.match(normalize("```tex\ncode\n````\n\\(x\\)"), /\\\(x\\\)/);
+  const literalFormula = String.raw`\(\mathrm{file.txt}\)`;
+  assert.equal(normalizeMarkdownContent(literalFormula, () => "file.txt", () => {}), literalFormula);
+});
+
+test("阅读偏好持久化与损坏数据恢复", async () => {
+  const { normalizeChatTypography, DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } = await server.ssrLoadModule("/src/shared/theme/chat-typography.ts");
+  assert.deepEqual(normalizeChatTypography(null), DEFAULT_CHAT_TYPOGRAPHY);
+  assert.deepEqual(normalizeChatTypography({ font: 123, fontSize: 99, lineHeight: 0 }), { font: "default", fontSize: 22, lineHeight: 1.4 });
+  assert.deepEqual(normalizeChatTypography({ fontSize: NaN, lineHeight: Infinity }), DEFAULT_CHAT_TYPOGRAPHY);
+  assert.equal(normalizeChatTypography({ font: "Times New Roman" }).font, "Times New Roman");
+  assert.equal(normalizeChatTypography({ font: "PT " }).font, "PT ");
+  assert.equal(normalizeChatTypography({ font: "\n" }).font, "default");
+  let stored;
+  useChatTypography.persist.setOptions({ storage: { getItem: () => stored, setItem: (_key, value) => { stored = value; }, removeItem: () => { stored = undefined; } } });
+  useChatTypography.getState().setTypography({ font: "Times New Roman", fontSize: 20, lineHeight: 1.8 });
+  const saved = stored;
+  useChatTypography.setState({ typography: DEFAULT_CHAT_TYPOGRAPHY });
+  stored = saved;
+  await useChatTypography.persist.rehydrate();
+  assert.deepEqual(useChatTypography.getState().typography, { font: "Times New Roman", fontSize: 20, lineHeight: 1.8 });
+});
+
+test("外观恢复的主题默认值跟随系统配色", async () => {
+  const { defaultTheme } = await server.ssrLoadModule("/src/shared/theme/theme-context.ts");
+  const previousWindow = globalThis.window;
+  try {
+    globalThis.window = { matchMedia: () => ({ matches: true }) };
+    assert.equal(defaultTheme(), "dark");
+    globalThis.window = { matchMedia: () => ({ matches: false }) };
+    assert.equal(defaultTheme(), "light");
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
+test("字体目录通过版本化桌面桥接读取且不发送字体文件", async () => {
+  const { getDesktopSystemFonts } = await server.ssrLoadModule("/src/lib/desktop-bridge/desktop-bridge.ts");
+  const previousWindow = globalThis.window;
+  let request;
+  try {
+    globalThis.window = { __NEXUS_DESKTOP_BRIDGE__: { invoke: async (message) => {
+      request = message;
+      return { families: ["Academy Engraved LET", "Al Bayan", "PT Mono"] };
+    } } };
+    assert.deepEqual(await getDesktopSystemFonts(), { families: ["Academy Engraved LET", "Al Bayan", "PT Mono"] });
+    assert.deepEqual(request, { schema_version: 1, kind: "app.get_system_fonts", payload: {} });
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });

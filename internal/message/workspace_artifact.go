@@ -1,3 +1,6 @@
+// INPUT: Matched successful tool results and exact runtime message context.
+// OUTPUT: Working-file evidence and explicit deliverables with host-bound provenance.
+// POS: File artifact message projection; never interprets arbitrary shell output as delivery.
 package message
 
 import (
@@ -25,6 +28,9 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 		return nil
 	}
 	toolName := normalizeString(toolUse["name"])
+	if isFileDeliveryTool(toolName) {
+		return p.fileDeliveryArtifacts(toolResult, toolUseID, toolName)
+	}
 	if artifact := p.imagegenArtifactForToolResult(toolResult, toolUseID, toolName); artifact != nil {
 		return []map[string]any{artifact.Map()}
 	}
@@ -43,19 +49,22 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 	}
 	kind, mimeType := workspaceFileArtifactKindAndMIME(relativePath, "")
 	block := protocol.WorkspaceFileArtifactBlock{
-		ID:               fmt.Sprintf("workspace_file:%s:%s", toolUseID, relativePath),
-		Type:             protocol.ContentBlockTypeWorkspaceFileArtifact,
-		Path:             relativePath,
-		DisplayPath:      relativePath,
-		Label:            label,
-		Title:            workspaceFileArtifactTitle(relativePath),
-		ArtifactKind:     kind,
-		MIMEType:         mimeType,
-		Operation:        operation,
-		Scope:            protocol.WorkspaceFileArtifactScopeAgentWorkspace,
-		WorkspaceAgentID: p.ctx.AgentID,
-		SourceToolUseID:  toolUseID,
-		SourceToolName:   toolName,
+		Role:               "working_file",
+		ProducerAgentID:    p.ctx.AgentID,
+		SourceAgentRoundID: p.ctx.AgentRoundID,
+		ID:                 fmt.Sprintf("workspace_file:%s:%s", toolUseID, relativePath),
+		Type:               protocol.ContentBlockTypeWorkspaceFileArtifact,
+		Path:               relativePath,
+		DisplayPath:        relativePath,
+		Label:              label,
+		Title:              workspaceFileArtifactTitle(relativePath),
+		ArtifactKind:       kind,
+		MIMEType:           mimeType,
+		Operation:          operation,
+		Scope:              protocol.WorkspaceFileArtifactScopeAgentWorkspace,
+		WorkspaceAgentID:   p.ctx.AgentID,
+		SourceToolUseID:    toolUseID,
+		SourceToolName:     toolName,
 	}
 	return []map[string]any{block.Map()}
 }
@@ -82,19 +91,22 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 		mimeType = inferredMIME
 	}
 	return &protocol.WorkspaceFileArtifactBlock{
-		ID:               fmt.Sprintf("workspace_file:%s:%s", toolUseID, relativePath),
-		Type:             protocol.ContentBlockTypeWorkspaceFileArtifact,
-		Path:             relativePath,
-		DisplayPath:      relativePath,
-		Label:            imagegenArtifactLabel(payload),
-		Title:            workspaceFileArtifactTitle(relativePath),
-		ArtifactKind:     kind,
-		MIMEType:         mimeType,
-		Operation:        protocol.WorkspaceFileArtifactOperationWrite,
-		Scope:            protocol.WorkspaceFileArtifactScopeAgentWorkspace,
-		WorkspaceAgentID: p.ctx.AgentID,
-		SourceToolUseID:  toolUseID,
-		SourceToolName:   toolName,
+		Role:               "deliverable",
+		ProducerAgentID:    p.ctx.AgentID,
+		SourceAgentRoundID: p.ctx.AgentRoundID,
+		ID:                 fmt.Sprintf("workspace_file:%s:%s", toolUseID, relativePath),
+		Type:               protocol.ContentBlockTypeWorkspaceFileArtifact,
+		Path:               relativePath,
+		DisplayPath:        relativePath,
+		Label:              imagegenArtifactLabel(payload),
+		Title:              workspaceFileArtifactTitle(relativePath),
+		ArtifactKind:       kind,
+		MIMEType:           mimeType,
+		Operation:          protocol.WorkspaceFileArtifactOperationWrite,
+		Scope:              protocol.WorkspaceFileArtifactScopeAgentWorkspace,
+		WorkspaceAgentID:   p.ctx.AgentID,
+		SourceToolUseID:    toolUseID,
+		SourceToolName:     toolName,
 	}
 }
 
@@ -293,8 +305,12 @@ func (p *Processor) relativeWorkspaceArtifactPath(absolutePath string) string {
 			return filepath.ToSlash(relativePath)
 		}
 	}
-	if relativePath := relativePathFromNexusWorkspacePath(absolutePath); relativePath != "" {
-		return relativePath
+	if workspacePath == "" {
+		// Historical records without workspace context only. Never discard a
+		// mismatched workspace identity when a current root is known.
+		if relativePath := relativePathFromNexusWorkspacePath(absolutePath); relativePath != "" {
+			return relativePath
+		}
 	}
 	return ""
 }

@@ -356,7 +356,7 @@ export function buildDefaultTaskDialogInitialState(
       executionMode: "temporary",
       instruction: preset?.instruction ?? "",
       permissionMode: "copy",
-      replyMode: "none",
+      replyMode: "selected",
       selectedAgentId: agentId,
       selectedDeliveryAgentId: agentId,
       selectedDeliveryPresenterAgentId: "",

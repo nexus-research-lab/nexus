@@ -1,21 +1,29 @@
+// INPUT: 列表次动作、展示时机与原生 button 属性。
+// OUTPUT: 复用 IconButton 尺寸、tone、禁用、焦点与 Tooltip 的独立列表动作。
+// POS: ListAction 只拥有事件隔离与行内可见性；不重复实现按钮 DOM 或视觉状态。
 "use client";
 
 import { ButtonHTMLAttributes, forwardRef, MouseEvent, ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import {
-  getUiListActionClassName,
-  type UiListActionShape,
-  type UiListActionSize,
-  type UiListActionTone,
+  UiIconButton,
+  type UiButtonTone,
+  type UiIconButtonShape,
+  type UiIconButtonSize,
+} from "@/shared/ui/button/button";
+import {
+  getUiListActionVisibilityClassName,
   type UiListActionVisibility,
 } from "@/shared/ui/list/list-action-styles";
+
+export type UiListActionTone = Exclude<UiButtonTone, "success">;
 
 interface UiListActionButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   className?: string;
-  shape?: UiListActionShape;
-  size?: UiListActionSize;
+  shape?: UiIconButtonShape;
+  size?: Extract<UiIconButtonSize, "xs" | "sm" | "md">;
   stopPropagation?: boolean;
   tone?: UiListActionTone;
   visibility?: UiListActionVisibility;
@@ -27,11 +35,11 @@ export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButt
     className,
     onClick,
     shape,
-    size,
+    size = "sm",
     stopPropagation: stopPropagation = false,
     tone,
     type = "button",
-    visibility,
+    visibility = "subtle",
     ...props
   },
   ref,
@@ -44,17 +52,17 @@ export const UiListActionButton = forwardRef<HTMLButtonElement, UiListActionButt
   };
 
   return (
-    <button
+    <UiIconButton
       ref={ref}
-      className={getUiListActionClassName(
-        { shape, size, tone, visibility },
-        cn(className),
-      )}
+      className={cn(getUiListActionVisibilityClassName(visibility), className)}
       onClick={handleClick}
+      shape={shape}
+      size={size}
+      tone={tone}
       type={type}
       {...props}
     >
       {children}
-    </button>
+    </UiIconButton>
   );
 });

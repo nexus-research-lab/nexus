@@ -1,3 +1,6 @@
+// INPUT: 单个可聚焦触发器、短标签、可选快捷键与锚定方向。
+// OUTPUT: 具延迟 hover、即时 focus、仅关联实际可见提示的 ARIA 与 Portal 定位且不移动焦点的共享提示。
+// POS: Tooltip primitive；不承担业务点击动作或长内容 Popover。
 "use client";
 
 import {
@@ -27,9 +30,10 @@ interface TooltipTriggerProps {
 
 interface UiTooltipProps {
   children: ReactElement<TooltipTriggerProps>;
-  label: string;
+  label?: string | null;
   placement?: UiAnchoredOverlayPlacement;
   shortcut?: string;
+  openOnFocus?: boolean;
 }
 
 const TOOLTIP_OPEN_DELAY_MS = 260;
@@ -39,12 +43,14 @@ export function UiTooltip({
   label,
   placement = "auto",
   shortcut,
+  openOnFocus = true,
 }: UiTooltipProps) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const measuredSizeRef = useRef({ height: 40, width: 0 });
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const tooltipLabel = label.trim();
+  const tooltipLabel = label?.trim() ?? "";
+  const visible = isOpen && Boolean(tooltipLabel);
   const clearOpenTimer = useCallback(() => {
     if (openTimerRef.current) {
       clearTimeout(openTimerRef.current);
@@ -57,8 +63,15 @@ export function UiTooltip({
   }, [clearOpenTimer]);
   const openNow = useCallback(() => {
     clearOpenTimer();
+    const trigger = anchorRef.current?.firstElementChild;
+    if (!tooltipLabel || !trigger) return;
+    // 已完整显示的文字不重复提示；截断内容与额外说明仍可查看。
+    const text = trigger.textContent?.replace(/\s+/g, " ").trim();
+    const clipped = [trigger, ...trigger.querySelectorAll("*")].some((element) =>
+      element.clientWidth > 0 && (element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight));
+    if (text === tooltipLabel.replace(/\s+/g, " ") && !clipped && !trigger.querySelector(".sr-only")) return;
     setIsOpen(true);
-  }, [clearOpenTimer]);
+  }, [clearOpenTimer, tooltipLabel]);
   const scheduleOpen = useCallback(() => {
     clearOpenTimer();
     openTimerRef.current = setTimeout(openNow, TOOLTIP_OPEN_DELAY_MS);
@@ -92,8 +105,9 @@ export function UiTooltip({
     anchorRef,
     disabled: !tooltipLabel,
     estimatePosition,
-    isOpen,
+    isOpen: visible,
     onClose: close,
+    restoreFocus: false,
   });
 
   useEffect(() => clearOpenTimer, [clearOpenTimer]);
@@ -110,7 +124,7 @@ export function UiTooltip({
 
   const describedBy = [
     children.props["aria-describedby"],
-    isOpen ? overlayId : null,
+    visible && portalContainer ? overlayId : null,
   ].filter(Boolean).join(" ") || undefined;
 
   return (
@@ -118,21 +132,25 @@ export function UiTooltip({
       <span
         ref={anchorRef}
         className="contents"
-        data-ui-tooltip-trigger="true"
+        data-ui-tooltip-trigger={tooltipLabel ? "true" : undefined}
         onBlurCapture={close}
-        onFocusCapture={openNow}
-        onMouseEnter={scheduleOpen}
+        onFocusCapture={(event) => {
+          if (openOnFocus && event.target.closest('[data-ui-tooltip-trigger="true"]') === anchorRef.current) openNow();
+        }}
+        onMouseEnter={(event) => {
+          if (event.target instanceof Element && event.target.closest('[data-ui-tooltip-trigger="true"]') === anchorRef.current) scheduleOpen();
+        }}
         onMouseLeave={close}
         onPointerDownCapture={close}
       >
         {cloneElement(children, { "aria-describedby": describedBy })}
       </span>
-      {isOpen && tooltipLabel && portalContainer
+      {visible && portalContainer
         ? createPortal(
             <div
               ref={overlayRef}
               className={cn(
-                "ui-tooltip pointer-events-none fixed left-0 top-0 z-[10030] flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
+                "ui-tooltip pointer-events-none fixed left-0 top-0 ui-layer-tooltip flex w-max max-w-[calc(100vw-24px)] items-center gap-2",
                 ANCHORED_OVERLAY_MOTION_CLASS_NAME,
               )}
               data-placement={overlayPosition?.placement ?? placement}

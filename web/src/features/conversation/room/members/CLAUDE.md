@@ -3,13 +3,15 @@
 ## 职责边界
 
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口，消费已经完整化的具体参数。
-- `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 只维护与 `roomId` 绑定的打开状态。
+- `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 共用 `use-room-member-manager.ts` 的单飞目录准备与临时打开态。
+- `use-room-member-manager.ts` 只持有成员入口生命周期，不写成员或取消/重放目录请求；Room/owner 或挂载代次改变使迟到打开失效。它保留标题/目录刷新和同 Room 会话选择，辅助读取失败继续使用已有成员。
 - `create-room-dialog-model.ts` 负责可选参数默认化、弹窗重建身份和创建/管理标签投影，不持有 React 状态。
 - 创建群聊入口可以使用 Lucide `MessageCirclePlus`，弹窗本身使用 plain Header，只让标题表达创建或管理模式。
+- 创建模式在同一份表单中选择本地或在线；在线选项仅在远程账户和 Relay 可用时出现，并在统一成员列表中追加可邀请的 Team 真人，不得另建简化在线弹窗。
 - `use-create-room-form.ts` 独占表单状态、不变量归一化和提交模型构造；成员移除后群主失效、暂停草稿只保留已选成员等联动必须在这里完成。
 - `room-settings-form.tsx`、`room-member-selector.tsx` 只负责各自视图和用户输入，不在渲染期修正状态；设置区以内容驱动的头像/名称与群主选项分组排布，不常驻渲染完整头像轨道；管理态成员行将增删与持久暂停/恢复呈现为两个独立动作。
 - `room-avatar-picker.tsx` 只组合 Room 当前头像和共享锚定图标选择器，保持与 Agent 身份页一致的“明确入口后展开”交互。
-- 创建与管理弹窗使用 plain Header、固定 plain Footer 和克制双栏，不用图标或副标题重复名称/成员要求；头像为 56px，桌面成员列表保持稳定视口并独立滚动，只用单层浅底与 40px 行，活动成员不绘制蓝色边框卡或圆形 plus。
+- 创建与管理弹窗使用 plain Header、固定 plain Footer 和克制双栏，不用图标或副标题重复名称/成员要求；头像为 56px，桌面成员列表保持稳定视口并独立滚动，成员固定复用 `UiListRow density="dense"` 的单层浅底与 40px 行，暂停/恢复复用独立 `UiChoiceButton`，活动成员不绘制蓝色边框卡或圆形 plus。
 - `skills/` 独占 Room 技能资源、选择状态和异步菜单，不将单一业务消费者伪装成共享控件。
 
 ## 约定
@@ -22,3 +24,5 @@
 - 管理模式只产生包含 `pausedAgentIds` 的完整提交对象；成员差异、参与状态差异和跨接口写入事务归页面命令层，弹窗不得直接调用 Room API。
 - 成员暂停是 Room 级持久参与状态，不等同于停止当前输出；保存后由后端先收口该成员当前 slot，再闸住用户队列、Agent 唤醒、Goal continuation 与 WorkGraph dispatch，恢复时释放原样保留的工作。
 - 管理弹窗在 `md` 以下使用内容驱动、带视口高度上限的单列布局，设置、成员和技能依次纵向排列；内容较少时不得强制撑满窗口，内容超高时只滚动 Body，也不得把桌面双栏压成窄条。
+
+- 弹窗使用实例级标题 ID；异步提交通过同步 ref 防重并冻结名称、成员、Skill 和关闭动作，失败保留草稿并提示核对现有设置，当前实例锁住再次保存，避免复合提交或刷新失败后直接重放。IME 确认候选不得触发保存。

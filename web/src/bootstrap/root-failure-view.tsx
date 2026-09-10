@@ -1,9 +1,14 @@
 /**
  * INPUT: 启动或根渲染已经确认的失败标题与单句恢复说明。
- * OUTPUT: 不泄露底层原因、只提供刷新动作的全屏失败面。
+ * OUTPUT: 不泄露底层原因、只提供刷新动作、使用无 Context 公共样式配方的全屏失败面。
  * POS: React 根边界的最后用户可见恢复入口；诊断只写宿主日志。
  */
 import { Component, type ErrorInfo, type ReactNode } from "react";
+
+import { getRootFailureCopy } from "./root-failure-copy";
+
+import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { notifyDesktopWebFatal } from "@/config/desktop-runtime";
 
@@ -39,16 +44,16 @@ export function RootFailureScreen({
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-(--surface-panel-border) bg-(--surface-panel-subtle-background) text-lg font-semibold">
           N
         </div>
-        <h1 className="text-lg font-semibold text-(--text-strong)">{title}</h1>
-        <p className="mx-auto mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
+        <h1 className={getUiTypographyClassName({ role: "pageTitle", tone: "strong" })}>{title}</h1>
+        <p className={`mx-auto mt-3 max-w-[420px] wrap-anywhere ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>
           {message}
         </p>
         <button
-          className="mt-5 inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 motion-reduce:transition-none"
+          className={getUiButtonClassName({ size: "lg", tone: "primary", variant: "solid" }, "mt-5")}
           onClick={() => window.location.reload()}
           type="button"
         >
-          重试
+          {getRootFailureCopy().retry}
         </button>
       </section>
     </main>
@@ -74,8 +79,8 @@ export class RootErrorBoundary extends Component<RootErrorBoundaryProps, RootErr
     if (this.state.hasError) {
       return (
         <RootFailureScreen
-          message="请稍后重试。"
-          title="页面暂时无法显示"
+          message={getRootFailureCopy().message}
+          title={getRootFailureCopy().page}
         />
       );
     }

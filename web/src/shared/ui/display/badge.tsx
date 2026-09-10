@@ -1,10 +1,16 @@
+// INPUT: Badge 内容、可选图标/状态点与有限的 size/tone/shape 语义。
+// OUTPUT: 统一外形和状态颜色的只读 Badge，以及采用主题配对前景的正数 Counter Badge。
+// POS: Badge DOM 原语；不解释业务状态或计数来源。
+
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import {
   getUiBadgeClassName,
+  type UiBadgeShape,
   type UiBadgeSize,
   type UiBadgeTone,
 } from "@/shared/ui/display/badge-styles";
@@ -14,6 +20,7 @@ interface UiBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   className?: string;
   icon?: ReactNode;
   showDot?: boolean;
+  shape?: UiBadgeShape;
   size?: UiBadgeSize;
   tone?: UiBadgeTone;
 }
@@ -29,19 +36,22 @@ export function UiBadge({
   className,
   icon,
   showDot: showDot = false,
+  shape,
   size,
   tone,
+  title,
   ...props
 }: UiBadgeProps) {
-  return (
+  const content = (
     <span
-      className={getUiBadgeClassName({ size, tone }, cn(className))}
+      className={getUiBadgeClassName({ shape, size, tone }, cn(className))}
       {...props}
     >
       {icon ?? (showDot ? <span className="h-1.5 w-1.5 rounded-full bg-current" /> : null)}
       {children}
     </span>
   );
+  return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;
 }
 
 export function UiCounterBadge({
@@ -57,7 +67,7 @@ export function UiCounterBadge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-xs font-semibold leading-none text-white",
+        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-xs font-semibold leading-none text-(--destructive-foreground)",
         className,
       )}
       {...props}

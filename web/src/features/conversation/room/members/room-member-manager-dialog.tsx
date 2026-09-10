@@ -1,3 +1,6 @@
+// INPUT: 当前群聊成员、设置、Agent 目录与异步保存命令。
+// OUTPUT: 创建弹窗的管理模式装配；保存成功后关闭，失败和提交锁由弹窗持有。
+// POS: Room 成员管理入口；不直接读取目录或写入持久化。
 import type { Agent } from "@/types/agent/agent";
 
 import {

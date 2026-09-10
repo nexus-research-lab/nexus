@@ -1,5 +1,5 @@
 // INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、真实 Agent slot lease、工具面换代且 revision 绑定的 runtime options/client。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、工具面换代且 revision 绑定的 runtime options/client。
 // POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
 package realtime
 
@@ -453,6 +453,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 	}
 	return nexusmcp.RoundContext{
 		SessionKey: e.round.SessionKey, RoundID: e.round.RootRoundID,
+		SubagentControl:   e.service.runtime.BindSubagentControl(e.slot.RuntimeSessionKey, e.slot.AgentRoundID),
 		SourceContextType: roomCommandSourceContextType(e.round),
 		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
 		CommandContext: commandContext, CommandReceipts: e.slot.ensureCommandReceiptState(),

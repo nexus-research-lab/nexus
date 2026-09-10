@@ -1,17 +1,18 @@
 // INPUT: 飞书 Device Flow 阶段与手工凭据草稿。
 // OUTPUT: 当前用户动作所需的短标题、状态、二维码/跳转模式和完整性判断。
 // POS: 飞书连接弹窗的纯展示模型，不携带教程式副标题。
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ConnectorDeviceAuthStart,
   ConnectorDeviceAuthStage,
 } from "@/types/capability/connector";
 
 export interface FeishuDeviceAuthPresentation {
-  actionLabel: string;
-  qrAlt?: string;
-  initialMessage: string;
+  actionLabel: TranslationKey;
+  qrAlt?: TranslationKey;
+  initialMessage: TranslationKey;
   showQRCode: boolean;
-  title: string;
+  title: TranslationKey;
 }
 
 const FEISHU_DEVICE_AUTH_PRESENTATION: Record<
@@ -19,17 +20,17 @@ const FEISHU_DEVICE_AUTH_PRESENTATION: Record<
   FeishuDeviceAuthPresentation
 > = {
   app_selection: {
-    actionLabel: "打开飞书",
-    qrAlt: "飞书应用选择二维码",
-    initialMessage: "等待选择应用",
+    actionLabel: "capability.connector_flow_feishu_open",
+    qrAlt: "capability.connector_flow_feishu_qr",
+    initialMessage: "capability.connector_flow_wait_app",
     showQRCode: true,
-    title: "选择飞书应用",
+    title: "capability.connector_flow_select_app",
   },
   user_authorization: {
-    actionLabel: "继续授权",
-    initialMessage: "等待授权",
+    actionLabel: "capability.connector_flow_continue_auth",
+    initialMessage: "capability.connector_flow_waiting",
     showQRCode: false,
-    title: "连接飞书云文档",
+    title: "capability.connector_flow_feishu_title",
   },
 };
 

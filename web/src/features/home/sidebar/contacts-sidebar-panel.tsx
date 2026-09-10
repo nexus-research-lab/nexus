@@ -1,26 +1,28 @@
 /**
  * INPUT: Agent 目录、共享目录降级状态、当前路由与联系人导航命令。
  * OUTPUT: 可搜索、可恢复且保留 stale Agent 数据的联系人侧栏。
- * POS: Home 联系人目录视图；不直接发起 bootstrap 请求。
+ * POS: Home 联系人目录视图；不直接发起 bootstrap 请求；私聊准备按导航代次隔离，未知结果只进入目录核对。
  */
 import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
+import { projectMutationFailure, type MutationFailureEffect } from "@/lib/error-message";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import {
   SidebarSearchAction,
   SidebarSearchField,
 } from "@/shared/ui/form/sidebar-search-field";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
-import { normalizeSidebarQuery } from "./sidebar-conversation-model";
 import { useSidebarDirectory } from "./sidebar-directory";
 import {
   ContactRow,
@@ -43,14 +45,26 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     refreshDirectory,
   } = useSidebarDirectory();
   const [query, setQuery] = useState("");
+  const [navigationFailure, setNavigationFailure] = useState<{
+    agentId: string; effect: MutationFailureEffect;
+  } | null>(null);
+  const navigationGeneration = useRef(0);
+  const pendingAgents = useRef(new Set<string>());
+  const uncertainAgents = useRef(new Set<string>());
+  useLayoutEffect(() => {
+    navigationGeneration.current += 1;
+    return () => { navigationGeneration.current += 1; };
+  }, [location.key]);
+  const openRoute = useCallback((route: string) => {
+    navigationGeneration.current += 1;
+    navigate(route);
+  }, [navigate]);
   const activeAgentId = location.pathname === AppRouteBuilders.contacts()
     ? new URLSearchParams(location.search).get("agent")
     : null;
   const filteredAgents = useMemo(() => {
-    const normalizedQuery = normalizeSidebarQuery(query);
-    return normalizedQuery
-      ? agents.filter((agent) => agent.name.toLowerCase().includes(normalizedQuery))
-      : agents;
+    const search = createUiSearchMatcher(query);
+    return agents.filter((agent) => search.matches([agent.name]));
   }, [agents, query]);
 
   const openContactsDirectory = useCallback(() => {
@@ -59,29 +73,47 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       ? AppRouteBuilders.contactsManage()
       : AppRouteBuilders.contacts();
     if (`${location.pathname}${location.search}` !== target) {
-      navigate(target);
+      openRoute(target);
     }
-  }, [location.pathname, location.search, navigate, setActiveItem]);
+  }, [location.pathname, location.search, openRoute, setActiveItem]);
 
   const openAgentCreation = useCallback(() => {
     setActiveItem(null);
-    navigate(AppRouteBuilders.contactsCreate());
-  }, [navigate, setActiveItem]);
+    openRoute(AppRouteBuilders.contactsCreate());
+  }, [openRoute, setActiveItem]);
 
   const openAgentDetail = useCallback((agentId: string) => {
     setActiveItem(agentId);
-    navigate(AppRouteBuilders.contactAgent(agentId));
-  }, [navigate, setActiveItem]);
+    openRoute(AppRouteBuilders.contactAgent(agentId));
+  }, [openRoute, setActiveItem]);
 
   const openAgentDm = useCallback(async (agentId: string) => {
-    const target = await resolveDirectRoomNavigationTarget(agentId);
-    clearTargetNotifications(buildChatNotificationTargetKey({
-      conversation_id: target.context.conversation.id,
-      room_id: target.context.room.id,
-    }));
-    setActiveItem(target.context.room.id);
-    navigate(target.route);
-  }, [clearTargetNotifications, navigate, setActiveItem]);
+    if (pendingAgents.current.has(agentId)) return;
+    if (uncertainAgents.current.has(agentId)) {
+      openRoute(AppRouteBuilders.home());
+      return;
+    }
+    const generation = ++navigationGeneration.current;
+    pendingAgents.current.add(agentId);
+    setNavigationFailure(null);
+    try {
+      const target = await resolveDirectRoomNavigationTarget(agentId);
+      if (generation !== navigationGeneration.current) return;
+      clearTargetNotifications(buildChatNotificationTargetKey({
+        conversation_id: target.context.conversation.id,
+        room_id: target.context.room.id,
+      }));
+      setActiveItem(target.context.room.id);
+      openRoute(target.route);
+    } catch (error) {
+      const { effect } = projectMutationFailure(error, t("sidebar.dm_failed_title"));
+      if (effect !== "not_applied") uncertainAgents.current.add(agentId);
+      if (generation !== navigationGeneration.current) return;
+      setNavigationFailure({ agentId, effect });
+    } finally {
+      pendingAgents.current.delete(agentId);
+    }
+  }, [clearTargetNotifications, openRoute, setActiveItem, t]);
 
   return (
     <div
@@ -98,7 +130,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
           </SidebarSearchAction>
         )}
         onChange={setQuery}
-        placeholder={t("sidebar.search_contacts")}
+        label={t("sidebar.search_contacts")}
         value={query}
       />
 
@@ -106,6 +138,24 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
         <SidebarListLoadingRows />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
+          {navigationFailure ? (
+            <UiInlineNotice
+              action={{
+                label: t(navigationFailure.effect === "not_applied" ? "sidebar.retry" : "sidebar.dm_check_directory"),
+                onClick: () => {
+                  if (navigationFailure.effect === "not_applied") {
+                    void openAgentDm(navigationFailure.agentId);
+                  } else {
+                    openRoute(AppRouteBuilders.home());
+                  }
+                },
+              }}
+              icon={<CircleAlert />}
+              message={t(navigationFailure.effect === "not_applied" ? "sidebar.dm_not_applied" : "sidebar.dm_check_impact")}
+              title={t("sidebar.dm_failed_title")}
+              tone={navigationFailure.effect === "not_applied" ? "danger" : "warning"}
+            />
+          ) : null}
           {hasError && hasLoaded ? (
             <HomeDirectoryRefreshErrorNotice
               className="mb-1"

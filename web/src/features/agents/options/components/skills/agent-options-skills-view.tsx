@@ -1,5 +1,5 @@
 // INPUT: Agent Skill 读取/修改可靠性状态与列表交互。
-// OUTPUT: 分离的三问错误面、同意图解锁动作和 Skill 列表。
+// OUTPUT: 分离的读取/修改错误面与 Skill 列表；无快照读失败不伪装空目录。
 // POS: Agent Options Skill 展示边界；读取刷新不清理 mutation unknown。
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -53,7 +53,7 @@ function SkillsLoadError({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   ) : null;
 }
@@ -77,7 +77,7 @@ function SkillMutationFailures({
       size="sm"
       state="error"
       title={failure.title}
-      variant="inset"
+      variant="card"
     />
   ) : null;
 }
@@ -112,18 +112,20 @@ export function AgentOptionsSkillsView({
         failures={mutationFailures}
         refresh={refresh}
       />
-      <AgentOptionsSkillsContent
-        agentId={agentId}
-        blockedSkillNames={blockedSkillNames}
-        busySkillName={busySkillName}
-        commandBusy={commandBusy}
-        loading={loading}
-        readBlocked={Boolean(readFailure)}
-        projection={projection}
-        requestSkillAction={requestSkillAction}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-      />
+      {(!readFailure || loading || projection.enabled.length > 0 || projection.available.length > 0) ? (
+        <AgentOptionsSkillsContent
+          agentId={agentId}
+          blockedSkillNames={blockedSkillNames}
+          busySkillName={busySkillName}
+          commandBusy={commandBusy}
+          loading={loading}
+          readBlocked={Boolean(readFailure)}
+          projection={projection}
+          requestSkillAction={requestSkillAction}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+      ) : null}
 
       <ConfirmDialog
         confirmText={t("agent_options.skills.disable_confirm_action")}

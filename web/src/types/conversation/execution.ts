@@ -100,6 +100,9 @@ export type ExecutionGraphEdgeKind =
   | "retry";
 
 export interface ExecutionGraphArtifactView {
+  role?: "working_file" | "deliverable";
+  producer_agent_id?: string;
+  source_agent_round_id?: string;
   id?: string;
   type: "workspace_file_artifact";
   path: string;

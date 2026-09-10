@@ -1,11 +1,29 @@
 # Shared Overlay
 
-- `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐。
-- `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期。
+- `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐；它接收已经解析的数字约束，不认识产品语义。
+- 锚点滚出视口或强制方向的空间不足时，最终 top/bottom 坐标仍夹在视口留白内，不能把旧锚点坐标直接投影成不可见的负位置。最终宽高不得为负，且不能超过视口扣除两侧留白；语义 minHeight 只是建议下限，不得突破整窗硬上限。
+- `anchored-overlay-layout.ts` 是锚定浮层 geometry preset 的唯一 owner：`directory-list / reference-list / form-picker / status-summary / status-list / cascade-menu / command-list / command-picker` 固定既有 gap、视口内边距与宽高边界。消费者只选择语义 preset，并按需提供内容估算高度、方向和对齐，不得重新散落同组数字。
+- 有明确内容几何的复合浮层可提供 contentWidth（例如 Agent/模型双栏之和），仍由同一锚定求解器夹紧到视口；不在业务层二次改写 left/width。getUiAnchoredOverlayGap 与既有宽度/留白 getter 只用于内容能否并排的组合判断，不新增一套产品断点。
+- 指针菜单与侧向子菜单分别通过 `resolveUiPointOverlayPosition` / `resolveUiSideOverlayPosition` 复用同一 preset，底层 model 只做坐标求解。调用方提供原始点或真实行，不按文件/宿主类型维护宽高表；指针层夹回视口，侧向层沿行对齐、右侧不足时向左，内容超过上限则在层内滚动。
+- `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期；默认向锚点归还焦点，包装型交互 primitive 必须显式提供真实触发器的焦点归还策略。不会移动焦点的只读提示使用 `restoreFocus: false`，避免 hover 后按 Escape 抢走输入焦点并触发 focus 重开。
+- `overlay-dismissal-runtime.ts` 独占模态范围与浮层关闭仲裁。Escape 每次只由当前模态范围的最上层浮层消费，并执行其焦点策略；背景浮层不得拦截当前 Dialog，回调更新不得改变打开顺序。子 Portal 的内容属于父浮层内部，外部指针关闭仍把焦点交给用户点击目标。
+- `anchorPress` 默认把触发器命中视为内部；上下文菜单可选 outside，使调用区域内的新点击也关闭菜单，同时仍将子 Portal 及其触发器视为父层内部。保存的锚点已脱离 DOM 时，重定位/指针/Escape 清理失效浮层，不抢当前模态的按键或焦点；尚未挂载的空 ref 保留原延迟注册行为。
+- 级联 Tab 退出通过只读 `getAnchoredOverlayAncestorRoots` 在关闭前记录 Portal 祖先，焦点续接排除即将关闭且不含返回锚点的菜单；不从 React 组件树或 DOM 同级顺序猜父子关系。
+- 全局 Escape 先通过公共 isImeKeyboardEvent 排除输入法候选事件及兼容 229 键码；这些按键继续由输入框处理，不关闭浮层或移动焦点。
+- 保持文本输入焦点、且祖先会阻止键盘冒泡的候选列表可显式使用 captureEscape；同一关闭层仍执行模态范围、最上层和 IME 仲裁，捕获成功后阻止继续传播。其他浮层继续使用原冒泡阶段。
+- 关闭仲裁注册必须在 DOM 提交后核对真实锚点与浮层节点；初始打开但延迟挂载、同容器节点替换及 Portal 迁移都必须注册新节点，节点未变时保留原顺序，关闭和卸载幂等注销。不得只依赖布尔打开态或 Portal 容器变化，也不得用轮询等待挂载。
 - `overlay-contract.ts` 定义打开态 DOM 契约，供嵌套 Dialog 判断 Escape 的唯一消费层。
 - `overlay-styles.ts` 只定义锚点浮层共用的材质与进出场；进场只动画 `opacity`/`transform`，定位层提交的 `left`/`top`/`bottom` 几何不得参与 transition；层级、尺寸和内容语义仍由消费者决定。
-- `tooltip.tsx` 复用锚点定位与 Portal 生命周期，统一短延迟 hover、键盘 focus 和深色轻量提示；业务按钮只提供可访问标签与可选快捷键。
+- `layer-styles.ts` 把 select/action menu、popover、dialog、嵌套交互、tooltip、tour 与系统弹窗映射到主题 layer token；消费者选择语义层，不挑选或递增 z-index 整数。
+- `tooltip.tsx` 复用锚点定位与 Portal 生命周期，统一短延迟 hover、键盘 focus、Escape 关闭和深色轻量提示；打开和关闭都保持现有焦点，业务按钮只提供可访问标签与可选快捷键。
 
-本目录不解释菜单、选择器或业务内容。消费者提供定位参数和关闭命令，浮层语义仍归消费者所有。
+本目录不解释菜单、选择器或业务内容。消费者提供定位语义和关闭命令，浮层内容仍归消费者所有；确有新几何时先与现有 preset 比较，只有存在稳定布局差异才新增 preset，并同步补齐合同测试。
+`anchored-overlay-layer.test.tsx` 使用真实 Portal、Tooltip、Select 与 Dialog 覆盖逐层 Escape、模态范围隔离、跨 Portal 内部点击与外部指针焦点；不得用孤立打开标记替代这组集成行为。
 定位层只在几何值真实变化时写 state；相同位置必须保持原对象，不能让不稳定的业务回调放大成 React render loop。
 定位完成后必须把未使用的 `top`/`bottom` 轴显式重置为 `auto`，避免消费者的初始原点 class 与最终坐标同时生效。
+
+- `overlay-focus-navigation.ts` 统一 Menu 与非模态明细的 Tab 退出续接：调用方先关闭并归还锚点，再跳过正在移除的 Portal，进入同页或同模态的相邻控件；非模态明细的反向退出可直接回锚点，不添加焦点锁。
+
+- 同一 Portal 容器内的嵌套锚定浮层，由注册表依据锚点父子关系统一投影层级：子层高于父层且不低于自身语义 token，支持子层先注册；注销恢复原内联层级。业务消费者不通过抬高整数修复遮挡。
+
+- Tooltip 在打开时核对可见文字与裁切几何，跳过完整可见的重复标签；空文案不打开。原生 title 不用作悬停 UI，图标、补充说明与截断文本统一使用本组件。

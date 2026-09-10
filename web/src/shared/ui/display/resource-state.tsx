@@ -1,5 +1,5 @@
 // INPUT: 上层已经确定的加载、空、失败、决策或完成展示内容与可选动作。
-// OUTPUT: 失败面最多一个安全恢复动作；需要双向选择的冲突使用独立 decision 态。
+// OUTPUT: 状态文案与动作受可用宽度约束；失败面最多一个安全恢复动作；需要双向选择的冲突使用独立 decision 态。
 // POS: 纯展示组件；不判断 query、mutation、access、离线或重试语义。
 "use client";
 
@@ -13,12 +13,14 @@ import {
 
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import type {
   UiStateBlockSize,
   UiStateBlockVariant,
 } from "@/shared/ui/display/state-block-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export type UiResourceStateKind =
   | "loading"
@@ -107,7 +109,12 @@ const DEFAULT_STATE_ICONS: Record<UiResourceStateKind, ReactNode> = {
   empty: <Inbox className="h-5 w-5 text-(--icon-default)" />,
   error: <CircleAlert className="h-4 w-4 text-(--destructive)" />,
   decision: <CircleAlert className="h-4 w-4 text-(--warning)" />,
-  loading: <LoaderCircle className="h-5 w-5 animate-spin text-(--icon-muted) motion-reduce:animate-none" />,
+  loading: (
+    <LoaderCircle
+      aria-hidden
+      className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
+    />
+  ),
   success: <CheckCircle2 className="h-5 w-5 text-(--success)" />,
 };
 
@@ -149,9 +156,9 @@ export function UiResourceState({
       role={urgency === "assertive" ? "alert" : "status"}
       size={size}
       title={compactState ? (
-        <span className="inline-flex items-center gap-2">
-          {resolvedIcon}
-          <span>{title}</span>
+        <span className="inline-flex max-w-full items-center gap-2">
+          <span aria-hidden="true" className="shrink-0">{resolvedIcon}</span>
+          <span className="min-w-0">{title}</span>
         </span>
       ) : title}
       tone={recovery ? tone : "default"}
@@ -171,16 +178,17 @@ export function UiResourceState({
         />
       ) : impact || nextStep ? (
         <div className={cn(
-          "mt-3 w-full max-w-md space-y-1.5 break-words text-xs leading-5 [overflow-wrap:anywhere]",
+          "mt-3 w-full max-w-md space-y-1.5 break-words [overflow-wrap:anywhere]",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
           compactState ? "text-left" : "text-center",
         )}>
           {impact ? (
-            <p className="text-(--text-muted)" data-resource-state-impact>
+            <p data-resource-state-impact>
               {impact}
             </p>
           ) : null}
           {nextStep ? (
-            <p className="font-medium text-(--text-default)" data-resource-state-next-step>
+            <p className="ui-type-tone-default ui-type-weight-medium" data-resource-state-next-step>
               {nextStep}
             </p>
           ) : null}
@@ -188,7 +196,7 @@ export function UiResourceState({
       ) : null}
       {primaryAction || secondaryAction ? (
         <div className={cn(
-          "flex w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
+          "flex min-w-0 w-full max-w-full flex-col items-center justify-center gap-2 sm:w-auto sm:flex-row sm:flex-wrap",
           compactState
             ? "mt-2.5 flex-row flex-wrap justify-start sm:w-full sm:justify-start"
             : recovery
@@ -217,19 +225,18 @@ function ResourceStateAction({
   return (
     <UiButton
       aria-busy={action.busy}
-      className={cn(action.busy && "cursor-wait")}
+      className={cn("min-w-0 max-w-full", action.busy && "cursor-wait")}
       disabled={action.disabled || action.busy}
       onClick={action.onClick}
       size="sm"
-      tone={action.tone === "danger"
-        ? "danger"
-        : primary
-          ? "primary"
-          : "default"}
+      tone={action.tone ?? (primary ? "primary" : "default")}
       variant={primary ? "surface" : "text"}
     >
       {action.busy ? (
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+        <LoaderCircle
+          aria-hidden
+          className={getUiSpinnerClassName({ size: "sm" })}
+        />
       ) : action.icon}
       {action.busy ? action.busyLabel ?? action.label : action.label}
     </UiButton>

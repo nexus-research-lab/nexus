@@ -30,7 +30,6 @@
 | 定时任务 | `docs/specs/automation-permission-pipeline-spec.md`、`web/src/features/capability/scheduled/` |
 | 浏览器 | `docs/specs/browser-spec.md`、`desktop/browser-extension/README.md`、`web/src/features/settings/browser/` |
 | Skill | `docs/specs/skill-spec.md`、`web/src/features/capability/skills/` |
-| 工作循环 | `web/src/features/capability/loops/` |
 | 连接器 | `web/src/features/capability/connectors/`、`docs/specs/connector-oauth-spec.md` |
 | 消息通道与配对 | `web/src/features/capability/channels/`、`web/src/features/capability/channels/pairings/` |
 | 设置和模型服务 | `web/src/features/settings/`、`web/src/features/settings/provider-settings/` |

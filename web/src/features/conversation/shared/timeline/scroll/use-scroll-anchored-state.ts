@@ -6,18 +6,11 @@ import {
   type SetStateAction,
 } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
-
-import { notifyConversationExplicitShrink } from "./conversation-layout-events";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 
 interface ScrollAnchorSnapshot {
   container: HTMLElement;
   distanceFromBottom: number;
-}
-
-interface PendingCollapseSnapshot {
-  anchor: HTMLElement;
-  height: number;
 }
 
 interface UseScrollAnchoredStateReturn {
@@ -39,7 +32,6 @@ export function useScrollAnchoredState(
   const [isOpen, setOpen] = useResettableState(initialValue, resetKey);
   const anchorRef = useRef<HTMLElement | null>(null);
   const snapshotRef = useRef<ScrollAnchorSnapshot | null>(null);
-  const pendingCollapseRef = useRef<PendingCollapseSnapshot | null>(null);
 
   const toggle = useCallback(() => {
     const anchor = anchorRef.current;
@@ -57,26 +49,10 @@ export function useScrollAnchoredState(
       // 展开/收起 delta 计算两遍，表现为先位移再弹回。
       snapshotRef.current = null;
     }
-    pendingCollapseRef.current = isOpen && anchor
-      ? {
-          anchor,
-          height: anchor.getBoundingClientRect().height,
-        }
-      : null;
     setOpen(!isOpen);
   }, [isOpen, setOpen]);
 
   useLayoutEffect(() => {
-    const pendingCollapse = pendingCollapseRef.current;
-    if (pendingCollapse) {
-      pendingCollapseRef.current = null;
-      const anchor = anchorRef.current ?? pendingCollapse.anchor;
-      notifyConversationExplicitShrink(
-        anchor,
-        pendingCollapse.height - anchor.getBoundingClientRect().height,
-      );
-    }
-
     const snapshot = snapshotRef.current;
     if (!snapshot) {
       return;

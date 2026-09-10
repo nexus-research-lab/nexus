@@ -1,13 +1,19 @@
+/**
+ * INPUT: 当前 Room 成员、宿主配置、Session 与 Goal 事件回调。
+ * OUTPUT: 从共享面板当前 Goal 直接投影的负责人、续跑约束和本地化 Room 身份。
+ * POS: Room Goal 展示适配；不缓存第二份 Goal 或推导跨会话运行状态。
+ */
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { useCallback, useMemo } from "react";
 import { UserRound } from "lucide-react";
 
+import { buildAgentSelectionOptions } from "@/lib/agent-selection-options";
 import type { Agent } from "@/types/agent/agent";
 import type { Goal } from "@/types/conversation/goal";
 import {
   goalContinuationHoldForRoomTarget,
-  ROOM_GOAL_SCOPE_LABEL,
 } from "@/features/conversation/shared/goal/goal-continuation-hold";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -28,60 +34,38 @@ interface RoomGoalPanelProps {
 }
 
 export function RoomGoalPanel({
-  activityKey: activityKey,
-  isLoading: isLoading,
-  isMobileLayout: isMobileLayout,
+  activityKey,
+  isLoading,
+  isMobileLayout,
   onGoalChange,
-  roomHostAgentId: roomHostAgentId,
-  roomHostAutoReplyEnabled: roomHostAutoReplyEnabled,
-  roomMembers: roomMembers,
-  sessionKey: sessionKey,
+  roomHostAgentId,
+  roomHostAutoReplyEnabled,
+  roomMembers,
+  sessionKey,
 }: RoomGoalPanelProps) {
   const { t } = useI18n();
-  const [currentGoal, setCurrentGoal] = useState<Goal | null>(null);
   const defaultLeadAgentId = useMemo(
     () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
     [roomHostAgentId, roomMembers],
   );
-  const effectiveLeadAgentId = useMemo(
-    () =>
-      resolveRoomGoalLeadAgentId(
-        currentGoal,
-        roomMembers,
-        defaultLeadAgentId,
-      ),
-    [currentGoal, defaultLeadAgentId, roomMembers],
-  );
-  const leadAgent = useMemo(
-    () =>
-      roomMembers.find((agent) => agent.agent_id === effectiveLeadAgentId) ??
-      null,
-    [effectiveLeadAgentId, roomMembers],
-  );
-  const continuationHold = useMemo(
-    () =>
-      goalContinuationHoldForRoomTarget(
-        roomMembers,
-        effectiveLeadAgentId,
-        roomHostAutoReplyEnabled,
-      ),
-    [effectiveLeadAgentId, roomHostAutoReplyEnabled, roomMembers],
-  );
-  const handleGoalChange = useCallback((goal: Goal | null) => {
-    setCurrentGoal(goal);
-    onGoalChange(goal);
-  }, [onGoalChange]);
-  const statusExtra = leadAgent ? (
-    <span
-      className="inline-flex min-w-0 items-center gap-1 truncate text-(--text-muted)"
-      title={t("room.goal_lead_status_title", { name: leadAgent.name })}
-    >
-      <UserRound className="h-3 w-3 shrink-0" />
-      <span className="truncate">
-        {t("room.goal_lead_status", { name: leadAgent.name })}
-      </span>
-    </span>
-  ) : null;
+  const memberOptions = useMemo(() => buildAgentSelectionOptions(roomMembers, t), [roomMembers, t]);
+  const resolveLead = useCallback((goal: Goal) => resolveRoomGoalLeadAgentId(
+    goal, roomMembers, defaultLeadAgentId,
+  ), [defaultLeadAgentId, roomMembers]);
+  const continuationHold = useCallback((goal: Goal) => goalContinuationHoldForRoomTarget(
+    roomMembers, resolveLead(goal), roomHostAutoReplyEnabled, t,
+  ), [resolveLead, roomHostAutoReplyEnabled, roomMembers, t]);
+  const statusExtra = useCallback((goal: Goal) => {
+    const lead = memberOptions.find((option) => option.value === resolveLead(goal));
+    return lead ? (
+      <UiTooltip label={t("room.goal_lead_status_title", { name: lead.label })}><span
+        className="inline-flex min-w-0 max-w-full items-center gap-1 text-(--text-muted)"
+      >
+        <UserRound aria-hidden="true" className="h-3 w-3 shrink-0" />
+        <span className="truncate">{t("room.goal_lead_status", { name: lead.label })}</span>
+      </span></UiTooltip>
+    ) : null;
+  }, [memberOptions, resolveLead, t]);
 
   return (
     <GoalPanel
@@ -90,9 +74,9 @@ export function RoomGoalPanel({
       continuationHold={continuationHold}
       isGenerating={isLoading}
       sessionKey={sessionKey}
-      scopeLabel={ROOM_GOAL_SCOPE_LABEL}
+      scopeLabel={t("goal.scope_room")}
       statusExtra={statusExtra}
-      onGoalChange={handleGoalChange}
+      onGoalChange={onGoalChange}
     />
   );
 }

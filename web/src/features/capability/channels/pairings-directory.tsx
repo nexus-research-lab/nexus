@@ -21,8 +21,6 @@ import {
 } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import { CreatePairingDialog } from "./pairings/pairing-create-dialog";
@@ -56,31 +54,37 @@ export function PairingsDirectory() {
         <CapabilityPageLayout
           actions={(
             <div className="flex items-center gap-2">
-              <WorkspaceSurfaceToolbarAction
+              <UiButton
+                disabled={controller.loading}
                 onClick={() => void controller.refresh()}
+                size="2xs"
+                variant="text"
               >
                 <RefreshCw className="h-3.5 w-3.5" />
                 {t("capability.refresh")}
-              </WorkspaceSurfaceToolbarAction>
-              <WorkspaceSurfaceToolbarAction
+              </UiButton>
+              <UiButton
                 disabled={controller.agents.length === 0 || controller.busy}
                 onClick={controller.openCreate}
+                size="2xs"
                 title={controller.agents.length === 0
-                  ? "需要先创建智能体"
-                  : "新增 IM 配对"}
+                  ? t("capability.pairing_need_agent")
+                  : t("capability.pairing_new_im")}
                 tone="primary"
+                variant="text"
               >
                 <Plus className="h-3.5 w-3.5" />
                 {t("capability.pairings_create")}
-              </WorkspaceSurfaceToolbarAction>
+              </UiButton>
             </div>
           )}
           description={t("capability.pairings_intro_description")}
           title={t("capability.pairings_intro_title")}
         >
           {controller.loading && controller.items.length === 0 ? (
-            <UiStateBlock
+            <UiResourceState
               size="sm"
+              state="loading"
               title={t("capability.pairings_loading_title")}
             />
           ) : controller.readFailed && controller.items.length === 0 ? (
@@ -145,14 +149,14 @@ export function PairingsDirectory() {
 
       <FeedbackBannerViewport item={feedbackItem} />
       <ConfirmDialog
-        confirmText="删除配对"
+        confirmText={t("capability.pairing_delete")}
         isOpen={controller.deleteTarget !== null}
         message={controller.deleteTarget
-          ? `确认删除 ${controller.deleteTarget.external_name || controller.deleteTarget.external_ref} 的配对吗？删除后该外部对象需要重新授权。`
+          ? t("capability.pairing_delete_confirm", { name: controller.deleteTarget.external_name || controller.deleteTarget.external_ref })
           : ""}
         onCancel={() => controller.requestDelete(null)}
         onConfirm={controller.confirmDelete}
-        title="删除配对"
+        title={t("capability.pairing_delete")}
         variant="danger"
       />
     </>
@@ -171,27 +175,22 @@ function PairingEmptyState({
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-[260px] flex-col items-center justify-center border-b border-(--divider-subtle-color) px-6 text-center">
-      <ShieldCheck className="h-7 w-7 text-(--icon-default)" />
-      <h2 className="mt-3 text-base font-medium text-(--text-strong)">
-        {t("capability.pairings_empty_title")}
-      </h2>
-      <p className="mt-1 max-w-[460px] text-compact leading-5 text-(--text-muted)">
-        {t("capability.pairings_empty_description")}
-      </p>
-      <UiButton
-        className="mt-4"
-        disabled={!canCreate || busy}
-        onClick={onCreate}
-        title={canCreate ? "新增 IM 配对" : "需要先创建智能体"}
-        tone="primary"
-        type="button"
-        variant="solid"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        {canCreate ? t("capability.pairings_create") : "需要先创建智能体"}
-      </UiButton>
-    </div>
+    <UiResourceState
+      className="min-h-[260px] border-b border-(--divider-subtle-color)"
+      description={t("capability.pairings_empty_description")}
+      icon={<ShieldCheck className="h-6 w-6 text-(--icon-default)" />}
+      primaryAction={{
+        disabled: !canCreate || busy,
+        icon: <Plus className="h-3.5 w-3.5" />,
+        label: canCreate
+          ? t("capability.pairings_create")
+          : t("capability.pairing_need_agent"),
+        onClick: onCreate,
+        tone: "primary",
+      }}
+      state="empty"
+      title={t("capability.pairings_empty_title")}
+    />
   );
 }
 
@@ -199,13 +198,14 @@ function PairingNoResults({ onClear }: { onClear: () => void }) {
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-[180px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-      <h2 className="text-base font-semibold text-(--text-strong)">
-        {t("capability.pairings_no_results_title")}
-      </h2>
-      <UiButton className="mt-4" onClick={onClear} size="sm" type="button">
-        {t("capability.clear_filters")}
-      </UiButton>
-    </div>
+    <UiResourceState
+      className="min-h-[180px] border-y border-(--divider-subtle-color)"
+      primaryAction={{
+        label: t("capability.clear_filters"),
+        onClick: onClear,
+      }}
+      state="empty"
+      title={t("capability.pairings_no_results_title")}
+    />
   );
 }

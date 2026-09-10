@@ -1,8 +1,15 @@
-import { ReactNode } from "react";
+// INPUT: 桌面入口内容或嵌套路由出口。
+// OUTPUT: 统一桌面窗口客户区，以及使用共享 Spinner 的模块加载占位。
+// POS: Desktop App 路由壳；不拥有宿主标题栏、页面业务或加载图标 recipe。
+
+import { LoaderCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 export function DesktopEntryLayout({
   children,
@@ -24,10 +31,20 @@ export function DesktopEntryLayout({
 }
 
 export function DesktopEntryFallback() {
+  const { t } = useI18n();
+
   return (
     <DesktopEntryLayout>
-      <div className="flex h-full items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div
+        aria-busy="true"
+        aria-label={t("common.loading")}
+        className="flex h-full items-center justify-center"
+        role="status"
+      >
+        <LoaderCircle
+          aria-hidden
+          className={getUiSpinnerClassName({ size: "xl", tone: "primary" })}
+        />
       </div>
     </DesktopEntryLayout>
   );

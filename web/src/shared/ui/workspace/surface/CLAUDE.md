@@ -1,18 +1,26 @@
 # Workspace Surface
 
 - `workspace-surface-header.tsx` 只组合单行身份、导航和尾部插槽；不存在真实消费者的布局模式不得保留在公共契约中。
-- 窄屏已由应用壳层提供页面身份与返回语义时，业务 Header 只允许通过 `narrowMode` 隐藏整行或收敛为纯工具栏；不得再次显示同名身份标题。
+- Header 只提供当前真实消费者需要的身份、返回动作、标题、会话/视图导航和尾部动作；不保留无消费者的窄窗模式、标题附加槽、组级 Tour anchor、副标题或任意 leading 外形覆盖。手机页面身份与返回语义由应用壳层和业务页面装配决定。
 - Header 间距由共享样式统一表达两级节奏：身份、会话、工具和协作区之间使用稳定组距，组内动作使用 4px 紧凑控件距。历史固定在 Session 导航左端并作为唯一会话清单；右侧 View Tab、Room 成员和溢出动作不再套共享工具壳，只靠留白、悬停底色与当前项填色分组。历史、滚动标签带与新建入口组成一条无外框导航带，只在固定两端动作和中央滚动区之间使用低对比 hairline。业务 Header 不得额外包裹自定义 `gap` 改写节奏，桌面工具动作统一使用 36px 高度、10px 水平内边距，带头像的成员入口使用同高同内边距并以 6px 隔开头像与文字。
 - 工作区视图标签遵循 Session 标签的状态层级：未选中透明且使用中灰文字，悬停轻微提亮，活动项使用低对比中性底色与文字权重区分，活动态悬停进一步加深，不恢复描边、下划线或阴影；页面栏目与 Session 视图保持同一表达，避免文案长度决定视觉重量。相邻 View Tab 之间固定保留 4px 缝隙，View Tab、历史、成员与溢出入口统一使用 8px 圆角矩形，只有状态点和真实徽标保留全圆。Room 活动视图不显示独立 `×`，再次点击同一标签即关闭。
-- Header 中真实 Agent/Room 身份头像统一使用 40px、10px 圆角的 rounded-square 基线，立体层级由外层基座提供细描边、短接触阴影和柔和下投影；业务头像本身不叠加第二套阴影。目录标题等纯导航图标使用 32px 中性紧凑框，不复用身份头像的描边和阴影。
+- Header 身份插槽只保留 40px 对齐空间，传入公共 Avatar 持有完整尺寸、圆角、边框和阴影；不再套第二层头像基座。DM、群聊与联络 Header 直接选择各自 Avatar 的 md 档；联络窄屏仍在同一位置显示返回按钮。目录返回用 action 插槽，按钮本身持有尺寸与外观，不伪装成身份或图标框。
+- Workspace Header 主标题使用 `pageTitle` 并保留完整共享 Tooltip；视图条由 UiTabs 提供 metadata 排版，窄窗选择采用 UiSelectMenu 的 sm/supporting 档，普通工具沿公共 Button 档位，不重复写字体像素值。调用方只提供文本、节点和明确的 identity/action 语义。
 - Workspace Header 与导航轨、目录栏共同消费主题壳层 token，通过 `#f0efec`、`#f6f6f4`、`#f9f9f7` 的中性明度阶梯区分区域；主工作区 Header 不绘制贯穿画布的底线或宽外投影，左侧品牌栏的横向 hairline 必须止于唯一侧栏外缘，业务 Header 不得自行恢复高对比分隔。
 - Header 内容在浏览器 60px、macOS 原生红灯 Y 中心推导出的完整材质层内居中；壳层已不再预留 1px 分隔线，业务组件不得通过偏移补偿重新制造上下留白差。
 - 带 Session 标签的 Room Header 保持正文左侧内容轴，但右侧末端只保留 12px 安全留白，避免最后一个视图或成员入口与窗口边缘之间出现正文级大空白。
-- 普通页面 Header 在窄容器中可把次级视图收进带当前标签文字的菜单；Room 桌面态必须始终保留三个视图入口，Group 成员入口使用同一响应规则，在窄容器中一起收敛为保留辅助名称和 tooltip 的图标按钮；只有进入不超过 559px 的最小专注模式后才允许改用三点菜单。
-- `workspace-surface-toolbar-action.tsx` 统一 Surface 工具栏动作外观，不依赖 Header 的布局实现。
-- `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，投影当前步骤与摘要；不得创造第二套 Task 生命周期。`workspace-task-strip.tsx` 只渲染这个只读投影：状态锚点以“Agent 来源、运行态、当前步骤/总步数、当前任务摘要”表达正在进行的位置，并与 WorkGraph Dock、Room 协作状态复用同一 32px 紧凑活动面、12px 字体、细描边和轻阴影；任务摘要必须在可用视口宽度内完整换行，不得以单行截断隐藏内容，短摘要保持 32px 视觉基线；逐帧符号只表示现有任务仍在执行。展开头部同样必须把 Agent 身份置于最左侧，再显示“进程 完成数/总数”的次级状态。Room 的来源切换由业务适配层注入并复用已有成员选择器，Task Strip 不读取 Room 目录。外层保留 Conversation activity dock 的 44px 起始热区，不得在聊天顶部占据固定布局高度；触发器必须在 DOM/Tab 顺序中先于受 `aria-controls` 关联的明细区域，单项状态同时提供屏幕阅读器文本。明细始终以状态锚点中心约束视口并向上绝对展开，避免展开前后出现中心轴跳变；明细复用共享 popover 材质且不得改变聊天视口高度或推动正文，浮层宽高受当前画布约束，不能扩展成全画布遮罩。
+- 普通 Header 的窄窗视图选择直接复用 UiSelectMenu；可访问名称含当前视图，未知当前值只显示选择提示。选项身份或当前值变化关闭旧菜单，名称/语言变化保留当前菜单；尺寸 observer 只读取 CSS 可见性，不复制 container 阈值，触发器隐藏后消费打开态。带 Session 导航的 Header 不挂载这个选择器，既有视图和 Group 成员入口继续按 container query 收为具名图标；移动端导航仍归 mobile Surface。
+- Surface 与普通页面 Header 的文字动作直接使用 `UiButton size="2xs" variant="text"`，纯图标动作使用 `UiIconButton size="sm" variant="ghost"`；不得再增加 Header 专属 Button 适配器或在页面重写 hover、focus 和禁用态。
+- Session 新建动作在等待事务完成时必须以共享 Spinner 替换加号并设置 `aria-busy`；不得旋转加号或让按钮私有定义加载动画。
+- `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，计数和正文消费同一归一化列表，不创造第二套 Task 生命周期。
+- `conversation-activity-chip-styles.ts` 是 Task、WorkGraph Dock 与 Room 协作状态的共用材质/排版入口，Task 选择 plain 表面，多动作 Dock 继续选 toolbar；主题 recipe 持有对应表面，具体几何与状态色只在 `design.md` 定义。
+- `workspace-task-strip.tsx` 拥有只读摘要与明细：摘要的独立原生按钮负责外层命中区与内层可换行视觉行，不能在其中嵌入成员菜单；展开内容通过共享 Portal、reference-list 定位和非模态关闭仲裁覆盖正文。明细首焦点在具名根，Tab 按自然控件顺序进入/退出；共同的退出焦点续接归 `overlay-focus-navigation.ts`。窗口/滚动和摘要内容变化都使用同一定位入口，不能自己拼视口公式或复制关闭监听。
+- DM/Room 生产装配必须传入精确 `scopeKey`。会话变化、任务清空或关闭时重置临时展开；来源和目录结构变化只清空单项详情，允许在已打开列表内换成员。没有持久任务 ID 时只为唯一名称保留 DOM 连续性，同名任务变化保守关闭；状态/进展刷新不重置正常阅读，被移除控件丢失的焦点回到明细根。
+- `WorkspaceTaskSource.label` 可承载领域提供的去歧义名称，`name` 继续给头像缩写；摘要和展开头部使用相同身份，图片由公共 Avatar 处理，Task Strip 不读取 Room 目录。Room 的来源切换由业务适配层注入已有成员选择器，不把选择规则下沉到共享 UI。
 - `workspace-header-layout.ts` 保存侧边栏与主内容区共用的桌面高度基线：浏览器回退 60px，macOS 消费原生红灯中心推导值；布局双方不得复制数值，会话标签和动作随基线同步变化，不能只给外层追加空白。
-- 桌面右侧辅助面板的简介、工作区、子智能体与 Thread 共用 `workspace-header-layout.ts` 的 44px 头部、12px 横向内边距、28px 图标点击区和 14px 线性图标基线；移动端继续使用独立的 52px 导航头。业务视图不得复制这些几何值，面板 Agent 筛选器统一使用固定 112×28px 的 Panel 变体。
+- 桌面右侧辅助面板的简介、工作区、子智能体与 Thread 共用 `workspace-header-layout.ts` 的 44px 头部、12px 横向内边距、28px 图标点击区和 14px 线性图标基线；移动端统一消费平台感知的窄窗 Header 高度和 gutter，macOS 跟随原生窗口控件中心，Windows/浏览器保持 52px。业务视图不得复制这些几何值，面板 Agent 筛选器统一使用固定 112×28px 的 Panel 变体。
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
-- `workspace-surface-view.tsx` 用 `page`、`overlay` 与缺省无障碍标题表达三种真实模式；默认正文和 Page Header 复用管理工作面的响应式水平 gutter，调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
+- `workspace-surface-view.tsx` 只保留 `mobile` 与缺省无障碍标题两种产品使用模式；`mobile` 统一投影平台感知的标题栏、拖窗热区和语义排版，默认正文复用管理工作面的响应式水平 gutter。调用方可以显式取消留白，但不得复制断点数值；不得重新引入控制标题组合的布尔参数。
 - 标题、标签和中部导航的可选组合在各自私有组件内收口，根 Header 不维护布尔状态矩阵。
+
+PageFrame 只提供可收缩 Flex 与留白；Scaffold 按显式 bodyScrollable 决定正文滚动，stableGutter 仅滚动模式有效。加载占位允许文案换行和横向收缩，不拥有固定业务宽度。

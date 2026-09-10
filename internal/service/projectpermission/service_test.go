@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -131,5 +135,42 @@ func TestGrantCleanupSurvivesRequestCancellationAfterACLUpdate(t *testing.T) {
 	}
 	if len(closer.contextErrs) != 1 || closer.contextErrs[0] != nil {
 		t.Fatalf("ACL 落盘后的安全回收不应继承请求取消: %#v", closer.contextErrs)
+	}
+}
+
+func TestProjectControlAvailability(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Linux launcher 检查依赖 POSIX 可执行位")
+	}
+	launcher := filepath.Join(t.TempDir(), "launcher")
+	if err := os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, platform, mode, path string
+		want                       bool
+	}{
+		{"enabled", "linux", "enforce", launcher, true},
+		{"off", "linux", "off", launcher, false},
+		{"observe", "linux", "observe", launcher, false},
+		{"unsupported host", "darwin", "enforce", launcher, false},
+		{"relative launcher", "linux", "enforce", "launcher", false},
+		{"missing launcher", "linux", "enforce", launcher + "-missing", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := projectControlAvailable(tc.platform, config.Config{RuntimeIsolationMode: tc.mode, RuntimeLauncherPath: tc.path}); got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+	if err := os.Chmod(launcher, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if projectControlAvailable("linux", config.Config{RuntimeIsolationMode: "enforce", RuntimeLauncherPath: launcher}) {
+		t.Fatal("不可执行文件不得发布 ACL 能力")
+	}
+	var service *Service
+	if service.Available() {
+		t.Fatal("未绑定服务不得发布 ACL 能力")
 	}
 }

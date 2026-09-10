@@ -5,7 +5,7 @@
  */
 import { MessageCircle, Puzzle, Users2 } from "lucide-react";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -137,6 +137,7 @@ export function buildSidebarUtilityLabels(
     collapse: t("sidebar.collapse_panel"),
     expand: t("sidebar.expand_panel"),
     guide: t("common.guide_center"),
+    login: t("sidebar.login_remote"),
     logout: t("sidebar.logout"),
     settings: t("sidebar.settings"),
   };

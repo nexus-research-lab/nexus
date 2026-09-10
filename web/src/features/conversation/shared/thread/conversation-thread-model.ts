@@ -1,3 +1,7 @@
+// INPUT: Thread display identity, exact/omitted workspace scope, rounds and navigation.
+// OUTPUT: Shared Thread projection preserving explicit missing workspace identity.
+// POS: Pure Thread model; a displayed runtime identity is not a substitute for an explicitly absent workspace.
+
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { Message } from "@/types/conversation/message/entity";
 
@@ -26,7 +30,7 @@ export interface ConversationThreadModel {
   rounds: ConversationThreadRoundModel[];
   sessionKey: string;
   trailingAction: ConversationThreadNavigationAction;
-  workspaceAgentId: string;
+  workspaceAgentId: string | null;
 }
 
 interface ConversationThreadModelInput {
@@ -90,6 +94,8 @@ export function buildConversationThreadModel(
     }),
     sessionKey: input.sessionKey ?? `${input.roundId}:${input.agentId}`,
     trailingAction: navigation.trailingAction,
-    workspaceAgentId: input.workspaceAgentId ?? input.agentId,
+    workspaceAgentId: (input.workspaceAgentId === undefined
+      ? input.agentId
+      : input.workspaceAgentId)?.trim() || null,
   };
 }

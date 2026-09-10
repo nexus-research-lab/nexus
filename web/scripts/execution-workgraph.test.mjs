@@ -465,7 +465,7 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   );
 });
 
-test("WorkGraph sketch confirmation schedules a hidden background round without sending chat", async () => {
+test("WorkGraph sketch confirmation directly saves the confirmed Draft without sending chat", async () => {
   const dialogSource = await readFile(path.join(
     webRoot,
     "src/features/conversation/shared/execution/workgraph-distillation-dialog.tsx",
@@ -478,7 +478,7 @@ test("WorkGraph sketch confirmation schedules a hidden background round without 
     webRoot,
     "src/lib/api/conversation/execution-api.ts",
   ), "utf8");
-  assert.match(dialogSource, /scheduleWorkGraphWorkflowSaveApi\(sessionKey, workingPreview\.preview_id, \{/);
+  assert.match(dialogSource, /saveWorkGraphWorkflowApi\(sessionKey, workingPreview\.preview_id, \{/);
   assert.match(apiSource, /workgraph\/previews\/\$\{encodeURIComponent\(previewId\)\}\/save/);
   assert.match(apiSource, /previewWorkGraphWorkflowApi[\s\S]*?timeout_ms: 185_000/);
   assert.doesNotMatch(dialogSource, /dispatchWorkGraphDistillationIntent|buildDistillationPrompt|onSendMessage/);
@@ -550,7 +550,7 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /catalogAgents\.find\(\(item\) => item\.agent_id === editor\.agent_id\)/);
   assert.match(editorSource, /if \(!hasEditorAgent\) \{\s*await loadAgents\(\);\s*\}/);
   assert.doesNotMatch(editorSource, /\}, \[agents, locale, sessionKey, t, updateEditor\]\);/);
-  assert.match(editorSource, /\}, \[loadAgents, sessionKey, startAttempt, updateEditor\]\);/);
+  assert.match(editorSource, /\}, \[invalidateReads, loadAgents, sessionKey, startAttempt, updateEditor\]\);/);
   assert.doesNotMatch(editorSource, /getAgents\(\)/);
   assert.match(editorSource, /<DmChatPanel/);
   assert.match(editorSource, /embeddedEditor=/);
@@ -563,7 +563,6 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.match(editorSource, /--conversation-composer-backdrop:var\(--surface-muted-background\)/);
   assert.match(panelModelSource, /embeddedEditor\.introduction/);
   assert.match(panelModelSource, /initialScrollAnchor: embeddedEditor \? "top" : "bottom"/);
-  assert.match(panelModelSource, /liveContentAlignment: embeddedEditor \? "start" : "end"/);
   assert.match(panelViewSource, /data-embedded-editor-introduction/);
   assert.match(panelViewSource, /<ConversationFeed[\s\S]*leadingContent=/);
   assert.doesNotMatch(panelViewSource, /<EmbeddedEditorIntroduction[^>]*\/>\s*<ConversationFeed/);
@@ -612,7 +611,7 @@ test("WorkGraph sketch editor reuses DM and applies a validated graph revision",
   assert.doesNotMatch(apiSource, /workgraph\/editors\/\$\{encodeURIComponent\(editorId\)\}\/messages/);
 });
 
-test("Saved WorkGraph capability reopens the same Draft editor and schedules an update", async () => {
+test("Saved WorkGraph capability reopens the same Draft editor and saves a confirmed update", async () => {
   const directorySource = await readFile(path.join(
     webRoot,
     "src/features/capability/workgraph-distillations/workgraph-distillations-directory.tsx",
@@ -623,8 +622,8 @@ test("Saved WorkGraph capability reopens the same Draft editor and schedules an 
   ), "utf8");
 
   assert.match(directorySource, /previewSavedWorkGraphWorkflowApi/);
-  assert.match(directorySource, /<WorkGraphMetadataEditorDialog/);
-  assert.match(directorySource, /scheduleWorkGraphWorkflowSaveApi/);
+  assert.match(directorySource, /<WorkGraphDistillationDialog/);
+  assert.match(directorySource, /onSaved=/);
   assert.match(directorySource, /capability\.workgraph_edit/);
   assert.match(directorySource, /!item\.built_in/);
   assert.match(directorySource, /capability\.workgraph_builtin/);
@@ -646,15 +645,20 @@ test("WorkGraph expand control opens a large modal canvas with a separate fit ac
   ), "utf8");
   assert.match(
     controlsSource,
-    /label=\{t\("execution\.fit_graph"\)\}[\s\S]*?<Scan/,
+    /aria-label=\{t\("execution\.fit_graph"\)\}[\s\S]*?<Scan/,
   );
   assert.match(
     controlsSource,
-    /label=\{t\("execution\.open_workgraph"\)\}[\s\S]*?<Maximize2/,
+    /aria-label=\{t\("execution\.open_workgraph"\)\}[\s\S]*?<Maximize2/,
   );
   assert.match(canvasSource, /data-execution-workgraph-expanded-dialog/);
   assert.match(canvasSource, /<UiDialogBackdrop[\s\S]*?<UiDialogShell/);
-  assert.match(canvasSource, /h-\[calc\(100dvh-32px\)\]/);
+  assert.match(canvasSource, /inset="compact"/);
+  assert.match(
+    canvasSource,
+    /<UiDialogShell[\s\S]*?size="workbench"[\s\S]*?viewport="workbench"/,
+  );
+  assert.doesNotMatch(canvasSource, /h-\[calc\(100dvh-32px\)\]/);
   assert.doesNotMatch(canvasSource, /<UiDialogHeader/);
   assert.match(canvasSource, /<h2 className="sr-only" id=\{titleId\}>/);
   assert.match(canvasSource, /<UiDialogCloseButton[\s\S]*?onClose=\{onClose\}/);

@@ -1,13 +1,15 @@
 /**
  * INPUT: Goal 草稿、预算、可靠性事实、修改门禁与提交/只读核对命令。
- * OUTPUT: 保留草稿、阻止未知结果重复提交并展示完整恢复信息的 plain 编辑表单。
+ * OUTPUT: 具名且本地化的 plain 编辑表单；完整预算校验、未知结果禁用与恢复反馈。
  * POS: Conversation Goal 编辑边界；不解释 mutation 结果或自动重发修改。
  */
 "use client";
 
-import { type FormEvent, useRef } from "react";
+import { type FormEvent, useId, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -16,7 +18,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 
 import type { GoalReliabilityState } from "./goal-lifecycle-recovery";
@@ -52,8 +54,12 @@ export function GoalDraftForm({
   onSubmit,
   reliability,
 }: GoalDraftFormProps) {
+  const { t } = useI18n();
+  const fieldId = useId();
   const objectiveRef = useRef<HTMLTextAreaElement | null>(null);
   const model = buildGoalDraftFormModel({
+    budget,
+    t,
     disabled,
     isLoading,
     loadingLabel,
@@ -64,20 +70,24 @@ export function GoalDraftForm({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9998]"
+        layer="dialogUnderlay"
         initialFocusRef={objectiveRef}
-        labelledBy="goal-edit-dialog-title"
         onClose={model.canClose ? onCancel : undefined}
       >
         <UiDialogFormShell
           className="pointer-events-auto"
           size="md"
-          onSubmit={onSubmit}
+          onSubmit={(event) => {
+            if (model.submitDisabled) {
+              event.preventDefault();
+              return;
+            }
+            onSubmit(event);
+          }}
         >
           <UiDialogHeader
             appearance="plain"
-            title="编辑 Goal"
-            titleId="goal-edit-dialog-title"
+            title={t("goal.edit_title")}
             onClose={model.canClose ? onCancel : undefined}
           />
 
@@ -91,16 +101,16 @@ export function GoalDraftForm({
               />
             ) : null}
             <UiField
-              htmlFor="goal-objective-input"
-              label="目标"
+              htmlFor={`${fieldId}-objective`}
+              label={t("goal.objective_label")}
             >
               <UiTextarea
                 ref={objectiveRef}
                 className="min-h-[128px]"
                 data-autofocus="true"
                 disabled={model.fieldsDisabled}
-                id="goal-objective-input"
-                placeholder="输入长期目标"
+                id={`${fieldId}-objective`}
+                placeholder={t("goal.objective_placeholder")}
                 value={objective}
                 variant="dialog"
                 onChange={(event) => onObjectiveChange(event.target.value)}
@@ -108,15 +118,17 @@ export function GoalDraftForm({
             </UiField>
 
             <UiField
-              htmlFor="goal-budget-input"
-              label="Token 预算"
+              htmlFor={`${fieldId}-budget`}
+              label={t("goal.budget_label")}
+              description={t("goal.budget_hint")}
+              error={model.budgetInvalid ? t("goal.budget_invalid") : undefined}
             >
               <UiInput
                 className="max-w-[180px]"
                 disabled={model.fieldsDisabled}
-                id="goal-budget-input"
+                id={`${fieldId}-budget`}
                 inputMode="numeric"
-                placeholder="不限制"
+                placeholder={t("goal.budget_placeholder")}
                 value={budget}
                 variant="dialog"
                 onChange={(event) => onBudgetChange(event.target.value)}
@@ -125,28 +137,31 @@ export function GoalDraftForm({
           </UiDialogBody>
 
           <UiDialogFooter appearance="plain" className="justify-end gap-3">
-            <button
-              className={getDialogActionClassName("default")}
+            <UiButton
               disabled={!model.canClose}
-              type="button"
               onClick={onCancel}
+              size="md"
+              variant="surface"
             >
-              取消
-            </button>
-            <button
-              className={getDialogActionClassName(model.submitTone)}
+              {t("common.cancel")}
+            </UiButton>
+            <UiButton
+              aria-busy={model.isLoading || undefined}
               disabled={model.submitDisabled}
+              size="md"
+              tone={model.submitTone}
               type="submit"
+              variant={model.submitTone === "default" ? "surface" : "solid"}
             >
               {model.isLoading ? (
                 <span className="inline-flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  <Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "md" })} />
                   {model.submitLabel}
                 </span>
               ) : (
                 model.submitLabel
               )}
-            </button>
+            </UiButton>
           </UiDialogFooter>
         </UiDialogFormShell>
       </UiDialogBackdrop>

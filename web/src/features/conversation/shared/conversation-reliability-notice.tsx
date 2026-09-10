@@ -10,6 +10,8 @@ import { LoaderCircle, RefreshCw, TriangleAlert, WifiOff } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import type {
   ConversationFailureCode,
   ConversationReliabilitySnapshot,
@@ -146,59 +148,35 @@ export function ConversationReliabilityNotice({
           ? "px-4 pt-1"
           : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pt-1 sm:px-5 xl:px-6`,
       )}
-      data-conversation-failure-code={presentation.failureCode ?? undefined}
-      data-conversation-reliability={presentation.tone}
     >
-      <div
-        aria-atomic="true"
-        aria-live="polite"
-        className={cn(
-          "flex min-h-8 w-full items-start gap-2 rounded-[9px] border border-(--surface-control-border) bg-(--surface-control-background) px-2.5 py-1.5 text-xs text-(--text-muted)",
+      <UiInlineNotice
+        action={canReconcile
+          ? {
+              icon: <RefreshCw />,
+              label: t("common.refresh"),
+              onClick: onReconcile,
+              pending: isReconciling,
+            }
+          : undefined}
+        data-conversation-failure-code={presentation.failureCode ?? undefined}
+        data-conversation-reliability={presentation.tone}
+        icon={(
+          <Icon
+            className={cn(
+              presentation.spinning && getUiSpinnerClassName({ size: "sm" }),
+            )}
+          />
         )}
-        role="status"
-      >
-        <Icon
-          aria-hidden="true"
-          className={cn(
-            "mt-0.5 h-3.5 w-3.5 shrink-0",
-            presentation.tone !== "failure"
-              ? "text-(--icon-muted)"
-              : warningFailure
-                ? "text-(--warning)"
-                : "text-(--destructive)",
-            presentation.spinning && "animate-spin motion-reduce:animate-none",
-          )}
-        />
-        {failureCopy ? (
-          <div className="min-w-0 flex-1">
-            <span className="block font-medium leading-5 text-(--text-strong)">
-              {t(failureCopy.title)}
-            </span>
-            <p className="mt-0.5 break-words leading-5 text-(--text-muted) [overflow-wrap:anywhere]">
-              {t(failureCopy.impact)}
-            </p>
-          </div>
-        ) : (
-          <span className="min-w-0 flex-1 leading-5">{presentation.message}</span>
-        )}
-        {canReconcile ? (
-          <button
-            className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-[7px] px-2 font-medium text-(--primary) transition-colors hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] disabled:cursor-wait disabled:opacity-60 motion-reduce:transition-none"
-            disabled={isReconciling}
-            onClick={onReconcile}
-            type="button"
-          >
-            <RefreshCw
-              aria-hidden="true"
-              className={cn(
-                "h-3.5 w-3.5",
-                isReconciling && "animate-spin motion-reduce:animate-none",
-              )}
-            />
-            {t("common.refresh")}
-          </button>
-        ) : null}
-      </div>
+        message={failureCopy
+          ? t(failureCopy.impact)
+          : presentation.message}
+        title={failureCopy ? t(failureCopy.title) : undefined}
+        tone={presentation.tone !== "failure"
+          ? "neutral"
+          : warningFailure
+            ? "warning"
+            : "danger"}
+      />
     </div>
   );
 }

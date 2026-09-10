@@ -1,6 +1,6 @@
 // INPUT: exact WorkGraph Draft、Nexus 主智能体隐藏 Session 与模型提交的完整草图版本。
-// OUTPUT: 可恢复编辑对话、不可变版本历史、版本选择、CAS revision，以及应用前的 DAG/交付语义校验。
-// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 CLI 修改授权。
+// OUTPUT: 保留保存表单最新元信息的可恢复编辑对话、不可变版本、exact committed revision 回执与应用前的 DAG/交付语义校验。
+// POS: 对话式草图编辑边界；普通 DM 负责消息/流式 UI，本服务拥有 Draft 版本和受限 command 修改授权。
 package workgraphworkflow
 
 import (
@@ -74,11 +74,12 @@ func (s *Service) StartMetadataEditor(
 	s.previewMu.Lock()
 	s.cleanupExpiredPreviews(s.now().UTC())
 	previewRecord, ok := s.previews[previewCacheKey(ownerUserID, request.PreviewID)]
+	existingEditorID := ""
+	var existingEditor workflowEditorRecord
 	if existingKey := s.editorByPreview[previewCacheKey(ownerUserID, request.PreviewID)]; existingKey != "" {
 		if existing, exists := s.editors[existingKey]; exists && existing.sourceSessionKey == request.SourceSessionKey {
-			existingID := editorIDFromCacheKey(existingKey)
-			s.previewMu.Unlock()
-			return editorSession(existingID, existing), nil
+			existingEditorID = editorIDFromCacheKey(existingKey)
+			existingEditor = cloneEditorRecord(existing)
 		}
 	}
 	s.previewMu.Unlock()
@@ -86,6 +87,9 @@ func (s *Service) StartMetadataEditor(
 		return nil, ErrNotFound
 	}
 	preview := cloneWorkflowPreview(previewRecord.preview)
+	if existingEditorID != "" {
+		preview = cloneWorkflowPreview(existingEditor.preview)
+	}
 	if slashName := normalizeSlashName(request.SlashName); slashName != "" {
 		preview.SlashName = slashName
 	}
@@ -114,6 +118,35 @@ func (s *Service) StartMetadataEditor(
 			s.hydrateDraft(*loadedDraft)
 			preview = cloneWorkflowPreview(loadedDraft.Preview)
 		}
+	}
+	if existingEditorID != "" {
+		if loadedDraft != nil {
+			current, _, getErr := s.getEditorRecord(ownerUserID, request.SourceSessionKey, existingEditorID)
+			if getErr != nil {
+				return nil, getErr
+			}
+			return editorSession(existingEditorID, current), nil
+		}
+		// The in-memory repository keeps unapplied editor versions separately.
+		if existingEditor.preview.SlashName != preview.SlashName ||
+			existingEditor.preview.Title != preview.Title || existingEditor.preview.Description != preview.Description {
+			s.previewMu.Lock()
+			key := previewCacheKey(ownerUserID, existingEditorID)
+			latest, exists := s.editors[key]
+			if !exists || latest.revision != existingEditor.revision || previewRecord.saveScheduled {
+				s.previewMu.Unlock()
+				return nil, ErrRevisionConflict
+			}
+			existingEditor.preview = preview
+			existingEditor.revision++
+			existingEditor.selectedRevision = existingEditor.revision
+			existingEditor.versions = append(existingEditor.versions, protocol.WorkGraphWorkflowPreviewVersion{
+				Revision: existingEditor.revision, Preview: cloneWorkflowPreview(preview), CreatedAt: s.now().UTC(),
+			})
+			s.editors[key] = existingEditor
+			s.previewMu.Unlock()
+		}
+		return editorSession(existingEditorID, existingEditor), nil
 	}
 	if previewRecord.sourceAgentID == "" {
 		return nil, fmt.Errorf("%w: source Execution has no coordinator Agent", ErrInvalidInput)
@@ -257,7 +290,7 @@ func (s *Service) RuntimeEditorPolicy(
 		languageRule = "Write title, description, objective, completion criteria, every node's subject/objective/deliverable/acceptance criteria, and the final reply in concise, natural English"
 	}
 	prompt := fmt.Sprintf(`你正在 Nexus 主智能体的隐藏 WorkGraph 草图编辑 Session 中。只处理这张草图，不执行图中任务，也不读取 workspace；来源会话只以当前草图及其来源 WorkGraph 事实提供，不继承来源聊天权限。
-先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.command 读取 revise_workgraph_preview 的 fresh execution contract，按 contract 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution inspect。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。command 成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
+先加载 execution-orchestrator Skill，并阅读其中的 WorkGraph authoring 说明。需要修改时，通过 nexus.command 读取 revise_workgraph_preview 的 fresh execution contract，按 contract 提交带 head_revision 的完整草图；不能只提交差异，也不能调用 execution inspect。用户要求选择既有版本时，读取 select_workgraph_preview_revision contract 并调用该 operation，不要生成近似旧版的新 revision。只有影响草图结果的信息缺失时才提问，优先使用 AskUserQuestion，不可用时用普通问题；修改后简述结果即可，应用与保存由可见界面确认。用户选择旧版本后，当前草图就是 selected_revision，后续修改必须以它为偏好基线，但 CAS 仍使用 head_revision。command 成功后右侧预览会由宿主自动刷新；只有用户询问展示位置或刷新状态时才说明这个界面事实，正常修改回复不必反复提右侧。不要在左侧复述完整节点；用户只是提问时可以直接回答，也不能声称未发生的更新。
 %s。不要在回复中输出内部 objective JSON、工具参数或源 Execution identity。
 
 当前草图（head_revision=%d，selected_revision=%d）：
@@ -269,7 +302,7 @@ unavailable_slash_names：%s`, languageRule, record.revision, record.selectedRev
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: prompt,
 		ToolPolicy: protocol.RuntimeToolPolicy{
-			AllowedTools: []string{"Skill", "mcp__nexus__command"},
+			AllowedTools: []string{"Skill", "AskUserQuestion", "mcp__nexus__command"},
 			DisallowedTools: []string{
 				"Agent", "Edit", "Glob", "Grep", "Task", "WebFetch", "WebSearch",
 				"mcp__nexus__show_widget", "mcp__nexus__generate_image", "mcp__nexus__edit_image",
@@ -363,7 +396,13 @@ func (s *Service) ReviseEditorPreview(
 			return nil, fmt.Errorf("%w: editor revision changed", ErrInvalidInput)
 		}
 		s.hydrateDraft(*draft)
-		record = s.editors[key]
+		// Return this committed revision, not a cache snapshot that concurrent
+		// editor reads can replace after hydrateDraft releases its lock.
+		record.preview = cloneWorkflowPreview(draft.Preview)
+		record.revision = draft.HeadRevision
+		record.selectedRevision = draft.SelectedRevision
+		record.versions = cloneWorkflowPreviewVersions(draft.Versions)
+		record.expiresAt = draft.ExpiresAt
 	} else {
 		s.previewMu.Lock()
 		latest, exists := s.editors[key]
@@ -469,6 +508,10 @@ func (s *Service) ApplyMetadataEditor(
 	if ownerUserID == "" || request.SourceSessionKey == "" || request.EditorID == "" || request.Revision <= 0 {
 		return nil, fmt.Errorf("%w: editor apply request is incomplete", ErrInvalidInput)
 	}
+	// Read the durable selection before applying; the cache may predate another window.
+	if _, _, err := s.getEditorRecord(ownerUserID, request.SourceSessionKey, request.EditorID); err != nil {
+		return nil, err
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(s.now().UTC())
@@ -477,7 +520,7 @@ func (s *Service) ApplyMetadataEditor(
 	if !ok || record.sourceSessionKey != request.SourceSessionKey {
 		return nil, ErrNotFound
 	}
-	if record.revision != request.Revision {
+	if record.revision != request.Revision || record.selectedRevision != request.SelectedRevision {
 		return nil, fmt.Errorf("%w: editor revision changed", ErrRevisionConflict)
 	}
 	previewKey := previewCacheKey(ownerUserID, record.previewID)
@@ -488,6 +531,7 @@ func (s *Service) ApplyMetadataEditor(
 	previewRecord.preview = cloneWorkflowPreview(record.preview)
 	s.previews[previewKey] = previewRecord
 	result := cloneWorkflowPreview(record.preview)
+	result.HeadRevision, result.SelectedRevision = record.revision, record.selectedRevision
 	return &result, nil
 }
 
@@ -526,6 +570,19 @@ func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, e
 	if s == nil || ownerUserID == "" || sourceSessionKey == "" || editorID == "" {
 		return workflowEditorRecord{}, "", fmt.Errorf("%w: editor scope is incomplete", ErrInvalidInput)
 	}
+	if repository, ok := s.repository.(DraftRepository); ok {
+		draft, err := repository.GetDraftByEditorID(context.Background(), ownerUserID, editorID)
+		if err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		if draft == nil || draft.SourceSessionKey != sourceSessionKey {
+			return workflowEditorRecord{}, "", ErrNotFound
+		}
+		if err = s.renewDraftLease(context.Background(), repository, draft); err != nil {
+			return workflowEditorRecord{}, "", err
+		}
+		s.hydrateDraft(*draft)
+	}
 	s.previewMu.Lock()
 	defer s.previewMu.Unlock()
 	s.cleanupExpiredPreviews(s.now().UTC())
@@ -537,6 +594,8 @@ func (s *Service) getEditorRecord(ownerUserID string, sourceSessionKey string, e
 }
 
 func editorSession(editorID string, record workflowEditorRecord) *protocol.WorkGraphWorkflowEditorSession {
+	preview := cloneWorkflowPreview(record.preview)
+	preview.HeadRevision, preview.SelectedRevision = record.revision, record.selectedRevision
 	return &protocol.WorkGraphWorkflowEditorSession{
 		EditorID:              editorID,
 		Revision:              record.revision,
@@ -544,7 +603,7 @@ func editorSession(editorID string, record workflowEditorRecord) *protocol.WorkG
 		AgentID:               record.agentID,
 		SessionKey:            record.sessionKey,
 		DisplayAfterUnixMilli: record.displayAfterUnixMilli,
-		Preview:               cloneWorkflowPreview(record.preview),
+		Preview:               preview,
 		Versions:              previewVersionSummaries(record.versions, record.selectedRevision),
 		ExpiresAt:             record.expiresAt,
 	}

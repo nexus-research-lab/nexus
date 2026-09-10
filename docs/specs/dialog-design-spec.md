@@ -1,16 +1,14 @@
 # Web 弹窗设计规范
 
-本文记录 Nexus Web 当前弹窗的结构、文案与审计合同。业务弹窗必须复用共享 modality；设计差异只来自任务类型，不来自各功能自行添加装饰层级。
+本文记录 Nexus Web 弹窗按任务类型选择结构与文案的合同。全局视觉与交互以 [`design.md`](../../design.md) 为唯一入口；组件所有权、依赖和验证流程见 [`frontend-engineering-spec.md`](./frontend-engineering-spec.md)，本文不另设数值或行为标准。
 
-## 当前清单
+## 入口审计口径
 
-自动审计口径如下：
+审计产品调用点时使用以下口径：
 
-- 产品代码中 `<UiDialogBackdrop>`、`<ConfirmDialog>`、`<PromptDialog>` 的每个声明计为一个可独立出现的模态入口；共享 primitive 自身不计入。当前为 **61 个产品模态根**。
-- 未使用上述 primitive、但暴露 `role="dialog"` 或 `aria-modal="true"` 的交互面单独计为 dialog 型浮层。当前为 **5 个 dialog 型浮层**。
-- 当前审计范围共 **66 个**。新增或移除入口时，必须同步 `web/scripts/dialog-inventory.test.mjs`、本节数字和对应阶段的设计审计。
-
-模态根按产品域分布：Agent 3、Capability 26、Contacts 2、Conversation 16、Home 1、Memory 1、Onboarding 2、Contacts page 1、Provider import 1、Settings 5、共享 Mermaid 预览 1。Capability 新增的三个入口是 Skill 来源删除、定时任务删除和运行占用释放的共享确认框，用于替代未纳入产品 modality 的浏览器原生 `confirm`。
+- 产品代码中 `<UiDialogBackdrop>`、`<ConfirmDialog>`、`<PromptDialog>` 的每个声明计为一个可独立出现的模态入口；共享 primitive 和开发 Gallery 自身不计入。
+- 未使用上述 primitive、但暴露 `role="dialog"` 或 `aria-modal="true"` 的交互面单独审计，不以名称推断其具备模态行为。
+- 新增或移除入口时更新所属模块的所有权文档，并运行共享模态与所涉业务测试；历史数量只记录审计范围，不能代替当前调用点检查，也不能证明键盘或焦点行为正确。
 
 ## 设计语法
 
@@ -33,6 +31,7 @@
 - 目录型选择器使用普通标题、搜索/筛选和扁平行；不得用装饰图标、副标题、标签胶囊与重复按钮把每个选项包装成卡片。
 - 需要持续浏览、对照或编辑的内容使用工作台布局，不在小弹窗里堆叠标题、教程、表单、画布和双重 footer。
 - 桌面可使用双栏；窄屏必须切换为单栏或标签，不允许横向溢出。
+- Composer 的目录选择器优先聚焦搜索，焦点由公共模态入口设置；连续列表复用公共 Panel 和行样式，动作、分类和命令使用可读 supporting/metadata 层级。工作图选项只保留一个 Tab 入口，方向键和 Home/End 用于浏览，明确使用动作才写入命令。
 
 ### 预览器
 
@@ -45,13 +44,20 @@
 - 来源、运行和权限的技术身份进入按需展开的诊断区；真实业务错误保持可见。
 - 对象名可以直接作为弹窗标题，“当前状态”“运行历史”“需要处理”等泛化标签不与对象名、副标题和状态图标重复堆叠。
 - 二次确认复用共享决策框，不调用浏览器原生 `alert`、`confirm` 或 `prompt`。
+- 会话历史的时间和选择数量使用公共 metadata，空历史用 supporting 短说明；窄屏时间跟随界面语言。行内次动作通过公共 ListAction 持有鼠标、键盘与无 hover 输入的可见性，外层不能再次隐藏。批量操作的未确认结果复用 InlineNotice，并置于滚动正文，保留底部操作的可达性。
 
 ## 可访问性与行为
 
+- Dialog、Popover、Tooltip、Tour 等高层界面不得在业务组件里直接声明数值 `z-index`；统一通过 `UiDialogBackdrop.layer` 或 `shared/ui/overlay/layer-styles.ts` 的语义层级表达遮挡关系。
+- 小窗口边距与 Dialog 高度不得在页面里重复 `dvh`/像素公式；统一通过 `UiDialogBackdrop.inset` 与 `UiDialogShell.viewport` / `UiDialogFormShell.viewport` 选择共享 recipe。
 - `UiDialogBackdrop` 统一提供焦点陷阱、Escape、背景滚动锁和可访问命名；业务层不得复制 modality。
+- 普通弹窗直接使用可见 Header 标题作为可访问名称，随当前步骤标题更新；嵌套弹窗和同名实例各自独立。自定义标题区或无标题栏的预览由调用方提供明确名称，不能从按钮、图标或正文猜测。只有必要的简短说明才显式关联为描述，复杂内容保留结构阅读。
 - 关闭、取消业务操作和提交必须保持不同语义。关闭不能暗中提交或撤销，业务取消必须调用原有控制动作。
+- 历史标题内联编辑的 Enter/Escape 必须排除输入法选词；普通 Escape 只退出当前编辑并恢复其入口焦点，后续 Escape 继续服从公共浮层的逐层关闭协议。
+- 公共输入弹窗以可见标题或明确的 inputLabel 命名字段，placeholder 只作示例；字段错误与多行快捷键说明复用 UiField 的排版和精确关联。默认按钮与快捷键文案跟随语言，业务专用动作优先。写入期间由调用方 busy 同时禁用字段、提交、取消及关闭；公共控件不推断结果。
+- 输入法候选 Enter 不触发 Prompt 提交，候选 Escape/Tab 不触发模态或锚定浮层的全局关闭/焦点循环；各事件边界复用唯一 IME 判定，不复制独立标记、延时或键码规则。
 - 异步状态原位替换当前动作或显示一行短状态，不新增重复弹窗。
 
 ## 审计状态（non-normative）
 
-当前 61 个产品模态根和 5 个 dialog 型浮层已完成本轮审计与迁移：公共决策框、WorkGraph、Connector、Channel、Agent/Provider/Room 创建编辑表单、Composer 选择器、附件/Mermaid 预览、Skill/Scheduled 管理弹窗（含未确认投递与删除停止复核）、配对、MCP、引导中心、Goal、联系人、CC Switch、Provider 初始化向导，以及历史、移动端会话切换、模型选择、记忆说明和图标选择浮层均纳入同一设计语法。后续新增入口继续按上述合同审计；本段只记录推进状态，不改变完成标准。
+历史审计快照覆盖 61 个产品模态根和 5 个 dialog 型浮层：公共决策框、WorkGraph、Connector、Channel、Agent/Provider/Room 创建编辑表单、Composer 选择器、附件/Mermaid 预览、Skill/Scheduled 管理弹窗（含未确认投递与删除停止复核）、配对、MCP、引导中心、Goal、联系人、CC Switch、Provider 初始化向导，以及历史、移动端会话切换、模型选择、记忆说明和图标选择浮层。该数量并非自动维护的当前清单；后续新增入口继续按上述合同审计，不改变完成标准。

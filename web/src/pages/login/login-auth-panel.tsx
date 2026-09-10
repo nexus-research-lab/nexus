@@ -1,13 +1,17 @@
 // INPUT: 登录表单状态、已分类的认证/提交恢复事实与用户动作。
-// OUTPUT: 保留输入、按 Problem/Impact/Recovery 展示的登录面板。
-// POS: 登录页展示边界；不推断提交结果，也不自行重放登录请求。
-import { ArrowRight, CheckCircle2, KeyRound } from "lucide-react";
-import type { FormEvent } from "react";
+// OUTPUT: 共享 Field、filled Panel、Typography 与恢复提示组成的登录表单，实例级关联字段/标题，提交期间锁定凭证输入并播报 busy。
+// POS: 登录页展示边界；控件视觉归 shared/ui，不推断提交结果或自行重放登录请求。
+import { ArrowRight } from "lucide-react";
+import { useId, type FormEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
-import { UiInput } from "@/shared/ui/form/form-control";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { LoginFormMode } from "./login-page-model";
 import type { LoginRecoveryNotice } from "./login-page-model";
@@ -37,30 +41,23 @@ function LoginErrorBanner({
     return null;
   }
   return (
-    <div
-      aria-atomic="true"
-      aria-live="polite"
-      className="mt-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] px-4 py-3"
-      role="status"
-    >
-      <p className="text-sm font-semibold text-(--destructive)">{notice.title}</p>
-      <RecoverySummary
-        className="mt-1"
-        impact={notice.impact}
-        nextStep={notice.action ? undefined : notice.nextStep}
-      />
-      {notice.action === "check_status" ? (
-        <UiButton
-          className="mt-2"
-          onClick={onCheckStatus}
-          size="sm"
-          type="button"
-          variant="text"
-        >
-          {t("login.refresh")}
-        </UiButton>
-      ) : null}
-    </div>
+    <UiInlineNotice
+      action={notice.action === "check_status"
+        ? {
+            label: t("login.refresh"),
+            onClick: onCheckStatus,
+          }
+        : undefined}
+      className="mt-5"
+      message={(
+        <RecoverySummary
+          impact={notice.impact}
+          nextStep={notice.action ? undefined : notice.nextStep}
+        />
+      )}
+      title={notice.title}
+      tone="danger"
+    />
   );
 }
 
@@ -68,16 +65,16 @@ function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
   const { t } = useI18n();
   return (
     <div className="mt-7 space-y-4">
-      <div className="rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--card)_56%,transparent)] px-4 py-4">
-        <h3 className="text-base font-semibold text-(--text-strong)">
+      <div>
+        <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
           {t("login.disabled_title")}
         </h3>
-        <p className="mt-2 text-sm leading-6 text-(--text-muted)">
+        <p className={cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
           {t("login.disabled_description")}
         </p>
       </div>
       <UiButton
-        className="min-h-11 w-full rounded-[10px] px-5 text-sm"
+        className="w-full"
         onClick={onRefresh}
         size="lg"
         variant="solid"
@@ -100,43 +97,39 @@ function PasswordLoginForm({
   username,
 }: Omit<LoginAuthPanelProps, "formMode">) {
   const { t } = useI18n();
+  const fieldId = useId();
   return (
-    <form className="mt-7 space-y-4" onSubmit={onSubmit}>
-      <label className="block" htmlFor="nexus-login-username">
-        <span className="mb-2 block text-sm font-semibold text-(--text-default)">
-          {t("login.username")}
-        </span>
+    <form aria-busy={isSubmitting} className="mt-7 space-y-4" onSubmit={onSubmit}>
+      <UiField htmlFor={`${fieldId}-username`} label={t("login.username")}>
         <UiInput
           autoComplete="username"
-          className="min-h-12 rounded-[10px] border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_83%,transparent)] px-4 text-base shadow-none"
           controlSize="lg"
-          id="nexus-login-username"
+          disabled={isSubmitting}
+          id={`${fieldId}-username`}
           onChange={(event) => onChangeUsername(event.target.value)}
           placeholder={t("login.username_placeholder")}
           type="text"
           value={username}
           variant="surface"
         />
-      </label>
-      <label className="block" htmlFor="nexus-login-password">
-        <span className="mb-2 block text-sm font-semibold text-(--text-default)">
-          {t("login.password")}
-        </span>
+      </UiField>
+      <UiField htmlFor={`${fieldId}-password`} label={t("login.password")}>
         <UiInput
           autoComplete="current-password"
-          className="min-h-12 rounded-[10px] border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_83%,transparent)] px-4 text-base shadow-none"
           controlSize="lg"
-          id="nexus-login-password"
+          disabled={isSubmitting}
+          id={`${fieldId}-password`}
           onChange={(event) => onChangePassword(event.target.value)}
           placeholder={t("login.password_placeholder")}
           type="password"
           value={password}
           variant="surface"
         />
-      </label>
+      </UiField>
       <LoginErrorBanner notice={submitFailure} onCheckStatus={onRefresh} />
       <UiButton
-        className="min-h-12 w-full rounded-[10px] px-5 text-base shadow-[0_14px_30px_color-mix(in_srgb,var(--shadow-color)_14%,transparent)]"
+        aria-busy={isSubmitting || undefined}
+        className="w-full"
         disabled={
           isSubmitting
           || Boolean(authFailure?.blocksSubmit)
@@ -167,27 +160,12 @@ export function LoginAuthPanel({
   username,
 }: LoginAuthPanelProps) {
   const { t } = useI18n();
+  const titleId = useId();
   return (
-    <section className="relative w-full overflow-hidden rounded-[12px] border border-[color:color-mix(in_srgb,var(--card)_97%,transparent)] bg-[color:color-mix(in_srgb,var(--card)_86%,transparent)] p-6 shadow-(--modal-dialog-surface-shadow) backdrop-blur-xl sm:p-7">
-      <div className="flex items-start justify-between gap-5">
-        <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 rounded-[10px] border border-(--material-input-border) bg-[color:color-mix(in_srgb,var(--card)_69%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-(--text-muted)">
-            <KeyRound className="h-3.5 w-3.5 text-[color:color-mix(in_srgb,var(--brand)_90%,transparent)]" />
-            Secure session
-          </div>
-          <h2 className="mt-5 text-xl font-semibold leading-tight text-(--text-strong)">
-            {t("login.title")}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-(--text-muted)">
-            Use your Nexus password to continue.
-          </p>
-        </div>
-        <img
-          alt=""
-          className="h-12 w-12 shrink-0 object-contain drop-shadow-[0_12px_24px_color-mix(in_srgb,var(--brand)_16%,transparent)]"
-          src="/logo.webp"
-        />
-      </div>
+    <UiPanel aria-labelledby={titleId} className="w-full" padding="lg" radius="lg" variant="filled">
+      <h2 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })} id={titleId}>
+        {t("login.title")}
+      </h2>
 
       <LoginErrorBanner notice={authFailure} onCheckStatus={onRefresh} />
       {formMode === "disabled" ? (
@@ -205,11 +183,6 @@ export function LoginAuthPanel({
           username={username}
         />
       )}
-
-      <div className="mt-7 flex items-center gap-2 border-t border-(--material-input-border) pt-4 text-xs leading-5 text-(--text-muted)">
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-[color:color-mix(in_srgb,var(--accent)_90%,transparent)]" />
-        Authenticated sessions open the launcher without exposing public entry actions.
-      </div>
-    </section>
+    </UiPanel>
   );
 }

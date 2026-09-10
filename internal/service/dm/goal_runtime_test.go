@@ -3,21 +3,20 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 type dmSettlementBoundaryContext struct {
@@ -1357,8 +1356,8 @@ func TestDMExternalActivationFlushesPendingChildBeforeBindAndSkipsStaleRetry(t *
 		runtimeKind: "nxs",
 		goalUsage:   goalsvc.NewRuntimeUsageAccumulator(false),
 	}
-	runner.markSubagentUsageObservationPending("task-pending", dmSubagentUsageObservation{
-		cumulativeTotal: 75,
+	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
+		CumulativeTotal: 75,
 	})
 
 	pendingTaskIDs, done, _ := runner.pendingSubagentUsageForRetry()
@@ -1409,8 +1408,8 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 		goalUsageScopeConsumed: true,
 	}
 	accelerateDMGoalUsageRetry(runner)
-	runner.markSubagentUsageObservationPending("task-pending", dmSubagentUsageObservation{
-		cumulativeTotal: 75,
+	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
+		CumulativeTotal: 75,
 	})
 
 	err := runner.activateGoalUsage(context.Background(), "goal-new")
@@ -1432,7 +1431,7 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 			runner.goalUsage.Active(),
 		)
 	}
-	if pending := runner.subagentUsagePending["task-pending"]; pending.cumulativeTotal != 75 {
+	if pending := runner.subagentUsagePending["task-pending"]; pending.CumulativeTotal != 75 {
 		t.Fatalf("failed source checkpoint lost pending observation: %#v", pending)
 	}
 	if len(provider.snapshots) != goalUsagePersistAttempts {

@@ -1,24 +1,34 @@
 /**
  * INPUT: 已投影的历史条目、标题编辑器与选择/切换/删除回调。
- * OUTPUT: 阅读、编辑和批量选择三种互斥模式的可访问条目视图。
+ * OUTPUT: 具公共次动作显隐和可读时间的历史条目；编辑键盘隔离输入法与菜单关闭。
  * POS: Room 历史单项纯视图，不判断会话协议与删除资格。
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   type ComponentType,
   type KeyboardEvent,
   type MouseEvent,
   type RefObject,
+  useId,
 } from "react";
-import { Check, Clock3, Pencil, Trash2, X } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
+import { UiInput } from "@/shared/ui/form/form-control";
+import {
+  UiListActionButton,
+} from "@/shared/ui/list/list-action";
+import type { UiListActionTone } from "@/shared/ui/list/list-action";
+import { UiListRow, UiListRowContent } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   RoomHistoryItemAction,
   RoomHistoryItemMode,
   RoomHistoryItemPresentation,
-  RoomHistoryItemState,
 } from "./room-history-item-model";
 
 interface TitleEditorView {
@@ -26,6 +36,7 @@ interface TitleEditorView {
   confirm: () => void;
   draft: string;
   inputRef: RefObject<HTMLInputElement | null>;
+  triggerRef: RefObject<HTMLButtonElement | null>;
   setDraft: (value: string) => void;
   start: (event: MouseEvent) => void;
 }
@@ -39,113 +50,53 @@ interface RoomHistoryItemViewProps {
   selectionLabel: string;
 }
 
-interface ItemContentProps extends RoomHistoryItemViewProps {}
-
 interface ActionStyle {
-  className: string;
   icon: ComponentType<{ className?: string }>;
+  tone: UiListActionTone;
 }
-
-const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
-  active: "bg-(--surface-sidebar-active-background) text-(--text-strong)",
-  idle: "bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-};
 
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
-    className: "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
     icon: Trash2,
+    tone: "danger",
   },
   rename: {
-    className: "text-(--icon-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
     icon: Pencil,
+    tone: "default",
   },
 };
 
 function RoomHistoryActivity({
-  compact = false,
-  hideForActions = false,
-  persistActions = false,
+  className,
   label,
 }: {
-  compact?: boolean;
-  hideForActions?: boolean;
-  persistActions?: boolean;
+  className?: string;
   label: string;
 }) {
   return (
-    <div className={cn(
-      "flex items-center gap-1.5 text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-      compact ? "shrink-0 text-2xs" : "mt-1 flex-wrap gap-y-0.5 text-2xs",
-      hideForActions && (
-        persistActions
-          ? "opacity-0"
-          : "group-hover:opacity-0 group-focus-within:opacity-0"
-      ),
+    <span className={cn(
+      "shrink-0 tabular-nums",
+      getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+      className,
     )}>
-      <span className={cn(
-        "inline-flex items-center gap-1.5",
-        compact && "w-full justify-end",
-      )}>
-        <Clock3 className="h-3 w-3 shrink-0" />
-        <span>{label}</span>
-      </span>
-    </div>
-  );
-}
-
-function ExternalSessionLabel({ label }: { label: string | null }) {
-  if (!label) {
-    return null;
-  }
-  return (
-    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium text-(--primary)">
-      IM · {label}
+      {label}
     </span>
   );
 }
 
-function RoomHistorySummary({
+function RoomHistoryContent({
   presentation,
 }: {
   presentation: RoomHistoryItemPresentation;
 }) {
   return (
-    <div className="grid min-w-full w-max grid-cols-[max-content_78px] items-center gap-3">
-      <div className="flex min-w-max items-center gap-2">
-        <p className={cn(
-          "whitespace-nowrap text-compact",
-          presentation.state === "active"
-            ? "font-semibold text-(--text-strong)"
-            : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
-        )}>
-          {presentation.title}
-        </p>
-        <ExternalSessionLabel label={presentation.externalSessionLabel} />
-      </div>
-      <RoomHistoryActivity
-        compact
-        hideForActions={presentation.actions.length > 0}
-        label={presentation.activityLabel}
-        persistActions={presentation.actionsPersistent}
-      />
-    </div>
-  );
-}
-
-function ReadingItemContent({
-  onSelect,
-  presentation,
-}: ItemContentProps) {
-  return (
-    <button
-      aria-current={presentation.state === "active" ? "page" : undefined}
-      className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-      onClick={onSelect}
-      type="button"
-    >
-      <RoomHistorySummary presentation={presentation} />
-    </button>
+    <UiListRowContent
+      description={presentation.externalSessionLabel
+        ? presentation.externalSessionLabel
+        : undefined}
+      meta={<RoomHistoryActivity label={presentation.activityLabel} />}
+      title={presentation.title}
+    />
   );
 }
 
@@ -153,31 +104,31 @@ function SelectingItemContent({
   onToggleSelection,
   presentation,
   selectionLabel,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
+  const checkboxId = useId();
   const selection = presentation.selection;
   if (!selection) {
     return null;
   }
   return (
-    <label
+    <UiTooltip label={selection.disabled ? selectionLabel : undefined}><label
       className={cn(
         "flex w-full items-center gap-2.5",
         selection.disabled ? "cursor-default" : "cursor-pointer",
       )}
-      title={selection.disabled ? selectionLabel : undefined}
+      htmlFor={checkboxId}
+
     >
-      <input
+      <UiCheckbox
         aria-label={selectionLabel}
         checked={selection.checked}
-        className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:opacity-35"
+        checkboxSize="small"
         disabled={selection.disabled}
+        id={checkboxId}
         onChange={onToggleSelection}
-        type="checkbox"
       />
-      <div className="min-w-0 flex-1">
-        <RoomHistorySummary presentation={presentation} />
-      </div>
-    </label>
+      <RoomHistoryContent presentation={presentation} />
+    </label></UiTooltip>
   );
 }
 
@@ -185,57 +136,64 @@ function handleTitleEditorKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
   editor: TitleEditorView,
 ) {
-  const actions: Partial<Record<string, () => void>> = {
-    Enter: editor.confirm,
-    Escape: editor.cancel,
-  };
-  actions[event.key]?.();
+  if (event.key !== "Enter" && event.key !== "Escape") return;
+  // Composition keys belong to the input, including Escape candidate dismissal.
+  event.stopPropagation();
+  if (isImeKeyboardEvent(event.nativeEvent)) return;
+  event.preventDefault();
+  if (event.key === "Enter") editor.confirm();
+  else editor.cancel();
 }
 
 function EditingItemContent({
   editor,
   presentation,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <input
+        <UiInput
           aria-label={presentation.editorLabels.input}
-          className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-sm font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
+          className={cn(
+            "min-w-0 flex-1",
+            getUiTypographyClassName({ role: "control", weight: "semibold" }),
+          )}
+          controlSize="xs"
           maxLength={64}
           onChange={(event) => editor.setDraft(event.target.value)}
           onKeyDown={(event) => handleTitleEditorKeyDown(event, editor)}
           ref={editor.inputRef}
           value={editor.draft}
+          variant="surface"
         />
-        <button
+        <UiListActionButton
           aria-label={presentation.editorLabels.confirm}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
           onClick={editor.confirm}
-          type="button"
+          size="xs"
+          tone="primary"
+          visibility="visible"
         >
           <Check className="h-3.5 w-3.5" />
-        </button>
-        <button
+        </UiListActionButton>
+        <UiListActionButton
           aria-label={presentation.editorLabels.cancel}
-          className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           onClick={editor.cancel}
-          type="button"
+          size="xs"
+          visibility="visible"
         >
           <X className="h-3.5 w-3.5" />
-        </button>
+        </UiListActionButton>
       </div>
-      <RoomHistoryActivity label={presentation.activityLabel} />
+      <RoomHistoryActivity className="mt-1 block" label={presentation.activityLabel} />
     </>
   );
 }
 
 const CONTENT_VIEWS: Record<
-  RoomHistoryItemMode,
-  ComponentType<ItemContentProps>
+  Exclude<RoomHistoryItemMode, "reading">,
+  ComponentType<RoomHistoryItemViewProps>
 > = {
   editing: EditingItemContent,
-  reading: ReadingItemContent,
   selecting: SelectingItemContent,
 };
 
@@ -243,67 +201,65 @@ function RoomHistoryItemActions({
   editor,
   onDelete,
   presentation,
-}: ItemContentProps) {
+}: RoomHistoryItemViewProps) {
   if (presentation.actions.length === 0) {
     return null;
   }
   const actionHandlers: Record<RoomHistoryItemAction, (event: MouseEvent) => void> = {
-    delete: (event) => {
-      event.stopPropagation();
-      onDelete();
-    },
+    delete: onDelete,
     rename: editor.start,
   };
   return (
-    <div className="sticky right-0 z-10 -my-1.5 ml-2 grid shrink-0 place-items-center self-stretch rounded-r-[10px] bg-inherit px-2.5">
-      <div className={cn(
-        "flex items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
-        presentation.actionsPersistent
-          ? "opacity-100"
-          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
-      )}>
-        {presentation.actions.map((action) => {
-          const style = ACTION_STYLES[action];
-          const Icon = style.icon;
-          return (
-            <button
-              aria-label={presentation.actionLabels[action]}
-              className={cn(
-                "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
-                style.className,
-              )}
-              key={action}
-              onClick={actionHandlers[action]}
-              type="button"
-            >
-              <Icon className="h-3 w-3" />
-            </button>
-          );
-        })}
-      </div>
+    <div className="flex shrink-0 items-center gap-1">
+      {presentation.actions.map((action) => {
+        const style = ACTION_STYLES[action];
+        const Icon = style.icon;
+        return (
+          <UiListActionButton
+            aria-label={presentation.actionLabels[action]}
+            key={action}
+            onClick={actionHandlers[action]}
+            ref={action === "rename" ? editor.triggerRef : undefined}
+            size="xs"
+            stopPropagation
+            tone={style.tone}
+            visibility={presentation.actionsPersistent ? "visible" : "hover"}
+          >
+            <Icon className="h-3 w-3" />
+          </UiListActionButton>
+        );
+      })}
     </div>
   );
 }
 
 export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
   const { presentation } = props;
-  const stateClassName = ENTRY_STYLES[presentation.state];
-  const Content = CONTENT_VIEWS[presentation.mode];
+  const Content = presentation.mode === "reading"
+    ? null
+    : CONTENT_VIEWS[presentation.mode];
   return (
-    <article
-      className={cn(
-        "group relative flex min-w-full w-max items-stretch rounded-[10px] py-1.5 pl-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
-        stateClassName,
-        presentation.selection?.checked
-          && "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)",
+    <UiListRow
+      actions={<RoomHistoryItemActions {...props} />}
+      active={presentation.state === "active" || Boolean(presentation.selection?.checked)}
+      activeTone="sidebar"
+      aria-current={presentation.state === "active" ? "page" : undefined}
+      className="items-stretch"
+      description={Content || !presentation.externalSessionLabel
+        ? undefined
+        : presentation.externalSessionLabel}
+      density="dense"
+      meta={Content ? undefined : (
+        <RoomHistoryActivity label={presentation.activityLabel} />
       )}
+      onClick={presentation.mode === "reading" ? props.onSelect : undefined}
+      title={Content ? undefined : presentation.title}
     >
-      <div className="min-w-max flex-1">
-        <div className="min-w-max">
+      {Content ? (
+        <div className="min-w-0 flex-1">
           <Content {...props} />
         </div>
-      </div>
-      <RoomHistoryItemActions {...props} />
-    </article>
+      ) : undefined}
+    </UiListRow>
   );
 }

@@ -175,8 +175,9 @@ test("workspace text issues use one message and safe actions", async () => {
   ]);
 
   assert.match(editor, /<TextFileEditorReliability/);
-  assert.match(notice, /impact=\{/);
-  assert.doesNotMatch(notice, /nextStep=\{/);
+  assert.equal((notice.match(/<UiResourceState\b/g) ?? []).length, 1);
+  assert.match(notice, /impact:/);
+  assert.doesNotMatch(notice, /nextStep\s*[:=]/);
   assert.match(notice, /onReconcile/);
   assert.match(notice, /onAdoptLatest/);
   assert.match(notice, /onOverwrite/);

@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 会话 Frame、Feed、嵌入编辑器接待话术、Goal、Task 与 Composer 视图模型。
- * OUTPUT: 共享 viewport、可收敛为短句的仅 UI 接待说明，以及从 Composer 向上堆叠的 DM 对话布局。
+ * OUTPUT: 共享 viewport、仅 UI 接待说明及从 Composer 向上堆叠的对话布局；任务展开态沿精确会话隔离。
  * POS: DM 面板的纯视图层。
  */
 
@@ -81,7 +81,7 @@ export function DmChatPanelView({
           isMain={isMainAgent(model.feed.renderer.workspaceAgentId)}
           kind="dm"
           onSelect={(prompt) => {
-            void model.composer.onSendMessage(
+            return model.composer.onSendMessage(
               prompt,
               model.composer.defaultDeliveryPolicy,
             );
@@ -122,6 +122,7 @@ export function DmChatPanelView({
             : model.todos.length > 0
             ? (
                 <WorkspaceTaskPanel
+                  scopeKey={model.sessionKey ?? undefined}
                   source={model.taskSource}
                   todos={model.todos}
                 />
@@ -169,7 +170,7 @@ function EmbeddedEditorIntroduction({
           {agentName}
         </span>
       </div>
-      <div className="ml-9 mt-2.5 min-w-0 text-[13px] leading-5.5 text-(--text-muted)">
+      <div className="ml-9 mt-2.5 min-w-0 text-sm leading-5.5 text-(--text-muted)">
         <p className="font-medium text-(--text-strong)">{title}</p>
         <p className="mt-1">{description}</p>
         {examples.length ? (

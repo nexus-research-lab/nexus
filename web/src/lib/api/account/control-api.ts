@@ -23,6 +23,13 @@ export interface ControlDeploymentMember {
   updated_at: string;
 }
 
+export interface ControlMemberDirectoryEntry {
+  avatar?: string;
+  display_name: string;
+  user_id: string;
+  username: string;
+}
+
 export interface SetupControlOwnerParams {
   setupToken: string;
   username: string;
@@ -56,6 +63,12 @@ export async function setupControlOwnerApi(
 
 export async function listControlMembersApi(): Promise<ControlDeploymentMember[]> {
   return requestApi<ControlDeploymentMember[]>(`${CONTROL_AUTH_BASE_URL}/members`, {
+    method: "GET",
+  });
+}
+
+export async function listControlMemberDirectoryApi(): Promise<ControlMemberDirectoryEntry[]> {
+  return requestApi<ControlMemberDirectoryEntry[]>(`${CONTROL_AUTH_BASE_URL}/directory/members`, {
     method: "GET",
   });
 }

@@ -1,3 +1,7 @@
+// INPUT: 锚点 DOM/指针位置、视口与调用方已解析的原始定位约束。
+// OUTPUT: 上下锚定、指针或侧向浮层的视口安全坐标、非负宽高与动画方向；视口硬上限优先于建议最小高度。
+// POS: 锚定浮层底层几何求解器；语义 preset 及其数值归 anchored-overlay-layout 所有。
+
 export type UiAnchoredOverlayPlacement = "auto" | "bottom" | "top";
 export type UiAnchoredOverlayAlignment = "center" | "end" | "start";
 
@@ -68,15 +72,16 @@ export function resolveAnchoredOverlayPosition({
       && availableBelow < estimatedHeight
       && availableAbove > availableBelow);
   const availableSpace = placeAbove ? availableAbove : availableBelow;
-  const resolvedMaxHeight = Math.min(
+  const resolvedMaxHeight = Math.max(0, Math.min(
     maxHeight,
     estimatedHeight,
     Math.max(minHeight, availableSpace - gap),
-  );
-  const width = Math.min(
+    viewportHeight - viewportMargin * 2,
+  ));
+  const width = Math.max(0, Math.min(
     Math.max(rect.width, minWidth),
     viewportWidth - viewportMargin * 2,
-  );
+  ));
   const preferredLeft = align === "end"
     ? rect.right - width
     : align === "center"
@@ -96,14 +101,68 @@ export function resolveAnchoredOverlayPosition({
       ? {
           bottom: Math.max(
             viewportMargin,
-            viewportHeight - rect.top + gap,
+            Math.min(viewportHeight - rect.top + gap, viewportHeight - viewportMargin - resolvedMaxHeight),
           ),
         }
       : {
-          top: Math.min(
-            rect.bottom + gap,
-            viewportHeight - viewportMargin - resolvedMaxHeight,
+          top: Math.max(
+            viewportMargin,
+            Math.min(rect.bottom + gap, viewportHeight - viewportMargin - resolvedMaxHeight),
           ),
         }),
+  };
+}
+
+interface FreeOverlayBounds {
+  estimatedHeight: number;
+  maxHeight: number;
+  minHeight: number;
+  minWidth: number;
+  viewportMargin: number;
+}
+
+function getFreeOverlayDimensions(bounds: FreeOverlayBounds) {
+  return {
+    width: Math.max(0, Math.min(bounds.minWidth, window.innerWidth - bounds.viewportMargin * 2)),
+    maxHeight: Math.max(0, Math.min(
+      Math.max(bounds.minHeight, bounds.estimatedHeight),
+      bounds.maxHeight,
+      window.innerHeight - bounds.viewportMargin * 2,
+    )),
+  };
+}
+
+function clampOverlayOffset(preferred: number, size: number, viewport: number, margin: number): number {
+  return Math.max(margin, Math.min(preferred, viewport - margin - size));
+}
+
+/** 指针菜单保持调用点，空间不足时整体挪回视口，而不是按文件类型猜测高度。 */
+export function resolvePointOverlayPosition({ point, ...bounds }: FreeOverlayBounds & {
+  point: { x: number; y: number };
+}): UiAnchoredOverlayPosition {
+  const dimensions = getFreeOverlayDimensions(bounds);
+  const top = clampOverlayOffset(point.y, dimensions.maxHeight, window.innerHeight, bounds.viewportMargin);
+  return {
+    ...dimensions,
+    left: clampOverlayOffset(point.x, dimensions.width, window.innerWidth, bounds.viewportMargin),
+    top,
+    placement: top < point.y ? "top" : "bottom",
+  };
+}
+
+/** 侧向子层沿真实行对齐，右侧不足则向左；超高内容只在层内滚动。 */
+export function resolveSideOverlayPosition({ anchor, gap, ...bounds }: FreeOverlayBounds & {
+  anchor: HTMLElement;
+  gap: number;
+}): UiAnchoredOverlayPosition {
+  const rect = anchor.getBoundingClientRect();
+  const dimensions = getFreeOverlayDimensions(bounds);
+  const preferredLeft = rect.right + gap + dimensions.width <= window.innerWidth - bounds.viewportMargin
+    ? rect.right + gap : rect.left - gap - dimensions.width;
+  return {
+    ...dimensions,
+    left: clampOverlayOffset(preferredLeft, dimensions.width, window.innerWidth, bounds.viewportMargin),
+    top: clampOverlayOffset(rect.top, dimensions.maxHeight, window.innerHeight, bounds.viewportMargin),
+    placement: "bottom",
   };
 }

@@ -1,10 +1,12 @@
 /**
- * INPUT: 当前 Thread 精确执行轮目标与 Room 实时源。
- * OUTPUT: 仅含目标 agent_round 的 Thread 面板消息、权限和运行态。
+ * INPUT: 当前 Thread 精确执行轮目标、Room 实时源与当前语言。
+ * OUTPUT: 仅含目标 agent_round 的消息、权限、运行态和可读名称。
  * POS: Room Thread 实时切片到面板 Props 的纯投影。
  */
 import { getRoomAgentRoundEntry, isAgentRoundActive } from "../../round/round-agent-model";
 import { getRoomThreadMessages } from "../../round/round-thread-model";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { ThreadTarget } from "../group-thread-state";
 import type { RoomThreadLiveSource } from "./room-thread-live-store";
@@ -24,6 +26,7 @@ export interface RoomThreadPanelModel {
 export function buildRoomThreadPanelModel(
   source: RoomThreadLiveSource | null,
   target: ThreadTarget | null,
+  t: I18nContextValue["t"],
 ): RoomThreadPanelModel | null {
   if (!source || !target) {
     return null;
@@ -39,7 +42,7 @@ export function buildRoomThreadPanelModel(
 
   return {
     agentAvatar: source.agentAvatarMap[target.agentId] ?? null,
-    agentName: source.agentNameMap[target.agentId] ?? target.agentId,
+    agentName: getAgentDisplayName(source.agentNameMap[target.agentId], t),
     isLoading: Boolean(entry && isAgentRoundActive(entry.status)),
     messages: getRoomThreadMessages(
       roundMessages,

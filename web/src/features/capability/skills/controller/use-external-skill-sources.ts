@@ -31,9 +31,11 @@ export function useExternalSkillSources({
   const { t } = useI18n();
   const [items, setItems] = useState<ExternalSkillSourceInfo[]>([]);
   const [managerOpen, setManagerOpen] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mutationLocked, setMutationLocked] = useState(false);
   const mutationLockedRef = useRef(false);
+  const recoveryRef = useRef<{ effect: "unknown" | "accepted" | "committed"; name: string } | null>(null);
   const mutationRunningRef = useRef(false);
   const [revision, setRevision] = useState(0);
   const requestRef = useRef(0);
@@ -43,21 +45,48 @@ export function useExternalSkillSources({
     setMutationLocked(locked);
   }, []);
 
-  const refresh = useCallback(async (): Promise<boolean> => {
+  const refresh = useCallback(async (duringMutation = false): Promise<boolean> => {
+    if (mutationRunningRef.current && !duringMutation) return false;
     const requestId = ++requestRef.current;
     setLoading(true);
     try {
       const nextItems = await listExternalSkillSourcesApi();
       if (requestId === requestRef.current) {
         setItems(nextItems);
+        setLoadFailed(false);
         if (mutationLockedRef.current) {
-          updateMutationLock(false);
-          feedback.clear();
+          const recovery = recoveryRef.current;
+          if (recovery?.effect === "committed") {
+            updateMutationLock(false);
+            recoveryRef.current = null;
+            feedback.clear();
+          } else if (recovery) {
+            // A list read cannot prove an opaque credential write or a late
+            // accepted mutation was not applied. Keep the write lock separate.
+            const accepted = recovery.effect === "accepted";
+            feedback.report({
+              action: {
+                label: t(accepted ? "state.retry" : "capability.skill_operation_new_intent_action"),
+                onClick: accepted ? () => { void refresh(); } : () => {
+                  recoveryRef.current = null;
+                  updateMutationLock(false);
+                  feedback.clear();
+                },
+              },
+              title: t(accepted ? "capability.skill_source_accepted_title" : "capability.skill_source_unknown_title"),
+              impact: t(accepted ? "capability.skill_source_accepted_impact" : "capability.skill_source_unknown_impact", { name: recovery.name }),
+              nextStep: t(accepted ? "capability.skill_source_accepted_next_step" : "capability.skill_operation_unknown_next_step"),
+              pending: false,
+              persistent: true,
+              tone: "warning",
+            });
+          }
         }
       }
       return requestId === requestRef.current;
     } catch {
       if (requestId === requestRef.current) {
+        setLoadFailed(true);
         feedback.report({
           action: {
             label: t("state.retry"),
@@ -97,8 +126,9 @@ export function useExternalSkillSources({
     setLoading(true);
     try {
       await updateExternalSkillSourceApi(source.source_id, { enabled });
+      recoveryRef.current = { effect: "committed", name: source.name };
       setRevision((value) => value + 1);
-      if (await refresh()) {
+      if (await refresh(true)) {
         feedback.success(t(
           enabled
             ? "capability.skill_source_enabled_success"
@@ -117,7 +147,8 @@ export function useExternalSkillSources({
         error,
         t,
       );
-      updateMutationLock(requiresReconciliation);
+      recoveryRef.current = requiresReconciliation === "not_applied" ? null : { effect: requiresReconciliation, name: source.name };
+      updateMutationLock(requiresReconciliation !== "not_applied");
     } finally {
       mutationRunningRef.current = false;
       setLoading(false);
@@ -147,8 +178,9 @@ export function useExternalSkillSources({
           url: draft.url.trim(),
         });
       }
+      recoveryRef.current = { effect: "committed", name: draft.name.trim() };
       setRevision((value) => value + 1);
-      if (await refresh()) {
+      if (await refresh(true)) {
         feedback.success(t(
           source
             ? "capability.skill_source_updated_success"
@@ -168,7 +200,8 @@ export function useExternalSkillSources({
         error,
         t,
       );
-      updateMutationLock(requiresReconciliation);
+      recoveryRef.current = requiresReconciliation === "not_applied" ? null : { effect: requiresReconciliation, name: draft.name.trim() };
+      updateMutationLock(requiresReconciliation !== "not_applied");
       return false;
     } finally {
       mutationRunningRef.current = false;
@@ -183,8 +216,9 @@ export function useExternalSkillSources({
     setLoading(true);
     try {
       await deleteExternalSkillSourceApi(source.source_id);
+      recoveryRef.current = { effect: "committed", name: source.name };
       setRevision((value) => value + 1);
-      if (await refresh()) {
+      if (await refresh(true)) {
         feedback.success(t("capability.skill_source_deleted_success", {
           name: source.name,
         }));
@@ -200,7 +234,8 @@ export function useExternalSkillSources({
         error,
         t,
       );
-      updateMutationLock(requiresReconciliation);
+      recoveryRef.current = requiresReconciliation === "not_applied" ? null : { effect: requiresReconciliation, name: source.name };
+      updateMutationLock(requiresReconciliation !== "not_applied");
     } finally {
       mutationRunningRef.current = false;
       setLoading(false);
@@ -210,7 +245,10 @@ export function useExternalSkillSources({
   return {
     closeManager: () => setManagerOpen(false),
     items,
-    loading: loading || mutationLocked,
+    loadFailed,
+    retry: () => { void refresh(); },
+    loading,
+    mutationBlocked: mutationLocked,
     managerOpen,
     openManager: () => setManagerOpen(true),
     revision,
@@ -226,7 +264,7 @@ function reportSourceMutationFailure(
   sourceName: string,
   error: unknown,
   t: ReturnType<typeof useI18n>["t"],
-): boolean {
+): "accepted" | "committed" | "not_applied" | "unknown" {
   const failure = projectMutationFailure(
     error,
     t("capability.skill_sources_update_failed"),
@@ -276,7 +314,7 @@ function reportSourceMutationFailure(
     title: t(selectedCopy.title),
     tone: notApplied ? "error" : "warning",
   });
-  return !notApplied;
+  return outcome;
 }
 
 function reportCommittedRefreshFailure(

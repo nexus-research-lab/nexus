@@ -1,6 +1,6 @@
 /**
  * INPUT: 上层已装配的一级导航、固定会话、目录内容与侧栏系统动作。
- * OUTPUT: 展开/收起共用的主侧栏壳层及唯一导航轨。
+ * OUTPUT: 展开/收起共用的主侧栏壳层及容纳中英文短标签的唯一紧凑导航轨。
  * POS: 主侧栏纯视图边界，不读取路由、Store 或业务 API。
  */
 import type {
@@ -23,6 +23,7 @@ import { SidebarPinnedConversations } from "./sidebar-pinned-conversations";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
   SidebarFooterActions,
+  type SidebarUtilityActionsProps,
   SidebarPanelToggleAction,
 } from "./sidebar-utility-actions";
 import type {
@@ -30,7 +31,6 @@ import type {
   SidebarPrimaryTabItem,
   SidebarPinnedConversationItem,
   SidebarPinnedConversationPlacement,
-  SidebarUtilityLabels,
 } from "./sidebar-wide-panel-types";
 
 interface SidebarPanelProps {
@@ -64,18 +64,7 @@ interface SidebarPanelProps {
   settingsNavigation?: ReactNode;
   showSplitEdge: boolean;
   tabs: SidebarPrimaryTabItem[];
-  utility: {
-    guideOpen: boolean;
-    labels: SidebarUtilityLabels;
-    onCollapse: () => void;
-    onExpand: () => void;
-    onLogout: () => void;
-    onOpenGuide: () => void;
-    settingsActive: boolean;
-    showLogout: boolean;
-    showPanelToggle: boolean;
-    showSettings: boolean;
-  };
+  utility: SidebarUtilityActionsProps;
 }
 
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
@@ -148,7 +137,7 @@ export function SidebarPanel({
           className={cn(
             "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
             WORKSPACE_HEADER_HEIGHT_CLASS,
-            collapsed ? "px-2" : "pl-3 pr-[18px]",
+            collapsed ? "px-2" : "pl-3 pr-4",
             "max-lg:px-4",
           )}
           data-desktop-window-controls-leading={
@@ -157,7 +146,7 @@ export function SidebarPanel({
           data-desktop-window-drag-region
         >
           <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
-          <div aria-hidden="true" className="min-w-0 flex-1 self-stretch" />
+          <div aria-hidden="true" className="w-4 shrink-0 self-stretch" />
           {!collapsed ? (
             <div className="sidebar-panel-header-toggle shrink-0">
               <SidebarPanelToggleAction
@@ -183,7 +172,7 @@ export function SidebarPanel({
           <div className="flex min-h-0 flex-1">
             <nav
               aria-label={navigationLabel}
-              className="shell-navigation-rail flex min-h-0 w-16 shrink-0 flex-col"
+              className="shell-navigation-rail flex min-h-0 shrink-0 flex-col"
             >
               <div className="w-full shrink-0">
                 <SidebarPrimaryTabs
@@ -204,7 +193,7 @@ export function SidebarPanel({
             </div>
           </div>
         )}
-        {collapsed ? null : <SidebarFooterActions {...utility} />}
+        {collapsed || utility.settingsActive ? null : <SidebarFooterActions {...utility} />}
       </div>
     </>
   );

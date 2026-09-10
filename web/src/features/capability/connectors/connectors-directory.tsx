@@ -15,14 +15,14 @@ import {
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { completeFeedbackBanner } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
@@ -182,7 +182,7 @@ export function ConnectorsDirectory() {
     || controller.reconciliationActions.some((action) => (
       action.connectorId === activeConnectorId
     ))
-    || customMCP.busy;
+    || customMCP.busy || customMCP.blocked;
   const confirmCustomMCPDelete = useCallback(async () => {
     const target = customMCP.deleteTarget;
     if (
@@ -212,13 +212,17 @@ export function ConnectorsDirectory() {
         }}
         server={selectedCustomMCPServer}
         serverLoading={customMCP.loading}
+        serverFailure={customMCP.failure}
+        onRetryServer={() => void customMCP.refresh()}
       />
     );
   } else if (connectorId) {
     surfaceContent = (
       <ConnectorDetailView
         busy={busy}
-        detail={controller.selectedDetail}
+        detail={controller.selectedDetail?.connector_id === connectorId
+          ? controller.selectedDetail
+          : null}
         failure={controller.detailFailure}
         loading={controller.detailLoading}
         onBack={backToConnectors}
@@ -257,8 +261,10 @@ export function ConnectorsDirectory() {
       />
     ) : (
       <CustomMCPGrid
-        busy={customMCP.busy}
+        busy={customMCP.busy || customMCP.blocked}
         hasServers={customMCP.servers.length > 0}
+        failure={customMCP.failure}
+        onRetry={() => void customMCP.refresh()}
         loading={customMCP.loading}
         onAdd={customMCP.openCreate}
         onDelete={customMCP.requestDelete}
@@ -273,20 +279,23 @@ export function ConnectorsDirectory() {
     surfaceContent = (
       <CapabilityPageLayout
         actions={directoryMode === "custom_mcp" ? (
-          <WorkspaceSurfaceToolbarAction
-            disabled={customMCP.busy}
+          <UiButton
+            disabled={customMCP.busy || customMCP.blocked}
             onClick={customMCP.openCreate}
+            size="2xs"
             tone="primary"
+            variant="text"
           >
             <Plus className="h-3.5 w-3.5" />
             {t("capability.custom_mcp_add")}
-          </WorkspaceSurfaceToolbarAction>
+          </UiButton>
         ) : undefined}
         description={t("capability.connectors_intro_description")}
         title={t("capability.connectors_intro_title")}
       >
         <ConnectorsSearchBar
           activeCategory={controller.activeCategory}
+          categoryKeys={controller.categoryKeys}
           mode={directoryMode}
           onCategoryChange={controller.setActiveCategory}
           onModeChange={setDirectoryMode}
@@ -408,6 +417,7 @@ export function ConnectorsDirectory() {
       />
       {customMCP.dialogState ? (
         <CustomMCPDialog
+          blocked={customMCP.blocked}
           busy={customMCP.busy}
           key={customMCP.dialogState.mode === "edit"
             ? customMCP.dialogState.server.connector_id

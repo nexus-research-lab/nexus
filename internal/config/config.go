@@ -1,3 +1,6 @@
+// INPUT: 进程环境变量、.env 与 Nexus 状态根。
+// OUTPUT: Nexus Server 各业务域共用的规范化运行配置。
+// POS: 所有后端配置的唯一加载入口；可选外部服务留空即不启用。
 package config
 
 import (
@@ -47,6 +50,7 @@ type Config struct {
 	DatabaseDriver                   string
 	DatabaseURL                      string
 	AuthSessionCookieName            string
+	RemoteURL                        string
 	ControlURL                       string
 	ControlServiceToken              string
 	ControlServiceTokenFile          string
@@ -54,6 +58,8 @@ type Config struct {
 	ControlPrincipalPublicKeyFile    string
 	ControlPrincipalAudience         string
 	ControlRequestTimeoutSeconds     int
+	RelayURL                         string
+	RelayRequestTimeoutSeconds       int
 	BaseSystemPrompt                 string
 	MainAgentSystemPrompt            string
 	MemoryMaintenance                MemoryMaintenanceConfig
@@ -138,6 +144,10 @@ func Load() Config {
 	}
 	workspacePath := configuredWorkspacePath(getEnv("WORKSPACE_PATH", ""))
 	appMode := getEnv("NEXUS_APP_MODE", "")
+	remoteURL := strings.TrimSpace(getEnv("NEXUS_REMOTE_URL", ""))
+	if remoteURL == "" && strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
+		remoteURL = "https://app.nexusos.cn"
+	}
 	controlURL := strings.TrimSpace(getEnv("NEXUS_CONTROL_URL", ""))
 	if controlURL == "" && !strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
 		controlURL = "http://127.0.0.1:8020"
@@ -199,6 +209,7 @@ func Load() Config {
 			filepath.Join(appRoot, "data"),
 		),
 		AuthSessionCookieName:   getEnv("AUTH_SESSION_COOKIE_NAME", "nexus_session"),
+		RemoteURL:               remoteURL,
 		ControlURL:              controlURL,
 		ControlServiceToken:     controlServiceToken,
 		ControlServiceTokenFile: controlServiceTokenFile,
@@ -212,6 +223,8 @@ func Load() Config {
 		),
 		ControlPrincipalAudience:     getEnv("NEXUS_CONTROL_PRINCIPAL_AUDIENCE", "nexus-runtime"),
 		ControlRequestTimeoutSeconds: parseIntEnv(getEnv("NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS", "5"), 5),
+		RelayURL:                     strings.TrimSpace(getEnv("NEXUS_RELAY_URL", "")),
+		RelayRequestTimeoutSeconds:   parseIntEnv(getEnv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "5"), 5),
 		BaseSystemPrompt:             getEnv("BASE_SYSTEM_PROMPT", ""),
 		MainAgentSystemPrompt:        getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),
 		MemoryMaintenance: MemoryMaintenanceConfig{

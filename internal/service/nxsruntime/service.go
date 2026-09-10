@@ -11,25 +11,9 @@ type RuntimeStatus struct {
 	Message     string `json:"message,omitempty"`
 }
 
-type runtimeInspector interface {
-	Status() bridgenxs.Status
-}
-
-// Service 负责探测和拉取 nxs runtime。
-type Service struct {
-	inspector func() runtimeInspector
-}
-
-// NewService 创建 nxs runtime 服务。
-func NewService() *Service {
-	return &Service{
-		inspector: defaultInspector,
-	}
-}
-
 // Status 只检查本地已存在的 nxs runtime，不触发下载。
-func (s *Service) Status() RuntimeStatus {
-	status := s.withDefaults().inspector().Status()
+func Status() RuntimeStatus {
+	status := bridgenxs.NewRuntimeInspector().Status()
 	return RuntimeStatus{
 		Available:   status.Available,
 		Path:        status.Path,
@@ -37,21 +21,6 @@ func (s *Service) Status() RuntimeStatus {
 		CanDownload: status.CanDownload,
 		Message:     runtimeStatusMessage(status),
 	}
-}
-
-func (s *Service) withDefaults() *Service {
-	if s == nil {
-		return NewService()
-	}
-	result := *s
-	if result.inspector == nil {
-		result.inspector = defaultInspector
-	}
-	return &result
-}
-
-func defaultInspector() runtimeInspector {
-	return bridgenxs.NewRuntimeInspector()
 }
 
 func runtimeStatusMessage(status bridgenxs.Status) string {

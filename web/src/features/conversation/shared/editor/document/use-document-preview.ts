@@ -1,7 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+// INPUT: Exact DOCX scope, persistent DOM hosts and explicit retry.
+// OUTPUT: Current parsed DOM and bounded scale; stale reads/parses/measurements cannot commit.
+// POS: DOCX resource lifecycle; Office scope and transport stay shared, rendering stays detached until commit.
+import { useCallback, useEffect, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
+import { useOfficePreviewScope } from "../use-office-preview-scope";
 import {
   calculateDocumentPreviewScale,
   normalizeDocumentMedia,
@@ -55,17 +59,13 @@ export function useDocumentPreview({
   const viewportRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const styleContainerRef = useRef<HTMLDivElement>(null);
-  const previewKey = `${agentId}\x1f${path}`;
-  const [previewScale, setPreviewScale] = useResettableState(1, previewKey);
+  const { requestKey, isCurrent, retryPreview } = useOfficePreviewScope(agentId, path);
+  const [previewScale, setPreviewScale] = useResettableState(1, requestKey);
   const [status, setStatus] = useResettableState<DocumentPreviewStatus>({
     state: "loading",
-  }, previewKey);
-  const [retryRevision, setRetryRevision] = useState(0);
-  const retryPreview = useCallback(() => {
-    setRetryRevision((current) => current + 1);
-  }, []);
-
+  }, requestKey);
   const updatePreviewScale = useCallback(() => {
+    if (!isCurrent()) return;
     const viewport = viewportRef.current;
     const container = containerRef.current;
     if (!viewport || !container) {
@@ -76,9 +76,10 @@ export function useDocumentPreview({
     setPreviewScale((current) => (
       Math.abs(current - nextScale) > 0.005 ? nextScale : current
     ));
-  }, [setPreviewScale]);
+  }, [isCurrent, setPreviewScale]);
 
   useEffect(() => {
+    if (!isCurrent()) return;
     const container = containerRef.current;
     const styleContainer = styleContainerRef.current;
     const abortController = new AbortController();
@@ -86,7 +87,6 @@ export function useDocumentPreview({
     let active = true;
 
     clearPreviewHosts(container, styleContainer);
-    setStatus({ state: "loading" });
 
     const loadPreview = async (): Promise<void> => {
       if (!container || !styleContainer) {
@@ -100,13 +100,12 @@ export function useDocumentPreview({
           path,
           signal: abortController.signal,
         });
-        if (!active) {
+        if (!active || !isCurrent()) {
           return;
         }
 
-        setStatus({ state: "loading" });
         const rendered = await renderDocumentBuffer(buffer);
-        if (!active) {
+        if (!active || !isCurrent()) {
           return;
         }
 
@@ -114,7 +113,7 @@ export function useDocumentPreview({
         normalizeDocumentMedia(container);
         updatePreviewScale();
         animationFrameId = requestAnimationFrame(() => {
-          if (!active) {
+          if (!active || !isCurrent()) {
             return;
           }
           normalizeDocumentMedia(container);
@@ -122,7 +121,7 @@ export function useDocumentPreview({
         });
         setStatus({ state: "loaded" });
       } catch {
-        if (!active || abortController.signal.aborted) {
+        if (!active || !isCurrent() || abortController.signal.aborted) {
           return;
         }
         clearPreviewHosts(container, styleContainer);
@@ -142,9 +141,8 @@ export function useDocumentPreview({
         cancelAnimationFrame(animationFrameId);
       }
       clearPreviewHosts(container, styleContainer);
-      setPreviewScale(1);
     };
-  }, [agentId, path, retryRevision, setPreviewScale, setStatus, updatePreviewScale]);
+  }, [agentId, isCurrent, path, setPreviewScale, setStatus, updatePreviewScale]);
 
   useEffect(() => {
     if (status.state !== "loaded") {

@@ -6,30 +6,15 @@ import {
   useRef,
 } from "react";
 
-interface GlassMagnifierAnimationOptions {
-  height: number;
-  width: number;
-}
-
 interface GlassMagnifierAnimation {
-  contentRef: RefObject<HTMLDivElement | null>;
+  contentRef: RefObject<HTMLSpanElement | null>;
   contentTransform: string;
-  idleTransform: string;
   onHoverEnd: () => void;
   onHoverStart: () => void;
-  rootRef: RefObject<HTMLDivElement | null>;
+  rootRef: RefObject<HTMLSpanElement | null>;
   rootTransform: string;
-  shellRef: RefObject<HTMLDivElement | null>;
-  sourceSize: {
-    height: number;
-    width: number;
-  };
 }
 
-const SOURCE_SIZE = {
-  height: 150,
-  width: 210,
-} as const;
 const HOVER_LOOP_DURATION_MS = 1560;
 const SETTLE_DURATION_MS = 260;
 const HOVER_EASING = "ease-in-out";
@@ -47,7 +32,7 @@ function buildContentTransform(
   return `translate3d(0px, ${yOffset}px, 0px) scale(${xMultiplier}, ${yMultiplier})`;
 }
 
-function readCurrentTransform(element: HTMLDivElement | null, fallback: string): string {
+function readCurrentTransform(element: HTMLSpanElement | null, fallback: string): string {
   if (!element || typeof window === "undefined") {
     return fallback;
   }
@@ -56,7 +41,7 @@ function readCurrentTransform(element: HTMLDivElement | null, fallback: string):
 }
 
 function animateLayer(
-  element: HTMLDivElement | null,
+  element: HTMLSpanElement | null,
   animationRef: MutableRefObject<Animation | null>,
   keyframes: Keyframe[],
   options: KeyframeAnimationOptions,
@@ -81,18 +66,13 @@ function animateLayer(
 }
 
 /** 放大镜动画集中持有 Web Animation 资源，视图只绑定引用和交互入口。 */
-export function useGlassMagnifierAnimation({
-  height,
-  width,
-}: GlassMagnifierAnimationOptions): GlassMagnifierAnimation {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const shellRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLDivElement | null>(null);
+export function useGlassMagnifierAnimation(): GlassMagnifierAnimation {
+  const rootRef = useRef<HTMLSpanElement | null>(null);
+  const contentRef = useRef<HTMLSpanElement | null>(null);
   const rootAnimationRef = useRef<Animation | null>(null);
   const contentAnimationRef = useRef<Animation | null>(null);
   const rootTransform = buildRootTransform(1, 1);
   const contentTransform = buildContentTransform(1, 1, 0);
-  const idleTransform = `scale(${width / SOURCE_SIZE.width}, ${height / SOURCE_SIZE.height})`;
 
   const onHoverStart = useCallback(() => {
     animateLayer(
@@ -167,12 +147,9 @@ export function useGlassMagnifierAnimation({
   return {
     contentRef,
     contentTransform,
-    idleTransform,
     onHoverEnd,
     onHoverStart,
     rootRef,
     rootTransform,
-    shellRef,
-    sourceSize: SOURCE_SIZE,
   };
 }

@@ -31,7 +31,7 @@ import type {
   SkillInfo,
 } from "@/types/capability/skill";
 
-import { formatDeployFailureMessage } from "../detail/skill-deploy-failures";
+import { formatDeployFailureMessage } from "./skill-deploy-failures";
 import { externalSkillKey } from "../external/external-skill-model";
 import {
   type SkillImportDialogMode,

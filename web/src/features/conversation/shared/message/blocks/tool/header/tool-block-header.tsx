@@ -1,10 +1,12 @@
 /**
  * INPUT: ToolBlock 单一视图模型、展开状态与可用操作。
- * OUTPUT: 收起时含摘要的单行工具头，展开时仅保留工具身份、状态与操作。
+ * OUTPUT: 含可访问展开状态的单行工具头；内嵌动作的键盘事件不触发行展开。
  * POS: 普通 ToolBlock 的稳定头部，不渲染展开明细。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { HTMLAttributes, KeyboardEventHandler } from "react";
 
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { cn } from "@/shared/ui/class-name";
 
 import type {
@@ -51,6 +53,7 @@ export function ToolBlockHeader({
   return (
     <div
       {...toggleProps}
+      aria-expanded={canToggle ? isExpanded : undefined}
       className={cn(
         "grid min-h-7 min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-1.5 radius-control-sm px-1.5 py-0.5 text-sm font-normal leading-5 text-(--text-soft) transition-colors",
         canToggle
@@ -103,7 +106,8 @@ function createToggleKeyHandler(
   onToggle: () => void,
 ): KeyboardEventHandler<HTMLDivElement> {
   return (event) => {
-    if (event.key !== "Enter" && event.key !== " ") {
+    if (event.defaultPrevented || isImeKeyboardEvent(event) || event.target !== event.currentTarget
+      || (event.key !== "Enter" && event.key !== " ")) {
       return;
     }
     event.preventDefault();
@@ -113,7 +117,7 @@ function createToggleKeyHandler(
 
 function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
   return (
-    <div
+    <UiTooltip label={model.toolTitle}><div
       className={cn(
         "flex h-5 w-5 items-center justify-center text-(--icon-muted)",
         model.status === "running" && "text-(--primary)",
@@ -121,10 +125,10 @@ function ToolSemanticIcon({ model }: { model: ToolBlockViewModel }) {
       data-tool-block-icon={model.toolVisualKind}
       data-timeline-anchor
       data-timeline-anchor-mode="box"
-      title={model.toolTitle}
+
     >
       <ToolActivityIcon className="h-3.5 w-3.5" kind={model.toolVisualKind} />
-    </div>
+    </div></UiTooltip>
   );
 }
 

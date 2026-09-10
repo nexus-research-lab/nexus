@@ -3,6 +3,7 @@
  * OUTPUT: 展示可识别账号身份、连接状态、更新时间与当前错误的管理列表。
  * POS: 频道连接详情的账号管理区；账号/用户标识是被管理对象，不是可隐藏的诊断字段。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Loader2,
   Trash2,
@@ -10,8 +11,14 @@ import {
 
 import type { ChannelAccountView } from "@/lib/api/capability/channel-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { channelAccountStatusLabel } from "./channel-connection-model";
 
 export function ChannelAccountsPanel({
@@ -25,64 +32,83 @@ export function ChannelAccountsPanel({
   deletingAccountId: string;
   onDelete: (account: ChannelAccountView) => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   return (
-    <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-3">
+    <UiPanel padding="sm" radius="sm">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-(--text-strong)">已连接账号</div>
-        </div>
-        <UiBadge size="xs">{accounts.length} 个</UiBadge>
+        <h3 className={cn(
+          "min-w-0",
+          getUiTypographyClassName({
+            role: "control",
+            tone: "strong",
+            weight: "semibold",
+          }),
+        )}>
+          {t("capability.channel_accounts_title")}
+        </h3>
+        <UiBadge size="xs">{t("capability.channel_accounts_count").replace("{count}", String(accounts.length))}</UiBadge>
       </div>
       {accounts.length === 0 ? (
-        <p className="mt-3 text-compact text-(--text-muted)">
-          暂无已连接账号
+        <p className={cn(
+          "mt-3",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
+          {t("capability.channel_accounts_empty")}
         </p>
       ) : (
         <div className="mt-2 space-y-1.5">
           {accounts.map((account) => (
-            <div
-              className="flex min-w-0 items-center justify-between gap-3 rounded-[8px] border border-(--divider-subtle-color) px-2.5 py-2"
+            <UiPanel
+              className="flex min-w-0 items-center justify-between gap-3 px-2.5 py-2"
               key={account.account_id}
+              padding="none"
+              radius="sm"
             >
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-2">
-                  <code
-                    className="min-w-0 truncate text-compact font-semibold text-(--text-strong)"
-                    title={account.user_id || account.account_id}
+                  <UiTooltip label={account.user_id || account.account_id}><code
+                    className={cn(
+                      "min-w-0 truncate",
+                      getUiTypographyClassName({
+                        role: "code",
+                        tone: "strong",
+                        weight: "semibold",
+                      }),
+                    )}
+
                   >
                     {account.user_id || account.account_id}
-                  </code>
-                  <UiBadge size="xs" tone={account.status === "error" ? "danger" : "success"}>
-                    {channelAccountStatusLabel(account.status)}
+                  </code></UiTooltip>
+                  <UiBadge size="xs" tone={account.status === "error" ? "danger" : account.status === "connected" ? "success" : "default"}>
+                    {channelAccountStatusLabel(account.status, t)}
                   </UiBadge>
                 </div>
-                <div className="mt-0.5 truncate text-xs text-(--text-muted)">
+                <div className={cn(
+                  "mt-0.5 truncate",
+                  getUiTypographyClassName({ role: "caption", tone: "muted" }),
+                )}>
                   {account.user_id && account.user_id !== account.account_id
-                    ? `账号 ${account.account_id} · `
+                    ? `${t("capability.channel_account_identity").replace("{account}", account.account_id)} · `
                     : ""}
-                  更新于 {new Date(account.updated_at).toLocaleString()}
+                  {t("capability.channel_account_updated").replace("{time}", new Date(account.updated_at).toLocaleString(locale))}
                 </div>
                 {account.last_error ? (
-                  <div
-                    aria-atomic="true"
-                    aria-live="polite"
-                    className="mt-2 space-y-1 rounded-[8px] border border-[color:color-mix(in_srgb,var(--destructive)_20%,transparent)] px-2 py-1.5 text-xs leading-5"
-                    role="status"
-                  >
-                    <p className="font-semibold text-(--destructive)">
-                      {t("capability.channel_account_error_title")}
-                    </p>
-                    <p className="text-(--text-default)">
-                      {t("capability.channel_account_error_message")}
-                    </p>
-                    <p className="text-(--text-muted)">
-                      {t("capability.channel_account_error_impact")}
-                    </p>
-                    <p className="font-medium text-(--text-default)">
-                      {t("capability.channel_account_error_next_step")}
-                    </p>
-                  </div>
+                  <UiInlineNotice
+                    className="mt-2"
+                    message={(
+                      <div className="space-y-1">
+                        <p>
+                          {t("capability.channel_account_error_message")}
+                        </p>
+                        <RecoverySummary
+                          impact={t("capability.channel_account_error_impact")}
+                          nextStep={t("capability.channel_account_error_next_step")}
+                        />
+                      </div>
+                    )}
+                    title={t("capability.channel_account_error_title")}
+                    tone="danger"
+                  />
                 ) : null}
               </div>
               <UiListActionButton
@@ -90,18 +116,18 @@ export function ChannelAccountsPanel({
                 onClick={() => onDelete(account)}
                 size="sm"
                 stopPropagation
-                title="删除该账号"
+                title={t("capability.channel_account_delete_action")}
               >
                 {deletingAccountId === account.account_id ? (
-                  <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+                  <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
                 ) : (
                   <Trash2 className="h-3 w-3" />
                 )}
               </UiListActionButton>
-            </div>
+            </UiPanel>
           ))}
         </div>
       )}
-    </div>
+    </UiPanel>
   );
 }

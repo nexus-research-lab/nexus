@@ -88,6 +88,7 @@ export function TextFileEditor({
         saveIssue={editor.saveIssue}
       />
       <TextFileEditorBody
+        agentId={agentId}
         content={editor.displayContent}
         fileName={fileName}
         fileType={fileType}

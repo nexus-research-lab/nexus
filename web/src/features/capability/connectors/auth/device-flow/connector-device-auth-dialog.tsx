@@ -4,10 +4,12 @@
 "use client";
 
 import { Check, Copy, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useId } from "react";
 
-import { writeTextToClipboard } from "@/hooks/ui/clipboard";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import {
   isDesktopBridgeAvailable,
   openDesktopExternalURL,
@@ -21,7 +23,11 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ConnectorDeviceAuthStart } from "@/types/capability/connector";
 
 import {
@@ -54,14 +60,20 @@ export function ConnectorDeviceAuthDialog({
   onNext,
   onOpenWebAuthUrl,
 }: ConnectorDeviceAuthDialogProps) {
+  const { t } = useI18n();
+  const titleId = useId();
   const isFeishu = session?.connector_id === "feishu-docx";
   const feishuPresentation = getFeishuDeviceAuthPresentation(session?.stage);
-  const [copied, setCopied] = useState(false);
   const autoOpenedDeviceCodeRef = useRef<string | null>(null);
-  const [pollingMessage, setPollingMessage] = useResettableState(
+  const activeDeviceCodeRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeDeviceCodeRef.current = session?.device_code ?? null;
+    return () => { activeDeviceCodeRef.current = null; };
+  }, [session?.device_code]);
+  const [pollingMessage, setPollingMessage] = useResettableState<TranslationKey>(
     isFeishu
       ? feishuPresentation.initialMessage
-      : "等待授权",
+      : "capability.connector_flow_waiting",
     session?.device_code ?? null,
   );
   useConnectorDeviceAuth({
@@ -87,50 +99,41 @@ export function ConnectorDeviceAuthDialog({
     autoOpenedDeviceCodeRef.current = session?.device_code ?? null;
     if (!isDesktopBridgeAvailable()) {
       if (onOpenWebAuthUrl(authUrl)) {
-        setPollingMessage("已打开飞书授权页，等待确认");
+        setPollingMessage("capability.connector_flow_feishu_opened");
       } else {
-        setPollingMessage("授权页未自动打开，请手动继续");
+        setPollingMessage("capability.connector_flow_open_manual");
       }
       return;
     }
+    const deviceCode = session?.device_code;
     void openDesktopExternalURL(authUrl)
       .then(() => {
-        setPollingMessage("已打开飞书授权页，等待确认");
+        if (activeDeviceCodeRef.current !== deviceCode) return;
+        setPollingMessage("capability.connector_flow_feishu_opened");
       })
       .catch(() => {
-        setPollingMessage("授权页未自动打开，请手动继续");
+        if (activeDeviceCodeRef.current !== deviceCode) return;
+        setPollingMessage("capability.connector_flow_open_manual");
       });
   }, [authUrl, onOpenWebAuthUrl, session, setPollingMessage]);
 
-  const handleCopy = useCallback(async () => {
-    if (!session) {
-      return;
-    }
-    if (await writeTextToClipboard(session.user_code)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1400);
-      return;
-    }
-    onError("复制授权码失败");
-  }, [onError, session]);
-
   const handleOpenAuthUrl = useCallback(async () => {
     if (!authUrl) {
-      onError("授权链接为空");
+      onError(t("capability.connector_flow_link_empty"));
       return;
     }
     if (!isDesktopBridgeAvailable()) {
       if (!onOpenWebAuthUrl(authUrl)) {
-        onError("授权窗口被浏览器拦截，请允许弹窗后重试");
+        onError(t("capability.connector_flow_auth_popup_blocked"));
       }
       return;
     }
     try {
       await openDesktopExternalURL(authUrl);
     } catch {
-      onError("打开授权链接失败");
+      onError(t("capability.connector_flow_open_failed"));
     }
-  }, [authUrl, onError, onOpenWebAuthUrl]);
+  }, [authUrl, onError, onOpenWebAuthUrl, t]);
 
   if (!session || typeof document === "undefined") {
     return null;
@@ -138,51 +141,48 @@ export function ConnectorDeviceAuthDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onCancel}>
-        <UiDialogShell size="sm">
+      <UiDialogBackdrop labelledBy={titleId} layer="dialog" onClose={onCancel}>
+        <UiDialogShell size="sm" viewport="compactMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onCancel}
-            title={isFeishu ? feishuPresentation.title : "连接 GitHub"}
+            titleId={titleId}
+            title={t(isFeishu ? feishuPresentation.title : "capability.connector_flow_github_title")}
           />
 
-          <UiDialogBody className="space-y-4 px-5">
-            <div className="flex items-center gap-2 text-xs font-medium text-(--text-muted)">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              <span aria-live="polite">{pollingMessage}</span>
+          <UiDialogBody className="space-y-4 px-5" scrollable>
+            <div className={cn(
+              "flex items-center gap-2",
+              getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
+            )}>
+              <Loader2 className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
+              <span aria-live="polite" className="min-w-0 [overflow-wrap:anywhere]">{t(pollingMessage)}</span>
             </div>
 
             {isFeishu && feishuPresentation.showQRCode ? (
               <UiQRCode
-                alt={feishuPresentation.qrAlt ?? "飞书二维码"}
+                alt={t(feishuPresentation.qrAlt ?? "capability.connector_flow_qr_alt")}
                 payload={authUrl}
               />
             ) : isFeishu ? (
-              <p className="py-2 text-sm leading-6 text-(--text-muted)">
-                若授权页没有自动打开，请手动继续。
+              <p className={cn(
+                "py-2",
+                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+              )}>
+                {t("capability.connector_flow_manual_hint")}
               </p>
             ) : (
-              <div className="dialog-input p-4">
-                <div className="text-xs font-medium text-(--text-soft)">授权码</div>
-                <div className="mt-2 flex items-center gap-3">
-                  <code className="min-w-0 flex-1 select-all break-all rounded-[10px] bg-transparent px-3 py-2.5 text-center text-lg font-semibold text-(--text-strong)">
-                    {session.user_code}
-                  </code>
-                  <UiIconButton
-                    aria-label="复制授权码"
-                    onClick={() => void handleCopy()}
-                    type="button"
-                  >
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  </UiIconButton>
-                </div>
-              </div>
+              <DeviceAuthorizationCode
+                key={session.device_code}
+                code={session.user_code}
+                onError={onError}
+              />
             )}
           </UiDialogBody>
 
           <UiDialogFooter appearance="plain">
             <UiButton onClick={onCancel} type="button">
-              取消
+              {t("common.cancel")}
             </UiButton>
             <UiButton
               onClick={() => void handleOpenAuthUrl()}
@@ -190,13 +190,55 @@ export function ConnectorDeviceAuthDialog({
               type="button"
               variant="solid"
             >
-              {isFeishu
+              {t(isFeishu
                 ? feishuPresentation.actionLabel
-                : "打开 GitHub"}
+                : "capability.connector_flow_github_open")}
             </UiButton>
           </UiDialogFooter>
         </UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
+  );
+}
+
+
+function DeviceAuthorizationCode({ code, onError }: {
+  code: string;
+  onError: ConnectorDeviceAuthDialogProps["onError"];
+}) {
+  const { t } = useI18n();
+  const { copied, copy } = useCopyToClipboard({ feedback_timeout_ms: 1400 });
+  const activeRef = useRef(false);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => { activeRef.current = false; };
+  }, []);
+  const handleCopy = async () => {
+    const succeeded = await copy(code);
+    if (!succeeded && activeRef.current) onError(t("capability.connector_flow_copy_failed"));
+  };
+  return (
+    <UiPanel padding="md" radius="md" variant="card">
+      <div className={getUiTypographyClassName({
+        role: "caption",
+        tone: "soft",
+        weight: "medium",
+      })}>{t("capability.connector_flow_code")}</div>
+      <div className="mt-2 flex items-center gap-3">
+        <code className={cn(
+          "min-w-0 flex-1 select-all break-all px-3 py-2.5 text-center",
+          getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),
+        )}>
+          {code}
+        </code>
+        <UiIconButton
+          aria-label={t(copied ? "capability.connector_flow_copied" : "capability.connector_flow_copy")}
+          onClick={() => void handleCopy()}
+          type="button"
+        >
+          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        </UiIconButton>
+      </div>
+    </UiPanel>
   );
 }

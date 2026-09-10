@@ -767,3 +767,11 @@ func readPermissionEventByType(
 		}
 	}
 }
+
+// TestAutoReviewReasonInPermissionCard 保证 DM/Room 重放仍展示自动审核转人工的原因。
+func TestAutoReviewReasonInPermissionCard(t *testing.T) {
+	payload := buildPermissionPayload(&PendingRequest{ToolName: "Write", ToolInput: map[string]any{"file_path": "report.txt"}, DecisionReason: "自动审核：需要确认覆盖范围"})
+	if payload["summary"] != "自动审核：需要确认覆盖范围\nreport.txt" {
+		t.Fatalf("summary = %v", payload["summary"])
+	}
+}

@@ -1,13 +1,11 @@
 /**
  * INPUT: Skill 详情快照、Agent 使用矩阵与更新删除命令。
- * OUTPUT: Skill 身份、范围说明、Agent 状态差异和完整正文详情。
- * POS: Skill 详情纯视图；开关附近保留影响当前决策的说明。
+ * OUTPUT: 共享对象身份区中的 Skill 信息、正文阅读列、Agent 配置侧栏及响应式单列详情。
+ * POS: Skill 详情纯视图；复用 Capability 身份与详情分栏，不拥有页面断点或列宽。
  */
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronRight,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -15,20 +13,25 @@ import {
 } from "lucide-react";
 
 import {
+  CapabilityDetailIdentity,
+  CapabilityDetailPage,
+  CapabilityDetailSectionHeader,
+  CapabilityDetailSplitLayout,
+} from "@/features/capability/shared/capability-page-layout";
+import {
   getSkillDisplayDescription,
   getSkillDisplayTitle,
 } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
-import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SkillAgentBinding } from "@/types/capability/skill";
 
 import {
@@ -55,6 +58,7 @@ interface SkillDetailViewProps {
   onDelete: () => void;
   onRetry: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onUpdate: () => void;
   snapshot: SkillDetailSnapshot;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
@@ -71,16 +75,18 @@ export function SkillDetailView({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
 }: SkillDetailViewProps) {
+  const { t } = useI18n();
   return (
-    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <SkillDetailBreadcrumb
-        onBack={onBack}
-        title={getSkillDetailSnapshotTitle(snapshot)}
-      />
+    <CapabilityDetailPage
+      backLabel={t("capability.skills_detail_back")}
+      currentTitle={getSkillDetailSnapshotTitle(snapshot) ?? undefined}
+      onBack={onBack}
+    >
       <SkillDetailContent
         activeAction={activeAction}
         agentBindings={agentBindings}
@@ -91,41 +97,12 @@ export function SkillDetailView({
         onDelete={onDelete}
         onRetry={onRetry}
         onRetryBindings={onRetryBindings}
+        onStartNewToggleIntent={onStartNewToggleIntent}
         onUpdate={onUpdate}
         snapshot={snapshot}
         toggleFailures={toggleFailures}
       />
-    </div>
-  );
-}
-
-function SkillDetailBreadcrumb({
-  onBack,
-  title,
-}: {
-  onBack: () => void;
-  title: string | null;
-}) {
-  const { t } = useI18n();
-  return (
-    <WorkspaceContentDetailHeader>
-      <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
-        <button
-          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-          onClick={onBack}
-          type="button"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {t("capability.skills_detail_back")}
-        </button>
-        {title ? (
-          <>
-            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-            <span className="truncate font-medium text-(--text-strong)">{title}</span>
-          </>
-        ) : null}
-      </div>
-    </WorkspaceContentDetailHeader>
+    </CapabilityDetailPage>
   );
 }
 
@@ -139,6 +116,7 @@ function SkillDetailContent({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -146,10 +124,10 @@ function SkillDetailContent({
   const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
-      <UiStateBlock
+      <UiResourceState
         className="min-h-[420px]"
-        icon={<Loader2 className="h-6 w-6 animate-spin" />}
         size="md"
+        state="loading"
         title={t("capability.skills_detail_loading")}
         variant="plain"
       />
@@ -191,6 +169,7 @@ function SkillDetailContent({
       onDelete={onDelete}
       onUpdate={onUpdate}
       onRetryBindings={onRetryBindings}
+      onStartNewToggleIntent={onStartNewToggleIntent}
       toggleFailures={toggleFailures}
     />
   );
@@ -207,6 +186,7 @@ function SkillDetailReady({
   onDelete,
   onUpdate,
   onRetryBindings,
+  onStartNewToggleIntent,
   toggleFailures,
 }: {
   activeAction: SkillDetailAction | null;
@@ -219,47 +199,61 @@ function SkillDetailReady({
   onDelete: () => void;
   onUpdate: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
   return (
-    <div className="pt-5">
-      <SkillDetailHero
-        activeAction={activeAction}
-        model={model}
-        onDelete={onDelete}
-        onUpdate={onUpdate}
-      />
-      <div className="mt-6 max-w-[760px] space-y-5">
-        <SkillDetailBadges badges={model.badges} />
-        {model.scope === "room" ? (
-          <RoomSkillUsage />
-        ) : (
-          <SkillAgentBindings
-            agentBindings={agentBindings}
-            agentsLoading={agentsLoading}
-            bindingsFailure={bindingsFailure}
-            busyAgentId={busyAgentId}
-            locked={model.locked}
-            onToggle={onAgentToggle}
-            onRetryBindings={onRetryBindings}
-            toggleFailures={toggleFailures}
-          />
+    <div>
+      <CapabilityDetailSplitLayout
+        aside={(
+          <div className="space-y-5">
+            {model.scope === "room" ? (
+              <RoomSkillUsage />
+            ) : (
+              <SkillAgentBindings
+                agentBindings={agentBindings}
+                agentsLoading={agentsLoading}
+                bindingsFailure={bindingsFailure}
+                busyAgentId={busyAgentId}
+                locked={model.locked}
+                actionPending={activeAction !== null}
+                onToggle={onAgentToggle}
+                onRetryBindings={onRetryBindings}
+                onStartNewToggleIntent={onStartNewToggleIntent}
+                toggleFailures={toggleFailures}
+              />
+            )}
+          </div>
         )}
-        <section>
-          <h2 className="mb-3 text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
-            {t("capability.skills_detail_description")}
-          </h2>
-          <UiPanel padding="md" radius="md" variant="inset">
-            <SkillMarkdown
-              description={model.description}
-              markdown={model.readmeMarkdown}
-              title={model.displayName}
+        header={(
+          <div className="space-y-4">
+            <SkillDetailHero
+              activeAction={activeAction}
+              model={model}
+              onDelete={onDelete}
+              onUpdate={onUpdate}
             />
-          </UiPanel>
-        </section>
-        <SkillSourceLink sourceUrl={model.sourceUrl} />
-      </div>
+            <SkillDetailBadges badges={model.badges} />
+          </div>
+        )}
+      >
+        <div className="space-y-5">
+          <section>
+            <CapabilityDetailSectionHeader
+              title={t("capability.skills_detail_description")}
+            />
+            <UiPanel padding="md" radius="md" variant="card">
+              <SkillMarkdown
+                description={model.description}
+                markdown={model.readmeMarkdown}
+                title={model.displayName}
+              />
+            </UiPanel>
+          </section>
+          <SkillSourceLink sourceUrl={model.sourceUrl} />
+        </div>
+      </CapabilityDetailSplitLayout>
     </div>
   );
 }
@@ -268,12 +262,10 @@ function RoomSkillUsage() {
   const { t } = useI18n();
   return (
     <section>
-      <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
-        {t("capability.skills_detail_room_scope")}
-      </h2>
-      <p className="mt-1 text-sm text-(--text-muted)">
-        {t("capability.skills_detail_room_scope_description")}
-      </p>
+      <CapabilityDetailSectionHeader
+        description={t("capability.skills_detail_room_scope_description")}
+        title={t("capability.skills_detail_room_scope")}
+      />
     </section>
   );
 }
@@ -284,7 +276,9 @@ function SkillAgentBindings({
   bindingsFailure,
   busyAgentId,
   locked,
+  actionPending,
   onRetryBindings,
+  onStartNewToggleIntent,
   onToggle,
   toggleFailures,
 }: {
@@ -293,7 +287,9 @@ function SkillAgentBindings({
   bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
   locked: boolean;
+  actionPending: boolean;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onToggle: (binding: SkillAgentBinding) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
@@ -301,25 +297,22 @@ function SkillAgentBindings({
   const enabledCount = agentBindings.filter((item) => item.enabled).length;
   return (
     <section>
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <h2 className="text-md font-semibold tracking-[-0.025em] text-(--text-strong)">
-            {t("capability.skills_detail_agent_scope")}
-          </h2>
-          <p className="mt-1 text-sm text-(--text-muted)">
-            {t("capability.skills_detail_agent_scope_description")}
-          </p>
-        </div>
-        {!agentsLoading ? (
-          <span className="text-xs text-(--text-soft)">
-            {t("capability.skills_detail_enabled_count", {
+      <CapabilityDetailSectionHeader
+        meta={!agentsLoading && !bindingsFailure
+          ? t("capability.skills_detail_enabled_count", {
               enabled: enabledCount,
               total: agentBindings.length,
-            })}
-          </span>
-        ) : null}
-      </div>
-      <UiPanel padding="sm" radius="md" variant="inset">
+            })
+          : undefined}
+        title={t("capability.skills_detail_agent_scope")}
+      />
+      <UiPanel padding="none" radius="md" variant="card">
+        <p className={cn(
+          "border-b border-(--divider-subtle-color) px-4 py-3",
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+        )}>
+          {t("capability.skills_detail_agent_scope_description")}
+        </p>
         {bindingsFailure ? (
           <SkillAgentFailureNotice
             failure={bindingsFailure}
@@ -328,14 +321,19 @@ function SkillAgentBindings({
           />
         ) : null}
         {agentsLoading ? (
-          <div className="flex items-center gap-2 px-3 py-3 text-sm text-(--text-muted)">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("capability.skills_detail_bindings_loading")}
-          </div>
+          <UiResourceState
+            size="sm"
+            state="loading"
+            title={t("capability.skills_detail_bindings_loading")}
+            variant="plain"
+          />
         ) : agentBindings.length === 0 && !bindingsFailure ? (
-          <p className="px-3 py-3 text-sm text-(--text-muted)">
-            {t("capability.skills_detail_no_agents")}
-          </p>
+          <UiResourceState
+            size="sm"
+            state="empty"
+            title={t("capability.skills_detail_no_agents")}
+            variant="plain"
+          />
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
             {agentBindings.map((binding) => {
@@ -347,30 +345,33 @@ function SkillAgentBindings({
               const failure = toggleFailures[binding.agent_id] ?? null;
               return (
                 <div key={binding.agent_id}>
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="flex items-center justify-between min-h-14 gap-3 px-4 py-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-(--text-strong)">
+                      <p className={cn(
+                        "break-words [overflow-wrap:anywhere]",
+                        getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
+                      )}>
                         {binding.agent_name}
                       </p>
-                      <p className="text-xs text-(--text-soft)">
-                        {presentation.description}
-                      </p>
+                      {locked || !binding.available || binding.is_main ? (
+                        <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+                          {presentation.description}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-(--text-muted)">
-                        {presentation.status}
-                      </span>
                       <GlassSwitch
                         aria-label={presentation.switchLabel}
                         checked={binding.enabled}
                         disabled={
                           locked
+                          || actionPending
                           || !binding.available
                           || busyAgentId !== null
                           || Boolean(failure?.blocksRepeat)
                         }
                         onChange={() => onToggle(binding)}
-                        size="xs"
+                        size="sm"
                       />
                     </div>
                   </div>
@@ -378,8 +379,12 @@ function SkillAgentBindings({
                     <SkillAgentFailureNotice
                       className="mx-3 mb-3"
                       failure={failure}
-                      onRefresh={failure.blocksRepeat ? onRetryBindings : undefined}
-                      refreshLabel={t("state.reload_check")}
+                      onRefresh={failure.canStartNewIntent && onStartNewToggleIntent
+                        ? () => onStartNewToggleIntent(binding.agent_id)
+                        : failure.blocksRepeat ? onRetryBindings : undefined}
+                      refreshLabel={t(failure.canStartNewIntent
+                        ? "capability.skill_operation_new_intent_action"
+                        : "state.reload_check")}
                     />
                   ) : null}
                 </div>
@@ -404,21 +409,18 @@ function SkillAgentFailureNotice({
   refreshLabel: string;
 }) {
   return (
-    <div
-      aria-live="polite"
-      className={`${className} rounded-[8px] border px-3 py-2 ${failure.tone === "warning" ? "border-[color:color-mix(in_srgb,var(--warning)_22%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]" : "border-[color:color-mix(in_srgb,var(--destructive)_18%,transparent)] bg-(--status-danger-soft-background)"}`}
-      role="status"
-    >
-      <p className="text-xs font-semibold text-(--text-strong)">
-        {failure.title}
-      </p>
-      <RecoverySummary className="mt-0.5" impact={failure.impact} />
-      {onRefresh ? (
-        <UiButton className="mt-1" onClick={onRefresh} size="xs" type="button" variant="text">
-          {refreshLabel}
-        </UiButton>
-      ) : null}
-    </div>
+    <UiResourceState
+      className={className}
+      impact={failure.impact}
+      primaryAction={onRefresh
+        ? { label: refreshLabel, onClick: onRefresh }
+        : undefined}
+      size="sm"
+      state="error"
+      title={failure.title}
+      tone={failure.tone}
+      variant="card"
+    />
   );
 }
 
@@ -434,28 +436,20 @@ function SkillDetailHero({
   onUpdate: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-4">
-          <UiSeededAvatar seed={model.avatarSeed} size="lg" />
-          <h1 className="min-w-0 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-            <span className="truncate">{model.displayName}</span>
-          </h1>
-        </div>
-        {model.description ? (
-          <p className="mt-3 text-sm leading-5 text-(--text-muted)">
-            {model.description}
-          </p>
-        ) : null}
-      </div>
-      <SkillDetailActions
-        activeAction={activeAction}
-        canDelete={model.canDelete}
-        canUpdate={model.canUpdate}
-        onDelete={onDelete}
-        onUpdate={onUpdate}
-      />
-    </div>
+    <CapabilityDetailIdentity
+      actions={model.canDelete || model.canUpdate ? (
+        <SkillDetailActions
+          activeAction={activeAction}
+          canDelete={model.canDelete}
+          canUpdate={model.canUpdate}
+          onDelete={onDelete}
+          onUpdate={onUpdate}
+        />
+      ) : undefined}
+      description={model.description}
+      leading={<UiSeededAvatar seed={model.avatarSeed} size="lg" />}
+      title={model.displayName}
+    />
   );
 }
 
@@ -473,7 +467,7 @@ function SkillDetailActions({
   onUpdate: () => void;
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+    <>
       <SkillUpdateButton
         activeAction={activeAction}
         onUpdate={onUpdate}
@@ -484,7 +478,7 @@ function SkillDetailActions({
         onDelete={onDelete}
         visible={canDelete}
       />
-    </div>
+    </>
   );
 }
 
@@ -511,7 +505,7 @@ function SkillUpdateButton({
       variant="solid"
     >
       {updating
-        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ? <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
         : <RefreshCw className="h-3.5 w-3.5" />}
       {t("capability.skills_detail_update")}
     </UiButton>
@@ -568,14 +562,16 @@ function SkillSourceLink({ sourceUrl }: { sourceUrl: string | null }) {
   if (!sourceUrl) return null;
 
   return (
-    <a
-      className="inline-flex items-center gap-2 text-sm font-semibold text-(--primary) underline decoration-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] underline-offset-4"
+    <UiLinkButton
       href={sourceUrl}
       rel="noopener noreferrer"
+      size="sm"
       target="_blank"
+      tone="primary"
+      variant="text"
     >
       <ExternalLink className="h-3.5 w-3.5" />
       {t("capability.skills_detail_view_source")}
-    </a>
+    </UiLinkButton>
   );
 }

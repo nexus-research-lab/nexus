@@ -9,6 +9,8 @@ import {
 
 import { RootErrorBoundary, RootFailureScreen } from "./root-failure-view";
 
+import { getRootFailureCopy } from "./root-failure-copy";
+
 const rootContainer = document.getElementById("root");
 if (!rootContainer) {
   throw new Error("Root container #root not found.");
@@ -58,9 +60,9 @@ export function renderBootstrapError(_message: string, strictMode: boolean): voi
   markDesktopPerformance("react.error_render_begin");
   renderRoot(
     <RootFailureScreen
-      message="请稍后重试。"
+      message={getRootFailureCopy().message}
       size="compact"
-      title="暂时无法启动"
+      title={getRootFailureCopy().startup}
     />,
     strictMode,
   );
@@ -75,8 +77,8 @@ export function renderRecoveryScreen(_reason: string, strictMode: boolean): void
   markDesktopPerformance("react.recovery_render_begin");
   renderRoot(
     <RootFailureScreen
-      message="请稍后重试。"
-      title="界面暂时无法显示"
+      message={getRootFailureCopy().message}
+      title={getRootFailureCopy().page}
     />,
     strictMode,
   );

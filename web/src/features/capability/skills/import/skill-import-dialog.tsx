@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { type RefObject } from "react";
+import { useId, type RefObject } from "react";
 
 import {
   UiDialogBackdrop,
@@ -40,6 +40,7 @@ export function SkillImportDialog({
   onSelectMode,
 }: SkillImportDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
   const controller = useSkillImportDialog({
     importing,
     mode,
@@ -52,18 +53,20 @@ export function SkillImportDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        layer="dialog"
+        labelledBy={titleId}
         onClose={controller.dismissAction}
       >
         <UiDialogFormShell
-          className="max-h-[86vh]"
           onSubmit={controller.submit}
-          size="xl"
+          size="md"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"
             onClose={controller.dismissAction}
             title={t("capability.skills_import_title")}
+            titleId={titleId}
           />
           <UiDialogBody
             className="min-h-0 space-y-5"

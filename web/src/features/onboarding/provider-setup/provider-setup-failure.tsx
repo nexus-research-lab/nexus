@@ -3,6 +3,7 @@
 // POS: Provider 向导的纯展示组件；阶段判断仍由 provider-setup-dialog 负责。
 import { CircleAlert } from "lucide-react";
 
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { cn } from "@/shared/ui/class-name";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 
@@ -36,7 +37,7 @@ export function ProviderSetupFailureView({
         )}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium leading-5 text-(--text-strong)">
+        <p className={cn("wrap-anywhere", getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }))}>
           {problem}
         </p>
         <RecoverySummary className="mt-0.5" impact={impact} nextStep={nextStep} />

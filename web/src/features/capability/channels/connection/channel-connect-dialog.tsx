@@ -3,7 +3,7 @@
 // POS: Channel 配置主弹窗，只编排表单与确认，不展开业务请求实现。
 "use client";
 
-import type { FormEvent } from "react";
+import { useId, type FormEvent } from "react";
 
 import type { ChannelConfigView } from "@/lib/api/capability/channel-api";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -40,6 +40,7 @@ export function ChannelConnectDialog({
   onSaved,
 }: ChannelConnectDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
   const controller = useChannelConnectionController({
     agents,
     item,
@@ -50,6 +51,7 @@ export function ChannelConnectDialog({
   const deleteCopy = getChannelDeleteDialogCopy(
     controller.pendingDelete,
     controller.currentItem,
+    t,
   );
   const hasConnectionProblem = controller.currentItem.configured
     && (
@@ -66,21 +68,21 @@ export function ChannelConnectDialog({
     <>
       <UiDialogPortal>
         <UiDialogBackdrop
-          className="z-[9999]"
-          labelledBy="channel-connect-dialog-title"
+          layer="dialog"
+          labelledBy={titleId}
           onClose={controller.close}
         >
           <UiDialogFormShell
             autoComplete="off"
-            className="max-h-[86vh]"
             onSubmit={handleSubmit}
             size="lg"
+            viewport="adaptiveMax"
           >
             <UiDialogHeader
               appearance="plain"
               onClose={controller.close}
-              title={`连接 ${controller.currentItem.title}`}
-              titleId="channel-connect-dialog-title"
+              title={t("capability.channel_connect_title").replace("{channel}", controller.currentItem.title)}
+              titleId={titleId}
             />
 
             <UiDialogBody className="space-y-5 px-5" scrollable>
@@ -97,10 +99,10 @@ export function ChannelConnectDialog({
               ) : null}
               {controller.planned ? (
                 <UiStateBlock
-                  description="频道接入将在后续版本补充，当前版本暂不支持配置机器人或配对。"
+                  description={t("capability.channel_planned_message")}
                   size="sm"
-                  title="该频道未上线"
-                  variant="inset"
+                  title={t("capability.channel_planned_title")}
+                  variant="card"
                 />
               ) : (
                 <ChannelConnectionFields

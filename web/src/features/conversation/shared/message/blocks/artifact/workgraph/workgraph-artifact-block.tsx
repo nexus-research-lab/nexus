@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   CheckCircle2,
   GitCompareArrows,
@@ -19,6 +19,8 @@ import { NamedWorkGraphSketch } from "@/features/conversation/shared/execution/n
 import { projectWorkGraphWorkflowCanvasExecution } from "@/features/conversation/shared/execution/workgraph-workflow-canvas-model";
 import { getExecutionApi } from "@/lib/api/conversation/execution-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -26,8 +28,12 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
+import { UiPanel } from "@/shared/ui/panel";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
 import type { WorkGraphArtifactContent } from "@/types/conversation/message/content";
 import type {
@@ -54,37 +60,59 @@ export function WorkGraphArtifactBlock({
 
   return (
     <>
-      <article
-        className="w-full max-w-3xl overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-(--surface-panel-background) shadow-[0_10px_28px_color-mix(in_srgb,var(--text-strong)_5%,transparent)]"
+      <UiPanel
+        className="w-full max-w-3xl overflow-hidden bg-(--surface-panel-background)"
         data-workgraph-artifact={artifact.state}
+        padding="none"
+        radius="md"
+        role="article"
       >
         <header className="flex items-start justify-between gap-4 border-b border-(--divider-subtle-color) px-4 py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-(--text-strong)">
+              <span className={cn(
+                "inline-flex items-center gap-1.5",
+                getUiTypographyClassName({ role: "caption", tone: "strong", weight: "semibold" }),
+              )}>
                 {artifact.state === "saved"
                   ? <CheckCircle2 className="h-3.5 w-3.5 text-(--success)" />
                   : <GitFork className="h-3.5 w-3.5 text-(--primary)" />}
                 {stateLabel}
               </span>
-              <code className="rounded-md bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-(--primary)">
+              <code className={cn(
+                "radius-control-xs bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)] px-1.5 py-0.5",
+                getUiTypographyClassName({ role: "code", tone: "brand" }),
+              )}>
                 /{graph.slash_name}
               </code>
-              <span className="text-[10px] text-(--text-soft)">v{selectedRevision}</span>
+              <span className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>
+                v{selectedRevision}
+              </span>
             </div>
-            <h3 className="mt-1.5 truncate text-sm font-semibold text-(--text-strong)">{graph.title}</h3>
+            <h3 className={cn(
+              "mt-1.5 truncate",
+              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            )}>
+              {graph.title}
+            </h3>
             {graph.description ? (
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-(--text-muted)">{graph.description}</p>
+              <p className={cn(
+                "mt-1 line-clamp-2",
+                getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+              )}>
+                {graph.description}
+              </p>
             ) : null}
           </div>
-          <button
-            className={getDialogActionClassName("default", "compact")}
-            type="button"
+          <UiButton
+            className="shrink-0 whitespace-nowrap"
             onClick={() => setCompareOpen(true)}
+            size="sm"
+            variant="surface"
           >
-            <GitCompareArrows className="h-3.5 w-3.5" />
+            <GitCompareArrows className="h-3.5 w-3.5 shrink-0" />
             {t("execution.workflow_artifact_compare")}
-          </button>
+          </UiButton>
         </header>
         <div className="p-3">
           <NamedWorkGraphSketch
@@ -92,16 +120,20 @@ export function WorkGraphArtifactBlock({
             dependencies={graph.dependencies}
             nodes={graph.nodes}
           />
-          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] text-(--text-soft)">
+          <div className={cn(
+            "mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1",
+            getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+          )}>
             <span>{graph.nodes.length} {t("execution.workflow_nodes_short")} · {(graph.dependencies ?? []).length} {t("execution.workflow_artifact_dependencies")}</span>
             {artifact.version_count && artifact.version_count > 1 ? (
               <span>{artifact.version_count} {t("execution.workflow_artifact_versions")}</span>
             ) : null}
           </div>
         </div>
-      </article>
+      </UiPanel>
       {compareOpen ? (
         <WorkGraphCompareDialog
+          key={JSON.stringify([graph.source_session_key, graph.source_execution_id])}
           artifact={artifact}
           onClose={() => setCompareOpen(false)}
         />
@@ -119,6 +151,8 @@ function WorkGraphCompareDialog({
 }) {
   const { t } = useI18n();
   const graph = artifact.preview ?? artifact.workflow;
+  const titleId = useId();
+  const [retryRevision, setRetryRevision] = useState(0);
   const [activePane, setActivePane] = useState<ComparePane>("draft");
   const [source, setSource] = useState<ExecutionView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -134,25 +168,30 @@ function WorkGraphCompareDialog({
     [preview, revision],
   );
 
-  const loadSource = async () => {
-    if (!graph) return;
+  const sourceSessionKey = graph?.source_session_key;
+  const sourceExecutionId = graph?.source_execution_id;
+  useEffect(() => {
+    if (!sourceSessionKey || !sourceExecutionId) {
+      setSource(null);
+      setLoading(false);
+      setFailed(true);
+      return;
+    }
+    let cancelled = false;
     setLoading(true);
     setFailed(false);
-    try {
-      setSource(await getExecutionApi(graph.source_session_key, graph.source_execution_id));
-    } catch (reason: unknown) {
+    setSource(null);
+    void getExecutionApi(sourceSessionKey, sourceExecutionId).then((value) => {
+      if (!cancelled) setSource(value);
+    }).catch((reason: unknown) => {
+      if (cancelled) return;
       console.error("[WorkGraphArtifact] source load failed", reason);
       setFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadSource();
-    // exact source identity only changes when a different message artifact mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph?.source_execution_id, graph?.source_session_key]);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [sourceExecutionId, sourceSessionKey, retryRevision]);
 
   if (!graph || !draftExecution) return null;
 
@@ -162,8 +201,16 @@ function WorkGraphCompareDialog({
       title={t("execution.workflow_artifact_source")}
     >
       {loading ? (
-        <div className="grid h-full place-items-center text-xs text-(--text-muted)">
-          <span className="inline-flex items-center gap-2"><LoaderCircle className="h-4 w-4 animate-spin" />{t("execution.workflow_artifact_loading_source")}</span>
+        <div className={cn(
+          "grid h-full place-items-center",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
+          <span className="inline-flex items-center gap-2">
+            <LoaderCircle
+              className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
+            />
+            {t("execution.workflow_artifact_loading_source")}
+          </span>
         </div>
       ) : source ? (
         <ExecutionWorkGraphCanvas currentId={null} directory={{}} execution={source} taskRuns={[]} />
@@ -175,7 +222,7 @@ function WorkGraphCompareDialog({
             primaryAction={{
               icon: <RotateCcw className="h-3.5 w-3.5" />,
               label: t("execution.workflow_artifact_source_retry"),
-              onClick: () => void loadSource(),
+              onClick: () => setRetryRevision((revision) => revision + 1),
             }}
             size="sm"
             state="error"
@@ -200,9 +247,9 @@ function WorkGraphCompareDialog({
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9998]" labelledBy="workgraph-compare-title" onClose={onClose}>
-        <UiDialogShell className="h-[min(820px,calc(100dvh-56px))] max-h-[calc(100dvh-56px)] max-w-[min(94vw,1440px)]" size="wide">
-          <h2 className="sr-only" id="workgraph-compare-title">
+      <UiDialogBackdrop layer="dialogUnderlay" labelledBy={titleId} onClose={onClose}>
+        <UiDialogShell size="workbench" viewport="workbench">
+          <h2 className="sr-only" id={titleId}>
             {t("execution.workflow_artifact_compare_title")}: /{graph.slash_name} · {graph.title}
           </h2>
           <UiDialogCloseButton
@@ -210,18 +257,22 @@ function WorkGraphCompareDialog({
             onClose={onClose}
           />
           <UiDialogBody className="flex min-h-0 flex-1 flex-col p-0">
-            <div className="flex gap-1 border-b border-(--divider-subtle-color) bg-(--surface-muted-background) p-2 pr-14 lg:hidden">
-              {(["source", "draft"] as const).map((pane) => (
-                <button
-                  aria-pressed={activePane === pane}
-                  className={`flex-1 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${activePane === pane ? "bg-(--surface-panel-background) text-(--text-strong) shadow-sm" : "text-(--text-muted)"}`}
-                  key={pane}
-                  type="button"
-                  onClick={() => setActivePane(pane)}
-                >
-                  {pane === "source" ? t("execution.workflow_artifact_source") : t("execution.workflow_artifact_draft")}
-                </button>
-              ))}
+            <div className="border-b border-(--divider-subtle-color) bg-(--surface-muted-background) p-2 pr-14 lg:hidden">
+              <UiTabs
+                activeValue={activePane}
+                ariaLabel={t("execution.workflow_artifact_compare_title")}
+                className="h-8 w-full"
+                density="compact"
+                itemClassName="h-8 w-full justify-center px-3"
+                onChange={setActivePane}
+                options={(["source", "draft"] as const).map((pane) => ({
+                  className: "min-w-0 flex-1",
+                  label: pane === "source"
+                    ? t("execution.workflow_artifact_source")
+                    : t("execution.workflow_artifact_draft"),
+                  value: pane,
+                }))}
+              />
             </div>
             <div className="hidden min-h-0 grid-cols-2 divide-x divide-(--divider-subtle-color) lg:grid">
               {sourcePane}
@@ -248,8 +299,10 @@ function CompareCanvasPanel({
     <section className="flex min-h-0 min-w-0 flex-col bg-(--surface-canvas-background)">
       <header className="shrink-0 border-b border-(--divider-subtle-color) bg-(--surface-panel-background) px-4 py-3">
         <div className="flex min-h-7 items-center justify-between gap-3 pr-10">
-          <h3 className="text-sm font-semibold text-(--text-strong)">{title}</h3>
-          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[10px] text-(--text-muted)">{badge}</span>
+          <h3 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong" })}>
+            {title}
+          </h3>
+          <UiBadge shape="pill" size="xs" tone="idle">{badge}</UiBadge>
         </div>
       </header>
       <div className="flex min-h-[420px] min-w-0 flex-1">{children}</div>

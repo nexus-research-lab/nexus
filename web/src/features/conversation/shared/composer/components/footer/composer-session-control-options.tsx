@@ -2,10 +2,11 @@
 
 /**
  * INPUT: 当前 Session 设置、Agent 继承值与 Provider 模型目录。
- * OUTPUT: 模型和权限菜单共用的选项投影与编码工具。
+ * OUTPUT: 模型/权限菜单共用选项、语义 Provider 元信息、编码与精确模型选择分派。
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
   FilePenLine,
@@ -16,7 +17,9 @@ import {
   ShieldOff,
 } from "lucide-react";
 
-import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
+import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 
@@ -27,6 +30,7 @@ import type {
 export const RESET_SESSION_SETTING_VALUE = "__reset__";
 
 const SESSION_PERMISSION_DESCRIPTION_KEYS = {
+  auto: "agent_options.advanced.permission.auto.description",
   default: "composer.session_permission_default_hint",
   plan: "composer.session_permission_plan_hint",
   acceptEdits: "composer.session_permission_accept_edits_hint",
@@ -35,6 +39,12 @@ const SESSION_PERMISSION_DESCRIPTION_KEYS = {
 } as const;
 
 const SESSION_PERMISSION_ICONS = {
+  auto: (
+    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 3 7v5c0 5 4 8 9 10 5-2 9-5 9-10V7Z" />
+      <path d="m8 9 3 3-3 3m5 0h3" />
+    </svg>
+  ),
   default: <Hand className="h-4 w-4" />,
   plan: <ListChecks className="h-4 w-4" />,
   acceptEdits: <FilePenLine className="h-4 w-4" />,
@@ -46,9 +56,9 @@ export function buildSessionPermissionItems(
   controller: ComposerSessionSettingsController,
   t: ReturnType<typeof useI18n>["t"],
 ): UiActionMenuItem[] {
-  const currentMode = controller.settings.permission_mode
-    || controller.inheritedPermissionMode;
-  return AGENT_PERMISSION_MODES.map((mode) => ({
+  const currentMode = resolveRuntimePermissionMode(controller.settings.permission_mode
+    || controller.inheritedPermissionMode, controller.scope?.runtimeKind ?? "");
+  return getAgentPermissionChoices(controller.scope?.runtimeKind ?? "").map((mode) => ({
     active: currentMode === mode.value,
     description: t(SESSION_PERMISSION_DESCRIPTION_KEYS[mode.value]),
     icon: SESSION_PERMISSION_ICONS[mode.value],
@@ -78,12 +88,15 @@ export function buildSessionModelItems(
         active,
         label: (
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">
+            <UiTooltip label={model.display_name || model.model_id}><span className="min-w-0 flex-1 truncate" >
               {model.display_name || model.model_id}
-            </span>
-            <span className="shrink-0 text-2xs font-normal text-(--text-soft)">
+            </span></UiTooltip>
+            <UiTooltip label={provider.display_name || provider.provider}><span
+              className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
+
+            >
               {provider.display_name || provider.provider}
-            </span>
+            </span></UiTooltip>
           </span>
         ),
         trailing: active ? <Check className="h-3.5 w-3.5" /> : undefined,
@@ -109,7 +122,26 @@ export function buildResetSessionSettingItem(
   };
 }
 
-export function decodeSessionModelValue(value: string): [string, string] {
+// 继承值恢复与显式 override 只在这里分派；持久化/失败对账仍由控制器负责。
+export function applySessionModelSelection(
+  controller: Pick<ComposerSessionSettingsController,
+    "inheritedProvider" | "inheritedModel" | "resetModel" | "updateModel">,
+  value: string,
+): void {
+  if (value === RESET_SESSION_SETTING_VALUE) {
+    void controller.resetModel();
+    return;
+  }
+  const [provider, model] = decodeSessionModelValue(value);
+  if (!provider || !model) return;
+  if (provider === controller.inheritedProvider && model === controller.inheritedModel) {
+    void controller.resetModel();
+  } else {
+    void controller.updateModel(provider, model);
+  }
+}
+
+function decodeSessionModelValue(value: string): [string, string] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(value);

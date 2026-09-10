@@ -804,6 +804,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [permission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: {
@@ -902,6 +903,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         ],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: completedState,
@@ -960,6 +962,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [questionOnlyPermission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: questionOnlyState,
@@ -989,8 +992,6 @@ test("Room streams and completes inside one stable Agent execution shell", async
     timestamp: 2,
   });
   const entry = {
-    agentAvatar: null,
-    agentName: "Stream Agent",
     agent_id: "agent-stream",
     agent_round_id: "agent-round-stream",
     assistant_messages: [message],
@@ -1016,6 +1017,7 @@ test("Room streams and completes inside one stable Agent execution shell", async
       I18nProvider,
       null,
       React.createElement(GroupAgentReply, {
+        agentMentionDirectory: { avatars: {}, names: { "agent-stream": "Stream Agent" } },
         entry: nextEntry,
         isThreadActive: false,
         onClickThread: () => {},
@@ -1149,11 +1151,12 @@ test("Room public activity survives the pause between reply text and tool work",
     "a pending shell must not add translated geometry during parallel growth",
   );
   assert.equal(
-    pendingHtml.match(/message-activity-spinner-track/g)?.length,
+    pendingHtml.match(/data-loading-orb="active"/g)?.length,
     1,
     "a pending slot uses the shared activity surface exactly once",
   );
-  assert.match(pendingHtml, /translate-y-\[2px\]/);
+  assert.match(pendingHtml, /data-message-activity-indicator/);
+  assert.doesNotMatch(pendingHtml, /message-activity-label-flow|translate-y-\[/);
 
   const completedPublicTurn = assistantMessage({
     agentId: "agent-public-activity",
@@ -1178,7 +1181,7 @@ test("Room public activity survives the pause between reply text and tool work",
     "an active Agent Thread keeps a public activity row after an intermediate text turn completes",
   );
   assert.equal(
-    continuedHtml.match(/message-activity-spinner-track/g)?.length,
+    continuedHtml.match(/data-loading-orb="active"/g)?.length,
     1,
     "the continued Thread activity stays inside the existing Agent card",
   );
@@ -1241,7 +1244,7 @@ test("Room public activity survives the pause between reply text and tool work",
   assert.match(workingHtml, /text-primary/);
   assert.doesNotMatch(workingHtml, /data-tool-run-list|data-tool-run-id/);
   assert.equal(
-    workingHtml.match(/message-activity-spinner-track/g)?.length,
+    workingHtml.match(/data-loading-orb="active"/g)?.length,
     undefined,
     "the running tool header does not add a second loading spinner",
   );
@@ -1330,7 +1333,7 @@ test("Room public activity survives the pause between reply text and tool work",
 
 test("resolved history rounds remain only when visible content was projected", async () => {
   const {
-    buildIndexedTimelineRoundIds,
+    buildIndexedConversationWindow,
     filterResolvedEmptyRoundIndexItems,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/timeline-model.ts",
@@ -1344,7 +1347,7 @@ test("resolved history rounds remain only when visible content was projected", a
     [],
   );
   assert.deepEqual(
-    buildIndexedTimelineRoundIds(unresolvedItems, [visible.roundId]),
+    buildIndexedConversationWindow(unresolvedItems, [visible.roundId]).roundIds,
     [visible.roundId, internal.roundId],
     "an unresolved neighbor remains as an invisible history load anchor",
   );
@@ -1623,7 +1626,7 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     agentId: "agent-lucy",
     agentRoundId: "agent-round-no-reply",
     roundId: "round-root",
-  });
+  }, (key) => key);
   assert.equal(
     thread?.isLoading,
     false,
@@ -2367,7 +2370,7 @@ test("live commentary separates completed and active tool groups", async () => {
   assert.match(html, /data-live-tool-text="true"/);
 });
 
-test("DM activity groups collapse while Room Thread groups expand", async () => {
+test("DM and Room Thread activity groups default to collapsed", async () => {
   const { AssistantProcessCallchain } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
@@ -2452,7 +2455,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
   ));
   assert.match(liveToolRunHtml, /aria-expanded="false"/);
   assert.match(liveToolRunHtml, /正在执行/);
-  assert.match(liveToolRunHtml, /message-activity-spinner-track/);
+  assert.match(liveToolRunHtml, /data-loading-orb="active"/);
 
   const threadHtml = await renderWithI18n(React.createElement(
     AssistantToolRuns,
@@ -2464,10 +2467,10 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       },
     },
   ));
-  assert.match(threadHtml, /aria-expanded="true"/);
+  assert.doesNotMatch(threadHtml, /aria-expanded="true"/);
   assert.match(threadHtml, /aria-expanded="false"/);
-  assert.match(threadHtml, /data-tool-run-detail-list/);
-  assert.match(threadHtml, /Thought 0/);
+  assert.doesNotMatch(threadHtml, /data-tool-run-detail-list/);
+  assert.doesNotMatch(threadHtml, /Thought 0/);
   assert.doesNotMatch(threadHtml, /before:bottom-0/);
   assert.doesNotMatch(threadHtml, /data-timeline-dot/);
   assert.doesNotMatch(threadHtml, /nexus-chat-timeline-block/);
@@ -2487,7 +2490,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       responseResumed: false,
     },
   ));
-  assert.match(liveThreadHtml, /data-message-detail-follow="true"/);
+  assert.doesNotMatch(liveThreadHtml, /data-tool-run-detail-list/);
 
   const archivedHtml = await renderWithI18n(React.createElement(
     AssistantProcessCallchain,
@@ -2568,6 +2571,7 @@ test("Thought detail uses compact tool-detail typography", async () => {
   );
   const html = await renderWithI18n(React.createElement(ThinkingBlock, {
     isStreaming: true,
+    defaultExpanded: true,
     thinking: "Compact detail",
   }));
 
@@ -2672,6 +2676,24 @@ test("expanded tool headers do not repeat summaries from their detail body", asy
     },
   });
   assert.equal(duplicateModel.expandedInputText, null);
+
+  const operationIdentityModel = buildToolBlockViewModel({
+    localization,
+    status: "success",
+    toolUse: {
+      id: "tool-workgraph-preview",
+      input: {
+        action: "invoke",
+        domain: "execution",
+        operation: "extract_workgraph_preview",
+      },
+      name: "mcp__nexus__command",
+      type: "tool_use",
+    },
+  });
+  assert.equal(operationIdentityModel.toolTitle, "extract_workgraph_preview");
+  assert.equal(operationIdentityModel.collapsedDetailText, null);
+  assert.equal(operationIdentityModel.expandedInputText, null);
 });
 
 test("a newer semantic block closes the preceding smooth stream", async () => {
@@ -2814,6 +2836,10 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     { toolResult: result },
   )));
   assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
+  assert.match(detailHtml, /data-inline-notice-tone="danger"/);
+  assert.match(detailHtml, /data-inline-notice-variant="contained"/);
+  assert.match(detailHtml, /data-inline-notice-width="compact"/);
+  assert.match(detailHtml, /max-w-sm/);
   assert.match(detailHtml, /Plan Document items/);
   assert.match(detailHtml, /plan_items_empty/);
   assert.doesNotMatch(detailHtml, /next_actions/);
@@ -2932,6 +2958,10 @@ test("superseded WorkGraph result is muted and does not count as failure", async
     { toolResult: result },
   )));
   assert.match(detailHtml, /data-tool-result-semantic-outcome="superseded"/);
+  assert.match(detailHtml, /data-inline-notice-tone="neutral"/);
+  assert.match(detailHtml, /data-inline-notice-variant="contained"/);
+  assert.match(detailHtml, /data-inline-notice-width="compact"/);
+  assert.match(detailHtml, /max-w-sm/);
   assert.match(detailHtml, /execution_terminal/);
 });
 
@@ -3213,10 +3243,10 @@ test("Room terminal result keeps public structure, hides thinking, and preserves
   );
 });
 
-test("history restores only the latest assistant round error", async () => {
+test("history restores only the latest assistant round failure identity", async () => {
   const {
     DEFAULT_ASSISTANT_ERROR_MESSAGE,
-    latestAssistantResultErrorMessage,
+    latestAssistantResultFailure,
     normalizeAssistantMessages,
     resolveAssistantResultErrorMessage,
   } = await server.ssrLoadModule(
@@ -3263,14 +3293,14 @@ test("history restores only the latest assistant round error", async () => {
     "content-only normalization must not be discarded when stream status is already terminal",
   );
 
-  assert.equal(
-    latestAssistantResultErrorMessage([failed]),
-    "provider stream failed",
+  assert.deepEqual(
+    latestAssistantResultFailure([failed]),
+    { agent_round_id: null, code: "round_failed", round_id: "round-failed" },
   );
   const runtimeExitMessage =
     "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。";
-  assert.equal(
-    latestAssistantResultErrorMessage([assistantMessage({
+  assert.deepEqual(
+    latestAssistantResultFailure([assistantMessage({
       messageId: "assistant-runtime-exit",
       resultSummary: {
         duration_api_ms: 0,
@@ -3285,11 +3315,11 @@ test("history restores only the latest assistant round error", async () => {
       text: "",
       timestamp: 2,
     })]),
-    runtimeExitMessage,
-    "result-only runtime failure must use the structured reliability notice",
+    { agent_round_id: null, code: "round_failed", round_id: "round-runtime-exit" },
+    "result-only runtime failure must restore identity without exposing provider text",
   );
-  assert.equal(
-    latestAssistantResultErrorMessage([assistantMessage({
+  assert.deepEqual(
+    latestAssistantResultFailure([assistantMessage({
       messageId: "assistant-partial-runtime-exit",
       resultSummary: {
         duration_api_ms: 0,
@@ -3304,11 +3334,11 @@ test("history restores only the latest assistant round error", async () => {
       text: "已完成一部分输出",
       timestamp: 2,
     })]),
-    runtimeExitMessage,
-    "partial assistant output still needs a separate terminal error banner",
+    { agent_round_id: null, code: "round_failed", round_id: "round-partial-runtime-exit" },
+    "partial assistant output still needs a structured terminal failure",
   );
   assert.equal(
-    latestAssistantResultErrorMessage([
+    latestAssistantResultFailure([
       failed,
       assistantMessage({
         messageId: "assistant-retrying",
@@ -3320,9 +3350,10 @@ test("history restores only the latest assistant round error", async () => {
     null,
     "a newer active round must suppress the previous terminal error",
   );
-  assert.equal(
-    latestAssistantResultErrorMessage([
+  assert.deepEqual(
+    latestAssistantResultFailure([
       assistantMessage({
+        agentRoundId: "agent-round-failed",
         messageId: "assistant-room-failed",
         roundId: "room-round-1",
         resultSummary: {
@@ -3352,7 +3383,7 @@ test("history restores only the latest assistant round error", async () => {
         timestamp: 5,
       }),
     ]),
-    "slot provider failed",
+    { agent_round_id: "agent-round-failed", code: "round_failed", round_id: "room-round-1" },
     "same root round must retain a failing Room slot",
   );
   assert.equal(
@@ -4316,8 +4347,6 @@ test("Room Agent replies keep their first display order through completion", asy
     timestamp: 6,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
     messages: [rootUser, agent1Partial, agent2Done, guide, agent1Done],
     pendingPermissions: [],
     pendingSlots: [],
@@ -5272,8 +5301,6 @@ test("Room terminal execution rejects stale active evidence and late interaction
     tool_name: "AskUserQuestion",
   };
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [terminalState],
     messages: [staleMessage],
     pendingPermissions: [lateQuestion],
@@ -5468,9 +5495,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
   } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/state/use-conversation-volatile-state.ts",
   );
-  const { buildRoomExecutionActivityKey } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-panel-model.ts",
-  );
   const { parseInterruptAckData } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
@@ -5502,8 +5526,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
     timestamp: 2,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [stateA, stateB],
     messages: [completedTurn],
     pendingPermissions: [],
@@ -5545,11 +5567,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
     confirmRoomAgentExecutionStop(stoppedStates, stateA.agent_round_id),
     stoppedStates,
     "ACK-before-terminal and terminal-before-ACK must converge idempotently",
-  );
-  assert.notEqual(
-    buildRoomExecutionActivityKey(1, true, [stateA, stateB]),
-    buildRoomExecutionActivityKey(1, true, stoppedStates),
-    "the WorkGraph resource must refresh when one Agent reaches interrupted terminal",
   );
   assert.deepEqual(
     parseInterruptAckData({
@@ -5736,8 +5753,6 @@ test("Room guidance stays on its exact consumed agent round", async () => {
     timestamp: 13,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1" },
     messages: [guide, oldResult, newStream],
     pendingPermissions: [],
     pendingSlots: [{

@@ -1,3 +1,7 @@
+// INPUT: Room Skill 目录、已选值、查询状态、禁用态与集合更新命令。
+// OUTPUT: 共用 SelectMenuTrigger、菜单和独立 Chip 移除动作的可搜索多选字段。
+// POS: Room Skill 领域多选组合；触发器 DOM 归共享菜单，目录请求和 Room 草稿归上层。
+
 "use client";
 
 import {
@@ -8,27 +12,34 @@ import {
   useMemo,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, Loader2, Search, X } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import {
-  MENU_ITEM_BASE_CLASS_NAME,
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
 import {
   estimateSelectMenuHeight,
-  getSelectMenuButtonClassName,
-  getSelectMenuOptionStateClassName,
-  getSelectMenuSizeConfig,
   resolveSelectMenuPosition,
   SELECT_MENU_SEARCH_ROW_HEIGHT,
 } from "@/shared/ui/menu/select-menu-model";
 import {
+  getSelectMenuOptionStateClassName,
+  getSelectMenuSizeConfig,
+} from "@/shared/ui/menu/select-menu-styles";
+import {
+  SelectMenuOptionRow,
   SelectMenuPanel,
+  SelectMenuTrigger,
   SelectMenuTriggerContent,
 } from "@/shared/ui/menu/select-menu-primitives";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
-import type { UiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import type { UiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 
 import {
   buildRoomSkillMenuBody,
@@ -94,7 +105,7 @@ const TRIGGER_SELECTION_STYLES: Record<
 function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
   return (
     <div className="flex min-h-10 items-center gap-2 px-2.5 text-sm text-(--text-muted)">
-      <Loader2 className="h-4 w-4 animate-spin" />
+      <Loader2 className={getUiSpinnerClassName({ size: "md", tone: "muted" })} />
       {presentation.message}
     </div>
   );
@@ -102,9 +113,12 @@ function LoadingMenuBody({ presentation }: MenuBodyViewProps) {
 
 function ErrorMenuBody({ presentation }: MenuBodyViewProps) {
   return (
-    <div className="m-1 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-2.5 py-2 text-sm leading-5 text-(--destructive)">
-      {presentation.message}
-    </div>
+    <UiInlineNotice
+      className="m-1 w-auto"
+      message={presentation.message}
+      role="alert"
+      tone="danger"
+    />
   );
 }
 
@@ -126,17 +140,13 @@ function RoomSkillOptionRow({
   option: RoomSkillOption;
 }) {
   return (
-    <button
-      aria-selected={isActive}
+    <SelectMenuOptionRow
+      active={isActive}
       className={cn(
-        MENU_ITEM_BASE_CLASS_NAME,
         "flex items-center gap-2 px-2.5 py-2 text-sm",
-        getSelectMenuOptionStateClassName("dialog", isActive),
+        getSelectMenuOptionStateClassName(isActive),
       )}
-      data-active={isActive ? "true" : undefined}
       onClick={() => onToggle(option.value)}
-      role="option"
-      type="button"
     >
       <span className="min-w-0 flex-1">
         <span className="block truncate">{option.label}</span>
@@ -147,7 +157,7 @@ function RoomSkillOptionRow({
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-(--primary)">
         {isActive ? <Check className="h-3.5 w-3.5" /> : null}
       </span>
-    </button>
+    </SelectMenuOptionRow>
   );
 }
 
@@ -186,14 +196,17 @@ function RoomSkillMenuBody(props: MenuBodyViewProps) {
 }
 
 function SelectedSkillChips({
+  disabled,
   onRemove,
   options,
   placeholder,
 }: {
+  disabled: boolean;
   onRemove: (value: string) => void;
   options: RoomSkillOption[];
   placeholder: string;
 }) {
+  const { t } = useI18n();
   if (options.length === 0) {
     return (
       <span className="truncate font-semibold text-(--text-muted)">
@@ -204,25 +217,16 @@ function SelectedSkillChips({
   return (
     <>
       {options.map((option) => (
-        <span
-          className="inline-flex max-w-[11rem] items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) bg-transparent py-0.5 pl-2 pr-1 text-xs font-medium text-(--text-strong)"
+        <UiRemovableChip
+          className="pointer-events-none max-w-[11rem]"
+          disabled={disabled}
           key={option.value}
+          onRemove={() => onRemove(option.value)}
+          removeLabel={t("room.skill_remove_label", { name: option.label })}
+          size="xs"
         >
-          <span className="min-w-0 truncate">{option.label}</span>
-          <span
-            aria-label={`移除 ${option.label}`}
-            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemove(option.value);
-            }}
-            onKeyDown={(event) => event.stopPropagation()}
-            role="button"
-            tabIndex={-1}
-          >
-            <X className="h-2.5 w-2.5" />
-          </span>
-        </span>
+          {option.label}
+        </UiRemovableChip>
       ))}
     </>
   );
@@ -251,21 +255,20 @@ function RoomSkillMenuPortal({
       ariaLabel={ariaLabel}
       id={menuId}
       layoutClassName="flex flex-col overflow-hidden"
+      multiSelectable
       panelRef={menuRef}
       placement={placement}
       style={menuStyle}
       surface="dialog"
     >
-      <label className="flex h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3">
-        <Search className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-        <input
-          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-(--text-strong) outline-none placeholder:text-(--text-soft)"
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={searchPlaceholder}
-          type="search"
-          value={query}
-        />
-      </label>
+      <UiSearchInput
+        aria-label={searchPlaceholder}
+        className="shrink-0"
+        onChange={onQueryChange}
+        placeholder={searchPlaceholder}
+        value={query}
+        variant="menu"
+      />
       <div className={cn(
         MENU_LIST_CLASS_NAME,
         "soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1",
@@ -328,7 +331,6 @@ export function RoomSkillMultiSelect({
   ), [options.length]);
   const overlay = useSelectMenuOverlay({ disabled, estimatePosition });
   const selectionStyle = triggerSelectionStyle(value);
-  const controlledMenuId = overlay.isOpen ? overlay.menuId : undefined;
 
   const toggleValue = (nextValue: string) => {
     if (disabled) {
@@ -338,6 +340,7 @@ export function RoomSkillMultiSelect({
     overlay.updateMenuPosition();
   };
   const removeValue = (nextValue: string) => {
+    if (disabled) return;
     onChange(removeRoomSkill(value, nextValue));
     overlay.updateMenuPosition();
   };
@@ -346,34 +349,36 @@ export function RoomSkillMultiSelect({
     <div
       className={cn("relative w-full", selectionStyle.rootClassName)}
     >
-      <button
-        aria-controls={controlledMenuId}
-        aria-disabled={disabled}
-        aria-expanded={overlay.isOpen}
-        aria-haspopup="listbox"
-        aria-label={ariaLabel}
-        className={getSelectMenuButtonClassName({
-          roundedClassName,
-          surface: "dialog",
-          textClassName,
-          className: selectionStyle.buttonClassName,
-        })}
+      <SelectMenuTrigger
+        ariaLabel={ariaLabel}
+        buttonRef={overlay.buttonRef}
+        className={cn("absolute inset-0", selectionStyle.buttonClassName)}
         disabled={disabled}
+        isOpen={overlay.isOpen}
+        menuId={overlay.menuId}
         onClick={overlay.toggleMenu}
         onKeyDown={overlay.handleTriggerKeyDown}
-        ref={overlay.buttonRef}
-        type="button"
+        styles={{ roundedClassName, textClassName }}
+        surface="dialog"
       >
         <SelectMenuTriggerContent isOpen={overlay.isOpen}>
-          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-            <SelectedSkillChips
-              onRemove={removeValue}
-              options={selectedOptions}
-              placeholder={placeholder}
-            />
+          <span className="sr-only">
+            {selectedOptions.length > 0
+              ? selectedOptions.map((option) => option.label).join(", ")
+              : placeholder}
           </span>
         </SelectMenuTriggerContent>
-      </button>
+      </SelectMenuTrigger>
+      <span className="pointer-events-none relative flex min-h-10 min-w-0 items-center py-1.5 pl-3 pr-10">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <SelectedSkillChips
+            disabled={disabled}
+            onRemove={removeValue}
+            options={selectedOptions}
+            placeholder={placeholder}
+          />
+        </span>
+      </span>
       <RoomSkillMenuPortal
         ariaLabel={ariaLabel}
         isOpen={overlay.isOpen}

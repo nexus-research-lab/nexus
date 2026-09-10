@@ -2,18 +2,18 @@
 
 /**
  * INPUT: 当前 Room/DM conversation identity、共享聊天 surface 与 session-scoped realtime events。
- * OUTPUT: 聊天/工作区/WorkGraph 共用布局，以及只由 execution_invalidated 驱动的 ExecutionResource revision。
+ * OUTPUT: 聊天/工作区/WorkGraph 共用布局和原右栏尺寸命令，以及只由 execution_invalidated 驱动的 ExecutionResource revision。
  * POS: Room 页面桌面与移动 Surface 的资源组合根；不从 message/round/Goal 活动猜测图变化。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
-import { useMediaQuery } from "@/hooks/ui/use-media-query";
+import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
-import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
-import type { FinalConversationReplacementHandler } from "@/shared/ui/workspace/controls/conversation-tabs/final-conversation-replacement";
+import type { FinalConversationReplacementHandler } from "@/features/navigation/conversation-tabs/final-conversation-replacement";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -67,6 +67,7 @@ interface RoomSurfaceShellProps {
   onUpdateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   onOpenWorkspaceFile: (path: string | null, workspaceAgentId?: string | null) => void;
   onStartSidePanelResize: () => void;
+  onSidePanelWidthChange: (percent: number) => void;
   onTodosChange: (todos: TodoItem[]) => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onRoomEvent?: (eventType: string, data: import("@/types/agent/agent-conversation").RoomEventPayload) => void;
@@ -110,12 +111,13 @@ export function RoomSurfaceShell({
   onUpdateConversationTitle,
   onOpenWorkspaceFile,
   onStartSidePanelResize,
+  onSidePanelWidthChange,
   onTodosChange,
   onConversationSnapshotChange,
   onRoomEvent,
 }: RoomSurfaceShellProps) {
   const isConversationFocusMode = useMediaQuery(
-    CONVERSATION_FOCUS_MEDIA_QUERY,
+    APP_NARROW_VIEWPORT_MEDIA_QUERY,
   );
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
@@ -153,9 +155,15 @@ export function RoomSurfaceShell({
     setExecutionTaskRunState({ sessionKey: executionSessionKey, runs });
   }, [executionSessionKey]);
 
+  const navigationGeneration = useRef(0);
+  useLayoutEffect(() => {
+    navigationGeneration.current += 1;
+    return () => { navigationGeneration.current += 1; };
+  }, [roomId, conversationId, currentAgent.agent_id]);
+
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
-    setActiveSurfaceTab("chat");
+    if (nextConversationId) setActiveSurfaceTab("chat");
     return nextConversationId;
   }, [onCreateConversation]);
 
@@ -174,8 +182,9 @@ export function RoomSurfaceShell({
     if (!conversationId) {
       return;
     }
+    const generation = navigationGeneration.current;
     const nextConversationId = await onForkConversation(conversationId, roundId);
-    if (!nextConversationId) {
+    if (!nextConversationId || generation !== navigationGeneration.current) {
       return;
     }
     setActiveSurfaceTab("chat");
@@ -278,6 +287,7 @@ export function RoomSurfaceShell({
       onUpdateConversationTitle={onUpdateConversationTitle}
       onSelectConversation={onSelectConversation}
       onStartSidePanelResize={onStartSidePanelResize}
+      onSidePanelWidthChange={onSidePanelWidthChange}
       onTodosChange={onTodosChange}
       surfaceSplitRef={surfaceSplitRef}
       onRoomEvent={handleRoomEvent}

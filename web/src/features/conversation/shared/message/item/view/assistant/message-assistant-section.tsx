@@ -7,10 +7,10 @@ import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 
+import { resolveAssistantMessageLayout } from "../message-reading-layout";
 import { AssistantMessageContent } from "./assistant-message-content";
 import { AssistantMessageHeader } from "./assistant-message-header";
 import {
-  resolveAssistantMessageLayout,
   resolveAssistantMessageScope,
   type AssistantFooterState,
   type MessageAssistantSectionProps,

@@ -1,5 +1,5 @@
 // INPUT: 当前自定义 MCP 配置身份与工具目录 API。
-// OUTPUT: 拒绝旧响应的工具目录快照、失败和显式刷新动作。
+// OUTPUT: 按配置身份隔离快照和失败，并拒绝旧响应的工具目录快照、失败和显式刷新动作。
 // POS: 自定义 MCP 详情页工具发现资源控制器。
 "use client";
 
@@ -19,8 +19,8 @@ import type {
 export function useCustomMCPTools(server: CustomMCPServer | null) {
   const { t } = useI18n();
   const requestIdRef = useRef(0);
-  const [catalog, setCatalog] = useState<CustomMCPToolCatalog | null>(null);
-  const [failure, setFailure] = useState<ResourceFailure | null>(null);
+  const [catalogSnapshot, setCatalog] = useState<{ identity: string; value: CustomMCPToolCatalog } | null>(null);
+  const [failureSnapshot, setFailure] = useState<{ identity: string; value: ResourceFailure } | null>(null);
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const identity = useMemo(() => server ? [
@@ -54,14 +54,13 @@ export function useCustomMCPTools(server: CustomMCPServer | null) {
     void getCustomMCPToolsApi(server.connector_id)
       .then((nextCatalog) => {
         if (requestId !== requestIdRef.current) return;
-        setCatalog(nextCatalog);
+        setCatalog({ identity, value: nextCatalog });
       })
       .catch((error: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        setFailure(getResourceFailure(
-          error,
-          t("capability.custom_mcp_tools_load_failed"),
-        ));
+        const failure = getResourceFailure(error, t("capability.custom_mcp_tools_load_failed"));
+        if (failure.access) setCatalog(null);
+        setFailure({ identity, value: failure });
       })
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);
@@ -74,6 +73,9 @@ export function useCustomMCPTools(server: CustomMCPServer | null) {
   const refresh = useCallback(() => {
     setRevision((current) => current + 1);
   }, []);
+
+  const catalog = catalogSnapshot?.identity === identity ? catalogSnapshot.value : null;
+  const failure = failureSnapshot?.identity === identity ? failureSnapshot.value : null;
 
   return { catalog, failure, loading, refresh };
 }

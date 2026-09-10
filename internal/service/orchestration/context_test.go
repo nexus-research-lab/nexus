@@ -551,8 +551,8 @@ func TestRenderExecutionContextTerminalExecutionExposesInspectionOnly(t *testing
 	if !strings.Contains(allowed, "<action>get_execution</action>") {
 		t.Fatalf("terminal Execution cannot be inspected:\n%s", rendered)
 	}
-	if !strings.Contains(allowed, "<action>Agent</action>") {
-		t.Fatalf("terminal background Execution blocked native subagent use:\n%s", rendered)
+	if !strings.Contains(allowed, "<action>subagent/spawn</action>") {
+		t.Fatalf("terminal background Execution blocked subagent delegation:\n%s", rendered)
 	}
 	for _, action := range []string{
 		"plan_execution",
@@ -875,8 +875,8 @@ func TestRenderExecutionContextProjectsManagedAndRuntimeOnlySubagentModes(t *tes
 		Role:         ExecutionActorMember,
 	})
 	for _, expected := range []string{
-		`<subagent_admission eligible="true" native_tool="Agent" candidate_assignment_count="1" binding_mode="managed" assignment_id="assignment-1" work_item_id="work-1" parent_attempt_id="attempt-1" />`,
-		`<action>Agent</action>`,
+		`<subagent_admission eligible="true" command_domain="subagent" operation="spawn" candidate_assignment_count="1" binding_mode="managed" assignment_id="assignment-1" work_item_id="work-1" parent_attempt_id="attempt-1" />`,
+		`<action>subagent/spawn</action>`,
 	} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("eligible subagent context missing %q:\n%s", expected, rendered)
@@ -890,15 +890,15 @@ func TestRenderExecutionContextProjectsManagedAndRuntimeOnlySubagentModes(t *tes
 		Role:         ExecutionActorMember,
 	})
 	for _, expected := range []string{
-		`<subagent_admission eligible="true" native_tool="Agent" candidate_assignment_count="2" binding_mode="runtime_only" managed_binding_reason="ambiguous_assignment">`,
-		`<note>native delegation is available, but this run is runtime observation only and does not claim managed Work Item evidence: the current Agent has multiple delegable Assignments; select one through the WorkGraph before launching a subagent</note>`,
+		`<subagent_admission eligible="true" command_domain="subagent" operation="spawn" candidate_assignment_count="2" binding_mode="runtime_only" managed_binding_reason="ambiguous_assignment">`,
+		`<note>subagent delegation is admissible, but this run is runtime observation only and does not claim managed Work Item evidence: the current Agent has multiple delegable Assignments; select one through the WorkGraph before launching a subagent</note>`,
 	} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("ambiguous subagent context missing %q:\n%s", expected, rendered)
 		}
 	}
 	allowed := rendered[strings.Index(rendered, "<allowed_actions>"):strings.Index(rendered, "</allowed_actions>")]
-	if !strings.Contains(allowed, "<action>Agent</action>") {
+	if !strings.Contains(allowed, "<action>subagent/spawn</action>") {
 		t.Fatalf("runtime-only mode hid native Agent affordance:\n%s", rendered)
 	}
 
@@ -909,7 +909,7 @@ func TestRenderExecutionContextProjectsManagedAndRuntimeOnlySubagentModes(t *tes
 	})
 	if !strings.Contains(
 		rendered,
-		`<subagent_admission eligible="false" native_tool="Agent" candidate_assignment_count="1" reason_code="plan_mode">`,
+		`<subagent_admission eligible="false" command_domain="subagent" operation="spawn" candidate_assignment_count="1" reason_code="plan_mode">`,
 	) {
 		t.Fatalf("Plan Mode subagent boundary is not explicit:\n%s", rendered)
 	}

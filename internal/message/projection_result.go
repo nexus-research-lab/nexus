@@ -1,5 +1,5 @@
 // INPUT: runtime result、同一 Agent 执行轮的 assistant 快照与终态元数据。
-// OUTPUT: 保留执行身份的 assistant result_summary 或 result-only 合成 assistant。
+// OUTPUT: 保留执行身份的 assistant result_summary、最终正文预览文本或 result-only 合成 assistant。
 // POS: runtime result 到前端统一 assistant 终态形态的投影边界。
 package message
 
@@ -220,6 +220,24 @@ func ExtractAssistantDisplayText(message protocol.Message) string {
 		texts = append(texts, text)
 	}
 	return NormalizeDisplayText(strings.Join(texts, "\n\n"))
+}
+
+// ExtractAssistantFinalText 提取末尾正文供目录预览；思考和工具截断过程文本，尾部文件不截断正文。
+func ExtractAssistantFinalText(message protocol.Message) string {
+	if text, ok := message["content"].(string); ok {
+		return NormalizeDisplayText(text)
+	}
+	blocks := normalizeMessageContentBlocks(message["content"])
+	start := len(blocks)
+	for start > 0 {
+		block := blocks[start-1]
+		kind := normalizeString(block["type"])
+		if kind != "workspace_file_artifact" && (kind != "text" || normalizeString(block["text"]) == "") {
+			break
+		}
+		start--
+	}
+	return ExtractAssistantDisplayText(protocol.Message{"content": blocks[start:]})
 }
 
 // NormalizeDisplayText 统一正文比较用的文本格式。

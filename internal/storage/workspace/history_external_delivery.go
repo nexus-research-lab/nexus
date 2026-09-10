@@ -187,3 +187,11 @@ func hasExternalDeliveryPayload(deliveries []map[string]any, payload map[string]
 	}
 	return false
 }
+
+func cloneHistoryRows(rows []protocol.Message) []protocol.Message {
+	cloned := make([]protocol.Message, 0, len(rows))
+	for _, row := range rows {
+		cloned = append(cloned, protocol.Clone(row))
+	}
+	return cloned
+}

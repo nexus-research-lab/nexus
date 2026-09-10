@@ -1,3 +1,7 @@
+// INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
+// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记。
+// POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
+
 import {
   MessageCircle,
   Trash2,
@@ -8,26 +12,34 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge, UiCounterBadge } from "@/shared/ui/display/badge";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiSkeleton } from "@/shared/ui/display/skeleton";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 
 import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
+  const { t } = useI18n();
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
+    <div
+      aria-busy="true"
+      aria-label={t("common.loading")}
+      className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3"
+      role="status"
+    >
       {Array.from({ length: count }, (_, index) => (
-        <div
-          className="flex min-h-[60px] w-full items-center gap-2.5 rounded-[8px] px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-3"
+        <UiListRow
+          density="sidebar"
           key={index}
         >
-          <span className="h-10 w-10 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <UiSkeleton className="h-10 w-10 shrink-0 radius-control-sm" tone="strong" />
           <span className="min-w-0 flex-1 space-y-2">
-            <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
-            <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
+            <UiSkeleton className="h-3.5 w-24" tone="strong" />
+            <UiSkeleton className="h-3 w-36" tone="subtle" />
           </span>
-        </div>
+        </UiListRow>
       ))}
     </div>
   );
@@ -47,7 +59,7 @@ function ConversationRowLeading({
   isActive: boolean;
   item: SidebarConversationItem;
 }) {
-  if (item.kind === "room") {
+  if (item.kind !== "dm") {
     return (
       <UiRoomAvatar
         avatar={item.avatar}
@@ -87,15 +99,15 @@ function ConversationRowMeta({
         <span
           className={cn(
             "text-xs tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-            onDelete && "group-hover/item:opacity-0",
+            onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0",
           )}
         >
           {timeLabel}
         </span>
       ) : null}
       {onDelete ? (
-        <UiIconButton
-          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100"
+        <UiListActionButton
+          className="absolute right-0 top-1/2 -translate-y-1/2"
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
@@ -104,10 +116,10 @@ function ConversationRowMeta({
           title={deleteLabel}
           tone="danger"
           type="button"
-          variant="ghost"
+          visibility="hover"
         >
           <Trash2 className="h-3.5 w-3.5" />
-        </UiIconButton>
+        </UiListActionButton>
       ) : null}
     </span>
   );
@@ -137,15 +149,16 @@ function ConversationRowStatus({
 }
 
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
+  const { t } = useI18n();
   return (
     <UiMarkdownContent
       className="nexus-sidebar-conversation-summary truncate text-compact leading-[1.125rem] text-(--text-soft) [&_*]:leading-[1.125rem]"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome
+      summaryMathLabel={t("markdown.math_summary")}
       summaryStrongAsText
       variant="summary"
-      workspaceAgentId={item.kind === "dm" ? item.agentId : undefined}
     />
   );
 }
@@ -163,9 +176,8 @@ export function ConversationRow({
     <UiListRow
       active={isActive}
       activeTone="sidebar"
-      className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-3"
+      density="sidebar"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
-      inactiveTone="muted"
       leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
@@ -216,7 +228,7 @@ export function ContactRow({
     <UiListRow
       active={isActive}
       activeTone="sidebar"
-      className="min-h-[54px] gap-2.5 rounded-[10px] py-1.5 pl-2 pr-[3px] max-[559px]:min-h-[72px] max-[559px]:gap-3 max-[559px]:rounded-[12px] max-[559px]:px-3 max-[559px]:py-2.5"
+      density="sidebarCompact"
       description={subtitle}
       inactiveTone="muted"
       leading={(
@@ -228,18 +240,18 @@ export function ContactRow({
       )}
       onClick={onOpenDirectory}
       right={(
-        <UiIconButton
-          className="opacity-0 group-hover/item:opacity-100"
+        <UiListActionButton
           onClick={(event) => {
             event.stopPropagation();
             onChat();
           }}
           title={t("sidebar.start_chat")}
+          size="md"
           type="button"
-          variant="ghost"
+          visibility="hover"
         >
           <MessageCircle className="h-[18px] w-[18px]" />
-        </UiIconButton>
+        </UiListActionButton>
       )}
       title={agent.name}
     />

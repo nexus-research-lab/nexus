@@ -7,7 +7,6 @@
   display: grid;
   grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
   column-gap: 8px;
-  background: var(--surface-canvas-background);
 }
 
 .nexus-memory-document {
@@ -38,7 +37,6 @@
   .nexus-memory-layout {
     display: block;
     height: 100%;
-    background: transparent;
   }
 
   .nexus-memory-document {

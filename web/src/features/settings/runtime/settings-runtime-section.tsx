@@ -1,30 +1,29 @@
 /**
  * INPUT: 运行引擎、工具发现与网页搜索偏好。
- * OUTPUT: 以用户任务语言展示的运行设置和按需高级搜索配置。
+ * OUTPUT: 公共 Field 关联输入和错误，直接复用 CheckboxRow 与 SettingsToggleRow，保留原有提交时机。
  * POS: 设置目录的运行分区，不暴露底层 schema 或 bridge 教学。
  */
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   ChevronUp,
-  Database,
   ExternalLink,
-  Globe2,
-  KeyRound,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Terminal,
-  Timer,
   Trash2,
-  Wrench,
 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
+import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { PreferencesReliabilityNotice } from "../general/components/preferences-reliability-notice";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
@@ -41,15 +40,12 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { AGENT_RUNTIME_KIND_OPTIONS } from "./model/settings-runtime-options";
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
+  SettingsToggleRow,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
-  SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-  SettingsSegmentedControl,
 } from "../shared/settings-panel-ui";
 import { useRuntimeSettingsController } from "./use-runtime-settings-controller";
 
@@ -146,25 +142,23 @@ export function SettingsRuntimeSection() {
                 </p>
               </div>
             </div>
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-                {t("settings.runtime.kernel_label")}
-              </span>
-              <SettingsSegmentedControl
-                ariaLabel={t("settings.runtime.kernel_label")}
-                disabled={
-                  settings.loading ||
-                  settings.preferencesBusy ||
-                  settings.nxsRuntimeChecking
-                }
-                onChange={settings.onRuntimeKindChange}
-                options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.labelKey),
-                }))}
-                value={settings.runtimeKind}
-              />
-            </div>
+            <UiSegmentedControl
+              density="compact"
+              disabled={
+                settings.loading ||
+                settings.preferencesBusy ||
+                settings.nxsRuntimeChecking
+              }
+              onChange={settings.onRuntimeKindChange}
+              options={AGENT_RUNTIME_KIND_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey),
+              }))}
+              showLabel
+              stretch
+              title={t("settings.runtime.kernel_label")}
+              value={settings.runtimeKind}
+            />
           </div>
 
           {settings.runtimeKind === "nxs" ? (
@@ -216,6 +210,7 @@ function WebSearchRow({
   settings: WebSearchSettings;
 }) {
   const { t } = useI18n();
+  const webSearchId = useId();
   const [draft, setDraft] = useState(settings);
   const [anySearchContentTypesText, setAnySearchContentTypesText] = useState("");
   const [anySearchParamsText, setAnySearchParamsText] = useState("{}");
@@ -283,15 +278,11 @@ function WebSearchRow({
             </p>
           </div>
         </div>
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="text-xs font-medium text-(--text-soft)">
-            {t("settings.runtime.web_search_provider")}
-          </span>
+        <UiField htmlFor={`${webSearchId}-provider`} label={t("settings.runtime.web_search_provider")}>
           <UiSelectMenu
             ariaLabel={t("settings.runtime.web_search_provider")}
-            buttonClassName={SETTINGS_SELECT_BUTTON_CLASS_NAME}
-            className={SETTINGS_CONTROL_HEIGHT_CLASS_NAME}
             disabled={disabled}
+            id={`${webSearchId}-provider`}
             onChange={(value) => {
               const nextProvider = value as WebSearchProvider;
               setDraft((current) => ({
@@ -306,10 +297,10 @@ function WebSearchRow({
               label: t(providerOption.labelKey),
             }))}
             placement="bottom"
-            size="xs"
+            size="sm"
             value={draft.provider ?? DEFAULT_WEB_SEARCH_PROVIDER}
           />
-        </div>
+        </UiField>
       </div>
       <div className="border-t border-(--divider-subtle-color) px-4 pb-2 pt-2 md:pl-14">
         <div className="grid gap-2 md:grid-cols-2">
@@ -326,198 +317,220 @@ function WebSearchRow({
                 required={apiKeyRequired}
               />
             ) : baseURLRequired ? (
-              <SettingsField label={t("settings.runtime.web_search_base_url")}>
-                <input
-                  className="input-shell h-9 w-full rounded-[10px] bg-transparent px-3 text-compact text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+              <UiField htmlFor={`${webSearchId}-base-url`} label={t("settings.runtime.web_search_base_url")}>
+                <UiInput
+                  controlSize="md"
                   disabled={disabled}
+                  id={`${webSearchId}-base-url`}
                   onBlur={() => commitText("base_url")}
                   onChange={(event) => patchDraft({ base_url: event.target.value })}
                   placeholder={t("settings.runtime.web_search_base_url_placeholder")}
                   required
                   value={draft.base_url ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : (
-              <div className="flex min-h-9 items-center text-xs text-(--text-soft)">
+              <div className={cn(
+                "flex min-h-9 items-center",
+                getUiTypographyClassName({ role: "caption", tone: "soft" }),
+              )}>
                 {t("settings.runtime.web_search_no_extra_config")}
               </div>
             )}
           </div>
         </div>
         <div className="mt-2 flex justify-end border-t border-(--divider-subtle-color) pt-1.5">
-          <button
-            aria-controls="web-search-more-settings"
+          <UiButton
+            aria-controls={`${webSearchId}-more`}
             aria-expanded={moreOpen}
-            className="inline-flex h-6 items-center gap-1 rounded-[8px] px-1.5 text-2xs font-medium text-(--text-soft) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
             disabled={disabled}
             onClick={() => setMoreOpen((current) => !current)}
-            type="button"
+            size="xs"
+            variant="text"
           >
             <SlidersHorizontal className="h-3 w-3" />
             {t("settings.runtime.web_search_more")}
             {moreOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
+          </UiButton>
         </div>
         {moreOpen ? (
           <div
             className="grid gap-2 border-t border-(--divider-subtle-color) pt-2 md:grid-cols-2"
-            id="web-search-more-settings"
+            id={`${webSearchId}-more`}
           >
             {showCustomBaseURL ? (
-              <SettingsField
+              <UiField
                 className="md:col-span-2"
+                htmlFor={`${webSearchId}-base-url`}
                 label={t("settings.runtime.web_search_custom_base_url")}
               >
-                <input
-                  className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                <UiInput
+                  controlSize="sm"
                   disabled={disabled}
+                  id={`${webSearchId}-base-url`}
                   onBlur={() => commitText("base_url")}
                   onChange={(event) => patchDraft({ base_url: event.target.value })}
                   placeholder={t("settings.runtime.web_search_custom_base_url_placeholder")}
                   value={draft.base_url ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : null}
             <SettingsSubsectionTitle>
               {t("settings.runtime.web_search_common_settings")}
             </SettingsSubsectionTitle>
-            <SettingsField
-              icon={<Database className="h-3.5 w-3.5" />}
+            <UiField
+              htmlFor={`${webSearchId}-count`}
               label={t("settings.runtime.web_search_result_count")}
             >
-              <input
-                className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none"
+              <UiInput
+                controlSize="sm"
                 disabled={disabled}
+                id={`${webSearchId}-count`}
                 max={20}
                 min={1}
                 onBlur={() => commitNumber("default_count", 5, 1, 20)}
                 onChange={(event) => patchDraft({ default_count: Number(event.target.value) })}
                 type="number"
                 value={draft.default_count ?? 5}
+                variant="surface"
               />
-            </SettingsField>
-            <SettingsField
-              icon={<Timer className="h-3.5 w-3.5" />}
+            </UiField>
+            <UiField
+              htmlFor={`${webSearchId}-timeout`}
               label={t("settings.runtime.web_search_timeout")}
             >
-              <input
-                className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none"
+              <UiInput
+                controlSize="sm"
                 disabled={disabled}
+                id={`${webSearchId}-timeout`}
                 max={120}
                 min={1}
                 onBlur={() => commitNumber("timeout_seconds", 20, 1, 120)}
                 onChange={(event) => patchDraft({ timeout_seconds: Number(event.target.value) })}
                 type="number"
                 value={draft.timeout_seconds ?? 20}
+                variant="surface"
               />
-            </SettingsField>
-            <SettingsField
-              icon={<Database className="h-3.5 w-3.5" />}
+            </UiField>
+            <UiField
+              htmlFor={`${webSearchId}-cache`}
               label={t("settings.runtime.web_search_cache")}
             >
-              <input
-                className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none"
+              <UiInput
+                controlSize="sm"
                 disabled={disabled}
+                id={`${webSearchId}-cache`}
                 max={86400}
                 min={0}
                 onBlur={() => commitNumber("cache_ttl_seconds", 900, 0, 86400)}
                 onChange={(event) => patchDraft({ cache_ttl_seconds: Number(event.target.value) })}
                 type="number"
                 value={draft.cache_ttl_seconds ?? 900}
+                variant="surface"
               />
-            </SettingsField>
+            </UiField>
             <SettingsSubsectionTitle>
               {t("settings.runtime.web_search_provider_settings")} · {t(provider.labelKey)}
             </SettingsSubsectionTitle>
             {capabilities.country ? (
-              <SettingsField
-                icon={<Globe2 className="h-3.5 w-3.5" />}
+              <UiField
+                htmlFor={`${webSearchId}-country`}
                 label={t("settings.runtime.web_search_country")}
               >
-                <input
-                  className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                <UiInput
+                  controlSize="sm"
                   disabled={disabled}
+                  id={`${webSearchId}-country`}
                   onBlur={() => commitText("country")}
                   onChange={(event) => patchDraft({ country: event.target.value })}
                   placeholder={t("settings.runtime.web_search_country_placeholder")}
                   value={draft.country ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : null}
             {capabilities.language ? (
-              <SettingsField label={t("settings.runtime.web_search_language")}>
-                <input
-                  className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+              <UiField htmlFor={`${webSearchId}-language`} label={t("settings.runtime.web_search_language")}>
+                <UiInput
+                  controlSize="sm"
                   disabled={disabled}
+                  id={`${webSearchId}-language`}
                   onBlur={() => commitText("language")}
                   onChange={(event) => patchDraft({ language: event.target.value })}
                   placeholder={t("settings.runtime.web_search_language_placeholder")}
                   value={draft.language ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : null}
             {capabilities.searchLanguage ? (
-              <SettingsField label={t("settings.runtime.web_search_search_language")}>
-                <input
-                  className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+              <UiField htmlFor={`${webSearchId}-search-language`} label={t("settings.runtime.web_search_search_language")}>
+                <UiInput
+                  controlSize="sm"
                   disabled={disabled}
+                  id={`${webSearchId}-search-language`}
                   onBlur={() => commitText("search_language")}
                   onChange={(event) => patchDraft({ search_language: event.target.value })}
                   placeholder={t("settings.runtime.web_search_search_language_placeholder")}
                   value={draft.search_language ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : null}
             {capabilities.freshness ? (
-              <SettingsField label={t("settings.runtime.web_search_freshness")}>
-                <input
-                  className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+              <UiField htmlFor={`${webSearchId}-freshness`} label={t("settings.runtime.web_search_freshness")}>
+                <UiInput
+                  controlSize="sm"
                   disabled={disabled}
+                  id={`${webSearchId}-freshness`}
                   onBlur={() => commitText("freshness")}
                   onChange={(event) => patchDraft({ freshness: event.target.value })}
                   placeholder={t("settings.runtime.web_search_freshness_placeholder")}
                   value={draft.freshness ?? ""}
+                  variant="surface"
                 />
-              </SettingsField>
+              </UiField>
             ) : null}
             {capabilities.searchDepth || capabilities.extractDepth ? (
               <>
                 {capabilities.searchDepth ? (
-                  <SettingsField
-                    icon={<Wrench className="h-3.5 w-3.5" />}
-                    label={t("settings.runtime.web_search_depth")}
-                  >
-                    <SettingsSegmentedControl
-                      ariaLabel={t("settings.runtime.web_search_depth")}
-                      disabled={disabled}
-                      onChange={(value) => commitPatch({ search_depth: value as "basic" | "advanced" })}
-                      options={[
-                        { label: t("settings.runtime.web_search_basic"), value: "basic" },
-                        { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
-                      ]}
-                      value={draft.search_depth ?? "basic"}
-                    />
-                  </SettingsField>
+                  <UiSegmentedControl
+                    density="compact"
+                    disabled={disabled}
+                    onChange={(value) => commitPatch({ search_depth: value as "basic" | "advanced" })}
+                    options={[
+                      { label: t("settings.runtime.web_search_basic"), value: "basic" },
+                      { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
+                    ]}
+                    showLabel
+                    stretch
+                    title={t("settings.runtime.web_search_depth")}
+                    value={draft.search_depth ?? "basic"}
+                  />
                 ) : null}
                 {capabilities.extractDepth ? (
-                  <SettingsField label={t("settings.runtime.web_search_extract_depth")}>
-                    <SettingsSegmentedControl
-                      ariaLabel={t("settings.runtime.web_search_extract_depth")}
-                      disabled={disabled}
-                      onChange={(value) => commitPatch({ extract_depth: value as "basic" | "advanced" })}
-                      options={[
-                        { label: t("settings.runtime.web_search_basic"), value: "basic" },
-                        { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
-                      ]}
-                      value={draft.extract_depth ?? "basic"}
-                    />
-                  </SettingsField>
+                  <UiSegmentedControl
+                    density="compact"
+                    disabled={disabled}
+                    onChange={(value) => commitPatch({ extract_depth: value as "basic" | "advanced" })}
+                    options={[
+                      { label: t("settings.runtime.web_search_basic"), value: "basic" },
+                      { label: t("settings.runtime.web_search_advanced"), value: "advanced" },
+                    ]}
+                    showLabel
+                    stretch
+                    title={t("settings.runtime.web_search_extract_depth")}
+                    value={draft.extract_depth ?? "basic"}
+                  />
                 ) : null}
               </>
             ) : null}
             {capabilities.privateNetwork ? (
-              <SettingsCheckSetting
+              <UiCheckboxRow
                 checked={draft.allow_private_network === true}
+                density="compact"
                 disabled={disabled}
                 icon={<ShieldCheck className="h-3.5 w-3.5" />}
                 label={t("settings.runtime.web_search_private_network")}
@@ -525,8 +538,9 @@ function WebSearchRow({
               />
             ) : null}
             {supportsProviderExtract(provider.value) ? (
-              <SettingsCheckSetting
+              <UiCheckboxRow
                 checked={draft.use_provider_extract === true}
+                density="compact"
                 disabled={disabled}
                 label={t("settings.runtime.web_search_provider_extract")}
                 onChange={(checked) => commitPatch({ use_provider_extract: checked })}
@@ -534,47 +548,56 @@ function WebSearchRow({
             ) : null}
             {provider.value === "anysearch" ? (
               <>
-                <SettingsField label={t("settings.runtime.web_search_anysearch_domain")}>
-                  <input
-                    className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                <UiField htmlFor={`${webSearchId}-domain`} label={t("settings.runtime.web_search_anysearch_domain")}>
+                  <UiInput
+                    controlSize="sm"
                     disabled={disabled}
+                    id={`${webSearchId}-domain`}
                     onBlur={() => patchAnySearch({ domain: draft.anysearch?.domain?.trim() ?? "" })}
                     onChange={(event) => patchDraft({ anysearch: { ...draft.anysearch, domain: event.target.value } })}
                     placeholder={t("settings.runtime.web_search_anysearch_domain_placeholder")}
                     value={draft.anysearch?.domain ?? ""}
+                    variant="surface"
                   />
-                </SettingsField>
-                <SettingsField label={t("settings.runtime.web_search_anysearch_tag")}>
-                  <input
-                    className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                </UiField>
+                <UiField htmlFor={`${webSearchId}-tag`} label={t("settings.runtime.web_search_anysearch_tag")}>
+                  <UiInput
+                    controlSize="sm"
                     disabled={disabled}
+                    id={`${webSearchId}-tag`}
                     onBlur={() => patchAnySearch({ tag: draft.anysearch?.tag?.trim() ?? "" })}
                     onChange={(event) => patchDraft({ anysearch: { ...draft.anysearch, tag: event.target.value } })}
                     placeholder={t("settings.runtime.web_search_anysearch_tag_placeholder")}
                     value={draft.anysearch?.tag ?? ""}
+                    variant="surface"
                   />
-                </SettingsField>
-                <SettingsField label={t("settings.runtime.web_search_anysearch_content_types")}>
-                  <input
-                    className="input-shell h-8 w-full rounded-[8px] bg-transparent px-2.5 text-xs text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                </UiField>
+                <UiField htmlFor={`${webSearchId}-content-types`} label={t("settings.runtime.web_search_anysearch_content_types")}>
+                  <UiInput
+                    controlSize="sm"
                     disabled={disabled}
+                    id={`${webSearchId}-content-types`}
                     onBlur={() => patchAnySearch({ content_types: splitSearchValues(anySearchContentTypesText) })}
                     onChange={(event) => setAnySearchContentTypesText(event.target.value)}
                     placeholder={t("settings.runtime.web_search_anysearch_content_types_placeholder")}
                     value={anySearchContentTypesText}
+                    variant="surface"
                   />
-                </SettingsField>
-                <SettingsField
+                </UiField>
+                <UiField
                   className="md:col-span-2"
+                  error={anySearchParamsError ? [
+                    t("settings.runtime.web_search_anysearch_params_invalid"),
+                    t("settings.runtime.web_search_anysearch_params_invalid_impact"),
+                    t("settings.runtime.web_search_anysearch_params_invalid_next_step"),
+                  ].join(" ") : undefined}
+                  htmlFor={`${webSearchId}-params`}
                   label={t("settings.runtime.web_search_anysearch_params")}
                 >
-                  <textarea
-                    aria-describedby={anySearchParamsError
-                      ? "runtime-anysearch-params-error"
-                      : undefined}
-                    aria-invalid={anySearchParamsError}
-                    className="input-shell min-h-16 w-full resize-y rounded-[8px] bg-transparent px-2.5 py-1.5 font-mono text-2xs leading-4 text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+                  <UiTextarea
+                    controlSize="sm"
                     disabled={disabled}
+                    id={`${webSearchId}-params`}
                     onBlur={() => {
                       const value = anySearchParamsText.trim();
                       if (value === "") {
@@ -595,28 +618,11 @@ function WebSearchRow({
                     }}
                     onChange={(event) => setAnySearchParamsText(event.target.value)}
                     placeholder={t("settings.runtime.web_search_anysearch_params_placeholder")}
+                    textRole="code"
                     value={anySearchParamsText}
+                    variant="surface"
                   />
-                  {anySearchParamsError ? (
-                    <span
-                      aria-atomic="true"
-                      aria-live="polite"
-                      className="block space-y-0.5 text-2xs leading-4"
-                      id="runtime-anysearch-params-error"
-                      role="status"
-                    >
-                      <span className="block font-medium text-(--danger-text-color)">
-                        {t("settings.runtime.web_search_anysearch_params_invalid")}
-                      </span>
-                      <span className="block text-(--text-muted)">
-                        {t("settings.runtime.web_search_anysearch_params_invalid_impact")}
-                      </span>
-                      <span className="block text-(--text-default)">
-                        {t("settings.runtime.web_search_anysearch_params_invalid_next_step")}
-                      </span>
-                    </span>
-                  ) : null}
-                </SettingsField>
+                </UiField>
               </>
             ) : null}
           </div>
@@ -644,19 +650,22 @@ function WebSearchAPIKeyField({
   required?: boolean;
 }) {
   const { t } = useI18n();
+  const fieldId = useId();
   const [draftAPIKey, setDraftAPIKey] = useState(apiKey);
 
   useEffect(() => setDraftAPIKey(apiKey), [apiKey, apiKeyConfigured]);
 
   return (
-    <SettingsField
-      icon={<KeyRound className="h-3.5 w-3.5" />}
+    <UiField
+      htmlFor={fieldId}
       label={t("settings.runtime.web_search_api_key")}
     >
       <div className="flex gap-2">
-        <input
-          className="input-shell h-9 min-w-0 flex-1 rounded-[10px] bg-transparent px-3 text-compact text-(--text-strong) outline-none placeholder:text-(--text-soft)"
+        <UiInput
+          className="min-w-0 flex-1"
+          controlSize="md"
           disabled={disabled}
+          id={fieldId}
           onBlur={() => {
             const value = draftAPIKey.trim();
             if (value !== "") {
@@ -673,26 +682,32 @@ function WebSearchAPIKeyField({
           required={required}
           type="password"
           value={draftAPIKey}
+          variant="surface"
         />
         {apiKeyConfigured ? (
-          <button
+          <UiIconButton
             aria-label={t("settings.runtime.web_search_api_key_clear")}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-(--text-soft) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--danger-text-color)"
+            className="shrink-0"
             disabled={disabled}
             onClick={() => {
               setDraftAPIKey("");
               onChange("");
             }}
-            title={t("settings.runtime.web_search_api_key_clear")}
-            type="button"
+            size="lg"
+            tone="danger"
+            tooltip={t("settings.runtime.web_search_api_key_clear")}
+            variant="ghost"
           >
             <Trash2 className="h-3.5 w-3.5" />
-          </button>
+          </UiIconButton>
         ) : null}
       </div>
       {provider.apiKeyURL ? (
         <a
-          className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          className={cn(
+            "inline-flex items-center gap-1 hover:underline",
+            getUiTypographyClassName({ role: "supporting", tone: "brand" }),
+          )}
           href={provider.apiKeyURL}
           rel="noreferrer"
           target="_blank"
@@ -701,65 +716,18 @@ function WebSearchAPIKeyField({
           <ExternalLink className="h-3 w-3" />
         </a>
       ) : null}
-    </SettingsField>
-  );
-}
-
-function SettingsField({
-  children,
-  className,
-  icon,
-  label,
-}: {
-  children: ReactNode;
-  className?: string;
-  icon?: ReactNode;
-  label: string;
-}) {
-  return (
-    <label className={cn("min-w-0 space-y-1.5", className)}>
-      <span className="flex items-center gap-1.5 text-xs font-medium text-(--text-soft)">
-        {icon}
-        {label}
-      </span>
-      {children}
-    </label>
+    </UiField>
   );
 }
 
 function SettingsSubsectionTitle({ children }: { children: ReactNode }) {
   return (
-    <div className="md:col-span-2 flex items-center gap-1.5 border-t border-(--divider-subtle-color) pt-1.5 text-2xs font-semibold text-(--text-default)">
+    <h4 className={cn(
+      "md:col-span-2 flex items-center gap-1.5 border-t border-(--divider-subtle-color) pt-3",
+      getUiTypographyClassName({ role: "supporting", tone: "default", weight: "medium" }),
+    )}>
       {children}
-    </div>
-  );
-}
-
-function SettingsCheckSetting({
-  checked,
-  disabled,
-  icon,
-  label,
-  onChange,
-}: {
-  checked: boolean;
-  disabled: boolean;
-  icon?: ReactNode;
-  label: string;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="flex min-h-8 items-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) px-2.5 text-xs text-(--text-default)">
-      <input
-        checked={checked}
-        className="h-3.5 w-3.5 accent-(--primary)"
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        type="checkbox"
-      />
-      {icon}
-      <span>{label}</span>
-    </label>
+    </h4>
   );
 }
 
@@ -774,33 +742,14 @@ function ToolSearchRow({
 }) {
   const { t } = useI18n();
   return (
-    <div className={SETTINGS_ROW_CLASS_NAME}>
-      <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-        <div className={SETTINGS_ICON_CLASS_NAME}>
-          <Search className="h-3.5 w-3.5" />
-        </div>
-        <div className="min-w-0">
-          <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-            {t("settings.runtime.tool_search_title")}
-          </h3>
-          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-            {t("settings.runtime.tool_search_description")}
-          </p>
-        </div>
-      </div>
-      <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-        <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-          {t("settings.runtime.tool_search_label")}
-        </span>
-        <GlassSwitch
-          aria-label={t("settings.runtime.tool_search_label")}
-          checked={checked}
-          disabled={disabled}
-          onChange={onChange}
-          size="sm"
-        />
-      </div>
-    </div>
+    <SettingsToggleRow
+      checked={checked}
+      description={t("settings.runtime.tool_search_description")}
+      disabled={disabled}
+      icon={<Search className="h-3.5 w-3.5" />}
+      onChange={onChange}
+      title={t("settings.runtime.tool_search_title")}
+    />
   );
 }
 

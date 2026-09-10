@@ -5,12 +5,14 @@
  */
 "use client";
 
+import { useId } from "react";
+
 import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiButton } from "@/shared/ui/button/button";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -39,16 +41,18 @@ export function ExternalSkillPreviewDialog({
   onImport,
 }: ExternalSkillPreviewDialogProps) {
   const { t } = useI18n();
+  const titleId = useId();
   if (!model) return null;
 
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
-        <UiDialogShell className="h-[84vh]" size="xl">
+      <UiDialogBackdrop labelledBy={titleId} layer="dialog" onClose={onClose}>
+        <UiDialogShell size="xl" viewport="adaptive">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={model.title}
+            titleId={titleId}
           />
           <UiDialogBody scrollable>
             <div className="mb-5 flex flex-wrap gap-2">
@@ -64,18 +68,21 @@ export function ExternalSkillPreviewDialog({
 
           <UiDialogFooter appearance="plain" className="flex-wrap justify-between gap-3">
             {model.detailUrl ? (
-              <a
-                className={getUiButtonClassName({ size: "sm", variant: "text" }, "w-fit")}
+              <UiLinkButton
+                className="w-fit"
                 href={model.detailUrl}
-                rel="noreferrer"
+                rel="noopener noreferrer"
+                size="sm"
                 target="_blank"
+                variant="text"
               >
                 <ExternalLink className="h-4 w-4" />
                 {t("capability.skills_external_open_original")}
-              </a>
+              </UiLinkButton>
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
               <UiButton
+                aria-busy={model.importState.busy || undefined}
                 disabled={model.importState.busy || !model.importState.canImport}
                 onClick={() => onImport(model.item)}
                 size="sm"
@@ -84,7 +91,7 @@ export function ExternalSkillPreviewDialog({
                 variant="solid"
               >
                 {model.importState.busy
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  ? <Loader2 className={getUiSpinnerClassName()} />
                   : <PackagePlus className="h-4 w-4" />}
                 {t("capability.skills_external_import_action")}
               </UiButton>

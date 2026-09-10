@@ -1,3 +1,6 @@
+// INPUT: Launcher 查询草稿、场景实体、最近入口及业务命令。
+// OUTPUT: 随舞台整体缩放的品牌入口、角色图像发送热区和 Agent 物理场景。
+// POS: Launcher 独立场景几何所有者；查询输入和最近入口复用共享控件，只有品牌入口及角色发送保留场景按钮几何。
 "use client";
 
 import {
@@ -5,13 +8,15 @@ import {
   useCallback,
   type MouseEvent,
 } from "react";
-import { ArrowRight, MessageSquare } from "lucide-react";
+import { ArrowRight, LoaderCircle, MessageSquare } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
 import { cn } from "@/shared/ui/class-name";
 import { ANIMATIONS } from "@/config/animation-assets";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LottiePlayer } from "@/shared/ui/feedback/lottie-player";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiInput } from "@/shared/ui/form/form-control";
 import {
   AnimatedHeroText,
   FadeSlideIn,
@@ -69,14 +74,14 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
         onKeyDown={(e) => e.stopPropagation()}
         role="presentation"
       >
-      <HeroBlobShell className="z-10 transition-transform duration-500 ease-out">
+      <HeroBlobShell className="z-10">
         <div className="space-y-4">
           <FadeSlideIn delayMs={0} durationMs={380} yOffset={6}>
             <div className="flex flex-col items-center gap-2.5">
               <div className="flex items-center gap-2">
                 <button
                   data-tour-anchor={LAUNCHER_TOUR_ANCHORS.enter_app}
-                  className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/45"
+                  className="group inline-flex items-center gap-3 rounded-full px-2 py-2 pr-4 text-left transition-colors duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
                   style={{
                     background:
                       "color-mix(in srgb, var(--launcher-input-fill) 92%, rgba(255, 255, 255, 0.12))",
@@ -101,7 +106,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   <span className="text-sm font-semibold tracking-[0.12em] text-foreground/90">
                     {t("launcher.enter_app")}
                   </span>
-                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 ease-out group-hover:translate-x-0.5" />
+                  <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition-transform duration-(--motion-duration-fast) motion-safe:group-hover:translate-x-0.5" />
                 </button>
 
               </div>
@@ -110,7 +115,6 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <div className="relative inline-block">
             <LottiePlayer
               className="pointer-events-none absolute -right-16 -top-14 h-24 w-24 opacity-[0.46]"
-              inlineStyle={undefined}
               src={ANIMATIONS.SPARKLES}
             />
             <h1 className="mb-2 text-2xl font-semibold leading-[1.05] tracking-[-0.02em] text-foreground/96">
@@ -127,37 +131,29 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="mx-auto w-full max-w-[420px] surface-radius-lg border px-4 py-1"
+              className="relative mx-auto flex h-[54px] w-full max-w-[420px] min-w-0 items-center gap-2 rounded-2xl px-4 focus-within:ring-2 focus-within:ring-[color:var(--ring)]"
               style={{
-                background:
-                  "linear-gradient(180deg, var(--launcher-input-fill), var(--launcher-input-inner-fill))",
-                borderColor: "var(--launcher-input-stroke)",
-                boxShadow:
-                  "inset 0 1px 0 var(--launcher-input-inner-stroke), 0 14px 30px rgba(56, 72, 98, 0.10)",
+                background: "var(--launcher-input-fill)",
+                boxShadow: "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",
+                color: "var(--launcher-input-text)",
               }}
             >
-              <div className="relative flex min-w-0 items-center gap-3">
                 {queryInput.mention.match ? (
                   <MentionTargetPopover
-                    anchorRect={
-                      queryInput.input.ref.current?.getBoundingClientRect() ?? null
-                    }
+                    anchorRef={queryInput.input.ref}
                     filter={queryInput.mention.match.filter}
                     items={queryInput.mention.targets}
                     onClose={queryInput.mention.close}
                     onSelect={queryInput.mention.select}
-                    placement="below"
                   />
                 ) : null}
-                <MessageSquare
-                  className="h-4.5 w-4.5"
-                  style={{ color: "var(--launcher-input-icon)" }}
-                />
-                <input
+                <MessageSquare aria-hidden="true" className="h-[18px] w-[18px] shrink-0 opacity-60" />
+                <UiInput
                   aria-label={t("launcher.query_input")}
                   ref={queryInput.input.ref}
-                  className="flex-1 bg-transparent text-base outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
-                  style={{ color: "var(--launcher-input-text)" }}
+                  className="min-w-0 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                  controlSize="lg"
+                  variant="surface"
                   onBlur={queryInput.input.onBlur}
                   onChange={queryInput.input.onChange}
                   onCompositionEnd={queryInput.input.onCompositionEnd}
@@ -169,8 +165,10 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   disabled={isQueryLoading}
                 />
                 <button
+                  aria-label={t("launcher.send")}
+                  aria-busy={isQueryLoading || undefined}
                   className={cn(
-                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-[background,border-color,color,opacity] duration-150 ease-out",
+                    "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-[background,border-color,color,opacity] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
                     isQueryLoading && "cursor-not-allowed opacity-(--disabled-opacity)",
                   )}
                   style={{
@@ -191,16 +189,18 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   disabled={isQueryLoading}
                 >
                   {isQueryLoading ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
+                    <LoaderCircle
+                      aria-hidden="true"
+                      className={getUiSpinnerClassName({ size: "md" })}
+                    />
                   ) : (
                     <img
-                      alt={t("launcher.send")}
+                      alt=""
                       className="h-11 w-11 object-contain"
                       src="/nexus/launcher-send-mascot.png"
                     />
                   )}
                 </button>
-              </div>
             </div>
           </FadeSlideIn>
 

@@ -1,3 +1,10 @@
+// INPUT: Server task identities, capability/status aliases and current-language task naming.
+// OUTPUT: Closed task states, valid observation times, exact-source matching and localized task names.
+// POS: Pure subagent task domain projection; generic display names belong to agent-display-name.
+
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type {
   SubagentRuntimeKind,
   SubagentTask,
@@ -13,7 +20,8 @@ type SubagentTaskViewStatus =
   | "running"
   | "completed"
   | "stopped"
-  | "failed";
+  | "failed"
+  | "unknown";
 
 const EMPTY_CAPABILITIES: SubagentTaskCapabilities = {
   observe: false,
@@ -65,27 +73,31 @@ const SUBAGENT_RUNTIME_BY_ALIAS: Readonly<Record<string, SubagentRuntimeKind>> =
   mixed: "mixed",
 };
 
-function normalizeSubagentTaskStatus(status?: string | null): SubagentTaskViewStatus {
-  return SUBAGENT_STATUS_BY_ALIAS[normalizeAlias(status)] ?? "pending";
+export function getSubagentTaskStatus(task: Pick<SubagentTask, "status">): SubagentTaskViewStatus {
+  const alias = normalizeAlias(task.status);
+  return Object.hasOwn(SUBAGENT_STATUS_BY_ALIAS, alias)
+    ? SUBAGENT_STATUS_BY_ALIAS[alias]
+    : "unknown";
 }
 
 export function isSubagentTaskActive(task: SubagentTask): boolean {
-  const status = normalizeSubagentTaskStatus(task.status);
+  const status = getSubagentTaskStatus(task);
   return status === "pending" || status === "running";
 }
 
 export function canSendSubagentTaskMessage(task: SubagentTask): boolean {
-  return task.status.trim().toLowerCase() !== "deleted"
+  return normalizeAlias(task.status) !== "deleted"
     && task.capabilities.send_message
     && task.capabilities.resume;
 }
 
-export function subagentTaskTitle(task: SubagentTask): string {
-  return (
+export function subagentTaskTitle(task: SubagentTask, t: I18nContextValue["t"]): string {
+  return getAgentDisplayName(
     task.name?.trim() ||
     task.description?.trim() ||
-    task.agent_type?.trim() ||
-    "Subagent"
+    task.agent_type?.trim(),
+    t,
+    "subagent",
   );
 }
 
@@ -185,7 +197,10 @@ export function normalizeSubagentTask(
 function normalizeSubagentRuntimeKind(
   value?: string | null,
 ): SubagentRuntimeKind {
-  return SUBAGENT_RUNTIME_BY_ALIAS[normalizeAlias(value)] ?? "unknown";
+  const alias = normalizeAlias(value);
+  return Object.hasOwn(SUBAGENT_RUNTIME_BY_ALIAS, alias)
+    ? SUBAGENT_RUNTIME_BY_ALIAS[alias]
+    : "unknown";
 }
 
 function normalizeSubagentTaskCapabilities(
@@ -194,7 +209,10 @@ function normalizeSubagentTaskCapabilities(
 ): SubagentTaskCapabilities {
   const capabilities = { ...fallback };
   for (const key of SUBAGENT_CAPABILITY_KEYS) {
-    capabilities[key] = value?.[key] ?? fallback[key];
+    const candidate = value?.[key];
+    capabilities[key] = candidate == null
+      ? fallback[key]
+      : typeof candidate === "boolean" && candidate;
   }
   return capabilities;
 }
@@ -218,21 +236,26 @@ export function preferFreshSubagentTask(
   if (detailTimestamp < sourceTimestamp) {
     return sourceTask;
   }
-  // Equal-timestamp status edges occur in historical runtime projections.
-  // Prefer terminal over active so a stale read cannot revive completed work.
-  if (isSubagentTaskActive(detailTask) && !isSubagentTaskActive(sourceTask)) {
+  // Equal-clock unknown evidence cannot erase a known state; terminal evidence
+  // still wins over an active read, while a newer explicit observation wins above.
+  const sourceStatus = getSubagentTaskStatus(sourceTask);
+  const detailStatus = getSubagentTaskStatus(detailTask);
+  if ((detailStatus === "unknown" && sourceStatus !== "unknown")
+    || (isSubagentTaskActive(detailTask)
+      && sourceStatus !== "unknown" && !isSubagentTaskActive(sourceTask))) {
     return sourceTask;
   }
   return detailTask;
 }
 
 function normalizeTimestamp(value?: number): number | null {
-  if (!value || value <= 0) {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
     return null;
   }
-  return value < 1_000_000_000_000 ? value * 1000 : value;
+  const timestamp = value < 1_000_000_000_000 ? value * 1000 : value;
+  return timestamp <= 8_640_000_000_000_000 ? timestamp : null;
 }
 
 function normalizeAlias(value?: string | null): string {
-  return value?.trim().toLowerCase() ?? "";
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
 }

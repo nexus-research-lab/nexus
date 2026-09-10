@@ -1,3 +1,6 @@
+// INPUT: 目录Token集合、当前Agent和显式选择命令。
+// OUTPUT: 绑定物理位置的场景Token堆；动效偏好由物理hook统一处理。
+// POS: Launcher场景装配；不拥有实体目录或导航。
 "use client";
 
 import { cn } from "@/shared/ui/class-name";

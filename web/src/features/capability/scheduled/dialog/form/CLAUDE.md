@@ -4,7 +4,28 @@
 - 初始化和提交都消费明确的 `TaskFormDraft`，不拼装宽松字段袋。
 - 提交层分别投影执行位置与真实结果接收 Session；创建来源只作 provenance，不参与二者映射。
 - 编辑初始化按当前任务的执行与投递配置投影合法组合；旧裸路由、合成收件箱或已失效绑定清空选择并要求重绑。
-- DM 执行与投递按“Agent → DM/active IM Session”选择；Room 按“Room → 共享 Room Session → 该 Session 的成员 Agent”选择。Room 成员可留空并在提交时解析为房主；执行 Agent 与投递回复 Agent 是独立字段。
+- 运行与接收各使用一个可搜索的完整列表，以 DM/Room 筛选及单人/群组图标区分对象，左栏浏览对象、右栏选择会话；浏览对象不修改草稿，选中会话才原子写入目标与真实会话；Room 仍绑定共享会话，该会话的成员 Agent 在对应运行/接收目标下直接选择。Room 成员可留空并在提交时解析为房主；执行 Agent 与投递回复 Agent 是独立字段。
 - 历史脚本任务只读，不进入表单提交。
-- 基础表单由 `task-basics-model.ts` 统一投影目标、会话和文案，`task-basics-advanced.tsx` 只组合窄字段视图。
+- 基础表单由 `task-basics-model.ts` 与 `task-destination-picker-model.ts` 投影目标、会话和文案，`task-basics-advanced.tsx` 只组合窄字段视图。
+- 执行与投递分组统一使用 `UiPanel` 的语义 padding/radius，失效重绑提示统一使用 `UiInlineNotice`；字段帮助与高级摘要统一使用 Typography role，高级区统一组合 `UiDisclosure`，业务层不得再渲染或装饰原生 `details/summary`。
 - 视图只消费自己声明的 model/actions 接口，不从资源对象重新推导业务状态。
+- 显式 Agent/Room/Session 绑定缺项时，基础执行/投递、会话与 Room 成员字段复用公共禁用显示项，不能把已选 ID 显示成空选项或默认房主；“不在列表中”只说明当前候选状态，不推断资源已删除。显示项只在视图投影中添加，不进入资源真相、不自动清理草稿，也不改变提交层的验证和默认解析。
+- 基础/高级字段以 useId 隔离实例，窄 Session 字段自己持有标签与控件身份；执行、投递成员与权限字段组合 UiField 关联名称和说明。原始输入与选项回调继续交给草稿命令。
+
+- 创建主流程展示可选标题、指令、时间、执行对象与接收聊天；名称可空并由提交层从指令生成。每次独立运行与已有会话在运行列表一起展示；权限、时区和到期设置置于底部高级区。新任务默认投递，唯一合法候选可带入，多个候选不猜测；编辑和失败对账不重新套用新建默认。
+
+- `task-destination-picker.tsx` 共用运行与接收的搜索/分组锚定浮层，复用共享 Overlay 的定位、Portal、Escape 与焦点归还；列表在浮层内滚动，不改变创建表单高度；独立运行选项携带 Agent 身份，真实聊天候选继续服从资源层资格，不创建隐藏会话。
+
+- 创建按钮上方实时投影计划、时区、执行 Agent、指令与投递聊天；权限采用当前值时显示资源层解析的具体模式，预览不写回草稿。
+
+- 目标浮层材质、层级和反馈排版复用公共 owner，不叠加局部阴影或数字 z-index。Tab 在首尾可操作项退出至触发器所在表单的相邻字段；嵌套类型筛选的 Escape 仅关闭筛选。
+
+- 目标目录失败不等同于空结果；任何依赖仍在加载或失败时不显示“没有匹配聊天”。已加载候选继续可用，重试仅调用失败且未在加载的资源，不重复请求正常或在途资源。
+
+- 目标列表保留 96px 最小操作区；可用高度不足时整个浮层可滚动，使搜索、结果和重试都能到达。常规高度仍由两列各自滚动。触发器通过独立 useId 描述当前目标，失效项只读公共说明，不读内部身份。
+
+目标选择器的候选展示、搜索分组和活动项回退由 `task-destination-picker-model.ts` 纯函数持有；视图只维护临时浏览状态、焦点/浮层和显式选择事件。执行/接收外框组合 UiPanel md（12px）保留新版紧凑分组，内间距由领域布局提供。
+
+- `task-room-agent-picker.tsx` 是执行/回复 Room 成员字段的唯一视图所有者，分别调用独立草稿命令；DM 已由智能体与会话绑定确定身份，不提供跨智能体的额外 DM 成员选择。高级区只保留权限、时区、到期和兼容专用会话设置，不再重复成员字段。
+
+- 新版目标选择器替代旧分立 Agent/Room/Session select 投影；旧 buildTaskTargetPresentation/buildTaskDeliveryTargetPresentation/buildExecutionSessionPresentation/buildReplySessionPresentation 已删除，不保留仅供测试调用的旧 UI 实现。

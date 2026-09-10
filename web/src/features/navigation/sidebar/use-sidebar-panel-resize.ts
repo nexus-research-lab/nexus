@@ -1,3 +1,7 @@
+// INPUT: 侧栏元素、持久宽度与指针事件。
+// OUTPUT: 仅主按钮在面板内侧边缘启动的 resize 状态与宽度提交。
+// POS: 侧栏拖拽交互所有者，宽度约束仍由 Store 持有。
+
 import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -32,7 +36,7 @@ export function useSidebarPanelResize({
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent) => {
-      if (isModalEventTarget(event.target)) {
+      if (event.button !== 0 || isModalEventTarget(event.target)) {
         return;
       }
       const rootElement = rootRef.current;
@@ -42,7 +46,7 @@ export function useSidebarPanelResize({
 
       const rect = rootElement.getBoundingClientRect();
       const distanceToRightEdge = rect.right - event.clientX;
-      if (distanceToRightEdge > SIDEBAR_RESIZE_HOTZONE_WIDTH) {
+      if (distanceToRightEdge < 0 || distanceToRightEdge > SIDEBAR_RESIZE_HOTZONE_WIDTH) {
         return;
       }
 
@@ -73,7 +77,7 @@ export function useSidebarPanelResize({
       if (!isDraggingRef.current) {
         const rect = rootElement.getBoundingClientRect();
         const distanceToRightEdge = rect.right - event.clientX;
-        setIsResizeHotzoneActive(distanceToRightEdge <= SIDEBAR_RESIZE_HOTZONE_WIDTH);
+        setIsResizeHotzoneActive(distanceToRightEdge >= 0 && distanceToRightEdge <= SIDEBAR_RESIZE_HOTZONE_WIDTH);
         return;
       }
 

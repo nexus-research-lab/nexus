@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 统计、Goal 完成回执、模型与记忆引用投影。
- * OUTPUT: 可压缩且不裁剪下伸字符的消息尾部元数据与操作。
+ * OUTPUT: 可压缩的消息尾部元数据、共享微型动作与语义记忆引用浮层。
  * POS: Assistant 消息正文下方的唯一统计与回执展示面。
  */
 import {
@@ -10,7 +10,6 @@ import {
   Copy,
   GitFork,
   LoaderCircle,
-  type LucideIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -20,14 +19,17 @@ import {
 import { createPortal } from "react-dom";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
-import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
 import {
   ANCHORED_OVERLAY_MOTION_CLASS_NAME,
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   GoalCompletionReceipt,
   RecalledMemoryReference,
@@ -35,16 +37,6 @@ import type {
 
 import type { AssistantFooterStats } from "./assistant-message-model";
 import { buildGoalCompletionReceiptItems } from "./goal-completion-receipt";
-
-interface CopyActionPresentation {
-  className?: string;
-  icon: LucideIcon;
-}
-
-const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation> = {
-  copied: { className: "text-(--success)", icon: Check },
-  idle: { icon: Copy },
-};
 
 export function AssistantMessageStats({
   copied,
@@ -168,7 +160,7 @@ function AssistantStatsTrailing({
       {memories.length > 0 ? (
         <AssistantMemoryReferences memories={memories} />
       ) : null}
-      <div className="flex items-center opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+      <div className="flex items-center opacity-100 transition-opacity duration-(--motion-duration-fast) sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 [@media(hover:none)]:opacity-100">
         {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
         {onFork ? <AssistantForkAction onFork={onFork} /> : null}
       </div>
@@ -199,25 +191,23 @@ function AssistantForkAction({
   }, [onFork]);
   const Icon = state === "pending" ? LoaderCircle : GitFork;
   return (
-    <button
+    <UiIconButton
       aria-label={label}
-      className={cn(
-        "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-        state === "failed" && "text-(--danger)",
-      )}
       disabled={state === "pending"}
       onClick={() => void handleFork()}
-      title={label}
-      type="button"
+      size="2xs"
+      tone={state === "failed" ? "danger" : "default"}
+      tooltip={label}
+      variant="ghost"
     >
-      <Icon className={cn("h-3 w-3", state === "pending" && "animate-spin")} />
-    </button>
+      <Icon
+        className={state === "pending"
+          ? getUiSpinnerClassName({ size: "xs" })
+          : "h-3 w-3"}
+      />
+    </UiIconButton>
   );
 }
-
-const MEMORY_POPOVER_MAX_HEIGHT = 320;
-const MEMORY_POPOVER_MIN_HEIGHT = 96;
-const MEMORY_POPOVER_WIDTH = 360;
 
 function AssistantMemoryReferences({
   memories,
@@ -229,15 +219,12 @@ function AssistantMemoryReferences({
   const [isOpen, setIsOpen] = useState(false);
   const close = useCallback(() => setIsOpen(false), []);
   const estimatePosition = useCallback((anchor: HTMLButtonElement) => (
-    resolveAnchoredOverlayPosition({
+    resolveUiAnchoredOverlayPosition({
       align: "end",
       anchor,
-      estimatedHeight: Math.min(80 + memories.length * 48, MEMORY_POPOVER_MAX_HEIGHT),
-      gap: 8,
-      maxHeight: MEMORY_POPOVER_MAX_HEIGHT,
-      minHeight: MEMORY_POPOVER_MIN_HEIGHT,
-      minWidth: MEMORY_POPOVER_WIDTH,
+      estimatedContentHeight: 80 + memories.length * 48,
       placement: "auto",
+      preset: "reference-list",
     })
   ), [memories.length]);
   const {
@@ -257,29 +244,28 @@ function AssistantMemoryReferences({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={triggerRef}
         aria-controls={isOpen ? overlayId : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
         aria-label={label}
-        className={cn(
-          "inline-flex h-6 w-6 items-center justify-center rounded-full text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-          isOpen && "bg-(--surface-interactive-hover-background) text-(--icon-strong)",
-        )}
         onClick={() => setIsOpen((current) => !current)}
-        title={label}
-        type="button"
+        shape="round"
+        size="xs"
+        tooltip={label}
+        variant="ghost"
       >
         <BookOpenText className="h-3.5 w-3.5" />
-      </button>
+      </UiIconButton>
 
       {isOpen && portalContainer ? createPortal(
         <div
           ref={overlayRef}
+          id={overlayId}
           aria-label={label}
           className={cn(
-            "fixed z-[140] overflow-y-auto p-4",
+            "fixed ui-layer-popover overflow-y-auto p-4",
             OVERLAY_SURFACE_CLASS_NAME,
             ANCHORED_OVERLAY_MOTION_CLASS_NAME,
           )}
@@ -288,10 +274,17 @@ function AssistantMemoryReferences({
           style={overlayStyle}
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
-          <h3 className="text-sm font-medium text-(--text-strong)">
+          <h3 className={getUiTypographyClassName({
+            role: "metadata",
+            tone: "strong",
+            weight: "semibold",
+          })}>
             {label}
           </h3>
-          <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-5 text-(--text-muted)">
+          <ul className={cn(
+            "mt-3 list-disc space-y-2 pl-5",
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+          )}>
             {memories.map((memory) => (
               <li key={`${memory.name}\u0000${memory.description}`}>
                 {memory.description}
@@ -313,20 +306,17 @@ function AssistantCopyAction({
   onCopy: () => Promise<void>;
 }) {
   const { t } = useI18n();
-  const presentation = COPY_ACTION_PRESENTATION[copied ? "copied" : "idle"];
-  const Icon = presentation.icon;
+  const Icon = copied ? Check : Copy;
   return (
-    <button
+    <UiIconButton
       aria-label={t("message.copy_reply")}
-      className={cn(
-        "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
-        presentation.className,
-      )}
       onClick={onCopy}
-      title={t("message.copy_reply")}
-      type="button"
+      size="2xs"
+      tone={copied ? "success" : "default"}
+      tooltip={t("message.copy_reply")}
+      variant="ghost"
     >
       <Icon className="h-3 w-3" />
-    </button>
+    </UiIconButton>
   );
 }

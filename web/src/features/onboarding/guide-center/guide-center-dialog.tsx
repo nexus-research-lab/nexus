@@ -5,7 +5,10 @@
  */
 "use client";
 
-import { Check, RotateCcw } from "lucide-react";
+import { useId } from "react";
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { BookOpen, Check, RotateCcw } from "lucide-react";
 
 import {
   UiDialogBackdrop,
@@ -15,7 +18,7 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
+import { UiButton, UiLinkButton } from "@/shared/ui/button/button";
 
 import type {
   GuideCenterItem,
@@ -24,6 +27,7 @@ import type {
 
 interface GuideCenterDialogProps {
   closeLabel: string;
+  docsLabel: string;
   isOpen: boolean;
   items: readonly GuideCenterItem[];
   onClose: () => void;
@@ -34,7 +38,6 @@ interface GuideCenterDialogProps {
   title: string;
 }
 
-const GUIDE_CENTER_TITLE_ID = "onboarding-guide-center-title";
 const GUIDE_CENTER_SECTIONS: readonly GuideCenterSection[] = [
   "basics",
   "advanced",
@@ -42,6 +45,7 @@ const GUIDE_CENTER_SECTIONS: readonly GuideCenterSection[] = [
 
 export function GuideCenterDialog({
   closeLabel,
+  docsLabel,
   isOpen,
   items,
   onClose,
@@ -51,6 +55,7 @@ export function GuideCenterDialog({
   sectionLabels,
   title,
 }: GuideCenterDialogProps) {
+  const titleId = useId();
   if (!isOpen) {
     return null;
   }
@@ -58,21 +63,21 @@ export function GuideCenterDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[11050]"
-        labelledBy={GUIDE_CENTER_TITLE_ID}
+        layer="tourDialog"
+        labelledBy={titleId}
         onClose={onClose}
       >
         <div className="w-full max-w-lg">
-          <UiDialogShell>
+          <UiDialogShell viewport="compactMax">
             <UiDialogHeader
               appearance="plain"
               closeLabel={closeLabel}
               onClose={onClose}
               title={title}
-              titleId={GUIDE_CENTER_TITLE_ID}
+              titleId={titleId}
             />
 
-            <UiDialogBody className="max-h-[min(64dvh,620px)] overflow-y-auto !px-5 !py-1">
+            <UiDialogBody className="!px-5 !py-1" scrollable>
               {GUIDE_CENTER_SECTIONS.map((section) => {
                 const sectionItems = items.filter((item) => item.section === section);
                 if (sectionItems.length === 0) {
@@ -80,7 +85,7 @@ export function GuideCenterDialog({
                 }
                 return (
                   <section className="py-2 first:pt-1 last:pb-1" key={section}>
-                    <h3 className="pb-1 text-xs font-medium text-(--text-muted)">
+                    <h3 className={cn("pb-1", getUiTypographyClassName({ role: "caption", tone: "muted", weight: "medium" }))}>
                       {sectionLabels[section]}
                     </h3>
                     <div className="divide-y divide-(--divider-subtle-color)">
@@ -95,31 +100,30 @@ export function GuideCenterDialog({
 
                             <div className="min-w-0 flex-1">
                               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                <h4 className="text-sm font-medium text-(--text-strong)">
+                                <h4 className={cn("wrap-anywhere", getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }))}>
                                   {item.title}
                                 </h4>
                                 {item.completed ? (
-                                  <span className="inline-flex items-center gap-1 text-2xs font-medium text-(--primary)">
+                                  <span className={cn("inline-flex items-center gap-1", getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" }))}>
                                     <Check className="h-3 w-3" />
                                     {reviewedLabel}
                                   </span>
                                 ) : null}
                               </div>
-                              <p className="mt-0.5 text-xs leading-5 text-(--text-soft)">
+                              <p className={cn("mt-0.5 wrap-anywhere", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
                                 {item.description}
                               </p>
                             </div>
 
-                            <button
-                              className={getUiButtonClassName(
-                                { size: "xs", tone: "primary", variant: "text" },
-                                "shrink-0 px-1.5 font-medium",
-                              )}
+                            <UiButton
+                              className="shrink-0"
                               onClick={item.onAction}
-                              type="button"
+                              size="xs"
+                              tone="primary"
+                              variant="text"
                             >
                               {item.actionLabel}
-                            </button>
+                            </UiButton>
                           </div>
                         );
                       })}
@@ -130,27 +134,34 @@ export function GuideCenterDialog({
             </UiDialogBody>
 
             <UiDialogFooter appearance="plain" className="!px-5 !py-3">
-              <button
-                className={getUiButtonClassName(
-                  { size: "xs", tone: "default", variant: "text" },
-                  "mr-auto px-1 font-medium",
-                )}
+              <UiButton
+                className="mr-auto"
                 onClick={onReset}
-                type="button"
+                size="xs"
+                tone="default"
+                variant="text"
               >
                 <RotateCcw className="h-3 w-3" />
                 {resetLabel}
-              </button>
-              <button
-                className={getUiButtonClassName(
-                  { size: "xs", tone: "default", variant: "surface" },
-                  "font-medium",
-                )}
+              </UiButton>
+              <UiLinkButton
+                href="https://www.nexusos.cn/docs"
+                target="_blank"
+                rel="noopener noreferrer"
+                size="xs"
+                variant="text"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {docsLabel}
+              </UiLinkButton>
+              <UiButton
                 onClick={onClose}
-                type="button"
+                size="xs"
+                tone="default"
+                variant="surface"
               >
                 {closeLabel}
-              </button>
+              </UiButton>
             </UiDialogFooter>
           </UiDialogShell>
         </div>

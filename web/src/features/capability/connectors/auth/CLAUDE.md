@@ -8,3 +8,20 @@
 - OAuth 应用弹窗模型统一生成重置身份、Callback URL、提供方文案和保存约束；区块视图不读取原始详情字段。
 - OAuth 跨窗口事件只传递结构化结果，不直接修改目录状态。
 - 连接弹窗统一使用 plain chrome：标题直接命名目标，正文只保留当前步骤、必填字段与必要的文档入口；不得展示 runtime/MCP 装配说明、装饰性凭证图标、教程卡或重复副标题。
+- OAuth、Device Flow、直接凭证与本机配对共享 Dialog、Panel、Field、Typography、Badge 和 Spinner 所有权；各 Provider 只提供步骤与数据，不得重写字号、圆角或加载动画。
+
+- 直接凭证弹窗的 Provider 说明与占位、通用标题和按钮由双语目录提供；语言切换不参与凭证草稿 reset key，目标身份切换仍按既有边界重置。
+
+- OAuth 应用配置说明、占位与复制反馈消费当前语言；模型的 resetKey 只由连接器身份与已配置 Client ID 组成，语言更新保留输入，配置身份改变仍清空 Secret。未知 Provider 使用通用 Client ID/Secret 提示，不套用飞书字段说明。
+
+- RichMail 配对 Hook 只向视图投影 pending/connected 状态，拒绝/过期与 outcome_unknown 继续分离；反馈由当前语言目录生成，不回显服务端 message 或异常正文。语言变化不重启配对轮询，步骤只描述客户端批准及自动连接。
+
+- OAuth 与直接凭证字段使用实例级 ID 关联标签，重复挂载不共享 DOM 身份；字段 ID 不参与草稿 reset key 或业务提交，OAuth Secret 的 name 使用通用语义。
+
+- 直接凭证与 OAuth 表单按外部 busy 投影 aria-busy，并在提交处理器拒绝 busy 期间的提交；不建立额外请求状态或清除当前草稿。
+
+- Device Flow、飞书连接选择/手工表单与 RichMail 配对沿用 compactMax 视口和 scrollable Body，标题与操作区留在正文滚动区之外；状态文案允许窄宽度换行，不私写高度或滚动容器。
+
+- 直接凭证、OAuth 应用、飞书连接和 RichMail 配对标题使用实例级 labelledBy/titleId，不依赖页面上其他弹窗的标题。
+
+- Device Flow 的 presentation 和轮询输出保持语义翻译键，视图随语言切换即时更新；错误在 Hook 使用当前语言翻译，语言变化不重启轮询。

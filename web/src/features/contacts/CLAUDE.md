@@ -1,22 +1,42 @@
 # Contacts 视图
 
 - 本目录只提供联系人目录、卡片和详情视图，不读取 URL、Store 或调用 Agent/Room API。
-- Agent 管理目录提供卡片与高密度列表两种本地视图；卡片仅在手机与窄窗使用紧凑摘要，`md` 起恢复 comfort 大卡片，并在铺满工作面的共享管理内容区内逐级扩展到桌面三列。目录标题、说明与搜索复用共享正文 Header；搜索只命中用于管理分类的业务标签，不得把进入提示词的风格标签当成业务标签，目录可按业务标签、Provider 和权限即时筛选，标签选项沿用带滚动边界的共享 SelectMenu 承载大量值。卡片与列表统一展示描述、业务标签、权限、Provider、工具数和技能数，使用户无需逐个进入详情即可比较。主体动作由本领域以独立按钮承载，不得嵌套在共享卡片交互语义中。
+- `contacts-directory-helpers.test.ts` 通过共置 Vitest 直接验证真实搜索、过滤和候选去重模型；`scripts/contacts-directory.test.mjs` 只检查共享控件所有权，不启动 Vite Server 执行行为测试。
+- `contacts-directory.tsx` 提供卡片与列表两种本地视图；标题、说明和唯一搜索入口复用共享正文 Header，三种筛选直接使用跨领域 `UiFilterSelect`。搜索只命中用于管理分类的业务标签，不得把进入提示词的风格标签当成业务标签。空筛选复用 `UiResourceState`，清除搜索和所有筛选时保留当前视图，创建入口始终保留。
+- `contacts-agent-card.tsx` 的卡片只有一个 DOM，沿用共享 comfort 密度和响应式网格；列表仍由 `UiListRow` 承载。内部元信息与动作各有一个所有者，整卡主动作、聊天与建群保持独立；列表次动作使用带共享提示的 IconButton，名称包含 Agent 身份。名称/Provider 与有限说明预览的设计边界见 `design.md`，不复制共享卡片的 pointer-events 或 z-index 配方。
+- `contacts-directory.test.tsx` 验证真实搜索、联合筛选、视图切换、无结果恢复和精确 Agent 命令；`contacts-agent-card.test.tsx` 验证每种视图只有一份身份/动作以及键盘、点击和提示边界，实际命中与长文本布局另由 Gallery 浏览器用例验收。
 - 联系人侧栏行与管理目录的 Agent 卡片主体必须进入同一个 `agent` 查询参数详情页；既有 Agent 只在详情页编辑，目录卡片不得另开一套编辑弹窗。
+- Agent 管理目录的创建入口、Agent 卡片、徽标、元数据和空筛选结果必须复用 Workspace Catalog、`UiPanel`、`UiBadge`、Typography 与共享 Button；卡片/列表互斥视图切换固定复用支持图标选项的 `UiSegmentedControl`，目录不得手写原生按钮、任意圆角、字号或字重。
 - 详情页复用 Agent Options 的可编辑字段投影、保存命令和名称校验；桌面 Header 左侧必须提供明确的返回智能体目录动作，不能要求用户猜测全局联系人导航，手机继续由应用级 Header 提供唯一返回入口。
 - 详情 Header 下缘由 `contacts-agent-detail.tsx` 在能力页标准正文 gutter 内统一绘制分隔线；身份、技能和工具沿用标准正文全宽，记忆与联络共用同一正文 gutter 和 `288px + 8px` 双栏分割轴。
 - 从联系人侧栏切换 Agent 时保留当前详情栏目；只有离开详情页导致组件卸载时才恢复“身份”。
 - 联系人目录已提供当前 Agent 的头像与名称，详情 Header 只承载栏目和协作动作，不重复身份；栏目顺序固定为身份、技能、记忆、工具、联络。Echo 是用户级设置，不进入 Agent 详情。
 - 既有 Agent 的联系人详情采用延迟自动保存并在 Header 给出轻量状态，不保留底部保存按钮；删除是独立危险操作，桌面固定在 Header 最右侧，窄窗进入同一右上角动作菜单并继续复用页面确认链路。
+- 自动保存状态由 `agent-options-persistence-status.tsx` 独立拥有；加载动画、移动端错误动作、浮层层级/材质与状态文本分别复用 Spinner、Button、overlay 和 Typography 语义，不得在详情页重新拼装。
 - 删除确认必须准确说明 Session、workspace、Goal、Automation 和相关绑定会随 Agent 清理或失效；请求执行中锁定关闭和重复提交。响应丢失时保留弹窗并先刷新权威 Agent 目录，只有明确 `not_applied` 才允许再次删除。
 - 创建 Agent 使用 owner-scoped 业务 request ID 和服务端 receipt；浏览器尽力保存该 ID 以便重载后查询，但存储或跨标签页协调不可用不能阻止创建。记录不保存名称、表单、秘密、API body 或 HTTP 诊断 ID；恢复不能靠名称或时间邻近猜测。
 - 桌面详情把聊天与发起群聊投影为同尺度的中性 ghost 工具，手机收进 `contacts-agent-detail-actions-menu.tsx`；普通协作入口不得伪装成蓝色 primary 或带外框的分段控件。
 - 视图回调由页面消费者定义，保持具体且不暴露整页控制器。
-- “联络”栏目由 `agent-communication-view.tsx` 直接呈现 Agent 视角的好友私聊客户端：左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；右侧必须用 `WorkspaceSurfaceHeader` 与 `WorkspaceConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
+- “联络”栏目由 `agent-communication-view.tsx` 只编排 Agent 视角的好友私聊工作面；`agent-communication-directory.tsx` 独立拥有搜索、好友行和添加弹窗，`agent-communication-model.ts` 统一名称/筛选投影，`agent-communication-status.tsx` 统一空、加载和读取失败。左侧只列好友并提供搜索/添加，普通群聊继续使用“聊天”入口；目录和候选项复用 `UiListRow`，容器、状态、动作和表单分别复用 `UiPanel / UiResourceState / UiButton / UiField`，不得手写原生按钮、字号、字重、任意圆角或 Spinner。右侧必须用 `WorkspaceSurfaceHeader` 与导航域 `RoomConversationTabs` 组成和聊天页同构的单行 Header，并复用 `ConversationPanelLayout`、`MessageItem` 和 `ComposerPanel`，不得复制消息气泡、输入壳、通讯录配置页或独立记录页。
 - 通讯录、会话、当前消息和更早消息的读取失败必须在原位置说明发生了什么、已有内容是否受影响以及下一步，并提供只刷新失败阶段的动作；同作用域有成功快照时继续展示并明确可能过期，没有快照时显示失败而不是空状态，权限失效、资源不存在或切换作用域后不得继续展示旧内容。
+- 联络目录搜索与添加入口由 `SidebarSearchField / SidebarSearchAction` 持有；无匹配提供清除动作，真实空目录提供添加动作，过滤后的空结果不得覆盖已有目录的刷新状态。
+- 添加好友弹窗在提交期间锁定关闭、候选、搜索与备注；当前有效候选是提交目标，搜索隐藏选择时明确显示已选身份，离开当前 Agent 后的迟到成功不得关闭另一个弹窗。
+- 删除好友确认保存打开时的目标快照，并投影控制器 `isRemoving`；目录选择变化不得改写确认目标，旧目标完成不得关闭新的确认。
 - 好友首次联络没有既有 Session 时也必须显示 Composer；首条手动消息由通讯发送接口原子确保隐藏通道，并用回执 Session 接续历史。
 - 好友私聊向上滚动时复用共享历史加载与前插锚定，按 `timestamp + message_id` 游标拉取更早消息，不得回退为扩大一次性 limit。
 - 联络 Header 可删除双向好友关系，但不得删除隐藏 Room 和消息历史；再次添加同一好友对时恢复原通道。
 - 添加好友使用 plain 选择表单；标题和提交动作不重复显示人物图标，候选列表中的头像与选中状态承担识别语义。
 - 联系人总侧栏用 `CirclePlus` 表达新建 Agent，Agent 联络通讯录用 `UserRoundPlus` 表达添加好友；两者尺寸一致但不得共用图形语义。
 - 侧栏“联系人”表达通讯录入口，目录页标题使用“智能体管理”表达创建和配置职责；不得再叠加 `Agents / AGENTS` 双重标题。
+
+- 联络 Header 的桌面身份直接使用公共 md 头像，不覆盖公共尺寸或叠加 Header 基座；窄屏返回按钮仍占同一 40px 位置，不改变会话导航与返回动作。
+
+- 详情的桌面目录返回使用 Workspace Header 的 action 插槽，不通过强制宽高/背景 class 绕过图标壳；窄窗视图选择直接复用 Header 的公共 Select Menu。
+
+- 详情窄窗动作菜单以 exact Agent ID 消费旧打开态，姓名和语言刷新保持；入口使用完整本地化姓名，缺名沿公共展示名兜底，不用 ID。聊天、建群、删除确认按显式值分派，未知值不能进入删除分支；页面继续拥有各命令与删除确认。
+- 保存状态使用统一 12px metadata：成功/错误/常规分别映射 success/danger/muted，完整消息由唯一 live status 公布。Header 密度直接服从父级的既有窄窗判定，不复制第二个 sm breakpoint。错误详情两种布局均可显式打开，32px 公共图标按钮不叠加 Tooltip/title；宽窗摘要限宽但完整消息保持可读。
+- 保存错误详情复用 shared Overlay 的 Portal、reference-list 几何、模态范围和关闭仲裁，正文 supporting 并可内部滚动；非模态详情打开后聚焦自身以支持键盘滚动，Escape 回触发器，Tab 续接相邻控件，外部点击保留目标焦点。Agent、保存阶段/文案或布局变化关闭旧详情，返回不复活；只显示既有错误事实，不增加保存、重试或恢复资格判断。
+
+- 保存反馈的 error 阶段也可能承载结果待确认的 warning；详情入口和标题统一使用中性“保存状态”，正文原样保留权威反馈，不从视图阶段推断已应用或失败。
+
+- 联络聊天将共享 FOLLOW 的 `showScrollToBottom` 与 `scrollToBottom` 原样投影到公共回到底部入口，同时声明浮动控件占位；不得固定隐藏滚动动作或另维护一份阅读状态。

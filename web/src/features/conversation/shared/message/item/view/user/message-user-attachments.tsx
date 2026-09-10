@@ -1,3 +1,6 @@
+// INPUT: User attachments and the current exact workspace Agent scope.
+// OUTPUT: Shared attachment actions or static badges without cross-workspace opening.
+// POS: User message attachment projection; callbacks retain workspace ownership.
 import {
   File,
   FileText,
@@ -7,7 +10,9 @@ import {
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { cn } from "@/shared/ui/class-name";
+import { UiButton } from "@/shared/ui/button/button";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 const ATTACHMENT_PRESENTATION: Record<
@@ -71,7 +76,7 @@ function MessageUserAttachment({
       <span className="min-w-0 truncate">
         {attachmentView.displayName}
       </span>
-      <span className="shrink-0 text-2xs text-(--text-faint)">
+      <span className={`shrink-0 ${getUiTypographyClassName({ role: "caption", tone: "soft" })}`}>
         {t(presentation.labelKey)}
       </span>
     </>
@@ -79,14 +84,16 @@ function MessageUserAttachment({
 
   if (!attachmentView.canOpen) {
     return (
-      <span className={attachmentView.className} title={attachmentView.title}>
+      <UiBadge className="max-w-[260px] min-w-0 gap-1.5" size="sm" title={attachmentView.title}>
         {content}
-      </span>
+      </UiBadge>
     );
   }
   return (
-    <button
-      className={attachmentView.className}
+    <UiButton
+      size="xs"
+      variant="outline"
+      className="max-w-[260px] min-w-0 gap-1.5"
       onClick={() => openMessageUserAttachment(
         attachment,
         onOpenWorkspaceFile,
@@ -96,7 +103,7 @@ function MessageUserAttachment({
       type="button"
     >
       {content}
-    </button>
+    </UiButton>
   );
 }
 
@@ -114,20 +121,9 @@ function projectMessageUserAttachment(
   ].every(Boolean);
   return {
     canOpen,
-    className: resolveAttachmentClassName(canOpen),
     displayName,
     title: `${displayName} · ${attachment.workspace_path}`,
   };
-}
-
-function resolveAttachmentClassName(canOpen: boolean): string {
-  return cn(
-    "inline-flex max-w-[260px] items-center radius-control-sm gap-1.5 border px-2.5 py-1 text-xs font-medium",
-    "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
-    canOpen
-      ? "cursor-pointer transition-colors hover:border-(--accent-color) hover:text-(--text-strong)"
-      : "cursor-default",
-  );
 }
 
 function openMessageUserAttachment(

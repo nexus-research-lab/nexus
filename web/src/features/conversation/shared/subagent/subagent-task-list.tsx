@@ -1,20 +1,28 @@
-// INPUT: 当前 scope 的子智能体任务快照、读取状态与刷新动作。
-// OUTPUT: 保留已有任务快照并完整说明读取失败影响和恢复路径的任务列表。
+// INPUT: 当前 scope 的任务快照、读取/定向任务缺项状态与刷新动作，以及可见页面的分钟时钟。
+// OUTPUT: 当前语言的运行/历史/未知状态目录、可读时间及保留快照的单一读取反馈。
 // POS: 子智能体目录纯视图；不解释底层异常，也不改变任务执行状态。
 "use client";
 
-import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { useId, type ReactNode } from "react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { formatRelativeTime } from "@/lib/format/relative-time";
+import { useMinuteClock } from "@/shared/lib/react/use-minute-clock";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type {
   SubagentTask,
@@ -22,6 +30,7 @@ import type {
 } from "@/types/conversation/subagent-task";
 
 import {
+  getSubagentTaskStatus,
   isSubagentTaskActive,
   subagentTaskAvatarSeed,
   subagentTaskTimestamp,
@@ -47,11 +56,11 @@ const SUPPORT_NOTICE_LABEL: Record<
   claude: "subagents.cc_unsupported_description",
   generic: "subagents.unsupported_description",
 };
-const ELAPSED_TIME_UNITS = [
-  { milliseconds: 86_400_000, suffix: { en: "d", zh: " 天" } },
-  { milliseconds: 3_600_000, suffix: { en: "h", zh: " 小时" } },
-  { milliseconds: 60_000, suffix: { en: "m", zh: " 分钟" } },
-] as const;
+const TASK_EXCEPTION_LABELS = {
+  pending: { key: "subagents.status_pending", tone: "idle" },
+  failed: { key: "subagents.status_failed", tone: "danger" },
+  stopped: { key: "subagents.status_stopped", tone: "default" },
+} as const;
 
 interface SubagentTaskListProps {
   data: SubagentTaskListResponse | null;
@@ -61,6 +70,7 @@ interface SubagentTaskListProps {
   onClose: () => void;
   onRefresh: () => void;
   onSelectTask: (taskId: string) => void;
+  requestedTaskUnavailable?: boolean;
   showTitle?: boolean;
   tasks: SubagentTask[];
 }
@@ -70,6 +80,7 @@ export function SubagentTaskList({
   error,
   headerLeading,
   isLoading,
+  requestedTaskUnavailable = false,
   onClose,
   onRefresh,
   onSelectTask,
@@ -77,10 +88,11 @@ export function SubagentTaskList({
   tasks,
 }: SubagentTaskListProps) {
   const { t } = useI18n();
-  const model = buildSubagentTaskListModel({ data, isLoading, tasks });
+  const model = buildSubagentTaskListModel({ data, hasError: Boolean(error), isLoading, tasks });
+  const now = useMinuteClock(!model.supportNotice && tasks.some((task) => subagentTaskTimestamp(task) > 0));
   const isDesktopPanel = !showTitle;
   const content = (
-    <div>
+    <div aria-busy={isLoading}>
       {!isDesktopPanel && headerLeading ? (
         <div className="mb-4 flex min-h-7 items-center">
           {headerLeading}
@@ -88,52 +100,58 @@ export function SubagentTaskList({
       ) : null}
 
       <SubagentTaskSection
-        emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
+        emptyState={requestedTaskUnavailable ? null : model.activeEmptyState}
         label={t("subagents.active_section")}
+        now={now}
         onSelectTask={onSelectTask}
         tasks={model.activeTasks}
       />
 
-      {error ? (
-        <div
-          aria-atomic="true"
-          aria-live="polite"
-          className="mt-3 rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] px-3 py-2.5"
-          role="status"
-        >
-          <p className="text-xs font-semibold leading-5 text-(--destructive)">
-            {t("subagents.list_load_failed_title")}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-            {t("subagents.list_load_failed_impact")}
-          </p>
-          <p className="mt-1 text-xs font-medium leading-5 text-(--text-default)">
-            {t("subagents.list_load_failed_next_step")}
-          </p>
-          <button
-            className="mt-2 text-xs font-semibold text-(--brand-action) hover:underline"
-            onClick={onRefresh}
-            type="button"
-          >
-            {t("subagents.retry")}
-          </button>
-        </div>
+      {error || requestedTaskUnavailable ? (
+        <UiInlineNotice
+          action={{
+            label: t("subagents.retry"),
+            onClick: onRefresh,
+            pending: isLoading,
+          }}
+          className="mt-3"
+          message={t(error ? "subagents.list_load_failed_impact" : "subagents.requested_task_missing_detail")}
+          title={t(error ? "subagents.list_load_failed_title" : "subagents.requested_task_missing_title")}
+          tone={error ? "danger" : "neutral"}
+        />
       ) : null}
 
       {model.supportNotice ? (
-        <p className="mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
+        <p className={cn(
+          "mt-3 max-w-[420px]",
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+        )}>
           {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
         </p>
       ) : null}
 
-      <div className="mt-5">
-        <SubagentTaskSection
-          countInLabel
-          label={t("subagents.completed_section")}
-          onSelectTask={onSelectTask}
-          tasks={model.completedTasks}
-        />
-      </div>
+      {model.unknownTasks.length > 0 ? (
+        <div className="mt-5">
+          <SubagentTaskSection
+            countInLabel
+            label={t("subagents.unknown_section")}
+            now={now}
+            onSelectTask={onSelectTask}
+            tasks={model.unknownTasks}
+          />
+        </div>
+      ) : null}
+      {model.historyTasks.length > 0 ? (
+        <div className="mt-5">
+          <SubagentTaskSection
+            countInLabel
+            label={t("subagents.history_section")}
+            now={now}
+            onSelectTask={onSelectTask}
+            tasks={model.historyTasks}
+          />
+        </div>
+      ) : null}
     </div>
   );
 
@@ -147,17 +165,18 @@ export function SubagentTaskList({
         ? "flex h-full min-h-0 flex-col"
         : "min-h-full"}
       header={showTitle ? {
-        action: (
-          <WorkspaceSurfaceToolbarAction
-            ariaLabel={t("common.close")}
+        kind: "mobile",
+        leading: (
+          <UiIconButton
+            aria-label={t("common.back")}
             onClick={onClose}
-            title={t("common.close")}
+            shape="round"
+            size="lg"
+            variant="ghost"
           >
-            <X className="h-3.5 w-3.5" />
-            {t("common.close")}
-          </WorkspaceSurfaceToolbarAction>
+            <ArrowLeft className="h-4 w-4" />
+          </UiIconButton>
         ),
-        kind: "page",
       } : undefined}
       maxWidthClassName="max-w-none"
       title={t("subagents.panel_title")}
@@ -170,7 +189,14 @@ export function SubagentTaskList({
             WORKSPACE_PANEL_HEADER_PADDING_CLASS,
           )}>
             {headerLeading ?? (
-              <span className="truncate text-xs font-medium text-(--text-soft)">
+              <span className={cn(
+                "truncate",
+                getUiTypographyClassName({
+                  role: "caption",
+                  tone: "soft",
+                  weight: "medium",
+                }),
+              )}>
                 {t("subagents.panel_title")}
               </span>
             )}
@@ -188,25 +214,41 @@ export function SubagentTaskList({
 
 function SubagentTaskSection({
   countInLabel = false,
-  emptyText,
+  emptyState,
   label,
+  now,
   onSelectTask,
   tasks,
 }: {
   countInLabel?: boolean;
-  emptyText?: string;
+  emptyState?: SubagentTaskListEmptyState | null;
   label: string;
+  now: number;
   onSelectTask: (taskId: string) => void;
   tasks: SubagentTask[];
 }) {
+  const { locale, t } = useI18n();
+  const headingId = useId();
   return (
-    <section>
-      <h2 className="pr-9 text-compact font-semibold text-(--text-soft)">
-        {label}{countInLabel ? ` · ${tasks.length}` : ""}
+    <section aria-labelledby={headingId}>
+      <h2 id={headingId} className={cn(
+        getUiTypographyClassName({
+          role: "supporting",
+          tone: "soft",
+          weight: "semibold",
+        }),
+      )}>
+        {label}{countInLabel ? ` · ${new Intl.NumberFormat(locale).format(tasks.length)}` : ""}
       </h2>
 
-      {tasks.length === 0 && emptyText ? (
-        <p className="mt-3 text-compact text-(--text-soft)">{emptyText}</p>
+      {tasks.length === 0 && emptyState ? (
+        <p className={cn(
+          "mt-3 flex items-center gap-2",
+          getUiTypographyClassName({ role: "supporting", tone: "soft" }),
+        )} role={emptyState === "loading" ? "status" : undefined}>
+          {emptyState === "loading" ? <Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} /> : null}
+          {t(ACTIVE_EMPTY_LABEL[emptyState])}
+        </p>
       ) : null}
 
       {tasks.length > 0 ? (
@@ -214,6 +256,7 @@ function SubagentTaskSection({
           {tasks.map((task) => (
             <SubagentTaskRow
               key={task.task_id}
+              now={now}
               onClick={() => onSelectTask(task.task_id)}
               task={task}
             />
@@ -225,15 +268,21 @@ function SubagentTaskSection({
 }
 
 function SubagentTaskRow({
+  now,
   onClick,
   task,
 }: {
+  now: number;
   onClick: () => void;
   task: SubagentTask;
 }) {
   const { locale, t } = useI18n();
   const timestamp = subagentTaskTimestamp(task);
-  const title = subagentTaskTitle(task);
+  const status = getSubagentTaskStatus(task);
+  const exception = status === "pending" || status === "failed" || status === "stopped"
+    ? TASK_EXCEPTION_LABELS[status]
+    : null;
+  const title = subagentTaskTitle(task, t);
   const description = task.description?.trim() ?? "";
   const summary = [
     task.summary,
@@ -244,33 +293,50 @@ function SubagentTaskRow({
     .find(Boolean) ?? t("subagents.no_description");
 
   return (
-    <button
-      className="group -mx-1.5 flex w-[calc(100%+0.75rem)] min-w-0 items-start gap-2.5 radius-control-sm px-1.5 py-1.5 text-left transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+    <UiListRow
+      data-subagent-task-id={task.task_id}
+      className="items-start"
+      density="dense"
+      leading={(
+        <SubagentTaskAvatar
+          isActive={isSubagentTaskActive(task)}
+          name={title}
+          seed={subagentTaskAvatarSeed(task)}
+        />
+      )}
       onClick={onClick}
-      title={t("subagents.open_task")}
-      type="button"
     >
-      <SubagentTaskAvatar
-        isActive={isSubagentTaskActive(task)}
-        name={title}
-        seed={subagentTaskAvatarSeed(task)}
-      />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
-          <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-(--text-strong)">
+          <span className={cn(
+            "min-w-0 flex-1 truncate",
+            getUiTypographyClassName({
+              role: "supporting",
+              tone: "strong",
+              weight: "medium",
+            }),
+          )}>
             {title}
           </span>
           {timestamp ? (
-            <time className="shrink-0 text-xs tabular-nums text-(--text-soft)">
-              {formatCompactElapsedTime(timestamp, locale)}
-            </time>
+            <UiTooltip label={new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(timestamp)}><time
+              dateTime={new Date(timestamp).toISOString()}
+
+              className={cn(
+                "shrink-0 tabular-nums",
+                getUiTypographyClassName({ role: "caption", tone: "soft" }),
+              )}
+            >
+              {formatRelativeTime(timestamp, locale, { compact: true, now })}
+            </time></UiTooltip>
           ) : null}
         </span>
-        <span className="block truncate text-compact leading-4.5 text-(--text-muted)">
-          {summary}
+        <span className="flex min-w-0 items-center gap-1.5">
+          {exception ? <UiBadge size="sm" tone={exception.tone}>{t(exception.key)}</UiBadge> : null}
+          <span className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>{summary}</span>
         </span>
       </span>
-    </button>
+    </UiListRow>
   );
 }
 
@@ -289,24 +355,12 @@ export function SubagentTaskAvatar({
     <UiSeededAvatar
       className={cn(
         "mt-0.5",
-        isActive && "ring-1 ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] ring-offset-1 ring-offset-(--background)",
         className,
       )}
       seed={seed}
       size="2xs"
+      state={isActive ? "running" : "default"}
       title={name}
     />
   );
-}
-
-function formatCompactElapsedTime(timestamp: number, locale: string): string {
-  const elapsedMs = Math.max(0, Date.now() - timestamp);
-  const unit = ELAPSED_TIME_UNITS.find(
-    ({ milliseconds }) => elapsedMs >= milliseconds,
-  );
-  if (!unit) {
-    return locale === "en" ? "now" : "刚刚";
-  }
-  const value = Math.floor(elapsedMs / unit.milliseconds);
-  return `${value}${locale === "en" ? unit.suffix.en : unit.suffix.zh}`;
 }

@@ -13,3 +13,4 @@
 - 桌面与移动端只消费同一个面板模型，不重复补全 Agent 身份或动作能力。
 - Thread 根目录只保留目标状态与上下文，不放卡片视图或实时数据投影。
 - 停止动作属于主 Feed 的 Agent slot 卡片；Thread 面板和通用消息项不暴露 Room 全局停止回调。
+- 控制 Provider 保留轻量选择态：重复打开同一 root/Agent/agent_round 不替换目标，目录/语言/普通回调刷新不关闭；会话切换的关闭与 source 发布/卸载清理继续由 `live/use-room-thread-source.ts` 统一驱动，不能在 Header、窄窗或 Provider 再造重置缓存。共置 DOM 回归使用真实发布者与独立消费叶子验证 A→B→A 不复活旧选择，保持聊天子树挂载。

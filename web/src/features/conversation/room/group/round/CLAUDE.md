@@ -11,3 +11,5 @@
 - 反向也必须成立：没有 live slot、pending interaction 或 active lifecycle 时，历史中遗留的 `pending/streaming` 不得使 Agent entry 继续显示正在执行。
 - 重连后同一根轮次与 Agent 出现更新的 execution 时，较早且未收口的 execution 单调转为 cancelled；分页拆出的公区节点继续携带该终态，历史 entry 与顺序保留，不能让旧 Stop 控件与新执行并存。
 - 本目录只放纯模型，不读取 Store、不调用 API、不持有 React 状态。
+
+`permission_review` 是绑定工具调用的审核审计，仅在 DM/对应 Room Thread 展示，不作为可操作权限卡，也不在 Room 公区展示。

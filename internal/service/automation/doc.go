@@ -5,6 +5,7 @@
 // 与 internal/automation 分工：那里是调度域纯逻辑，这里是服务编排与运行时接线。
 //
 // 成员清单：
+//   - command_schema.go：按 Actor/operation 生成精确封闭 schema，原始输入校验、可复用 plan 输入投影与确认前 revision/digest 校验。
 //   - task_crud.go / task_configuration.go / task_*.go / runtime_state.go：
 //     任务创建幂等、配置版本 CAS、纯查询投影、运行与统一运行态投影；删除先持久
 //     claim 并拒绝新操作，再以 exact token 幂等清理全部 run/权限/投递和 isolated
@@ -17,7 +18,7 @@
 //   - delivery_authority.go：创建 provenance 与独立 delivery grant 分离，以及 create/update/投递/重试时对真实 Nexus/Room/IM Session、Room 回复 Agent、owner-main/self/成员/active pairing 的动态复核；Room 未显式选择回复者时固化当前房主。
 //   - scheduler.go：基于内存最近 deadline、持久失败投递 deadline、变更唤醒与
 //     低频审计的阶段分发、数据库 leader 租约、过期/单次完成任务的窄字段停用 CAS、
-//     多实例目录收敛与超时恢复；不做每秒扫描。
+//     多实例目录收敛、已结束运行残留占用对账与超时恢复；不做每秒扫描。
 //   - execution*.go / main_session_execution.go / run_terminal_delivery.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理；task runtime claim 与首条 run ledger 按 exact owner/job/run/configuration/permission snapshot 原子受理，commit 后才 dispatch，人工 request 可重放 exact ExecutionResult；启动、删除、恢复和投递仅占用同任务分片 fence，不让 runtime dispatch 阻塞其他任务配置；execution terminal 与 exact task runtime 先原子提交，成功结果以 pending ledger 进入可恢复首次投递，删除态只保存 suppressed terminal 且不外投。
 //   - heartbeat_*.go：heartbeat 配置与 wake 控制；每次 wake（包括无文本）先在
 //     durable configuration_version 事务栅栏内写 outbox，再由 exact claim 租约派发；

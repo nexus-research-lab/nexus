@@ -6,6 +6,7 @@
 - `panel/view/` 只渲染面板布局与局部控件。
 - `feed/` 把轮次源渲染为普通或虚拟列表。
 - 根目录只保留空状态和 Goal 等 Chat 直属能力；Thread 实时桥归相邻 `group/thread/live/`。
+- `room-goal-panel.tsx` 用共享 GoalPanel 当前 Goal 的投影函数计算负责人和 continuation hold，不维护第二份 Goal 或依赖 onGoalChange 的刷新时机；后者直接交给外部观察者。`room-goal-model.ts` 统一成员资格、缺失负责人门禁，UI 姓名由公共选择目录投影。
 
 ## 边界
 

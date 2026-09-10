@@ -1,16 +1,14 @@
-import type { RefObject } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+// INPUT: Archived process, assistant content environment and disclosure state.
+// OUTPUT: Process disclosure; generated-file summaries are owned by the reply footer.
+// POS: Archived Assistant process orchestration; file cards own action eligibility.
 
-import type {
-  ContentBlock,
-  WorkspaceFileArtifactContent,
-} from "@/types/conversation/message/content";
+import type { RefObject } from "react";
+import { Wrench } from "lucide-react";
+
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 
-import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
-import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import { getLocalizedToolTitle } from "../../../tool-activity";
 import type {
   ProcessSummaryDetail,
@@ -24,13 +22,12 @@ import type {
   AssistantProcessState,
 } from "./assistant-message-model";
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
+import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 
-const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 
 interface AssistantProcessCallchainProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
 }
@@ -38,14 +35,9 @@ interface AssistantProcessCallchainProps {
 export function AssistantProcessCallchain({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   process,
 }: AssistantProcessCallchainProps) {
-  const collapsedFileArtifacts = useWorkspaceFileArtifactsFromContent(
-    selectCollapsedProcessContent(process),
-  );
-
   if (!process.visible) {
     return null;
   }
@@ -53,16 +45,9 @@ export function AssistantProcessCallchain({
   return (
     <div ref={process.anchorRef as RefObject<HTMLDivElement>}>
       <ProcessToggleButton process={process} />
-      <CollapsedProcessArtifacts
-        artifacts={collapsedFileArtifacts}
-        label={generatedFilesLabel}
-        onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-        visible={!process.expanded}
-      />
       <ExpandedProcessContent
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         process={process}
         visible={process.expanded}
@@ -71,29 +56,21 @@ export function AssistantProcessCallchain({
   );
 }
 
-function selectCollapsedProcessContent(
-  process: AssistantProcessState,
-): ContentBlock[] {
-  const shouldCollectArtifacts = process.visible && !process.expanded;
-  return shouldCollectArtifacts
-    ? process.projection.content
-    : EMPTY_CONTENT_BLOCKS;
-}
-
 function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
   const { t } = useI18n();
   return (
-    <button
-      className="flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+    <MessageDetailToggle
+      expanded={process.expanded}
+      leading={(
+        <Wrench
+          className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
+          strokeWidth={1.8}
+        />
+      )}
       onClick={process.toggle}
-      type="button"
     >
-      <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" strokeWidth={1.8} />
-      <div className="min-w-0 flex-1 truncate text-sm font-normal leading-5 text-(--text-muted)">
-        {formatProcessSummary(process.summary, t)}
-      </div>
-      <ProcessExpansionIcon expanded={process.expanded} />
-    </button>
+      {formatProcessSummary(process.summary, t)}
+    </MessageDetailToggle>
   );
 }
 
@@ -158,50 +135,15 @@ function formatProcessDetail(
     : title;
 }
 
-function ProcessExpansionIcon({ expanded }: { expanded: boolean }) {
-  const Icon = expanded ? ChevronDown : ChevronRight;
-  return (
-    <div className="text-(--icon-muted)">
-      <Icon className="h-3.5 w-3.5" />
-    </div>
-  );
-}
-
-function CollapsedProcessArtifacts({
-  artifacts,
-  label,
-  onOpenWorkspaceFile,
-  visible,
-}: {
-  artifacts: WorkspaceFileArtifactContent[];
-  label: string;
-  onOpenWorkspaceFile?: (path: string) => void;
-  visible: boolean;
-}) {
-  if (!visible) {
-    return null;
-  }
-  return (
-    <WorkspaceFileArtifactList
-      artifacts={artifacts}
-      className="ml-5 pb-1"
-      label={label}
-      onOpenWorkspaceFile={onOpenWorkspaceFile}
-    />
-  );
-}
-
 function ExpandedProcessContent({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   process,
   visible,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
   visible: boolean;
@@ -214,7 +156,6 @@ function ExpandedProcessContent({
       <AssistantToolRuns
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         projection={process.projection}
         responseResumed={false}

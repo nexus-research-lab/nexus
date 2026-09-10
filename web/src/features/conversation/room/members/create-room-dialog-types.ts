@@ -5,6 +5,15 @@ export interface RoomMemberAgentOption {
   room_participation_paused?: boolean;
 }
 
+export interface RoomMemberUserOption {
+  avatar?: string | null;
+  display_name: string;
+  user_id: string;
+  username: string;
+}
+
+export type RoomLocation = "local" | "online";
+
 export interface RoomDialogSubmission {
   agentIds: string[];
   avatar?: string;
@@ -14,6 +23,8 @@ export interface RoomDialogSubmission {
   pausedAgentIds: string[];
   privateMessagesEnabled: boolean;
   skillNames: string[];
+  location: RoomLocation;
+  userIds: string[];
 }
 
 export type RoomDialogMode = "create" | "manage";
@@ -31,8 +42,10 @@ export interface CreateRoomDialogProps {
   isCreating?: boolean;
   isOpen: boolean;
   mode?: RoomDialogMode;
+  onlineAvailable?: boolean;
+  users?: RoomMemberUserOption[];
   onCancel: () => void;
-  onConfirm: (submission: RoomDialogSubmission) => void;
+  onConfirm: (submission: RoomDialogSubmission) => void | Promise<void>;
 }
 
 export interface RoomDialogFormState {
@@ -40,10 +53,12 @@ export interface RoomDialogFormState {
   hostAgentId: string;
   hostAutoReplyEnabled: boolean;
   memberQuery: string;
+  location: RoomLocation;
   name: string;
   pausedAgentIds: string[];
   privateMessagesEnabled: boolean;
   selectedAgentIds: string[];
   selectedSkillNames: string[];
+  selectedUserIds: string[];
   skillQuery: string;
 }

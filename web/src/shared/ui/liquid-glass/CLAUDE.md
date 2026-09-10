@@ -3,7 +3,11 @@
 - `liquid-glass-engine.ts` 只判断浏览器能力，不依赖 React。
 - `use-liquid-glass-support.ts` 负责挂载后的能力启用和稳定 filter id。
 - `glass-switch.tsx` 只投影并组合开关几何；键盘、指针和过渡结束协议归交互 Hook，SVG 资源链归 Filter 视图。
-- `GlassSwitch` 强制消费并转发具体的 `aria-label`；每个调用方必须用当前界面语言描述实际切换目标，禁止匿名开关。
-- `glass-magnifier.tsx` 只组合放大镜表面；Web Animation 生命周期和 SVG 资源链分别独立维护。
+- `GlassSwitch` 强制消费并转发具体的 `aria-label`，并由同一个 native button/`role=switch` 持有点击、键盘、`aria-checked` 与真实 disabled；每个调用方必须用当前界面语言描述实际切换目标，禁止匿名开关，也不得在外层增加 `span role=button` 伪造第二命中区。业务需要解释受保护状态时，保持 switch 可操作并在 `onChange` 中进入确认/说明流程。
+- 可见说明通过可选 aria-describedby 原样关联到该 button，允许多个说明 ID；ID 的实例隔离和业务内容归调用方，原语不生成第二份隐藏说明。
 - 消费者直接导入具体组件，不恢复目录级聚合出口。
-- 动画资源必须在卸载时从当前 ref 取消；禁止在 render 阶段通过状态写入同步 Props。
+- 禁止在 render 阶段通过状态写入同步 Props。
+
+- 指针按压只接受主按钮；捕获被宿主或其他控件夺走时清理按压外观，不触发业务切换。点击命令仍只由原生 click 负责。
+
+- `glass-magnifier.tsx` 为侧栏字标提供玻璃盖板与悬停弹性动效，复用历史 `glass-magnifier-filter.tsx` 与三张 magnifier 贴图；`use-glass-magnifier-animation.ts` 恢复历史悬停循环形变与移开回弹，减弱动态效果时保持静止，卸载时取消动画。可选 underlay 承载调用方彩光，置于玻璃和文字下方；滤镜贴图按实际盖板区域铺满，禁止固定尺寸与等比居中产生内嵌椭圆。外层链接负责交互，文字保持清晰。

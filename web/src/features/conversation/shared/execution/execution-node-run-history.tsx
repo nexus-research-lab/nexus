@@ -1,17 +1,19 @@
 /**
  * INPUT: GraphNode 下的有界 NodeRun 历史、结构化 workspace Artifact 与正式交付引用。
- * OUTPUT: 可展开的运行结果/错误时间线和可打开文件引用。
+ * OUTPUT: 本地化运行历史、共享行内错误与来源节点工作区的文件引用；缺失事实不以内部身份冒充可读详情。
  * POS: 节点悬浮检查器的深入事实视图；不从摘要推断状态或触发重试。
  */
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { WorkspaceFileArtifactBlock } from "@/features/conversation/shared/message/blocks/artifact/workspace-file-artifacts";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ExecutionGraphNodeRunView,
   ExecutionGraphNodeView,
@@ -19,16 +21,7 @@ import type {
 } from "@/types/conversation/execution";
 
 import { resolveExecutionWorkspaceReference } from "./execution-workgraph-interaction-model";
-
-const RUN_STATUS_LABEL_KEY: Record<string, TranslationKey> = {
-  cancelled: "execution.attempt_cancelled",
-  failed: "execution.attempt_failed",
-  interrupted: "execution.attempt_interrupted",
-  pending: "execution.attempt_pending",
-  running: "execution.attempt_running",
-  succeeded: "execution.attempt_succeeded",
-  timed_out: "execution.attempt_timed_out",
-};
+import { formatExecutionRunTime, getExecutionRunStatusLabel } from "./execution-run-presentation";
 
 export function ExecutionNodeRunHistory({
   item,
@@ -55,10 +48,17 @@ export function ExecutionNodeRunHistory({
       {runs.length > 0 ? (
         <>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <h4 className="text-[10px] font-medium text-(--text-soft)">
+            <h4 className={getUiTypographyClassName({
+              role: "metadata",
+              tone: "default",
+              weight: "medium",
+            })}>
               {t("execution.run_history")}
             </h4>
-            <span className="text-[10px] tabular-nums text-(--text-soft)">
+            <span className={cn(
+              "tabular-nums",
+              getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+            )}>
               {t("execution.run_history_count", { count: runs.length })}
             </span>
           </div>
@@ -77,34 +77,40 @@ export function ExecutionNodeRunHistory({
       ) : null}
       {references.length > 0 ? (
         <div className={cn(runs.length > 0 && "mt-3")}>
-          <h4 className="mb-1 text-[10px] font-medium text-(--text-soft)">
+          <h4 className={cn(
+            "mb-1",
+            getUiTypographyClassName({
+              role: "metadata",
+              tone: "default",
+              weight: "medium",
+            }),
+          )}>
             {t("execution.reference_outputs")}
           </h4>
           <ul className="space-y-1">
             {references.map((reference) => {
               const workspacePath = resolveExecutionWorkspaceReference(reference);
-              const actionable = Boolean(workspacePath && onOpenWorkspaceFile);
+              const actionable = Boolean(workspacePath && workspaceAgentId?.trim() && onOpenWorkspaceFile);
               return (
                 <li key={reference}>
-                  <button
-                    className={cn(
-                      "flex w-full min-w-0 items-center gap-2 rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] px-2 py-1.5 text-left text-[10px]",
-                      actionable
-                        ? "text-(--text-default) transition hover:bg-(--surface-interactive-hover-background)"
-                        : "cursor-default text-(--text-soft)",
-                    )}
+                  <UiButton
+                    className="w-full min-w-0 justify-start"
                     disabled={!actionable}
                     onClick={() => {
-                      if (workspacePath) {
+                      if (actionable && workspacePath) {
                         onOpenWorkspaceFile?.(workspacePath, workspaceAgentId);
                       }
                     }}
+                    size="xs"
                     title={reference}
-                    type="button"
+                    variant="surface"
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-                    <span className="message-cjk-code-font truncate">{reference}</span>
-                  </button>
+                    <span className={cn(
+                      "message-cjk-code-font truncate",
+                      getUiTypographyClassName({ role: "code", tone: "default" }),
+                    )}>{reference}</span>
+                  </UiButton>
                 </li>
               );
             })}
@@ -129,21 +135,19 @@ function ExecutionNodeRunDetail({
   run: ExecutionGraphNodeRunView;
   workspaceAgentId?: string | null;
 }) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(defaultOpen);
+  const { locale, t } = useI18n();
   const status = run.status?.trim() ?? "";
-  const statusLabel = RUN_STATUS_LABEL_KEY[status]
-    ? t(RUN_STATUS_LABEL_KEY[status])
-    : status;
-  const timeLabel = formatExecutionRunTime(run);
+  const statusLabel = getExecutionRunStatusLabel(status, t);
+  const timeLabel = formatExecutionRunTime(run, { locale, t });
+  const errorSummary = run.error_summary?.trim();
+  const errorCode = run.error_code?.trim();
   return (
-    <details
-      className="group rounded-[9px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_64%,transparent)]"
+    <UiDisclosure
       data-execution-node-run={run.id}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-      open={open}
-    >
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-2 py-1.5 text-[10px] [&::-webkit-details-marker]:hidden">
+      defaultOpen={defaultOpen}
+      density="compact"
+      label={statusLabel}
+      leading={(
         <span
           aria-hidden="true"
           className={cn(
@@ -151,32 +155,45 @@ function ExecutionNodeRunDetail({
             runStatusTone(status),
           )}
         />
-        <span className="min-w-0 flex-1 truncate font-medium text-(--text-default)">
-          {statusLabel || run.id}
-        </span>
-        {timeLabel ? (
-          <span className="shrink-0 tabular-nums text-(--text-soft)">{timeLabel}</span>
+      )}
+      meta={timeLabel ? <span className="tabular-nums">{timeLabel}</span> : null}
+      summaryRole="supporting"
+      surfaceTone="subtle"
+      variant="panel"
+    >
+      <div className={cn(
+        "space-y-2 break-words",
+        getUiTypographyClassName({ role: "supporting", tone: "default" }),
+      )}>
+        {errorSummary || errorCode ? (
+          <UiInlineNotice
+            aria-live="off"
+            message={(
+              <>
+                {errorSummary ? <p className="whitespace-pre-wrap">{errorSummary}</p> : null}
+                {errorCode ? (
+                  <p className={cn(
+                    errorSummary && "mt-1",
+                    getUiTypographyClassName({ role: "code", tone: "muted" }),
+                  )}>
+                    {errorCode}
+                  </p>
+                ) : null}
+              </>
+            )}
+            role="note"
+            tone="warning"
+          />
         ) : null}
-        <ChevronDown className="h-3 w-3 shrink-0 text-(--icon-muted) transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="space-y-2 border-t dialog-divider px-2 py-2 text-[10px] leading-4 text-(--text-default)">
-        {run.error_summary?.trim() ? (
-          <div className="rounded-[7px] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-2 py-1.5">
-            <p>{run.error_summary.trim()}</p>
-            {run.error_code?.trim() ? (
-              <p className="mt-1 font-mono text-[9px] text-(--text-soft)">
-                {run.error_code.trim()}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {run.result_summary?.trim() ? <p>{run.result_summary.trim()}</p> : null}
+        {run.result_summary?.trim() ? <p className="whitespace-pre-wrap">{run.result_summary.trim()}</p> : null}
         {run.summary_truncated ? (
-          <p className="text-[9px] text-(--text-soft)">{t("execution.summary_truncated")}</p>
+          <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
+            {t("execution.summary_truncated")}
+          </p>
         ) : null}
         {(run.artifacts?.length ?? 0) > 0 ? (
           <div className="space-y-1.5 pt-0.5">
-            <p className="text-[9px] font-medium text-(--text-soft)">
+            <p className={getUiTypographyClassName({ role: "metadata", tone: "default", weight: "medium" })}>
               {t("execution.artifacts")}
             </p>
             {run.artifacts?.map((artifact) => (
@@ -184,22 +201,24 @@ function ExecutionNodeRunDetail({
                 artifact={{
                   ...artifact,
                   scope: "agentWorkspace",
-                  workspace_agent_id: artifact.workspace_agent_id ?? workspaceAgentId,
                 }}
                 compact
                 key={artifact.id || `${artifact.source_tool_use_id}:${artifact.path}`}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
+                workspaceAgentId={workspaceAgentId}
               />
             ))}
           </div>
         ) : null}
-        {!run.error_summary?.trim()
+        {!errorSummary && !errorCode
           && !run.result_summary?.trim()
           && (run.artifacts?.length ?? 0) === 0 ? (
-            <p className="text-(--text-soft)">{run.id}</p>
+            <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
+              {t("execution.run_details_unavailable")}
+            </p>
           ) : null}
       </div>
-    </details>
+    </UiDisclosure>
   );
 }
 
@@ -214,31 +233,6 @@ function collectExecutionOutputReferences(
     ),
   ];
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
-}
-
-function formatExecutionRunTime(run: ExecutionGraphNodeRunView): string {
-  if ((run.duration_ms ?? 0) > 0) {
-    const milliseconds = run.duration_ms ?? 0;
-    if (milliseconds < 1_000) {
-      return `${Math.round(milliseconds)}ms`;
-    }
-    const seconds = milliseconds / 1_000;
-    return seconds < 60
-      ? `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`
-      : `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-  }
-  const timestamp = run.finished_at ?? run.started_at;
-  if (!timestamp) {
-    return "";
-  }
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function runStatusTone(status: string): string {

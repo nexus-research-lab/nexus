@@ -1,9 +1,12 @@
 import { useCallback, useMemo, useReducer } from "react";
 
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
+
 import type {
   RoomDialogFormState,
   RoomDialogSubmission,
   RoomMemberAgentOption,
+  RoomMemberUserOption,
 } from "./create-room-dialog-types";
 
 type RoomFormTransition = (
@@ -20,6 +23,7 @@ interface UseCreateRoomFormOptions {
   initialPrivateMessagesEnabled: boolean;
   initialRoomSkillNames: string[];
   initialSelectedAgentIds: string[];
+  users: RoomMemberUserOption[];
 }
 
 export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
@@ -36,6 +40,10 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     () => new Set(state.pausedAgentIds),
     [state.pausedAgentIds],
   );
+  const selectedUserIdSet = useMemo(
+    () => new Set(state.selectedUserIds),
+    [state.selectedUserIds],
+  );
   const selectedAgents = useMemo(
     () =>
       options.agents.filter((agent) =>
@@ -44,13 +52,16 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     [options.agents, selectedAgentIdSet],
   );
   const filteredAgents = useMemo(() => {
-    const query = state.memberQuery.trim().toLowerCase();
-    return query
-      ? options.agents.filter((agent) =>
-          agent.name.toLowerCase().includes(query),
-        )
-      : options.agents;
+    const search = createUiSearchMatcher(state.memberQuery);
+    return options.agents.filter((agent) => search.matches([agent.name]));
   }, [options.agents, state.memberQuery]);
+  const filteredUsers = useMemo(() => {
+    const search = createUiSearchMatcher(state.memberQuery);
+    return options.users.filter((user) => search.matches([
+      user.display_name,
+      user.username,
+    ]));
+  }, [options.users, state.memberQuery]);
   const update = useCallback(
     <Field extends keyof RoomDialogFormState>(
       field: Field,
@@ -80,19 +91,29 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
       };
     });
   }, []);
+  const toggleUser = useCallback((userId: string) => {
+    dispatch((current) => ({
+      ...current,
+      selectedUserIds: toggleMemberId(current.selectedUserIds, userId),
+    }));
+  }, []);
 
   return {
     canSubmit:
-      state.selectedAgentIds.length > 0 && state.name.trim().length > 0,
+      state.name.trim().length > 0 &&
+      (state.location === "online" || state.selectedAgentIds.length > 0),
     filteredAgents,
+    filteredUsers,
     pausedAgentIdSet,
     selectedAgentIdSet,
+    selectedUserIdSet,
     selectedAgents,
     setAvatar: (avatar: string) => update("avatar", avatar),
     setHostAgentId,
     setHostAutoReplyEnabled: (enabled: boolean) =>
       update("hostAutoReplyEnabled", enabled),
     setMemberQuery: (query: string) => update("memberQuery", query),
+    setLocation: (location: RoomDialogFormState["location"]) => update("location", location),
     setName: (name: string) => update("name", name),
     setPrivateMessagesEnabled: (enabled: boolean) =>
       update("privateMessagesEnabled", enabled),
@@ -103,6 +124,7 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     submission: buildRoomDialogSubmission(state),
     toggleAgent,
     toggleParticipation,
+    toggleUser,
   };
 }
 
@@ -121,11 +143,13 @@ function createInitialRoomFormState(
     hostAgentId: options.initialHostAgentId?.trim() ?? "",
     hostAutoReplyEnabled: options.initialHostAutoReplyEnabled,
     memberQuery: "",
+    location: "local",
     name: options.initialName,
     pausedAgentIds: [...options.initialPausedAgentIds],
     privateMessagesEnabled: options.initialPrivateMessagesEnabled,
     selectedAgentIds: [...options.initialSelectedAgentIds],
     selectedSkillNames: [...options.initialRoomSkillNames],
+    selectedUserIds: [],
     skillQuery: "",
   });
 }
@@ -135,15 +159,18 @@ function normalizeRoomForm(state: RoomDialogFormState): RoomDialogFormState {
   const pausedAgentIds = state.pausedAgentIds.filter((agentId) => (
     selectedAgentIds.has(agentId)
   ));
-  if (state.hostAgentId && selectedAgentIds.has(state.hostAgentId)) {
-    return { ...state, pausedAgentIds };
-  }
-  return {
+  const next = {
     ...state,
-    hostAgentId: "",
-    hostAutoReplyEnabled: false,
     pausedAgentIds,
   };
+  if (!state.hostAgentId || !selectedAgentIds.has(state.hostAgentId)) {
+    next.hostAgentId = "";
+    next.hostAutoReplyEnabled = false;
+  }
+  if (state.location === "online") {
+    next.hostAutoReplyEnabled = false;
+  }
+  return next;
 }
 
 function toggleMemberId(memberIds: string[], agentId: string): string[] {
@@ -169,5 +196,7 @@ function buildRoomDialogSubmission(
     pausedAgentIds: state.pausedAgentIds,
     privateMessagesEnabled: state.privateMessagesEnabled,
     skillNames: state.selectedSkillNames,
+    location: state.location,
+    userIds: state.location === "online" ? state.selectedUserIds : [],
   };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
@@ -324,11 +324,10 @@ function buildSkillsProps(
 }
 
 function buildAdvancedProps(
-  { draft, toggleTool, updateField }: DraftController,
+  { draft, updateField }: DraftController,
   connectors: ReturnType<typeof useAgentConnectors>,
 ) {
   return {
-    allowedTools: draft.allowedTools,
     connectorIds: draft.connectorIds,
     connectors: connectors.items,
     connectorsError: connectors.error,
@@ -341,7 +340,6 @@ function buildAdvancedProps(
         ? draft.connectorIds.filter((value) => value !== connectorId)
         : [...draft.connectorIds, connectorId],
     ),
-    onToggleTool: toggleTool,
     permissionMode: draft.permissionMode,
   };
 }

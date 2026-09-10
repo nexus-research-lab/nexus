@@ -3,12 +3,12 @@
 /**
  * INPUT: 共享 Home 目录、主题、当前 Agent、可选初始草稿与 Launcher 导航命令。
  * OUTPUT: 加载、目录降级、DM ensure 结果核对和带可确认草稿的正常 Console 页面状态。
- * POS: Launcher 页面装配层；目录请求归 Home 资源，结果未知的私聊准备不得直接重放。
+ * POS: Launcher 页面装配层；目录请求归 Home 资源，结果未知的私聊准备不得直接重放，旧导航完成不得覆盖新选择或离开后的页面。
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import {
@@ -55,9 +55,19 @@ export function LauncherPage() {
     (state) => state.set_active_panel_item,
   );
   const defaultAgentId = getDefaultAgentId();
+  const navigationGeneration = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      navigationGeneration.current += 1;
+    };
+  }, []);
 
   const openNavigationRoute = useCallback(
     (route: string) => {
+      navigationGeneration.current += 1;
       navigate(route);
     },
     [navigate],
@@ -65,16 +75,20 @@ export function LauncherPage() {
 
   const openAgentDm = useCallback(
     async (agentId: string, initialPrompt?: string) => {
+      const generation = ++navigationGeneration.current;
+      const isCurrent = () => mountedRef.current && generation === navigationGeneration.current;
       try {
         const { context, route } = await resolveDirectRoomNavigationTarget(
           agentId,
           initialPrompt,
         );
+        if (!isCurrent()) return;
         setCurrentAgent(agentId);
         setActivePanelItem(context.room.id);
         setNavigationFailure(null);
         openNavigationRoute(route);
       } catch (error) {
+        if (!isCurrent()) return;
         const projected = projectMutationFailure(
           error,
           t("launcher.failure.direct_room_message"),

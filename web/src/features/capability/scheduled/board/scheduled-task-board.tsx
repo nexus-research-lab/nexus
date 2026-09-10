@@ -9,21 +9,20 @@ import type { LucideIcon } from "lucide-react";
 import {
   BellRing,
   ClipboardList,
-  LoaderCircle,
   MonitorCheck,
   Plus,
   RefreshCw,
 } from "lucide-react";
 
 import type { ResourceFailure } from "@/lib/error-message";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
+import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import {
-  WORKSPACE_CATALOG_GRID_CLASS_NAME,
-  WORKSPACE_CONTENT_BLEED_CLASS_NAME,
-} from "@/shared/ui/layout/workspace-content-layout";
+import { WORKSPACE_CONTENT_BLEED_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
@@ -104,7 +103,7 @@ function ScheduledTaskLoadingBoard() {
               <UiSkeleton className="h-4 w-24" />
               <UiSkeleton className="h-4 w-5 rounded-full" />
             </div>
-            <UiSkeleton className="h-36 w-full rounded-[8px]" />
+            <UiSkeleton className="h-36 w-full surface-radius-sm" />
           </div>
         ))}
       </div>
@@ -154,60 +153,80 @@ function ScheduledTaskSuggestions({
 
   return (
     <section
-      className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pb-4 pt-3"
+      className="@container/suggestions soft-scrollbar min-h-0 min-w-0 flex-1 overflow-y-auto pb-4 pt-3"
       aria-labelledby="scheduled-task-suggestions-title"
     >
       <div className="max-w-[720px]">
         <h2
-          className="text-md font-medium tracking-[-0.01em] text-(--text-strong)"
+          className={getUiTypographyClassName({
+            role: "pageTitle",
+            tone: "strong",
+            weight: "medium",
+          })}
           id="scheduled-task-suggestions-title"
         >
           {t("capability.scheduled_quick_start_title")}
         </h2>
-        <p className="mt-1 text-compact leading-5 text-(--text-muted)">
+        <p className={cn(
+          "mt-1",
+          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+        )}>
           {t("capability.scheduled_empty_description")}
         </p>
       </div>
 
-      <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-4 gap-2")}>
+      <div className="mt-4 grid grid-cols-1 gap-2 @min-[480px]/suggestions:grid-cols-2 @min-[720px]/suggestions:grid-cols-3">
         {suggestions.map((suggestion) => {
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
-            <button
-              className="group flex min-h-[104px] items-start gap-2.5 rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3 text-left transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+            <UiButton
+              className="group h-auto min-h-[104px] w-full items-start justify-start gap-2.5 whitespace-normal wrap-anywhere p-3 text-left"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
-              type="button"
+              size="sm"
+              variant="outline"
             >
               <span className="flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) text-(--primary)">
                 <SuggestionIcon className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-sm font-medium text-(--text-strong)">
+                  <span className={getUiTypographyClassName({
+                    role: "supporting",
+                    tone: "strong",
+                    weight: "medium",
+                  })}>
                     {suggestion.title}
                   </span>
-                  <span className="text-xs text-(--text-soft)">
+                  <span className={getUiTypographyClassName({
+                    role: "caption",
+                    tone: "soft",
+                  })}>
                     {suggestion.scheduleLabel}
                   </span>
                 </span>
-                <span className="mt-1 block text-compact leading-5 text-(--text-muted)">
+                <span className={cn(
+                  "mt-1 block whitespace-normal",
+                  getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+                )}>
                   {suggestion.description}
                 </span>
               </span>
-            </button>
+            </UiButton>
           );
         })}
       </div>
 
-      <button
-        className="mt-4 inline-flex items-center gap-1.5 text-compact font-semibold text-(--primary) transition-colors hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+      <UiButton
+        className="mt-4"
         onClick={onCreate}
-        type="button"
+        size="xs"
+        tone="primary"
+        variant="text"
       >
         <Plus className="h-3.5 w-3.5" />
         {t("capability.scheduled_create_blank")}
-      </button>
+      </UiButton>
     </section>
   );
 }
@@ -251,14 +270,28 @@ function ScheduledTaskBoardColumnView({
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />
             <h2
-              className="truncate text-sm font-semibold text-(--text-strong)"
+              className={cn(
+                "truncate",
+                getUiTypographyClassName({
+                  role: "supporting",
+                  tone: "strong",
+                  weight: "semibold",
+                }),
+              )}
               id={`scheduled-column-${column.id}`}
             >
               {column.title}
             </h2>
           </div>
         </div>
-        <span className="shrink-0 text-xs font-medium tabular-nums text-(--text-muted)">
+        <span className={cn(
+          "shrink-0 tabular-nums",
+          getUiTypographyClassName({
+            role: "caption",
+            tone: "muted",
+            weight: "medium",
+          }),
+        )}>
           {column.items.length}
         </span>
       </header>
@@ -324,8 +357,9 @@ function ScheduledTaskReadyBoard({
 }: Omit<ScheduledTaskBoardProps, "isLoading" | "items" | "onCreate" | "onCreateFromPreset"> & {
   columns: ScheduledTaskBoardColumn[];
 }) {
+  const { t } = useI18n();
   return (
-    <section className="flex min-h-0 flex-1 flex-col" aria-label="定时任务看板">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t("capability.scheduled_intro_title")}>
       <div className={cn(
         WORKSPACE_CONTENT_BLEED_CLASS_NAME,
         "soft-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
@@ -376,13 +410,16 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
     );
   }
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {props.isLoading || props.isPermissionLoading ? (
         <div
-          className="mb-2 flex items-center gap-2 text-xs text-(--text-muted)"
+          className={cn(
+            "mb-2 flex items-center gap-2",
+            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+          )}
           role="status"
         >
-          <LoaderCircle className="h-3.5 w-3.5 motion-safe:animate-spin" />
+          <RefreshCw className={getUiSpinnerClassName({ size: "sm", tone: "muted" })} />
           {t(props.isLoading
             ? "capability.scheduled_refreshing"
             : "capability.scheduled_permission_refreshing")}
@@ -434,7 +471,7 @@ export function ScheduledTaskBoard(props: ScheduledTaskBoardProps) {
       ) : (
         <ScheduledTaskReadyBoard
           {...props}
-          columns={buildScheduledTaskBoard(props.items)}
+          columns={buildScheduledTaskBoard(props.items, t)}
         />
       )}
     </div>

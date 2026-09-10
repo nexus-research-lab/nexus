@@ -95,6 +95,7 @@ export function useConnectorController() {
 
   return {
     activeCategory: catalog.activeCategory,
+    categoryKeys: catalog.categoryKeys,
     clearFeedback,
     closeDetail: detail.closeDetail,
     connectors: catalog.connectors,

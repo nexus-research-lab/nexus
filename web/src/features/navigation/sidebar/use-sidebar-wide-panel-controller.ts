@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentId } from "@/config/runtime-options";
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
@@ -182,16 +182,22 @@ export function useSidebarWidePanelController({
       },
       tabs,
       utility: {
+        accountName: authStatus?.display_name?.trim() || authStatus?.username?.trim() || "Nexus",
+        accountAvatar: authStatus?.avatar,
         guideOpen: guideCenter.isGuideCenterOpen,
         labels: utilityLabels,
         onCollapse: () => setWidePanelCollapsed(true),
         onExpand: () => setWidePanelCollapsed(false),
+        onLogin: () => navigate(AppRouteBuilders.login()),
         onLogout: () => void logout(),
         onOpenGuide: guideCenter.openGuideCenter,
         settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
+        showLogin:
+          desktopRuntime
+          && authStatus?.password_login_enabled === true
+          && authStatus.auth_method === "local",
         showLogout:
-          !desktopRuntime
-          && authStatus?.auth_required === true
+          authStatus?.auth_method === "password"
           && authStatus.password_login_enabled
           && authStatus.authenticated,
         showPanelToggle: !navigationOnly,

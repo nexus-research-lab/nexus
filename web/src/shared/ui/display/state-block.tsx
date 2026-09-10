@@ -1,3 +1,7 @@
+// INPUT: 状态标题、说明、装饰图标、正文/动作槽及有限样式语义。
+// OUTPUT: 按尺寸区分紧凑常规说明与大状态标题，统一图标/长文本约束；播报由语义调用层负责。
+// POS: 纯状态布局 owner，不订阅资源或派发领域命令。
+
 "use client";
 
 import { type HTMLAttributes, type ReactNode } from "react";
@@ -9,6 +13,7 @@ import {
   type UiStateBlockTone,
   type UiStateBlockVariant,
 } from "@/shared/ui/display/state-block-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 interface UiStateBlockProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
@@ -33,6 +38,8 @@ export function UiStateBlock({
   variant,
   ...props
 }: UiStateBlockProps) {
+  const compact = size === "sm";
+
   return (
     <div
       className={getUiStateBlockClassName(
@@ -43,11 +50,12 @@ export function UiStateBlock({
     >
       {icon ? (
         <div
+          aria-hidden="true"
           className={cn(
-            "chip-default flex items-center justify-center",
-            tone === "default"
+            "chip-default flex shrink-0 items-center justify-center",
+            tone === "default" && !compact
               ? "h-14 w-14 surface-radius-md"
-              : "h-9 w-9 rounded-[9px]",
+              : "h-9 w-9 radius-control-md",
           )}
         >
           {icon}
@@ -56,10 +64,13 @@ export function UiStateBlock({
       {title ? (
         <h3
           className={cn(
+            "max-w-full",
             tone === "default"
-              ? "mt-5 text-lg font-semibold tracking-[-0.03em]"
-              : "mt-3 text-sm font-semibold tracking-[-0.015em]",
-            "text-(--text-strong)",
+              ? getUiTypographyClassName(compact
+                ? { role: "supporting", tone: "muted", weight: "regular" }
+                : { role: "objectTitle", tone: "strong" })
+              : getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            tone === "default" && !compact ? "mt-5" : "mt-3",
             !icon && "mt-0",
           )}
         >
@@ -69,17 +80,17 @@ export function UiStateBlock({
       {description ? (
         <p
           className={cn(
-            "max-w-md text-(--text-default)",
+            "w-full max-w-md",
             tone === "default"
-              ? "mt-2 text-sm leading-6"
-              : "mt-1.5 text-xs leading-5",
+              ? cn("mt-2", getUiTypographyClassName({ role: "supporting", tone: "default" }))
+              : cn("mt-1.5", getUiTypographyClassName({ role: "metadata", tone: "default" })),
           )}
         >
           {description}
         </p>
       ) : null}
       {children}
-      {actions ? <div className="mt-4 flex flex-wrap items-center justify-center gap-3">{actions}</div> : null}
+      {actions ? <div className="mt-4 flex max-w-full flex-wrap items-center justify-center gap-3">{actions}</div> : null}
     </div>
   );
 }

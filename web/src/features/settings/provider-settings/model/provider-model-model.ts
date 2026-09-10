@@ -1,3 +1,4 @@
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import type {
   ProviderModelCapabilities,
   ProviderModelRecord,
@@ -70,15 +71,12 @@ export function filterProviderModels(
   models: ProviderModelRecord[],
   rawQuery: string,
 ): ProviderModelRecord[] {
-  const query = rawQuery.trim().toLowerCase();
-  if (!query) {
-    return models;
-  }
-  return models.filter((model) => [
+  const search = createUiSearchMatcher(rawQuery);
+  return models.filter((model) => search.matches([
     model.model_id,
     model.display_name,
     model.category,
-  ].some((value) => value.toLowerCase().includes(query)));
+  ]));
 }
 
 export function buildTestModelOptions(

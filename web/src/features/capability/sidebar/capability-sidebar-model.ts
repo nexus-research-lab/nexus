@@ -4,15 +4,15 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
-  Repeat2,
   Users2,
   GitBranchPlus,
 } from "lucide-react";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import type { CapabilitySummary } from "@/lib/api/capability/summary-api";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { SIDEBAR_CAPABILITY_ITEM_IDS } from "@/store/sidebar";
 
 interface CapabilitySidebarDefinition {
@@ -38,13 +38,6 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
     id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,
     labelKey: "capability.skills",
     path: AppRouteBuilders.skills(),
-  },
-  {
-    countKey: "loops_count",
-    icon: Repeat2,
-    id: SIDEBAR_CAPABILITY_ITEM_IDS.loops,
-    labelKey: "capability.loops",
-    path: AppRouteBuilders.loops(),
   },
   {
     countKey: "workgraph_distillations_count",
@@ -84,14 +77,14 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
 ];
 
 export function buildCapabilitySidebarItems(
-  summary: CapabilitySummary,
+  summary: CapabilitySummary | null,
   translate: I18nContextValue["t"],
 ): CapabilitySidebarItem[] {
   return CAPABILITY_SIDEBAR_DEFINITIONS.map((definition) => ({
     icon: definition.icon,
     id: definition.id,
     label: translate(definition.labelKey),
-    meta: String(summary[definition.countKey]),
+    meta: summary ? String(summary[definition.countKey]) : "",
     path: definition.path,
   }));
 }
@@ -100,11 +93,6 @@ export function filterCapabilitySidebarItems(
   items: CapabilitySidebarItem[],
   query: string,
 ): CapabilitySidebarItem[] {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) {
-    return items;
-  }
-  return items.filter((item) =>
-    `${item.label} ${item.meta}`.toLocaleLowerCase().includes(normalizedQuery),
-  );
+  const search = createUiSearchMatcher(query);
+  return items.filter((item) => search.matches([item.label, item.meta]));
 }

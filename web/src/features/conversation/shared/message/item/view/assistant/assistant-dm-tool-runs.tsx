@@ -1,15 +1,15 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
  * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；首层展开过程目录，各子项再独立展开详情。
- * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
+ * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次；生成文件汇总由回复尾部统一展示。
  */
 "use client";
 
-import { useEffect, useMemo, type RefObject } from "react";
-import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
+import { useEffect, useId, useMemo, type RefObject } from "react";
+import { Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
-import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { isGenerativeUIWidgetToolName } from "@/lib/conversation/generative-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
@@ -17,8 +17,6 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import type { ContentBlock } from "@/types/conversation/message/content";
 
-import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
-import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import {
   getLocalizedToolActivityLabel,
 } from "../../../tool-activity";
@@ -35,6 +33,7 @@ import {
   TimelineBlock,
 } from "../content/content-renderer-timeline";
 import { LocalizedMessageActivityStatus } from "../message-activity-status";
+import { MessageDetailToggle } from "../../../ui/message-detail-toggle";
 import type {
   AssistantActivityState,
   AssistantContentEnvironment,
@@ -48,7 +47,6 @@ import {
 interface AssistantToolRunsProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
   responseResumed: boolean;
@@ -57,7 +55,6 @@ interface AssistantToolRunsProps {
 export function AssistantToolRuns({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   projection,
   responseResumed,
@@ -106,7 +103,6 @@ export function AssistantToolRuns({
           <ToolProcessSegmentView
             activity={activity}
             environment={environment}
-            generatedFilesLabel={generatedFilesLabel}
             key={segment.id}
             permissions={permissions}
             segment={segment}
@@ -122,7 +118,6 @@ export function AssistantToolRuns({
 function ToolProcessSegmentView({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   segment,
   showTimeline,
@@ -130,7 +125,6 @@ function ToolProcessSegmentView({
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolProcessSegment;
   showTimeline: boolean;
@@ -141,7 +135,6 @@ function ToolProcessSegmentView({
       <ToolRun
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         segment={segment}
         showTimeline={showTimeline}
@@ -173,7 +166,6 @@ function shouldCollapseToolRun(segment: ToolRunSegment): boolean {
 function ToolRun({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   segment,
   showTimeline,
@@ -181,17 +173,13 @@ function ToolRun({
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolRunSegment;
   showTimeline: boolean;
   streaming: boolean;
 }) {
   const { t } = useI18n();
-  const expansion = useScrollAnchoredState(
-    environment.mode === "room_thread"
-      || environment.mode === "room_thread_process",
-  );
+  const expansion = useScrollAnchoredState(false);
   const [closedToolUseCount, setClosedToolUseCount] = useResettableState(
     0,
     segment.id,
@@ -217,10 +205,7 @@ function ToolRun({
   );
   const phase = active ? "active" : segment.phase;
   const expanded = expansion.isOpen;
-  const artifacts = useWorkspaceFileArtifactsFromContent(
-    segment.projection.content,
-  );
-  const contentId = `${segment.id}-content`;
+  const contentId = useId();
   const warning = phase === "error" || phase === "rejected";
   const summary = formatToolRunSummary(
     segment,
@@ -237,30 +222,19 @@ function ToolRun({
         data-tool-run-phase={phase}
         ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       >
-        <button
+        <MessageDetailToggle
           aria-controls={contentId}
-          aria-expanded={expanded}
-          className={cn(
-            "flex min-h-7 w-full items-center gap-1.5 py-0.5 text-left text-sm font-normal leading-5 transition-colors duration-(--motion-duration-fast)",
-            active
-              ? "text-primary hover:text-primary"
-              : "text-(--text-muted) hover:text-(--text-strong)",
-            warning && "text-rose-500 hover:text-rose-600",
-          )}
           data-timeline-anchor
           data-timeline-anchor-mode="box"
-          onClick={expansion.toggle}
-          type="button"
-        >
-          {expanded ? (
-            <Wrench
-              className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
-            />
+          expanded={expanded}
+          leading={expanded ? (
+            <Wrench className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           ) : (
-            <ProcessActivityIconStack
-              content={segment.projection.content}
-            />
+            <ProcessActivityIconStack content={segment.projection.content} />
           )}
+          onClick={expansion.toggle}
+          tone={warning ? "danger" : active ? "active" : "default"}
+        >
           <span
             aria-live={active ? "polite" : undefined}
             className={cn(
@@ -271,12 +245,7 @@ function ToolRun({
           >
             {summary}
           </span>
-          {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-          )}
-        </button>
+        </MessageDetailToggle>
 
         {expanded ? (
           <div data-tool-run-detail-list className="pt-1" id={contentId}>
@@ -293,12 +262,6 @@ function ToolRun({
           </div>
         ) : (
           <>
-            <WorkspaceFileArtifactList
-              artifacts={artifacts}
-              className="ml-5 pt-1"
-              label={generatedFilesLabel}
-              onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-            />
             {streaming && activity.state ? (
               <LocalizedMessageActivityStatus
                 className="px-0 pt-1"

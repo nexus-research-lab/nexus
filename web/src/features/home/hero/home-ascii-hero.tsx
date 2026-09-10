@@ -1,9 +1,12 @@
+// INPUT: Theme, reduced-motion preference and desktop platform.
+// OUTPUT: Hero canvas or static label using the established Windows motion exception.
+// POS: Hero presentation; scene lifecycle stays in useHomeAsciiScene.
 "use client";
 
 import { useRef, type CSSProperties } from "react";
 
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 import { useTheme } from "@/shared/theme/theme-context";
 
 import { HOME_HERO_LABEL } from "./home-ascii-scene";

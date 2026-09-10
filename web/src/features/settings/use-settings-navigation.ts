@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import {
   isDesktopBridgeAvailable,
   openDesktopRoute,
@@ -20,8 +20,9 @@ export function useSettingsNavigation() {
   const activeSection = parseSettingsSection(searchParams);
 
   const selectSection = useCallback(
-    (section: SettingsSectionKey) => {
-      navigate(AppRouteBuilders.settings(section));
+    (section: SettingsSectionKey, target?: string) => {
+      const route = AppRouteBuilders.settings(section);
+      navigate(target ? `${route}&target=${encodeURIComponent(target)}` : route);
     },
     [navigate],
   );
