@@ -32,6 +32,8 @@
 //     configuration_runtime.go / runtime_command.go：共享 ID、值解码、Provider
 //     失败分类、mutation outcome，以及 nexuscfg / Agent-facing nexus broker wire 常量。
 //
+// 普通 ACK 窗口由 event.go 与前端 conversation-policy.ts 保持一致，超时只触发受理核对。
+//
 // 主要暴露接口：Goal、ExecutionSnapshot/ExecutionView、ExecutionWorkBinding/
 // ExecutionReviewBinding、EventMessage 及 New*Event 构造器；精确字段以对应 Go
 // 类型为准，前端事件类型由 typescript_event.go 生成。

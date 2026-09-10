@@ -20,6 +20,9 @@
 //   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / goal_completion_receipt.go / quota.go：
 //     Goal scope、complete 时的当前 Room 成员/工作一致读取、协作终态回连、root receipt/Agent audit 双身份 continuation 终态、附着最终回复的完成收据和额度适配。
 //
+// chat.go 记录派发锁、准备、上下文、历史、落盘与启动的慢阶段/失败；
+// chat_diagnostics_test.go 验证取消后不再进入准备，以及阶段日志保留关联身份而不记录正文。
+//
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须
 // 保持 conversation-scoped。每个并行 slot 自带 round_id，聚合 RoundID 只作单 root
 // 兼容。测试按 chat、collaboration、Goal、runtime policy 和 delivery 行为分组。

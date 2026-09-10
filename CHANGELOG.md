@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adopt the refined vector app icon and regenerate the macOS PNG/ICNS and Windows multi-resolution ICO assets.
 
+- Preserve connected sockets during acknowledgment timeout checks, avoiding cancellation of pending submissions while retaining the 10-second ordinary request window.
+- Catch failed conversation suggestions, attachment preparation and ACK recovery without replaying uncertain submissions; include recoverable desktop errors, WebSocket cancellation and slow Room/Launcher stages in exported diagnostics.
 - Unify local and online Room creation in one full group-chat dialog; online creation additionally supports Team member selection.
 - Activate Browser tabs before native input to prevent background wheel stalls, and persist command diagnostics in Nexus logs (extension 0.8.6).
 - Bound Browser commands and cursor feedback, cancel stale operations, isolate uncertain sessions, and record execution stages; requires Browser extension 0.8.5 (protocol 6).

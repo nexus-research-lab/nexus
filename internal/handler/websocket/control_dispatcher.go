@@ -79,8 +79,9 @@ func (d *controlMessageDispatcher) enqueueJob(
 ) {
 	message.ctx = d.ctx
 	d.enqueueJobValue(controlMessageJob{
-		run:    run,
-		bypass: message.msgType == "interrupt",
+		run:     run,
+		discard: func() { message.logControlStage("discard", message.receivedAt) },
+		bypass:  message.msgType == "interrupt",
 	})
 }
 

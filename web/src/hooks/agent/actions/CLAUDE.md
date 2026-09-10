@@ -4,6 +4,9 @@ L4 | 父级: ../CLAUDE.md
 
 负责把用户意图转换为协议消息，并统一发送、ACK、超时和失败收口。这里不维护会话历史或 WebSocket 订阅状态。
 
+普通请求等待 ACK 10 秒，超时后只读核对，connected 状态不得因缺少 ACK 强制重连；连接失活交给心跳，disconnected/failed 才主动恢复。请求租约另留 5 秒核对余量，避免无限等待。
+ACK 超时、重连/历史读取异常及恢复结果通过 `web.diagnostic` 写入宿主导出日志，关联发送时的 Session 与 client request/message identity；恢复自身失败仍以状态未知收口 waiter，不得遗漏 rejection 或制造自动重放。
+
 - `use-pending-request-acks.ts` 统一 chat / set_goal / input_queue / interrupt 的请求 ACK 注册、所有权、乱序到达和取消语义；Session 切换只取消页面级请求，用户消息、编辑重跑、队列输入与 Goal 都保留显式 durable owner；只有本 Hook 预先追踪的 `client_request_id` 才能被事件收口，避免共享 Socket 的其他订阅者吞入外来 ACK。
 - 所有用户内容提交都必须在发送前 mint exact request descriptor 并取得共享 Socket 请求租约，固定原 Session binding，ACK、明确拒绝、状态未知、hard timeout 或 clear/reset 才在原 Promise 边界释放；页面卸载与新建/切换 Session 不得取消。`set_goal` 额外使用 20 秒受理窗口覆盖后端 15 秒 detached command deadline，并在 post-send 明确拒绝时保留 correlation，供 Composer recovery receipt 用 durable 事实纠偏。
 - `use-request-ack-failure.ts` 统一 ACK 超时后的正向证据恢复与重连；durable owner 必须按发送时捕获的 identity + Session key 只读原 Session，不能重载用户已切换到的新页面；超时和快照缺失只能得到“状态未知”，不得据此回滚 chat optimistic 用户消息或恢复 Composer 草稿，只有后端显式拒绝才可清理；精确 interrupt 超时则恢复可重试停止状态。

@@ -1,6 +1,6 @@
 /**
  * INPUT: 空会话身份、会话类型与建议文本选择动作。
- * OUTPUT: 在空 Feed 可见区内居中的静态介绍，以及使用共享 Button 与 Typography 合同的紧凑快捷建议。
+ * OUTPUT: 居中的静态介绍与紧凑快捷建议，捕获建议发送失败并交给宿主诊断。
  * POS: DM/Room canonical timeline 为空时的前端展示，不创建消息或 runtime round。
  */
 "use client";
@@ -18,6 +18,7 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { notifyDesktopDiagnostic } from "@/config/desktop-runtime";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
@@ -29,7 +30,7 @@ interface ConversationEmptyIntroductionProps {
   agentName?: string | null;
   isMain?: boolean;
   kind: "dm" | "room";
-  onSelect: (prompt: string) => void;
+  onSelect: (prompt: string) => void | Promise<void>;
 }
 
 const EMPTY_SUGGESTIONS = {
@@ -69,6 +70,16 @@ export function ConversationEmptyIntroduction({
     ? t("conversation.empty_main_title")
     : t("conversation.empty_dm_title", { name });
 
+  const selectSuggestion = async (prompt: string) => {
+    try {
+      await onSelect(prompt);
+    } catch (error) {
+      // 发送层负责可靠性提示和消息保留；快捷入口只收口事件 Promise。
+      console.error("[ConversationEmptyIntroduction] 快捷建议发送失败", error);
+      notifyDesktopDiagnostic("conversation.suggestion_failed", { kind }, error);
+    }
+  };
+
   return (
     <section
       aria-label={title}
@@ -99,7 +110,7 @@ export function ConversationEmptyIntroduction({
               <UiButton
                 className="group min-h-24 w-full flex-col items-start justify-between text-left"
                 key={key}
-                onClick={() => onSelect(label)}
+                onClick={() => { void selectSuggestion(label); }}
                 size="lg"
                 variant="outline"
               >

@@ -63,7 +63,8 @@
 - 前端通过 WebSocket `chat` 发起一轮执行
 - 后端创建 / 复用 runtime client
 - runtime 返回 stream / durable message / round status
-- `chat_ack` 与用户 `input_queue enqueue` 的受理 ACK 共用 10 秒上限（常量 `protocol.RequestAckTimeoutMS`）
+- 普通请求的受理 ACK 使用 10 秒等待窗口（常量 `protocol.RequestAckTimeoutMS`），覆盖 `chat_ack`、`input_queue_ack` 与 `interrupt_ack`；独立 `set_goal` 保留 20 秒窗口，覆盖后端 15 秒 detached command deadline。
+- ACK 超时只触发只读对账，不强制关闭仍处于 connected 的 Socket；连接失活由心跳检测，已断开或耗尽重试的连接才主动恢复。不得通过重发消息来延长等待。
 - `client_request_id` 标识一次传输尝试；`client_message_id` 标识同一条逻辑输入，ACK 未知后重试必须复用后者
 - `input_queue` 快照只表达共享队列当前状态，不能充当请求回执；后端完成持久化后必须向请求连接单播 `input_queue_ack`
 - ACK 超时表示“后端受理状态未知”，前端必须保留输入并允许用同一 `client_message_id` 重试，不能把超时当作已确认失败后直接清空草稿

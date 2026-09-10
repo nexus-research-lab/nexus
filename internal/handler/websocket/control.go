@@ -64,6 +64,13 @@ func (h *Handler) handleControlMessage(
 	inbound map[string]any,
 	dispatcher *controlMessageDispatcher,
 ) {
+	message := controlMessage{
+		handler: h, ctx: ctx, sender: sender, inbound: inbound,
+		sessionKey: handlershared.StringValue(inbound["session_key"]),
+		msgType:    handlershared.StringValue(inbound["type"]),
+		receivedAt: time.Now(),
+	}
+	message.logControlStage("received", message.receivedAt)
 	sessionKey, parsed, ok := h.validateSessionKey(ctx, sender, inbound)
 	if !ok {
 		return
@@ -84,15 +91,7 @@ func (h *Handler) handleControlMessage(
 	} else {
 		h.ensureSessionBinding(ctx, sender, sessionKey)
 	}
-	message := controlMessage{
-		handler:    h,
-		ctx:        ctx,
-		sender:     sender,
-		inbound:    inbound,
-		sessionKey: sessionKey,
-		parsed:     parsed,
-		msgType:    msgType,
-	}
+	message.sessionKey, message.parsed = sessionKey, parsed
 	if msgType == "set_goal" {
 		clientRequestID, clientMessageID := message.clientIDs()
 		if err := message.validateDetachedGoalCommand(); err != nil {
@@ -128,6 +127,7 @@ type controlMessage struct {
 	sessionKey string
 	parsed     protocol.SessionKey
 	msgType    string
+	receivedAt time.Time
 	// bestEffortDelivery is set only after set_goal passed synchronous scope
 	// authorization. Once its detached host mutation starts, sender delivery is
 	// an observation channel rather than part of the mutation's success boundary.
@@ -146,6 +146,13 @@ var controlMessageHandlers = map[string]controlMessageHandler{
 }
 
 func (m *controlMessage) dispatch() {
+	startedAt := time.Now()
+	m.logControlStage("dispatch", m.receivedAt)
+	defer func() {
+		if time.Since(startedAt) >= 500*time.Millisecond || m.ctx.Err() != nil {
+			m.logControlStage("complete", startedAt)
+		}
+	}()
 	handler := controlMessageHandlers[m.msgType]
 	if handler != nil {
 		handler(m)
@@ -157,6 +164,19 @@ func (m *controlMessage) dispatch() {
 		"Go 运行时已接管控制面，但该写操作尚未实现",
 		map[string]any{"type": m.msgType},
 	))
+}
+
+// logControlStage 区分收到、等待派发、执行完成和断连丢弃；不记录消息正文。
+func (m *controlMessage) logControlStage(stage string, startedAt time.Time) {
+	if m.handler == nil {
+		return
+	}
+	clientRequestID, clientMessageID := m.clientIDs()
+	logx.Resolve(m.ctx, m.handler.api.BaseLogger()).Info("WebSocket 控制请求诊断",
+		"stage", stage, "type", m.msgType, "session_key", m.sessionKey,
+		"client_request_id", clientRequestID, "client_message_id", clientMessageID,
+		"duration_ms", time.Since(startedAt).Milliseconds(), "context_err", m.ctx.Err(),
+	)
 }
 
 func (m *controlMessage) handleChat() {

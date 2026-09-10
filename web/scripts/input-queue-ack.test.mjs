@@ -229,7 +229,7 @@ test("request transport hard timeout releases the retained Session exactly once"
   assert.equal(releaseCount, 1);
 });
 
-test("Goal acceptance window outlives the detached backend deadline", async () => {
+test("ordinary requests keep a 10-second ACK window and Goal covers its detached deadline", async () => {
   const {
     getGoalRequestAcceptanceTimeoutMs,
     getMessageSendAckTimeoutMs,
@@ -239,6 +239,23 @@ test("Goal acceptance window outlives the detached backend deadline", async () =
   assert.equal(getMessageSendAckTimeoutMs(), 10_000);
   assert.equal(getGoalRequestAcceptanceTimeoutMs(), 20_000);
   assert.ok(getGoalRequestAcceptanceTimeoutMs() > 15_000);
+});
+
+test("recovery starts at 10 seconds while a late ACK can still settle the original request", async (t) => {
+  const { createPendingRequestAckRegistry, waitForRequestAck, resolvePendingRequestAck } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-pending-request-acks.ts",
+  );
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const registry = createPendingRequestAckRegistry();
+  const onTimeout = t.mock.fn();
+  const accepted = waitForRequestAck(registry, "req-slow", onTimeout);
+  t.mock.timers.tick(9_999);
+  assert.equal(onTimeout.mock.callCount(), 0);
+  t.mock.timers.tick(1);
+  assert.equal(onTimeout.mock.callCount(), 1, "recovery starts after 10 seconds");
+  t.mock.timers.tick(2_000);
+  resolvePendingRequestAck(registry, "req-slow");
+  await accepted;
 });
 
 test("request ACK registry handles ACK and error before waiter registration", async () => {
@@ -431,6 +448,39 @@ test("request ACK settles its original request after the view switches sessions"
   );
 });
 
+test("ACK recovery failures settle the original waiter as unknown", async () => {
+  const { useRequestAckFailure, RequestAcceptanceUnknownError } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-request-ack-failure.ts",
+  );
+  let actions;
+  let rejectCause;
+  const settled = new Promise((resolve) => { rejectCause = resolve; });
+  function Probe() {
+    actions = useRequestAckFailure({
+      activeSessionKeyRef: { current: "session-a" },
+      clearOutboundRequest: () => {},
+      getInputQueueItems: () => { throw new Error("queue snapshot unavailable"); },
+      hasPendingRequestAck: () => true,
+      rejectPendingRequestAck: (requestId, cause) => {
+        assert.equal(requestId, "req-a");
+        rejectCause(cause);
+        return true;
+      },
+      readSessionMessages: async () => [],
+      reloadCurrentSession: async () => [],
+      resolvePendingRequestAck: () => assert.fail("no positive acceptance evidence"),
+      reliability: NOOP_RELIABILITY,
+      setMessages: () => assert.fail("uncertain input must be preserved"),
+      wsReconnectRef: { current: () => {} },
+      wsStateRef: { current: "reconnecting" },
+    });
+    return null;
+  }
+  renderToStaticMarkup(createElement(Probe));
+  actions.handleRequestAckTimeout("req-a", "msg-a");
+  assert.ok(await settled instanceof RequestAcceptanceUnknownError);
+});
+
 test("chat ACK timeout recovery recognizes a durable client message identity", async () => {
   const {
     hasAcceptedClientMessage,
@@ -467,7 +517,29 @@ test("chat ACK timeout recovery recognizes a durable client message identity", a
     websocketState: () => "connected",
   });
   assert.equal(accepted, "accepted");
-  assert.deepEqual(calls, ["reconnect"]);
+  assert.deepEqual(calls, [], "slow acceptance must not close a connected socket");
+
+  for (const state of ["connected", "connecting", "reconnecting", "disconnected", "failed"]) {
+    let reconnectCount = 0;
+    const outcome = await recoverRequestAckTimeout({
+      clientMessageId: "local_msg_missing",
+      inputQueueItems: () => [],
+      reconnect: () => { reconnectCount += 1; },
+      reload: async () => [],
+      websocketState: () => state,
+    });
+    assert.equal(outcome, "unknown");
+    assert.equal(reconnectCount, ["disconnected", "failed"].includes(state) ? 1 : 0, state);
+  }
+
+  const reconnectFailed = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_accepted",
+    inputQueueItems: () => [],
+    reconnect: () => { throw new Error("socket closed"); },
+    reload: async () => messages,
+    websocketState: () => "failed",
+  });
+  assert.equal(reconnectFailed, "accepted", "reconnect failure must not hide durable acceptance");
 
   const failedTransportCalls = [];
   const failedTransport = await recoverRequestAckTimeout({
