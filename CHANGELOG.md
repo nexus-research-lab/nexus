@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Bound Browser commands and cursor feedback, cancel stale operations, isolate uncertain sessions, and record execution stages; requires Browser extension 0.8.5 (protocol 6).
+
 - Align command schema bounds, expose exact Automation contracts and reusable plan inputs, and reject invalid apply fences before confirmation.
 
 - Declare command request ID constraints and provide actionable correction guidance for invalid WorkGraph submissions.

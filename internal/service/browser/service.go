@@ -1,5 +1,5 @@
-// INPUT: 浏览器扩展握手状态、runtime Session identity 与浏览器动作参数。
-// OUTPUT: 连接诊断、browser.command 请求、browser.result 回执及按 Session 保存的多标签页状态。
+// INPUT: 浏览器扩展握手与精确连接身份、runtime Session identity、动作参数及阶段/健康观测。
+// OUTPUT: 有界 browser.command/cancel、连接与执行诊断、精确回执及按 Session 保存的多标签页状态。
 // POS: Browser 业务真相源；HTTP/WebSocket 与 MCP 只做 transport 适配。
 package browser
 
@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
 	"strings"
@@ -18,7 +19,7 @@ import (
 
 const (
 	// ProtocolVersion 是 Nexus 宿主与浏览器扩展的线协议版本。
-	ProtocolVersion = "5"
+	ProtocolVersion = "6"
 	// WebSocketSubprotocol 防止普通网页把内部端点当作通用 WebSocket 使用。
 	WebSocketSubprotocol = "nexus.browser.v1"
 	// BrowserExtensionID 来自 Nexus 扩展 manifest 的稳定公钥。
@@ -80,8 +81,15 @@ type client struct {
 	browserName       string
 	browserInstance   string
 	browserGeneration string
+	executionState    string
+	lastSeen          time.Time
 	send              func(context.Context, any) error
 	close             func()
+}
+
+type commandResult struct {
+	data     map[string]any
+	clientID uint64
 }
 
 type commandResponse struct {
@@ -212,12 +220,16 @@ func (s *Service) Detach(clientID uint64) {
 }
 
 // Resolve 把扩展回执交给对应的等待调用。
-func (s *Service) Resolve(requestID string, data map[string]any, message string) bool {
+func (s *Service) Resolve(clientID uint64, requestID string, data map[string]any, message string) bool {
 	if s == nil {
 		return false
 	}
 	requestID = strings.TrimSpace(requestID)
 	s.mu.Lock()
+	if s.client == nil || s.client.id != clientID {
+		s.mu.Unlock()
+		return false
+	}
 	waiter := s.pending[requestID]
 	delete(s.pending, requestID)
 	s.mu.Unlock()
@@ -229,11 +241,12 @@ func (s *Service) Resolve(requestID string, data map[string]any, message string)
 		response.err = errors.New(message)
 	}
 	waiter <- response
+	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", "result_received", "failed", response.err != nil)
 	return true
 }
 
 // ObserveEvent 接收扩展主动上报的标签页生命周期事件。
-func (s *Service) ObserveEvent(event string, data map[string]any) bool {
+func (s *Service) ObserveEvent(clientID uint64, event string, data map[string]any) bool {
 	if s == nil {
 		return false
 	}
@@ -245,6 +258,9 @@ func (s *Service) ObserveEvent(event string, data map[string]any) bool {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.client == nil || s.client.id != clientID {
+		return false
+	}
 	state, ok := s.sessions[sessionKey]
 	if !ok {
 		return false
@@ -326,12 +342,16 @@ func (s *Service) Execute(
 		return immediate, err
 	}
 	params["round_id"] = roundID
-	result, err := s.sendCommand(ctx, action, params, commandTimeout)
+	timeout := commandTimeout
+	if milliseconds, ok := integerValue(params["timeout_ms"]); ok && milliseconds > 0 {
+		timeout = min(timeout, time.Duration(milliseconds)*time.Millisecond)
+	}
+	result, err := s.sendCommand(ctx, action, params, timeout)
 	if err != nil {
 		return nil, err
 	}
-	s.updateSession(sessionKey, roundID, action, params, result)
-	return result, nil
+	s.updateSession(result.clientID, sessionKey, roundID, action, params, result.data)
+	return result.data, nil
 }
 
 func (s *Service) executeBatch(
@@ -435,7 +455,7 @@ func (s *Service) sendCommand(
 	action string,
 	params map[string]any,
 	timeout time.Duration,
-) (map[string]any, error) {
+) (commandResult, error) {
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	requestID := fmt.Sprintf("browser-%d", s.sequence.Add(1))
@@ -444,33 +464,101 @@ func (s *Service) sendCommand(
 	s.mu.Lock()
 	if s.closed || s.client == nil {
 		s.mu.Unlock()
-		return nil, ErrNotConnected
+		return commandResult{}, ErrNotConnected
 	}
 	sender := s.client.send
+	clientID := s.client.id
 	s.pending[requestID] = waiter
 	s.mu.Unlock()
 
 	message := map[string]any{
-		"type":   "browser.command",
-		"id":     requestID,
-		"action": action,
-		"params": params,
+		"type":      "browser.command",
+		"id":        requestID,
+		"action":    action,
+		"params":    params,
+		"budget_ms": time.Until(deadlineOf(callCtx)).Milliseconds(),
 	}
+	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_start")
 	if err := sender(callCtx, message); err != nil {
 		s.removePending(requestID)
-		return nil, fmt.Errorf("发送 Browser 命令失败: %w", err)
+		cancelCtx, cancelSend := context.WithTimeout(context.Background(), time.Second)
+		_ = sender(cancelCtx, map[string]any{"type": "browser.cancel", "id": requestID})
+		cancelSend()
+		return commandResult{}, fmt.Errorf("发送 Browser 命令失败，结果未知，请先核对页面: %w", err)
 	}
 
+	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "send_end")
 	select {
 	case response := <-waiter:
 		if response.err != nil {
-			return nil, response.err
+			return commandResult{}, response.err
 		}
-		return response.data, nil
+		return commandResult{data: response.data, clientID: clientID}, nil
 	case <-callCtx.Done():
-		s.removePending(requestID)
-		return nil, fmt.Errorf("Browser 动作 %s 超时: %w", action, callCtx.Err())
+		// A response that already claimed the waiter wins the deadline race.
+		s.mu.Lock()
+		_, waiting := s.pending[requestID]
+		delete(s.pending, requestID)
+		s.mu.Unlock()
+		if !waiting {
+			response := <-waiter
+			return commandResult{data: response.data, clientID: clientID}, response.err
+		}
+		slog.Warn("Browser command", "request_id", requestID, "client_id", clientID, "action", action, "stage", "timeout")
+		cancelCtx, cancelSend := context.WithTimeout(context.Background(), time.Second)
+		defer cancelSend()
+		_ = sender(cancelCtx, map[string]any{"type": "browser.cancel", "id": requestID})
+		return commandResult{}, fmt.Errorf("Browser 动作 %s 等待结束，结果未知；请先核对页面，勿自动重试: %w", action, callCtx.Err())
 	}
+}
+
+func deadlineOf(ctx context.Context) time.Time { deadline, _ := ctx.Deadline(); return deadline }
+
+// ObserveProgress records bounded command stages without page content or arguments.
+func (s *Service) ObserveProgress(clientID uint64, requestID string, data map[string]any) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil || s.client.id != clientID || s.pending[requestID] == nil {
+		return false
+	}
+	stage := stringValue(data["stage"])
+	switch stage {
+	case "queued", "running", "api_start", "api_end", "api_error", "completed", "cancelled", "unknown":
+	default:
+		return false
+	}
+	method := stringValue(data["method"])
+	if len(method) > 96 || strings.IndexFunc(method, func(r rune) bool { return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r == '.') }) >= 0 {
+		return false
+	}
+	elapsed, ok := integerValue(data["elapsed_ms"])
+	if !ok || elapsed < 0 || elapsed > 120000 {
+		return false
+	}
+	s.client.lastSeen = time.Now()
+	if stage == "unknown" {
+		s.client.executionState = "recovery_required"
+	}
+	slog.Info("Browser command", "request_id", requestID, "client_id", clientID, "stage", stage, "method", method, "elapsed_ms", elapsed)
+	return true
+}
+
+// ObserveHealth distinguishes a live extension executor from a retained socket.
+func (s *Service) ObserveHealth(clientID uint64, data map[string]any) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.client == nil || s.client.id != clientID {
+		return false
+	}
+	state := stringValue(data["execution_state"])
+	switch state {
+	case "ready", "busy", "recovery_required":
+	default:
+		return false
+	}
+	s.client.executionState = state
+	s.client.lastSeen = time.Now()
+	return true
 }
 
 // FinalizeRound 关闭本轮 Agent 新建的临时页，并释放用户页或显式交付页。
@@ -499,7 +587,7 @@ func (s *Service) FinalizeRound(ctx context.Context, sessionKey string, roundID 
 		return nil
 	}
 	sort.Strings(refs)
-	_, err := s.sendCommand(ctx, "finalize_round", map[string]any{
+	receipt, err := s.sendCommand(ctx, "finalize_round", map[string]any{
 		"session":  sessionKey,
 		"round_id": roundID,
 		"tab_refs": refs,
@@ -510,6 +598,9 @@ func (s *Service) FinalizeRound(ctx context.Context, sessionKey string, roundID 
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.client == nil || s.client.id != receipt.clientID {
+		return ErrConnectionClosed
+	}
 	state, ok = s.sessions[sessionKey]
 	if !ok {
 		return nil
@@ -555,6 +646,16 @@ func (s *Service) Status() map[string]any {
 		result["connection_state"] = "connected"
 		result["extension_version"] = s.client.extensionVersion
 		result["browser_name"] = s.client.browserName
+		result["execution_state"] = s.client.executionState
+		if s.client.executionState == "" {
+			result["execution_state"] = "unverified"
+		}
+		if !s.client.lastSeen.IsZero() {
+			result["last_seen_at"] = s.client.lastSeen.UTC().Format(time.RFC3339Nano)
+			if time.Since(s.client.lastSeen) > 45*time.Second {
+				result["execution_state"] = "unresponsive"
+			}
+		}
 	} else if s.incompatible != nil && !s.closed {
 		result["connection_state"] = "incompatible"
 		result["observed_extension_version"] = s.incompatible.version
@@ -1058,6 +1159,7 @@ func (s *Service) prepareParams(
 }
 
 func (s *Service) updateSession(
+	clientID uint64,
 	sessionKey string,
 	roundID string,
 	action string,
@@ -1066,6 +1168,9 @@ func (s *Service) updateSession(
 ) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.client == nil || s.client.id != clientID {
+		return
+	}
 	state, ok := s.sessions[sessionKey]
 	if !ok {
 		state = browserSession{tabs: make(map[string]browserTab)}
