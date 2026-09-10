@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Split the visualize skill into shared guidance and on-demand references, with improved diagram spacing and text scaling guidance.
+
 - Activate Browser tabs before native input to prevent background wheel stalls, and persist command diagnostics in Nexus logs (extension 0.8.6).
 
 - Bound Browser commands and cursor feedback, cancel stale operations, isolate uncertain sessions, and record execution stages; requires Browser extension 0.8.5 (protocol 6).
