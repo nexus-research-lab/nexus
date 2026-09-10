@@ -66,6 +66,7 @@ import {
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
@@ -485,8 +486,9 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
         eyebrow="02 · MATERIAL"
         title="Liquid glass"
       >
-        <PreviewCard components={["GlassSwitch", "GlassSwitchFilter"]}>
+        <PreviewCard components={["GlassSwitch", "GlassSwitchFilter", "GlassMagnifier", "GlassMagnifierFilter"]}>
           <div className="flex min-h-28 items-center justify-around rounded-[16px] bg-[radial-gradient(circle_at_25%_25%,color-mix(in_srgb,var(--primary)_28%,transparent),transparent_42%),linear-gradient(135deg,var(--surface-panel-background),var(--surface-control-background))] p-5">
+            <GlassMagnifier>NEXUS</GlassMagnifier>
             <GlassSwitch
               aria-label={galleryText(locale, "启用玻璃效果", "Enable glass effect")}
               checked={glassChecked}

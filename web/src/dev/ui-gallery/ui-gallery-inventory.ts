@@ -124,14 +124,14 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     section: "interaction",
     mode: "direct",
     renderer: "Liquid glass",
-    components: ["GlassSwitch"],
+    components: ["GlassSwitch", "GlassMagnifier"],
   },
   {
     id: "liquid-glass-filters",
     section: "interaction",
     mode: "composed",
     renderer: "GlassSwitch",
-    components: ["GlassSwitchFilter"],
+    components: ["GlassSwitchFilter", "GlassMagnifierFilter"],
   },
   {
     id: "onboarding",

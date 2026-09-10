@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
+import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { cn } from "@/shared/ui/class-name";
 
 export function SidebarBrandLink({
@@ -21,7 +22,7 @@ export function SidebarBrandLink({
       aria-label={label}
       aria-hidden={collapsed || undefined}
       className={cn(
-        "group/brand relative flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        "group/brand @container relative flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
         collapsed
           ? "min-w-0 flex-1 pointer-events-none opacity-0"
           : "",
@@ -30,12 +31,14 @@ export function SidebarBrandLink({
       tabIndex={collapsed ? -1 : undefined}
       to={AppRouteBuilders.launcher()}
     >
-      <span
-        className="sidebar-brand-wordmark cursor-pointer whitespace-nowrap text-[18px] font-[280] leading-none tracking-[0.18em] text-(--text-strong) transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
-        style={{ fontFamily: '"Panchang", var(--font-sans)' }}
-      >
-        Nexus
-      </span>
+      <GlassMagnifier>
+        <span
+          className="sidebar-brand-wordmark cursor-pointer whitespace-nowrap text-[clamp(12px,calc((100cqw_-_24px)/7),18px)] font-[400] leading-none tracking-[0.18em] text-(--text-strong) transition-opacity duration-(--motion-duration-fast) group-hover/brand:opacity-80"
+          style={{ fontFamily: '"Panchang", var(--font-sans)' }}
+        >
+          NEXUS
+        </span>
+      </GlassMagnifier>
     </Link>
   );
 }

@@ -2022,3 +2022,19 @@ test("streaming Markdown catches up across concurrent streams and preserves sett
   await expect(outputs.first()).toContainText("STREAM_DONE 👩🏽‍💻");
   expect(errors).toEqual([]);
 });
+
+test("glass wordmark animates on hover and settles on leave", async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await openGallery(page, info, "interaction");
+  const cover = page.getByText("NEXUS", { exact: true }).locator("..");
+  await cover.hover();
+  const runningLoops = () => cover.evaluate((element) => element.getAnimations({ subtree: true })
+    .filter((animation) => animation.playState === "running" && animation.effect?.getTiming().iterations === Infinity).length);
+  await expect.poll(runningLoops).toBe(2);
+  await page.mouse.move(0, 0);
+  await expect.poll(runningLoops).toBe(0);
+  await expect.poll(() => cover.evaluate((element) => getComputedStyle(element).transform)).toBe("matrix(1, 0, 0, 1, 0, 0)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await cover.hover();
+  await expect.poll(runningLoops).toBe(0);
+});
