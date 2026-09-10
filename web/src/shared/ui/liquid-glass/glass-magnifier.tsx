@@ -7,21 +7,22 @@ import { useGlassMagnifierAnimation } from "./use-glass-magnifier-animation";
 import { GlassMagnifierFilter } from "./glass-magnifier-filter";
 import { useLiquidGlassFilterId, useSupportsTrueLiquidGlass } from "./use-liquid-glass-support";
 
-export function GlassMagnifier({ children }: { children: ReactNode }) {
+export function GlassMagnifier({ children, underlay }: { children: ReactNode; underlay?: ReactNode }) {
   const filterId = useLiquidGlassFilterId("glass-magnifier");
   const animation = useGlassMagnifierAnimation();
   const supported = useSupportsTrueLiquidGlass();
 
   return (
     <span
-      className="relative isolate inline-flex h-9 shrink-0 items-center rounded-[12px] px-2"
+      className="group/glass relative isolate inline-flex h-9 shrink-0 items-center rounded-[12px] px-2"
       ref={animation.rootRef}
       onPointerEnter={animation.onHoverStart}
       onPointerLeave={animation.onHoverEnd}
       onPointerCancel={animation.onHoverEnd}
       style={{ transform: animation.rootTransform }}
     >
-      {supported ? <GlassMagnifierFilter filterId={filterId} height={36} width={180} /> : null}
+      {underlay ? <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px] opacity-0 transition-opacity duration-200 group-hover/glass:opacity-100">{underlay}</span> : null}
+      {supported ? <GlassMagnifierFilter filterId={filterId} /> : null}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 rounded-[12px] ring-1 ring-black/5 dark:ring-white/10"
