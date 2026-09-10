@@ -109,3 +109,24 @@ handler写锁改为可取消等待，获得锁后再核对context；取消发送
 0.8.6 在真实键鼠及原始Input.*动作之前使用Page.bringToFront激活目标页，再进行光标与输入派发；激活失败不发输入。Chrome协议仓库曾记录非活动页Input.dispatchMouseEvent无响应（https://github.com/ChromeDevTools/devtools-protocol/issues/89），Page.bringToFront的官方语义为激活标签（https://chromedevtools.github.io/devtools-protocol/1-3/Page/#method-bringToFront）。后台状态是当前有证据支持的触发条件，真实修复效果仍以安装后同链路测试为准。
 
 同时修正阶段日志装配：原先默认slog只进入sidecar stderr，没有进入Nexus的持久化sidecar日志；现由AppServices显式注入现有文件logger。新增回归验证激活先于输入、激活失败不发输入，以及阶段信息写入配置的logger且不泄漏参数。
+
+## 0.8.6 安装后的真实链路验证（11:10—11:11）
+
+已安装 Nexus 0.1.40 build 2281，程序来自提交 `365964530`；扩展重新加载后，宿主和同一 Agent 会话的 status 均确认 extension_version=0.8.6、protocol_version=6、execution_state=ready。11:08 的 recovery_required 仍来自未重新加载的 0.8.5，不能算作 0.8.6 的失败。
+
+读取用户实际运行的同一会话新增调用与持久 sidecar 日志，确认以下结果（耗时为扩展阶段 elapsed_ms，不包括模型思考）：
+
+| 时间 | request | 操作 | 耗时 | 结果 |
+| --- | --- | --- | --- | --- |
+| 11:10:32 | browser-6 | navigate new_tab=true | 564 ms | 成功，创建结果 active=false |
+| 11:10:37 | browser-7 | screenshot | 202 ms | 成功 |
+| 11:10:43 | browser-8 | scroll delta_y=850 | 380 ms | 成功 |
+| 11:10:53 | browser-10 | scroll delta_y=850 | 9 ms | 成功 |
+| 11:11:03 | browser-12 | scroll delta_y=900 | 503 ms | 成功 |
+| 11:11:12 | browser-14 | scroll delta_y=1000 | 43 ms | 成功 |
+
+每次滚动后的截图（browser-9/11/13/15）均成功，耗时42/39/33/44 ms。已直接查看会话截图：首屏、第二次滚动后的手机区域、第四次滚动后的手表区域确实不同，排除了仅返回 scrolled=true 而页面不动的情况。未读取 scrollY，不把累计输入量写成实测页面偏移。
+
+browser-14 的持久日志明确记录 Page.bringToFront 在 elapsed_ms=1—37 完成，Input.dispatchMouseEvent 在42—43完成，随后 completed、result_received failed=false。此段共10个页面命令全部成功，未发生超时。导航中的 debugger.detach 和首次光标 tabs.sendMessage 出现 api_error 后走正常清理/补注入并最终成功；它们不是命令超时或终态失败。
+
+证据来源为本机 sidecar-2026-09-10.log 和上述会话原始 JSONL；这证明已知“后台页滚轮挂起”链路在当前安装版本恢复，不代表所有网站、所有 Chrome 原生 API 永远不会超时。异常时的预算、隔离与迟到回调防护继续保留。0.8.6 对应21项扩展行为测试、目标 Browser service/handler race、目标包 vet 与架构检查已通过。
