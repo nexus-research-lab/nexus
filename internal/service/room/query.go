@@ -3,8 +3,10 @@ package room
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -37,7 +39,7 @@ func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protoco
 	if len(contexts) == 0 {
 		return nil, ErrRoomNotFound
 	}
-	if err = s.hydrateConversationMessageCounts(contexts); err != nil {
+	if err = s.hydrateConversationMessageCounts(ctx, contexts); err != nil {
 		return nil, err
 	}
 	return contexts, nil
@@ -52,7 +54,7 @@ func (s *Service) GetConversationContext(ctx context.Context, conversationID str
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.hydrateConversationMessageCount(contextValue); err != nil {
+	if err = s.hydrateConversationMessageCount(ctx, contextValue); err != nil {
 		return nil, err
 	}
 	return contextValue, nil
@@ -67,17 +69,18 @@ func (s *Service) GetConversationContextForSystem(ctx context.Context, conversat
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.hydrateConversationMessageCount(contextValue); err != nil {
+	if err = s.hydrateConversationMessageCount(ctx, contextValue); err != nil {
 		return nil, err
 	}
 	return contextValue, nil
 }
 
 func (s *Service) hydrateConversationMessageCounts(
+	ctx context.Context,
 	contexts []protocol.ConversationContextAggregate,
 ) error {
 	for index := range contexts {
-		if err := s.hydrateConversationMessageCount(&contexts[index]); err != nil {
+		if err := s.hydrateConversationMessageCount(ctx, &contexts[index]); err != nil {
 			return err
 		}
 	}
@@ -85,9 +88,19 @@ func (s *Service) hydrateConversationMessageCounts(
 }
 
 func (s *Service) hydrateConversationMessageCount(
+	ctx context.Context,
 	contextValue *protocol.ConversationContextAggregate,
 ) error {
+	startedAt := time.Now()
 	count, err := s.canonicalConversationMessageCount(contextValue)
+	if contextValue != nil && (err != nil || time.Since(startedAt) >= 500*time.Millisecond) {
+		logx.FromContext(ctx).Warn("Room 上下文消息计数诊断",
+			"room_id", contextValue.Room.ID,
+			"conversation_id", contextValue.Conversation.ID,
+			"duration_ms", time.Since(startedAt).Milliseconds(),
+			"message_count", count, "context_err", ctx.Err(), "err", err,
+		)
+	}
 	if err != nil {
 		return err
 	}

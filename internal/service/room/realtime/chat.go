@@ -1,6 +1,6 @@
 // INPUT: Room 用户输入、owner-scoped Slash 展开、内部触发与当前 round/queue 状态。
 // OUTPUT: 按显式目标或已启用的群主接管解析成员，保留共享消息原文并原子投递 Slash 的串行 Room round。
-// POS: Room 输入从受理到 runtime 启动的原子交接边界。
+// POS: Room 输入从受理到 runtime 启动的原子交接边界，记录慢阶段与失败的请求关联诊断。
 package realtime
 
 import (
@@ -167,55 +167,72 @@ func (s *Service) HandleChat(ctx context.Context, request ChatRequest) error {
 }
 
 // handleChat 负责获取 conversation 级派发闸门。
-func (s *Service) handleChat(ctx context.Context, request ChatRequest) error {
+func (s *Service) handleChat(ctx context.Context, request ChatRequest) (err error) {
 	sessionKey, conversationID, err := s.validateChatRequest(request)
 	if err != nil {
 		return err
 	}
+	recordStage := s.roomChatStageRecorder(ctx, request, "dispatch_lock")
+	defer func() { recordStage("", err) }()
 	lease := s.lockRoomDispatch(sessionKey, conversationID)
 	defer lease.Unlock()
+	if err = ctx.Err(); err != nil {
+		return err
+	}
+	recordStage("handoff", nil)
 	return s.handleChatLocked(ctx, request)
 }
 
 // handleChatLocked 在已经持有 conversation 派发闸门时执行输入交接。
-func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) error {
+func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) (err error) {
+	recordStage := s.roomChatStageRecorder(ctx, request, "prepare")
+	defer func() { recordStage("", err) }()
 	execution, err := s.prepareRoomChat(ctx, request)
 	if err != nil {
 		return err
 	}
+	recordStage("cancel_goal", nil)
 	if err = s.cancelActiveRoomGoalForUser(execution.ctx, execution.sessionKey, request.Content); err != nil {
 		return err
 	}
 	if len(execution.targetAgentIDs) == 0 {
+		recordStage("persist_input", nil)
 		if err = execution.persistInput(); err != nil {
 			return err
 		}
+		recordStage("finish_without_target", nil)
 		_, handleErr := execution.finishWithoutTarget()
 		return handleErr
 	}
+	recordStage("route_active_slots", nil)
 	if handled, routeErr := execution.routeActiveSlots(); handled {
 		return routeErr
 	}
+	recordStage("persist_input", nil)
 	if err = execution.persistInput(); err != nil {
 		return err
 	}
 
+	recordStage("build_round", nil)
 	activeRound, pending := execution.buildRound()
 	if len(activeRound.Slots) == 0 {
 		return execution.reportUnavailableMembers()
 	}
+	recordStage("start_round", nil)
 	if err = execution.startRound(activeRound, pending); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*roomChatExecution, error) {
+func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *roomChatExecution, err error) {
 	sessionKey, conversationID, err := s.validateChatRequest(request)
 	if err != nil {
 		return nil, err
 	}
 	ensureRoomChatIDs(&request)
+	recordStage := s.roomChatStageRecorder(ctx, request, "context")
+	defer func() { recordStage("", err) }()
 
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, request.Internal)
 	if err != nil {
@@ -226,6 +243,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 	}
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
+	recordStage("slash", nil)
 	expandedRuntimeContent, err := s.expandRuntimeSlashPrompt(ctx, request.Content)
 	if err != nil {
 		return nil, err
@@ -236,16 +254,20 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		runtimeTriggerText = strings.TrimSpace(request.Content)
 		atomicRuntimeInput = expandedRuntimeContent
 	}
+	recordStage("attachments", nil)
 	if _, err = s.renderRuntimeContentWithAttachments(ctx, expandedRuntimeContent, attachments); err != nil {
 		return nil, err
 	}
+	recordStage("agents", nil)
 	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
 		return nil, err
 	}
+	recordStage("goal_lead", nil)
 	if err = s.reconcileRoomGoalLead(ctx, sessionKey, contextValue, agentNameByID); err != nil {
 		return nil, err
 	}
+	recordStage("targets", nil)
 	targetAgentIDs, targetResolution, err := resolveChatTargetAgentIDs(request, contextValue, agentNameByID)
 	if err != nil {
 		return nil, err
@@ -295,6 +317,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 			targetResolution,
 		)
 	}
+	recordStage("quota", nil)
 	if len(targetAgentIDs) > 0 {
 		if err = s.ensureQuotaAvailable(ctx); err != nil {
 			if request.Internal && strings.TrimSpace(request.GoalID) != "" {
@@ -304,7 +327,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		}
 	}
 
-	s.logAcceptedRoomChat(
+	s.logPreparedRoomChat(
 		ctx,
 		request,
 		sessionKey,
@@ -314,6 +337,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		targetAgentIDs,
 		targetResolution,
 	)
+	recordStage("history", nil)
 	history, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
 	if err != nil {
 		return nil, err
@@ -340,6 +364,29 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		history:            history,
 		userMessage:        userMessage,
 	}, nil
+}
+
+// roomChatStageRecorder 只记录慢阶段与失败，使用同一请求身份关联排队、准备和落盘。
+func (s *Service) roomChatStageRecorder(ctx context.Context, request ChatRequest, stage string) func(string, error) {
+	startedAt := time.Now()
+	logger := s.loggerFor(ctx).With(
+		"session_key", request.SessionKey,
+		"conversation_id", cmp.Or(request.ConversationID, protocol.ParseRoomConversationID(request.SessionKey)),
+		"client_request_id", request.ClientRequestID,
+		"client_message_id", request.ClientMessageID,
+	)
+	return func(nextStage string, err error) {
+		duration := time.Since(startedAt)
+		if duration >= 500*time.Millisecond || err != nil {
+			logger.Warn("Room 输入交接阶段诊断",
+				"stage", stage,
+				"duration_ms", duration.Milliseconds(),
+				"context_err", ctx.Err(),
+				"err", err,
+			)
+		}
+		stage, startedAt = nextStage, time.Now()
+	}
 }
 
 func safeRoomDeliveryPolicy(request ChatRequest) protocol.ChatDeliveryPolicy {
@@ -387,7 +434,7 @@ func resolveDefaultRoomTargets(
 	return targetAgentIDs, targetResolution
 }
 
-func (s *Service) logAcceptedRoomChat(
+func (s *Service) logPreparedRoomChat(
 	ctx context.Context,
 	request ChatRequest,
 	sessionKey string,
@@ -397,10 +444,12 @@ func (s *Service) logAcceptedRoomChat(
 	targetAgentIDs []string,
 	targetResolution string,
 ) {
-	s.loggerFor(ctx).Info("受理 Room 会话消息",
+	s.loggerFor(ctx).Info("Room 会话输入路由完成",
 		"session_key", sessionKey,
 		"room_id", roomID,
 		"conversation_id", conversationID,
+		"client_request_id", request.ClientRequestID,
+		"client_message_id", request.ClientMessageID,
 		"round_id", request.RoundID,
 		"target_agent_count", len(targetAgentIDs),
 		"target_agents", slices.Clone(targetAgentIDs),

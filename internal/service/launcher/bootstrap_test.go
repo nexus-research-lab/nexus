@@ -1,15 +1,20 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 type fakeLauncherSessionReader struct {
+	err       error
 	pages     map[string]*protocol.MessagePage
 	requested []string
 	limits    []int
@@ -26,10 +31,30 @@ func (f *fakeLauncherSessionReader) GetSessionMessagesPage(
 ) (*protocol.MessagePage, error) {
 	f.requested = append(f.requested, sessionKey)
 	f.limits = append(f.limits, request.Limit)
+	if f.err != nil {
+		return nil, f.err
+	}
 	if page, ok := f.pages[sessionKey]; ok {
 		return page, nil
 	}
 	return &protocol.MessagePage{}, nil
+}
+
+func TestPreviewFailureUsesExportedRequestLogger(t *testing.T) {
+	var output bytes.Buffer
+	logger := logx.New(logx.Options{Output: &output, Format: "json"}).With("request_id", "req-preview")
+	ctx := logx.WithLogger(context.Background(), logger)
+	service := &Service{session: &fakeLauncherSessionReader{err: errors.New("history unavailable")}}
+	items := []BootstrapConversation{{SessionKey: "session-a", RoomID: "room-a", RoomType: protocol.RoomTypeDM}}
+	service.attachLatestReplyPreviews(ctx, items)
+	for _, want := range []string{"req-preview", "session-a", "room-a", "duration_ms", "history unavailable"} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("导出诊断缺少 %q: %s", want, output.String())
+		}
+	}
+	if items[0].LastReplyPreview != "" {
+		t.Fatal("读取失败不得填充预览")
+	}
 }
 
 func TestAttachLatestReplyPreviewsIncludesDMConversations(t *testing.T) {

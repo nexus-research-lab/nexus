@@ -4,6 +4,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { notifyDesktopDiagnostic } from "@/config/desktop-runtime";
 
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -99,7 +100,9 @@ function CreateRoomDialogContent({
     void (async () => {
       try {
         await onConfirm(form.submission);
-      } catch {
+      } catch (error) {
+        console.error("[CreateRoomDialog] Room 提交失败", { mode, error });
+        notifyDesktopDiagnostic("room.submit_failed", { mode }, error);
         if (mounted.current) setSubmitFailed(true);
       } finally {
         submitting.current = false;

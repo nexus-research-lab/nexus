@@ -103,7 +103,7 @@ function ActiveGroupConversation({
         <ConversationEmptyIntroduction
           kind="room"
           onSelect={(prompt) => {
-            void model.composer.onSendMessage(
+            return model.composer.onSendMessage(
               prompt,
               model.composer.defaultDeliveryPolicy,
             );

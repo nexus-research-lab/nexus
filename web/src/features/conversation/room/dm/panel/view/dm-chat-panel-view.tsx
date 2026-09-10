@@ -81,7 +81,7 @@ export function DmChatPanelView({
           isMain={isMainAgent(model.feed.renderer.workspaceAgentId)}
           kind="dm"
           onSelect={(prompt) => {
-            void model.composer.onSendMessage(
+            return model.composer.onSendMessage(
               prompt,
               model.composer.defaultDeliveryPolicy,
             );

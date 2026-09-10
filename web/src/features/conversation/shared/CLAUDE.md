@@ -19,6 +19,7 @@
 
 ## 约束
 
+- 空会话建议的回调必须返回发送 Promise，由共享入口捕获并记录可恢复异常；不得在 DM/Room 适配处用 `void` 丢掉 Promise，也不得自行重发受理未知的输入。
 - 共享层只承载 DM 与 Room 语义完全一致的结构，不吸收各领域的差异字段。
 - 纯投影不得持有 React 状态或调用领域 API。
 - Composer 状态层同时只显示一项，优先级固定为 Conversation reliability、round index 读取、Provider 配置、Goal；较低项保留状态，前项解除后再显示。Conversation 内部仍按 transport recovery、Provider retry、用户级 failure 投影；分类与恢复证据归 `hooks/agent/reliability/`，视图不得解析错误文本或关联 ID。新 submission 不能清除旧 `delivery_unknown` 或 Provider retry；只有 exact ACK、round 进展或 Session 对账才是恢复证据。failure 以持久 polite status 显示一句说明；只有可安全读取的恢复动作才显示按钮，不得把 `delivery_unknown` 简化成普通“重试”。

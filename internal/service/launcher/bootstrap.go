@@ -5,10 +5,10 @@ package launcher
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -21,8 +21,17 @@ const (
 )
 
 // Bootstrap 幂等保证主智能体默认聊天存在，并返回 Launcher 首屏最小必要数据。
-func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
+func (s *Service) Bootstrap(ctx context.Context) (_ BootstrapResponse, err error) {
 	startedAt := time.Now()
+	stage := "agents"
+	defer func() {
+		if err != nil {
+			logx.FromContext(ctx).Warn("Launcher bootstrap 失败",
+				"stage", stage, "duration_ms", time.Since(startedAt).Milliseconds(),
+				"context_err", ctx.Err(), "err", err,
+			)
+		}
+	}()
 	agentsStartedAt := time.Now()
 	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
@@ -40,11 +49,13 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 		return BootstrapResponse{}, agentsvc.ErrAgentNotFound
 	}
 	ensureDirectRoomStartedAt := time.Now()
+	stage = "ensure_dm"
 	if _, err = s.roomService.EnsureDirectRoom(ctx, mainAgentID); err != nil {
 		return BootstrapResponse{}, err
 	}
 	ensureDirectRoomDuration := time.Since(ensureDirectRoomStartedAt)
 	roomsStartedAt := time.Now()
+	stage = "rooms"
 	rooms, err := s.roomService.ListRooms(ctx, 200)
 	if err != nil {
 		return BootstrapResponse{}, err
@@ -83,6 +94,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	}
 
 	sessionsStartedAt := time.Now()
+	stage = "sessions"
 	sessions, listErr := s.session.ListDirectorySessions(ctx)
 	sessionsDuration := time.Since(sessionsStartedAt)
 	if listErr != nil {
@@ -94,7 +106,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	previewsDuration := time.Since(previewsStartedAt)
 	duration := time.Since(startedAt)
 	if duration >= slowBootstrapLogThreshold {
-		slog.InfoContext(
+		logx.FromContext(ctx).InfoContext(
 			ctx,
 			"Launcher bootstrap 慢查询",
 			"duration_ms", duration.Milliseconds(),
@@ -106,6 +118,7 @@ func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 			"agent_count", len(agents),
 			"room_count", len(roomItems),
 			"conversation_count", len(conversationItems),
+			"context_err", ctx.Err(),
 		)
 	}
 
@@ -123,6 +136,9 @@ func (s *Service) attachLatestReplyPreviews(
 	seenPreviewKeys := make(map[string]struct{}, len(items))
 	for index := range items {
 		if ctx.Err() != nil {
+			logx.FromContext(ctx).Warn("Launcher 预览读取已取消",
+				"remaining_count", len(items)-index, "err", ctx.Err(),
+			)
 			return
 		}
 		if isExternalLauncherConversation(items[index]) {
@@ -142,19 +158,25 @@ func (s *Service) attachLatestReplyPreviews(
 		}
 		seenPreviewKeys[previewKey] = struct{}{}
 
+		startedAt := time.Now()
 		page, err := s.session.GetSessionMessagesPage(
 			ctx,
 			sessionKey,
 			sessionsvc.MessagePageRequest{Limit: 2},
 		)
-		if err != nil {
-			slog.WarnContext(
+		duration := time.Since(startedAt)
+		if err != nil || duration >= slowBootstrapLogThreshold {
+			logx.FromContext(ctx).WarnContext(
 				ctx,
-				"Launcher 最新回复预览读取失败",
+				"Launcher 最新回复预览读取诊断",
 				"room_id", roomID,
 				"session_key", sessionKey,
+				"duration_ms", duration.Milliseconds(),
+				"context_err", ctx.Err(),
 				"err", err,
 			)
+		}
+		if err != nil {
 			continue
 		}
 		if page != nil {

@@ -12,6 +12,7 @@ export {
 export {
   getDesktopRenderSnapshot,
   markDesktopPerformance,
+  notifyDesktopDiagnostic,
   notifyDesktopRenderHealth,
   notifyDesktopWebFatal,
   notifyDesktopWebReady,
