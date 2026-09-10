@@ -60,8 +60,10 @@ function CreateRoomDialogContent({
   initialSelectedAgentIds,
   isCreating,
   mode,
+  onlineAvailable,
   onCancel,
   onConfirm,
+  users,
 }: RoomDialogContentProps) {
   const { t } = useI18n();
   const titleId = useId();
@@ -84,6 +86,7 @@ function CreateRoomDialogContent({
     initialPrivateMessagesEnabled,
     initialRoomSkillNames,
     initialSelectedAgentIds,
+    users,
   });
   const skills = useRoomSkillOptions(form.state.skillQuery);
   const labels = resolveRoomDialogLabels(mode, t);
@@ -141,11 +144,13 @@ function CreateRoomDialogContent({
                   setAvatar: form.setAvatar,
                   setHostAgentId: form.setHostAgentId,
                   setHostAutoReplyEnabled: form.setHostAutoReplyEnabled,
+                  setLocation: form.setLocation,
                   setName: form.setName,
                   setPrivateMessagesEnabled:
                     form.setPrivateMessagesEnabled,
                 }}
                 state={form.state}
+                showLocation={mode === "create" && onlineAvailable}
               />
               <RoomMemberSelector
                 agents={form.filteredAgents}
@@ -154,9 +159,12 @@ function CreateRoomDialogContent({
                 onQueryChange={form.setMemberQuery}
                 onToggleAgent={form.toggleAgent}
                 onToggleParticipation={form.toggleParticipation}
+                onToggleUser={form.toggleUser}
                 pausedAgentIds={form.pausedAgentIdSet}
                 query={form.state.memberQuery}
                 selectedAgentIds={form.selectedAgentIdSet}
+                selectedUserIds={form.selectedUserIdSet}
+                users={form.state.location === "online" ? form.filteredUsers : []}
               />
             </div>
             <RoomSkillsSelector

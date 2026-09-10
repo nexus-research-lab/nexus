@@ -2,12 +2,13 @@
 // OUTPUT: 使用共享表单与选择原语的 Room 名称、群主和协作设置。
 // POS: Room 创建/管理弹窗的设置组合层；不拥有草稿状态或服务端提交。
 
-import { Crown } from "lucide-react";
+import { Cloud, Crown, HardDrive } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
@@ -26,10 +27,12 @@ interface RoomSettingsFormProps {
     setAvatar: (avatar: string) => void;
     setHostAgentId: (agentId: string) => void;
     setHostAutoReplyEnabled: (enabled: boolean) => void;
+    setLocation: (location: RoomDialogFormState["location"]) => void;
     setName: (name: string) => void;
     setPrivateMessagesEnabled: (enabled: boolean) => void;
   };
   state: RoomDialogFormState;
+  showLocation: boolean;
 }
 
 export function RoomSettingsForm({
@@ -40,6 +43,7 @@ export function RoomSettingsForm({
   selectedAgents,
   setters,
   state,
+  showLocation,
 }: RoomSettingsFormProps) {
   const { t } = useI18n();
   const hostOptions = [
@@ -52,6 +56,19 @@ export function RoomSettingsForm({
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-4">
       <p className="dialog-label">{t("room.settings_title")}</p>
+      {showLocation ? (
+        <UiSegmentedControl
+          disabled={isCreating}
+          onChange={setters.setLocation}
+          options={[
+            { icon: HardDrive, label: t("room.location_local"), value: "local" },
+            { icon: Cloud, label: t("room.location_online"), value: "online" },
+          ]}
+          stretch
+          title={t("room.location")}
+          value={state.location}
+        />
+      ) : null}
       <div className="flex items-start gap-3">
         <RoomAvatarPicker
           avatar={state.avatar}
@@ -100,7 +117,7 @@ export function RoomSettingsForm({
         <RoomSettingCheckbox
           checked={state.hostAutoReplyEnabled}
           className="mt-1.5"
-          disabled={!state.hostAgentId || isCreating}
+          disabled={!state.hostAgentId || state.location === "online" || isCreating}
           label={t("room.host_auto_reply_label")}
           onChange={setters.setHostAutoReplyEnabled}
         />

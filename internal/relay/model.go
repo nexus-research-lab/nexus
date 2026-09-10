@@ -31,16 +31,19 @@ type MessageContent struct {
 
 // Room 是显式创建的在线协作空间。
 type Room struct {
-	ID                   string    `json:"id"`
-	TeamID               string    `json:"team_id,omitempty"`
-	Name                 string    `json:"name"`
-	Description          string    `json:"description"`
-	Avatar               string    `json:"avatar"`
-	CoordinatorAgentID   string    `json:"coordinator_agent_id,omitempty"`
-	ConfigurationVersion int64     `json:"configuration_version"`
-	MembershipVersion    int64     `json:"membership_version"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                     string    `json:"id"`
+	TeamID                 string    `json:"team_id,omitempty"`
+	Name                   string    `json:"name"`
+	Description            string    `json:"description"`
+	Avatar                 string    `json:"avatar"`
+	CoordinatorAgentID     string    `json:"coordinator_agent_id,omitempty"`
+	HostAutoReplyEnabled   bool      `json:"host_auto_reply_enabled"`
+	PrivateMessagesEnabled bool      `json:"private_messages_enabled"`
+	SkillNames             []string  `json:"skill_names"`
+	ConfigurationVersion   int64     `json:"configuration_version"`
+	MembershipVersion      int64     `json:"membership_version"`
+	CreatedAt              time.Time `json:"created_at"`
+	UpdatedAt              time.Time `json:"updated_at"`
 }
 
 // Conversation 是 Relay 消息排序与同步边界。
@@ -69,9 +72,15 @@ type RoomList struct {
 
 // CreateRoomInput 是显式建群请求。
 type CreateRoomInput struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Avatar      string `json:"avatar,omitempty"`
+	Name                   string   `json:"name"`
+	Description            string   `json:"description,omitempty"`
+	Avatar                 string   `json:"avatar,omitempty"`
+	CoordinatorAgentID     string   `json:"coordinator_agent_id,omitempty"`
+	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
+	PrivateMessagesEnabled bool     `json:"private_messages_enabled,omitempty"`
+	SkillNames             []string `json:"skill_names,omitempty"`
+	AgentIDs               []string `json:"agent_ids,omitempty"`
+	MemberUserIDs          []string `json:"member_user_ids,omitempty"`
 }
 
 // Message 是 Conversation 中只追加一次的真人消息。

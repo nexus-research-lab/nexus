@@ -14,7 +14,7 @@ vi.mock("@/features/team/use-team-room", () => ({ useTeamRoom: model.read }));
 let room: ReturnType<typeof useTeamRoom>;
 beforeEach(() => {
   room = {room: {
-    room: {id: "room", team_id: "team", name: "General", description: "", avatar: "", configuration_version: 1, membership_version: 1, created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z"},
+    room: {id: "room", team_id: "team", name: "General", description: "", avatar: "", host_auto_reply_enabled: false, private_messages_enabled: false, skill_names: [], configuration_version: 1, membership_version: 1, created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z"},
     conversation: {id: "conversation", room_id: "room", type: "main", high_water_message_seq: 0, last_activity_at: null, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
     current_user_role: "owner",
   }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};

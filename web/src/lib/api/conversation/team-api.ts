@@ -30,6 +30,9 @@ export interface TeamRoomView {
     description: string;
     avatar: string;
     coordinator_agent_id?: string;
+    host_auto_reply_enabled: boolean;
+    private_messages_enabled: boolean;
+    skill_names: string[];
     configuration_version: number;
     membership_version: number;
     created_at: string;
@@ -102,11 +105,20 @@ export function listTeamRooms(signal?: AbortSignal): Promise<TeamRoomList> {
 }
 
 export function createTeamRoom(
-  name: string,
+  input: {
+    agent_ids: string[];
+    avatar?: string;
+    coordinator_agent_id?: string;
+    host_auto_reply_enabled: boolean;
+    member_user_ids: string[];
+    name: string;
+    private_messages_enabled: boolean;
+    skill_names: string[];
+  },
   commandId: string,
 ): Promise<TeamRoomView> {
   return requestApi<TeamRoomView>(`${TEAM_API_BASE_URL}/rooms`, {
-    body: { name },
+    body: input,
     headers: { "Idempotency-Key": commandId },
     method: "POST",
   });

@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@/shared/i18n/i18n-context", () => ({useI18n: () => ({locale: "en", t: (key: string) => key})}));
 vi.mock("@/lib/api/conversation/team-api", () => ({createTeamRoom: api.create}));
 vi.mock("@/features/team/use-team-rooms", () => ({useTeamRooms: () => ({rooms: [], refresh: vi.fn(), isAvailable: true})}));
+vi.mock("@/features/team/use-team-members", () => ({useTeamMembers: () => []}));
 vi.mock("../room-activity-resource", () => ({useRoomActivity: () => ({})}));
 vi.mock("./sidebar-directory", () => ({useSidebarDirectory: () => ({agents: [], conversations: [], rooms: [], hasLoaded: true})}));
 it("deduplicates same-turn submits and retains the request id after failure", async () => {
@@ -16,10 +17,11 @@ it("deduplicates same-turn submits and retains the request id after failure", as
   api.create.mockImplementation(() => new Promise((_, fail) => {reject = fail;}));
   const {result} = renderHook(() => useChatSidebarController({untitledRoomLabel: "Room"}), {wrapper: MemoryRouter});
   let pending!: Promise<void>;
-  act(() => {pending = result.current.onlineCreate.submit("Room"); void result.current.onlineCreate.submit("Room");});
+  const submission = {agentIds: [], hostAgentId: null, hostAutoReplyEnabled: false, location: "online" as const, name: "Room", pausedAgentIds: [], privateMessagesEnabled: false, skillNames: [], userIds: []};
+  act(() => {pending = result.current.create.submit(submission); void result.current.create.submit(submission);});
   expect(api.create).toHaveBeenCalledTimes(1);
-  await act(async () => {reject(new Error("offline")); await pending;});
-  act(() => {void result.current.onlineCreate.submit("Room");});
+  await act(async () => {reject(new Error("offline")); await pending.catch(() => undefined);});
+  act(() => {void result.current.create.submit(submission);});
   expect(api.create).toHaveBeenCalledTimes(2);
   expect(api.create.mock.calls[1]).toEqual(api.create.mock.calls[0]);
 });

@@ -53,6 +53,7 @@ type teamRelayStub struct {
 	tokens            []string
 	conversationID    string
 	idempotencyKey    string
+	roomInput         relaycontract.CreateRoomInput
 	messageInput      relaycontract.CreateMessageInput
 	snapshotOptions   relaycontract.SnapshotOptions
 	streamID          string
@@ -109,11 +110,12 @@ func (stub *teamRelayStub) CreateRoom(
 	_ context.Context,
 	token string,
 	idempotencyKey string,
-	_ relaycontract.CreateRoomInput,
+	input relaycontract.CreateRoomInput,
 ) (relaycontract.RoomView, error) {
 	stub.createRoomCalls++
 	stub.tokens = append(stub.tokens, token)
 	stub.idempotencyKey = idempotencyKey
+	stub.roomInput = input
 	return stub.room, stub.err
 }
 
@@ -398,13 +400,17 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 		&teamTokenStub{token: "relay-token"}, relay, projector, teamTestPrincipal(),
 	)
 	created := teamRequest(
-		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群"}`, true,
+		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","agent_ids":["agent-1"],"member_user_ids":["user-2"]}`, true,
 	)
 	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
 	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
 		relay.createRoomCalls != 1 || relay.listRoomsCalls != 1 ||
 		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
 		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
+	}
+	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) ||
+		!reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) {
+		t.Fatalf("room input = %+v", relay.roomInput)
 	}
 }
 
