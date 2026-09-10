@@ -13,7 +13,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.1.40
+TAG ?= 0.2.0
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
