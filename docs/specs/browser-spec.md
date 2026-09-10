@@ -28,10 +28,18 @@ runtime MCP browser
 ## 连接协议
 
 - WebSocket 路由固定为 `/nexus/v1/internal/browser/ws`，子协议为 `nexus.browser.v1`。
-- 扩展依次发送和接收 `browser.ready`、`browser.accepted`、`browser.command`、`browser.result`、`browser.event`、`browser.ping` 与 `browser.pong`。
+- 扩展依次发送和接收 `browser.ready`、`browser.accepted`、`browser.command`、`browser.cancel`、`browser.progress`、`browser.result`、`browser.event`、`browser.ping` 与 `browser.pong`。
 - Handler 只接受 manifest 固定 ID 对应的 `chrome-extension://` Origin。
 - `browser.ready` 携带浏览器名称、稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
 - 同一时刻只有一个扩展连接；新连接替换旧连接并结束旧连接上的等待请求。
+- 当前协议版本为 `6`，配套扩展从 `0.8.5` 起提供命令生命周期保护；旧协议必须更新扩展，不能静默降级。
+- `browser.command` 的 `budget_ms` 是剩余毫秒预算；扩展以本地单调时钟累计排队和执行耗时。默认整条调用最多90秒，显式 `timeout_ms` 同时收紧宿主和扩展总预算，batch 继续共享宿主总预算，round 收尾最多15秒。两端不比较墙上时钟；网络传输延迟由宿主取消补足，取消不能撤销已交给 Chrome 的原生操作。
+- 扩展采用容量64的显式顺序队列；`list_tabs` 与健康消息绕过动作队列。原生 Chrome 调用一般最多15秒，脚本执行、截图与PDF调用受剩余总预算约束；光标发送、补注入共用1.5秒预算，隐藏也最多1.5秒，视觉反馈失败降级且迟到注入不继续发光标消息。
+- 宿主超时、取消或发送失败后，向原连接独立发送最多1秒的 `browser.cancel`；写锁等待也受调用 context 与写超时约束。扩展在出队、方法进入、Chrome调用及返回后检查命令生命周期；取消后不能继续后续副作用，断线使旧命令和异步事件处理失效。回执、阶段事件与标签事件在宿主按精确连接 ID 校验，不能由旧连接改写新状态。
+- 未开始命令取消后不执行；已开始命令取消或底层等待超时报告结果未知，隔离该 Session 与已知关联标签，后续冲突动作立即拒绝。隔离页尝试有界 debugger detach 以释放输入/调试状态，但成功 detach 也不自动清除隔离。其他 Session 可在调度器推进后继续，目录查询保持可用；用户核对页面并重新加载扩展后才恢复隔离会话，不自动重放原动作。
+- `browser.progress` 独立发送 queued/running/api_start/api_end/api_error/completed/cancelled/unknown，宿主只记录请求 ID、连接 ID、阶段、Chrome 方法与耗时，不记录参数、页面正文或脚本。宿主另记录发送开始/结束、回执与超时。响应发送异常不能破坏调度器。
+- `status.connected` 仅表达连接对象存在；`execution_state` 独立返回 unverified/ready/busy/recovery_required/unresponsive，`last_seen_at` 来自已验证连接的进度或 pong。超过45秒无新观测标记 unresponsive；不能把 connected=true 当作执行健康证明。
+
 
 ## Session 与标签页
 
@@ -66,7 +74,7 @@ runtime MCP browser
 
 扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。首次操作从视口中部起步，普通移动与点击沿平滑弧线等待指针抵达后再发送 CDP 输入，抵达后轻微左右摆动并保持到本轮结束；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
 
-`snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 12 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`page_content` 默认返回 12,000 个字符、允许显式提高到 200,000，并优先通过 `selector` 缩小正文范围；超过 runtime 内联预算的显式大结果继续使用 `read_result`。`evaluate` 会等待返回的 Promise 完成，并在 `timeout_ms` 或默认 80 秒后终止执行。
+`snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 12 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`page_content` 默认返回 12,000 个字符、允许显式提高到 200,000，并优先通过 `selector` 缩小正文范围；超过 runtime 内联预算的显式大结果继续使用 `read_result`。`evaluate` 会等待返回的 Promise 完成；Chrome 脚本执行使用 `timeout_ms` 或默认80秒，显式 `timeout_ms` 还约束整条调用。宿主等待结束不证明 Chrome 已停止或副作用未发生。
 
 MCP 结果把模型可见正文与界面结构化数据分开：`snapshot`、`page_content` 和 `batch` 使用无 JSON 转义的紧凑文字作为 `content`，完整 metadata 保留在 `structuredContent`，不会重复进入模型上下文。
 

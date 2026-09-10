@@ -1,4 +1,4 @@
-const PROTOCOL_VERSION = "5";
+const PROTOCOL_VERSION = "6";
 const SUBPROTOCOL = "nexus.browser.v1";
 const DEFAULT_ENDPOINTS = [
   "ws://127.0.0.1:34343/nexus/v1/internal/browser/ws",
@@ -85,6 +85,9 @@ function buildNexusLaunchURL(prompt) {
 
 class BrowserController {
   constructor() {
+    this.chrome = chrome;
+    this.quarantinedTabs = new Set();
+    this.eventCommands = new Set();
     this.attachedTabs = new Set();
     this.refsByTab = new Map();
     this.refByBackendByTab = new Map();
@@ -104,33 +107,45 @@ class BrowserController {
     this.eventSink = () => {};
     this.platform = null;
 
-    chrome.tabs.onRemoved.addListener((tabId) => this.handleTabRemoved(tabId));
-    chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-      void this.handleTabUpdated(tabId, change, tab);
+    this.chrome.tabs.onRemoved.addListener((tabId) => this.handleTabRemoved(tabId));
+    this.chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+      void this.runEvent("handleTabUpdated", tabId, change, tab);
     });
-    chrome.tabs.onActivated.addListener(({ tabId }) => {
-      void this.handleTabActivated(tabId);
+    this.chrome.tabs.onActivated.addListener(({ tabId }) => {
+      void this.runEvent("handleTabActivated", tabId);
     });
-    chrome.debugger.onDetach.addListener((source) => {
+    this.chrome.debugger.onDetach.addListener((source) => {
       if (source.tabId !== undefined) {
         this.clearTab(source.tabId);
       }
     });
-    chrome.debugger.onEvent.addListener((source, method, params) => {
+    this.chrome.debugger.onEvent.addListener((source, method, params) => {
       if (source.tabId !== undefined) {
         this.handleNetworkEvent(source.tabId, method, params);
         this.handleConsoleEvent(source.tabId, method, params);
         this.handleDialogEvent(source.tabId, method, params);
       }
     });
-    chrome.tabGroups.onRemoved.addListener((group) => {
+    this.chrome.tabGroups.onRemoved.addListener((group) => {
       for (const [session, groupId] of this.groupBySession) {
         if (groupId === group.id) this.groupBySession.delete(session);
       }
     });
-    chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
-      void this.inheritCreatedTab(details);
+    this.chrome.webNavigation.onCreatedNavigationTarget.addListener((details) => {
+      void this.runEvent("inheritCreatedTab", details);
     });
+  }
+
+  async runEvent(method, ...args) {
+    const context = new BrowserCommandContext({ id: "event", budget_ms: 15000 }, () => {}, () => {});
+    this.eventCommands.add(context);
+    try { await context.controller(this)[method](...args); }
+    catch { /* Event projection is best effort and cannot retain old connection authority. */ }
+    finally { context.dispose(); this.eventCommands.delete(context); }
+  }
+
+  cancelEvents() {
+    for (const context of this.eventCommands) context.cancel("Browser connection closed");
   }
 
   setIdentity(instanceID, generation) {
@@ -246,7 +261,7 @@ class BrowserController {
     let created = false;
     if (!params.new_tab && Number.isInteger(params.tab_id)) {
       try {
-        tab = await chrome.tabs.get(params.tab_id);
+        tab = await this.chrome.tabs.get(params.tab_id);
       } catch {
         tab = null;
       }
@@ -256,19 +271,19 @@ class BrowserController {
       const currentURL = tab.url || tab.pendingUrl || "";
       const loading = this.waitForNextLoad(tab.id);
       if (currentURL === url) {
-        await chrome.tabs.reload(tab.id);
+        await this.chrome.tabs.reload(tab.id);
       } else {
-        await chrome.tabs.update(tab.id, { url });
+        await this.chrome.tabs.update(tab.id, { url });
       }
       await loading;
     } else {
-      tab = await chrome.tabs.create({ url, active: false });
+      tab = await this.chrome.tabs.create({ url, active: false });
       created = true;
       await this.groupTab(tab.id, params.session, params.group_title);
       await this.waitForLoad(tab.id);
     }
 
-    tab = await chrome.tabs.get(tab.id);
+    tab = await this.chrome.tabs.get(tab.id);
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, created);
     return { ...await this.tabResult(tab), created };
@@ -280,7 +295,7 @@ class BrowserController {
     let borrowed = false;
 
     if (params.active) {
-      const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const [active] = await this.chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (active && this.matchesURL(active.url || active.pendingUrl || "", pattern)) {
         tab = active;
         borrowed = true;
@@ -289,7 +304,7 @@ class BrowserController {
     if (!tab) {
       for (const tabId of this.sessionTabIDs(params)) {
         try {
-          const candidate = await chrome.tabs.get(tabId);
+          const candidate = await this.chrome.tabs.get(tabId);
           if (this.matchesURL(candidate.url || candidate.pendingUrl || "", pattern)) {
             tab = candidate;
             break;
@@ -309,13 +324,13 @@ class BrowserController {
 
   async listTabs(params) {
     if (params.scope === "all") {
-      const tabs = await chrome.tabs.query({});
+      const tabs = await this.chrome.tabs.query({});
       return { scope: "all", tabs: await Promise.all(tabs.map((tab) => this.tabResult(tab))) };
     }
     const tabs = [];
     for (const tabId of this.sessionTabIDs(params)) {
       try {
-        tabs.push(await this.tabResult(await chrome.tabs.get(tabId)));
+        tabs.push(await this.tabResult(await this.chrome.tabs.get(tabId)));
       } catch {
         // 标签页可能在宿主发出请求前已由用户关闭。
       }
@@ -324,7 +339,7 @@ class BrowserController {
   }
 
   async attachActive(params) {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const [tab] = await this.chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (!tab?.id) throw new Error("No active browser tab found");
     await this.attachDebugger(tab.id);
     this.claimTab(tab.id, params, false);
@@ -357,15 +372,15 @@ class BrowserController {
     const tab = await this.getTab(params.tab_id);
     const loading = this.waitForNextLoad(tab.id);
     try {
-      if (action === "back") await chrome.tabs.goBack(tab.id);
-      else if (action === "forward") await chrome.tabs.goForward(tab.id);
-      else await chrome.tabs.reload(tab.id, { bypassCache: false });
+      if (action === "back") await this.chrome.tabs.goBack(tab.id);
+      else if (action === "forward") await this.chrome.tabs.goForward(tab.id);
+      else await this.chrome.tabs.reload(tab.id, { bypassCache: false });
       await loading;
     } catch (error) {
       void loading.catch(() => {});
       throw error;
     }
-    return { action, ...await this.tabResult(await chrome.tabs.get(tab.id)) };
+    return { action, ...await this.tabResult(await this.chrome.tabs.get(tab.id)) };
   }
 
   async history(params) {
@@ -375,7 +390,7 @@ class BrowserController {
     };
     if (Number.isFinite(params.start_time)) query.startTime = params.start_time;
     if (Number.isFinite(params.end_time)) query.endTime = params.end_time;
-    const items = await chrome.history.search(query);
+    const items = await this.chrome.history.search(query);
     return {
       count: items.length,
       items: items.map((item) => ({
@@ -478,7 +493,7 @@ class BrowserController {
     const timeout = Number.isInteger(params.timeout_ms) ? params.timeout_ms : 30000;
     const deadline = Date.now() + timeout;
     while (Date.now() <= deadline) {
-      const tab = await chrome.tabs.get(tabId);
+      const tab = await this.chrome.tabs.get(tabId);
       const currentURL = tab.url || tab.pendingUrl || "";
       if (this.matchesURL(currentURL, pattern)) {
         return { tab_id: tabId, url: currentURL, title: tab.title || "", matched: true };
@@ -1072,16 +1087,22 @@ class BrowserController {
   }
 
   async moveCursor(tabId, point) {
+    if (this.commandContext) this.commandContext.cursorDeadline = performance.now() + CURSOR_ARRIVAL_TIMEOUT_MS;
     try {
       await this.sendCursorMove(tabId, point);
       return;
     } catch {
+      if (this.commandContext) {
+        this.commandContext.check();
+        if (performance.now() >= this.commandContext.cursorDeadline) return;
+      }
       try {
-        await chrome.scripting.executeScript({
+        await this.chrome.scripting.executeScript({
           files: ["cursor.js"],
           injectImmediately: true,
           target: { tabId },
         });
+        if (this.commandContext && performance.now() >= this.commandContext.cursorDeadline) return;
         await this.sendCursorMove(tabId, point);
       } catch {
         return;
@@ -1099,8 +1120,9 @@ class BrowserController {
         if (error) reject(error); else resolve();
       };
       const timeout = setTimeout(() => finish(new Error("Cursor arrival timed out")), CURSOR_ARRIVAL_TIMEOUT_MS);
+      this.commandContext?.cleanups.add(() => finish(new Error("Browser command finished")));
       try {
-        chrome.tabs.sendMessage(tabId, {
+        this.chrome.tabs.sendMessage(tabId, {
           type: CURSOR_MOVE_MESSAGE,
           x: point.x,
           y: point.y,
@@ -1112,8 +1134,9 @@ class BrowserController {
   }
 
   async hideCursor(tabId) {
+    if (this.commandContext) this.commandContext.cursorDeadline = performance.now() + CURSOR_ARRIVAL_TIMEOUT_MS;
     try {
-      await chrome.tabs.sendMessage(tabId, { type: CURSOR_HIDE_MESSAGE });
+      await this.chrome.tabs.sendMessage(tabId, { type: CURSOR_HIDE_MESSAGE });
     } catch {
       // 未注入光标脚本的页面无需清理。
     }
@@ -1162,7 +1185,7 @@ class BrowserController {
     const tab = await this.getTab(params.tab_id);
     const cmd = String(params.cmd || "").toLowerCase();
     await this.ensureOffscreenDocument();
-    const response = await chrome.runtime.sendMessage({
+    const response = await this.chrome.runtime.sendMessage({
       target: "nexus-browser-offscreen",
       type: cmd === "write" ? "CLIPBOARD_WRITE" : "CLIPBOARD_READ",
       text: String(params.text ?? ""),
@@ -1174,14 +1197,14 @@ class BrowserController {
   }
 
   async ensureOffscreenDocument() {
-    const offscreenURL = chrome.runtime.getURL("offscreen.html");
-    const contexts = await chrome.runtime.getContexts({
+    const offscreenURL = this.chrome.runtime.getURL("offscreen.html");
+    const contexts = await this.chrome.runtime.getContexts({
       contextTypes: ["OFFSCREEN_DOCUMENT"],
       documentUrls: [offscreenURL],
     });
     if (contexts.length) return;
     try {
-      await chrome.offscreen.createDocument({
+      await this.chrome.offscreen.createDocument({
         url: "offscreen.html",
         reasons: ["CLIPBOARD"],
         justification: "Read and write the Browser session clipboard",
@@ -1235,7 +1258,7 @@ class BrowserController {
     const parts = String(rawToken || "").split("+").filter(Boolean);
     const rawKey = parts.pop();
     if (!rawKey) throw new Error("Empty key token");
-    if (!this.platform) this.platform = (await chrome.runtime.getPlatformInfo()).os;
+    if (!this.platform) this.platform = (await this.chrome.runtime.getPlatformInfo()).os;
 
     let modifiers = 0;
     for (const modifier of parts) {
@@ -1415,7 +1438,7 @@ class BrowserController {
       saveAs: Boolean(params.save_as),
     };
     if (params.file_name) options.filename = this.safeFileName(params.file_name, true);
-    const downloadId = await chrome.downloads.download(options);
+    const downloadId = await this.chrome.downloads.download(options);
     return { download_id: downloadId, url, file_name: options.filename || "", started: true };
   }
 
@@ -1428,14 +1451,14 @@ class BrowserController {
       };
       if (params.query) query.query = [String(params.query)];
       if (params.download_state) query.state = params.download_state;
-      const items = await chrome.downloads.search(query);
+      const items = await this.chrome.downloads.search(query);
       return { count: items.length, items: items.map((item) => this.downloadResult(item)) };
     }
     const downloadId = Number(params.download_id);
     if (cmd === "show") {
-      const [item] = await chrome.downloads.search({ id: downloadId });
+      const [item] = await this.chrome.downloads.search({ id: downloadId });
       if (!item) throw new Error("Unknown download: " + downloadId);
-      await chrome.downloads.show(downloadId);
+      await this.chrome.downloads.show(downloadId);
       return { shown: true, item: this.downloadResult(item) };
     }
     if (cmd === "wait") {
@@ -1452,13 +1475,13 @@ class BrowserController {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
-        chrome.downloads.onChanged.removeListener(listener);
+        this.chrome.downloads.onChanged.removeListener(listener);
         if (error) {
           reject(error);
           return;
         }
         try {
-          const [item] = await chrome.downloads.search({ id: downloadId });
+          const [item] = await this.chrome.downloads.search({ id: downloadId });
           if (!item) reject(new Error("Unknown download: " + downloadId));
           else resolve(this.downloadResult(item));
         } catch (searchError) {
@@ -1471,8 +1494,9 @@ class BrowserController {
         if (state === "complete" || state === "interrupted") void finish();
       };
       const timeout = setTimeout(() => void finish(new Error("Download wait timed out")), timeoutMs);
-      chrome.downloads.onChanged.addListener(listener);
-      chrome.downloads.search({ id: downloadId }).then(([item]) => {
+      this.commandContext?.cleanups.add(() => void finish(new Error("Browser command finished")));
+      this.chrome.downloads.onChanged.addListener(listener);
+      this.chrome.downloads.search({ id: downloadId }).then(([item]) => {
         if (!item) void finish(new Error("Unknown download: " + downloadId));
         else if (item.state === "complete" || item.state === "interrupted") void finish();
       }, (error) => void finish(error));
@@ -1500,7 +1524,7 @@ class BrowserController {
   async closeTab(params) {
     const tabId = this.parseTabID(params.tab_id);
     try {
-      await chrome.tabs.remove(tabId);
+      await this.chrome.tabs.remove(tabId);
       this.clearTab(tabId);
       return { closed: true, tab_id: tabId };
     } catch {
@@ -1513,13 +1537,13 @@ class BrowserController {
     const existing = [];
     for (const tabId of this.sessionTabIDs(params)) {
       try {
-        await chrome.tabs.get(tabId);
+        await this.chrome.tabs.get(tabId);
         existing.push(tabId);
       } catch {
         this.clearTab(tabId);
       }
     }
-    if (existing.length) await chrome.tabs.remove(existing);
+    if (existing.length) await this.chrome.tabs.remove(existing);
     existing.forEach((tabId) => this.clearTab(tabId));
     return { closed: existing.length, tab_ids: existing };
   }
@@ -1591,7 +1615,7 @@ class BrowserController {
     let groupTitle = "";
     if (Number.isInteger(tab.groupId) && tab.groupId >= 0) {
       try {
-        groupTitle = (await chrome.tabGroups.get(tab.groupId)).title || "";
+        groupTitle = (await this.chrome.tabGroups.get(tab.groupId)).title || "";
       } catch {
         groupTitle = "";
       }
@@ -1613,6 +1637,7 @@ class BrowserController {
   }
 
   claimTab(tabId, params, owned) {
+    if (this.quarantinedTabs.has(tabId)) throw new Error("Browser tab requires recovery");
     const session = String(params.session || "").trim();
     if (!session || !Number.isInteger(tabId) || tabId <= 0) return;
     const current = this.leaseByTab.get(tabId);
@@ -1641,6 +1666,7 @@ class BrowserController {
     const sourceTabId = details?.sourceTabId;
     const tabId = details?.tabId;
     const lease = this.leaseByTab.get(sourceTabId);
+    if (this.quarantinedTabs.has(sourceTabId)) return;
     if (!lease || !Number.isInteger(tabId) || tabId <= 0) return;
     this.claimTab(tabId, {
       session: lease.session,
@@ -1649,7 +1675,7 @@ class BrowserController {
     }, true);
     try {
       await this.groupTab(tabId, lease.session, lease.groupTitle);
-      const tab = await chrome.tabs.get(tabId);
+      const tab = await this.chrome.tabs.get(tabId);
       this.eventSink("tab_created", {
         session: lease.session,
         source_tab_ref: this.tabRef(sourceTabId),
@@ -1675,7 +1701,7 @@ class BrowserController {
     const lease = this.leaseByTab.get(tabId);
     if (!lease || !(change.url || change.title || change.status)) return;
     try {
-      const current = tab?.id === tabId ? tab : await chrome.tabs.get(tabId);
+      const current = tab?.id === tabId ? tab : await this.chrome.tabs.get(tabId);
       this.eventSink("tab_updated", {
         session: lease.session,
         tab: await this.tabResult(current),
@@ -1692,7 +1718,7 @@ class BrowserController {
     try {
       this.eventSink("tab_activated", {
         session: lease.session,
-        tab: await this.tabResult(await chrome.tabs.get(tabId)),
+        tab: await this.tabResult(await this.chrome.tabs.get(tabId)),
       });
     } catch {
       this.handleTabRemoved(tabId);
@@ -1706,16 +1732,16 @@ class BrowserController {
     let groupId = this.groupBySession.get(session);
     try {
       if (groupId === undefined) {
-        groupId = await chrome.tabs.group({ tabIds: [tabId] });
+        groupId = await this.chrome.tabs.group({ tabIds: [tabId] });
       } else {
-        await chrome.tabs.group({ tabIds: [tabId], groupId });
+        await this.chrome.tabs.group({ tabIds: [tabId], groupId });
       }
     } catch {
-      groupId = await chrome.tabs.group({ tabIds: [tabId] });
+      groupId = await this.chrome.tabs.group({ tabIds: [tabId] });
     }
     this.groupBySession.set(session, groupId);
     const hash = [...session].reduce((sum, character) => sum + character.codePointAt(0), 0);
-    await chrome.tabGroups.update(groupId, {
+    await this.chrome.tabGroups.update(groupId, {
       title,
       color: GROUP_COLORS[hash % GROUP_COLORS.length],
       collapsed: false,
@@ -1750,24 +1776,25 @@ class BrowserController {
   }
 
   async attachDebugger(tabId) {
+    if (this.quarantinedTabs.has(tabId)) throw new Error("Browser tab requires recovery; inspect the page and reload Nexus Browser extension");
     if (this.attachedTabs.has(tabId)) return;
     try {
-      await chrome.debugger.detach({ tabId });
+      await this.chrome.debugger.detach({ tabId });
     } catch {
       // 扩展重启后可能不知道上一条调试会话，先清理再连接。
     }
     try {
-      await chrome.debugger.attach({ tabId }, "1.3");
+      await this.chrome.debugger.attach({ tabId }, "1.3");
       this.attachedTabs.add(tabId);
-      await chrome.debugger.sendCommand({ tabId }, "Page.enable");
-      await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
-      await chrome.debugger.sendCommand({ tabId }, "Log.enable");
+      await this.chrome.debugger.sendCommand({ tabId }, "Page.enable");
+      await this.chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+      await this.chrome.debugger.sendCommand({ tabId }, "Log.enable");
       this.consoleTabs.add(tabId);
       if (!this.consoleEntries.has(tabId)) this.consoleEntries.set(tabId, []);
     } catch (error) {
       this.attachedTabs.delete(tabId);
       try {
-        await chrome.debugger.detach({ tabId });
+        await this.chrome.debugger.detach({ tabId });
       } catch {
         // attach 失败时不一定存在可清理的调试会话。
       }
@@ -1779,14 +1806,14 @@ class BrowserController {
     await this.hideCursor(tabId);
     if (this.attachedTabs.has(tabId)) {
       try {
-        await chrome.debugger.detach({ tabId });
+        await this.chrome.debugger.detach({ tabId });
       } catch {
         // 页面关闭或调试会话先行结束时，只需清理本地租约。
       }
     }
     if (removeFromGroup) {
       try {
-        await chrome.tabs.ungroup(tabId);
+        await this.chrome.tabs.ungroup(tabId);
       } catch {
         // 标签页已离组或关闭时仍可直接交还用户。
       }
@@ -1796,11 +1823,11 @@ class BrowserController {
 
   async command(tabId, method, params = {}) {
     await this.attachDebugger(tabId);
-    return chrome.debugger.sendCommand({ tabId }, method, params);
+    return this.chrome.debugger.sendCommand({ tabId }, method, params);
   }
 
   async getTab(rawTabId) {
-    return chrome.tabs.get(this.parseTabID(rawTabId));
+    return this.chrome.tabs.get(this.parseTabID(rawTabId));
   }
 
   parseTabID(value) {
@@ -1890,7 +1917,7 @@ class BrowserController {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
-        chrome.tabs.onUpdated.removeListener(listener);
+        this.chrome.tabs.onUpdated.removeListener(listener);
         if (error) reject(error); else resolve();
       };
       const timeout = setTimeout(() => {
@@ -1900,8 +1927,9 @@ class BrowserController {
         if (updatedTabId !== tabId || change.status !== "complete") return;
         finish();
       };
-      chrome.tabs.onUpdated.addListener(listener);
-      chrome.tabs.get(tabId).then((current) => {
+      this.commandContext?.cleanups.add(() => finish(new Error("Browser command finished")));
+      this.chrome.tabs.onUpdated.addListener(listener);
+      this.chrome.tabs.get(tabId).then((current) => {
         if (current.status === "complete") finish();
       }, finish);
     });
@@ -1909,17 +1937,20 @@ class BrowserController {
 
   waitForNextLoad(tabId) {
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(listener);
-        reject(new Error("Page load timed out after 30 seconds"));
-      }, 30000);
-      const listener = (updatedTabId, change) => {
-        if (updatedTabId !== tabId || change.status !== "complete") return;
+      let settled = false;
+      const finish = (error) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
+        this.chrome.tabs.onUpdated.removeListener(listener);
+        if (error) reject(error); else resolve();
       };
-      chrome.tabs.onUpdated.addListener(listener);
+      const timeout = setTimeout(() => finish(new Error("Page load timed out after 30 seconds")), 30000);
+      const listener = (updatedTabId, change) => {
+        if (updatedTabId === tabId && change.status === "complete") finish();
+      };
+      this.commandContext?.cleanups.add(() => finish(new Error("Browser command finished")));
+      this.chrome.tabs.onUpdated.addListener(listener);
     });
   }
 
@@ -1943,6 +1974,156 @@ class BrowserController {
   }
 }
 
+// A command owns its deadline and every Chrome continuation. Rejecting a wait alone
+// cannot cancel Chrome: expired commands lose all authority to continue in JS.
+class BrowserCommandContext {
+  constructor(message, report, quarantine) {
+    this.id = message.id;
+    this.startedAt = performance.now();
+    this.deadline = this.startedAt + Math.max(1, Math.min(90000, message.budget_ms));
+    this.report = report;
+    this.quarantine = quarantine;
+    this.error = null;
+    this.started = false;
+    this.cleanups = new Set();
+    this.listeners = new Set();
+    this.apiCache = new WeakMap();
+    this.closed = false;
+    this.timer = setTimeout(() => this.cancel("Browser command deadline exceeded"), this.remaining());
+  }
+
+  remaining() { return Math.max(0, this.deadline - performance.now()); }
+
+  check() {
+    if (this.closed) throw this.error || new Error("Browser command already finished");
+    if (!this.error && this.remaining() <= 0) this.cancel("Browser command deadline exceeded");
+    if (this.error) throw this.error;
+  }
+
+  stage(stage, method = "") {
+    this.report({ stage, method, elapsed_ms: Math.round(performance.now() - this.startedAt) });
+  }
+
+  cancel(reason) {
+    if (this.error) return;
+    this.error = new Error(reason + (this.started ? "; result unknown; do not replay the action" : "; command not started"));
+    if (this.started) this.quarantine();
+    this.stage(this.started ? "unknown" : "cancelled");
+    for (const reject of this.listeners) reject(this.error);
+    this.listeners.clear();
+    this.dispose();
+  }
+
+  dispose() {
+    this.closed = true;
+    clearTimeout(this.timer);
+    for (const cleanup of this.cleanups) cleanup();
+    this.cleanups.clear();
+  }
+
+  wait(promise) {
+    return new Promise((resolve, reject) => {
+      // Always observe the underlying promise, including an already-cancelled
+      // caller, so abandoned event waits cannot become unhandled rejections.
+      Promise.resolve(promise).then(value => {
+        this.listeners.delete(reject);
+        try { this.check(); resolve(value); } catch (error) { reject(error); }
+      }, error => { this.listeners.delete(reject); reject(this.error || error); });
+      try { this.check(); this.listeners.add(reject); } catch (error) { reject(error); }
+    });
+  }
+
+  native(method, invoke, optional = false, budget = 15000) {
+    this.check();
+    this.stage("api_start", method);
+    this.check();
+    const timeoutMs = Math.min(this.remaining(), budget);
+    const promise = new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.cleanups.delete(cleanup);
+        this.stage(error ? "api_error" : "api_end", method);
+        if (error) reject(error); else resolve(value);
+      };
+      const cleanup = () => finish(this.error || new Error("Command finished"));
+      const timer = setTimeout(() => {
+        if (!optional) this.cancel("Browser API timed out: " + method);
+        finish(new Error("Browser API timed out: " + method));
+      }, timeoutMs);
+      this.cleanups.add(cleanup);
+      try { Promise.resolve(invoke()).then(value => finish(null, value), error => finish(error)); }
+      catch (error) { finish(error); }
+    });
+    return this.wait(promise);
+  }
+
+  chromeAPI(api, path = "") {
+    if (this.apiCache.has(api)) return this.apiCache.get(api);
+    const context = this;
+    const eventListeners = new Map();
+    const proxy = new Proxy(api, {
+      get(target, key) {
+        const value = target[key];
+        const method = path ? path + "." + String(key) : String(key);
+        if (typeof value !== "function") return value && typeof value === "object" ? context.chromeAPI(value, method) : value;
+        if (key === "removeListener") return listener => {
+          value.call(target, eventListeners.get(listener) || listener);
+        };
+        if (key === "addListener") return listener => {
+          context.check();
+          const guarded = (...args) => { if (!context.error && !context.closed) listener(...args); };
+          eventListeners.set(listener, guarded);
+          value.call(target, guarded);
+          context.cleanups.add(() => target.removeListener(guarded));
+        };
+        if (method === "runtime.getURL") return (...args) => { context.check(); return value.apply(target, args); };
+        return (...args) => {
+          const cursor = method === "scripting.executeScript" ||
+            (method === "tabs.sendMessage" && [CURSOR_MOVE_MESSAGE, CURSOR_HIDE_MESSAGE].includes(args[1]?.type));
+          const budget = cursor ? Math.max(1, (context.cursorDeadline || performance.now() + 1500) - performance.now()) :
+            method === "debugger.sendCommand" && ["Runtime.evaluate", "Runtime.callFunctionOn", "Page.printToPDF", "Page.captureScreenshot"].includes(args[1]) ? context.remaining() : 15000;
+          return context.native(method === "debugger.sendCommand" ? args[1] : method,
+            () => value.apply(target, args), cursor, budget);
+        };
+      },
+    });
+    this.apiCache.set(api, proxy);
+    return proxy;
+  }
+
+  controller(controller) {
+    const context = this;
+    const api = this.chromeAPI(chrome);
+    const methodCache = new Map();
+    return new Proxy(controller, {
+      get(target, key, receiver) {
+        if (key === "commandContext") return context;
+        if (key === "chrome") return api;
+        context.check();
+        const value = Reflect.get(target, key, receiver);
+        if (typeof value !== "function") return value;
+        if (!methodCache.has(key)) methodCache.set(key, (...args) => {
+          context.check();
+          const result = value.apply(receiver, args);
+          if (result?.then) {
+            const pending = context.wait(result);
+            // Event waits can be created before the navigation call is awaited.
+            pending.catch(() => {});
+            return pending;
+          }
+          context.check();
+          return result;
+        });
+        return methodCache.get(key);
+      },
+      set(target, key, value) { context.check(); target[key] = value; return true; },
+    });
+  }
+}
+
 class BrowserClient {
   constructor(controller) {
     this.controller = controller;
@@ -1951,7 +2132,11 @@ class BrowserClient {
     this.currentURL = "";
     this.connecting = false;
     this.generation = 0;
-    this.queue = Promise.resolve();
+    this.queue = [];
+    this.commands = new Map();
+    this.running = false;
+    this.quarantinedSessions = new Set();
+    this.quarantinedTabs = this.controller.quarantinedTabs;
     this.controller.setEventSink((event, data) => {
       if (this.socket) this.send(this.socket, { type: "browser.event", event, data });
     });
@@ -2122,6 +2307,7 @@ class BrowserClient {
           accepted = true;
           this.socket = socket;
           this.currentURL = endpoint;
+          this.handleMessage(socket, { type: "browser.ping" });
           void this.setBadge("ON", "#16a34a");
           finish(true);
           return;
@@ -2129,6 +2315,7 @@ class BrowserClient {
         if (accepted) this.handleMessage(socket, message);
       });
       socket.addEventListener("close", () => {
+        this.cancelSocket(socket);
         if (this.socket === socket) {
           this.socket = null;
           this.currentURL = "";
@@ -2147,23 +2334,102 @@ class BrowserClient {
   }
 
   handleMessage(socket, message) {
+    if (socket !== this.socket) return;
     if (message.type === "browser.ping") {
-      this.send(socket, { type: "browser.pong" });
+      this.send(socket, { type: "browser.pong", data: {
+        execution_state: this.quarantinedSessions.size ? "recovery_required" : this.commands.size ? "busy" : "ready",
+        queued: this.queue.length,
+      } });
       return;
     }
-    if (message.type !== "browser.command" || !message.id || !message.action) return;
-    this.queue = this.queue.then(async () => {
-      try {
-        const result = await this.controller.execute(message.action, message.params || {});
-        this.send(socket, { type: "browser.result", id: message.id, result });
-      } catch (error) {
-        this.send(socket, {
-          type: "browser.result",
-          id: message.id,
-          error: error?.message || String(error),
-        });
+    if (message.type === "browser.cancel") {
+      this.commands.get(message.id)?.context.cancel("Browser command cancelled by host");
+      return;
+    }
+    if (message.type !== "browser.command" || !message.id || !message.action ||
+        !Number.isFinite(message.budget_ms) || this.commands.has(message.id)) return;
+    if (this.commands.size >= 64) {
+      this.send(socket, { type: "browser.result", id: message.id, error: "Browser queue is full; command not started" });
+      return;
+    }
+    const params = message.params || {};
+    const job = { socket, message };
+    job.context = new BrowserCommandContext(message,
+      data => this.send(socket, { type: "browser.progress", id: message.id, data }),
+      () => {
+        this.quarantinedSessions.add(params.session || "");
+        if (Number.isInteger(params.tab_id)) this.quarantinedTabs.add(params.tab_id);
+        for (const [tabId, lease] of this.controller.leaseByTab) {
+          if (lease.session === params.session) this.quarantinedTabs.add(tabId);
+        }
+        for (const tabId of this.quarantinedTabs) {
+          if (this.controller.attachedTabs.has(tabId)) void this.releaseQuarantinedDebugger(tabId);
+        }
+      });
+    this.commands.set(message.id, job);
+    job.context.stage("queued");
+    // Directory reads and health remain available while an action is stalled.
+    if (message.action === "list_tabs") void this.runJob(job);
+    else { this.queue.push(job); void this.drain(); }
+  }
+
+  async drain() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      while (this.queue.length) await this.runJob(this.queue.shift());
+    } finally { this.running = false; }
+  }
+
+  async runJob(job) {
+    const { socket, message, context } = job;
+    try {
+      context.check();
+      if (socket !== this.socket) throw new Error("Browser connection replaced; command not started");
+      const params = { ...(message.params || {}) };
+      if (params.tab_ref !== undefined) params.tab_id = this.controller.parseTabRef(params.tab_ref);
+      if (message.action !== "list_tabs" && (this.quarantinedSessions.has(params.session || "") ||
+          this.quarantinedTabs.has(params.tab_id))) {
+        throw new Error("Browser session requires recovery after an unknown result; inspect the page and reload Nexus Browser extension before continuing; command not started");
       }
-    });
+      context.started = true;
+      context.stage("running");
+      const scoped = context.controller(this.controller);
+      const result = await context.wait(scoped.execute(message.action, params));
+      context.check();
+      context.stage("completed");
+      this.send(socket, { type: "browser.result", id: message.id, result });
+    } catch (error) {
+      this.send(socket, { type: "browser.result", id: message.id, error: error?.message || String(error) });
+    } finally {
+      context.dispose();
+      this.commands.delete(message.id);
+    }
+  }
+
+  async releaseQuarantinedDebugger(tabId) {
+    // Best-effort release of pressed input/debugger state; never clears quarantine
+    // or retries the original action, even after a successful detach.
+    if (this.releasingTabs?.has(tabId)) return;
+    this.releasingTabs ||= new Set();
+    this.releasingTabs.add(tabId);
+    let timer;
+    try {
+      await Promise.race([
+        chrome.debugger.detach({ tabId }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("detach timed out")), 1500); }),
+      ]);
+      this.controller.attachedTabs.delete(tabId);
+    } catch {
+      // Unknown cleanup stays quarantined until an explicit extension reload.
+    } finally { clearTimeout(timer); }
+  }
+
+  cancelSocket(socket) {
+    if (socket === this.socket) this.controller.cancelEvents();
+    for (const job of this.commands.values()) {
+      if (job.socket === socket) job.context.cancel("Browser connection closed");
+    }
   }
 
   testConnection(rawURL) {
@@ -2198,15 +2464,21 @@ class BrowserClient {
   closeSocket() {
     const socket = this.socket;
     const pendingSocket = this.pendingSocket;
+    this.controller.cancelEvents();
     this.socket = null;
     this.pendingSocket = null;
     this.currentURL = "";
-    if (socket) socket.close();
+    if (socket) { this.cancelSocket(socket); socket.close(); }
     if (pendingSocket && pendingSocket !== socket) pendingSocket.close();
   }
 
   send(socket, payload) {
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+    try {
+      if (socket === this.socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+    } catch {
+      this.cancelSocket(socket);
+      socket.close();
+    }
   }
 
   async setBadge(text, color) {

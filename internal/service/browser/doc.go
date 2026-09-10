@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go：单扩展连接、并发请求路由、扩展代次与不透明标签页引用栅栏、标签页事件同步、子标签页继承、按 Session/round 隔离和收尾的多标签页状态、宿主批处理、Browser action 清单、输入校验与正文预算。
+//   - service.go：单扩展连接、连接身份校验、命令总预算与取消、阶段诊断及执行健康、并发请求路由、扩展代次与不透明标签页引用栅栏、标签页事件同步、子标签页继承、按 Session/round 隔离和收尾的多标签页状态、宿主批处理、Browser action 清单、输入校验与正文预算。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package browser
