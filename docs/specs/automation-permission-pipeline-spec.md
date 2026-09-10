@@ -80,6 +80,8 @@ Main Session 任务在宿主持有的 system event 中保存 `job_id`、`run_id`
 
 `nexus.command` 由受管工具策略自动审批进入领域处理；最终写权限仍由 round actor、Automation service、revision/digest 栅栏和原生真人确认共同决定。后台 run 的同一工具只获得宿主绑定 job/run 的查询能力，mutation 在 service 边界失败关闭。
 
+contract 可按 operation 返回精确封闭 `input_schema`，宿主使用同一 schema 在资源读取前校验原始模型输入。plan 返回的 input 只包含当前 Actor 可提交的字段，宿主推导身份保留在内部。apply 顶层必须携带 request_id、expected_revision（复制 current_revision）和 plan_digest；真人确认前预检，实际写入前重新 plan 并复核，已存在的持久回执仍优先对账。
+
 查询使用 `inspect`；所有变更固定使用 `plan -> apply`。plan 不写入并返回 target、risk、current revision 与 plan digest；apply 在 service 内重新 plan，要求完全相同的 revision/digest，并通过当前 Nexus/Room/IM Session 的 runtime permission context 取得真人 allow 后才写入。确认载荷必须投影规范化变更字段，不能只显示泛化标题。真正写入继续使用 plan 观察到的 configuration version；`cancel_active_run` 还把 plan 观察到的 run_id 放进同一条件更新，过期确认必须在任何配置字段落库前失败。模型伪造的确认字段、聊天正文同意或通用工具 allow 都不能替代这次领域确认。
 
 每个 apply 使用 owner-scoped 稳定 `request_id`。durable command ledger 把它绑定到 Actor、operation、不含瞬时 revision 的 intent digest，以及当前 Session permission context 生成的真人 approval request ID：相同意图重放返回首次结果，不同意图冲突；命令已经开始但进程未能持久化结果时进入 uncertain 并禁止自动重放，调用方必须 inspect 权威状态后以新命令处理，不能冒险重复 run、wake 或外部投递。

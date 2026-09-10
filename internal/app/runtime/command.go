@@ -1,5 +1,5 @@
 // INPUT: 可信 runtime round、Nexus 内建工具组、Goal/Execution/Automation services、可信 Subagent control 与 runtime permission context。
-// OUTPUT: 单一 round-scoped nexus MCP server、按需 contract、语义调用结果与 typed mutation receipt。
+// OUTPUT: 单一 round-scoped nexus MCP server、精确 contract、确认前校验的语义调用结果与 typed mutation receipt。
 // POS: Nexus 内建工具的唯一 server 装配点；身份、责任、preview、Plan Mode 与真人确认均由宿主固定。
 package runtime
 
@@ -362,6 +362,12 @@ func handleAutomationCommand(
 	if svc == nil {
 		return nil, errors.New("Automation service 尚未装配")
 	}
+	if request.Action == command.ActionContract {
+		return svc.RuntimeCommandContract(ctx, actor, request.Operation)
+	}
+	if err := automationsvc.ValidateRuntimeCommandInput(actor, request.Action, request.Operation, request.Input); err != nil {
+		return nil, err
+	}
 	input, err := decodeAutomationCommandInput(request.Input)
 	if err != nil {
 		return nil, err
@@ -372,12 +378,14 @@ func handleAutomationCommand(
 		PlanDigest: request.PlanDigest,
 	}
 	switch strings.ToLower(strings.TrimSpace(request.Action)) {
-	case command.ActionContract:
-		return svc.RuntimeCommandContract(ctx, actor)
 	case command.ActionInspect:
 		return svc.InspectRuntimeCommand(ctx, actor, request.Operation, input)
 	case command.ActionPlan:
-		return svc.PlanRuntimeCommand(ctx, actor, request.Operation, input)
+		plan, err := svc.PlanRuntimeCommand(ctx, actor, request.Operation, input)
+		if err != nil {
+			return nil, err
+		}
+		return automationsvc.RuntimeCommandPlanView(actor, *plan)
 	case command.ActionReplay:
 		replayed, found, replayErr := svc.ReplayRuntimeCommand(ctx, actor, automationRequest)
 		return automationdomain.AutomationCommandReplayResult{Found: found, Result: replayed}, replayErr
@@ -389,6 +397,9 @@ func handleAutomationCommand(
 		plan, planErr := svc.PlanRuntimeCommand(ctx, actor, request.Operation, input)
 		if planErr != nil {
 			return nil, planErr
+		}
+		if err := automationsvc.ValidateRuntimeCommandPlan(automationRequest, *plan); err != nil {
+			return nil, err
 		}
 		approvalRequestID, approvalErr := requireAutomationConfirmation(ctx, permissions, actor, *plan)
 		if approvalErr != nil {

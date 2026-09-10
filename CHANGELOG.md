@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Align command schema bounds, expose exact Automation contracts and reusable plan inputs, and reject invalid apply fences before confirmation.
+
 - Declare command request ID constraints and provide actionable correction guidance for invalid WorkGraph submissions.
 
 - Correct historical WorkGraph task and file ownership, and contain canvas zoom gestures.

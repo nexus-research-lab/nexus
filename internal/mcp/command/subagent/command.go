@@ -88,8 +88,8 @@ func NewHandler(actor command.Actor, control runtimectx.SubagentControl) command
 		if op.ReadOnly {
 			return invoke()
 		}
-		if !command.ValidRequestID(req.RequestID) {
-			return nil, errors.New("subagent mutation 需要 8-128 位稳定 request_id")
+		if err := command.ValidateRequestID(req.RequestID); err != nil {
+			return nil, fmt.Errorf("subagent mutation %w", err)
 		}
 		data, _ := json.Marshal(struct {
 			Operation string
