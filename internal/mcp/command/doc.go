@@ -5,7 +5,7 @@
 // 成员:
 //   - contract.go / input_schema.go：领域请求、contract、operation、result 与输入校验。
 //   - actor.go：模型不能覆盖的 physical-round Actor capability。
-//   - tool.go：单一 nexus MCP server 中 command 工具的 schema、调用与回执适配。
+//   - tool.go：单一 nexus MCP server 中 command 工具的 schema、request_id 格式与条件必填说明、纠错和回执适配。
 //   - subagent/：子任务 contract、同轮去重与宿主原生控制回连。
 //   - goal/：Goal 服务窄契约与固定语义操作。
 //   - execution/：Execution/WorkGraph 服务窄契约与固定语义操作。

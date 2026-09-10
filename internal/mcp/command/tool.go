@@ -1,5 +1,5 @@
 // INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation/Subagent 领域分发函数。
-// OUTPUT: 单一 nexus.command MCP 工具、动态 contract 调用结果与宿主可信 typed receipt。
+// OUTPUT: 带 request_id 格式与使用说明的 nexus.command 工具、纠错结果与宿主可信 typed receipt。
 // POS: 模型工具协议与 Nexus 领域 command adapter 之间的唯一 MCP 边界。
 package command
 
@@ -15,6 +15,8 @@ import (
 )
 
 const ToolName = "command"
+
+const requestIDCorrection = "request_id 必须在工具顶层提供，为 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符；例如 submit-work-20260910-001（每个新意图生成唯一 ID，不要固定复用示例）。本次请求未执行，请补齐或修正 ID 后再调用，不要重复原错误参数；已通过校验的同一意图重试保持原 ID，结果未知时先对账。"
 
 // Handler 接收已经通过 MCP envelope 校验的 command 请求。
 type Handler func(context.Context, Request) (any, error)
@@ -32,6 +34,9 @@ func NewTool(handler Handler) sdktool.Tool {
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			if err := ValidateInput(inputSchema, input); err != nil {
+				if strings.HasPrefix(err.Error(), "at $.request_id ") {
+					return errorResult(fmt.Errorf("%w。%s", err, requestIDCorrection)), nil
+				}
 				return errorResult(err), nil
 			}
 			if handler == nil {
@@ -58,9 +63,13 @@ func inputSchema() map[string]any {
 					ActionContract, ActionInspect, ActionInvoke, ActionPlan, ActionApply,
 				},
 			},
-			"operation":         map[string]any{"type": "string"},
-			"input":             map[string]any{"type": "object", "additionalProperties": true},
-			"request_id":        map[string]any{"type": "string"},
+			"operation": map[string]any{"type": "string"},
+			"input":     map[string]any{"type": "object", "additionalProperties": true},
+			"request_id": map[string]any{
+				"type": "string", "minLength": 8, "maxLength": 128,
+				"pattern":     requestIDPattern.String(),
+				"description": "顶层请求 ID，不放在 input 中。goal/execution 的 action=invoke、automation 的 action=apply 和 subagent 的 mutation 必填；contract/inspect 及 subagent 只读操作可省略。仅允许 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符，例如 submit-work-20260910-001。每个新意图生成唯一 ID；同一意图重试复用，结果未知先对账，不要通过换 ID 重放。",
+			},
 			"expected_revision": map[string]any{"type": "string"},
 			"plan_digest":       map[string]any{"type": "string"},
 		},
@@ -147,7 +156,7 @@ func HandleSemantic(
 			return nil, inspectUsageError(domain, inspectOperation)
 		}
 		if !ValidRequestID(request.RequestID) {
-			return nil, errors.New("invoke request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+			return nil, errors.New("invoke " + requestIDCorrection)
 		}
 		operation, ok := FindOperation(operations, request.Operation)
 		if !ok {
