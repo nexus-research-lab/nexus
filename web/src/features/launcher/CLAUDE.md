@@ -12,3 +12,5 @@ Launcher 只把顶部双层品牌 Header 声明为桌面窗口手势面：第一
 Launcher 页面只消费 `home-directory-resource.ts` 的共享目录快照，不得单独请求 bootstrap 或重复订阅目录失效事件。
 
 `/launcher?initial=...` 只预填 Launcher 输入，供桌面深链和 Browser 上下文交接使用；不得自动选择 Agent 或发送消息。
+
+Launcher 字标旁的 `/logo.png` 是彩色玻璃品牌图形，不得用桌面 App 图标替换；登录页与浏览器标签共用此品牌资源。

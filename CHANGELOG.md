@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
+
 ### Changed
 
 - Prepare the optional Relay state directory for persistent single-node SQLite deployments.
