@@ -29,7 +29,7 @@ export const getWorkspaceFileExternalActionCopy = (
     });
     return {
       ariaLabel: title,
-      label: translate("workspace_file.open"),
+      label: translate("workspace_file.reveal"),
       mode: "reveal",
       title,
     };

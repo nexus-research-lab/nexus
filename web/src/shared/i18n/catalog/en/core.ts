@@ -103,6 +103,7 @@ export const enCoreMessages = {
   "workspace_file.path_unavailable": "The file path is unavailable, so this file cannot be opened.",
   "workspace_file.workspace_unavailable": "The source workspace is unavailable, so this file cannot be opened.",
   "workspace_file.reveal_named": "Show {name} in folder",
+  "workspace_file.reveal": "Show in folder",
   "workspace_file.open": "Open",
   "workspace_file.download_named": "Download {name}",
   "workspace_file.download": "Download",
