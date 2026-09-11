@@ -152,34 +152,7 @@ function FileArtifactOpenButton({
           <span className="truncate">{projection.parentPath}</span>
         </span>
       </span>
-      <FileArtifactOpenBadge
-        className={layout.openBadge}
-        visible={projection.canOpen}
-      />
     </button></UiTooltip>
-  );
-}
-
-function FileArtifactOpenBadge({
-  className,
-  visible,
-}: {
-  className: string;
-  visible: boolean;
-}) {
-  const { t } = useI18n();
-  if (!visible) {
-    return null;
-  }
-  return (
-    <span
-      className={cn(
-        "content-artifact-open shrink-0 font-medium",
-        className,
-      )}
-    >
-      {t("workspace_file.open")}
-    </span>
   );
 }
 

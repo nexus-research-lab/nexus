@@ -10,7 +10,6 @@ interface FileArtifactLayout {
   fileName: string;
   iconFrame: string;
   label: string;
-  openBadge: string;
   wrapper: string;
 }
 
@@ -21,7 +20,6 @@ const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactLayout> = {
     fileName: getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }),
     iconFrame: "h-8 w-8",
     label: getUiTypographyClassName({ role: "metadata" }),
-    openBadge: `px-1.5 py-0.5 ${getUiTypographyClassName({ role: "caption" })}`,
     wrapper: "my-0",
   },
   regular: {
@@ -30,7 +28,6 @@ const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactLayout> = {
     fileName: getUiTypographyClassName({ role: "body", tone: "strong", weight: "medium" }),
     iconFrame: "h-9 w-9",
     label: getUiTypographyClassName({ role: "body" }),
-    openBadge: `px-2 py-1 ${getUiTypographyClassName({ role: "caption" })}`,
     wrapper: "my-2",
   },
 };
