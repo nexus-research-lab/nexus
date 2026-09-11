@@ -24,6 +24,8 @@ AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 CONTROL_UID ?= 1002
 CONTROL_GID ?= 1002
+RELAY_UID ?= 1003
+RELAY_GID ?= 1003
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
@@ -319,6 +321,24 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 			fi; \
 		fi; \
 	done; \
+	if [ -n "$(strip $(RELAY_ROOT) $(RELAY_ENV_FILE))" ]; then \
+		for relay_dir in relay relay/data; do \
+			path="$$resolved_dir/.nexus/$$relay_dir"; \
+			if $(HOST_SUDO) test -L "$$path"; then \
+				echo "Error: $$path must not be a symbolic link."; \
+				exit 1; \
+			elif $(HOST_SUDO) test -e "$$path"; then \
+				if ! $(HOST_SUDO) test -d "$$path"; then \
+					echo "Error: $$path is not a directory."; \
+					exit 1; \
+				fi; \
+			else \
+				$(HOST_SUDO) mkdir "$$path"; \
+				$(HOST_SUDO) chown $(RELAY_UID):$(RELAY_GID) "$$path"; \
+				$(HOST_SUDO) chmod 0700 "$$path"; \
+			fi; \
+		done; \
+	fi; \
 	if $(HOST_SUDO) test -L "$$resolved_dir/.claude.json"; then \
 		echo "Error: $$resolved_dir/.claude.json must not be a symbolic link."; \
 		exit 1; \

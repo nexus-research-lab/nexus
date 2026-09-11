@@ -33,9 +33,9 @@ CONTROL_DATABASE_URL=postgres://nexus_control:password@postgres:5432/nexus
 
 Control 固定使用 `control` schema。数据库账号需要能创建该 schema，或由管理员预先创建并授权；`.nexus/control/` 仍保存服务凭据和签名密钥。
 
-### 启用 Team 前将 Control SQLite 切到 PostgreSQL
+### 后续将 Team SQLite 统一迁移到 PostgreSQL
 
-Relay Team overlay 会强制 Control 使用 PostgreSQL，不能直接指向空库启动，否则现有账号权威会消失。先停止 Control、Nexus、Relay 与入口写入，备份整个 `.nexus`、原 `control.db`、Control 密钥目录和目标 PostgreSQL。完成数据库角色与 `control` schema 授权后，在 Nexus `.env` 设置 PostgreSQL 地址，再用完整的 base + Relay Compose 文件列表执行：
+单机 Team 可以继续使用 Control 与 Relay 各自的 SQLite。后续统一迁移 PostgreSQL 时，不能直接让 Control 指向空库启动，否则现有账号权威会消失。先停止 Control、Nexus、Relay 与入口写入，备份整个 `.nexus`、Control/Relay SQLite、Control 密钥目录和目标 PostgreSQL。完成数据库角色与 `control` schema 授权后，在 Nexus `.env` 设置 PostgreSQL 地址，再用完整的 base + Relay Compose 文件列表执行：
 
 ```bash
 docker compose --env-file .env \
