@@ -121,7 +121,7 @@ export function LauncherConsole({
             src={ANIMATIONS.BOM}
           />
           <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-1">
-            <img alt="" className="h-10 w-10" src="/logo.webp" />
+            <img alt="" className="h-10 w-10" src="/logo.png" />
             <span
               className="launcher-console-wordmark mb-3 text-[32px] text-foreground"
               style={{
