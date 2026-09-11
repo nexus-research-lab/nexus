@@ -26,6 +26,8 @@ SSL_EMAIL=
 
 `make deploy` 会以 fast-forward 方式同时更新当前 Nexus 仓和 `NEXUS_CONTROL_ROOT` 指向的 Control 仓，再统一构建、停止和启动三项服务，避免只更新一侧源码。自定义 Control 路径时，应同时设置 `NEXUS_CONTROL_ROOT` 与 `NEXUS_CONTROL_BUILD_CONTEXT`。
 
+启用多人服务时，生产机使用已有 SSH deploy key 拉取私有 `nexus-relay` 仓，在 Nexus `.env` 设置绝对路径 `RELAY_ROOT` 与 `RELAY_ENV_FILE`。顶层 Atlas 部署入口会自动叠加 Relay Compose；Relay 单机 SQLite 持久化到 `${HOST_DATA_DIR}/.nexus/relay`，不改变 Control 当前 SQLite。完整配置和后续 PostgreSQL 迁移边界见 Relay 私有仓 README。
+
 Control 默认使用 `${HOST_DATA_DIR}/.nexus/control/data/control.db`。改用 PostgreSQL 时，在 `.env` 设置 `CONTROL_DATABASE_DRIVER=postgres` 与完整的 `CONTROL_DATABASE_URL`；账号表固定位于 `control` schema。Control 本地目录仍需保留，用于服务凭据与签名密钥。
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
@@ -40,7 +42,7 @@ docker compose --env-file .env -f deploy/docker-compose.yml up -d
 `HOST_DATA_DIR` 为必填项；未传入时 Compose 会直接失败，避免把数据误挂载到 `deploy/data`。
 
 `make start`、`make start-no-build` 的宿主准备步骤只会初始化尚不存在的
-`.nexus` 和 `.claude.json`。已有 `.nexus` 内的 UID/GID 与 POSIX ACL 由 runtime
+`.nexus`、可选 Relay SQLite 目录和 `.claude.json`。已有 `.nexus` 内的 UID/GID 与 POSIX ACL 由 runtime
 launcher 管理，部署脚本不会递归 `chown` 或 `chmod`；运维时也不要对该状态树执行
 这类递归权限重置。
 
