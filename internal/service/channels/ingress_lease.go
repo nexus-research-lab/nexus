@@ -1,5 +1,5 @@
 // INPUT: Router 发布的 owner+channel+generation 与通道实例提交的 ingress。
-// OUTPUT: 仅当前已启动 generation 可转发的、身份被服务端固定的 ingress。
+// OUTPUT: 仅当前已启动 generation 可转发的、身份被服务端固定的 ingress 与撤权拒绝诊断。
 // POS: Channel 热替换/删除的最终撤权栅栏；Stop 只负责清理，不承担授权。
 package channels
 
@@ -23,8 +23,17 @@ func (l *channelIngressLease) Accept(
 	ctx context.Context,
 	request IngressRequest,
 ) (*IngressResult, error) {
-	if l == nil || l.router == nil || l.delegate == nil ||
-		!l.router.isIngressGenerationActive(l.ownerUserID, l.channelType, l.generation) {
+	if l == nil || l.router == nil || l.delegate == nil {
+		return nil, ErrIngressLeaseRevoked
+	}
+	if !l.router.isIngressGenerationActive(l.ownerUserID, l.channelType, l.generation) {
+		l.router.loggerFor(ctx).Warn("channel ingress lease rejected",
+			"owner_user_id", l.ownerUserID,
+			"channel", l.channelType,
+			"account_id", request.AccountID,
+			"generation", l.generation,
+			"error", ErrIngressLeaseRevoked,
+		)
 		return nil, ErrIngressLeaseRevoked
 	}
 	requestChannel := normalizeChannelType(request.Channel)

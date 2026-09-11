@@ -1,8 +1,11 @@
 package channels
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 
@@ -102,6 +105,8 @@ func TestRouterIngressLeaseRevokesStoppedGenerationBeforeCleanup(t *testing.T) {
 
 func TestRouterIngressLeaseRejectsOldGenerationAfterHotReplacement(t *testing.T) {
 	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, newChannelTestDB(t), nil, nil)
+	var logs bytes.Buffer
+	router.SetLogger(slog.New(slog.NewJSONHandler(&logs, nil)))
 	delegate := &recordingIngressAcceptor{}
 	router.SetIngress(delegate)
 	if err := router.Start(t.Context()); err != nil {
@@ -126,10 +131,19 @@ func TestRouterIngressLeaseRejectsOldGenerationAfterHotReplacement(t *testing.T)
 	newIngress := newChannel.ingressSnapshot()
 
 	if _, err := oldIngress.Accept(t.Context(), IngressRequest{
-		Channel: ChannelTypeTelegram,
-		Content: "stale",
+		Channel:   ChannelTypeTelegram,
+		AccountID: "account-a",
+		Content:   "stale",
 	}); !errors.Is(err, ErrIngressLeaseRevoked) {
 		t.Fatalf("old generation error = %v, want revoked lease", err)
+	}
+	for _, field := range []string{`"msg":"channel ingress lease rejected"`, `"owner_user_id":"owner-a"`, `"account_id":"account-a"`, `"generation":`} {
+		if !strings.Contains(logs.String(), field) {
+			t.Fatalf("入口拒绝日志缺少 %s: %s", field, logs.String())
+		}
+	}
+	if strings.Contains(logs.String(), "stale") {
+		t.Fatalf("入口拒绝日志不应包含消息正文: %s", logs.String())
 	}
 	if _, err := newIngress.Accept(t.Context(), IngressRequest{
 		Channel: ChannelTypeTelegram,
