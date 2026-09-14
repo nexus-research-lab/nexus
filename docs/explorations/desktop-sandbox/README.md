@@ -809,3 +809,44 @@ positive control, so a prior namespace creation failure cannot prevent this boun
 from being exercised. It does not remove the existing failed compatibility case or
 claim thread impersonation proves production runner isolation. Windows x64 test
 cross-compilation passed; new native evidence is pending.
+
+### 2026-09-14: timeout occurs before temporary file IO
+
+Native run
+[34825810069](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34825810069)
+passed the independent host-event denial test, including the host positive control.
+Its timeout output contained only `temp-probe: started`: execution had entered the
+script but had not returned from `Join-Path`. Thus the delay cannot yet be attributed
+to writing or deleting the temporary file. This still does not prove the precise
+module-loading or provider cause.
+
+The next test revision separates direct .NET file write/read/delete under the same
+restricted identity from explicit import of the system PowerShell Management module
+and its `Join-Path` command. These are diagnostic comparisons; the original cmdlet
+case remains mandatory, with no application-control or permission relaxation.
+
+### 2026-09-14: atomic Job membership at child creation
+
+SDK `e28770b9` introduces a native `createSuspended` process layer. It holds the Job
+admission lock through `CreateProcessAsUser`, supplies `PROC_THREAD_ATTRIBUTE_JOB_LIST`
+in `STARTUPINFOEX`, and keeps the Job handle separate from the three inherited stdio
+handles. Job membership is established during creation rather than by a later assign
+call. Closed/terminating Jobs and canceled admission are rejected before startup.
+The dedicated-runner tests now use this layer and query `IsProcessInJob` before resuming
+the process; independent tests cover rejection after close, termination and cancellation.
+Windows x64 test cross-compilation passed; native validation is pending.
+
+This removes the intended post-creation/pre-assignment ownership gap, subject to native
+verification. The helper does not provide account provisioning, authenticate runner
+requests, authorize paths/network, or connect the product execution backend. Successful
+returned process/thread handles still belong to the caller, which must stop execution
+before reclaiming resource grants. The native API contract is documented in
+[UpdateProcThreadAttribute](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute).
+
+Native diagnostic run
+[34826205468](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34826205468)
+passed direct restricted .NET temporary write/read/delete in 0.31 seconds and explicit
+system Management-module import plus `Join-Path` in 0.33 seconds. The default-autoload
+cmdlet case still timed out after 30.31 seconds before resolving the path. This narrows
+the next investigation to default module discovery/loading environment; it is not
+evidence of denied temporary file IO, nor yet proof of one exact loader cause.
