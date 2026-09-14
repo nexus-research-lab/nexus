@@ -567,3 +567,15 @@ terminated it and the Job, and account cleanup succeeded. This timeout does not
 identify whether initialization or the event operation stalled. A separate
 PowerShell immediate-exit control and a thirty-second observation window are added
 next; no retry of the timed-out process or production capability claim is made.
+
+2026-09-14, PowerShell startup and desktop qualification: native run
+[34817081291](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34817081291)
+passed cmd but both PowerShell immediate-exit and named-event cases timed out at
+thirty seconds. Cleanup succeeded. The startup-only failure means the named-event
+operation cannot yet be blamed. SDK `e5d59e53` now queries the creator's actual
+window-station name and retains a qualified station/desktop startup path; this
+avoids relying on the cross-account launch API's implicit station selection.
+No desktop rights were broadened. SDK `8ac1f7ed` also adds an ordinary dedicated
+account token control through the same launch path, with process identity and
+restriction-state verification, to separate restricted-token behavior from launch
+environment behavior. Windows x64 cross-compilation passed; native runs are pending.
