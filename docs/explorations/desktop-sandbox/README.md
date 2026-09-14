@@ -1176,3 +1176,45 @@ full-token cmd.exe probe at `7a04a553` is tracked in
 The original native component test stage now passes after the namespace fixture was
 replaced; the runner stage still fails on thread exposure and variable PowerShell
 discovery timeouts (all three discovery variants timed out in the comparison run).
+
+### 2026-09-14: full restricting-SID checks implemented in gated token component
+
+Native run [34850471021](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34850471021)
+at `7a04a553` passed actual cmd.exe startup/exit with the fully restricted comparison
+token. The unchanged write-restricted factory still failed the thread probe, as expected;
+PowerShell profile-environment discovery also timed out. This is actual command evidence,
+not just the earlier impersonation comparison, but does not cover the complete toolchain.
+
+SDK `f2c71be8` removes WRITE_RESTRICTED from the gated token factory. The factory retains
+privilege removal, LUA behavior, dedicated-account validation, fixed restricting SIDs
+and explicit default object DACL. Read access and thread identity permissions now pass
+through restricting-SID checks. The execution account itself is not added as a restricting
+SID to bypass the check. CI explicitly grants the command capability ReadAndExecute on
+its disposable test binary directory only; temporary write grants remain separate and
+no host directory ACL is relaxed. Windows x64 and ARM64 cross-compilation passed.
+
+Native regression is tracked in
+[34850986786](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34850986786).
+It must verify real child thread/process denial, descendants, inherited handle exclusion,
+named event reopen, temporary directory cleanup, verified pipe admission and PowerShell.
+Windows mandatory execution is still unavailable; full application read grants, network
+isolation, bootstrap and approval integration remain separate unfinished requirements.
+
+Native full-token result at `f2c71be8`, run `34850986786`: actual child
+`runner_thread_boundary` and `runner_token_boundary` passed, as did named event reopen,
+cmd startup and excluded-handle protection. Normal restricted descendant creation failed
+with ERROR_ACCESS_DENIED. Restricted PowerShell variants exited during initialization
+with 0xc0000135; ordinary-account PowerShell still started. Therefore thread denial is
+verified but command compatibility is not accepted. This regression is confined to the
+unwired Windows component; it must be fixed before product enablement, not hidden by
+restoring WRITE_RESTRICTED or adding the execution user to restricting SIDs.
+
+SDK `24fccc3c` separately sets the newly derived restricted token object's DACL to the
+execution identity and its capability, in addition to TokenDefaultDacl for future objects.
+The base-token handle now requests WRITE_DAC so the derived handle can set its own DACL;
+the base token's descriptor is not modified. The descendant probe checks that its own
+reopened token remains restricted and its explicitly granted executable is readable
+before testing normal child creation and Job breakaway denial. Windows x64 compilation
+passed; native validation is pending. PowerShell loader/read compatibility remains an
+independent unresolved requirement. Reference:
+[CreateProcessAsUser access requirements](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw).
