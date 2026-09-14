@@ -146,6 +146,25 @@ or end-to-end feature completion is claimed by these baselines.
 Codex is a behavioral reference; Nexus domain grants and runtime capabilities remain
 the authority for this implementation.
 
+## Windows reference audit and additional acceptance (2026-09-14)
+
+Non-normative: implementation requirements, not delivered capabilities.
+Reviewed the user-provided [Windows sandbox documentation](https://learn.chatgpt.com/docs/windows/windows-sandbox).
+
+| Concern | Nexus design and acceptance requirement |
+| --- | --- |
+| Implementation strength | Distinguish dedicated-account and weaker same-user backends; never report equal isolation. Current host-identity rejection belongs to the dedicated-account backend. |
+| Setup authority | Separate administrator-approved provisioning from runtime tool/escape approval. Neither grants the other. |
+| Managed restrictions | Negotiate allowed implementations; prohibit forbidden downgrade, including after repair failure. Full Access remains an independent existing mode. |
+| Login policy | Distinguish error 1385 from missing launch privilege 1314 and tool denial; account existence alone cannot prove readiness. |
+| Broad ACLs | Audit ambient Everyone-write exposure; never silently rewrite unrelated directory permissions. |
+| Compatibility | Test Windows 11 and supported Windows 10/ConPTY separately; private-desktop compatibility changes require explicit policy. |
+| Read grants | Bind existing absolute-directory grants to session and policy revision; path relocation invalidates stale authority. |
+| Repair/diagnostics | Revalidate after workspace, ACL or policy changes; record failed stage and effective backend, exclude secrets, never replay unknown effects. |
+
+Existing component failures remain evidence. Next implement the authenticated runner
+bootstrap and its lifecycle, then enforce resources and exercise this matrix.
+
 ## Implementation log
 
 2026-09-14: Corrected the SDK Bash prompt and sandbox failure annotation so they
