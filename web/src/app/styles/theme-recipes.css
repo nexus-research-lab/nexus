@@ -552,19 +552,27 @@
     position: fixed;
     z-index: 70;
     top: 14px;
-    left: 20px;
+    left: 8px;
     display: flex;
   }
 
   :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
     top: var(--desktop-window-close-button-center-y, 24px);
-    left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
+    left: var(--desktop-window-controls-inset, 84px);
     transform: translateY(-50%);
+  }
+
+  .launcher-console-header {
+    --launcher-wordmark-left: 56px;
+  }
+
+  .launcher-console-brand {
+    left: calc(var(--launcher-wordmark-left) - 44px);
   }
 
   .launcher-console-spotlights {
     top: 20px;
-    left: 20px;
+    left: var(--launcher-wordmark-left);
     width: 139px;
     height: 16px;
   }
@@ -575,8 +583,7 @@
   }
 
   :root[data-desktop-platform="macos"] .launcher-console-spotlights {
-    top: var(--desktop-window-close-button-center-y, 24px);
-    left: var(--desktop-window-controls-inset, 84px);
+    top: var(--workspace-header-height);
     transform: translateY(-50%);
   }
 
@@ -656,6 +663,23 @@
 
   :root[data-desktop-platform="macos"] .home-desktop-drag-header {
     display: block;
+  }
+
+  .home-workspace-frame {
+    padding: 16px;
+  }
+
+  @media (width >= 40rem) {
+    .home-workspace-frame { padding: 20px; }
+  }
+
+  @media (width >= 80rem) {
+    .home-workspace-frame { padding: 24px; }
+  }
+
+  /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
+  :root[data-desktop-platform="macos"] .home-workspace-frame {
+    padding-block-start: var(--workspace-header-height);
   }
 
   .desktop-rail {
