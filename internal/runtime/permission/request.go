@@ -31,6 +31,8 @@ type RouteContext struct {
 
 // PendingRequest 表示一个会阻塞 runtime、等待用户响应的请求。
 type PendingRequest struct {
+	Boundary                 sdkpermission.Boundary
+	Review                   *sdkpermission.Review
 	DecisionReason           string
 	RequestID                string
 	SessionKey               string
@@ -51,7 +53,18 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 	now := time.Now()
 	toolName := strings.TrimSpace(request.ToolName)
 	toolInput := secretinput.RedactConfigurationToolInput(toolName, request.Input)
+	suggestions := slices.Clone(request.PermissionSuggestions)
+	if request.Boundary == sdkpermission.BoundarySandboxEscape {
+		suggestions = nil
+	}
+	var review *sdkpermission.Review
+	if request.Review != nil {
+		reviewCopy := *request.Review
+		review = &reviewCopy
+	}
 	return &PendingRequest{
+		Boundary:           request.Boundary,
+		Review:             review,
 		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
@@ -63,7 +76,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 			toolInput,
 		),
 		ToolUseID:   strings.TrimSpace(request.ToolUseID),
-		Suggestions: slices.Clone(request.PermissionSuggestions),
+		Suggestions: suggestions,
 		CreatedAt:   now,
 		Route:       route,
 		ResponseCh:  make(chan sdkpermission.Decision, 1),
@@ -186,6 +199,9 @@ func (c *Context) buildPermissionDecision(
 	delete(message, "configuration_secrets")
 	defer clear(configurationSecrets)
 	if decision == "allow" {
+		if pending.Boundary == sdkpermission.BoundarySandboxEscape && len(deserializePermissionUpdates(message["updated_permissions"])) > 0 {
+			return sdkpermission.Deny("沙箱外执行只允许批准本次调用，不能附加持久权限规则", false)
+		}
 		if isRecordedHumanApprovalTool(pending.ToolName, pending.ToolInput) {
 			c.mu.RLock()
 			recorder := c.approvalRecorder

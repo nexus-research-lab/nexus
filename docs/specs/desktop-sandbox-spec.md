@@ -26,6 +26,15 @@ denied unless permitted by the execution policy; network approval integration is
 still outstanding. Explicit command escape continues through the SDK's independent
 sandbox-bypass approval boundary, including auto-review where supported.
 
+Sandbox escape uses the typed `permission_boundary=sandbox_escape` classification.
+Nexus shows an explicit outside-sandbox explanation and exposes only one-time
+approval. Persistent rules supplied in a response are rejected by both Nexus and
+the SDK; IM cannot persist a grant when no scope suggestion exists. The SDK also
+rejects an allow response that adds escape or changes its reviewed JSON input while
+remaining outside the sandbox. Ordinary tool input edits and returning an action
+inside the sandbox retain their existing behavior. Unknown boundary classifications
+are rejected before a pending approval is created.
+
 This policy currently confines shell execution. It does not establish an OS boundary
 around every in-process file tool, MCP server, Connector or the desktop UI. Those
 tools retain their existing authorization; complete App sandbox coverage remains
@@ -50,6 +59,11 @@ reported together instead of leaving the later domain on its old policy.
 Changing between restricted approval modes keeps the sandbox boundary and uses
 the existing permission-mode update path. This document does not claim complete
 approval-revision invalidation across every host callback yet.
+For SDK manual/automatic permission callbacks, effective rule/mode changes cancel
+the pending policy epoch and invalidate even a late allow response. Identical
+refreshes preserve the pending epoch. A cancelled request cannot create a fresh
+Nexus pending prompt. The nxs proxy preserves human-only requirements and review
+evidence; the reviewer treats sandbox escape as additional execution authority.
 
 Mode changes do not resubmit a prompt or repeat a tool invocation. Stopping a
 process does not roll back prior side effects; an unknown or partial command result
