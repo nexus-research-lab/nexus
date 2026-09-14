@@ -866,3 +866,20 @@ The next diagnostic compares the same cmdlet operations with an explicit system-
 modules. Cross-compilation passed, native comparison is pending. Product environment
 construction must eventually preserve authorized module locations without inheriting
 host credentials or accidentally granting additional filesystem access.
+
+### 2026-09-14: explicit module search is insufficient; test actual handle exclusion
+
+Native run
+[34826782984](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34826782984)
+passed the dedicated-runner suite, but default cmdlet discovery took 25.32 seconds and
+explicit system-only `PSModulePath` took 18.11 seconds; explicit Management-module
+import took 0.23 seconds. This is not a reliable startup fix or a reason to restrict
+product module support. The remaining impersonation compatibility test still failed.
+
+A new dedicated-runner case marks an otherwise unrelated canary file handle inheritable,
+launches a real restricted copy of the test binary through the production primitive,
+and attempts a fixed write using that numeric handle. The parent checks the original
+file content afterward. The child receives no file path and does not enumerate files;
+checking content avoids mistaking child-side reuse of a handle value for inheritance.
+This supplements the existing stdio duplicate/attribute checks with an actual process
+boundary test. Windows x64 compilation passed; native evidence is pending.
