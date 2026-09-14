@@ -26,6 +26,11 @@ denied unless permitted by the execution policy; network approval integration is
 still outstanding. Explicit command escape continues through the SDK's independent
 sandbox-bypass approval boundary, including auto-review where supported.
 
+Closing an SDK execution proxy cancels its pending network callback contexts,
+rejects late callback allows, and closes owned SOCKS/HTTP CONNECT tunnels. This
+does not add a Nexus network-approval entrypoint: destination approval with exact
+command identity and permission-revision integration remains outstanding.
+
 Mandatory SDK temporary-directory preparation uses a workspace directory handle
 before the command sandbox starts, so descendant symlink replacement cannot redirect
 the host's directory creation outside that root. Unsupported native backends reject
