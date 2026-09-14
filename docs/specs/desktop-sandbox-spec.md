@@ -41,6 +41,13 @@ remaining outside the sandbox. Ordinary tool input edits and returning an action
 inside the sandbox retain their existing behavior. Unknown boundary classifications
 are rejected before a pending approval is created.
 
+For sandbox escape, the SDK captures the working-directory path before asking and
+uses that path for Bash/PowerShell execution, including their streaming entrypoints.
+A later session cwd update cannot redirect the approved relative command. The
+approval explanation includes this directory, and automatic-review human fallback
+preserves that explanation. This captures session state; it is not an inode lease
+against arbitrary filesystem renames.
+
 This policy currently confines shell execution. It does not establish an OS boundary
 around every in-process file tool, MCP server, Connector or the desktop UI. Those
 tools retain their existing authorization; complete App sandbox coverage remains

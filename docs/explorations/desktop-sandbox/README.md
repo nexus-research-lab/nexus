@@ -424,3 +424,20 @@ host-side file operation. SDK draft
 [PR #3](https://github.com/nexus-research-lab/nexus-agent-sdk-go/pull/3)
 now tracks review and full repository regression CI without merging or releasing
 the unfinished backend.
+
+2026-09-14, upstream integration and complete SDK regression: merged the latest
+tool-description changes at `a2026633`, preserving sandbox recovery guidance.
+[Linux full SDK CI](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34810691819)
+and [Windows native components](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34810691834)
+both passed. This Linux run covers the SDK suite, not Nexus server owner-isolation
+deployment or the previously recorded Nexus Skill-size gate failure.
+
+The next approval audit found shell execution reread session cwd after approval.
+SDK `a2c20abc` captures the sandbox-escape working-directory path in host-only
+context, uses it in Bash/PowerShell launch entrypoints, and preserves the original
+scope explanation when automatic review falls back to a human. A real relative
+write test changes session cwd inside the approval callback and verifies the write
+lands only in the approved directory. Executor/runtime package tests and focused
+race tests passed. This closes mutable session-directory redirection; filesystem
+inode replacement and full execution snapshot/replay protection remain separate
+outstanding work.
