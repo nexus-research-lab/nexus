@@ -589,3 +589,15 @@ dedicated account profile via LOGON_WITH_PROFILE and asks Windows to construct t
 account's environment instead of passing only SystemRoot. This is confined to the
 disposable CI fixture and does not inherit the runner's credential environment or
 relax token/desktop permissions. Complete Windows acceptance remains outstanding.
+
+2026-09-14, profile initialization boundary: native run
+[34818078641](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34818078641)
+showed LOGON_WITH_PROFILE fails restricted process creation with an invalid
+resource-state error, including the previously passing cmd case. The ordinary
+account PowerShell case still timed out. This experiment is not a startup fix.
+SDK `15c37259` removes profile loading from restricted process creation while
+retaining Windows-generated target-account environment; production account/profile
+initialization belongs to the trusted provisioning stage. SDK `b684f130` adds
+bounded wait-chain metadata on test timeout, without reading process memory,
+credentials or object names. Native diagnosis is pending; prior failures remain
+recorded and no Windows product capability is enabled.
