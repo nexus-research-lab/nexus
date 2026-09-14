@@ -579,7 +579,12 @@ NXS 既是 Go SDK agent loop，也是 Nexus 通过 bridge 拉起的 `stream-json
 | NXS-CTRL-05 | 异步任务控制 | stop/send-message/cancel 使用稳定 task ID，终态任务可继续同一 thread 时不重复历史 |
 | NXS-CTRL-06 | hook ACK | 只有协商 `hook_response_ack_v1` 后发送 `control_ack`，内部关联消息不进模型和 transcript |
 | NXS-CTRL-07 | MCP control | status/reconnect/toggle 更新同一 server，连接失败不破坏其他 MCP |
+| NXS-CTRL-08 | 中断后编辑重发 | 同一 runtime 中删除目标轮次的调用、结果及派生上下文；内存与 transcript UUID 一致，保留此前轮次，不重跑已执行工具 |
 | NXS-WIRE-01 | Mixed casing | initialize/hook output 与 permission/普通消息保持 CC 定义 casing，不双写兼容字段 |
+
+`NXS-CTRL-08` 的桌面回归先完成一轮纯文本问答，再要求模型分别执行两次 Bash：第一次 `echo ready`，第二次 `sleep 60`；不能合并成一次命令。看到第二次调用后中断，编辑这轮原始用户消息为纯文本回复请求，并在同一 Session 重发。需覆盖工具轮次正常完成后编辑、等待工具时中断后编辑两种情况；断言旧工具结果不残留、没有 Provider 配对错误、已执行工具没有重放。图片附件作为扩展用例，纯文本用例也必须通过。
+
+宿主自动回归位于 `internal/storage/workspace/history_rewrite_tools_test.go`，验证重写尾部 UUID 完整性；SDK 的 `client/rewrite_history_test.go` 同时检查 live/mutable history、transcript 和实际 HTTP 请求，避免仅靠发送前过滤掩盖内存残留。桌面验收需确认实际加载的是修复后的 nxs：本地可用 `NEXUS_NXS_COMMAND_PATH` 覆盖，打包使用 `NEXUS_DESKTOP_NXS_RUNTIME_PATH`，发布流水线默认从 `nxs-stable` 获取运行时。升级宿主 bridge 的 Go 依赖不等于更新安装包中的 nxs。
 
 ### 8.2 Provider、模型能力与流式协议
 

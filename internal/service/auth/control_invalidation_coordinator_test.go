@@ -142,6 +142,34 @@ func TestControlInvalidationRetriesBeforeAdvancingCursor(t *testing.T) {
 	}
 }
 
+func TestControlInvalidationSkipsPoisonEvent(t *testing.T) {
+	f := &invalidationFixture{
+		events: []ControlIdentityInvalidation{
+			{EventID: 1, Reason: "principal_changed"},
+			{EventID: 2, Reason: "profile_changed"},
+		},
+		applyFailures: 3,
+	}
+	runInvalidationFixture(t, f)
+
+	var applied []string
+	for _, call := range f.calls {
+		if call == "apply:1" || call == "apply:2" {
+			applied = append(applied, call)
+		}
+	}
+	wantApplied := []string{"apply:1", "apply:1", "apply:1", "apply:2"}
+	if !reflect.DeepEqual(applied, wantApplied) {
+		t.Fatalf("apply calls=%v, want %v", applied, wantApplied)
+	}
+	if f.cursor != 2 {
+		t.Fatalf("cursor=%d, want 2", f.cursor)
+	}
+	if f.failClosedCalls != 1 {
+		t.Fatalf("fail-closed calls=%d, want 1", f.failClosedCalls)
+	}
+}
+
 func TestControlInvalidationFailClosedRetriesFailedCleanup(t *testing.T) {
 	for _, stage := range []string{"projection", "runtime"} {
 		t.Run(stage, func(t *testing.T) {
