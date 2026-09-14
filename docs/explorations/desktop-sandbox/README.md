@@ -1244,3 +1244,30 @@ Do not restore WRITE_RESTRICTED, add the execution user as a restricting SID, or
 indiscriminately grant a broad group solely to pass loader checks. Any system ACL setup
 needs installer ownership, repair/upgrade semantics and validation of unaffected Windows
 behavior; per-command mutation of the Windows tree is not an accepted implicit fallback.
+
+### 2026-09-14: descendant failure isolated past handle duplication
+
+The explicit granted-directory cwd comparison at `5908f12a`, run
+[34851939831](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34851939831),
+still failed normal descendant creation. SDK `6e7b66b6` adds failure-stage diagnostics
+without changing the original assertion: reopen own process with PROCESS_DUP_HANDLE,
+duplicate each stdio handle, then create the fixed identity-probe child using native
+CreateProcess with no handle inheritance, a granted cwd and an explicit environment.
+The diagnostic never requests Job breakaway or retries a business command.
+
+Run [34852377406](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34852377406)
+passed own-process and stdio-duplication checks, but native creation without inherited
+handles still returned ERROR_ACCESS_DENIED. Hence this is not isolated to Go's stdio
+inheritance path, and changing that wrapper is not an evidenced fix. The exact remaining
+OS admission failure is unresolved; existing system DLL read denials are independently
+proven. The process/thread security probes continue to be required and must not be
+weakened for command compatibility.
+
+The backend design must resolve the system-read baseline before enabling execution.
+Two materially different approaches require review: explicit full-token read capability
+provisioning (including system servicing/registry compatibility), or a trusted broker
+identity distinct from the command account so command tokens cannot access broker
+objects through their ordinary SID check. The latter also requires a concrete privileged
+launch/provisioning and authenticated IPC contract; merely renaming the current same-
+account runner is insufficient. No token relaxation or system ACL mutation is authorized
+implicitly by these diagnostics, and neither alternative is implemented or accepted yet.
