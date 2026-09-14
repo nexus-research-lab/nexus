@@ -693,3 +693,14 @@ Ownership/cleanup/invalid-input native tests are included. A missing Go syscall
 constant in that test was corrected in `459370d7`; Windows x64 cross-compilation
 then passed. Native verification is pending; full inherited-handle leak and
 production transport acceptance remain outstanding.
+
+Native stdio run
+[34821038725](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34821038725)
+passed handle ownership/cleanup tests and both PowerShell startup controls.
+Captured restricted-script output identified CannotCreateTypeConstrainedLanguage:
+PowerShell rejected EventWaitHandle construction before any named-event API call.
+Therefore this runner test does not currently prove a kernel named-object ACL
+failure. The separate impersonation test's Access Denied remains a distinct result.
+Next investigation must inspect PowerShell application-control classification and
+the execution environment, including usable temporary storage. Do not disable
+enterprise language restrictions or broaden ACLs merely to make the test pass.
