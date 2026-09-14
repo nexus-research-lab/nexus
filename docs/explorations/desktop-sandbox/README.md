@@ -647,3 +647,26 @@ launch arrangement, rather than granting the desktop App ambient administrator
 privileges or interpreting a component-only token test as a working backend.
 The remaining account provisioning, authenticated runner transport, inherited
 handle allowlist, filesystem and network policies remain part of the full goal.
+
+2026-09-14, dedicated runner composition: SDK `4e289afe` moves the primary-process
+acceptance cases into a test executable bootstrapped under the disposable ordinary
+account. The CI host confines the executable directory to account read/execute,
+provides a separate writable output directory, removes the password environment
+entry before launching, and uses credentialed process startup with profile loading
+on the unrestricted runner. The runner validates its identity against the trusted
+CI host SID and creates restricted children from its own primary token. The
+original direct cross-account privilege failures remain recorded above; the new
+fixture tests the actual two-stage identity arrangement instead. Cross-compilation
+and diff validation passed; native run `34819763511` is pending. This is a CI-only
+bootstrap, not authenticated production IPC or a released Windows backend.
+
+The two-stage native run
+[34819763511](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34819763511)
+entered the dedicated-account runner but failed token derivation/child creation
+with Access Denied. Inspection of Go's syscall implementation found that
+OpenCurrentProcessToken requests TOKEN_QUERY only. SDK `84e2ab79` adds a runner
+base-token opener requesting query, duplicate, assign-primary and adjust-default
+handle access explicitly; this does not add Windows account privileges. SDK
+`b583fb03` also makes the runner fixture fail, rather than skip, if trusted host
+identity is missing, and rejects inherited password environment. The fixed
+composition is awaiting native validation; fixture cleanup in the failed run passed.
