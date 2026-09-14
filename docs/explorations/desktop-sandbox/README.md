@@ -531,3 +531,12 @@ with default versus explicit token DACLs to separate namespace access from objec
 security. Windows x64 cross-compilation passed; native evidence is pending. Actual
 primary-token launch, object access and process-tree confinement remain required
 acceptance work; the Windows product execution path remains disabled.
+
+The diagnostic native run
+[34816428447](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34816428447)
+completed: both anonymous-event cases passed (creation and signaling with default
+and explicit token DACLs), while the retained named-event creation still failed
+with Access Denied. This narrows the next investigation to named-object namespace
+access and the primary-process launch arrangement; it does not justify broadening
+object DACL grants or establish complete IPC isolation. The overall Windows gate
+remains failed.
