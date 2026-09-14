@@ -724,3 +724,15 @@ directly to the Windows ACL API for the disposable temporary directory, preservi
 the distinction between an account identity and an execution capability. The
 fixture remains confined to its generated ProgramData subtree; native validation
 of the corrected preparation is pending.
+
+Native run
+[34822048207](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34822048207)
+passed the complete dedicated-runner composition: cmd, ordinary/restricted
+PowerShell startup, capability-scoped temporary write/delete, and ordinary/restricted
+named-event operations. No language-mode or application-control override was used.
+This establishes usable authorized temporary storage as a required launch input
+for this tested environment. The temporary write case took 29.88 seconds, close to
+the 30-second process deadline; cold-start latency still needs investigation.
+The separate old impersonation named-event case remains failed, so the overall
+native workflow is not green. Product ACL leases, authenticated runner transport,
+network confinement and packaged Windows acceptance remain outstanding.
