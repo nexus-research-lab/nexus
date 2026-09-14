@@ -394,3 +394,33 @@ and the complete command backend have not received native acceptance. The rebuil
 nxs also passed the opt-in Nexus host/Bridge initialization and confirmed-cleanup
 test without a model request. No shell permission end-to-end inference is made from
 that handshake test.
+
+2026-09-14, Windows process-tree evidence: native run
+[34809976111](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34809976111)
+passed at SDK commit `08e413d8`. A suspended root was assigned to the Job and then
+resumed; its explicit breakaway attempt was rejected, a live descendant was verified
+as belonging to the same Job, and termination confirmed both processes exited.
+This strengthens descendant lifecycle evidence but does not establish restricted
+token execution, filesystem grants, network isolation or packaged App acceptance.
+
+Startup-path audit also found unsupported native preparation could allocate a proxy
+before returning its platform error. SDK `396b4216` rejects unsupported backends
+before temporary directory/proxy allocation and retains defensive proxy cleanup on
+the terminal failure path. macOS sandboxexec/Bash tests and Windows x64 compilation
+passed; native unavailable-backend regression is tracked by the branch CI.
+
+Native run
+[34810133925](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34810133925)
+confirmed the unavailable-backend regression. The subsequent preparation audit found
+`os.MkdirAll` could follow a workspace metadata symlink outside the root before OS
+sandbox activation. SDK `7a97baee` uses `os.Root` for mandatory preparation while
+preserving the legacy path. Static escaping links are rejected, internal links stay
+usable, and concurrent link replacement cannot create a directory outside the root.
+macOS package/race tests and real child-write/direct-network-denial tests passed;
+Windows native run
+[34810349079](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34810349079)
+also passed these preparation and process components. This does not cover every
+host-side file operation. SDK draft
+[PR #3](https://github.com/nexus-research-lab/nexus-agent-sdk-go/pull/3)
+now tracks review and full repository regression CI without merging or releasing
+the unfinished backend.
