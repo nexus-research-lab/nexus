@@ -454,3 +454,25 @@ with the race detector; sandboxexec/Bash/PowerShell packages and real macOS
 child-write/direct-network-denial regressions passed. Native Windows and full Linux
 CI are rerun by the draft PR. Exact command-scoped Nexus destination approval is
 still unimplemented; this lifecycle fix is its prerequisite, not its completion.
+
+2026-09-14, command-scoped destination approval: proxy-lifecycle SDK full Linux run
+[34811618314](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34811618314)
+passed. SDK `37c8d774` now installs a `sandbox_network` callback for mandatory Bash/
+PowerShell execution when the host has not supplied an explicit network callback.
+It captures command input, tool-use identity, cwd and permission epoch. The same
+one-connection decision uses the manual handler or automatic reviewer, preserving
+trusted query context while cancellation follows the proxy and epoch. Changed
+input, persistent updates and old-epoch requests are refused; each connection is
+reviewed independently. Static domain denial and managed-only policy remain above
+this callback. Legacy optional sandbox/custom callback behavior is retained.
+
+Bridge `42f368f` preserves the new classification; Nexus pins
+`v0.1.34-0.20260914060629-42f368fbc137` and displays the pending destination as a
+one-connection approval without persistent suggestions. The SDK native macOS test
+writes a marker before connecting, checks the marker in the network approval,
+permits exactly one request to a local server, and verifies the marker was not
+written twice. Executor/runtime/nxs/permission tests and focused race tests passed;
+Nexus permission/configuration/channels and architecture checks passed. Bridge
+client/permission/protocol checks passed. This is component and native SDK evidence,
+not a packaged end-to-end App acceptance claim. Windows command startup and complete
+durable effect/background recovery remain outstanding.

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show mandatory sandbox network approvals as one pending connection, without command replay or persistent grants.
+
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
 - Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
