@@ -613,3 +613,18 @@ only executable basenames for those process nodes, without logging their command
 lines, environments or process memory. The ordinary-account control remains
 necessary; current evidence still does not distinguish the restriction layer as
 the cause. Native Windows acceptance remains incomplete.
+
+2026-09-14, Windows cross-account launch contract: native run
+[34818791059](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34818791059)
+identified csrss.exe as the ALPC wait endpoint for ordinary and restricted
+PowerShell launches. This identifies the endpoint, not a specific CSRSS failure.
+SDK `595bc8c9` tests CreateProcessAsUserW, matching the Codex process API, with
+explicit environment and no automatic fallback. Native run
+[34819142009](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34819142009)
+then failed all cross-account launches immediately with a required-privilege error;
+the ordinary CI host does not satisfy that direct launch contract. Next work must
+validate the dedicated-account runner bootstrap and same-identity restricted child
+launch arrangement, rather than granting the desktop App ambient administrator
+privileges or interpreting a component-only token test as a working backend.
+The remaining account provisioning, authenticated runner transport, inherited
+handle allowlist, filesystem and network policies remain part of the full goal.
