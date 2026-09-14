@@ -1,5 +1,5 @@
 // INPUT: 当前 URL、认证边界与按需加载的页面模块。
-// OUTPUT: Nexus Web 的唯一产品路由树，以及遵循共享 Spinner 规范的页面加载占位。
+// OUTPUT: Nexus Web 的唯一产品路由树，以及阻止提前报告启动就绪的共享 Spinner 加载占位。
 // POS: App 路由组合层；不拥有页面业务、认证数据或加载图标 recipe。
 
 import { LoaderCircle } from "lucide-react";
@@ -82,6 +82,7 @@ function PageFallback() {
 
   return (
     <div
+      data-bootstrap-pending="true"
       aria-busy="true"
       aria-label={t("common.loading")}
       className="flex h-full items-center justify-center"

@@ -68,9 +68,13 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     await expect(page).toHaveURL(/\/settings$/);
     const menu = page.getByRole("button", { name: text("设置导航", "Settings navigation"), exact: true });
     if (await menu.isVisible()) await menu.click();
-    await expect(page.getByRole("navigation").getByRole("button", { name: text("项目权限", "Project access"), exact: true })).toHaveCount(0);
+    const navigation = page.getByRole("navigation", { name: text("设置", "Settings"), exact: true });
+    await expect(navigation).toBeVisible();
+    await expect(navigation.getByRole("button", { name: text("项目权限", "Project access"), exact: true })).toHaveCount(0);
     await expect(page.locator("[data-operations-page]")).toHaveCount(0);
     expect(projectRequests).toBe(0);
+    expect(errors).toEqual([]);
+    expect(rejected).toEqual([]);
     return;
   }
   const surface = page.locator("[data-operations-page]");

@@ -1,5 +1,5 @@
 // INPUT: 当前 Organization 身份、成员目录、管理角色与 Control 邀请 API。
-// OUTPUT: 统一组织治理页、邀请弹窗、成员管理、角色说明与邀请记录。
+// OUTPUT: 宽窄屏均保留组织身份的治理页、邀请弹窗、成员管理、角色说明与邀请记录。
 // POS: Operations 组织治理页；组织成员身份是页面的信息架构根。
 "use client";
 
@@ -128,7 +128,7 @@ export function OrganizationPanel() {
   return (
     <div className="@container/organization grid w-full min-w-0 gap-6 pb-8">
       <WorkspaceContentHeader
-        className="mb-0 max-sm:[&_h1]:hidden"
+        className="mb-0"
         title={status?.organization_name || t("organization.name_unavailable")}
         description={t("organization.header_description", { role: roleLabel(status?.role) })}
         actions={(
