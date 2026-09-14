@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
 - Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
 - Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
 - Prepare the optional Relay state directory for persistent single-node SQLite deployments.
@@ -55,6 +56,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored GitHub connector tools, corrected RichMail discovery guidance, and preserved connector snapshots and credential drafts during recovery.
 - Bounded Browser operations, activated tabs before native input, cancelled stale work, and exported execution diagnostics; requires Browser extension 0.8.6.
 - Improved desktop diagnostics, shutdown ordering, blocked browser-storage recovery, IME handling, accessibility, and permission-scoped stale-state cleanup.
+- Isolated persistently failing Control identity invalidation events so later invalidations continue while the affected identities fail closed.
+- Persisted Control entitlement unavailability so skipped invalidations cannot authorize new requests through stale local projections.
 
 ### Removed
 

@@ -171,14 +171,15 @@ func (a *ControlAuthority) refreshPrincipalProjection(
 	return a.bindings.projections.upsert(ctx, projection)
 }
 
-// FailClosedControlIdentities 清空所有 Control 租约并返回全部已绑定 owner。
+// FailClosedControlIdentities 持久化所有 Control entitlement 为不可用，清空租约并返回全部已绑定 owner。
 func (a *ControlAuthority) FailClosedControlIdentities(ctx context.Context) ([]string, error) {
 	owners, err := a.bindings.localOwnerKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
+	markErr := a.bindings.entitlements.markUnavailable(ctx, owners)
 	a.leaseMu.Lock()
 	clear(a.leases)
 	a.leaseMu.Unlock()
-	return owners, nil
+	return owners, markErr
 }
