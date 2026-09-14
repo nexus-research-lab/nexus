@@ -1,5 +1,5 @@
 // INPUT: Schema-versioned requests from the embedded Nexus web UI.
-// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// OUTPUT: Native results and log exports including host and local-owner runtime diagnostics, or safe failures.
 // POS: Windows web/native trust boundary and the only rejection path visible to the embedded UI.
 
 using System.ComponentModel;
@@ -497,6 +497,8 @@ internal sealed class DesktopBridgeHandler
         using ZipArchive archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         AddDirectoryToArchive(archive, DesktopPaths.LogsDirectory, "logs");
         AddDirectoryToArchive(archive, DesktopPaths.DebugDirectory, "debug");
+        AddDirectoryToArchive(archive, DesktopPaths.SystemRuntimeLogsDirectory, "runtime-logs");
+        AddDirectoryToArchive(archive, Path.Combine(DesktopPaths.SystemRuntimeDirectory, "debug"), "runtime-debug");
         ZipArchiveEntry runtimeEntry = archive.CreateEntry("desktop-runtime.txt");
         using (StreamWriter writer = new(runtimeEntry.Open()))
         {

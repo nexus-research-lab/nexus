@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
+- Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
 
 ### Changed
 
