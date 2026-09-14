@@ -736,3 +736,49 @@ the 30-second process deadline; cold-start latency still needs investigation.
 The separate old impersonation named-event case remains failed, so the overall
 native workflow is not green. Product ACL leases, authenticated runner transport,
 network confinement and packaged Windows acceptance remain outstanding.
+
+### 2026-09-14: atomic Windows temporary directory ownership (pending native evidence)
+
+SDK `9c554896` adds a private temporary-directory primitive using relative
+`NtCreateFile(FILE_CREATE)` against a pinned parent handle. The new directory receives
+its protected DACL during creation: host ownership/full control, execution identity
+and capability Modify rights. Its handle denies shared write/delete, and empty-directory
+removal requires verified termination of the bound Job. Canceled or failed cleanup
+retains ownership handles. This component is not yet connected to product execution;
+nonempty recursive cleanup remains unimplemented.
+
+Windows x64 test cross-compilation passed. New native tests cover canceled cleanup,
+rename prevention, nonempty cleanup failure preserving content/handles, successful empty
+removal, idempotence and rejection of the host execution identity. Native run
+[34824690120](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34824690120)
+was confirmed in progress; compilation alone does not establish these native properties.
+
+### 2026-09-14: recursive temporary cleanup implementation and first native result
+
+Native run 34824690120 confirmed both new temporary-directory tests passed: atomic
+creation/pinning, cancellation retaining ownership, nonempty failure retaining content,
+empty removal and host-identity rejection. The workflow still failed: the existing
+impersonation named-event case was denied, and restricted PowerShell temporary writing
+exceeded its 30-second deadline. The earlier 29.88-second result therefore did not prove
+reliable cold startup.
+
+SDK `d868bdce` adds recursive cleanup after verified Job termination. Directory
+names come from `NtQueryDirectoryFile` against owned handles; children are opened
+relative to the parent using `FILE_OPEN_REPARSE_POINT`, with write/delete sharing
+disabled before inspecting the type. Reparse points are unlinked without traversing
+their targets. No readonly attributes or ACLs are relaxed on deletion failure.
+Failed handle closure is retained for a later cleanup attempt. The walk is bounded
+by cancellation and a depth limit, and failures may represent partially completed
+cleanup rather than rollback.
+
+New tests cover nested deletion, cancellation, external hardlink and directory-symlink
+sentinels, readonly failure retaining root ownership, and recovery after the fixture's
+readonly attribute is explicitly removed. Windows x64 and ARM64 cross-compilation
+passed; native run
+[34825123244](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34825123244)
+was confirmed running. This primitive remains disconnected from product execution;
+account provisioning, authenticated runner transport and network enforcement remain
+required before enabling Windows sandbox execution.
+
+Native API references: [NtQueryDirectoryFile](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntquerydirectoryfile)
+and [NtCreateFile](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile).
