@@ -1,7 +1,7 @@
 "use client";
 
-// INPUT: Composer Slash 命令输入与 Skill/Model 只读目录请求。
-// OUTPUT: 保留草稿的 picker 状态、三问读取失败和显式重载动作。
+// INPUT: Composer Slash 命令输入、加号菜单 Plan 动作与 Skill/Model 只读目录请求。
+// OUTPUT: 保留草稿的 picker 状态、同源 Plan 草稿模式切换、三问读取失败和显式重载动作。
 // POS: Composer Slash picker 编排边界；目录失败从不解释为草稿或设置修改。
 
 import {
@@ -59,6 +59,8 @@ interface UseComposerSlashCommandOptions {
   catalog: CommandCatalogData;
   input: string;
   isGoalMode: boolean;
+  isPlanMode: boolean;
+  onPlanToggle: () => void;
   runtimeKind: AgentRuntimeKind;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -68,6 +70,8 @@ export function useComposerSlashCommand({
   catalog,
   input,
   isGoalMode,
+  isPlanMode,
+  onPlanToggle,
   runtimeKind,
   setInput,
   textareaRef,
@@ -302,6 +306,17 @@ export function useComposerSlashCommand({
     ));
   }, [isGoalMode, mode, textareaRef]);
 
+  const planCommand = catalog.commands.find((command) => command.name === "plan" && isSelectableSlashCommand(command));
+  const togglePlanInput = useCallback(() => {
+    if (isGoalMode || !planCommand) return;
+    onPlanToggle();
+    close();
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(input.length, input.length);
+    });
+  }, [close, input, isGoalMode, onPlanToggle, planCommand, textareaRef]);
+
   const selectCommand = useCallback((command: CommandDescriptor) => {
     if (!match || !isSelectableSlashCommand(command)) {
       return;
@@ -471,6 +486,9 @@ export function useComposerSlashCommand({
   }, [activeModel, close, mode, modelCount, selectModel, textareaRef]);
 
   return {
+    canUsePlan: Boolean(planCommand),
+    isPlanMode,
+    togglePlanInput,
     activeIndex: visibleActiveIndex,
     close,
     commands: filteredCommands,

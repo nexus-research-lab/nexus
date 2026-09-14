@@ -19,7 +19,7 @@ import {
 } from "./composer-session-controls";
 import {
   ComposerFooterStatus,
-  ComposerGoalModeIndicator,
+  ComposerModeIndicator,
 } from "./composer-footer-status";
 
 export function ComposerFooter(props: ComposerFooterProps) {
@@ -27,6 +27,7 @@ export function ComposerFooter(props: ComposerFooterProps) {
     <div
       className={COMPOSER_FOOTER_CLASS_NAME}
       data-goal-mode={props.isGoalMode ? "true" : "false"}
+      data-mode-active={props.isGoalMode || props.isPlanMode ? "true" : "false"}
     >
       <div className="nexus-chat-composer-footer-leading flex min-w-0 items-center gap-2">
         {props.showActionMenu ? (
@@ -43,6 +44,9 @@ export function ComposerFooter(props: ComposerFooterProps) {
             onActionMenuToggle={props.onActionMenuToggle}
             onAttachmentSelect={props.onAttachmentSelect}
             onGoalToggle={props.onGoalToggle}
+            canUsePlan={props.canUsePlan}
+            isPlanMode={props.isPlanMode}
+            onPlanToggle={props.onPlanToggle}
             onWorkGraphDistillationsSelect={props.onWorkGraphDistillationsSelect}
             onLocalDirectorySelect={props.onLocalDirectorySelect}
             sessionSettingsController={props.sessionSettingsController}
@@ -54,7 +58,9 @@ export function ComposerFooter(props: ComposerFooterProps) {
           disabled={props.sessionSettingsDisabled}
           slot="leading"
         />
-        <ComposerGoalModeIndicator
+        <ComposerModeIndicator mode="plan" visible={props.isPlanMode} onCancel={props.onPlanToggle} extra={null} isCreating={false} scopeLabel="" />
+        <ComposerModeIndicator
+          mode="goal"
           extra={props.goalModeExtra}
           isCreating={props.isGoalCreating}
           onCancel={props.onCancelGoal}
