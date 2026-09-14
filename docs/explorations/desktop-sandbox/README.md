@@ -1141,3 +1141,38 @@ an acceptable unvalidated fix. Evaluate a complete creation-time thread/token po
 against Go runtime behavior, or separate the trusted broker identity from the command
 identity with an authenticated provisioning/launch contract. Neither approach is
 implemented or accepted yet; process-only hardening must not enable the backend.
+
+### 2026-09-14: token-check mode diagnostic and Go thread-creation constraint
+
+The actual primary-token event create/reopen/signal test passed in run
+[34849699949](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34849699949)
+at SDK `57e05211`; the three runner-thread permission exposures reproduced.
+SDK `db85f3e2` adds a native OpenThread comparison with the same account and restricting
+SIDs, changing only WRITE_RESTRICTED. A separate live locked OS thread is held throughout;
+write-only checks are expected to reproduce the exposure, full checks must explicitly
+deny the three rights. This diagnostic uses thread impersonation and is not itself
+primary-process startup or complete security acceptance. SDK `7a04a553` adds a separate
+actual cmd.exe launch with the fully restricted comparison token. Both compiled for
+Windows x64; native evidence is pending, and the product token factory is unchanged.
+
+Go 1.25.5 runtime/os_windows.go creates new threads with null security attributes in
+newosproc and duplicates each current-thread pseudo-handle in minit. This confirms that
+one-time thread enumeration cannot protect later Go threads. The documented
+[CreateRestrictedToken semantics](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createrestrictedtoken)
+limit restricting-SID checks to writes when WRITE_RESTRICTED is set; removing that flag
+requires validation of program/profile/system read access as well as control-object
+denials. Neither changing the flag nor a one-thread ACL patch is an accepted production
+fix without those tests and a creation-time admission contract.
+
+Native comparison run
+[34850254249](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34850254249)
+at `db85f3e2` passed both expected branches: WRITE_RESTRICTED allowed all three
+thread rights, while otherwise identical full restricting-SID checks returned explicit
+access denial. The real write-restricted child still reproduced the exposure. This
+identifies the flag's access-check scope as a causal difference in the diagnostic,
+not proof that a fully restricted product command can yet run compatibly. The separate
+full-token cmd.exe probe at `7a04a553` is tracked in
+[34850471021](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34850471021).
+The original native component test stage now passes after the namespace fixture was
+replaced; the runner stage still fails on thread exposure and variable PowerShell
+discovery timeouts (all three discovery variants timed out in the comparison run).
