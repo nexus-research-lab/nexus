@@ -968,3 +968,27 @@ The account-environment loader additionally uses `LoadLibraryExW` with
 loading. The environment block is destroyed before releasing the library handle.
 Windows x64 cross-compilation passed; native environment tests will re-exercise this
 path. This change limits the loader search and does not change filesystem grants.
+
+### 2026-09-14: peer binding passes; scoped local pipe creation
+
+Native run
+[34830017709](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34830017709)
+passed pipe-peer identity tests and the account-environment path after system-directory
+DLL loading. The latter still took 18.47 seconds. The old impersonation compatibility
+failure remains, so the overall workflow is not green.
+
+The new endpoint factory requires an execution token distinct from the host, creates a
+random local-only first/single pipe instance with overlapped IO enabled, and makes its
+server handle non-inheritable. Its protected DACL grants host control and explicit runner
+client rights excluding FILE_CREATE_PIPE_INSTANCE; clients must use the specific access
+mask instead of GENERIC_WRITE. Close is idempotent but requires no outstanding IO, or
+caller-completed cancellation. Accept/read/write cancellation and protocol integration
+remain unimplemented.
+
+Native tests compare host-identity rejection, handle inheritance, duplicate first-instance
+creation, restricted-token duplex denial, generic-write denial, and ordinary execution
+account connection with the precise access mask. This does not claim read-only restricted
+connections are impossible: the peer-PID check must precede sending any protocol data.
+Windows x64 cross-compilation passed; native execution is pending. Microsoft documents
+the shared FILE_APPEND_DATA/FILE_CREATE_PIPE_INSTANCE bit in
+[Named Pipe Security and Access Rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights).
