@@ -381,3 +381,16 @@ first run (`34809309693`) passed restricted-token, Job termination and pinned-pa
 tests but exposed a private-desktop creator-thread exit failure. This is native
 component evidence, not complete Windows sandbox acceptance; required Windows
 command execution remains disabled while the backend is incomplete.
+
+The follow-up Windows native run
+[34809567020](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34809567020)
+passed at SDK commit `df4afc5e`. The creator now restores its original thread desktop
+before scheduler reuse, instead of assuming every locked Go thread exits. A failure
+to restore still fails admission and does not return that thread to the scheduler.
+This follows the Windows
+[thread desktop API](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddesktop)
+contract. Token/Job/path/private-desktop component tests ran on Windows x64; ARM64
+and the complete command backend have not received native acceptance. The rebuilt
+nxs also passed the opt-in Nexus host/Bridge initialization and confirmed-cleanup
+test without a model request. No shell permission end-to-end inference is made from
+that handshake test.
