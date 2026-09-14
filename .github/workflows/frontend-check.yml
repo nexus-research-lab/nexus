@@ -28,7 +28,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  frontend:
+  checks:
+    name: Frontend code checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -44,19 +45,55 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.2 --activate
           pnpm install --frozen-lockfile
-      - name: Install browsers
-        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Lint, types, contracts, component behavior and production build
         run: pnpm run check
+
+  browser:
+    name: Browser UI shard ${{ matrix.shard }}/6
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install pinned dependencies
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+          pnpm install --frozen-lockfile
+      - name: Install browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
       - name: Browser UI matrix
-        run: pnpm run test:browser
+        run: pnpm run test:browser --shard=${{ matrix.shard }}/${{ strategy.job-total }}
       - name: Upload browser evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-browser-evidence
+          name: frontend-browser-evidence-${{ matrix.shard }}
           path: |
             web/playwright-report/
             web/test-results/
           if-no-files-found: ignore
           retention-days: 14
+
+  frontend:
+    if: ${{ always() }}
+    needs: [checks, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require code checks and every browser shard
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          test "$CHECKS_RESULT" = success
+          test "$BROWSER_RESULT" = success
