@@ -476,3 +476,15 @@ Nexus permission/configuration/channels and architecture checks passed. Bridge
 client/permission/protocol checks passed. This is component and native SDK evidence,
 not a packaged end-to-end App acceptance claim. Windows command startup and complete
 durable effect/background recovery remain outstanding.
+
+2026-09-14, direct background startup: network-approval SDK full Linux run
+[34812602153](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34812602153)
+passed. The next audit found direct background shell preparation rebuilt options
+without the command-scoped proxy callback. SDK `ce4415a3` preserves it in Bash and
+PowerShell preparation. A native macOS Bash test waits for background network
+approval, ends the foreground context, and verifies one successful connection and
+one marker write. Its second case changes permission mode while approval is pending
+and deliberately returns a late allow; no destination request occurs and the
+background task fails without replaying the marker write. These native cases and
+executor/runtime package regressions passed. PowerShell native background network
+acceptance and reviewer/session-turnover recovery remain separate outstanding work.

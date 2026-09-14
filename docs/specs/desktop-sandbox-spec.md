@@ -37,6 +37,12 @@ Effective permission changes invalidate pending and subsequent network requests
 from the old command epoch. Explicit SDK host callbacks retain their existing API;
 legacy non-mandatory runtimes do not acquire this new fallback.
 
+Direct Bash/PowerShell background startup carries the same scoped callback when it
+rebuilds execution options. Completion of the foreground call does not itself
+cancel the background proxy's approval; changing the permission epoch still rejects
+its pending connection. Native macOS Bash tests cover this continuation and
+invalidation, not complete background review/session recovery on all platforms.
+
 Closing an SDK execution proxy cancels its pending network callback contexts,
 rejects late callback allows, and closes owned SOCKS/HTTP CONNECT tunnels. Complete
 durable execution-effect recovery and background/session turnover acceptance remain
