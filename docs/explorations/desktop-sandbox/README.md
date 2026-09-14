@@ -883,3 +883,26 @@ file content afterward. The child receives no file path and does not enumerate f
 checking content avoids mistaking child-side reuse of a handle value for inheritance.
 This supplements the existing stdio duplicate/attribute checks with an actual process
 boundary test. Windows x64 compilation passed; native evidence is pending.
+
+### 2026-09-14: inherited-handle probe passes; execution-account environment baseline
+
+Native run
+[34827167356](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34827167356)
+passed the real restricted-child inherited-handle boundary probe in 0.03 seconds: the
+otherwise inheritable canary handle was excluded and its parent file remained unchanged.
+The workflow still failed the known default module discovery timeout and impersonation
+compatibility test.
+
+The next implementation obtains a baseline via `CreateEnvironmentBlock` for the verified
+execution identity with inheritance disabled, filters to named Windows system/profile
+variables, replaces TEMP/TMP with the invocation directory, rejects case-insensitive
+collisions and invalid required profile paths, and returns a sorted explicit Unicode
+block. It does not load profiles, provision accounts, grant paths or define user task
+variables. Product assembly is still pending. Native buffers are destroyed after copying.
+
+Targeted filtering tests passed locally, including exclusion of ambient credentials,
+replacement of host temporary paths, duplicate-key and NUL rejection, and invalid/missing
+profile inputs. Windows x64 cross-compilation passed. A new runner comparison checks that
+an in-process COMSPEC canary is not inherited and measures the same cmdlet operations with
+the account baseline. Native evidence remains pending. API reference:
+[CreateEnvironmentBlock](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock).
