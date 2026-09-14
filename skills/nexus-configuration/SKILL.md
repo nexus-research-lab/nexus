@@ -22,7 +22,7 @@ tags: [nexus, configuration, settings, agent, room]
 
    PowerShell 使用 `& "${env:NEXUSCFG_COMMAND_PATH}" ...`，不要混用 shell 变量语法。
 
-2. 以顶层 `inspection` 中的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 与 checks 为准。不要根据 Skill 猜 operation、target 或 input；需要角色与 domain 分流时读取 [references/roles-and-domains.md](references/roles-and-domains.md)。
+2. 以顶层 `inspection` 中的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 与 checks 为准。操作列表已按当前身份和 DM/Room 场景过滤，只描述本次调用者可用的配置能力；其他身份或专用入口按 [references/roles-and-domains.md](references/roles-and-domains.md) 分流。不要根据 Skill 猜 operation、target 或 input。
 3. mutation 先用同一 domain/operation/target/input 执行 plan。输入必须是一个不含秘密的 JSON object：
 
    ```bash
@@ -50,6 +50,12 @@ tags: [nexus, configuration, settings, agent, room]
 ## 管理用户
 
 管理员需要新增、修改或移除用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。
+
+## Skill 内容与长期记忆
+
+修改本地 Skill 的正文或脚本时，读取 [references/skill-content.md](references/skill-content.md)，按来源与所属 Agent 选择文件编辑入口。
+
+长期记忆的内容位于 Agent workspace 的 `MEMORY.md` 与 `memory/`。自己的记忆使用原生文件工具读写；主智能体修改其他 Agent 的记忆按 `nexus-manager` 的 workspace 入口读取、编辑并读回。用户也可在联系人 → 选择智能体 → 记忆中编辑，页面保存携带读取 revision。修改前读取当前内容并保留无关信息；文件保存与运行中模型的记忆加载分别核对。
 
 ## 创建 Agent 与行为模板
 

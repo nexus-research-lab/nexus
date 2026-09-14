@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Clarify the existing entry points for local Skill content editing, long-term memory editing and role-scoped configuration discovery.
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
 - Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
 - Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.

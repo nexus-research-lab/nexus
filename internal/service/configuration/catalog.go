@@ -1,5 +1,5 @@
 // INPUT: 配置域名称与操作名称。
-// OUTPUT: 稳定的配置能力目录、workspace 行为模板分流说明、确认门槛与运行时生效语义。
+// OUTPUT: 稳定的配置能力目录、workspace 行为模板与 Skill 内容分流说明、确认门槛与运行时生效语义。
 // POS: configuration 控制面的能力真相源。
 package configuration
 
@@ -76,7 +76,7 @@ var domainCatalog = []DomainDefinition{
 		},
 	},
 	{
-		Name: DomainSkills, Description: "外部 Skill 来源、更新状态与 Agent 安装选择",
+		Name: DomainSkills, Description: "外部 Skill 来源、更新状态与 Agent 安装选择；正文与脚本编辑按 nexus-configuration 的 references/skill-content.md 分流，来源更新与内容编辑使用各自入口",
 		Source: "database + user skill library", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("search_external", "搜索已启用的远端 Skill 来源；不修改目录", false, "immediate"),

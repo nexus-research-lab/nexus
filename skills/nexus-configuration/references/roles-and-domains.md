@@ -11,7 +11,7 @@
 | `room_host` | 当前 Room、成员、协作策略、conversation，以及当前 Agent 的 Room 上下文情绪 |
 | `room_member` | 只读当前 Room，并修改当前 Agent 自己的 Room 上下文情绪 |
 
-target 不能扩大 authority。普通 Agent 的 self operation 固定到当前 Agent；Room operation 固定到当前 Room。先从 inspect 的 `allowed_operations` 选择，再使用对应 definition 的 target/input，不从资源名称推断越权 operation。
+target 不能扩大 authority。普通 Agent 的 self operation 固定到当前 Agent；Room operation 固定到当前 Room。inspect 的 `allowed_operations` 与 `definition.operations` 都已按当前身份和场景过滤。先从允许的操作选择，再使用对应 definition 的 target/input；需要 owner 管理能力时请用户切换到主智能体私聊，Room 管理按当前群主权限处理。
 
 ## Domain 路由
 
@@ -23,7 +23,7 @@ target 不能扩大 authority。普通 Agent 的 self operation 固定到当前 
 | `agents` | Agent profile、runtime 与 owner Agent 管理 | 撤权立即；多数设置下一轮 |
 | `emotion` | 当前 Agent 或当前 Room conversation 情绪 | 下一轮 |
 | `channels` / `connectors` | owner 外部连接及授权状态 | 立即或下一会话 |
-| `skills` | Skill 来源、目录与 Agent 绑定 | 目录立即；runtime 下一轮 |
+| `skills` | Skill 来源、目录与 Agent 绑定；正文编辑见 [skill-content.md](skill-content.md) | 配置操作以 runtime effect 为准；文件保存单独核对加载 |
 | `sessions` | 当前 authority 可见的真实 Session 标题或删除 | 立即 |
 | `rooms` | Room profile、成员、协作策略与 conversation | 安全变更立即；提示下一轮 |
 | `host` | 脱敏启动配置和健康状态 | 只读；外部修改并重启 |

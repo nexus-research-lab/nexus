@@ -1,6 +1,8 @@
 # Skill 资源
 
-只在主智能体查询 Skill 目录、为 Agent 安装/卸载，或导入/更新外部 Skill 时读取本文件。Agent 自己的配置化 Skill 绑定优先使用 `nexus-configuration`；这里处理 owner 控制面的 Skill 资源。
+在主智能体查询 Skill 目录、为 Agent 安装/卸载，或导入/更新外部 Skill 时读取本文件。Agent 自己的配置化 Skill 绑定优先使用 `nexus-configuration`；这里处理 owner 控制面的 Skill 资源。
+
+修改正文、脚本或定制已有 Skill 时，先读取 [Skill 内容与编辑边界](../../nexus-configuration/references/skill-content.md)，按实际来源和所属 Agent 选择入口；本文件的 `skill update` 用于来源更新。
 
 ## 查询与 Agent 绑定
 
