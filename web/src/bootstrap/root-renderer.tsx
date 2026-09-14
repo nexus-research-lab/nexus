@@ -1,3 +1,6 @@
+// INPUT: Application or failure content and the committed root readiness lifecycle.
+// OUTPUT: Root rendering and desktop readiness after route/auth loading resolves.
+// POS: React root owner; readiness observation and failure views have separate owners.
 import { StrictMode, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -10,6 +13,7 @@ import {
 import { RootErrorBoundary, RootFailureScreen } from "./root-failure-view";
 
 import { getRootFailureCopy } from "./root-failure-copy";
+import { observeRootReadiness } from "./root-readiness";
 
 const rootContainer = document.getElementById("root");
 if (!rootContainer) {
@@ -18,6 +22,7 @@ if (!rootContainer) {
 
 const container: HTMLElement = rootContainer;
 const root = createRoot(container);
+let cancelReadiness: (() => void) | undefined;
 
 function renderRoot(children: ReactNode, strictMode: boolean): void {
   const content = (
@@ -29,21 +34,12 @@ function renderRoot(children: ReactNode, strictMode: boolean): void {
 }
 
 function notifyReadyAfterPaint(): void {
-  let didNotify = false;
-  const notifyOnce = (source: string) => {
-    if (didNotify) {
-      return;
-    }
-    didNotify = true;
+  cancelReadiness?.();
+  cancelReadiness = observeRootReadiness(container, (source) => {
     markDesktopPerformance(`react.ready.${source}`);
     notifyDesktopWebReady(source);
     notifyDesktopRenderHealth(source, "ready");
-  };
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => notifyOnce("afterPaint"));
   });
-  window.setTimeout(() => notifyOnce("timerFallback"), 250);
 }
 
 export function renderApplication(

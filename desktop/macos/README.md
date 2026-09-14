@@ -69,6 +69,8 @@ Header 双击缩放与窗口隐藏恢复；`--suite app-shell --smoke` 仅运行
 两套检查均不覆盖真实聊天读写、系统拖窗移动、发布签名或 Windows；App 只读夹具不能
 作为后端业务验收。锁屏阻止原生输入时应解锁后重新运行，不得据编译成功判定 UI 通过。
 `package-macos-app.sh` 会先构建目标架构的 `.app`、下载并预置同架构的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
+
+DMG 中转卷固定使用 HFS+，不继承 runner 的 APFS 默认值，避免 Finder 布局后残留的 APFS 合成设备阻塞卸载和压缩；最终产物仍使用 UDZO 压缩并验证校验和。
 人工 macOS App 验收维护在[回归目录](../../docs/testing/nexus-regression-catalog.md)的桌面升级与桌面集成章节；前端跨宿主验收范围见[前端工程规范](../../docs/specs/frontend-engineering-spec.md)。
 
 本地验证 Keychain 时可以显式设置：

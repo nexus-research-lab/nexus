@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
+- Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
+
 - Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light/rain action contrast with the matching light Windows native projection, and keep long task suggestions inside their cards on WebKit.
 
 - Split the complete frontend browser test matrix across twelve CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
