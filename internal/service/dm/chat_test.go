@@ -282,6 +282,32 @@ func TestDMPrepareRuntimeHandlesSlashCommandPayloads(t *testing.T) {
 	if !visualizePreparation.atomicInput {
 		t.Fatal("/visualize runtime payload must be marked atomic")
 	}
+	planExecution, err := service.prepareChatExecution(context.Background(), Request{SessionKey: sessionKey, Content: "/plan improve search"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planPreparation, err := planExecution.prepareRuntime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planPreparation.permissionMode != "plan" || !planPreparation.atomicInput || !strings.Contains(planPreparation.content.PlainText(), "ExitPlanMode") {
+		t.Fatalf("plan request did not enter guarded planning: %#v", planPreparation)
+	}
+	if planExecution.request.Content != "/plan improve search" || protocol.SessionRuntimeSettingsFromOptions(planPreparation.session.Options).PermissionMode == "plan" {
+		t.Fatal("plan command changed the original message or persisted a permission setting")
+	}
+	next, err := service.prepareChatExecution(context.Background(), Request{SessionKey: sessionKey, Content: "next task"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextPreparation, err := next.prepareRuntime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextPreparation.permissionMode == "plan" {
+		t.Fatal("plan permission leaked into the next request")
+	}
+
 }
 
 func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {

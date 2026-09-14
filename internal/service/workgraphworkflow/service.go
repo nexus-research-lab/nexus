@@ -1,5 +1,5 @@
 // INPUT: owner、完成态 ExecutionView、默认对话模型草图、durable Draft 与受管 CLI 确认。
-// OUTPUT: 可恢复版本化草图、按完整内容核验保存回执的命名 WorkGraph、动态 Slash descriptor 与复用 prompt。
+// OUTPUT: 可恢复版本化草图、按完整内容核验保存回执的命名 WorkGraph、避让系统保留命令的动态 Slash descriptor 与复用 prompt。
 // POS: 完成图提炼、UI/对话统一编辑确认和跨 Session 复用的唯一业务入口。
 package workgraphworkflow
 
@@ -35,6 +35,7 @@ var reservedWorkflowSlashNames = map[string]struct{}{
 	"deep-research":  {},
 	"goal":           {},
 	"model":          {},
+	"plan":           {},
 	"review-improve": {},
 	"skills":         {},
 	"visualize":      {},

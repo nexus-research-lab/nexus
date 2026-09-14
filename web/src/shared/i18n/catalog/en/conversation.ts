@@ -914,6 +914,8 @@ export const enConversationMessages = {
   "composer.workgraph_picker_empty": "No matching WorkGraphs",
   "composer.workgraph_picker_failed": "Failed to load WorkGraphs",
   "composer.use_workgraph_command": "Use this WorkGraph",
+  "composer.cancel_plan_mode": "Exit Plan mode",
+  "composer.plan_mode": "Plan mode",
   "composer.start_goal": "Start Goal",
   "composer.goal_mode": "Goal",
   "composer.goal_placeholder": "Enter a Goal objective, then press Enter to start...",
