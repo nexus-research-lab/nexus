@@ -113,14 +113,14 @@ export function LauncherConsole({
     <>
       <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <header
-          className="relative z-20 h-28 shrink-0"
+          className="launcher-console-header relative z-20 h-28 shrink-0"
           data-desktop-window-drag-region
         >
           <LottiePlayer
             className="launcher-console-spotlights pointer-events-none absolute opacity-[0.68]"
             src={ANIMATIONS.BOM}
           />
-          <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-1">
+          <div className="launcher-console-brand pointer-events-none absolute bottom-2 flex items-center gap-1">
             <img alt="" className="h-10 w-10" src="/logo.png" />
             <span
               className="launcher-console-wordmark mb-3 text-[32px] text-foreground"
