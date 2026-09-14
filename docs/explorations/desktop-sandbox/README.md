@@ -540,3 +540,30 @@ with Access Denied. This narrows the next investigation to named-object namespac
 access and the primary-process launch arrangement; it does not justify broadening
 object DACL grants or establish complete IPC isolation. The overall Windows gate
 remains failed.
+
+2026-09-14, real Windows primary-process composition: SDK `315bd133` adds a
+native launch test using the dedicated restricted primary token, an explicit
+private desktop and a minimal environment without CI credentials. The process is
+created suspended, assigned to the Job, checked for the expected non-host identity
+and restricted token, then resumed. Native run
+[34816723985](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34816723985)
+passed this composition and observed the command's expected exit code. Disposable
+account cleanup passed. The existing impersonated named-event test still failed,
+so the whole component gate remained red. SDK `5581e652` extends the same path to
+PowerShell creating/signaling a named event within the actual child process;
+Windows x64 and ARM64 cross-compilation passed, with native results pending.
+This test-only CreateProcessWithTokenW path is not the finished production broker:
+explicit inherited-handle control, filesystem/network enforcement, installation
+and end-to-end tool integration remain required. The
+[Codex process implementation](https://raw.githubusercontent.com/openai/codex/main/codex-rs/windows-sandbox-rs/src/process.rs)
+uses CreateProcessAsUserW with a process attribute list for Job attachment and
+explicit stdio handle inheritance; production integration must account for these
+boundaries instead of treating successful process creation as sandbox acceptance.
+
+Native follow-up
+[34816905707](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34816905707)
+passed the cmd case but PowerShell did not exit within ten seconds; the test then
+terminated it and the Job, and account cleanup succeeded. This timeout does not
+identify whether initialization or the event operation stalled. A separate
+PowerShell immediate-exit control and a thirty-second observation window are added
+next; no retry of the timed-out process or production capability claim is made.
