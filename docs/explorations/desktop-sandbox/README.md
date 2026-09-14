@@ -782,3 +782,30 @@ required before enabling Windows sandbox execution.
 
 Native API references: [NtQueryDirectoryFile](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntquerydirectoryfile)
 and [NtCreateFile](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile).
+
+Native run 34825123244 passed directory-symlink target preservation, readonly
+failure/recovery, and the earlier temporary-directory lifecycle tests. The recursive
+hardlink case stopped during fixture creation: `CreateHardLink` targeting the pinned
+root returned a sharing violation. This is a compatibility finding, not proof of
+hardlink cleanup. SDK `8aa1828a` moves that fixture into a child directory whose handle
+is not yet pinned, allowing the subsequent cleanup to test hardlink target preservation
+without weakening the root lease. Root-level hardlink creation compatibility remains
+open. The existing impersonation event failure also remains unresolved.
+
+### 2026-09-14: native recursive cleanup verified; isolate remaining diagnostics
+
+Native run
+[34825572295](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34825572295)
+passed all five temporary-directory cases, including recursive deletion with an external
+hardlink target preserved. This validates the child-directory hardlink fixture; the
+root-level hardlink creation sharing violation remains a separate compatibility issue.
+The run still failed restricted PowerShell temporary writing at 30.34 seconds and the
+existing impersonation named-event creation test.
+
+SDK `c4d9b9bf` adds fixed stage markers to that PowerShell probe and captures output on
+timeout only after terminating and verifying the whole Job, with a bounded output wait.
+It also makes host-event write/WRITE_DAC rejection an independent test with a host
+positive control, so a prior namespace creation failure cannot prevent this boundary
+from being exercised. It does not remove the existing failed compatibility case or
+claim thread impersonation proves production runner isolation. Windows x64 test
+cross-compilation passed; new native evidence is pending.
