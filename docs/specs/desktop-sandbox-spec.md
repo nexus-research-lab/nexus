@@ -26,6 +26,12 @@ denied unless permitted by the execution policy; network approval integration is
 still outstanding. Explicit command escape continues through the SDK's independent
 sandbox-bypass approval boundary, including auto-review where supported.
 
+Mandatory SDK temporary-directory preparation uses a workspace directory handle
+before the command sandbox starts, so descendant symlink replacement cannot redirect
+the host's directory creation outside that root. Unsupported native backends reject
+before temporary-directory or proxy allocation. These preparation guarantees do
+not establish confinement for every other host-side filesystem operation.
+
 Sandbox escape uses the typed `permission_boundary=sandbox_escape` classification.
 Nexus shows an explicit outside-sandbox explanation and exposes only one-time
 approval. Persistent rules supplied in a response are rejected by both Nexus and
