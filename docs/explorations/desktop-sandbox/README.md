@@ -579,3 +579,13 @@ No desktop rights were broadened. SDK `8ac1f7ed` also adds an ordinary dedicated
 account token control through the same launch path, with process identity and
 restriction-state verification, to separate restricted-token behavior from launch
 environment behavior. Windows x64 cross-compilation passed; native runs are pending.
+
+The ordinary-account control in native run
+[34817455500](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34817455500)
+also timed out, as did both restricted PowerShell cases; cmd still passed. Qualified
+desktop naming did not resolve this symptom. The current evidence therefore does
+not isolate the restriction layer as its cause. The next test initializes the
+dedicated account profile via LOGON_WITH_PROFILE and asks Windows to construct that
+account's environment instead of passing only SystemRoot. This is confined to the
+disposable CI fixture and does not inherit the runner's credential environment or
+relax token/desktop permissions. Complete Windows acceptance remains outstanding.
