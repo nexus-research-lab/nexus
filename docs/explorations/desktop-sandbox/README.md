@@ -1218,3 +1218,29 @@ before testing normal child creation and Job breakaway denial. Windows x64 compi
 passed; native validation is pending. PowerShell loader/read compatibility remains an
 independent unresolved requirement. Reference:
 [CreateProcessAsUser access requirements](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw).
+
+### 2026-09-14: explicit token access passes; system runtime reads are missing
+
+Run [34851417515](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34851417515)
+at `24fccc3c` passed reopening the command's own token with QUERY/DUPLICATE/ASSIGN/
+IMPERSONATE rights and verified it remained restricted. The explicitly granted command
+executable was readable, but normal descendant creation still returned error 5. Thus
+the token-object DACL change is not evidence that descendant compatibility is fixed.
+SDK `5908f12a` binds both normal and breakaway comparison children to the explicitly
+read-granted binary directory, removing an implicit dependency on SystemRoot as cwd.
+Its native result remains pending.
+
+SDK `2886aeba` added a restricted primary-process DLL probe; run
+[34851660793](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34851660793)
+reported ERROR_ACCESS_DENIED reading both System32/kernel32.dll and System32/mscoree.dll.
+System-only LoadLibraryExW of mscoree.dll failed with error 126. The probe grants nothing
+and never adds a search directory or invokes a script. These facts establish missing
+system-runtime read access, while leaving the complete CLR dependency set unresolved.
+A successful cmd exit does not prove arbitrary Windows executable compatibility.
+
+Before enabling full-token execution, define explicit read grants for system/runtime,
+program and profile dependencies, including registry dependencies where demonstrated.
+Do not restore WRITE_RESTRICTED, add the execution user as a restricting SID, or
+indiscriminately grant a broad group solely to pass loader checks. Any system ACL setup
+needs installer ownership, repair/upgrade semantics and validation of unaffected Windows
+behavior; per-command mutation of the Windows tree is not an accepted implicit fallback.
