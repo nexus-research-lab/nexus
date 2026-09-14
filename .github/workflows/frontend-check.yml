@@ -49,13 +49,13 @@ jobs:
         run: pnpm run check
 
   browser:
-    name: Browser UI shard ${{ matrix.shard }}/6
+    name: Browser UI shard ${{ matrix.shard }}/${{ strategy.job-total }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     defaults:
       run:
         working-directory: web

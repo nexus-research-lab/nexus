@@ -47,6 +47,7 @@ export const APP_SHELL_INIT_SCRIPT = `(() => {
   const locale = route.searchParams.get('locale') || localStorage.getItem('nexus-locale') || 'en';
   localStorage.setItem('nexus-theme', theme);
   localStorage.setItem('nexus-locale', locale);
+  localStorage.setItem('nexus:onboarding:tours', JSON.stringify({'launcher-guide':true,'sidebar-navigation':true}));
   localStorage.setItem('nexus:onboarding:dismissed-tours', JSON.stringify({'launcher-guide':true,'sidebar-navigation':true}));
   localStorage.setItem('nexus:sidebar-onboarding-dismissed', 'true');
   window.qaEvents = []; window.qaErrors = [];

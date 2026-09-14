@@ -434,7 +434,7 @@ owner 迁移检查后认领，其他 owner 的已绑定快照在认证绑定前�
 真实业务数据、第三方 CDN 或原生窗口手势已经验证。
 
 组件陈列面是验证夹具。截图随 HTML report 输出到 `playwright-report/`。
-CI 将完整浏览器矩阵按 `--shard` 分为六个独立任务，保留全部用例并分别上传
+CI 将完整浏览器矩阵按 `--shard` 分为十二个独立任务，保留全部用例并分别上传
 `frontend-browser-evidence-<shard>`；稳定的 `frontend` 汇总门禁只有在代码检查
 及全部浏览器分片成功后才能通过，失败、取消或跳过均不得视为成功。
 失败 trace/截图输出到 `test-results/`，CI 保留 14 天；它们是可复查的视觉

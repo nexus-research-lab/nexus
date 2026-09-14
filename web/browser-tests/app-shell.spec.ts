@@ -140,6 +140,7 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   const height = page.viewportSize()!.width <= 559 ? 48 : 36;
   expect(searchGeometry.height).toBe(height);
   expect(actionGeometry).toEqual({ height, width: height, radius: searchGeometry.radius });
+  await expect(page.locator("[data-onboarding-tour-card]")).toHaveCount(0);
   const contrast = await measurePaintedInputContrast(search, "::placeholder");
   expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
   await search.focus();
