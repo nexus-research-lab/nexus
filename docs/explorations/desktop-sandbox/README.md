@@ -923,3 +923,21 @@ Targeted tests and Windows x64 cross-compilation passed. Native behavior and any
 improvement remain unproven until the next run completes. Microsoft documents the default
 LOCALAPPDATA cache, background writing and supported path override in
 [Windows PowerShell 5.1 module analysis cache](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_windows_powershell_5.1?view=powershell-5.1).
+
+### 2026-09-14: cache-bound environment works; restricted descendants need composition evidence
+
+Native run
+[34829044851](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34829044851)
+passed the cache-bound account-environment case in 23.00 seconds. This validates the
+configured environment boundary, not cache population or a latency improvement.
+The original default cmdlet case again exceeded 30 seconds, and the impersonation
+compatibility test still failed. Startup performance remains unresolved.
+
+The next dedicated-runner test starts a real restricted Go child, which attempts a
+breakaway descendant and then starts an otherwise equivalent ordinary descendant.
+The latter must successfully verify the inherited execution SID and restricted-token
+state. This positive control avoids accepting total launch failure as breakaway
+protection. Existing generic Job tests independently verify exact Job membership and
+termination of running descendants. These tests do not prove filesystem/network or
+cross-capability isolation. Windows x64 cross-compilation passed; native evidence for
+the new restricted composition is pending.
