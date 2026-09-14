@@ -704,3 +704,23 @@ failure. The separate impersonation test's Access Denied remains a distinct resu
 Next investigation must inspect PowerShell application-control classification and
 the execution environment, including usable temporary storage. Do not disable
 enterprise language restrictions or broaden ACLs merely to make the test pass.
+
+2026-09-14, capability-scoped temporary storage: Microsoft's
+[PowerShell application-control documentation](https://learn.microsoft.com/en-us/powershell/scripting/security/app-control/application-control?view=powershell-7.6)
+explains temporary-script-based AppLocker detection. SDK `3b2cee1f` extends the
+CI fixture with a separate temporary directory granted to the ordinary execution
+account and the test capability SID. The child receives explicit TEMP/TMP values
+and a new test verifies file creation/deletion there. No application-control,
+execution-policy or language-mode setting is changed. This checks whether the
+previous incomplete environment caused constrained-language classification; it is
+not a policy bypass. Windows x64 cross-compilation passed; native run `34821711657`
+is pending. Production temporary-directory ACL ownership, lifecycle and cleanup
+still require implementation beyond this disposable fixture.
+
+Run `34821711657` stopped in fixture preparation: icacls attempted account-name
+resolution for the synthetic capability SID and rejected it. No PowerShell result
+can be inferred from this run. SDK `cc44ac5d` supplies SecurityIdentifier objects
+directly to the Windows ACL API for the disposable temporary directory, preserving
+the distinction between an account identity and an execution capability. The
+fixture remains confined to its generated ProgramData subtree; native validation
+of the corrected preparation is pending.
