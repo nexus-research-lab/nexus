@@ -356,3 +356,28 @@ The migration fixtures now explicitly select their intended web/server mode;
 dedicated desktop-preservation tests remain separate. Skill contents and its limit
 are unchanged from HEAD. Full-gate success is not claimed while that size failure
 remains. Full logs: `/private/tmp/nexus-sandbox-go-gate.log`.
+
+2026-09-14, scoped approval delivery: Nexus now pins Bridge development version
+`v0.1.34-0.20260914050823-85771d895ee2`. The typed sandbox-escape boundary survives
+nxs and Bridge transport; Nexus explains outside-sandbox execution and restricts
+the decision to one invocation. Persistent updates are rejected, including forged
+responses, and unknown boundaries fail before creating pending UI. The SDK binds
+escape approval to exact JSON input and cancels manual/automatic callbacks on
+effective permission changes, rejecting late allow responses. Human-only flags and
+review evidence now survive the nxs proxy. A local Full Access update cannot disable
+a host-required sandbox; the App transition continues through process replacement.
+These checks do not constitute complete admission/replay protection for every hook
+or network callback.
+
+SDK executor/runtime/proxy/permission tests and focused race tests passed, as did
+the real macOS child-write and direct-network-denial tests. Bridge client/permission/
+protocol tests passed. Nexus permission/configuration/channels/runtime/clientopts/
+DM/Room/Agent-handler regressions, permission race tests and architecture checks
+passed. The SDK merged upstream history-rewrite fixes and passed the affected
+client/context/query-loop/MCP tests in addition to sandbox/approval regressions.
+
+Windows native component CI is now available on the SDK development branch. Its
+first run (`34809309693`) passed restricted-token, Job termination and pinned-path
+tests but exposed a private-desktop creator-thread exit failure. This is native
+component evidence, not complete Windows sandbox acceptance; required Windows
+command execution remains disabled while the backend is incomplete.

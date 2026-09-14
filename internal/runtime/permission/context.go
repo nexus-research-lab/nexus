@@ -354,6 +354,12 @@ func (c *Context) RequestPermissionWithID(
 	sessionKey string,
 	request sdkpermission.Request,
 ) (sdkpermission.Decision, string, error) {
+	if ctx.Err() != nil {
+		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), "", nil
+	}
+	if request.Boundary != "" && request.Boundary != sdkpermission.BoundaryTool && request.Boundary != sdkpermission.BoundarySandboxEscape {
+		return sdkpermission.Deny("不支持的审批权限边界", false), "", nil
+	}
 	pending := c.newPendingRequest(sessionKey, request)
 	c.mu.Lock()
 	c.pendingRequests[pending.RequestID] = pending

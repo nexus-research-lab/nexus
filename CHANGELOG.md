@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Distinguish one-time sandbox escape approvals from ordinary tool permissions, retain review explanations, and reject persistent grants attached to an escape response.
+
 - Add an opt-in desktop command sandbox policy shared by DM, Room and memory maintenance. Switching across Full Access stops the old runtime and pending Room approvals; new requests use the new policy. The rollout remains disabled by default while the complete sandbox and approval integration is under development.
 
 - Add Plan mode to the Composer action menu and `/plan` completion, showing a removable footer mode indicator instead of a command prefix, while sharing one request-scoped planning and approval flow without changing permission settings.
