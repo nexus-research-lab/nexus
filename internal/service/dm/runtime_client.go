@@ -365,6 +365,8 @@ func (s *Service) ensureClient(
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
+		AppMode:                    s.config.AppMode,
+		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled,
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
 		IsMainAgent:                agentValue.IsMain,

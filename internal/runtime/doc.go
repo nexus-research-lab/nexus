@@ -25,6 +25,7 @@
 //     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - lifecycle.go：session 关闭栅栏与跨 core/exec 共用的 round 中断宽限。
+//   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。

@@ -11,6 +11,7 @@
 //   - mcp_servers.go：严格解析 Agent 持久化 stdio/http/sse MCP 配置并在禁止覆盖内建及 GitHub 等 Connector 托管名称的前提下合并。
 //   - web_search.go：runtime 自有的 WebSearch 配置与环境投影。
 //   - log_runtime.go：runtime 日志选项。
+//   - desktop_sandbox.go：默认关闭的桌面命令沙箱装配，区分 Skill 读取根与显式写入挂载，保留 Full Access 路径。
 //   - runtime_admission.go：认证转场到 Agent runtime admission 与强隔离要求的动态依赖边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

@@ -40,6 +40,7 @@ type Config struct {
 	CacheFileDir                     string
 	WebDistDir                       string
 	AppMode                          string
+	DesktopSandboxEnabled            bool
 	DesktopSessionToken              string
 	BrowserEnabled                   bool
 	SkillsAPIURL                     string
@@ -193,6 +194,7 @@ func Load() Config {
 		CacheFileDir:                cacheDir,
 		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
 		AppMode:                     appMode,
+		DesktopSandboxEnabled:       mustBool(getEnv("NEXUS_DESKTOP_SANDBOX_ENABLED", "false")),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		BrowserEnabled:              browserEnabled,
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),

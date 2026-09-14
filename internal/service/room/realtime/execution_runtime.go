@@ -217,6 +217,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
+		AppMode:                    e.service.config.AppMode,
+		DesktopSandboxEnabled:      e.service.config.DesktopSandboxEnabled,
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
 		IsMainAgent:                e.agent.IsMain,
