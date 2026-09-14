@@ -488,3 +488,28 @@ and deliberately returns a late allow; no destination request occurs and the
 background task fails without replaying the marker write. These native cases and
 executor/runtime package regressions passed. PowerShell native background network
 acceptance and reviewer/session-turnover recovery remain separate outstanding work.
+
+2026-09-14, Windows object identity audit: background-network SDK full Linux run
+[34813170762](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34813170762)
+passed. SDK `e09ed14a` adds explicit default object DACL installation to the token
+prototype. Initial Windows native run
+[34813605676](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34813605676)
+failed to create a named event under a capability-only restricted token.
+The [Codex token implementation](https://github.com/openai/codex/blob/main/codex-rs/windows-sandbox-rs/src/token.rs)
+also includes logon/world restricting identities for namespace compatibility.
+SDK `46819f3d` obtains the logon SID through bounded buffer parsing and adds those
+identities, while keeping default object grants limited to execution user/capability.
+
+The follow-up native run
+[34813978450](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34813978450)
+created and reopened the event, but FAILED the cross-capability checks: another
+restricted token for the same Windows user obtained EVENT_MODIFY_STATE and WRITE_DAC.
+Object isolation is therefore unproven and contradicted for this same-user setup.
+Do not remove this failure from acceptance or claim that capability SIDs isolate
+host IPC. The production launcher must use a dedicated execution identity distinct
+from the host, with explicit admission validation; its object/process access checks
+must be tested using that actual identity arrangement. Logon/world identities can
+also match existing resource ACLs, so their presence does not replace filesystem
+and network enforcement. Native command execution remains disabled. The current
+Windows component gate is failing on this new acceptance test; token construction
+or cross-compilation success must not be reported as complete backend acceptance.
