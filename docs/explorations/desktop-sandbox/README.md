@@ -513,3 +513,21 @@ also match existing resource ACLs, so their presence does not replace filesystem
 and network enforcement. Native command execution remains disabled. The current
 Windows component gate is failing on this new acceptance test; token construction
 or cross-compilation success must not be reported as complete backend acceptance.
+
+2026-09-14, Windows identity test interpretation correction: SDK `76116907`
+rejects host and built-in service identities at token admission. Native run
+[34814817347](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34814817347)
+passed that guard and token construction but failed named-event creation while
+impersonating the disposable ordinary execution account. Account cleanup succeeded;
+its separate Linux CI run `34814817354` passed. These event tests use thread
+impersonation inside the host process, not a process launched under the restricted
+primary token. Therefore the preceding same-user event result is evidence about
+that test arrangement only; it cannot establish a general capability-SID isolation
+conclusion for a separately launched process. Microsoft's
+[CreateEventW documentation](https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw)
+explicitly calls out security-descriptor handling for impersonating creators.
+SDK `09093eda` retains the failing named-event case and adds anonymous-event checks
+with default versus explicit token DACLs to separate namespace access from object
+security. Windows x64 cross-compilation passed; native evidence is pending. Actual
+primary-token launch, object access and process-tree confinement remain required
+acceptance work; the Windows product execution path remains disabled.
