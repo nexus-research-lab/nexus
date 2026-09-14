@@ -3,6 +3,7 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - mode.go：权限模式归一化。
 //   - request.go：无限时等待用户响应（批准有效期由业务在用户点击后计算）、按创建顺序和请求身份稳定重放，并向 Room 投影待确认状态的请求模型。
 //   - presenter.go：批准、问答及未知工具的兼容呈现。
 //   - context.go：Sender/Room 广播抽象、session 绑定、DM 生命周期 Room 投影、重连活动 route 快照、pending 变化信号与 owner lease 路由上下文。

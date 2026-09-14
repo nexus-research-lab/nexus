@@ -64,6 +64,9 @@ type RuntimeConfigForRuntimeResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
+	// DesktopSandboxEnabled is a host rollout switch, independent of tool approval mode.
+	DesktopSandboxEnabled bool
+	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
 	// 只有该宿主事实可启用 owner-scoped nexusctl；nexuscfg 由独立 round capability 授权。
 	IsMainAgent        bool
@@ -276,6 +279,10 @@ func BuildAgentClientOptionsWithConfig(
 	)
 	if err != nil {
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
+	}
+	options, err = applyDesktopSandbox(options, input)
+	if err != nil {
+		return agentclient.Options{}, nil, err
 	}
 	return options, runtimeConfig, nil
 }

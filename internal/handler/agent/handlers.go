@@ -25,8 +25,8 @@ import (
 
 type directoryBroadcaster func(context.Context, string, map[string]any)
 
-// roomPermissionModeSetter 只暴露 Agent 更新所需的 Room runtime 操作。
-type roomPermissionModeSetter interface {
+// agentPermissionModeSetter 只暴露 Agent 更新所需的 runtime 权限同步操作。
+type agentPermissionModeSetter interface {
 	SetPermissionModeForAgent(context.Context, string, sdkpermission.Mode) error
 }
 
@@ -36,7 +36,7 @@ type Handlers struct {
 	agents        *agentpkg.Service
 	sessions      *sessionpkg.Service
 	runtime       *runtimectx.Manager
-	roomRealtime  roomPermissionModeSetter
+	roomRealtime  agentPermissionModeSetter
 	communication *communicationsvc.Service
 	prefs         *preferencessvc.Service
 	directory     directoryBroadcaster
@@ -48,7 +48,7 @@ func New(
 	agents *agentpkg.Service,
 	sessions *sessionpkg.Service,
 	runtime *runtimectx.Manager,
-	roomRealtime roomPermissionModeSetter,
+	roomRealtime agentPermissionModeSetter,
 	communication *communicationsvc.Service,
 	directory directoryBroadcaster,
 	prefs ...*preferencessvc.Service,
@@ -210,17 +210,14 @@ func (h *Handlers) applyUpdatedPermissionMode(ctx context.Context, item *protoco
 		return nil
 	}
 	mode := sdkpermission.Mode(strings.TrimSpace(item.Options.PermissionMode))
+	setters := make([]agentPermissionModeSetter, 0, 2)
 	if h.runtime != nil {
-		if err := h.runtime.SetPermissionModeForAgent(ctx, item.AgentID, mode); err != nil {
-			return err
-		}
+		setters = append(setters, h.runtime)
 	}
 	if h.roomRealtime != nil {
-		if err := h.roomRealtime.SetPermissionModeForAgent(ctx, item.AgentID, mode); err != nil {
-			return err
-		}
+		setters = append(setters, h.roomRealtime)
 	}
-	return nil
+	return syncAgentPermissionMode(ctx, item.AgentID, mode, setters...)
 }
 
 // HandleDeleteAgent 删除 agent。

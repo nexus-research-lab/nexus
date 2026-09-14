@@ -7,6 +7,7 @@
 // internal/storage，不能在本头部复制第二份业务规范。
 //
 // 成员地图：
+//   - runtime_sandbox.go：宿主进程策略指纹使用的桌面沙箱环境标识，不授予模型权限。
 //   - agent.go / agent_private.go / skill.go：Agent 运行时画像、独立业务标签、owner-scoped 创建对账结果、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
 //   - session*.go / message_annotation.go / input_queue.go：会话、消息、轮次、
 //     Connector 继承/显式选择快照与待物化 runtime fork 边界、

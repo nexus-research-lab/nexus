@@ -550,6 +550,12 @@ func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string,
 	errs := make([]error, 0)
 	for _, target := range targets {
 		if err := target.client.SetPermissionMode(ctx, mode); err != nil {
+			if errors.Is(err, runtimectx.ErrDesktopSandboxPolicyChanged) {
+				if closeErr := s.closeSlotForSandboxPolicyChange(ctx, target.slot, target.client); closeErr != nil {
+					errs = append(errs, closeErr)
+				}
+				continue
+			}
 			interruptErr := s.failClosedPermissionReload(context.WithoutCancel(ctx), target.slot)
 			errs = append(errs, fmt.Errorf(
 				"Room session %s Agent %s 权限热同步失败，已中断旧 slot: %w",

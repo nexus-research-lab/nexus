@@ -10,4 +10,5 @@
 // 暴露接口：Config、Load、LoadDotEnv。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// DesktopSandboxEnabled 是默认关闭的桌面命令沙箱 rollout 配置，不替代 Linux runtime isolation。
 package config

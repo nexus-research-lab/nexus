@@ -404,6 +404,11 @@ func (c *agentClient) SetPermissionMode(ctx context.Context, mode sdkpermission.
 		c.mu.Unlock()
 		return bridge.ErrAborted
 	}
+	if desktopSandboxModeTransition(currentOptions, normalized) {
+		c.mu.Unlock()
+		c.Retire()
+		return ErrDesktopSandboxPolicyChanged
+	}
 	nextOptions := currentOptions
 	nextOptions.Runtime.PermissionMode = normalized
 	c.options = nextOptions

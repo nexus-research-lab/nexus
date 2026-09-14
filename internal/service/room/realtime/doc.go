@@ -6,6 +6,7 @@
 // L2 | 父级: internal/service/room（L1 见 AGENTS.md）
 //
 // 文件按业务内聚分组（一个业务一个文件，不按机械行数拆分）：
+//   - sandbox_policy.go：桌面沙箱跨 Full Access 边界时取消精确 slot 与审批，等待旧 runtime 退出，不重放旧任务。
 //   - service.go / member_participation.go：服务装配、依赖接口、事件广播（round 注销后的终态仍交付自动化观察器），以及在 conversation 派发锁内以 Room CAS/authority epoch 持久化并暂停/恢复成员 queue、Goal 与 WorkGraph 调度。
 //   - chat.go / attachments.go：输入受理、/plan 本轮权限覆盖、显式目标优先与群主接管设置解析、共享消息持久化、把 Slash 原文留在共享时间线但将完整展开结果作为不经过公共上下文裁剪的原子 runtime 输入，以及直接或 queue/guide 物化用户消息的 draft 消费和活跃 slot 投递；附件归一化被 chat/execution/guidance 共用。
 //   - state.go / conversation_rounds.go：round/slot 内存状态模型；conversation 级注册表、派发顺序锁、round 注册、由服务端 receipt 原子推进的同轮 Goal/Execution/Work/Review responsibility，以及可为空、按 slot 携带 root round_id 与 public handoff 关联的权威活跃快照。
