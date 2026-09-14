@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Upgrade Vitest to 4.1.11 and refresh Browserslist, baseline-browser-mapping, and humanfs to fix known frontend test and build toolchain vulnerabilities.
 - Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
 - Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
 

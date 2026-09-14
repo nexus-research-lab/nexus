@@ -4,7 +4,7 @@
 
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { ComposerAttachmentList } from "./composer-local-attachments";
@@ -15,10 +15,10 @@ const attachments: ComposerLocalAttachment[] = [
   { id: "file-id", kind: "file", file: new File(["archive"], "archive.zip", { type: "application/zip" }) },
 ];
 
-let createUrl: ReturnType<typeof vi.fn>;
-let revokeUrl: ReturnType<typeof vi.fn>;
+let createUrl: Mock<typeof URL.createObjectURL>;
+let revokeUrl: Mock<typeof URL.revokeObjectURL>;
 beforeEach(() => {
-  createUrl = vi.fn().mockImplementation(() => `blob:preview-${createUrl.mock.calls.length}`);
+  createUrl = vi.fn<typeof URL.createObjectURL>().mockImplementation(() => `blob:preview-${createUrl.mock.calls.length}`);
   revokeUrl = vi.fn();
   vi.stubGlobal("URL", class extends URL {
     static createObjectURL = createUrl;
