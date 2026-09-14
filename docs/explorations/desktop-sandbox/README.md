@@ -1033,3 +1033,25 @@ the earlier inference from client generic-write behavior or the one-instance quo
 Windows x64 cross-compilation passed; native execution is pending. The connection and
 permissions components remain unconnected to the product transport. API reference:
 [AccessCheck](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheck).
+
+### 2026-09-14: direct pipe rights and relisten pass; unify verified admission
+
+Native run
+[34831402441](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34831402441)
+passed all descriptor AccessCheck cases: runner IO allowed; instance creation, DACL
+changes and owner changes denied; host instance creation allowed. Canceled-connect
+relisten and fresh early-client connection passed. Existing PowerShell discovery and
+impersonation compatibility failures remain.
+
+SDK `cb0a1f0e` fixes the expected execution SID at endpoint creation and adds exclusive
+connect-and-verify admission. It owns a non-inheritable duplicate of the launcher's
+process handle, verifies kernel pipe PID and account before marking the connection
+verified, and retires failed bound attempts. Closing releases only the owned duplicate,
+not the caller's handle. A future frame operation has a fresh peer/liveness guard under
+the same endpoint lock. No product protocol is wired yet.
+
+A new test connects as the host with a matching host PID: verification must still reject
+the mismatch with the endpoint's dedicated execution account, forbid reuse, and preserve
+the caller's process handle when closing. Windows x64 compilation passed; native evidence
+is pending. A successful dedicated-account connection through this unified entry remains
+an explicit integration requirement, not implied by the negative case.
