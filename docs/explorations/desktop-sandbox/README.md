@@ -680,3 +680,16 @@ so complete object compatibility remains unproven. Next tests add an ordinary
 named-event control and preserve the exception's low HRESULT bits in a distinct
 failure exit range. This separates application startup from restricted object
 access without broadening ACLs. Windows product execution remains disabled.
+
+2026-09-14, controlled Windows stdio: native run
+[34820410186](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34820410186)
+passed the ordinary-account named event but failed the restricted case. Its
+exception-decoding expression itself did not produce the intended diagnostic exit
+range, so the error is not yet classified. SDK `dd733813` adds STARTUPINFOEX handle
+allowlisting with independently duplicated stdin/stdout/stderr handles, preserving
+original handle inheritance flags. The runner test captures bounded merged output
+and prints the fixed test script's exception instead of inferring its cause.
+Ownership/cleanup/invalid-input native tests are included. A missing Go syscall
+constant in that test was corrected in `459370d7`; Windows x64 cross-compilation
+then passed. Native verification is pending; full inherited-handle leak and
+production transport acceptance remain outstanding.
