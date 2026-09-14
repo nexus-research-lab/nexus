@@ -55,6 +55,11 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 		payload["summary"] = "该命令将在沙箱外执行。批准仅对本次调用生效。\n" + payload["summary"].(string)
 		payload["suggestions"] = []map[string]any{}
 	}
+	if pending.Boundary == sdkpermission.BoundarySandboxNetwork {
+		payload["risk_label"] = "访问网络"
+		payload["summary"] = "批准仅允许当前命令的这次目标连接，不会重跑命令或保存永久规则。\n" + payload["summary"].(string)
+		payload["suggestions"] = []map[string]any{}
+	}
 	if pending.Review != nil {
 		payload["review"] = *pending.Review
 	}

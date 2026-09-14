@@ -56,3 +56,26 @@ func TestCancelledApprovalDoesNotCreateNewPending(t *testing.T) {
 		t.Fatalf("cancelled request reappeared: %v %q %#v", err, id, decision)
 	}
 }
+
+func TestSandboxNetworkApprovalUsesOneConnectionScope(t *testing.T) {
+	permissions := NewContext()
+	pending := permissions.newPendingRequest("session", sdkpermission.Request{
+		Boundary: sdkpermission.BoundarySandboxNetwork, ToolName: "Bash", ToolUseID: "command",
+		Input:          map[string]any{"command": "download", "network_target": map[string]any{"host": "example.com", "port": 443}},
+		DecisionReason: "example.com:443", PermissionSuggestions: []sdkpermission.Update{{Type: "setMode", Mode: sdkpermission.ModeBypassPermissions}},
+	})
+	payload := buildPermissionPayload(pending)
+	if payload["risk_label"] != "访问网络" || !strings.Contains(payload["summary"].(string), "这次目标连接") || !strings.Contains(payload["summary"].(string), "example.com:443") || len(pending.Suggestions) != 0 {
+		t.Fatalf("network scope lost: %#v", payload)
+	}
+	for _, persist := range []bool{false, true} {
+		response := map[string]any{"decision": "allow"}
+		if persist {
+			response["updated_permissions"] = []any{map[string]any{"type": "setMode", "mode": "bypassPermissions"}}
+		}
+		decision := permissions.buildPermissionDecision(context.Background(), pending, response)
+		if (decision.Behavior == sdkpermission.BehaviorAllow) == persist {
+			t.Fatalf("persistent=%v decision=%+v", persist, decision)
+		}
+	}
+}

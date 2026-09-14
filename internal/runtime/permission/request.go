@@ -54,7 +54,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 	toolName := strings.TrimSpace(request.ToolName)
 	toolInput := secretinput.RedactConfigurationToolInput(toolName, request.Input)
 	suggestions := slices.Clone(request.PermissionSuggestions)
-	if request.Boundary == sdkpermission.BoundarySandboxEscape {
+	if request.Boundary == sdkpermission.BoundarySandboxEscape || request.Boundary == sdkpermission.BoundarySandboxNetwork {
 		suggestions = nil
 	}
 	var review *sdkpermission.Review
@@ -199,8 +199,8 @@ func (c *Context) buildPermissionDecision(
 	delete(message, "configuration_secrets")
 	defer clear(configurationSecrets)
 	if decision == "allow" {
-		if pending.Boundary == sdkpermission.BoundarySandboxEscape && len(deserializePermissionUpdates(message["updated_permissions"])) > 0 {
-			return sdkpermission.Deny("沙箱外执行只允许批准本次调用，不能附加持久权限规则", false)
+		if (pending.Boundary == sdkpermission.BoundarySandboxEscape || pending.Boundary == sdkpermission.BoundarySandboxNetwork) && len(deserializePermissionUpdates(message["updated_permissions"])) > 0 {
+			return sdkpermission.Deny("沙箱越界审批只允许本次操作，不能附加持久权限规则", false)
 		}
 		if isRecordedHumanApprovalTool(pending.ToolName, pending.ToolInput) {
 			c.mu.RLock()

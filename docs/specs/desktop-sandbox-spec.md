@@ -21,15 +21,26 @@ closed there. This wiring is not yet enabled by desktop packaging defaults.
 The host passes Skill directories as read resources and user-mounted directories
 as explicit sandbox write grants. The SDK additionally grants its stable workspace
 and compatibility paths under its mandatory execution policy. Project settings
-cannot expand that mandatory policy. New outbound shell proxy destinations are
-denied unless permitted by the execution policy; network approval integration is
-still outstanding. Explicit command escape continues through the SDK's independent
-sandbox-bypass approval boundary, including auto-review where supported.
+cannot expand that mandatory policy. Unknown outbound shell proxy destinations use
+the SDK's independent `sandbox_network` approval boundary when a mandatory runtime
+has no explicit host network callback. Explicit denied domains and managed-only
+domain policy remain authoritative. Default mode asks the user; auto mode uses the
+existing independent reviewer and human fallback. Explicit command escape continues
+through the separate sandbox-bypass approval boundary.
+
+Network approval carries the command input, tool-use identity, captured working
+directory and exact host/port, bound to the command's permission epoch. Nexus shows
+one pending connection and offers no persistent grant. Input changes or permission
+updates in the response are rejected by the SDK; Nexus also rejects persistent
+updates. Approval resumes the pending connection without replaying the command.
+Effective permission changes invalidate pending and subsequent network requests
+from the old command epoch. Explicit SDK host callbacks retain their existing API;
+legacy non-mandatory runtimes do not acquire this new fallback.
 
 Closing an SDK execution proxy cancels its pending network callback contexts,
-rejects late callback allows, and closes owned SOCKS/HTTP CONNECT tunnels. This
-does not add a Nexus network-approval entrypoint: destination approval with exact
-command identity and permission-revision integration remains outstanding.
+rejects late callback allows, and closes owned SOCKS/HTTP CONNECT tunnels. Complete
+durable execution-effect recovery and background/session turnover acceptance remain
+outstanding; these callback guarantees do not prove every process has terminated.
 
 Mandatory SDK temporary-directory preparation uses a workspace directory handle
 before the command sandbox starts, so descendant symlink replacement cannot redirect
