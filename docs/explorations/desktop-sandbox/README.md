@@ -1089,3 +1089,13 @@ by default until the complete chain and compatibility checks pass.
 References: [process security](https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights),
 [SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo),
 [OWNER RIGHTS semantics](https://learn.microsoft.com/en-nz/windows-server/identity/ad-ds/manage/understand-security-identifiers).
+
+Native follow-up [34848957823](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34848957823)
+at `312a4a39` passed `runner_token_boundary` (including independently requested process
+control rights), `restricted_descendant` and `inherited_handle_boundary`. This closes
+the reproduced OpenProcess-to-OpenProcessToken path in the protected-runner fixture;
+it does not prove thread/token object protection or race-free product bootstrap.
+The run still failed on default PowerShell module discovery (30.32 seconds) and the
+older impersonation event fixture. Host-before-resume positive integration at
+`9ebe3abc` is tracked separately in run
+[34849081323](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34849081323).
