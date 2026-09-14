@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer 视图能力、Session 草稿作用域、聊天历史作用域及投递动作。
- * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
+ * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型；Plan 仅在发送边界编码为 /plan。
  * POS: Shared Composer 的顶层交互编排入口。
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
@@ -104,6 +104,8 @@ export function useComposerController({
   });
   const slashCommand = useComposerSlashCommand({
     catalog: commandCatalog,
+    isPlanMode: draftState.inputMode === "plan",
+    onPlanToggle: draft.togglePlan,
     input: draftState.input,
     isGoalMode,
     runtimeKind,
@@ -161,7 +163,7 @@ export function useComposerController({
     claimDraftSubmission: draft.claimMessageSubmission,
     clearAttachmentError,
     defaultDeliveryPolicy,
-    input: draftState.input,
+    input: draftState.inputMode === "plan" ? `/plan ${draftState.input}` : draftState.input,
     isLoading,
     isPreparingAttachments: attachments.isPreparingAttachments,
     onEnqueueMessage,
@@ -295,6 +297,8 @@ export function useComposerController({
       selectMentionItem: mention.selectMentionItem,
     },
     slashCommand: {
+      canUsePlan: slashCommand.canUsePlan,
+      isPlanMode: slashCommand.isPlanMode,
       active: slashCommand.isOpen,
       activeIndex: slashCommand.activeIndex,
       commands: slashCommand.commands,
@@ -333,6 +337,7 @@ export function useComposerController({
       openLocalDirectoryPicker,
       setIsActionMenuOpen: setActionMenuOpen,
       toggleGoalInput: goal.toggleGoalInput,
+      togglePlanInput: slashCommand.togglePlanInput,
     },
   };
 }

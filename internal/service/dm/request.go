@@ -1,5 +1,5 @@
 // INPUT: DM 用户请求、内部 Goal 续跑、owner-scoped Slash 展开与当前会话运行态。
-// OUTPUT: 保留时间线原文、向 runtime 投递展开内容的队列登记或新 round 启动。
+// OUTPUT: 保留时间线原文、向 runtime 投递展开内容的队列登记或新 round 启动；显式 /plan 只覆盖本轮权限。
 // POS: DM 输入受理与 runtime 启动的串行交接边界。
 package dm
 
@@ -20,6 +20,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -356,6 +357,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if err != nil {
 		return dmRuntimePreparation{}, err
 	}
+	e.request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(e.request.Content, e.request.Internal, e.request.PermissionMode)
 	clientPreparation, err := e.service.ensureClient(
 		runtimeCtx,
 		e.sessionKey,

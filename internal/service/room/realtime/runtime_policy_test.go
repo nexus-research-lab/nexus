@@ -194,75 +194,90 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 }
 
 func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
-	cfg := newRoomTestConfig(t)
-	migrateRoomSQLite(t, cfg.DatabaseURL)
+	for _, tc := range []struct {
+		name, content string
+		mode          sdkpermission.Mode
+	}{
+		{"ordinary", "测试 room bypass 权限处理器", sdkpermission.ModeBypassPermissions},
+		{"plan slash", "/plan improve search", sdkpermission.ModePlan},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := newRoomTestConfig(t)
+			migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := newRoomTestAgentService(t, cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-	memberAgent := createTestAgent(t, agentService, ctx, "bypass 助手")
-	memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
-		Options: &protocol.Options{
-			PermissionMode: "bypassPermissions",
-			SettingSources: []string{"project"},
-		},
-	})
-	if err != nil || memberAgent == nil {
-		t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
-	}
-	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
-	if err != nil {
-		t.Fatalf("创建单成员 room 失败: %v", err)
-	}
-
-	client := newFakeRoomClient()
-	client.onQuery = func(_ context.Context, _ string) error {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "room-result-bypass",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
+			agentService, db, err := newRoomTestAgentService(t, cfg)
+			if err != nil {
+				t.Fatalf("创建 agent service 失败: %v", err)
 			}
-		}()
-		return nil
-	}
+			roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
+			ctx := context.Background()
+			memberAgent := createTestAgent(t, agentService, ctx, "bypass 助手")
+			memberAgent, err = agentService.UpdateAgent(ctx, memberAgent.AgentID, protocol.UpdateRequest{
+				Options: &protocol.Options{
+					PermissionMode: "bypassPermissions",
+					SettingSources: []string{"project"},
+				},
+			})
+			if err != nil || memberAgent == nil {
+				t.Fatalf("更新 member agent 配置失败: value=%+v err=%v", memberAgent, err)
+			}
+			roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
+			if err != nil {
+				t.Fatalf("创建单成员 room 失败: %v", err)
+			}
 
-	permission := permissionctx.NewContext()
-	runtimeManager := runtimectx.NewManager()
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
-	service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
-	sender := newRealtimeTestSender("room-sender-bypass")
-	permission.BindSession(sharedSessionKey, sender)
+			client := newFakeRoomClient()
+			client.onQuery = func(_ context.Context, _ string) error {
+				go func() {
+					client.messages <- sdkprotocol.ReceivedMessage{
+						Type:      sdkprotocol.MessageTypeResult,
+						SessionID: client.sessionID,
+						UUID:      "room-result-bypass",
+						Result: &sdkprotocol.ResultMessage{
+							Subtype:    "success",
+							DurationMS: 1,
+							NumTurns:   1,
+							Result:     "ok",
+						},
+					}
+				}()
+				return nil
+			}
 
-	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "测试 room bypass 权限处理器",
-		RoundID:        "room-round-bypass",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-	collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
+			permission := permissionctx.NewContext()
+			runtimeManager := runtimectx.NewManager()
+			factory := &fakeRoomFactory{clients: []*fakeRoomClient{client}}
+			service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
+			sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+			sender := newRealtimeTestSender("room-sender-bypass")
+			permission.BindSession(sharedSessionKey, sender)
 
-	options := factory.LastOptions()
-	if options.Runtime.PermissionMode != sdkpermission.ModeBypassPermissions {
-		t.Fatalf("room bypass 权限模式未透传: %+v", options)
-	}
-	if options.Callbacks.PermissionHandler == nil {
-		t.Fatalf("room bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
+			if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+				SessionKey:     sharedSessionKey,
+				RoomID:         roomContext.Room.ID,
+				ConversationID: roomContext.Conversation.ID,
+				Content:        tc.content,
+				RoundID:        "room-round-bypass",
+			}); err != nil {
+				t.Fatalf("HandleChat 失败: %v", err)
+			}
+			collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
+				return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+			})
+
+			unchanged, err := agentService.GetAgent(ctx, memberAgent.AgentID)
+			if err != nil || unchanged.Options.PermissionMode != "bypassPermissions" {
+				t.Fatalf("request changed Agent defaults: %+v %v", unchanged, err)
+			}
+			options := factory.LastOptions()
+			if options.Runtime.PermissionMode != tc.mode {
+				t.Fatalf("room request 权限模式未透传: %+v", options)
+			}
+			if options.Callbacks.PermissionHandler == nil {
+				t.Fatalf("room bypass 权限模式应保留 AskUserQuestion 交互通道: %+v", options)
+			}
+
+		})
 	}
 }
 

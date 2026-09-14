@@ -31,8 +31,10 @@ Session 设置可靠性提示在输入壳外显示紧凑单行，影响说明点
 Footer 的 Connector 初始读取使用共享 `md` muted Spinner，Room Agent 模型更新使用 `sm` muted Spinner；菜单与级联控件不得自行维护尺寸、颜色、旋转或 reduced-motion class。
 
 - Footer 的品牌、Goal/运行状态、计数和上下文详情消费 Typography；辅助文字层级以根 design.md 为准，空计数不保留 flex 间距。状态投影仍由 footer-model 唯一排序，视图不复制 LoadingOrb 或优先级。
-- Footer Actions 的 Goal/Connector 使用 Action Menu 受控 checked；每行只有一次激活，不嵌套 Switch 或用 stopPropagation 保留第二条切换路径。目录选择服从控制器已有 blocksMutation，附件和其他无关命令保持独立。
+- Footer Actions 的 Plan/Goal/Connector 使用 Action Menu 受控 checked；每行只有一次激活，不嵌套 Switch 或用 stopPropagation 保留第二条切换路径。目录选择服从控制器已有 blocksMutation，附件和其他无关命令保持独立。
 - Context Usage 的 hover/focus/click 都展开同一详情；点击不反转 focus 刚打开的状态，鼠标离开不关闭仍有键盘焦点的指标。快照可用性变化清空打开态，普通占用更新保留详情；内容和关闭时序不改变终态 snapshot 权威。
 - Session settings reliability 的资源读取错误按 Session/Provider/Connector 路由到对应恢复命令，读忙碌防重；没有恢复命令的资源不显示空操作。
 
 - 读取错误详情打开态按目标 Session、资源种类和写入错误遮挡状态隔离，读取恢复后再次失败不会自动重开旧详情。
+
+- Plan 和 Goal 复用 `ComposerModeIndicator` 与同一模式布局配方；Plan 只展示模式名称和取消入口，正文不展示命令前缀。

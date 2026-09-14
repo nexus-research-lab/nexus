@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add Plan mode to the Composer action menu and `/plan` completion, showing a removable footer mode indicator instead of a command prefix, while sharing one request-scoped planning and approval flow without changing permission settings.
+
 - Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
 - Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
 - Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.

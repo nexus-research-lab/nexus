@@ -1,6 +1,6 @@
 /**
  * INPUT: Session 草稿作用域与 Composer 输入/模式动作。
- * OUTPUT: 按 Session 隔离完整用户草稿和瞬时 UI 的控制器。
+ * OUTPUT: 按 Session 隔离完整用户草稿和瞬时 UI 的控制器；/plan 输入收起为 Plan 模式。
  * POS: Composer 草稿胶囊与瞬时控制状态的唯一编排入口。
  */
 import { useCallback } from "react";
@@ -68,6 +68,7 @@ export interface ComposerDraftController {
   setInput: Dispatch<SetStateAction<string>>;
   setSelectedTargetIDs: Dispatch<SetStateAction<string[]>>;
   startGoal: () => void;
+  togglePlan: () => void;
 }
 
 export function useComposerDraft(
@@ -128,11 +129,24 @@ export function useComposerDraft(
     }));
   }, [draftScopeKey, updateComposerDraft]);
   const setInput = useCallback<Dispatch<SetStateAction<string>>>((action) => {
+    updateComposerDraft(draftScopeKey, (current) => {
+      const input = resolveStateAction(action, current.input);
+      const entersPlan = current.inputMode !== "goal" && /^\s*\/plan\s/iu.test(input);
+      return {
+        ...current,
+        input: entersPlan ? input.replace(/^\s*\/plan\s+/iu, "") : input,
+        inputMode: entersPlan ? "plan" : current.inputMode,
+      };
+    });
+  }, [draftScopeKey, updateComposerDraft]);
+  const togglePlan = useCallback(() => {
     updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
-      input: resolveStateAction(action, current.input),
+      inputMode: current.inputMode === "plan" ? "message" : "plan",
     }));
-  }, [draftScopeKey, updateComposerDraft]);
+    transition((current) => ({ ...current, isActionMenuOpen: false }));
+  }, [draftScopeKey, transition, updateComposerDraft]);
+
   const setInputMode = useCallback((inputMode: ComposerInputMode) => {
     updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
@@ -219,5 +233,6 @@ export function useComposerDraft(
     setInput,
     setSelectedTargetIDs,
     startGoal,
+    togglePlan,
   };
 }
