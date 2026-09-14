@@ -670,3 +670,13 @@ handle access explicitly; this does not add Windows account privileges. SDK
 `b583fb03` also makes the runner fixture fail, rather than skip, if trusted host
 identity is missing, and rejects inherited password environment. The fixed
 composition is awaiting native validation; fixture cleanup in the failed run passed.
+
+The corrected native run
+[34820013669](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34820013669)
+passed cmd, ordinary-account PowerShell startup and restricted PowerShell startup
+through the dedicated runner. The CSRSS timeouts no longer occurred in this
+arrangement. The restricted named-event script returned its exception code 41,
+so complete object compatibility remains unproven. Next tests add an ordinary
+named-event control and preserve the exception's low HRESULT bits in a distinct
+failure exit range. This separates application startup from restricted object
+access without broadening ACLs. Windows product execution remains disabled.
