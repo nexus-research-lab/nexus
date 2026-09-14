@@ -992,3 +992,25 @@ connections are impossible: the peer-PID check must precede sending any protocol
 Windows x64 cross-compilation passed; native execution is pending. Microsoft documents
 the shared FILE_APPEND_DATA/FILE_CREATE_PIPE_INSTANCE bit in
 [Named Pipe Security and Access Rights](https://learn.microsoft.com/en-us/windows/win32/ipc/named-pipe-security-and-access-rights).
+
+### 2026-09-14: cancelable connection ownership; correct a generic-write inference
+
+Native run
+[34830370624](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34830370624)
+passed host-identity rejection but disproved the test assumption that a successful
+client GENERIC_WRITE open establishes pipe-instance creation authority. The client
+operation succeeded despite the factory DACL excluding that bit. The descriptor is
+unchanged; the test now checks WRITE_DAC and WRITE_OWNER denial independently, while
+instance-creation authority still needs a direct access-check test. No generic-write
+client result is treated as proof of server-instance rights.
+
+SDK `95ee784b` adds exclusive overlapped connection waiting. Cancellation is registered
+only after the IO request is pending, uses CancelIoEx on that exact OVERLAPPED, and waits
+for both GetOverlappedResult and any cancellation callback before freeing its memory and
+event. Cancellation resets the instance; failed reset requires retirement. Pre-canceled,
+pending cancellation/retry, early client connection, duplicate acceptance and closed
+endpoint tests compile for Windows x64; native execution is pending. Connect success is
+not peer authentication and permits no protocol data by itself. Callers must cancel and
+wait for connection completion before close; close is not an independent interrupt API.
+Read/write framing and product transport lifecycle remain unfinished. API reference:
+[CancelIoEx](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex).
