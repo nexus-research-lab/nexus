@@ -113,7 +113,11 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     setHostAutoReplyEnabled: (enabled: boolean) =>
       update("hostAutoReplyEnabled", enabled),
     setMemberQuery: (query: string) => update("memberQuery", query),
-    setLocation: (location: RoomDialogFormState["location"]) => update("location", location),
+    setLocation: (location: RoomDialogFormState["location"]) => dispatch((current) => ({
+      ...current,
+      location,
+      memberQuery: "",
+    })),
     setName: (name: string) => update("name", name),
     setPrivateMessagesEnabled: (enabled: boolean) =>
       update("privateMessagesEnabled", enabled),

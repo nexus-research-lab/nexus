@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
+- Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
 - Prepare the optional Relay state directory for persistent single-node SQLite deployments.
 
 ### Security

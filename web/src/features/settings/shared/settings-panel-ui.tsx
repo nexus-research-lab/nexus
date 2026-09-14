@@ -19,6 +19,10 @@ export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
   getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
 );
 export const SETTINGS_CARD_CLASS_NAME = "overflow-hidden surface-radius-md border border-(--divider-subtle-color) bg-transparent";
+export const SETTINGS_GROUP_CLASS_NAME = cn(
+  SETTINGS_CARD_CLASS_NAME,
+  "bg-[color:color-mix(in_srgb,var(--surface-control-background)_64%,transparent)]",
+);
 export const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 export const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 export const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";

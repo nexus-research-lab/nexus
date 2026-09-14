@@ -62,6 +62,7 @@ function SubscriptionPlanRow({
   const { t } = useI18n();
   return (
     <UiDisclosure
+      surfaceTone="subtle"
       variant="panel"
       summaryRole="control"
       label={<span className="grid gap-1 wrap-anywhere">
@@ -191,7 +192,7 @@ function NewSubscriptionPlanForm({
 }) {
   const { t } = useI18n();
   return (
-    <UiDisclosure label={t("settings.subscription.create_plan")} variant="panel">
+    <UiDisclosure label={t("settings.subscription.create_plan")} surfaceTone="subtle" variant="panel">
       <div className="grid items-end gap-4 @min-[480px]/plans:grid-cols-2 @min-[900px]/plans:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
         <label className="grid min-w-0 gap-1.5">
           <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>

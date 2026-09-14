@@ -13,8 +13,8 @@ import {
 import { type FormEvent, useMemo } from "react";
 
 import {
-  SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
+  SETTINGS_GROUP_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -74,7 +74,7 @@ function ProjectCard({
   };
 
   return (
-    <article className={SETTINGS_CARD_CLASS_NAME}>
+    <article className={SETTINGS_GROUP_CLASS_NAME}>
       <div className="grid gap-3 border-b border-(--divider-subtle-color) px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -228,7 +228,7 @@ export function ProjectAdminPanel() {
             {t("settings.projects.refresh")}
           </UiButton>}
         />
-        <UiDisclosure label={t("settings.projects.create")} variant="panel">
+        <UiDisclosure label={t("settings.projects.create")} surfaceTone="subtle" variant="panel">
           <form
             className="grid items-end gap-3 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_auto]"
             onSubmit={handleCreateProject}

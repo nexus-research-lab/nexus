@@ -1,16 +1,19 @@
 /**
  * INPUT: Room Agent/Team 真人目录、成员选择与管理态 participation_paused 草稿。
- * OUTPUT: 统一成员列表中的邀请/加入动作和逐 Agent 暂停/恢复按钮。
+ * OUTPUT: 在线模式分离真人与 Agent 的选择视图，以及逐 Agent 暂停/恢复按钮。
  * POS: Room 创建与管理弹窗的成员选择视图。
  */
 import { Check, Pause, Play, Plus } from "lucide-react";
+import { useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 import type { RoomMemberUserOption } from "./create-room-dialog-types";
@@ -27,6 +30,7 @@ interface RoomMemberSelectorProps {
   query: string;
   selectedAgentIds: Set<string>;
   selectedUserIds: Set<string>;
+  separateUsers?: boolean;
   users: RoomMemberUserOption[];
 }
 
@@ -42,29 +46,51 @@ export function RoomMemberSelector({
   query,
   selectedAgentIds,
   selectedUserIds,
+  separateUsers = false,
   users = [],
 }: RoomMemberSelectorProps) {
   const { t } = useI18n();
+  const [memberType, setMemberType] = useState<"users" | "agents">(
+    separateUsers ? "users" : "agents",
+  );
+  const showsUsers = separateUsers && memberType === "users";
+  const visibleCount = showsUsers ? users.length : agents.length;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      {separateUsers ? (
+        <UiSegmentedControl
+          density="compact"
+          disabled={disabled}
+          onChange={(value) => {
+            setMemberType(value);
+            onQueryChange("");
+          }}
+          options={[
+            { label: t("room.people_count", { count: users.length }), value: "users" },
+            { label: t("room.agents_count", { count: agents.length }), value: "agents" },
+          ]}
+          stretch
+          title={t("room.member_type")}
+          value={memberType}
+        />
+      ) : (
+        <p className="dialog-label">{t("room.agents_count", { count: agents.length })}</p>
+      )}
       <UiSearchInput
-        aria-label={t(users.length > 0 ? "room.search_member_placeholder" : "room.search_agent_placeholder")}
+        aria-label={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
         controlSize="md"
         disabled={disabled}
         onChange={onQueryChange}
-        placeholder={t(users.length > 0 ? "room.search_member_placeholder" : "room.search_agent_placeholder")}
+        placeholder={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
         value={query}
         variant="dialog"
       />
-      <p className="dialog-label">
-        {t("room.all_members", { count: agents.length + users.length })}
-      </p>
       <div className="surface-radius-lg flex h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-(--surface-panel-border) bg-(--surface-panel-background) p-1.5 max-md:h-auto max-md:min-h-[180px] max-md:max-h-[240px]">
         <div
           className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
           data-room-member-selection-list="true"
         >
-          {users.map((user) => (
+          {showsUsers ? users.map((user) => (
             <RoomUserOption
               disabled={disabled}
               key={user.user_id}
@@ -72,8 +98,7 @@ export function RoomMemberSelector({
               selected={selectedUserIds.has(user.user_id)}
               user={user}
             />
-          ))}
-          {agents.map((agent) => (
+          )) : agents.map((agent) => (
             <RoomMemberOption
               agent={agent}
               canManageParticipation={canManageParticipation}
@@ -85,6 +110,11 @@ export function RoomMemberSelector({
               selected={selectedAgentIds.has(agent.agent_id)}
             />
           ))}
+          {visibleCount === 0 ? (
+            <p className={cn("px-3 py-8 text-center", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+              {t(showsUsers ? "room.people_empty" : "room.agents_empty")}
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

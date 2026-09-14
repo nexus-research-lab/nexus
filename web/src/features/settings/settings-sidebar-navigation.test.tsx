@@ -46,7 +46,7 @@ it("finds setting descriptions beneath their module without exposing restricted 
   await user.click(screen.getByRole("button", { name: "自动记忆" }));
   expect(selectSection).toHaveBeenCalledWith("general", "settings.general.auto_memory_title");
   await user.clear(search);
-  await user.type(search, "部署成员");
+  await user.type(search, "成员管理");
   expect(screen.queryByRole("button", { name: "运营" })).toBeNull();
   expect(screen.getByRole("status")).toBeTruthy();
 });
@@ -80,11 +80,11 @@ it("运营分组直接导航到五个独立子页，搜索保留管理员权限�
     expect(selectSection).toHaveBeenLastCalledWith(item.key);
     expect(parseSettingsSection(new URLSearchParams({ section: item.key }))).toBe(item.key);
   }
-  expect(parseSettingsSection(new URLSearchParams("section=operations"))).toBe("operations-members");
+  expect(parseSettingsSection(new URLSearchParams("section=operations"))).toBe("operations-organization");
   await user.click(screen.getByRole("button", { name: "搜索设置…" }));
   await user.type(screen.getByRole("searchbox"), "套餐管理");
   expect(screen.getByRole("button", { name: "套餐管理" })).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "部署成员" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "成员管理" })).toBeNull();
 });
 
 it("keeps rail navigation unfiltered and preserves the panel search draft", async () => {

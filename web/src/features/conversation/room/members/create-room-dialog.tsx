@@ -3,12 +3,14 @@
 // POS: Room 创建与管理的模态装配层，不用图标或副标题重复表单要求。
 "use client";
 
+import { Cloud, HardDrive } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { notifyDesktopDiagnostic } from "@/config/desktop-runtime";
 
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -136,6 +138,21 @@ function CreateRoomDialogContent({
           />
 
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-5 px-5" scrollable>
+            {mode === "create" && onlineAvailable ? (
+              <UiSegmentedControl
+                className="w-full"
+                disabled={pending}
+                onChange={form.setLocation}
+                options={[
+                  { icon: HardDrive, label: t("room.location_local"), value: "local" },
+                  { icon: Cloud, label: t("room.location_online"), value: "online" },
+                ]}
+                showLabel
+                stretch
+                title={t("room.location")}
+                value={form.state.location}
+              />
+            ) : null}
             <div className="grid min-h-0 grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-6 max-md:grid-cols-1">
               <RoomSettingsForm
                 avatarFallbackTitle={labels.title}
@@ -147,17 +164,16 @@ function CreateRoomDialogContent({
                   setAvatar: form.setAvatar,
                   setHostAgentId: form.setHostAgentId,
                   setHostAutoReplyEnabled: form.setHostAutoReplyEnabled,
-                  setLocation: form.setLocation,
                   setName: form.setName,
                   setPrivateMessagesEnabled:
                     form.setPrivateMessagesEnabled,
                 }}
                 state={form.state}
-                showLocation={mode === "create" && onlineAvailable}
               />
               <RoomMemberSelector
                 agents={form.filteredAgents}
                 disabled={pending}
+                key={form.state.location}
                 canManageParticipation={mode === "manage"}
                 onQueryChange={form.setMemberQuery}
                 onToggleAgent={form.toggleAgent}
@@ -167,6 +183,7 @@ function CreateRoomDialogContent({
                 query={form.state.memberQuery}
                 selectedAgentIds={form.selectedAgentIdSet}
                 selectedUserIds={form.selectedUserIdSet}
+                separateUsers={form.state.location === "online"}
                 users={form.state.location === "online" ? form.filteredUsers : []}
               />
             </div>
