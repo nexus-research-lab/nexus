@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light-theme action contrast across web and native Windows surfaces.
+
 - Split the complete frontend browser test matrix across six CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
 - Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
