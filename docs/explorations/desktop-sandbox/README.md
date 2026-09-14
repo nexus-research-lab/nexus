@@ -441,3 +441,16 @@ lands only in the approved directory. Executor/runtime package tests and focused
 race tests passed. This closes mutable session-directory redirection; filesystem
 inode replacement and full execution snapshot/replay protection remain separate
 outstanding work.
+
+2026-09-14, proxy cancellation: the directory-binding SDK commit passed
+[full Linux CI](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34811261124).
+The network audit then found SOCKS callbacks used a detached background context and
+proxy closure did not own established SOCKS/hijacked CONNECT connections. SDK
+`89b6172b` adds one proxy lifetime context and a connection registry: closing the
+proxy cancels pending callbacks, rejects late allows, and closes both tunnel ends.
+Tests exercise a callback returning allow after cancellation without opening an
+upstream connection, plus real established SOCKS/CONNECT tunnels. These tests passed
+with the race detector; sandboxexec/Bash/PowerShell packages and real macOS
+child-write/direct-network-denial regressions passed. Native Windows and full Linux
+CI are rerun by the draft PR. Exact command-scoped Nexus destination approval is
+still unimplemented; this lifecycle fix is its prerequisite, not its completion.
