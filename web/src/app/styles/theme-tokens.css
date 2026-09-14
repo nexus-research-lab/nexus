@@ -26,8 +26,8 @@
   --primary-rgb: 91, 114, 255;
   --primary-foreground: #ffffff;
   --brand: #5b72ff;
-  --brand-action: #5266e6;
-  --brand-action-hover: #4859cf;
+  --brand-action: #4355c9;
+  --brand-action-hover: #3b4ab5;
   --brand-foreground: #ffffff;
   --secondary: #f0efec;
   --secondary-foreground: #20201f;
@@ -278,8 +278,8 @@
   --primary-rgb: 154, 183, 255;
   --primary-foreground: #08111d;
   --brand: #9ab7ff;
-  --brand-action: #9ab7ff;
-  --brand-action-hover: #a7c0ff;
+  --brand-action: #b1c8ff;
+  --brand-action-hover: #c0d2ff;
   --brand-foreground: #08111d;
   --secondary: #33404e;
   --secondary-foreground: #eef3f8;

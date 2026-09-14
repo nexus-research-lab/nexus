@@ -24,7 +24,7 @@ export function SourceEditorGallery() {
     </UiField>
     <UiField htmlFor="gallery-source-saved" label={galleryText(locale, "只读源码", "Read-only source")}>
       <UiPanel className="flex h-28 min-w-0 p-3">
-        <UiSourceEditor defaultValue="Saved  source\n\t只读内容" id="gallery-source-saved" readOnly />
+        <UiSourceEditor defaultValue={"Saved  source\n\t只读内容"} id="gallery-source-saved" readOnly />
       </UiPanel>
     </UiField>
     <UiField htmlFor="gallery-source-disabled" label={galleryText(locale, "不可编辑的源码", "Disabled source")}>
