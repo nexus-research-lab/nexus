@@ -1099,3 +1099,45 @@ The run still failed on default PowerShell module discovery (30.32 seconds) and 
 older impersonation event fixture. Host-before-resume positive integration at
 `9ebe3abc` is tracked separately in run
 [34849081323](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34849081323).
+
+### 2026-09-14: protected host admission passes; primary-token regression replaces namespace assumption
+
+Run [34849081323](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34849081323)
+at SDK `9ebe3abc` passed host-before-resume process protection, host process control
+reopening and dedicated-account verified IPC. The runner token probe and all runner
+composition cases passed in this run; variable PowerShell latency is not thereby fixed.
+The old host-thread impersonation named-event fixture remained the sole failure.
+
+SDK `26ded51b` adds a real restricted-child probe against a known live runner OS thread.
+The parent locks that OS thread for the full child lifetime. Each impersonation,
+context/token mutation, DACL/owner change, suspend and terminate permission is requested
+independently; the probe only opens/closes handles, never impersonates or modifies the
+runner. The process DACL alone is not treated as proof of thread protection. Native
+validation is tracked in run
+[34849513148](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34849513148).
+
+SDK `57e05211` replaces `TestWindowsDedicatedIdentityObjectAccessAndHostSeparation`
+with a primary-token child event regression. The removed fixture used two independent
+LogonUser sessions in a host process and incorrectly required its Local namespace to
+behave like the dedicated runner's namespace; it also expected cross-capability access
+without establishing a product contract. The replacement checks create, reopen with
+SYNCHRONIZE/MODIFY, signal and observe in the actual restricted process. Existing host
+object denial and anonymous default-DACL tests remain. No OS ACL is relaxed and no
+cross-command capability-isolation claim follows from this compatibility test. Windows
+x64 compilation passed; native results remain pending.
+
+Native thread result at `26ded51b`, run `34849513148`: the process token boundary
+passed, but the restricted child obtained THREAD_IMPERSONATE (0x100),
+THREAD_DIRECT_IMPERSONATION (0x200) and THREAD_SET_THREAD_TOKEN (0x80) on the live
+runner thread. Other independently requested mutation rights were denied. No thread
+state was modified. This disproves process-only control-plane isolation and is a
+release-blocking design gap, not a test expectation to relax.
+
+The next implementation must protect both existing and newly created runner threads,
+and preserve the trusted Go runtime's own thread operations. Protecting a single known
+thread or enumerating threads once would leave a creation race. A token default DACL
+is object-type independent, so applying thread bitmasks to every default object is not
+an acceptable unvalidated fix. Evaluate a complete creation-time thread/token policy
+against Go runtime behavior, or separate the trusted broker identity from the command
+identity with an authenticated provisioning/launch contract. Neither approach is
+implemented or accepted yet; process-only hardening must not enable the backend.
