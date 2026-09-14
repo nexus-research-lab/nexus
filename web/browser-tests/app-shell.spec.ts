@@ -5,7 +5,8 @@
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
-import { measureTextContrast } from "./color-contrast";
+import { measurePaintedInputContrast } from "./painted-contrast";
+import { moveKeyboardFocus } from "./keyboard";
 
 const localLottieWasm = createRequire(__filename).resolve("@lottiefiles/dotlottie-web/dotlottie-player.wasm");
 
@@ -139,10 +140,10 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   const height = page.viewportSize()!.width <= 559 ? 48 : 36;
   expect(searchGeometry.height).toBe(height);
   expect(actionGeometry).toEqual({ height, width: height, radius: searchGeometry.radius });
-  const contrast = await measureTextContrast(search, "::placeholder");
+  const contrast = await measurePaintedInputContrast(search, "::placeholder");
   expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
   await search.focus();
-  await page.keyboard.press("Tab");
+  await moveKeyboardFocus(page, info);
   await expect(create).toBeFocused();
   expect(await create.getAttribute("title")).toBeNull();
   await expect(page.getByRole("tooltip", { name: isChinese ? "新建智能体" : "New Agent" })).toBeVisible();

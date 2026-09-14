@@ -1439,17 +1439,20 @@ test("scheduled task suggestions fit their pane without overflowing card borders
     await fixture.scrollIntoViewIfNeeded();
     const cards = fixture.locator(".grid > button");
     await expect(cards).toHaveCount(3);
-    const bounds = (await fixture.boundingBox())!;
-    const positions = [];
-    for (const card of await cards.all()) {
-      const rect = (await card.boundingBox())!;
-      const description = (await card.locator("span").last().boundingBox())!;
-      expect(description.y + description.height).toBeLessThanOrEqual(rect.y + rect.height - 8);
-      expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
-      expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      positions.push(Math.round(rect.x));
-    }
-    expect(new Set(positions).size).toBe(bounds.width >= 720 ? 3 : bounds.width >= 480 ? 2 : 1);
+    // Container queries can settle a frame after their inline-size changes.
+    await expect.poll(async () => {
+      const bounds = (await fixture.boundingBox())!;
+      const positions = [];
+      for (const card of await cards.all()) {
+        const rect = (await card.boundingBox())!;
+        const description = (await card.locator("span").last().boundingBox())!;
+        if (description.y + description.height > rect.y + rect.height - 8
+          || rect.x + rect.width > bounds.x + bounds.width + 1
+          || !await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)) return false;
+        positions.push(Math.round(rect.x));
+      }
+      return new Set(positions).size === (bounds.width >= 720 ? 3 : bounds.width >= 480 ? 2 : 1);
+    }).toBe(true);
   }
   await capture(fixture, info, "task-suggestions");
   expect(errors).toEqual([]);
@@ -1787,11 +1790,16 @@ test("choices share readable sizes, native disabled paint and instance-scoped ra
   const last = first.getByRole("radio", { name: copy(info, "当前工作区", "Current workspace"), exact: true });
   await last.locator("..").click();
   await expect(last).toBeChecked();
-  await last.press("ArrowRight");
-  await expect(first.getByRole("radio").first()).toBeFocused();
-  await expect(first.getByRole("radio").first()).toBeChecked();
+  // Native WebKit radios stop at the end of a group; test traversal within it.
+  await last.focus();
+  await moveKeyboardFocus(page, info, true);
+  await moveKeyboardFocus(page, info);
+  await expect(last).toBeFocused();
+  await last.press("ArrowLeft");
+  await expect(first.getByRole("radio").nth(1)).toBeFocused();
+  await expect(first.getByRole("radio").nth(1)).toBeChecked();
   await expect(second.getByRole("radio", { name: copy(info, "当前会话", "Current session"), exact: true })).toBeChecked();
-  expect(await first.getByRole("radio").first().locator("..").evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+  expect(await first.getByRole("radio").nth(1).locator("..").evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
   await capture(fixture.locator("[data-gallery-permission-instances]"), info, "isolated-permission-choices");
   expect(errors).toEqual([]);
 });
@@ -1810,6 +1818,8 @@ test("checkbox rows separate names and help, wrap at narrow widths and suppress 
   expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await help.click();
   await expect(compact).toBeChecked();
+  // macOS pointer activation does not focus native checkboxes.
+  await compact.focus();
   await expect(compact).toBeFocused();
   await compact.press("Space");
   await expect(compact).not.toBeChecked();
