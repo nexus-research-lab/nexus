@@ -10,27 +10,10 @@ import { I18N_CONTEXT } from "./i18n-context";
 import type { I18nContextValue, TranslateParams } from "./i18n-context";
 import {
   DEFAULT_LOCALE,
-  LOCALE_STORAGE_KEY,
   MESSAGES,
 } from "./messages";
 import type { Locale } from "./messages";
-
-function detectInitialLocale(): Locale {
-  if (typeof window === "undefined") {
-    return DEFAULT_LOCALE;
-  }
-
-  const savedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-  if (savedLocale === "zh" || savedLocale === "en") {
-    return savedLocale;
-  }
-
-  const navigatorLocale = window.navigator.language.toLowerCase();
-  if (navigatorLocale.startsWith("zh")) {
-    return "zh";
-  }
-  return "en";
-}
+import { detectInitialLocale, persistLocale } from "./locale-settings";
 
 function formatMessage(template: string, params?: TranslateParams): string {
   if (!params) {
@@ -50,7 +33,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocale] = useState<Locale>(detectInitialLocale);
 
   useEffect(() => {
-    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+    persistLocale(locale);
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
   }, [locale]);
 

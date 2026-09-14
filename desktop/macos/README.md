@@ -22,7 +22,7 @@
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
-- 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
+- 日志导出包会包含宿主 `app/logs`、`app/debug` 和本地 owner 的 `users/__system__/runtime/logs`（包含嵌套 SDK 诊断）、`runtime/debug`，分别保存为 `Logs`、`Debug`、`RuntimeLogs`、`RuntimeDebug`。`diagnostics.json` 记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
 - 启动、主窗口和更新失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层错误、诊断路径和进程输出只进入日志或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装程序启动前不会替换当前 App。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线；恢复探针受导航代次栅栏保护，不会在显式路由仍启动时二次 reload。
@@ -47,7 +47,7 @@ scripts/desktop/package-macos-app.sh
 ```
 
 `run-macos-dev.sh` 会先构建前端，再启动 Swift shell。直接运行 Swift shell 时若 `web/dist` 缺失或已过期，启动会明确失败并提示执行 `make app-run-dev`；正式 `.app` 内的打包资源不参与该开发态时效校验。首次启动会初始化桌面专用 SQLite 数据库。
-`generate-macos-icon.swift` 会从 `desktop/macos/Resources/AppIconSource.png` 生成 `desktop/macos/Resources/AppIcon.icns`，用于 `.app` 的 Finder / Dock 图标。
+应用图标的矢量母版为 `desktop/macos/Resources/AppIconSource.svg`。更新时先导出透明背景的 1024×1024 `AppIconSource.png`，再运行 `swift scripts/desktop/generate-macos-icon.swift` 生成 Finder / Dock 使用的 `AppIcon.icns`。Windows 的 `desktop/windows/Nexus.Desktop/Resources/AppIcon.ico` 从同一 PNG 导出，包含 16、24、32、48、64、128、256 像素层；同步更新官网仓 `nexus-atlas/public/images/nexus-app-icon.png`，首页、下载页及结构化数据复用该文件。
 `build-macos-app.sh` 会组装 `desktop/macos/.build/app/Nexus.app`，其中包含 Swift shell、Go sidecar、`web/dist`、`db/migrations` 与内置 `skills`。
 `smoke-macos-app.sh` 会启动已组装 `.app`，校验 ad-hoc Keychain 旁路、主窗口默认 launcher ready reveal、显式 `/app` 路由 ready、material 标记和退出后 sidecar 无残留。
 `make app-check-ui` 从当前 Swift 源码编译独立 QA App，复用实际 `WindowManager`、
@@ -172,3 +172,7 @@ xattr -dr com.apple.quarantine /Applications/Nexus.app
 - 还没有 Sparkle；内置自动更新器依赖 Release metadata、sha256、Developer ID 签名、公证和 Gatekeeper 本地校验。
 - 还没有由 Go 协议真相源生成的 desktop bridge schema。
 - 还没有更完整的快捷键冲突引导、逐项 secret 级 Keychain API、occlusion 长时间/异常路径验证和多窗口生命周期细化。
+
+外观设置通过 `app.get_system_fonts` 读取 NSFontManager 的本机字体家族目录。
+
+待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台使用 Dock 数字角标显示待确认事项总数，不弹跳，回到应用或清空待处理请求时取消，窗口最小化不切断事件连接。

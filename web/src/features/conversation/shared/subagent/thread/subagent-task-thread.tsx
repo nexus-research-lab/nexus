@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// INPUT: Exact task/source, transcript controller and user control intent.
+// OUTPUT: Shared Thread view and task-scoped confirmation/prompt dialogs.
+// POS: Subagent interaction assembly; changing the canonical thread scope clears local dialogs synchronously.
 
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
+import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { ConfirmDialog, PromptDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SubagentTask, SubagentTaskSource } from "@/types/conversation/subagent-task";
@@ -9,7 +13,6 @@ import type { SubagentTask, SubagentTaskSource } from "@/types/conversation/suba
 import {
 	canSendSubagentTaskMessage,
 	isSubagentTaskActive,
-	subagentTaskSourceKey,
 } from "../subagent-task-model";
 import { SubagentTaskThreadView } from "./subagent-task-thread-view";
 import { useSubagentTaskThread } from "./use-subagent-task-thread";
@@ -22,7 +25,7 @@ interface SubagentTaskDialog {
 interface SubagentTaskThreadProps {
   layout?: "desktop" | "mobile";
   onBack: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   source: SubagentTaskSource;
   task: SubagentTask;
 }
@@ -36,13 +39,10 @@ export function SubagentTaskThread({
 }: SubagentTaskThreadProps) {
   const thread = useSubagentTaskThread({ source, task });
 	const { t } = useI18n();
-	const scopeKey = `${subagentTaskSourceKey(source)}:${task.task_id}`;
-	const [dialog, setDialog] = useState<SubagentTaskDialog | null>(null);
+	const scopeKey = thread.sessionKey;
+	const [dialog, setDialog] = useResettableState<SubagentTaskDialog | null>(null, scopeKey);
 	const closeDialog = () => setDialog(null);
 	const dialogMatchesScope = dialog?.scopeKey === scopeKey;
-	useEffect(() => {
-		setDialog(null);
-	}, [scopeKey]);
 
   return (
 		<>

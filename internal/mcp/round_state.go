@@ -1,5 +1,5 @@
 // INPUT: physical round 的可信宿主上下文、命令尝试与 typed mutation result。
-// OUTPUT: 内置 MCP 共享上下文、失败计数及可按 sequence 单调消费的 mutation receipt。
+// OUTPUT: 内置 MCP 共享上下文、父 runtime 子任务控制、失败计数及可按 sequence 单调消费的 mutation receipt。
 // POS: runtime 与结构化 command、Goal usage/continuation 之间的宿主事实桥；禁止从模型文本推断。
 package mcp
 
@@ -22,6 +22,7 @@ type RoundContext struct {
 	CommandContext     runtimectx.RuntimeCommandContext
 	CommandReceipts    *CommandReceiptState
 	CommandAttempts    *CommandAttemptState
+	SubagentControl    runtimectx.SubagentControl
 }
 
 // CommandAttemptState 保存一次 physical round 内的有界传输失败计数。

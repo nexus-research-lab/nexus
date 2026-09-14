@@ -134,7 +134,7 @@ export function UiInlineNotice({
         <UiButton
           aria-busy={action.pending || undefined}
           className={cn(
-            "shrink-0 self-start px-1.5 motion-reduce:transition-none",
+            "min-w-0 max-w-full self-start whitespace-normal px-1.5 [overflow-wrap:anywhere] motion-reduce:transition-none",
             variant === "edge" && "ml-6 sm:ml-0",
           )}
           disabled={Boolean(action.disabled || action.pending)}

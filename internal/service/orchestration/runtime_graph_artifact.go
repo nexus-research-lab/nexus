@@ -117,19 +117,22 @@ func runtimeGraphWorkspaceArtifact(
 		return protocol.WorkspaceFileArtifactBlock{}, false
 	}
 	artifact := protocol.WorkspaceFileArtifactBlock{
-		ID:               strings.TrimSpace(runtimeGraphAnyString(values["id"])),
-		Type:             protocol.ContentBlockTypeWorkspaceFileArtifact,
-		Path:             path,
-		DisplayPath:      strings.TrimSpace(runtimeGraphAnyString(values["display_path"])),
-		Label:            strings.TrimSpace(runtimeGraphAnyString(values["label"])),
-		Title:            strings.TrimSpace(runtimeGraphAnyString(values["title"])),
-		ArtifactKind:     strings.TrimSpace(runtimeGraphAnyString(values["artifact_kind"])),
-		MIMEType:         strings.TrimSpace(runtimeGraphAnyString(values["mime_type"])),
-		Operation:        strings.TrimSpace(runtimeGraphAnyString(values["operation"])),
-		Scope:            strings.TrimSpace(runtimeGraphAnyString(values["scope"])),
-		WorkspaceAgentID: strings.TrimSpace(runtimeGraphAnyString(values["workspace_agent_id"])),
-		SourceToolUseID:  toolUseID,
-		SourceToolName:   strings.TrimSpace(runtimeGraphAnyString(values["source_tool_name"])),
+		Role:               strings.TrimSpace(runtimeGraphAnyString(values["role"])),
+		ProducerAgentID:    strings.TrimSpace(runtimeGraphAnyString(values["producer_agent_id"])),
+		SourceAgentRoundID: strings.TrimSpace(runtimeGraphAnyString(values["source_agent_round_id"])),
+		ID:                 strings.TrimSpace(runtimeGraphAnyString(values["id"])),
+		Type:               protocol.ContentBlockTypeWorkspaceFileArtifact,
+		Path:               path,
+		DisplayPath:        strings.TrimSpace(runtimeGraphAnyString(values["display_path"])),
+		Label:              strings.TrimSpace(runtimeGraphAnyString(values["label"])),
+		Title:              strings.TrimSpace(runtimeGraphAnyString(values["title"])),
+		ArtifactKind:       strings.TrimSpace(runtimeGraphAnyString(values["artifact_kind"])),
+		MIMEType:           strings.TrimSpace(runtimeGraphAnyString(values["mime_type"])),
+		Operation:          strings.TrimSpace(runtimeGraphAnyString(values["operation"])),
+		Scope:              strings.TrimSpace(runtimeGraphAnyString(values["scope"])),
+		WorkspaceAgentID:   strings.TrimSpace(runtimeGraphAnyString(values["workspace_agent_id"])),
+		SourceToolUseID:    toolUseID,
+		SourceToolName:     strings.TrimSpace(runtimeGraphAnyString(values["source_tool_name"])),
 	}
 	if artifact.ID == "" {
 		artifact.ID = fmt.Sprintf("workspace_file:%s:%s", toolUseID, path)

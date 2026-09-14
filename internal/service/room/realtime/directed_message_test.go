@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -47,7 +47,7 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-directed-message",
 		Username: "room-owner",
@@ -136,7 +136,7 @@ func TestRealtimeServiceKeepsPublicMessageInSourceAgentRound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID: "user-room-public-round", Username: "room-owner", Role: authsvc.RoleOwner,
 	})
@@ -187,7 +187,7 @@ func TestRealtimeServiceDirectedMessageCommandRetryIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID: "user-room-directed-retry", Username: "owner", Role: authsvc.RoleOwner,
 	})
@@ -238,11 +238,11 @@ func TestRealtimeServiceRechecksPrivateMessagingAtCallTime(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID: "user-room-private-revocation", Username: "room-owner", Role: authsvc.RoleOwner,
 	})
@@ -294,7 +294,7 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-directed-message-reply",
 		Username: "room-owner",
@@ -398,7 +398,7 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-directed-message-queue",
 		Username: "room-owner",
@@ -540,7 +540,7 @@ func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-public-message-handback",
 		Username: "room-owner",
@@ -631,7 +631,7 @@ func TestRealtimeServiceRejectsInvalidDirectedMessageRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
 		UserID:   "user-room-directed-message-invalid",
 		Username: "room-owner",

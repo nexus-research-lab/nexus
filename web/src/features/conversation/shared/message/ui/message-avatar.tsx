@@ -1,4 +1,9 @@
-import type { MouseEvent, ReactNode } from "react";
+// INPUT: Message avatar source, fallback content and optional detail action.
+// OUTPUT: Compact/full message avatar with local image failure recovery.
+// POS: Message rail avatar geometry and accessible detail affordance.
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import { useState, type MouseEvent, type ReactNode } from "react";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { getIconAvatarSrc } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
@@ -39,13 +44,13 @@ export function MessageAvatar({
   const shellClassName = cn(
     "overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
     "transition-[border-color,background-color] duration-(--motion-duration-fast) ease-out",
-    "motion-safe:hover:border-(--surface-interactive-active-border)",
     AVATAR_SIZE_CLASS_MAP[size],
     AVATAR_RADIUS_CLASS_MAP[radius ?? resolveAvatarRadius(size)],
     className,
   );
   const content = (
     <MessageAvatarContent
+      key={resolvedAvatarUrl}
       avatarUrl={resolvedAvatarUrl}
       fallback={children}
     />
@@ -81,7 +86,8 @@ function MessageAvatarContent({
   avatarUrl: string | null;
   fallback?: ReactNode;
 }) {
-  if (!avatarUrl) {
+  const [failed, setFailed] = useState(false);
+  if (!avatarUrl || failed) {
     return (
       <span className="flex h-full w-full items-center justify-center text-(--surface-avatar-foreground)">
         {fallback}
@@ -93,6 +99,7 @@ function MessageAvatarContent({
       alt=""
       className="h-full w-full object-cover"
       src={avatarUrl}
+      onError={() => setFailed(true)}
     />
   );
 }
@@ -110,19 +117,20 @@ function InteractiveMessageAvatar({
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   title?: string;
 }) {
+  const { t } = useI18n();
   return (
-    <button
-      aria-label={ariaLabel ?? "查看头像详情"}
+    <UiTooltip label={title}><button
+      aria-label={ariaLabel ?? t("message.avatar_details")}
       className={cn(
         className,
-        "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
+        "motion-safe:hover:border-(--surface-interactive-active-border) cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/45",
       )}
       onClick={onClick}
-      title={title}
+
       type="button"
     >
       {children}
-    </button>
+    </button></UiTooltip>
   );
 }
 
@@ -138,14 +146,14 @@ function StaticMessageAvatar({
   title?: string;
 }) {
   return (
-    <div
+    <UiTooltip label={title}><div
       className={cn(
         className,
         !hasImage && "flex items-center justify-center text-(--surface-avatar-foreground)",
       )}
-      title={title}
+
     >
       {children}
-    </div>
+    </div></UiTooltip>
   );
 }

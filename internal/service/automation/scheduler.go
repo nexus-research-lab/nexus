@@ -229,6 +229,16 @@ func (s *Service) automationRunTimeout() time.Duration {
 }
 
 func (s *Service) bootstrapRuntime(ctx context.Context) error {
+	// 修复与本机运行登记互斥，不能删除刚登记的新运行镜像。
+	s.mu.Lock()
+	repaired, err := s.repository.ReconcileFinishedTaskRuntime(ctx)
+	for _, jobID := range repaired {
+		delete(s.jobStates, jobID)
+	}
+	s.mu.Unlock()
+	if err != nil {
+		return err
+	}
 	jobs, err := s.repository.ListScheduledTasks(ctx, "", "")
 	if err != nil {
 		return err

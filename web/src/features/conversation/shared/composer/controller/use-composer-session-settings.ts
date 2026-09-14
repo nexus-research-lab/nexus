@@ -20,6 +20,7 @@ import { CAPABILITY_SUMMARY_MUTATED_EVENT } from "@/features/capability/capabili
 import {
   AGENT_PERMISSION_MODES,
   DEFAULT_AGENT_PERMISSION_MODE,
+  resolveRuntimePermissionMode,
 } from "@/lib/agent-options";
 import {
   getSessionRuntimeSettingsApi,
@@ -383,7 +384,7 @@ export function useComposerSessionSettings(
     providerOptions,
   );
   const effectivePermissionMode =
-    settings.permission_mode || inheritedPermission;
+    resolveRuntimePermissionMode(settings.permission_mode || inheritedPermission, scope?.runtimeKind ?? "");
   const inheritedConnectorIds = target?.defaultConnectorIds ?? [];
   const enabledConnectorIds = settings.connector_ids ?? inheritedConnectorIds;
   const settingsReadFailure = target
@@ -459,6 +460,9 @@ export function useComposerSessionSettings(
     settingsLoading,
     settingsReadFailure,
     mutationFailure,
+    dismissMutationFailure: () => {
+      if (target) cacheMutationFailure(target.sessionKey, null);
+    },
     target,
     targetViews,
     retryConnectors: () => setConnectorsRevision((current) => current + 1),

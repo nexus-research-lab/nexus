@@ -40,11 +40,6 @@ const MOBILE_CAPABILITY_ROUTES: MobileCapabilityRoute[] = [
     titleKey: "capability.connectors",
   },
   {
-    detailPrefix: `${APP_ROUTE_PATHS.loops}/`,
-    rootPath: APP_ROUTE_PATHS.loops,
-    titleKey: "capability.loops",
-  },
-  {
     detailPrefix: `${APP_ROUTE_PATHS.workGraphDistillations}/`,
     rootPath: APP_ROUTE_PATHS.workGraphDistillations,
     titleKey: "capability.workgraph_distillations",
@@ -70,7 +65,7 @@ export function resolveMobileAppRoute({
   pathname: string;
   search: string;
 }): MobileAppRoutePresentation {
-  if (pathname.startsWith("/rooms/")) {
+  if (pathname.startsWith("/rooms/") || pathname === APP_ROUTE_PATHS.team) {
     return { mode: "conversation" };
   }
   if (pathname === APP_ROUTE_PATHS.home) {

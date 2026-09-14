@@ -8,6 +8,12 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
+
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -22,11 +28,6 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
-	"sync"
-	"time"
-	"unicode/utf8"
 )
 
 func appendPromptSection(base string, section string) string {
@@ -419,7 +420,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		)
 	}
 	e.slot.beginNoReplyCandidate()
-	e.service.beginExecutionRuntimeGraph(actor)
+	e.service.executionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
@@ -441,8 +442,8 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			currentActor := e.orchestrationActor()
-			e.service.observeExecutionRuntimeGraph(currentActor, incoming)
-			e.observeExecutionPersistenceEvidence(currentActor, incoming)
+			e.service.executionObserver().ObserveMessage(currentActor, incoming)
+			e.service.executionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -461,7 +462,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	e.service.finishExecutionRuntimeGraph(
+	e.service.executionObserver().Finish(
 		e.orchestrationActor(),
 		result.TerminalStatus,
 		failureReason,
@@ -639,7 +640,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
-	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
+	e.service.executionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
 	actor := e.orchestrationActor()
 	e.service.recordGoalUsageFromSlotAssistantMessageWithActor(e.ctx, e.slot, &actor, messageValue)
 	return nil
@@ -742,6 +743,11 @@ func (s *Service) runRound(
 		)
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, statusEvent)
+	// round 已从注册表移除，终态必须用执行体保留的观察器交付给自动化。
+	// permission 广播路径已包含 sink，只有 RoomBroadcaster 路径需要内部镜像。
+	if s.broadcaster != nil && roundValue.RoomID != "" && roundValue.EventObserver != nil {
+		roundValue.EventObserver(ctx, statusEvent)
+	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	// Round 已经结束后，所有仍可能写 queue/workspace 或启动后续 runtime 的工作
 	// 必须先登记到 session 生命周期，再执行。否则 CloseSession 可能在

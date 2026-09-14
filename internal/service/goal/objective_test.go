@@ -106,7 +106,6 @@ func TestServiceCreateUserGoalSanitizesServerOwnedMetadata(t *testing.T) {
 			protocol.GoalMetadataExecutionBindingState: string(protocol.GoalExecutionBindingStateConfirmed),
 			protocol.GoalMetadataObjectiveRevision:     int64(99),
 			protocol.GoalMetadataRoomGoalLeadAgentID:   "agent-forged",
-			protocol.GoalMetadataRoomGoalLoopTitle:     "保留用户可写循环标题",
 			"client_safe_key":                          "keep-me",
 		},
 	})
@@ -130,8 +129,7 @@ func TestServiceCreateUserGoalSanitizesServerOwnedMetadata(t *testing.T) {
 	if created.ObjectiveRevision() != 1 {
 		t.Fatalf("objective revision = %d, want server default 1", created.ObjectiveRevision())
 	}
-	if created.Metadata[protocol.GoalMetadataRoomGoalLoopTitle] != "保留用户可写循环标题" ||
-		created.Metadata["client_safe_key"] != "keep-me" {
+	if created.Metadata["client_safe_key"] != "keep-me" {
 		t.Fatalf("safe metadata = %#v, want user values preserved", created.Metadata)
 	}
 }

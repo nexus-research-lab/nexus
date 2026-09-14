@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -170,15 +171,28 @@ func (s *Service) run(ctx context.Context, args []string) ([]byte, error) {
 	return s.runCommand(ctx, args)
 }
 
+// Available 表示宿主已启用并配置可执行的项目 ACL 控制面。
+func (s *Service) Available() bool {
+	return s != nil && projectControlAvailable(runtime.GOOS, s.config)
+}
+
+func projectControlAvailable(platform string, cfg config.Config) bool {
+	if platform != "linux" || !strings.EqualFold(strings.TrimSpace(cfg.RuntimeIsolationMode), "enforce") {
+		return false
+	}
+	path := strings.TrimSpace(cfg.RuntimeLauncherPath)
+	if !filepath.IsAbs(path) {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0111 != 0
+}
+
 func (s *Service) executeLauncher(ctx context.Context, args []string) ([]byte, error) {
-	if runtime.GOOS != "linux" ||
-		!strings.EqualFold(strings.TrimSpace(s.config.RuntimeIsolationMode), "enforce") {
+	if !s.Available() {
 		return nil, ErrUnavailable
 	}
 	launcherPath := strings.TrimSpace(s.config.RuntimeLauncherPath)
-	if launcherPath == "" || !filepath.IsAbs(launcherPath) {
-		return nil, errors.New("runtime launcher path is not configured")
-	}
 	command := exec.CommandContext(ctx, launcherPath, args...)
 	command.Env = []string{
 		"PATH=/usr/bin:/bin",

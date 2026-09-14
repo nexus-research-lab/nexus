@@ -17,6 +17,7 @@ func assignWork(svc contract.Service, sctx contract.Context) command.Operation {
 	return command.Operation{
 		Name: operationName,
 		Description: "Create and dispatch one Assignment for a ready Work Item to exactly one responsible Agent. " +
+			"Only the current coordinator may assign. In an unbound Room conversation round, first call nexus.command with domain=execution and action=inspect, then use its latest allowed_actions; no UI mode switch or new user message is required. Assign other ready members before assigning self, because Room self-assignment enters the exact work lane. " +
 			"Use strategy=room_member for a tracked Room handoff and strategy=self for the current Agent. This records ownership; a later subagent remains internal to that owner. " +
 			"Assigning sibling Work Items to the same Agent creates a serial queue, not another concurrent Agent slot. Use different Room members for independent managed parallel work, or let one owner's current Work Item use native subagents for local parallelism.",
 		SearchHint:  "assign work room handoff responsibility agent",
@@ -60,7 +61,7 @@ func submitWork(svc contract.Service, sctx contract.Context) command.Operation {
 		Description: "Append the current Assignment owner's concrete result and evidence as an immutable Submission for the selected reviewer. " +
 			"Tool availability, assigned_work, and current_actor are state projections, not proof that this call carries a trusted WorkBinding. " +
 			"Only an exact host-issued WorkBinding permits omitting work_item_id, logical_key, and assignment_id; explicit values must match it. In an unbound DM round, provide work_item_id or logical_key; assignment_id remains optional. " +
-			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call get_execution first, while another Room actor requires an exact host-issued WorkBinding. " +
+			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact host-issued WorkBinding. " +
 			"The backend correlates the Attempt and routes review; downstream hard dependencies remain locked until Acceptance.",
 		SearchHint:  "submit work deliverable evidence assignment",
 		InputSchema: submitWorkSchema(),
@@ -108,7 +109,7 @@ func reviewWork(svc contract.Service, sctx contract.Context) command.Operation {
 		Description: "Append the Assignment-selected reviewer's immutable decision for one Submission. " +
 			"Tool availability, assigned_work, and current_actor are state projections, not proof that this call carries a trusted ReviewBinding or WorkBinding. " +
 			"Only an exact host-issued ReviewBinding, or a permitted self-review exact WorkBinding, permits omitting submission_id, work_item_id, and logical_key; explicit values must match the bound target. In an unbound DM round, provide at least one of submission_id, work_item_id, or logical_key. " +
-			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call get_execution first, while another Room actor requires an exact host-issued ReviewBinding or permitted self-review WorkBinding. " +
+			"An unbound Room conversational round does not gain mutation authority from explicit identifiers: the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact host-issued ReviewBinding or permitted self-review WorkBinding. " +
 			"Accepted requires a passing result for every acceptance criterion and is the only decision that unlocks downstream hard dependencies.",
 		SearchHint:  "review accept reject changes requested criteria",
 		InputSchema: reviewWorkSchema(),

@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Agent、联络读模型、Session、私信事件、失败事实与页面命令。
- * OUTPUT: 编排独立目录、共享聊天面板、Header 与删除确认的 Agent 联络工作面。
+ * OUTPUT: 编排独立目录、共享聊天面板及回到底部动作、标准主身份 Header 与固定目标/提交状态的删除确认。
  * POS: Contacts 详情“联络”根编排；不定义目录行、添加表单或资源状态样式。
  */
 "use client";
@@ -67,11 +67,6 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   status: "unavailable",
 };
 const EMPTY_INPUT_QUEUE: InputQueueItem[] = [];
-const HIDDEN_SCROLL_CONTROL = {
-  isGenerating: false,
-  onClick: ignoreAction,
-  visible: false,
-} as const;
 const UNAVAILABLE_ROUND_INDEX_RESOURCE = {
   access: null,
   error: null,
@@ -91,6 +86,7 @@ export interface AgentCommunicationViewState {
   isDirectoryLoading: boolean;
   isHistoryLoading: boolean;
   isMessagesLoading: boolean;
+  isRemoving: boolean;
   isSending: boolean;
   mutationFailure: AgentCommunicationMutationFailure | null;
   pendingAgentId: string | null;
@@ -130,7 +126,7 @@ export function AgentCommunicationView({
   state,
 }: AgentCommunicationViewProps) {
   const { t } = useI18n();
-  const [removeDialogOpen, setRemoveDialogOpen] = useResettableState(false, agent.agent_id);
+  const [pendingRemoval, setPendingRemoval] = useResettableState<AgentContact | null>(null, agent.agent_id);
   const agentsById = useMemo(
     () => new Map(agents.map((item) => [item.agent_id, item])),
     [agents],
@@ -186,7 +182,7 @@ export function AgentCommunicationView({
                 state.conversationFailure?.kind
                 ?? (state.conversationId ? "messages" : "channel"),
               )}
-              onRemove={() => setRemoveDialogOpen(true)}
+              onRemove={() => setPendingRemoval({ ...selectedContact })}
               onSelectConversation={onSelectConversation}
             />
             <ContactConversation
@@ -214,24 +210,27 @@ export function AgentCommunicationView({
         )}
       </main>
       <ConfirmDialog
+        busy={state.isRemoving}
         confirmText={t("agent_options.contact.remove_friend")}
-        isOpen={removeDialogOpen && selectedContact !== null}
-        message={selectedContact
+        isOpen={pendingRemoval !== null}
+        message={pendingRemoval
           ? t("agent_options.contact.remove_friend_confirm", {
-            name: getCommunicationContactLabel(selectedContact),
+            name: getCommunicationContactLabel(pendingRemoval),
           })
           : ""}
-        onCancel={() => setRemoveDialogOpen(false)}
+        onCancel={() => setPendingRemoval(null)}
         onConfirm={() => {
-          if (selectedContact) {
-            void onRemoveContact(selectedContact.contact_agent_id).then((removed) => {
+          if (pendingRemoval && !state.isRemoving) {
+            const target = pendingRemoval;
+            void onRemoveContact(target.contact_agent_id).then((removed) => {
               if (removed) {
-                setRemoveDialogOpen(false);
+                setPendingRemoval((current) => current === target ? null : current);
               }
             });
           }
         }}
         title={t("agent_options.contact.remove_friend")}
+        variant="danger"
       />
     </div>
   );
@@ -275,13 +274,12 @@ function CommunicationHeader({
             </UiIconButton>
             <UiAgentAvatar
               avatar={contact.avatar}
-              className="hidden h-full w-full border-0 shadow-none md:flex"
+              className="hidden md:flex"
               name={label}
-              size="sm"
+              size="md"
             />
           </>
         )}
-        leadingClassName="h-10 w-10 max-md:border-0 max-md:bg-transparent max-md:shadow-none"
         leadingVariant="identity"
         tabsLeading={(
           <RoomConversationTabs
@@ -402,7 +400,7 @@ function ContactConversation({
     <ConversationPanelLayout>
       <ConversationPanelViewportArea>
         <ConversationPanelViewport
-          floatingDockOccupied={false}
+          floatingDockOccupied={scroll.showScrollToBottom}
           isMobileLayout={isCompactLayout}
           viewport={{
             isHistoryLoading,
@@ -487,7 +485,11 @@ function ContactConversation({
           transport_phase: "healthy",
         }}
         roundIndexResource={UNAVAILABLE_ROUND_INDEX_RESOURCE}
-        scrollToLatest={HIDDEN_SCROLL_CONTROL}
+        scrollToLatest={{
+          isGenerating: false,
+          onClick: () => scroll.scrollToBottom(),
+          visible: scroll.showScrollToBottom,
+        }}
       >
         <ComposerPanel
           commandCatalog={EMPTY_COMMAND_CATALOG}

@@ -55,7 +55,7 @@ describe("ChannelCard", () => {
       name: "capability.channel_docs_action",
     });
     expect(docs.getAttribute("href")).toBe(CHANNEL.docs_url);
-    expect(docs.className).toContain("ui-type-caption");
+    expect(docs.className).toContain("ui-type-metadata");
 
     await user.click(screen.getByRole("button", {
       name: "capability.channel_configure_action",

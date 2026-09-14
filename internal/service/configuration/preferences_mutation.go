@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -119,4 +120,84 @@ func (s *Service) syncRuntimePreferences(ctx context.Context, preferences prefer
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func validatePreferencesChange(request ChangeRequest) error {
+	switch request.Operation {
+	case "update":
+		if err := requireNonEmptyJSONObject(request.Input, "preferences.update"); err != nil {
+			return err
+		}
+		var input preferencessvc.UpdateRequest
+		if err := request.decodeInput(&input); err != nil {
+			return err
+		}
+		if input.DefaultAgentOptions != nil {
+			if err := rejectScopedSkillOptionFields(request.Input, "default_agent_options"); err != nil {
+				return err
+			}
+			if err := validateConfigurationAgentOptions(*input.DefaultAgentOptions); err != nil {
+				return fmt.Errorf("default_agent_options 无效: %w", err)
+			}
+		}
+		return nil
+	default:
+		return unsupportedChange(request)
+	}
+}
+
+func (s *Service) executePreferencesChange(ctx context.Context, actor *resolvedActor, request ChangeRequest, stateVersion int64) (any, error) {
+	switch request.Operation {
+	case "update":
+		var input preferencessvc.UpdateRequest
+		if err := request.decodeAppliedInput(&input); err != nil {
+			return nil, err
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("Preferences 配置缺少可比较的 state_version")
+		}
+		return s.updatePreferences(ctx, actor.Actor, input, request.Input, stateVersion)
+	default:
+		return nil, unsupportedChange(request)
+	}
+}
+
+func preferencesChecks(_ any, err error) []Check {
+	if err != nil {
+		return []Check{errorCheck(DomainPreferences, "preferences_readable", err)}
+	}
+	return []Check{okCheck(DomainPreferences, "preferences_readable", "偏好文件可读取并通过结构校验")}
+}
+
+func mergedPreferencesUpdate(
+	previous preferencessvc.Preferences,
+	parsed preferencessvc.UpdateRequest,
+	rawInput json.RawMessage,
+) (preferencessvc.UpdateRequest, error) {
+	merged, err := mergeJSONObject(previous, rawInput, "web_search_api_key")
+	if err != nil {
+		return preferencessvc.UpdateRequest{}, err
+	}
+	var values preferencessvc.Preferences
+	if err = strictDecodeJSON(merged, &values); err != nil {
+		return preferencessvc.UpdateRequest{}, fmt.Errorf("合并 preferences patch: %w", err)
+	}
+	return preferencessvc.UpdateRequest{
+		ChatDefaultDeliveryPolicy:       &values.ChatDefaultDeliveryPolicy,
+		AgentRuntimeKind:                &values.AgentRuntimeKind,
+		AgentSDKDiagnosticsEnabled:      &values.AgentSDKDiagnosticsEnabled,
+		RuntimeSettings:                 &values.RuntimeSettings,
+		WebSearch:                       &values.WebSearch,
+		WebSearchAPIKey:                 parsed.WebSearchAPIKey,
+		DefaultAgentOptions:             &values.DefaultAgentOptions,
+		DefaultImageModelSelection:      &values.DefaultImageModelSelection,
+		DefaultVisionModelSelection:     &values.DefaultVisionModelSelection,
+		DefaultBackgroundModelSelection: &values.DefaultBackgroundModelSelection,
+	}, nil
+}
+
+func (s *Service) readPreferencesConfiguration(ctx context.Context, actor *resolvedActor, target string) (any, []Check, int64, ScopeRef, error) {
+	scope := actor.Context
+	value, err := s.prefs.Get(ctx, actor.OwnerUserID)
+	return value, preferencesChecks(value, err), value.Version, scope, err
 }

@@ -1,7 +1,9 @@
 package browser
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -60,5 +62,32 @@ func TestTrustedRequestRequiresNexusExtensionAndSubprotocol(t *testing.T) {
 				t.Fatal("不可信 Browser 请求被接受")
 			}
 		})
+	}
+}
+
+func TestWriteLockWaitHonorsCancellationWithoutLateSend(t *testing.T) {
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	send := boundedSender(func(context.Context, any) error {
+		entered <- struct{}{}
+		<-release
+		return nil
+	})
+	first := make(chan error, 1)
+	go func() { first <- send(context.Background(), "first") }()
+	<-entered
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := send(ctx, "cancelled"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v", err)
+	}
+	close(release)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+		t.Fatal("cancelled write was sent")
+	default:
 	}
 }

@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Agent identity and optional exact Room/conversation filters.
+// OUTPUT: Private threads/events including all contact channels of the queried Agent.
+// POS: Private-domain read projection; ordinary directory limits never exclude contact history.
 package room
 
 import (
@@ -7,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/room/privateview"
@@ -152,7 +156,7 @@ func (s *Service) collectAgentPrivateDomain(
 	agentID string,
 	query AgentPrivateDomainQuery,
 ) (map[string]*privateview.ThreadBuilder, error) {
-	contexts, err := s.loadPrivateDomainContexts(ctx, query)
+	contexts, err := s.loadPrivateDomainContexts(ctx, agentID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +165,7 @@ func (s *Service) collectAgentPrivateDomain(
 
 func (s *Service) loadPrivateDomainContexts(
 	ctx context.Context,
+	agentID string,
 	query AgentPrivateDomainQuery,
 ) ([]protocol.ConversationContextAggregate, error) {
 	roomID := strings.TrimSpace(query.RoomID)
@@ -184,9 +189,23 @@ func (s *Service) loadPrivateDomainContexts(
 	if err != nil {
 		return nil, err
 	}
-	contexts := make([]protocol.ConversationContextAggregate, 0, len(rooms))
+	contactRoomIDs, err := s.repository.ListAgentContactRoomIDs(ctx, authctx.OwnerUserID(ctx), agentID)
+	if err != nil {
+		return nil, err
+	}
+	roomIDs := make([]string, 0, len(rooms)+len(contactRoomIDs))
 	for _, roomValue := range rooms {
-		roomContexts, contextErr := s.GetRoomContexts(ctx, roomValue.Room.ID)
+		roomIDs = append(roomIDs, roomValue.Room.ID)
+	}
+	roomIDs = append(roomIDs, contactRoomIDs...)
+	contexts := make([]protocol.ConversationContextAggregate, 0, len(roomIDs))
+	seen := make(map[string]bool, len(roomIDs))
+	for _, id := range roomIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		roomContexts, contextErr := s.GetRoomContexts(ctx, id)
 		if errors.Is(contextErr, ErrRoomNotFound) {
 			continue
 		}

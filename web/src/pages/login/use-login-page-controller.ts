@@ -1,4 +1,8 @@
-import { useCallback, useMemo, useState, type FormEvent } from "react";
+// INPUT: Auth status, credential drafts and validated local redirect.
+// OUTPUT: Login page state and synchronously exclusive authentication commands.
+// POS: Login controller; never replays a pending sign-in automatically.
+
+import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "@/shared/auth/auth-context";
@@ -29,6 +33,7 @@ export function useLoginPageController() {
     typeof buildLoginSubmitFailure
   > | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const redirectPath = useMemo(
     () => resolveLoginRedirectPath(searchParams.get("redirect")),
     [searchParams],
@@ -52,6 +57,8 @@ export function useLoginPageController() {
 
   const submit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     setSubmitFailure(null);
     try {
@@ -60,6 +67,7 @@ export function useLoginPageController() {
     } catch (error) {
       setSubmitFailure(buildLoginSubmitFailure(error, t));
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   }, [login, navigate, password, redirectPath, t, username]);

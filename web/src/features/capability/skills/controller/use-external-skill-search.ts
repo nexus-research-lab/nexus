@@ -39,6 +39,7 @@ export function useExternalSkillSearch({
   const [searchRevision, setSearchRevision] = useState(0);
   const [results, setResults] = useState<ExternalSkillSearchItem[]>([]);
   const [sourceStatuses, setSourceStatuses] = useState<ExternalSkillSourceStatus[]>([]);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [previewItem, setPreviewItem] = useState<ExternalSkillSearchItem | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -55,6 +56,7 @@ export function useExternalSkillSearch({
     searchAbortRef.current = null;
     searchRequestRef.current += 1;
     setSubmittedQuery("");
+    setLoadFailed(false);
     setLoading(false);
     setResults([]);
     setSourceStatuses([]);
@@ -90,10 +92,12 @@ export function useExternalSkillSearch({
         );
         if (requestId !== searchRequestRef.current) return;
         setResults(response.results);
+        setLoadFailed(false);
         setSourceStatuses(response.sources);
       } catch (error) {
         if (abortController.signal.aborted) return;
         if (requestId !== searchRequestRef.current) return;
+        setLoadFailed(true);
         setSourceStatuses([]);
         onError(
           "search",
@@ -166,6 +170,8 @@ export function useExternalSkillSearch({
   return {
     closePreview,
     loading,
+    loadFailed,
+    retry: () => setSearchRevision((value) => value + 1),
     preview,
     previewItem,
     previewLoading,

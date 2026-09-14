@@ -1,10 +1,11 @@
 /**
  * INPUT: 能力页面标题、说明、动作、筛选控件、目录条目及详情导航/正文/配置内容。
- * OUTPUT: 能力目录与详情页的共享内容轴、统一标签筛选、移动页头动作、二级导航、对象身份区、目录网格和响应式分栏。
+ * OUTPUT: 能力目录与详情页的共享内容轴、目录筛选布局、移动页头动作、二级导航、按工作面宽度换行的对象身份区、目录内容几何和响应式分栏。
  * POS: 能力域页面级设计语法；通过中立页头动作 Context 适配宿主挂载点，不依赖 App 装配或解释具体领域状态。
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   type CompositionEventHandler,
   type KeyboardEventHandler,
@@ -25,8 +26,6 @@ import {
   WorkspaceContentDetailHeader,
   WorkspaceContentHeader,
 } from "@/shared/ui/layout/workspace-content-header";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
@@ -96,18 +95,6 @@ interface CapabilityFilterSearchInputProps {
   value: string;
 }
 
-interface CapabilityFilterSelectProps {
-  ariaLabel: string;
-  className?: string;
-  disabled?: boolean;
-  label: string;
-  onChange: (value: string) => void;
-  options: UiSelectMenuOption[];
-  placeholder?: string;
-  tourAnchor?: string;
-  value: string;
-}
-
 interface CapabilityItemIconProps {
   children: ReactNode;
   className?: string;
@@ -125,7 +112,7 @@ export const CAPABILITY_DIRECTORY_GRID_CLASS_NAME =
 
 /** 目录条目保留清晰外框，让不同能力类型共享同一内容层级。 */
 export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
-  "min-h-[80px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
+  "min-h-[80px] px-3 py-3";
 
 /** 能力二级页统一使用“返回目录 / 当前对象”的单行桌面导航。 */
 function CapabilityDetailHeader({
@@ -200,12 +187,12 @@ export function CapabilityDetailIdentity({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+        "flex flex-wrap items-start gap-4",
         className,
       )}
       data-slot="capability-detail-identity"
     >
-      <div className="flex min-w-0 flex-1 items-start gap-4">
+      <div className="flex min-w-0 flex-[1_1_280px] items-start gap-4">
         {leading ? (
           <div className="shrink-0" data-slot="capability-detail-identity-leading">
             {leading}
@@ -213,28 +200,28 @@ export function CapabilityDetailIdentity({
         ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })}>
+            <h1 className={cn("min-w-0 max-w-full break-words [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>
               {title}
             </h1>
             {titleMeta}
           </div>
           {description ? (
-            <p
+            <UiTooltip label={descriptionTitle}><p
               className={cn(
-                "mt-1",
+                "mt-1 break-words [overflow-wrap:anywhere]",
                 getUiTypographyClassName({ role: descriptionRole, tone: "muted" }),
                 descriptionClassName,
               )}
-              title={descriptionTitle}
+
             >
               {description}
-            </p>
+            </p></UiTooltip>
           ) : null}
         </div>
       </div>
       {actions ? (
         <div
-          className="flex shrink-0 flex-wrap items-center justify-end gap-2"
+          className="ml-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2"
           data-slot="capability-detail-identity-actions"
         >
           {actions}
@@ -337,36 +324,6 @@ export function CapabilityItemIcon({
   );
 }
 
-export function CapabilityFilterSelect({
-  ariaLabel,
-  className,
-  disabled,
-  label,
-  onChange,
-  options,
-  placeholder,
-  tourAnchor,
-  value,
-}: CapabilityFilterSelectProps) {
-  return (
-    <div
-      className={cn("shrink-0 sm:w-[176px]", className)}
-      data-tour-anchor={tourAnchor}
-    >
-      <UiSelectMenu
-        ariaLabel={ariaLabel}
-        disabled={disabled}
-        label={label}
-        onChange={onChange}
-        options={options}
-        placeholder={placeholder}
-        size="sm"
-        value={value}
-      />
-    </div>
-  );
-}
-
 export function CapabilityFilterBar({
   children,
   className: className,
@@ -431,19 +388,19 @@ export function CapabilityDetailSplitLayout({
 }: CapabilityDetailSplitLayoutProps) {
   return (
     <div
-      className={cn("w-full max-w-[1180px]", className)}
+      className={cn("@container/capability-detail w-full max-w-[1180px]", className)}
       data-slot="capability-detail-layout"
     >
       {header ? <div className="mb-6">{header}</div> : null}
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,760px)_minmax(280px,360px)] xl:gap-8">
+      <div className="grid items-start gap-5 @[960px]/capability-detail:grid-cols-[minmax(0,760px)_minmax(280px,360px)] @[960px]/capability-detail:gap-8">
         <aside
-          className="min-w-0 xl:col-start-2 xl:row-start-1"
+          className="min-w-0 @[960px]/capability-detail:col-start-2 @[960px]/capability-detail:row-start-1"
           data-slot="capability-detail-aside"
         >
           {aside}
         </aside>
         <div
-          className="min-w-0 xl:col-start-1 xl:row-start-1"
+          className="min-w-0 @[960px]/capability-detail:col-start-1 @[960px]/capability-detail:row-start-1"
           data-slot="capability-detail-main"
         >
           {children}

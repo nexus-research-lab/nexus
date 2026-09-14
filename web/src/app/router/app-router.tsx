@@ -28,6 +28,9 @@ const LoginPage = lazy(() =>
 const SetupPage = lazy(() =>
   import("@/pages/setup/setup-page").then((m) => ({ default: m.SetupPage })),
 );
+const JoinOrganizationPage = lazy(() =>
+  import("@/pages/join-organization/join-organization-page").then((m) => ({ default: m.JoinOrganizationPage })),
+);
 const LauncherPage = lazy(() =>
   import("@/pages/launcher/launcher-page").then((m) => ({ default: m.LauncherPage })),
 );
@@ -39,6 +42,9 @@ const HomePage = lazy(() =>
 );
 const RoomPage = lazy(() =>
   import("@/pages/room/room-page").then((m) => ({ default: m.RoomPage })),
+);
+const TeamPage = lazy(() =>
+  import("@/pages/team/team-page").then((m) => ({ default: m.TeamPage })),
 );
 const ScheduledTasksPage = lazy(() =>
   import("@/pages/scheduled-tasks/scheduled-tasks-page").then((m) => ({ default: m.ScheduledTasksPage })),
@@ -54,9 +60,6 @@ const SkillsPage = lazy(() =>
 );
 const ConnectorsPage = lazy(() =>
   import("@/pages/connectors/connectors-page").then((m) => ({ default: m.ConnectorsPage })),
-);
-const LoopsPage = lazy(() =>
-  import("@/pages/loops/loops-page").then((m) => ({ default: m.LoopsPage })),
 );
 const WorkGraphDistillationsPage = lazy(() =>
   import("@/pages/workgraph-distillations/workgraph-distillations-page").then((m) => ({ default: m.WorkGraphDistillationsPage })),
@@ -104,6 +107,7 @@ export function AppRouter() {
             />
             <Route element={<LoginPage />} path={APP_ROUTE_PATHS.login} />
             <Route element={<SetupPage />} path={APP_ROUTE_PATHS.setup} />
+            <Route element={<JoinOrganizationPage />} path={APP_ROUTE_PATHS.joinOrganization} />
 
             <Route element={<AuthGuard />}>
               <Route
@@ -120,6 +124,7 @@ export function AppRouter() {
                 {/* 有侧边栏的页面 — 共享 AppLayout，路由切换时侧边栏不重新挂载 */}
                 <Route element={<AppLayout />}>
                   <Route element={<HomePage />} path={APP_ROUTE_PATHS.home} />
+                  <Route element={<TeamPage />} path={APP_ROUTE_PATHS.team} />
 
                   {/* Room 路由 */}
                   <Route element={<RoomPage />} path={APP_ROUTE_PATHS.room} />
@@ -141,8 +146,6 @@ export function AppRouter() {
                   <Route element={<SkillsPage />} path={APP_ROUTE_PATHS.skillDetail} />
 
                   {/* 能力子路由 */}
-                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loops} />
-                  <Route element={<LoopsPage />} path={APP_ROUTE_PATHS.loopDetail} />
                   <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillations} />
                   <Route element={<WorkGraphDistillationsPage />} path={APP_ROUTE_PATHS.workGraphDistillationDetail} />
                   <Route element={<ConnectorsPage />} path={APP_ROUTE_PATHS.connectors} />

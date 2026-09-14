@@ -41,6 +41,32 @@ function View({ files = attachments, reset = "first", onRemove = vi.fn(), onSubm
 }
 
 describe("ComposerAttachmentList", () => {
+  it("uses sibling text preview/removal controls and does not reopen a removed attachment", async () => {
+    const user = userEvent.setup();
+    const textFile = new File(["note"], "note.txt", { type: "text/plain" });
+    vi.spyOn(textFile, "slice").mockReturnValue({ text: async () => "Text preview" } as Blob);
+    const files: ComposerLocalAttachment[] = [{ id: "text-id", kind: "text", file: textFile }];
+    const onRemove = vi.fn(); const onSubmit = vi.fn();
+    const view = render(<View files={files} onRemove={onRemove} onSubmit={onSubmit} />);
+    const preview = screen.getByRole("button", { name: "composer.preview_text:note.txt" });
+    const remove = screen.getByRole("button", { name: "Remove attachment: note.txt" });
+    expect(preview.contains(remove)).toBe(false);
+    expect(remove.contains(preview)).toBe(false);
+    await user.click(preview);
+    await screen.findByText("Text preview");
+    expect(onRemove).not.toHaveBeenCalled();
+    await user.keyboard("{Escape}");
+    await user.click(remove);
+    expect(onRemove).toHaveBeenCalledExactlyOnceWith("text-id");
+    expect(onSubmit).not.toHaveBeenCalled();
+    await user.click(preview);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    view.rerender(<View files={[]} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    view.rerender(<View files={files} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("keeps preview and exact removal independent and never submits the surrounding form", async () => {
     const user = userEvent.setup();
     const onRemove = vi.fn();
@@ -58,10 +84,10 @@ describe("ComposerAttachmentList", () => {
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(preview));
-    await user.click(screen.getAllByRole("button", { name: "Remove attachment" })[0]);
+    await user.click(screen.getByRole("button", { name: "Remove attachment: preview.png" }));
     expect(onRemove).toHaveBeenCalledExactlyOnceWith("image-id");
     expect(screen.queryByRole("dialog")).toBeNull();
-    await user.click(screen.getAllByRole("button", { name: "Remove attachment" })[1]);
+    await user.click(screen.getByRole("button", { name: "Remove attachment: archive.zip" }));
     expect(onRemove).toHaveBeenLastCalledWith("file-id");
     expect(onSubmit).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 // INPUT: 配置域名称与操作名称。
-// OUTPUT: 稳定的配置能力目录、确认门槛与运行时生效语义。
+// OUTPUT: 稳定的配置能力目录、workspace 行为模板分流说明、确认门槛与运行时生效语义。
 // POS: configuration 控制面的能力真相源。
 package configuration
 
@@ -10,6 +10,8 @@ import (
 )
 
 var domainCatalog = []DomainDefinition{
+	{Name: DomainMembers, Description: "当前部署的用户账号、显示名称、角色与访问权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
+		Operations: []OperationDefinition{op("create", "创建账号并加入当前部署；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、角色或启停状态", true, "immediate"), op("remove", "撤销部署访问权限并使会话失效；保留账号与工作区数据", true, "immediate")}},
 	{
 		Name: DomainPreferences, Description: "用户级聊天、runtime、WebSearch 与默认 Agent 偏好",
 		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexuscfg", Mutable: true,
@@ -32,7 +34,7 @@ var domainCatalog = []DomainDefinition{
 		},
 	},
 	{
-		Name: DomainAgents, Description: "Agent 身份、模型、权限、工具、MCP server 与 Skill 选择",
+		Name: DomainAgents, Description: "Agent 身份、模型、权限、工具、MCP server 与 Skill 选择；行为模板的补充、修改或重写在 workspace 根级 AGENTS.md 中进行（自己用文件工具，其他 Agent 由主智能体通过 nexus-manager 处理），保留基础模板的 Baseline Rules",
 		Source: "database + derived workspace settings", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("create", "创建 Agent 与独立 workspace", true, "next_round"),
@@ -188,6 +190,12 @@ func hydrateDefinition(definition DomainDefinition) DomainDefinition {
 
 func operationContract(domain, operation string) (string, any, []string) {
 	switch domain + "." + operation {
+	case DomainMembers + ".create":
+		return "", map[string]any{"username": "string", "display_name": "string", "role": "member|admin", "password": secretSlotShape()}, []string{"username", "role", "password"}
+	case DomainMembers + ".update":
+		return "inspect 返回的精确 user_id", map[string]any{"display_name": "string", "role": "member|admin|owner", "status": "active|revoked"}, nil
+	case DomainMembers + ".remove":
+		return "inspect 返回的精确 user_id", map[string]any{}, nil
 	case DomainPreferences + ".update":
 		return "", map[string]any{
 			"chat_default_delivery_policy":       "queue|interrupt|reject",
@@ -234,7 +242,7 @@ func operationContract(domain, operation string) (string, any, []string) {
 	case DomainAgents + ".create":
 		return "", map[string]any{
 			"name": "string", "options": agentOptionsShape(), "avatar": "string",
-			"description": "string", "profile_template": "optional initial identity markdown",
+			"description": "string", "profile_template": "optional initial AGENTS.md markdown; after creation, edit workspace AGENTS.md",
 			"vibe_tags": "string[]",
 		}, []string{"name"}
 	case DomainAgents + ".update":

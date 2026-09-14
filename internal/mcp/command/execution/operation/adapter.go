@@ -1,5 +1,5 @@
 // INPUT: command JSON、CallContext 与 session-bound Context。
-// OUTPUT: strict typed intent、最新 Execution snapshot、服务端 fencing/idempotency 与紧凑模型结果。
+// OUTPUT: strict typed intent、最新 Execution snapshot、服务端 fencing/idempotency 与保留领域拒绝码的紧凑模型结果。
 // POS: 所有 Execution operation 共享的可靠性适配层。
 package operation
 
@@ -331,15 +331,17 @@ func transportErrorResult(err error) command.Result {
 	if err != nil {
 		message = err.Error()
 	}
+	data := map[string]any{"outcome": "rejected", "message": message}
+	var domainErr *orchestration.DomainError
+	if errors.As(err, &domainErr) {
+		data["reason_code"] = domainErr.Code
+	}
 	return command.Result{
 		Content: []map[string]any{{
 			"type": "text",
 			"text": message,
 		}},
-		StructuredContent: map[string]any{
-			"outcome": "rejected",
-			"message": message,
-		},
-		IsError: true,
+		StructuredContent: data,
+		IsError:           true,
 	}
 }

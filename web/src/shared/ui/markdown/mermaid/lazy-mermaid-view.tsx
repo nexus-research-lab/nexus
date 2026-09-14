@@ -12,6 +12,8 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
+import { getMermaidContainerClassName } from "./mermaid-view-layout";
+
 import { type MermaidViewProps } from "./mermaid-view";
 
 const LazyMermaidViewInner = lazy(async () => {
@@ -30,7 +32,7 @@ function MermaidViewLoadingFallback({
     <div
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
-        compact ? "my-2 max-h-[360px]" : constrainHeight ? "my-3 max-h-[460px]" : "min-h-0",
+        getMermaidContainerClassName(compact, constrainHeight),
         className,
       )}
     >

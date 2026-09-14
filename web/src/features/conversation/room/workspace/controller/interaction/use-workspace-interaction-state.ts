@@ -1,3 +1,6 @@
+// INPUT: Workspace scope、上传 input、目录焦点与用户原生交互事件。
+// OUTPUT: 按 scope 隔离的菜单调用点/DOM 锚点、Prompt、删除和上传状态。
+// POS: Workspace 本地交互适配；只记录调用身份，菜单尺寸与视口边界由 UI owner 处理。
 import { useCallback, type MouseEvent, type RefObject } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
@@ -5,7 +8,6 @@ import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import {
   createWorkspacePrompt,
-  resolveWorkspaceMenuPosition,
   type WorkspaceContextMenuState,
   type WorkspacePromptState,
 } from "./workspace-interaction-model";
@@ -17,6 +19,7 @@ interface UseWorkspaceInteractionStateOptions {
 }
 
 const CLOSED_CONTEXT_MENU: WorkspaceContextMenuState = {
+  anchor: null,
   entry: null,
   position: null,
 };
@@ -58,11 +61,10 @@ export function useWorkspaceInteractionState({
     event: MouseEvent,
     entry: WorkspaceFileEntry,
   ) => {
-    setContextMenu({ entry, position: getMenuPosition(event, entry) });
+    setContextMenu(getContextMenuState(event, entry));
   }, [setContextMenu]);
   const openRootContextMenu = useCallback((event: MouseEvent) => {
-    event.preventDefault();
-    setContextMenu({ entry: null, position: getMenuPosition(event, null) });
+    setContextMenu(getContextMenuState(event, null));
   }, [setContextMenu]);
   const closeContextMenu = useCallback(() => {
     setContextMenu(CLOSED_CONTEXT_MENU);
@@ -95,13 +97,16 @@ export function useWorkspaceInteractionState({
   };
 }
 
-function getMenuPosition(
-  event: MouseEvent,
-  entry: WorkspaceFileEntry | null,
-): { x: number; y: number } {
-  return resolveWorkspaceMenuPosition(
-    { x: event.clientX, y: event.clientY },
-    { height: window.innerHeight, width: window.innerWidth },
+function getContextMenuState(event: MouseEvent, entry: WorkspaceFileEntry | null): WorkspaceContextMenuState {
+  event.preventDefault();
+  const anchor = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
+  const rect = anchor?.getBoundingClientRect();
+  const keyboardInvocation = event.button !== 2 && event.clientX === 0 && event.clientY === 0;
+  return {
+    anchor,
     entry,
-  );
+    position: keyboardInvocation && rect
+      ? { x: rect.left, y: rect.bottom }
+      : { x: event.clientX, y: event.clientY },
+  };
 }

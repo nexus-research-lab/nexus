@@ -1,5 +1,5 @@
 // INPUT: 同一 owner 的一个或多个个人微信账号 runtime 与精确 account_id 投递目标。
-// OUTPUT: 多账号生命周期、动态就绪聚合、热接管和精确账号路由。
+// OUTPUT: 多账号生命周期、动态就绪聚合、同步当前入口凭证的热接管和精确账号路由。
 // POS: 个人微信多账号组合适配器。
 package adapters
 
@@ -81,7 +81,9 @@ func (c *PersonalWeixinMultiAccountChannel) Stop(ctx context.Context) error {
 }
 
 func (c *PersonalWeixinMultiAccountChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
-	for _, account := range c.snapshotAccounts() {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, account := range c.accounts {
 		account.SetIngress(ingress)
 	}
 }
@@ -104,6 +106,8 @@ func (c *PersonalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced channe
 			staleOld = append(staleOld, account)
 			continue
 		}
+		// 复用连接时同步新一代入口，避免旧凭证在 Router 发布后被撤销。
+		account.SetIngress(current.currentIngress())
 		c.accounts[key] = account
 		replacedCandidates = append(replacedCandidates, current)
 		adopted = true

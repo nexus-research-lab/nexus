@@ -1,5 +1,5 @@
 // INPUT: exact Agent、文件类型及已加载正文。
-// OUTPUT: 绑定文件归属的 Markdown 预览或对应文本渲染器。
+// OUTPUT: 共享加载、绑定文件归属的 Markdown/专用渲染器与共享源码度量的纯文本。
 // POS: Workspace 文本预览消费侧；文件资源经窄能力注入共享 Markdown。
 import {
   lazy,
@@ -8,11 +8,13 @@ import {
 } from "react";
 
 import { useWorkspaceMarkdown } from "@/hooks/agent/use-workspace-markdown";
-
+import { cn } from "@/shared/ui/class-name";
+import { UI_SOURCE_TEXT_CLASS_NAME } from "@/shared/ui/form/source-text-styles";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { LazyMermaidView } from "@/shared/ui/markdown/mermaid/lazy-mermaid-view";
 
 import { HtmlFilePreview } from "../media/html-file-preview";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import {
   getWorkspaceFileCodeLanguage,
   type WorkspaceFilePreviewKind,
@@ -66,7 +68,7 @@ function HtmlContent({ content, fileName, isStreaming }: TextRendererProps) {
 
 function PlainTextContent({ content }: TextRendererProps) {
   return (
-    <pre className="message-code-font min-h-full whitespace-pre-wrap break-words text-sm leading-[1.6] text-(--text-strong)">
+    <pre className={cn("min-h-full whitespace-pre-wrap break-words text-(--text-strong)", UI_SOURCE_TEXT_CLASS_NAME)}>
       {content}
     </pre>
   );
@@ -117,11 +119,7 @@ export function TextFileContent({
   isStreaming,
 }: TextFileContentProps) {
   if (isLoading) {
-    return (
-      <div className="font-mono text-sm leading-6 text-(--text-muted)">
-        加载中...
-      </div>
-    );
+    return <WorkspaceFilePreviewLoading className="h-full" />;
   }
   const Renderer = fileType === "text"
     ? SourceCodeContent

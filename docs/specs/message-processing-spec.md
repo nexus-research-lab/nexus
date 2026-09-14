@@ -63,7 +63,8 @@
 - 前端通过 WebSocket `chat` 发起一轮执行
 - 后端创建 / 复用 runtime client
 - runtime 返回 stream / durable message / round status
-- `chat_ack` 与用户 `input_queue enqueue` 的受理 ACK 共用 10 秒上限（常量 `protocol.RequestAckTimeoutMS`）
+- 普通请求的受理 ACK 使用 10 秒等待窗口（常量 `protocol.RequestAckTimeoutMS`），覆盖 `chat_ack`、`input_queue_ack` 与 `interrupt_ack`；独立 `set_goal` 保留 20 秒窗口，覆盖后端 15 秒 detached command deadline。
+- ACK 超时只触发只读对账，不强制关闭仍处于 connected 的 Socket；连接失活由心跳检测，已断开或耗尽重试的连接才主动恢复。不得通过重发消息来延长等待。
 - `client_request_id` 标识一次传输尝试；`client_message_id` 标识同一条逻辑输入，ACK 未知后重试必须复用后者
 - `input_queue` 快照只表达共享队列当前状态，不能充当请求回执；后端完成持久化后必须向请求连接单播 `input_queue_ack`
 - ACK 超时表示“后端受理状态未知”，前端必须保留输入并允许用同一 `client_message_id` 重试，不能把超时当作已确认失败后直接清空草稿
@@ -117,6 +118,8 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
 ### 3.3 内容块兼容
 
+- `workspace_file_artifact` 的 `role=working_file` 表示 Write/Edit 文件变更，`role=deliverable` 表示显式交付或专用图片工具输出；旧记录缺省 role 时保留既有文件证据。任意 Skill/脚本生成的交付通过 `nexus.deliver_files` 登记，模型只提交当前 workspace 文件 paths，宿主整批校验 owner/Agent 和 confined-fd 普通文件，拒绝缺失、目录、越界、符号链接或受保护路径；这证明文件可交付，不把存在性或修改时间伪装成创建者的文件系统证据。产出归属是本轮 Agent 的显式声明，宿主绑定 `producer_agent_id` 与 `source_agent_round_id`，只接受精确工具身份及匹配当前 Agent/round 的成功回执，并随来源 assistant 消息持久化。`workspace_agent_id` 独立表示打开文件的位置，不允许模型指定其他 Agent 的身份。公开性继承原消息，不因登记文件跨私域广播。
+- 只有文件而没有正文的交付仍须展示。DM/Thread/Room 从同一回复 direct/process/final 投影统一提取交付并在回复尾部去重展示；隐藏工具过程不得隐藏交付，working_file 不进入生成文件列表。其他 Agent 的产物不能归入当前回复；转述仅保留引用，不改变产出者。正文 Markdown、目录缓存、Bash 日志及修改时间不能生成或覆盖交付记录；历史无记录的脚本产物不做推测回填。文件卡仍指向当前文件，不承诺不可变内容快照。
 - 已知内容块按协议类型显式解码，不靠全局字段改名。
 - Claude Code 的 `server_tool_use` / `web_search_tool_result` 等块保留原始 `source_type`，同时投影到 Nexus 现有工具渲染模型。
 - 新版本 runtime 发来未知或字段不完整的内容块时，前端保留原始类型和 payload，并安全隐藏；单个未知块不能让整条消息解析失败或让会话停止。
@@ -136,6 +139,7 @@ round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 - transcript 保存 agent 私有正文历史
 - overlay 只保存 Nexus 自己补的语义；允许用同 `message_id` 保存不改写正文的 assistant 补充快照
 - Goal 完成收据作为 Nexus 补充语义写入同 `message_id` 的 overlay assistant 快照，并在 compact 后合并回 transcript assistant
+- runtime 在 user 落盘前提取隐藏 Goal reminder 后，transcript 可只留下空白 user。历史投影与 rewrite/fork 必须共用轮次边界识别：只有与隐藏 Goal continuation marker 唯一匹配的空白输入才建立续跑轮次，普通空白、缺少有效时间或匹配冲突不得消耗可见用户 marker。隐藏输入不展示，但后续 assistant、result 和完成收据必须保留续跑身份，不能继承上一条真实问题的轮次；投影版本升级后重建派生索引。
 - transcript 与 overlay 的职责必须严格分开，禁止混用
 
 ### 4.2 overlay 里保存什么

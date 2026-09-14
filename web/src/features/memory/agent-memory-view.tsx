@@ -2,16 +2,15 @@
 
 /**
  * INPUT: 当前 Agent、owner-scoped Memory 目录和 path-scoped 删除恢复状态。
- * OUTPUT: 目录/正文工作面、删除确认及持久 Problem / Impact / Recovery。
+ * OUTPUT: 目录/正文工作面、具名加载状态、删除确认及持久 Problem / Impact / Recovery。
  * POS: Memory 页面装配层；删除结果分类和对账归 Catalog 控制器。
  */
 import { useEffect } from "react";
-import { LoaderCircle, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import type { Agent } from "@/types/agent/agent";
 
 import { AgentMemoryCatalog } from "./catalog/agent-memory-catalog";
@@ -101,11 +100,8 @@ function MemoryContent({
   }
   if (memory.resource.isLoading && !memory.resource.snapshot) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center text-(--text-muted)">
-        <LoaderCircle
-          className={getUiSpinnerClassName({ size: "lg", tone: "muted" })}
-        />
-      </div>
+      <UiResourceState className="min-h-0 flex-1" size="sm" state="loading"
+        title={t("common.loading")} variant="plain" />
     );
   }
   if (memory.resource.error && !memory.resource.snapshot) {

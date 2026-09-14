@@ -49,7 +49,7 @@ function isRoomThreadMessage(
     return false;
   }
   if (message.role === "system") {
-    return ["guided_input", "memory_saved"].includes(
+    return ["guided_input", "memory_saved", "permission_review"].includes(
       message.metadata?.subtype ?? "",
     );
   }

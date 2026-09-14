@@ -99,3 +99,114 @@ func (s *Service) sessionDomainValues(
 		fmt.Sprintf("已核对 %d 个 owner workspace Agent session；Room conversation 已排除", len(views)),
 	)}, 0, scope, nil
 }
+
+func validateSessionsChange(request ChangeRequest) error {
+	switch request.Operation {
+	case "update_title":
+		if err := request.requireTarget(); err != nil {
+			return err
+		}
+		return request.decodeInput(&sessionTitleInput{})
+	case "delete":
+		if err := request.requireTarget(); err != nil {
+			return err
+		}
+		return request.decodeInput(&struct{}{})
+	default:
+		return unsupportedChange(request)
+	}
+}
+
+func (s *Service) executeSessionsChange(ctx context.Context, actor *resolvedActor, request ChangeRequest, stateVersion int64) (any, error) {
+	switch request.Operation {
+	case "update_title":
+		if s.sessions == nil {
+			return nil, errors.New("Sessions 配置服务未装配")
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("Session 标题更新缺少 configuration_version；请重新 plan")
+		}
+		var input sessionTitleInput
+		if err := request.decodeAppliedInput(&input); err != nil {
+			return nil, err
+		}
+		updated, err := s.sessions.UpdateSessionTitleAtVersion(
+			ctx,
+			request.Target,
+			input.Title,
+			stateVersion,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if updated == nil {
+			return nil, errors.New("Session 标题更新未返回可核验结果")
+		}
+		return safeSessionTitleChangeResult(*updated), nil
+	case "delete":
+		if s.sessions == nil {
+			return nil, errors.New("Sessions 配置服务未装配")
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("Session 删除缺少 configuration_version；请重新 plan")
+		}
+		err := s.sessions.DeleteSessionAtVersion(ctx, request.Target, stateVersion)
+		return map[string]any{
+			"session_key": request.Target,
+			"deleted":     err == nil || sessionsvc.SessionDeletionCommitted(err),
+		}, err
+	default:
+		return nil, unsupportedChange(request)
+	}
+}
+
+func (s *Service) verifySessionTitleChange(
+	ctx context.Context,
+	request ChangeRequest,
+) (Check, error) {
+	var input sessionTitleInput
+	if err := strictDecodeJSON(request.Input, &input); err != nil {
+		return Check{}, err
+	}
+	expectedTitle := strings.TrimSpace(input.Title)
+	if expectedTitle == "" {
+		expectedTitle = "New Chat"
+	}
+	item, err := s.sessions.GetMutableSession(ctx, request.Target)
+	if err != nil {
+		return Check{}, fmt.Errorf("重新读取 Session: %w", err)
+	}
+	actualTitle := ""
+	if item != nil {
+		actualTitle = strings.TrimSpace(item.Title)
+	}
+	if item == nil || actualTitle != expectedTitle {
+		return Check{}, fmt.Errorf(
+			"Session 标题写后不一致：expected=%q actual=%q",
+			expectedTitle,
+			actualTitle,
+		)
+	}
+	return Check{
+		Code: "session_title_verified", Status: "ok",
+		Message: "已从 owner workspace 重新读取 Session，并核对标题与计划一致",
+		Domain:  DomainSessions, Target: request.Target, Verified: true,
+	}, nil
+}
+
+type sessionTitleInput struct {
+	Title string `json:"title"`
+}
+
+func (s *Service) verifyDeletedSessions(ctx context.Context, actor *resolvedActor, request ChangeRequest) error {
+	if s.sessions == nil {
+		return errors.New("Sessions 配置服务未装配")
+	}
+	if _, err := s.sessions.GetMutableSession(ctx, request.Target); err == nil {
+		return fmt.Errorf("Session %s 删除后仍存在", request.Target)
+	} else if !errors.Is(err, sessionsvc.ErrSessionNotFound) {
+		return fmt.Errorf("核对已删除 Session: %w", err)
+	}
+
+	return nil
+}

@@ -1,18 +1,19 @@
 // INPUT: Room 子智能体来源、成员筛选、精确任务请求与关闭命令。
-// OUTPUT: 使用语义 dialog 层和稳定纵向骨架的窄窗子智能体表面。
+// OUTPUT: 通过统一窄窗外壳挂载具名任务模态，空 source 不挂载。
 // POS: Room 窄窗子智能体挂载点；不拥有列表、任务详情或读取状态。
 
-import { cn } from "@/shared/ui/class-name";
-import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
+import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { RoomSubagentTaskSurface } from "../room-subagent-task-surface";
+import { RoomMobileOverlayFrame } from "./room-mobile-overlay-frame";
 
 interface RoomMobileSubagentOverlayProps {
   currentAgentId: string;
   onClose: () => void;
-  onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  onOpenWorkspaceFile?: WorkspaceFileOpenHandler;
   requestKey?: number;
   requestedHostAgentId?: string | null;
   requestedTaskToolUseId?: string | null;
@@ -30,15 +31,13 @@ export function RoomMobileSubagentOverlay({
   roomMembers,
   source,
 }: RoomMobileSubagentOverlayProps) {
+  const { t } = useI18n();
   if (!source) {
     return null;
   }
 
   return (
-    <div className={cn(
-      "fixed inset-0 flex min-h-0 flex-col [background:var(--surface-popover-background)] backdrop-blur-2xl",
-      getUiOverlayLayerClassName("dialog"),
-    )}>
+    <RoomMobileOverlayFrame label={t("subagents.panel_title")} onClose={onClose}>
       <RoomSubagentTaskSurface
         currentAgentId={currentAgentId}
         layout="mobile"
@@ -50,6 +49,6 @@ export function RoomMobileSubagentOverlay({
         roomMembers={roomMembers}
         source={source}
       />
-    </div>
+    </RoomMobileOverlayFrame>
   );
 }

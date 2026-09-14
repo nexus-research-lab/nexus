@@ -1,5 +1,5 @@
 // INPUT: Origin-checked, schema-versioned requests from the embedded Nexus web UI.
-// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// OUTPUT: Native results and log exports including host and local-owner runtime diagnostics, or safe failures.
 // POS: macOS web/native trust boundary and the only rejection path visible to the embedded UI.
 
 import AppKit
@@ -16,6 +16,7 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
   private let updateStarter: () -> String
+  private var pendingAttentionCount = 0
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -39,6 +40,21 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
 
   func attach(webView: WKWebView) {
     self.webView = webView
+    for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
+                 NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(updateAttention), name: name, object: nil)
+    }
+  }
+
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+    NSApp.dockTile.badgeLabel = nil
+  }
+
+  @objc private func updateAttention() {
+    // 由原生生命周期判断后台状态，最小化后不依赖网页的可见性计时器。
+    let background = !NSApp.isActive || webView?.window?.isMiniaturized == true
+    NSApp.dockTile.badgeLabel = pendingAttentionCount > 0 && background ? String(pendingAttentionCount) : nil
   }
 
   func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -86,6 +102,12 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         "build_number": runtime.buildNumber,
         "platform": runtime.platform,
       ]
+    case "app.set_attention":
+      pendingAttentionCount = max(0, (request.payload["count"] as? Int) ?? 0)
+      updateAttention()
+      return ["updated": true]
+    case "app.get_system_fonts":
+      return ["families": NSFontManager.shared.availableFontFamilies.sorted()]
     case "app.get_state_root":
       var payload = DesktopStateRootStore.statusPayload()
       if payload["migration_error"] != nil {
@@ -288,14 +310,7 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     let staging = tempRoot.appendingPathComponent("NexusLogs", isDirectory: true)
     try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
 
-    let logsDirectory = DesktopDiagnosticsReport.logsDirectory()
-    if fileManager.fileExists(atPath: logsDirectory.path) {
-      try fileManager.copyItem(at: logsDirectory, to: staging.appendingPathComponent("Logs", isDirectory: true))
-    }
-    let debugDirectory = DesktopPaths.debugDirectory
-    if fileManager.fileExists(atPath: debugDirectory.path) {
-      try fileManager.copyItem(at: debugDirectory, to: staging.appendingPathComponent("Debug", isDirectory: true))
-    }
+    try Self.stageLogDirectories(stateRoot: DesktopPaths.rootDirectory, staging: staging)
     try DesktopDiagnosticsReport.make(
       runtime: runtime,
       reason: "manual_log_export",
@@ -317,6 +332,23 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       throw DesktopBridgeError.archiveFailed
     }
     return archiveURL
+  }
+
+  // Runtime diagnostics live under the local owner, independently of host logs.
+  static func stageLogDirectories(stateRoot: URL, staging: URL) throws {
+    let fileManager = FileManager.default
+    let directories = [
+      ("app/logs", "Logs"),
+      ("app/debug", "Debug"),
+      ("users/__system__/runtime/logs", "RuntimeLogs"),
+      ("users/__system__/runtime/debug", "RuntimeDebug"),
+    ]
+    for (source, destination) in directories {
+      let sourceURL = stateRoot.appendingPathComponent(source, isDirectory: true)
+      if fileManager.fileExists(atPath: sourceURL.path) {
+        try fileManager.copyItem(at: sourceURL, to: staging.appendingPathComponent(destination, isDirectory: true))
+      }
+    }
   }
 
   private func resolve(requestID: String, payload: [String: Any]) {

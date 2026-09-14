@@ -1,5 +1,5 @@
 // INPUT: SDK transcript chain、Nexus round marker 与会话标识。
-// OUTPUT: 带稳定 root/source round 身份的 Nexus 历史消息。
+// OUTPUT: 带稳定 root/source round 身份、保留空白 Goal 续跑边界的 Nexus 历史消息。
 // POS: DM transcript 到产品历史的唯一投影入口。
 package workspace
 
@@ -99,13 +99,15 @@ func projectTranscriptChainWithFilter(
 				projected = append(projected, stampTranscriptDurableMessages(output.DurableMessages, entryTimestamp)...)
 				continue
 			}
-			// 中文注释：runtime transcript 会夹杂一类“空 user turn”，
-			// 它们不是前端真实输入，不能消费 Nexus 的 round marker。
-			// 否则后续真实 assistant 会挂错 round，result 也就无法并回同一轮。
-			if !shouldMaterializeTranscriptUserTurn(entry.Data) {
+			if !shouldAlignTranscriptUserTurn(entry.Data) {
 				continue
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
+			// 普通空输入不建立轮次；匹配隐藏 Goal marker 的空输入必须先切换
+			// processor，避免成果继承上一次真实用户输入的 round。
+			if !shouldMaterializeTranscriptUserTurn(entry.Data) && !transcriptRoundMarkerPresent(marker) {
+				continue
+			}
 			currentRoundPurpose = firstNonEmpty(
 				strings.TrimSpace(marker.Purpose),
 				stringFromAny(entry.Data["purpose"]),

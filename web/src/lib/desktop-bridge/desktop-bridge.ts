@@ -1,5 +1,7 @@
 type DesktopBridgeKind =
   | "app.get_app_version"
+  | "app.get_system_fonts"
+  | "app.set_attention"
   | "app.get_state_root"
   | "app.choose_state_root"
   | "app.relocate_state_root"
@@ -222,4 +224,20 @@ async function invokeDesktopBridge<TPayload, TResult>(
     kind,
     payload,
   });
+}
+
+export function getDesktopSystemFonts(): Promise<{ families: string[] }> {
+  return invokeDesktopBridge("app.get_system_fonts", {});
+}
+
+/** 多个会话共用一个窗口，只有最后一项待确认清除后才停止提醒。 */
+const attentionSources = new Map<symbol, number>();
+
+export function setDesktopAttention(source: symbol, count: number): void {
+  if (Number.isSafeInteger(count) && count > 0) attentionSources.set(source, count);
+  else attentionSources.delete(source);
+  if (!isDesktopBridgeAvailable()) return;
+  const pendingCount = [...attentionSources.values()].reduce((total, value) => total + value, 0);
+  void invokeDesktopBridge("app.set_attention", { count: pendingCount })
+    .catch((error: unknown) => console.warn("Desktop attention failed", error));
 }

@@ -1,5 +1,5 @@
 // INPUT: Schema-versioned requests from the embedded Nexus web UI.
-// OUTPUT: Native operation results or operation-specific safe failures; raw causes stay in diagnostics.
+// OUTPUT: Native results and log exports including host and local-owner runtime diagnostics, or safe failures.
 // POS: Windows web/native trust boundary and the only rejection path visible to the embedded UI.
 
 using System.ComponentModel;
@@ -63,6 +63,12 @@ internal sealed class DesktopBridgeHandler
                     build_number = runtime.BuildNumber,
                     platform = runtime.Platform,
                 },
+                "app.get_system_fonts" => new
+                {
+                    families = System.Windows.Media.Fonts.SystemFontFamilies
+                        .Select(font => font.Source).Distinct().OrderBy(name => name).ToArray(),
+                },
+                "app.set_attention" => SetAttention(payload),
                 "app.get_state_root" => SafeStateRootStatus(),
                 "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
@@ -491,6 +497,8 @@ internal sealed class DesktopBridgeHandler
         using ZipArchive archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         AddDirectoryToArchive(archive, DesktopPaths.LogsDirectory, "logs");
         AddDirectoryToArchive(archive, DesktopPaths.DebugDirectory, "debug");
+        AddDirectoryToArchive(archive, DesktopPaths.SystemRuntimeLogsDirectory, "runtime-logs");
+        AddDirectoryToArchive(archive, Path.Combine(DesktopPaths.SystemRuntimeDirectory, "debug"), "runtime-debug");
         ZipArchiveEntry runtimeEntry = archive.CreateEntry("desktop-runtime.txt");
         using (StreamWriter writer = new(runtimeEntry.Open()))
         {
@@ -536,6 +544,19 @@ internal sealed class DesktopBridgeHandler
 
         await openRoute(route);
         return new { opened = true };
+    }
+
+    private static object SetAttention(JsonElement payload)
+    {
+        bool pending = payload.TryGetProperty("payload", out JsonElement body)
+            && body.TryGetProperty("count", out JsonElement value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetInt32(out int count) && count > 0;
+        if (System.Windows.Application.Current?.MainWindow is Nexus.Desktop.Window.MainWindow window)
+        {
+            window.SetNeedsAttention(pending);
+        }
+        return new { updated = true };
     }
 
     private static string StringPayload(JsonElement payload, string name)

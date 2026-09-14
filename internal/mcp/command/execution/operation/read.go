@@ -1,6 +1,6 @@
 // INPUT: 可选 explicit Execution id 与 session-bound actor identity。
 // OUTPUT: current/explicit 权威状态的紧凑 actor-specific context；Room 成员得到共享图只读投影，verified current coordinator 同时进入当前 physical round 的临时 coordination scope。
-// POS: 十二工具集合中的显式恢复/协调入口；成员读取不授予 capability，coordinator 读取会建立 round-local capability，因此不能标记 ReadOnly。
+// POS: execution action=inspect 的显式恢复/协调入口；成员及历史读取不授予 capability，当前 coordinator 读取建立 round-local capability，因此不能标记 ReadOnly。
 package operation
 
 import (
@@ -17,7 +17,7 @@ func getExecution(svc contract.Service, sctx contract.Context) command.Operation
 	return command.Operation{
 		Name: "get_execution",
 		Description: "Read the compact authoritative actor-specific view of the current Execution, or one explicit Execution by id. " +
-			"Verified Room members receive a shared graph observation with no assignment, review, submission, plan mutation, or coordination authority. Bound actors keep their scoped responsibility view. For the verified coordinator of the current WorkGraph, this explicit call also enters that physical round's temporary coordination scope; it does not mutate the durable graph.",
+			"Verified Room members receive a shared graph observation with no assignment, review, submission, plan mutation, or coordination authority. Bound actors keep their scoped responsibility view. For the verified coordinator of the current WorkGraph, this explicit call also enters that physical round's temporary coordination scope; it does not mutate the durable graph. Historical reads do not grant coordination. There is no user-facing coordination mode switch. execution_context is XML text; read its lane and allowed_actions before mutation.",
 		SearchHint:  "execution status work item assignment dependency review blocker",
 		InputSchema: getExecutionSchema(),
 		ContextHandler: func(

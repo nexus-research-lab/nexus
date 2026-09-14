@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
@@ -15,7 +16,7 @@ type externalSessionRoomResyncBroadcaster interface {
 }
 
 func configureExternalSessionNotifier(
-	services *AppServices,
+	services *app.AppServices,
 	broadcaster externalSessionRoomResyncBroadcaster,
 	logger *slog.Logger,
 ) {

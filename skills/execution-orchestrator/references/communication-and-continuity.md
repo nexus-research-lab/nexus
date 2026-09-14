@@ -28,7 +28,7 @@ Lead 应从任务实际结构判断是否需要持久成员责任，而不是检
 
 只想聊天、brainstorm、投票或获取一次性帮助时，直接使用普通消息和 `@`，不要创建 WorkGraph。成员名后的空格只影响可读性，后端会按已知别名匹配；不要依赖 mention 文本伪造 binding。
 
-父 Agent 与 Subagent 之间遵循同样原则：父 Agent 下发边界和已有证据，子 Agent 返回局部结果，父 Agent 负责整合与最终提交。
+父子任务的启动与消息操作见 [subagents.md](subagents.md)。父 Agent 与 Subagent 之间遵循同样原则：父 Agent 下发边界和已有证据，子 Agent 返回局部结果，父 Agent 负责整合与最终提交。
 
 子智能体不要求先创建 WorkGraph。存在唯一可信 Assignment 与 runtime correlation 时，后端会自动把它记为 managed child Attempt；普通对话、局部探索或无法唯一挂接时仍可由 Agent 自主调用，只作为 runtime-only 子图出现，不冒充正式交付证据。是否调用、并行几个以及何时整合由 Agent 根据上下文隔离价值决定，Hook 不用 Plan 形状替 Agent 做选择。
 

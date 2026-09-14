@@ -241,6 +241,8 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 		Token:     "token-1",
 		AccountID: "account-1",
 	}, client)
+	oldIngress := &recordingPersonalWeixinIngress{}
+	accountOne.SetIngress(oldIngress)
 	if err := accountOne.Start(runCtx); err != nil {
 		t.Fatalf("启动第一个个人微信账号失败: %v", err)
 	}
@@ -257,13 +259,34 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 			AccountID: "account-2",
 		}, client),
 	})
-	if !replacement.AdoptReplacedChannel(accountOne) {
-		t.Fatal("多账号个人微信应接管同账号的已运行 channel")
-	}
+	newIngress := &recordingPersonalWeixinIngress{}
+	replacement.SetIngress(newIngress)
 	if err := replacement.Start(runCtx); err != nil {
 		t.Fatalf("启动多账号个人微信 channel 失败: %v", err)
 	}
 	defer replacement.Stop(context.Background())
+	if !replacement.AdoptReplacedChannel(accountOne) {
+		t.Fatal("多账号个人微信应接管同账号的已运行 channel")
+	}
+	for _, id := range []string{"account-1", "account-2"} {
+		account := replacement.snapshotAccountMap()[id]
+		account.handleMessage(context.Background(), personalWeixinMessage{
+			FromUserID:  "wx-user",
+			MessageType: personalWeixinMessageTypeUser,
+			ItemList: []personalWeixinMessageItem{{
+				Type:     personalWeixinItemTypeText,
+				TextItem: personalWeixinTextItem{Text: "检查任务"},
+			}},
+		})
+	}
+	if len(oldIngress.requests) != 0 {
+		t.Fatalf("接管后的账号仍使用旧入口: %+v", oldIngress.requests)
+	}
+	if len(newIngress.requests) != 2 ||
+		newIngress.requests[0].AccountID != "account-1" ||
+		newIngress.requests[1].AccountID != "account-2" {
+		t.Fatalf("两个账号应通过新入口提交消息: %+v", newIngress.requests)
+	}
 
 	accountOne.mu.RLock()
 	accountOneStillRunning := accountOne.cancel != nil

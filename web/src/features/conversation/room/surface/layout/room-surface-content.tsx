@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 桌面 Room 会话、任务快照、右栏状态与页面命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并提供常驻的工作图右栏入口与无图空态。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，组合常驻右栏并转交鼠标/键盘宽度命令。
  * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
@@ -61,6 +61,7 @@ export function RoomSurfaceContent({
   onSaveAgentOptions,
   onSelectConversation,
   onStartSidePanelResize,
+  onSidePanelWidthChange,
   onTodosChange,
   onUpdateConversationTitle,
   onValidateAgentName,
@@ -206,6 +207,7 @@ export function RoomSurfaceContent({
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
                 onSaveAgentOptions={onSaveAgentOptions}
                 onStartSidePanelResize={onStartSidePanelResize}
+                onSidePanelWidthChange={onSidePanelWidthChange}
                 onValidateAgentName={onValidateAgentName}
                 roomId={roomId}
                 roomMembers={roomMembers}
@@ -218,6 +220,7 @@ export function RoomSurfaceContent({
                 className="hidden lg:flex"
                 sidePanelWidthPercent={sidePanelWidthPercent}
                 onStartSidePanelResize={onStartSidePanelResize}
+                onSidePanelWidthChange={onSidePanelWidthChange}
               />
             ) : null}
           </div>

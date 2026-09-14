@@ -4,7 +4,10 @@
 package configuration_test
 
 import (
+	"context"
 	"encoding/json"
+	"slices"
+	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -95,6 +98,12 @@ INSERT INTO im_channel_accounts (
 	}
 	if !result.Applied || !notifier.hasAgent(worker.AgentID) {
 		t.Fatalf("Agent 删除应成功并通知目录失效: result=%+v notified=%v", result, notifier.hasAgent(worker.AgentID))
+	}
+	if !hasConfigurationCheck(result.Checks, "configuration_target_deleted") {
+		t.Fatalf("Agent 删除缺少写后不存在证明: %+v", result)
+	}
+	if _, err = fixture.services.Core.Agent.GetAgent(fixture.ownerCtx, worker.AgentID); err == nil {
+		t.Fatal("Agent 删除后目标仍存在")
 	}
 	if fixture.services.Channels.GetForOwner(worker.OwnerUserID, channels.ChannelTypeTelegram) != nil {
 		t.Fatal("Agent 删除后 Channel runtime 仍存在")
@@ -221,4 +230,25 @@ func TestChannelSecretOnlyRotationInvalidatesConversationalPlan(t *testing.T) {
 	if err != nil || version != currentPlan.StateVersion {
 		t.Fatalf("失败旧 plan 不得推进 version: version=%d current=%d err=%v", version, currentPlan.StateVersion, err)
 	}
+}
+
+type recordingConfigurationNotifier struct {
+	mu       sync.Mutex
+	agentIDs []string
+}
+
+func (n *recordingConfigurationNotifier) AgentChanged(_ context.Context, agentID, _ string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.agentIDs = append(n.agentIDs, agentID)
+}
+
+func (*recordingConfigurationNotifier) RoomChanged(context.Context, string, string, string) {}
+
+func (*recordingConfigurationNotifier) RoomMemberChanged(context.Context, string, string, bool) {}
+
+func (n *recordingConfigurationNotifier) hasAgent(agentID string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return slices.Contains(n.agentIDs, agentID)
 }

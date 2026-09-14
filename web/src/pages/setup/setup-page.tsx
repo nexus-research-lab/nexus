@@ -4,7 +4,7 @@
 "use client";
 
 import { ArrowRight, CheckCircle2, KeyRound, ServerCog } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { AccessPageFrame, AccessPageIntroduction } from "@/features/access/access-page-frame";
@@ -41,6 +41,8 @@ const INITIAL_DRAFT: SetupDraft = {
 export function SetupPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const fieldId = useId();
+  const submittingRef = useRef(false);
   const { isBootstrapped, refreshStatus, status } = useAuth();
   const [draft, setDraft] = useState(INITIAL_DRAFT);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,9 +87,10 @@ export function SetupPage() {
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (validationKey) {
+    if (validationKey || submittingRef.current) {
       return;
     }
+    submittingRef.current = true;
     setIsSubmitting(true);
     setFailure(false);
     try {
@@ -102,7 +105,7 @@ export function SetupPage() {
       navigate(APP_ROUTE_PATHS.launcher, { replace: true });
     } catch {
       setFailure(true);
-      void refreshStatus()
+      await refreshStatus()
         .then((nextStatus) => {
           if (!nextStatus.setup_required) {
             navigate(
@@ -113,6 +116,7 @@ export function SetupPage() {
         })
         .catch(() => undefined);
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -131,66 +135,68 @@ export function SetupPage() {
         </div>
       </AccessPageIntroduction>
     }>
-      <UiPanel aria-labelledby="nexus-setup-title" className="w-full" padding="lg" radius="lg" variant="filled">
+      <UiPanel aria-labelledby={`${fieldId}-title`} className="w-full" padding="lg" radius="lg" variant="filled">
         <div className="flex items-start justify-between gap-5">
           <div>
             <div className={cn("inline-flex items-center gap-2", getUiTypographyClassName({ role: "caption", tone: "muted", weight: "semibold" }))}>
               <ServerCog className="h-4 w-4 text-(--brand)" />
               {t("setup.form_eyebrow")}
             </div>
-            <h2 id="nexus-setup-title" className={cn("mt-3", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>{t("setup.form_title")}</h2>
+            <h2 id={`${fieldId}-title`} className={cn("mt-3", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>{t("setup.form_title")}</h2>
           </div>
           <KeyRound className="h-6 w-6 text-(--icon-muted)" />
         </div>
 
-        <form className="mt-6 space-y-4" onSubmit={submit}>
-          <UiField htmlFor="setup-capability" label={t("setup.capability")} required>
-            <UiInput
-              autoComplete="off"
-              id="setup-capability"
-              minLength={32}
-              onChange={(event) => setField("setupToken", event.target.value)}
-              required
-              type="password"
-              value={draft.setupToken}
-              variant="surface"
-            />
-          </UiField>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <UiField htmlFor="setup-deployment" label={t("setup.deployment_name")} required>
-              <UiInput id="setup-deployment" maxLength={128} onChange={(event) => setField("deploymentName", event.target.value)} required value={draft.deploymentName} variant="surface" />
+        <form aria-busy={isSubmitting} className="mt-6" onSubmit={submit}>
+          <fieldset className="m-0 min-w-0 space-y-4 border-0 p-0" disabled={isSubmitting}>
+            <UiField htmlFor={`${fieldId}-capability`} label={t("setup.capability")} required>
+              <UiInput
+                autoComplete="off"
+                id={`${fieldId}-capability`}
+                minLength={32}
+                onChange={(event) => setField("setupToken", event.target.value)}
+                required
+                type="password"
+                value={draft.setupToken}
+                variant="surface"
+              />
             </UiField>
-            <UiField htmlFor="setup-username" label={t("login.username")} required>
-              <UiInput autoComplete="username" id="setup-username" maxLength={64} minLength={3} onChange={(event) => setField("username", event.target.value)} pattern="[a-z0-9._-]+" required value={draft.username} variant="surface" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <UiField htmlFor={`${fieldId}-deployment`} label={t("setup.deployment_name")} required>
+                <UiInput id={`${fieldId}-deployment`} maxLength={128} onChange={(event) => setField("deploymentName", event.target.value)} required value={draft.deploymentName} variant="surface" />
+              </UiField>
+              <UiField htmlFor={`${fieldId}-username`} label={t("login.username")} required>
+                <UiInput autoComplete="username" id={`${fieldId}-username`} maxLength={64} minLength={3} onChange={(event) => setField("username", event.target.value)} pattern="[a-z0-9._-]+" required value={draft.username} variant="surface" />
+              </UiField>
+            </div>
+            <UiField htmlFor={`${fieldId}-display-name`} label={t("setup.display_name")} required>
+              <UiInput id={`${fieldId}-display-name`} maxLength={128} onChange={(event) => setField("displayName", event.target.value)} required value={draft.displayName} variant="surface" />
             </UiField>
-          </div>
-          <UiField htmlFor="setup-display-name" label={t("setup.display_name")} required>
-            <UiInput id="setup-display-name" maxLength={128} onChange={(event) => setField("displayName", event.target.value)} required value={draft.displayName} variant="surface" />
-          </UiField>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <UiField htmlFor="setup-password" label={t("setup.password")} required>
-              <UiInput autoComplete="new-password" id="setup-password" minLength={8} onChange={(event) => setField("password", event.target.value)} required type="password" value={draft.password} variant="surface" />
-            </UiField>
-            <UiField htmlFor="setup-confirm-password" label={t("setup.confirm_password")} required>
-              <UiInput autoComplete="new-password" id="setup-confirm-password" minLength={8} onChange={(event) => setField("confirmPassword", event.target.value)} required type="password" value={draft.confirmPassword} variant="surface" />
-            </UiField>
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <UiField htmlFor={`${fieldId}-password`} label={t("setup.password")} required>
+                <UiInput autoComplete="new-password" id={`${fieldId}-password`} minLength={8} onChange={(event) => setField("password", event.target.value)} required type="password" value={draft.password} variant="surface" />
+              </UiField>
+              <UiField htmlFor={`${fieldId}-confirm-password`} label={t("setup.confirm_password")} required>
+                <UiInput autoComplete="new-password" id={`${fieldId}-confirm-password`} minLength={8} onChange={(event) => setField("confirmPassword", event.target.value)} required type="password" value={draft.confirmPassword} variant="surface" />
+              </UiField>
+            </div>
 
-          {validationKey ? <p className={getUiTypographyClassName({ role: "caption", tone: "danger" })}>{t(validationKey)}</p> : null}
-          {failure ? (
-            <UiInlineNotice
-              aria-live="assertive"
-              message={t("setup.failed_description")}
-              role="alert"
-              title={t("setup.failed_title")}
-              tone="danger"
-            />
-          ) : null}
+            {validationKey ? <p className={getUiTypographyClassName({ role: "caption", tone: "danger" })}>{t(validationKey)}</p> : null}
+            {failure ? (
+              <UiInlineNotice
+                aria-live="assertive"
+                message={t("setup.failed_description")}
+                role="alert"
+                title={t("setup.failed_title")}
+                tone="danger"
+              />
+            ) : null}
 
-          <UiButton aria-busy={isSubmitting || undefined} className="w-full" disabled={Boolean(validationKey) || isSubmitting} size="lg" tone="primary" type="submit" variant="solid">
-            {isSubmitting ? t("setup.submitting") : t("setup.submit")}
-            <ArrowRight className="h-4 w-4" />
-          </UiButton>
+            <UiButton aria-busy={isSubmitting || undefined} className="w-full" disabled={Boolean(validationKey) || isSubmitting} size="lg" tone="primary" type="submit" variant="solid">
+              {isSubmitting ? t("setup.submitting") : t("setup.submit")}
+              <ArrowRight className="h-4 w-4" />
+            </UiButton>
+          </fieldset>
         </form>
       </UiPanel>
     </AccessPageFrame>

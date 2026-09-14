@@ -47,6 +47,7 @@ function LauncherRecentEntryChip({
         event.stopPropagation();
         onOpen(model.entry);
       }}
+      className="w-full min-w-0 text-(--text-strong)"
       size="sm"
       variant="text"
     >
@@ -57,7 +58,7 @@ function LauncherRecentEntryChip({
           data-launcher-recent-entry-marker
         />
       ) : null}
-      {model.chipLabel}
+      <span className="truncate">{model.chipLabel}</span>
     </UiButton>
   );
 
@@ -65,18 +66,16 @@ function LauncherRecentEntryChip({
     <FadeSlideIn
       delayMs={getLauncherRecentEntryDelayMs(index)}
       durationMs={360}
-      style={{ display: "inline-flex" }}
+      className="flex min-w-0"
       yOffset={6}
     >
-      <div className="inline-flex">
-        {model.tooltipLabel
-          ? (
-              <UiTooltip label={model.tooltipLabel} placement="bottom">
-                {entryButton}
-              </UiTooltip>
-            )
-          : entryButton}
-      </div>
+      {model.tooltipLabel
+        ? (
+            <UiTooltip label={model.tooltipLabel} placement="bottom">
+              {entryButton}
+            </UiTooltip>
+          )
+        : entryButton}
     </FadeSlideIn>
   );
 }
@@ -100,6 +99,7 @@ export function LauncherRecentEntries({
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}
       className={LauncherRecentEntryLayout.listClassName}
     >
+      <div className={LauncherRecentEntryLayout.rowClassName}>
       {models.map((model, index) => (
         <LauncherRecentEntryChip
           index={index}
@@ -108,6 +108,7 @@ export function LauncherRecentEntries({
           onOpen={onOpen}
         />
       ))}
+      </div>
       <FadeSlideIn
         delayMs={getLauncherHandoffDelayMs(recentEntries.length)}
         durationMs={360}
@@ -122,10 +123,8 @@ export function LauncherRecentEntries({
           tone="primary"
           variant="text"
         >
-          <span className="inline-flex items-center gap-1.5">
-            {handoffLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
+          {handoffLabel}
+          <ArrowRight className="h-3.5 w-3.5" />
         </UiButton>
       </FadeSlideIn>
     </div>

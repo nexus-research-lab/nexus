@@ -1,8 +1,9 @@
 // INPUT: 单个可切换选项的 active/checked/disabled 状态与 size/tone/variant 语义。
-// OUTPUT: 统一的选择按钮，或保留原生 radio 语义的整项选择控件。
+// OUTPUT: 共用焦点/禁用配方的选择按钮，或保留原生 radio 语义的整项选择控件。
 // POS: Choice 原语；不拥有选项集合、业务选择值或提交行为。
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   ButtonHTMLAttributes,
   forwardRef,
@@ -34,7 +35,7 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
   {
     active = false,
     children,
-    choiceSize: choiceSize,
+    choiceSize,
     className,
     disabled,
     muted,
@@ -42,16 +43,17 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
     tone,
     type = "button",
     variant,
-    ...props
+    title,
+  ...props
   },
   ref,
 ) {
-  return (
+  const content = (
     <button
       ref={ref}
       aria-pressed={active}
       className={getUiChoiceClassName(
-        { active, disabled, muted, shape, size: choiceSize, tone, variant },
+        { active, muted, shape, size: choiceSize, tone, variant },
         cn(className),
       )}
       data-active={active}
@@ -63,6 +65,7 @@ export const UiChoiceButton = forwardRef<HTMLButtonElement, UiChoiceButtonProps>
       {children}
     </button>
   );
+  return title ? <UiTooltip label={title} openOnFocus={false}>{content}</UiTooltip> : content;
 });
 
 interface UiRadioChoiceProps extends Omit<
@@ -100,18 +103,13 @@ export const UiRadioChoice = forwardRef<HTMLInputElement, UiRadioChoiceProps>(
         className={getUiChoiceClassName(
           {
             active: checked,
-            disabled,
             muted,
             shape,
             size: choiceSize,
             tone,
             variant,
           },
-          cn(
-            "has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-            disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-            className,
-          ),
+          cn(className),
         )}
         data-active={checked}
         data-disabled={disabled || undefined}

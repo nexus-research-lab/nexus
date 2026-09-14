@@ -124,7 +124,8 @@ principal、runtime session、round、Connector 和配置版本。
 只有 Agent 默认或当前 Session 显式选中的 Connector，才向当前 owner 的 Agent runtime
 挂载能力。支持原生 MCP 的 Provider 直接挂载各自 MCP server；飞书云文档通过独立的
 `nexus_feishu_docx` MCP 暴露带固定 schema 的语义工具；RichMail 在已连接且被明确选择时挂载
-独立 `richmail` HTTP MCP server。宿主不向模型暴露连接列表，也不提供
+独立 `richmail` HTTP MCP server；GitHub 复用当前 owner 的 OAuth access token，以 Bearer Header
+挂载独立 `github` HTTP MCP server（`https://api.githubcopilot.com/mcp/`），无需本机 `gh` 登录。宿主不向模型暴露连接列表，也不提供
 可传入任意 method、path 和 body 的通用 REST 代理。
 
 选中后的工具 schema 不随短暂连接状态消失；未连接、凭据过期或刷新失败会在真实调用时

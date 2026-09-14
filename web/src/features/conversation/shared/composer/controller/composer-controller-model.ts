@@ -17,7 +17,6 @@ interface ComposerViewStateOptions {
   attachmentCount: number;
   attachmentError: string | null;
   canCreateGoal: boolean;
-  canUseLoop: boolean;
   copy: ComposerViewCopy;
   goalCreateBlockedReason: string | null;
   goalError: string | null;
@@ -30,7 +29,6 @@ interface ComposerViewStateOptions {
   isGoalConfirming: boolean;
   isGoalCreating: boolean;
   isLoading: boolean;
-  isLoopPickerOpen: boolean;
   isPreparingAttachments: boolean;
   isSessionSettingsSaving: boolean;
   queueItemCount: number;
@@ -71,7 +69,6 @@ export function buildComposerViewState(
   return {
     activeError: modeState.activeError,
     canCreateGoal: options.canCreateGoal,
-    canUseLoop: options.canUseLoop,
     charCount: inputState.charCount,
     historyIndex: options.historyIndex,
     input: options.input,
@@ -80,7 +77,6 @@ export function buildComposerViewState(
     isGoalConfirming: options.isGoalConfirming,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
-    isLoopPickerOpen: options.isLoopPickerOpen,
     isNearLimit: inputState.isNearLimit,
     isOverLimit: inputState.isOverLimit,
     isPreparingAttachments: options.isPreparingAttachments,

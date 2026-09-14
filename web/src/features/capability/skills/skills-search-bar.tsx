@@ -1,19 +1,19 @@
 // INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
-// OUTPUT: 统一目录标签、搜索动作和无额外图标的标签筛选器。
-// POS: Skill 工具区纯视图；筛选结构由 CapabilityFilterSelect 唯一拥有。
+// OUTPUT: 统一目录标签、文字搜索动作和无额外图标的标签筛选器。
+// POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
-import { Search } from "lucide-react";
+import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
+import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useRef, type KeyboardEvent } from "react";
 
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
-  CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
 import type { DiscoveryMode } from "./controller/skill-marketplace-controller";
 
@@ -62,19 +62,21 @@ export function SkillsSearchBar({
   const composingRef = useRef(false);
   const searchLabel = t("capability.skills_tour_search_title");
 
+  const searchDisabled = externalQuery.trim().length < 2 || externalLoading;
+
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (discoveryMode !== "external") return;
     if (event.key !== "Enter") return;
-    if (composingRef.current || event.nativeEvent.isComposing) return;
+    if (event.defaultPrevented || composingRef.current || isImeKeyboardEvent(event.nativeEvent)) return;
     event.preventDefault();
-    onSubmitExternalSearch();
+    if (!searchDisabled) onSubmitExternalSearch();
   };
 
   const externalSearchAction = discoveryMode === "external" ? (
-    <UiIconButton
+    <UiButton
       aria-label={searchLabel}
       className="shrink-0"
-      disabled={externalQuery.trim().length < 2 || externalLoading}
+      disabled={searchDisabled}
       onClick={(event) => {
         event.preventDefault();
         onSubmitExternalSearch();
@@ -84,8 +86,8 @@ export function SkillsSearchBar({
       title={searchLabel}
       variant="surface"
     >
-      <Search className="h-3.5 w-3.5" />
-    </UiIconButton>
+      {searchLabel}
+    </UiButton>
   ) : null;
 
   return (
@@ -127,9 +129,8 @@ export function SkillsSearchBar({
         />
 
         {discoveryMode === "catalog" ? (
-          <CapabilityFilterSelect
+          <UiFilterSelect
             ariaLabel={t("capability.skills_filter_aria")}
-            label={t("capability.category_label")}
             onChange={onChangeCategory}
             options={categories.map((category) => ({
               label: category.label,
@@ -140,9 +141,8 @@ export function SkillsSearchBar({
             value={activeCategory}
           />
         ) : (
-          <CapabilityFilterSelect
+          <UiFilterSelect
             ariaLabel={t("capability.skill_source_search_scope")}
-            label={t("capability.skill_sources")}
             onChange={onChangeExternalSource}
             options={externalSources}
             value={externalSourceId}

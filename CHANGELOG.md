@@ -7,491 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+- Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
-- Added real Launcher/workbench browser and native UI fixtures with read-only
-  HTTP/WebSocket boundaries and a regression that prevents backend forwarding.
-- Added an isolated macOS frontend UI check that compiles the current native
-  window and WKWebView, verifies trusted input and nested overlay behavior across
-  themes, languages and window sizes, and records source hashes and screenshots.
-- Added a contract gate that keeps Windows native semantic colors aligned with
-  their Web light-theme token owners, including native-theme CI path coverage.
-- Added a frontend CI gate with import-aware architecture checks, shared UI
-  file contracts, and a reproducible browser matrix across three themes,
-  two languages, and narrow/desktop widths, with screenshots and failure traces.
-- Added a shared split-action Button pattern with independent primary and menu
-  commands, keyboard focus, ARIA, tests, and UI Gallery coverage.
-
-### Changed
-
-- Preserve pinned sessions when another page saves its conversation tabs, and
-  synchronize same-owner navigation changes without restoring another account's data.
-- Keep the shared sidebar rail compact in both languages, using clear short
-  navigation labels with the same icon geometry and behavior.
-- Unify catalog filter controls, keep one context-usage detail without duplicate tooltips or Escape focus jumps, and remove obsolete frontend types and helpers while retaining current behavior coverage.
-- Share one User/Assistant reading layout, keep queue and file-card styles out of data models, and localize file actions without changing message or workspace scope.
-- Reuse shared panels, typography and activity rows in private conversations and WorkGraph inspectors; preserve native message-edit geometry, guard IME shortcuts, and move Composer spacing and textarea effects out of state models.
-- Share the Login and Setup access layout, brand heading scale, and filled Panel surfaces; retain credential and initialization behavior with isolated browser coverage.
-- Consolidate WorkGraph node and relation inspectors into one shared surface pattern, reuse semantic status badges, and verify exact selection, workspace-file actions, and zoom behavior in real browsers.
-- Centralized control and surface radius tokens, restored Tour highlighting,
-  and replaced undefined UI color references with existing semantic tokens.
-  Added gates for missing static variables and broken theme aliases, plus
-  browser checks for token resolution and non-blocking Tour target actions.
-- Reused shared buttons for Composer attachment previews and removal, preserving
-  independent actions, Session draft boundaries, and local preview cleanup.
-  Removed duplicate chip and input-shell radius overrides so their shared
-  recipes remain the visual owners.
-- Consolidated Agent authorization rows and Skill cards onto shared ListRow,
-  Catalog, and typography primitives while preserving switch-only commands,
-  disconnected-access removal, and locked or pending Skill behavior. Catalog
-  creation actions now reuse shared Button focus and disabled states.
-- Unified sidebar row and skeleton density, list surfaces and muted states under
-  shared ListRow props. Static rows no longer advertise hover interaction, and
-  busy Feishu connection choices retain accessible disabled semantics. Native
-  control ownership checks now recognize aliased React element factories.
-- Unified technical-text and verification-code field presentation through shared
-  form roles, removed private input and search typography, and extended the
-  visual ownership gate to native form and selection controls. Native values,
-  leading zeros, validation attributes and form submission remain unchanged.
-- Consolidated catalog-card hit areas and list actions under shared owners,
-  restored keyboard visibility for row actions, and removed consumer color,
-  hover and shadow overrides with an import-aware contract gate. Select sizes
-  now cover compact filters and large form fields without local height recipes.
-- Removed unused frontend compatibility APIs, presentation helpers and duplicate
-  runtime state; provider setup notices now reuse the shared inline component.
-- Aligned default shared Button, Form and Select typography and geometry with
-  the design contract; unavailable primary actions are neutral, explicitly busy
-  actions retain their tone, and disabled buttons no longer react to hover.
-- Added representative WebKit coverage and measured control geometry to the UI
-  browser gate, using each host's native keyboard traversal behavior.
-- Connected the mobile conversation switcher to shared modal focus, scroll
-  locking, Escape dismissal and focus restoration while retaining its history
-  filtering and compact sheet geometry.
-- Moved canonical navigation paths into one shared contract, removing upward
-  Feature-to-App imports. Removed all known upward dependency exemptions after
-  separating page action slots, auth identity, directory events, Markdown
-  capabilities, and conversation-tab commands from shared presentation.
-- Moved generic UI hooks and clipboard access into shared React/browser owners,
-  and released copy-feedback timers and late feedback when consumers unmount.
-- Unified the login form with shared fields, panels, typography, and buttons,
-  preserving keyboard submission and unknown-result recovery behavior.
-- Consolidated single- and multi-select triggers, dialog close actions, and tab
-  dismiss buttons under shared component owners while retaining their existing
-  geometry and behavior. Deferred typography, spacing, and palette tuning to a
-  separate visual phase.
-- Fixed nested overlay dismissal and focus restoration, including overlays
-  initially mounted inside dialogs; disabled selectors now close immediately
-  and remain closed when re-enabled.
-- Fixed action-menu keyboard focus under reduced motion and prevented hidden
-  mention pickers from consuming another component's navigation keys.
-- Separated conversation-tab selection from pin and close hit areas so narrow
-  tabs remain directly selectable without triggering a neighboring action.
-- Unified primary navigation and pinned conversations under one sidebar rail
-  action owner, including consistent icon geometry, caption typography,
-  current/focus states, and counter-safe accessible names.
-- Unified Agent, Personal, and Room avatar pickers under one trigger and image
-  Choice contract, removing private selection shadows and repeated focus,
-  disabled, label, and arrow styling.
-- Separated shared feedback lifecycle policy from icon and color rendering, so
-  data models no longer carry component constructors or visual class names.
-- Split Select Menu state and anchored geometry from its shared visual recipe,
-  removing style exports and an unused surface argument from the menu model.
-- Centralized Room history, Composer, message-reference, Slash, and scheduled
-  picker geometry behind shared semantic overlay presets while preserving the
-  current placement and dimensions.
-- Unified authentication, Agent settings, Channel authorization/account, and
-  scheduled rebind recovery surfaces behind the shared inline notice contract.
-- Replaced Composer model-owned color classes and pulsing status copy with
-  semantic tones and shared LoadingOrb variants, including deterministic CSS
-  frame cycles and a static reduced-motion state.
-- Replaced private shimmering message-status copy and vertically scrolling
-  Unicode spinners with one fixed-footprint shared LoadingOrb, preventing
-  thinking, tool, and reply activity from appearing to shake the conversation.
-- Moved Launcher recent-entry colors, shadows, sizing, shape, and animation out
-  of its business model, and routed both entry and handoff actions through the
-  shared Button contract.
-- Restored Launcher recent entries to their original transparent treatment,
-  replacing repeated robot glyphs with stable semantic-color identity dots.
-- Reduced the collapsed-sidebar Surface Header reservation to the restore
-  control's real footprint while retaining macOS window-control safety.
-- Matched the Composer WorkGraph dock's Agent and graph actions to the shared
-  32px icon hit target, with an 18px graph glyph for balanced proportions.
-- Added a shared 40px activity-toolbar frame around grouped 32px actions so
-  WorkGraph Agent docks keep consistent breathing room instead of hugging edges.
-- Replaced full-width private WorkGraph mutation error cards with shared compact
-  notices capped at 384px, removed repeated operation identities, and preserved
-  full-width code, JSON, image, and log output.
-- Optically rebalanced the empty Room introduction while preserving its true
-  center line and the left-aligned scanning pattern inside suggestion blocks.
-- Split Agent private-thread data projection from its density and typography
-  recipes so directory sizing can change without modifying the business model.
-- Replaced the final Goal model-owned color classes with semantic Badge tones
-  shared by its lifecycle label and leading status icon.
-- Moved Goal lane geometry out of its pure state model and placed the floating
-  status strip on the shared transparent, shadow-free Panel surface.
-- Moved Goal lifecycle and WorkGraph-binding labels onto the shared Badge
-  contract, and rendered usage as plain semantic metadata instead of a private pill.
-- Replaced Mermaid-specific mode and copy controls with shared primitives, and
-  moved rendered-diagram activation from a simulated role to one native button.
-- Restored the four empty-conversation suggestions as consistent transparent,
-  border-only action blocks without card shadows or persistent fill.
-- Centered the shared empty-conversation welcome surface within the visible DM
-  and Room viewport, tightened its suggestion layout, and corrected spacing
-  around interpolated Agent names in Chinese headings.
-- Unified removable Agent tags and selected Room Skills under one accessible
-  chip primitive, separating menu and removal hit targets and honoring disabled
-  state for both actions.
-- Removed the fake clickable wrapper around protected default-model switches;
-  the shared switch now owns native disabled semantics and routes protected
-  activation through one accessible hit target, while tolerating host surfaces
-  that do not expose pointer-capture APIs.
-- Moved Room name editing and tool-permission scope radios onto the shared Input
-  and native RadioChoice contracts, including consistent focus, disabled, and
-  selection semantics.
-- Extended the frontend governance plan with a final reverse-audit phase that removes missed private controls, duplicate rules, dead adapters, unused exports, stale state branches, and outdated documentation before the refactor is considered complete.
-- Moved Loop and saved WorkGraph picker rows onto the shared list and listbox interaction owners, including consistent keyboard, focus, selection, and disabled behavior.
-- Routed empty-conversation suggestions, user-message expansion, subagent task links, Artifact external actions, and Composer context usage through the shared Button contracts instead of private control styling.
-- Unified Thought, process-summary, and tool-run disclosure rows under one message-domain toggle with shared arrow, focus, typography, and semantic status behavior.
-- Reused shared icon-action and list-row owners for pinned-conversation removal and Room fallback history navigation while preserving the drag target as an explicit geometry-owned control.
-- Added one shared Unicode-normalized client search contract so capability, conversation, contact, and memory directories can declare searchable fields without reimplementing trimming, case folding, empty-query behavior, or substring matching.
-- Unified ordinary expandable App sections under the shared `UiDisclosure`
-  contract, so Channel instructions, pairing details, Connector scopes, Skill
-  import help, Scheduled run history/settings, and Execution run facts now
-  share native semantics, focus, arrows, density, typography, and boundaries.
-- Moved subagent task entries onto the shared dense List and Typography
-  contracts, with running-avatar emphasis now owned by the shared avatar state.
-- Moved Room history entries onto the shared whole-row List contract, unifying
-  hover, selection, focus, and keyboard behavior while isolating inline actions;
-  timestamps now align at the title edge, while IM sessions live below a shared
-  labeled divider and use a quiet identity line instead of a competing pill.
-- Replaced the spreadsheet preview's private filled sheet pills with the shared
-  underline Tabs contract while preserving scrolling, truncation, and selection.
-- Moved the conversation round navigator preview onto shared semantic
-  typography while documenting its ruler and whole-card buttons as tested
-  geometry-owned hit-target exceptions.
-- Unified Action Menu, Workspace context-menu, and Room model rows on one native
-  shared menu-item button, including disabled, active, danger, hover, and focus
-  states.
-- Defined the frontend design-system migration as two ordered phases: first
-  consolidate private implementations under shared owners, then validate and
-  refine the unified system across Web, macOS, and Windows for density,
-  typography, hit targets, interaction states, flicker, and layout consistency.
-- Standardized structured question decisions and text hierarchy on shared Button
-  and Typography owners while preserving native question input semantics.
-- Standardized every content, directory, and filter tab on the neutral underline
-  treatment, including Pairing status filters; finite MCP configuration choices
-  now use the form SegmentedControl instead of masquerading as navigation tabs.
-- Standardized Composer permission decisions on shared Button, split-action,
-  Form, Menu, and Typography owners without changing approval payloads.
-- Centralized Select, Slash-command, and Room Skill listbox option DOM on one
-  shared menu row primitive, including selection ARIA and active-state data.
-- Unified Assistant footer copy, branch, and memory actions plus ToolBlock
-  permission and result actions on the shared micro Button/IconButton states;
-  referenced-memory popovers now use the App typography contract.
-- Unified WorkGraph search, zoom, fit, locate, expand, inspector-close, and
-  save-as-sketch actions on shared Button and IconButton primitives, while
-  retaining graph nodes and edge hit targets as geometry-owned interactions.
-- Unified Workspace file Header actions on the shared compact IconButton and
-  moved presentation thumbnails, paging controls, labels, and localized action
-  names onto shared Choice, IconButton, and Typography contracts.
-- Removed the misleading Workspace-only toolbar action adapter: Capability and
-  Operations page headers now use the base micro text Button contract directly,
-  icon-only Header actions use IconButton, and Operations page modes use the
-  same neutral line treatment as other page-level sections.
-- Replaced the stretched Skill and Connector directory mode capsules with one
-  shared single-line, neutral-underline page-mode contract; long labels no
-  longer wrap or divide the full content width in narrow windows.
-- Removed the redundant message-specific action-button adapter: message rerun,
-  edit, copy, and stop controls now use shared micro Buttons, with copy
-  confirmation represented by the new shared success tone.
-- Added shared 20px icon and 24px text micro-action sizes, then adopted them
-  across Composer directory, queue, attachment, Goal, and Room execution
-  controls so dense toolbars no longer redefine button states per page.
-- Unified Composer action, Session permission/model, Room model, and nested back
-  triggers on shared Button primitives while retaining specialized Agent rows
-  and context-usage visualization behavior.
-- Moved Room Agent, member-stack, and mobile conversation Header triggers onto
-  the shared Button state contract while preserving their identity layouts.
-- Unified Room history and Session-edge controls on shared Button, Form, List,
-  and native mixed-checkbox contracts without changing conversation behavior.
-- Unified Sidebar collapse, guide, update, and logout actions on the shared
-  round IconButton contract while retaining Settings as a real route link.
-- Standardized Agent private-thread navigation on shared selectable ListRow
-  behavior and semantic typography without changing thread ownership or data.
-- Moved Agent Options section navigation onto the shared Button active-state
-  contract while preserving its desktop rail and narrow-window tab layout.
-- Kept centered onboarding Tour cards inside the active window after live
-  desktop or browser resizing, including narrow macOS and Windows layouts.
-- Standardized onboarding Provider selection on shared ListRow, Badge, and
-  Button primitives, removing its private radio marker and final raw buttons
-  without changing the staged save, test, or default-selection workflow.
-- Added a shared 40px dense ListRow contract and adopted it for Memory catalog,
-  Memory index, and Room member selection; nested Room participation choices
-  remain independently operable without triggering the parent row.
-- Moved Agent permission-mode cards onto the shared neutral Choice contract so
-  selected borders, backgrounds, focus treatment, and shadow policy no longer
-  live in the Agent settings page.
-- Centralized icon-only segmented options in the shared form control, then moved
-  Contact directory view modes and external Skill source filters onto the
-  shared segmented and choice-selection contracts.
-- Standardized WorkGraph editor loading, title, command, version label, and
-  version-selection chrome on shared Typography and Choice primitives while
-  preserving per-version disabled state and horizontal browsing.
-- Removed the Dialog action class adapter: shared decision actions, Goal editing,
-  and WorkGraph save/edit flows now render `UiButton` directly, leaving button
-  emphasis, shadows, sizes, and interaction states with one DOM owner.
-- Unified WorkGraph artifact cards and narrow comparison panes on shared Panel,
-  Button, Badge, Tabs, typography, and loading contracts, removing their private
-  selected-tab shadow and text recipes.
-- Moved the streamed generative-UI placeholder, title, and container geometry
-  onto shared Skeleton, typography, and semantic shape contracts.
-- Centralized Home sidebar loading rows on the shared Skeleton tone, shape,
-  animation, and reduced-motion contract so chat and contact placeholders no
-  longer maintain private visual recipes.
-- Unified Skill import, external search, preview, and source-management chrome
-  on shared segmented controls, states, panels, actions, typography, and spinners.
-- Standardized Channel and Connector authorization dialogs on shared form,
-  panel, status, typography, badge, and loading contracts.
-- Unified every Capability sidebar row and its filtered empty state on shared
-  list, typography, selection, and semantic shape contracts.
-- Standardized the Skill directory on shared card actions, semantic typography,
-  resource states, page tabs, icon buttons, and loading indicators; Skill and
-  Connector directory modes now share the same compact navigation treatment.
-- Unified Channel account, QR login, verification, progress, and destructive
-  waiting surfaces on shared panel, typography, shape, and spinner contracts.
-- Standardized populated Pairing groups, rows, metadata, and expandable
-  technical identities on shared panel and typography contracts.
-- Moved Pairing empty/search states and the Skill update summary onto shared
-  resource-state, panel, list-row, typography, and loading recipes.
-- Standardized the object identity block beneath capability detail navigation:
-  Skill, Connector, custom MCP, Loop, and WorkGraph now share leading identity,
-  title, metadata, description, and responsive action alignment.
-- Unified Skill, Connector, custom MCP, Loop, and WorkGraph detail pages on one
-  capability-owned content axis and “directory / current item” header; opening
-  a WorkGraph detail no longer leaves the directory title or search controls
-  above the selected object.
-- Removed the remaining shared-UI spinner forks: Mermaid module and render
-  states now use one accessible recipe, while Session creation replaces the
-  plus action with a real busy indicator instead of rotating the action glyph.
-- Centralized route, Workspace, resource-state, and decision-action loading
-  indicators under one semantic size, color, and reduced-motion recipe while
-  retaining the local animated Nexus cat for brand-level startup waits.
-- Moved shared sidebar empty and recovery guidance onto semantic caption roles,
-  the common Surface shape, and the standard compact Button so Chat and Contact
-  sidebars no longer inherit a private text and action recipe.
-- Centralized Onboarding Tour titles, descriptions, items, progress, and target
-  highlighting under the shared typography and surface recipes, with a retained
-  button behavior contract for future guide changes.
-- Unified the Composer Task, Room collaboration, and WorkGraph activity chips
-  on one semantic typography recipe, and moved their compact icon actions onto
-  the shared button primitive so the three status surfaces cannot drift apart.
-- Unified narrow-window app and Room headers behind one platform-aware layout:
-  macOS follows the measured native window-control center, while Windows and
-  browsers retain the 52px client-area height and the same shared back action.
-- Extended that platform-aware geometry through Room conversation switchers and
-  auxiliary overlays, and centralized their circular icon actions, compact rows,
-  semantic typography, and overlay layers in shared UI primitives.
-- Unified Room Thread and subagent full-screen surfaces on the same semantic
-  dialog layer and platform-aware mobile Header, including a stable flex layout
-  for long subagent task directories.
-- Centralized Workspace Surface title, subtitle, compact navigation, and toolbar
-  action typography on the shared role map, and replaced its remaining private
-  identity radius with the shared control shape.
-- Moved default ListRow title/description text onto semantic typography roles
-  and added a first-class pill shape to shared badges so feature pages no longer
-  override badge radii directly; Connector and Custom MCP two-line directories
-  now consume those shared content slots instead of rebuilding row typography.
-- Reorganized Skill details around a shared responsive capability layout: long
-  instructions keep a readable main column while badges and per-Agent controls
-  occupy a bounded configuration rail that moves before content on narrow windows.
-- Removed unimplemented placeholder Connectors from the server catalog and
-  reorganized the available directory into only its real capability groups,
-  with category filters derived from the products that are actually present.
-- Unified Channel loading, typography, actions, and platform identities with
-  Capability shared primitives; DingTalk, WeCom, WeChat, Feishu, Telegram, and
-  Discord now use distinct monochrome brand silhouettes instead of colored or
-  repeated placeholder icons.
-- Standardized scheduled-task board suggestions, column labels, loading motion,
-  typography, button focus, and surface radii through shared UI recipes.
-- Moved scheduled-task cards and attention details onto shared catalog cards,
-  panels, buttons, badges, typography roles, and reduced-motion loading recipes.
-- Unified scheduled-task run rows, diagnostics, output errors, retry actions,
-  and artifact actions with shared typography, panel, radius, and button owners.
-- Unified the post-navigation content offset across Skill, Connector, Custom MCP,
-  Loop, and WorkGraph details so every secondary capability page shares one rhythm.
-- Kept shared segmented-control labels on one line so Skill source tabs and other
-  compact selectors no longer grow unevenly when a toolbar becomes narrow.
-- Standardized scheduled-task form grouping, rebind guidance, helper copy, and
-  advanced disclosure chrome through shared panels, typography, and radius roles.
-- Replaced Scheduled date/time plus triggers and text month navigation with shared
-  accessible buttons, semantic picker choices, and labeled anchored overlays.
-- Consolidated the Contacts directory, create entries, Agent cards, metadata, tags,
-  empty results, and view switcher onto shared catalog and design-system owners.
-- Extracted Agent auto-save status into a tested Contacts header component backed
-  by shared loading, icon-action, typography, surface, and overlay-layer recipes.
-- Split Contacts communication directory, status projection, and pure naming/filter
-  model from chat orchestration; its friend rows, candidate picker, empty/loading
-  states, form actions, and spinner now use shared design-system owners.
-- Fixed the shared Workspace header's container breakpoint so narrow detail pages
-  show one compact tab menu instead of overlapping it with the full tab strip.
-- Gave Loop and WorkGraph details the same stable resource avatar used by their
-  directory entries, and moved seeded-avatar rounding onto semantic shape roles.
-- Unified the 559px App shell handoff contract so capability detail navigation
-  remains visible in medium desktop windows and yields only to the mobile header.
-- Unified Conversation, Provider, and read-resource reliability strips on one tested inline
-  feedback owner for radius, tone, typography, recovery actions, and pending state.
-- Moved Launcher, chat-sidebar, and contacts-sidebar directory refresh failures
-  onto the same inline feedback owner while preserving their safe read-only retry.
-- Reused the inline feedback and spinner owners for Custom MCP form notices,
-  Loop launch failures, and Room Skill resource errors.
-- Consolidated Room Skill form failures, subagent refresh recovery, Agent full-access
-  warnings, reply-limit warnings, and stale Memory notices onto the same inline owner.
-- Standardized Workspace file-preview loading indicators on shared compact and
-  32px canvas Spinner roles with one reduced-motion contract.
-- Moved Memory directory, document, runtime-write, save, refresh, and delete
-  loading states onto the same semantic Spinner scale.
-- Standardized General, Personal, and Browser settings loading states on shared
-  page and compact action Spinner roles with reduced-motion behavior.
-- Unified Provider directory, test, sync, model mutation, and dialog loading
-  states through the same semantic Spinner scale.
-- Moved Operations member, project, subscription account, and plan commands to
-  the shared compact Spinner role.
-- Standardized Connector card, scheduled-directory refresh, and Channel pairing
-  dialog loading indicators on shared semantic Spinner roles.
-- Unified Goal edit submission and lifecycle refresh indicators on the shared
-  medium action Spinner role.
-- Standardized WorkGraph canvas, action, availability, and revision loading
-  states on the shared semantic Spinner scale.
-- Unified Subagent transcript loading and task command indicators through the
-  shared medium and compact Spinner roles.
-- Standardized Room history deletion, Thread waiting, and collaboration
-  activity indicators on the same semantic Spinner scale.
-- Unified message question submission, Subagent task status, Assistant fork,
-  image-detail, and WorkGraph-source loading through shared Spinner roles.
-- Standardized Composer Connector loading and Room Agent model updates on the
-  shared medium and compact muted Spinner roles.
-- Unified Agent Skill directories, Skill mutations, and private-domain thread
-  loading and refresh indicators through shared muted Spinner roles.
-- Standardized Launcher submission, desktop update, and Provider onboarding
-  loading indicators through the shared Spinner motion and tone contract.
-- Unified CC Switch Provider import and legacy Operations route loading through
-  shared Spinner roles, removing the last non-Workspace production border spinner.
-- Standardized Workspace directory, upload, and desktop application discovery
-  loading through shared Spinner roles.
-- Extended the Spinner ownership gate from shared primitives to every production
-  frontend source file while excluding tests and the development gallery.
-- Replaced the Workspace header's physical Agent directory identifier with the
-  Agent display name and a user-facing relative path, then unified its trail
-  with Skill, Connector, Loop, and WorkGraph detail headers on one shared
-  breadcrumb component.
-- Established a single frontend engineering and design-system contract, and
-  centralized high overlay layers and responsive dialog geometry behind semantic
-  APIs to prevent page-specific stacking and small-window sizing drift.
-- Added jsdom-backed behavior tests for core UI primitives and unified ordinary
-  checkbox, search clear, segmented selection, and view-filter group semantics.
-- Replaced numeric select/action menu layers with named design tokens, added
-  consistent menu keyboard traversal and focus return, and hardened shared
-  dialogs with nested Escape ordering, focus-loop, backdrop, and scroll-lock
-  behavior contracts.
-- Unified rich anchored overlays such as icon, memory, and Room model pickers
-  on the shared semantic popover layer instead of feature-owned z-index values.
-- Unified large WorkGraph compare and metadata dialogs on one responsive
-  workbench size/viewport contract, including the compact-window inset.
-- Removed the login primary action's page-owned shadow and consolidated brand
-  artwork projection into Login-owned visual recipes; also removed decorative
-  avatar and WorkGraph card shadows plus a redundant Launcher tooltip shadow.
-- Replaced the Launcher-specific recent-entry tooltip with the shared accessible
-  tooltip behavior, and moved WorkGraph distillation onto the common responsive
-  workbench dialog geometry.
-- Reduced the product-source arbitrary-shadow debt baseline to zero by mapping
-  previews and graph nodes to semantic elevation, and drag/highlight states to
-  structural borders or rings.
-- Reduced the product-source numeric z-index debt baseline to zero, corrected
-  Session Navigator previews to the shared popover material/layer, removed the
-  duplicate `UiPanel` inset variant, and added enforced behavior suites for
-  shared panel, list, badge, counter, and resource-state primitives.
-- Expanded the development-only UI contract gallery into an exhaustive catalog
-  of real `shared/ui` components across foundation, content, interaction, and
-  Workspace surfaces. Its Chinese and English fixtures now switch with the
-  locale, section/theme/locale remain reproducible in the URL, and a contract
-  test fails when a newly exported shared React component is not inventoried;
-  the gallery remains outside production build entries.
-- Consolidated provider setup, Loop and WorkGraph pickers onto one compact
-  dialog viewport, moved natural-height contact, guide, Skill-source and
-  Connector directories onto one compact maximum, and moved provider import
-  and Room management dialogs onto shared adaptive height and compact-window
-  inset contracts.
-- Consolidated remaining Channel, Connector, Skill, scheduled-task, Mermaid,
-  and expanded WorkGraph dialog heights onto semantic compact, adaptive, and
-  workbench viewport contracts; refined shared single-line prompts with a
-  narrower decision width, standard header/input primitives, and a clear solid
-  primary action for Workspace create and rename flows.
-- Moved Composer image and text attachment previews onto named visual/document
-  viewer geometry, and removed the remaining feature-owned Dialog Shell width
-  overrides from Provider settings and scheduled-task editing.
-- Routed ordinary product actions and external navigation through the shared
-  Button primitives, preventing feature code from copying internal button
-  recipes while preserving each action's size, tone, and loading state.
-- Added a native Select form primitive and moved project, subscription,
-  password, and deployment-member fields onto shared form-control ownership,
-  with an architecture gate for internal style imports and unowned selects.
-- Added a shared semantic typography system for App chrome, aligning the
-  documented type scale with theme tokens and centralizing font family, size,
-  line height, weight, tracking, and text tone behind typed roles. The UI
-  contract gallery now shows the full hierarchy, and architecture checks reject
-  arbitrary pixel aliases for the standard scale.
-- Migrated Settings titles, descriptions, labels, and segmented options onto
-  semantic typography roles; removed its duplicate segmented control so shape,
-  density, selected-state contrast, and no-shadow behavior have one owner.
-- Routed all Settings single-line, multiline, and compact checkbox fields
-  through shared Form primitives, removing feature-owned input geometry and
-  enforcing that ownership with an architecture contract.
-- Unified the main Settings and Provider directories on one navigation Pattern;
-  their typography, control geometry, current-page state, hover treatment, and
-  Button DOM now follow shared owners instead of page-local class recipes.
-- Migrated the complete Personal settings surface to semantic Typography,
-  Badge, Shape, and Settings Card owners, including identity metadata, token
-  usage metrics, avatar state, password labels, and validation feedback.
-- Migrated Provider settings titles, labels, descriptions, model identifiers,
-  status badges, counts, and fallback icons to shared semantic Typography,
-  Badge, and Shape owners, with a gate against page-local font recipes.
-- Migrated Browser settings connection, install, recovery, and CDP surfaces to
-  shared semantic Typography, Badge, Resource State, and Settings Card owners,
-  including a contract that rejects page-local font and radius recipes.
-- Collapsed the standalone Settings text panel into its existing icon rail on
-  narrow desktop windows so every Settings section keeps a usable content plane.
-- Consolidated Operations member, subscription, and project surfaces onto shared
-  semantic Typography, Badge, Resource State, Settings Card, and Control Label
-  owners, removing the redundant Subscription-only loading and empty wrappers.
-- Completed the Settings-wide semantic typography migration for permission,
-  workspace-path, and runtime validation copy, with a domain gate preventing
-  future page-local font and arbitrary-radius recipes.
-- Standardized Connector, Custom MCP, and Skill detail chrome on shared Button,
-  LinkButton, Typography, Badge, and Resource State owners, removing duplicated
-  breadcrumb action styling and the Skill-only failure card; the shared MCP tool
-  header now moves retry actions onto a full-width-safe row in narrow windows.
-- Standardized Loop directory and detail chrome on shared semantic Typography,
-  Badge, Panel, Resource State, and Button owners; narrow section actions now
-  move to their own row instead of compressing or wrapping vertically.
-- Unified all capability directory titles, descriptions, section headings,
-  counts, identity frames, and desktop/mobile action placement behind the
-  shared Capability page layout and Workspace content Header contracts.
-- Split WorkGraph capability detail rendering from its resource directory and
-  moved directory metadata, detail actions, target summary, and canvas shell to
-  shared semantic Typography, Button, Panel, and Surface contracts.
-- Moved floating feedback and shared resource states onto named surface, layer,
-  typography, shape, and Button contracts, with DOM tests for recovery,
-  dismissal, live-region behavior, and auto-dismiss timing resets.
+- Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
 
 ### Fixed
 
-- Restored conversation WorkGraph draft cards when `nexus.command` returns its
-  structured result through the MCP wrapper.
-- Accepted bridge-preserved JSON integer tokens at the command schema boundary,
-  restoring WorkGraph draft revisions with numeric revision and position fields.
-- Fixed shared Dialog layer variants being overridden by a legacy `z-index: 50`
-  fallback; ordinary, nested, interaction and system dialogs now resolve through
-  their semantic overlay tokens in the browser.
+- Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
+- Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
+- Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
+
+### Changed
+
+- Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
+- Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
+- Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
+- Prepare the optional Relay state directory for persistent single-node SQLite deployments.
+
+### Security
+
+- Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
+- Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
+
+## [0.2.0] - 2026-09-10
+
+### Added
+
+- Added optional online Rooms through Nexus Relay, with authenticated member discovery, explicit Room creation, shared human messaging, and durable synchronization in the existing chat interface.
+- Added optional online sign-in to the desktop app while preserving local capabilities and the same local data directory.
+- Added "Approve for me" with native nxs automatic permission review and confirmed Claude Code automatic mode, retaining review reasons and human fallback.
+- Restored host-controlled nxs subagent delegation through nexus.command with native lifecycle and WorkGraph child-attempt tracking.
+- Added Control-backed conversational member administration with human approval, secure password entry, profile and role updates, and access revocation.
+- Added system-font selection, font size and line spacing preferences, plus background approval/question attention on the macOS Dock and Windows taskbar.
+
+### Changed
+
+- Unified local and online Room creation, including member selection, host Agent, avatar, and shared settings. Online collaboration requires remote sign-in; Relay Agent Delivery is not included in this release.
+- Reorganized settings, account menus, member administration, capability pages, and narrow-window layouts with consistent controls, keyboard navigation, and localized feedback.
+- Redesigned scheduled-task editing with searchable execution and recipient selectors, separate Room execution/reply members, confirmation summaries, and advanced options.
+- Improved streamed Markdown, collapsed process details, generated-file delivery, source-workspace preservation, and conversation reading position.
+- Refreshed the app icon across desktop packages and Web surfaces, and added direct access to online documentation.
+- Updated the bundled nxs runtime to v0.1.32 and Bridge dependency to v0.1.33.
+
+### Fixed
+
+- Preserved conversation tabs, pinned sessions, drafts, scroll anchoring, and pending submissions across navigation, delayed responses, and acknowledgment timeouts.
+- Hardened WorkGraph editing, version selection, direct transactional saves, command renaming, source ownership, and uncertain mutation recovery.
+- Recovered online Room synchronization after stream-epoch changes and failed local writes without advancing cursors or duplicating shared messages.
+- Fixed completed scheduled runs retaining active occupancy, Room completion tracking, and transcript access during history loading and result delivery.
+- Restored GitHub connector tools, corrected RichMail discovery guidance, and preserved connector snapshots and credential drafts during recovery.
+- Bounded Browser operations, activated tabs before native input, cancelled stale work, and exported execution diagnostics; requires Browser extension 0.8.6.
+- Improved desktop diagnostics, shutdown ordering, blocked browser-storage recovery, IME handling, accessibility, and permission-scoped stale-state cleanup.
+- Isolated persistently failing Control identity invalidation events so later invalidations continue while the affected identities fail closed.
+- Persisted Control entitlement unavailability so skipped invalidations cannot authorize new requests through stale local projections.
+
+### Removed
+
+- Removed the built-in Loops catalog, related endpoints and pages, and Composer Loop-to-Goal actions.
 
 ## [0.1.40] - 2026-09-04
 

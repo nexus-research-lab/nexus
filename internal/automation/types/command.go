@@ -1,6 +1,6 @@
-// INPUT: Agent 通过 round-scoped Nexus CLI 表达的 Automation 查询或变更意图。
-// OUTPUT: 可严格解码、可预检、可做 revision/digest 栅栏的命令协议。
-// POS: Automation Skill、CLI broker 与 service command 层共用的线格式真相。
+// INPUT: Agent 通过 round-scoped nexus.command 表达的 Automation 查询或变更意图。
+// OUTPUT: 带精确 input_schema、可预检、可做 revision/digest 栅栏的命令协议。
+// POS: Automation Skill、宿主 runtime 与 service command 层共用的线格式真相。
 package types
 
 const (
@@ -96,7 +96,7 @@ type AutomationCommandDeliverySession struct {
 	AgentID    string `json:"agent_id"`
 }
 
-// AutomationCommandRequest 是 nexus CLI 到宿主 broker 的请求。
+// AutomationCommandRequest 是 nexus.command 到宿主 service 的请求。
 type AutomationCommandRequest struct {
 	Action           string                 `json:"action"`
 	Operation        string                 `json:"operation,omitempty"`
@@ -116,10 +116,11 @@ type AutomationCommandContract struct {
 }
 
 type AutomationCommandOperationContract struct {
-	Kind     string   `json:"kind"`
-	Required []string `json:"required,omitempty"`
-	Optional []string `json:"optional,omitempty"`
-	Notes    []string `json:"notes,omitempty"`
+	InputSchema map[string]any `json:"input_schema,omitempty"`
+	Kind        string         `json:"kind"`
+	Required    []string       `json:"required,omitempty"`
+	Optional    []string       `json:"optional,omitempty"`
+	Notes       []string       `json:"notes,omitempty"`
 }
 
 // AutomationCommandPlan 是不写入的确定性变更计划。

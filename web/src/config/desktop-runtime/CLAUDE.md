@@ -6,7 +6,7 @@
 - `runtime-config.ts` 解析宿主注入配置并设置文档级平台标记。
 - `session-auth.ts` 管理 HTTP header、WebSocket subprotocol 和 token 失效恢复；恢复优先使用稳定 FailureCore code，并保留旧安全文案兼容。
 - `oauth.ts` 管理连接器 OAuth 回调与桌面回跳地址。
-- `lifecycle.ts` 管理 WebView ready、fatal、health 消息和诊断快照。
+- `lifecycle.ts` 管理 WebView ready、fatal、health 消息和诊断快照；`web.diagnostic` 把可恢复异常及有界关联字段写入两端宿主日志，不触发 fatal 报告或恢复，宿主桥失败不得再次抛出。`lifecycle.test.ts` 验证事件、截断与桥失败边界。
 - `desktop-location.ts` 统一 URL 与路径归一化，避免协议各自解释地址。
 
 ## 约定

@@ -12,6 +12,17 @@ afterEach(() => {
 });
 
 describe("UiTooltip", () => {
+  it("skips repeated visible text but reveals clipped text", () => {
+    render(<UiTooltip label="子智能体"><button type="button">子智能体</button></UiTooltip>);
+    const trigger = screen.getByRole("button");
+    act(() => trigger.focus());
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    act(() => trigger.blur());
+    Object.defineProperties(trigger, { clientWidth: { value: 40 }, scrollWidth: { value: 80 } });
+    act(() => trigger.focus());
+    expect(screen.getByRole("tooltip").textContent).toBe("子智能体");
+  });
+
   it("opens on focus with an accessible relationship and closes with Escape", () => {
     render(
       <UiTooltip label="打开工作图" placement="bottom">
@@ -68,4 +79,23 @@ describe("UiTooltip", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(document.activeElement).toBe(input);
   });
+  it("never references a missing tooltip and preserves the trigger's existing description", () => {
+    const view = (label: string) => <>
+      <p id="usage-description">Current usage</p>
+      <UiTooltip label={label}><button aria-describedby="usage-description">Usage</button></UiTooltip>
+    </>;
+    const { rerender } = render(view(" "));
+    const trigger = screen.getByRole("button");
+    act(() => trigger.focus());
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(trigger.getAttribute("aria-describedby")).toBe("usage-description");
+    rerender(view("Context"));
+    act(() => { trigger.blur(); trigger.focus(); });
+    const tooltip = screen.getByRole("tooltip");
+    expect(trigger.getAttribute("aria-describedby")).toBe(`usage-description ${tooltip.id}`);
+    rerender(view(""));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(trigger.getAttribute("aria-describedby")).toBe("usage-description");
+  });
+
 });

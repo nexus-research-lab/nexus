@@ -1,5 +1,5 @@
 // INPUT: Badge 的 size、tone、shape 与调用方外部布局 class。
-// OUTPUT: 由共享 token/recipe 组成的稳定 Badge 样式投影。
+// OUTPUT: 由共享 token/recipe 组成、使用可读行动蓝的稳定 Badge 样式投影。
 // POS: Badge 视觉状态真相；不渲染 DOM，也不接受业务专属形状覆盖。
 
 import { cn } from "@/shared/ui/class-name";
@@ -37,13 +37,16 @@ const BADGE_SIZE_CLASS_MAP: Record<UiBadgeSize, string> = {
   md: "min-h-6 px-2.5 text-compact",
 };
 
+const SUCCESS_BADGE_CLASS_NAME =
+  "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]";
+
 const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
   default:
     "border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
   primary:
-    "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)] text-(--primary)",
+    "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_5%,transparent)] text-(--brand-action)",
   success:
-    "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
+    SUCCESS_BADGE_CLASS_NAME,
   warning:
     "border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_6%,transparent)] text-[color:color-mix(in_srgb,var(--warning)_86%,var(--foreground)_14%)]",
   danger:
@@ -53,7 +56,7 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
   idle:
     "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
   active:
-    "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
+    SUCCESS_BADGE_CLASS_NAME,
   running:
     "border-[color:var(--status-running-soft-border)] bg-[var(--status-running-soft-bg)] text-[var(--status-running-soft-text)]",
 };

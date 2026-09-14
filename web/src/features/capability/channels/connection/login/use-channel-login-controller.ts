@@ -124,6 +124,7 @@ export function useChannelLoginController({
       setView(nextView);
       setRecovery(null);
       setReadIssue(null);
+      if (nextView.status === "succeeded") await refreshCompletedChannel();
       return true;
     } catch (error) {
       setRecovery({
@@ -137,7 +138,7 @@ export function useChannelLoginController({
       startPendingRef.current = false;
       setStartPending(false);
     }
-  }, [channelType, enabled, t]);
+  }, [channelType, enabled, refreshCompletedChannel, t]);
 
   const reconcileVerifyCode = useCallback(async () => {
     if (!recovery || recovery.kind !== "verify" || !recovery.loginId) {
@@ -149,6 +150,7 @@ export function useChannelLoginController({
       if (nextView.status !== "verify_code_required") {
         setRecovery(null);
         setReadIssue(null);
+        if (nextView.status === "succeeded") await refreshCompletedChannel();
         return;
       }
       setRecovery((current) => current?.kind === "verify"
@@ -159,7 +161,7 @@ export function useChannelLoginController({
         ? { ...current, check: "failed" }
         : current);
     }
-  }, [channelType, recovery]);
+  }, [channelType, recovery, refreshCompletedChannel]);
 
   const reconcileLoginStart = useCallback(async () => {
     if (!recovery || recovery.kind !== "start") {
@@ -172,6 +174,7 @@ export function useChannelLoginController({
       setView(currentLogin);
       setRecovery(null);
       setReadIssue(null);
+      if (currentLogin.status === "succeeded") await refreshCompletedChannel();
     } catch (error) {
       const reconciliationIsUnproven = error instanceof ApiRequestError
         && (error.status === 404 || error.status === 409);
@@ -189,7 +192,7 @@ export function useChannelLoginController({
   }, [channelType, recovery, refreshCompletedChannel]);
 
   const submitVerifyCode = useCallback(async (value: string) => {
-    if (!enabled || !view?.login_id) {
+    if (!enabled || !view?.login_id || view.status !== "verify_code_required" || !value.trim()) {
       return false;
     }
     if (recovery && !(
@@ -204,12 +207,15 @@ export function useChannelLoginController({
     }
     const result = await runCommand({ kind: "verify-code" }, async () => {
       try {
-        setView(await submitChannelLoginVerifyCodeApi(
+        const nextView = await submitChannelLoginVerifyCodeApi(
           channelType,
           loginId,
           value,
-        ));
+        );
+        setView(nextView);
         setRecovery(null);
+        setReadIssue(null);
+        if (nextView.status === "succeeded") await refreshCompletedChannel();
         return true;
       } catch (error) {
         setRecovery({
@@ -222,7 +228,7 @@ export function useChannelLoginController({
       }
     });
     return result ?? false;
-  }, [channelType, enabled, recovery, runCommand, t, view?.login_id]);
+  }, [channelType, enabled, recovery, refreshCompletedChannel, runCommand, t, view]);
 
   const recoveryNotice = useMemo<FeedbackBannerProps | null>(() => {
     if (recovery) {

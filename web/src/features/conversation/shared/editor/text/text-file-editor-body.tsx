@@ -1,10 +1,9 @@
-// INPUT: exact Agent 与文件正文、模式、编辑命令和布局观察。
-// OUTPUT: 保留文件归属的预览或编辑视图。
+// INPUT: exact Agent 与文件正文、模式和编辑命令。
+// OUTPUT: 保留文件归属的具名可键盘滚动预览或公共源码编辑，透传可选字段身份。
 // POS: 文本编辑器正文装配；所有渲染模式透传同一 Agent scope。
 import {
   useEffect,
   useRef,
-  useState,
   type ComponentType,
   type Dispatch,
   type RefObject,
@@ -14,6 +13,8 @@ import {
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { TypewriterFileView } from "@/shared/ui/feedback/typewriter-file-view";
+import { UiSourceEditor } from "@/shared/ui/form/source-editor";
+import { UI_PREVIEW_VIEWPORT_CLASS_NAME } from "@/shared/ui/layout/preview-viewport-styles";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import { TextFileContent } from "./text-file-content";
@@ -21,9 +22,10 @@ import type { TextEditorBodyMode } from "./text-file-editor-model";
 
 interface TextEditorBodyViewProps {
   agentId: string;
-  containerWidth: number;
   content: string;
   exitEditingOnBlur: boolean;
+  editorId?: string;
+  editorLabel?: string;
   fileName: string;
   fileType: WorkspaceFilePreviewKind;
   isLoading: boolean;
@@ -35,20 +37,18 @@ interface TextEditorBodyViewProps {
 
 interface TextFileEditorBodyProps extends Omit<
   TextEditorBodyViewProps,
-  "containerWidth" | "exitEditingOnBlur" | "textareaRef"
+  "exitEditingOnBlur" | "textareaRef"
 > {
   exitEditingOnBlur?: boolean;
   mode: TextEditorBodyMode;
 }
 
 function StreamingBody({
-  containerWidth,
   content,
 }: TextEditorBodyViewProps) {
   return (
     <TypewriterFileView
       className="h-full min-h-0"
-      containerWidth={containerWidth > 0 ? containerWidth - 40 : undefined}
       content={content}
     />
   );
@@ -69,9 +69,10 @@ function HtmlPreviewBody(props: TextEditorBodyViewProps) {
 
 function PreviewBody(props: TextEditorBodyViewProps) {
   return (
-    <div className="soft-scrollbar h-full min-h-0 min-w-0 overscroll-contain overflow-auto">
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- This named read-only scroll region needs a Tab stop for native keyboard scrolling.
+    <div aria-label={props.fileName} className={cn("h-full", UI_PREVIEW_VIEWPORT_CLASS_NAME)} role="region" tabIndex={0}>
       <TextFileContent
-      agentId={props.agentId}
+        agentId={props.agentId}
         content={props.content}
         fileName={props.fileName}
         fileType={props.fileType}
@@ -84,6 +85,8 @@ function PreviewBody(props: TextEditorBodyViewProps) {
 
 function EditingBody({
   content,
+  editorId,
+  editorLabel,
   exitEditingOnBlur,
   isLoading,
   setContent,
@@ -92,10 +95,11 @@ function EditingBody({
 }: TextEditorBodyViewProps) {
   const { t } = useI18n();
   return (
-    <textarea
-      aria-label={t("workspace_file.edit_content")}
-      className="soft-scrollbar h-full min-h-0 w-full resize-none border-0 bg-transparent p-0 font-mono text-sm leading-6 text-(--text-default) shadow-none outline-none ring-0 focus:border-0 focus:bg-transparent focus:shadow-none focus:outline-none focus:ring-0 focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:outline-none focus-visible:ring-0 disabled:opacity-70"
+    <UiSourceEditor
+      aria-label={editorLabel ?? t("workspace_file.edit_content")}
+      className="h-full"
       disabled={isLoading}
+      id={editorId}
       onBlur={exitEditingOnBlur ? () => setIsEditing(false) : undefined}
       onChange={(event) => setContent(event.target.value)}
       ref={textareaRef}
@@ -114,32 +118,12 @@ const TEXT_EDITOR_BODIES: Record<
   streaming: StreamingBody,
 };
 
-function useElementWidth(ref: RefObject<HTMLDivElement | null>): number {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry) {
-        setWidth(entry.contentRect.width);
-      }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref]);
-  return width;
-}
-
 export function TextFileEditorBody({
   exitEditingOnBlur = true,
   mode,
   ...props
 }: TextFileEditorBodyProps) {
-  const editorAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const editorWidth = useElementWidth(editorAreaRef);
   const Body = TEXT_EDITOR_BODIES[mode];
 
   useEffect(() => {
@@ -154,11 +138,9 @@ export function TextFileEditorBody({
         "h-full min-h-0 min-w-0 flex-1 overflow-hidden",
         mode === "html" ? "p-0" : "px-4 py-4",
       )}
-      ref={editorAreaRef}
     >
       <Body
         {...props}
-        containerWidth={editorWidth}
         exitEditingOnBlur={exitEditingOnBlur}
         textareaRef={textareaRef}
       />

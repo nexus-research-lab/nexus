@@ -272,3 +272,38 @@ func (r *Repository) CacheSegments(ctx context.Context, ownerUserID string) ([]C
 func (r *Repository) buildCacheSegmentsQuery() string {
 	return fmt.Sprintf(cacheSegmentsQueryTemplate, r.bind(1))
 }
+
+// DailyUsage 返回最近 365 个 UTC 自然日；缺失日期保留为零。
+func (r *Repository) DailyUsage(ctx context.Context, owner string, now time.Time) ([]DailyUsage, error) {
+	today := now.UTC().Truncate(24 * time.Hour)
+	start := today.AddDate(0, 0, -364)
+	dateSQL := "substr(CAST(occurred_at AS TEXT), 1, 10)"
+	if r.isPostgres {
+		dateSQL = "to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD')"
+	}
+	query := fmt.Sprintf(`SELECT %s AS day, SUM(input_tokens), SUM(output_tokens),
+ SUM(cache_creation_input_tokens + cache_read_input_tokens), SUM(total_tokens)
+ FROM token_usage_records WHERE owner_user_id = %s AND occurred_at >= %s AND occurred_at < %s
+ GROUP BY 1 ORDER BY 1`, dateSQL, r.bind(1), r.bind(2), r.bind(3))
+	rows, err := r.db.QueryContext(ctx, query, owner, start, today.AddDate(0, 0, 1))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make([]DailyUsage, 365)
+	positions := make(map[string]int, 365)
+	for i := range result {
+		result[i].Date = start.AddDate(0, 0, i).Format("2006-01-02")
+		positions[result[i].Date] = i
+	}
+	for rows.Next() {
+		var day DailyUsage
+		if err := rows.Scan(&day.Date, &day.InputTokens, &day.OutputTokens, &day.CacheTokens, &day.TotalTokens); err != nil {
+			return nil, err
+		}
+		if i, ok := positions[day.Date]; ok {
+			result[i] = day
+		}
+	}
+	return result, rows.Err()
+}

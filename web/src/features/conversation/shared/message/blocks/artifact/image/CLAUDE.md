@@ -8,3 +8,5 @@ L7 | 父级: web/src/features/conversation/shared/message/blocks/artifact
 - `image-block.tsx`: 展示图片、缺失态、标题及工作区动作
 
 图片来源解析使用有序解析器，新增来源不得扩展条件链。工作区相对图片路径直接使用预览接口，不以文件树 Store 是否加载作为展示前提。工作区动作复用 Artifact 根域能力。
+
+延迟图片读取使用 Session/detail ref 二元组；取消后不再创建 Blob URL，已创建 URL 在清理时回收。缺失态和默认 alt 随当前语言显示。

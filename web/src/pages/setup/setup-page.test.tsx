@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthStatus } from "@/lib/api/account/auth-api";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
@@ -19,6 +19,8 @@ const { setupControlOwnerApiMock } = vi.hoisted(() => ({
 vi.mock("@/lib/api/account/control-api", () => ({
   setupControlOwnerApi: setupControlOwnerApiMock,
 }));
+
+beforeEach(() => setupControlOwnerApiMock.mockReset());
 
 const SETUP_STATUS: AuthStatus = {
   auth_required: true,
@@ -77,4 +79,30 @@ describe("SetupPage failure notice", () => {
     await waitFor(() => expect(refreshStatus).toHaveBeenCalledOnce());
     expect(setupControlOwnerApiMock).toHaveBeenCalledOnce();
   });
+});
+
+it("keeps the draft and duplicate submissions blocked until status reconciliation finishes", async () => {
+  let finishRead!: (status: AuthStatus) => void;
+  const refreshStatus = vi.fn(() => new Promise<AuthStatus>((resolve) => { finishRead = resolve; }));
+  setupControlOwnerApiMock.mockRejectedValueOnce(new Error("unknown outcome"));
+  render(<MemoryRouter><I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+    <AUTH_CONTEXT.Provider value={{ error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus, status: SETUP_STATUS }}>
+      <SetupPage />
+    </AUTH_CONTEXT.Provider>
+  </I18N_CONTEXT.Provider></MemoryRouter>);
+  const token = screen.getByLabelText(/^setup\.capability/) as HTMLInputElement;
+  fireEvent.change(token, { target: { value: "a".repeat(32) } });
+  fireEvent.change(screen.getByLabelText(/^setup\.password/), { target: { value: "password" } });
+  fireEvent.change(screen.getByLabelText(/^setup\.confirm_password/), { target: { value: "password" } });
+  const form = token.closest("form")!;
+  fireEvent.submit(form);
+  fireEvent.submit(form);
+  await waitFor(() => expect(refreshStatus).toHaveBeenCalledOnce());
+  expect(setupControlOwnerApiMock).toHaveBeenCalledOnce();
+  expect(token.matches(":disabled")).toBe(true);
+  fireEvent.submit(form);
+  expect(setupControlOwnerApiMock).toHaveBeenCalledOnce();
+  finishRead(SETUP_STATUS);
+  await waitFor(() => expect(token.matches(":disabled")).toBe(false));
+  expect(token.value).toBe("a".repeat(32));
 });

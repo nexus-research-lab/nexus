@@ -12,12 +12,11 @@ import (
 // EventType 表示统一事件类型。
 type EventType string
 
-// RequestAckTimeoutMS 是客户端等待请求 ACK 的上限（毫秒）。
-// 服务端不强制该窗口，但承诺在此之前回 ack；
-// 前端据此设置本地超时，两侧同源避免漂移。
+// RequestAckTimeoutMS 是普通请求的 ACK 等待窗口（毫秒），与前端策略一致。
+// 服务端不强制该窗口；超时只触发受理状态核对，不能推断请求被拒绝。
 const RequestAckTimeoutMS = 10000
 
-// ChatAckTimeoutMS 保留 chat_ack 的兼容名称；所有请求 ACK 共用同一超时契约。
+// ChatAckTimeoutMS 是 chat_ack 的等待窗口；set_goal 使用独立受理窗口。
 const ChatAckTimeoutMS = RequestAckTimeoutMS
 
 const (

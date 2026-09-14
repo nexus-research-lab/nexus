@@ -1,3 +1,6 @@
+// INPUT: Host-observed file changes or verified explicit delivery receipts.
+// OUTPUT: Durable file evidence, separate delivery role and producing Agent identity.
+// POS: Shared file artifact wire contract; message envelopes own conversation and round scope.
 package protocol
 
 import "strings"
@@ -28,19 +31,22 @@ const (
 
 // WorkspaceFileArtifactBlock 描述对话中可直接打开的工作区文件产物。
 type WorkspaceFileArtifactBlock struct {
-	ID               string `json:"id,omitempty"`
-	Type             string `json:"type"`
-	Path             string `json:"path"`
-	DisplayPath      string `json:"display_path,omitempty"`
-	Label            string `json:"label,omitempty"`
-	Title            string `json:"title,omitempty"`
-	ArtifactKind     string `json:"artifact_kind,omitempty"`
-	MIMEType         string `json:"mime_type,omitempty"`
-	Operation        string `json:"operation,omitempty"`
-	Scope            string `json:"scope,omitempty"`
-	WorkspaceAgentID string `json:"workspace_agent_id,omitempty"`
-	SourceToolUseID  string `json:"source_tool_use_id,omitempty"`
-	SourceToolName   string `json:"source_tool_name,omitempty"`
+	Role               string `json:"role,omitempty"` // working_file or deliverable; absent on legacy evidence
+	ProducerAgentID    string `json:"producer_agent_id,omitempty"`
+	SourceAgentRoundID string `json:"source_agent_round_id,omitempty"`
+	ID                 string `json:"id,omitempty"`
+	Type               string `json:"type"`
+	Path               string `json:"path"`
+	DisplayPath        string `json:"display_path,omitempty"`
+	Label              string `json:"label,omitempty"`
+	Title              string `json:"title,omitempty"`
+	ArtifactKind       string `json:"artifact_kind,omitempty"`
+	MIMEType           string `json:"mime_type,omitempty"`
+	Operation          string `json:"operation,omitempty"`
+	Scope              string `json:"scope,omitempty"`
+	WorkspaceAgentID   string `json:"workspace_agent_id,omitempty"`
+	SourceToolUseID    string `json:"source_tool_use_id,omitempty"`
+	SourceToolName     string `json:"source_tool_name,omitempty"`
 }
 
 // Map 转成动态消息块，供现有 transcript map 写入链路复用。
@@ -48,6 +54,15 @@ func (b WorkspaceFileArtifactBlock) Map() map[string]any {
 	result := map[string]any{
 		"type": ContentBlockTypeWorkspaceFileArtifact,
 		"path": strings.TrimSpace(b.Path),
+	}
+	if b.Role != "" {
+		result["role"] = b.Role
+	}
+	if b.ProducerAgentID != "" {
+		result["producer_agent_id"] = b.ProducerAgentID
+	}
+	if b.SourceAgentRoundID != "" {
+		result["source_agent_round_id"] = b.SourceAgentRoundID
 	}
 	if value := strings.TrimSpace(b.ID); value != "" {
 		result["id"] = value

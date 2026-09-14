@@ -2,7 +2,7 @@
 
 /**
  * INPUT: exact task source/id, server capabilities and transcript refresh.
- * OUTPUT: scope-fenced stop/send mutations、重复抑制与保守的 FailureCore 写入结果事实。
+ * OUTPUT: scope-fenced stop/send mutations、重复抑制与保守的 FailureCore 事实；未知状态不能解除停止对账。
  * POS: 子智能体线程动作控制器；旧响应和传输失败保持 unknown，视图不构造路由或猜测 runtime 能力。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -25,6 +25,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 
 import {
   canSendSubagentTaskMessage,
+  getSubagentTaskStatus,
   isSubagentTaskActive,
   subagentTaskSourceKey,
 } from "../subagent-task-model";
@@ -81,7 +82,7 @@ export function useSubagentTaskActions({
   }, [scopeKey]);
 
   useEffect(() => {
-    if (isSubagentTaskActive(task)) return;
+    if (isSubagentTaskActive(task) || getSubagentTaskStatus(task) === "unknown") return;
     setError((current) => current?.action === "stop" ? null : current);
   }, [task]);
 

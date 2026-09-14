@@ -3,7 +3,7 @@
 // POS: Channel login QR presentation boundary.
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
-import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export function LoginQRCode({
@@ -16,9 +16,11 @@ export function LoginQRCode({
   const { t } = useI18n();
   if (!payload.trim()) {
     return required ? (
-      <FeedbackBanner
-        impact={t("capability.channel_login_qr_missing_impact")}
-        nextStep={t("capability.channel_login_qr_missing_next_step")}
+      <UiInlineNotice
+        message={<>
+          <span className="block">{t("capability.channel_login_qr_missing_impact")}</span>
+          <span className="mt-1 block">{t("capability.channel_login_qr_missing_next_step")}</span>
+        </>}
         title={t("capability.channel_login_qr_missing_title")}
         tone="warning"
       />
@@ -26,7 +28,7 @@ export function LoginQRCode({
   }
   return (
     <UiQRCode
-      alt="频道扫码登录二维码"
+      alt={t("capability.channel_login_qr_alt")}
       failureFallback={(
         <div className="space-y-1.5 text-left">
           <p className={getUiTypographyClassName({

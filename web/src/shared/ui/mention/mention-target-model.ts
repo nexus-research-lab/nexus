@@ -1,3 +1,6 @@
+// INPUT: 编辑文本、光标、候选数据、搜索词与导航键。
+// OUTPUT: Mention 匹配、完整插入、候选筛选与语义键盘动作。
+// POS: Mention 纯模型；视口定位归公共 anchored overlay，不拥有浮层尺寸。
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
 export type MentionTrigger = "@" | "#";
@@ -21,21 +24,6 @@ export interface MentionTextInsertion {
 }
 
 export type MentionKeyboardAction = "next" | "previous" | "select" | "close";
-export type MentionPlacement = "above" | "below" | "auto";
-
-interface MentionPopoverAnchor {
-  bottom: number;
-  left: number;
-  top: number;
-  width: number;
-}
-
-interface MentionPopoverLayout {
-  left: number;
-  minWidth: number;
-  top: number;
-}
-
 const KEYBOARD_ACTION_BY_KEY: Readonly<Record<string, MentionKeyboardAction>> = {
   ArrowDown: "next",
   ArrowUp: "previous",
@@ -45,8 +33,6 @@ const KEYBOARD_ACTION_BY_KEY: Readonly<Record<string, MentionKeyboardAction>> = 
 };
 
 const MENTION_MATCH_PATTERN = /(?:^|\s)([@#])([^\s@#]*)$/;
-const POPOVER_GAP = 6;
-const POPOVER_MAX_HEIGHT = 192;
 
 export function findMentionTextMatch(
   value: string,
@@ -94,21 +80,4 @@ export function getMentionKeyboardAction(key: string): MentionKeyboardAction | n
 
 export function isMentionNavigationKey(key: string): boolean {
   return key in KEYBOARD_ACTION_BY_KEY;
-}
-
-export function getMentionPopoverLayout(
-  anchor: MentionPopoverAnchor,
-  itemCount: number,
-  placement: MentionPlacement,
-): MentionPopoverLayout {
-  const estimatedHeight = Math.min(itemCount * 52 + 8, POPOVER_MAX_HEIGHT);
-  const canPlaceAbove = anchor.top - POPOVER_GAP - estimatedHeight >= 12;
-  const placeBelow = placement === "below" || (placement === "auto" && !canPlaceAbove);
-  return {
-    left: anchor.left,
-    minWidth: Math.max(anchor.width, 200),
-    top: placeBelow
-      ? anchor.bottom + POPOVER_GAP
-      : anchor.top - POPOVER_GAP - estimatedHeight,
-  };
 }

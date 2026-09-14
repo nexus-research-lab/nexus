@@ -2,19 +2,22 @@
 // OUTPUT: 证明 Escape 只关闭当前模态范围的最上层浮层，且焦点归还不越过该范围。
 // POS: Anchored Overlay 生命周期集成测试；不复制业务菜单或定位计算。
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as renderReact, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { UiDialogBackdrop, UiDialogPortal, UiDialogShell } from "@/shared/ui/dialog/dialog";
+import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import { useAnchoredOverlayLayer } from "./anchored-overlay-layer";
 import { resolveUiAnchoredOverlayPosition } from "./anchored-overlay-layout";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "./overlay-contract";
 import { UiTooltip } from "./tooltip";
+
+function render(ui: ReactNode) { return renderReact(ui, { wrapper: I18nProvider }); }
 
 function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, revision = 0 }: {
   deferUntilAnchor?: boolean;
@@ -50,6 +53,7 @@ function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, r
           style={overlayStyle}
           {...OPEN_OVERLAY_DATA_ATTRIBUTES}
         >
+          <input aria-label="Overlay input" />
           <UiTooltip label="子提示">
             <button type="button">说明</button>
           </UiTooltip>
@@ -67,6 +71,22 @@ function NestedOverlayHarness({ deferUntilAnchor = false, initialOpen = false, r
 }
 
 describe("anchored overlay dismissal", () => {
+  it("leaves composition Escape to an overlay input before normal dismissal", async () => {
+    const user = userEvent.setup();
+    render(<NestedOverlayHarness />);
+    const trigger = screen.getByRole("button", { name: "打开浮层" });
+    await user.click(trigger);
+    const input = screen.getByRole("textbox", { name: "Overlay input" });
+    input.focus();
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", keyCode: 229 });
+    expect(screen.getByRole("dialog", { name: "父浮层" })).toBeTruthy();
+    expect(document.activeElement).toBe(input);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "父浮层" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("registers a delayed initial overlay in the same portal container and releases it after closing", async () => {
     const user = userEvent.setup();
     const view = render(<NestedOverlayHarness deferUntilAnchor initialOpen />);
@@ -200,4 +220,31 @@ describe("anchored overlay dismissal", () => {
       rects.mockRestore();
     }
   });
+});
+
+it("places a portaled Select above its higher-token parent and retains layered Escape", async () => {
+  const style = document.createElement("style");
+  style.textContent = '[aria-label="父浮层"] { position: fixed; z-index: 140; } [role="listbox"] { position: fixed; z-index: 120; }';
+  document.head.append(style);
+  const user = userEvent.setup();
+  const view = render(<NestedOverlayHarness />);
+  try {
+    await user.click(screen.getByRole("button", { name: "打开浮层" }));
+    const parent = screen.getByRole("dialog", { name: "父浮层" });
+    const trigger = screen.getByRole("button", { name: "子选择" });
+    await user.click(trigger);
+    const child = screen.getByRole("listbox");
+    expect(child.parentElement).toBe(parent.parentElement);
+    expect(Number(getComputedStyle(child).zIndex)).toBeGreaterThan(Number(getComputedStyle(parent).zIndex));
+    expect(screen.getByRole("option", { name: "Alpha" })).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("dialog", { name: "父浮层" })).toBe(parent);
+    expect(document.activeElement).toBe(trigger);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "父浮层" })).toBeNull();
+  } finally {
+    view.unmount();
+    style.remove();
+  }
 });

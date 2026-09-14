@@ -1,29 +1,14 @@
+// INPUT: Agent 身份页所在的弹窗或内联上下文。
+// OUTPUT: 同一资料/标签/模型阅读顺序下按容器宽度排布的布局。
+// POS: 身份页只拥有布局差异；标签、文字、反馈与控件外观归共享 Field。
+
 export type AgentIdentityVariant = "dialog" | "inline";
 
-export const IDENTITY_FIELD_LABEL_CLASS_NAMES = {
-  dialog: "text-xs font-semibold text-(--text-muted)",
-  inline:
-    "text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
-} as const satisfies Record<AgentIdentityVariant, string>;
-
-interface IdentityLayout {
-  contentClassName: string;
-  modelClassName: string;
-  profileClassName: string;
-  tagsClassName: string;
-}
-
-export const IDENTITY_LAYOUTS: Record<AgentIdentityVariant, IdentityLayout> = {
-  dialog: {
-    contentClassName: "grid grid-cols-1 gap-4",
-    modelClassName: "min-w-0",
-    profileClassName: "space-y-3",
-    tagsClassName: "grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2",
-  },
-  inline: {
-    contentClassName: "grid grid-cols-1 gap-5",
-    modelClassName: "min-w-0",
-    profileClassName: "min-w-0 space-y-4",
-    tagsClassName: "grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2",
-  },
+export const IDENTITY_CONTENT_CLASS_NAMES: Record<AgentIdentityVariant, string> = {
+  dialog: "grid min-w-0 grid-cols-1 gap-4",
+  inline: "grid min-w-0 grid-cols-1 gap-5",
 };
+
+// 两个标签字段按表单可用宽度排布，最窄 15rem；不足时单列且不撑出容器。
+export const IDENTITY_TAGS_CLASS_NAME =
+  "grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-4";

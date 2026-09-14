@@ -14,6 +14,7 @@ import (
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 func TestHandleCreateAgentRejectsMalformedJSONBeforeSideEffects(t *testing.T) {
@@ -201,5 +202,24 @@ func TestAgentCreateFailureUsesDurableRequestEvidence(t *testing.T) {
 				t.Fatalf("agentCreateFailure() = status %d, code %q, effect %q", status, spec.Code, spec.Effect)
 			}
 		})
+	}
+}
+
+// TestRuntimeSettingsValidationIsNotApplied 校验阶段拒绝不能被前端当作提交结果未知。
+func TestRuntimeSettingsValidationIsNotApplied(t *testing.T) {
+	handler := &Handlers{api: handlershared.NewAPI(nil)}
+	request := httptest.NewRequest(http.MethodPut, "/sessions/example/runtime-settings", nil)
+	response := httptest.NewRecorder()
+	handler.writeSessionRuntimeSettingsError(response, request, sessionpkg.ErrInvalidRuntimeSettings)
+	var payload struct {
+		Data struct {
+			Failure protocol.FailureCore `json:"failure"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusBadRequest || payload.Data.Failure.Effect != protocol.FailureEffectNotApplied {
+		t.Fatalf("status=%d failure=%+v", response.Code, payload.Data.Failure)
 	}
 }

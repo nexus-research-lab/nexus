@@ -138,6 +138,8 @@ func (a *ControlAuthority) BuildStatusPayload(
 	result.Role = stringPointer(principal.Role)
 	result.Avatar = stringPointer(principal.Avatar)
 	result.AuthMethod = stringPointer(principal.AuthMethod)
+	result.OrganizationID = stringPointer(principal.OrganizationID)
+	result.OrganizationName = stringPointer(principal.OrganizationName)
 	return result, nil
 }
 
@@ -350,15 +352,17 @@ func (a *ControlAuthority) call(
 func projectControlPrincipal(value controlPrincipal, localOwnerKey string) *Principal {
 	sessionID := strings.TrimSpace(value.SessionID)
 	return &Principal{
-		UserID:        strings.TrimSpace(localOwnerKey),
-		ControlUserID: strings.TrimSpace(value.UserID),
-		DeploymentID:  strings.TrimSpace(value.DeploymentID),
-		Username:      strings.TrimSpace(value.Username),
-		DisplayName:   strings.TrimSpace(value.DisplayName),
-		Role:          strings.TrimSpace(value.Role),
-		Avatar:        strings.TrimSpace(value.Avatar),
-		AuthMethod:    strings.TrimSpace(value.AuthMethod),
-		SessionID:     &sessionID,
+		UserID:           strings.TrimSpace(localOwnerKey),
+		ControlUserID:    strings.TrimSpace(value.UserID),
+		DeploymentID:     strings.TrimSpace(value.DeploymentID),
+		OrganizationID:   strings.TrimSpace(value.OrganizationID),
+		OrganizationName: strings.TrimSpace(value.OrganizationName),
+		Username:         strings.TrimSpace(value.Username),
+		DisplayName:      strings.TrimSpace(value.DisplayName),
+		Role:             strings.TrimSpace(value.Role),
+		Avatar:           strings.TrimSpace(value.Avatar),
+		AuthMethod:       strings.TrimSpace(value.AuthMethod),
+		SessionID:        &sessionID,
 	}
 }
 

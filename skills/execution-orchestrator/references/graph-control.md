@@ -21,7 +21,7 @@ Plan 中面向用户的 objective、completion criteria、subject、deliverable 
 - `replan`：必须有非空 `revision_reason`，继承 current Execution 的 objective 与 completion criteria；只有语义契约未改变的旧节点才能用 `existing_work_item_id` 复用。普通 replan 只能单调追加节点或下游边；删除/改写节点或依赖、或在 current Assignment 存在时换 Plan，必须显式 `supersede_active_work: true`，并接受它会原子释放当前责任链。未审核 Submission 必须先 review。
 - `replace`：必须有完整 `objective`、`completion_criteria`、`replacement_reason`；不能带 `supersede_active_work` 或 `existing_work_item_id`，Goal-bound Execution 不能 replace。
 
-Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`execution contract --operation prepare_plan_execution` 返回的 input schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
+Plan Document 的精确字段、枚举和条件必填项只有一个真相源：`nexus.command` 的 `domain=execution, action=contract, operation=prepare_plan_execution` 返回的 input schema 与 parser-backed `document_contract`。Skill 不复制完整字段表；不要根据记忆猜别名，也不要根据单个报错逐字段删改。校验失败时读取返回的完整 contract，修正后一次重交整份 YAML。
 
 传输必须是一个有效 UTF-8、最多 64 KiB、且只有一个 root mapping 的 YAML document。parser 拒绝未知字段、重复 key、多 document、anchor/alias/merge key、显式 tag、null、timestamp、非标准 scalar，以及超出 contract 集合/深度/node 限制的输入；不要利用 YAML 隐式类型或别名压缩绕过 closed schema。
 
@@ -76,7 +76,7 @@ items:
 
 ## Review 与 Gate
 
-Gate 只表示会真实改变路线的检查，不代表每一步都需要用户确认。
+Gate 只表示会真实改变路线的检查，不代表每一步都需要用户确认。`kind=review|verify` 和 acceptance criteria 不会自动创建人工审批或暂停；只有确实需要用户决定时，才提出具体问题并按实际外部输入建立 block/resume，不得仅因 Plan 写了“人工检查点”就宣称宿主已强制拦截。
 
 - owner 与 reviewer 相同：自审折叠在同一 Agent 节点。
 - reviewer 不同：显示独立 review Gate，并通过结构化 review handoff 交接。

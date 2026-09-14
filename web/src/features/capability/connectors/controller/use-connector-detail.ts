@@ -42,7 +42,9 @@ export function useConnectorDetail({ failureFallback }: UseConnectorDetailOption
       return requestId === requestIdRef.current;
     } catch (error) {
       if (requestId === requestIdRef.current) {
-        setFailure(getResourceFailure(error, failureFallback));
+        const nextFailure = getResourceFailure(error, failureFallback);
+        setFailure(nextFailure);
+        if (nextFailure.access) setSelectedDetail(null);
       }
       return false;
     } finally {

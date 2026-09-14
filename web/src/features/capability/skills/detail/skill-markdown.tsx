@@ -9,7 +9,7 @@ import { cn } from "@/shared/ui/class-name";
 import { normalizeSkillMarkdownContent } from "./skill-detail-model";
 
 const SKILL_MARKDOWN_CLASS_NAME =
-  "[&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0";
+  "nexus-workspace-file-markdown [&_h1:first-child]:mt-0 [&_h2:first-child]:mt-0 [&_h3:first-child]:mt-0 [&_p:first-child]:mt-0";
 
 interface SkillMarkdownProps {
   markdown: string;

@@ -7,6 +7,8 @@ import type {
   ReplyMode,
   TargetType,
   TaskFormDraft,
+  TaskDestinationOption,
+  TaskDialogSessionOption,
 } from "../scheduled-task-dialog-types";
 
 function clearExecutionSelection(
@@ -47,6 +49,10 @@ export function useTaskForm(
         selectedAgentId: targetType === "room" ? "" : current.selectedAgentId,
         selectedRoomId: targetType === "room" ? current.selectedRoomId : "",
         targetType,
+        deliveryTargetType: targetType,
+        selectedReplySessionKey: "",
+        selectedDeliveryRoomId: "",
+        selectedDeliveryPresenterAgentId: "",
       });
     });
     onChange();
@@ -70,6 +76,23 @@ export function useTaskForm(
     onChange();
   }, [onChange]);
 
+  // 只选择唯一的合法候选；不覆盖用户选择，不猜测多个聊天的用途。
+  const resolveDefaultSessions = useCallback((execution: TaskDialogSessionOption[], delivery: TaskDialogSessionOption[]) => {
+    setDraft((current) => {
+      const selectedSessionKey = current.selectedSessionKey
+        || (current.executionMode === "existing" && execution.length === 1 && !execution[0].disabled ? execution[0].value : "");
+      const sameTarget = current.targetType === current.deliveryTargetType && (current.targetType === "room"
+        ? current.selectedRoomId === current.selectedDeliveryRoomId
+        : current.selectedAgentId === current.selectedDeliveryAgentId);
+      const matching = sameTarget && delivery.find((option) => option.value === selectedSessionKey && !option.disabled);
+      const selectedReplySessionKey = current.selectedReplySessionKey || (current.replyMode === "selected"
+        ? matching ? matching.value : delivery.length === 1 && !delivery[0].disabled ? delivery[0].value : ""
+        : "");
+      return selectedSessionKey === current.selectedSessionKey && selectedReplySessionKey === current.selectedReplySessionKey
+        ? current : { ...current, selectedSessionKey, selectedReplySessionKey };
+    });
+  }, []);
+
   const setSelectedAgentId = useCallback((value: string) => {
     setDraft((current) => {
       const patch = {
@@ -77,6 +100,8 @@ export function useTaskForm(
           ? "copy" as const
           : current.permissionMode,
         selectedAgentId: value,
+        ...(current.targetType === "agent" && current.deliveryTargetType === "agent" && current.selectedDeliveryAgentId === current.selectedAgentId
+          ? { selectedDeliveryAgentId: value, selectedReplySessionKey: "" } : {}),
       };
       return current.targetType === "room"
         ? { ...current, ...patch }
@@ -92,6 +117,8 @@ export function useTaskForm(
         : current.permissionMode,
       selectedAgentId: "",
       selectedRoomId: value,
+      ...(current.deliveryTargetType === "room" && current.selectedDeliveryRoomId === current.selectedRoomId
+        ? { selectedDeliveryRoomId: value, selectedReplySessionKey: "", selectedDeliveryPresenterAgentId: "" } : {}),
     }));
     onChange();
   }, [onChange]);
@@ -174,7 +201,36 @@ export function useTaskForm(
     });
   }, []);
 
+  const selectExecution = useCallback((option: TaskDestinationOption) => {
+    setDraft((current) => ({
+      ...current,
+      targetType: option.targetType,
+      selectedAgentId: option.agentId,
+      selectedRoomId: option.roomId,
+      selectedSessionKey: option.sessionKey,
+      executionMode: option.sessionKey ? "existing" : "temporary",
+      dedicatedSessionKey: "",
+      permissionMode: "copy",
+    }));
+    onChange();
+  }, [onChange]);
+
+  const selectDelivery = useCallback((option: TaskDestinationOption | null) => {
+    setDraft((current) => ({
+      ...current,
+      replyMode: option && current.executionMode !== "main" ? "selected" : "none",
+      deliveryTargetType: option?.targetType ?? "agent",
+      selectedDeliveryAgentId: option?.agentId ?? "",
+      selectedDeliveryRoomId: option?.roomId ?? "",
+      selectedReplySessionKey: current.executionMode === "main" ? "" : option?.sessionKey ?? "",
+      selectedDeliveryPresenterAgentId: "",
+    }));
+    onChange();
+  }, [onChange]);
+
   const actions = useMemo(() => ({
+    selectExecution,
+    selectDelivery,
     setDedicatedSessionKey: (value: string) => setValue("dedicatedSessionKey", value),
     setDeliveryTargetType,
     setEnabled: (value: boolean) => setValue("enabled", value),
@@ -204,6 +260,8 @@ export function useTaskForm(
     setTargetType,
     setTaskName: (value: string) => setValue("taskName", value),
   }), [
+    selectExecution,
+    selectDelivery,
     resolveSelectedRoomIds,
     setExecutionMode,
     setDeliveryTargetType,
@@ -218,5 +276,5 @@ export function useTaskForm(
     onChange,
   ]);
 
-  return { actions, draft, hydrate };
+  return { actions, draft, hydrate, resolveDefaultSessions };
 }

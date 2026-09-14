@@ -77,11 +77,13 @@ export function DailyTimePicker(props: DailyTimePickerProps) {
             value={meridiem}
           />
           <TimePickerColumn
+            label={t("capability.scheduled_dialog_hours")}
             onSelect={onHourSelect}
             options={HOUR_12_OPTIONS}
             value={hour12}
           />
           <TimePickerColumn
+            label={t("capability.scheduled_dialog_minutes")}
             onSelect={onMinuteSelect}
             options={MINUTE_OPTIONS}
             value={minute}

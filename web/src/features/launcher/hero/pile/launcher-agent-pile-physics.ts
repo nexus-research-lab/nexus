@@ -1,3 +1,6 @@
+// INPUT: Token几何、DOM引用和减少动效偏好。
+// OUTPUT: 按可见性暂停且完整释放的Matter动画，或不申请动画帧的静态快照。
+// POS: Launcher物理场景所有者，不写React状态或调用导航。
 import Matter from "matter-js";
 
 import type { SpotlightToken } from "@/types/app/launcher";
@@ -9,6 +12,7 @@ type TokenKind = SpotlightToken["kind"];
 interface LauncherPilePhysicsOptions {
   configs: TokenPhysicsConfig[];
   container: HTMLElement;
+  reducedMotion?: boolean;
   tokenByKey: ReadonlyMap<string, SpotlightToken>;
   tokenRefs: {
     current: Record<string, HTMLElement | null>;
@@ -38,6 +42,7 @@ export class LauncherPilePhysics {
   private readonly tokenRefs: LauncherPilePhysicsOptions["tokenRefs"];
   private animationFrame = 0;
   private disposed = false;
+  private readonly reducedMotion: boolean;
   private documentVisible = document.visibilityState !== "hidden";
   private inView = true;
   private previousTime = performance.now();
@@ -45,9 +50,11 @@ export class LauncherPilePhysics {
   constructor({
     configs,
     container,
+    reducedMotion = false,
     tokenByKey,
     tokenRefs,
   }: LauncherPilePhysicsOptions) {
+    this.reducedMotion = reducedMotion;
     this.configs = configs;
     this.container = container;
     this.tokenByKey = tokenByKey;
@@ -55,6 +62,11 @@ export class LauncherPilePhysics {
     this.engine = this.createEngine();
     this.addBounds();
     this.scheduleTokenBodies();
+    if (this.reducedMotion) {
+      // Resolve the scene offscreen once; no dropping animation or timer is exposed.
+      for (let step = 0; step < 180; step += 1) Matter.Engine.update(this.engine, 1000 / 60);
+      this.renderTokens();
+    }
     this.observer = new IntersectionObserver(this.handleIntersection, {
       threshold: 0.05,
     });
@@ -158,8 +170,14 @@ export class LauncherPilePhysics {
       }
       const body = this.createTokenBody(config, token.kind);
       this.bodyByKey.set(config.key, body);
-      const timeoutId = window.setTimeout(() => {
+      if (this.reducedMotion) {
         Matter.World.add(this.engine.world, body);
+        return;
+      }
+      const timeoutId = window.setTimeout(() => {
+        if (this.disposed) return;
+        Matter.World.add(this.engine.world, body);
+        this.syncAnimationState();
       }, config.delay);
       this.timeoutIds.push(timeoutId);
     });
@@ -230,6 +248,7 @@ export class LauncherPilePhysics {
   private startAnimation(): void {
     if (
       this.disposed
+      || this.reducedMotion
       || this.animationFrame !== 0
       || !this.documentVisible
       || !this.inView

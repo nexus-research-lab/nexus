@@ -1,3 +1,6 @@
+// INPUT: Mermaid 源码、流式状态与实例渲染标识。
+// OUTPUT: 仅提交当前请求的安全 SVG；清空源码立即清除旧图。
+// POS: Mermaid 异步渲染生命周期，不拥有展示或业务状态。
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -52,7 +55,7 @@ export function useMermaidSvg(
     setRenderState((previous) => ({
       error: null,
       is_rendering: Boolean(normalizedChart),
-      svg: isStreaming ? previous.svg : "",
+      svg: isStreaming && normalizedChart ? previous.svg : "",
     }));
   }
 

@@ -4,6 +4,7 @@
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type HTMLAttributes, useMemo } from "react";
 
 import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
@@ -52,6 +53,7 @@ export function UiSeededAvatar({
   size = "md",
   state = "default",
   style,
+  title,
   ...props
 }: UiSeededAvatarProps) {
   const appearance = useMemo(
@@ -59,7 +61,7 @@ export function UiSeededAvatar({
     [seed],
   );
 
-  return (
+  const content = (
     <span
       {...props}
       aria-hidden="true"
@@ -92,4 +94,5 @@ export function UiSeededAvatar({
       </svg>
     </span>
   );
+  return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;
 }

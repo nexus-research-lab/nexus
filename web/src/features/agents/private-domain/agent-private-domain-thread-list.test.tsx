@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentPrivateThread } from "@/types/agent/private-domain";
+import { MESSAGES, type Locale } from "@/shared/i18n/messages";
 
 import { PrivateThreadList } from "./agent-private-domain-thread-list";
 
@@ -40,6 +41,22 @@ const THREADS: AgentPrivateThread[] = [
 ];
 
 describe("PrivateThreadList", () => {
+  it("keeps missing peer names readable in both labels and avatars while selecting exact threads", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const threads = THREADS.map((thread) => ({ ...thread, participants: thread.participants.map((participant) => ({ ...participant, name: "  " })) }));
+    const view = (locale: Locale) => <PrivateThreadList agentId="owner" isLoading={false} localization={{ locale, t: (key) => MESSAGES[locale][key] }} onSelect={onSelect} selectedThreadId={null} threads={threads} />;
+    const { container, rerender } = render(view("zh"));
+    expect(screen.getAllByRole("img", { name: "智能体" })).toHaveLength(2);
+    expect(container.textContent).not.toContain("richmail");
+    expect(container.textContent).not.toContain("analyst");
+    await user.click(screen.getByRole("button", { name: /第二条摘要/ }));
+    expect(onSelect).toHaveBeenCalledWith("thread-2");
+    rerender(view("en"));
+    expect(screen.getAllByRole("img", { name: "Agent" })).toHaveLength(2);
+    expect(container.textContent).not.toContain("智能体");
+  });
+
   it("uses shared selectable rows and forwards the exact thread", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

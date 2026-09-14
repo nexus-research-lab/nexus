@@ -1,16 +1,17 @@
 /**
  * INPUT: 设置项标题、说明、选项、当前值与设置目录动作。
- * OUTPUT: 统一的设置卡片、行、控件、导航项与响应式信息层级样式。
+ * OUTPUT: 设置卡片、具名开关行、可读标签/说明及共享 Button 目录导航。
  * POS: 设置域共享视图 Pattern；行级说明在窄屏仍用于解释选项影响。
  */
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 import {
   UiButton,
   type UiButtonSize,
 } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
@@ -18,29 +19,61 @@ export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
   getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
 );
 export const SETTINGS_CARD_CLASS_NAME = "overflow-hidden surface-radius-md border border-(--divider-subtle-color) bg-transparent";
+export const SETTINGS_GROUP_CLASS_NAME = cn(
+  SETTINGS_CARD_CLASS_NAME,
+  "bg-[color:color-mix(in_srgb,var(--surface-control-background)_64%,transparent)]",
+);
 export const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 export const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 export const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";
 export const SETTINGS_ITEM_TITLE_CLASS_NAME = getUiTypographyClassName({
   role: "control",
   tone: "strong",
-  weight: "semibold",
+  weight: "medium",
 });
 export const SETTINGS_ITEM_DESCRIPTION_CLASS_NAME = cn(
   "mt-1 max-w-[520px]",
-  getUiTypographyClassName({ role: "supporting", tone: "soft" }),
+  getUiTypographyClassName({ role: "supporting", tone: "muted" }),
 );
 export const SETTINGS_CONTROL_LABEL_CLASS_NAME = getUiTypographyClassName({
-  role: "caption",
-  tone: "soft",
+  role: "supporting",
+  tone: "default",
   weight: "medium",
 });
-export const SETTINGS_CONTROL_HEIGHT_CLASS_NAME = "h-7";
-export const SETTINGS_SELECT_BUTTON_CLASS_NAME = cn(
-  SETTINGS_CONTROL_HEIGHT_CLASS_NAME,
-  "w-full radius-control-md border-(--divider-subtle-color) bg-transparent px-2.5 text-(--text-strong) shadow-none hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-0",
-  getUiTypographyClassName({ role: "caption", weight: "semibold" }),
-);
+
+interface SettingsToggleRowProps {
+  checked: boolean;
+  description: string;
+  disabled?: boolean;
+  icon: ReactNode;
+  onChange: (checked: boolean) => void;
+  title: string;
+}
+
+export function SettingsToggleRow({
+  checked, description, disabled, icon, onChange, title,
+}: SettingsToggleRowProps) {
+  const descriptionId = useId();
+  return (
+    <div className="flex min-w-0 items-center gap-3 px-4 py-3">
+      <div className={cn(SETTINGS_TEXT_ROW_CLASS_NAME, "flex-1")}>
+        <div aria-hidden="true" className={SETTINGS_ICON_CLASS_NAME}>{icon}</div>
+        <div className="min-w-0 break-words">
+          <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{title}</h3>
+          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} id={descriptionId}>{description}</p>
+        </div>
+      </div>
+      <GlassSwitch
+        aria-describedby={descriptionId}
+        aria-label={title}
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        size="sm"
+      />
+    </div>
+  );
+}
 
 interface SettingsNavigationButtonProps
   extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
@@ -61,7 +94,7 @@ export function SettingsNavigationButton({
     <UiButton
       {...buttonProps}
       aria-current={ariaCurrent ?? (active ? "page" : undefined)}
-      className={cn("w-full justify-start text-left", className)}
+      className={cn("w-full justify-start border-0 px-2 text-left font-normal", className)}
       size={size}
       variant="ghost"
     >
@@ -81,7 +114,7 @@ export function SettingsNavigationGroupLabel({
     <p
       className={cn(
         "px-2 pb-1",
-        getUiTypographyClassName({ role: "overline", tone: "soft" }),
+        getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "medium" }),
         className,
       )}
     >

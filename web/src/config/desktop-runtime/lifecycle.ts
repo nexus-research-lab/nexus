@@ -1,4 +1,4 @@
-/** WebView 启动、崩溃与空白页诊断的宿主消息协议。 */
+/** WebView 启动、崩溃、空白页与可恢复异常诊断的宿主消息协议。 */
 
 import { currentDesktopLocationPath } from "./desktop-location";
 import { getDesktopRuntimeConfig, isDesktopRuntime } from "./runtime-config";
@@ -94,6 +94,28 @@ export function markDesktopPerformance(name: string): void {
     performance.mark(`nexus.${name}`);
   } catch {
     // 性能标记只用于诊断，启动流程不能依赖浏览器是否支持该 API。
+  }
+}
+
+/** 可恢复异常进入宿主导出日志，不触发 fatal 报告或页面恢复。 */
+export function notifyDesktopDiagnostic(
+  source: string,
+  details: Record<string, string | number | boolean | null | undefined>,
+  error?: unknown,
+): void {
+  if (!isDesktopRuntime()) return;
+  try {
+    window.webkit?.messageHandlers?.nexusDesktopLifecycle?.postMessage({
+      kind: "web.diagnostic",
+      source,
+      location: currentDesktopLocationPath(),
+      context: trimDiagnosticText(JSON.stringify(details)),
+      message: error === undefined ? undefined : diagnosticMessage(error),
+      name: diagnosticName(error),
+      stack: diagnosticStack(error),
+    });
+  } catch {
+    // 宿主桥失效不能制造新的未捕获异常，也不能影响原请求的收口。
   }
 }
 

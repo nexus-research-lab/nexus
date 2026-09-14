@@ -1,10 +1,11 @@
 // INPUT: Real App entry/Router, isolated read snapshots, theme/locale/viewport matrix.
-// OUTPUT: Launcher/navigation geometry and multi-page pin, reload and unpin evidence.
+// OUTPUT: Launcher/navigation/search geometry, local contact filtering and multi-page pin persistence.
 // POS: App-shell browser regression; all HTTP/WS traffic stays in local fixtures.
 
 import { expect, test } from "@playwright/test";
 import { createRequire } from "node:module";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
+import { measureTextContrast } from "./color-contrast";
 
 const localLottieWasm = createRequire(__filename).resolve("@lottiefiles/dotlottie-web/dotlottie-player.wasm");
 
@@ -33,6 +34,14 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
       && /^\/(?:npm\/)?@lottiefiles\/dotlottie-web@[^/]+\/dist\/dotlottie-player\.wasm$/.test(url.pathname)) {
       return route.fulfill({ path: localLottieWasm, contentType: "application/wasm" });
     }
+    if (url.pathname === "/nexus/v1/launcher/bootstrap") {
+      reads.push(url.pathname);
+      return route.fulfill({ json: { data: { agents: appShellRead("GET", "/nexus/v1/agents")!.data, rooms: [], conversations: [
+        { session_key: "recent-1", agent_id: "qa-main", room_type: "dm", title: "Bash顺序执行与回归测试", last_activity: "2026-09-09T10:00:00Z" },
+        { session_key: "recent-2", agent_id: "qa-reader", room_type: "dm", title: "本地文件与目录权限测试", last_activity: "2026-09-09T09:00:00Z" },
+        { session_key: "recent-3", room_id: "qa-room", conversation_id: "qa-conversation", room_type: "room", title: "文档助手", last_activity: "2026-09-09T08:00:00Z" },
+      ] } } });
+    }
     const fixture = appShellRead(request.method(), url.pathname);
     if (fixture) {
       reads.push(url.pathname);
@@ -56,6 +65,17 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await page.evaluate(() => document.fonts.ready);
   await input.fill("Inspect the local workspace");
   await expect(input).toHaveValue("Inspect the local workspace");
+  const recent = page.locator("[data-launcher-recent-entry]");
+  await expect(recent).toHaveCount(3);
+  const bounds = await recent.evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, width: rect.width, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+  }));
+  for (const boundsItem of bounds) {
+    expect(Math.abs(boundsItem.top - bounds[0].top)).toBeLessThanOrEqual(1);
+    expect(Math.abs(boundsItem.width - bounds[0].width)).toBeLessThanOrEqual(1);
+    expect(boundsItem.scrollWidth).toBeLessThanOrEqual(boundsItem.clientWidth + 1);
+  }
   await info.attach("app-launcher", { body: await page.screenshot(), contentType: "image/png" });
   await enter.click();
   await expect(page).toHaveURL(/\/app$/);
@@ -64,8 +84,16 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   const labels = page.locator(".shell-navigation-rail button[aria-pressed] > span:nth-child(2)");
   await expect(labels).toHaveCount(3);
   const railWidth = await sidebar.locator(".shell-navigation-rail").evaluate((e) => e.getBoundingClientRect().width);
-  expect(railWidth).toBe(64);
+  const leadingPadding = await sidebar.evaluate((e) => parseFloat(getComputedStyle(e).paddingLeft));
+  expect(railWidth).toBe(56 + leadingPadding);
+  const railLeft = await sidebar.locator(".shell-navigation-rail").evaluate((e) => e.getBoundingClientRect().left);
+  expect(railLeft).toBe(await sidebar.evaluate((e) => e.getBoundingClientRect().left));
   for (const label of await labels.all()) {
+    const center = await label.evaluate((e) => {
+      const box = e.getBoundingClientRect();
+      return box.left + box.width / 2;
+    });
+    expect(center).toBeCloseTo(railLeft + railWidth / 2, 1);
     // scrollWidth rounds to integer pixels. Even subpixel clipping can show an
     // ellipsis, so measure the actual text against its content box instead.
     expect(await label.evaluate((e) => {
@@ -82,6 +110,53 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await expect.poll(() => page.locator("main").evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
   await expect(page.locator(".desktop-app-stage")).toHaveCount(page.viewportSize()!.width <= 559 ? 0 : 1);
   await info.attach("app-workbench", { body: await page.screenshot(), contentType: "image/png" });
+  await page.locator('[data-tour-anchor="sidebar-contacts-tab"]').click();
+  const contacts = page.locator('[data-tour-anchor="sidebar-contacts-list"]');
+  const isChinese = info.project.metadata.locale === "zh";
+  const search = contacts.getByRole("searchbox", { name: isChinese ? "搜索联系人" : "Search contacts" });
+  const create = contacts.getByRole("button", { name: isChinese ? "新建智能体" : "New Agent", exact: true });
+  await expect(search).toHaveAttribute("placeholder", isChinese ? "搜索" : "Search");
+  const searchGeometry = await search.evaluate((input) => {
+    const style = getComputedStyle(input);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    return {
+      fontSize: parseFloat(style.fontSize),
+      availableWidth: input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      placeholderWidth: ctx.measureText((input as HTMLInputElement).placeholder).width,
+      height: input.parentElement!.getBoundingClientRect().height,
+      radius: getComputedStyle(input.parentElement!).borderRadius,
+    };
+  });
+  const actionGeometry = await create.evaluate((button) => ({
+    height: button.getBoundingClientRect().height,
+    width: button.getBoundingClientRect().width,
+    radius: getComputedStyle(button).borderRadius,
+  }));
+  expect(searchGeometry.fontSize).toBe(14);
+  expect(searchGeometry.placeholderWidth).toBeLessThanOrEqual(searchGeometry.availableWidth);
+  const height = page.viewportSize()!.width <= 559 ? 48 : 36;
+  expect(searchGeometry.height).toBe(height);
+  expect(actionGeometry).toEqual({ height, width: height, radius: searchGeometry.radius });
+  const contrast = await measureTextContrast(search, "::placeholder");
+  expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
+  await search.focus();
+  await page.keyboard.press("Tab");
+  await expect(create).toBeFocused();
+  expect(await create.getAttribute("title")).toBeNull();
+  await expect(page.getByRole("tooltip", { name: isChinese ? "新建智能体" : "New Agent" })).toBeVisible();
+  await search.fill("Research");
+  await expect(contacts.getByText("Research", { exact: true })).toBeVisible();
+  await expect(contacts.getByText("Nexus", { exact: true })).toHaveCount(0);
+  await contacts.getByRole("button", { name: isChinese ? "清除" : "Clear", exact: true }).click();
+  await expect(search).toHaveValue("");
+  await expect(search).toBeFocused();
+  await expect(contacts.getByText("Nexus", { exact: true })).toBeVisible();
+  await expect.poll(() => contacts.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
+  await info.attach("sidebar-search-metrics", { body: JSON.stringify({ searchGeometry, actionGeometry, contrast }), contentType: "application/json" });
+  await info.attach("app-contacts-search", { body: await page.screenshot(), contentType: "image/png" });
+  await page.locator('[data-tour-anchor="sidebar-chat-tab"]').click();
   const sibling = await context.newPage();
   await sibling.goto("/app");
   await expect(sibling.locator(".sidebar-panel-shell")).toBeVisible();
@@ -111,7 +186,7 @@ test("real Launcher navigates to a readable responsive workbench and pins surviv
   await expect(page.locator(".sidebar-panel-shell")).toBeVisible();
   await expect(pinned).toHaveCount(0);
   await sibling.close();
-  await page.getByRole("link").filter({ has: page.getByText("NEXUS", { exact: true }).first() }).click();
+  await page.getByRole("link", { name: isChinese ? "回到 Launcher" : "Back to launcher", exact: true }).click();
   await expect(page).toHaveURL(/\/launcher$/);
   await expect(input).toHaveValue("");
   expect(reads).toContain("/nexus/v1/auth/status");

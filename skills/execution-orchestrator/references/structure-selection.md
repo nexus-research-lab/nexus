@@ -27,6 +27,8 @@ Task 是当前 Agent 内部的局部清单。它应展开在对应 Agent 或 Wor
 
 ### Subagent
 
+决定委派后，按 [subagents.md](subagents.md) 使用现有 command 入口。
+
 Subagent 帮助父 Agent 完成父 Agent 当前拥有的责任。只有上下文隔离、专业视角或局部并行的收益高于启动与合并成本时才使用；父 Agent 仍负责整合、验证和提交。
 
 父 Agent 先自己理解用户目标、权威来源、依赖和交付边界，不把“理解任务”本身交给子 Agent。每个 Subagent 请求都给出一个有界的局部 objective、已知上下文与 source of truth、必须遵守的范围/约束，以及期望返回的结果或证据。不给多个子 Agent 重叠的 owner 范围或同一可变交付物。

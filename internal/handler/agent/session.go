@@ -261,7 +261,7 @@ func (h *Handlers) HandleSessionRuntimeSettings(
 		request.Context(),
 		sessionKeyPathParam(request),
 	)
-	if h.writeSessionRuntimeSettingsError(writer, err) {
+	if h.writeSessionRuntimeSettingsError(writer, request, err) {
 		return
 	}
 	h.api.WriteSuccess(writer, settings)
@@ -281,7 +281,7 @@ func (h *Handlers) HandleUpdateSessionRuntimeSettings(
 		sessionKeyPathParam(request),
 		payload,
 	)
-	if h.writeSessionRuntimeSettingsError(writer, err) {
+	if h.writeSessionRuntimeSettingsError(writer, request, err) {
 		return
 	}
 	h.api.WriteSuccess(writer, settings)
@@ -348,6 +348,7 @@ func (h *Handlers) writeSessionLocalDirectoriesError(
 
 func (h *Handlers) writeSessionRuntimeSettingsError(
 	writer http.ResponseWriter,
+	request *http.Request,
 	err error,
 ) bool {
 	if err == nil {
@@ -358,8 +359,9 @@ func (h *Handlers) writeSessionRuntimeSettingsError(
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, sessionpkg.ErrSessionNotFound):
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+	case errors.Is(err, sessionpkg.ErrInvalidRuntimeSettings):
+		h.api.WriteError(writer, request, http.StatusBadRequest, handlershared.FailureSpec{Code: "session.runtime_settings_invalid", Category: protocol.FailureCategoryValidation, Effect: protocol.FailureEffectNotApplied, Detail: err.Error(), Cause: err})
 	case errors.Is(err, sessionpkg.ErrSessionMutationUnsupported),
-		errors.Is(err, sessionpkg.ErrInvalidRuntimeSettings),
 		handlershared.IsClientMessageError(err):
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 	default:

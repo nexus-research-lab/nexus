@@ -1,5 +1,5 @@
 // INPUT: 当前导入模式、在途状态与关闭动作。
-// OUTPUT: 只保留取消和当前模式主动作的 plain Footer。
+// OUTPUT: 直接组合取消、Git 提交与显式 busy 状态的 plain Footer。
 // POS: Skill 导入弹窗动作区；按钮和加载状态服从 shared/ui。
 
 import { Download, Loader2 } from "lucide-react";
@@ -10,39 +10,6 @@ import { UiDialogFooter } from "@/shared/ui/dialog/dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
-
-function GitImportStatus({ importing }: { importing: boolean }) {
-  const { t } = useI18n();
-  return importing ? (
-    <>
-      <Loader2 className={getUiSpinnerClassName()} />
-      {t("capability.skills_importing")}
-    </>
-  ) : (
-    <>
-      <Download className="h-4 w-4" />
-      {t("capability.skills_import_git_submit")}
-    </>
-  );
-}
-
-function GitImportSubmitButton({
-  importing,
-}: {
-  importing: boolean;
-}) {
-  return (
-    <UiButton
-      disabled={importing}
-      size="sm"
-      tone="primary"
-      type="submit"
-      variant="solid"
-    >
-      <GitImportStatus importing={importing} />
-    </UiButton>
-  );
-}
 
 export function SkillImportFooter({
   importing,
@@ -60,9 +27,10 @@ export function SkillImportFooter({
         {t("common.cancel")}
       </UiButton>
       {mode === "git" ? (
-        <GitImportSubmitButton
-          importing={importing}
-        />
+        <UiButton aria-busy={importing || undefined} disabled={importing} size="sm" tone="primary" type="submit" variant="solid">
+          {importing ? <Loader2 className={getUiSpinnerClassName()} /> : <Download className="h-4 w-4" />}
+          {t(importing ? "capability.skills_importing" : "capability.skills_import_git_submit")}
+        </UiButton>
       ) : null}
     </UiDialogFooter>
   );

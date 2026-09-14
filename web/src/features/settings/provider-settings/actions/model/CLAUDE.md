@@ -8,3 +8,5 @@
 - `use-provider-test-actions.ts` 负责 Provider 与模型连通性测试。
 - `use-provider-persisted-model-command.ts` 统一“持久化配置、执行请求、刷新目标、发布反馈”的事务骨架。
 - 每个命令 Hook 只声明自己消费的 `ProviderModelApi` 子集，不依赖完整 API 门面。
+
+- 删除模型成功但目录刷新失败时，复用已提交/刷新失败反馈，不能以成功 toast 覆盖工作区读失败；不自动重试删除。测试反馈只保留实际消费的字段。

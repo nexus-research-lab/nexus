@@ -8,6 +8,9 @@ import type {
   ImChannelType,
 } from "@/lib/api/capability/channel-api";
 
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+
 export interface ChannelConnectionDraft {
   agentId: string;
   config: Record<string, string>;
@@ -24,12 +27,12 @@ export type PendingChannelDelete =
   | { kind: "account"; account: ChannelAccountView }
   | { kind: "channel" };
 
-const ACCOUNT_STATUS_LABELS: Record<string, string> = {
-  configured: "已配置",
-  connected: "已连接",
-  disabled: "已停用",
-  error: "异常",
-  pending: "待确认",
+const ACCOUNT_STATUS_LABELS: Record<string, TranslationKey> = {
+  configured: "capability.channel_account_configured",
+  connected: "capability.channel_account_connected",
+  disabled: "capability.channel_account_disabled",
+  error: "capability.channel_account_error",
+  pending: "capability.channel_account_pending",
 };
 
 export function createChannelDraft(
@@ -83,8 +86,10 @@ export function shouldStartChannelQRCodeLogin(
     );
 }
 
-export function channelAccountStatusLabel(status: string): string {
-  return (ACCOUNT_STATUS_LABELS[status] ?? status) || "未知";
+export function channelAccountStatusLabel(status: string, t: I18nContextValue["t"]): string {
+  return t(Object.prototype.hasOwnProperty.call(ACCOUNT_STATUS_LABELS, status)
+    ? ACCOUNT_STATUS_LABELS[status]
+    : "capability.channel_account_unknown");
 }
 
 export function buildDiscordOauthUrl(config: Record<string, string>): string {

@@ -1,5 +1,5 @@
-// INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation 领域分发函数。
-// OUTPUT: 单一 nexus.command MCP 工具、动态 contract 调用结果与宿主可信 typed receipt。
+// INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation/Subagent 领域分发函数。
+// OUTPUT: 带 request_id 格式与使用说明的 nexus.command 工具、纠错结果与宿主可信 typed receipt。
 // POS: 模型工具协议与 Nexus 领域 command adapter 之间的唯一 MCP 边界。
 package command
 
@@ -16,6 +16,16 @@ import (
 
 const ToolName = "command"
 
+const requestIDCorrection = "request_id 必须在工具顶层提供，为 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符；例如 submit-work-20260910-001（每个新意图生成唯一 ID，不要固定复用示例）。本次请求未执行，请补齐或修正 ID 后再调用，不要重复原错误参数；已通过校验的同一意图重试保持原 ID，结果未知时先对账。"
+
+// ValidateRequestID 在任何副作用之前验证请求身份，并返回统一纠错说明。
+func ValidateRequestID(value string) error {
+	if !ValidRequestID(value) {
+		return errors.New(requestIDCorrection)
+	}
+	return nil
+}
+
 // Handler 接收已经通过 MCP envelope 校验的 command 请求。
 type Handler func(context.Context, Request) (any, error)
 
@@ -24,14 +34,17 @@ func NewTool(handler Handler) sdktool.Tool {
 	inputSchema := inputSchema()
 	return sdktool.Tool{
 		Name: ToolName,
-		Description: "调用 Nexus 托管的 Goal、Execution 或 Automation 命令。" +
+		Description: "调用 Nexus 托管的 Goal、Execution、Automation 或 Subagent 命令。" +
 			"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
-		SearchHint:  "nexus goal execution automation contract inspect invoke plan apply 目标 执行 自动化",
+		SearchHint:  "nexus goal execution automation subagent contract inspect invoke plan apply 目标 执行 自动化",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			if err := ValidateInput(inputSchema, input); err != nil {
+				if strings.HasPrefix(err.Error(), "at $.request_id ") {
+					return errorResult(fmt.Errorf("%w。%s", err, requestIDCorrection)), nil
+				}
 				return errorResult(err), nil
 			}
 			if handler == nil {
@@ -51,18 +64,23 @@ func inputSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"domain": map[string]any{
-				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution},
+				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainSubagent},
 			},
 			"action": map[string]any{
-				"type": "string", "enum": []string{
+				"description": "goal/execution：contract、inspect（固定读取，省略 operation）、invoke（提供 operation 和 request_id）；automation：contract、inspect（提供查询 operation）、plan、apply；subagent：contract、inspect（list）、invoke（其他 operation）。",
+				"type":        "string", "enum": []string{
 					ActionContract, ActionInspect, ActionInvoke, ActionPlan, ActionApply,
 				},
 			},
-			"operation":         map[string]any{"type": "string"},
-			"input":             map[string]any{"type": "object", "additionalProperties": true},
-			"request_id":        map[string]any{"type": "string"},
-			"expected_revision": map[string]any{"type": "string"},
-			"plan_digest":       map[string]any{"type": "string"},
+			"operation": map[string]any{"type": "string", "description": "使用 contract 返回的精确 operation；contract 可指定它以读取精确 input_schema。goal/execution/subagent 的固定 inspect 必须省略。"},
+			"input":     map[string]any{"type": "object", "additionalProperties": true},
+			"request_id": map[string]any{
+				"type": "string", "minLength": 8, "maxLength": 128,
+				"pattern":     requestIDPattern.String(),
+				"description": "顶层请求 ID，不放在 input 中。goal/execution 的 action=invoke、automation 的 action=apply 和 subagent 的 mutation 必填；contract/inspect 及 subagent 只读操作可省略。仅允许 8-128 位 ASCII 字母、数字、点、下划线、冒号或连字符，例如 submit-work-20260910-001。每个新意图生成唯一 ID；同一意图重试复用，结果未知先对账，不要通过换 ID 重放。",
+			},
+			"expected_revision": map[string]any{"type": "string", "description": "automation apply 必填的顶层字段，原样复制最近 plan 返回的 current_revision；其他 domain 省略。"},
+			"plan_digest":       map[string]any{"type": "string", "description": "automation apply 必填的顶层字段，原样复制同一 plan 返回的 plan_digest，并保持 input 一致；其他 domain 省略。"},
 		},
 		"required":             []string{"domain", "action"},
 		"additionalProperties": false,
@@ -131,7 +149,10 @@ func HandleSemantic(
 		return BuildContract(domain, inspectOperation, request.Operation, operations)
 	case ActionInspect:
 		if strings.TrimSpace(request.Operation) != "" {
-			return nil, errors.New("inspect operation 由领域固定，不能覆盖")
+			if inspectOperation == "" {
+				return nil, errors.New("当前作用域没有固定 inspect 操作，请使用 contract 查询可用操作")
+			}
+			return nil, inspectUsageError(domain, inspectOperation)
 		}
 		operation, ok := FindOperation(operations, inspectOperation)
 		if !ok {
@@ -139,11 +160,15 @@ func HandleSemantic(
 		}
 		return operation.Invoke(ctx, request.Input, nil)
 	case ActionInvoke:
-		if !ValidRequestID(request.RequestID) {
-			return nil, errors.New("invoke request_id 必须为 8-128 位字母、数字、点、下划线、冒号或连字符")
+		// 先纠正入口，避免模型为固定 inspect 操作反复补 request_id 或等待注册。
+		if inspectOperation != "" && strings.TrimSpace(request.Operation) == inspectOperation {
+			return nil, inspectUsageError(domain, inspectOperation)
+		}
+		if err := ValidateRequestID(request.RequestID); err != nil {
+			return nil, fmt.Errorf("invoke %w", err)
 		}
 		operation, ok := FindOperation(operations, request.Operation)
-		if !ok || operation.Name == inspectOperation {
+		if !ok {
 			return nil, fmt.Errorf("未知或不可 invoke 的 %s operation %q", domain, request.Operation)
 		}
 		result, err := operation.Invoke(ctx, request.Input, &CallContext{
@@ -157,6 +182,10 @@ func HandleSemantic(
 	default:
 		return nil, fmt.Errorf("%s 只支持 contract、inspect、invoke", domain)
 	}
+}
+
+func inspectUsageError(domain, operation string) error {
+	return fmt.Errorf("%s 是 %s 的固定 inspect 操作，不能通过 invoke 调用。请调用 {\"domain\":%q,\"action\":\"inspect\"}，不要传 operation；如需指定读取目标，保留符合该操作 schema 的 input。等待注册或重试原调用不会解决此入口错误。", operation, domain, domain)
 }
 
 func recordReceipt(

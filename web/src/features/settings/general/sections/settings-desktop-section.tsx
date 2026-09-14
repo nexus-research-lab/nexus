@@ -35,62 +35,63 @@ export function SettingsDesktopSection() {
   return (
     <>
       <section className="space-y-2.5">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-          {t("settings.desktop.section_title")}
-        </h2>
-      </div>
-      <div className={SETTINGS_CARD_CLASS_NAME}>
-        <div className={SETTINGS_ROW_CLASS_NAME}>
-          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-            <div className={SETTINGS_ICON_CLASS_NAME}>
-              <MonitorCog className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                {t("settings.desktop.version_title")}
-              </h3>
-              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                {controller.versionDescription}
-              </p>
-            </div>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <UiButton
-              disabled={controller.exportingLogs}
-              onClick={() => void controller.exportLogs()}
-              size="xs"
-              variant="surface"
-            >
-              {controller.exportingLogs ? (
-                <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
-              ) : (
-                <Download className="h-3 w-3" />
-              )}
-              {t("settings.desktop.export_logs")}
-            </UiButton>
-          </div>
+        <div className="flex items-center justify-between gap-3 px-1">
+          <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
+            {t("settings.desktop.section_title")}
+          </h2>
         </div>
-        {controller.versionFailed ? (
-          <>
-            <div className="border-t border-(--divider-subtle-color)" />
-            <UiResourceState
-              className="border-0 bg-transparent"
-              impact={t("settings.desktop.version_failed_impact")}
-              primaryAction={{
-                busy: controller.versionLoading,
-                busyLabel: t("settings.desktop.version_loading"),
-                label: t("settings.desktop.version_retry"),
-                onClick: controller.retryVersion,
-              }}
-              size="sm"
-              state="error"
-              title={t("settings.desktop.version_failed_title")}
-              urgency="polite"
-            />
-          </>
-        ) : null}
-      </div>
+        <div className={SETTINGS_CARD_CLASS_NAME}>
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <MonitorCog className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.desktop.version_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {controller.versionDescription}
+                </p>
+              </div>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+              <UiButton
+                aria-busy={controller.exportingLogs}
+                disabled={controller.exportingLogs}
+                onClick={() => void controller.exportLogs()}
+                size="xs"
+                variant="surface"
+              >
+                {controller.exportingLogs ? (
+                  <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
+                ) : (
+                  <Download className="h-3 w-3" />
+                )}
+                {t("settings.desktop.export_logs")}
+              </UiButton>
+            </div>
+          </div>
+          {controller.versionFailed ? (
+            <>
+              <div className="border-t border-(--divider-subtle-color)" />
+              <UiResourceState
+                className="border-0 bg-transparent"
+                impact={t("settings.desktop.version_failed_impact")}
+                primaryAction={{
+                  busy: controller.versionLoading,
+                  busyLabel: t("settings.desktop.version_loading"),
+                  label: t("settings.desktop.version_retry"),
+                  onClick: controller.retryVersion,
+                }}
+                size="sm"
+                state="error"
+                title={t("settings.desktop.version_failed_title")}
+                urgency="polite"
+              />
+            </>
+          ) : null}
+        </div>
       </section>
       <FeedbackBannerViewport item={controller.feedback} />
     </>

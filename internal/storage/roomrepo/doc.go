@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - sql.go / sql_load.go / sql_delete.go / sql_draft.go / sql_references.go / sql_participation.go：房间读写、完整成员 Agent 展示投影、联系人内部通道目录隔离与好友对恢复、每 Room 唯一 draft 的原子确保与修复、fork pending 依赖原子创建及 SDK 物化后的 source transcript 清理所有权转移、至少保留一条对话的删除计划、持久引用探测、带配置版本和权限世代推进的成员参与闸门与事务执行。
+//   - sql_private_domain.go：按 owner 与 Agent 成员身份读取完整联系人通道 ID，仅供私域历史投影，不改变普通目录。
 //   - model.go / scan.go：含内部用途标记的房间模型与业务标签、完整成员 Agent runtime 展示字段行扫描。
 //
 // SQLRepository 根据 driver 选择 SQLDialect，不在上层复制 SQLite/PostgreSQL 门面。

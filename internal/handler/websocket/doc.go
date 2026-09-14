@@ -6,6 +6,7 @@
 //   - handler.go / connection.go / dispatch.go / control.go / control_dispatcher.go / error.go / values.go：
 //     连接生命周期、消息分发、带请求身份 ACK（含独立 set_goal 与精确 interrupt 完成确认）的控制动作表；
 //     set_goal 在同步授权后进入保序、有界、断连可排空的 detached 队列，错误与取值留在 transport 层。
+//     控制请求记录收到、等待派发、慢执行与断连丢弃；连接结束记录关闭码/原因，以 client request/message ID 关联 Room 阶段日志。
 //   - room_subscription_handler.go / session_binding.go / broadcast.go：
 //     房间订阅（含按 Conversation/Session source 隔离且带 snapshot room_seq 栅栏的权威活动快照）、会话绑定、Session 元数据、热缓存上下文和 Automation 持久权限按 Agent 重放、广播。
 //   - command_catalog.go：在 bind_session 时选择 Nexus 内置的 runtime 清单，合并

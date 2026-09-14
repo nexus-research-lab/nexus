@@ -100,7 +100,11 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 - 桌面运行数据统一写入 `~/.nexus`，数据库位于 `~/.nexus/app/data/nexus.db`，日志位于 `~/.nexus/app/logs`。
 - 设置页可以迁移完整状态根；确认后 shell 退出 sidecar、离线复制并直接重启。新实例健康后才删除旧根，启动失败会通过当前用户注册表中的根指针自动回滚。
 - sidecar 凭据加密 key 优先使用 DPAPI current user 保护后保存到 `~/.nexus/app/config/connector-credentials.dpapi`，DPAPI 不可用时才降级到本地文件。
-- 桥接接口覆盖版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出会带 `diagnostics.json`，启动失败会写 `startup-failure-*.json`。
+- 桥接接口覆盖版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态占位；日志导出包含宿主 `app/logs`、`app/debug` 和本地 owner 的 `users/__system__/runtime/logs`（含嵌套 SDK 诊断）、`runtime/debug`，分别保存为 `logs`、`debug`、`runtime-logs`、`runtime-debug`，并带 `diagnostics.json`；启动失败会写 `startup-failure-*.json`。
 - 启动、更新和桌面桥接失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层异常、诊断路径和进程输出只进入 Trace 或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装器启动前不会替换当前版本。
 - 应用启动后会检测一次 GitHub Release 中的 Windows metadata，并每 4 小时在后台复查；仅桌面侧栏会在宿主确认有新版本时显示更新入口，点击后通过桌面桥直接下载 `NexusSetup-*.exe` 与对应 `.sha256` 到 `~/.nexus/app/cache/updates`，校验通过后提示是否退出 Nexus 并启动安装器。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。可设置 `NEXUS_DESKTOP_DISABLE_UPDATE_CHECK=1` 禁用检测。
 - GitHub `Publish Release` workflow 会在 `windows-latest` 上构建、烟测并上传 Windows installer exe、sha256 与 metadata；未配置 Windows 签名证书时产物会明确标记为 unsigned。托盘在后续阶段补齐。
+
+外观设置通过 `app.get_system_fonts` 读取 WPF Fonts.SystemFontFamilies 的本机字体家族目录。
+
+待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台或最小化时用 FlashWindowEx 闪烁任务栏，回到窗口或清空待处理请求时停止，不抢焦点。隐藏 WebView 只停止绘制，不暂停事件连接。

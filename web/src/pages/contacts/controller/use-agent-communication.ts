@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前详情 Agent id、好友私域记录 API 与通讯发送命令。
- * OUTPUT: Agent 视角的好友目录、Session、私信时间线、分阶段读取快照和发送事务。
+ * OUTPUT: Agent 视角的好友目录、Session、私信时间线、分阶段读取快照、删除执行态和发送事务。
  * POS: Contacts 页面好友私聊客户端的数据与命令边界。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -65,6 +65,7 @@ export interface AgentCommunicationResource {
   isDirectoryLoading: boolean;
   isHistoryLoading: boolean;
   isMessagesLoading: boolean;
+  isRemoving: boolean;
   isSending: boolean;
   mutationFailure: AgentCommunicationMutationFailure | null;
   pendingAgentId: string | null;
@@ -686,6 +687,7 @@ export function useAgentCommunication(
     isDirectoryLoading,
     isHistoryLoading,
     isMessagesLoading,
+    isRemoving,
     isSending,
     mutationFailure,
     pendingAgentId,

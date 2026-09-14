@@ -1,0 +1,36 @@
+/* INPUT: Provider 形态字段所在详情栏的可用宽度。
+ * OUTPUT: 单列、名称独占首行的双列及完整三列布局。
+ * POS: Provider 专用布局；字段尺寸、字体和外形仍归公共控件。
+ */
+.provider-config-shape {
+  container-name: provider-config-shape;
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.provider-config-shape-fields {
+  align-items: end;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container provider-config-shape (min-width: 480px) {
+  .provider-config-shape-fields {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .provider-config-name-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@container provider-config-shape (min-width: 720px) {
+  .provider-config-shape-fields {
+    grid-template-columns: minmax(0, 1fr) 180px 260px;
+  }
+
+  .provider-config-name-field {
+    grid-column: auto;
+  }
+}

@@ -1,7 +1,8 @@
 # 消息投影
 
 - `use-message-item-projection.ts`: 按内容排序、最终回复、Goal 完成收据、权限、活动和输出组装阶段编排纯投影，聚合 Assistant 快照上的去重记忆引用；header 身份取最终 assistant/result，不从首条过程消息误取；最新 `progress_update` 只在思考/回复/执行类状态中替换通用活动文案，不能覆盖权限或输入等待。
-- `message-item-ordering.ts`: 投影可见内容块，关联系统事件并保持消息源顺序。
+- `message-item-ordering.ts`: 投影可见内容块，关联系统事件并保持消息源顺序；`workspace_file_artifact` 与 WorkGraph 产物必须显式保留，不能因没有正文而被注册表默认隐藏。
+- 文件位于最终回复末尾时，与相邻非空正文一起形成 final tail；交付文件本身也能构成最终交付（working_file 不构成最终答案），Room 的最终轮选择不能跳过它而回退旧正文。更早过程的文件仍留在过程，完整 transcript 展示全部；Room inspector 不重复主 Feed 的最终正文及尾部产物。
 - `message-item-system-events.ts`: 过滤系统消息并映射稳定展示元数据。
 - `message-item-final-projection.ts`: 按内容模式策略选择直接内容、过程和最终回复，并只从同一最终消息投影宿主 `handoff_reply`；DM live 仅把真正位于回复尾部的正文交给稳定 final surface，正文后仍有普通工具时保留为 direct 分组边界，archived 继续使用最终回复回退；内建 `show_widget` 连同匹配结果从过程提升到 final surface；同一轮 WorkGraph authoring 只把最后一条 `workgraph_artifact` 提升为正文后的独立交付物，旧版本仍留在过程事实中但不重复展示或参与 Thought/Tool 折叠；Room result 修正文本文字时保留非文本块顺序，缺少正文槽位时在过程末尾补入。
 - `message-item-permissions.ts`: 按 `request_id` 建立唯一 pending interaction；精确 tool 匹配只提供消息内的只读上下文关联，完整请求统一由 Composer 队列持有。
@@ -11,3 +12,5 @@
 内容模式差异必须进入穷尽策略表或小型阶段函数，禁止在主 Hook 中恢复条件矩阵。
 `resolveAssistantResponseSurface` 是跨 live / terminal 的正文身份真相源；DM 两种模式必须都解析为 `final`，禁止在终态把已挂载正文迁移到另一个 React 子树。
 已有 `projectionFromOrderedEntries` 是有序条目到内容投影的唯一转换，局部编排不得重复实现索引映射。
+
+`permission_review` 是绑定工具调用的审核审计，仅在 DM/对应 Room Thread 展示，不作为可操作权限卡，也不在 Room 公区展示。

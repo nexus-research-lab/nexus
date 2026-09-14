@@ -4,17 +4,17 @@ import type {
   ConnectorFeatureDetail,
 } from "@/types/capability/connector";
 
-const AUTH_LABELS: Record<ConnectorAuthType, string> = {
-  custom_mcp: "自定义 MCP",
-  oauth2: "OAuth 2.0",
-  api_key: "API Key",
-  token: "Token",
-  none: "无需授权",
-  local_pairing: "本机应用配对",
+const AUTH_LABEL_KEYS: Record<ConnectorAuthType, TranslationKey> = {
+  custom_mcp: "capability.connector_auth_custom_mcp",
+  oauth2: "capability.connector_auth_oauth2",
+  api_key: "capability.connector_auth_api_key",
+  token: "capability.connector_auth_token",
+  none: "capability.connector_auth_none",
+  local_pairing: "capability.connector_auth_local_pairing",
 };
 
-export function getConnectorAuthLabel(authType: ConnectorAuthType): string {
-  return AUTH_LABELS[authType];
+export function getConnectorAuthLabelKey(authType: ConnectorAuthType): TranslationKey {
+  return AUTH_LABEL_KEYS[authType];
 }
 
 export function canReplaceConnectorOauthClient(
@@ -42,3 +42,7 @@ export function getConnectorFeatureDetails(
     return feature ? [feature] : [];
   });
 }
+// INPUT: Connector 认证方式、OAuth 应用资格及能力目录。
+// OUTPUT: 认证文案 key、应用替换资格与按服务端顺序排列的能力详情。
+// POS: 详情纯投影，不读取界面语言或改变认证状态。
+import type { TranslationKey } from "@/shared/i18n/messages";

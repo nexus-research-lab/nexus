@@ -3,8 +3,10 @@
 - 根目录只保留跨会话域共享的数据契约，不承载匹配算法或展示规则。
 - 消息协议归 `message/`，按附件、内容块、持久化实体和运行事件分离。
 - `history.ts` 负责 Room 与 Session 共用的消息分页、查询和轮次索引契约，不归属任一具体会话形态。
-- `execution.ts` 镜像 WorkGraph 只读图；`workgraph-workflow.ts` 镜像不含运行事实的临时结构草图与已保存命名 WorkGraph aggregate。
+- `execution.ts` 镜像 WorkGraph 只读图；`workgraph-workflow.ts` 镜像不含运行事实的临时结构草图、已保存命名 WorkGraph aggregate，以及事务提交后携带完整命名图的 `status=saved` 保存回执。
 - 权限和用户问答等交互协议归 `interaction/`。
 - 工具输入保持 `Record<string, unknown>`，权限与消息内容复用同一 SDK 契约；具体字段由拥有该工具语义的 Feature 校验。
 - 仅由 Feature 使用的 UI 状态类型归还所属 Feature，不放入全局类型目录。
 - 消费者直接导入职责文件；`types/` 不提供根级聚合出口。
+
+- Preview 的 head/selected revision 标识当前 UI 所见版本，历史 artifact 可缺省；保存前必须读取当前 save-state。save-state 的生效命令来自实际 aggregate，不能由草稿名或保存标记推断。

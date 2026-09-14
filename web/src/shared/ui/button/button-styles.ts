@@ -1,5 +1,5 @@
-// INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape 与调用方外部布局 class。
-// OUTPUT: 由共享 token/recipe 组成的稳定按钮样式投影。
+// INPUT: Button 的 size/tone/variant、原生 disabled/aria-busy、IconButton 的 shape/focusInset 与调用方外部布局 class。
+// OUTPUT: 与字段配套的紧凑字号/高度、语义色配对前景及共享 token/recipe 按钮状态投影。
 // POS: Button 视觉状态真相；不渲染 DOM，也不接受业务专属视觉覆盖。
 
 import { cn } from "@/shared/ui/class-name";
@@ -22,6 +22,7 @@ interface UiButtonStyleOptions {
 
 interface UiIconButtonStyleOptions {
   busy?: boolean;
+  focusInset?: boolean;
   disabled?: boolean;
   shape?: UiIconButtonShape;
   size?: UiIconButtonSize;
@@ -41,8 +42,8 @@ const BUTTON_BASE_CLASS_NAME =
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
   "2xs": "min-h-6 px-1.5 py-0.5 ui-type-caption",
-  xs: "min-h-7 px-2 py-1 ui-type-caption",
-  sm: "min-h-8 px-2.5 py-1.5 ui-type-metadata",
+  xs: "min-h-7 px-2 py-1 ui-type-metadata",
+  sm: "min-h-8 px-2.5 py-1 ui-type-supporting",
   md: "min-h-9 px-3.5 py-1.5 ui-type-control",
   lg: "min-h-10 px-4 py-2 ui-type-control",
 };
@@ -53,6 +54,15 @@ const BUTTON_ROUNDED_CLASS_MAP: Record<UiButtonSize, string> = {
   sm: "radius-control-sm",
   md: "radius-control-md",
   lg: "radius-control-lg",
+};
+
+const SEMANTIC_GHOST_CLASS_MAP: Record<Exclude<UiButtonTone, "default">, string> = {
+  primary:
+    "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
+  danger:
+    "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
+  success:
+    "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
 };
 
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
@@ -82,35 +92,25 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
     primary:
       "border-(--button-primary-border) bg-(--button-primary-background) text-(--button-primary-color) [&:not(:disabled):hover]:border-(--button-primary-hover-border) [&:not(:disabled):hover]:bg-(--button-primary-hover-background)",
     danger:
-      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_82%,white_18%)] text-white [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_88%,white_12%)]",
+      "border-[color:color-mix(in_srgb,var(--destructive)_62%,transparent)] bg-(--destructive) text-(--destructive-foreground) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_88%,black_12%)]",
     success:
-      "border-[color:color-mix(in_srgb,var(--success)_62%,transparent)] bg-(--success) text-white [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_88%,black_12%)]",
+      "border-[color:color-mix(in_srgb,var(--success)_62%,transparent)] bg-(--success) text-(--success-foreground) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_74%,transparent)] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_88%,black_12%)]",
   },
   ghost: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--text-default) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_TEXT_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
   text: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--text-muted) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_TEXT_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
 };
 
@@ -138,17 +138,12 @@ const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text"
   outline: BUTTON_VARIANT_TONE_CLASS_MAP.outline,
   solid: BUTTON_VARIANT_TONE_CLASS_MAP.solid,
   ghost: {
+    ...SEMANTIC_GHOST_CLASS_MAP,
     default: cn(
       "border-transparent bg-transparent text-(--icon-default) [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background) [&:not(:disabled):hover]:text-(--icon-strong)",
       NEUTRAL_ACTIVE_BACKGROUND_CLASS_NAME,
       NEUTRAL_ACTIVE_ICON_CLASS_NAME,
     ),
-    primary:
-      "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
-    danger:
-      "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
-    success:
-      "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
   },
 };
 
@@ -188,6 +183,7 @@ export function getUiIconButtonClassName(
   const {
     busy = false,
     disabled = false,
+    focusInset = false,
     shape = "rounded",
     size = "md",
     tone = "default",
@@ -196,6 +192,7 @@ export function getUiIconButtonClassName(
 
   return cn(
     ICON_BUTTON_BASE_CLASS_NAME,
+    focusInset && "focus-visible:ring-inset",
     ICON_BUTTON_SIZE_CLASS_MAP[size],
     shape === "round" ? "rounded-full" : ICON_BUTTON_ROUNDED_CLASS_MAP[size],
     ICON_BUTTON_VARIANT_TONE_CLASS_MAP[variant][resolveButtonTone(tone, disabled, busy)],

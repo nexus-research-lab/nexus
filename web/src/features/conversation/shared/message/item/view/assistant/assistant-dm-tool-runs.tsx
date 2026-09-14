@@ -1,11 +1,11 @@
 /**
  * INPUT: DM/Room live 过程、当前 ToolUseSummary、final 恢复信号与人工交互工具集合。
  * OUTPUT: 执行中覆盖整段 process 的单行摘要，终态切换为中性审计入口；首层展开过程目录，各子项再独立展开详情。
- * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次。
+ * POS: Assistant live 共用过程视图；权限、用户提问与生成式 UI 不进入折叠批次；生成文件汇总由回复尾部统一展示。
  */
 "use client";
 
-import { useEffect, useMemo, type RefObject } from "react";
+import { useEffect, useId, useMemo, type RefObject } from "react";
 import { Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
@@ -17,8 +17,6 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import type { ContentBlock } from "@/types/conversation/message/content";
 
-import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
-import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import {
   getLocalizedToolActivityLabel,
 } from "../../../tool-activity";
@@ -49,7 +47,6 @@ import {
 interface AssistantToolRunsProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
   responseResumed: boolean;
@@ -58,7 +55,6 @@ interface AssistantToolRunsProps {
 export function AssistantToolRuns({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   projection,
   responseResumed,
@@ -107,7 +103,6 @@ export function AssistantToolRuns({
           <ToolProcessSegmentView
             activity={activity}
             environment={environment}
-            generatedFilesLabel={generatedFilesLabel}
             key={segment.id}
             permissions={permissions}
             segment={segment}
@@ -123,7 +118,6 @@ export function AssistantToolRuns({
 function ToolProcessSegmentView({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   segment,
   showTimeline,
@@ -131,7 +125,6 @@ function ToolProcessSegmentView({
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolProcessSegment;
   showTimeline: boolean;
@@ -142,7 +135,6 @@ function ToolProcessSegmentView({
       <ToolRun
         activity={activity}
         environment={environment}
-        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         segment={segment}
         showTimeline={showTimeline}
@@ -174,7 +166,6 @@ function shouldCollapseToolRun(segment: ToolRunSegment): boolean {
 function ToolRun({
   activity,
   environment,
-  generatedFilesLabel,
   permissions,
   segment,
   showTimeline,
@@ -182,17 +173,13 @@ function ToolRun({
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
-  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: ToolRunSegment;
   showTimeline: boolean;
   streaming: boolean;
 }) {
   const { t } = useI18n();
-  const expansion = useScrollAnchoredState(
-    environment.mode === "room_thread"
-      || environment.mode === "room_thread_process",
-  );
+  const expansion = useScrollAnchoredState(false);
   const [closedToolUseCount, setClosedToolUseCount] = useResettableState(
     0,
     segment.id,
@@ -218,10 +205,7 @@ function ToolRun({
   );
   const phase = active ? "active" : segment.phase;
   const expanded = expansion.isOpen;
-  const artifacts = useWorkspaceFileArtifactsFromContent(
-    segment.projection.content,
-  );
-  const contentId = `${segment.id}-content`;
+  const contentId = useId();
   const warning = phase === "error" || phase === "rejected";
   const summary = formatToolRunSummary(
     segment,
@@ -278,12 +262,6 @@ function ToolRun({
           </div>
         ) : (
           <>
-            <WorkspaceFileArtifactList
-              artifacts={artifacts}
-              className="ml-5 pt-1"
-              label={generatedFilesLabel}
-              onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
-            />
             {streaming && activity.state ? (
               <LocalizedMessageActivityStatus
                 className="px-0 pt-1"

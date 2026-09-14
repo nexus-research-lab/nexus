@@ -49,7 +49,7 @@ func TestGoalCommandUsesOneExecutorForSlashAndStructuredOptions(t *testing.T) {
 		TargetAgentIDs:  []string{"agent-lead"},
 		GoalOptions: protocol.GoalCommandOptions{
 			ReplaceExisting: &replace,
-			Metadata:        map[string]any{"room_goal_loop_slug": "release"},
+			Metadata:        map[string]any{"client_safe_key": "release"},
 		},
 	})
 	if err != nil || !matched {

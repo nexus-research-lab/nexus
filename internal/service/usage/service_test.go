@@ -256,3 +256,26 @@ func usageMigrationDir(t *testing.T) string {
 	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", "sqlite")
 }
+
+func TestSummaryDailyUsage(t *testing.T) {
+	cfg, db := newUsageTestDB(t)
+	service := NewServiceWithDB(cfg, db)
+	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	for _, item := range []struct {
+		owner, id string
+		day       int
+	}{{"daily-owner", "a", 0}, {"daily-owner", "b", -1}, {"other-owner", "c", 0}, {"daily-owner", "old", -365}} {
+		err := service.RecordMessageUsage(context.Background(), RecordInput{OwnerUserID: item.owner, SessionKey: "s", MessageID: item.id, OccurredAt: now.AddDate(0, 0, item.day), Usage: map[string]any{"input_tokens": int64(10), "output_tokens": int64(5), "cache_read_input_tokens": int64(20)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	summary, err := service.Summary(context.Background(), "daily-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summary.Daily) != 365 || summary.Daily[0].Date != "2025-09-10" || summary.Daily[0].TotalTokens != 0 || summary.Daily[364].InputTokens != 10 || summary.Daily[363].CacheTokens != 20 {
+		t.Fatalf("daily = %+v", summary.Daily)
+	}
+}

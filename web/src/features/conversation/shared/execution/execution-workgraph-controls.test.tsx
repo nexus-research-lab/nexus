@@ -52,7 +52,7 @@ describe("ExecutionWorkGraphControls", () => {
     expect(toolbar?.className).toContain("surface-radius-sm");
     expect(zoomOut.className).toContain("h-7");
     expect(zoomOut.className).toContain("radius-control-sm");
-    expect(zoomReset.className).toContain("ui-type-caption");
+    expect(zoomReset.className).toContain("ui-type-metadata");
     expect(zoomReset.className).toContain("radius-control-xs");
 
     fireEvent.click(zoomOut);
@@ -87,6 +87,7 @@ describe("ExecutionWorkGraphControls", () => {
 
     fireEvent.keyDown(input, { key: "Escape" });
     expect(onQueryChange).toHaveBeenCalledWith("");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /search workgraph|搜索工作图/i }));
     expect(screen.queryByRole("searchbox", { name: /search workgraph|搜索工作图/i })).toBeNull();
   });
 });

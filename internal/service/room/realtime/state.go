@@ -5,6 +5,12 @@ package realtime
 
 import (
 	"context"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -13,11 +19,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-	"slices"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 // roomSlotRuntimeState 只负责 runtime 生命周期，不持有 Goal 或 delivery 数据。
@@ -153,22 +154,13 @@ type roomSlotGoalState struct {
 	commandReceiptSequence  uint64
 	pendingCollaboration    bool
 	subagentTasks           map[string]struct{}
-	subagentUsagePending    map[string]roomSubagentUsageObservation
+	subagentUsagePending    map[string]goalsvc.SubagentUsageObservation
 	usageRetrying           bool
 	subagentHistory         bool
 	usageClaimPending       bool
 	usageScopeConsumed      bool
 	terminalSettled         bool
 	resultUsageWritten      bool
-}
-
-// roomSubagentUsageObservation 是尚未确认持久化的 child checkpoint + lifecycle
-// evidence。三个字段都单调推进，避免旧请求成功返回后误清除更新的 terminal 状态。
-type roomSubagentUsageObservation struct {
-	cumulativeTotal            int64
-	terminal                   bool
-	terminalTokenUsageObserved bool
-	observedAt                 time.Time
 }
 
 // roomSlotCursorState 负责 public/private context 的消费边界。
@@ -1198,7 +1190,7 @@ func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message
 	}
 	subtype := strings.TrimSpace(anyString(metadata["subtype"]))
 	status := strings.TrimSpace(anyString(metadata["status"]))
-	if !metadataLooksLikeSubagentTask(metadata) && !slot.knowsSubagentTask(taskID) {
+	if !messagepkg.IsSubagentTaskMetadata(metadata) && !slot.knowsSubagentTask(taskID) {
 		return
 	}
 	runtimeKind := slot.runtimeKind()
@@ -1213,13 +1205,13 @@ func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message
 	}
 	switch subtype {
 	case "task_started", "task_progress", "task_updated":
-		if isTerminalSubagentTaskStatus(status) {
+		if messagepkg.IsTerminalSubagentTaskStatus(status) {
 			delete(slot.mutable.goal.subagentTasks, taskID)
 			return
 		}
 		slot.mutable.goal.subagentTasks[taskID] = struct{}{}
 	case "task_notification":
-		if isTerminalSubagentTaskStatus(status) {
+		if messagepkg.IsTerminalSubagentTaskStatus(status) {
 			delete(slot.mutable.goal.subagentTasks, taskID)
 		}
 	}
@@ -1262,13 +1254,13 @@ func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
 // 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
 // task、后写 checkpoint 时被并发 finalization 穿透。
 func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
-	slot.markSubagentUsageObservationPending(roomSubagentUsageObservation{
-		cumulativeTotal: cumulativeTotal,
+	slot.markSubagentUsageObservationPending(goalsvc.SubagentUsageObservation{
+		CumulativeTotal: cumulativeTotal,
 	}, taskID)
 }
 
 func (slot *activeRoomSlot) markSubagentUsageObservationPending(
-	observation roomSubagentUsageObservation,
+	observation goalsvc.SubagentUsageObservation,
 	taskID string,
 ) {
 	if slot == nil || strings.TrimSpace(taskID) == "" {
@@ -1276,40 +1268,26 @@ func (slot *activeRoomSlot) markSubagentUsageObservationPending(
 	}
 	slot.mutable.goal.mu.Lock()
 	if slot.mutable.goal.subagentUsagePending == nil {
-		slot.mutable.goal.subagentUsagePending = make(map[string]roomSubagentUsageObservation)
+		slot.mutable.goal.subagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
 	}
 	taskID = strings.TrimSpace(taskID)
-	current := slot.mutable.goal.subagentUsagePending[taskID]
-	if observation.cumulativeTotal > current.cumulativeTotal {
-		current.cumulativeTotal = observation.cumulativeTotal
-		current.observedAt = observation.observedAt
-	}
-	if observation.terminal && !current.terminal {
-		current.observedAt = observation.observedAt
-	}
-	if current.observedAt.IsZero() {
-		current.observedAt = observation.observedAt
-	}
-	current.terminal = current.terminal || observation.terminal
-	current.terminalTokenUsageObserved =
-		current.terminalTokenUsageObserved || observation.terminalTokenUsageObserved
-	slot.mutable.goal.subagentUsagePending[taskID] = current
+	slot.mutable.goal.subagentUsagePending[taskID] = slot.mutable.goal.subagentUsagePending[taskID].Merge(observation)
 	slot.mutable.goal.mu.Unlock()
 }
 
 // clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
 // 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
 func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
-	slot.clearSubagentUsageObservationPending(taskID, roomSubagentUsageObservation{
-		cumulativeTotal:            settledTotal,
-		terminal:                   true,
-		terminalTokenUsageObserved: true,
+	slot.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
+		CumulativeTotal:            settledTotal,
+		Terminal:                   true,
+		TerminalTokenUsageObserved: true,
 	})
 }
 
 func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
 	taskID string,
-	settled roomSubagentUsageObservation,
+	settled goalsvc.SubagentUsageObservation,
 ) {
 	if slot == nil || strings.TrimSpace(taskID) == "" {
 		return
@@ -1317,9 +1295,7 @@ func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
 	slot.mutable.goal.mu.Lock()
 	taskID = strings.TrimSpace(taskID)
 	if pending, ok := slot.mutable.goal.subagentUsagePending[taskID]; ok &&
-		pending.cumulativeTotal <= settled.cumulativeTotal &&
-		(!pending.terminal || settled.terminal) &&
-		(!pending.terminalTokenUsageObserved || settled.terminalTokenUsageObserved) {
+		pending.CoveredBy(settled) {
 		delete(slot.mutable.goal.subagentUsagePending, taskID)
 	}
 	slot.mutable.goal.mu.Unlock()
@@ -1336,12 +1312,12 @@ func (slot *activeRoomSlot) subagentUsagePendingSnapshot() map[string]int64 {
 	}
 	pending := make(map[string]int64, len(slot.mutable.goal.subagentUsagePending))
 	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
-		pending[taskID] = observation.cumulativeTotal
+		pending[taskID] = observation.CumulativeTotal
 	}
 	return pending
 }
 
-func (slot *activeRoomSlot) subagentUsageObservationPendingSnapshot() map[string]roomSubagentUsageObservation {
+func (slot *activeRoomSlot) subagentUsageObservationPendingSnapshot() map[string]goalsvc.SubagentUsageObservation {
 	if slot == nil {
 		return nil
 	}
@@ -1350,7 +1326,7 @@ func (slot *activeRoomSlot) subagentUsageObservationPendingSnapshot() map[string
 	if len(slot.mutable.goal.subagentUsagePending) == 0 {
 		return nil
 	}
-	pending := make(map[string]roomSubagentUsageObservation, len(slot.mutable.goal.subagentUsagePending))
+	pending := make(map[string]goalsvc.SubagentUsageObservation, len(slot.mutable.goal.subagentUsagePending))
 	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
 		pending[taskID] = observation
 	}
@@ -1610,28 +1586,4 @@ func (slot *activeRoomSlot) goalRuntimeIgnored() bool {
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
 	return slot.mutable.goal.runtimeIgnored
-}
-
-func metadataLooksLikeSubagentTask(metadata map[string]any) bool {
-	if len(metadata) == 0 {
-		return false
-	}
-	taskType := strings.ToLower(strings.TrimSpace(anyString(metadata["task_type"])))
-	if taskType == "local_shell" {
-		return false
-	}
-	if taskType != "" {
-		return taskType == "local_agent"
-	}
-	return strings.TrimSpace(anyString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(anyString(metadata["agent_type"])) != ""
-}
-
-func isTerminalSubagentTaskStatus(status string) bool {
-	switch strings.TrimSpace(status) {
-	case "completed", "failed", "error", "stopped", "killed", "cancelled":
-		return true
-	default:
-		return false
-	}
 }

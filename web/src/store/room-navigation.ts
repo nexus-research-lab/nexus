@@ -1,8 +1,8 @@
 /**
  * Room 导航偏好 Store
  *
- * [INPUT]: Room 导航命令、持久快照、应用注入的 owner 校验与 owner reset
- * [OUTPUT]: 合并当前 owner 最新快照的标签与固定偏好，跨页面恢复不覆盖其他导航操作
+ * [INPUT]: Room 导航及精确标签关闭命令、持久快照、应用注入的 owner 校验与 owner reset
+ * [OUTPUT]: 合并当前 owner 最新快照的标签与固定偏好，只允许精确打开、关闭和替换，不提供整组覆盖命令
  * [POS]: store 模块的页面导航工作区状态，不参与服务端会话排序
  */
 
@@ -48,9 +48,9 @@ interface RoomNavigationState {
     roomId: string,
     conversationId: string,
   ) => void;
-  save_room_conversation_tabs: (
+  close_conversation_tab: (
     roomId: string,
-    openConversationIds: readonly string[],
+    conversationId: string,
     activeConversationId: string,
   ) => void;
   reorder_pinned_conversation: (
@@ -146,28 +146,16 @@ export const useRoomNavigationStore = create<RoomNavigationState>()(
           },
         };
       }),
-      save_room_conversation_tabs: (
-        roomId,
-        openConversationIds,
-        activeConversationId,
-      ) => set((state) => {
+      close_conversation_tab: (roomId, conversationId, activeConversationId) => set((state) => {
         const normalizedRoomId = roomId.trim();
-        const nextTabs = buildConversationTabsState(
-          openConversationIds,
-          activeConversationId,
-        );
-        if (!normalizedRoomId || !nextTabs) {
-          return state;
-        }
+        const normalizedConversationId = conversationId.trim();
         const currentTabs = state.conversation_tabs_by_room[normalizedRoomId];
-        if (areConversationTabsEqual(currentTabs, nextTabs)) {
-          return state;
-        }
+        if (!currentTabs || !currentTabs.open_conversation_ids.includes(normalizedConversationId)) return state;
+        const nextIds = currentTabs.open_conversation_ids.filter((id) => id !== normalizedConversationId);
+        const nextTabs = buildConversationTabsState(nextIds, activeConversationId);
+        if (!nextTabs || nextTabs.active_conversation_id === normalizedConversationId) return state;
         return {
-          conversation_tabs_by_room: {
-            ...state.conversation_tabs_by_room,
-            [normalizedRoomId]: nextTabs,
-          },
+          conversation_tabs_by_room: { ...state.conversation_tabs_by_room, [normalizedRoomId]: nextTabs },
         };
       }),
       reorder_pinned_conversation: (source, target, placement) => set((state) => {

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 
 	_ "modernc.org/sqlite"
 )
@@ -33,6 +35,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		Version: 1, Issuer: "nexus-control", Audience: "nexus-runtime",
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Minute).Unix(),
 		DeploymentID: "dep-a", UserID: "user-control-a",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
 		AuthMethod: AuthMethodPassword, SessionID: "sess-a",
 		Entitlement: testControlEntitlement(now),
@@ -141,6 +144,7 @@ func TestControlBindingCreateClaimsOneOwnerAcrossStores(t *testing.T) {
 	}
 	principal := controlPrincipal{
 		DeploymentID: "dep-atomic", UserID: "user-atomic",
+		OrganizationID: "org-atomic", OrganizationName: "Nexus",
 		Username: "atomic", DisplayName: "Atomic", Role: RoleMember,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -233,6 +237,7 @@ func TestControlIdentityInvalidationClearsBoundLease(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	principal := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -311,6 +316,7 @@ func TestControlEntitlementInvalidationRefreshesProjection(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	principal := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember,
 		Entitlement: testControlEntitlement(updatedAt.Add(-time.Hour)),
 	}
@@ -368,6 +374,44 @@ FROM owner_entitlements WHERE owner_user_id = ?`, binding.LocalOwnerKey).Scan(
 	}
 }
 
+func TestFailClosedControlIdentitiesBlocksOldEntitlementProjection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cfg, database := newAuthTestDB(t)
+	authority := NewControlAuthority(cfg, database, nil)
+	principal := controlPrincipal{
+		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		DisplayName: "Member", Role: RoleMember,
+		Entitlement: testControlEntitlement(time.Now().UTC()),
+	}
+	binding, err := authority.bindings.resolve(ctx, principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subscription := subscriptionsvc.NewServiceWithDB(cfg, database)
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); err != nil {
+		t.Fatalf("fresh Control entitlement should allow a request: %v", err)
+	}
+
+	owners, err := authority.FailClosedControlIdentities(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owners) != 1 || owners[0] != binding.LocalOwnerKey {
+		t.Fatalf("fail-closed owners = %v, want [%s]", owners, binding.LocalOwnerKey)
+	}
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); !errors.Is(err, subscriptionsvc.ErrEntitlementUnavailable) {
+		t.Fatalf("skipped invalidation must reject requests despite the old projection: %v", err)
+	}
+
+	if _, err := authority.bindings.resolve(ctx, principal); err != nil {
+		t.Fatal(err)
+	}
+	if err := subscription.EnsureQuotaAvailable(ctx, binding.LocalOwnerKey); err != nil {
+		t.Fatalf("authoritative entitlement refresh should restore requests: %v", err)
+	}
+}
+
 func TestControlSessionInvalidationClearsOnlyExactLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -375,6 +419,7 @@ func TestControlSessionInvalidationClearsOnlyExactLease(t *testing.T) {
 	authority := NewControlAuthority(cfg, database, nil)
 	controlValue := controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user-a", Username: "member",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Member", Role: RoleMember, AuthMethod: AuthMethodPassword,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	}
@@ -421,6 +466,7 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 	store := newControlBindingStore(cfg.DatabaseDriver, database)
 	binding, err := store.resolve(ctx, controlPrincipal{
 		DeploymentID: "dep-a", UserID: "user_existing", Username: "admin",
+		OrganizationID: "org-a", OrganizationName: "Nexus",
 		DisplayName: "Admin", Role: RoleOwner, AuthMethod: AuthMethodPassword,
 		Entitlement: testControlEntitlement(time.Now().UTC()),
 	})

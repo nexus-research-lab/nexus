@@ -45,6 +45,7 @@ export function CapabilityBrandIcon({
   return (
     <span
       aria-label={title}
+      role="img"
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-strong)",
         FRAME_SIZE_CLASS_NAMES[size],

@@ -1,46 +1,19 @@
 // INPUT: 当前模型选择、已加载 Provider 选项与读取失败状态。
 // OUTPUT: 不丢当前选择、说明读取影响和恢复路径的模型选择控件。
 // POS: Agent 身份表单纯视图；不展示 Provider 原始错误，也不发起保存。
-import { useCallback, useMemo } from "react";
+import { useCallback, useId, useMemo } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { RecoverySummary } from "@/shared/ui/feedback/recovery-summary";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { UiField } from "@/shared/ui/form/form-control";
 import type { AgentProvider } from "@/types/agent/agent";
 import {
   formatProviderLabel,
   formatProviderOptionLabel,
   type ProviderOption,
 } from "@/types/capability/provider";
-
-import {
-  IDENTITY_FIELD_LABEL_CLASS_NAMES,
-  type AgentIdentityVariant,
-} from "./identity-layout";
-
-interface ModelSelectorLayout {
-  buttonClassName: string;
-  className: string;
-  errorNoticeClassName?: string;
-  size?: "sm";
-}
-
-const MODEL_SELECTOR_LAYOUTS: Record<
-  AgentIdentityVariant,
-  ModelSelectorLayout
-> = {
-  dialog: {
-    buttonClassName: "h-auto min-h-11 py-2.5",
-    className: "h-auto min-h-11",
-    errorNoticeClassName: "mt-2",
-  },
-  inline: {
-    buttonClassName: "h-auto min-h-9 py-2",
-    className: "h-auto min-h-9",
-    size: "sm",
-  },
-};
 
 interface IdentityModelSelectorProps {
   defaultModel: string;
@@ -53,7 +26,6 @@ interface IdentityModelSelectorProps {
   onProviderChange: (value: AgentProvider) => void;
   options: ProviderOption[];
   provider: AgentProvider;
-  variant: AgentIdentityVariant;
 }
 
 interface ModelSelection {
@@ -74,11 +46,9 @@ export function IdentityModelSelector({
   onProviderChange,
   options,
   provider,
-  variant,
 }: IdentityModelSelectorProps) {
   const { t } = useI18n();
-  const layout = MODEL_SELECTOR_LAYOUTS[variant];
-  const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
+  const modelId = useId();
   const selectedValue = encodeModelSelection({ model, provider });
   const defaultLabel = defaultProvider && defaultModel
     ? t("agent_options.identity.follow_default_provider_named", {
@@ -129,28 +99,24 @@ export function IdentityModelSelector({
   }, [onModelChange, onProviderChange]);
 
   return (
-    <div className="space-y-3">
-      <label className={labelClassName}>
-        {t("agent_options.identity.model")}
-      </label>
+    <UiField
+      description={lockedToDefault ? t("agent_options.identity.main_model_hint") : undefined}
+      htmlFor={modelId}
+      label={t("agent_options.identity.model")}
+    >
       <UiSelectMenu
         allowLabelWrap
         ariaLabel={t("agent_options.identity.model")}
-        buttonClassName={layout.buttonClassName}
-        className={layout.className}
         disabled={lockedToDefault || (loading && options.length === 0)}
+        id={modelId}
         menuMinWidth={460}
         onChange={handleChange}
         options={selectOptions}
-        size={layout.size}
+        size="md"
         surface="dialog"
         value={selectedValue}
       />
-      {lockedToDefault ? (
-        <p className="text-xs text-(--text-soft)">
-          {t("agent_options.identity.main_model_hint")}
-        </p>
-      ) : selectedUnavailable ? (
+      {lockedToDefault ? null : selectedUnavailable ? (
         <UiInlineNotice
           action={{
             label: t("agent_options.identity.use_default_model"),
@@ -161,7 +127,6 @@ export function IdentityModelSelector({
         />
       ) : error ? (
         <UiInlineNotice
-          className={layout.errorNoticeClassName}
           message={(
             <RecoverySummary
               impact={t("agent_options.identity.provider_load_failed_impact")}
@@ -172,7 +137,7 @@ export function IdentityModelSelector({
           tone="danger"
         />
       ) : null}
-    </div>
+    </UiField>
   );
 }
 

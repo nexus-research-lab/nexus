@@ -1,6 +1,9 @@
+// INPUT: 当前 Agent 与共享文件目录缓存/刷新入口。
+// OUTPUT: 精确作用域的读取状态、缓存和独立可关闭的失败反馈。
+// POS: 目录读取 owner；关闭反馈不把读取失败改写为已确认空目录。
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getErrorMessage } from "@/lib/error-message";
 import { useWorkspaceFilesStore } from "@/store/workspace-files";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -8,7 +11,8 @@ const EMPTY_FILES: WorkspaceFileEntry[] = [];
 
 interface WorkspaceFilesResourceState {
   scopeKey: string;
-  errorMessage: string | null;
+  hasError: boolean;
+  errorDismissed: boolean;
   isLoading: boolean;
 }
 
@@ -21,28 +25,30 @@ export function useWorkspaceFilesResource(agentId: string) {
   const scopeRef = useRef(agentId);
   const [state, setState] = useState<WorkspaceFilesResourceState>({
     scopeKey: agentId,
-    errorMessage: null,
+    hasError: false,
+    errorDismissed: false,
     isLoading: true,
   });
   scopeRef.current = agentId;
 
   const reload = useCallback(async (): Promise<WorkspaceFileEntry[] | null> => {
     const token = {scopeKey: agentId, requestId: ++requestSequenceRef.current};
-    setState({scopeKey: agentId, errorMessage: null, isLoading: true});
+    setState({scopeKey: agentId, hasError: false, errorDismissed: false, isLoading: true});
     try {
       const nextFiles = await refreshFiles(agentId);
       if (scopeRef.current !== token.scopeKey || requestSequenceRef.current !== token.requestId) {
         return null;
       }
-      setState({scopeKey: agentId, errorMessage: null, isLoading: false});
+      setState({scopeKey: agentId, hasError: false, errorDismissed: false, isLoading: false});
       return nextFiles;
-    } catch (error) {
+    } catch {
       if (scopeRef.current !== token.scopeKey || requestSequenceRef.current !== token.requestId) {
         return null;
       }
       setState({
         scopeKey: agentId,
-        errorMessage: getErrorMessage(error, "加载文件列表失败"),
+        hasError: true,
+        errorDismissed: false,
         isLoading: false,
       });
       return null;
@@ -53,21 +59,22 @@ export function useWorkspaceFilesResource(agentId: string) {
     void reload();
   }, [reload]);
 
-  const clearError = useCallback(() => {
+  const dismissError = useCallback(() => {
     setState((current) => (
-      current.scopeKey === agentId ? {...current, errorMessage: null} : current
+      current.scopeKey === agentId ? {...current, errorDismissed: true} : current
     ));
   }, [agentId]);
 
   const currentState = state.scopeKey === agentId
     ? state
-    : {scopeKey: agentId, errorMessage: null, isLoading: true};
+    : {scopeKey: agentId, hasError: false, errorDismissed: false, isLoading: true};
 
   return {
     files,
-    errorMessage: currentState.errorMessage,
+    hasError: currentState.hasError,
+    errorFeedbackVisible: currentState.hasError && !currentState.errorDismissed,
     isLoading: currentState.isLoading,
     reload,
-    clearError,
+    dismissError,
   };
 }

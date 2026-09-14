@@ -1,5 +1,5 @@
 // INPUT: Mermaid 源码、渲染快照、异步状态和预览动作。
-// OUTPUT: 可切换源码/图表的视图片段，以及使用共享 Spinner 的可访问渲染状态。
+// OUTPUT: 键盘可达的源码滚动区、图表预览与共享渲染状态。
 // POS: Mermaid 展示组件；渲染状态机与图形清理归相邻模型和 Hook。
 
 import {
@@ -28,10 +28,16 @@ export function MermaidSourceView({
   compact: boolean;
   constrainHeight: boolean;
 }) {
+  const { t } = useI18n();
   return (
+    // The native scroll region needs keyboard focus for browser scrolling.
+    /* eslint-disable jsx-a11y/no-noninteractive-tabindex */
     <div
+      aria-label={t("markdown.mermaid.source_region")}
+      role="region"
+      tabIndex={0}
       className={cn(
-        "soft-scrollbar min-w-0 overflow-auto bg-(--surface-panel-background)",
+        "soft-scrollbar min-w-0 overflow-auto bg-(--surface-panel-background) outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ring)",
         getMermaidBodyClassName(compact, constrainHeight),
       )}
     >
@@ -39,6 +45,7 @@ export function MermaidSourceView({
         {chart}
       </pre>
     </div>
+    /* eslint-enable jsx-a11y/no-noninteractive-tabindex */
   );
 }
 

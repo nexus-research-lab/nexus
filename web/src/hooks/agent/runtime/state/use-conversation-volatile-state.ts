@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 增量 slot/权威 slot snapshot/permission/精确停止动作、execution 跟踪模式与权限过期时钟。
- * OUTPUT: 同步可读的易失 slot/permission/execution/stopping 切片、快照缺失 execution 收口、拒绝 terminal execution 的迟到精确权限与 Session 清理命令。
+ * OUTPUT: 同步可读的易失 slot/permission/execution/stopping 切片、快照缺失 execution 收口、拒绝 terminal execution 的迟到精确权限与 Session 清理命令、桌面待确认提醒。
  * POS: runtime 易失状态的 React owner；业务迁移委托给相邻纯 model。
  */
 import {
@@ -10,6 +10,8 @@ import {
   useState,
   type SetStateAction,
 } from "react";
+
+import { setDesktopAttention } from "@/lib/desktop-bridge";
 
 import type {
   RoomAgentExecutionState,
@@ -86,6 +88,11 @@ export function useConversationVolatileState({
   >([]);
   const pendingAgentSlotsRef = useRef(pendingAgentSlots);
   const pendingPermissionsRef = useRef(pendingPermissions);
+  const [attentionSource] = useState(() => Symbol("pending-permissions"));
+  useEffect(() => {
+    setDesktopAttention(attentionSource, pendingPermissions.length);
+  }, [attentionSource, pendingPermissions.length]);
+  useEffect(() => () => setDesktopAttention(attentionSource, 0), [attentionSource]);
   const roomAgentExecutionStatesRef = useRef(roomAgentExecutionStates);
   const stoppingAgentRoundIdsRef = useRef(stoppingAgentRoundIds);
 

@@ -166,7 +166,7 @@ Recipe 把 token 组合成可复用视觉语法，例如 `surface-popover`、`in
 
 业务组件不得使用 `rounded-[Npx]`、`shadow-[...]` 或 raw `color-mix` 复刻已有 recipe。同值不代表同语义：10px 必须说明它是 control radius 还是其他几何。
 
-App chrome 的字体、字号、行高、默认字重与 tracking 由 `theme-tokens.css` 的字号阶梯、`theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 共同拥有。业务组件选择 `display / featureTitle / objectTitle / pageTitle / sectionTitle / body / control / supporting / metadata / caption / overline / code`，只自行负责 HTML 标签、布局、截断和换行；不得在每个文件重新拼一套相同文本角色。聊天、Workspace 文件、品牌字形和图形内微标签是显式独立 Surface，必须由其所有者声明阅读或像素对齐理由。
+App chrome 的字体、字号、行高、默认字重与 tracking 由 `theme-tokens.css` 的字号阶梯、`theme-recipes.css` 的 `.ui-type-*` 配方和 `shared/ui/typography/typography-styles.ts` 的 typed role 共同拥有。业务组件选择 `display / featureTitle / objectTitle / pageTitle / sectionTitle / body / control / supporting / metadata / caption / code`，只自行负责 HTML 标签、布局、截断和换行；不得在每个文件重新拼一套相同文本角色。聊天、Workspace 文件、品牌字形和图形内微标签是显式独立 Surface，必须由其所有者声明阅读或像素对齐理由。
 
 ### 4.3 Primitive
 
@@ -181,8 +181,13 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - 紧凑目录内容使用 `WorkspaceCatalogCard size="dense"`；目录创建入口 `WorkspaceCatalogGhostAction` 只在 `UiButton outline` 上组合卡片尺寸与虚线边界，不另写按钮 DOM 或状态样式。授权行使用静态 `UiListRow` 组合唯一的 `GlassSwitch`，不能把整行或 Skill 卡片变成第二个切换命中区；失联但已授权的 Connector 必须仍可取消。
 - 业务文字、导航链接和纯图标动作必须分别渲染 `UiButton / UiLinkButton / UiIconButton`；`button-styles.ts` 是 shared primitive 的实现细节，业务层不得借其 class 投影手写第二套 DOM；
 - `UiButton surface` 表达带底色的次级动作，`outline` 表达与页面同层、透明无阴影但需要稳定边界的动作组，`ghost / text` 表达默认无边界的轻动作；业务页不得用局部 `background / border / shadow` 把一种变体临时改造成另一种；
-- 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入领域复合控件的无壳原生输入由其 pattern 明确负责；
+- 普通单行、多行和原生选择字段必须分别渲染 `UiInput / UiTextarea / UiNativeSelect`；工作区、资料文件与记忆等源码编辑使用 `UiSourceEditor`，保留原生编辑事件且不接管业务草稿/保存/快捷键。业务层不得导入 `form-control-styles.ts` 复制输入壳，嵌入其他领域复合控件的无壳原生输入由其 pattern 明确负责；
+- `UiField` 内的普通输入和选择 trigger 使用公共控件。字段的 `htmlFor` 必须与目标控件 `id` 显式配对，公共层把当前可见说明加入 `aria-describedby`，把当前错误关联到 `aria-errormessage / aria-invalid`；调用方已有描述必须保留。多输入组不能把同一字段身份自动复制给所有 children，分段选择等复合字段由业务明确提供组名和各控件名称。原生校验只定位当前表单中首个可校验的无效输入，由最近的 Field 显示一次；错误恢复后声明式恢复调用方最新 ARIA 属性，不通过 `removeAttribute` 擦除业务校验。浏览器 validity 与业务错误是独立事实，公共层不推断业务值是否有效；
+- 没有 `htmlFor` 的具名 `UiField` 表达复合区域：可见名称通过 `aria-labelledby` 关联 `role=group`，说明与显式整组错误属于该组，不生成无目标的 label，也不把整组错误写到每个输入。单个输入仍要显式配对，复合输入仍保留各自可访问名称；
+- 可增删的表单行必须保留草稿生命周期内稳定的行身份，不能按当前数组下标或可编辑的值生成 React key；行名称和移除动作要区分当前项，错误关联仍指向原控件。纯模型只接收身份并投影草稿，新增身份由视图事件创建；本地行身份不得混入保存协议或替代服务端资源身份；
 - 按钮式选择统一使用 `UiChoiceButton`，权限范围等互斥表单选择统一使用保留 native radio 的 `UiRadioChoice`；业务层不得导入 `choice-styles.ts` 手写第二套 DOM，生成式问答等稳定领域 Widget 的原生选项按其独立合同保留；
+- 同一权限请求可存在多个展示实例，native radio 的 `name` 必须由视图实例生成，不能只复用 request ID 而把两个展示区合成一个浏览器选择组。请求身份与授权回调仍由原业务控制器持有，DOM 分组身份不参与授权。权限组复用具名 Field 关联禁用说明；带完整说明的权限卡分别关联标题与描述，选择不能隐式触发允许/拒绝命令；
+- 带整行命中区的复选项直接组合 `UiCheckboxRow`；公共层持有实例级名称/说明关联，默认只以可见 label 命名，description 与调用方已有描述合并，装饰图标不参与名称。显式 `aria-label / aria-labelledby` 保留优先级；整行点击和 Space 仍由唯一 native checkbox 改值，disabled 或所属 fieldset 禁用时不触发命令及 hover。业务只提供值、密度、说明和回调，不为纯属性转发增加私有包装；
 - 二元开关统一由 `GlassSwitch` 的单一 native button/`role=switch` 持有 checked、键盘、焦点和真实 disabled；业务不得在 disabled switch 外套 `span role=button` 等第二命中区，需要解释受保护状态时由可操作 switch 的 `onChange` 进入业务确认或说明；
 - 标签输入和多选字段中的已选实体统一使用 `UiRemovableChip`；移除动作必须是具名 native IconButton，复合字段的菜单触发器与移除按钮必须为兄弟节点，不得嵌套 button 或用 `span role=button` 绕过合法 DOM；
 - 搜索入口统一渲染 `UiSearchInput`，客户端字符串标准化和字段匹配统一调用 `shared/ui/form/search-query.ts`；具体页面仍拥有可搜索字段、包含/前缀规则、空查询含义、资源筛选条件和本地/远端/跨域搜索范围。导航侧栏不得把当前列表筛选伪装成下探搜索，远端请求生命周期也不得进入 UI primitive；
@@ -190,7 +195,10 @@ Primitive 同时拥有 DOM、键盘、焦点、ARIA 和视觉状态合同，例�
 - Action Menu 与业务上下文菜单的行统一由 `UiMenuActionRow` 持有原生 button、`role=menuitem`、禁用语义、命中几何与活动/hover/focus/tone 状态；业务层只组合菜单内容、级联关系和命令，不得导入 `MENU_ITEM_BASE_CLASS_NAME` 手写 `menuitem`；
 - 页面内容、目录视图和列表筛选的标签切换统一使用只有中性底线选中态的 `UiTabs`；目录工具栏的紧凑、自适应宽度预设使用按类型命名的跨领域 `UiDirectoryTabs`，不得创建 `Capability*Tabs` 等业务域转发层。有限互斥配置值使用 `UiSegmentedControl`，不得在两者之间仅凭局部审美互换；
 - variant 必须存在真实视觉或行为差异；完全相同的 variant 合并；
+- 带可见组名的分段选择使用 `UiSegmentedControl showLabel` 组合公共 Field，由外层持有唯一 group 名称；不能包入原生 label 或叠加同名 group。单输入 Field 的标签仍通过实例级 htmlFor/id 指向真实控件，不能靠包装整个复合区域推断目标；
+- 分段选择的文字角色、密度、图文高度与换行由 UiSegmentedControl 统一拥有；消费者只声明选项图标、值、命令和外部布局。纯图标选项复用 UiTooltip，不叠加原生 title；受控选择继续使用原生按钮与 aria-pressed，不由提示或焦点移动改写业务值；
 - 普通按钮、输入和模态不得绕过已有 primitive 手写第二套行为。
+- 普通 Dialog 的名称由 `UiDialogHeader.title` 自动关联到最近 `UiDialogBackdrop`；公共层持有实例唯一 ID 和标题注册/释放，业务不重复接线。显式 `labelledBy` / `aria-labelledby` / `aria-label` 优先于自动标题；自定义 Header 内容或无标题栏预览必须显式命名。说明关联仍由业务指定，不自动将复杂正文压成一条可访问描述。
 - 已有详情浮层的 IconButton 必须通过 `tooltip={null}` 关闭自动短提示，并由详情拥有 `aria-describedby`。只读 Tooltip/用量详情使用浮层层的 `restoreFocus: false`，打开和关闭不移动焦点；交互式菜单和 Dialog 继续遵守其焦点归还合同。
 
 ### 4.4 Pattern
@@ -199,9 +207,16 @@ Pattern 统一跨页面的结构、响应式几何或交互组合，例如 Respo
 
 Pattern 与 Primitive 的区别是：Primitive 统一一个控件；Pattern 统一多个控件如何在页面和窗口尺寸中协作。
 
-能力目录的分类、状态、渠道、来源与 Agent 下拉统一由 `CapabilityFilterSelect` 组合紧凑 `UiSelectMenu`；领域 Pattern 固定必填文字标签并不暴露前导图标参数。视觉结构只在能力页设计规范定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。
+能力与联系人等目录的具名下拉筛选统一由 `shared/ui/menu/filter-select.tsx` 的 `UiFilterSelect` 组合紧凑 `UiSelectMenu`；跨领域 Pattern 固定必填文字标签并不暴露前导图标参数，不保留领域命名的转发层。视觉结构只在 `design.md` 定义，页面仍拥有选项、筛选状态和按内容调整的容器宽度。普通表单选择继续直接使用 `UiSelectMenu`。
 
-领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP、Loop 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
+领域内跨子页重复的 Pattern 留在该领域 `shared`：例如 Skill、Connector、自定义 MCP 与 WorkGraph 详情统一由 `CapabilityDetailPage` 持有内容轴，并由唯一 `CapabilityDetailHeader` 组合全站 `UiBreadcrumb` 渲染“返回目录 / 当前对象”；Workspace 文件层级也只向 `UiBreadcrumb` 提供用户可见名称与相对路径段。导航下方的前导图标、标题、元数据、说明和响应式动作对齐统一由 `CapabilityDetailIdentity` 持有。业务子页不得直接引用底层 `WorkspaceContentDetailHeader`、手写 `objectTitle` 与动作容器、复制箭头、斜杠或间距，也不得把目录态 `WorkspaceContentHeader` 复用成对象身份区；详情路由不得残留目录 Header 或搜索控件。
+
+设置域的普通二元行由 `settings/shared/settings-panel-ui.tsx` 的 `SettingsToggleRow`
+组合唯一 GlassSwitch，标题作为可访问名称，实例级说明 ID 通过 aria-describedby
+关联；行与说明本身不增加点击命令。Preferences、Echo 和运行偏好的 checked、
+禁用条件和变更回调仍由各自调用方拥有。带独立风险内容的 Browser 权限卡、模型
+表单内联开关和授权列表继续使用各自领域布局，并直接复用 GlassSwitch 的说明
+关联能力；不能为统一行布局而吞掉确认、恢复或提交边界。
 
 ### 4.5 Domain widget
 
@@ -354,8 +369,8 @@ Composer 的间距配方
 
 - `src/**/*.test.tsx`：与 primitive/pattern 共置的 Vitest + jsdom 行为测试，必须通过 Testing Library 从角色、名称和真实用户事件观察组件；
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
-- `frontend-control-style-contract.test.mjs` 禁止公共 Button、ListRow/ListAction、Select 与 Form（Input/Textarea/NativeSelect/SearchInput/Checkbox/Choice）调用方的静态视觉覆盖；支持别名/命名空间导入、词法作用域内常量、条件表达式与对象展开，同时检查 `className`、`buttonClassName`、`inputClassName` 和内联 `style`。它允许布局与独立图标内容，不执行动态代码，也不能替代对外部 CSS 和运行时计算样式的审查。
-- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。检查不执行运行时表达式，也不把全局声明集合当作 DOM 继承或 CSS 类型证明；没有逐文件违规额度。
+- 公共控件调用方原则上只传布局 class；场景确需组合特殊表面时由设计规范、组件行为测试和浏览器验收判断，不使用源码正则冻结实现细节。
+- `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
 - `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
 - `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
@@ -390,6 +405,11 @@ Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实�
 Room 的持久化与最终替换规则由导航功能的共置行为测试独立验证。
 Room 导航偏好在同一持久快照中绑定 owner；每次保存先读取同 owner 的最新值，
 再应用当前选择、固定、排序或移除命令，不能用旧页面的整份内存覆盖其他操作。
+新建成功、历史选择和明确路由选择只追加精确 Conversation，普通关闭只移除
+精确目标且保留固定偏好。列表缺项可能来自旧快照，展示过滤不能回写为标签
+删除；会话删除仍由显式删除命令清理。标签显示继续按创建时间排序。最后标签
+替换事务同样只从最新集合移除原目标并加入替代项，保留事务前后其他页面打开
+的标签；运行时不暴露完整集合覆盖命令。
 存储事件只表示失效，接收页重新读当前快照且不回写，未改变的导航保持原状态引用。
 App 独占 owner 的受理与校验，Store 不导入认证装配层；旧无绑定记录仅在既有
 owner 迁移检查后认领，其他 owner 的已绑定快照在认证绑定前后都不可恢复。

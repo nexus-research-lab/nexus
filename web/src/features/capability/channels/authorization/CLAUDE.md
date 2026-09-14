@@ -10,3 +10,7 @@
 - WebSocket `result.message` 是服务端运行结果附带文本，不得直接进入用户界面；Problem/Impact/Recovery 只由本地受控文案投影。
 - 授权弹窗使用 plain chrome；只保留平台 prompt、渠道、失效时间、二维码/验证码和一句会话边界提示，不展示盾牌图标、径向装饰、实现宣言或“安全提交”等自述性措辞。
 - prompt、验证码字段和倒计时必须组合共享 Typography 与 Field；故障和过期状态统一通过 `UiInlineNotice + RecoverySummary` 呈现，不得在授权页重写字号、圆角、背景或恢复文案层级。
+
+提交与取消共享同步 pending ref：等待 ACK 时两类动作都拒绝重入，不只依赖下一次渲染的 disabled。验证码表面使用 compactMax 和滚动 Body，长提示仍保留底部动作。
+
+授权表面的标题、验证码字段、二维码替代文字、倒计时和操作按钮由当前语言目录投影；切换语言保留同一 flow/token 的输入。服务端 prompt 保持原样，不能从其中提取或改写提交身份。

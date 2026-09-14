@@ -20,15 +20,17 @@ type controlState struct {
 }
 
 type controlPrincipal struct {
-	DeploymentID string             `json:"deployment_id"`
-	UserID       string             `json:"user_id"`
-	Username     string             `json:"username"`
-	DisplayName  string             `json:"display_name,omitempty"`
-	Role         string             `json:"role"`
-	Avatar       string             `json:"avatar,omitempty"`
-	AuthMethod   string             `json:"auth_method"`
-	SessionID    string             `json:"session_id"`
-	Entitlement  controlEntitlement `json:"entitlement"`
+	DeploymentID     string             `json:"deployment_id"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationName string             `json:"organization_name"`
+	UserID           string             `json:"user_id"`
+	Username         string             `json:"username"`
+	DisplayName      string             `json:"display_name,omitempty"`
+	Role             string             `json:"role"`
+	Avatar           string             `json:"avatar,omitempty"`
+	AuthMethod       string             `json:"auth_method"`
+	SessionID        string             `json:"session_id"`
+	Entitlement      controlEntitlement `json:"entitlement"`
 }
 
 type controlEntitlement struct {
@@ -40,6 +42,8 @@ type controlEntitlement struct {
 
 func (p *controlPrincipal) normalize() {
 	p.DeploymentID = strings.TrimSpace(p.DeploymentID)
+	p.OrganizationID = strings.TrimSpace(p.OrganizationID)
+	p.OrganizationName = strings.TrimSpace(p.OrganizationName)
 	p.UserID = strings.TrimSpace(p.UserID)
 	p.Username = strings.TrimSpace(p.Username)
 	p.DisplayName = strings.TrimSpace(p.DisplayName)
@@ -73,33 +77,37 @@ type controlInvalidationBatch struct {
 }
 
 type controlPrincipalClaims struct {
-	Version      int                `json:"v"`
-	Issuer       string             `json:"iss"`
-	Audience     string             `json:"aud"`
-	IssuedAt     int64              `json:"iat"`
-	ExpiresAt    int64              `json:"exp"`
-	DeploymentID string             `json:"deployment_id"`
-	UserID       string             `json:"user_id"`
-	Username     string             `json:"username"`
-	DisplayName  string             `json:"display_name,omitempty"`
-	Role         string             `json:"role"`
-	Avatar       string             `json:"avatar,omitempty"`
-	AuthMethod   string             `json:"auth_method"`
-	SessionID    string             `json:"session_id"`
-	Entitlement  controlEntitlement `json:"entitlement"`
+	Version          int                `json:"v"`
+	Issuer           string             `json:"iss"`
+	Audience         string             `json:"aud"`
+	IssuedAt         int64              `json:"iat"`
+	ExpiresAt        int64              `json:"exp"`
+	DeploymentID     string             `json:"deployment_id"`
+	OrganizationID   string             `json:"organization_id"`
+	OrganizationName string             `json:"organization_name"`
+	UserID           string             `json:"user_id"`
+	Username         string             `json:"username"`
+	DisplayName      string             `json:"display_name,omitempty"`
+	Role             string             `json:"role"`
+	Avatar           string             `json:"avatar,omitempty"`
+	AuthMethod       string             `json:"auth_method"`
+	SessionID        string             `json:"session_id"`
+	Entitlement      controlEntitlement `json:"entitlement"`
 }
 
 func (c controlPrincipalClaims) principal() controlPrincipal {
 	return controlPrincipal{
-		DeploymentID: c.DeploymentID,
-		UserID:       c.UserID,
-		Username:     c.Username,
-		DisplayName:  c.DisplayName,
-		Role:         c.Role,
-		Avatar:       c.Avatar,
-		AuthMethod:   c.AuthMethod,
-		SessionID:    c.SessionID,
-		Entitlement:  c.Entitlement,
+		DeploymentID:     c.DeploymentID,
+		OrganizationID:   c.OrganizationID,
+		OrganizationName: c.OrganizationName,
+		UserID:           c.UserID,
+		Username:         c.Username,
+		DisplayName:      c.DisplayName,
+		Role:             c.Role,
+		Avatar:           c.Avatar,
+		AuthMethod:       c.AuthMethod,
+		SessionID:        c.SessionID,
+		Entitlement:      c.Entitlement,
 	}
 }
 
@@ -183,6 +191,7 @@ func (v *controlPrincipalVerifier) verify(token string) (controlPrincipalClaims,
 	principal := claims.principal()
 	principal.normalize()
 	if principal.DeploymentID == "" ||
+		principal.OrganizationID == "" ||
 		principal.UserID == "" ||
 		principal.Username == "" ||
 		principal.SessionID == "" ||

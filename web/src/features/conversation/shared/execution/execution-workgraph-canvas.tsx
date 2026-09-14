@@ -1,10 +1,11 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点、节点展示密度与精确 Agent round Task run。
- * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作及完整交互的大图弹窗。
- * POS: DM/Room 共用的只读 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的工作板上显示图标或可读摘要卡片、可整体悬停聚焦的子图、正交流程边、唯一节点/边检查器外壳、公共静态运行活动行、共享关闭动作、统一节点/运行耗时及完整交互的大图弹窗。
+ * POS: DM/Room 共用的只读 Execution Graph 主视图；历史 Task 按节点 Attempt 隔离，文件操作使用真实节点工作区身份；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Fragment,
   useEffect,
@@ -47,12 +48,14 @@ import type {
 
 import { ExecutionGraphInspector } from "./execution-graph-inspector";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
+import { formatExecutionDuration, getExecutionRunStatusLabel } from "./execution-run-presentation";
 import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
   compactExecutionNodeObjective,
   normalizeExecutionNodeDisplayText,
+  orderedExecutionGraphNodes,
   resolveExecutionGraphNodeAgent,
   resolveExecutionGraphNodeStatus,
   type ExecutionAgentDirectory,
@@ -78,19 +81,6 @@ import {
   resolveExecutionGraphWheelZoom,
   searchExecutionGraphNodes,
 } from "./execution-workgraph-interaction-model";
-
-const ATTEMPT_STATUS_LABEL_KEY: Record<
-  ExecutionAttemptView["status"],
-  TranslationKey
-> = {
-  cancelled: "execution.attempt_cancelled",
-  failed: "execution.attempt_failed",
-  interrupted: "execution.attempt_interrupted",
-  pending: "execution.attempt_pending",
-  running: "execution.attempt_running",
-  succeeded: "execution.attempt_succeeded",
-  timed_out: "execution.attempt_timed_out",
-};
 
 const EDGE_KIND_LABEL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
   coordination: "execution.edge_coordination",
@@ -299,7 +289,7 @@ export function ExecutionWorkGraphCanvas({
     ) ?? null
     : null;
   const selectedTaskRun = selectedItem && selectedLayoutNode?.node.kind === "agent"
-    ? resolveExecutionNodeTaskRun(selectedItem, taskRuns)
+    ? resolveExecutionNodeTaskRun(selectedItem, taskRuns, selectedLayoutNode.node.attempt_id)
     : null;
   const selectedInspectorStyle = selectedLayoutNode
     ? resolveNodeInspectorStyle(
@@ -323,11 +313,11 @@ export function ExecutionWorkGraphCanvas({
   useEffect(() => {
     if (
       selectedId
-      && !(execution.graph?.nodes ?? []).some((node) => node.id === selectedId)
+      && !orderedExecutionGraphNodes(execution).some((node) => node.id === selectedId)
     ) {
       setSelectedId(null);
     }
-  }, [execution.graph?.nodes, selectedId]);
+  }, [execution, selectedId]);
 
   useEffect(() => {
     if (selectedEdgeId && !layout.edges.some((edge) => edge.id === selectedEdgeId)) {
@@ -469,6 +459,30 @@ export function ExecutionWorkGraphCanvas({
     viewportSize.width,
     zoom,
   ]);
+
+  // React delegates wheel/touch listeners as passive. Cancel native browser
+  // scrolling/zooming at the viewport before React applies the graph transform.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const preventWheelDefault = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey
+        || (event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX))) {
+        event.preventDefault();
+      }
+    };
+    const preventPinchDefault = (event: TouchEvent) => {
+      if (event.touches.length === 2) event.preventDefault();
+    };
+    viewport.addEventListener("wheel", preventWheelDefault, { passive: false });
+    viewport.addEventListener("touchstart", preventPinchDefault, { passive: false });
+    viewport.addEventListener("touchmove", preventPinchDefault, { passive: false });
+    return () => {
+      viewport.removeEventListener("wheel", preventWheelDefault);
+      viewport.removeEventListener("touchstart", preventPinchDefault);
+      viewport.removeEventListener("touchmove", preventPinchDefault);
+    };
+  }, []);
 
   const revealNode = (nodeId: string | null) => {
     if (!nodeId) {
@@ -1193,12 +1207,12 @@ export function ExecutionWorkGraphCanvas({
           </svg>
 
           {layout.edges.map((edge) => (
-            <button
+            <UiTooltip label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`} key={`edge-control:${edge.id}`}><button
               aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
               className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary) focus-visible:ring-offset-1"
               data-execution-edge-hit-kind={edge.kind}
               data-execution-edge-hit-target={edge.id}
-              key={`edge-control:${edge.id}`}
+
               onClick={(event) => {
                 event.stopPropagation();
                 selectEdge(edge.id);
@@ -1220,13 +1234,13 @@ export function ExecutionWorkGraphCanvas({
                 current === edge.id ? null : current
               ))}
               style={{ left: edge.x, top: edge.y }}
-              title={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+
               type="button"
-            />
+            /></UiTooltip>
           ))}
 
           {layout.nodes.map(({ height, item, node, size, width, x, y }) => {
-            const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+            const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
@@ -1237,12 +1251,13 @@ export function ExecutionWorkGraphCanvas({
             const summaryObjective = compactExecutionNodeObjective(
               item?.objective ?? node.description ?? "",
               owner?.name,
+              owner?.nameIsFallback,
             );
             const descendantCount = collapse.descendantCountByNodeId.get(node.id) ?? 0;
             const collapsed = collapsedNodeIds.has(node.id);
             return (
               <Fragment key={node.id}>
-              <button
+              <UiTooltip label={title}><button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
                 className={cn(
@@ -1280,7 +1295,7 @@ export function ExecutionWorkGraphCanvas({
                   top: y - (nodePresentation === "summary" ? height : size + 8) / 2,
                   width: nodePresentation === "summary" ? width : size + 8,
                 }}
-                title={title}
+
                 type="button"
               >
                 {nodePresentation === "summary" ? (
@@ -1331,9 +1346,11 @@ export function ExecutionWorkGraphCanvas({
                     toolName={node.name}
                   />
                 )}
-              </button>
+              </button></UiTooltip>
               {descendantCount > 0 ? (
-                <button
+                <UiTooltip label={collapsed
+                    ? t("execution.expand_node")
+                    : t("execution.collapse_node")}><button
                   aria-label={collapsed
                     ? t("execution.expand_node")
                     : t("execution.collapse_node")}
@@ -1357,9 +1374,7 @@ export function ExecutionWorkGraphCanvas({
                     left: x + width / 2 - 5,
                     top: y + height / 2 - 5,
                   }}
-                  title={collapsed
-                    ? t("execution.expand_node")
-                    : t("execution.collapse_node")}
+
                   type="button"
                 >
                   {collapsed ? (
@@ -1368,7 +1383,7 @@ export function ExecutionWorkGraphCanvas({
                     <ChevronsDownUp className="h-2.5 w-2.5" />
                   )}
                   <span>{descendantCount}</span>
-                </button>
+                </button></UiTooltip>
               ) : null}
               </Fragment>
             );
@@ -1489,7 +1504,8 @@ function ExecutionNodeInspector({
   style: CSSProperties;
   taskRun: ConversationTaskRun | null;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const durationLabel = formatExecutionDuration(node.duration_ms, { locale, t });
   const parentNode = node.parent_node_id
     ? execution.graph?.nodes?.find((candidate) => candidate.id === node.parent_node_id)
       ?? null
@@ -1499,21 +1515,21 @@ function ExecutionNodeInspector({
       candidate.id === parentNode.work_item_id
     )) ?? null
     : null;
-  const owner = resolveExecutionGraphNodeAgent(directory, node, item)
+  const owner = resolveExecutionGraphNodeAgent(directory, node, item, t)
     ?? (parentNode
-      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem)
+      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem, t)
       : null);
   const objectiveSource = item?.objective
     ?? node.description
     ?? node.name
     ?? "";
-  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name);
+  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name, owner?.nameIsFallback);
   const deliverable = item?.deliverable.trim() ?? "";
   const showDeliverable = deliverable
     && deliverable.toLocaleLowerCase() !== objective.toLocaleLowerCase();
   const status = resolveExecutionGraphNodeStatus(node, item);
   const statusLabel = attempt && node.kind === "subagent"
-    ? t(ATTEMPT_STATUS_LABEL_KEY[attempt.status])
+    ? getExecutionRunStatusLabel(attempt.status, t)
     : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
   const heading = graphNodeHeading(node, item, t);
   const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
@@ -1633,9 +1649,9 @@ function ExecutionNodeInspector({
           ) : null}
         </NodeDetailSection>
       ) : null}
-      {(node.duration_ms ?? 0) > 0 ? (
+      {durationLabel !== null ? (
         <NodeDetailSection label={t("execution.duration")}>
-          <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
+          <p>{durationLabel}</p>
         </NodeDetailSection>
       ) : null}
       {controlReturnObserved ? (
@@ -1663,7 +1679,7 @@ function ExecutionNodeInspector({
         item={item}
         node={node}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
-        workspaceAgentId={owner?.id ?? node.agent_id}
+        workspaceAgentId={node.agent_id?.trim() || parentNode?.agent_id?.trim() || null}
       />
       {childNodes.length > 0 ? (
         <ExecutionNodeRunList
@@ -1804,7 +1820,7 @@ function ExecutionNodeRunList({
           const item = execution.work_items?.find(
             (candidate) => candidate.id === node.work_item_id,
           ) ?? null;
-          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item, t);
           const status = resolveExecutionGraphNodeStatus(node, item);
           const summary = node.error_summary?.trim()
             || node.result_summary?.trim()
@@ -1898,18 +1914,6 @@ function resolveNodeInspectorStyle(
     transformOrigin: "top left",
     width: visualWidth,
   };
-}
-
-function formatNodeDuration(durationMS: number): string {
-  if (durationMS < 1_000) {
-    return `${Math.round(durationMS)}ms`;
-  }
-  const seconds = durationMS / 1_000;
-  if (seconds < 60) {
-    return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
 function formatEdgeObservedAt(value: string): string {

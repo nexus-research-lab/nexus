@@ -14,6 +14,13 @@ export interface UiGalleryCoverageGroup {
 
 export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
   {
+    id: "source-editing",
+    section: "foundation",
+    mode: "direct",
+    renderer: "SourceEditorGallery",
+    components: ["UiSourceEditor"],
+  },
+  {
     id: "core-controls",
     section: "foundation",
     mode: "direct",
@@ -44,8 +51,15 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     components: [
       "UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar", "UiBadge", "UiCounterBadge",
       "UiResourceState", "UiStateBlock", "UiSkeleton", "UiSkeletonCardList",
-      "UiMetaGrid", "UiMetaItem", "UiQRCode",
+      "UiQRCode",
     ],
+  },
+  {
+    id: "directory-filters",
+    section: "content",
+    mode: "direct",
+    renderer: "ProductControlsGallery",
+    components: ["UiFilterSelect"],
   },
   {
     id: "feedback",
@@ -71,7 +85,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Markdown and code",
     components: [
-      "UiMarkdownContent", "MarkdownText", "CodeBlock", "StreamingCodeBlock", "CodeShell",
+      "UiMarkdownContent", "MarkdownText", "CodeBlock", "CodeShell",
       "SyntaxHighlightedCode", "CodeBlockContent", "MermaidView", "LazyMermaidView",
       "MermaidSourceView", "MermaidRenderedPreview",
       "MermaidPreviewDialog", "WorkspaceFileButton",
@@ -116,7 +130,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     id: "liquid-glass-filters",
     section: "interaction",
     mode: "composed",
-    renderer: "GlassSwitch / GlassMagnifier",
+    renderer: "GlassSwitch",
     components: ["GlassSwitchFilter", "GlassMagnifierFilter"],
   },
   {
@@ -139,7 +153,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Workspace catalog",
     components: [
-      "WorkspaceCatalogAction", "WorkspaceCatalogTextAction", "WorkspaceCatalogCard",
+      "WorkspaceCatalogTextAction", "WorkspaceCatalogCard",
       "WorkspaceCatalogGhostAction", "WorkspaceCatalogHeader", "WorkspaceCatalogBody",
       "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription",
       "WorkspaceIconFrame",
@@ -162,8 +176,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Workspace controls",
     components: [
-      "WorkspaceActionBar", "WorkspaceActionCard", "WorkspaceSearchInput",
-      "WorkspaceStatusBadge", "WorkspaceConversationTabs", "WorkspaceConversationTab",
+      "WorkspaceConversationTabs", "WorkspaceConversationTab",
       "ConversationTabsScrollRail", "WorkspaceTaskPanel",
     ],
   },

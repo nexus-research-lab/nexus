@@ -262,6 +262,16 @@ export function useTaskDialogController({
     isOpen,
   });
   const resolveSelectedRoomIds = form.actions.resolveSelectedRoomIds;
+  const resolveDefaultSessions = form.resolveDefaultSessions;
+  useEffect(() => {
+    if (!initialTask && isOpen && !isSubmitting && !isRestoredCreateIntent && !mutationFailure) {
+      resolveDefaultSessions(
+        data.sessions.loading || data.sessions.error ? [] : data.sessionOptions,
+        data.deliverySessions.loading || data.deliverySessions.error ? [] : data.deliverySessionOptions,
+      );
+    }
+  }, [initialTask, isOpen, isSubmitting, isRestoredCreateIntent, mutationFailure, data.sessionOptions, data.deliverySessionOptions, data.sessions.loading, data.sessions.error, data.deliverySessions.loading, data.deliverySessions.error, resolveDefaultSessions]);
+
   const selectedSession = data.sessionOptions.find(
     (option) => option.value === form.draft.selectedSessionKey,
   ) ?? null;

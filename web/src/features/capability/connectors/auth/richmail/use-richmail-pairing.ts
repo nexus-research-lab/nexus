@@ -6,7 +6,7 @@
 import { useEffect, useRef } from "react";
 
 import { pollConnectorLocalPairingApi } from "@/lib/api/capability/connector-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ConnectorLocalPairingStart } from "@/types/capability/connector";
 
 import type { ConnectorDeviceAuthFailureKind } from "../device-flow/connector-device-auth-poller";
@@ -15,7 +15,7 @@ interface RichMailPairingCallbacks {
   onClose: () => void;
   onConnected: (connectorId: string) => Promise<void>;
   onError: (message: string, kind: ConnectorDeviceAuthFailureKind) => void;
-  onMessage: (message: string) => void;
+  onMessage: (status: "pending" | "connected") => void;
 }
 
 interface UseRichMailPairingOptions extends RichMailPairingCallbacks {
@@ -29,6 +29,9 @@ export function useRichMailPairing({
   onMessage,
   session,
 }: UseRichMailPairingOptions): void {
+  const { t } = useI18n();
+  const translateRef = useRef(t);
+  translateRef.current = t;
   const callbacksRef = useRef<RichMailPairingCallbacks>({
     onClose,
     onConnected,
@@ -64,30 +67,28 @@ export function useRichMailPairing({
         );
         if (stopped) return;
         if (result.status === "pending") {
-          callbacksRef.current.onMessage(
-            result.message || "等待在 RichMail 中批准连接",
-          );
+          callbacksRef.current.onMessage("pending");
           schedule();
           return;
         }
         if (result.status === "connected") {
-          callbacksRef.current.onMessage(result.message || "RichMail 已连接");
+          callbacksRef.current.onMessage("connected");
           close();
           await callbacksRef.current.onConnected(session.connector_id);
           return;
         }
         const fallback = result.status === "expired"
-          ? "RichMail 配对请求已过期"
-          : "RichMail 未批准本次连接";
+          ? "capability.richmail_pairing_expired"
+          : "capability.richmail_pairing_denied";
         callbacksRef.current.onError(
-          result.message || fallback,
+          translateRef.current(fallback),
           "not_connected",
         );
         close();
-      } catch (error) {
+      } catch {
         if (stopped) return;
         callbacksRef.current.onError(
-          getErrorMessage(error, "RichMail 配对结果暂时无法确认"),
+          translateRef.current("capability.richmail_pairing_unknown"),
           "outcome_unknown",
         );
         close();

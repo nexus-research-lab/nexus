@@ -31,6 +31,7 @@ type RouteContext struct {
 
 // PendingRequest 表示一个会阻塞 runtime、等待用户响应的请求。
 type PendingRequest struct {
+	DecisionReason           string
 	RequestID                string
 	SessionKey               string
 	DispatchSessionKey       string
@@ -40,7 +41,6 @@ type PendingRequest struct {
 	ToolUseID                string
 	Suggestions              []sdkpermission.Update
 	CreatedAt                time.Time
-	ExpiresAt                time.Time
 	Route                    RouteContext
 	ResponseCh               chan sdkpermission.Decision
 	finalizeOnce             sync.Once
@@ -56,6 +56,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           toolName,
+		DecisionReason:     strings.TrimSpace(request.DecisionReason),
 		ToolInput:          toolInput,
 		ConfigurationSecretSlots: secretinput.SlotsFromToolInput(
 			toolName,
@@ -64,7 +65,6 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		ToolUseID:   strings.TrimSpace(request.ToolUseID),
 		Suggestions: slices.Clone(request.PermissionSuggestions),
 		CreatedAt:   now,
-		ExpiresAt:   now.Add(c.requestTimeout),
 		Route:       route,
 		ResponseCh:  make(chan sdkpermission.Decision, 1),
 	}
@@ -207,7 +207,6 @@ func (c *Context) buildPermissionDecision(
 				RuntimeSessionKey:  pending.SessionKey,
 				DispatchSessionKey: pending.DispatchSessionKey,
 				Route:              pending.Route,
-				ExpiresAt:          pending.ExpiresAt,
 			})
 			if err != nil {
 				return sdkpermission.Deny(

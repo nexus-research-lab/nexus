@@ -1,6 +1,6 @@
 /**
  * INPUT: Tool use/result、运行状态、权限与工作区动作。
- * OUTPUT: 收起工具摘要或不重复摘要的完整输入/结果明细。
+ * OUTPUT: 收起工具摘要或完整输入/结果明细；权限选择视图只接收受控索引，请求仍由控制器持有。
  * POS: DM/Room 共用普通工具执行块编排入口。
  */
 "use client";
@@ -153,7 +153,6 @@ function OptionalPermission({
       interactionDisabledReason={interactionDisabledReason}
       model={model}
       onSelectedSuggestionIndexChange={onSelectedSuggestionIndexChange}
-      permissionRequest={permissionRequest}
       selectedSuggestionIndex={selectedSuggestionIndex}
     />
   );

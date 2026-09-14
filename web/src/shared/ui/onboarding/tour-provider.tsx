@@ -1,3 +1,6 @@
+// INPUT: 页面注册的引导、完成状态与导航动作。
+// OUTPUT: 活动引导及持久完成投影；注销后释放活动身份。
+// POS: 引导 Provider，不解释页面路由或目标几何；迟到宿主读取不得覆盖本轮完成或重置。
 "use client";
 
 import {
@@ -49,14 +52,18 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   const [activeTour, setActiveTour] = useState<ActiveTourState | null>(null);
   const [isTourStateReady, setIsTourStateReady] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
+  const completionRevision = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const revision = completionRevision.current;
     void hydrateOnboardingStateFromDesktop().then((state) => {
       if (cancelled) {
         return;
       }
-      setCompletedTours(state.completedTours);
+      if (revision === completionRevision.current) {
+        setCompletedTours(state.completedTours);
+      }
       setIsTourStateReady(true);
     }).catch(() => {
       if (!cancelled) {
@@ -75,6 +82,11 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
 
   const unregisterTour = useCallback((tourId: string) => {
     delete toursRef.current[tourId];
+    // Effect cleanup may be immediately followed by registration of updated copy.
+    queueMicrotask(() => {
+      if (toursRef.current[tourId]) return;
+      setActiveTour((current) => current?.tourId === tourId ? null : current);
+    });
   }, []);
 
   const startTour = useCallback((tourId: string) => {
@@ -90,6 +102,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeTour = useCallback((options?: { completed?: boolean }) => {
+    if (options?.completed) completionRevision.current += 1;
     setActiveTour((currentTour) => {
       if (!currentTour) {
         return null;
@@ -159,6 +172,7 @@ export function OnboardingTourProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetAllTours = useCallback(() => {
+    completionRevision.current += 1;
     resetAllTourState();
     setCompletedTours({});
     setActiveTour(null);

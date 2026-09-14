@@ -804,6 +804,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [permission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: {
@@ -902,6 +903,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         ],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: completedState,
@@ -960,6 +962,7 @@ test("Room keeps every pending runtime human interaction in the Composer", async
         isLastRoundPendingPermissions: [questionOnlyPermission],
         onPermissionResponse: () => true,
         onStopAgentRound: () => {},
+        stoppingAgentRoundIds: [],
         runtimePhase: null,
       },
       state: questionOnlyState,
@@ -989,8 +992,6 @@ test("Room streams and completes inside one stable Agent execution shell", async
     timestamp: 2,
   });
   const entry = {
-    agentAvatar: null,
-    agentName: "Stream Agent",
     agent_id: "agent-stream",
     agent_round_id: "agent-round-stream",
     assistant_messages: [message],
@@ -1016,6 +1017,7 @@ test("Room streams and completes inside one stable Agent execution shell", async
       I18nProvider,
       null,
       React.createElement(GroupAgentReply, {
+        agentMentionDirectory: { avatars: {}, names: { "agent-stream": "Stream Agent" } },
         entry: nextEntry,
         isThreadActive: false,
         onClickThread: () => {},
@@ -1624,7 +1626,7 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     agentId: "agent-lucy",
     agentRoundId: "agent-round-no-reply",
     roundId: "round-root",
-  });
+  }, (key) => key);
   assert.equal(
     thread?.isLoading,
     false,
@@ -2368,7 +2370,7 @@ test("live commentary separates completed and active tool groups", async () => {
   assert.match(html, /data-live-tool-text="true"/);
 });
 
-test("DM activity groups collapse while Room Thread groups expand", async () => {
+test("DM and Room Thread activity groups default to collapsed", async () => {
   const { AssistantProcessCallchain } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/assistant/assistant-process-callchain.tsx",
   );
@@ -2465,10 +2467,10 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       },
     },
   ));
-  assert.match(threadHtml, /aria-expanded="true"/);
+  assert.doesNotMatch(threadHtml, /aria-expanded="true"/);
   assert.match(threadHtml, /aria-expanded="false"/);
-  assert.match(threadHtml, /data-tool-run-detail-list/);
-  assert.match(threadHtml, /Thought 0/);
+  assert.doesNotMatch(threadHtml, /data-tool-run-detail-list/);
+  assert.doesNotMatch(threadHtml, /Thought 0/);
   assert.doesNotMatch(threadHtml, /before:bottom-0/);
   assert.doesNotMatch(threadHtml, /data-timeline-dot/);
   assert.doesNotMatch(threadHtml, /nexus-chat-timeline-block/);
@@ -2488,7 +2490,7 @@ test("DM activity groups collapse while Room Thread groups expand", async () => 
       responseResumed: false,
     },
   ));
-  assert.match(liveThreadHtml, /data-message-detail-follow="true"/);
+  assert.doesNotMatch(liveThreadHtml, /data-tool-run-detail-list/);
 
   const archivedHtml = await renderWithI18n(React.createElement(
     AssistantProcessCallchain,
@@ -2569,6 +2571,7 @@ test("Thought detail uses compact tool-detail typography", async () => {
   );
   const html = await renderWithI18n(React.createElement(ThinkingBlock, {
     isStreaming: true,
+    defaultExpanded: true,
     thinking: "Compact detail",
   }));
 
@@ -4344,8 +4347,6 @@ test("Room Agent replies keep their first display order through completion", asy
     timestamp: 6,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1", "agent-2": "Agent2" },
     messages: [rootUser, agent1Partial, agent2Done, guide, agent1Done],
     pendingPermissions: [],
     pendingSlots: [],
@@ -5300,8 +5301,6 @@ test("Room terminal execution rejects stale active evidence and late interaction
     tool_name: "AskUserQuestion",
   };
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [terminalState],
     messages: [staleMessage],
     pendingPermissions: [lateQuestion],
@@ -5527,8 +5526,6 @@ test("Room exact stop survives slot cleanup and settles ACK/terminal races per A
     timestamp: 2,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: {},
     executionStates: [stateA, stateB],
     messages: [completedTurn],
     pendingPermissions: [],
@@ -5756,8 +5753,6 @@ test("Room guidance stays on its exact consumed agent round", async () => {
     timestamp: 13,
   });
   const model = buildGroupRoundCardModel({
-    agentAvatarMap: {},
-    agentNameMap: { "agent-1": "Agent1" },
     messages: [guide, oldResult, newStream],
     pendingPermissions: [],
     pendingSlots: [{

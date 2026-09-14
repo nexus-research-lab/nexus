@@ -9,6 +9,7 @@ import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-optio
 import { ContactsAgentDetail } from "@/features/contacts/contacts-agent-detail";
 import { ContactsDirectory } from "@/features/contacts/contacts-directory";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 
@@ -38,6 +39,7 @@ interface ContactsPageActions extends
   ContactsDirectoryActions {}
 
 export function ContactsPage() {
+  const { t } = useI18n();
   const controller = useContactsPageController();
   const navigation = useContactsPageNavigation({
     agents: controller.contactAgents,
@@ -49,6 +51,7 @@ export function ContactsPage() {
   const communication = useAgentCommunication(navigation.selectedAgent?.agent_id ?? null);
 
   const presentation = getContactsPagePresentation({
+    t,
     contactCount: controller.contactAgents.length,
     deleteFailure: controller.deleteFailure,
     loading: controller.loading,
@@ -114,7 +117,7 @@ export function ContactsPage() {
         onConfirm={() => {
           void navigation.confirmDelete();
         }}
-        title="删除成员"
+        title={t("contacts.delete.confirm")}
         variant={presentation.deleteDialog.variant}
       />
     </>
@@ -132,11 +135,12 @@ function ContactsPageContent({
   agents: ComponentProps<typeof ContactsDirectory>["agents"];
   state: ContactsPageContentState;
 }) {
+  const { t } = useI18n();
   switch (state.kind) {
     case "loading":
       return (
         <WorkspacePageFrame contentPaddingClassName="p-0">
-          <WorkspaceLoadingState label="加载成员..." />
+          <WorkspaceLoadingState label={t("contacts.loading_members")} />
         </WorkspacePageFrame>
       );
     case "detail":

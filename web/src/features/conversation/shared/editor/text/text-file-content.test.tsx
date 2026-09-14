@@ -1,5 +1,5 @@
-// INPUT: 预览文件的 exact Agent 与不同的全局选择。
-// OUTPUT: 证明 Markdown 图片从文件归属生成 URL，切换文件来源后立即更新。
+// INPUT: 预览文件的 exact Agent、不同的全局选择与未知格式纯文本。
+// OUTPUT: Markdown 图片跟随文件归属，未知文本保留空白且不被解释成 DOM。
 // POS: Workspace 文本正文到共享 Markdown 能力注入的实际消费行为测试。
 
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -24,4 +24,12 @@ it("previews images for the file Agent even when another Agent is selected", () 
   expect(screen.getByRole("img", { name: "Chart" }).getAttribute("src")).toContain("/agents/file-agent/workspace/download?");
   rerender(<TextFileContent {...props} agentId="new-file-agent" />);
   expect(screen.getByRole("img", { name: "Chart" }).getAttribute("src")).toContain("/agents/new-file-agent/workspace/download?");
+});
+
+it("keeps unknown plain text literal and preserves whitespace without creating markup", () => {
+  const content = "  leading\tspaces\n<img src='untrusted' />\n中文";
+  const { container } = render(<TextFileContent agentId="file-agent" content={content} fileName="notes.unknown"
+    fileType="text" isLoading={false} isStreaming={false} />);
+  expect(container.querySelector("pre")?.textContent).toBe(content);
+  expect(screen.queryByRole("img")).toBeNull();
 });

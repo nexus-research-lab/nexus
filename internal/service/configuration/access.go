@@ -34,6 +34,10 @@ var (
 
 func accessFor(actor *resolvedActor, definition DomainDefinition) Access {
 	access := Access{Authority: actor.Authority}
+	if definition.Name == DomainMembers && (actor.AuthMethod != authctx.AuthMethodPassword || actor.AuthSessionID == "" || (actor.PrincipalRole != authctx.RoleOwner && actor.PrincipalRole != authctx.RoleAdmin)) {
+		access.Reason = "成员管理只对有效管理员登录的主智能体私聊开放"
+		return access
+	}
 	switch actor.Authority {
 	case AuthorityOwnerMain:
 		if actor.Context.Kind != ScopeKindOwner {

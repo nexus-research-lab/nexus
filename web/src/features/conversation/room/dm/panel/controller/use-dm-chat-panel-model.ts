@@ -42,7 +42,6 @@ export function useDmChatPanelModel({
   const session = useDmChatSessionController({
     identity: sessionIdentity,
     initialScrollAnchor: embeddedEditor ? "top" : "bottom",
-    liveContentAlignment: embeddedEditor ? "start" : "end",
     onConversationSnapshotChange,
     onGoalEvent: goal.refresh,
     onRoomEvent,

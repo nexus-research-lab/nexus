@@ -4,6 +4,7 @@
  * POS: 私域时间线展示规则；失败恢复由时间线组件单独承载。
  */
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
 import type {
   AgentPrivateDirection,
   AgentPrivateEvent,
@@ -67,7 +68,7 @@ function participantName(
   const participant = event.participants.find(
     (item) => item.agent_id === participantId,
   );
-  return participant?.name || participantId;
+  return getAgentDisplayName(participant?.name, localization.t);
 }
 
 function recipientNames(
@@ -157,10 +158,10 @@ function eventSourceName(
   agentId: string,
   localization: PrivateDomainLocalization,
 ): string {
-  if (source?.agent_id === agentId) {
+  if (event.source_agent_id === agentId) {
     return localization.t("agent_options.contact.self");
   }
-  return source?.name || event.source_agent_id;
+  return getAgentDisplayName(source?.name, localization.t);
 }
 
 function buildEventPresentation(

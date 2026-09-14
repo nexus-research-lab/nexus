@@ -1,7 +1,7 @@
 /**
  * INPUT: 结构化问题草稿、交互状态与提交/拒绝动作。
  * OUTPUT: 与 Composer 权限确认同层级的单面板问答视图。
- * POS: AskUserQuestion 的纯视图编排入口。
+ * POS: AskUserQuestion 的纯视图编排入口；提交冻结答案，决定动作显式消费领域命中区配方。
  */
 import {
   AlertCircle,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { CONVERSATION_DECISION_ACTION_CLASS_NAME } from "../../../conversation-panel-styles";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -70,7 +71,7 @@ export function AskUserQuestionView({
           onToggleOption={onToggleOption}
           onUpdateCustomAnswer={onUpdateCustomAnswer}
           questions={questions}
-          readOnly={readOnly}
+          readOnly={readOnly || isSubmitting}
         />
       ) : (
         <QuestionResolution
@@ -116,11 +117,10 @@ function QuestionList({
     <div className="ask-user-question-list">
       {questions.map((question, index) => {
         const answer = draft[index] ?? EMPTY_ANSWER;
-        const keyPrefix = question.header || "question";
         return (
           <AskUserQuestionItem
             customAnswer={answer.customAnswer}
-            key={`${keyPrefix}:${question.question}`}
+            key={index}
             onCustomAnswerChange={(customAnswer) =>
               onUpdateCustomAnswer(index, customAnswer)}
             onToggleOption={(optionLabel) =>
@@ -178,6 +178,7 @@ function QuestionDecisionRow({
       <div className="flex shrink-0 items-center gap-2">
         {onDeny ? (
           <UiButton
+            className={CONVERSATION_DECISION_ACTION_CLASS_NAME}
             disabled={readOnly || isSubmitting}
             onClick={(event) => {
               event.stopPropagation();
@@ -190,6 +191,7 @@ function QuestionDecisionRow({
           </UiButton>
         ) : null}
         <UiButton
+          className={CONVERSATION_DECISION_ACTION_CLASS_NAME}
           disabled={!submitEnabled}
           onClick={(event) => {
             event.stopPropagation();
@@ -314,7 +316,7 @@ function QuestionResolution({
       {answerSummary ? (
         <span
           className={cn(
-            "truncate",
+            "min-w-0 [overflow-wrap:anywhere]",
             getUiTypographyClassName({ role: "caption", tone: "muted" }),
           )}
         >

@@ -1,9 +1,10 @@
 // INPUT: Select Menu 尺寸、标签换行、表面和选中状态。
-// OUTPUT: 触发器、选项与标签布局使用的共享视觉 recipe。
+// OUTPUT: 复用 App Typography 的字段字号、固定/随换行增高的触发器与选项布局 recipe。
 // POS: Select Menu 唯一视觉投影；不决定当前值、键盘遍历或浮层位置。
 
 import { cn } from "@/shared/ui/class-name";
 import { getMenuItemStateClassName } from "@/shared/ui/menu/menu-styles";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type {
   UiSelectMenuSize,
@@ -18,8 +19,16 @@ export interface SelectMenuStyleProjection {
   optionLabelClassName: string;
   roundedClassName: string;
   textClassName: string;
+  triggerLayoutClassName?: string;
   triggerLabelClassName: string;
 }
+
+const WRAPPING_TRIGGER_CLASS_NAMES: Record<UiSelectMenuSize, string> = {
+  xs: "h-auto min-h-7 py-1",
+  sm: "h-auto min-h-8 py-1",
+  md: "h-auto min-h-9 py-1.5",
+  lg: "h-auto min-h-11 py-2.5",
+};
 
 const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   estimatedOptionHeight: number;
@@ -31,30 +40,30 @@ const SELECT_MENU_SIZE_CONFIG: Record<UiSelectMenuSize, {
   md: {
     estimatedOptionHeight: 32,
     heightClassName: "h-9",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-md",
-    textClassName: "ui-type-control ui-type-weight-regular",
+    textClassName: getUiTypographyClassName({ role: "control", weight: "regular" }),
   },
   sm: {
     estimatedOptionHeight: 32,
     heightClassName: "h-8",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-sm",
-    textClassName: "text-compact",
+    textClassName: getUiTypographyClassName({ role: "supporting" }),
   },
   xs: {
     estimatedOptionHeight: 28,
     heightClassName: "h-7",
-    optionHeightClassName: "min-h-7 text-compact",
+    optionHeightClassName: cn("min-h-7", getUiTypographyClassName({ role: "metadata" })),
     roundedClassName: "radius-control-xs",
-    textClassName: "text-xs",
+    textClassName: getUiTypographyClassName({ role: "metadata" }),
   },
   lg: {
     estimatedOptionHeight: 32,
     heightClassName: "h-11",
-    optionHeightClassName: "min-h-8 text-sm",
+    optionHeightClassName: cn("min-h-8", getUiTypographyClassName({ role: "supporting" })),
     roundedClassName: "radius-control-lg",
-    textClassName: "ui-type-control ui-type-weight-regular",
+    textClassName: getUiTypographyClassName({ role: "control", weight: "regular" }),
   },
 };
 
@@ -74,6 +83,7 @@ const SELECT_MENU_LABEL_LAYOUT_CONFIG = {
 } as const;
 
 const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
+  plain: "border-0 bg-transparent shadow-none hover:bg-(--surface-control-hover-background) focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
   dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
   surface: "border border-(--surface-control-border) bg-(--surface-control-field-background) shadow-(--surface-control-field-shadow) hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
 };
@@ -95,6 +105,8 @@ export function getSelectMenuStyleProjection({
   ];
   return {
     ...sizeConfig,
+    heightClassName: allowLabelWrap ? "h-auto" : sizeConfig.heightClassName,
+    triggerLayoutClassName: allowLabelWrap ? WRAPPING_TRIGGER_CLASS_NAMES[size] : undefined,
     estimatedOptionHeight: Math.max(
       sizeConfig.estimatedOptionHeight,
       labelLayout.minimumOptionHeight,

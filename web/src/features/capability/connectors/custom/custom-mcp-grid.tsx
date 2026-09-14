@@ -1,22 +1,23 @@
 /**
  * INPUT: owner 级自定义 MCP 目录及增删改命令。
- * OUTPUT: 不重复页签标题和启用教程的 MCP 目录。
+ * OUTPUT: 公共资源状态、outlined 条目与独立行内动作组成的 MCP 目录。
  * POS: Connector 页的自定义 MCP 子目录视图。
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import type { MouseEvent } from "react";
 
 import {
   CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
 } from "@/features/capability/shared/capability-page-layout";
+import type { ResourceFailure } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
+import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { CustomMCPServer } from "@/types/capability/connector";
@@ -32,6 +33,8 @@ interface CustomMCPGridProps {
   busy: boolean;
   hasServers: boolean;
   loading: boolean;
+  failure?: ResourceFailure | null;
+  onRetry?: () => void;
   onAdd: () => void;
   onDelete: (server: CustomMCPServer) => void;
   onEdit: (server: CustomMCPServer) => void;
@@ -44,6 +47,8 @@ export function CustomMCPGrid({
   busy,
   hasServers,
   loading,
+  failure,
+  onRetry,
   onAdd,
   onDelete,
   onEdit,
@@ -53,38 +58,28 @@ export function CustomMCPGrid({
 }: CustomMCPGridProps) {
   const { t } = useI18n();
 
-  if (loading) {
+  if (failure && (failure.access || !hasServers)) {
+    return <UiResourceState state="error" title={t("capability.custom_mcp_operation_failed")} impact={t("state.read_failure_impact")} primaryAction={onRetry ? { label: t("state.retry"), onClick: onRetry, disabled: loading } : undefined} />;
+  }
+  if (loading && !hasServers) {
     return (
-      <div className={cn(
-        "flex min-h-40 items-center justify-center",
-        getUiTypographyClassName({ role: "supporting", tone: "muted" }),
-      )}>
-        {t("capability.connectors_loading")}
-      </div>
+      <UiResourceState size="sm" state="loading" title={t("capability.connectors_loading")} variant="plain" />
     );
   }
   if (servers.length === 0) {
     return (
-      <div className="flex min-h-48 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
-        <h2 className={getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "medium" })}>
-          {hasServers
-            ? t("capability.custom_mcp_no_results_title")
-            : t("capability.custom_mcp_empty_title")}
-        </h2>
-        {!hasServers ? (
-          <UiButton
-            className="mt-4"
-            disabled={busy}
-            onClick={onAdd}
-            tone="primary"
-            type="button"
-            variant="solid"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {t("capability.custom_mcp_add")}
-          </UiButton>
-        ) : null}
-      </div>
+      <UiResourceState
+        primaryAction={hasServers ? undefined : {
+          disabled: busy,
+          icon: <Plus className="h-3.5 w-3.5" />,
+          label: t("capability.custom_mcp_add"),
+          onClick: onAdd,
+        }}
+        size="sm"
+        state="empty"
+        title={t(hasServers ? "capability.custom_mcp_no_results_title" : "capability.custom_mcp_empty_title")}
+        variant="plain"
+      />
     );
   }
 
@@ -99,16 +94,17 @@ export function CustomMCPGrid({
           );
           return (
             <UiListRow
+              variant="outlined"
               className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
               description={recoveryRequired ? (
                 t("capability.custom_mcp_recovery_summary")
               ) : (
-                <span
+                <UiTooltip label={getCustomMCPConnectionTarget(server)}><span
                   className={getUiTypographyClassName({ role: "code" })}
-                  title={getCustomMCPConnectionTarget(server)}
+
                 >
                   {getCustomMCPConnectionTarget(server)}
-                </span>
+                </span></UiTooltip>
               )}
               key={server.connector_id}
               leading={(
@@ -147,27 +143,29 @@ export function CustomMCPGrid({
                     onChange={(enabled) => onToggle(server, enabled)}
                     size="xs"
                   />
-                  <UiIconButton
+                  <UiListActionButton
                     aria-label={t(recoveryRequired
                       ? "capability.custom_mcp_recover_action"
                       : "common.edit")}
                     disabled={busy}
-                    onClick={(event) => handleAction(event, () => onEdit(server))}
+                    onClick={() => onEdit(server)}
                     size="sm"
-                    type="button"
+                    stopPropagation
+                    visibility="visible"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                  </UiIconButton>
-                  <UiIconButton
+                  </UiListActionButton>
+                  <UiListActionButton
                     aria-label={t("common.delete")}
                     disabled={busy}
-                    onClick={(event) => handleAction(event, () => onDelete(server))}
+                    onClick={() => onDelete(server)}
                     size="sm"
                     tone="danger"
-                    type="button"
+                    stopPropagation
+                    visibility="visible"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                  </UiIconButton>
+                  </UiListActionButton>
                 </div>
               )}
               title={displayName}
@@ -177,12 +175,4 @@ export function CustomMCPGrid({
       </div>
     </section>
   );
-}
-
-function handleAction(
-  event: MouseEvent<HTMLButtonElement>,
-  action: () => void,
-): void {
-  event.stopPropagation();
-  action();
 }

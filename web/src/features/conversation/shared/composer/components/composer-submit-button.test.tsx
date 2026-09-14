@@ -60,6 +60,16 @@ describe("ComposerSubmitButton", () => {
     expect(props.onSend).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps stopping available while send is disabled or another preparation flag remains", async () => {
+    const user = userEvent.setup();
+    const props = renderSubmitButton({ shouldStop: true, isDisabled: true, isGoalCreating: true, isPreparingAttachments: true });
+    const stop = screen.getByRole("button", { name: "停止" });
+    expect((stop as HTMLButtonElement).disabled).toBe(false);
+    await user.click(stop);
+    expect(props.onStop).toHaveBeenCalledOnce();
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+
   it("honors the controller's explicit disabled send state", () => {
     renderSubmitButton({ isDisabled: true });
 

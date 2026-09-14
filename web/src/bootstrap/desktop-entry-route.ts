@@ -13,5 +13,11 @@ function normalizeDesktopRoute(route: string | null, fallbackRoute: string): str
   if (!candidate.startsWith("/") || candidate.startsWith("//")) {
     return fallbackRoute;
   }
-  return candidate;
+  try {
+    const resolved = new URL(candidate, window.location.origin);
+    if (resolved.origin !== window.location.origin) return fallbackRoute;
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return fallbackRoute;
+  }
 }

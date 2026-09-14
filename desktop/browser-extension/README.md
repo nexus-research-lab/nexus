@@ -39,3 +39,11 @@ Nexus 自有的 Chromium 扩展，通过 WebSocket 把完整 Browser 能力交�
 ## 图标
 
 `icons/browser-icon-master.png` 是图标母版。修改后导出 `16`、`32`、`48` 和 `128` 像素 PNG；Manifest 与扩展弹窗共用这些文件。
+
+## 超时与恢复
+
+0.8.6 使用宿主协议6；真实键鼠输入前会激活目标标签，避免后台页滚轮派发挂起。更新 Nexus 后，在扩展管理页重新加载 Nexus Browser；只重连 WebSocket 不会更新扩展代码。
+
+命令超时会停止后续步骤，光标显示失败会自动降级。结果未知的会话和相关标签会被隔离，避免迟到操作和重试重复生效；先检查页面实际状态，再重新加载扩展恢复。不要自动重发提交、点击或下载。其他会话与标签目录查询仍可使用。
+
+排查时按宿主日志中的 `Browser command` 和 `request_id` 对齐 send_start/send_end、queued/running、api_start/api_end/api_error、result_received/timeout。日志不包含页面正文或脚本；最后一个未结束的 API 阶段用于定位原生等待点。status 中 connected 只表示连接存在，执行健康见 execution_state。

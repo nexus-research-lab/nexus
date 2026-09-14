@@ -1,5 +1,5 @@
 /**
- * INPUT: 会话、时间线、历史、导航、滚动与 Composer 子模型。
+ * INPUT: 会话、时间线、历史、当前名称目录、导航、滚动与 Composer 子模型。
  * OUTPUT: 主对话面板各视图区域消费的稳定 props 投影。
  * POS: 会话控制器与纯视图布局之间的共享模型装配层。
  */
@@ -121,11 +121,12 @@ export interface ConversationPanelFrameModel {
 export function buildConversationPanelFrameModel(
   session: ConversationPanelSessionSource,
   environment: ConversationPanelEnvironment,
+  agentNameMap: Record<string, string>,
 ): ConversationPanelFrameModel {
   return {
     isMobileLayout: environment.isMobileLayout,
     isSessionLoading: session.conversation.is_session_loading,
-    navigator: buildConversationNavigatorModel(session),
+    navigator: buildConversationNavigatorModel(session, agentNameMap),
     providerWarningVisible: environment.providerWarningVisible,
     reconcileConversation: () => {
       if (session.sessionKey) {
@@ -142,9 +143,11 @@ export function buildConversationPanelFrameModel(
 
 function buildConversationNavigatorModel(
   session: ConversationNavigatorSessionSource,
+  agentNameMap: Record<string, string>,
 ): ConversationNavigatorModel {
   const { conversation, roundScrollRef, scroll, sessionKey, timeline } = session;
   return {
+    agentNameMap,
     onLoadRoundWindow: conversation.load_round_window,
     onNavigateStart: scroll.pauseFollowLatest,
     roundScrollRef,

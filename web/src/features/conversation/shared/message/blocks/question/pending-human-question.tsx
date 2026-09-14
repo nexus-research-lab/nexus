@@ -1,7 +1,7 @@
 /**
- * INPUT: 要求用户提交结构化回答的 runtime 交互，以及可选的原始工具块。
+ * INPUT: 要求用户提交结构化回答的 runtime pending 交互与当前响应能力。
  * OUTPUT: 以 request_id 保持表单与草稿身份稳定、可回答或拒绝的交互面。
- * POS: Composer 替换面与只读消息工具块共用的中立结构化输入适配器；后到 tool_use_id 只补上下文。
+ * POS: Composer 唯一 pending 问答适配器；不接受历史工具块或以 tool_use_id 覆盖请求身份。
  */
 import { AskUserQuestionBlock } from "@/features/conversation/shared/message/blocks/question/ask-user-question-block";
 import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
@@ -9,20 +9,17 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
-import type { ToolUseContent } from "@/types/conversation/message/content";
 
 interface PendingHumanQuestionProps {
   canRespond: boolean;
   onResponse?: (payload: PermissionDecisionPayload) => boolean;
   permission: PendingPermission;
-  toolUse?: ToolUseContent;
 }
 
 export function PendingHumanQuestion({
   canRespond,
   onResponse,
   permission,
-  toolUse,
 }: PendingHumanQuestionProps) {
   const interactionDisabled = !canRespond || !onResponse;
   const submitQuestion = (
@@ -44,7 +41,7 @@ export function PendingHumanQuestion({
       isReady={!interactionDisabled}
       onDeny={onResponse ? denyQuestion : undefined}
       onSubmit={submitQuestion}
-      toolUse={toolUse ?? {
+      toolUse={{
         id: pendingQuestionToolUseId(permission),
         input: permission.tool_input,
         name: permission.tool_name,

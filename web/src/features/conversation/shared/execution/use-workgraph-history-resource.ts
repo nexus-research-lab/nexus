@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { getExecutionHistoryApi } from "@/lib/api/conversation/execution-api";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, getResourceFailure } from "@/lib/error-message";
 import type { ExecutionView } from "@/types/conversation/execution";
 
 export interface WorkGraphHistoryResource {
@@ -53,6 +53,7 @@ export function useWorkGraphHistoryResource(
         requestRef.current === request
         && activeSessionRef.current === requestSessionKey
       ) {
+        if (getResourceFailure(reason, "").access) setHistory([]);
         setError(getErrorMessage(reason, "WorkGraph 历史读取失败"));
       }
     } finally {
@@ -69,6 +70,7 @@ export function useWorkGraphHistoryResource(
     if (enabled) {
       void refresh();
     }
+    return () => { requestRef.current += 1; };
   }, [enabled, refresh]);
 
   return {

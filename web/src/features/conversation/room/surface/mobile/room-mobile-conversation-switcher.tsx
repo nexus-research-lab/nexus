@@ -1,11 +1,11 @@
 /**
  * INPUT: Room 完整会话目录、当前会话与选择命令。
- * OUTPUT: 排除内部草稿但保留外部 Session、共享模态焦点/关闭协议的移动端历史切换器。
+ * OUTPUT: 排除内部草稿、明确空历史、当前语言时间及具备 Portal 归属与模态焦点/关闭协议的移动切换器。
  * POS: Room 窄窗历史投影视图；领域只拥有顶栏下拉几何与选择命令，模态行为归共享 Dialog。
  */
 
 import { X } from "lucide-react";
-import { useRef } from "react";
+import { useId, useRef } from "react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -18,7 +18,7 @@ import { getUiOverlayLayerClassName } from "@/shared/ui/overlay/layer-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-import { filterRoomHistoryConversations } from "../history/room-history-model";
+import { buildRoomHistoryEntries } from "../history/room-history-model";
 
 interface RoomMobileConversationSwitcherProps {
   activeConversationId: string | null;
@@ -35,10 +35,16 @@ export function RoomMobileConversationSwitcher({
   onClose,
   onSelect,
 }: RoomMobileConversationSwitcherProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const titleId = useId();
   const rootRef = useRef<HTMLElement | null>(null);
   useDialogModalBehavior({ enabled: isOpen, onClose, rootRef });
-  const historyConversations = filterRoomHistoryConversations(conversations);
+  const historyConversations = buildRoomHistoryEntries({
+    conversations,
+    currentConversationId: activeConversationId,
+    canManageConversations: false,
+    canUpdateConversationTitle: false,
+  }).map((entry) => entry.conversation);
   if (!isOpen) {
     return null;
   }
@@ -58,8 +64,9 @@ export function RoomMobileConversationSwitcher({
 
       <section
         ref={rootRef}
-        aria-labelledby="mobile-conversation-switcher-title"
+        aria-labelledby={titleId}
         aria-modal="true"
+        data-modal-root="true"
         className={cn(
           "absolute inset-x-0 flex max-h-[56dvh] flex-col overflow-hidden rounded-b-2xl border-b border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_84%,var(--surface-panel-background)_16%)] shadow-(--surface-popover-shadow) backdrop-blur-[20px] animate-in fade-in-0 slide-in-from-top-2 duration-(--motion-duration-fast)",
           MOBILE_SHELL_HEADER_OFFSET_CLASS_NAME,
@@ -74,7 +81,7 @@ export function RoomMobileConversationSwitcher({
               "truncate",
               getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "semibold" }),
             )}
-            id="mobile-conversation-switcher-title"
+            id={titleId}
           >
             {t("room.switch_conversation")}
           </h2>
@@ -90,6 +97,11 @@ export function RoomMobileConversationSwitcher({
         </header>
 
         <div className="soft-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto p-2.5">
+          {historyConversations.length === 0 ? (
+            <p className={cn("px-4 py-6 text-center", getUiTypographyClassName({ role: "supporting", tone: "muted" }))} role="status">
+              {t("room.no_conversations")}
+            </p>
+          ) : null}
           {historyConversations.map((conversation) => {
             const isActive = conversation.conversation_id === activeConversationId;
             return (
@@ -119,11 +131,11 @@ export function RoomMobileConversationSwitcher({
                   <span className={cn(
                     "mt-0.5 block",
                     getUiTypographyClassName({
-                      role: "caption",
-                      tone: isActive ? "muted" : "soft",
+                      role: "metadata",
+                      tone: "muted",
                     }),
                   )}>
-                    {formatRelativeTime(conversation.last_activity_at)}
+                    {formatRelativeTime(conversation.last_activity_at, locale)}
                   </span>
                 </div>
               </UiListRow>

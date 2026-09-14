@@ -3,6 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - delivery.go：显式交付文件的 owner/Agent 校验、confined-fd 普通文件验证与整批规范化；不扫描目录推断产出者。
 //   - service.go / file.go / memory.go / mutation.go / upload.go / path.go：Service、基于 confined-fd 的文件/记忆/条目/上传访问与路径；
 //     单次文件正文读取有统一内存上限并返回稳定内容 revision，下载保留 fd 流式读取，
 //     并为并发敏感的编辑提供不自动重放的条件写入；

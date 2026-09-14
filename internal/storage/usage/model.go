@@ -63,3 +63,12 @@ type Summary struct {
 	MessageCount             int
 	UpdatedAt                string
 }
+
+// DailyUsage 表示按 UTC 日期聚合的用量。
+type DailyUsage struct {
+	Date         string `json:"date"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	CacheTokens  int64  `json:"cache_tokens"`
+	TotalTokens  int64  `json:"total_tokens"`
+}

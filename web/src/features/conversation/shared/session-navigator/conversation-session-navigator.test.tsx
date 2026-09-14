@@ -69,6 +69,20 @@ const EMPTY_TIMELINE: ConversationTimeline = {
 };
 
 describe("ConversationSessionNavigator", () => {
+  it("projects current names and keeps missing or blank names free of internal IDs", () => {
+    const scrollRef = createRef<HTMLDivElement>();
+    const view = (agentNameMap?: Record<string, string>) => <I18nProvider><ConversationSessionNavigator scopeKey="agent:session" scrollRef={scrollRef} timeline={EMPTY_TIMELINE} agentNameMap={agentNameMap} /></I18nProvider>;
+    const { container, rerender } = render(view());
+    const preview = () => container.querySelector("[data-session-navigator-preview='true']")!.textContent;
+    expect(preview()).not.toContain("agent-");
+    rerender(view({ "agent-2": "  Nova  " }));
+    expect(preview()).toContain("Nova");
+    expect(preview()).not.toContain("agent-");
+    rerender(view({ "agent-2": "   " }));
+    expect(preview()).not.toContain("Nova");
+    expect(preview()).not.toContain("agent-");
+  });
+
   beforeEach(() => {
     navigation.clearPreview.mockClear();
     navigation.jumpToRound.mockClear();
@@ -120,4 +134,21 @@ describe("ConversationSessionNavigator", () => {
       "ui-type-caption",
     );
   });
+  it("keeps focus transitions inside the preview and exits by blur or non-IME Escape", () => {
+    render(<I18nProvider><ConversationSessionNavigator scopeKey="session" scrollRef={createRef<HTMLDivElement>()} timeline={EMPTY_TIMELINE} /></I18nProvider>);
+    const nav = screen.getByRole("navigation");
+    const ticks = nav.querySelectorAll<HTMLButtonElement>("[data-session-navigator-round]");
+    const preview = nav.querySelector<HTMLButtonElement>("[data-session-navigator-preview]")!;
+    fireEvent.blur(ticks[1], { relatedTarget: preview });
+    expect(navigation.clearPreview).not.toHaveBeenCalled();
+    fireEvent.keyDown(preview, { key: "Escape", isComposing: true });
+    expect(navigation.clearPreview).not.toHaveBeenCalled();
+    fireEvent.keyDown(preview, { key: "Escape" });
+    expect(navigation.clearPreview).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(ticks[1]);
+    fireEvent.blur(ticks[1], { relatedTarget: document.body });
+    expect(navigation.clearPreview).toHaveBeenCalledTimes(2);
+    expect(navigation.jumpToRound).not.toHaveBeenCalled();
+  });
+
 });

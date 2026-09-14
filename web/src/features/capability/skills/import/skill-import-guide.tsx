@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前语言与导入在途状态。
- * OUTPUT: 默认收起的 Skill 格式要求、示例与指南下载动作。
+ * OUTPUT: 共享说明字号/示例表面的折叠格式要求与原样指南下载动作。
  * POS: Skill 导入表单的次级帮助，不占据首屏主栏。
  */
 
@@ -71,7 +71,7 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
           </div>
           <ul className={cn(
             "space-y-1.5",
-            getUiTypographyClassName({ role: "caption", tone: "muted" }),
+            getUiTypographyClassName({ role: "supporting", tone: "muted" }),
           )}>
             <li>{t("capability.skills_import_rule_name")}</li>
             <li>{t("capability.skills_import_rule_scope")}</li>
@@ -80,10 +80,9 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
             <li>{t("capability.skills_import_rule_git_tracking")}</li>
           </ul>
           <UiPanel
-            className="bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)]"
             padding="sm"
             radius="sm"
-            variant="card"
+            variant="filled"
           >
             <pre className={cn(
               "max-h-[260px] overflow-auto whitespace-pre-wrap",

@@ -1,5 +1,5 @@
 // INPUT: 当前 Gallery locale 与只用于演示交互的本地状态。
-// OUTPUT: 直接渲染 shared/ui 真实组件的补全预览分组。
+// OUTPUT: 直接组合 shared/ui、真实领域视图与本地任务草稿的补全预览分组。
 // POS: 开发期 Gallery 场景装配；只写 fixture，不复制产品组件实现。
 
 import {
@@ -10,12 +10,9 @@ import {
   Ellipsis,
   FileCode2,
   Grid2X2,
-  MoreHorizontal,
   Plus,
   RefreshCw,
-  Search,
   Settings2,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import {
@@ -27,17 +24,26 @@ import {
 
 import type { Locale } from "@/shared/i18n/messages";
 import { AgentOptionsGallery } from "./ui-gallery-agent-options";
+import { TaskFormGallery } from "./ui-gallery-task-form";
 import { ComposerAttachmentsGallery } from "./ui-gallery-composer-attachments";
 import { WorkGraphGallery } from "./ui-gallery-workgraph";
 import { MessageSurfacesGallery } from "./ui-gallery-message-surfaces";
 import { ProductControlsGallery } from "./ui-gallery-product-controls";
+import { SettingsControlsGallery } from "./ui-gallery-settings-controls";
+import { ProviderFormGallery } from "./ui-gallery-provider-form";
+import { ProviderDialogsGallery } from "./ui-gallery-provider-dialogs";
+import { ConnectorDetailGallery } from "./ui-gallery-connector-detail";
+import { SemanticColorsGallery } from "./ui-gallery-semantic-colors";
+import { SegmentedControlsGallery } from "./ui-gallery-segmented-controls";
+import { SkillManagementGallery } from "./ui-gallery-skill-management";
+import { ContactsGallery } from "./ui-gallery-contacts";
+import { MemoryGallery } from "./ui-gallery-memory";
 import { UiButton, UiIconButton, UiLinkButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiMetaGrid, UiMetaItem } from "@/shared/ui/display/meta-grid";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
@@ -63,18 +69,18 @@ import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/u
 import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
-import { StreamingCodeBlock } from "@/shared/ui/markdown/code/streaming-code-block";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { MermaidView } from "@/shared/ui/markdown/mermaid/mermaid-view";
 import { WorkspaceFileButton } from "@/shared/ui/markdown/workspace/markdown-workspace-file-button";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
+import { UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiActionMenu, UiActionMenuContent } from "@/shared/ui/menu/action-menu";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { TourOverlayCard } from "@/shared/ui/onboarding/overlay/tour-overlay-card";
 import { OnboardingTourOverlay } from "@/shared/ui/onboarding/overlay/tour-overlay";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { WorkspaceCatalogAction, WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
+import { WorkspaceCatalogTextAction } from "@/shared/ui/workspace/catalog/workspace-catalog-actions";
 import { WorkspaceCatalogCard, WorkspaceCatalogGhostAction } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 import {
   WorkspaceCatalogBody,
@@ -84,12 +90,9 @@ import {
   WorkspaceCatalogTitle,
 } from "@/shared/ui/workspace/catalog/workspace-catalog-content";
 import { WorkspaceIconFrame } from "@/shared/ui/workspace/catalog/workspace-icon-frame";
-import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
 import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
-import { WorkspaceSearchInput } from "@/shared/ui/workspace/controls/workspace-search-input";
-import { WorkspaceStatusBadge } from "@/shared/ui/workspace/controls/workspace-status-badge";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
@@ -109,6 +112,7 @@ import { galleryText } from "./ui-gallery-copy";
 
 export function FoundationCompleteness({ locale }: { locale: Locale }) {
   const [checked, setChecked] = useState(true);
+  const [compactChecked, setCompactChecked] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState("");
 
   return (
@@ -130,6 +134,15 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             label={galleryText(locale, "启用完整组件巡检", "Enable complete component audit")}
             onChange={setChecked}
           />
+          <fieldset disabled={!checked} data-gallery-compact-checkbox>
+            <UiCheckboxRow
+              checked={compactChecked}
+              density="compact"
+              description={galleryText(locale, "配置只影响当前任务，保存时暂时禁用。", "This configuration only applies to the current task and is disabled while saving.")}
+              label={galleryText(locale, "使用任务独立配置", "Use the task’s independent configuration")}
+              onChange={setCompactChecked}
+            />
+          </fieldset>
           <UiDisclosure
             label={galleryText(locale, "共享展开区域", "Shared disclosure")}
             meta={galleryText(locale, "2 项", "2 items")}
@@ -143,13 +156,13 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             <SidebarSearchField
               action={<SidebarSearchAction aria-label={galleryText(locale, "新建", "Create")}><Plus /></SidebarSearchAction>}
               onChange={setSidebarSearch}
-              placeholder={galleryText(locale, "搜索组件", "Search components")}
+              label={galleryText(locale, "搜索组件", "Search components")}
               value={sidebarSearch}
             />
           </div>
         </PreviewCard>
 
-        <PreviewCard components={["UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar", "UiMetaGrid", "UiMetaItem"]}>
+        <PreviewCard components={["UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar"]}>
           <div className="flex items-center gap-3">
             <UiAgentAvatar isWorking name="Nexus" size="md" />
             <UiSeededAvatar seed="nexus-ui-gallery" size="lg" />
@@ -159,11 +172,6 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
               <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>{galleryText(locale, "稳定种子头像", "Stable seeded avatar")}</p>
             </div>
           </div>
-          <UiMetaGrid>
-            <UiMetaItem label={galleryText(locale, "主题", "Theme")} value="Light / Dark / Rain" />
-            <UiMetaItem label={galleryText(locale, "语言", "Locale")} value={locale === "zh" ? "简体中文" : "English"} />
-            <UiMetaItem label={galleryText(locale, "来源", "Source")} value="shared/ui" />
-          </UiMetaGrid>
         </PreviewCard>
 
         <PreviewCard components={["UiSkeleton", "UiSkeletonCardList"]}>
@@ -210,6 +218,15 @@ export function ContentGallery({ locale }: { locale: Locale }) {
   return (
     <div className="grid items-start gap-5 xl:grid-cols-2" data-gallery-panel="content">
       <ProductControlsGallery />
+      <SettingsControlsGallery />
+      <ProviderFormGallery />
+      <ProviderDialogsGallery />
+      <ConnectorDetailGallery />
+      <SkillManagementGallery />
+      <ContactsGallery />
+      <MemoryGallery />
+      <SegmentedControlsGallery />
+      <SemanticColorsGallery />
       <MessageSurfacesGallery />
       <PreviewSection
         description={galleryText(locale, "通知、恢复说明与固定视口都使用产品中的真实反馈组件。", "Notices, recovery guidance, and the fixed viewport all use production feedback components.")}
@@ -285,7 +302,6 @@ export function ContentGallery({ locale }: { locale: Locale }) {
           </div>
           <TypewriterFileView
             content={galleryText(locale, "共享组件来自唯一实现。\n语言切换只改变 fixture 文案。", "Shared components come from one implementation.\nLocale changes only replace fixture copy.")}
-            containerWidth={520}
           />
         </PreviewCard>
       </PreviewSection>
@@ -306,8 +322,11 @@ export function ContentGallery({ locale }: { locale: Locale }) {
               path="web/src/shared/ui/markdown/markdown-content.tsx"
             />
           </PreviewCard>
-          <PreviewCard components={["StreamingCodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
-            <StreamingCodeBlock language="ts" value={code} />
+          <PreviewCard components={["useSmoothStreamingMarkdownState", "MarkdownText"]}>
+            <StreamingMarkdownGallery />
+          </PreviewCard>
+          <PreviewCard components={["CodeBlock", "MermaidView", "LazyMermaidView", "MermaidSourceView", "MermaidRenderedPreview", "MermaidPreviewDialog"]}>
+            <CodeBlock language="ts" value={code} isStreaming />
             <MermaidView
               chart="flowchart LR\n  Source[shared/ui] --> Gallery[UI Gallery]\n  Gallery --> Check[Coverage contract]"
               compact
@@ -347,12 +366,12 @@ export function ContentGallery({ locale }: { locale: Locale }) {
 
 export function InteractionGallery({ locale }: { locale: Locale }) {
   const actionAnchorRef = useRef<HTMLButtonElement>(null);
-  const mentionAnchorRef = useRef<HTMLButtonElement>(null);
+  const mentionAnchorRef = useRef<HTMLInputElement>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [glassChecked, setGlassChecked] = useState(true);
   const [icon, setIcon] = useState("agent-3");
-  const [mentionRect, setMentionRect] = useState<DOMRect | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
   const [tourTargetActions, setTourTargetActions] = useState(0);
   const actionItems = useMemo(() => [
@@ -438,44 +457,43 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
               startIconId={1}
               value={icon}
             />
-            <UiButton
+            <UiInput
               ref={mentionAnchorRef}
-              onClick={() => setMentionRect(mentionAnchorRef.current?.getBoundingClientRect() ?? null)}
+              aria-label={galleryText(locale, "提及成员", "Mention member")}
+              onFocus={() => setMentionOpen(true)}
+              onClick={() => setMentionOpen(true)}
+              placeholder="@"
+              readOnly
               variant="surface"
-            >
-              @ {galleryText(locale, "选择成员", "Mention member")}
-            </UiButton>
+            />
           </div>
           <MentionTargetPopover
-            anchorRect={mentionRect}
+            anchorRef={mentionAnchorRef}
+            isOpen={mentionOpen}
             filter=""
             items={[
               { id: "maya", label: "Maya", marker: "M", subtitle: galleryText(locale, "前端", "Frontend") },
               { id: "lin", label: "Lin", marker: "L", subtitle: galleryText(locale, "设计系统", "Design system") },
             ]}
-            onClose={() => setMentionRect(null)}
-            onSelect={() => setMentionRect(null)}
+            onClose={() => setMentionOpen(false)}
+            onSelect={() => setMentionOpen(false)}
           />
         </PreviewCard>
       </PreviewSection>
 
       <PreviewSection
-        description={galleryText(locale, "玻璃开关和放大镜直接运行真实能力检测与交互 Hook。", "The glass switch and magnifier run their production capability checks and interaction hooks.")}
+        description={galleryText(locale, "玻璃开关直接运行真实能力检测与交互 Hook。", "The glass switch runs its production capability checks and interaction hooks.")}
         eyebrow="02 · MATERIAL"
         title="Liquid glass"
       >
         <PreviewCard components={["GlassSwitch", "GlassSwitchFilter", "GlassMagnifier", "GlassMagnifierFilter"]}>
           <div className="flex min-h-28 items-center justify-around rounded-[16px] bg-[radial-gradient(circle_at_25%_25%,color-mix(in_srgb,var(--primary)_28%,transparent),transparent_42%),linear-gradient(135deg,var(--surface-panel-background),var(--surface-control-background))] p-5">
+            <GlassMagnifier>NEXUS</GlassMagnifier>
             <GlassSwitch
               aria-label={galleryText(locale, "启用玻璃效果", "Enable glass effect")}
               checked={glassChecked}
               onChange={setGlassChecked}
             />
-            <GlassMagnifier
-              underlay={<div className="h-full w-full bg-[linear-gradient(90deg,var(--primary),var(--success))]" />}
-            >
-              <Search className="h-4 w-4 text-white" />
-            </GlassMagnifier>
           </div>
         </PreviewCard>
       </PreviewSection>
@@ -567,6 +585,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
   return (
     <div className="grid items-start gap-5" data-gallery-panel="workspace">
       <AgentOptionsGallery locale={locale} />
+      <TaskFormGallery />
       <ComposerAttachmentsGallery locale={locale} />
       <WorkGraphGallery locale={locale} />
       <PreviewSection
@@ -575,7 +594,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         title={galleryText(locale, "Workspace 目录", "Workspace catalog")}
       >
         <div className="grid gap-4 lg:grid-cols-3">
-          <PreviewCard components={["WorkspaceCatalogCard", "WorkspaceCatalogHeader", "WorkspaceCatalogBody", "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription", "WorkspaceIconFrame", "WorkspaceCatalogAction", "WorkspaceCatalogTextAction"]}>
+          <PreviewCard components={["WorkspaceCatalogCard", "WorkspaceCatalogHeader", "WorkspaceCatalogBody", "WorkspaceCatalogFooter", "WorkspaceCatalogTitle", "WorkspaceCatalogDescription", "WorkspaceIconFrame", "WorkspaceCatalogTextAction"]}>
             <WorkspaceCatalogCard
               aria-label="Catalog action example"
               primaryAction={{
@@ -591,13 +610,12 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
                   <WorkspaceCatalogDescription lines={2}>{galleryText(locale, "检查真实组件的主题、语言和交互状态。", "Checks real component themes, locales, and interaction states.")}</WorkspaceCatalogDescription>
                 </div>
               </WorkspaceCatalogHeader>
-              <WorkspaceCatalogBody grow><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
+              <WorkspaceCatalogBody><UiBadge size="xs">shared/ui</UiBadge></WorkspaceCatalogBody>
               <WorkspaceCatalogFooter>
-                <WorkspaceCatalogTextAction>{galleryText(locale, "详情", "Details")}</WorkspaceCatalogTextAction>
-                <WorkspaceCatalogAction
+                <WorkspaceCatalogTextAction
                   aria-label="Catalog secondary action"
                   onClick={() => setCatalogActions((current) => ({ ...current, secondary: current.secondary + 1 }))}
-                ><MoreHorizontal className="h-4 w-4" /></WorkspaceCatalogAction>
+                >{galleryText(locale, "详情", "Details")}</WorkspaceCatalogTextAction>
               </WorkspaceCatalogFooter>
             </WorkspaceCatalogCard>
             <output data-gallery-catalog-actions>{catalogActions.primary}:{catalogActions.secondary}</output>
@@ -614,12 +632,7 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <output data-gallery-catalog-creations>{catalogCreations}</output>
           </PreviewCard>
 
-          <PreviewCard components={["WorkspaceActionBar", "WorkspaceActionCard"]}>
-            <WorkspaceActionBar variant="cards">
-              <WorkspaceActionCard icon={<Sparkles className="h-5 w-5" />} onClick={() => undefined} title={galleryText(locale, "生成预览", "Generate preview")} />
-              <WorkspaceActionCard description={galleryText(locale, "打开完整目录", "Open full catalog")} icon={<Grid2X2 className="h-5 w-5" />} onClick={() => undefined} title={galleryText(locale, "浏览", "Browse")} />
-            </WorkspaceActionBar>
-          </PreviewCard>
+
         </div>
       </PreviewSection>
 
@@ -675,7 +688,6 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             leading={<UiSeededAvatar seed="workspace-gallery" size="md" />}
             leadingVariant="identity"
             onChangeTab={setActiveSurfaceTab}
-            subtitle={galleryText(locale, "真实共享头部", "Real shared header")}
             tabs={[
               { icon: Grid2X2, key: "overview", label: galleryText(locale, "概览", "Overview") },
               { icon: FileCode2, key: "files", label: galleryText(locale, "文件", "Files") },
@@ -698,13 +710,12 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <div className="flex h-56 flex-col overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
               <WorkspaceSurfaceView
                 bodyClassName="min-h-0"
-                header={{ action: <UiButton size="xs" variant="text">{galleryText(locale, "刷新", "Refresh")}</UiButton>, kind: "page" }}
+                header={{ action: <UiButton size="xs" variant="text">{galleryText(locale, "刷新", "Refresh")}</UiButton>, kind: "mobile" }}
                 title={galleryText(locale, "预览工作面", "Preview surface")}
               >
-                <UiMetaGrid>
-                  <UiMetaItem label="Section" value={activeSurfaceTab} />
-                  <UiMetaItem label="Locale" value={locale} />
-                </UiMetaGrid>
+                <p className={getUiTypographyClassName({ role: "body", tone: "default" })}>
+                  {galleryText(locale, "当前工作面：", "Current surface:")} {activeSurfaceTab}
+                </p>
               </WorkspaceSurfaceView>
             </div>
             <div className="flex h-28 flex-col overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
@@ -720,9 +731,9 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
             <div className="relative flex h-56 overflow-hidden rounded-[12px] border border-(--divider-subtle-color)">
               <div className="grid flex-1 place-items-center text-xs text-(--text-muted)">{galleryText(locale, "主面板", "Main panel")}</div>
               <div className="relative w-2 bg-(--surface-panel-subtle-background)">
-                <PanelResizeHandle ariaLabel={galleryText(locale, "调整面板宽度", "Resize panel")} onResizeStart={() => undefined} variant="overlay" />
+                <PanelResizeHandle ariaLabel={galleryText(locale, "调整面板宽度", "Resize panel")} controls="gallery-resize-panel" control={null} onResizeStart={() => undefined} variant="overlay" />
               </div>
-              <div className="grid w-1/3 place-items-center border-l border-(--divider-subtle-color) text-xs text-(--text-muted)">{galleryText(locale, "辅助面板", "Side panel")}</div>
+              <div id="gallery-resize-panel" className="grid w-1/3 place-items-center border-l border-(--divider-subtle-color) text-xs text-(--text-muted)">{galleryText(locale, "辅助面板", "Side panel")}</div>
             </div>
           </PreviewCard>
         </div>
@@ -734,11 +745,11 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
         title={galleryText(locale, "Workspace 控件", "Workspace controls")}
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <PreviewCard components={["WorkspaceSearchInput", "WorkspaceStatusBadge"]}>
-            <WorkspaceSearchInput onChange={setQuery} placeholder={galleryText(locale, "搜索工作区", "Search workspace")} value={query} />
+          <PreviewCard components={["UiSearchInput", "UiBadge"]}>
+            <UiSearchInput onChange={setQuery} placeholder={galleryText(locale, "搜索工作区", "Search workspace")} value={query} />
             <div className="flex flex-wrap gap-2">
-              <WorkspaceStatusBadge label={galleryText(locale, "运行中", "Running")} tone="running" />
-              <WorkspaceStatusBadge icon={<Check className="h-3.5 w-3.5" />} label={galleryText(locale, "已完成", "Complete")} tone="success" />
+              <UiBadge showDot tone="running">{galleryText(locale, "运行中", "Running")}</UiBadge>
+              <UiBadge icon={<Check className="h-3.5 w-3.5" />} tone="success">{galleryText(locale, "已完成", "Complete")}</UiBadge>
             </div>
           </PreviewCard>
           <PreviewCard components={["WorkspaceTaskPanel"]}>
@@ -900,7 +911,7 @@ function PreviewSection({
   return (
     <section className={cn("surface-panel min-w-0 p-4 sm:p-5", className)} data-gallery-section={title}>
       <div className="mb-5 border-b border-(--divider-subtle-color) pb-4">
-        <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>{eyebrow}</p>
+        <p className={getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" })}>{eyebrow}</p>
         <h2 className={cn("mt-1", getUiTypographyClassName({ role: "objectTitle", tone: "strong" }))}>{title}</h2>
         <p className={cn("mt-1.5 max-w-3xl", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>{description}</p>
       </div>
@@ -929,4 +940,25 @@ function translateTodo(content: string): string {
     "Verify 320px viewport": "验证 320px 视口",
   };
   return translations[content] ?? content;
+}
+
+function StreamingMarkdownGallery() {
+  const [content, setContent] = useState("");
+  const [streaming, setStreaming] = useState(true);
+  const sample = "稳定段落 **Markdown** 👩🏽‍💻。\n\n".repeat(10)
+    + "长段落 e\u0301 与中文连续输出。".repeat(160);
+  return (
+    <div className="grid gap-3" data-gallery-streaming-markdown>
+      <div className="flex flex-wrap gap-2">
+        <UiButton onClick={() => { setStreaming(true); setContent(sample); }}>Burst</UiButton>
+        <UiButton onClick={() => { setContent(sample + "\n\nSTREAM_DONE 👩🏽‍💻"); setStreaming(false); }}>Finish</UiButton>
+        <UiButton onClick={() => { setContent(""); setStreaming(true); }}>Reset</UiButton>
+      </div>
+      {[0, 1, 2].map((index) => (
+        <div className="max-h-60 overflow-auto" data-stream-output key={index}>
+          <UiMarkdownContent content={content} isStreaming={streaming} />
+        </div>
+      ))}
+    </div>
+  );
 }

@@ -1,10 +1,12 @@
+import { MESSAGES, DEFAULT_LOCALE, type Locale } from "@/shared/i18n/messages";
+
 const FEISHU_AUTH_WINDOW_NAME = "nexus-feishu-docx-auth";
 const FEISHU_AUTH_WINDOW_FEATURES =
   "popup=yes,width=520,height=700,resizable=yes,scrollbars=yes";
 
 type FeishuAuthWindowOpener = () => Window | null;
 type FeishuAuthNavigationScheduler = (navigate: () => void) => void;
-type FeishuAuthLoadingRenderer = (popup: Window) => void;
+type FeishuAuthLoadingRenderer = (popup: Window, locale: Locale) => void;
 
 function openFeishuAuthWindow(): Window | null {
   return window.open(
@@ -18,10 +20,11 @@ function scheduleFeishuAuthNavigation(navigate: () => void): void {
   window.setTimeout(navigate, 50);
 }
 
-function renderFeishuAuthLoadingPage(popup: Window): void {
+function renderFeishuAuthLoadingPage(popup: Window, locale: Locale): void {
+  const messages = MESSAGES[locale];
   const document = popup.document;
-  document.documentElement.lang = "zh-CN";
-  document.title = "Nexus · 飞书授权";
+  document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  document.title = messages["capability.connector_flow_feishu_window_title"];
   document.body.replaceChildren();
   document.body.style.cssText = [
     "margin:0",
@@ -60,11 +63,11 @@ function renderFeishuAuthLoadingPage(popup: Window): void {
   ].join(";");
 
   const title = document.createElement("h1");
-  title.textContent = "正在打开飞书授权页";
+  title.textContent = messages["capability.connector_flow_feishu_window_loading"];
   title.style.cssText = "margin:0 0 8px;font-size:18px";
 
   const description = document.createElement("p");
-  description.textContent = "应用信息已确认，正在载入当前用户授权页面。";
+  description.textContent = messages["capability.connector_flow_feishu_window_description"];
   description.style.cssText = "margin:0;color:#666;line-height:1.6;font-size:14px";
 
   panel.append(indicator, title, description);
@@ -88,7 +91,7 @@ export class FeishuWebAuthorizationWindow {
       renderFeishuAuthLoadingPage,
   ) {}
 
-  open(url: string): boolean {
+  open(url: string, locale: Locale = DEFAULT_LOCALE): boolean {
     const normalizedUrl = url.trim();
     if (!normalizedUrl) {
       return false;
@@ -103,7 +106,7 @@ export class FeishuWebAuthorizationWindow {
       this.currentUrl = "";
       try {
         popup.opener = null;
-        this.loadingRenderer(popup);
+        this.loadingRenderer(popup, locale);
       } catch {
         // 即时加载提示失败不应阻止用户继续授权。
       }

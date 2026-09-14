@@ -41,7 +41,7 @@ description: Explain current Nexus product features, entry locations, ordinary u
 - Goal、工作图、自然语言编辑工作图、任务分工、临时子任务和可视化：读取 [goals-workgraphs-and-execution.md](references/goals-workgraphs-and-execution.md)。
 - 主动跟进、定时任务、运行记录与结果送达：读取 [proactive-followup-and-automation.md](references/proactive-followup-and-automation.md)。
 - 使用本机浏览器、把网页交给 Nexus、网页操作与安全开关：读取 [browser-and-web-access.md](references/browser-and-web-access.md)。
-- Skill、工作循环、连接器、外部消息通道与配对：读取 [capabilities.md](references/capabilities.md)。
+- Skill、连接器、外部消息通道与配对：读取 [capabilities.md](references/capabilities.md)。
 - 设置、模型服务、数据目录、账号、管理后台和故障排查：读取 [settings-and-help.md](references/settings-and-help.md)。
 
 如果问题横跨多个领域，只读取直接相关的资料。例如“每天浏览网页并把结果发给我”需要浏览器与定时任务两份资料，不需要加载全部手册。

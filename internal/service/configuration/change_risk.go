@@ -69,7 +69,7 @@ func isDestructiveChange(request ChangeRequest) bool {
 	switch request.Operation {
 	case "delete", "delete_config", "delete_account", "delete_pairing",
 		"disconnect", "delete_oauth_client", "uninstall", "uninstall_self",
-		"remove_member":
+		"remove_member", "remove":
 		return true
 	}
 	return strings.HasPrefix(request.Operation, "delete_")

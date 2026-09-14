@@ -42,7 +42,6 @@ export interface SkillDetailPresentation {
 
 export interface SkillAgentBindingPresentation {
   description: string;
-  status: string;
   switchLabel: string;
 }
 
@@ -55,6 +54,7 @@ export interface SkillAgentBindingsReadFailure {
 export interface SkillAgentToggleFailure {
   agentId: string;
   blocksRepeat: boolean;
+  canStartNewIntent?: boolean;
   effect: MutationFailureEffect;
   impact: string;
   title: string;
@@ -250,16 +250,12 @@ export function buildSkillAgentBindingPresentation(
   if (locked) {
     return {
       description: t("capability.skills_detail_binding_system_managed"),
-      status: binding.enabled
-        ? t("capability.skills_detail_binding_enabled")
-        : t("capability.skills_detail_binding_disabled"),
       switchLabel,
     };
   }
   if (!binding.available) {
     return {
       description: t("capability.skills_detail_binding_unavailable"),
-      status: t("capability.skills_detail_binding_cannot_enable"),
       switchLabel,
     };
   }
@@ -267,9 +263,6 @@ export function buildSkillAgentBindingPresentation(
     description: binding.is_main
       ? t("capability.skills_detail_binding_main_agent")
       : t("capability.skills_detail_binding_independent"),
-    status: binding.enabled
-      ? t("capability.skills_detail_binding_enabled")
-      : t("capability.skills_detail_binding_enable"),
     switchLabel,
   };
 }

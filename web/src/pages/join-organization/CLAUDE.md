@@ -1,0 +1,5 @@
+# Organization 邀请入口
+
+- `join-organization-page.tsx` 是无需预登录的一次性邀请接受页；只从路由读取 token，通过 Control 预览邀请，并让受邀者自设账号。
+- 成功后刷新统一认证状态并进入 Launcher；邀请无效、过期、撤销、重复使用或用户名冲突时不得自动重放提交。
+- 页面不保存邀请 token，不实现邮件发送，也不创建第二套注册或 Organization 数据源。

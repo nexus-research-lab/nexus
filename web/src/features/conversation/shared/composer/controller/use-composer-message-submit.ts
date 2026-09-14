@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { notifyDesktopDiagnostic } from "@/config/desktop-runtime";
 
 import type {
   AgentConversationDefaultDeliveryPolicy,
@@ -121,12 +122,12 @@ async function runComposerMessageSubmission(
   if (!submission) {
     return;
   }
-  const attachments = await options.prepareAttachments();
-  if (!attachments) {
-    return;
-  }
   let submittedDraft: ComposerDraftSnapshot | null = null;
   try {
+    const attachments = await options.prepareAttachments();
+    if (!attachments) {
+      return;
+    }
     const delivery = submission.deliver(
       submission.content,
       submission.policy,
@@ -145,6 +146,7 @@ async function runComposerMessageSubmission(
       options.restoreFailedDraftSubmission(submittedDraft);
     }
     console.error("发送消息失败:", error);
+    notifyDesktopDiagnostic("composer.submit_failed", {}, error);
   }
 }
 

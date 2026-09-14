@@ -1,5 +1,5 @@
-// INPUT: Artifact path, display name, explicit/current Agent and open capability.
-// OUTPUT: File identity, parent path and exact-scope open/external-action eligibility.
+// INPUT: Artifact path, display name, resolved source workspace and open capability.
+// OUTPUT: File identity and shared preview/external eligibility; missing scope never uses global selection.
 // POS: Pure File Artifact projection; density and visual recipes belong to file-artifact-layout.
 
 import {
@@ -18,16 +18,17 @@ export interface FileArtifactProjection {
   fileName: string;
   openAgentId: string;
   parentPath: string;
+  unavailableReason: "path" | "workspace" | null;
 }
 
 export function projectFileArtifact({
-  currentAgentId,
+  defaultFileName,
   displayPath,
   hasOpenHandler,
   path,
   workspaceAgentId,
 }: {
-  currentAgentId: string | null;
+  defaultFileName: string;
   displayPath?: string;
   hasOpenHandler: boolean;
   path: string;
@@ -35,20 +36,19 @@ export function projectFileArtifact({
 }): FileArtifactProjection {
   const visiblePath = firstNonEmptyArtifactValue(displayPath, path);
   const normalizedPath = path.trim();
-  const openAgentId = firstNonEmptyArtifactValue(
-    workspaceAgentId,
-    currentAgentId,
-  );
-  const fileName = getArtifactFileName(visiblePath);
+  const openAgentId = firstNonEmptyArtifactValue(workspaceAgentId);
+  const fileName = getArtifactFileName(visiblePath, defaultFileName);
+  const action = buildWorkspaceArtifactExternalAction({
+    agentId: openAgentId,
+    fileName,
+    path: normalizedPath,
+  });
   return {
-    action: buildWorkspaceArtifactExternalAction({
-      agentId: openAgentId,
-      fileName,
-      path: normalizedPath,
-    }),
-    canOpen: [hasOpenHandler, Boolean(normalizedPath)].every(Boolean),
+    action,
+    canOpen: hasOpenHandler && action !== null,
     fileName,
     openAgentId,
     parentPath: getArtifactParentPath(visiblePath),
+    unavailableReason: !normalizedPath ? "path" : !openAgentId ? "workspace" : null,
   };
 }

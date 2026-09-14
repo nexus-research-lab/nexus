@@ -6,3 +6,5 @@
 - Setup capability 只保存在当前表单内，不写入 localStorage、URL 或日志。
 - 结果不确定时先重新读取状态，不自动重复提交 owner 创建。
 - `browser-tests/setup.spec.ts` 拦截所有初始化/认证 API，验证字段资格、键盘遍历、pending 阻塞、失败后只读对账、未开放状态与凭证不持久化；不得向真实 Control 创建测试账号。
+
+- 提交及紧随其后的状态核对共享同步在途锁，期间禁用整组草稿；标签和标题使用实例ID，不与其他初始化表单互相指向。

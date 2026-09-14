@@ -18,7 +18,7 @@ function renderSelect({ disabled = false }: { disabled?: boolean } = {}) {
   const onChange = vi.fn();
   render(
     <I18N_CONTEXT.Provider
-      value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+      value={{ locale: "zh", setLocale: vi.fn(), t: (key, values) => values?.name ? `移除 ${values.name}` : key }}
     >
       <RoomSkillMultiSelect
         ariaLabel="Room 技能"
@@ -52,7 +52,7 @@ describe("RoomSkillMultiSelect", () => {
     expect(onChange).toHaveBeenCalledWith(["writing"]);
     expect(screen.queryByRole("listbox")).toBeNull();
     await user.click(trigger);
-    expect(screen.getByRole("listbox", { name: "Room 技能" })).toBeTruthy();
+    expect(screen.getByRole("listbox", { name: "Room 技能" }).getAttribute("aria-multiselectable")).toBe("true");
   });
 
   it("opens through the shared trigger keyboard protocol and keeps removal independent", async () => {

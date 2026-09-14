@@ -8,6 +8,8 @@ import {
   getUiAnchoredOverlayMinimumWidth,
   getUiAnchoredOverlayViewportInset,
   resolveUiAnchoredOverlayPosition,
+  resolveUiPointOverlayPosition,
+  resolveUiSideOverlayPosition,
   type UiAnchoredOverlayPreset,
 } from "./anchored-overlay-layout";
 
@@ -121,6 +123,23 @@ function createAnchor({
 }
 
 describe("anchored overlay layout presets", () => {
+  it.each([
+    { top: -120, placement: "bottom" as const },
+    { top: 4, placement: "top" as const },
+    { top: 1_004, placement: "bottom" as const },
+  ])("keeps a $placement panel visible when its anchor moves beyond the viewport (top=$top)", ({ top, placement }) => {
+    setViewport(600, 400);
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor: createAnchor({ top, bottom: top + 32 }),
+      estimatedContentHeight: 180,
+      preset: "reference-list",
+      placement,
+    });
+    const panelTop = position.top ?? window.innerHeight - position.bottom! - position.maxHeight;
+    expect(panelTop).toBeGreaterThanOrEqual(12);
+    expect(panelTop + position.maxHeight).toBeLessThanOrEqual(window.innerHeight - 12);
+  });
+
   it.each(PRESET_EXPECTATIONS)(
     "keeps the $preset roomy viewport geometry",
     ({ gap, maxHeight, minWidth, preset, viewportInset }) => {
@@ -186,5 +205,71 @@ describe("anchored overlay layout presets", () => {
     expect(defaultEstimate.maxHeight).toBe(248);
     expect(boundedEstimate.maxHeight).toBe(140);
     expect(oversizedEstimate.maxHeight).toBe(248);
+  });
+});
+
+describe("point and side overlays share preset boundaries", () => {
+  it("constrains composed content width through the same anchored viewport solver", () => {
+    setViewport(180, 300);
+    const anchor = document.createElement("button");
+    const rect = vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue(new DOMRect(50, 200, 80, 28));
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor, contentWidth: 486, estimatedContentHeight: 80, placement: "top", preset: "cascade-menu",
+    });
+    expect(position.width).toBe(156);
+    expect(position.left).toBe(12);
+    expect(position.maxHeight).toBe(80);
+    rect.mockRestore();
+  });
+
+  it("moves a pointer menu back inside the viewport without changing its content height", () => {
+    setViewport(800, 600);
+    const position = resolveUiPointOverlayPosition({
+      point: { x: 799, y: 599 }, preset: "cascade-menu", estimatedContentHeight: 256,
+    });
+    expect(position).toEqual({ left: 564, top: 332, width: 224, maxHeight: 256, placement: "top" });
+  });
+
+  it("uses one internal scroll limit when content or viewport is too small", () => {
+    setViewport(180, 240);
+    const position = resolveUiPointOverlayPosition({
+      point: { x: -20, y: -30 }, preset: "cascade-menu", estimatedContentHeight: 900,
+    });
+    expect(position).toEqual({ left: 12, top: 12, width: 156, maxHeight: 216, placement: "bottom" });
+  });
+
+  it("aligns a side menu to its actual row and flips left when the right edge cannot fit", () => {
+    setViewport(800, 600);
+    const anchor = document.createElement("button");
+    const rect = vi.spyOn(anchor, "getBoundingClientRect").mockReturnValue(new DOMRect(200, 100, 224, 36));
+    expect(resolveUiSideOverlayPosition({ anchor, preset: "cascade-menu", estimatedContentHeight: 158 }))
+      .toEqual({ left: 430, top: 100, width: 224, maxHeight: 158, placement: "bottom" });
+    rect.mockReturnValue(new DOMRect(564, 500, 224, 36));
+    expect(resolveUiSideOverlayPosition({ anchor, preset: "cascade-menu", estimatedContentHeight: 900 }))
+      .toEqual({ left: 334, top: 268, width: 224, maxHeight: 320, placement: "bottom" });
+    rect.mockRestore();
+  });
+});
+
+describe("short viewport hard limits", () => {
+  it.each(PRESET_EXPECTATIONS.flatMap(({preset, viewportInset}) =>
+    (["auto", "top", "bottom"] as const).map((placement) => ({preset, viewportInset, placement})),
+  ))("keeps $preset inside a short viewport with $placement placement", ({preset, viewportInset, placement}) => {
+    setViewport(320, 120);
+    const position = resolveUiAnchoredOverlayPosition({
+      anchor: createAnchor({left: 240, top: 45, bottom: 77, width: 80}), preset, placement,
+    });
+    const top = position.top ?? window.innerHeight - position.bottom! - position.maxHeight;
+    expect(position.maxHeight).toBeGreaterThanOrEqual(0);
+    expect(top).toBeGreaterThanOrEqual(viewportInset);
+    expect(top + position.maxHeight).toBeLessThanOrEqual(120 - viewportInset);
+    expect(position.left).toBeGreaterThanOrEqual(viewportInset);
+    expect(position.left + position.width).toBeLessThanOrEqual(320 - viewportInset);
+  });
+  it("never emits negative dimensions for a temporarily collapsed viewport", () => {
+    setViewport(0, 0);
+    const position = resolveUiAnchoredOverlayPosition({anchor: createAnchor(), preset: "form-picker", placement: "auto"});
+    expect(position.width).toBe(0);
+    expect(position.maxHeight).toBe(0);
   });
 });

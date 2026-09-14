@@ -16,6 +16,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	nxsruntimesvc "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	projectsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	versionpkg "github.com/nexus-research-lab/nexus/internal/version"
@@ -23,13 +24,16 @@ import (
 
 // Handlers 封装核心 HTTP handlers。
 type Handlers struct {
+	projects  *projectsvc.Service
 	api       *handlershared.API
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
-	nxs       *nxsruntimesvc.Service
 	runtime   *runtimectx.Manager
 }
+
+// SetProjectPermissions 绑定宿主 ACL 可用性真相源。
+func (h *Handlers) SetProjectPermissions(projects *projectsvc.Service) { h.projects = projects }
 
 // SetRuntimeManager 绑定活跃 Agent runtime 管理器。
 func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
@@ -52,7 +56,6 @@ func New(
 		agents:    agents,
 		providers: providers,
 		prefs:     prefService,
-		nxs:       nxsruntimesvc.NewService(),
 	}
 }
 
@@ -103,11 +106,12 @@ func (h *Handlers) HandleRuntimeOptions(writer http.ResponseWriter, request *htt
 		"message": "success",
 		"success": true,
 		"data": map[string]any{
-			"default_agent_id":       defaultAgent.AgentID,
-			"default_agent_avatar":   defaultAgent.Avatar,
-			"default_agent_provider": defaultProvider,
-			"default_agent_model":    defaultModel,
-			"preferences":            prefs,
+			"project_permissions_enabled": h.projects.Available(),
+			"default_agent_id":            defaultAgent.AgentID,
+			"default_agent_avatar":        defaultAgent.Avatar,
+			"default_agent_provider":      defaultProvider,
+			"default_agent_model":         defaultModel,
+			"preferences":                 prefs,
 		},
 	})
 }
@@ -298,7 +302,7 @@ func (h *Handlers) syncRuntimePreferences(ctx context.Context, preferences prefe
 
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
 func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
-	h.api.WriteSuccess(writer, h.nxs.Status())
+	h.api.WriteSuccess(writer, nxsruntimesvc.Status())
 }
 
 func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Preferences, error) {

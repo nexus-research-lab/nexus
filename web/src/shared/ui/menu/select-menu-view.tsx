@@ -1,7 +1,8 @@
 // INPUT: Select Menu controller 投影的触发器、面板、选项与事件处理器。
-// OUTPUT: 共用 SelectMenuTrigger + portal listbox 的纯视图结构和选项状态。
+// OUTPUT: 共用触发器与 Badge、完整选项提示、单选 listbox 的焦点遍历与退出委派。
 // POS: Select Menu 视图；不持有开关、选值、定位或业务状态。
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type {
   CSSProperties,
   KeyboardEventHandler,
@@ -12,6 +13,8 @@ import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { handleListboxKeyDown } from "./menu-keyboard";
+import { UiBadge } from "@/shared/ui/display/badge";
 import {
   MENU_LIST_CLASS_NAME,
 } from "@/shared/ui/menu/menu-styles";
@@ -37,19 +40,18 @@ import {
 
 interface SelectMenuViewProps {
   ariaLabel: string;
-  buttonClassName?: string;
   buttonRef: RefObject<HTMLButtonElement | null>;
   className?: string;
   disabled: boolean;
   id?: string;
   isOpen: boolean;
-  label?: ReactNode;
   leading?: ReactNode;
   menuId: string;
   menuPlacement?: UiAnchoredOverlayPosition["placement"];
   menuRef: RefObject<HTMLDivElement | null>;
   menuStyle: CSSProperties;
   onSelect: (value: string) => void;
+  onTabExit: () => void;
   onTriggerClick: () => void;
   onTriggerKeyDown: KeyboardEventHandler<HTMLButtonElement>;
   options: UiSelectMenuOption[];
@@ -62,19 +64,18 @@ interface SelectMenuViewProps {
 
 export function SelectMenuView({
   ariaLabel,
-  buttonClassName,
   buttonRef,
   className,
   disabled,
   id,
   isOpen,
-  label,
   leading,
   menuId,
   menuPlacement,
   menuRef,
   menuStyle,
   onSelect,
+  onTabExit,
   onTriggerClick,
   onTriggerKeyDown,
   options,
@@ -86,12 +87,12 @@ export function SelectMenuView({
 }: SelectMenuViewProps) {
   return (
     <div
-      className={cn("relative w-full", styles.heightClassName, className)}
+      className={cn("relative min-w-0 w-full", styles.heightClassName, className)}
     >
       <SelectMenuTrigger
         ariaLabel={ariaLabel}
         buttonRef={buttonRef}
-        className={buttonClassName}
+        className={styles.triggerLayoutClassName}
         disabled={disabled}
         id={id}
         isOpen={isOpen}
@@ -101,18 +102,18 @@ export function SelectMenuView({
         styles={styles}
         surface={surface}
       >
-        <SelectMenuTriggerContent isOpen={isOpen} label={label} leading={leading}>
+        <SelectMenuTriggerContent isOpen={isOpen} leading={leading}>
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span
+            <UiTooltip label={model.activeLabel}><span
               className={cn(
                 "min-w-0 flex-1 text-(--text-strong)",
                 styles.triggerLabelClassName,
               )}
-              title={model.activeLabel}
+
             >
               {model.activeLabel}
-            </span>
-            <SelectMenuOptionBadge label={model.activeBadge} />
+            </span></UiTooltip>
+            {model.activeBadge ? <UiBadge size="xs" tone="primary">{model.activeBadge}</UiBadge> : null}
           </span>
         </SelectMenuTriggerContent>
       </SelectMenuTrigger>
@@ -125,6 +126,7 @@ export function SelectMenuView({
         menuRef={menuRef}
         menuStyle={menuStyle}
         onSelect={onSelect}
+        onTabExit={onTabExit}
         options={options}
         portalContainer={portalContainer}
         styles={styles}
@@ -143,6 +145,7 @@ function SelectMenuPortal({
   menuRef,
   menuStyle,
   onSelect,
+  onTabExit,
   options,
   portalContainer,
   styles,
@@ -157,6 +160,7 @@ function SelectMenuPortal({
   | "menuRef"
   | "menuStyle"
   | "onSelect"
+  | "onTabExit"
   | "options"
   | "portalContainer"
   | "styles"
@@ -173,6 +177,7 @@ function SelectMenuPortal({
       id={menuId}
       layoutClassName={cn(MENU_LIST_CLASS_NAME, "overflow-y-auto p-1")}
       panelRef={menuRef}
+      onKeyDown={(event) => handleListboxKeyDown(event, onTabExit)}
       placement={menuPlacement}
       style={menuStyle}
       surface={surface}
@@ -230,23 +235,13 @@ function SelectMenuOption({
       )}
       disabled={option.disabled}
       onClick={() => onSelect(option.value)}
+      tabIndex={-1}
     >
-      <span className={cn("min-w-0 flex-1", styles.optionLabelClassName)}>
+      <UiTooltip label={option.label}><span className={cn("min-w-0 flex-1", styles.optionLabelClassName)} >
         {option.label}
-      </span>
-      <SelectMenuOptionBadge label={option.badge ?? null} />
-      {isActive ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--primary)" /> : null}
+      </span></UiTooltip>
+      {option.badge ? <UiBadge size="xs" tone="primary">{option.badge}</UiBadge> : null}
+      {isActive ? <Check aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--icon-default)" /> : null}
     </SelectMenuOptionRow>
-  );
-}
-
-function SelectMenuOptionBadge({ label }: { label: string | null }) {
-  if (!label) {
-    return null;
-  }
-  return (
-    <span className="inline-flex shrink-0 items-center rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-1.5 py-0.5 text-[9px] font-medium leading-none text-(--primary)">
-      {label}
-    </span>
   );
 }

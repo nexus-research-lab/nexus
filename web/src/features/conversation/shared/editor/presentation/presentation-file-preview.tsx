@@ -1,19 +1,20 @@
 // INPUT: 工作区 PPTX 标识、预览聚焦状态与文件动作。
-// OUTPUT: 可重试的幻灯片预览、共享标题栏、缩略图选择与本地化翻页动作。
-// POS: 演示文稿预览视图；解析归 presentation parser，通用动作与排版归 shared/ui。
+// OUTPUT: 可重试的幻灯片预览、共享标题栏/状态、缩略图选择与本地化翻页动作。
+// POS: 演示文稿预览与资源释放；Office scope 隔离迟到结果，解析归 parser，动作与排版归 shared/ui。
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { WorkspaceFilePreviewLoading } from "../workspace-file-preview-loading";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { fetchOfficePreviewBuffer } from "../office-preview-resource";
+import { useOfficePreviewScope } from "../use-office-preview-scope";
 import { OfficePreviewFailureState } from "../office-preview-fallbacks";
 import { parsePptx } from "./presentation-pptx-parser";
 import {
@@ -38,24 +39,19 @@ export function PresentationFilePreview({
 }: WorkspaceFilePreviewProps) {
   const { t } = useI18n();
   const cleanupUrlsRef = useRef<() => void>(() => undefined);
-  const previewKey = `${agentId}\x1f${path}`;
-  const [slides, setSlides] = useResettableState<PresentationSlide[]>([], previewKey);
-  const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, previewKey);
+  const { scopeKey, requestKey, isCurrent, retryPreview } = useOfficePreviewScope(agentId, path);
+  const [slides, setSlides] = useResettableState<PresentationSlide[]>([], scopeKey);
+  const [activeSlideIndex, setActiveSlideIndex] = useResettableState(0, scopeKey);
   const [status, setStatus] = useResettableState<PresentationPreviewStatus>({
     state: "loading",
-  }, previewKey);
-  const [retryRevision, setRetryRevision] = useState(0);
-  const retryPreview = useCallback(() => {
-    setRetryRevision((current) => current + 1);
-  }, []);
-
+  }, requestKey);
   useEffect(() => {
+    if (!isCurrent()) return;
     const abortController = new AbortController();
     let cancelled = false;
 
     cleanupUrlsRef.current();
     cleanupUrlsRef.current = () => undefined;
-    setStatus({ state: "loading" });
 
     async function loadPreview() {
       try {
@@ -65,13 +61,12 @@ export function PresentationFilePreview({
           path,
           signal: abortController.signal,
         });
-        if (cancelled) {
+        if (cancelled || !isCurrent()) {
           return;
         }
 
-        setStatus({ state: "loading" });
         const result = await parsePptx(buffer);
-        if (cancelled) {
+        if (cancelled || !isCurrent()) {
           revokeObjectUrls(result.objectUrls);
           return;
         }
@@ -81,7 +76,7 @@ export function PresentationFilePreview({
         setActiveSlideIndex(0);
         setStatus({ state: "loaded", slideCount: result.slides.length });
       } catch {
-        if (cancelled || abortController.signal.aborted) {
+        if (cancelled || !isCurrent() || abortController.signal.aborted) {
           return;
         }
         cleanupUrlsRef.current();
@@ -99,7 +94,7 @@ export function PresentationFilePreview({
       cleanupUrlsRef.current();
       cleanupUrlsRef.current = () => undefined;
     };
-  }, [agentId, path, retryRevision, setActiveSlideIndex, setSlides, setStatus]);
+  }, [agentId, isCurrent, path, setActiveSlideIndex, setSlides, setStatus]);
 
   const isLoaded = status.state === "loaded";
   const hasError = status.state === "error";
@@ -117,32 +112,13 @@ export function PresentationFilePreview({
             />
           </>
         )}
-        meta={(
-          hasError ? (
-            <span className="flex items-center gap-1 text-destructive">
-              <FileWarning className="h-3 w-3" />
-              {t("workspace_file.preview_failed_status")}
-            </span>
-          ) : isLoaded ? (
-            <span className="flex items-center gap-1 text-(--success)">
-              <Eye className="h-3 w-3" />
-              {t("workspace_file.presentation_loaded", {
-                count: status.slideCount,
-              })}
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className={getUiSpinnerClassName({ size: "xs" })} />
-              {t("workspace_file.preview_loading")}
-            </span>
-          )
-        )}
+        meta={isLoaded ? t("workspace_file.presentation_loaded", { count: status.slideCount }) : undefined}
         title={fileName}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden bg-[var(--surface-panel-subtle-background)]">
         {hasError ? (
-          <div className="flex h-full items-center justify-center p-8 text-center">
+          <div className="soft-scrollbar h-full min-h-0 min-w-0 overflow-auto overscroll-contain p-4">
             <OfficePreviewFailureState
               kind="presentation"
               onRetry={retryPreview}
@@ -220,22 +196,7 @@ export function PresentationFilePreview({
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center p-8 text-center">
-            <div className="max-w-xs">
-              <LoaderCircle
-                className={getUiSpinnerClassName(
-                  { size: "2xl", tone: "primary" },
-                  "mx-auto",
-                )}
-              />
-              <p className={cn(
-                "mt-3",
-                getUiTypographyClassName({ role: "body", tone: "strong", weight: "medium" }),
-              )}>
-                {t("workspace_file.preview_loading")}
-              </p>
-            </div>
-          </div>
+          <WorkspaceFilePreviewLoading className="h-full" />
         )}
       </div>
     </>

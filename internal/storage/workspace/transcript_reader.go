@@ -25,12 +25,20 @@ func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
 	root *confinedfs.Root,
 	relative string,
 ) ([]transcriptEntry, error) {
-	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
+	file, err := s.openTranscriptReadFile(root, relative)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 	return readTranscriptEntriesFileContext(ctx, file)
+}
+
+// openTranscriptReadFile 让 Room 引用投影和分页指纹也复用 owner ACL 修复。
+// 重试仍使用已校验的目录句柄，不放宽路径或符号链接边界。
+func (s *AgentHistoryStore) openTranscriptReadFile(root *confinedfs.Root, relative string) (*os.File, error) {
+	return withRuntimePermissionRepair(s, func() (*os.File, error) {
+		return root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
+	})
 }
 
 func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {

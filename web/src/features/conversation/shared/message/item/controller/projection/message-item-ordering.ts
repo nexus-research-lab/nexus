@@ -1,3 +1,7 @@
+// INPUT: Ordered assistant blocks, visible tools and independent system events.
+// OUTPUT: Visible message entries retaining structured file/WorkGraph evidence even without prose.
+// POS: Message content visibility projection; final/process placement remains in message-item-final-projection.
+
 import type {
   ContentBlock,
   SystemEventContent,
@@ -45,6 +49,7 @@ const BLOCK_PROJECTORS: BlockProjector[] = [
   // 完整 WorkGraph 快照属于答案内容，不是 Tool 过程；保留到 final projection，
   // 由其挑选本轮最后一个版本并渲染草图卡片。
   (block) => block.type === "workgraph_artifact" ? [block] : null,
+  (block) => block.type === "workspace_file_artifact" ? [block] : null,
   // 即时旁白只替换活动文案，不进入 direct/process/final 内容面。
   (block) => block.type === "progress_update" ? [] : null,
   (block) => block.type === "tool_use_error"

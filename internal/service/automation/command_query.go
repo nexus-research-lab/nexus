@@ -1,5 +1,5 @@
 // INPUT: round-scoped Automation Actor、只读 operation 与封闭 CLI input。
-// OUTPUT: owner/Agent/job/run/会话范围收紧后的任务、报告或 heartbeat 投影。
+// OUTPUT: 按 operation 选择的精确 schema，以及 owner/Agent/job/run/会话范围收紧后的只读投影。
 // POS: Nexus Automation command 的只读 service；后台 run 只能读取宿主绑定的当前任务。
 package automation
 
@@ -36,6 +36,7 @@ var runtimeAutomationMutationOperations = []string{
 func (s *Service) RuntimeCommandContract(
 	ctx context.Context,
 	actor command.Actor,
+	selected ...string,
 ) (automationdomain.AutomationCommandContract, error) {
 	if s == nil || !actor.Valid() {
 		return automationdomain.AutomationCommandContract{}, errors.New("Automation runtime command Actor 无效")
@@ -50,16 +51,25 @@ func (s *Service) RuntimeCommandContract(
 		queries = append(queries, automationdomain.AutomationCommandOperationDeliveryTargets)
 		mutations = append(mutations, runtimeAutomationMutationOperations...)
 	}
+	operations := runtimeAutomationOperationContracts(actor)
+	if len(selected) > 0 && strings.TrimSpace(selected[0]) != "" {
+		name := strings.TrimSpace(selected[0])
+		operation, ok := operations[name]
+		if !ok {
+			return automationdomain.AutomationCommandContract{}, fmt.Errorf("未知或无权访问的 Automation operation %q", name)
+		}
+		operations = map[string]automationdomain.AutomationCommandOperationContract{name: operation}
+	}
 	return automationdomain.AutomationCommandContract{
 		QueryOperations:    queries,
 		MutationOperations: mutations,
 		MutationAllowed:    actor.MutationAllowed(),
 		CrossAgentAllowed:  actor.CrossAgentAllowed(),
-		Operations:         runtimeAutomationOperationContracts(actor),
+		Operations:         operations,
 	}, nil
 }
 
-func runtimeAutomationOperationContracts(
+func runtimeAutomationOperationFields(
 	actor command.Actor,
 ) map[string]automationdomain.AutomationCommandOperationContract {
 	contracts := map[string]automationdomain.AutomationCommandOperationContract{

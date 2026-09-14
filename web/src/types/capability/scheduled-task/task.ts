@@ -18,6 +18,7 @@ export type ScheduledTaskSessionBindingIssue = "execution" | "delivery";
 export type ScheduledTaskPermissionMode =
   | "default"
   | "plan"
+  | "auto"
   | "acceptEdits"
   | "bypassPermissions"
   | "dontAsk";

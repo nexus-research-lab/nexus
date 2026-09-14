@@ -1,5 +1,5 @@
 // INPUT: 目录内容、密度、对齐与可选整卡主动作。
-// OUTPUT: 保留 article 语义的卡片、独立主动作，以及复用 Button 状态的目录创建入口。
+// OUTPUT: 保留 article 语义和长文本约束的卡片、独立主动作，以及复用 Button 状态的目录创建入口。
 // POS: 跨领域目录密度、圆角与覆盖命中几何所有者；业务权限和命令由调用方决定。
 
 import type {
@@ -56,7 +56,7 @@ export function WorkspaceCatalogCard({
   return (
     <article
       className={cn(
-        "flex flex-col border border-(--divider-subtle-color) bg-transparent transition duration-(--motion-duration-fast) ease-out",
+        "flex min-w-0 flex-col border border-(--divider-subtle-color) bg-transparent transition duration-(--motion-duration-fast) ease-out [overflow-wrap:anywhere]",
         CATALOG_CARD_SIZE_CLASSES[size],
         CATALOG_CARD_RADIUS_CLASSES[size],
         align === "center" && "items-center text-center",

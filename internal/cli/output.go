@@ -16,10 +16,9 @@ import (
 	"os"
 	"strings"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-
 	"github.com/spf13/cobra"
 )
 
@@ -121,7 +120,7 @@ func newCLILogger(cfg config.Config, verbose bool) *slog.Logger {
 	})
 }
 
-func bindServiceLogger(services *serverapp.AppServices, logger *slog.Logger) {
+func bindServiceLogger(services *app.AppServices, logger *slog.Logger) {
 	if services == nil || logger == nil {
 		return
 	}

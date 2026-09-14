@@ -1,6 +1,6 @@
 // INPUT: 已挂载的模态范围、锚点与真实 Portal 浮层元素。
-// OUTPUT: 当前模态范围内的最上层浮层身份，以及跨 Portal 的父子命中关系。
-// POS: Overlay 关闭仲裁真相源；不持有业务开关、关闭回调或页面滚动锁。
+// OUTPUT: 当前模态范围最上层身份、跨 Portal 父子关系、嵌套层级与源区域命中语义。
+// POS: Overlay 父子注册、关闭仲裁及同容器嵌套层级真相源；不持有业务开关、关闭回调或页面滚动锁。
 
 interface ModalScope {
   root: HTMLElement;
@@ -10,6 +10,7 @@ interface ModalScope {
 interface AnchoredOverlay {
   anchor: HTMLElement;
   root: HTMLElement;
+  originalZIndex: string;
 }
 
 const modalScopes: ModalScope[] = [];
@@ -28,14 +29,45 @@ export function unregisterModalOverlayScope(token: symbol): void {
 }
 
 export function registerAnchoredOverlay(anchor: HTMLElement, root: HTMLElement): () => void {
-  const overlay = { anchor, root };
+  const overlay = { anchor, root, originalZIndex: root.style.zIndex };
   anchoredOverlays.push(overlay);
+  reconcileAnchoredOverlayStacking();
   return () => {
     const index = anchoredOverlays.indexOf(overlay);
     if (index >= 0) {
       anchoredOverlays.splice(index, 1);
+      root.style.zIndex = overlay.originalZIndex;
+      reconcileAnchoredOverlayStacking();
     }
   };
+}
+
+// Portal siblings share a stacking context, so a child's semantic token may be
+// lower than its parent. Preserve the token floor while ordering descendants above
+// their parent, including child-first layout-effect registration.
+function reconcileAnchoredOverlayStacking(): void {
+  for (const overlay of anchoredOverlays) overlay.root.style.zIndex = overlay.originalZIndex;
+  const resolved = new Set<AnchoredOverlay>();
+  const resolving = new Set<AnchoredOverlay>();
+  const resolve = (overlay: AnchoredOverlay): void => {
+    if (resolved.has(overlay) || resolving.has(overlay)) return;
+    resolving.add(overlay);
+    const parent = anchoredOverlays.find((candidate) => candidate !== overlay
+      && candidate.root.parentElement === overlay.root.parentElement
+      && candidate.root.contains(overlay.anchor));
+    if (parent) {
+      resolve(parent);
+      const view = overlay.root.ownerDocument.defaultView;
+      const parentLayer = Number.parseInt(view?.getComputedStyle(parent.root).zIndex ?? "", 10);
+      const ownLayer = Number.parseInt(view?.getComputedStyle(overlay.root).zIndex ?? "", 10);
+      if (Number.isFinite(parentLayer)) {
+        overlay.root.style.zIndex = String(Math.max(Number.isFinite(ownLayer) ? ownLayer : 0, parentLayer + 1));
+      }
+    }
+    resolving.delete(overlay);
+    resolved.add(overlay);
+  };
+  for (const overlay of anchoredOverlays) resolve(overlay);
 }
 
 function getCurrentScopeOverlays(): AnchoredOverlay[] {
@@ -71,7 +103,19 @@ export function isTopAnchoredOverlay(root: HTMLElement | null): boolean {
   )))?.root === root;
 }
 
-export function isAnchoredOverlayOutsidePress(root: HTMLElement | null, target: Node): boolean {
+/** 键盘退出可在关闭前记录父层，避免把即将消失的跨 Portal 菜单当作下一个 Tab 位置。 */
+export function getAnchoredOverlayAncestorRoots(root: HTMLElement): HTMLElement[] {
+  const current = anchoredOverlays.find((overlay) => overlay.root === root);
+  if (!current) return [root];
+  return anchoredOverlays.filter((overlay) => overlay === current || isDescendantOverlay(current, overlay))
+    .map((overlay) => overlay.root);
+}
+
+export function isAnchoredOverlayOutsidePress(
+  root: HTMLElement | null,
+  target: Node,
+  anchorPress: "inside" | "outside" = "inside",
+): boolean {
   const overlays = getCurrentScopeOverlays();
   const current = overlays.find((overlay) => overlay.root === root);
   if (!current) {
@@ -79,6 +123,7 @@ export function isAnchoredOverlayOutsidePress(root: HTMLElement | null, target: 
   }
   return !overlays.some((overlay) => (
     (overlay === current || isDescendantOverlay(overlay, current))
-    && (overlay.root.contains(target) || overlay.anchor.contains(target))
+    && (overlay.root.contains(target)
+      || ((overlay !== current || anchorPress === "inside") && overlay.anchor.contains(target)))
   ));
 }

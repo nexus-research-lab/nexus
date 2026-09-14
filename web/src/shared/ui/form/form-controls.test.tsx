@@ -1,10 +1,11 @@
-// INPUT: Field、SearchInput、Checkbox、Choice/RadioChoice 与 SegmentedControl 的用户事件。
-// OUTPUT: 证明校验、清除、布尔切换与互斥选择使用真实 DOM/ARIA 合同。
+// INPUT: Field/Select 关联、原生/业务校验、SearchInput、Checkbox 与选择控件的用户事件。
+// OUTPUT: 证明描述/错误归属、最新调用方属性恢复、清除与互斥选择使用真实 DOM/ARIA 合同。
 // POS: 表单原语交互测试；业务草稿和网络提交由各 feature 测试负责。
 
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { LayoutGrid, List } from "lucide-react";
 import userEvent from "@testing-library/user-event";
+import { flushSync } from "react-dom";
 import { createRef, useState, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,14 +21,17 @@ import {
   UiTextarea,
 } from "@/shared/ui/form/form-control";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { SidebarSearchAction, SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 function renderWithI18n(children: ReactNode) {
   const messages: Record<string, string> = {
     "common.clear": "清除",
+    "common.search": "搜索",
     "common.invalid_field": "字段格式不正确",
     "common.required_field": "请填写此字段",
   };
-  return render(
+  const wrapper = ({ children }: { children: ReactNode }) => (
     <I18N_CONTEXT.Provider
       value={{
         locale: "zh",
@@ -36,11 +40,174 @@ function renderWithI18n(children: ReactNode) {
       }}
     >
       {children}
-    </I18N_CONTEXT.Provider>,
+    </I18N_CONTEXT.Provider>
   );
+  return render(children, { wrapper });
 }
 
 describe("form primitives", () => {
+  it.each(["input", "textarea", "native-select", "search", "select-menu"])(
+    "associates the %s with its visible description and explicit error",
+    (kind) => {
+      function Harness({ error }: { error?: string }) {
+        return (
+          <UiField description="Visible help" error={error} htmlFor="field-control" label="Field">
+            {kind === "input" ? <UiInput id="field-control" /> : null}
+            {kind === "textarea" ? <UiTextarea id="field-control" /> : null}
+            {kind === "native-select" ? <UiNativeSelect id="field-control"><option>A</option></UiNativeSelect> : null}
+            {kind === "search" ? <UiSearchInput aria-label="Field" id="field-control" onChange={vi.fn()} value="" /> : null}
+            {kind === "select-menu" ? <UiSelectMenu ariaLabel="Field" id="field-control" onChange={vi.fn()} options={[{ label: "A", value: "a" }]} value="a" /> : null}
+          </UiField>
+        );
+      }
+      const { rerender } = renderWithI18n(<Harness />);
+      const control = screen.getByLabelText("Field");
+      expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe("Visible help");
+
+      rerender(<Harness error="Already in use" />);
+      expect(control.getAttribute("aria-invalid")).toBe("true");
+      expect(document.getElementById(control.getAttribute("aria-errormessage")!)?.textContent).toBe("Already in use");
+      expect(control.hasAttribute("aria-describedby")).toBe(false);
+      expect(screen.queryByText("Visible help")).toBeNull();
+
+      rerender(<Harness />);
+      expect(control.hasAttribute("aria-invalid")).toBe(false);
+      expect(control.hasAttribute("aria-errormessage")).toBe(false);
+      expect(document.getElementById(control.getAttribute("aria-describedby")!)?.textContent).toBe("Visible help");
+    },
+  );
+
+  it("adds help only to the explicitly bound control and preserves caller descriptions", () => {
+    renderWithI18n(
+      <UiField description="Field help" htmlFor="primary-field" label="Primary">
+        <span id="external-help">External help</span>
+        <UiInput aria-describedby="external-help external-help" id="primary-field" />
+        <UiInput aria-describedby="external-help" aria-label="Secondary" />
+      </UiField>,
+    );
+    const primary = screen.getByLabelText("Primary");
+    const descriptionIds = primary.getAttribute("aria-describedby")!.split(" ");
+    expect(descriptionIds).toHaveLength(2);
+    expect(descriptionIds.map((id) => document.getElementById(id)?.textContent)).toEqual(["External help", "Field help"]);
+    expect(screen.getByLabelText("Secondary").getAttribute("aria-describedby")).toBe("external-help");
+  });
+
+  it("names compound fields as groups without assigning their aggregate error to every input", () => {
+    const { container } = renderWithI18n(
+      <UiField error="Duplicate key" label="Environment variables">
+        <UiInput aria-label="Key" />
+        <UiInput aria-label="Value" />
+      </UiField>,
+    );
+    const group = screen.getByRole("group", { name: "Environment variables" });
+    expect(group.getAttribute("aria-invalid")).toBe("true");
+    expect(group.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(container.querySelector("label")).toBeNull();
+    for (const input of screen.getAllByRole("textbox")) {
+      expect(input.hasAttribute("aria-invalid")).toBe(false);
+    }
+  });
+
+  it("restores the latest caller error attributes after native validity recovers", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [updated, setUpdated] = useState(false);
+      return (
+        <>
+          <UiField htmlFor="draft" label="Draft">
+            <UiInput aria-errormessage={updated ? "latest-error" : "original-error"} aria-invalid={updated ? "grammar" : "spelling"} id="draft" required />
+          </UiField>
+          <button onClick={() => setUpdated(true)}>Update validation</button>
+          <p id="original-error">Original error</p>
+          <p id="latest-error">Latest error</p>
+        </>
+      );
+    }
+    renderWithI18n(<Harness />);
+    const input = screen.getByLabelText("Draft");
+    fireEvent.invalid(input);
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    await user.click(screen.getByText("Update validation"));
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    await user.type(input, "Nexus");
+    expect(input.getAttribute("aria-invalid")).toBe("grammar");
+    expect(input.getAttribute("aria-errormessage")).toBe("latest-error");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("clears an obsolete native error when a controlled field is reset programmatically", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [value, setValue] = useState("");
+      return (
+        <>
+          <UiField htmlFor="controlled-draft" label="Draft">
+            <UiInput id="controlled-draft" onChange={(event) => setValue(event.target.value)} required value={value} />
+          </UiField>
+          <button onClick={() => setValue("Restored draft")}>Restore</button>
+        </>
+      );
+    }
+    renderWithI18n(<Harness />);
+    const input = screen.getByLabelText("Draft");
+    fireEvent.invalid(input);
+    expect(screen.getByRole("alert")).toBeTruthy();
+    await user.click(screen.getByText("Restore"));
+    expect(input.getAttribute("aria-invalid")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps an explicit business error after the native input becomes valid", async () => {
+    const user = userEvent.setup();
+    renderWithI18n(
+      <UiField error="名称已被占用" htmlFor="unique-name" label="Name">
+        <UiInput id="unique-name" required />
+      </UiField>,
+    );
+    const input = screen.getByLabelText("Name");
+    fireEvent.invalid(input);
+    await user.type(input, "Nexus");
+    expect((input as HTMLInputElement).validity.valid).toBe(true);
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(screen.getByRole("alert").textContent).toBe("名称已被占用");
+  });
+
+  it("keeps compound and nested field validation attached to the exact native control", () => {
+    const onInvalid = vi.fn();
+    renderWithI18n(
+      <form onInvalid={onInvalid}>
+        <UiField label="Compound">
+          <UiInput aria-label="First" />
+          <UiField label="Nested">
+            <UiInput aria-label="Second" required />
+          </UiField>
+        </UiField>
+      </form>,
+    );
+    const input = screen.getByLabelText("Second");
+    fireEvent.invalid(input);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(input.getAttribute("aria-errormessage")).toBe(screen.getByRole("alert").id);
+    expect(screen.getByLabelText("First").hasAttribute("aria-invalid")).toBe(false);
+    expect(onInvalid).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("skips controls barred from validation when focusing the first invalid field", () => {
+    renderWithI18n(
+      <form>
+        <UiInput aria-label="Disabled" disabled ref={(input) => { input?.setCustomValidity("Unavailable"); }} />
+        <UiField htmlFor="first-invalid" label="First" required><UiInput id="first-invalid" required /></UiField>
+        <UiField htmlFor="second-invalid" label="Second" required><UiInput id="second-invalid" required /></UiField>
+      </form>,
+    );
+    fireEvent.invalid(screen.getByRole("textbox", { name: "First" }));
+    fireEvent.invalid(screen.getByRole("textbox", { name: "Second" }));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "First" }));
+  });
+
   it("keeps technical text and verification codes as exact native form values", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
@@ -92,6 +259,25 @@ describe("form primitives", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("updates default search text with locale while preserving explicit labels and input content", () => {
+    const onChange = vi.fn();
+    const node = (locale: "zh" | "en", placeholder?: string, label?: string) => (
+      <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => key === "common.search" ? (locale === "zh" ? "搜索" : "Search") : key }}>
+        <UiSearchInput aria-label={label} onChange={onChange} placeholder={placeholder} value="existing query" />
+      </I18N_CONTEXT.Provider>
+    );
+    const { rerender } = render(node("zh"));
+    const search = screen.getByRole("searchbox", { name: "搜索" }) as HTMLInputElement;
+    rerender(node("en"));
+    expect(screen.getByRole("searchbox", { name: "Search" })).toBe(search);
+    expect(search.placeholder).toBe("Search");
+    expect(search.value).toBe("existing query");
+    rerender(node("en", "Find agents", "Agent directory"));
+    expect(screen.getByRole("searchbox", { name: "Agent directory" })).toBe(search);
+    expect(search.placeholder).toBe("Find agents");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("gives search a name and clears through the shared icon action", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -103,6 +289,53 @@ describe("form primitives", () => {
     expect(screen.getByRole("searchbox", { name: "搜索 Agent" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "清除" }));
     expect(onChange).toHaveBeenCalledWith("");
+  });
+
+  it("keeps sidebar search, clear and creation independent with a concise named field", async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn();
+    const onSubmit = vi.fn();
+    function Harness({ disabled = false }: { disabled?: boolean }) {
+      const [query, setQuery] = useState("");
+      return (
+        <form onSubmit={(event) => { event.preventDefault(); onSubmit(); }}>
+          <SidebarSearchField
+            action={<SidebarSearchAction disabled={disabled} onClick={onCreate} title="新建智能体"><List /></SidebarSearchAction>}
+            label="搜索联系人"
+            onChange={setQuery}
+            value={query}
+          />
+        </form>
+      );
+    }
+    const { rerender } = renderWithI18n(<Harness />);
+    const search = screen.getByRole("searchbox", { name: "搜索联系人" }) as HTMLInputElement;
+    const create = screen.getByRole("button", { name: "新建智能体" }) as HTMLButtonElement;
+    expect(search.placeholder).toBe("搜索");
+    expect(create.type).toBe("button");
+    expect(create.hasAttribute("title")).toBe(false);
+
+    await user.type(search, "Research");
+    expect(search.value).toBe("Research");
+    await user.click(screen.getByRole("button", { name: "清除" }));
+    expect(search.value).toBe("");
+    expect(document.activeElement).toBe(search);
+    expect(onCreate).not.toHaveBeenCalled();
+
+    await user.tab();
+    expect(document.activeElement).toBe(create);
+    await user.keyboard("{Enter}");
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(search.value).toBe("");
+
+    rerender(<Harness disabled />);
+    expect(create.disabled).toBe(true);
+    await user.click(create);
+    await user.type(search, "Nexus");
+    expect(search.value).toBe("Nexus");
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("keeps native select semantics while sharing form geometry", async () => {
@@ -165,6 +398,39 @@ describe("form primitives", () => {
     expect((screen.getByRole("checkbox", { name: "不可用" }) as HTMLInputElement).disabled).toBe(true);
   });
 
+  it("keeps the mixed projection until the parent accepts a bulk selection", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn((event: React.ChangeEvent<HTMLInputElement>) => {
+      expect(event.currentTarget.checked).toBe(true);
+      expect(event.currentTarget.indeterminate).toBe(false);
+    });
+    const { rerender } = render(<UiCheckbox aria-label="Select all" checked={false} indeterminate onChange={onChange} />);
+    const checkbox = screen.getByRole("checkbox", { name: "Select all" }) as HTMLInputElement;
+    await user.click(checkbox);
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(checkbox.checked).toBe(false);
+    expect(checkbox.indeterminate).toBe(true);
+    expect(checkbox.getAttribute("aria-checked")).toBe("mixed");
+    rerender(<UiCheckbox aria-label="Select all" checked indeterminate={false} onChange={onChange} />);
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("aria-checked")).toBe(false);
+  });
+
+  it("preserves a parent mixed-state update committed during the change callback", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [mixed, setMixed] = useState(true);
+      return <UiCheckbox aria-label="Select all" checked={!mixed} indeterminate={mixed} onChange={() => flushSync(() => setMixed(false))} />;
+    }
+    render(<Harness />);
+    const checkbox = screen.getByRole("checkbox", { name: "Select all" }) as HTMLInputElement;
+    await user.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.indeterminate).toBe(false);
+    expect(checkbox.hasAttribute("aria-checked")).toBe(false);
+  });
+
   it("projects an indeterminate checkbox as one native mixed state", () => {
     render(
       <label htmlFor="mixed-checkbox">
@@ -194,7 +460,7 @@ describe("form primitives", () => {
     const row = checkbox.closest("label");
     expect(row?.className).toContain("radius-control-md");
     expect(row?.className).not.toContain("rounded-[");
-    expect(screen.getByText("允许私有网络").className).toContain("ui-type-caption");
+    expect(screen.getByText("允许私有网络").className).toContain("ui-type-supporting");
     await user.click(checkbox);
     expect(onChange).toHaveBeenCalledWith(true);
   });
@@ -232,9 +498,9 @@ describe("form primitives", () => {
     expect(group.className).not.toContain("rounded-full");
     expect(once.getAttribute("aria-pressed")).toBe("true");
     expect(once.className).toContain("radius-control-sm");
-    expect(once.className).toContain("ui-type-caption");
-    expect(once.className).toContain("whitespace-nowrap");
-    expect(once.className).not.toContain("min-w-0");
+    expect(once.className).toContain("ui-type-control");
+    expect(once.className).toContain("whitespace-normal");
+    expect(once.className).toContain("min-w-0");
     expect(once.className).not.toContain("shadow-");
     expect(recurring.getAttribute("aria-pressed")).toBe("false");
     await user.click(recurring);
@@ -306,4 +572,24 @@ describe("form primitives", () => {
     await user.click(list);
     expect(onChange).toHaveBeenCalledWith("list");
   });
+});
+
+// 已触发的原生校验保留身份和类型，语言切换不必重新触发 invalid。
+it("retranslates a visible native validation error without clearing its control identity", () => {
+  const node = (locale: "zh" | "en") => (
+    <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => key === "common.required_field" ? (locale === "zh" ? "请填写此字段" : "Required field") : key }}>
+      <UiField htmlFor="translated-error" label="Name">
+        <UiInput id="translated-error" required />
+      </UiField>
+    </I18N_CONTEXT.Provider>
+  );
+  const { rerender } = render(node("zh"));
+  const input = screen.getByRole("textbox", { name: "Name" });
+  fireEvent.invalid(input);
+  const errorId = input.getAttribute("aria-errormessage");
+  expect(screen.getByRole("alert").textContent).toBe("请填写此字段");
+  rerender(node("en"));
+  expect(screen.getByRole("alert").textContent).toBe("Required field");
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(input.getAttribute("aria-errormessage")).toBe(errorId);
 });

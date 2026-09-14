@@ -31,11 +31,12 @@ export function useConnectorOauthEvents({
   const { t } = useI18n();
   const reconcileOauthState = useCallback(async (
     connectorId: string | null,
+    committed = false,
   ): Promise<void> => {
     const refreshed = connectorId
       ? await refreshConnector(connectorId)
       : await reconcileCatalog();
-    if (refreshed) {
+    if (refreshed && committed) {
       if (connectorId) {
         completeReconciliation(connectorId);
         clearPendingConnectorOauth(connectorId);
@@ -47,11 +48,29 @@ export function useConnectorOauthEvents({
       });
       return;
     }
+    if (refreshed && connectorId) {
+      reportFeedback({
+        action: {
+          label: t("capability.connector_new_intent_action"),
+          onClick: () => {
+            completeReconciliation(connectorId);
+            clearPendingConnectorOauth(connectorId);
+          },
+        },
+        impact: t("capability.connector_checked_unknown_impact"),
+        nextStep: t("capability.connector_checked_unknown_next_step"),
+        persistent: true,
+        reconciliationConnectorId: connectorId,
+        title: t("capability.connector_auth_unknown_title"),
+        tone: "warning",
+      });
+      return;
+    }
     reportFeedback({
       action: {
         label: t("capability.connector_reconcile_action"),
         onClick: () => {
-          void reconcileOauthState(connectorId);
+          void reconcileOauthState(connectorId, committed);
         },
       },
       impact: t("capability.connector_reconcile_failed_impact"),
@@ -78,7 +97,7 @@ export function useConnectorOauthEvents({
         title: t("capability.connector_oauth_success_title"),
         tone: "success",
       });
-      void reconcileOauthState(connectorId);
+      void reconcileOauthState(connectorId, true);
       return;
     }
 

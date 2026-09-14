@@ -25,6 +25,10 @@ export interface AuthContextValue {
 
 export const AUTH_CONTEXT = createContext<AuthContextValue | null>(null);
 
+export function isRemoteAccountAuthenticated(status: AuthStatus | null): boolean {
+  return status?.authenticated === true && status.auth_method === "password";
+}
+
 export function useAuth() {
   const context = useContext(AUTH_CONTEXT);
   if (!context) {

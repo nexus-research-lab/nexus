@@ -1,11 +1,12 @@
 // INPUT: 已选定的二维码 payload、可选失败内容与载荷可见性。
-// OUTPUT: 使用共享表面、形状与排版的二维码加载、成功或失败投影。
+// OUTPUT: 随 payload 隔离、具备本地化加载与生成/图片失败反馈的二维码投影。
 // POS: shared/ui 二维码原语；不解释登录、授权协议或 payload 业务含义。
 "use client";
 
 import { useEffect, type ReactNode } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -13,7 +14,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 export function UiQRCode({
   alt,
   failureFallback,
-  loadingLabel = "正在生成二维码…",
+  loadingLabel,
   payload,
   showPayload = true,
 }: {
@@ -23,20 +24,17 @@ export function UiQRCode({
   payload: string;
   showPayload?: boolean;
 }) {
+  const { t } = useI18n();
   const value = payload.trim();
   const embeddedImage = value.startsWith("data:image/");
   const [generation, setGeneration] = useResettableState<{
     imageUrl: string;
     status: "failed" | "idle" | "loading" | "ready";
   }>({
-    imageUrl: "",
-    status: value && !embeddedImage ? "loading" : "idle",
+    imageUrl: embeddedImage ? value : "",
+    status: embeddedImage ? "ready" : value ? "loading" : "idle",
   }, value);
-  const imageUrl = embeddedImage
-    ? value
-    : generation.status === "ready"
-      ? generation.imageUrl
-      : "";
+  const imageUrl = generation.status === "ready" ? generation.imageUrl : "";
 
   useEffect(() => {
     if (!value || embeddedImage) {
@@ -44,7 +42,7 @@ export function UiQRCode({
     }
     let cancelled = false;
     void import("qrcode")
-      .then((module) => module.toDataURL(value, {
+      .then((module) => cancelled ? undefined : module.toDataURL(value, {
         errorCorrectionLevel: "M",
         margin: 1,
         scale: 7,
@@ -77,28 +75,29 @@ export function UiQRCode({
         <img
           alt={alt}
           className="surface-radius-sm h-[220px] w-[220px] bg-(--surface-paper-background) p-2"
+          key={imageUrl}
+          onError={() => setGeneration({ imageUrl: "", status: "failed" })}
           src={imageUrl}
         />
       ) : generation.status === "loading" ? (
         <div
           aria-live="polite"
+          aria-busy="true"
           className={cn(
             "surface-radius-sm flex h-[220px] w-[220px] items-center justify-center bg-(--surface-paper-background) p-4 text-center text-(--surface-paper-muted)",
             getUiTypographyClassName({ role: "metadata" }),
           )}
           role="status"
         >
-          {loadingLabel}
+          {loadingLabel ?? t("common.qr_loading")}
         </div>
       ) : (
-        <div className={cn(
+        <div role="status" className={cn(
           "surface-radius-sm flex min-h-[220px] w-[220px] items-center justify-center bg-(--surface-paper-background) p-4 text-center text-(--surface-paper-muted)",
           getUiTypographyClassName({ role: "metadata" }),
         )}>
           {failureFallback
-            ?? (showPayload
-              ? "二维码生成失败，请使用下方链接"
-              : "二维码生成失败，请重新发起授权")}
+            ?? t(showPayload ? "common.qr_failed_with_payload" : "common.qr_failed")}
         </div>
       )}
       {showPayload ? (

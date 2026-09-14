@@ -1,10 +1,11 @@
 // INPUT: Canonical theme tokens and every production CSS/TS module.
-// OUTPUT: Undefined static token references, broken theme aliases and duplicate token declarations fail the frontend gate.
+// OUTPUT: Undefined tokens, broken aliases, duplicate declarations and non-color control paint fail the gate.
 // POS: Static token integrity, paired with computed styles in the real-browser matrix; no per-file exception budget.
 
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
+import { JSDOM } from "jsdom";
 import { findUnboundTokenReferences, inspectThemeAliases, inspectTokenSource } from "./frontend-token-policy.mjs";
 
 test("token references distinguish required values, nested fallbacks and Tailwind shorthand", () => {
@@ -68,5 +69,42 @@ test("all three themes resolve every canonical token alias without cycles", asyn
   for (const theme of ["light", "dark", "rain"]) {
     const { issues } = inspectThemeAliases(source, theme);
     assert.deepEqual(issues, [], `${theme}: ${issues.join("; ")}`);
+  }
+});
+
+// These slots are passed to color-mix(), not to an image-capable background.
+// The DOM CSS parser catches invalid value types; browser tests still validate
+// the actual cascade, computed paint and text contrast on rendered controls.
+function resolvedColor(tokens, name, seen = new Set()) {
+  assert.ok(tokens.has(name), `Missing color token ${name}`);
+  assert.ok(!seen.has(name), `Color alias cycle at ${name}`);
+  const next = new Set([...seen, name]);
+  return tokens.get(name).replace(/var\(\s*(--[\w-]+)\s*\)/g, (_, reference) => resolvedColor(tokens, reference, next));
+}
+
+test("control paint tokens are CSS colors, including aliases used by color-mix", async () => {
+  const source = await readFile(new URL("../src/app/styles/theme-tokens.css", import.meta.url), "utf8");
+  const dom = new JSDOM();
+  try {
+    const accepts = (value) => {
+      const style = dom.window.document.createElement("div").style;
+      style.backgroundColor = value;
+      return Boolean(style.backgroundColor);
+    };
+    for (const theme of ["light", "dark", "rain"]) {
+      const { tokens } = inspectThemeAliases(source, theme);
+      for (const name of ["--material-chip-background", "--material-input-background", "--material-input-focus-background",
+        "--modal-btn-secondary-background", "--button-tonal-background", "--chip-segmented-background",
+        "--surface-control-background", "--modal-input-focus-background"]) {
+        const value = resolvedColor(tokens, name);
+        assert.ok(!value.includes("var("), `${name} needs an explicitly resolved color`);
+        assert.ok(accepts(value), `${theme} ${name} is not a color: ${value}`);
+      }
+      const legacy = new Map(tokens).set("--material-chip-background", "linear-gradient(black, white)");
+      assert.equal(accepts(resolvedColor(legacy, "--modal-btn-secondary-background")), false,
+        "A declared gradient still cannot be used as a color-mix input");
+    }
+  } finally {
+    dom.window.close();
   }
 });

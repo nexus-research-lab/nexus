@@ -1,8 +1,12 @@
+// INPUT: Automation 草稿、打开状态与当前语言。
+// OUTPUT: 精确资源请求、Room 名称/紧凑会话候选与可恢复读取状态；不维护重复父名称索引。
+// POS: 资源请求装配；选择身份留在草稿，公共名称规则不决定候选资格。
 "use client";
 
 import { useMemo } from "react";
 
 import { getAgents } from "@/lib/api/agent/agent-api";
+import { buildAgentSelectionOptions } from "@/lib/agent-selection-options";
 import {
   getAgentSessionsApi,
   getAllSessionsApi,
@@ -22,15 +26,15 @@ import type {
   TaskDialogLabelOption,
   TaskDialogSessionOption,
   TaskFormDraft,
+  TaskDestinationOption,
 } from "../scheduled-task-dialog-types";
 import {
-  buildAgentNameIndex,
-  buildAgentOptions,
+  resolveTaskInheritedPermission,
+  buildTaskDestinations,
   buildExecutionRoomOptions,
   buildExecutionRoomAgentData,
   buildDeliveryRoomAgentData,
   buildRoomOptions,
-  buildRoomNameIndex,
   buildTaskDialogDeliverySessionData,
   buildTaskDialogResourceKeys,
   buildTaskDialogSessionData,
@@ -65,6 +69,9 @@ async function loadRoomContexts(
 }
 
 export interface TaskDialogData {
+  inheritedPermissionMode: string | null;
+  destinations: TaskDestinationOption[];
+  destinationStatus: DialogResourceStatus;
   agentOptions: TaskDialogLabelOption[];
   agents: DialogResourceStatus;
   deliveryRoomOptions: TaskDialogLabelOption[];
@@ -116,51 +123,42 @@ export function useTaskDialogData({
     loadAllSessions,
     t("capability.scheduled_dialog_load_agent_sessions_failed"),
   );
-  const agentNameById = useMemo(
-    () => buildAgentNameIndex(agents.items),
-    [agents.items],
-  );
   const agentOptions = useMemo(
-    () => buildAgentOptions(agents.items),
-    [agents.items],
+    () => buildAgentSelectionOptions(agents.items, t),
+    [agents.items, t],
   );
   const roomOptions = useMemo(
-    () => buildExecutionRoomOptions(rooms.items),
-    [rooms.items],
+    () => buildExecutionRoomOptions(rooms.items, t),
+    [rooms.items, t],
   );
   const deliveryRoomOptions = useMemo(
-    () => buildRoomOptions(rooms.items),
-    [rooms.items],
-  );
-  const roomNameById = useMemo(
-    () => buildRoomNameIndex(rooms.items),
-    [rooms.items],
+    () => buildRoomOptions(rooms.items, t),
+    [rooms.items, t],
   );
   const sessionData = useMemo(
     () => buildTaskDialogSessionData(
       form.targetType,
       { agentSessions, roomContexts },
-      agentNameById,
-      t("capability.scheduled_dialog_unnamed_session"),
+      t,
     ),
-    [agentNameById, agentSessions, form.targetType, roomContexts, t],
+    [agentSessions, form.targetType, roomContexts, t],
   );
   const deliverySessionData = useMemo(
     () => buildTaskDialogDeliverySessionData(
       form,
       allSessions,
-      agentNameById,
-      roomNameById,
-      t("capability.scheduled_dialog_unnamed_session"),
+      t,
     ),
-    [agentNameById, allSessions, form, roomNameById, t],
+    [allSessions, form, t],
   );
   const executionRoomAgentData = useMemo(
     () => buildExecutionRoomAgentData(
       roomContexts.items,
       form.selectedSessionKey,
+      agents.items,
+      t,
     ),
-    [form.selectedSessionKey, roomContexts.items],
+    [agents.items, form.selectedSessionKey, roomContexts.items, t],
   );
   const deliveryRoomAgentData = useMemo(
     () => buildDeliveryRoomAgentData(
@@ -168,14 +166,16 @@ export function useTaskDialogData({
       rooms.items,
       form.selectedDeliveryRoomId,
       form.selectedReplySessionKey,
-      agentNameById,
+      agents.items,
+      t,
     ),
     [
-      agentNameById,
+      agents.items,
       allSessions.items,
       form.selectedDeliveryRoomId,
       form.selectedReplySessionKey,
       rooms.items,
+      t,
     ],
   );
   const resolvedExecutionRoomId = form.targetType === "room"
@@ -185,6 +185,9 @@ export function useTaskDialogData({
     ? resolveTaskDialogRoomId(allSessions.items, form.selectedReplySessionKey)
     : "";
   return {
+    inheritedPermissionMode: resolveTaskInheritedPermission(form, agents, agentSessions, roomContexts, executionRoomAgentData.defaultAgentId),
+    destinations: buildTaskDestinations(allSessions.items, agentOptions, deliveryRoomOptions, t),
+    destinationStatus: resourceStatus(allSessions),
     agentOptions,
     agents: resourceStatus(agents),
     deliveryRoomOptions,

@@ -1,3 +1,6 @@
+// INPUT: Chat subtree and exact conversation reset identity.
+// OUTPUT: Safe local render fallback; new identity releases prior failure.
+// POS: Room render containment, no network retries or command replay.
 "use client";
 
 import { Component, type ErrorInfo, type ReactNode } from "react";

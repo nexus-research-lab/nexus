@@ -1,3 +1,6 @@
+// INPUT: Current locale and explicit browser refresh action.
+// OUTPUT: Shared resource failure surface without internal diagnostics.
+// POS: Room render failure presentation, independent of message history.
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 

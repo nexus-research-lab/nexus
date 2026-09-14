@@ -58,6 +58,7 @@ interface SkillDetailViewProps {
   onDelete: () => void;
   onRetry: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onUpdate: () => void;
   snapshot: SkillDetailSnapshot;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
@@ -74,6 +75,7 @@ export function SkillDetailView({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -95,6 +97,7 @@ export function SkillDetailView({
         onDelete={onDelete}
         onRetry={onRetry}
         onRetryBindings={onRetryBindings}
+        onStartNewToggleIntent={onStartNewToggleIntent}
         onUpdate={onUpdate}
         snapshot={snapshot}
         toggleFailures={toggleFailures}
@@ -113,6 +116,7 @@ function SkillDetailContent({
   onDelete,
   onRetry,
   onRetryBindings,
+  onStartNewToggleIntent,
   onUpdate,
   snapshot,
   toggleFailures,
@@ -165,6 +169,7 @@ function SkillDetailContent({
       onDelete={onDelete}
       onUpdate={onUpdate}
       onRetryBindings={onRetryBindings}
+      onStartNewToggleIntent={onStartNewToggleIntent}
       toggleFailures={toggleFailures}
     />
   );
@@ -181,6 +186,7 @@ function SkillDetailReady({
   onDelete,
   onUpdate,
   onRetryBindings,
+  onStartNewToggleIntent,
   toggleFailures,
 }: {
   activeAction: SkillDetailAction | null;
@@ -193,6 +199,7 @@ function SkillDetailReady({
   onDelete: () => void;
   onUpdate: () => void;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
   const { t } = useI18n();
@@ -201,7 +208,6 @@ function SkillDetailReady({
       <CapabilityDetailSplitLayout
         aside={(
           <div className="space-y-5">
-            <SkillDetailBadges badges={model.badges} />
             {model.scope === "room" ? (
               <RoomSkillUsage />
             ) : (
@@ -211,20 +217,25 @@ function SkillDetailReady({
                 bindingsFailure={bindingsFailure}
                 busyAgentId={busyAgentId}
                 locked={model.locked}
+                actionPending={activeAction !== null}
                 onToggle={onAgentToggle}
                 onRetryBindings={onRetryBindings}
+                onStartNewToggleIntent={onStartNewToggleIntent}
                 toggleFailures={toggleFailures}
               />
             )}
           </div>
         )}
         header={(
-          <SkillDetailHero
-            activeAction={activeAction}
-            model={model}
-            onDelete={onDelete}
-            onUpdate={onUpdate}
-          />
+          <div className="space-y-4">
+            <SkillDetailHero
+              activeAction={activeAction}
+              model={model}
+              onDelete={onDelete}
+              onUpdate={onUpdate}
+            />
+            <SkillDetailBadges badges={model.badges} />
+          </div>
         )}
       >
         <div className="space-y-5">
@@ -265,7 +276,9 @@ function SkillAgentBindings({
   bindingsFailure,
   busyAgentId,
   locked,
+  actionPending,
   onRetryBindings,
+  onStartNewToggleIntent,
   onToggle,
   toggleFailures,
 }: {
@@ -274,7 +287,9 @@ function SkillAgentBindings({
   bindingsFailure: SkillAgentBindingsReadFailure | null;
   busyAgentId: string | null;
   locked: boolean;
+  actionPending: boolean;
   onRetryBindings: () => void;
+  onStartNewToggleIntent?: (agentId: string) => void;
   onToggle: (binding: SkillAgentBinding) => void;
   toggleFailures: Readonly<Record<string, SkillAgentToggleFailure>>;
 }) {
@@ -283,8 +298,7 @@ function SkillAgentBindings({
   return (
     <section>
       <CapabilityDetailSectionHeader
-        description={t("capability.skills_detail_agent_scope_description")}
-        meta={!agentsLoading
+        meta={!agentsLoading && !bindingsFailure
           ? t("capability.skills_detail_enabled_count", {
               enabled: enabledCount,
               total: agentBindings.length,
@@ -292,7 +306,13 @@ function SkillAgentBindings({
           : undefined}
         title={t("capability.skills_detail_agent_scope")}
       />
-      <UiPanel padding="sm" radius="md" variant="card">
+      <UiPanel padding="none" radius="md" variant="card">
+        <p className={cn(
+          "border-b border-(--divider-subtle-color) px-4 py-3",
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
+        )}>
+          {t("capability.skills_detail_agent_scope_description")}
+        </p>
         {bindingsFailure ? (
           <SkillAgentFailureNotice
             failure={bindingsFailure}
@@ -325,33 +345,33 @@ function SkillAgentBindings({
               const failure = toggleFailures[binding.agent_id] ?? null;
               return (
                 <div key={binding.agent_id}>
-                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="flex items-center justify-between min-h-14 gap-3 px-4 py-2">
                     <div className="min-w-0">
                       <p className={cn(
-                        "truncate",
+                        "break-words [overflow-wrap:anywhere]",
                         getUiTypographyClassName({ role: "control", tone: "strong", weight: "medium" }),
                       )}>
                         {binding.agent_name}
                       </p>
-                      <p className={getUiTypographyClassName({ role: "caption", tone: "soft" })}>
-                        {presentation.description}
-                      </p>
+                      {locked || !binding.available || binding.is_main ? (
+                        <p className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
+                          {presentation.description}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
-                        {presentation.status}
-                      </span>
                       <GlassSwitch
                         aria-label={presentation.switchLabel}
                         checked={binding.enabled}
                         disabled={
                           locked
+                          || actionPending
                           || !binding.available
                           || busyAgentId !== null
                           || Boolean(failure?.blocksRepeat)
                         }
                         onChange={() => onToggle(binding)}
-                        size="xs"
+                        size="sm"
                       />
                     </div>
                   </div>
@@ -359,8 +379,12 @@ function SkillAgentBindings({
                     <SkillAgentFailureNotice
                       className="mx-3 mb-3"
                       failure={failure}
-                      onRefresh={failure.blocksRepeat ? onRetryBindings : undefined}
-                      refreshLabel={t("state.reload_check")}
+                      onRefresh={failure.canStartNewIntent && onStartNewToggleIntent
+                        ? () => onStartNewToggleIntent(binding.agent_id)
+                        : failure.blocksRepeat ? onRetryBindings : undefined}
+                      refreshLabel={t(failure.canStartNewIntent
+                        ? "capability.skill_operation_new_intent_action"
+                        : "state.reload_check")}
                     />
                   ) : null}
                 </div>
@@ -424,7 +448,7 @@ function SkillDetailHero({
       ) : undefined}
       description={model.description}
       leading={<UiSeededAvatar seed={model.avatarSeed} size="lg" />}
-      title={<span className="truncate">{model.displayName}</span>}
+      title={model.displayName}
     />
   );
 }

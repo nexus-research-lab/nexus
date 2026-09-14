@@ -35,7 +35,7 @@ export function SkillsCard({
   );
   return (
     <SkillDirectoryCard
-      action={model.showDelete ? (
+      action={model.showDelete && onDelete ? (
         <UiListActionButton
           className="pointer-events-auto"
           disabled={busy}

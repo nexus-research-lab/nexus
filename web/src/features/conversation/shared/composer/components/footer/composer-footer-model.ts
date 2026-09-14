@@ -1,8 +1,10 @@
-// INPUT: Composer runtime/Goal/附件/错误状态、字符限制与本地化文案。
+// INPUT: Composer runtime/Goal/附件/错误状态、内核类型、字符限制与本地化文案。
 // OUTPUT: Footer 状态优先级、语义 tone、加载阶段与字符计数风险等级。
 // POS: Composer Footer 纯业务投影；不返回 class、Tailwind、颜色、阴影、帧字符或动效名称。
 
 import type { ReactNode, RefObject } from "react";
+
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import type { ContextUsageData } from "@/types/generated/protocol";
 
@@ -20,7 +22,6 @@ export interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   activeError: string | null;
   canCreateGoal: boolean;
-  canUseLoop: boolean;
   canUseWorkGraphDistillations: boolean;
   charCount: number;
   contextUsage: ContextUsageData | null;
@@ -43,14 +44,13 @@ export interface ComposerFooterProps {
   onAttachmentSelect: () => void;
   onCancelGoal: () => void;
   onGoalToggle: (checked: boolean) => void;
-  onLoopSelect: () => void;
   onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
   sessionSettingsController: ComposerSessionSettingsController;
   sessionSettingsDisabled: boolean;
   showActionMenu: boolean;
-  showPoweredByNexus: boolean;
+  runtimeKind: AgentRuntimeKind;
   submit: ComposerSubmitButtonProps;
 }
 

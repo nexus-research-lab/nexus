@@ -1,11 +1,11 @@
 /**
  * INPUT: 单项定时任务、durable 删除/命令状态与任务动作。
- * OUTPUT: 共享目录卡中的名称、指令摘要、计划、时间状态与单一注意事项。
+ * OUTPUT: 共享目录卡中的名称、指令摘要、计划、时间状态与单一注意事项；错误摘要本地化且不包含内部诊断。
  * POS: 定时任务看板卡片；复用 CatalogCard/Panel/Button，不拥有业务状态视觉 recipe。
  */
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarCheck2,
@@ -41,6 +41,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
 import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { ScheduledTaskAttentionDialog } from "./scheduled-task-attention-dialog";
 import {
   getScheduledPermissionCapabilityLabel,
@@ -121,6 +122,7 @@ export function ScheduledTaskCard({
   onToggleEnabled,
   task,
 }: ScheduledTaskCardProps) {
+  const { t, locale } = useI18n();
   const [isAttentionOpen, setIsAttentionOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -135,23 +137,26 @@ export function ScheduledTaskCard({
     isRunUnconfirmed,
     isToggling,
     isToggleUnconfirmed,
-  });
+  }, t, locale);
   const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const permissionRequest = task.pending_permission_request;
-  const errorCopy = getScheduledTaskErrorCopy(presentation.lastError);
+  const errorCopy = getScheduledTaskErrorCopy(presentation.lastError, t);
   const attentionTitle = presentation.deletion?.title
     ?? presentation.binding?.title
     ?? presentation.permission?.title
-    ?? "最近运行异常";
+    ?? t("capability.scheduled_card_recent_error");
   const attentionDetail = presentation.deletion?.description
     ?? presentation.binding?.description ?? (presentation.permission
     ? permissionRequest
-      ? getScheduledPermissionCapabilityLabel(permissionRequest)
+      ? getScheduledPermissionCapabilityLabel(permissionRequest, t)
       : presentation.permission.description
     : errorCopy?.summary ?? null);
   const hasAttention = Boolean(
     presentation.deletion || presentation.binding || presentation.permission || errorCopy,
   );
+  useEffect(() => {
+    if (!hasAttention) setIsAttentionOpen(false);
+  }, [hasAttention]);
   const hasPermissionActions = presentation.permission !== null
     && hasScheduledTaskPermissionActions(task);
   const AttentionIcon = presentation.deletion
@@ -165,9 +170,9 @@ export function ScheduledTaskCard({
   const menuItems: UiActionMenuItem[] = [
     {
       description: presentation.deletion
-        ? `${presentation.deletion.title}，任务不再接受修改`
+        ? t("capability.scheduled_card_deletion_locked", { state: presentation.deletion.title })
         : isMutationBlocked && !isToggleUnconfirmed
-        ? "该任务的另一个修改仍在处理或待确认"
+        ? t("capability.scheduled_card_mutation_pending")
         : isToggleUnconfirmed ? presentation.toggleAction.title : undefined,
       disabled: presentation.toggleAction.disabled,
       icon: toggleIcon,
@@ -177,24 +182,24 @@ export function ScheduledTaskCard({
     },
     {
       description: presentation.deletion
-        ? `${presentation.deletion.title}，任务不再接受修改`
+        ? t("capability.scheduled_card_deletion_locked", { state: presentation.deletion.title })
         : isMutationBlocked
-        ? "该任务的另一个修改仍在处理或待确认"
+        ? t("capability.scheduled_card_mutation_pending")
         : undefined,
       disabled: isMutationBlocked || presentation.deletion !== null,
       icon: <Pencil className="h-3.5 w-3.5" />,
-      label: "编辑任务",
+      label: t("capability.scheduled_dialog_edit_title"),
       value: "edit",
     },
     {
       description: presentation.deletion
         ? presentation.deletion.nextStep
         : isDeleteUnconfirmed
-        ? "上次删除请求结果待确认，请先刷新任务状态"
+        ? t("capability.scheduled_card_delete_unconfirmed")
         : undefined,
       disabled: presentation.deleteDisabled,
       icon: <Trash2 className="h-3.5 w-3.5" />,
-      label: "删除任务",
+      label: t("capability.scheduled_card_delete"),
       tone: "danger",
       value: "delete",
     },
@@ -249,18 +254,18 @@ export function ScheduledTaskCard({
                 ref={menuAnchorRef}
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
-                aria-label="更多操作"
+                aria-label={t("capability.scheduled_card_more")}
                 className="-mr-1 -mt-1 shrink-0"
                 onClick={() => setIsMenuOpen((current) => !current)}
                 size="sm"
-                title="更多操作"
+                title={t("capability.scheduled_card_more")}
                 variant="ghost"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </UiIconButton>
               <UiActionMenu
                 anchorRef={menuAnchorRef}
-                ariaLabel="任务操作"
+                ariaLabel={t("capability.scheduled_card_actions")}
                 isOpen={isMenuOpen}
                 items={menuItems}
                 minWidth={156}
@@ -311,7 +316,7 @@ export function ScheduledTaskCard({
             radius="sm"
           >
             <UiButton
-              aria-label={`查看${attentionTitle}详情`}
+              aria-label={t("capability.scheduled_card_attention_details", { title: attentionTitle })}
               className="w-full justify-start text-left"
               onClick={() => setIsAttentionOpen(true)}
               size="sm"
@@ -353,7 +358,7 @@ export function ScheduledTaskCard({
                   weight: "medium",
                 }),
               )}>
-                详情
+                {t("capability.scheduled_card_details")}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </UiButton>
@@ -375,17 +380,17 @@ export function ScheduledTaskCard({
 
         <div className="mt-2 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2">
           <UiIconButton
-            aria-label="运行历史"
+            aria-label={t("capability.scheduled_review_history_action")}
             disabled={presentation.historyDisabled}
             onClick={() => onOpenHistory(task)}
             size="sm"
-            title="运行历史"
+            title={t("capability.scheduled_review_history_action")}
             variant="ghost"
           >
             <History className="h-3.5 w-3.5" />
           </UiIconButton>
           <UiIconButton
-            aria-label="立即运行"
+            aria-label={t("capability.scheduled_card_run")}
             disabled={presentation.runAction.disabled}
             onClick={() => onRunNow(task)}
             size="sm"
@@ -408,7 +413,7 @@ export function ScheduledTaskCard({
         isBindingAttention={presentation.binding !== null}
         isDeletionAttention={presentation.deletion !== null}
         isDeletionReviewPending={isDeletionReviewPending}
-        isOpen={isAttentionOpen}
+        isOpen={isAttentionOpen && hasAttention}
         isPending={isMutationBlocked || isPermissionPending || isPermissionUnconfirmed}
         onClose={() => setIsAttentionOpen(false)}
         onConfirmDeletionStopped={onConfirmDeletionStopped}

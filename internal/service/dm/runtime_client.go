@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command runtime client。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
 // POS: DM 服务的 runtime client 装配与 owner-private command scope 签发边界。
 package dm
 
@@ -310,6 +310,7 @@ func (s *Service) ensureClient(
 			mcpContext,
 			nexusmcp.RoundContext{
 				SessionKey: sessionKey, RoundID: request.RoundID,
+				SubagentControl:   s.runtime.BindSubagentControl(sessionKey, request.RoundID),
 				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 				SourceContextLabel: agentValue.Name,
 				CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -226,6 +227,7 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}()
 
 	ctx := request.Context()
+	connectedAt := time.Now()
 	controlDispatcher := newControlMessageDispatcher(ctx)
 	defer controlDispatcher.close()
 	go h.keepWebSocketAlive(ctx, connection, sender)
@@ -233,8 +235,14 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 		var inbound map[string]any
 		readCtx, cancel := context.WithTimeout(ctx, websocketReadTimeout)
 		err := wsjson.Read(readCtx, connection, &inbound)
+		readErr := readCtx.Err()
 		cancel()
 		if err != nil {
+			logx.Resolve(ctx, h.api.BaseLogger()).Info("WebSocket 连接读取结束",
+				"close_status", websocket.CloseStatus(err),
+				"duration_ms", time.Since(connectedAt).Milliseconds(),
+				"read_context_err", readErr, "context_err", ctx.Err(), "err", err,
+			)
 			return
 		}
 		h.dispatchWebSocketMessageWithControlDispatcher(

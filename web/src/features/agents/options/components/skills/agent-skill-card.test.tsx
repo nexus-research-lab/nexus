@@ -46,3 +46,19 @@ describe("AgentSkillCard", () => {
     expect(screen.getByText("Review skill")).toBeTruthy();
   });
 });
+
+
+it("associates each switch with its own description and removes absent descriptions", () => {
+  const props = { actionLabel: "Enable", blocked: false, busy: false, commandBusy: false, onAction: vi.fn() };
+  const view = render(<I18nProvider>
+    <AgentSkillCard {...props} skill={skill} />
+    <AgentSkillCard {...props} skill={{ ...skill, name: "second", title: "Second", description: "Another purpose." }} />
+  </I18nProvider>);
+  const switches = screen.getAllByRole("switch");
+  const ids = switches.map((control) => control.getAttribute("aria-describedby"));
+  expect(ids[0]).not.toBe(ids[1]);
+  expect(document.getElementById(ids[0]!)?.textContent).toBe(skill.description);
+  expect(document.getElementById(ids[1]!)?.textContent).toBe("Another purpose.");
+  view.rerender(<I18nProvider><AgentSkillCard {...props} skill={{ ...skill, description: "" }} /></I18nProvider>);
+  expect(screen.getByRole("switch").hasAttribute("aria-describedby")).toBe(false);
+});

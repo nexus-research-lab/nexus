@@ -1,5 +1,5 @@
 // INPUT: Catalog content, semantic title sizes and header/body/footer layout options.
-// OUTPUT: Shared catalog composition slots with typography roles and bounded description clamping.
+// OUTPUT: Catalog slots with shared typography, wrapping footer actions and bounded description clamping.
 // POS: Presentational catalog content owner; callers supply product content and actions.
 
 import type {
@@ -53,19 +53,17 @@ export function WorkspaceCatalogHeader({
   children: ReactNode;
   align?: CatalogCardAlign;
 }) {
-  return <div className={cn(HEADER_ALIGN_CLASSES[align], className)} {...props}>{children}</div>;
+  return <div className={cn("min-w-0", HEADER_ALIGN_CLASSES[align], className)} {...props}>{children}</div>;
 }
 
 export function WorkspaceCatalogBody({
   children,
   className,
-  grow = false,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
   children: ReactNode;
-  grow?: boolean;
 }) {
-  return <div className={cn("mt-2.5", grow && "flex-1", className)} {...props}>{children}</div>;
+  return <div className={cn("mt-2.5 min-w-0", className)} {...props}>{children}</div>;
 }
 
 export function WorkspaceCatalogFooter({
@@ -80,7 +78,7 @@ export function WorkspaceCatalogFooter({
   return (
     <div
       className={cn(
-        "mt-3 flex min-h-[32px] items-end gap-3",
+        "mt-3 flex min-h-8 min-w-0 flex-wrap items-end gap-3",
         FOOTER_JUSTIFY_CLASSES[justify],
         className,
       )}
@@ -108,6 +106,7 @@ export function WorkspaceCatalogTitle({
   return (
     <Component
       className={cn(
+        "min-w-0 [overflow-wrap:anywhere]",
         getUiTypographyClassName({ role: TITLE_ROLES[size], tone: "strong" }),
         truncate && "truncate",
         className,
@@ -123,21 +122,19 @@ export function WorkspaceCatalogDescription({
   children,
   className,
   lines = 2,
-  minHeight = false,
   size = "sm",
   ...props
 }: HTMLAttributes<HTMLParagraphElement> & {
   children: ReactNode;
   lines?: 1 | 2 | 3;
-  minHeight?: boolean;
   size?: CatalogDescriptionSize;
 }) {
   return (
     <p
       className={cn(
+        "min-w-0 [overflow-wrap:anywhere]",
         getUiTypographyClassName({ role: DESCRIPTION_ROLES[size], tone: "default" }),
         LINE_CLAMP_CLASSES[lines],
-        minHeight && lines === 2 && "min-h-[40px]",
         className,
       )}
       {...props}

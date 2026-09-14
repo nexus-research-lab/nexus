@@ -1,5 +1,5 @@
 // INPUT: Nexus light theme 的稳定语义色。
-// OUTPUT: Windows 原生 chrome、菜单与对话框共用的冻结画刷。
+// OUTPUT: Windows 原生 chrome、菜单与对话框共用、同步 Web 危险语义色的冻结画刷。
 // POS: Web token 到 WPF 控件的唯一颜色投影，不承载组件布局。
 
 using System.Windows.Media;
@@ -22,7 +22,7 @@ public static class NexusNativeTheme
     public static SolidColorBrush FocusBrush { get; } = CreateBrush(0x3D, 0x5B, 0x72, 0xFF);
     public static SolidColorBrush BrandActionBrush { get; } = CreateBrush(0xFF, 0x52, 0x66, 0xE6);
     public static SolidColorBrush BrandActionHoverBrush { get; } = CreateBrush(0xFF, 0x48, 0x59, 0xCF);
-    public static SolidColorBrush DestructiveBrush { get; } = CreateBrush(0xFF, 0xDF, 0x5D, 0x62);
+    public static SolidColorBrush DestructiveBrush { get; } = CreateBrush(0xFF, 0xB5, 0x2F, 0x3E);
     public static System.Windows.Media.Color ShadowColor { get; } =
         System.Windows.Media.Color.FromRgb(0x0B, 0x0B, 0x0B);
 

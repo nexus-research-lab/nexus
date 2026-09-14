@@ -6,7 +6,7 @@ L4 | 父级: web/src/features/conversation/shared
 
 - `composer-panel.tsx`: Composer 各子域的纯视图装配
 - `use-composer-interaction-height-guard.ts`: 在同一人工介入队列内持有输入壳高度高水位，并在恢复普通输入时一次释放，不让连续权限卡反复改变消息 viewport
-- `controller/`: 草稿状态、消息投递、Goal/Loop、IME 与视图状态编排
+- `controller/`: 草稿状态、消息投递、Goal、IME 与视图状态编排
 - `composer-history-store.ts`: 按 Room/DM 逻辑聊天隔离并在当前浏览器或 App WebView 内持久化发送历史
 - `use-composer-history.ts`: 将持久化发送历史接入上下键召回、游标与未发送草稿恢复
 - `composer-model.ts`: 输入策略、键盘命令和投递决策；不返回样式
@@ -20,7 +20,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
 - `controller/use-composer-controller.ts`: 除既有草稿/发送装配外，只接受同一 exact Session 的命名 WorkGraph 保存意图事件，把可见请求写入 Message 草稿并自动发送；不直接调用命名工作图创建 API
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
-- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 Loop / 已保存工作图选择器
+- `components/`: 输入行、提交动作、Footer、Session 模型/权限控制、待发送队列，以及 已保存工作图选择器
 
 DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不公开入口。附加目录独立于 Agent workspace CWD，保存期间与模型/权限设置一样阻止新一轮提交；保存结果未知时保留操作前列表并锁定修改，只允许重新读取当前 Session 设置后再决定下一步。
 
@@ -40,10 +40,12 @@ Composer textarea 高度只以浏览器真实 `scrollHeight` 为准，并在 Rea
 Composer 输入壳外层使用绝对定位、`pointer-events: none` 的 `::before` 将自身上缘向正文羽化；普通输入与权限、问答、计划确认替换面共用同一外缘。羽化不得挂到消息 viewport 或全宽 BottomArea、增加 padding/clearance、遮挡 Task/回到底部 Dock，或改变输入壳和虚拟列表测量。
 DM 或 Room 出现 pending permission、AskUserQuestion 或计划确认时，人工介入组件必须原位替换整个输入壳内容；不得悬浮在输入框上方，也不得在消息正文或 Thread 保留第二个操作入口。未发送草稿与附件继续保存在原 Session 草稿作用域，最后一个请求完成后输入壳原位恢复并重新聚焦。同一 pending interaction epoch 的输入壳外部高度只可增长，较短请求在壳内留出稳定空间，最后一个请求完成后再一次平滑恢复普通输入高度，禁止连续请求逐项挤压消息 viewport。多个请求按首次到达顺序在同一位置逐个接棒，重放的同 request 快照只能原位更新；Room 当前项显示请求 Agent 身份并按 `request_id` 回到原执行。
 权限与计划确认采用紧凑决策面：首行只保留请求 Agent 与工具，正文只保留一句摘要及一个必要参数，底部只有拒绝和“允许本次”；持久范围进入相邻次级菜单，不平铺状态、时间和提示词元数据。
-Composer Footer 使用输入壳命名容器形成“动作/权限—Powered by Nexus—模型/提交”三列；模型与权限只写当前 Session 覆盖，空覆盖表示继续继承 Agent 默认值。DM 隐式使用当前 Agent，直接展示权限和模型；Room 左侧权限一次作用于当前 Conversation 的全部 Agent Session，右侧模型先列 Agent，并在横向空间足够时悬浮级联其模型选项。模型配置目标只存在于浮层内部，关闭后忘记，Room 的消息路由仍只由当前 Room 与正文 `@` 提及决定，不得把模型目标伪装成发送对象或借此回写 Agent 默认配置。中心品牌标注属于壳内三级弱信息，颜色必须由 `text-soft` 与输入壳背景混合后进一步后退。发送、排队、Goal 启动和停止统一使用 32px 圆形图标按钮，由 `aria-label` 提供完整语义，不随容器宽度扩展文字标签；空输入时发送按钮保留中性灰底，不退成透明 ghost。Goal 模式的负责人控件不可被压缩到不可操作，控制与提交保持第一行、运行状态独占第二行，品牌在该模式退场；460px 以下再把提交行独立堆叠。scope 文案可以收敛，但负责人、取消、状态和提交动作不得重叠或被裁切。
+Composer Footer 使用输入壳命名容器形成“动作/权限—内核品牌标注—模型/提交”三列；模型与权限只写当前 Session 覆盖，空覆盖表示继续继承 Agent 默认值。DM 隐式使用当前 Agent，直接展示权限和模型；Room 左侧权限一次作用于当前 Conversation 的全部 Agent Session，右侧模型先列 Agent，并在横向空间足够时悬浮级联其模型选项。模型配置目标只存在于浮层内部，关闭后忘记，Room 的消息路由仍只由当前 Room 与正文 `@` 提及决定，不得把模型目标伪装成发送对象或借此回写 Agent 默认配置。中心品牌标注属于壳内三级弱信息，颜色必须由 `text-soft` 与输入壳背景混合后进一步后退。发送、排队、Goal 启动和停止统一使用 32px 圆形图标按钮，由 `aria-label` 提供完整语义，不随容器宽度扩展文字标签；空输入时发送按钮保留中性灰底，不退成透明 ghost。Goal 模式的负责人控件不可被压缩到不可操作，控制与提交保持第一行、运行状态独占第二行，品牌在该模式退场；460px 以下再把提交行独立堆叠。scope 文案可以收敛，但负责人、取消、状态和提交动作不得重叠或被裁切。
 新消息提交以 `auto` 贴住真实内容底部，随后每段正文增长都连续上推历史内容；只有用户显式点击“回到底部”或导航时才允许可见的平滑滚动。
 Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，禁用发送回落为中性灰；Plus、附件与普通工具保持灰黑，停止和错误用红色，完成用绿色，字数临界用琥珀色，发送中/回复中/压缩中属于活动态而不是成功态。
 队列命令和附件准备是 DM/Room 的共同能力；DM Composer 的停止针对当前会话，Room Composer 的“全部停止”必须在点击时冻结所有 active slot 的精确 `agent_round_id`，逐个复用定向停止，禁止退化为无目标的 session interrupt。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。
-Composer 的 Loop 与工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
+Composer 的工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
+
+- 工作图选择器的临时打开意图按完整草稿/工作图 Session 与人工介入状态重置，切页返回不得恢复旧选择器。

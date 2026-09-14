@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 成员、按 Agent 隔离的进程集合与用户选择。
- * OUTPUT: 保持成员目录顺序、优先用户选择并降级到最近进程的稳定选择结果。
+ * OUTPUT: 仅从仍在成员目录中的任务进程选择，保留候选顺序、有效手动选择与最近进程回退。
  * POS: Room Workspace Task Agent 切换器的纯选择模型。
  */
 import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
@@ -27,7 +27,7 @@ export function resolveRoomTaskSelection(
     return null;
   }
 
-  const selectedProcess = selectedAgentId
+  const selectedProcess = selectedAgentId && members.some((member) => member.agent_id === selectedAgentId)
     ? processByAgentId.get(selectedAgentId)
     : null;
   const process = selectedProcess ?? members.reduce<ConversationTodoProcess>(

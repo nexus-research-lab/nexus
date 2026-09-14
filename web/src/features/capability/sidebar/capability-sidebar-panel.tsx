@@ -42,7 +42,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
     <div className="flex min-h-0 flex-1 flex-col">
       <SidebarSearchField
         onChange={setQuery}
-        placeholder={t("sidebar.search_capabilities")}
+        label={t("sidebar.search_capabilities")}
         value={query}
       />
 

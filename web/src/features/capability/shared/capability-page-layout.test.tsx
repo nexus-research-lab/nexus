@@ -2,10 +2,10 @@
 // OUTPUT: 证明 Header 动作、模式标签、Typography、身份框与详情分栏语义由公共布局持有。
 // POS: 能力页共享布局 DOM 合同；各目录资源与筛选行为由所属领域测试负责。
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+
+import { CapabilityBrandIcon } from "./capability-brand-icon";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { PageHeaderActionsContext } from "@/shared/lib/react/page-header-actions-context";
@@ -16,42 +16,11 @@ import {
   CapabilityDetailSectionHeader,
   CapabilityDetailSplitLayout,
   CapabilityItemIcon,
-  CapabilityFilterSelect,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "./capability-page-layout";
 
 describe("CapabilityPageLayout", () => {
-  it("keeps category and status filters structurally identical with independent selection", async () => {
-    const user = userEvent.setup();
-    function Filters() {
-      const [category, setCategory] = useState("all");
-      const [status, setStatus] = useState("all");
-      return <>
-        <CapabilityFilterSelect ariaLabel="Category" label="Category" onChange={setCategory}
-          options={[{ label: "All", value: "all" }, { label: "Tools", value: "tools" }]} value={category} />
-        <CapabilityFilterSelect ariaLabel="Status" label="Status" onChange={setStatus}
-          options={[{ label: "All", value: "all" }, { label: "Connected", value: "connected" }]} value={status} />
-      </>;
-    }
-    render(<Filters />);
-    const category = screen.getByRole("button", { name: "Category" });
-    const status = screen.getByRole("button", { name: "Status" });
-    expect(category.className).toBe(status.className);
-    for (const trigger of [category, status]) {
-      expect(trigger.querySelectorAll("svg")).toHaveLength(1);
-      expect(within(trigger).getByText("All")).toBeTruthy();
-    }
-    await user.click(category);
-    await user.click(screen.getByRole("option", { name: "Tools" }));
-    expect(within(category).getByText("Tools")).toBeTruthy();
-    expect(within(status).getByText("All")).toBeTruthy();
-    await user.click(status);
-    await user.click(screen.getByRole("option", { name: "Connected" }));
-    expect(within(category).getByText("Tools")).toBeTruthy();
-    expect(within(status).getByText("Connected")).toBeTruthy();
-  });
-
   it("renders desktop identity and actions through the shared Header", () => {
     render(
       <CapabilityPageLayout
@@ -228,8 +197,8 @@ describe("CapabilityPageLayout", () => {
     const main = container.querySelector("[data-slot='capability-detail-main']");
 
     expect(layout?.className).toContain("max-w-[1180px]");
-    expect(aside?.className).toContain("xl:col-start-2");
-    expect(main?.className).toContain("xl:col-start-1");
+    expect(aside?.className).toContain("@[960px]/capability-detail:col-start-2");
+    expect(main?.className).toContain("@[960px]/capability-detail:col-start-1");
     expect(aside?.compareDocumentPosition(main as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.getByRole("heading", { name: "Availability" }).className)
       .toContain("ui-type-section-title");
@@ -238,4 +207,13 @@ describe("CapabilityPageLayout", () => {
     expect(screen.getByText("2/4 enabled").className)
       .toContain("ui-type-caption");
   });
+});
+
+
+it("names capability artwork with image semantics without exposing decorative children", () => {
+  const { rerender } = render(<CapabilityBrandIcon title="Mail" src="/mail.svg" />);
+  expect(screen.getByRole("img", { name: "Mail" })).toBeTruthy();
+  rerender(<CapabilityBrandIcon title="Mail" fallback="M" />);
+  expect(screen.getByRole("img", { name: "Mail" })).toBeTruthy();
+  expect(screen.getByText("M").getAttribute("aria-hidden")).toBe("true");
 });

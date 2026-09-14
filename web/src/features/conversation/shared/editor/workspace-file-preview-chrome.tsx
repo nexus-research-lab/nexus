@@ -1,14 +1,12 @@
-// INPUT: Workspace 文件层级、预览状态、文件动作与可选标题栏 Portal。
-// OUTPUT: 复用 UiBreadcrumb 的单行文件 chrome，以及统一下载、聚焦和编辑动作。
-// POS: Workspace 文件预览外壳；不读取文件内容，也不拥有全站导航视觉。
+// INPUT: Workspace 文件层级、预览状态、文件动作、owner 代次与可选标题栏 Portal。
+// OUTPUT: 共享文件 chrome；外部操作反馈只属于当前文件/owner 的最近一次操作，文案随语言更新。
+// POS: Workspace 文件预览外壳；文件动作生命周期归公共领域 Hook，不读取文件内容或拥有全站导航视觉。
 "use client";
 
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -18,12 +16,10 @@ import {
   Minimize2,
 } from "lucide-react";
 
-import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
-import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useWorkspaceFileExternalAction } from "@/hooks/agent/use-workspace-file-external-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-contract";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiBreadcrumb } from "@/shared/ui/navigation/breadcrumb";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -102,7 +98,7 @@ export function WorkspaceFilePreviewHeader({
         {meta ? (
           <div className={cn(
             "hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap sm:flex",
-            getUiTypographyClassName({ role: "caption", tone: "soft" }),
+            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
           )}>
             {meta}
           </div>
@@ -126,29 +122,14 @@ export function WorkspaceFileDownloadButton({
   path: string;
   fileName: string;
 }) {
-  const { t } = useI18n();
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
-  const [failure, setFailure] = useState<FeedbackBannerProps | null>(null);
-  const handleExternalAction = useCallback(() => {
-    setFailure(null);
-    void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
-      console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
-      setFailure({
-        impact: t("workspace_file.external_action_failed_impact"),
-        nextStep: t("workspace_file.external_action_failed_next_step"),
-        onDismiss: () => setFailure(null),
-        title: t("workspace_file.external_action_failed"),
-        tone: "error",
-        urgency: "polite",
-      });
-    });
-  }, [agentId, fileActionCopy.label, fileName, path, t]);
+  const { copy: fileActionCopy, disabled, failure, onAction } = useWorkspaceFileExternalAction({ agentId, path, fileName });
 
   return (
     <>
       <UiIconButton
         aria-label={fileActionCopy.ariaLabel}
-        onClick={handleExternalAction}
+        disabled={disabled}
+        onClick={onAction}
         size="sm"
         tooltip={fileActionCopy.title}
         variant="ghost"

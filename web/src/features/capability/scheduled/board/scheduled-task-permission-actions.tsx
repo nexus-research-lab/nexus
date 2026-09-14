@@ -1,7 +1,11 @@
+// INPUT: 当前任务权限事实、动作保护与显式命令。
+// OUTPUT: 卡片/详情共用的双语权限按钮；结果未知仍保持禁用。
+// POS: 权限动作纯视图，不推断运行状态或发起资源请求。
 "use client";
 
 import { ExternalLink, Pencil, RotateCcw } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
@@ -28,6 +32,7 @@ export function ScheduledTaskPermissionActions({
   onPermissionResume,
   task,
 }: ScheduledTaskPermissionActionsProps) {
+  const { t } = useI18n();
   const request = task.pending_permission_request;
   const state = task.permission_state?.trim() ?? "";
   const size = compact ? "xs" : "sm";
@@ -40,7 +45,7 @@ export function ScheduledTaskPermissionActions({
       tone="danger"
       variant="ghost"
     >
-      拒绝
+      {t("capability.scheduled_permission_deny")}
     </UiButton>
   ) : null;
 
@@ -58,7 +63,7 @@ export function ScheduledTaskPermissionActions({
         variant="surface"
       >
         <RotateCcw className="h-3.5 w-3.5" />
-        确认重试
+        {t("capability.scheduled_permission_resume")}
       </UiButton>
     );
   }
@@ -74,7 +79,7 @@ export function ScheduledTaskPermissionActions({
           variant="surface"
         >
           <Pencil className="h-3.5 w-3.5" />
-          编辑任务
+          {t("capability.scheduled_dialog_edit_title")}
         </UiButton>
         {denyButton}
       </>
@@ -93,7 +98,7 @@ export function ScheduledTaskPermissionActions({
             variant="surface"
           >
             <ExternalLink className="h-3.5 w-3.5" />
-            重新连接
+            {t("capability.scheduled_permission_reconnect")}
           </UiButton>
         ) : null}
         <UiButton
@@ -104,7 +109,7 @@ export function ScheduledTaskPermissionActions({
           tone="primary"
           variant="surface"
         >
-          已连接，继续
+          {t("capability.scheduled_permission_continue")}
         </UiButton>
         {denyButton}
       </>
@@ -122,7 +127,7 @@ export function ScheduledTaskPermissionActions({
           tone="primary"
           variant="surface"
         >
-          {compact ? "仅本次" : "仅本次允许"}
+          {t(compact ? "capability.scheduled_permission_once_short" : "capability.scheduled_permission_once")}
         </UiButton>
         <UiButton
           className={actionClassName}
@@ -131,7 +136,7 @@ export function ScheduledTaskPermissionActions({
           size={size}
           variant="surface"
         >
-          {compact ? "始终允许" : "此任务始终允许"}
+          {t(compact ? "capability.scheduled_permission_always_short" : "capability.scheduled_permission_always")}
         </UiButton>
         {denyButton}
       </>
@@ -148,7 +153,7 @@ export function ScheduledTaskPermissionActions({
         variant="surface"
       >
         <Pencil className="h-3.5 w-3.5" />
-        编辑任务
+        {t("capability.scheduled_dialog_edit_title")}
       </UiButton>
     );
   }

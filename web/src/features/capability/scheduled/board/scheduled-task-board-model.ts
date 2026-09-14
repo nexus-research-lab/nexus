@@ -4,6 +4,7 @@
  * POS: 定时任务看板唯一纯投影模型。
  */
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-types";
@@ -143,25 +144,25 @@ export function buildScheduledTaskSuggestions(
   ];
 }
 
-export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] = [
+const SCHEDULED_TASK_BOARD_COLUMNS: (Omit<ScheduledTaskBoardColumnDefinition, "title"> & { titleKey: TranslationKey })[] = [
   {
     id: "running",
-    title: "执行中",
+    titleKey: "capability.scheduled_column_running",
     tone: "primary",
   },
   {
     id: "scheduled",
-    title: "已计划",
+    titleKey: "capability.scheduled_column_scheduled",
     tone: "success",
   },
   {
     id: "attention",
-    title: "需处理",
+    titleKey: "capability.scheduled_column_attention",
     tone: "warning",
   },
   {
     id: "stopped",
-    title: "已停止",
+    titleKey: "capability.scheduled_column_stopped",
     tone: "muted",
   },
 ];
@@ -193,41 +194,43 @@ export function isScheduledTaskDeleting(task: ScheduledTaskItem): boolean {
 
 function getDeletionPresentation(
   task: ScheduledTaskItem,
+  t: Translate,
 ): ScheduledTaskDeletionPresentation | null {
   if (!isScheduledTaskDeleting(task)) {
     return null;
   }
   if (task.deletion_state?.trim() === "review_required") {
     return {
-      description: "任务已停止接受新操作，但系统无法确认删除前的原执行是否已经停止，因此任务数据尚未删除。",
-      impact: "任务配置和运行记录仍然保留。继续确认后会删除任务和历史，但任务此前产生的外部影响无法撤回。系统不会自动重做脚本、外部操作或结果投递。",
-      nextStep: "请先确认原执行端已经停止，再使用“确认已停止，继续删除”完成处理；也可以先刷新状态或查看运行历史。",
-      title: "删除需要管理员处理",
+      description: t("capability.scheduled_board_review_description"),
+      impact: t("capability.scheduled_board_review_impact"),
+      nextStep: t("capability.scheduled_delete_review_required_next_step"),
+      title: t("capability.scheduled_delete_review_required_title"),
     };
   }
   return {
-    description: "删除请求已受理，系统正在停止任务并收尾关联运行。",
-    impact: "已保存的运行记录不会被重写。已经完成的外部操作或已送达的消息不会被撤销，也不会自动重做。",
-    nextStep: "无需再次删除。请等待片刻后刷新任务列表；也可以先查看运行历史。任务从列表消失后，删除才算完成。",
-    title: "任务正在删除",
+    description: t("capability.scheduled_board_finishing_description"),
+    impact: t("capability.scheduled_board_finishing_impact"),
+    nextStep: t("capability.scheduled_board_finishing_next"),
+    title: t("capability.scheduled_board_deleting_title"),
   };
 }
 
 function getBindingPresentation(
   task: ScheduledTaskItem,
+  t: Translate,
 ): ScheduledTaskBindingPresentation | null {
   if (task.session_binding_state !== "rebind_required") {
     return null;
   }
   const issues = new Set(task.session_binding_issues ?? []);
   const description = issues.has("execution") && issues.has("delivery")
-    ? "执行会话和结果投递会话已删除。编辑任务并重新选择两个会话后才能恢复。"
+    ? t("capability.scheduled_board_rebind_both")
     : issues.has("delivery")
-      ? "结果投递会话已删除。编辑任务并重新选择投递会话后才能恢复。"
-      : "执行会话已删除。编辑任务并重新选择执行会话后才能恢复。";
+      ? t("capability.scheduled_board_rebind_delivery")
+      : t("capability.scheduled_board_rebind_execution");
   return {
     description,
-    title: "需要重新绑定会话",
+    title: t("capability.scheduled_board_rebind_required"),
   };
 }
 
@@ -243,6 +246,7 @@ function isActionablePermissionState(state: string | null | undefined): boolean 
 
 function getPermissionPresentation(
   task: ScheduledTaskItem,
+  t: Translate,
 ): ScheduledTaskPermissionPresentation | null {
   const state = task.permission_state?.trim() ?? "";
   if (!isActionablePermissionState(state)) {
@@ -251,24 +255,24 @@ function getPermissionPresentation(
   const request = task.pending_permission_request;
   const defaults: Record<string, { description: string; title: string }> = {
     awaiting_approval: {
-      description: "确认后才能继续使用本次运行需要的能力。",
-      title: "等待权限确认",
+      description: t("capability.scheduled_board_approval_description"),
+      title: t("capability.scheduled_board_approval_title"),
     },
     awaiting_input: {
-      description: "请编辑任务，把后台运行所需的信息写入任务配置。",
-      title: "需要补充任务信息",
+      description: t("capability.scheduled_board_input_description"),
+      title: t("capability.scheduled_board_input_title"),
     },
     awaiting_reauth: {
-      description: "任务授权仍有效，但连接器需要重新连接。",
-      title: "连接已失效",
+      description: t("capability.scheduled_board_reauth_description"),
+      title: t("capability.scheduled_board_reauth_title"),
     },
     denied: {
-      description: "本次运行已结束；可修改任务或重新手动运行。",
-      title: "权限请求已拒绝",
+      description: t("capability.scheduled_board_denied_description"),
+      title: t("capability.scheduled_board_denied_title"),
     },
     ready_to_retry: {
-      description: "此前运行的副作用状态待核对，确认后才会重试。",
-      title: "等待确认重试",
+      description: t("capability.scheduled_board_retry_description"),
+      title: t("capability.scheduled_board_retry_title"),
     },
   };
   const fallback = defaults[state];
@@ -276,97 +280,103 @@ function getPermissionPresentation(
   const description = request?.description?.trim() || fallback.description;
   return {
     description: request
-      ? getScheduledPermissionDisplayDescription(request, description)
+      ? getScheduledPermissionDisplayDescription(request, description, t)
       : description,
     state,
     title: request
-      ? getScheduledPermissionDisplayTitle(request, title)
+      ? getScheduledPermissionDisplayTitle(request, title, t)
       : title,
   };
 }
 
-function getRunStatusLabel(status: string | null | undefined): string {
+function getRunStatusLabel(status: string | null | undefined, t: Translate): string {
   const labels: Record<string, string> = {
-    cancelled: "已取消",
-    failed: "失败",
-    pending: "等待中",
-    queued_to_main_session: "已进入主会话",
-    running: "运行中",
-    skipped: "已跳过",
-    succeeded: "成功",
+    cancelled: t("capability.scheduled_board_run_cancelled"),
+    failed: t("capability.scheduled_board_run_failed"),
+    pending: t("capability.scheduled_board_run_pending"),
+    queued_to_main_session: t("capability.scheduled_board_run_queued"),
+    running: t("capability.scheduled_history_task_running"),
+    skipped: t("capability.scheduled_board_run_skipped"),
+    succeeded: t("capability.scheduled_history_run_succeeded"),
   };
-  return status ? labels[status] ?? status : "尚未执行";
+  return status ? labels[status] ?? t("capability.scheduled_board_run_unknown_status") : t("capability.scheduled_board_never_run");
 }
 
-function getContextLabel(task: ScheduledTaskItem): string {
+function getContextLabel(task: ScheduledTaskItem, t: Translate): string {
   const contextLabel = task.source?.context_label?.trim();
   if (task.source?.context_type === "room" && contextLabel) {
-    return `Room · ${contextLabel}`;
+    return t("capability.scheduled_board_room_context", { name: contextLabel });
   }
   if (task.source?.context_type === "agent"
     && task.source.context_id?.trim() === task.agent_id.trim()
     && contextLabel) {
     return contextLabel;
   }
-  return task.execution_kind === "script" ? "工作区脚本" : task.agent_id;
+  return t(task.execution_kind === "script"
+    ? "capability.scheduled_context_script"
+    : "capability.scheduled_context_agent");
 }
 
-function getStoppedTimingSummary(task: ScheduledTaskItem): string {
-  const lastRun = formatScheduledDatetime(task.last_run_at, { emptyLabel: "尚未执行" });
+function getStoppedTimingSummary(task: ScheduledTaskItem, t: Translate, locale: string): string {
+  const lastRun = formatScheduledDatetime(task.last_run_at, { locale, emptyLabel: t("capability.scheduled_board_never_run") });
   if (task.schedule.kind === "at" && task.last_run_status === "succeeded") {
-    return `已于 ${lastRun} 完成`;
+    return t("capability.scheduled_board_completed_at", { time: lastRun });
   }
   return task.last_run_at
-    ? `最近${getRunStatusLabel(task.last_run_status)} · ${lastRun}`
-    : "尚未执行";
+    ? t("capability.scheduled_board_last_run", { status: getRunStatusLabel(task.last_run_status, t), time: lastRun })
+    : t("capability.scheduled_board_never_run");
 }
 
 function getTimingSummary(
   task: ScheduledTaskItem,
   columnId: ScheduledTaskBoardColumnId,
+  t: Translate,
+  locale: string,
 ): string {
   if (columnId === "running") {
-    return `开始于 ${formatScheduledDatetime(task.running_started_at, {
-      emptyLabel: "刚刚",
+    return t("capability.scheduled_board_started_at", { time: formatScheduledDatetime(task.running_started_at, { locale,
+      emptyLabel: t("capability.scheduled_board_time_missing"),
       includeSeconds: true,
-    })}`;
+    }) });
   }
   if (columnId === "scheduled") {
-    return `下次 ${formatScheduledDatetime(task.next_run_at, { emptyLabel: "等待安排" })}`;
+    return t("capability.scheduled_board_next_at", { time: formatScheduledDatetime(task.next_run_at, { locale, emptyLabel: t("capability.scheduled_board_unscheduled") }) });
   }
   if (columnId === "attention") {
     if (isScheduledTaskDeleting(task)) {
       return task.deletion_state?.trim() === "review_required"
-        ? "删除已暂停 · 等待管理员处理"
-        : "删除已受理 · 正在收尾";
+        ? t("capability.scheduled_board_delete_paused")
+        : t("capability.scheduled_board_delete_finishing");
     }
     if (task.session_binding_state === "rebind_required") {
-      return "任务已暂停 · 等待重新绑定";
+      return t("capability.scheduled_board_paused_rebind");
     }
-    const permission = getPermissionPresentation(task);
+    const permission = getPermissionPresentation(task, t);
     if (permission) {
       const requestedAt = Date.parse(task.pending_permission_request?.created_at ?? "");
       return Number.isFinite(requestedAt)
-        ? `请求于 ${formatScheduledDatetime(requestedAt)}`
-        : "等待处理";
+        ? t("capability.scheduled_board_requested_at", { time: formatScheduledDatetime(requestedAt, { locale }) })
+        : t("capability.scheduled_board_waiting");
     }
-    return `${task.failure_streak} 次失败 · ${formatScheduledDatetime(task.last_run_at, {
-      emptyLabel: "时间未知",
-    })}`;
+    return t("capability.scheduled_board_failures_at", { count: task.failure_streak, time: formatScheduledDatetime(task.last_run_at, { locale,
+      emptyLabel: t("capability.scheduled_board_time_unknown"),
+    }) });
   }
-  return getStoppedTimingSummary(task);
+  return getStoppedTimingSummary(task, t, locale);
 }
 
 export function getScheduledTaskCardPresentation(
   task: ScheduledTaskItem,
   pending: ScheduledTaskCardPendingState,
+  t: Translate,
+  locale = "zh",
 ): ScheduledTaskCardPresentation {
   const columnId = getTaskColumnId(task);
-  const deletion = getDeletionPresentation(task);
+  const deletion = getDeletionPresentation(task, t);
   const deletionNeedsReview = task.deletion_state?.trim() === "review_required";
   // durable 删除态拥有专用语义：收尾期间不误展示旧权限或绑定动作。
-  const binding = deletion ? null : getBindingPresentation(task);
-  const permission = deletion ? null : getPermissionPresentation(task);
+  const binding = deletion ? null : getBindingPresentation(task, t);
+  const permission = deletion ? null : getPermissionPresentation(task, t);
   const permissionBlocksRun = permission !== null && permission.state !== "denied";
   // last_error 描述上一段已经结束的执行；新 attempt 运行期间只呈现当前状态，
   // 若本次仍失败，完成快照会再带回新的诊断。
@@ -374,7 +384,7 @@ export function getScheduledTaskCardPresentation(
   return {
     binding,
     columnId,
-    contextLabel: getContextLabel(task),
+    contextLabel: getContextLabel(task, t),
     deletion,
     deleteDisabled: deletion !== null
       || pending.isDeleting
@@ -395,22 +405,22 @@ export function getScheduledTaskCardPresentation(
         || deletion !== null,
       title: deletion
         ? deletionNeedsReview
-          ? "删除需要管理员处理，任务不会再启动"
-          : "删除已受理，任务不会再启动"
+          ? t("capability.scheduled_board_run_delete_review")
+          : t("capability.scheduled_board_run_deleting")
         : pending.isRunUnconfirmed
-        ? "上次运行请求结果待确认，请先刷新任务状态"
+        ? t("capability.scheduled_history_retry_check")
         : pending.isPermissionUnconfirmed
-          ? "上次权限操作结果待确认，请先刷新任务状态"
+          ? t("capability.scheduled_board_permission_unknown")
           : binding
-        ? "请先重新绑定有效会话"
+        ? t("capability.scheduled_board_run_rebind")
         : permissionBlocksRun
-        ? "请先处理任务权限"
+        ? t("capability.scheduled_board_run_permission")
         : task.running
-          ? "任务当前正在运行"
-          : "立即运行一次",
+          ? t("capability.scheduled_history_retry_running")
+          : t("capability.scheduled_board_run_now"),
     },
-    scheduleSummary: formatScheduledTaskSchedule(task.schedule),
-    timingSummary: getTimingSummary(task, columnId),
+    scheduleSummary: formatScheduledTaskSchedule(task.schedule, t, locale),
+    timingSummary: getTimingSummary(task, columnId, t, locale),
     toggleAction: {
       disabled: pending.isToggling
         || Boolean(pending.isToggleUnconfirmed)
@@ -418,19 +428,19 @@ export function getScheduledTaskCardPresentation(
         || binding !== null
         || deletion !== null,
       label: deletion
-        ? deletionNeedsReview ? "删除待处理" : "删除收尾中"
+        ? deletionNeedsReview ? t("capability.scheduled_history_deletion_review") : t("capability.scheduled_history_deletion_finishing")
         : pending.isToggleUnconfirmed
-        ? "状态待确认"
-        : binding ? "等待重新绑定" : task.enabled ? "暂停调度" : "恢复调度",
+        ? t("capability.scheduled_board_waiting")
+        : binding ? t("capability.scheduled_board_awaiting_rebind") : task.enabled ? t("capability.scheduled_board_pause") : t("capability.scheduled_board_resume"),
       title: deletion
         ? deletionNeedsReview
-          ? "删除正在等待管理员处理，无法更改调度状态"
-          : "删除已受理，无需再更改调度状态"
+          ? t("capability.scheduled_board_toggle_delete_review")
+          : t("capability.scheduled_board_toggle_deleting")
         : pending.isToggleUnconfirmed
-        ? "上次状态修改结果待确认，请先刷新任务状态"
+        ? t("capability.scheduled_board_toggle_unknown")
         : binding
-        ? "编辑任务并替换所有已删除会话后才能恢复调度"
-        : task.enabled ? "暂停后不再自动触发" : "恢复后重新参与调度",
+        ? t("capability.scheduled_board_toggle_rebind")
+        : task.enabled ? t("capability.scheduled_board_pause_hint") : t("capability.scheduled_board_resume_hint"),
     },
   };
 }
@@ -455,9 +465,12 @@ function sortColumnItems(
 
 export function buildScheduledTaskBoard(
   items: ScheduledTaskItem[],
+  t: Translate,
 ): ScheduledTaskBoardColumn[] {
   return SCHEDULED_TASK_BOARD_COLUMNS.map((column) => ({
-    ...column,
+    id: column.id,
+    tone: column.tone,
+    title: t(column.titleKey),
     items: sortColumnItems(
       column.id,
       items.filter((task) => getTaskColumnId(task) === column.id),

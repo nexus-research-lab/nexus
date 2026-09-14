@@ -5,6 +5,7 @@
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 
 interface TimePickerColumnProps<T extends string> {
+  label?: string;
   getLabel?: (value: T) => string;
   isDisabled?: (value: T) => boolean;
   onSelect: (value: T) => void;
@@ -13,6 +14,7 @@ interface TimePickerColumnProps<T extends string> {
 }
 
 export function TimePickerColumn<T extends string>({
+  label,
   getLabel,
   isDisabled,
   onSelect,
@@ -20,7 +22,7 @@ export function TimePickerColumn<T extends string>({
   value,
 }: TimePickerColumnProps<T>) {
   return (
-    <div className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
+    <div aria-label={label} role={label ? "group" : undefined} className="max-h-[240px] space-y-2 overflow-y-auto pr-1">
       {options.map((option) => {
         const disabled = isDisabled?.(option) ?? false;
         return (

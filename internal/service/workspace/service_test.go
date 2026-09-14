@@ -239,9 +239,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"在 Nexus 对话中生成交互式图表",
 			"Call `show_widget`",
 			"Network access and external resources are allowed without a domain allowlist",
+			"--nexus-chart-1",
+		},
+		filepath.Join("visualize", "references", "interaction.md"): {
 			"Never call `.addEventListener` directly",
 			"Missing widget element",
-			"--nexus-chart-1",
 		},
 		filepath.Join("goal-manager", "SKILL.md"): {
 			"nexus.command",
@@ -273,7 +275,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"不是完成门槛",
 		},
 		filepath.Join("execution-orchestrator", "SKILL.md"): {
-			"Goal 管理“什么目标需要跨轮持续追求”",
 			"nexus.command",
 			`{"domain":"execution","action":"contract","operation":"<operation>"}`,
 			"additionalProperties=false",

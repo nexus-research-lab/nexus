@@ -36,7 +36,7 @@ export function NamedWorkGraphSketch({
     <div
       aria-label={t("execution.workflow_sketch_label")}
       className={cn(
-        "soft-scrollbar overflow-x-auto surface-radius-md border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--surface-muted-background)_88%,transparent)] p-4",
+        "soft-scrollbar overflow-x-auto surface-radius-md border border-(--divider-subtle-color) bg-(--surface-muted-background) p-4",
         className,
       )}
       data-workgraph-sketch

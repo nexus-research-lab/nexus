@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话的 Agent、workspace 选择与文件面板交互。
- * OUTPUT: 文件资源、命令、弹窗与精简全局反馈的统一控制器。
+ * OUTPUT: 文件资源、命令、弹窗与唯一读取失败展示面；无缓存失败留在目录正文。
  * POS: Room/DM workspace 组合边界；资源刷新失败不覆盖已确认的修改结果。
  */
 
@@ -77,11 +77,11 @@ export function useRoomWorkspaceController({
     },
   });
   const clearCommandFeedback = commands.clearFeedback;
-  const clearResourceError = resource.clearError;
+  const dismissResourceError = resource.dismissError;
   const clearFeedback = useCallback(() => {
-    clearResourceError();
+    dismissResourceError();
     clearCommandFeedback();
-  }, [clearCommandFeedback, clearResourceError]);
+  }, [clearCommandFeedback, dismissResourceError]);
   const reloadFiles = resource.reload;
   const feedback = useMemo<FeedbackBannerProps | null>(() => {
     if (commands.feedback) {
@@ -89,7 +89,8 @@ export function useRoomWorkspaceController({
       feedbackWithDismiss.onDismiss = clearFeedback;
       return feedbackWithDismiss;
     }
-    if (!resource.errorMessage) {
+    // 没有缓存时由目录正文持有唯一恢复入口，不能同时宣称“暂无文件”。
+    if (!resource.errorFeedbackVisible || resource.files.length === 0) {
       return null;
     }
     return {
@@ -106,7 +107,8 @@ export function useRoomWorkspaceController({
     clearFeedback,
     commands.feedback,
     reloadFiles,
-    resource.errorMessage,
+    resource.errorFeedbackVisible,
+    resource.files.length,
     t,
   ]);
   const loadOpenApplications = commands.loadOpenApplications;
@@ -140,6 +142,8 @@ export function useRoomWorkspaceController({
       handleRootContextMenu: interaction.openRootContextMenu,
       handleUploadClick: interaction.openUpload,
       isLoadingFiles: resource.isLoading,
+      hasLoadError: resource.hasError,
+      handleReloadFiles: reloadFiles,
       isMutating,
       isUploading: commands.activeCommand === "upload",
       openCreatePrompt: interaction.openCreatePrompt,

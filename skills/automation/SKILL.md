@@ -21,7 +21,7 @@ Automation 使用宿主提供的 `nexus.command`，并绑定当前 owner、Agent
    严格遵守返回的 contract。不要探测命令路径、临时文件或环境变量。
 2. 只选择 current contract 实际列出的 operation。每次新输入前重新读取该 operation 的 exact contract，并把完整 closed object 直接放在 `input` 字段中；不要落盘或通过 shell 转码。
 3. query 使用 `inspect`。mutation 固定走 `inspect → plan → apply → verify`：先定位唯一任务与 revision；检查 plan 的 normalized input、target、summary、risk、`current_revision` 和 `plan_digest`；apply 时复用同一结构化 input。
-4. apply 使用 plan 的 `current_revision` 和稳定 request ID，并由当前 Nexus/Room/IM 会话发起原生真人确认。没有真实 allow 就没有写入；plan 本身不代表用户批准或状态已改变。
+4. apply 的顶层 `expected_revision` 原样复制 plan 的 `current_revision`，顶层 `plan_digest` 原样复制同一 plan 的 `plan_digest`，业务参数使用该 plan 返回的 `input`。顶层 `request_id` 遵循工具 schema，同一意图重试保持不变，结果未知先 inspect 对账。缺字段按错误补齐；revision/digest 失配先重新 plan，不重复旧调用。由当前 Nexus/Room/IM 会话发起原生真人确认。没有真实 allow 就没有写入；plan 本身不代表用户批准或状态已改变。
 5. apply 后用 fresh input inspect `get`；执行/投递问题读取 runs、events 或 report。只按返回的 typed object 判断结果。
 
 ## 按当前动作读取参考

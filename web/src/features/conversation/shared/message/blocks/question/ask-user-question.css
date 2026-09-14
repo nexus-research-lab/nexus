@@ -43,7 +43,7 @@
 
 .ask-user-question-option:has(input:focus-visible),
 .ask-user-question-custom-answer:has(textarea:focus-visible) {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 36%, transparent);
+  box-shadow: 0 0 0 2px var(--ring);
 }
 
 .ask-user-question-option[data-read-only="true"],
@@ -82,10 +82,6 @@
   border-color: color-mix(in srgb, var(--primary) 52%, var(--divider-strong-color));
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 9%, transparent);
-}
-
-.ask-user-question-custom-answer textarea {
-  field-sizing: content;
 }
 
 @media (prefers-reduced-motion: no-preference) {

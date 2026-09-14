@@ -3,6 +3,7 @@
  * OUTPUT: 单行、可点击且不重复展示 live progress 的子智能体任务入口。
  * POS: Agent/Task 工具在消息流中的紧凑导航视图；任务详情仍由右侧子智能体面板持有。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
   Clock3,
@@ -88,21 +89,20 @@ export function SubagentTaskToolEntry({
         size="2xs"
       />
       <span className="min-w-0 flex-1 truncate">{taskTitle}</span>
-      <span
+      <UiTooltip label={model.statusText}><span
         aria-hidden="true"
         className={cn(
           "flex h-4 w-4 shrink-0 items-center justify-center",
           STATUS_TONE_CLASS[model.statusTone],
         )}
         data-subagent-task-status={model.status}
-        title={model.statusText}
       >
         <StatusIcon
           className={statusIcon.spinning
             ? getUiSpinnerClassName({ size: "sm" })
             : "h-3.5 w-3.5"}
         />
-      </span>
+      </span></UiTooltip>
     </UiButton>
   );
 }

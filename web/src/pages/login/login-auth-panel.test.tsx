@@ -124,6 +124,8 @@ describe("LoginAuthPanel shared form", () => {
     const submit = screen.getByRole("button", { name: /login\.(submit|submitting)$/ });
     expect((submit as HTMLButtonElement).disabled).toBe(true);
     expect(submit.getAttribute("aria-busy")).toBe("isSubmitting" in props ? "true" : null);
+    expect((screen.getByLabelText("login.username") as HTMLInputElement).disabled).toBe("isSubmitting" in props);
+    expect((screen.getByLabelText("login.password") as HTMLInputElement).disabled).toBe("isSubmitting" in props);
     expect((screen.getByLabelText("login.username") as HTMLInputElement).value).toBe("owner");
     expect((screen.getByLabelText("login.password") as HTMLInputElement).value).toBe("draft-password");
     await user.click(submit);
@@ -146,4 +148,16 @@ describe("LoginAuthPanel shared form", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
     expect(onSubmit).not.toHaveBeenCalled();
   });
+});
+
+
+it("keeps mounted login panels' labels and headings isolated", () => {
+  renderPanel();
+  renderPanel();
+  const usernames = screen.getAllByLabelText("login.username");
+  const passwords = screen.getAllByLabelText("login.password");
+  const headings = screen.getAllByRole("heading", { name: "login.title" });
+  const ids = [...usernames, ...passwords, ...headings].map((element) => element.id);
+  expect(new Set(ids).size).toBe(6);
+  for (const heading of headings) expect(heading.parentElement?.getAttribute("aria-labelledby")).toBe(heading.id);
 });

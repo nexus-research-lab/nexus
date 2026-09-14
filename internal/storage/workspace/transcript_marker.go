@@ -1,5 +1,5 @@
 // INPUT: 已筛选 transcript 链、durable round marker 与用户输入时间。
-// OUTPUT: 与正式历史投影一一对应且不会跨可见性错绑的 round marker。
+// OUTPUT: 与正式历史投影一一对应、识别空白 Goal 续跑且不会跨可见性错绑的 round marker。
 // POS: transcript 用户轮次与 Nexus durable round 身份的唯一对齐边界。
 package workspace
 
@@ -43,7 +43,7 @@ func alignTranscriptRoundMarkersWithFilter(
 	}
 
 	for index, turn := range userTurns {
-		if transcriptRoundMarkerPresent(aligned[index]) {
+		if turn.Empty || transcriptRoundMarkerPresent(aligned[index]) {
 			continue
 		}
 		markerIndex := findCompatibleFallbackRoundMarker(roundMarkers, used, turn)
@@ -53,6 +53,34 @@ func alignTranscriptRoundMarkersWithFilter(
 		aligned[index] = roundMarkers[markerIndex]
 		used[markerIndex] = true
 	}
+	// nxs 在 user 落盘前提取隐藏 reminder，Goal-only 输入因此可能是空串。
+	// 先保留所有显式输入的匹配，再仅用隐藏 Goal marker 恢复这类边界。
+	for index, turn := range userTurns {
+		if !turn.Empty {
+			continue
+		}
+		markerIndex := findCompatibleFallbackRoundMarker(roundMarkers, used, turn)
+		if markerIndex < 0 {
+			continue
+		}
+		marker := roundMarkers[markerIndex]
+		distance, _ := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
+		uniqueClosest := true
+		for otherIndex, other := range userTurns {
+			if otherIndex == index || !other.Empty || transcriptRoundMarkerPresent(aligned[otherIndex]) ||
+				!roundMarkerFallbackCompatible(other, marker) {
+				continue
+			}
+			if otherDistance, ok := transcriptRoundMarkerDistance(other.Timestamp, marker.Timestamp); ok && otherDistance <= distance {
+				uniqueClosest = false
+				break
+			}
+		}
+		if uniqueClosest {
+			aligned[index] = marker
+			used[markerIndex] = true
+		}
+	}
 	return aligned
 }
 
@@ -60,6 +88,7 @@ type transcriptUserTurn struct {
 	Content         string
 	Timestamp       int64
 	GoalContextOnly bool
+	Empty           bool
 }
 
 func collectTranscriptUserTurns(
@@ -80,11 +109,17 @@ func collectTranscriptUserTurns(
 		}
 		if decoded.Type == sdkprotocol.MessageTypeUser &&
 			!isTranscriptToolResult(decoded) &&
-			shouldMaterializeTranscriptUserTurn(entry.Data) {
+			shouldAlignTranscriptUserTurn(entry.Data) {
+			empty := isEmptyTranscriptUserTurn(entry.Data)
+			if empty {
+				// 空串没有正文证据，不允许继承上一条消息的时间来匹配 marker。
+				entryTimestamp = transcriptEntryTimestamp(entry.Data, -1, 0)
+			}
 			turns = append(turns, transcriptUserTurn{
 				Content:         transcriptUserContent(entry.Data),
 				Timestamp:       entryTimestamp,
 				GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(entry.Data),
+				Empty:           empty,
 			})
 		}
 	}
@@ -130,6 +165,7 @@ func findCompatibleFallbackRoundMarker(
 
 	bestIndex := -1
 	var bestDistance int64
+	ambiguous := false
 	for index, marker := range roundMarkers {
 		if index < len(used) && used[index] {
 			continue
@@ -148,14 +184,22 @@ func findCompatibleFallbackRoundMarker(
 			continue
 		}
 		if bestIndex < 0 || distance < bestDistance || (distance == bestDistance && index > bestIndex) {
+			ambiguous = turn.Empty && bestIndex >= 0 && distance == bestDistance
 			bestIndex = index
 			bestDistance = distance
 		}
+	}
+	if ambiguous {
+		return -1
 	}
 	return bestIndex
 }
 
 func roundMarkerFallbackCompatible(turn transcriptUserTurn, marker transcriptRoundMarker) bool {
+	if turn.Empty {
+		return turn.Timestamp > 0 && marker.Timestamp > 0 && marker.HiddenFromUser &&
+			strings.TrimSpace(marker.Purpose) == "goal_continuation" && strings.TrimSpace(marker.Content) == ""
+	}
 	if turn.GoalContextOnly {
 		return marker.HiddenFromUser &&
 			(marker.Synthetic || strings.TrimSpace(marker.Purpose) == "goal_continuation")
@@ -189,6 +233,22 @@ func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
 	return transcriptUserContent(entry) != "" ||
 		isTranscriptGoalContextOnlyUserTurn(entry) ||
 		message.IsInternalExplicitSkillPrompt(transcriptRawUserContent(entry))
+}
+
+func shouldAlignTranscriptUserTurn(entry map[string]any) bool {
+	return shouldMaterializeTranscriptUserTurn(entry) || isEmptyTranscriptUserTurn(entry)
+}
+
+func isEmptyTranscriptUserTurn(entry map[string]any) bool {
+	messageValue, _ := entry["message"].(map[string]any)
+	switch content := messageValue["content"].(type) {
+	case string:
+		return strings.TrimSpace(content) == ""
+	case []any:
+		return len(content) == 0
+	default:
+		return false
+	}
 }
 
 func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {

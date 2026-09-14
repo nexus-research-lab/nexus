@@ -1,6 +1,13 @@
 # 恢复、对齐与 Goal bridge
 
-只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理 Execution/Goal 收口时读取本文件。字段与枚举以 fresh exact contract 为准。
+只在调用 `block_work`、`resume_work`、`audit_execution_alignment`、`promote_execution_to_goal`，或处理入口错误、Execution/Goal 收口时读取本文件。字段与枚举以 fresh exact contract 为准。
+
+## 固定 inspect 入口与调用纠正
+
+- 工具 contract 的 `inspect_operation` 标识固定入口：`execution/get_execution` 调用 `{"domain":"execution","action":"inspect"}`，`goal/get_goal` 调用 `{"domain":"goal","action":"inspect"}`；省略 `operation`，无需 `request_id`。`next_actions` 中的这两个语义名称也按此映射，不能机械复制成 invoke。
+- 误用 invoke，或 inspect 仍携带 operation 时，按错误返回的 JSON 修正调用；只保留该操作 schema 允许的 input（如历史图的 `execution_id`）。这是入口错误，补 request_id、重复原调用或等待工具注册都不能解决，也不因此阻塞工作或要求用户重新开始。
+- `action=contract, operation=get_execution|get_goal` 仍可读取精确 schema。其他 operation 按 contract 调用；名字含 inspect/get 并不意味着使用固定 inspect 入口。隐藏草图编辑会话只使用其已绑定的 revise/select 目录。
+- 入口纠正不授予权限。仍服从最新 lane/binding；`round_refresh_required` 继续结束旧轮，不把入口纠正当作重新取得 authority 的办法。
 
 ## block_work 与 resume_work
 

@@ -37,6 +37,11 @@ describe("TourOverlayCard", () => {
       </I18nProvider>,
     );
 
+    const region = screen.getByRole("region", { name: "前端设计系统" });
+    expect(document.getElementById(region.getAttribute("aria-describedby")!)?.textContent)
+      .toBe("了解统一组件、交互与页面结构。");
+    expect(region.hasAttribute("aria-modal")).toBe(false);
+
     expect(screen.getByRole("heading", { name: "前端设计系统" }).className)
       .toContain("ui-type-page-title");
     expect(screen.getByText("了解统一组件、交互与页面结构。").className)

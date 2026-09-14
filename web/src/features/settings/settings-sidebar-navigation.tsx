@@ -1,8 +1,17 @@
+// INPUT: 设置导航权限、查询与路由动作。
+// OUTPUT: 默认完整返回与搜索图标同排，搜索时收起返回文案并展开输入、分组标题下选项统一缩进的宽侧栏，或紧凑导航轨。
+// POS: 设置导航视图，复用公共输入与按钮，不执行设置写入。
 "use client";
+
+import { useCallback, useState } from "react";
 
 import {
   ArrowLeft,
+  Building2,
+  Search,
   Cable,
+  CreditCard,
+  ListChecks,
   Chrome,
   Cpu,
   FolderKanban,
@@ -13,27 +22,37 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
+
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
-import { UiIconButton } from "@/shared/ui/button/button";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { canUseOperations } from "./operations/operations-access";
 import {
   SETTINGS_NAVIGATION_GROUPS,
+  isOperationsSection,
   type SettingsSectionKey,
 } from "./settings-navigation-model";
 import {
   SettingsNavigationButton,
   SettingsNavigationGroupLabel,
 } from "./shared/settings-panel-ui";
+import { SETTINGS_SEARCH_ITEMS } from "./settings-search-items";
 import { useSettingsNavigation } from "./use-settings-navigation";
 
 const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   appearance: Palette,
   general: Settings2,
   runtime: Cpu,
-  operations: ShieldCheck,
+  "operations-organization": Building2,
+  "operations-subscriptions": CreditCard,
+  "operations-plans": ListChecks,
+  "operations-providers": Cable,
+  "operations-projects": FolderKanban,
   permissions: ShieldCheck,
 	browser: Chrome,
   personal: UserRound,
@@ -43,21 +62,38 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
 
 export function SettingsSidebarNavigation({
   variant,
+  onNavigate,
 }: {
   variant: "panel" | "rail";
+  onNavigate?: () => void;
 }) {
   const { t } = useI18n();
   const { status } = useAuth();
-  const { activeSection, backToWorkspace, selectSection } =
+  const projectPermissionsEnabled = useProjectPermissionsEnabled();
+  const { activeSection, backToWorkspace, selectSection: navigateToSection } =
     useSettingsNavigation();
+  const selectSection = (...args: Parameters<typeof navigateToSection>) => {
+    navigateToSection(...args);
+    onNavigate?.();
+  };
   const isRail = variant === "rail";
+  const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const focusSearch = useCallback((input: HTMLInputElement | null) => { input?.focus(); }, []);
+  const matcher = createUiSearchMatcher(isRail ? "" : query);
+  const searchItems = (section: SettingsSectionKey) => SETTINGS_SEARCH_ITEMS[section].filter(
+    (fields) => (isDesktopRuntime() || (fields[0] !== "settings.providers.ccswitch_title" && !fields[0].startsWith("settings.desktop.")))
+      && !matcher.empty && matcher.matches(fields.map((key) => t(key))),
+  );
   const navigationGroups = SETTINGS_NAVIGATION_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter(
       (item) =>
+        (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
+        (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
 				(item.key !== "browser" || isDesktopRuntime()) &&
-        (item.key !== "operations" ||
+        (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),
   })).filter((group) => group.items.length > 0);
@@ -93,28 +129,59 @@ export function SettingsSidebarNavigation({
       aria-label={t("settings.title")}
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
-      <SettingsNavigationButton
-        className="mb-3"
-        onClick={backToWorkspace}
+      <div
+        className="mb-4 flex min-w-0 shrink-0 items-center gap-2"
+        onBlur={(event) => {
+          if (!query && !event.currentTarget.contains(event.relatedTarget)) setSearchOpen(false);
+        }}
       >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        <span>{t("settings.back_to_workspace")}</span>
-      </SettingsNavigationButton>
-
+        <UiButton
+          className="shrink-0 whitespace-nowrap px-2"
+          onClick={backToWorkspace}
+          variant="text"
+          size="md"
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          <span className={searchOpen ? "sr-only" : undefined}>{t("settings.back_to_workspace")}</span>
+        </UiButton>
+        {searchOpen ? <UiSearchInput
+          ref={focusSearch}
+          aria-label={t("settings.search_navigation")}
+          placeholder={t("settings.search_navigation")}
+          className="min-w-0 flex-1"
+          value={query}
+          onChange={setQuery}
+        /> : (
+          <UiIconButton
+            className="ml-auto"
+            aria-label={t("settings.search_navigation")}
+            tooltip={t("settings.search_navigation")}
+            onClick={() => setSearchOpen(true)}
+            size="md"
+          >
+            <Search aria-hidden="true" className="h-4 w-4" />
+          </UiIconButton>
+        )}
+      </div>
+      {navigationGroups.length === 0 ? (
+        <p role="status" className="ui-type-metadata px-2 text-(--text-muted)">
+          {t("settings.search_no_results")}
+        </p>
+      ) : null}
       <div className="flex flex-col gap-3">
         {navigationGroups.map((group) => (
           <section key={group.key}>
             <SettingsNavigationGroupLabel>
               {t(group.labelKey)}
             </SettingsNavigationGroupLabel>
-            <div className="space-y-0.5">
+            <div className="ml-3 space-y-0.5">
               {group.items.map((item) => {
                 const Icon = SETTINGS_SECTION_ICONS[item.key];
                 const active = activeSection === item.key;
                 return (
+                  <div key={item.key}>
                   <SettingsNavigationButton
                     active={active}
-                    key={item.key}
                     onClick={() => selectSection(item.key)}
                   >
                     <Icon
@@ -122,6 +189,16 @@ export function SettingsSidebarNavigation({
                     />
                     <span className="truncate">{t(item.labelKey)}</span>
                   </SettingsNavigationButton>
+                  {searchItems(item.key).map((fields) => (
+                    <SettingsNavigationButton
+                      key={fields[0]}
+                      className="pl-7"
+                      onClick={() => selectSection(item.key, fields[0])}
+                    >
+                      <span className="text-left whitespace-normal">{t(fields[0])}</span>
+                    </SettingsNavigationButton>
+                  ))}
+                  </div>
                 );
               })}
             </div>

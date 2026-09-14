@@ -180,7 +180,13 @@ export function useProviderModelUpdate({
           deleteModelTarget.model_id,
         );
         setDeleteModelTarget(null);
-        await refreshAll(selectedRecord.provider);
+        if (!await refreshAll(selectedRecord.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"),
+            t,
+          ));
+          return;
+        }
         setFeedback({
           tone: "success",
           title: t("settings.providers.model_deleted_title"),

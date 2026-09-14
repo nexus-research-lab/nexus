@@ -1,5 +1,5 @@
 // INPUT: 当前固定 Connector 详情与 MCP tools/list API。
-// OUTPUT: 拒绝旧响应的固定 Connector 工具目录、失败和显式刷新动作。
+// OUTPUT: 按配置身份隔离快照和失败，并拒绝旧响应的固定 Connector 工具目录、失败和显式刷新动作。
 // POS: 固定 MCP Connector 详情页的只读资源控制器；未连接时不发请求。
 "use client";
 
@@ -17,8 +17,8 @@ import type {
 
 export function useConnectorMCPTools(detail: ConnectorDetail | null) {
   const requestIdRef = useRef(0);
-  const [catalog, setCatalog] = useState<CustomMCPToolCatalog | null>(null);
-  const [failure, setFailure] = useState<ResourceFailure | null>(null);
+  const [catalogSnapshot, setCatalog] = useState<{ identity: string; value: CustomMCPToolCatalog } | null>(null);
+  const [failureSnapshot, setFailure] = useState<{ identity: string; value: ResourceFailure } | null>(null);
   const [loading, setLoading] = useState(false);
   const [revision, setRevision] = useState(0);
   const supported = detail?.connector_id === "richmail";
@@ -42,11 +42,13 @@ export function useConnectorMCPTools(detail: ConnectorDetail | null) {
     setFailure(null);
     void getConnectorMCPToolsApi(detail.connector_id)
       .then((nextCatalog) => {
-        if (requestId === requestIdRef.current) setCatalog(nextCatalog);
+        if (requestId === requestIdRef.current) setCatalog({ identity, value: nextCatalog });
       })
       .catch((error: unknown) => {
         if (requestId !== requestIdRef.current) return;
-        setFailure(getResourceFailure(error, "工具读取失败"));
+        const failure = getResourceFailure(error, "工具读取失败");
+        if (failure.access) setCatalog(null);
+        setFailure({ identity, value: failure });
       })
       .finally(() => {
         if (requestId === requestIdRef.current) setLoading(false);
@@ -59,6 +61,9 @@ export function useConnectorMCPTools(detail: ConnectorDetail | null) {
   const refresh = useCallback(() => {
     setRevision((current) => current + 1);
   }, []);
+
+  const catalog = catalogSnapshot?.identity === identity ? catalogSnapshot.value : null;
+  const failure = failureSnapshot?.identity === identity ? failureSnapshot.value : null;
 
   return { catalog, failure, loading, refresh, supported };
 }

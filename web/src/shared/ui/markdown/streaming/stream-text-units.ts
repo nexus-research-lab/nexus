@@ -1,25 +1,10 @@
 /**
  * INPUT: 任意 Unicode 流式正文。
  * OUTPUT: 不拆分 emoji ZWJ、肤色修饰符或组合附标的展示字符单元。
- * POS: 流式 backlog 的唯一字符边界；无 Intl.Segmenter 时退回 code point。
+ * POS: 流式 backlog 的追加/前缀边界；基础字符切分复用 lib/text-graphemes。
  */
 
-const graphemeSegmenter = (
-  typeof Intl !== "undefined"
-  && typeof Intl.Segmenter === "function"
-)
-  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
-  : null;
-
-export function splitStreamingTextUnits(value: string): string[] {
-  if (graphemeSegmenter === null) {
-    return Array.from(value);
-  }
-  return Array.from(
-    graphemeSegmenter.segment(value),
-    ({ segment }) => segment,
-  );
-}
+import { splitTextGraphemes } from "@/lib/text-graphemes";
 
 export interface AppendStreamingTextUnitsResult {
   appendedCount: number;
@@ -36,7 +21,7 @@ export function appendStreamingTextUnits(
 
   const previousCount = target.length;
   const trailingUnit = target.pop() ?? "";
-  const nextTrailingUnits = splitStreamingTextUnits(trailingUnit + value);
+  const nextTrailingUnits = splitTextGraphemes(trailingUnit + value);
   for (const unit of nextTrailingUnits) {
     target.push(unit);
   }

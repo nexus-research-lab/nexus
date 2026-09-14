@@ -50,6 +50,7 @@ export function GenerativeUIBlock({
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
+  const [frameRevision, setFrameRevision] = useState(0);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(INITIAL_HEIGHT);
   const heightRef = useRef(INITIAL_HEIGHT);
@@ -171,7 +172,7 @@ export function GenerativeUIBlock({
           "min-w-0 flex-1 truncate",
           getUiTypographyClassName({ role: "caption", tone: "default", weight: "medium" }),
         )}>
-          {title || toolUse.name}
+          {title || t("generative_ui.title")}
         </span>
         {loading ? (
           <span
@@ -203,7 +204,10 @@ export function GenerativeUIBlock({
           primaryAction={{
             icon: <RotateCcw className="h-3.5 w-3.5" />,
             label: t("generative_ui.retry"),
-            onClick: sendWidgetUpdate,
+            onClick: () => {
+              setRenderState({ status: "loading" });
+              setFrameRevision((revision) => revision + 1);
+            },
           }}
           size="sm"
           state="error"
@@ -214,6 +218,7 @@ export function GenerativeUIBlock({
       ) : null}
       {widgetCode ? (
         <iframe
+          key={frameRevision}
           className="block w-full border-0 bg-(--surface-panel-background)"
           loading="lazy"
           onLoad={sendWidgetUpdate}
@@ -221,7 +226,7 @@ export function GenerativeUIBlock({
           sandbox="allow-scripts"
           srcDoc={shellDocument}
           style={{ height }}
-          title={title || toolUse.name}
+          title={title || t("generative_ui.title")}
         />
       ) : !complete ? (
         <UiSkeleton className="h-[180px] w-full surface-radius-sm" />

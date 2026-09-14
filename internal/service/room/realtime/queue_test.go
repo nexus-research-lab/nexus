@@ -8,7 +8,11 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -16,11 +20,6 @@ import (
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	_ "modernc.org/sqlite"
 )
 
@@ -28,11 +27,11 @@ func TestRealtimeDirectUserQueueKeepsConfigurationContextAfterAdmissionClaim(t *
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
 	host := createTestAgent(t, agentService, ctx, "Queue Host")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
@@ -186,11 +185,11 @@ func (rejectingRoomQueueAdmissionStore) Revoke(context.Context, queueadmissionst
 func TestRealtimeQueueAdmissionFailureKeepsDurableUserInput(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := app.NewAgentService(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
 	host := createTestAgent(t, agentService, ctx, "Queue Retention Host")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
@@ -250,7 +249,7 @@ func TestRealtimeServiceDoesNotExecuteDMThroughRoomRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue := createTestAgent(t, agentService, ctx, "DM 隔离助手")
 	dmContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
@@ -334,7 +333,7 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -477,7 +476,7 @@ func TestRealtimeServiceRecoversOrphanedGuidanceOnQueueSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentValue := createTestAgent(t, agentService, ctx, "恢复助手")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
@@ -567,7 +566,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	agentValue := createTestAgent(t, agentService, context.Background(), "助手甲")
 	roomContext, err := roomService.CreateRoom(context.Background(), protocol.CreateRoomRequest{
 		AgentIDs: []string{agentValue.AgentID},
@@ -731,7 +730,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -824,7 +823,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}
@@ -957,7 +956,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	if err != nil {
 		t.Fatalf("创建 room service 失败: %v", err)
 	}

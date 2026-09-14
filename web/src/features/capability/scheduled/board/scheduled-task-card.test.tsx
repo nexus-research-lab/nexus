@@ -6,9 +6,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { I18N_CONTEXT, type I18nContextValue } from "@/shared/i18n/i18n-context";
+import { MESSAGES } from "@/shared/i18n/messages";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
+import { ScheduledTaskPermissionActions } from "./scheduled-task-permission-actions";
 import { ScheduledTaskCard } from "./scheduled-task-card";
 
 const TASK: ScheduledTaskItem = {
@@ -31,10 +33,11 @@ const TASK: ScheduledTaskItem = {
   source: { kind: "user_page" },
 };
 
-function view(task: ScheduledTaskItem, onRunNow = vi.fn()) {
+function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" = "zh") {
+  const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
   return (
     <I18N_CONTEXT.Provider
-      value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}
+      value={{ locale, setLocale: vi.fn(), t }}
     >
       <ScheduledTaskCard
         isDeleteUnconfirmed={false}
@@ -64,6 +67,30 @@ function view(task: ScheduledTaskItem, onRunNow = vi.fn()) {
 }
 
 describe("ScheduledTaskCard", () => {
+  it("keeps internal error text out of the card and retains it in explicit diagnostics", async () => {
+    const error = "private-agent-id: /private/workspace\nprovider details";
+    const task = { ...TASK, last_error: error, failure_streak: 1 };
+    const { container, rerender } = render(view(task, vi.fn(), "en"));
+    expect(screen.getByText("This run encountered a problem. View diagnostics for details.")).toBeTruthy();
+    expect(container.textContent).not.toContain("private-agent-id");
+    await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
+    expect(screen.getByRole("dialog").textContent).toContain(error);
+    rerender(view(task, vi.fn(), "zh"));
+    expect(screen.getByText("运行遇到问题，可查看诊断了解详情")).toBeTruthy();
+    expect(screen.getByRole("dialog").textContent).toContain(error);
+  });
+
+  it("uses one known-error translation in both the card and the open diagnostic", async () => {
+    const task = { ...TASK, last_error: "Permission request timeout", failure_streak: 1 };
+    const { rerender } = render(view(task, vi.fn(), "en"));
+    expect(screen.getByText("Timed out waiting for a permission response")).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
+    expect(screen.getByRole("dialog").textContent).toContain("Technical details: Permission request timeout");
+    rerender(view(task, vi.fn(), "zh"));
+    expect(screen.getByText("等待权限响应超时")).toBeTruthy();
+    expect(screen.getByRole("dialog").textContent).toContain("技术信息：Permission request timeout");
+  });
+
   it("uses the shared catalog card and typography while preserving actions", async () => {
     const onRunNow = vi.fn();
     const user = userEvent.setup();
@@ -118,4 +145,75 @@ describe("ScheduledTaskCard", () => {
     expect(screen.getByText("等待处理").className).toContain("rounded-full");
     expect(container.querySelectorAll("section.surface-radius-sm").length).toBeGreaterThan(0);
   });
+});
+
+
+it.each(["zh", "en"] as const)("localizes shared permission actions in %s and keeps protected actions inert", async (locale) => {
+  const user = userEvent.setup();
+  const decide = vi.fn();
+  const task: ScheduledTaskItem = { ...TASK, permission_state: "awaiting_approval", pending_permission_request: {
+    capability: { effect: "read", tool_name: "web.search" },
+    created_at: "2026-09-09", updated_at: "2026-09-09", description: "Read", job_id: TASK.job_id,
+    kind: "tool", policy_revision: 2, request_id: "permission", resume_safe: true, run_id: "run", status: "pending",
+  } };
+  const renderActions = (isPending: boolean) => <I18N_CONTEXT.Provider value={{ locale, setLocale: vi.fn(), t: (key) => MESSAGES[locale][key] }}>
+    <ScheduledTaskPermissionActions compact isPending={isPending} task={task} onEdit={vi.fn()} onOpenConnector={vi.fn()} onPermissionDecision={decide} onPermissionResume={vi.fn()} />
+  </I18N_CONTEXT.Provider>;
+  const result = render(renderActions(false));
+  const once = screen.getByRole("button", { name: MESSAGES[locale]["capability.scheduled_permission_once_short"] });
+  await user.click(once);
+  expect(decide).toHaveBeenCalledExactlyOnceWith(task, "allow_once");
+  result.rerender(renderActions(true));
+  for (const button of screen.getAllByRole("button")) {
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await user.click(button);
+  }
+  expect(decide).toHaveBeenCalledOnce();
+});
+
+
+it("updates card action names when the locale changes without changing the run target", async () => {
+  const onRunNow = vi.fn();
+  const result = render(view(TASK, onRunNow, "en"));
+  const run = screen.getByRole("button", { name: "Run now" });
+  await userEvent.setup().click(run);
+  expect(onRunNow).toHaveBeenCalledExactlyOnceWith(TASK);
+  result.rerender(view(TASK, onRunNow, "zh"));
+  expect(screen.getByRole("button", { name: "立即运行" })).toBe(run);
+  expect(screen.queryByRole("button", { name: "Run now" })).toBeNull();
+});
+
+
+it.each(["zh", "en"] as const)("does not expose the internal execution Agent when source names are missing in %s", (locale) => {
+  const task = { ...TASK, agent_id: "private-executor-identity" };
+  const result = render(view(task, vi.fn(), locale));
+  expect(screen.getByText(MESSAGES[locale]["capability.scheduled_context_agent"])).toBeTruthy();
+  expect(result.container.textContent).not.toContain(task.agent_id);
+  result.rerender(view({ ...task, source: { kind: "user_page", context_type: "agent", context_id: task.agent_id, context_label: "Nova" } }, vi.fn(), locale));
+  expect(screen.getByText("Nova")).toBeTruthy();
+  expect(result.container.textContent).not.toContain(task.agent_id);
+});
+
+
+it("closes a resolved attention surface when a new attempt starts", async () => {
+  const failed = { ...TASK, last_error: "old attempt private error", failure_streak: 1 };
+  const { rerender } = render(view(failed));
+  await userEvent.setup().click(screen.getByRole("button", { name: /查看.*详情/ }));
+  expect(screen.getByRole("dialog").textContent).toContain("old attempt private error");
+  rerender(view({ ...failed, running: true, running_started_at: Date.now() }));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(screen.queryByText(/old attempt private error/)).toBeNull();
+});
+
+
+it("localizes an open deletion review without exposing stale permission actions", async () => {
+  const task = { ...TASK, name: "Review task", instruction: "Work", deletion_state: "review_required" };
+  const { rerender } = render(view(task, vi.fn(), "en"));
+  await userEvent.setup().click(screen.getByRole("button", { name: /View details:/ }));
+  const dialog = screen.getByRole("dialog");
+  expect(dialog.textContent).not.toMatch(/[\u4e00-\u9fff]/);
+  expect(screen.getByRole("button", { name: "Confirm stopped and continue deletion" })).toBeTruthy();
+  rerender(view(task, vi.fn(), "zh"));
+  expect(screen.getByRole("button", { name: "确认已停止，继续删除" })).toBeTruthy();
+  expect(screen.getByRole("dialog")).toBe(dialog);
 });

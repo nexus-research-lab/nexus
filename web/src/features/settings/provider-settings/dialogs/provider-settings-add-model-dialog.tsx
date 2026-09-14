@@ -1,7 +1,7 @@
 // INPUT: 当前 Provider 的手工模型草稿、启用选择和添加命令状态。
-// OUTPUT: Model ID 与一个启用开关组成的 plain 表单弹窗。
+// OUTPUT: 实例级 Model ID 与启用开关，按权限/共享忙碌状态冻结草稿与提交，复用公共焦点和字段。
 // POS: Provider 手工模型入口，不重复解释后续模型配置能力。
-import { useEffect, useRef } from "react";
+import { useId, useRef } from "react";
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -48,44 +48,42 @@ export function ProviderAddModelDialog({
   setManualModelId,
 }: ProviderAddModelDialogProps) {
   const { t } = useI18n();
+  const dialogId = useId();
   const modelInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (isOpen) {
-      modelInputRef.current?.focus();
-    }
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;
   }
 
   const isAdding = pendingAction?.kind === "add-model";
+  const controlsDisabled = pendingAction !== null || !selectedCanManage;
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
+        initialFocusRef={modelInputRef}
         layer="dialog"
-        labelledBy="provider-add-model-title"
+        labelledBy={`${dialogId}-title`}
         onClose={onClose}
       >
         <UiDialogFormShell
           onSubmit={(event) => {
             event.preventDefault();
-            onAdd();
+            if (!controlsDisabled) onAdd();
           }}
           size="md"
+          viewport="adaptiveMax"
         >
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
             title={t("settings.providers.add_model_title")}
-            titleId="provider-add-model-title"
+            titleId={`${dialogId}-title`}
           />
-          <UiDialogBody className="space-y-4 px-5">
+          <UiDialogBody className="space-y-4 px-5" scrollable>
             <UiField
               description={t("settings.providers.add_model_description")}
-              htmlFor="provider-model-id"
+              htmlFor={`${dialogId}-model`}
               label={t("settings.providers.model_id")}
               required
             >
@@ -94,13 +92,14 @@ export function ProviderAddModelDialog({
                 autoCapitalize="off"
                 autoCorrect="off"
                 controlSize="md"
-                className={getUiTypographyClassName({ role: "code", tone: "strong" })}
-                id="provider-model-id"
+                disabled={controlsDisabled}
+                id={`${dialogId}-model`}
                 ref={modelInputRef}
                 onChange={(event) => setManualModelId(event.target.value)}
                 placeholder={manualModelPlaceholder}
                 required
                 spellCheck={false}
+                textRole="code"
                 type="text"
                 value={manualModelId}
               />
@@ -110,13 +109,15 @@ export function ProviderAddModelDialog({
                 <div className={getUiTypographyClassName({ role: "control", tone: "strong", weight: "semibold" })}>
                   {t("settings.providers.enable_after_add")}
                 </div>
-                <div className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
+                <div id={`${dialogId}-enable-description`} className={cn("mt-0.5", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
                   {t("settings.providers.enable_after_add_description")}
                 </div>
               </div>
               <GlassSwitch
+                aria-describedby={`${dialogId}-enable-description`}
                 aria-label={t("settings.providers.enable_after_add")}
                 checked={manualModelEnabled}
+                disabled={controlsDisabled}
                 size="xs"
                 onChange={setManualModelEnabled}
               />
@@ -131,7 +132,8 @@ export function ProviderAddModelDialog({
               {t("common.cancel")}
             </UiButton>
             <UiButton
-              disabled={isAdding || !selectedCanManage}
+              aria-busy={isAdding}
+              disabled={controlsDisabled}
               tone="primary"
               type="submit"
               variant="solid"

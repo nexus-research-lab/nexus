@@ -1,5 +1,5 @@
 // INPUT: Switch 的 checked/disabled 状态、变更命令与键盘/指针事件。
-// OUTPUT: 不依赖宿主一定支持 pointer capture 的按压、释放和过渡生命周期。
+// OUTPUT: 不依赖宿主一定支持 pointer capture 的主按钮按压、捕获丢失释放和过渡生命周期。
 // POS: GlassSwitch 交互 Hook；不渲染 DOM、定义视觉几何或提交业务状态。
 
 import {
@@ -24,6 +24,7 @@ interface GlassSwitchInteraction {
     onClick: () => void;
     onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
     onKeyUp: (event: KeyboardEvent<HTMLButtonElement>) => void;
+    onLostPointerCapture: () => void;
     onPointerCancel: () => void;
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
     onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -113,7 +114,7 @@ export function useGlassSwitchInteraction({
   }, [release]);
 
   const handlePointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
-    if (disabled) {
+    if (disabled || event.button !== 0) {
       return;
     }
     if (typeof event.currentTarget.setPointerCapture === "function") {
@@ -145,6 +146,7 @@ export function useGlassSwitchInteraction({
       onClick: handleClick,
       onKeyDown: handleKeyDown,
       onKeyUp: handleKeyUp,
+      onLostPointerCapture: release,
       onPointerCancel: release,
       onPointerDown: handlePointerDown,
       onPointerUp: handlePointerUp,

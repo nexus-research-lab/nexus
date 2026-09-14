@@ -15,7 +15,7 @@ import {
 
 export type UiSelectMenuPlacement = UiAnchoredOverlayPlacement;
 export type UiSelectMenuSize = "xs" | "sm" | "md" | "lg";
-export type UiSelectMenuSurface = "surface" | "dialog";
+export type UiSelectMenuSurface = "surface" | "dialog" | "plain";
 export type UiSelectMenuSelectionDirection = -1 | 1;
 
 export interface UiSelectMenuOption {

@@ -1,9 +1,10 @@
 // INPUT: Badge 内容、可选图标/状态点与有限的 size/tone/shape 语义。
-// OUTPUT: 统一外形和状态颜色的只读 Badge，以及正数 Counter Badge。
+// OUTPUT: 统一外形和状态颜色的只读 Badge，以及采用主题配对前景的正数 Counter Badge。
 // POS: Badge DOM 原语；不解释业务状态或计数来源。
 
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type HTMLAttributes, type ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -38,9 +39,10 @@ export function UiBadge({
   shape,
   size,
   tone,
+  title,
   ...props
 }: UiBadgeProps) {
-  return (
+  const content = (
     <span
       className={getUiBadgeClassName({ shape, size, tone }, cn(className))}
       {...props}
@@ -49,6 +51,7 @@ export function UiBadge({
       {children}
     </span>
   );
+  return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;
 }
 
 export function UiCounterBadge({
@@ -64,7 +67,7 @@ export function UiCounterBadge({
   return (
     <span
       className={cn(
-        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-xs font-semibold leading-none text-white",
+        "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-(--destructive) px-1.5 text-xs font-semibold leading-none text-(--destructive-foreground)",
         className,
       )}
       {...props}

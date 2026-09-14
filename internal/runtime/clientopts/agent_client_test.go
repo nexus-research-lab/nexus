@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -80,6 +81,9 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env["NEXUS_HOST_SUBAGENT_CONTROL"] != "1" || options.Agents["general-purpose"].Prompt == "" {
+		t.Fatal("nxs missing fixed host-controlled subagent definition")
 	}
 	if options.Runtime.PermissionMode != sdkpermission.ModeDefault {
 		t.Fatalf("默认权限模式不正确: %+v", options)
@@ -694,5 +698,45 @@ func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
 		nexusUsePowerShellToolEnvName,
 	} {
 		t.Setenv(key, "")
+	}
+}
+
+func TestRuntimePreauthorizationPreservesExplicitRules(t *testing.T) {
+	for _, configured := range [][]string{nil, {"WebFetch(domain:example.com)", "Bash(git status)"}} {
+		options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+			config: &RuntimeConfig{Model: "test"},
+		}, AgentClientOptionsInput{
+			WorkspacePath: t.TempDir(), AllowedTools: configured,
+			DisallowedTools: []string{"WebSearch", "Write"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(options.Tools.Allow, "WebSearch") ||
+			!slices.Contains(options.Tools.Deny, "WebSearch") || !slices.Contains(options.Tools.Deny, "Write") {
+			t.Fatalf("默认检索授权不得移除显式禁止规则: %+v", options.Tools)
+		}
+		if len(configured) > 0 && (slices.Contains(options.Tools.Allow, "WebFetch") || !slices.Contains(options.Tools.Allow, configured[0])) {
+			t.Fatalf("不得扩大已有域名授权: %+v", options.Tools.Allow)
+		}
+		for _, tool := range []string{"Bash", "Agent", "Write", "Edit", "Read"} {
+			if slices.Contains(options.Tools.Allow, tool) {
+				t.Fatalf("不得无条件预授权 %s", tool)
+			}
+		}
+	}
+}
+
+// TestAutoReviewModeFollowsRuntime 验证两种运行时都接收 auto，由各自运行时确认可用性。
+func TestAutoReviewModeFollowsRuntime(t *testing.T) {
+	for _, kind := range []string{runtimeKindClaude, runtimeKindNXS} {
+		options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{RuntimeKind: kind, PermissionMode: sdkpermission.ModeAuto})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := sdkpermission.ModeAuto
+		if options.Runtime.PermissionMode != want {
+			t.Fatalf("%s mode=%s, want %s", kind, options.Runtime.PermissionMode, want)
+		}
 	}
 }

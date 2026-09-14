@@ -236,3 +236,10 @@ func TestCreateTaskExplicitPermissionModeOverridesCopiedSessionMode(t *testing.T
 		t.Fatalf("显式 permission mode 未保留: %+v", task)
 	}
 }
+
+// TestAutoReviewSnapshotPreserved 防止后台任务把自动审核降级为默认人工模式。
+func TestAutoReviewSnapshotPreserved(t *testing.T) {
+	if got := concreteTaskPermissionMode("auto"); got != "auto" {
+		t.Fatalf("permission mode = %q", got)
+	}
+}

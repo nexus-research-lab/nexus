@@ -129,6 +129,9 @@ export interface ProgressUpdateContent {
 
 export interface WorkspaceFileArtifactContent {
   type: "workspace_file_artifact";
+  role?: "working_file" | "deliverable";
+  producer_agent_id?: string;
+  source_agent_round_id?: string;
   id?: string;
   path: string;
   display_path?: string | null;

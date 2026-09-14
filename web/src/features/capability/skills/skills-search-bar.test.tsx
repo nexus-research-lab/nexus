@@ -11,7 +11,7 @@ import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { SkillsSearchBar } from "./skills-search-bar";
 
 describe("SkillsSearchBar", () => {
-  it("uses shared page tabs and icon actions while preserving external search", async () => {
+  it("uses shared page tabs and a text search action while preserving external search", async () => {
     const user = userEvent.setup();
     const onChangeDiscoveryMode = vi.fn();
     const onSubmitExternalSearch = vi.fn();
@@ -57,9 +57,32 @@ describe("SkillsSearchBar", () => {
     const searchAction = screen.getByRole("button", {
       name: "capability.skills_tour_search_title",
     });
-    expect(searchAction.className).toContain("radius-control-sm");
+    expect(searchAction.textContent).toBe("capability.skills_tour_search_title");
+    expect(searchAction.querySelector("svg")).toBeNull();
     await user.click(searchAction);
     fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
     expect(onSubmitExternalSearch).toHaveBeenCalledTimes(2);
+    const input = screen.getByRole("searchbox");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSubmitExternalSearch).toHaveBeenCalledTimes(2);
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSubmitExternalSearch).toHaveBeenCalledTimes(3);
   });
+});
+
+it.each([{ query: "a", loading: false }, { query: "valid", loading: true }])("keeps Enter aligned with disabled search ($query, $loading)", ({ query, loading }) => {
+  const submit = vi.fn();
+  render(<I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
+    <SkillsSearchBar activeCategory="" catalogQuery="" categories={[]} discoveryMode="external"
+      externalLoading={loading} externalQuery={query} externalSourceId="" externalSources={[]}
+      onChangeCategory={vi.fn()} onChangeCatalogQuery={vi.fn()} onChangeDiscoveryMode={vi.fn()}
+      onChangeExternalQuery={vi.fn()} onChangeExternalSource={vi.fn()} onSubmitExternalSearch={submit} />
+  </I18N_CONTEXT.Provider>);
+  expect((screen.getByRole("button", { name: "capability.skills_tour_search_title" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.keyDown(screen.getByRole("searchbox"), { key: "Enter" });
+  expect(submit).not.toHaveBeenCalled();
 });

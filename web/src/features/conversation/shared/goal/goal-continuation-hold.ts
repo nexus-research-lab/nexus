@@ -1,6 +1,12 @@
+/**
+ * INPUT: 领域已验证的目标成员、权限模式、群主接管开关与当前翻译器。
+ * OUTPUT: DM/Room 共用的本地化 Goal 续跑约束；姓名沿当前目录显示，不暴露内部身份。
+ * POS: Goal continuation 展示纯模型；不重建服务端运行状态或创建权限。
+ */
+import { buildAgentSelectionOptions } from "@/lib/agent-selection-options";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
-
-export const ROOM_GOAL_SCOPE_LABEL = "房间 Goal";
 
 export interface GoalContinuationHold {
   detail: string;
@@ -10,54 +16,43 @@ export interface GoalContinuationHold {
 export function goalContinuationHoldForPermission(
   agentName: string | null | undefined,
   permissionMode: string | null | undefined,
+  t: I18nContextValue["t"],
 ): GoalContinuationHold | null {
   if ((permissionMode ?? "").trim() !== "plan") {
     return null;
   }
-  const name = agentName?.trim();
   return {
-    detail: name
-      ? `${name} 处于 Plan 模式，隐藏 Goal 续跑不会自动启动`
-      : "目标 Agent 处于 Plan 模式，隐藏 Goal 续跑不会自动启动",
-    label: "Plan 模式暂停",
+    detail: t("goal.hold_plan_detail", { name: getAgentDisplayName(agentName, t) }),
+    label: t("goal.hold_plan_label"),
   };
-}
-
-function goalContinuationHoldForAgent(
-  agent: Pick<Agent, "name" | "options"> | null | undefined,
-): GoalContinuationHold | null {
-  return goalContinuationHoldForPermission(
-    agent?.name,
-    agent?.options?.permission_mode,
-  );
 }
 
 export function goalContinuationHoldForRoomTarget(
   roomMembers: Agent[],
   leadAgentId: string | null | undefined,
-  roomHostAutoReplyEnabled = true,
+  roomHostAutoReplyEnabled: boolean,
+  t: I18nContextValue["t"],
 ): GoalContinuationHold | null {
   const targetAgent = resolveGoalContinuationTargetAgent(
     roomMembers,
     leadAgentId,
   );
   if (targetAgent) {
-    return goalContinuationHoldForAgent(targetAgent);
+    const label = buildAgentSelectionOptions(roomMembers, t).find((option) => option.value === targetAgent.agent_id)?.label;
+    return goalContinuationHoldForPermission(label, targetAgent.options?.permission_mode, t);
   }
   if (roomMembers.length <= 1) {
     return null;
   }
   if (!roomHostAutoReplyEnabled) {
     return {
-      detail:
-        "房间有多个 Agent，但还没有指定 Room Goal 负责人；群主接管未开启，请先选择一个 Agent 负责推进",
-      label: "等待负责人",
+      detail: t("goal.hold_owner_detail"),
+      label: t("goal.hold_owner_label"),
     };
   }
   return {
-    detail:
-      "房间有多个 Agent，但还没有指定 Room Goal 负责人；请选择一个 Agent 负责推进",
-    label: "等待目标 Agent",
+    detail: t("goal.hold_target_detail"),
+    label: t("goal.hold_target_label"),
   };
 }
 

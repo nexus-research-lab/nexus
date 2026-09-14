@@ -69,6 +69,7 @@ export function ChannelAuthorizationPresenter() {
   const submitCode = useCallback((code: string) => {
     if (
       !presentation
+      || pendingActionRef.current !== null
       || presentation.kind !== "verification_code"
       || error?.writeLocked
     ) {
@@ -95,7 +96,7 @@ export function ChannelAuthorizationPresenter() {
   }, [error?.writeLocked, presentation, send, t]);
 
   const cancelAuthorization = useCallback(() => {
-    if (!presentation || error?.writeLocked) {
+    if (!presentation || pendingActionRef.current !== null || error?.writeLocked) {
       return;
     }
     setError(null);

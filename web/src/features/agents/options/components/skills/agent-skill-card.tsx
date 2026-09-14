@@ -1,8 +1,10 @@
 /**
  * INPUT: Agent Skill 条目、忙碌状态与启停命令。
- * OUTPUT: 本地化名称、用途摘要、必要来源徽标和开关组成的能力卡片。
+ * OUTPUT: 本地化名称、用途摘要、必要来源徽标和带用途说明关联的开关组成的能力卡片。
  * POS: Agent 详情技能选择项；用途说明直接支持启停决策。
  */
+import { useId } from "react";
+
 import { Loader2, Lock } from "lucide-react";
 
 import {
@@ -42,6 +44,7 @@ export function AgentSkillCard({
   skill,
 }: AgentSkillCardProps) {
   const { t } = useI18n();
+  const descriptionId = useId();
   const title = getSkillDisplayTitle(skill, t);
   const description = getSkillDisplayDescription(skill, t);
   const badges = [
@@ -74,7 +77,7 @@ export function AgentSkillCard({
       <UiSeededAvatar seed={skill.name} />
       <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-          <span className={cn("line-clamp-2 min-w-0", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
+          <span className={cn("line-clamp-2 min-w-0 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
             {title}
           </span>
           {badges.map((badge) => (
@@ -100,6 +103,7 @@ export function AgentSkillCard({
           ) : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${title}`}
+            aria-describedby={description ? descriptionId : undefined}
             checked={skill.enabled_for_agent}
             disabled={commandBusy || blocked}
             onChange={() => onAction(skill)}
@@ -109,7 +113,7 @@ export function AgentSkillCard({
       ) : null}
 
       {description ? (
-        <p className={cn("col-span-3 line-clamp-2", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
+        <p id={descriptionId} className={cn("col-span-3 line-clamp-2 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           {description}
         </p>
       ) : null}

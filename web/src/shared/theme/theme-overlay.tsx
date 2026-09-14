@@ -1,6 +1,11 @@
+// INPUT: 当前主题与系统减少动态效果偏好。
+// OUTPUT: 可卸载的装饰视频/雨景；减少动效时不启动视频或 Canvas 帧。
+// POS: 主题专用装饰层，不承载交互；Canvas 不可用时静默保留静态主题。
 "use client";
 
 import { useEffect, useRef } from "react";
+
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 
 import { useTheme } from "./theme-context";
 
@@ -46,7 +51,7 @@ function makeDrops(W: number, H: number): RainDrop[] {
   );
 }
 
-/** 雨滴 + 水花渲染（纯函数，无副作用） */
+/** 推进粒子状态并绘制当前帧。 */
 function drawRain(
   ctx: CanvasRenderingContext2D,
   W: number, H: number,
@@ -110,7 +115,8 @@ function RainCanvas({ active }: { active: boolean }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const s = stateRef.current;
 
     /* ── resize：DPR 缩放 + 重新生成雨滴 ── */
@@ -136,7 +142,8 @@ function RainCanvas({ active }: { active: boolean }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     const s = stateRef.current;
 
     if (!active) {
@@ -185,6 +192,7 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
     if (playResult && typeof playResult.catch === "function") {
       playResult.catch((err: unknown) => console.debug("[theme-overlay] Video autoplay blocked:", err));
     }
+    return () => video.pause();
   }, [active]);
 
   return (
@@ -213,19 +221,20 @@ function SunnyLeavesVideo({ active }: { active: boolean }) {
 
 export function ThemeOverlay() {
   const { theme } = useTheme();
-  const T = "opacity 700ms var(--motion-ease-standard)";
+  const reducedMotion = usePrefersReducedMotion();
+  const transition = reducedMotion ? "none" : "opacity 700ms var(--motion-ease-standard)";
   const isSunny = theme === "sunny";
   const isRain = theme === "rain";
 
   return (
     <>
       {/* ── Sunny leaves overlay：亮色底盘复用 light，只叠加轻量树荫视频层 ── */}
-      {isSunny ? (
+      {isSunny && !reducedMotion ? (
         <div
           aria-hidden
           style={{
-            position: "fixed", inset: 0, pointerEvents: "none", zIndex: 995,
-            opacity: 0.38, transition: T,
+            position: "fixed", inset: 0, pointerEvents: "none", zIndex: "var(--layer-theme-decoration)",
+            opacity: 0.38, transition,
             WebkitMaskImage: "linear-gradient(180deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.9) 18%, rgba(0,0,0,0.66) 42%, rgba(0,0,0,0.28) 68%, rgba(0,0,0,0.08) 82%, transparent 92%)",
             maskImage: "linear-gradient(180deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.9) 18%, rgba(0,0,0,0.66) 42%, rgba(0,0,0,0.28) 68%, rgba(0,0,0,0.08) 82%, transparent 92%)",
           }}
@@ -239,21 +248,21 @@ export function ThemeOverlay() {
         <div
           aria-hidden
           style={{
-            position: "fixed", inset: 0, pointerEvents: "none", zIndex: 996,
-            opacity: 1, transition: T,
+            position: "fixed", inset: 0, pointerEvents: "none", zIndex: "var(--layer-theme-decoration)",
+            opacity: 1, transition,
             background: "radial-gradient(ellipse at 50% 100%,rgba(70,80,95,0.18) 0%,transparent 45%),radial-gradient(ellipse at 20% 85%,rgba(60,70,85,0.1) 0%,transparent 35%)",
-            animation: "nexus-fog-drift 25s ease-in-out infinite alternate",
+            animation: reducedMotion ? "none" : "nexus-fog-drift 25s ease-in-out infinite alternate",
           }}
         />
       ) : null}
 
       {/* ── Rain canvas ── */}
-      {isRain ? (
+      {isRain && !reducedMotion ? (
         <div
           aria-hidden
           style={{
-            position: "fixed", inset: 0, pointerEvents: "none", zIndex: 997,
-            opacity: 1, transition: T,
+            position: "fixed", inset: 0, pointerEvents: "none", zIndex: "var(--layer-theme-decoration)",
+            opacity: 1, transition,
           }}
         >
           <RainCanvas active={isRain} />

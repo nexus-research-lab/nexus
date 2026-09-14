@@ -6,5 +6,7 @@
 //   - service.go：usage 模型、ledger 记账与 cache segment 聚合；观测归因失败不反向影响主账。
 //   - cache_attribution.go：固定枚举与低基数脱敏归因。
 //
+// 每日用量按 owner 隔离并聚合最近 365 个 UTC 自然日，空日期补零。
+//
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package usage

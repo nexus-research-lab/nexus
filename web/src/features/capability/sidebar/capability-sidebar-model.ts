@@ -4,7 +4,6 @@ import {
   type LucideIcon,
   Puzzle,
   Radio,
-  Repeat2,
   Users2,
   GitBranchPlus,
 } from "lucide-react";
@@ -39,13 +38,6 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
     id: SIDEBAR_CAPABILITY_ITEM_IDS.skills,
     labelKey: "capability.skills",
     path: AppRouteBuilders.skills(),
-  },
-  {
-    countKey: "loops_count",
-    icon: Repeat2,
-    id: SIDEBAR_CAPABILITY_ITEM_IDS.loops,
-    labelKey: "capability.loops",
-    path: AppRouteBuilders.loops(),
   },
   {
     countKey: "workgraph_distillations_count",
@@ -85,14 +77,14 @@ const CAPABILITY_SIDEBAR_DEFINITIONS: readonly CapabilitySidebarDefinition[] = [
 ];
 
 export function buildCapabilitySidebarItems(
-  summary: CapabilitySummary,
+  summary: CapabilitySummary | null,
   translate: I18nContextValue["t"],
 ): CapabilitySidebarItem[] {
   return CAPABILITY_SIDEBAR_DEFINITIONS.map((definition) => ({
     icon: definition.icon,
     id: definition.id,
     label: translate(definition.labelKey),
-    meta: String(summary[definition.countKey]),
+    meta: summary ? String(summary[definition.countKey]) : "",
     path: definition.path,
   }));
 }

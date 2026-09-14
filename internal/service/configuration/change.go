@@ -122,6 +122,9 @@ func (s *Service) applyChange(
 	if err != nil {
 		return nil, err
 	}
+	if strings.EqualFold(strings.TrimSpace(request.Domain), DomainMembers) && cliOptions != nil {
+		return nil, errors.New("成员管理必须通过管理员的实时确认卡片执行")
+	}
 	if cliOptions != nil && len(cliOptions.SecretValues) > 0 &&
 		(!resolved.isMain() || resolved.RoundLeaseRequired) {
 		return nil, errors.New("只有人工终端中的 owner 主智能体 nexuscfg 可以提交 secret slot")
@@ -307,6 +310,10 @@ func (s *Service) applyChange(
 }
 
 func mutationNeedsReconcile(request ChangeRequest, err error) bool {
+	// 远程写入响应丢失时不能宣称未执行，保留审计待核对状态。
+	if request.Domain == DomainMembers {
+		return true
+	}
 	if request.Domain == DomainSkills && skillsvc.SkillMutationNeedsReconcile(err) {
 		return true
 	}

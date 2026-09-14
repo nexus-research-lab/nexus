@@ -19,6 +19,11 @@ function workspaceFile(path: string): WorkspaceFileEntry {
   return { depth: 1, is_dir: false, modified_at: "2026-09-05", name: path.split("/").at(-1)!, path };
 }
 
+it("shares scientific formula compatibility with the generic Markdown surface", () => {
+  const { container } = render(<I18nProvider><MarkdownRenderer content={String.raw`解离速率 \(k_{\mathrm{off}}\)，单位 \(s^{-1}\)`} /></I18nProvider>);
+  expect(Array.from(container.querySelectorAll('annotation[encoding="application/x-tex"]'), (node) => node.textContent)).toEqual([String.raw`k_{\mathrm{off}}`, String.raw`s^{-1}`]);
+});
+
 beforeEach(() => {
   window.localStorage.setItem(LOCALE_STORAGE_KEY, "en");
   resetWorkspaceFilesOwnerScope();
@@ -32,6 +37,15 @@ afterEach(() => {
 });
 
 describe("Message Markdown domain adaptation", () => {
+  it("keeps full-message mention offsets after file-card segmentation", () => {
+    const content = "saved to report.md\n\nPlease ask @Agent for review.";
+    const start = Array.from(content.slice(0, content.indexOf("@Agent"))).length;
+    render(<I18nProvider><MarkdownRenderer content={content} onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent"
+      agentMentions={[{ agent_id: "exact-agent", content_block_index: 0, start_rune: start, end_rune: start + 6, label: "@Agent" }]} /></I18nProvider>);
+    expect(screen.getAllByRole("button", { name: /@Agent/ })).toHaveLength(1);
+    expect(screen.getByText(/Please ask/)).toBeTruthy();
+  });
+
   it("keeps mention identity and exact handoff context through streaming completion", async () => {
     const user = userEvent.setup();
     const openContact = vi.fn();
@@ -88,7 +102,7 @@ describe("Message Markdown domain adaptation", () => {
     useWorkspaceFilesStore.getState().set_files("other-agent", [workspaceFile("other/report.md")]);
     useWorkspaceFilesStore.getState().set_files("selected-agent", [workspaceFile("wrong/report.md")]);
     const content = '`report.md` [Read](report.md) ![Chart](images/chart.png)';
-    const { rerender } = render(<MarkdownRenderer content={content} onOpenWorkspaceFile={openFile} workspaceAgentId="message-agent" />);
+    const { rerender } = render(<MarkdownRenderer content={content} onOpenWorkspaceFile={openFile} workspaceAgentId="message-agent" />, { wrapper: I18nProvider });
 
     act(() => useAgentStore.setState({ current_agent_id: "other-agent" }));
     await user.click(screen.getByRole("button", { name: "report.md" }));
@@ -105,7 +119,7 @@ describe("Message Markdown domain adaptation", () => {
 
   it("removes old owner file lookup immediately and refuses ambiguous basenames", () => {
     useWorkspaceFilesStore.getState().set_files("message-agent", [workspaceFile("owner-one/report.md")]);
-    render(<MarkdownRenderer content="`report.md`" onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent" />);
+    render(<MarkdownRenderer content="`report.md`" onOpenWorkspaceFile={vi.fn()} workspaceAgentId="message-agent" />, { wrapper: I18nProvider });
     expect(screen.getByRole("button", { name: "report.md" })).toBeTruthy();
 
     act(() => resetWorkspaceFilesOwnerScope());

@@ -5,16 +5,16 @@
  */
 "use client";
 
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   SettingsNavigationButton,
 } from "@/features/settings/shared/settings-panel-ui";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type {
   ProviderConfigRecord,
   ProviderPreset,
@@ -66,18 +66,19 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 sm:w-[190px] sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4"
+      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[190px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-4"
     >
-      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto sm:h-full sm:max-h-none sm:pr-2">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none @min-[720px]/provider:pr-2">
         {loading ? (
-          <div className="flex min-h-[260px] items-center justify-center text-(--text-soft)">
+          <div role="status" aria-label={t("common.loading")} className="flex min-h-[180px] items-center justify-center text-(--text-soft)">
             <Loader2
+              aria-hidden="true"
               className={getUiSpinnerClassName({ size: "md", tone: "muted" })}
             />
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-1 py-2 sm:block sm:space-y-1">
-            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 sm:block sm:space-y-1">
+          <div className="grid grid-cols-2 gap-1 py-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
+            <div className="col-span-2 mb-2 grid grid-cols-2 gap-1 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:block @min-[720px]/provider:space-y-1">
               <SettingsNavigationButton
                 active={isCreating && draftPresetKey === "custom"}
                 onClick={() => onCreateFromPreset("custom")}
@@ -130,14 +131,11 @@ export function ProviderSettingsSidebar({
                     name={preset.display_name}
                     presetKey={preset.preset_key}
                   />
-                  <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
+                  <UiTooltip label={preset.display_name}><span className="min-w-0 flex-1 truncate" >{preset.display_name}</span></UiTooltip>
                   {isUnsupportedPreset ? (
-                    <span className={cn(
-                      "shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5",
-                      getUiTypographyClassName({ role: "caption", tone: "soft", weight: "semibold" }),
-                    )}>
+                    <UiBadge shape="pill" size="xs" tone="idle">
                       {t("settings.providers.unsupported_badge")}
-                    </span>
+                    </UiBadge>
                   ) : null}
                 </SettingsNavigationButton>
               );
@@ -162,7 +160,7 @@ export function ProviderSettingsSidebar({
                       name={getProviderTitle(item)}
                       presetKey={item.preset_key}
                     />
-                    <span className="min-w-0 flex-1 truncate">{getProviderTitle(item)}</span>
+                    <UiTooltip label={getProviderTitle(item)}><span className="min-w-0 flex-1 truncate" >{getProviderTitle(item)}</span></UiTooltip>
                   </SettingsNavigationButton>
                   {canShowDelete ? (
                     <UiListActionButton

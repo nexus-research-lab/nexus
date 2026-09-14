@@ -1,7 +1,5 @@
 interface GlassMagnifierFilterProps {
   filterId: string;
-  height: number;
-  width: number;
 }
 
 const MAGNIFYING_SCALE = 24;
@@ -15,8 +13,6 @@ const SPECULAR_MAP_URL = "/liquid-glass/magnifier-specular-map.png";
 /** 放大镜滤镜只描述 SVG 资源链，不参与悬停动画生命周期。 */
 export function GlassMagnifierFilter({
   filterId,
-  height,
-  width,
 }: GlassMagnifierFilterProps) {
   return (
     <svg
@@ -26,12 +22,13 @@ export function GlassMagnifierFilter({
       focusable="false"
     >
       <defs>
-        <filter id={filterId}>
+        <filter id={filterId} x="0" y="0" width="100%" height="100%">
           <feImage
-            height={height}
+            height="100%"
             href={MAGNIFYING_MAP_URL}
             result="magnifying_displacement_map"
-            width={width}
+            width="100%"
+            preserveAspectRatio="none"
             x={0}
             y={0}
           />
@@ -49,10 +46,11 @@ export function GlassMagnifierFilter({
             stdDeviation={0}
           />
           <feImage
-            height={height}
+            height="100%"
             href={DISPLACEMENT_MAP_URL}
             result="displacement_map"
-            width={width}
+            width="100%"
+            preserveAspectRatio="none"
             x={0}
             y={0}
           />
@@ -71,10 +69,11 @@ export function GlassMagnifierFilter({
             values={String(SATURATION_VALUE)}
           />
           <feImage
-            height={height}
+            height="100%"
             href={SPECULAR_MAP_URL}
             result="specular_layer"
-            width={width}
+            width="100%"
+            preserveAspectRatio="none"
             x={0}
             y={0}
           />

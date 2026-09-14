@@ -10,10 +10,10 @@ export function SkillsPage() {
   const { t } = useI18n();
   const skillsTour = useMemo(() => buildSkillsTour(t), [t]);
 
-  const { startCurrentTour: startCurrentTour } = usePageOnboardingTour({
+  usePageOnboardingTour({
     tour: skillsTour,
     autoStartDelayMs: 260,
   });
 
-  return <SkillsDirectory onReplayTour={startCurrentTour} />;
+  return <SkillsDirectory />;
 }

@@ -9,11 +9,10 @@ import (
 	"testing"
 	"time"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
 	_ "modernc.org/sqlite"
 )
 
@@ -25,7 +24,7 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "暂停成员 A")
 	agentB := createTestAgent(t, agentService, ctx, "继续成员 B")
@@ -134,7 +133,7 @@ func TestRoomServiceHydratesConversationMessageCountFromCanonicalHistory(t *test
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "消息计数成员 A")
 	agentB := createTestAgent(t, agentService, ctx, "消息计数成员 B")

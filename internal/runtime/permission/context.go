@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -60,7 +59,6 @@ type Context struct {
 	sessionRoutes    map[string]sessionRouteBinding
 	nextRouteLease   uint64
 	pendingRequests  map[string]*PendingRequest
-	requestTimeout   time.Duration
 	approvalRecorder HumanToolApprovalRecorder
 	pendingChanged   chan struct{}
 	roomBroadcaster  RoomBroadcaster
@@ -80,7 +78,6 @@ func NewContext() *Context {
 		senderSessions:  make(map[string]map[string]struct{}),
 		sessionRoutes:   make(map[string]sessionRouteBinding),
 		pendingRequests: make(map[string]*PendingRequest),
-		requestTimeout:  time.Minute,
 		pendingChanged:  make(chan struct{}),
 	}
 }

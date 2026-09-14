@@ -11,7 +11,6 @@ import {
   Layers3,
   LoaderCircle,
   MousePointer2,
-  Palette,
   Plus,
   RefreshCw,
   Search,
@@ -49,6 +48,7 @@ import {
   UiSearchInput,
   UiTextarea,
 } from "@/shared/ui/form/form-control";
+import { SourceEditorGallery } from "./ui-gallery-source-editor";
 import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -73,6 +73,7 @@ import {
   WorkspaceGallery,
 } from "./ui-gallery-additional-sections";
 import { galleryText } from "./ui-gallery-copy";
+import { ChoiceGallery } from "./ui-gallery-choices";
 
 const THEME_OPTIONS: Array<{ label: string; value: VisualTheme }> = [
   { label: "Light", value: "light" },
@@ -90,6 +91,10 @@ const ROOM_MEMBERS = [
   { id: "maya", name: "Maya" },
   { id: "noah", name: "Noah" },
 ];
+
+const AVATAR_MEMBERS = Array.from({ length: 9 }, (_, index) => ({
+  id: `avatar-${index}`, name: "研发团队",
+}));
 
 type GalleryTab = "foundation" | "content" | "interaction" | "workspace" | "coverage";
 
@@ -114,8 +119,10 @@ export function UiContractGallery() {
   const [activeTab, setActiveTab] = useState<GalleryTab>(getInitialGalleryTab);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogViewport, setDialogViewport] = useState<UiDialogViewport>("adaptiveMax");
-  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptMode, setPromptMode] = useState<"single" | "multiline" | null>(null);
+  const [promptResult, setPromptResult] = useState("");
   const [searchValue, setSearchValue] = useState("shared/ui");
+  const [emptySearchValue, setEmptySearchValue] = useState("");
   const [selectedChoice, setSelectedChoice] = useState("balanced");
   const [selectedRadioChoice, setSelectedRadioChoice] = useState("ask");
   const [showRemovableChip, setShowRemovableChip] = useState(true);
@@ -170,7 +177,6 @@ export function UiContractGallery() {
 
           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <UiSegmentedControl
-              icon={Palette}
               onChange={setTheme}
               options={THEME_OPTIONS}
               title={galleryText(locale, "视觉主题", "Visual theme")}
@@ -222,10 +228,10 @@ export function UiContractGallery() {
               <TypographySample label="Page title · 16/20" textRole="pageTitle">{galleryText(locale, "界面与交互", "Interface and interaction")}</TypographySample>
               <TypographySample label="Section title · 14/20" textRole="sectionTitle">{galleryText(locale, "基础组件", "Foundation components")}</TypographySample>
               <TypographySample label="Body · 14/24" textRole="body">{galleryText(locale, "普通正文用于稳定阅读和必要说明。", "Body copy supports comfortable reading and essential guidance.")}</TypographySample>
+              <TypographySample label="Control · 14/20" textRole="control">{galleryText(locale, "输入与动作标签", "Input and action labels")}</TypographySample>
               <TypographySample label="Supporting · 13/20" textRole="supporting" tone="muted">{galleryText(locale, "辅助信息不与主要内容争夺注意力。", "Supporting information stays quieter than primary content.")}</TypographySample>
               <TypographySample label="Metadata · 12/18" textRole="metadata" tone="muted">{galleryText(locale, "更新于 2 分钟前 · 3 个成员", "Updated 2 minutes ago · 3 members")}</TypographySample>
               <TypographySample label="Caption · 11/16" textRole="caption" tone="soft">{galleryText(locale, "只用于计数和次级元数据", "Reserved for counts and secondary metadata")}</TypographySample>
-              <TypographySample label="Overline · 10/16" textRole="overline" tone="brand">Foundation</TypographySample>
               <TypographySample label="Code · 13/20" textRole="code" tone="default">workspace/ui-contract</TypographySample>
             </div>
           </GallerySection>
@@ -242,11 +248,16 @@ export function UiContractGallery() {
               <UiButton tone="primary" variant="text">{galleryText(locale, "了解规范", "Read guidelines")}</UiButton>
             </GalleryRow>
             <GalleryRow label="Neutral / danger">
-              <UiButton variant="surface">{galleryText(locale, "取消", "Cancel")}</UiButton>
+              <UiButton data-gallery-redundant-tooltip title={galleryText(locale, "取消", "Cancel")} variant="surface">{galleryText(locale, "取消", "Cancel")}</UiButton>
               <UiButton variant="outline">{galleryText(locale, "边框动作", "Outline action")}</UiButton>
               <UiButton variant="ghost"><Copy className="h-4 w-4" />{galleryText(locale, "复制", "Copy")}</UiButton>
               <UiButton tone="danger" variant="surface"><Trash2 className="h-4 w-4" />{galleryText(locale, "删除", "Delete")}</UiButton>
               <UiButton disabled tone="primary" variant="solid">{galleryText(locale, "不可用", "Unavailable")}</UiButton>
+            </GalleryRow>
+            <GalleryRow label="Truncated tooltip">
+              <UiButton className="w-28" data-gallery-truncated-tooltip title="Long account name for tooltip verification" variant="ghost">
+                <span className="truncate">Long account name for tooltip verification</span>
+              </UiButton>
             </GalleryRow>
             <GalleryRow label="Busy / icon">
               <UiButton aria-busy disabled tone="primary" variant="solid">
@@ -287,6 +298,20 @@ export function UiContractGallery() {
             <UiField label={galleryText(locale, "搜索", "Search")}>
               <UiSearchInput aria-label={galleryText(locale, "搜索", "Search")} onChange={setSearchValue} value={searchValue} />
             </UiField>
+            <div className="grid gap-4 bg-background p-3 sm:grid-cols-2" data-gallery-empty-fields>
+              <UiField htmlFor="gallery-empty-dialog" label={galleryText(locale, "弹窗字段", "Dialog field")}>
+                <UiInput id="gallery-empty-dialog" placeholder={galleryText(locale, "例如：资料助理", "e.g. Research assistant")} />
+              </UiField>
+              <UiField htmlFor="gallery-empty-surface" label={galleryText(locale, "页面字段", "Page field")}>
+                <UiInput id="gallery-empty-surface" placeholder={galleryText(locale, "填写名称", "Enter a name")} variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-empty-notes" label={galleryText(locale, "补充说明", "Additional notes")}>
+                <UiTextarea id="gallery-empty-notes" placeholder={galleryText(locale, "描述需要完成的工作", "Describe the work to complete")} variant="surface" />
+              </UiField>
+              <UiField htmlFor="gallery-empty-search" label={galleryText(locale, "空白搜索", "Empty search")}>
+                <UiSearchInput id="gallery-empty-search" onChange={setEmptySearchValue} placeholder={galleryText(locale, "搜索组件", "Search components")} value={emptySearchValue} />
+              </UiField>
+            </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <UiField label={galleryText(locale, "模型", "Model")}>
                 <UiSelectMenu
@@ -303,6 +328,7 @@ export function UiContractGallery() {
               <UiField htmlFor="gallery-notes" label={galleryText(locale, "备注", "Notes")}>
                 <UiTextarea id="gallery-notes" key={locale} defaultValue={galleryText(locale, "长内容需要在 320px 下保持可读，不横向溢出。", "Long content must remain readable at 320px without horizontal overflow.")} variant="surface" />
               </UiField>
+              <SourceEditorGallery />
               <UiField htmlFor="gallery-native-role" label={galleryText(locale, "原生角色", "Native role")}>
                 <UiNativeSelect
                   id="gallery-native-role"
@@ -341,6 +367,7 @@ export function UiContractGallery() {
                 />
               ))}
             </GalleryRow>
+            <ChoiceGallery locale={locale} />
             <GalleryRow label="Selection">
               {["fast", "balanced", "precise"].map((value) => (
                 <UiChoiceButton
@@ -421,6 +448,21 @@ export function UiContractGallery() {
               <UiAgentAvatar isWorking name="Maya Chen" />
               <UiRoomAvatar members={ROOM_MEMBERS} roomId="ui-contract" title="UI contract review" />
             </GalleryRow>
+            <div className="space-y-3" data-gallery-avatar-geometry>
+              <div className="flex flex-wrap items-center gap-3" data-gallery-agent-avatars>
+                {(["xs", "sm", "md", "lg", "xl"] as const).map((size) => (
+                  <UiAgentAvatar data-avatar-size={size} key={size} name="👩‍💻 Nova" size={size} />
+                ))}
+                <UiAgentAvatar avatar="data:image/png;base64,invalid" data-gallery-avatar-failure name="Maya Chen" />
+              </div>
+              {(["sm", "md", "lg"] as const).map((size) => (
+                <div className="flex flex-wrap items-center gap-3" data-gallery-room-avatars={size} key={size}>
+                  {[0, 1, 2, 4, 9].map((count) => (
+                    <UiRoomAvatar data-member-count={count} key={count} members={AVATAR_MEMBERS.slice(0, count)} roomId="gallery-avatar" size={size} title={`Room ${size} ${count}`} />
+                  ))}
+                </div>
+              ))}
+            </div>
             <div className="group/item flex items-center gap-2" data-gallery-list-actions>
               <UiButton>{galleryText(locale, "列表主动作", "List primary action")}</UiButton>
               <UiListActionButton aria-label="Hover list action" visibility="hover">
@@ -438,6 +480,7 @@ export function UiContractGallery() {
               <UiListRow data-gallery-row="flush" onClick={() => undefined} title="Flush row" variant="flush" />
               <UiListRow
                 active
+                data-gallery-row="active"
                 actions={<UiListActionButton aria-label={galleryText(locale, "条目更多操作", "More row actions")} visibility="visible"><Ellipsis className="h-4 w-4" /></UiListActionButton>}
                 description={galleryText(locale, "当前选中态不使用浮起阴影", "The active state does not use an elevated shadow")}
                 leading={<UiAgentAvatar name="Lin" size="sm" />}
@@ -532,7 +575,7 @@ export function UiContractGallery() {
                 >
                   {galleryText(locale, "打开紧凑弹窗", "Open compact dialog")}
                 </UiButton>
-                <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                <UiButton onClick={() => setPromptMode("single")} variant="surface">
                   {galleryText(locale, "新建文件夹弹窗", "New folder prompt")}
                 </UiButton>
                 <UiButton
@@ -585,7 +628,6 @@ export function UiContractGallery() {
         <UiDialogPortal>
           <UiDialogBackdrop
             inset={isGalleryViewer(dialogViewport) ? "compact" : "default"}
-            labelledBy="gallery-dialog-title"
             onClose={() => setDialogOpen(false)}
           >
             <UiDialogShell
@@ -597,7 +639,6 @@ export function UiContractGallery() {
                 onClose={() => setDialogOpen(false)}
                 subtitle={galleryText(locale, "检查标题、正文、Footer、焦点圈与窄窗口边距。", "Inspect title, body, footer, focus ring, and narrow-window insets.")}
                 title={getGalleryDialogTitle(dialogViewport, locale)}
-                titleId="gallery-dialog-title"
               />
               <UiDialogBody scrollable>
                 <div className="space-y-4">
@@ -615,9 +656,13 @@ export function UiContractGallery() {
                       value={selectedModel}
                     />
                   </UiField>
-                  <UiButton onClick={() => setPromptOpen(true)} variant="surface">
+                  <UiButton onClick={() => setPromptMode("single")} variant="surface">
                     {galleryText(locale, "打开嵌套确认", "Open nested prompt")}
                   </UiButton>
+                  <UiButton onClick={() => setPromptMode("multiline")} variant="surface">
+                    {galleryText(locale, "打开多行输入", "Open multiline prompt")}
+                  </UiButton>
+                  <output className="block whitespace-pre-wrap" data-gallery-prompt-result>{promptResult}</output>
                   <UiPanel padding="md" variant="dashed">
                     <div className="flex items-start gap-3">
                       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
@@ -637,14 +682,15 @@ export function UiContractGallery() {
         </UiDialogPortal>
       ) : null}
       <PromptDialog
-        cancelText={galleryText(locale, "取消", "Cancel")}
-        confirmText={galleryText(locale, "创建", "Create")}
-        defaultValue={galleryText(locale, "新文件夹", "new-folder")}
-        isOpen={promptOpen}
-        onCancel={() => setPromptOpen(false)}
-        onConfirm={() => setPromptOpen(false)}
-        placeholder={galleryText(locale, "例如：新文件夹", "For example: new-folder")}
-        title={galleryText(locale, "新建文件夹", "New folder")}
+        confirmText={promptMode === "single" ? galleryText(locale, "创建", "Create") : undefined}
+        defaultValue={promptMode === "multiline" ? "" : galleryText(locale, "新文件夹", "new-folder")}
+        isOpen={promptMode !== null}
+        message={promptMode === "multiline" ? galleryText(locale, "输入下一步说明，确认后保留原始换行。", "Describe the next step. Confirmation preserves your line breaks.") : undefined}
+        multiline={promptMode === "multiline"}
+        onCancel={() => setPromptMode(null)}
+        onConfirm={(value) => { setPromptResult(value); setPromptMode(null); }}
+        placeholder={promptMode === "multiline" ? galleryText(locale, "例如：核对引用并补充结论。", "For example: verify sources and update the conclusion.") : galleryText(locale, "例如：新文件夹", "For example: new-folder")}
+        title={promptMode === "multiline" ? galleryText(locale, "补充指令", "Add instruction") : galleryText(locale, "新建文件夹", "New folder")}
       />
     </main>
   );
@@ -666,7 +712,7 @@ function GallerySection({
   return (
     <section className={`surface-panel min-w-0 p-4 sm:p-5 ${className ?? ""}`} data-gallery-section={title}>
       <div className="mb-5 border-b border-(--divider-subtle-color) pb-4">
-        <p className={getUiTypographyClassName({ role: "overline", tone: "brand" })}>{eyebrow}</p>
+        <p className={getUiTypographyClassName({ role: "metadata", tone: "brand", weight: "medium" })}>{eyebrow}</p>
         <h2 className={cn(
           "mt-1",
           getUiTypographyClassName({ role: "objectTitle", tone: "strong" }),

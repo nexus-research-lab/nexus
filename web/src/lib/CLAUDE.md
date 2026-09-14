@@ -1,16 +1,28 @@
 # 前端基础库
 
 - 根目录只保留跨领域复用且无业务状态的纯基础能力。
+- `workspace-file-action.ts` 拥有来源工作区随 path 传递的预览回调类型，以及浏览器下载/桌面定位的本地化文案；不推断文件归属、不执行命令。
+- `agent-display-name.ts` 是 Agent/Subagent 非空展示名称的纯所有者，只接收名称、当前翻译能力和角色，不接收 ID，不改写资源身份；真实目录和“自己”等领域判断仍由消费者负责。
+- `agent-selection-options.ts` 是 Agent 选择文字的跨领域适配：只把 Agent 候选、显示目录与本地化通称映射到 `shared/lib/selection-options.ts` 的唯一序号/缺项算法，不复制排序或分组。完整目录只稳定显示，不能加入新候选；原 value 和缺项绑定保持。
 - `unknown-value.ts` 只提供未知值的结构读取、枚举收窄和批量必填字段校验原语；领域字段集合由消费者定义。
 - `agent-runtime-status.ts` 统一跨页面 Agent 运行状态解码。
 - `agent-options.ts` 统一跨 Config、Settings、Contacts、Room 与 Agent 编辑器复用的 Options 默认值、目录和纯投影。
 - `skill-description.ts` 只为 Nexus 随产品提供的 Skill 投影双语展示说明；不得修改传输对象或覆盖用户来源的同名 Skill。
 - `skill-category.ts` 只翻译 Nexus 已知分类键；用户自定义分类始终保留服务端原名。
 - `settings/` 统一 Config 与 Settings 共同依赖的偏好值清洗和 Options 合并规则。
-- `avatar.ts` 统一头像标识、图标编号范围和稳定 Room 默认头像。
+- `avatar.ts` 统一头像标识、图标编号范围、完整字符的姓名缩写和稳定 Room 默认头像；Launcher 装饰身份也直接复用，不另算首字母。
+- `text-graphemes.ts` 统一 Unicode 展示字符切分；姓名缩写、Hero 测量失败回退与流式正文共用，无 `Intl.Segmenter` 时退回完整 code point，不持有排版或推进时钟。
 - `seeded-avatar.ts` 把稳定资源标识投影为跨页面一致的头像颜色与静态数学曲线路径；曲线族只在数学原点生成并等比映射到 SVG 的 `50,50`，优先采用旋转对称的径向花瓣、同余谐波、玫瑰线、Lissajous、双纽线、内旋轮线、Superformula 与极坐标编织，不持有业务状态或动画生命周期。
 - `format/` 按展示值类型保存无状态格式化规则，不建立聚合出口。
 - API、会话与 WebSocket 等有明确协议所有权的能力归各自子目录。
 - Feature 不得通过本目录建立领域转发层；消费者直接导入具体基础函数。
 - Config 与 Feature 只能共同依赖基础规则，不得让基础配置反向读取 Feature 实现。
 - 禁止恢复 `utils.ts` catch-all；样式类名组合直接依赖 `shared/ui/class-name.ts`。
+
+`desktop-bridge` 的 `app.get_system_fonts` 只读返回原生字体家族名称，不读取或传输字体文件。
+
+权限选择统一为 default/auto/bypassPermissions；auto 是 SDK 动态审核，历史 acceptEdits 只读保留，不把旧值伪装成已启用审核。
+
+权限选项通过 getAgentPermissionChoices 统一投影；nxs 和 Claude 均展示 auto，未知运行时保守展示 default。后端分别协商能力与确认原生模式。
+
+`desktop-bridge` 的 `app.set_attention` 聚合各会话待确认状态；原生宿主根据窗口前后台状态控制 Dock/任务栏提醒，不改变窗口焦点。

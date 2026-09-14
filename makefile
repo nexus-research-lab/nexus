@@ -13,7 +13,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.1.40
+TAG ?= 0.2.0
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
@@ -24,6 +24,8 @@ AGENT_UID ?= 1001
 AGENT_GID ?= 1001
 CONTROL_UID ?= 1002
 CONTROL_GID ?= 1002
+RELAY_UID ?= 1003
+RELAY_GID ?= 1003
 HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
@@ -48,7 +50,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 # Default target
 .DEFAULT_GOAL := help
 
-.PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
+.PHONY: check-architecture help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
@@ -175,7 +177,10 @@ check-web: ## Run frontend lint, types, all tests, browser UI matrix and product
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck
 
-check-go-vet: ## Run Go static analysis checks
+check-architecture: ## Check internal production dependency boundaries
+	go run ./scripts/check-architecture
+
+check-go-vet: check-architecture ## Run Go static analysis checks
 	go vet -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
 
 check-go: ## Run checks for Go packages changed from the upstream branch
@@ -316,6 +321,24 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 			fi; \
 		fi; \
 	done; \
+	if [ -n "$(strip $(RELAY_ROOT) $(RELAY_ENV_FILE))" ]; then \
+		for relay_dir in relay relay/data; do \
+			path="$$resolved_dir/.nexus/$$relay_dir"; \
+			if $(HOST_SUDO) test -L "$$path"; then \
+				echo "Error: $$path must not be a symbolic link."; \
+				exit 1; \
+			elif $(HOST_SUDO) test -e "$$path"; then \
+				if ! $(HOST_SUDO) test -d "$$path"; then \
+					echo "Error: $$path is not a directory."; \
+					exit 1; \
+				fi; \
+			else \
+				$(HOST_SUDO) mkdir "$$path"; \
+				$(HOST_SUDO) chown $(RELAY_UID):$(RELAY_GID) "$$path"; \
+				$(HOST_SUDO) chmod 0700 "$$path"; \
+			fi; \
+		done; \
+	fi; \
 	if $(HOST_SUDO) test -L "$$resolved_dir/.claude.json"; then \
 		echo "Error: $$resolved_dir/.claude.json must not be a symbolic link."; \
 		exit 1; \

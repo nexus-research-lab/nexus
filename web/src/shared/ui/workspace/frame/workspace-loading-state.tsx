@@ -19,15 +19,15 @@ export function WorkspaceLoadingState({ label }: WorkspaceLoadingStateProps) {
       aria-atomic="true"
       aria-busy="true"
       aria-live="polite"
-      className="flex min-h-0 flex-1 items-center justify-center"
+      className="flex min-h-0 min-w-0 flex-1 items-center justify-center"
       role="status"
     >
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex min-w-0 max-w-full flex-col items-center gap-3 text-center">
         <LoaderCircle
           aria-hidden
           className={getUiSpinnerClassName({ size: "xl", tone: "muted" })}
         />
-        <span className={getUiTypographyClassName({ role: "supporting", tone: "soft" })}>
+        <span className={`max-w-full wrap-anywhere ${getUiTypographyClassName({ role: "supporting", tone: "soft" })}`}>
           {label}
         </span>
       </div>

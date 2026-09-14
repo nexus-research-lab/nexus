@@ -1,11 +1,12 @@
 /**
  * INPUT: 当前导入模式、Git 草稿与本地文件入口。
- * OUTPUT: 文字分段选择及对应的单一导入表单。
+ * OUTPUT: 文字分段选择、实例级 Git 技术字段与具明确忙碌态的本地导入入口。
  * POS: Skill 导入弹窗的主内容，不承载格式教程。
  */
 import {
   type ComponentType,
   type RefObject,
+  useId,
 } from "react";
 import { FolderUp, Loader2 } from "lucide-react";
 
@@ -42,27 +43,6 @@ interface SourceViewProps extends Omit<
   "mode" | "onSelectMode"
 > {}
 
-function SkillImportModeTabs({
-  importing,
-  mode,
-  onSelectMode,
-}: Pick<SkillImportSourceProps, "importing" | "mode" | "onSelectMode">) {
-  const { t } = useI18n();
-  return (
-    <UiSegmentedControl
-      density="compact"
-      disabled={importing}
-      onChange={onSelectMode}
-      options={SKILL_IMPORT_MODES.map((option) => ({
-        label: t(option.labelKey),
-        value: option.key,
-      }))}
-      title={t("capability.skills_import_title")}
-      value={mode}
-    />
-  );
-}
-
 function GitSkillImportSource({
   draft,
   gitUrlInputRef,
@@ -70,21 +50,23 @@ function GitSkillImportSource({
   setDraftField,
 }: SourceViewProps) {
   const { t } = useI18n();
+  const fieldId = useId();
   return (
     <div className="space-y-4">
       <UiField
         description={t("capability.skills_import_git_url_description")}
-        htmlFor="skill-import-git-url"
+        htmlFor={`${fieldId}-url`}
         label={t("capability.skills_import_git_url")}
         required
       >
         <UiInput
           disabled={importing}
-          id="skill-import-git-url"
+          id={`${fieldId}-url`}
           onChange={(event) => setDraftField("url", event.target.value)}
           placeholder="https://github.com/owner/repo.git"
           ref={gitUrlInputRef}
           required
+          textRole="code"
           type="url"
           value={draft.url}
         />
@@ -92,39 +74,35 @@ function GitSkillImportSource({
       <div className="grid gap-3 sm:grid-cols-2">
         <UiField
           description={t("capability.skills_import_git_branch_description")}
-          htmlFor="skill-import-git-branch"
+          htmlFor={`${fieldId}-branch`}
           label={t("capability.skills_import_git_branch")}
         >
           <UiInput
             disabled={importing}
-            id="skill-import-git-branch"
+            id={`${fieldId}-branch`}
             onChange={(event) => setDraftField("branch", event.target.value)}
             placeholder="main"
+            textRole="code"
             value={draft.branch}
           />
         </UiField>
         <UiField
           description={t("capability.skills_import_git_path_description")}
-          htmlFor="skill-import-git-path"
+          htmlFor={`${fieldId}-path`}
           label={t("capability.skills_import_git_path")}
         >
           <UiInput
             disabled={importing}
-            id="skill-import-git-path"
+            id={`${fieldId}-path`}
             onChange={(event) => setDraftField("path", event.target.value)}
             placeholder="skills/room-playbook"
+            textRole="code"
             value={draft.path}
           />
         </UiField>
       </div>
     </div>
   );
-}
-
-function ImportingIcon({ importing }: { importing: boolean }) {
-  return importing
-    ? <Loader2 className={getUiSpinnerClassName()} />
-    : <FolderUp className="h-4 w-4" />;
 }
 
 function LocalSkillImportSource({
@@ -144,11 +122,12 @@ function LocalSkillImportSource({
         </h3>
         <p className={cn(
           "mt-1",
-          getUiTypographyClassName({ role: "metadata", tone: "muted" }),
+          getUiTypographyClassName({ role: "supporting", tone: "muted" }),
         )}>
           {t("capability.skills_import_zip_description")}
         </p>
         <UiButton
+          aria-busy={importing || undefined}
           className="mt-3"
           disabled={importing}
           onClick={() => fileInputRef.current?.click()}
@@ -156,7 +135,7 @@ function LocalSkillImportSource({
           tone="primary"
           variant="solid"
         >
-          <ImportingIcon importing={importing} />
+          {importing ? <Loader2 className={getUiSpinnerClassName()} /> : <FolderUp className="h-4 w-4" />}
           {importing
             ? t("capability.skills_importing")
             : t("capability.skills_import_choose_zip")}
@@ -179,13 +158,17 @@ export function SkillImportSource({
   onSelectMode,
   ...props
 }: SkillImportSourceProps) {
+  const { t } = useI18n();
   const Source = SOURCE_VIEWS[mode];
   return (
     <section className="space-y-4">
-      <SkillImportModeTabs
-        importing={props.importing}
-        mode={mode}
-        onSelectMode={onSelectMode}
+      <UiSegmentedControl
+        density="compact"
+        disabled={props.importing}
+        onChange={onSelectMode}
+        options={SKILL_IMPORT_MODES.map((option) => ({ label: t(option.labelKey), value: option.key }))}
+        title={t("capability.skills_import_title")}
+        value={mode}
       />
       <Source {...props} />
     </section>

@@ -318,8 +318,7 @@ func normalizeRuntimeSettings(
 	normalizedMode := runtimepermission.NormalizeMode(
 		sdkpermission.Mode(settings.PermissionMode),
 	)
-	if string(normalizedMode) != settings.PermissionMode ||
-		normalizedMode == sdkpermission.ModeAuto {
+	if string(normalizedMode) != settings.PermissionMode {
 		return protocol.SessionRuntimeSettings{}, fmt.Errorf(
 			"%w：permission_mode 不受支持",
 			ErrInvalidRuntimeSettings,

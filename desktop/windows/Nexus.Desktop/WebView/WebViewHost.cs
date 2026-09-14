@@ -542,6 +542,9 @@ internal sealed class WebViewHost : IDisposable
             case "web.health":
                 HandleWebHealthMessage(payload);
                 break;
+            case "web.diagnostic":
+                startupTimeline.Mark("web.diagnostic", LifecycleMetadata(payload));
+                break;
             default:
                 startupTimeline.Mark("web.lifecycle_ignored", new Dictionary<string, string>
                 {
@@ -612,7 +615,7 @@ internal sealed class WebViewHost : IDisposable
         {
             ["surface"] = "main",
         };
-        foreach (string key in new[] { "kind", "source", "status", "message", "name", "stack", "component_stack" })
+        foreach (string key in new[] { "kind", "source", "status", "message", "name", "stack", "component_stack", "context" })
         {
             string value = JsonOptionalString(payload, key);
             if (!string.IsNullOrWhiteSpace(value))

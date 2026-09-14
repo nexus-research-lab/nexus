@@ -118,6 +118,13 @@ function shouldRedirectAuthenticatedSession(
   status: AuthStatus | null,
   loading: boolean,
 ): boolean {
+  if (
+    status?.auth_required === false
+    && status.password_login_enabled
+    && status.auth_method === "local"
+  ) {
+    return false;
+  }
   return !loading
     && status !== null
     && (!status.auth_required || status.authenticated);

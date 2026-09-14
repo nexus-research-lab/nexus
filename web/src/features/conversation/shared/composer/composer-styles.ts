@@ -2,12 +2,6 @@
 // OUTPUT: 只描述 Conversation Composer 领域结构的稳定 class 和测量常量。
 // POS: Composer 视觉 pattern；按钮 DOM 与状态样式由 shared UiButton 原语负责。
 
-export const COMPOSER_ATTACHMENT_CLASS_NAME =
-  "chip-default group relative inline-flex items-center gap-2 px-2.5 py-1.5";
-
-export const COMPOSER_ATTACHMENT_PREVIEW_CLASS_NAME =
-  "group/preview min-h-0 min-w-0 gap-2 p-0";
-
 export const COMPOSER_ATTACHMENT_ROW_CLASS_NAME =
   "flex flex-wrap gap-2 border-b border-(--divider-subtle-color) px-2.5 py-2";
 
@@ -22,6 +16,9 @@ export const COMPOSER_IMAGE_ATTACHMENT_REMOVE_CLASS_NAME =
 
 export const COMPOSER_SHELL_CLASS_NAME =
   "input-shell nexus-chat-composer-shell overflow-hidden";
+
+export const COMPOSER_TEXTAREA_CLASS_NAME =
+  "multiline-cursor soft-scrollbar relative z-10 block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none";
 
 export const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 120;
 

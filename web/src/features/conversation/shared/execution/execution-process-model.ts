@@ -1,10 +1,12 @@
 /**
- * INPUT: ExecutionView、持久 Agent 目录与 runtime Subagent identity。
+ * INPUT: ExecutionView、持久 Agent 目录、runtime Subagent identity 与当前语言。
  * OUTPUT: 状态/类型文案键、当前节点、可展示摘要、稳定 Agent/Subagent 头像身份、一级 Agent 活动态、依赖深度与 WorkGraph 生命周期判定。
  * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
 import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
+import { getAgentDisplayName } from "@/lib/agent-display-name";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ExecutionGraphNodeView,
@@ -18,6 +20,7 @@ export interface ExecutionAgentIdentity {
   avatar: string | null;
   id: string;
   name: string;
+  nameIsFallback?: boolean;
 }
 
 export type ExecutionAgentDirectory = Record<string, ExecutionAgentIdentity>;
@@ -401,15 +404,18 @@ export function isTerminalExecutionStatus(status: ExecutionStatus): boolean {
 export function resolveExecutionAgent(
   directory: ExecutionAgentDirectory,
   agentId: string | undefined,
+  t: I18nContextValue["t"],
 ): ExecutionAgentIdentity | null {
   const normalized = agentId?.trim() ?? "";
   if (!normalized) {
     return null;
   }
-  return directory[normalized] ?? {
-    avatar: null,
-    id: normalized,
-    name: normalized,
+  const agent = directory[normalized];
+  return {
+    avatar: agent?.avatar ?? null,
+    id: agent?.id ?? normalized,
+    name: getAgentDisplayName(agent?.name, t),
+    nameIsFallback: !agent?.name.trim(),
   };
 }
 
@@ -417,6 +423,7 @@ export function resolveExecutionGraphNodeAgent(
   directory: ExecutionAgentDirectory,
   node: ExecutionGraphNodeView,
   item: ExecutionWorkItemView | null,
+  t: I18nContextValue["t"],
 ): ExecutionAgentIdentity | null {
   if (node.kind === "tool") {
     return null;
@@ -429,22 +436,25 @@ export function resolveExecutionGraphNodeAgent(
     return {
       avatar: getSeededAvatarDataUrl(identity),
       id: `subagent:${identity}`,
-      name: node.name?.trim() || node.agent_id?.trim() || "Subagent",
+      name: getAgentDisplayName(node.name, t, "subagent"),
+      nameIsFallback: !node.name?.trim(),
     };
   }
   return resolveExecutionAgent(
     directory,
     node.agent_id ?? item?.owner_agent_id,
+    t,
   );
 }
 
 export function compactExecutionNodeObjective(
   objective: string,
   ownerName: string | undefined,
+  ownerNameIsFallback = false,
 ): string {
   const value = objective.trim();
   const owner = ownerName?.trim() ?? "";
-  if (!owner || value.length <= owner.length) {
+  if (ownerNameIsFallback || !owner || value.length <= owner.length) {
     return value;
   }
   const prefix = value.slice(0, owner.length);

@@ -29,9 +29,12 @@ describe("RoomMemberSelector", () => {
           onQueryChange={vi.fn()}
           onToggleAgent={onToggleAgent}
           onToggleParticipation={onToggleParticipation}
+          onToggleUser={vi.fn()}
           pausedAgentIds={new Set(["researcher"])}
           query=""
           selectedAgentIds={new Set(["researcher"])}
+          selectedUserIds={new Set()}
+          users={[]}
         />
       </I18N_CONTEXT.Provider>,
     );

@@ -1,11 +1,11 @@
 /**
  * INPUT: 桌面浏览器扩展状态、安装命令和 CDP 偏好。
- * OUTPUT: Browser 设置、连接状态与可执行恢复动作。
+ * OUTPUT: Browser 设置、连接状态、可执行恢复动作与精确关联风险/说明的 CDP 开关。
  * POS: 设置目录的 Browser 分区，移动端页面身份由应用栏承载。
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AppWindow,
   CheckCircle2,
@@ -61,18 +61,24 @@ const INSTALL_STEPS: ReadonlyArray<{
 
 export function BrowserSettingsSection() {
   const { t } = useI18n();
+  const cdpDescriptionId = useId();
+  const cdpRiskId = useId();
   const [status, setStatus] = useState<BrowserExtensionStatus | null>(null);
   const [statusError, setStatusError] = useState(false);
   const [statusRefresh, setStatusRefresh] = useState(0);
   const [setup, setSetup] = useState<DesktopBrowserExtensionSetupResult | null>(null);
   const [openingSetup, setOpeningSetup] = useState(false);
+  const setupPendingRef = useRef(false);
   const [setupError, setSetupError] = useState(false);
   const preferences = useUserPreferences();
   const cdpEnabled = preferences.preferences.browser_cdp_enabled === true;
 
   useEffect(() => {
     let active = true;
+    let loading = false;
     const load = async () => {
+      if (!active || loading) return;
+      loading = true;
       try {
         const next = await getBrowserExtensionStatusApi();
         if (!active) return;
@@ -81,6 +87,8 @@ export function BrowserSettingsSection() {
       } catch {
         if (!active) return;
         setStatusError(true);
+      } finally {
+        loading = false;
       }
     };
     void load();
@@ -92,6 +100,8 @@ export function BrowserSettingsSection() {
   }, [statusRefresh]);
 
   const openSetup = useCallback(async () => {
+    if (setupPendingRef.current) return;
+    setupPendingRef.current = true;
     setOpeningSetup(true);
     setSetupError(false);
     try {
@@ -99,6 +109,7 @@ export function BrowserSettingsSection() {
     } catch {
       setSetupError(true);
     } finally {
+      setupPendingRef.current = false;
       setOpeningSetup(false);
     }
   }, []);
@@ -159,6 +170,7 @@ export function BrowserSettingsSection() {
             </div>
 
             <UiButton
+              aria-busy={openingSetup}
               disabled={openingSetup}
               onClick={() => void openSetup()}
               size="sm"
@@ -287,8 +299,9 @@ export function BrowserSettingsSection() {
           <div className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--warning)" />
-              <div>
+              <div className="min-w-0 break-words">
                 <p
+                  id={cdpRiskId}
                   className={getUiTypographyClassName({
                     role: "caption",
                     tone: "warning",
@@ -300,15 +313,16 @@ export function BrowserSettingsSection() {
                 <h3 className={cn("mt-1", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))}>
                   {t("settings.browser.cdp_title")}
                 </h3>
-                <p className={cn(
+                <p id={cdpDescriptionId} className={cn(
                   "mt-1 max-w-[720px]",
-                  getUiTypographyClassName({ role: "metadata", tone: "soft" }),
+                  getUiTypographyClassName({ role: "supporting", tone: "muted" }),
                 )}>
                   {t("settings.browser.cdp_description")}
                 </p>
               </div>
             </div>
             <GlassSwitch
+              aria-describedby={`${cdpRiskId} ${cdpDescriptionId}`}
               aria-label={t("settings.browser.cdp_toggle")}
               checked={cdpEnabled}
               disabled={preferences.loading || preferences.saving || !preferences.writable}

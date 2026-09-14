@@ -5,8 +5,12 @@
  */
 import { RefreshCw, Search } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
+import { UiResourceState } from "@/shared/ui/display/resource-state";
+import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
@@ -50,12 +54,13 @@ export function AgentMemoryCatalog({
   truncated,
 }: AgentMemoryCatalogProps) {
   const { t } = useI18n();
+  const hasFilters = filter !== "all" || !createUiSearchMatcher(query).empty;
   const filterOptions = MEMORY_FILTER_OPTIONS.map((option) => ({
     label: t(option.labelKey),
     value: option.value,
   }));
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-shell-directory-background)">
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col">
       <div className="flex shrink-0 items-center gap-2 px-3 py-3">
         <UiSearchInput
           action={(
@@ -100,32 +105,31 @@ export function AgentMemoryCatalog({
             section={section}
           />
         ))}
-        {emptyFilterVisible ? (
-          <div className="px-3 py-10 text-center">
-            <Search className="mx-auto h-5 w-5 text-(--icon-muted)" />
-            <p className="mt-2 text-compact text-(--text-muted)">
-              {t("capability.memory_empty_filter")}
-            </p>
-          </div>
+        {emptyMemoryVisible ? (
+          <UiResourceState
+            description={t("capability.memory_empty_description")}
+            size="sm" state="empty" variant="plain"
+            title={t("capability.memory_empty_title")}
+          />
+        ) : emptyFilterVisible ? (
+          <UiResourceState
+            icon={<Search aria-hidden className="h-5 w-5 text-(--icon-default)" />}
+            primaryAction={hasFilters ? {
+              label: t("capability.memory_clear_filters"),
+              onClick: () => { onQueryChange(""); onFilterChange("all"); },
+            } : undefined}
+            size="sm" state="empty" variant="plain"
+            title={t("capability.memory_empty_filter")}
+          />
         ) : null}
 
         {truncated ? (
-          <p className="px-3 py-3 text-xs leading-4 text-(--text-soft)">
+          <p className={cn("px-3 py-3", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
             {t("capability.memory_truncated")}
           </p>
         ) : null}
       </div>
 
-      {emptyMemoryVisible ? (
-        <div className="px-4 py-4">
-          <p className="text-compact font-semibold text-(--text-strong)">
-            {t("capability.memory_empty_title")}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-            {t("capability.memory_empty_description")}
-          </p>
-        </div>
-      ) : null}
     </aside>
   );
 }
@@ -161,7 +165,7 @@ function MemoryCatalogSectionView({
 
 function MemorySectionLabel({ label, value }: { label: string; value?: string }) {
   return (
-    <div className="flex items-center justify-between px-2 pb-1 pt-1 text-2xs font-semibold uppercase text-(--text-soft)">
+    <div className={cn("flex items-center justify-between px-2 pb-1 pt-1 uppercase", getUiTypographyClassName({ role: "metadata", weight: "semibold", tone: "soft" }))}>
       <span>{label}</span>
       {value ? <span className="tabular-nums">{value}</span> : null}
     </div>

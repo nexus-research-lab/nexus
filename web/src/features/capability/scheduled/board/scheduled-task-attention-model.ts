@@ -1,3 +1,7 @@
+// INPUT: 当前任务权限请求、明确能力事实和当前语言。
+// OUTPUT: 权限动作资格及本地化能力、目标摘要。
+// POS: Scheduled注意事项纯投影，不执行审批或推断副作用。
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { AutomationPermissionRequest } from "@/types/capability/scheduled-task/permission";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -49,48 +53,51 @@ export function hasScheduledTaskPermissionAttention(task: ScheduledTaskItem): bo
 export function getScheduledPermissionDisplayTitle(
   request: AutomationPermissionRequest,
   fallback: string,
+  t: I18nContextValue["t"],
 ): string {
   if (!isPendingFeishuDocumentToolRequest(request)) {
     return fallback;
   }
   if (request.capability.effect === "read") {
-    return "飞书文档读取需要确认";
+    return t("capability.scheduled_board_feishu_read_title");
   }
   if (request.capability.effect === "write") {
-    return "飞书文档修改需要确认";
+    return t("capability.scheduled_board_feishu_write_title");
   }
-  return "飞书文档操作需要确认";
+  return t("capability.scheduled_board_feishu_title");
 }
 
 export function getScheduledPermissionDisplayDescription(
   request: AutomationPermissionRequest,
   fallback: string,
+  t: I18nContextValue["t"],
 ): string {
   if (!isPendingFeishuDocumentToolRequest(request)) {
     return fallback;
   }
   if (request.capability.effect === "read") {
-    return "任务需要读取指定的飞书文档内容。请确认是否允许本次运行继续。";
+    return t("capability.scheduled_board_feishu_read_description");
   }
   if (request.capability.effect === "write") {
-    return "任务需要修改指定的飞书文档内容，可能产生外部副作用。请确认是否允许本次运行继续。";
+    return t("capability.scheduled_board_feishu_write_description");
   }
-  return "任务需要操作指定的飞书文档。请确认是否允许本次运行继续。";
+  return t("capability.scheduled_board_feishu_description");
 }
 
 export function getScheduledPermissionCapabilityLabel(
   request: AutomationPermissionRequest,
+  t: I18nContextValue["t"],
 ): string {
   const target =
     request.capability.connector_id === "feishu-docx"
-      ? "飞书文档"
-      : request.capability.connector_id?.trim() || "外部工具";
+      ? t("capability.scheduled_board_feishu")
+      : request.capability.connector_id?.trim() || t("capability.scheduled_board_external_tool");
   const effects: Record<string, string> = {
-    execute: "执行",
-    read: "只读",
-    write: "写入 / 修改",
+    execute: t("capability.scheduled_board_effect_execute"),
+    read: t("capability.scheduled_board_effect_read"),
+    write: t("capability.scheduled_board_effect_write"),
   };
-  return `${target} · ${effects[request.capability.effect] ?? request.capability.effect}`;
+  return `${target} · ${effects[request.capability.effect] ?? t("capability.scheduled_board_effect_unknown")}`;
 }
 
 export function getScheduledPermissionResourceSummary(

@@ -206,6 +206,7 @@ func (s *Service) HandleInputQueue(
 			contextValue,
 			content,
 			request.TargetAgentIDs,
+			request.TrustedConfigurationContext,
 		)
 		if err != nil {
 			return protocol.InputQueueMutationResult{}, err
@@ -624,6 +625,7 @@ func (s *Service) resolveRoomInputQueuePrimaryLocation(
 	contextValue *protocol.ConversationContextAggregate,
 	content string,
 	explicitTargetAgentIDs []string,
+	requireExplicitGroupTarget bool,
 ) (workspacestore.InputQueueLocation, []string, error) {
 	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
 	if err != nil {
@@ -642,17 +644,18 @@ func (s *Service) resolveRoomInputQueuePrimaryLocation(
 	} else {
 		targetAgentIDs = roomdomain.ResolveMentionAgentIDs(content, roomdomain.BuildMentionAliases(contextValue))
 	}
-	if len(targetAgentIDs) == 0 && len(locationsByAgentID) == 1 {
+	allowDefaultTarget := contextValue.Room.RoomType != protocol.RoomTypeGroup || !requireExplicitGroupTarget
+	if len(targetAgentIDs) == 0 && allowDefaultTarget && len(locationsByAgentID) == 1 {
 		for agentID := range locationsByAgentID {
 			targetAgentIDs = []string{agentID}
 		}
 	}
-	if len(targetAgentIDs) == 0 {
+	if len(targetAgentIDs) == 0 && allowDefaultTarget {
 		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByIDFromInputLocations(locationsByAgentID)); ok {
 			targetAgentIDs = []string{hostAgentID}
 		}
 	}
-	if len(targetAgentIDs) == 0 {
+	if len(targetAgentIDs) == 0 && allowDefaultTarget {
 		targetAgentIDs = s.latestActiveRootRoundAgentIDs(
 			protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
 			contextValue.Conversation.ID,

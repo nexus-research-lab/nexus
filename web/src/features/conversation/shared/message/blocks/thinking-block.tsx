@@ -1,6 +1,6 @@
 /**
  * INPUT: Thought 正文、流式状态与展开默认值。
- * OUTPUT: 收起时显示单行正文预览，展开时仅保留状态标题并呈现完整明细。
+ * OUTPUT: 默认收起的单行正文预览；用户展开后保留选择，流式阶段切换不重置明细。
  * POS: Assistant 执行过程中的 Thought 二级明细入口。
  */
 "use client";
@@ -9,6 +9,8 @@ import { Brain } from "lucide-react";
 import type { RefObject } from "react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 
 import { MarkdownRenderer } from "../markdown-renderer";
@@ -28,7 +30,7 @@ interface ThinkingBlockProps {
 
 interface ThinkingPresentation {
   className: string;
-  label: string;
+  labelKey: TranslationKey;
 }
 
 const THINKING_PRESENTATIONS: Readonly<Record<
@@ -37,11 +39,11 @@ const THINKING_PRESENTATIONS: Readonly<Record<
 >> = {
   idle: {
     className: "text-(--icon-muted)",
-    label: "Thought",
+    labelKey: "message.thought",
   },
   streaming: {
-    className: "animate-pulse text-(--primary)",
-    label: "Thinking……",
+    className: "motion-safe:animate-pulse text-(--primary)",
+    labelKey: "message.activity_thinking",
   },
 };
 
@@ -52,11 +54,9 @@ export function ThinkingBlock({
   isStreaming = false,
   workspaceAgentId,
 }: ThinkingBlockProps) {
-  // 流式边界是展开状态的重置域；同一阶段内仍允许用户手动切换。
-  const expansion = useScrollAnchoredState(
-    defaultExpanded ?? isStreaming,
-    isStreaming,
-  );
+  const { t } = useI18n();
+  // 展开只由用户选择；流式开始或结束不得自动打开或关闭详情。
+  const expansion = useScrollAnchoredState(defaultExpanded ?? false);
   const isExpanded = expansion.isOpen;
   const presentation = resolveThinkingPresentation(isStreaming);
   const preview = thinking.replace(/\s+/g, " ").trim();
@@ -90,7 +90,7 @@ export function ThinkingBlock({
         onClick={expansion.toggle}
         tone={isStreaming ? "active" : "default"}
       >
-        <span className="shrink-0">{presentation.label}</span>
+        <span className="shrink-0">{t(presentation.labelKey)}</span>
         {!isExpanded ? (
           <span
             className="min-w-0 flex-1 truncate text-(--text-soft)"

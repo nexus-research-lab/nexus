@@ -1,6 +1,6 @@
 // INPUT: Browser keyboard-event composition flags and legacy IME key codes.
 // OUTPUT: Whether the event belongs to text composition rather than an application shortcut.
-// POS: Neutral keyboard boundary shared by Composer and message editing; owns no submit command or composition timing state.
+// POS: Neutral keyboard boundary for text editing, dialogs and overlays; owns no submit command or composition timing state.
 
 export function isImeKeyboardEvent(event: {
   isComposing?: boolean;

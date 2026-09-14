@@ -1,5 +1,5 @@
 // INPUT: 当前 Agent、联系人/候选目录、读取状态与增删选择命令。
-// OUTPUT: 可搜索的共享列表行目录，以及使用统一 Dialog/Form/Panel 的添加联系人流程。
+// OUTPUT: 共享搜索与列表目录，以及保留当前选择、锁定提交的 Dialog/Form/Panel 添加流程。
 // POS: Contacts 联络目录视图；不拥有聊天 Session、消息时间线或服务端 mutation 真相。
 "use client";
 
@@ -10,15 +10,16 @@ import {
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
   UiDialogBody,
+  UiDialogCloseButton,
   UiDialogFooter,
   UiDialogFormShell,
   UiDialogHeader,
@@ -28,6 +29,7 @@ import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiField, UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
+import { SidebarSearchAction, SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiPanel } from "@/shared/ui/panel";
@@ -72,6 +74,7 @@ export function AgentCommunicationDirectory({
   const { t } = useI18n();
   const [query, setQuery] = useResettableState("", agent.agent_id);
   const [addDialogOpen, setAddDialogOpen] = useResettableState(false, agent.agent_id);
+  const hasQuery = !createUiSearchMatcher(query).empty;
   const contacts = useMemo(
     () => filterCommunicationContacts(allContacts, query),
     [allContacts, query],
@@ -91,27 +94,25 @@ export function AgentCommunicationDirectory({
         "min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-shell-directory-background) md:flex",
         selectedContactId ? "hidden" : "flex",
       )}>
-        <div className="flex shrink-0 items-center gap-2 px-2 py-3">
-          <UiSearchInput
-            className="min-w-0 flex-1"
-            controlSize="sm"
+        <div className="shrink-0 pt-3">
+          <SidebarSearchField
+            action={(
+              <SidebarSearchAction
+                aria-label={t("agent_options.contact.add_friend")}
+                onClick={() => setAddDialogOpen(true)}
+                title={t("agent_options.contact.add_friend")}
+              >
+                <UserRoundPlus />
+              </SidebarSearchAction>
+            )}
+            label={t("agent_options.contact.search_contacts")}
             onChange={setQuery}
-            placeholder={t("agent_options.contact.search_contacts")}
             value={query}
           />
-          <UiIconButton
-            aria-label={t("agent_options.contact.add_friend")}
-            onClick={() => setAddDialogOpen(true)}
-            size="lg"
-            title={t("agent_options.contact.add_friend")}
-            variant="ghost"
-          >
-            <UserRoundPlus className="h-5 w-5" />
-          </UiIconButton>
         </div>
 
         <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {isDirectoryLoading && contacts.length === 0 && !directoryFailure ? (
+          {isDirectoryLoading && allContacts.length === 0 && !directoryFailure ? (
             <AgentCommunicationEmptyState
               label={t("agent_options.contact.loading_address_book")}
               loading
@@ -121,22 +122,6 @@ export function AgentCommunicationDirectory({
               failure={directoryFailure}
               onRetry={onRefresh}
             />
-          ) : contacts.length === 0 ? (
-            <>
-              {directoryFailure ? (
-                <AgentCommunicationReadFailureState
-                  compact
-                  failure={directoryFailure}
-                  onRetry={onRefresh}
-                />
-              ) : null}
-              <AgentCommunicationEmptyState
-                icon={query ? MessageCircle : UsersRound}
-                label={query
-                  ? t("agent_options.contact.no_search_results")
-                  : t("agent_options.contact.empty_directory")}
-              />
-            </>
           ) : (
             <>
               {directoryFailure ? (
@@ -146,16 +131,30 @@ export function AgentCommunicationDirectory({
                   onRetry={onRefresh}
                 />
               ) : null}
-              <div className="space-y-0.5">
-                {contacts.map((contact) => (
-                  <ContactRow
-                    contact={contact}
-                    isSelected={selectedContactId === contact.contact_agent_id}
-                    key={contact.contact_agent_id}
-                    onSelect={() => onSelectContact(contact.contact_agent_id)}
-                  />
-                ))}
-              </div>
+              {contacts.length === 0 ? (
+                <AgentCommunicationEmptyState
+                  icon={hasQuery ? MessageCircle : UsersRound}
+                  label={hasQuery
+                    ? t("agent_options.contact.no_search_results")
+                    : t("agent_options.contact.empty_directory")}
+                  action={hasQuery ? {
+                    label: t("common.clear"), onClick: () => setQuery(""),
+                  } : {
+                    label: t("agent_options.contact.add_friend"), onClick: () => setAddDialogOpen(true),
+                  }}
+                />
+              ) : (
+                <div className="space-y-0.5">
+                  {contacts.map((contact) => (
+                    <ContactRow
+                      contact={contact}
+                      isSelected={selectedContactId === contact.contact_agent_id}
+                      key={contact.contact_agent_id}
+                      onSelect={() => onSelectContact(contact.contact_agent_id)}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -166,6 +165,7 @@ export function AgentCommunicationDirectory({
           agentId={agent.agent_id}
           agents={availableAgents}
           isPending={Boolean(pendingAgentId)}
+          key={agent.agent_id}
           onAdd={onAddContact}
           onClose={() => setAddDialogOpen(false)}
         />
@@ -197,6 +197,7 @@ function ContactRow({
       leading={<UiAgentAvatar avatar={contact.avatar} name={label} size="md" />}
       onClick={onSelect}
       title={label}
+      tooltip={label}
     />
   );
 }
@@ -215,6 +216,15 @@ function AddContactDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const titleId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
   const [query, setQuery] = useResettableState("", agentId);
   const [selectedAgentId, setSelectedAgentId] = useResettableState("", agentId);
   const [alias, setAlias] = useResettableState("", agentId);
@@ -222,15 +232,26 @@ function AddContactDialog({
   const candidates = agents.filter((candidate) => search.matches([
     getCommunicationAgentName(candidate),
   ]));
-  const titleId = `add-agent-contact-${agentId}`;
+  const selectedAgent = agents.find((candidate) => candidate.agent_id === selectedAgentId);
+  const busy = submitting || isPending;
+  const selectedOutsideSearch = selectedAgent && !candidates.includes(selectedAgent);
+  const close = () => {
+    if (!busy && !submittingRef.current) onClose();
+  };
   const submit = async () => {
-    if (selectedAgentId && await onAdd(selectedAgentId, alias)) {
-      onClose();
+    if (busy || submittingRef.current || !selectedAgent) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    try {
+      if (await onAdd(selectedAgent.agent_id, alias) && mountedRef.current) onClose();
+    } finally {
+      submittingRef.current = false;
+      if (mountedRef.current) setSubmitting(false);
     }
   };
   return (
     <UiDialogPortal>
-      <UiDialogBackdrop labelledBy={titleId} onClose={onClose}>
+      <UiDialogBackdrop initialFocusRef={searchRef} labelledBy={titleId} onClose={close}>
         <UiDialogFormShell
           onSubmit={(event) => {
             event.preventDefault();
@@ -240,17 +261,20 @@ function AddContactDialog({
           viewport="compactMax"
         >
           <UiDialogHeader
+            actions={<UiDialogCloseButton disabled={busy} onClose={close} />}
             appearance="plain"
-            onClose={onClose}
             title={t("agent_options.contact.add_friend")}
             titleId={titleId}
           />
           <UiDialogBody className="space-y-4" scrollable>
             <UiSearchInput
+              aria-label={t("agent_options.contact.search_agents")}
               className="w-full"
               controlSize="md"
+              disabled={busy}
               onChange={setQuery}
               placeholder={t("agent_options.contact.search_agents")}
+              ref={searchRef}
               value={query}
               variant="dialog"
             />
@@ -266,7 +290,8 @@ function AddContactDialog({
                   className="min-h-32"
                   size="sm"
                   state="empty"
-                  title={t("agent_options.contact.no_available_agents")}
+                  primaryAction={!search.empty ? { disabled: busy, label: t("common.clear"), onClick: () => setQuery("") } : undefined}
+                  title={t(search.empty ? "agent_options.contact.no_available_agents" : "agent_options.contact.no_matching_agents")}
                   variant="plain"
                 />
               ) : candidates.map((candidate) => {
@@ -278,6 +303,7 @@ function AddContactDialog({
                     aria-label={candidateName}
                     aria-pressed={selected}
                     density="compact"
+                    disabled={busy}
                     key={candidate.agent_id}
                     leading={(
                       <UiAgentAvatar
@@ -299,17 +325,21 @@ function AddContactDialog({
                       />
                     )}
                     title={candidateName}
+                    tooltip={candidateName}
                   />
                 );
               })}
             </UiPanel>
             <UiField
+              description={selectedOutsideSearch
+                ? t("agent_options.contact.selected_agent", { name: getCommunicationAgentName(selectedAgent) })
+                : undefined}
               htmlFor={`${titleId}-alias`}
               label={t("agent_options.contact.alias")}
             >
               <UiInput
                 controlSize="md"
-                disabled={!selectedAgentId || isPending}
+                disabled={!selectedAgent || busy}
                 id={`${titleId}-alias`}
                 maxLength={128}
                 onChange={(event) => setAlias(event.target.value)}
@@ -320,11 +350,11 @@ function AddContactDialog({
             </UiField>
           </UiDialogBody>
           <UiDialogFooter appearance="plain">
-            <UiButton onClick={onClose} type="button" variant="ghost">
+            <UiButton disabled={busy} onClick={close} type="button" variant="ghost">
               {t("common.cancel")}
             </UiButton>
-            <UiButton disabled={!selectedAgentId || isPending} tone="primary" type="submit">
-              {isPending ? (
+            <UiButton aria-busy={busy || undefined} disabled={!selectedAgent || busy} tone="primary" type="submit">
+              {busy ? (
                 <LoaderCircle
                   aria-hidden
                   className={getUiSpinnerClassName({ size: "md" })}

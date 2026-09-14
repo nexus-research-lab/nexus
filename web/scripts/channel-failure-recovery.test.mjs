@@ -255,8 +255,11 @@ test("Channel login and account views hide raw provider diagnostics and QR paylo
   assert.doesNotMatch(connectionDialog, /\{controller\.currentItem\.last_error\}/);
   assert.match(catalogModel, /Boolean\(item\.last_error\)/);
   assert.match(catalogModel, /channel_connection_error_badge/);
-  assert.match(deleteCopy, /配置、已连接账号和配对/);
-  assert.match(deleteCopy, /账号及使用它的配对会被删除/);
+  assert.match(deleteCopy, /capability\.channel_disconnect_confirm/);
+  assert.match(deleteCopy, /capability\.channel_delete_account_confirm/);
+  const connectionCopy = await read("src/shared/i18n/catalog/zh/capability.ts");
+  assert.match(connectionCopy, /配置、已连接账号和配对/);
+  assert.match(connectionCopy, /账号及使用它的配对会被删除/);
 
   const { buildChannelLoginPanelModel } = await server.ssrLoadModule(
     "/src/features/capability/channels/connection/login/channel-login-model.ts",

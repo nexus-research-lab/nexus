@@ -3,6 +3,7 @@
  * OUTPUT: 可读摘要标题、更新时间和真实编辑/删除动作。
  * POS: 记忆正文唯一 Header；内部路径只保留为悬停诊断。
  */
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   ArrowLeft,
   LoaderCircle,
@@ -12,6 +13,8 @@ import {
   X,
 } from "lucide-react";
 
+import { cn } from "@/shared/ui/class-name";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -74,26 +77,26 @@ export function MemoryDocumentHeader({
     <div className="shrink-0">
       <div className="nexus-memory-document-content flex min-h-[60px] items-center gap-3 py-3">
         <UiIconButton
-          aria-label={t("common.back")}
+          aria-label={t("capability.memory_back_to_directory")}
           className="nexus-memory-compact-only"
           onClick={onBack}
           size="md"
-          title={t("common.back")}
+          title={t("capability.memory_back_to_directory")}
           variant="ghost"
         >
           <ArrowLeft className="h-4 w-4" />
         </UiIconButton>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h2
-              className="truncate text-base font-semibold text-(--text-strong)"
-              title={document.path}
+            <UiTooltip label={document.path}><h2
+              className={cn("truncate", getUiTypographyClassName({ role: "sectionTitle", tone: "strong", weight: "semibold" }))}
+
             >
               {getMemoryDocumentDisplayTitle(document)}
-            </h2>
+            </h2></UiTooltip>
             {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
           </div>
-          <div className="mt-0.5 text-xs text-(--text-soft)">
+          <div className={cn("mt-0.5", getUiTypographyClassName({ role: "caption", tone: "soft" }))}>
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </div>
         </div>
@@ -111,7 +114,7 @@ export function MemoryDocumentHeader({
 function MemoryRuntimeWritingStatus() {
   const { t } = useI18n();
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-(--primary)">
+    <span className={cn("inline-flex shrink-0 items-center gap-1", getUiTypographyClassName({ role: "caption", tone: "brand", weight: "medium" }))}>
       <LoaderCircle
         className={getUiSpinnerClassName({ size: "xs", tone: "primary" })}
       />

@@ -21,9 +21,7 @@ export function createMarkdownSummaryComponents(
   options: CreateMarkdownSummaryComponentsOptions = {},
 ): Components {
   const baseComponents = createMarkdownComponents(resolveFilePath, onOpenWorkspaceFile);
-  const headingClassName = options.monochrome
-    ? `inline ${options.strongAsText ? "font-normal" : "font-medium"} text-inherit`
-    : "inline font-medium text-foreground";
+  const headingClassName = `inline ${options.strongAsText ? "font-normal" : "font-medium"} ${options.monochrome ? "text-inherit" : "text-foreground"}`;
 
   return {
     ...baseComponents,
@@ -112,7 +110,7 @@ export function createMarkdownSummaryComponents(
       return <span className="inline">{children}</span>;
     },
     th({ children }) {
-      return <span className="inline font-medium">{children}</span>;
+      return <span className={options.strongAsText ? "inline font-normal" : "inline font-medium"}>{children}</span>;
     },
     td({ children }) {
       return <span className="inline">{children}</span>;
