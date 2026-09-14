@@ -906,3 +906,20 @@ profile inputs. Windows x64 cross-compilation passed. A new runner comparison ch
 an in-process COMSPEC canary is not inherited and measures the same cmdlet operations with
 the account baseline. Native evidence remains pending. API reference:
 [CreateEnvironmentBlock](https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock).
+
+### 2026-09-14: account environment verified; confine module analysis cache
+
+Native run
+[34828623009](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34828623009)
+passed the account-environment case, including rejection of inherited COMSPEC, but its
+cmdlet operations still took 17.23 seconds. Default search took 22.76 seconds and explicit
+system module search 16.91 seconds; explicit import took 0.24 seconds. The account
+baseline therefore works but does not establish a startup-latency fix.
+
+The baseline now binds `PSModuleAnalysisCachePath` to a fixed file beneath the invocation's
+already-authorized temporary directory. Externally supplied cache paths are not retained;
+no profile-directory write permission is added and cache cleanup remains enabled.
+Targeted tests and Windows x64 cross-compilation passed. Native behavior and any latency
+improvement remain unproven until the next run completes. Microsoft documents the default
+LOCALAPPDATA cache, background writing and supported path override in
+[Windows PowerShell 5.1 module analysis cache](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_windows_powershell_5.1?view=powershell-5.1).
