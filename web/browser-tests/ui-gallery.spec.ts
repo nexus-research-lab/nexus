@@ -2016,7 +2016,11 @@ test("streaming Markdown catches up across concurrent streams and preserves sett
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-streaming-markdown]");
-  await fixture.getByRole("button", { name: "Burst", exact: true }).click();
+  // Content previews may reflow while WebKit scrolls to this fixture. Start the
+  // stream by keyboard so this scheduler test does not race pointer hit testing.
+  await fixture.getByRole("button", { name: "Burst", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(fixture).toHaveAttribute("data-stream-source-length", /^[1-9]\d*$/);
   const outputs = fixture.locator("[data-stream-output]");
   await expect(outputs.first().locator("[data-markdown-anchor]").first()).toHaveText("稳定段落 Markdown 👩🏽‍💻。");
   const stableBlock = await outputs.first().locator("[data-markdown-anchor]").first().elementHandle();
