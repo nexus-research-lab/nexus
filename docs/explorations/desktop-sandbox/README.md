@@ -1055,3 +1055,37 @@ the mismatch with the endpoint's dedicated execution account, forbid reuse, and 
 the caller's process handle when closing. Windows x64 compilation passed; native evidence
 is pending. A successful dedicated-account connection through this unified entry remains
 an explicit integration requirement, not implied by the negative case.
+
+### 2026-09-14: runner token exposure reproduced; process-object protection under validation
+
+Native run [34832635141](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34832635141)
+at SDK `33f95d93` passed the dedicated-account positive verified-pipe integration.
+It also reproduced a control-plane isolation defect: a genuinely restricted child
+opened its unrestricted runner primary token with QUERY and DUPLICATE rights. The
+probe did not duplicate/use that token or execute an escape. This disproves treating
+restricted-token creation plus a dedicated account as a sufficient process boundary.
+PowerShell module-discovery timeout and the older impersonation event failure remain.
+
+SDK `312a4a39` adds `protectWindowsRunnerProcess` for an owned runner process handle.
+It validates that the execution account differs from the trusted host, replaces the
+process DACL with host full access and OWNER RIGHTS read-control only, and protects
+that DACL from inheritance. The explicit OWNER RIGHTS entry removes the same-account
+owner's implicit WRITE_DAC. It does not change filesystem ACLs or account privileges.
+The restricted child probe independently checks DACL/owner modification, handle
+duplication, VM write/operation and thread creation rights before probing token access.
+SDK `9ebe3abc` additionally applies protection from the host before resuming the dedicated
+pipe client and verifies host process control and IPC still work. Windows x64 cross-
+compilation passed; native results are pending.
+
+This is a component change, not a complete repair or product enablement. Required next
+checks include runner thread access (including impersonation), primary/impersonation
+token objects, future thread defaults, existing handle leakage and concurrent commands
+sharing the execution identity. DACL changes do not revoke previously obtained handles.
+The product bootstrap must establish all protection before any untrusted code can run;
+self-protection in the runner test is not proof of race-free production creation.
+Windows mandatory execution remains unavailable and the desktop feature remains off
+by default until the complete chain and compatibility checks pass.
+
+References: [process security](https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights),
+[SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo),
+[OWNER RIGHTS semantics](https://learn.microsoft.com/en-nz/windows-server/identity/ad-ds/manage/understand-security-identifiers).
