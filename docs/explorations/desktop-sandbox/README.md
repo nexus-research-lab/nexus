@@ -601,3 +601,15 @@ initialization belongs to the trusted provisioning stage. SDK `b684f130` adds
 bounded wait-chain metadata on test timeout, without reading process memory,
 credentials or object names. Native diagnosis is pending; prior failures remain
 recorded and no Windows product capability is enabled.
+
+Native wait-chain run
+[34818418873](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34818418873)
+restored cmd success after removing profile loading. All three PowerShell cases
+still timed out; each reported a blocked thread, an owned ALPC object and a final
+PID-only thread node, with no detected cycle. This points the next investigation
+toward the system process serving that ALPC interaction; it does not identify the
+specific initialization failure yet. The test diagnostic is extended to query
+only executable basenames for those process nodes, without logging their command
+lines, environments or process memory. The ordinary-account control remains
+necessary; current evidence still does not distinguish the restriction layer as
+the cause. Native Windows acceptance remains incomplete.
