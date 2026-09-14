@@ -850,3 +850,19 @@ system Management-module import plus `Join-Path` in 0.33 seconds. The default-au
 cmdlet case still timed out after 30.31 seconds before resolving the path. This narrows
 the next investigation to default module discovery/loading environment; it is not
 evidence of denied temporary file IO, nor yet proof of one exact loader cause.
+
+### 2026-09-14: native creation-time Job membership confirmed
+
+Native run
+[34826408298](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34826408298)
+exercised the new creation layer. Successful cmd/PowerShell cases queried membership
+in the exact Job before resume; direct restricted temporary IO and explicit system
+module import continued to pass. Rejection after Job termination, Job close and
+canceled admission also passed. The default-module-discovery timeout and existing
+impersonation event compatibility failure remain, so the complete workflow is not green.
+
+The next diagnostic compares the same cmdlet operations with an explicit system-only
+`PSModulePath`; it does not change the default test or define product support for user
+modules. Cross-compilation passed, native comparison is pending. Product environment
+construction must eventually preserve authorized module locations without inheriting
+host credentials or accidentally granting additional filesystem access.
