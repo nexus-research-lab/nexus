@@ -1014,3 +1014,22 @@ not peer authentication and permits no protocol data by itself. Callers must can
 wait for connection completion before close; close is not an independent interrupt API.
 Read/write framing and product transport lifecycle remain unfinished. API reference:
 [CancelIoEx](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex).
+
+### 2026-09-14: direct descriptor access checks and cancellation relisten sequencing
+
+Native run
+[34831040263](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34831040263)
+passed the scoped-client access test, including independent WRITE_DAC/WRITE_OWNER
+rejection. Pending connection cancellation returned as expected, but the retry fixture
+opened a client before reissuing ConnectNamedPipe and received PIPE_BUSY. A reset
+instance must re-enter listening; the corrected test waits for that before reconnecting.
+The initial fresh-instance early-client case remains independently tested.
+
+SDK `43c55bbf` also reads the kernel pipe descriptor with owner/group/DACL and uses
+AccessCheck with duplicated impersonation tokens to directly compare runner IO,
+FILE_CREATE_PIPE_INSTANCE, WRITE_DAC and WRITE_OWNER permissions. A host instance-creation
+positive control distinguishes permission denial from a failing check API. This avoids
+the earlier inference from client generic-write behavior or the one-instance quota.
+Windows x64 cross-compilation passed; native execution is pending. The connection and
+permissions components remain unconnected to the product transport. API reference:
+[AccessCheck](https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheck).
