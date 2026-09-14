@@ -941,3 +941,30 @@ protection. Existing generic Job tests independently verify exact Job membership
 termination of running descendants. These tests do not prove filesystem/network or
 cross-capability isolation. Windows x64 cross-compilation passed; native evidence for
 the new restricted composition is pending.
+
+### 2026-09-14: restricted descendant composition passes; bind pipe peers to processes
+
+Native run
+[34829375385](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34829375385)
+passed restricted descendant composition in 0.05 seconds: an ordinary descendant
+retained the expected execution SID and restricted token, while explicit Job breakaway
+was rejected. Default PowerShell discovery and impersonation compatibility still failed.
+
+The new pipe-peer component reads `GetNamedPipeClientProcessId` from an exclusively held
+connected server instance, compares it with the retained expected process handle, checks
+that process remains alive, verifies its token user SID, then repeats liveness/PID
+checks. Trusted expected values must come from the launcher, never request payloads.
+It does not provision accounts, apply pipe ACLs or authorize protocol operations.
+
+Native tests use a same-process pipe connection solely for the kernel-binding positive
+control and compare wrong SID, a different live process, an exited process, and missing
+handles. This is not a dedicated-account IPC acceptance test. Windows x64 compilation
+passed; native execution is pending. API references:
+[GetNamedPipeClientProcessId](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid)
+and [ConnectNamedPipe](https://learn.microsoft.com/en-us/windows/win32/api/namedpipeapi/nf-namedpipeapi-connectnamedpipe).
+
+The account-environment loader additionally uses `LoadLibraryExW` with
+`LOAD_LIBRARY_SEARCH_SYSTEM32` for `userenv.dll`, rather than ordinary name-based lazy
+loading. The environment block is destroyed before releasing the library handle.
+Windows x64 cross-compilation passed; native environment tests will re-exercise this
+path. This change limits the loader search and does not change filesystem grants.
