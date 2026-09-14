@@ -4,7 +4,7 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 export const OPERATIONS_SECTIONS = [
-  { key: "operations-members", labelKey: "operations.tabs.members" },
+  { key: "operations-organization", labelKey: "operations.tabs.organization" },
   { key: "operations-subscriptions", labelKey: "operations.tabs.user_subscriptions" },
   { key: "operations-plans", labelKey: "operations.tabs.subscription_plans" },
   { key: "operations-providers", labelKey: "operations.tabs.subscription_providers" },
@@ -85,7 +85,7 @@ export function parseSettingsSection(
   searchParams: URLSearchParams,
 ): SettingsSectionKey {
   const section = searchParams.get("section");
-  if (section === "operations") return "operations-members";
+  if (section === "operations") return "operations-organization";
   return section && SETTINGS_SECTION_KEYS.has(section as SettingsSectionKey)
     ? (section as SettingsSectionKey)
     : DEFAULT_SETTINGS_SECTION;

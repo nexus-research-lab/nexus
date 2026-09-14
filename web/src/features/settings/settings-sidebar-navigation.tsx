@@ -7,9 +7,9 @@ import { useCallback, useState } from "react";
 
 import {
   ArrowLeft,
+  Building2,
   Search,
   Cable,
-  UsersRound,
   CreditCard,
   ListChecks,
   Chrome,
@@ -48,7 +48,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   appearance: Palette,
   general: Settings2,
   runtime: Cpu,
-  "operations-members": UsersRound,
+  "operations-organization": Building2,
   "operations-subscriptions": CreditCard,
   "operations-plans": ListChecks,
   "operations-providers": Cable,

@@ -5,8 +5,8 @@
 import { Loader2, RefreshCw, Save } from "lucide-react";
 
 import {
-  SETTINGS_CARD_CLASS_NAME,
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
+  SETTINGS_GROUP_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -57,9 +57,9 @@ function SubscriptionSummary({
     [t("settings.subscription.current_month_usage"), summary.usedTokens],
   ] as const;
   return (
-    <dl className="grid grid-cols-1 gap-4 @min-[480px]/subscriptions:grid-cols-3">
+    <dl className={cn(SETTINGS_GROUP_CLASS_NAME, "grid grid-cols-1 @min-[480px]/subscriptions:grid-cols-3")}>
       {items.map(([label, value]) => (
-        <div key={label} className="min-w-0">
+        <div key={label} className="min-w-0 px-4 py-3">
           <dt className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{label}</dt>
           <dd className={cn("mt-1 tabular-nums", SETTINGS_ITEM_TITLE_CLASS_NAME)}>{formatTokenCount(value)}</dd>
         </div>
@@ -188,7 +188,7 @@ export function SubscriptionAccountView({
   return (
     <div className="@container/subscriptions grid min-w-0 gap-5">
       <SubscriptionSummary summary={model.summary} />
-      <section className={SETTINGS_CARD_CLASS_NAME}>
+      <section className={SETTINGS_GROUP_CLASS_NAME}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-4 py-3">
           <div className="min-w-0">
             <p className={cn(

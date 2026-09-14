@@ -1,5 +1,5 @@
 // INPUT: 真实运营入口、隔离的成员/订阅/项目/Provider 快照与主题视口矩阵。
-// OUTPUT: 五个子页的内容层级、展开表单、控件尺寸和无横向溢出的证据。
+// OUTPUT: 五个子页的内容层级、统一组织治理、邀请弹窗、展开表单、控件尺寸和无横向溢出的证据。
 // POS: 运营浏览器回归；所有 API 由本地样例响应，禁止请求真实写接口。
 import { expect, test, type Locator } from "@playwright/test";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
@@ -9,6 +9,7 @@ const member = { user_id: "qa-member", deployment_id: "qa", username: "research-
 const provider = { id: "qa-provider", provider: "qa-provider", preset_key: "custom", visibility: "public", provider_kind: "llm", api_format: "responses", display_name: "Research Provider · 公共研究模型服务", base_url: "https://api.example.test/v1", models_path: "/models", enabled: true, can_manage: true, configuration_version: 1, auth_token_masked: "sk-***demo", usage_count: 0, used_by_agents: [], last_test_status: "", last_test_error: "", agent_runtime_supported: true, models: [] };
 const reads = new Map<string, unknown>([
   ["/auth/v1/members", [member, { ...member, user_id: "qa-suspended", username: "suspended", display_name: "Suspended member", membership_status: "revoked" }]],
+  ["/auth/v1/organization/invitations", []],
   ["/auth/v1/subscription/overview", { plans: [plan], accounts: [{ ...member, user_status: "active", plan_key: "team", plan_name: plan.display_name, monthly_token_limit: plan.monthly_token_limit }], updated_at: "2026-09-09" }],
   ["/nexus/v1/admin/subscription/usage", { accounts: [{ control_user_id: member.user_id, used_tokens: 240_000, session_count: 18, message_count: 120 }], period_start: "2026-09-01", period_end: "2026-10-01", updated_at: "2026-09-09" }],
   ["/nexus/v1/projects", [{ project_id: "research-team-with-a-long-project-name", root: "/workspace/projects/research-team", generation: 7, group_name: "qa", gid: 1, members: { "research-member-with-a-long-identifier": "write" } }]],
@@ -49,7 +50,7 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     if (url.pathname === "/nexus/v1/projects") projectRequests++;
     if (url.pathname === "/nexus/v1/runtime/options") return route.fulfill({ json: { data: { default_agent_id: "qa-main", project_permissions_enabled: aclEnabled } } });
     if (url.pathname === "/nexus/v1/auth/status") {
-      return route.fulfill({ json: { data: { ...(appShellRead("GET", url.pathname)!.data as Record<string, unknown>), auth_method: "password", role: "owner" } } });
+      return route.fulfill({ json: { data: { ...(appShellRead("GET", url.pathname)!.data as Record<string, unknown>), auth_method: "password", organization_name: "Nexus Research", role: "owner" } } });
     }
     if (request.method() === "GET" && reads.has(url.pathname)) return route.fulfill({ json: { data: reads.get(url.pathname) } });
     const fixture = appShellRead(request.method(), url.pathname);
@@ -61,7 +62,7 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     }
     return route.continue();
   });
-  const params = new URLSearchParams({ section: aclEnabled ? "operations-members" : "operations-projects", theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale) });
+  const params = new URLSearchParams({ section: aclEnabled ? "operations-organization" : "operations-projects", theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale) });
   await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/settings?${params}`)}`);
   if (!aclEnabled) {
     await expect(page).toHaveURL(/\/settings$/);
@@ -96,21 +97,19 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     await expect(navigationButton).toBeFocused();
   }
 
-  await expect(surface.locator("input").first()).not.toBeVisible();
-  await surface.locator("summary").first().click();
-  await expect(surface.locator("#member-username")).toBeVisible();
-  const role = surface.locator("#member-role");
+  const role = surface.getByRole("button", { name: new RegExp(`${text("组织角色", "Organization role")}:`) }).first();
   await expect(role).toHaveAttribute("aria-haspopup", "listbox");
   await role.click();
   await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(3);
-  await page.getByRole("option", { name: text("管理员", "Admin"), exact: true }).click();
-  await expect(role).toContainText(text("管理员", "Admin"));
-  await role.press("ArrowUp");
-  await expect(role).toContainText(text("成员", "Member"));
-  await role.press("Escape");
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(surface.getByText("Nexus Research", { exact: true })).toBeVisible();
+  await surface.getByRole("button", { name: text("邀请成员", "Invite member"), exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: text("取消", "Cancel"), exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await expectContained(surface);
-  await info.attach("operations-members", { body: await surface.screenshot({ path: info.outputPath("operations-members.png") }), contentType: "image/png" });
+  await info.attach("operations-organization", { body: await surface.screenshot({ path: info.outputPath("operations-organization.png") }), contentType: "image/png" });
 
   await selectPage("operations-subscriptions", "用户订阅", "User subscriptions");
   await expect(surface.getByText(member.display_name, { exact: true })).toBeVisible();
