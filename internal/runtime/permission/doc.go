@@ -5,7 +5,7 @@
 // 成员清单：
 //   - mode.go：权限模式归一化。
 //   - request.go：无限时等待用户响应（批准有效期由业务在用户点击后计算）、按创建顺序和请求身份稳定重放，并向 Room 投影待确认状态的请求模型。
-//   - presenter.go：批准、问答及未知工具的兼容呈现，明确投影单次沙箱外执行与审核原因。
+//   - presenter.go：批准、问答及未知工具的兼容呈现，明确投影单次沙箱外执行、目标连接与审核原因。
 //   - context.go：Sender/Room 广播抽象、session 绑定、DM 生命周期 Room 投影、重连活动 route 快照、pending 变化信号与 owner lease 路由上下文。
 //   - session_decision.go：Web 与 active-paired IM 共用的 session-scoped pending 查询/决策入口；无 ID 命令只命中唯一请求。
 //
