@@ -4,6 +4,11 @@ Status: **non-normative / implementation in progress**, 2026-09-14.
 This document describes the target and acceptance gates. It does not declare
 unimplemented behavior part of the current product contract.
 
+2026-09-15: [Pinned Codex source audit](codex-source-audit.md) distinguishes
+resource provisioning from command execution and supersedes the selection of a
+privileged per-command broker in the earlier candidate plan. Source comparison
+must precede further Windows architecture changes; product enablement is unchanged.
+
 ## Goal and scope
 
 Two implementation tracks share one regression gate:

@@ -2,13 +2,15 @@
 
 状态：non-normative，待实现与 Windows 原生验收。本文给出后续实施方向，不能据此声明当前产品已有服务端沙箱。当前合同仍是 `docs/specs/desktop-sandbox-spec.md`。整个 Goal 还包括 macOS、文件工具、审批、自动审核与旧功能回归。
 
+2026-09-15 源码复核修正：本文下方的“高权限 broker 创建每条命令”仅保留为待论证候选，暂停据此扩展实现。固定 Codex 源码版本显示，Windows service 的请求是安装注册与资源 provisioning；普通命令由宿主通过 `CreateProcessWithLogonW` 启动专用账号 runner，再创建受限子进程。两种职责不能混同。下一步以 [Codex 源码差异审计](codex-source-audit.md) 为实施前置依据，先核验完整参考路径与 Nexus 安全要求的兼容性；不能凭现有不同 API、不同 token 的失败实验确定服务架构。
+
 ## 决策依据与方向
 
 现有 App 安装器在 `scripts/desktop/package-windows-app.ps1` 使用 `PrivilegesRequired=lowest`，安装到 `{localappdata}\Programs`。`SidecarSupervisor.BuildStartInfo` 以当前用户启动普通后端；当前没有受保护的机器级启动服务。现有签名流程允许普通开发包跳过签名。不得把该用户可写安装目录的可执行文件作为高权限服务入口。
 
 同账号 runner 的原生探针已证实 WRITE_RESTRICTED 令牌可获取 runner 线程的模拟身份权限。完整受限令牌阻止了这些权限，但当前无法读取系统 CLR DLL，并且正常后代 CreateProcess 仍失败。文件读取、令牌对象访问和 stdio 复制的成功不能替代完整进程验收。具体提交与运行链接见本目录 README 的证据记录。
 
-后续实施采用**可信 broker 与命令账号分离**的方向：普通 App/后端维持当前用户身份；可选受保护 broker 承担跨账号创建；命令始终以独立普通执行账号和受限令牌运行。不能把同一账号的两个进程称为身份分离，也不能从当前失败测试推断该方案已经可用。
+候选方案为**可信 broker 与命令账号分离**：普通 App/后端维持当前用户身份；可选受保护 broker 承担跨账号创建；命令始终以独立普通执行账号和受限令牌运行。该候选尚未选定，也不等同于 Codex 已核验的 provisioning service。不能把同一账号的两个进程称为身份分离，也不能从当前失败测试推断该方案已经可用。
 
 不以修改整棵 Windows/System32、系统注册表或增加宽泛 restricting SID 作为隐式兼容修复。当前完整受限令牌组件继续保持未接入状态。只有不同身份下的文件、网络、进程/线程/令牌与后代测试全部通过，才能确定 broker 路径的最终令牌模式；不得为同账号路径恢复已知有缺口的模式。
 
