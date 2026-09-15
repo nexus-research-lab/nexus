@@ -32,6 +32,14 @@ domain policy remain authoritative. Default mode asks the user; auto mode uses t
 existing independent reviewer and human fallback. Explicit command escape continues
 through the separate sandbox-bypass approval boundary.
 
+The pinned Bridge also exposes host-only `SandboxSettings.Resources` and the
+independent `sandbox_resources_v1` contract for macOS command/file write scopes
+and a host-prepared private scratch directory. Nexus does not yet supply this
+object: runtime-owned scratch allocation, leases and cleanup must be integrated
+before the product can use these scopes. The SDK-level tests do not establish
+default product enforcement, whole-SDK IO confinement or an effective-policy
+receipt. The progress and acceptance boundaries remain in the development plan.
+
 The current mandatory macOS SDK applies explicit read/write and protected-path
 movement denials after ordinary directory, device and PTY grants. A read grant
 cannot reopen content in a denied same, parent or child root; symlink reads use

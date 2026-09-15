@@ -138,11 +138,26 @@ SDK `d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91`，Bridge 沿用本地固定模块
 
 nxs SHA-256：`801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb`。详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/mandatory-deny-before.jsonl) 和 [真实资源回归](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/macos-resource-denials.stdout.log)。`denyRead` 不自动变成 `denyWrite`；本批次未接入只读 profile、实际策略回执、其他平台或全部 SDK IO。
 
+### P1/P2 写入范围与私有 scratch 合同（2026-09-15）
+
+SDK `67975b901ce6700d88ac4b64da80ae2254b4c3cf`、Bridge `1fc3dca78dd8bc23e45a7c7d4c6f6754ad0b11f8`，Nexus 固定本地模块 `v0.1.34-0.20260915091919-1fc3dca78dd8`。模块来自精确提交的本机 file proxy，尚未发布。固定 SDK 归档构建的 nxs SHA-256：`9168d5187010f9a1409e917d6372a04229115d795a3ecd80b93dfad121fc2c71`。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 原生 read-only/workspace-write | 两个具名子场景通过 | 真实 Read/Write/Edit/Bash；工作区、明确写根、scratch；HOME/TMPDIR、硬链接、符号链接和显式旁路不能扩大只读写范围 |
+| SDK 资源合同与文件拒绝 | 9 个合同顶层用例＋1 个文件拒绝用例通过 | 无效版本、字段、目录和冲突授权在初始化/执行准备前拒绝；普通 settings 不替代宿主权威；Windows PowerShell 准入逻辑在 macOS 上通过错误请求拒绝测试 |
+| SDK 目标包 | 285 个顶层用例成功，exit 0 | 包含有条件跳过的 PowerShell/原生/平台用例，完整 skip 在报告；当前 macOS 必测行为由固定基线独立验证 |
+| Bridge 目标包、race 与新旧真实进程 | 目标包 exit 0；race 定向 exit 0；资源真实进程组 4 个顶层用例、current/legacy 均成功且无 skip | 只有命令和文件能力的旧 nxs 在任务前被拒绝；资源变化需替换进程；连接前拒绝的关闭回归先超时失败、修复后通过 |
+| 固定提交开发基线 | 26 个顶层用例与 16 个指定子场景通过，必测项无 skip | 14 个宿主＋7 个原生隔离＋2 个后端路径＋2 个资源禁止＋1 个资源范围顶层用例 |
+| Windows 交叉编译、门禁及架构 | executor/nxs 测试二进制编译 exit 0；6 个解析测试、入口语法及架构检查通过 | 没有运行 Windows 原生或安装包验收 |
+
+详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-resource-scopes/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-resource-scopes/baseline-report.json)、[原生写入范围](./evidence/desktop-sandbox/2026-09-15-resource-scopes/macos-resource-scopes.jsonl) 和 [新旧实际进程](./evidence/desktop-sandbox/2026-09-15-resource-scopes/bridge-pinned-real.jsonl)。Nexus 当前只固定新 Bridge，尚未提供 Resources；SDK 不证明 scratch 独占租约或回收。限定读取、全 SDK IO、实际策略回执、默认产品策略、Claude、其他平台及发布验收仍未完成。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH、空 PATH、资源禁止与后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK d9687a3e 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围与后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 67975b90 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -150,7 +165,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 67975b901ce6700d88ac4b64da80ae2254b4c3cf
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。
