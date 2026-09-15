@@ -22,6 +22,7 @@
 //
 // chat.go 记录派发锁、准备、上下文、历史、落盘与启动的慢阶段/失败；
 // chat_diagnostics_test.go 验证取消后不再进入准备，以及阶段日志保留关联身份而不记录正文。
+// HandleAdmittedChat 复用原生 round 注册后、slot 启动前的宿主屏障，供 Node 再验授权/租约；忙碌或暂停明确拒绝，不能退入会丢失回调的用户队列。HTTP/WS 不提供回调。
 //
 // conversation 共享 queue、public wake、Goal continuation 与 Execution slot；锁必须
 // 保持 conversation-scoped。每个并行 slot 自带 round_id，聚合 RoundID 只作单 root

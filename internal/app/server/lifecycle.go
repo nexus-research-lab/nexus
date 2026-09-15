@@ -115,6 +115,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startAutomation,
 		s.startRoomPublicHandoffs,
 		s.startRoomDirectedWakes,
+		s.startTeamExecutor,
 		s.startOrchestrationRecovery,
 		s.startSubagentReconciliation,
 		s.startExecutionDispatches,

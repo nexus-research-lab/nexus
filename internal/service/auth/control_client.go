@@ -134,6 +134,7 @@ func (a *ControlAuthority) BuildStatusPayload(
 	}
 	result.Username = stringPointer(principal.Username)
 	result.UserID = stringPointer(principal.ControlUserID)
+	result.ControlUserID = stringPointer(principal.ControlUserID)
 	result.DisplayName = stringPointer(principal.DisplayName)
 	result.Role = stringPointer(principal.Role)
 	result.Avatar = stringPointer(principal.Avatar)

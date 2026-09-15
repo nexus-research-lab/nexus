@@ -23,7 +23,7 @@ it("excludes the current user from online Room invite choices", async () => {
     <AUTH_CONTEXT.Provider value={{
       error: null, isBootstrapped: true, loading: false,
       login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(),
-      status: { auth_method: "password", auth_required: true, authenticated: true, password_login_enabled: true, user_id: "self", username: "self" },
+      status: { auth_method: "password", auth_required: true, authenticated: true, password_login_enabled: true, user_id: "local-owner", control_user_id: "self", username: "self" },
     }}>
       {children}
     </AUTH_CONTEXT.Provider>

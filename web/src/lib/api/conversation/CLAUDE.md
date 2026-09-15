@@ -1,5 +1,8 @@
 # Conversation API
 
+- `team-node-api.ts` 访问本机 `/team-node` 授权状态/命令；不使用被 Desktop 代理到远程的 `/team`，Browser 不接触设备凭据。
+- Node DTO 仅投影执行开关、任务状态和本地会话身份；`enable_execution` 默认 false，只由用户开启动作置 true。
+
 - `session-api.ts` 负责 Session 列表、消息历史、轮次索引、历史外部 IM Session 删除、当前 Session 运行时覆盖与本机目录请求；响应转换统一归 `session-api-model.ts`。
 - `team-api.ts` 负责 Organization 隔离的在线 Room、真人消息、快照、difference 与同源 WSS URL；Browser 不接触 Relay token，也不能提交 Organization ID。
 - `message-page-model.ts` 统一 Room 与 Session 消息分页的查询序列化和响应缺省值，不允许各 API 重复解释同一分页协议。

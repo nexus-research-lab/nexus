@@ -41,24 +41,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Compact shared segmented controls and remove the outer tray and stacked selection borders.
 
+- Add explicit host authorization for online Agents, with encrypted durable credentials, exact registration/revocation recovery, and remote-account isolation. Desktop binds the local host; Web binds its Nexus server.
+- Add opt-in online Agent execution through native local Rooms, durable inbox/output recovery, exact lease cancellation, and local permission/question handling. Only complete replies reach remote members; existing grants remain execution-disabled and unknown interrupted runs never restart automatically.
+
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
 - Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
 
 ### Fixed
 
+- Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
+
+- Persist exact online message intents before sending, recover them without automatic replay, reconcile lost receipts from snapshots, and remove revoked Room resources and connections.
+- Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
+
+- Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
 
 ### Changed
 
 - Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
 - Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
+- Add online Room invitations and human member governance, including accept, reject, revoke, role changes, removal, and human owner transfer; selected people now join only after accepting an invitation.
+- Publish only selected local Agent identities to Control, verify their ownership at the Nexus Gateway, and support adding or removing them as online Room members; the human owner can select and replace the coordinator from active Agent members.
+- Let Agent owners pause or resume their online Room Agent from the shared member-management surface; pausing a coordinator clears that role before future delivery work.
+- Let online Room members explicitly select active Agents in the composer and submit structured mentions with the current membership-version fence.
 - Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
 - Prepare the optional Relay state directory for persistent single-node SQLite deployments.
 
 ### Security
 
 - Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
+- Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
 - Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
 
 ## [0.2.0] - 2026-09-10

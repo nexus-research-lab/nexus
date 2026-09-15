@@ -4,6 +4,8 @@
 //
 // 成员清单：
 //   - repository.go：deployment 共享 Conversation/Message、owner 独立 cursor 的事务投影。
+//   - node.go：本机授权意图、加密凭据与精确 Node 状态 CAS；不保存浏览器 Cookie 明文。
+//   - jobs.go：本机任务 CAS、单 Agent 活跃约束、启动/撤销共享锁及完整输出 outbox；00140 提供 SQLite/PostgreSQL 表和索引。
 //
 // 暴露接口：Repository、NewRepository、ProjectRoom、ProjectCommit、ProjectSnapshot、ProjectDifference。
 //

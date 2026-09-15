@@ -9,15 +9,21 @@ import type { useTeamRoom } from "@/features/team/use-team-room";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 import { TeamPage } from "./team-page";
-const model = vi.hoisted(() => ({ read: vi.fn() }));
+const model = vi.hoisted(() => ({ agents: vi.fn(), read: vi.fn() }));
 vi.mock("@/features/team/use-team-room", () => ({ useTeamRoom: model.read }));
+vi.mock("@/features/team/use-team-members", () => ({ useTeamMembers: () => [] }));
+vi.mock("@/features/team/team-room-members-dialog", () => ({ TeamRoomMembersDialog: () => null }));
+vi.mock("@/features/home/home-directory-resource", () => ({ useHomeDirectory: () => ({ agents: [] }) }));
+vi.mock("@/lib/api/account/control-api", () => ({ listControlAgentDirectoryApi: model.agents }));
 let room: ReturnType<typeof useTeamRoom>;
 beforeEach(() => {
-  room = {room: {
+  model.agents.mockImplementation(() => new Promise(() => undefined));
+  room = {pendingText: null, room: {
     room: {id: "room", organization_id: "organization", team_id: "team", name: "General", description: "", avatar: "", host_auto_reply_enabled: false, private_messages_enabled: false, skill_names: [], configuration_version: 1, membership_version: 1, created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z"},
     conversation: {id: "conversation", room_id: "room", type: "main", high_water_message_seq: 0, last_activity_at: null, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
     current_user_role: "owner",
-  }, error: null, isLoading: false, isSending: false, messages: [], reload: vi.fn(), retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
+	members: [],
+  }, error: null, isLoading: false, isSending: false, hasUnconfirmedSend: false, updateDetails: vi.fn(), messages: [], retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
   model.read.mockImplementation(() => room);
 });
 function SwitchRoom() {
@@ -25,8 +31,26 @@ function SwitchRoom() {
   return <button onClick={() => navigate("/team?room_id=other")}>Switch room</button>;
 }
 function page() {
-  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
+  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "local-owner", control_user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
 }
+it("uses the remote Control identity for the own-message surface on desktop", () => {
+  room.messages = [{id: "mine", conversation_id: "conversation", message_seq: 1,
+    author_type: "user", author_user_id: "owner", author_username: "owner", author_display_name: "My Remote Name",
+    client_message_id: "mine", content: {version: 1, blocks: [{type: "markdown", text: "My message"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  render(page());
+  expect(screen.getByText("My message")).toBeTruthy();
+  expect(screen.queryByText("My Remote Name")).toBeNull();
+});
+it("renders my Agent as an independent member, without a human own-message bubble", async () => {
+  model.agents.mockResolvedValue([{agent_id: "agent", name: "Research Agent"}]);
+  room.messages = [{id: "result", conversation_id: "conversation", message_seq: 1,
+    author_type: "agent", author_agent_id: "agent", author_user_id: "owner", author_username: "agent", author_display_name: "agent",
+    delivery_id: "delivery", output_kind: "final", client_message_id: "output", content: {version: 1, blocks: [{type: "markdown", text: "**Completed**"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  render(page());
+  expect(await screen.findByText("Research Agent")).toBeTruthy();
+  expect(screen.getByText("Agent")).toBeTruthy();
+  expect(screen.getByText("Completed").tagName).toBe("STRONG");
+});
 it("does not send on composition confirmation or Shift+Enter, then sends exact text on Enter", async () => {
   render(page());
   const input = screen.getByRole("textbox", {name: "team.message"});
@@ -125,6 +149,30 @@ it("uses shared Room surfaces and resolves the requested online room", async () 
   fireEvent.change(input, {target: {value: "hello"}});
   fireEvent.click(screen.getByRole("button", {name: "team.send"}));
   await waitFor(() => expect(room.send).toHaveBeenCalledExactlyOnceWith("hello"));
+});
+
+it("sends selected active Agents as structured mention targets", async () => {
+  model.agents.mockResolvedValue([]);
+  const view = render(page());
+  expect(screen.queryByRole("button", {name: "team.mention_agent"})).toBeNull();
+  model.agents.mockResolvedValue([{agent_id: "agent-one", owner_user_id: "owner", name: "Amy"}]);
+  room.room!.room.membership_version = 2;
+  room.room!.members = [{
+    room_id: "room", member_type: "agent", member_id: "agent-one", role: "member",
+    state: "active", agent_owner_user_id: "owner", invited_by_user_id: "owner",
+    joined_at: "2026-09-09T00:00:00Z", created_at: "2026-09-09T00:00:00Z",
+    updated_at: "2026-09-09T00:00:00Z",
+  }];
+  view.rerender(page());
+  await userEvent.click(await screen.findByRole("button", {name: "team.mention_agent"}));
+  await userEvent.click(await screen.findByRole("option", {name: "@Amy"}));
+  await userEvent.type(screen.getByRole("textbox", {name: "team.message"}), "分析任务");
+  room.room!.room.membership_version = 3;
+  room.room!.members = [];
+  view.rerender(page());
+  expect(screen.getByRole("button", {name: "@Amy ×"})).toBeTruthy();
+  await userEvent.click(screen.getByRole("button", {name: "team.send"}));
+  await waitFor(() => expect(room.send).toHaveBeenCalledExactlyOnceWith("@Amy 分析任务", ["agent-one"]));
 });
 
 

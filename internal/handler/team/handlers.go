@@ -36,6 +36,7 @@ const (
 type relayTokenExchanger interface {
 	ExchangeRelayUserToken(context.Context, *authsvc.Principal) (string, error)
 	VerifyOrganizationMembers(context.Context, *authsvc.Principal, []string) error
+	VerifyOwnedAgents(context.Context, *authsvc.Principal, []string) error
 }
 
 type relayStream interface {
@@ -172,6 +173,11 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 			Cause:    err,
 		})
 		return
+	}
+	if len(input.AgentIDs) > 0 {
+		if err := h.verifyOwnedAgents(writer, request, input.AgentIDs); err != nil {
+			return
+		}
 	}
 	result, err := h.team.CreateRoom(request.Context(), teamAccess(request, token), idempotencyKey, input)
 	if err != nil {
@@ -403,6 +409,30 @@ func relayFailure(err error, mutation bool) (int, handlershared.FailureSpec) {
 		spec.Effect = requestEffect(mutation, true)
 		spec.Detail = "幂等标识已用于不同的消息"
 		return http.StatusConflict, spec
+	case "membership_version_conflict":
+		spec.Code = "team.membership_version_conflict"
+		spec.Category = protocol.FailureCategoryConflict
+		spec.Effect = requestEffect(mutation, true)
+		spec.Detail = "群成员已经变化，请重新加载"
+		return http.StatusConflict, spec
+	case "configuration_version_conflict":
+		spec.Code = "team.configuration_version_conflict"
+		spec.Category = protocol.FailureCategoryConflict
+		spec.Effect = requestEffect(mutation, true)
+		spec.Detail = "群配置已经变化，请重新加载"
+		return http.StatusConflict, spec
+	case "member_state_conflict":
+		spec.Code = "team.member_state_conflict"
+		spec.Category = protocol.FailureCategoryConflict
+		spec.Effect = requestEffect(mutation, true)
+		spec.Detail = "当前成员状态不允许此操作"
+		return http.StatusConflict, spec
+	case "room_operation_forbidden":
+		spec.Code = "team.room_operation_forbidden"
+		spec.Category = protocol.FailureCategoryAuthorization
+		spec.Effect = requestEffect(mutation, true)
+		spec.Detail = "当前成员无权执行此操作"
+		return http.StatusForbidden, spec
 	case "cursor_ahead":
 		spec.Code = "team.cursor_ahead"
 		spec.Category = protocol.FailureCategoryConflict
