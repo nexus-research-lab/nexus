@@ -23,6 +23,7 @@ type sessionState struct {
 	NextBackgroundTaskID     uint64
 	Closing                  bool
 	CloseDone                chan struct{}
+	CloseError               error // 关闭尝试完成但失败时保留状态，禁止复用同一 Session。
 	GuidedInputs             []GuidedInput
 	SubagentHooks            map[string]SubagentHookCallbacks
 	SubagentHookBindings     map[string]subagentHookBinding

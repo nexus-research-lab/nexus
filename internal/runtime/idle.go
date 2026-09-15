@@ -71,9 +71,9 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 			errors.Is(disconnectErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, disconnectErr)
 		} else {
-			m.finishSessionClose(target)
+			m.finishSessionClose(target, disconnectErr)
 		}
 		err := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
 		if err != nil && !IsRuntimeTransportClosedError(err) {

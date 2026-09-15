@@ -138,6 +138,22 @@ must not be interpreted as permission to replay it. Bridge cleanup waits for
 transport exit, not merely stream closure. This confirms the runtime main process;
 full descendant cleanup needs the remaining platform backend integration.
 
+Bridge returns `ProcessCleanupError` for failed process-session cleanup, including
+after main-process success, forced termination and repeated closes. Nexus preserves
+this error even when joined with an ordinary closed-pipe error. Failed client
+cleanup blocks reconnect and stale-startup retry; Manager retains the exact failed
+session in closing state rather than publishing a replacement. Explicit close and
+owner/Agent close callers can read the retained result. Sandbox file requirements
+and resource scopes participate explicitly in the process-policy fingerprint,
+even though ordinary settings serialization excludes those host-only fields.
+
+The current failed-close fence exists in memory. It does not survive a host restart
+or prove that detached descendants have terminated. The Bridge Unix sweep observes
+only visible members of the original session; another session, PID namespace or
+host signal callback needs its own supervision and exit proof. This change does
+not create, lease or reclaim scratch, and must not be used as a complete cleanup
+receipt for the future default resource policy.
+
 ## Explicit local diagnostics
 
 The runtime settings page offers an explicit sandbox-support check. Only

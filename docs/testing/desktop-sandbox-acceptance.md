@@ -153,6 +153,22 @@ SDK `67975b901ce6700d88ac4b64da80ae2254b4c3cf`、Bridge `1fc3dca78dd8bc23e45a7c7
 
 详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-resource-scopes/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-resource-scopes/baseline-report.json)、[原生写入范围](./evidence/desktop-sandbox/2026-09-15-resource-scopes/macos-resource-scopes.jsonl) 和 [新旧实际进程](./evidence/desktop-sandbox/2026-09-15-resource-scopes/bridge-pinned-real.jsonl)。Nexus 当前只固定新 Bridge，尚未提供 Resources；SDK 不证明 scratch 独占租约或回收。限定读取、全 SDK IO、实际策略回执、默认产品策略、Claude、其他平台及发布验收仍未完成。
 
+### P1/P2 清理失败与会话栅栏（2026-09-15）
+
+Bridge `034c449fb4cf1d402213a07450e0d02d7578bf9d`，Nexus 固定本地模块 `v0.1.34-0.20260915095108-034c449fb4cf`，校验和 `h1:8ksEXEKjVOEMXmzH4upmOHoQAI7hD5u04pQTE6sHze4=`。SDK 仍为 `67975b901ce6700d88ac4b64da80ae2254b4c3cf`，本次重新从该提交归档构建的基线 nxs SHA-256 为 `66c9c61a7de6203ed13e46e8d8bb53b70273913a946e410def14b0c5c6dae0eb`。所有版本仅保留本地。
+
+| 验证 | 结果 | 证据边界 |
+| --- | --- | --- |
+| 修复前回归 | Bridge 1 个、Nexus 2 个顶层用例按预期失败 | 主进程 exit 0 掩盖清理失败；失败后仍重连或重试旧配置启动 |
+| Bridge 竞态与原生清理 | client/transport 目标包通过 | 含主动 TERM、重复 Close、最终观察失败/残留、宿主信号失败与真实同 session 后代；默认跳过项逐一记录 |
+| 实际新旧 nxs | 3 个顶层与 4 个子场景全部通过，无 skip | 当前版本准入、旧文件/资源能力拒绝；没有模型请求；不等同于完整进程树验收 |
+| Nexus runtime 子包与竞态 | 目标包通过，20 个定向竞态顶层用例无 skip | 同步/超时后失败、重连、替换、owner/Agent/idle 关闭以及宿主资源指纹；目标包的平台跳过项见报告 |
+| 固定 SDK/Bridge 基线 | 32 个必测顶层与 21 个指定子场景通过，无缺失或 skip | GOWORK=off、无本地 replace；宿主与 macOS 开发基线，非发布验收 |
+| Linux/Windows | client 与 transport 均交叉编译通过 | amd64、CGO 关闭；没有原生运行、owner 隔离或安装包证据 |
+| 架构与证据校验器 | 架构门禁和 6 个证据解析测试通过 | 依赖方向、具名用例缺失/跳过/失败检测 |
+
+详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/baseline-report.json)、[宿主竞态](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/cleanup-host-race.jsonl)、[Bridge 竞态](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/cleanup-bridge-race.jsonl) 与 [文件校验和](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/manifest.json)。Unix session 观察不覆盖另建 session 的后代；成功信号回调不代表 Bridge 独立确认退出。Nexus 栅栏只在当前进程内保留，尚无持久清理回执或自动对账恢复。本批没有准备、租约或回收 scratch，也没有启用默认产品资源策略；完整 IO、后代监督、Claude、其他平台及发布门禁仍未完成。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。

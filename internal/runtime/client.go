@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、换代、关闭语义。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力、换代语义及清理失败后的重连栅栏。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -138,6 +138,9 @@ func (c *agentClient) Connect(ctx context.Context) error {
 			if err := waitAgentClientTransition(ctx, cleanup.done); err != nil {
 				return err
 			}
+			if cleanup.err != nil {
+				return cleanup.err
+			}
 			c.clearCompletedAgentClientCleanup(cleanup)
 			continue
 		}
@@ -237,6 +240,9 @@ func (c *agentClient) runConnectFlight(
 		}
 		if waitErr != nil {
 			return waitErr
+		}
+		if cleanup.err != nil {
+			return cleanup.err
 		}
 		c.clearCompletedAgentClientCleanup(cleanup)
 	}
@@ -683,7 +689,7 @@ func waitAgentClientCleanup(ctx context.Context, cleanup *agentClientSessionClea
 // clearCompletedAgentClientCleanup 只清除自己观察到的 cleanup，不能覆盖并发产生的新代。
 func (c *agentClient) clearCompletedAgentClientCleanup(cleanup *agentClientSessionCleanup) {
 	c.mu.Lock()
-	if c.cleanup == cleanup {
+	if c.cleanup == cleanup && cleanup.err == nil {
 		c.cleanup = nil
 	}
 	c.mu.Unlock()
@@ -910,6 +916,11 @@ func (f defaultFactory) New(options bridge.Options) Client {
 // IsRuntimeTransportClosedError 判断底层 SDK transport 是否已经断开。
 func IsRuntimeTransportClosedError(err error) bool {
 	if err == nil {
+		return false
+	}
+	var cleanupErr *bridge.ProcessCleanupError
+	if errors.As(err, &cleanupErr) {
+		// 断管可能与后代清理失败同时发生，不能据此吞掉生命周期错误。
 		return false
 	}
 	if errors.Is(err, bridge.ErrNotConnected) ||

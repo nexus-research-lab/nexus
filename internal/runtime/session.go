@@ -607,8 +607,7 @@ func (m *Manager) replaceRuntimeClient(
 	// while a normal replacement waits for the old process to be fully reaped.
 	disconnectErr := stale.Disconnect(ctx)
 	idleDrainErr := waitIdleMessageDrain(ctx, drain)
-	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) ||
-		idleDrainErr != nil {
+	if disconnectErr != nil || idleDrainErr != nil {
 		retireUnusedRuntimeClient(next)
 		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
 		return nil, errors.Join(disconnectErr, idleDrainErr)
@@ -676,7 +675,7 @@ func (m *Manager) finishRetiredSessionCloseWhenDone(
 		return
 	}
 	cancelSessionCloseTarget(target)
-	m.finishSessionCloseWhenDone(target, true)
+	m.finishSessionCloseWhenDone(target, true, nil)
 }
 
 func retireUnusedRuntimeClient(client Client) {
@@ -1038,8 +1037,7 @@ func (m *Manager) retireCurrentClient(
 
 	disconnectErr := expected.Disconnect(ctx)
 	idleDrainErr := waitIdleMessageDrain(ctx, drain)
-	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) ||
-		idleDrainErr != nil {
+	if disconnectErr != nil || idleDrainErr != nil {
 		m.finishRetiredClientResetWhenDone(sessionKey, expectedState, expected, expectedGeneration, drain)
 		return true, errors.Join(disconnectErr, idleDrainErr)
 	}
@@ -1055,7 +1053,10 @@ func (m *Manager) finishRetiredClientResetWhenDone(
 	drain *idleMessageDrain,
 ) {
 	go func() {
-		_ = expected.Disconnect(context.Background())
+		if err := expected.Disconnect(context.Background()); err != nil {
+			m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, expected)
+			return
+		}
 		_ = waitIdleMessageDrain(context.Background(), drain)
 		m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
 	}()
@@ -1122,7 +1123,7 @@ func (m *Manager) closeSession(
 	target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
 	if !started {
 		m.mu.Unlock()
-		return closeDone != nil, waitSessionClose(ctx, closeDone)
+		return closeDone != nil, m.waitSessionCloseResult(ctx, sessionKey, closeDone)
 	}
 	reapPlan, reapFlight := m.beginOwnerReapLocked(
 		target.ownerUserID,
@@ -1146,9 +1147,9 @@ func (m *Manager) closeSession(
 	if clientCleanupPending || idleDrainErr != nil || waitRoundErr != nil || waitBackgroundErr != nil {
 		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
 		// 删除 session 状态；client cleanup 也必须保留同一生命周期栅栏。
-		m.finishSessionCloseWhenDone(target, clientCleanupPending)
+		m.finishSessionCloseWhenDone(target, clientCleanupPending, disconnectErr)
 	} else {
-		m.finishSessionClose(target)
+		m.finishSessionClose(target, disconnectErr)
 	}
 	reaperErr := waitOwnerReap(ctx, reapFlight)
 	return true, errors.Join(reaperErr, disconnectErr, idleDrainErr, waitBackgroundErr, waitRoundErr)
