@@ -61,5 +61,9 @@ assert.equal(
 assert.match(installerSource, /function PrepareToInstall\s*\(/);
 assert.match(installerSource, /CheckForMutexes\(NexusMutexName\)/);
 assert.match(installerSource, /RestartApplications=no/);
+// The ordinary desktop installer stays per-user. A privileged sandbox helper
+// needs its own protected installation and cannot elevate this mutable bundle.
+assert.match(installerSource, /^PrivilegesRequired=lowest\r?$/m);
+assert.match(installerSource, /^DefaultDirName=\{localappdata\}\\Programs\\[^\r\n]+\r?$/m);
 
-console.log("Windows installer shutdown contract verified");
+console.log("Windows installer shutdown and per-user installation contracts verified");

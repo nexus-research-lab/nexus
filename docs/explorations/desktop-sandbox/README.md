@@ -1271,3 +1271,13 @@ objects through their ordinary SID check. The latter also requires a concrete pr
 launch/provisioning and authenticated IPC contract; merely renaming the current same-
 account runner is insufficient. No token relaxation or system ACL mutation is authorized
 implicitly by these diagnostics, and neither alternative is implemented or accepted yet.
+
+### 2026-09-15: installation boundary and broker implementation direction
+
+[Windows broker deployment and authorization plan](windows-broker-plan.md) consolidates
+the next implementation direction from native isolation/compatibility evidence and the
+actual per-user installer. It is explicitly non-normative and identifies the machine
+state contract extension, protected installation, identity separation, approval and
+no-replay requirements before product integration. The existing installer verifier now
+also guards `PrivilegesRequired=lowest` and its LocalAppData Programs destination; it
+does not install or enable a privileged component.
