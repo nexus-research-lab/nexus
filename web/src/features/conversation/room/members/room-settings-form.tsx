@@ -141,7 +141,7 @@ function RoomSettingCheckbox({
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="min-w-0 truncate">{label}</span>
+      <span className="min-w-0">{label}</span>
     </label>
   );
 }

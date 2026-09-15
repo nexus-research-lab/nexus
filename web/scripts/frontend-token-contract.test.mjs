@@ -94,7 +94,7 @@ test("control paint tokens are CSS colors, including aliases used by color-mix",
     for (const theme of ["light", "dark", "rain"]) {
       const { tokens } = inspectThemeAliases(source, theme);
       for (const name of ["--material-chip-background", "--material-input-background", "--material-input-focus-background",
-        "--modal-btn-secondary-background", "--button-tonal-background", "--chip-segmented-background",
+        "--modal-btn-secondary-background", "--button-tonal-background",
         "--surface-control-background", "--modal-input-focus-background"]) {
         const value = resolvedColor(tokens, name);
         assert.ok(!value.includes("var("), `${name} needs an explicitly resolved color`);

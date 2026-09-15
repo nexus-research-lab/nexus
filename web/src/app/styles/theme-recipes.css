@@ -1495,7 +1495,7 @@
   }
 
   .dialog-header--plain {
-    align-items: flex-start;
+    align-items: center;
     background: var(--modal-dialog-body-background);
     border-bottom: 0;
     padding: 1.25rem 1.25rem 0.5rem;
@@ -1601,8 +1601,8 @@
   }
 
   .segmented-control {
-    background: var(--chip-segmented-background);
-    border: 1px solid var(--chip-segmented-border);
+    background: transparent;
+    border: 0;
     box-shadow: none;
   }
 
@@ -1620,11 +1620,15 @@
     color: var(--chip-segmented-option-hover-color);
   }
 
-  /* 选中态只拥有底色和边界；focus-visible 继续由 theme-base 的全局焦点层拥有。 */
+  /* 只用浅底区分选中项，避免与外层表单叠出多重边框。 */
   .segmented-control-option[data-active="true"] {
     background: var(--chip-segmented-option-active-background);
     color: var(--chip-segmented-option-active-color);
-    border: 1px solid var(--surface-interactive-active-border);
+  }
+
+  .segmented-control-option[data-active="true"]:not(:disabled):hover {
+    background: color-mix(in srgb, var(--chip-segmented-option-active-background) 92%, var(--text-strong));
+    color: var(--chip-segmented-option-active-color);
   }
 
   /* 横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */

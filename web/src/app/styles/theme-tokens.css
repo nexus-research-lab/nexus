@@ -633,12 +633,10 @@
   --button-tonal-hover-background: color-mix(in srgb, var(--interaction-hover-background) 92%, transparent);
   --button-tonal-hover-color: var(--text-strong);
 
-  --chip-segmented-background: color-mix(in srgb, var(--material-chip-background) 92%, transparent);
-  --chip-segmented-border: var(--material-chip-border);
-  --chip-segmented-option-color: var(--text-default);
-  --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 88%, transparent);
+  --chip-segmented-option-color: color-mix(in srgb, var(--text-default) 75%, var(--text-strong));
+  --chip-segmented-option-hover-background: color-mix(in srgb, var(--interaction-hover-background) 97%, var(--text-strong));
   --chip-segmented-option-hover-color: var(--text-strong);
-  --chip-segmented-option-active-background: color-mix(in srgb, var(--interaction-active-background) 94%, transparent);
+  --chip-segmented-option-active-background: color-mix(in srgb, var(--interaction-active-background) 94%, var(--text-strong));
   --chip-segmented-option-active-color: var(--text-strong);
 
   --surface-interactive-hover-background: var(--interaction-hover-background);

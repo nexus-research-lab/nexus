@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Align plain dialog titles with close buttons and normalize the Room skill placeholder typography.
+
+- Reorganize the Room dialog into compact configuration and member columns, with skills beside the member list and stable member header/list heights when switching tabs.
+
+- Compact shared segmented controls and remove the outer tray and stacked selection borders.
+
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
 - Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
