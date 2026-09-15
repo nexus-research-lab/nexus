@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Extend the desktop sandbox development gate to require real Bash/Read denial under overlapping resource grants and symlink access, protected-directory movement rejection, and both background network lifecycle scenarios.
+
 - Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
 
 - Clarify the existing entry points for local Skill content editing, long-term memory editing and role-scoped configuration discovery.
