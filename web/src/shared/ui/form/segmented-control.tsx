@@ -46,7 +46,7 @@ export function UiSegmentedControl<T extends string>({
       className={cn(
         "segmented-control min-w-0 max-w-full items-stretch surface-radius-md",
         stretch ? "flex w-full" : "inline-flex",
-        density === "compact" ? "p-0.5" : "p-1",
+        "gap-1",
         !showLabel && className,
       )}
       role={showLabel ? undefined : "group"}
@@ -60,10 +60,10 @@ export function UiSegmentedControl<T extends string>({
             aria-pressed={value === option.value}
             className={cn(
               "segmented-control-option inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-normal text-center radius-control-sm disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-              getUiTypographyClassName({ role: density === "compact" ? "supporting" : "control", weight: "medium" }),
-              density === "compact" ? "min-h-7 px-2 py-0.5" : "min-h-8 px-2.5 py-1",
+              getUiTypographyClassName({ role: "supporting", weight: "medium" }),
+              density === "compact" ? "min-h-6 px-2 py-0.5" : "min-h-7 px-2.5 py-0.5",
               stretch && "flex-auto px-1.5",
-              iconOnly && (density === "compact" ? "h-7 w-7 shrink-0 self-center px-0" : "h-8 w-8 shrink-0 self-center px-0"),
+              iconOnly && (density === "compact" ? "h-6 w-6 shrink-0 self-center px-0" : "h-7 w-7 shrink-0 self-center px-0"),
             )}
             data-active={value === option.value}
             disabled={disabled}

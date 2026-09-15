@@ -57,25 +57,28 @@ export function RoomMemberSelector({
   const visibleCount = showsUsers ? users.length : agents.length;
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      {separateUsers ? (
-        <UiSegmentedControl
-          density="compact"
-          disabled={disabled}
-          onChange={(value) => {
-            setMemberType(value);
-            onQueryChange("");
-          }}
-          options={[
-            { label: t("room.people_count", { count: users.length }), value: "users" },
-            { label: t("room.agents_count", { count: agents.length }), value: "agents" },
-          ]}
-          stretch
-          title={t("room.member_type")}
-          value={memberType}
-        />
-      ) : (
-        <p className="dialog-label">{t("room.agents_count", { count: agents.length })}</p>
-      )}
+      <div className="flex h-7 shrink-0 items-center">
+        {separateUsers ? (
+          <UiSegmentedControl
+            className="w-full"
+            density="compact"
+            disabled={disabled}
+            onChange={(value) => {
+              setMemberType(value);
+              onQueryChange("");
+            }}
+            options={[
+              { label: t("room.people_count", { count: users.length }), value: "users" },
+              { label: t("room.agents_count", { count: agents.length }), value: "agents" },
+            ]}
+            stretch
+            title={t("room.member_type")}
+            value={memberType}
+          />
+        ) : (
+          <p className="dialog-label">{t("room.agents_count", { count: agents.length })}</p>
+        )}
+      </div>
       <UiSearchInput
         aria-label={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
         controlSize="md"
@@ -85,7 +88,7 @@ export function RoomMemberSelector({
         value={query}
         variant="dialog"
       />
-      <div className="surface-radius-lg flex h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-(--surface-panel-border) bg-(--surface-panel-background) p-1.5 max-md:h-auto max-md:min-h-[180px] max-md:max-h-[240px]">
+      <div className="flex h-[min(42vh,320px)] min-h-0 shrink-0 flex-col overflow-hidden max-md:h-[240px]">
         <div
           className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
           data-room-member-selection-list="true"

@@ -138,65 +138,68 @@ function CreateRoomDialogContent({
           />
 
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-5 px-5" scrollable>
-            {mode === "create" && onlineAvailable ? (
-              <UiSegmentedControl
-                className="w-full"
-                disabled={pending}
-                onChange={form.setLocation}
-                options={[
-                  { icon: HardDrive, label: t("room.location_local"), value: "local" },
-                  { icon: Cloud, label: t("room.location_online"), value: "online" },
-                ]}
-                showLabel
-                stretch
-                title={t("room.location")}
-                value={form.state.location}
-              />
-            ) : null}
-            <div className="grid min-h-0 grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-6 max-md:grid-cols-1">
-              <RoomSettingsForm
-                avatarFallbackTitle={labels.title}
-                canSubmit={canSubmit}
-                isCreating={pending}
-                onSubmit={handleSubmit}
-                selectedAgents={form.selectedAgents}
-                setters={{
-                  setAvatar: form.setAvatar,
-                  setHostAgentId: form.setHostAgentId,
-                  setHostAutoReplyEnabled: form.setHostAutoReplyEnabled,
-                  setName: form.setName,
-                  setPrivateMessagesEnabled:
-                    form.setPrivateMessagesEnabled,
-                }}
-                state={form.state}
-              />
-              <RoomMemberSelector
-                agents={form.filteredAgents}
-                disabled={pending}
-                key={form.state.location}
-                canManageParticipation={mode === "manage"}
-                onQueryChange={form.setMemberQuery}
-                onToggleAgent={form.toggleAgent}
-                onToggleParticipation={form.toggleParticipation}
-                onToggleUser={form.toggleUser}
-                pausedAgentIds={form.pausedAgentIdSet}
-                query={form.state.memberQuery}
-                selectedAgentIds={form.selectedAgentIdSet}
-                selectedUserIds={form.selectedUserIdSet}
-                separateUsers={form.state.location === "online"}
-                users={form.state.location === "online" ? form.filteredUsers : []}
-              />
+            <div className="grid min-h-0 grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] gap-5 max-md:grid-cols-1">
+              <div className="flex min-w-0 flex-col gap-5">
+                {mode === "create" && onlineAvailable ? (
+                  <UiSegmentedControl
+                    density="compact"
+                    disabled={pending}
+                    onChange={form.setLocation}
+                    options={[
+                      { icon: HardDrive, label: t("room.location_local"), value: "local" },
+                      { icon: Cloud, label: t("room.location_online"), value: "online" },
+                    ]}
+                    showLabel
+                    title={t("room.location")}
+                    value={form.state.location}
+                  />
+                ) : null}
+                <RoomSettingsForm
+                  avatarFallbackTitle={labels.title}
+                  canSubmit={canSubmit}
+                  isCreating={pending}
+                  onSubmit={handleSubmit}
+                  selectedAgents={form.selectedAgents}
+                  setters={{
+                    setAvatar: form.setAvatar,
+                    setHostAgentId: form.setHostAgentId,
+                    setHostAutoReplyEnabled: form.setHostAutoReplyEnabled,
+                    setName: form.setName,
+                    setPrivateMessagesEnabled:
+                      form.setPrivateMessagesEnabled,
+                  }}
+                  state={form.state}
+                />
+                <RoomSkillsSelector
+                  disabled={pending}
+                  error={skills.error}
+                  isLoading={skills.loading}
+                  onChange={form.setSelectedSkillNames}
+                  onQueryChange={form.setSkillQuery}
+                  options={skills.options}
+                  query={form.state.skillQuery}
+                  value={form.state.selectedSkillNames}
+                />
+              </div>
+              <div className="min-w-0 border-l divider-subtle pl-5 max-md:border-l-0 max-md:border-t max-md:pl-0 max-md:pt-4">
+                <RoomMemberSelector
+                  agents={form.filteredAgents}
+                  disabled={pending}
+                  key={form.state.location}
+                  canManageParticipation={mode === "manage"}
+                  onQueryChange={form.setMemberQuery}
+                  onToggleAgent={form.toggleAgent}
+                  onToggleParticipation={form.toggleParticipation}
+                  onToggleUser={form.toggleUser}
+                  pausedAgentIds={form.pausedAgentIdSet}
+                  query={form.state.memberQuery}
+                  selectedAgentIds={form.selectedAgentIdSet}
+                  selectedUserIds={form.selectedUserIdSet}
+                  separateUsers={form.state.location === "online"}
+                  users={form.state.location === "online" ? form.filteredUsers : []}
+                />
+              </div>
             </div>
-            <RoomSkillsSelector
-              disabled={pending}
-              error={skills.error}
-              isLoading={skills.loading}
-              onChange={form.setSelectedSkillNames}
-              onQueryChange={form.setSkillQuery}
-              options={skills.options}
-              query={form.state.skillQuery}
-              value={form.state.selectedSkillNames}
-            />
           </UiDialogBody>
 
           {submitFailed ? (
