@@ -118,7 +118,8 @@ func (a *ControlAuthority) BuildStatusPayload(
 	ctx context.Context,
 	request *http.Request,
 ) (StatusPayload, error) {
-	principal, state, err := a.InspectRequest(ctx, request)
+	// 显式刷新必须读取 Control 最新身份，不能等待异步失效事件清理旧组织租约。
+	principal, state, err := a.exchangeFresh(ctx, a.extractSessionToken(request))
 	if err != nil {
 		return StatusPayload{}, err
 	}
@@ -187,6 +188,14 @@ func (a *ControlAuthority) exchange(
 	if principal, state, ok := a.cachedLease(sessionToken); ok {
 		return principal, state, nil
 	}
+	return a.exchangeFresh(ctx, sessionToken)
+}
+
+func (a *ControlAuthority) exchangeFresh(ctx context.Context, sessionToken string) (*Principal, State, error) {
+	// 核验失败或 Session 已退出时也不得留下可被后续请求复用的旧身份。
+	a.leaseMu.Lock()
+	delete(a.leases, hashSessionToken(sessionToken))
+	a.leaseMu.Unlock()
 	var response controlExchangeResult
 	err := a.call(ctx, http.MethodPost, "/internal/principals/exchange", map[string]string{
 		"session_token": sessionToken,

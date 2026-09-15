@@ -1,6 +1,6 @@
 // INPUT: 账号作用域、Team 资源、成员新快照与显式读取/发送动作。
 // OUTPUT: 可取消的读取恢复、同步快照与冻结意图的消息重试。
-// POS: Team 聊天资源生命周期所有者；元数据刷新不重载消息历史。
+// POS: Team 聊天资源生命周期所有者；元数据刷新按持久水位补拉差量，不重载消息历史。
 import {
   useCallback,
   useEffect,
@@ -109,15 +109,14 @@ export function useTeamRoom(roomId: string | null) {
     if (!current) return;
     try {
       const next = await getTeamRoom(current.room.id, signal);
-      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) updateDetails(next);
+      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) {
+        updateDetails(next);
+        return next;
+      }
     } catch (cause) {
       if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) handleReadFailure(cause);
     }
   }, [handleReadFailure, updateDetails]);
-  useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
-    try { await refreshDetails(signal); }
-    catch { if (!signal.aborted) setError("sync"); }
-  });
 
   const loadSnapshot = useCallback(async (
     value: TeamRoomView,
@@ -237,6 +236,7 @@ export function useTeamRoom(roomId: string | null) {
           throw cause;
         }
       }
+      setError((current) => current === "sync" ? null : current);
     } finally {
       syncingRef.current = false;
     }
@@ -303,6 +303,21 @@ export function useTeamRoom(roomId: string | null) {
       setIsLoading(false);
     }
   }, [reload, replaceMessages]);
+
+  useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
+    const next = await refreshDetails(signal);
+    if (!next || signal.aborted || roomRef.current?.room.id !== next.room.id) return;
+    try {
+      // 推送只是提示；定期读取的持久水位也必须驱动差量恢复。
+      if (next.conversation.stream_epoch !== room?.conversation.stream_epoch) {
+        await recoverStream();
+      } else {
+        await synchronize(next.conversation.high_water_sync_event_seq);
+      }
+    } catch (cause) {
+      if (!signal.aborted) handleReadFailure(cause);
+    }
+  });
 
   const handleStreamMessage = useCallback((message: unknown) => {
     const value = roomRef.current;

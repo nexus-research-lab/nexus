@@ -5,12 +5,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useTeamRoom } from "./use-team-room";
 import { ApiRequestError } from "@/lib/api/core/http-error";
-const api = vi.hoisted(() => ({bootstrap: vi.fn(), get: vi.fn(), snapshot: vi.fn(), post: vi.fn()}));
+const api = vi.hoisted(() => ({bootstrap: vi.fn(), get: vi.fn(), snapshot: vi.fn(), post: vi.fn(), difference: vi.fn(), socket: vi.fn()}));
 vi.mock("@/lib/api/conversation/team-api", () => ({
   listTeamRooms: api.bootstrap, getTeamRoom: api.get, getTeamSnapshot: api.snapshot, postTeamMessage: api.post,
-  buildTeamStreamUrl: () => "", getTeamDifference: vi.fn(),
+  buildTeamStreamUrl: () => "", getTeamDifference: api.difference,
 }));
-vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: vi.fn()}));
+vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: api.socket}));
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
   useAuth: () => ({status: {authenticated: true, auth_method: "password", control_user_id: "user", organization_id: "org"}}),
@@ -28,6 +28,26 @@ beforeEach(() => {
   api.snapshot.mockReset().mockResolvedValue({messages: [], snapshot_seq: 0, has_more: false});
 	api.get.mockReset().mockResolvedValue(bootstrap);
   api.post.mockReset();
+  api.difference.mockReset();
+  api.socket.mockClear();
+});
+
+it("在推送补拉失败后通过焦点刷新水位补齐消息，不重载历史或重发消息", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  const message = {id: "remote-message", message_seq: 1, author_type: "user", author_user_id: "other"};
+  api.difference.mockRejectedValueOnce(new Error("temporary failure"));
+  act(() => api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 1}));
+  await waitFor(() => expect(result.current.error).toBe("sync"));
+  api.get.mockResolvedValue({...bootstrap, conversation: {...bootstrap.conversation, high_water_sync_event_seq: 1}});
+  api.difference.mockResolvedValue({events: [{message}], next_seq: 1, high_water_seq: 1});
+  act(() => window.dispatchEvent(new Event("focus")));
+  await waitFor(() => expect(result.current.messages).toEqual([message]));
+  expect(result.current.error).toBeNull();
+  expect(api.difference).toHaveBeenLastCalledWith("stream", 0, "epoch");
+  expect(api.snapshot).toHaveBeenCalledTimes(1);
+  expect(api.post).not.toHaveBeenCalled();
 });
 it("deduplicates explicit retries and clears the load error only after a successful read", async () => {
   const {result} = renderHook(() => useTeamRoom(null));
