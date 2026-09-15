@@ -5,7 +5,7 @@
 
 import { UserPlus } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { AccessPageFrame, AccessPageIntroduction } from "@/features/access/access-page-frame";
 import {
@@ -13,7 +13,7 @@ import {
   previewControlOrganizationInvitationApi,
   type ControlOrganizationInvitationPreview,
 } from "@/lib/api/account/control-api";
-import { useAuth } from "@/shared/auth/auth-context";
+import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { UiButton } from "@/shared/ui/button/button";
@@ -35,7 +35,8 @@ export function JoinOrganizationPage() {
   const { t } = useI18n();
   const { token = "" } = useParams();
   const navigate = useNavigate();
-  const { refreshStatus } = useAuth();
+  const { refreshStatus, status } = useAuth();
+  const signedIn = isRemoteAccountAuthenticated(status);
   const fieldID = useId();
   const pendingRef = useRef(false);
   const [preview, setPreview] = useState<ControlOrganizationInvitationPreview | null>(null);
@@ -52,6 +53,10 @@ export function JoinOrganizationPage() {
 
   useEffect(() => {
     let active = true;
+    setPreview(null);
+    setInvalid(false);
+    setFailed(false);
+    setDraft(INITIAL_DRAFT);
     void previewControlOrganizationInvitationApi(token)
       .then((value) => { if (active) setPreview(value); })
       .catch(() => { if (active) setInvalid(true); });
@@ -64,12 +69,12 @@ export function JoinOrganizationPage() {
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (validation || pendingRef.current || !preview) return;
+    if ((!signedIn && validation) || (signedIn && status?.organization_id) || pendingRef.current || !preview) return;
     pendingRef.current = true;
     setSubmitting(true);
     setFailed(false);
     try {
-      await acceptControlOrganizationInvitationApi(token, {
+      await acceptControlOrganizationInvitationApi(token, signedIn ? {} : {
         username: draft.username.trim(), display_name: draft.displayName.trim(), password: draft.password,
       });
       await refreshStatus();
@@ -97,6 +102,8 @@ export function JoinOrganizationPage() {
         {preview ? (
           <form className="grid gap-4" onSubmit={submit}>
             <UserPlus className="h-8 w-8 text-(--brand)" />
+            {signedIn ? <p>{status?.organization_id ? t("organization.already_joined") : status?.display_name || status?.username}</p> : <>
+            <Link to={`/login?redirect=${encodeURIComponent(`/join/${token}`)}`}>{t("organization.login_existing")}</Link>
             <UiField htmlFor={`${fieldID}-username`} label={t("members.username")} required>
               <UiInput id={`${fieldID}-username`} minLength={3} onChange={(event) => setField("username", event.target.value)} pattern="[a-z0-9._-]+" required value={draft.username} />
             </UiField>
@@ -109,9 +116,10 @@ export function JoinOrganizationPage() {
             <UiField htmlFor={`${fieldID}-confirm`} label={t("members.confirm_password")} required>
               <UiInput autoComplete="new-password" id={`${fieldID}-confirm`} minLength={8} onChange={(event) => setField("confirmPassword", event.target.value)} required type="password" value={draft.confirmPassword} />
             </UiField>
+            </>}
             {failed ? <UiInlineNotice message={t("join.failed_description")} title={t("join.failed_title")} tone="danger" /> : null}
-            <UiButton disabled={Boolean(validation) || submitting} tone="primary" type="submit" variant="solid">
-              {submitting ? t("join.submitting") : t("join.submit")}
+            <UiButton disabled={(!signedIn && Boolean(validation)) || submitting || (signedIn && Boolean(status?.organization_id))} tone="primary" type="submit" variant="solid">
+              {submitting ? t("join.submitting") : signedIn ? t("organization.join_existing") : t("join.submit")}
             </UiButton>
           </form>
         ) : null}

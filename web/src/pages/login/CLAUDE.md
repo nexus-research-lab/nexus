@@ -1,5 +1,7 @@
 # Login Page
 
+- Control 明确返回 registration_enabled 时才显示注册切换，复用同一凭证表单与状态刷新；注册默认只创建普通平台账号，不自动加入组织、不授予运营权限。
+
 - `login-page.tsx` 只装配 bootstrapping、redirect 和 ready 页面状态。
 - 页面背景、品牌入口与宣传标题由 `features/access/access-page-frame.tsx` 和其 CSS 统一拥有，与 Setup 共用；登录页只组合自身插画、产品说明和凭证表单。
 - `login-page-model.ts` 负责站内重定向校验与认证页面状态投影。

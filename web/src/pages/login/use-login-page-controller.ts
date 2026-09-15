@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "@/shared/auth/auth-context";
+import { registerApi } from "@/lib/api/account/auth-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
@@ -29,6 +30,7 @@ export function useLoginPageController() {
   } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [registering, setRegistering] = useState(false);
   const [submitFailure, setSubmitFailure] = useState<ReturnType<
     typeof buildLoginSubmitFailure
   > | null>(null);
@@ -62,7 +64,12 @@ export function useLoginPageController() {
     setIsSubmitting(true);
     setSubmitFailure(null);
     try {
-      await login(username, password);
+      if (registering && status?.registration_enabled) {
+        await registerApi({ username, password });
+        await refreshStatus();
+      } else {
+        await login(username, password);
+      }
       navigate(redirectPath, { replace: true });
     } catch (error) {
       setSubmitFailure(buildLoginSubmitFailure(error, t));
@@ -70,9 +77,12 @@ export function useLoginPageController() {
       submittingRef.current = false;
       setIsSubmitting(false);
     }
-  }, [login, navigate, password, redirectPath, t, username]);
+  }, [login, navigate, password, redirectPath, t, username, registering, status?.registration_enabled, refreshStatus]);
 
   return {
+    registering,
+    setRegistering,
+    registrationEnabled: status?.registration_enabled === true,
     authFailure: authError
       ? buildLoginStatusFailure(authError, status !== null, t)
       : null,

@@ -10,8 +10,8 @@ import (
 )
 
 var domainCatalog = []DomainDefinition{
-	{Name: DomainMembers, Description: "当前部署的用户账号、显示名称、角色与访问权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
-		Operations: []OperationDefinition{op("create", "创建账号并加入当前部署；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、角色或启停状态", true, "immediate"), op("remove", "撤销部署访问权限并使会话失效；保留账号与工作区数据", true, "immediate")}},
+	{Name: DomainMembers, Description: "当前组织的成员目录和组织角色；写入由 Control 实时校验组织管理权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
+		Operations: []OperationDefinition{op("create", "创建普通平台账号并加入当前组织；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、admin/member 组织角色或移出组织；不授予平台权限", true, "immediate"), op("remove", "移出当前组织并撤销组织协作权限；保留账号、登录与本地数据", true, "immediate")}},
 	{
 		Name: DomainPreferences, Description: "用户级聊天、runtime、WebSearch 与默认 Agent 偏好",
 		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexuscfg", Mutable: true,

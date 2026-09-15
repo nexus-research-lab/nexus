@@ -17,7 +17,10 @@ import {
   revokeControlOrganizationInvitationApi,
   type ControlOrganizationInvitation,
 } from "@/lib/api/account/control-api";
-import { useAuth } from "@/shared/auth/auth-context";
+import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
+import { Link } from "react-router-dom";
+import { OrganizationActions } from "./organization-actions";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -124,8 +127,11 @@ export function OrganizationPanel() {
         : "settings.personal.role_member",
   );
 
+  if (!isRemoteAccountAuthenticated(status)) return <div className={SETTINGS_CONTENT_BODY_CLASS_NAME}><UiInlineNotice message={t("organization.login_required")} tone="neutral" /><Link to="/settings?section=personal">{t("settings.tabs.personal")}</Link></div>;
+  const canManage = status?.organization_role === "owner" || status?.organization_role === "admin";
+  if (!status?.organization_id) return <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-4`}><WorkspaceContentHeader title={t("operations.tabs.organization")} /><p>{t("organization.no_organization")}</p><OrganizationActions /></div>;
   return (
-    <div className="grid w-full min-w-0 gap-6 pb-8">
+    <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} grid min-w-0 gap-6 pb-8`} data-organization-page>
       <WorkspaceContentHeader
         className="mb-0"
         title={status?.organization_name || t("organization.name_unavailable")}
@@ -133,14 +139,17 @@ export function OrganizationPanel() {
       />
 
       <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-3`}>
-        <OrganizationMembersPanel toolbarActions={(
+        <OrganizationMembersPanel key={status.organization_id} toolbarActions={(
           <div className="flex flex-wrap items-center gap-1">
-            <UiButton aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={openInviteDialog} size="sm" variant="ghost">
+            <OrganizationActions key={status.organization_id + status.organization_role} />
+            {canManage ? <>
+            <UiButton aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={openInviteDialog} size="sm" variant="outline">
               {t("organization.invite_action")}
             </UiButton>
-            <UiButton aria-haspopup="dialog" aria-expanded={historyOpen} onClick={() => { setHistoryOpen(true); setActionFailed(false); void load(); }} size="sm" variant="ghost">
+            <UiButton aria-haspopup="dialog" aria-expanded={historyOpen} onClick={() => { setHistoryOpen(true); setActionFailed(false); void load(); }} size="sm" variant="outline">
               {t("organization.invitations_title")}
             </UiButton>
+            </> : null}
           </div>
         )} />
       </div>
@@ -184,7 +193,7 @@ export function OrganizationPanel() {
                             {t("organization.invite_created_at", { date: new Date(invitation.created_at).toLocaleDateString(locale) })}
                           </p>
                         </div>
-                        {status?.role === "owner" || (status?.role === "admin" && invitation.role === "member") ? (
+                        {status?.organization_role === "owner" || (status?.organization_role === "admin" && invitation.role === "member") ? (
                           <UiButton
                             disabled={pending || loading}
                             onClick={() => void mutateInvitation(invitation.invitation_id, active)}
@@ -227,7 +236,7 @@ export function OrganizationPanel() {
                       ariaLabel={t("members.role")}
                       disabled={pending}
                       onChange={(value) => setRole(value as "admin" | "member")}
-                      options={status?.role === "owner" ? [
+                      options={status?.organization_role === "owner" ? [
                         { value: "member", label: t("settings.personal.role_member") },
                         { value: "admin", label: t("settings.personal.role_admin") },
                       ] : [{ value: "member", label: t("settings.personal.role_member") }]}

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Do not mislabel organization owners as leaving members when the backend omits their organization role; show a recovery notice and hide empty member-action columns.
+
+- Place organization actions and member search in one toolbar, with matching outlined action buttons.
+
+- Move organizations into account settings for all remote accounts, with organization creation, existing-account joining, rename, leave, ownership transfer and dissolution confirmations.
+- Separate organization permissions from platform operations; organization-less users retain personal/local capabilities without Relay access. Refresh remote identity on focus and scope online directories to the organization.
+
 - Remove page-header subtitles across Settings for consistent, simpler headings.
 
 - Create subscription plans in a dialog with name, quota, notes, and automatically generated identifiers; hide plan keys and preserve them when renaming.

@@ -8,6 +8,7 @@
 //   - control_client.go / control_client_user.go / control_wire.go：Control HTTP adapter、签名 Principal 验证、人类 Session 核验与固定 audience Relay 短令牌交换。
 //   - control_binding.go / control_invalidation.go：Control 身份到本地 owner 的确定性绑定与失效消费。
 //   - control_invalidation_coordinator.go：有序事件消费、持久游标、安全窗口与关闭重试；宿主注入连接和 runtime 撤销能力。
+//     organization_changed 只废弃远程身份租约，协作撤权交 Relay，不中断私人 Agent；历史 principal_changed 保持平台撤权语义。
 //   - runtime_admission.go：Control 状态核对与 Agent runtime admission 的安全边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

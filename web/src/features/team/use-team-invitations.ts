@@ -16,18 +16,21 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
-import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
+import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 import { useTeamRefresh } from "./use-team-refresh";
 import { isTeamCommandUnapplied } from "./team-command-outcome";
 
 export function useTeamInvitations(onAccepted: () => void) {
   const { status } = useAuth();
-  const enabled = isRemoteAccountAuthenticated(status);
+  const enabled = hasOrganizationAccess(status);
   const generation = useSyncExternalStore(
     subscribeAuthOwnerScopeGeneration,
     captureAuthOwnerScopeGeneration,
     captureAuthOwnerScopeGeneration,
   );
+  const scope = enabled ? JSON.stringify([generation, status?.organization_id, status?.control_user_id ?? status?.user_id]) : null;
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
   const [invitations, setInvitations] = useState<TeamRoomInvitation[]>([]);
   const [recoveryRooms, setRecoveryRooms] = useState<TeamRoomRecovery[]>([]);
   const [busyRoomId, setBusyRoomId] = useState<string | null>(null);
@@ -46,8 +49,8 @@ export function useTeamInvitations(onAccepted: () => void) {
     setBusyRoomId(null);
     commands.current.clear();
     busyRef.current = false;
-  }, [enabled, generation]);
-  const refresh = useTeamRefresh(enabled ? String(generation) : null, async (signal) => {
+  }, [scope]);
+  const refresh = useTeamRefresh(scope ? `${scope}:${status?.organization_role}` : null, async (signal) => {
     const version = readVersion.current;
     setLoading(true);
     try {
@@ -80,22 +83,22 @@ export function useTeamInvitations(onAccepted: () => void) {
         resolution,
         command.id,
       );
-      if (!isAuthOwnerScopeGenerationCurrent(generation)) return;
+      if (scope !== currentScope.current || !isAuthOwnerScopeGenerationCurrent(generation)) return;
       commands.current.delete(commandKey);
       readVersion.current += 1;
       setInvitations((items) => items.filter((item) => item.room.id !== invitation.room.id));
       if (resolution === "accept") onAccepted();
     } catch (cause) {
-      if (!isAuthOwnerScopeGenerationCurrent(generation)) return;
+      if (scope !== currentScope.current || !isAuthOwnerScopeGenerationCurrent(generation)) return;
       if (isTeamCommandUnapplied(cause, retrying)) commands.current.delete(commandKey);
       // 接受可能已经提交；邀请目录和已加入目录必须一起对账。
       if (resolution === "accept") onAccepted();
       setErrorRoomId(invitation.room.id);
       refresh();
     } finally {
-      if (isAuthOwnerScopeGenerationCurrent(generation)) { busyRef.current = false; setBusyRoomId(null); }
+      if (scope === currentScope.current && isAuthOwnerScopeGenerationCurrent(generation)) { busyRef.current = false; setBusyRoomId(null); }
     }
-  }, [enabled, generation, onAccepted, refresh]);
+  }, [enabled, generation, onAccepted, refresh, scope]);
 
   const recover = async (room: TeamRoomRecovery) => {
     const userId = status?.control_user_id ?? status?.user_id;
@@ -109,21 +112,21 @@ export function useTeamInvitations(onAccepted: () => void) {
     setErrorRoomId(null);
     try {
       await transferTeamRoomOwnership(room.id, userId, command.version, command.id, true);
-      if (!isAuthOwnerScopeGenerationCurrent(generation)) return false;
+      if (scope !== currentScope.current || !isAuthOwnerScopeGenerationCurrent(generation)) return false;
       commands.current.delete(key);
       readVersion.current += 1;
       setRecoveryRooms((items) => items.filter((item) => item.id !== room.id));
       onAccepted();
       return true;
     } catch (cause) {
-      if (!isAuthOwnerScopeGenerationCurrent(generation)) return false;
+      if (scope !== currentScope.current || !isAuthOwnerScopeGenerationCurrent(generation)) return false;
       if (isTeamCommandUnapplied(cause, retrying)) commands.current.delete(key);
       setErrorRoomId(room.id);
       onAccepted();
       refresh();
       return false;
     } finally {
-      if (isAuthOwnerScopeGenerationCurrent(generation)) { busyRef.current = false; setBusyRoomId(null); }
+      if (scope === currentScope.current && isAuthOwnerScopeGenerationCurrent(generation)) { busyRef.current = false; setBusyRoomId(null); }
     }
   };
 

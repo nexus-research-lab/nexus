@@ -158,6 +158,10 @@ export async function updateControlMemberApi(
   );
 }
 
+export async function mutateControlOrganizationApi(action: "create" | "rename" | "leave" | "transfer" | "dissolve", input: { name?: string; target_user_id?: string } = {}): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/organization/${action}`, { method: "POST", body: input });
+}
+
 export async function listControlOrganizationInvitationsApi(): Promise<ControlOrganizationInvitation[]> {
   return requestApi<ControlOrganizationInvitation[]>(`${CONTROL_AUTH_BASE_URL}/organization/invitations`, {
     method: "GET",
@@ -196,7 +200,7 @@ export async function previewControlOrganizationInvitationApi(
 
 export async function acceptControlOrganizationInvitationApi(
   token: string,
-  input: { username: string; display_name: string; password: string },
+  input: { username?: string; display_name?: string; password?: string } = {},
 ): Promise<AuthStatus> {
   return requestApi<AuthStatus>(
     `${CONTROL_AUTH_BASE_URL}/organization-invitations/${encodeURIComponent(token)}/accept`,

@@ -14,7 +14,7 @@ vi.mock("@/lib/api/account/control-api", () => ({
   listControlMembersApi: api.list,
   updateControlMemberApi: api.update,
 }));
-vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: { role: "owner", user_id: "self" } }) }));
+vi.mock("@/shared/auth/auth-context", () => ({ useAuth: () => ({ status: { organization_role: "owner", role: "member", user_id: "self" } }) }));
 const members = ["alice", "bob"].map((username) => ({ user_id: username, username, display_name: username, role: "member", membership_status: "active" }));
 beforeEach(() => {
   vi.resetAllMocks();

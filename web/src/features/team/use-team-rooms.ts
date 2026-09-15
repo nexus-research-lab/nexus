@@ -12,11 +12,11 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
-import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
+import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 
 export function useTeamRooms() {
   const { status } = useAuth();
-  const canUseRelay = isRemoteAccountAuthenticated(status);
+  const canUseRelay = hasOrganizationAccess(status);
   const [rooms, setRooms] = useState<TeamRoomView[]>([]);
   const [isAvailable, setIsAvailable] = useState(false);
   const generation = useSyncExternalStore(
@@ -24,11 +24,12 @@ export function useTeamRooms() {
     captureAuthOwnerScopeGeneration,
     captureAuthOwnerScopeGeneration,
   );
+  const scope = canUseRelay ? JSON.stringify([generation, status?.organization_id, status?.control_user_id, status?.organization_role]) : null;
   useEffect(() => {
     setRooms([]);
     setIsAvailable(false);
-  }, [canUseRelay, generation]);
-  const refresh = useTeamRefresh(canUseRelay ? String(generation) : null, async (signal) => {
+  }, [scope]);
+  const refresh = useTeamRefresh(scope, async (signal) => {
     try {
       const value = await listTeamRooms(signal);
       if (!signal.aborted && isAuthOwnerScopeGenerationCurrent(generation)) {

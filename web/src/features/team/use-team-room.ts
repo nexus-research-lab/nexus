@@ -27,7 +27,7 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
-import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
+import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 
 import { parseTeamStreamEvent } from "./team-stream-event";
 import { useTeamRefresh } from "./use-team-refresh";
@@ -36,7 +36,7 @@ import { isTeamCommandUnapplied } from "./team-command-outcome";
 
 export function useTeamRoom(roomId: string | null) {
   const { status } = useAuth();
-  const canUseRelay = isRemoteAccountAuthenticated(status);
+  const canUseRelay = hasOrganizationAccess(status);
   const [room, setRoom] = useState<TeamRoomDetails | null>(null);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [error, setError] = useState<"load" | "send" | "sync" | null>(null);

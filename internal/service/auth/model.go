@@ -63,6 +63,8 @@ type StatusPayload struct {
 	AuthMethod           *string `json:"auth_method,omitempty"`
 	OrganizationID       *string `json:"organization_id,omitempty"`
 	OrganizationName     *string `json:"organization_name,omitempty"`
+	OrganizationRole     *string `json:"organization_role,omitempty"`
 	SetupRequired        bool    `json:"setup_required,omitempty"`
 	SetupEnabled         bool    `json:"setup_enabled"`
+	RegistrationEnabled  bool    `json:"registration_enabled"`
 }

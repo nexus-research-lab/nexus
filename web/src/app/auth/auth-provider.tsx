@@ -130,6 +130,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user_id: null,
           display_name: null,
           role: null,
+          organization_id: null,
+          organization_name: null,
+          organization_role: null,
           avatar: null,
           auth_method: null,
         };
@@ -159,9 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
     window.addEventListener("storage", handleOwnerScopeStorageChange);
+    const refreshOnFocus = () => { void refreshStatus().catch(() => undefined); };
+    window.addEventListener("focus", refreshOnFocus);
     return () => {
       window.removeEventListener(AUTH_REQUIRED_EVENT, handleAuthRequired);
       window.removeEventListener("storage", handleOwnerScopeStorageChange);
+      window.removeEventListener("focus", refreshOnFocus);
     };
   }, [refreshStatus]);
 

@@ -107,6 +107,16 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
   };
 
   const writesDisabled = loading || pendingKey !== null || mutationsBlocked;
+  const canRemoveMember = (member: ControlDeploymentMember) => (
+    member.user_id !== (status?.control_user_id ?? status?.user_id)
+    && member.membership_status === "active"
+    && member.role !== "owner"
+    && (status?.organization_role === "owner" || (status?.organization_role === "admin" && member.role === "member"))
+  );
+  const showActions = visibleMembers.some(canRemoveMember);
+  const columns = showActions
+    ? "@min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px_48px]"
+    : "@min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px]";
 
   return (
     <div className="@container/members grid min-w-0 gap-3">
@@ -145,11 +155,11 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
 
         </div>
         {members.length > 0 ? (
-          <div className="hidden grid-cols-[minmax(0,1fr)_140px_90px_48px] gap-3 border-b border-(--divider-subtle-color) px-4 py-2 @min-[560px]/members:grid">
+          <div className={cn("hidden gap-3 border-b border-(--divider-subtle-color) px-4 py-2 @min-[560px]/members:grid", columns)}>
             <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_member")}</span>
             <span className={cn("px-3", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>{t("members.column_role")}</span>
             <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_access")}</span>
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_actions")}</span>
+            {showActions ? <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_actions")}</span> : null}
           </div>
         ) : null}
         <div className="divide-y divide-(--divider-subtle-color)">
@@ -179,11 +189,11 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
             />
           ) : null}
           {visibleMembers.map((member) => {
-            const isSelf = member.user_id === status?.user_id;
-            const canEditRole = status?.role === "owner" && !isSelf;
-            const canToggle = !isSelf && (status?.role === "owner" || member.role === "member");
+            const isSelf = member.user_id === (status?.control_user_id ?? status?.user_id);
+            const canEditRole = status?.organization_role === "owner" && !isSelf && member.role !== "owner" && member.membership_status === "active";
+            const canRemove = canRemoveMember(member);
             return (
-              <article className="grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background) @min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px_48px]" key={member.user_id}>
+              <article className={cn("grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background)", columns)} key={member.user_id}>
               <div className="col-span-3 min-w-0 @min-[560px]/members:col-span-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className={cn("min-w-0 wrap-anywhere", SETTINGS_ITEM_TITLE_CLASS_NAME)}>
@@ -208,7 +218,7 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
                 ariaLabel={`${t("members.role")}: ${member.display_name || member.username}`}
                 disabled={writesDisabled}
                 onChange={(value) => void updateMember(member, { role: value as ControlMemberRole })}
-                options={roleOptions}
+                options={roleOptions.filter((option) => option.value !== "owner")}
                 size="sm"
                 value={member.role}
               /> : <span className={cn("px-3", getUiTypographyClassName({ role: "supporting" }))}>{roleOptions.find((option) => option.value === member.role)?.label}</span>}
@@ -217,14 +227,14 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
                   {t(member.membership_status === "active" ? "members.active" : "members.revoked")}
                 </UiBadge>
               </div>
-              <div className="flex justify-end">
-                {canToggle ? <SettingsRowActions
+              {showActions ? <div className="flex justify-end">
+                {canRemove ? <SettingsRowActions
                   label={`${t("common.more_actions")}: ${member.display_name || member.username}`}
                   disabled={writesDisabled}
-                  items={[{ value: "toggle", label: t(member.membership_status === "active" ? "members.suspend" : "members.restore"), tone: member.membership_status === "active" ? "danger" : "default" }]}
-                  onSelect={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}
+                  items={[{ value: "remove", label: t("members.suspend"), tone: "danger" }]}
+                  onSelect={() => void updateMember(member, { status: "revoked" })}
                 /> : null}
-              </div>
+              </div> : null}
               </article>
             );
           })}

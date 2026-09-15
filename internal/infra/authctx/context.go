@@ -29,6 +29,7 @@ type Principal struct {
 	DeploymentID     string  `json:"deployment_id,omitempty"`
 	OrganizationID   string  `json:"organization_id,omitempty"`
 	OrganizationName string  `json:"organization_name,omitempty"`
+	OrganizationRole string  `json:"organization_role,omitempty"`
 	Username         string  `json:"username"`
 	DisplayName      string  `json:"display_name,omitempty"`
 	Role             string  `json:"role"`
@@ -41,6 +42,7 @@ type Principal struct {
 type State struct {
 	SetupRequired        bool `json:"setup_required"`
 	SetupEnabled         bool `json:"setup_enabled"`
+	RegistrationEnabled  bool `json:"registration_enabled"`
 	AuthRequired         bool `json:"auth_required"`
 	PasswordLoginEnabled bool `json:"password_login_enabled"`
 }

@@ -35,7 +35,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		Version: 1, Issuer: "nexus-control", Audience: "nexus-runtime",
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Minute).Unix(),
 		DeploymentID: "dep-a", UserID: "user-control-a",
-		OrganizationID: "org-a", OrganizationName: "Nexus",
+		OrganizationID: "org-a", OrganizationName: "Nexus", OrganizationRole: RoleAdmin,
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
 		AuthMethod: AuthMethodPassword, SessionID: "sess-a",
 		Entitlement: testControlEntitlement(now),
@@ -114,6 +114,9 @@ WHERE deployment_id = ? AND control_user_id = ?`,
 	}
 	if !status.SetupEnabled {
 		t.Fatalf("status = %+v", status)
+	}
+	if status.OrganizationRole == nil || *status.OrganizationRole != RoleAdmin || status.Role == nil || *status.Role != RoleOwner {
+		t.Fatalf("organization and platform roles must remain independent: %+v", status)
 	}
 	server.Close()
 	authority.verifier.now = func() time.Time { return now.Add(2 * time.Minute) }
