@@ -117,6 +117,10 @@ when selecting nxs. Responses keep `available` independent and optionally includ
 sandboxing is enabled or tested for the active task. Failures remain unknown and
 do not change preferences, approval mode, or execution policy.
 
-This development integration currently uses the local Bridge workspace containing
-`3da56a2`; the published module pin has not yet been advanced. Standalone release
-builds and packaged UI acceptance remain outstanding.
+The module pin is `v0.1.34-0.20260915041117-3da56a2e0534`. The exact local
+Bridge commit was packaged with Go's module zip implementation; its checksum is
+recorded in `go.sum`. Offline tests and the macOS server build pass with
+`GOWORK=off`, using that module rather than a workspace replacement. The commit
+has not been pushed or published: fresh machines need the corresponding local
+module source until publication is authorized. Packaged UI acceptance remains
+outstanding.
