@@ -302,6 +302,10 @@ func (h *Handlers) syncRuntimePreferences(ctx context.Context, preferences prefe
 
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
 func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
+	if request.URL.Query().Get("include_sandbox") == "true" {
+		h.api.WriteSuccess(writer, nxsruntimesvc.StatusWithSandbox(request.Context()))
+		return
+	}
 	h.api.WriteSuccess(writer, nxsruntimesvc.Status())
 }
 

@@ -164,6 +164,22 @@ export function SettingsRuntimeSection() {
           {settings.runtimeKind === "nxs" ? (
             <>
               <div className="border-t border-(--divider-subtle-color)" />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                    {t("settings.runtime.sandbox_check_description")}
+                  </p>
+                  {settings.sandboxState ? (
+                    <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                      {t(`settings.runtime.sandbox_${settings.sandboxState}`)}
+                    </p>
+                  ) : null}
+                </div>
+                <UiButton variant="text" disabled={settings.sandboxChecking} onClick={() => void settings.onCheckSandbox()}>
+                  {t(settings.sandboxChecking ? "settings.runtime.sandbox_checking" : "settings.runtime.sandbox_check")}
+                </UiButton>
+              </div>
+              <div className="border-t border-(--divider-subtle-color)" />
               <ToolSearchRow
                 checked={settings.toolSearchEnabled}
                 disabled={settings.loading || settings.preferencesBusy}
