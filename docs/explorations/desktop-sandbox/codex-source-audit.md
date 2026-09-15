@@ -71,3 +71,15 @@ SDK 提交 `e8a43b827b72769f9d32e676ff777e4657be1879` 新增 `windows_codex_toke
 Windows amd64 与 arm64 交叉编译通过；[原生运行 34918071783](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918071783) 的四个参考用例均在 AdjustTokenPrivileges 阶段返回 Access denied，尚未执行兼容或线程边界探针。参考 fixture 复用了不含 TOKEN_ADJUST_PRIVILEGES 的基础句柄，与固定源码 `get_current_token_for_restriction` 不同。SDK `d6ce146beaa61f52733eff775c1b179e733f259b` 仅在参考工厂中按源码权限重新打开当前 token，并核对其 SID 与已验证基础身份相同；产品句柄权限不变。修正后 amd64 交叉编译通过，[原生运行 34918231478](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918231478) 已启动，结果待核验。
 
 此阶段仍复用 Nexus 的 runner 进程保护、账号启动、桌面与环境，属于 token 组合对照；尚未完成上文规划的 LogonW 全链路 fixture，不能把结果称为完整 Codex 行为复现或平台验收。
+
+修正后的 [34918231478 原生运行](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918231478) 已结束：参考 PowerShell 通过（2.50 秒）、正常 Go 后代通过、命名事件通过；runner 线程隔离失败，受限子进程取得了 0x100/0x200/0x10/0x80/0x40000/0x80000/0x2/0x1 权限。测试只打开并关闭句柄，没有执行模拟身份、修改线程或提权。原完整受限 token 的后代和 PowerShell 失败仍保留。
+
+这证明当前 fixture 的启动兼容性可由参考 token 组合恢复，但同账号 runner 控制面尚未隔离；不能直接把此工厂替换为产品实现，也不能据此指称已验证 Codex App 漏洞。后续必须在完整 LogonW/runner 对照中继续核验该边界，并选择能同时满足正常后代与控制面隔离的实现。
+
+SDK `2d444401c78e4c093fc40c12b14796c0f24a6acb` 增加显式 LogonW bootstrap：使用临时普通账号、logonFlags=0、明确无凭据环境，核对创建后的实际 SID，逐一启动上述四个固定 reference 子测试。外层 runner 先悬挂后入清理 Job；内部受限命令仍复用原子 Job 创建。它不复现注册 alias、宿主预建 private desktop、完整 IPC 与账号资源配置，不应标为完整 Codex 启动链。amd64/arm64 交叉编译通过；[34918489035](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918489035) 原生结果待核验。
+
+该 LogonW 原生运行现已结束：PowerShell、后代、命名事件分别通过（0.30/0.08/0.06 秒），runner_thread_boundary 子进程 exit=1。仅更换为显式 LogonW 并未使线程拒绝断言通过；退出码本身不提供该次失败的逐权限细节，不能替代前一轮详细日志。
+
+SDK `888d8a49f672bf636bade5c763c49b5bf97073c4` 保留上述与旧 broker 失败测试，新增不同身份加参考 token 的独立对照。纯 token 构造接受已由测试验证的基础账号，不再隐式改用宿主 token；仍用原测试 CreateProcessWithTokenW、桌面、环境与清理 Job。它验证宿主 process/thread 拒绝、PowerShell 和 Go 后代，不提供服务部署或完整文件/网络策略。amd64/arm64 编译通过，[34918708741](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918708741) 原生运行待核验。
+
+该运行现已结束：旧 token 和参考 token 的不同账号测试均通过阶段 41–46 的受限身份与宿主访问拒绝，随后在阶段 47 的 PowerShell 初始化返回 0xc0000142；后代步骤未执行。参考 token 组合本身未解决该跨账号启动上下文的兼容问题。下一步应核验 LogonW 与 LogonUser/WithToken 的登录会话、窗口站及桌面差异；不得把改变 token 后失败相同当作可直接启用 broker 的证据。
