@@ -3,7 +3,7 @@
 // POS: Relay 真人消息与完整 Agent 回复到 Nexus Room UI 的窄适配层；不推断运行态或流式输出。
 
 import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
-import { UsersRound } from "lucide-react";
+import { MonitorCheck } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { getInitials } from "@/lib/avatar";
@@ -51,6 +51,8 @@ import { UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { GroupMemberAvatarStack } from "@/features/conversation/room/group/header/group-member-avatar-stack";
+import { WorkspaceConversationTabs } from "@/shared/ui/workspace/controls/workspace-conversation-tabs";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -73,7 +75,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
   const [nodeOpen, setNodeOpen] = useState(false);
 	const [agentDirectory, setAgentDirectory] = useState<ControlAgentDirectoryEntry[]>([]);
 	const [mentionedAgentIDs, setMentionedAgentIDs] = useState<string[]>([]);
-	const memberDirectory = useTeamMembers(canUseRelay && membersOpen);
+	const memberDirectory = useTeamMembers(canUseRelay);
 	const localAgents = useHomeDirectory().agents;
 	useEffect(() => {
 		if (!canUseRelay) return;
@@ -88,6 +90,16 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
   });
   const isCompact = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const title = room.room?.room.name ?? t("team.shared_room");
+  const headerMembers = (room.room?.members ?? []).filter((member) => member.state === "active").map((member) => {
+    const agent = member.member_type === "agent" ? agentDirectory.find((entry) => entry.agent_id === member.member_id) : undefined;
+    const person = member.member_type === "user" ? memberDirectory.find((entry) => entry.user_id === member.member_id) : undefined;
+    const isSelf = member.member_type === "user" && member.member_id === (status?.control_user_id ?? status?.user_id);
+    return {
+      agent_id: `${member.member_type}:${member.member_id}`,
+      name: agent?.name || person?.display_name || person?.username || (isSelf ? t("team.you") : member.member_id),
+      avatar: agent?.avatar || person?.avatar,
+    };
+  });
   const errorMessage = room.error ? t(TEAM_ERROR_KEYS[room.error]) : null;
 	const activeAgentIDs = new Set(room.room?.members
 		.filter((member) => member.member_type === "agent" && member.state === "active" && !member.agent_paused)
@@ -125,22 +137,30 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
                 leading={(
                   <UiRoomAvatar
                     avatar={room.room?.room.avatar}
-                    members={[]}
+                    members={headerMembers.map((member) => ({ id: member.agent_id, name: member.name, avatar: member.avatar }))}
                     roomId={room.room?.room.id}
                     size="md"
                     title={title}
                   />
                 )}
                 leadingVariant="identity"
-                title={title}
-                trailing={room.room ? (
-                  <div className="flex items-center gap-2">
-                  <UiButton onClick={() => setNodeOpen(true)} size="sm" variant="surface">{t("team.node_title")}</UiButton>
-                  <UiButton onClick={() => setMembersOpen(true)} size="sm" variant="surface">
-                    <UsersRound className="h-4 w-4" />
-                    {t("team.members")}
-                  </UiButton>
-                  </div>
+                title={room.room ? undefined : title}
+                tabsLeading={room.room ? (
+                  <WorkspaceConversationTabs
+                    activeConversationId={room.room.conversation.id}
+                    tabs={[{ id: room.room.conversation.id, title, canClose: false }]}
+                    onSelectConversation={() => {}}
+                    onCloseConversation={() => {}}
+                  />
+                ) : null}
+                navigationTrailing={room.room ? (
+                  <>
+                    <UiButton aria-label={t("team.node_title")} className="workspace-surface-header-control-segment h-9 gap-1.5 px-2.5" onClick={() => setNodeOpen(true)} size="md" variant="ghost">
+                      <MonitorCheck aria-hidden="true" className="h-3.5 w-3.5" />
+                      <span className="max-sm:hidden">{t("team.node_title")}</span>
+                    </UiButton>
+                    <GroupMemberAvatarStack members={headerMembers} onClick={() => setMembersOpen(true)} />
+                  </>
                 ) : null}
               />
             </div>

@@ -10,7 +10,7 @@ import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { RoomMemberDirectory } from "./room-dialog-layout";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -56,8 +56,8 @@ export function RoomMemberSelector({
   const showsUsers = separateUsers && memberType === "users";
   const visibleCount = showsUsers ? users.length : agents.length;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <div className="flex h-7 shrink-0 items-center">
+    <RoomMemberDirectory disabled={disabled} query={query} onQueryChange={onQueryChange}
+      searchLabel={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")} header={<>
         {separateUsers ? (
           <UiSegmentedControl
             className="w-full"
@@ -78,21 +78,7 @@ export function RoomMemberSelector({
         ) : (
           <p className="dialog-label">{t("room.agents_count", { count: agents.length })}</p>
         )}
-      </div>
-      <UiSearchInput
-        aria-label={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
-        controlSize="md"
-        disabled={disabled}
-        onChange={onQueryChange}
-        placeholder={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
-        value={query}
-        variant="dialog"
-      />
-      <div className="flex h-[min(42vh,320px)] min-h-0 shrink-0 flex-col overflow-hidden max-md:h-[240px]">
-        <div
-          className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
-          data-room-member-selection-list="true"
-        >
+      </>}>
           {showsUsers ? users.map((user) => (
             <RoomUserOption
               disabled={disabled}
@@ -118,9 +104,7 @@ export function RoomMemberSelector({
               {t(showsUsers ? "room.people_empty" : "room.agents_empty")}
             </p>
           ) : null}
-        </div>
-      </div>
-    </div>
+    </RoomMemberDirectory>
   );
 }
 

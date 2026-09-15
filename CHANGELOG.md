@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
+
+- Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.
+
 - Catch up group messages from durable stream watermarks during visible-page, focus and network refreshes, recovering missed notifications and temporary difference failures.
 
 - Refresh authentication status directly from Control so organization creation and membership changes appear immediately instead of reusing a stale identity lease.
