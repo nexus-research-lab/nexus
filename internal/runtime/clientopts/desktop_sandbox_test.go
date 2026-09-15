@@ -25,7 +25,7 @@ func TestBuildAgentClientOptionsInstallsDesktopPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if options.Sandbox == nil || !options.Sandbox.RequireSandbox {
+	if options.Sandbox == nil || !options.Sandbox.RequireSandbox || !options.Sandbox.RequireFileTools {
 		t.Fatal("common builder dropped desktop sandbox policy")
 	}
 }
@@ -52,7 +52,7 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 				}
 				continue
 			}
-			if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !*got.Sandbox.FailIfUnavailable {
+			if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !got.Sandbox.RequireFileTools || !*got.Sandbox.FailIfUnavailable {
 				t.Fatal("mandatory execution requirement lost")
 			}
 			if !reflect.DeepEqual(got.Sandbox.Filesystem.AllowRead, input.SkillDirectories) || !reflect.DeepEqual(got.Sandbox.Filesystem.AllowWrite, input.AdditionalDirectories) {

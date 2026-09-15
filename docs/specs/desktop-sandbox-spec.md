@@ -14,11 +14,13 @@ Server deployments retain their existing runtime identity/isolation policy even
 if the flag is present. Agent settings cannot set the internal host policy marker.
 
 DM, Room and background memory maintenance use the same client-options builder.
-For restricted approval modes, it requires nxs `required_sandbox_v1` negotiation;
+For restricted approval modes, it requires both nxs `required_sandbox_v1` and
+`sandbox_file_tools_v1` negotiation;
 an unsupported runtime fails instead of silently accepting an unenforced policy.
-Negotiation is not proof that the current platform has a usable backend: Windows
-native command execution is still incomplete and required commands currently fail
-closed there. This wiring is not yet enabled by desktop packaging defaults.
+Negotiation is not proof of current dependencies or an installed effective policy.
+Native file-tool capability is currently declared only by macOS nxs builds;
+Windows native execution is still incomplete and these desktop sessions fail
+closed before receiving a task. This wiring is not yet enabled by desktop packaging defaults.
 
 The host passes Skill directories as read resources and user-mounted directories
 as explicit sandbox write grants. The SDK additionally grants its stable workspace
@@ -72,10 +74,16 @@ approval explanation includes this directory, and automatic-review human fallbac
 preserves that explanation. This captures session state; it is not an inode lease
 against arbitrary filesystem renames.
 
-The host's required_sandbox_v1 negotiation establishes the mandatory command
-policy; it does not independently negotiate native file-tool coverage. Newer SDK
-implementations also route file operations through a restricted helper, but that
-coverage depends on the configured nxs binary and is not implied by this handshake.
+The host separately requires native Read/Write/Edit coverage through
+`SandboxSettings.RequireFileTools` and initialize `required_sandbox_file_tools`.
+The SDK must acknowledge `sandbox_file_tools_v1` as well as the command contract;
+an older binary with only command acknowledgement is rejected before any task
+or internal continuation is sent. File content, directory suggestions, link/metadata
+and freshness checks use the restricted file executor, with no direct-IO fallback
+on preparation or execution failure. This contract does not cover Glob/Grep,
+Notebook, startup settings, Skills, background memory or the entire SDK process.
+Normal settings cannot substitute for this host requirement, and changing it
+requires runtime replacement. It is a coverage requirement, not a user sandbox toggle.
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature

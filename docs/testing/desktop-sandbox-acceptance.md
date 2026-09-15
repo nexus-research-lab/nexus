@@ -8,9 +8,13 @@
 
 ## 必须验收的场景
 
+最终产品要求：受控运行环境内建于 SDK 执行链，所选后端直接落实默认资源策略，无独立沙箱开关；完全访问必须来自用户显式选择，改变资源/审批策略而不取消执行生命周期和领域授权。以下原生文件与辅助 IO 全覆盖断言属于 nxs 自主引擎；Claude Code 单列原生沙箱与工具权限验收，不能借用 nxs 的 OS 覆盖证据，也不能把工具 helper 的隔离视为整个 SDK 主进程的隔离。
+
 | 类别 | 场景 | 通过条件 |
 | --- | --- | --- |
 | 准入 | 开关关闭、server、macOS/Windows、旧 nxs、Claude、缺能力 | 兼容路径保持；需要但无法提供的边界在命令开始前拒绝 |
+| 默认权限与后端 | 新任务、升级后默认值、nxs/Claude 切换、缺依赖/不支持平台、显式 Full Access | 默认请求批准/自动审核均自动受限；旧实例收口、新实例确认后才能发任务；不支持不静默裸执行 |
+| Claude 原生接入 | 固定版本、settings 来源/合并、Bash 子进程、文件权限、网络批准、取消、模式切换 | 配置确实生效，缺依赖拒绝；原生接口保证不了的边界明确拒绝；不伪造 nxs 协议或文件 helper 覆盖 |
 | 策略 | default/auto/Full Access、未来只读 profile、附加目录、deny 优先 | 审批方式不改变资源；强制策略不被用户设置/env/hook 覆盖 |
 | shell | 文件/子进程、构建、Git、包管理、PTY、后台进程 | 边界内正常工作，子孙继承；普通工具 allow 不能授予越界 |
 | 文件 | Read/Write/Edit/Glob/Grep、Notebook/附件、流式与大文件 | 真实工具通过同一受限数据面；拒绝未授权读写且不破坏原语义 |
@@ -25,7 +29,7 @@
 | 恢复 | 创建/恢复线程/写入后崩溃、ACK 丢失、断管道、重连、重启 | unknown 先对账；同 request 不换输入，不重复副作用 |
 | Windows 设置 | 安装、拒绝 UAC、不同管理员凭据、策略拒绝、修复 | 正确绑定原 owner；缺边界不启动；错误分类明确 |
 | Windows 升级 | 签名失败、版本不兼容、更新中断、卸载、遗留 Job | 受保护文件和状态完整；撤销资源不影响其他实例 |
-| 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude、旧数据根 | 各有真实证据；没有用某平台通过推断另一平台 |
+| 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude 支持版本/环境、旧数据根 | nxs 全链路及 Claude 原生接入分别有真实证据；WSL2 通过不能表示原生 Windows 通过 |
 | 产品路径 | 设置、Composer、审批卡、DM/Room/自动化、重载 | 展示实际边界；一个清晰下一步；不泄漏内部标识，不自动重发 |
 
 ## 本次重新审计的执行记录
@@ -73,6 +77,31 @@ corepack pnpm exec vitest run src/features/settings/runtime/settings-runtime-sec
 ## 后续记录
 
 完成对应测试后用结果替换“执行中”，不要追加互相矛盾的成功/失败结论。原始日志可作为附件，文档保留可复现命令与必要摘要；不得写入凭据或完整进程环境。
+
+### P1 分项文件能力，本地集成（2026-09-15）
+
+SDK `c8580cf49342a7d946c849ecb04c1db01c30eb4c`；Bridge `a4fef0aec5bc4049cf8c4e20047fcb2f8bedd45c`；Nexus 在 `5a781cece` 上验证本批次未提交改动，准确清单保留在报告。用户要求只保留本地提交，三个仓库均未推送。
+
+Bridge 固定为 `v0.1.34-0.20260915080938-a4fef0aec5bc`，由固定 Git 提交生成标准 module archive，再从本机 `file://` proxy 取得；Go 计算的 checksum 为 `h1:GSjnxL0+p1yQtRf4bvoUeKQS3jv7qpKdoYL3efA9XEE=`。本轮脱离 go.work、没有 replace，但**模块尚未发布，只证明本地固定依赖集成**。新机器在线取得依赖仍属于 P7。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| SDK initialize/分项能力 | 5 个顶层测试通过，exit 0 | 拒绝缺基础能力、错误类型和非法初始化；不修改既有状态 |
+| Bridge client/protocol/transport | 3 个包通过，172 个顶层 pass，exit 0 | 具名 skip 保留在报告；未提供 binary 的进程测试在下一行独立执行 |
+| 固定 Bridge 模块 → 新旧真实 nxs | current、legacy、基础合同通过，exit 0，无 skip | 旧版本明确因缺文件能力拒绝；不发送模型请求 |
+| 固定 SDK 提交导出＋本地固定模块基线 | 14 个宿主、7 个 macOS 顶层用例通过，exit 0，无必测 skip | 生命周期、审批、命令/文件隔离及网络；并非全部 IO 覆盖 |
+| 架构检查、Windows 测试程序交叉编译 | 通过，exit 0 | Windows 未原生运行；Claude、Linux owner、安装包未验收 |
+
+固定 SDK 导出所构建 nxs 的 SHA-256 为 `2826515dc193bd41a5e05cde5cfe799c7361f0bf027d9223b39a38d2655e720f`；旧 binary 继续使用本页 P0 记录。详见 [汇总与局限](./evidence/desktop-sandbox/2026-09-15-file-capability/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-file-capability/baseline-report.json) 与 [真实新旧进程日志](./evidence/desktop-sandbox/2026-09-15-file-capability/bridge-pinned-real-process.jsonl)。本机 module proxy 位于 `/private/tmp/nexus-sandbox-capabilities.60SUhq/local-proxy`，生成器位于同目录的 `module-builder`，均为本地复核材料。
+
+```sh
+# 本机复核：先载入固定本地模块，保留其他模块与 toolchain 的常规校验。
+GOWORK=off GOPROXY=file:///private/tmp/nexus-sandbox-capabilities.60SUhq/local-proxy GONOPROXY=none GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge go mod download github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260915080938-a4fef0aec5bc
+GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref c8580cf49342a7d946c849ecb04c1db01c30eb4c
+
+# NEXUS_SANDBOX_TEST_BINARY 指向上述固定提交构建结果；旧 binary 取 P0 来源。
+GOWORK=off GOPROXY=off NEXUS_SANDBOX_TEST_BINARY=/absolute/new/nxs NEXUS_SANDBOX_LEGACY_TEST_BINARY=/absolute/old/nxs go test -mod=readonly github.com/nexus-research-lab/nexus-agent-sdk-bridge/client -run 'Test(FileSandboxRealProcess|RequiredSandboxRealProcess)$' -count=1 -timeout=2m -json
+```
 
 ## 自动基线入口
 
