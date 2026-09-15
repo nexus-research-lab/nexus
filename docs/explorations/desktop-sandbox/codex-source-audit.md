@@ -63,3 +63,11 @@
 4. 继续追 macOS 的策略生成/子进程继承与工具覆盖、Full Access 配置映射、审批取消与恢复。此次审计尚未证明这些完整链路，不能据此关闭 Goal。
 
 本轮只调整设计依据，没有启用 Windows 后端、变更权限规则或运行新的原生实验。文档检查不能替代 Windows 10/11、macOS 安装包与 Linux 隔离验收。
+
+## 后续测试实现记录
+
+SDK 提交 `e8a43b827b72769f9d32e676ff777e4657be1879` 新增 `windows_codex_token_reference_windows_test.go`，在现有专用账号 fixture 中单独替换 token 工厂，对照固定源码的 flags、执行账号/capability/logon/World SID、default DACL 与 SeChangeNotifyPrivilege。测试覆盖系统 PowerShell、Go 后代、命名事件及 runner 线程访问拒绝；原有产品工厂和拒绝断言保留。
+
+Windows amd64 与 arm64 交叉编译通过；[原生运行 34918071783](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918071783) 的四个参考用例均在 AdjustTokenPrivileges 阶段返回 Access denied，尚未执行兼容或线程边界探针。参考 fixture 复用了不含 TOKEN_ADJUST_PRIVILEGES 的基础句柄，与固定源码 `get_current_token_for_restriction` 不同。SDK `d6ce146beaa61f52733eff775c1b179e733f259b` 仅在参考工厂中按源码权限重新打开当前 token，并核对其 SID 与已验证基础身份相同；产品句柄权限不变。修正后 amd64 交叉编译通过，[原生运行 34918231478](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34918231478) 已启动，结果待核验。
+
+此阶段仍复用 Nexus 的 runner 进程保护、账号启动、桌面与环境，属于 token 组合对照；尚未完成上文规划的 LogonW 全链路 fixture，不能把结果称为完整 Codex 行为复现或平台验收。
