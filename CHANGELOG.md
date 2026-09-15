@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require separate command and native Read/Write/Edit sandbox capabilities before experimental desktop tasks start; reject older nxs binaries that acknowledge only the command contract.
 
-- Add an opt-in desktop sandbox baseline gate with pinned Bridge checks, real nxs integration, fixed SDK source export for macOS tests, and reports that reject skipped or missing acceptance evidence.
+- Add an opt-in desktop sandbox baseline gate with pinned Bridge checks, real nxs integration, fixed SDK source export for macOS tests, and reports that reject skipped or missing acceptance evidence. The native gate also verifies that a task PATH cannot replace the system Seatbelt executable or hide it, requiring both named execution scenarios.
 
 - Add an explicit runtime-settings sandbox support check with independent unknown, unsupported and dependency results; keep engine selection and permission modes unchanged.
 

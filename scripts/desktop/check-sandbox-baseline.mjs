@@ -54,7 +54,9 @@ function run(name, command, args, cwd = root, env = environment) {
 }
 
 function testGroup(name, packages, requiredTests, cwd = root, env = environment) {
-  const pattern = `^(${requiredTests.join("|")})$`;
+  // Go splits -run at slashes; run each parent, then require exact child evidence.
+  const parents = [...new Set(requiredTests.map((test) => test.split("/")[0]))];
+  const pattern = `^(${parents.join("|")})$`;
   const output = run(name, "go", ["test", "-mod=readonly", "-json", "-count=1", "-timeout=2m", ...packages, "-run", pattern], cwd, env);
   report.checks.at(-1).passedTests = requirePassedTests(output, 0, requiredTests);
 }
@@ -106,6 +108,12 @@ try {
     "TestRoomSandboxTransitionDoesNotHideCleanupFailure",
   ]);
   if (sdkSource) {
+    testGroup("macos-backend-path", ["./internal/tool/builtin/bash/sandboxexec"], [
+      "TestMacOSSandboxDependencyUsesSystemPath",
+      "TestMacOSSandboxIgnoresTaskPath",
+      "TestMacOSSandboxIgnoresTaskPath/shadowed_path",
+      "TestMacOSSandboxIgnoresTaskPath/empty_path",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
