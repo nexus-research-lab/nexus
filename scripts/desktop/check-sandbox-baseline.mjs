@@ -106,6 +106,15 @@ try {
     "TestManagerReplacesRuntimeForSandboxTransitions",
     "TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay",
     "TestRoomSandboxTransitionDoesNotHideCleanupFailure",
+    "TestAgentClientCleanupFailureBlocksReconnect",
+    "TestAgentClientStaleStartupCleanupFailureStopsRetry",
+    "TestManagerCleanupFailureRetainsSessionFence",
+    "TestManagerCleanupFailureRetainsSessionFence/synchronous",
+    "TestManagerCleanupFailureRetainsSessionFence/after_timeout",
+    "TestCleanupFailureIsNotAnOrdinaryClosedTransport",
+    "TestManagerBulkCleanupReportsAndRetainsFailure",
+    ...["owner", "idle", "agent_revocation"].map((entry) => `TestManagerBulkCleanupReportsAndRetainsFailure/${entry}`),
+    "TestProcessPolicyIncludesHostSandboxRequirements",
   ]);
   if (sdkSource) {
     testGroup("macos-backend-path", ["./internal/tool/builtin/bash/sandboxexec"], [

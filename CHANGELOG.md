@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve runtime cleanup failures across reconnects, configuration replacement and repeated closes. Keep failed sessions fenced, report cleanup errors even alongside closed-pipe errors, and include host-only sandbox file/resource requirements in the process-policy fingerprint. This in-memory fence does not yet establish complete descendant or crash-recovery guarantees.
+
 - Extend the desktop sandbox development gate to require real Bash/Read denial under overlapping resource grants and symlink access, protected-directory movement rejection, and both background network lifecycle scenarios.
 
 - Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.

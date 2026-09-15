@@ -87,7 +87,7 @@ func (m *Manager) RevokeAgentSessions(
 	}
 
 	targets := make([]*sessionCloseTarget, 0)
-	waiting := make([]<-chan struct{}, 0)
+	waiting := make(map[string]<-chan struct{})
 
 	m.mu.Lock()
 	m.revokedAgents[identity] = struct{}{}
@@ -107,7 +107,7 @@ func (m *Manager) RevokeAgentSessions(
 		if started {
 			targets = append(targets, target)
 		} else if closeDone != nil {
-			waiting = append(waiting, closeDone)
+			waiting[sessionKey] = closeDone
 		}
 	}
 	// 只有 owner 已无其他 Agent runtime 时才执行 owner 级进程树回收；
@@ -129,14 +129,14 @@ func (m *Manager) RevokeAgentSessions(
 		idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
-		closeErr = errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
 		clientCleanupPending := errors.Is(closeErr, context.Canceled) ||
 			errors.Is(closeErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, closeErr)
 		} else {
-			m.finishSessionClose(target)
+			m.finishSessionClose(target, closeErr)
 		}
+		closeErr = errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
 		if closeErr != nil && !IsRuntimeTransportClosedError(closeErr) {
 			errs = append(errs, fmt.Errorf(
 				"close deleted Agent runtime session %s: %w",
@@ -145,8 +145,8 @@ func (m *Manager) RevokeAgentSessions(
 			))
 		}
 	}
-	for _, closeDone := range waiting {
-		if err := waitSessionClose(ctx, closeDone); err != nil {
+	for sessionKey, closeDone := range waiting {
+		if err := m.waitSessionCloseResult(ctx, sessionKey, closeDone); err != nil {
 			errs = append(errs, fmt.Errorf("wait deleted Agent runtime session close: %w", err))
 		}
 	}

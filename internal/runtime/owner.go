@@ -244,20 +244,18 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	targets := make([]*sessionCloseTarget, 0)
+	waiting := make(map[string]<-chan struct{})
 
 	m.mu.Lock()
-	if lifecycle := m.owners[ownerUserID]; lifecycle != nil && lifecycle.reap != nil {
-		flight := lifecycle.reap
-		m.mu.Unlock()
-		return 0, waitOwnerReap(ctx, flight)
-	}
 	for sessionKey, state := range m.sessions {
 		if state == nil || state.OwnerUserID != ownerUserID {
 			continue
 		}
-		target, started, _ := m.beginSessionCloseLocked(sessionKey)
+		target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
 		if started {
 			targets = append(targets, target)
+		} else if closeDone != nil {
+			waiting[sessionKey] = closeDone
 		}
 	}
 	reapPlan, reapFlight := m.beginOwnerReapLocked(ownerUserID, nil, true)
@@ -268,7 +266,7 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 	}
 	m.startOwnerReap(reapPlan)
 
-	errs := make([]error, 0, len(targets)+1)
+	errs := make([]error, 0, len(targets)+len(waiting)+1)
 	for _, target := range targets {
 		var disconnectErr error
 		if target.client != nil {
@@ -282,9 +280,9 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 			errors.Is(disconnectErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, disconnectErr)
 		} else {
-			m.finishSessionClose(target)
+			m.finishSessionClose(target, disconnectErr)
 		}
 		err := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
 		if err != nil && !IsRuntimeTransportClosedError(err) {
@@ -293,6 +291,11 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 				target.sessionKey,
 				err,
 			))
+		}
+	}
+	for sessionKey, closeDone := range waiting {
+		if err := m.waitSessionCloseResult(ctx, sessionKey, closeDone); err != nil {
+			errs = append(errs, fmt.Errorf("wait owner runtime session %s close: %w", sessionKey, err))
 		}
 	}
 	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {

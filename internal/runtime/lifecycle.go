@@ -1,5 +1,5 @@
 // INPUT: 待关闭 session 的 client、round、idle drain 与后台任务状态。
-// OUTPUT: 一次性关闭快照、取消动作和可等待的最终清理。
+// OUTPUT: 一次性关闭快照、可等待的清理结果及失败时保留的 Session 栅栏。
 // POS: owner、idle 与显式 session 关闭共用的生命周期原语。
 package runtime
 
@@ -62,14 +62,18 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 	}, true, nil
 }
 
-// finishSessionClose 删除仍属于本次关闭的 session，并唤醒并发关闭调用者。
-func (m *Manager) finishSessionClose(target *sessionCloseTarget) {
+// finishSessionClose 只删除清理成功的 session；失败保留关闭栅栏并唤醒等待者。
+func (m *Manager) finishSessionClose(target *sessionCloseTarget, cleanupErr error) {
 	if target == nil || target.state == nil {
 		return
 	}
 	m.mu.Lock()
 	if current := m.sessions[target.sessionKey]; current == target.state {
-		delete(m.sessions, target.sessionKey)
+		if cleanupErr == nil {
+			delete(m.sessions, target.sessionKey)
+		} else {
+			current.CloseError = cleanupErr
+		}
 	}
 	if target.closeDone != nil {
 		close(target.closeDone)
@@ -79,23 +83,36 @@ func (m *Manager) finishSessionClose(target *sessionCloseTarget) {
 
 // finishSessionCloseWhenDone 延迟移除仍有 client cleanup、round 或后台任务的
 // session，防止关闭返回后新 runtime 绕过旧进程与迟到写盘的生命周期栅栏。
-func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitClient bool) {
+func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitClient bool, cleanupErr error) {
 	if target == nil {
 		return
 	}
 	if !waitClient && target.idleMessageDrain == nil && len(target.roundDone) == 0 && target.backgroundDone == nil {
-		m.finishSessionClose(target)
+		m.finishSessionClose(target, cleanupErr)
 		return
 	}
 	go func() {
 		if waitClient && target.client != nil {
-			_ = target.client.Disconnect(context.Background())
+			cleanupErr = target.client.Disconnect(context.Background())
 		}
 		_ = waitIdleMessageDrain(context.Background(), target.idleMessageDrain)
 		_ = waitRoundDoneSignals(context.Background(), target.roundDone, nil)
 		_ = waitBackgroundTasks(context.Background(), target.backgroundDone)
-		m.finishSessionClose(target)
+		m.finishSessionClose(target, cleanupErr)
 	}()
+}
+
+// waitSessionCloseResult 返回同一次关闭的结果，失败不能因为完成信号已关闭而丢失。
+func (m *Manager) waitSessionCloseResult(ctx context.Context, sessionKey string, done <-chan struct{}) error {
+	if err := waitSessionClose(ctx, done); err != nil {
+		return err
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if state := m.sessions[sessionKey]; state != nil && state.CloseDone == done {
+		return state.CloseError
+	}
+	return nil
 }
 
 // waitRoundDoneForClose 等待 round 真正退出；没有外部 deadline 时使用
