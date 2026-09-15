@@ -29,6 +29,10 @@ export function isRemoteAccountAuthenticated(status: AuthStatus | null): boolean
   return status?.authenticated === true && status.auth_method === "password";
 }
 
+export function hasOrganizationAccess(status: AuthStatus | null): boolean {
+  return isRemoteAccountAuthenticated(status) && Boolean(status?.organization_id);
+}
+
 export function useAuth() {
   const context = useContext(AUTH_CONTEXT);
   if (!context) {

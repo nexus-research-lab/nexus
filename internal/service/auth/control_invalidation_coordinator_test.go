@@ -108,9 +108,10 @@ func TestControlInvalidationReasonsAndCursorOrder(t *testing.T) {
 		{EventID: 2, Reason: "entitlement_changed"},
 		{EventID: 3, Reason: "profile_changed"},
 		{EventID: 4, Reason: "principal_changed"},
+		{EventID: 5, Reason: "organization_changed", OrganizationID: "org", MembershipRevoked: true},
 	}}
 	runInvalidationFixture(t, f)
-	want := []string{"apply:1", "session:browser-a", "commit:1", "apply:2", "commit:2", "apply:3", "owner:owner-a", "commit:3", "apply:4", "owner:owner-a", "runtime:owner-a", "commit:4"}
+	want := []string{"apply:1", "session:browser-a", "commit:1", "apply:2", "commit:2", "apply:3", "owner:owner-a", "commit:3", "apply:4", "owner:owner-a", "runtime:owner-a", "commit:4", "apply:5", "commit:5"}
 	if !reflect.DeepEqual(f.calls, want) {
 		t.Fatalf("calls=%v, want %v", f.calls, want)
 	}

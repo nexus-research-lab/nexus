@@ -1,5 +1,7 @@
 # AGENTS.md
 
+- 远程账号可无组织；平台 `role` 与 `organization_role` 独立。组织入口位于账户设置，非运营管理员专属。Relay 必须同时具有远程登录与组织身份；组织变更不能切换或清空 App 本地用户数据目录。
+
 - 在线 Room 元数据轮询由 `web/src/features/team/use-team-refresh.ts` 统一管理；成员治理新快照回传聊天资源，消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 

@@ -128,6 +128,7 @@ func (a *ControlAuthority) BuildStatusPayload(
 		Authenticated:        principal != nil,
 		SetupRequired:        state.SetupRequired,
 		SetupEnabled:         state.SetupEnabled,
+		RegistrationEnabled:  state.RegistrationEnabled,
 	}
 	if principal == nil {
 		return result, nil
@@ -141,6 +142,7 @@ func (a *ControlAuthority) BuildStatusPayload(
 	result.AuthMethod = stringPointer(principal.AuthMethod)
 	result.OrganizationID = stringPointer(principal.OrganizationID)
 	result.OrganizationName = stringPointer(principal.OrganizationName)
+	result.OrganizationRole = stringPointer(principal.OrganizationRole)
 	return result, nil
 }
 
@@ -358,6 +360,7 @@ func projectControlPrincipal(value controlPrincipal, localOwnerKey string) *Prin
 		DeploymentID:     strings.TrimSpace(value.DeploymentID),
 		OrganizationID:   strings.TrimSpace(value.OrganizationID),
 		OrganizationName: strings.TrimSpace(value.OrganizationName),
+		OrganizationRole: strings.TrimSpace(value.OrganizationRole),
 		Username:         strings.TrimSpace(value.Username),
 		DisplayName:      strings.TrimSpace(value.DisplayName),
 		Role:             strings.TrimSpace(value.Role),
@@ -371,6 +374,7 @@ func toControlState(value controlState) State {
 	return authctx.State{
 		SetupRequired:        value.SetupRequired,
 		SetupEnabled:         value.SetupEnabled,
+		RegistrationEnabled:  value.RegistrationEnabled,
 		AuthRequired:         true,
 		PasswordLoginEnabled: value.PasswordLoginEnabled,
 	}

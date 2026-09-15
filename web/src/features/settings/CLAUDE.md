@@ -1,5 +1,7 @@
 # settings/
 
+- 组织在账户分组，所有远程账号可进入，未登录显示个人页登录引导；保留 URL key `operations-organization` 但不参与运营角色过滤。平台运营入口仍由平台 role 控制。
+
 L2 | 父级: web/src/features
 
 ## 职责

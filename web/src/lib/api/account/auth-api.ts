@@ -20,6 +20,8 @@ export interface AuthStatus {
   auth_method?: string | null;
   organization_id?: string | null;
   organization_name?: string | null;
+  organization_role?: "owner" | "admin" | "member" | null;
+  registration_enabled?: boolean;
   setup_required?: boolean;
   setup_enabled?: boolean;
 }
@@ -133,6 +135,10 @@ export async function loginApi(params: LoginParams): Promise<AuthStatus> {
     body: JSON.stringify(params),
   });
   return isDesktopRuntime() ? getAuthStatus() : status;
+}
+
+export async function registerApi(params: LoginParams): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/register`, { method: "POST", body: { ...params }, notify_on_401: false });
 }
 
 export async function logoutApi(): Promise<AuthStatus> {

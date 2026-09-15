@@ -65,10 +65,10 @@ func validateMemberChange(request ChangeRequest) error {
 		if input.DisplayName == nil && input.Role == nil && input.Status == nil {
 			return errors.New("没有指定用户修改内容")
 		}
-		if input.Role != nil && *input.Role != "member" && *input.Role != "admin" && *input.Role != "owner" {
+		if input.Role != nil && *input.Role != "member" && *input.Role != "admin" {
 			return errors.New("无效成员角色")
 		}
-		if input.Status != nil && *input.Status != "active" && *input.Status != "revoked" {
+		if input.Status != nil && *input.Status != "revoked" {
 			return errors.New("无效成员状态")
 		}
 		if input.DisplayName != nil && (strings.TrimSpace(*input.DisplayName) == "" || len(*input.DisplayName) > 128) {

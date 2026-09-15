@@ -15,6 +15,7 @@ import (
 type controlState struct {
 	SetupRequired        bool `json:"setup_required"`
 	SetupEnabled         bool `json:"setup_enabled"`
+	RegistrationEnabled  bool `json:"registration_enabled"`
 	AuthRequired         bool `json:"auth_required"`
 	PasswordLoginEnabled bool `json:"password_login_enabled"`
 }
@@ -23,6 +24,7 @@ type controlPrincipal struct {
 	DeploymentID     string             `json:"deployment_id"`
 	OrganizationID   string             `json:"organization_id"`
 	OrganizationName string             `json:"organization_name"`
+	OrganizationRole string             `json:"organization_role"`
 	UserID           string             `json:"user_id"`
 	Username         string             `json:"username"`
 	DisplayName      string             `json:"display_name,omitempty"`
@@ -63,12 +65,14 @@ type controlExchangeResult struct {
 
 // ControlIdentityInvalidation 是 Control 持久化身份变更序列中的一项。
 type ControlIdentityInvalidation struct {
-	EventID      int64     `json:"event_id"`
-	DeploymentID string    `json:"deployment_id"`
-	UserID       string    `json:"user_id"`
-	SessionID    string    `json:"session_id,omitempty"`
-	Reason       string    `json:"reason"`
-	CreatedAt    time.Time `json:"created_at"`
+	OrganizationID    string    `json:"organization_id,omitempty"`
+	MembershipRevoked bool      `json:"membership_revoked,omitempty"`
+	EventID           int64     `json:"event_id"`
+	DeploymentID      string    `json:"deployment_id"`
+	UserID            string    `json:"user_id"`
+	SessionID         string    `json:"session_id,omitempty"`
+	Reason            string    `json:"reason"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 type controlInvalidationBatch struct {
@@ -85,6 +89,7 @@ type controlPrincipalClaims struct {
 	DeploymentID     string             `json:"deployment_id"`
 	OrganizationID   string             `json:"organization_id"`
 	OrganizationName string             `json:"organization_name"`
+	OrganizationRole string             `json:"organization_role"`
 	UserID           string             `json:"user_id"`
 	Username         string             `json:"username"`
 	DisplayName      string             `json:"display_name,omitempty"`
@@ -100,6 +105,7 @@ func (c controlPrincipalClaims) principal() controlPrincipal {
 		DeploymentID:     c.DeploymentID,
 		OrganizationID:   c.OrganizationID,
 		OrganizationName: c.OrganizationName,
+		OrganizationRole: c.OrganizationRole,
 		UserID:           c.UserID,
 		Username:         c.Username,
 		DisplayName:      c.DisplayName,
@@ -191,7 +197,6 @@ func (v *controlPrincipalVerifier) verify(token string) (controlPrincipalClaims,
 	principal := claims.principal()
 	principal.normalize()
 	if principal.DeploymentID == "" ||
-		principal.OrganizationID == "" ||
 		principal.UserID == "" ||
 		principal.Username == "" ||
 		principal.SessionID == "" ||

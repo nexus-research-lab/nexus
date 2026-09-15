@@ -34,8 +34,9 @@ var (
 
 func accessFor(actor *resolvedActor, definition DomainDefinition) Access {
 	access := Access{Authority: actor.Authority}
-	if definition.Name == DomainMembers && (actor.AuthMethod != authctx.AuthMethodPassword || actor.AuthSessionID == "" || (actor.PrincipalRole != authctx.RoleOwner && actor.PrincipalRole != authctx.RoleAdmin)) {
-		access.Reason = "成员管理只对有效管理员登录的主智能体私聊开放"
+	// 组织权限由 Control 用实时 Session 校验，平台角色不能替代组织角色。
+	if definition.Name == DomainMembers && (actor.AuthMethod != authctx.AuthMethodPassword || actor.AuthSessionID == "") {
+		access.Reason = "组织成员管理需要有效远程登录，写入由 Control 校验当前组织管理权限"
 		return access
 	}
 	switch actor.Authority {

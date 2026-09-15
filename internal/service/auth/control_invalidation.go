@@ -80,6 +80,10 @@ func (a *ControlAuthority) ControlIdentityInvalidations(
 			return nil, errors.New("Control identity invalidation event 无效或乱序")
 		}
 		switch event.Reason {
+		case "organization_changed":
+			if strings.TrimSpace(event.OrganizationID) == "" || event.SessionID != "" {
+				return nil, errors.New("组织失效事件缺少组织或包含 Session")
+			}
 		case "principal_changed", "profile_changed", "entitlement_changed":
 			if event.SessionID != "" {
 				return nil, errors.New("Control identity invalidation session_id 与 reason 不匹配")

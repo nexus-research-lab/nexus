@@ -34,6 +34,47 @@ async function expectContained(surface: Locator) {
   }
 }
 
+test("platform member creates and dissolves an organization without acquiring operations access", async ({ page, context }, info) => {
+  const zh = info.project.metadata.locale === "zh";
+  const text = (cn: string, en: string) => zh ? cn : en;
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await context.addInitScript(APP_SHELL_INIT_SCRIPT);
+  let organization: Record<string, unknown> = {};
+  await context.route("**/*", async (route) => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    if (path === "/nexus/v1/auth/status") return route.fulfill({json:{data:{...(appShellRead("GET",path)!.data as Record<string,unknown>),role:"member",auth_method:"password",...organization}}});
+    if (path === "/auth/v1/organization/create" && req.method() === "POST") {
+      expect(req.postDataJSON()).toMatchObject({name:"My Research"});
+      organization={organization_id:"created",organization_name:"My Research",organization_role:"owner"};
+      return route.fulfill({json:{data:organization}});
+    }
+    if (path === "/auth/v1/organization/dissolve" && req.method() === "POST") { organization={}; return route.fulfill({json:{data:{}}}); }
+    if (path === "/auth/v1/members") return route.fulfill({json:{data:[]}});
+    const value=appShellRead(req.method(),path);
+    if (value) return route.fulfill({json:value});
+    if (["fetch","xhr"].includes(req.resourceType()) || req.method() !== "GET") return route.abort();
+    return route.continue();
+  });
+  const params=new URLSearchParams({section:"operations-organization",theme:String(info.project.metadata.theme),locale:String(info.project.metadata.locale)});
+  await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/settings?${params}`)}`);
+  await expect(page).toHaveURL(/section=operations-organization/);
+  await page.getByRole("button",{name:text("创建组织","Create organization"),exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByRole("textbox",{name:text("组织名称","Organization name"),exact:true}).fill("My Research");
+  await dialog.getByRole("button",{name:text("创建组织","Create organization"),exact:true}).click();
+  await expect(page.getByText("My Research",{exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:text("邀请成员","Invite member"),exact:true})).toBeVisible();
+  await expect(page.getByRole("button",{name:text("套餐管理","Plan management"),exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:text("解散组织","Dissolve organization"),exact:true}).click();
+  await expect(dialog).toContainText(text("此操作不可撤销","This cannot be undone"));
+  await info.attach("organization-dissolve-confirm",{body:await page.screenshot({path:info.outputPath("organization-dissolve-confirm.png")}),contentType:"image/png"});
+  await dialog.getByRole("button",{name:text("解散组织","Dissolve organization"),exact:true}).click();
+  await expect(page.getByRole("button",{name:text("创建组织","Create organization"),exact:true})).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 for (const aclEnabled of [true, false]) {
 test(`operations subpages keep clear hierarchy and aligned responsive controls (ACL ${aclEnabled ? "enabled" : "disabled"})`, async ({ page, context }, info) => {
   const zh = info.project.metadata.locale === "zh";
@@ -53,7 +94,7 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     if (url.pathname === "/nexus/v1/projects") projectRequests++;
     if (url.pathname === "/nexus/v1/runtime/options") return route.fulfill({ json: { data: { default_agent_id: "qa-main", project_permissions_enabled: aclEnabled } } });
     if (url.pathname === "/nexus/v1/auth/status") {
-      return route.fulfill({ json: { data: { ...(appShellRead("GET", url.pathname)!.data as Record<string, unknown>), auth_method: "password", organization_name: "Nexus Research", role: "owner" } } });
+      return route.fulfill({ json: { data: { ...(appShellRead("GET", url.pathname)!.data as Record<string, unknown>), auth_method: "password", organization_id: "org-qa", organization_role: "owner", organization_name: "Nexus Research", role: "owner" } } });
     }
     if (request.method() === "GET" && reads.has(url.pathname)) return route.fulfill({ json: { data: reads.get(url.pathname) } });
     const fixture = appShellRead(request.method(), url.pathname);
@@ -80,7 +121,7 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     expect(rejected).toEqual([]);
     return;
   }
-  const surface = page.locator("[data-operations-page]");
+  const surface = page.locator("[data-operations-page], [data-organization-page]");
   const selectPage = async (section: string, cn: string, en: string) => {
     const menu = page.getByRole("button", { name: text("设置导航", "Settings navigation"), exact: true });
     if (await menu.isVisible()) await menu.click();
@@ -107,7 +148,7 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
   const role = surface.getByRole("button", { name: new RegExp(`${text("组织角色", "Organization role")}:`) }).first();
   await expect(role).toHaveAttribute("aria-haspopup", "listbox");
   await role.click();
-  await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(3);
+  await expect(page.getByRole("listbox").getByRole("option")).toHaveCount(2);
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   const organizationTitle = surface.getByText("Nexus Research", { exact: true });

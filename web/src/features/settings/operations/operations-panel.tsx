@@ -12,10 +12,8 @@ import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-
 import { getSettingsSectionLabelKey, type OperationsSectionKey } from "../settings-navigation-model";
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
-import { OrganizationPanel } from "./organization-panel";
 
 const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
-  "operations-organization": () => <OrganizationPanel />,
   "operations-subscriptions": () => <SubscriptionAdminPanel view="users" />,
   "operations-plans": () => <SubscriptionAdminPanel view="plans" />,
   "operations-providers": () => <ProviderSettingsPanel layout="section" visibilityScope="public" />,
@@ -25,8 +23,7 @@ const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
 export function OperationsPanel({ section }: { section: OperationsSectionKey }) {
   const { t } = useI18n();
   // 组织和项目页的标题与动作由各自事务视图组合。
-  const ownsHeader = section === "operations-organization"
-    || section === "operations-projects";
+  const ownsHeader = section === "operations-projects";
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME} data-operations-page={section}>
       {!ownsHeader ? (

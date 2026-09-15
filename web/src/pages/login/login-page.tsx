@@ -14,6 +14,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import { LoginAuthPanel } from "./login-auth-panel";
 import "./login-page.css";
 import { useLoginPageController } from "./use-login-page-controller";
+import { UiButton } from "@/shared/ui/button/button";
 
 const LOGIN_SIGNAL_ITEMS = [
   {
@@ -76,6 +77,7 @@ function LoginIntroduction() {
 }
 
 export function LoginPage() {
+  const { t } = useI18n();
   const controller = useLoginPageController();
   if (controller.pageState.kind === "bootstrapping") {
     return <AppLoadingScreen />;
@@ -86,6 +88,7 @@ export function LoginPage() {
   return (
     <AccessPageFrame introduction={<LoginIntroduction />}>
       <LoginAuthPanel
+        registering={controller.registering}
         authFailure={controller.authFailure}
         formMode={controller.pageState.formMode}
         isSubmitting={controller.isSubmitting}
@@ -97,6 +100,7 @@ export function LoginPage() {
         submitFailure={controller.submitFailure}
         username={controller.username}
       />
+      {controller.registrationEnabled ? <UiButton disabled={controller.isSubmitting} variant="text" onClick={() => controller.setRegistering(!controller.registering)}>{t(controller.registering ? "organization.back_login" : "organization.register")}</UiButton> : null}
     </AccessPageFrame>
   );
 }

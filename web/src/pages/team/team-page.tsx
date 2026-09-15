@@ -43,7 +43,7 @@ import { TeamRoomMembersDialog } from "@/features/team/team-room-members-dialog"
 import { TeamNodeDialog } from "@/features/team/team-node-dialog";
 import type { TeamMessage } from "@/lib/api/conversation/team-api";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
-import { isRemoteAccountAuthenticated, useAuth } from "@/shared/auth/auth-context";
+import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { cn } from "@/shared/ui/class-name";
@@ -67,7 +67,7 @@ export function TeamPage() {
 function TeamPageContent({ roomId }: { roomId: string | null }) {
   const { t } = useI18n();
   const { status } = useAuth();
-  const canUseRelay = isRemoteAccountAuthenticated(status);
+  const canUseRelay = hasOrganizationAccess(status);
   const room = useTeamRoom(roomId);
   const [membersOpen, setMembersOpen] = useState(false);
   const [nodeOpen, setNodeOpen] = useState(false);

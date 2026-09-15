@@ -30,8 +30,8 @@ function SwitchRoom() {
   const navigate = useNavigate();
   return <button onClick={() => navigate("/team?room_id=other")}>Switch room</button>;
 }
-function page() {
-  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "local-owner", control_user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
+function page(organizationId = "organization") {
+  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {organization_id: organizationId, auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "local-owner", control_user_id: "owner", username: "owner"}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
 }
 it("uses the remote Control identity for the own-message surface on desktop", () => {
   room.messages = [{id: "mine", conversation_id: "conversation", message_seq: 1,
@@ -40,6 +40,13 @@ it("uses the remote Control identity for the own-message surface on desktop", ()
   render(page());
   expect(screen.getByText("My message")).toBeTruthy();
   expect(screen.queryByText("My Remote Name")).toBeNull();
+});
+
+it("keeps organization-less remote accounts outside the online conversation", () => {
+  model.agents.mockClear();
+  render(page(""));
+  expect(screen.queryByRole("textbox",{name:"team.message"})).toBeNull();
+  expect(model.agents).not.toHaveBeenCalled();
 });
 it("renders my Agent as an independent member, without a human own-message bubble", async () => {
   model.agents.mockResolvedValue([{agent_id: "agent", name: "Research Agent"}]);

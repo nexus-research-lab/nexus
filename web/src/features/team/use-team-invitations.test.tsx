@@ -17,7 +17,7 @@ vi.mock("@/lib/api/conversation/team-api", () => ({
 }));
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
-  useAuth: () => ({ status: { authenticated: true, auth_method: "password", control_user_id: "owner" } }),
+  useAuth: () => ({ status: { authenticated: true, auth_method: "password", control_user_id: "owner", organization_id: "org" } }),
 }));
 
 it("accepts the current invitation version and refreshes the Room directory", async () => {
