@@ -40,6 +40,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
     if (path === "/nexus/v1/auth/status") return route.fulfill({json: {data: {...appShellRead("GET", path)!.data as object, auth_method: "password", role: "owner", control_user_id: "ui-fixture", organization_id: "org"}}});
     if (path === "/nexus/v1/team/rooms") return route.fulfill({json: {data: {rooms: dissolved ? [] : [details]}}});
     if (path === "/nexus/v1/team/invitations") return route.fulfill({json: {data: {invitations: [], recovery_rooms: []}}});
+    if (path.endsWith("/difference")) return route.fulfill({json: {data: {next_seq: 2, high_water_seq: 2, events: [{message: {id: "missed-message", conversation_id: "online-conversation", message_seq: 2, author_type: "user", author_user_id: "other", author_display_name: "Other member", author_username: "other", client_message_id: "missed", content: {version: 1, blocks: [{type: "markdown", text: "Message without a push notification"}]}, created_at: now}}]}}});
     if (path === "/auth/v1/directory/agents") return route.fulfill({json: {data: [{agent_id: "agent", name: "Research Agent", owner_user_id: "ui-fixture"}]}});
     if (["/auth/v1/agents", "/auth/v1/directory/members"].includes(path)) return route.fulfill({json: {data: []}});
     if (path === `/nexus/v1/team/rooms/${room.id}`) {
@@ -67,6 +68,10 @@ test("online room settings and dissolution use the real dialog and revoke the co
   await expect(page.getByText("Research Agent", {exact: true})).toBeVisible();
   await expect(page.getByText("Completed result", {exact: true})).toBeVisible();
   await expect(page.getByText("Agent", {exact: true})).toBeVisible();
+  // WebSocket 不发送通知，恢复焦点仍应按服务端水位补齐新消息。
+  details.conversation.high_water_sync_event_seq = 2;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByText("Message without a push notification", {exact: true})).toBeVisible();
   await page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true}).click();
   const node = page.getByRole("dialog", {name: text("本机授权", "Host authorization"), exact: true});
   await expect(node).toBeVisible();

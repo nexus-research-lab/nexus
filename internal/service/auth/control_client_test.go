@@ -35,12 +35,13 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		Version: 1, Issuer: "nexus-control", Audience: "nexus-runtime",
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Minute).Unix(),
 		DeploymentID: "dep-a", UserID: "user-control-a",
-		OrganizationID: "org-a", OrganizationName: "Nexus", OrganizationRole: RoleAdmin,
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
 		AuthMethod: AuthMethodPassword, SessionID: "sess-a",
 		Entitlement: testControlEntitlement(now),
 	}
 	token := signControlTestPrincipal(t, privateKey, claims)
+	var currentToken atomic.Value
+	currentToken.Store(token)
 	const serviceToken = "control-service-token-32-characters"
 	var exchanges atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -56,7 +57,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"code": "0000",
 			"data": map[string]any{
-				"principal_token": token,
+				"principal_token": currentToken.Load().(string),
 				"state": map[string]any{
 					"auth_required": true, "password_login_enabled": true,
 					"setup_enabled": true,
@@ -105,6 +106,11 @@ WHERE deployment_id = ? AND control_user_id = ?`,
 	if exchanges.Load() != 1 {
 		t.Fatalf("Control exchanges = %d, want 1 within signed lease", exchanges.Load())
 	}
+	// Control 已提交新组织，模拟失效事件尚未到达 Nexus。
+	claims.OrganizationID = "org-new"
+	claims.OrganizationName = "New Organization"
+	claims.OrganizationRole = RoleAdmin
+	currentToken.Store(signControlTestPrincipal(t, privateKey, claims))
 	status, err := authority.BuildStatusPayload(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -114,6 +120,13 @@ WHERE deployment_id = ? AND control_user_id = ?`,
 	}
 	if !status.SetupEnabled {
 		t.Fatalf("status = %+v", status)
+	}
+	if exchanges.Load() != 2 || status.OrganizationID == nil || *status.OrganizationID != "org-new" {
+		t.Fatalf("status refresh reused the old organization lease: %+v", status)
+	}
+	fresh, _, err := authority.InspectRequest(context.Background(), request)
+	if err != nil || fresh == nil || fresh.OrganizationID != "org-new" || exchanges.Load() != 2 {
+		t.Fatalf("refreshed identity was not cached: %+v, err=%v", fresh, err)
 	}
 	if status.OrganizationRole == nil || *status.OrganizationRole != RoleAdmin || status.Role == nil || *status.Role != RoleOwner {
 		t.Fatalf("organization and platform roles must remain independent: %+v", status)
