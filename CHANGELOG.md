@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
+
 - Clarify the existing entry points for local Skill content editing, long-term memory editing and role-scoped configuration discovery.
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
 - Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
