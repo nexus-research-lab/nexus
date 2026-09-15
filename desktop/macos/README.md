@@ -22,7 +22,7 @@
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
 - 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
-- 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
+- 日志导出包会包含宿主 `app/logs`、`app/debug` 和本地 owner 的 `users/__system__/runtime/logs`（包含嵌套 SDK 诊断）、`runtime/debug`，分别保存为 `Logs`、`Debug`、`RuntimeLogs`、`RuntimeDebug`。`diagnostics.json` 记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
 - 启动、主窗口和更新失败统一说明“发生了什么、已有数据是否受影响、接下来能做什么”；底层错误、诊断路径和进程输出只进入日志或诊断报告，不直接显示给用户。更新检查与下载/校验失败按实际阶段分别说明，后者在安装程序启动前不会替换当前 App。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线；恢复探针受导航代次栅栏保护，不会在显式路由仍启动时二次 reload。
@@ -69,6 +69,8 @@ Header 双击缩放与窗口隐藏恢复；`--suite app-shell --smoke` 仅运行
 两套检查均不覆盖真实聊天读写、系统拖窗移动、发布签名或 Windows；App 只读夹具不能
 作为后端业务验收。锁屏阻止原生输入时应解锁后重新运行，不得据编译成功判定 UI 通过。
 `package-macos-app.sh` 会先构建目标架构的 `.app`、下载并预置同架构的 `nxs` runtime、跑 smoke，再输出 zip/dmg、sha256 和 metadata。
+
+DMG 中转卷固定使用 HFS+，不继承 runner 的 APFS 默认值，避免 Finder 布局后残留的 APFS 合成设备阻塞卸载和压缩；最终产物仍使用 UDZO 压缩并验证校验和。
 人工 macOS App 验收维护在[回归目录](../../docs/testing/nexus-regression-catalog.md)的桌面升级与桌面集成章节；前端跨宿主验收范围见[前端工程规范](../../docs/specs/frontend-engineering-spec.md)。
 
 本地验证 Keychain 时可以显式设置：

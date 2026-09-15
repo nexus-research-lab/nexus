@@ -1,5 +1,5 @@
 // INPUT: 决策弹窗内容、动作及可选异步执行状态。
-// OUTPUT: 共享模态骨架，以及执行中防重复提交的确认/取消动作。
+// OUTPUT: 按视口限高的共享模态骨架，以及执行中防重复提交的确认/取消动作。
 // POS: Decision Dialog 结构层；不解释业务失败或自行重试。
 "use client";
 
@@ -53,7 +53,7 @@ export function DecisionDialogFrame({
         layer="dialog"
         onClose={onClose}
       >
-        <UiDialogShell size={size}>{children}</UiDialogShell>
+        <UiDialogShell size={size} viewport="compactMax">{children}</UiDialogShell>
       </UiDialogBackdrop>
     </UiDialogPortal>
   );

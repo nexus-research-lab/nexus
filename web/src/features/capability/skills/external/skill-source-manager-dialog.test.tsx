@@ -4,6 +4,7 @@
 
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -25,7 +26,7 @@ const SOURCE: ExternalSkillSourceInfo = {
   url: "https://skills.example.com/index.json",
 };
 
-function view(onSave: ReturnType<typeof vi.fn>, sources: ExternalSkillSourceInfo[] = [], loading = false) {
+function view(onSave: ComponentProps<typeof SkillSourceManagerDialog>["onSave"], sources: ExternalSkillSourceInfo[] = [], loading = false) {
   return (
     <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => key }}>
       <SkillSourceManagerDialog isOpen loading={loading} onClose={vi.fn()} onDelete={vi.fn()}

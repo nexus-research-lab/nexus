@@ -161,7 +161,7 @@ test("contact directory shares search chrome and keeps pending friend additions 
 });
 
 test("Agent identity fields share labels, preserve tag composition and grow long model choices", async ({ page }, info) => {
-  const { errors } = await openGallery(page, info, "content");
+  const { errors } = await openGallery(page, info, "workspace");
   const fixture = page.locator("[data-gallery-identity-fields]");
   const create = fixture.locator('[data-gallery-identity-variant="dialog"]');
   const inline = fixture.locator('[data-gallery-identity-variant="inline"]');
@@ -175,7 +175,7 @@ test("Agent identity fields share labels, preserve tag composition and grow long
       const css = getComputedStyle(element);
       return { transform: css.textTransform, size: css.fontSize, weight: css.fontWeight };
     });
-    expect(style).toEqual({ transform: "none", size: "14px", weight: "500" });
+    expect(style).toEqual({ transform: "none", size: "13px", weight: "500" });
   }
   const business = create.getByRole("textbox", { name: copy(info, "业务标签", "Business tags"), exact: true });
   const tagsShell = business.locator("xpath=../..");
@@ -208,7 +208,7 @@ test("Agent identity fields share labels, preserve tag composition and grow long
     await trigger.evaluate((element) => { element.parentElement!.style.width = "160px"; });
     const geometry = await trigger.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
-      const label = element.querySelector("[title]")!;
+      const label = [...element.querySelectorAll("span")].find((span) => !span.children.length && span.textContent?.trim())!;
       const labelBounds = label.getBoundingClientRect();
       return { height: bounds.height, fits: label.scrollWidth <= label.clientWidth + 1 && labelBounds.bottom <= bounds.bottom && labelBounds.top >= bounds.top,
         parentHeight: element.parentElement!.getBoundingClientRect().height };
@@ -678,7 +678,7 @@ test("WorkGraph inspectors share their surface and preserve exact node and edge 
   const activity = node.locator('[data-execution-runtime-node="evidence"]');
   await expect(activity).toContainText("Read evidence");
   await expect(activity.getByRole("button")).toHaveCount(0);
-  expect(await activity.locator(":scope > div").evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
+  expect(await activity.locator("div.radius-control-md").first().evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
   const metrics = async (inspector: Locator) => inspector.evaluate((element) => {
     const style = getComputedStyle(element);
     const header = getComputedStyle(element.querySelector("header")!);
@@ -793,7 +793,8 @@ test("private timelines share metadata and message editing preserves keyboard an
     expect(padding[0]).toBe(padding[1]);
     await expect(sample.getByText(copy(info, "已保存到", "Saved to"), { exact: true })).toBeVisible();
     const open = sample.getByRole("button", { name: /^source\.md/ });
-    await expect(open).toContainText(copy(info, "打开", "Open"));
+    await expect(open).toContainText("source.md");
+    await expect(open).not.toContainText(copy(info, "打开", "Open"));
     await open.click();
     openedFiles.push("author:reports/source.md");
     await expect(reading.locator("[data-gallery-reading-files]")).toHaveText(JSON.stringify(openedFiles));
@@ -949,7 +950,7 @@ test("Room context details fit three agents and scroll the last row inside a con
     const list = detail.getByRole("list", { name: copy(info, "上下文窗口", "Context window") });
     await expect(list.getByRole("listitem")).toHaveCount(count);
     await expectInsideViewport(page, detail);
-    expect((await detail.boundingBox())!.width).toBe(232);
+    await expect.poll(async () => (await detail.boundingBox())!.width).toBe(232);
     const title = detail.getByText(copy(info, "上下文窗口", "Context window"), { exact: true });
     const titleBounds = await title.boundingBox();
 
@@ -1116,6 +1117,7 @@ test("Provider model dialogs keep long content scrollable and actions visible in
   expect((await context.boundingBox())!.height).toBe(36);
   await context.fill("256000");
   const options = dialog.getByLabel(copy(info, "高级参数（JSON）", "Provider Options (JSON)"), { exact: true });
+  await dialog.locator("summary").filter({ hasText: copy(info, "高级参数（JSON）", "Provider Options (JSON)") }).click();
   await options.fill('{"budget":2}');
   expect(await options.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(/mono/i);
   const save = dialog.getByRole("button", { name: copy(info, "保存", "Save"), exact: true });
@@ -1437,17 +1439,20 @@ test("scheduled task suggestions fit their pane without overflowing card borders
     await fixture.scrollIntoViewIfNeeded();
     const cards = fixture.locator(".grid > button");
     await expect(cards).toHaveCount(3);
-    const bounds = (await fixture.boundingBox())!;
-    const positions = [];
-    for (const card of await cards.all()) {
-      const rect = (await card.boundingBox())!;
-      const description = (await card.locator("span").last().boundingBox())!;
-      expect(description.y + description.height).toBeLessThanOrEqual(rect.y + rect.height - 8);
-      expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
-      expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-      positions.push(Math.round(rect.x));
-    }
-    expect(new Set(positions).size).toBe(bounds.width >= 720 ? 3 : bounds.width >= 480 ? 2 : 1);
+    // Container queries can settle a frame after their inline-size changes.
+    await expect.poll(async () => {
+      const bounds = (await fixture.boundingBox())!;
+      const positions = [];
+      for (const card of await cards.all()) {
+        const rect = (await card.boundingBox())!;
+        const description = (await card.locator("span").last().boundingBox())!;
+        if (description.y + description.height > rect.y + rect.height - 8
+          || rect.x + rect.width > bounds.x + bounds.width + 1
+          || !await card.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)) return false;
+        positions.push(Math.round(rect.x));
+      }
+      return new Set(positions).size === (bounds.width >= 720 ? 3 : bounds.width >= 480 ? 2 : 1);
+    }).toBe(true);
   }
   await capture(fixture, info, "task-suggestions");
   expect(errors).toEqual([]);
@@ -1459,24 +1464,23 @@ test("scheduled task fields stay named and aligned in narrow panes while preserv
   const basics = fixture.locator("[data-gallery-task-basics]");
   const schedule = fixture.locator("[data-gallery-task-schedule]");
   const draft = fixture.locator("[data-gallery-task-draft]");
-  const location = basics.getByRole("group", { name: copy(info, "执行位置", "Execution location"), exact: true });
-  await expect(location).toHaveAccessibleDescription(copy(info,
-    "选择由智能体独立处理，或让 Room 成员结合 Room 上下文处理。",
-    "Run independently with an agent, or let a Room member work with the Room context."));
-  expect(await location.evaluate((element) => getComputedStyle(document.getElementById(element.getAttribute("aria-describedby")!)!).fontSize)).toBe("13px");
+  const location = basics.getByRole("button", { name: copy(info, "运行于", "Run in"), exact: true });
+  await expect(location).toBeVisible();
   expect(await fixture.evaluate((element) => [...element.querySelectorAll<HTMLLabelElement>("label[for]")]
     .every((label) => label.control && element.contains(label.control)))).toBe(true);
 
-  // Exercise the production panel in a constrained column independently of the Gallery viewport.
+  // Constrain the production panel independently of the Gallery viewport.
   await schedule.evaluate((element) => { (element as HTMLElement).style.width = "min(280px, 100%)"; });
-  const kinds = schedule.getByRole("group", { name: copy(info, "调度", "Schedule"), exact: true });
-  const bounds = (await schedule.boundingBox())!;
-  for (const option of await kinds.getByRole("button").all()) {
-    const rect = (await option.boundingBox())!;
-    expect(rect.x).toBeGreaterThanOrEqual(bounds.x);
-    expect(rect.x + rect.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
-    expect((await option.locator("span").boundingBox())!.height).toBe(20);
-  }
+  const kinds = schedule.getByRole("button", { name: copy(info, "什么时候做", "When to run"), exact: true });
+  const selectKind = async (zh: string, en: string) => {
+    const panelBounds = (await schedule.boundingBox())!;
+    const triggerBounds = (await kinds.boundingBox())!;
+    expect(triggerBounds.x).toBeGreaterThanOrEqual(panelBounds.x);
+    expect(triggerBounds.x + triggerBounds.width).toBeLessThanOrEqual(panelBounds.x + panelBounds.width + 1);
+    await kinds.click();
+    await expectInsideViewport(page, page.getByRole("listbox", { name: copy(info, "什么时候做", "When to run"), exact: true }));
+    await page.getByRole("option", { name: copy(info, zh, en), exact: true }).click();
+  };
   const amount = schedule.getByRole("spinbutton", { name: copy(info, "每隔", "Every"), exact: true });
   const unit = schedule.getByRole("button", { name: copy(info, "选择间隔单位", "Select interval unit"), exact: true });
   const amountRect = (await amount.boundingBox())!;
@@ -1489,7 +1493,7 @@ test("scheduled task fields stay named and aligned in narrow panes while preserv
   await amount.fill("007");
   await unit.click();
   await page.getByRole("option", { name: copy(info, "分钟", "minutes"), exact: true }).click();
-  const instruction = schedule.getByRole("textbox", { name: copy(info, "任务指令", "Task instruction"), exact: true });
+  const instruction = schedule.getByRole("textbox", { name: copy(info, "做什么", "What to do"), exact: true });
   await instruction.fill("  Keep\nthese exact lines  ");
   await expect.poll(async () => {
     const state = JSON.parse((await draft.textContent())!);
@@ -1499,11 +1503,11 @@ test("scheduled task fields stay named and aligned in narrow panes while preserv
   await amount.scrollIntoViewIfNeeded();
   await capture(amount.locator("xpath=ancestor::*[@data-ui-field][1]/.."), info, "task-interval-fields");
 
-  await kinds.getByRole("button", { name: copy(info, "每月", "Monthly"), exact: true }).click();
+  await selectKind("每月", "Monthly");
   const day = schedule.getByRole("spinbutton", { name: copy(info, "每月日期", "Day of month"), exact: true });
   await expect(day).toHaveAccessibleDescription(copy(info, "填写 1 至 31；当月没有该日期时，本月不执行。", "Enter 1 to 31. Months without that date are skipped."));
   expect((await day.boundingBox())!.height).toBe(36);
-  await kinds.getByRole("button", { name: "Cron", exact: true }).click();
+  await selectKind("Cron", "Cron");
   const cron = schedule.getByRole("textbox", { name: copy(info, "Cron 表达式", "Cron expression"), exact: true });
   await expect(cron).toHaveAccessibleDescription(copy(info,
     "标准五段：分钟 小时 日 月 星期，例如 0 9 15 * *。",
@@ -1511,7 +1515,7 @@ test("scheduled task fields stay named and aligned in narrow panes while preserv
   expect(await cron.evaluate((element) => /mono/i.test(getComputedStyle(element).fontFamily))).toBe(true);
   await cron.fill("  0 9 15 * *  ");
   await expect.poll(async () => JSON.parse((await draft.textContent())!).schedule.cronExpression).toBe("  0 9 15 * *  ");
-  await kinds.getByRole("button", { name: copy(info, "每天", "Daily"), exact: true }).click();
+  await selectKind("每天", "Daily");
   const days = schedule.getByRole("group", { name: copy(info, "执行日", "Run days"), exact: true });
   await expect(days).toHaveAccessibleDescription(copy(info,
     "选中的日期会在这个时间执行；全选就是每天执行。", "Run at this time on the selected days. Select all days to run daily."));
@@ -1606,12 +1610,12 @@ test("Composer draft previews preserve files and keep removal as an independent 
   await shell.scrollIntoViewIfNeeded();
   await expectInsideViewport(page, shell);
   expect(await shell.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("20px");
-  const imagePreview = fixture.getByRole("button", { name: /preview-sample.svg/ });
-  const textPreview = fixture.getByRole("button", { name: /review-notes-with-a-long-filename.txt/ });
+  const imagePreview = fixture.getByRole("button", { name: copy(info, "预览图片：preview-sample.svg", "Preview image: preview-sample.svg"), exact: true });
+  const textPreview = fixture.getByRole("button", { name: copy(info, "预览文本：review-notes-with-a-long-filename.txt", "Preview text: review-notes-with-a-long-filename.txt"), exact: true });
   const thumbnail = imagePreview.locator("..");
   expect((await thumbnail.boundingBox())!.width).toBe(48);
   expect((await thumbnail.boundingBox())!.height).toBe(48);
-  const removeImage = fixture.getByRole("button", { name: "Remove draft attachment", exact: true }).first();
+  const removeImage = fixture.getByRole("button", { name: "Remove draft attachment: preview-sample.svg", exact: true }).first();
   expect((await removeImage.boundingBox())!.width).toBe(20);
   await capture(shell, info, "composer-draft-attachments");
 
@@ -1645,7 +1649,7 @@ test("Composer draft previews preserve files and keep removal as an independent 
   await expect(imagePreview).toHaveCount(0);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(textPreview).toBeVisible();
-  await fixture.getByRole("button", { name: "Remove draft attachment", exact: true }).first().click();
+  await fixture.getByRole("button", { name: "Remove draft attachment: review-notes-with-a-long-filename.txt", exact: true }).click();
   await expect(fixture.locator("[data-gallery-removed-attachments]")).toHaveText("gallery-image,gallery-text");
   await expect(textPreview).toHaveCount(0);
   await expect(fixture.getByText("project-archive.zip", { exact: true })).toBeVisible();
@@ -1702,12 +1706,12 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
   // This is a scrollable product section, not a viewport-sized modal. Every
   // authorization row must become fully reachable without shrinking the page.
   for (const control of await permissions.getByRole("switch").all()) {
-    const row = control.locator("..");
+    const row = control.locator("xpath=ancestor::div[contains(@class, 'group/item')][1]");
     await row.scrollIntoViewIfNeeded();
     await expectInsideViewport(page, row);
   }
-  await available.locator("..").scrollIntoViewIfNeeded();
-  await capture(available.locator(".."), info, "agent-authorization-row");
+  await available.locator("xpath=ancestor::div[contains(@class, 'group/item')][1]").scrollIntoViewIfNeeded();
+  await capture(available.locator("xpath=ancestor::div[contains(@class, 'group/item')][1]"), info, "agent-authorization-row");
   expect(errors).toEqual([]);
 });
 
@@ -1784,12 +1788,18 @@ test("choices share readable sizes, native disabled paint and instance-scoped ra
   const first = fixture.getByRole("region", { name: "First permission view" });
   const second = fixture.getByRole("region", { name: "Second permission view" });
   const last = first.getByRole("radio", { name: copy(info, "当前工作区", "Current workspace"), exact: true });
-  await last.check();
-  await last.press("ArrowRight");
-  await expect(first.getByRole("radio").first()).toBeFocused();
-  await expect(first.getByRole("radio").first()).toBeChecked();
+  await last.locator("..").click();
+  await expect(last).toBeChecked();
+  // Native WebKit radios stop at the end of a group; test traversal within it.
+  await last.focus();
+  await moveKeyboardFocus(page, info, true);
+  await moveKeyboardFocus(page, info);
+  await expect(last).toBeFocused();
+  await last.press("ArrowLeft");
+  await expect(first.getByRole("radio").nth(1)).toBeFocused();
+  await expect(first.getByRole("radio").nth(1)).toBeChecked();
   await expect(second.getByRole("radio", { name: copy(info, "当前会话", "Current session"), exact: true })).toBeChecked();
-  expect(await first.getByRole("radio").first().locator("..").evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+  expect(await first.getByRole("radio").nth(1).locator("..").evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
   await capture(fixture.locator("[data-gallery-permission-instances]"), info, "isolated-permission-choices");
   expect(errors).toEqual([]);
 });
@@ -1808,6 +1818,8 @@ test("checkbox rows separate names and help, wrap at narrow widths and suppress 
   expect(await row.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await help.click();
   await expect(compact).toBeChecked();
+  // macOS pointer activation does not focus native checkboxes.
+  await compact.focus();
   await expect(compact).toBeFocused();
   await compact.press("Space");
   await expect(compact).not.toBeChecked();
@@ -1826,7 +1838,8 @@ test("checkbox rows separate names and help, wrap at narrow widths and suppress 
     const style = getComputedStyle(element);
     return [style.backgroundColor, style.borderColor];
   })).toEqual(before);
-  await help.click();
+  const disabledHelp = (await help.boundingBox())!;
+  await page.mouse.click(disabledHelp.x + disabledHelp.width / 2, disabledHelp.y + disabledHelp.height / 2);
   await expect(compact).not.toBeChecked();
   await standard.check();
   await help.click();
@@ -1919,7 +1932,7 @@ test("Contacts directory uses one identity tree, readable metadata and independe
       clipped: element.scrollHeight > element.clientHeight + 1 };
   })).toEqual({ font: "20px", align: "center", overflow: false, clipped: false });
   expect(await card.locator("dl").evaluate((element) => getComputedStyle(element).fontSize)).toBe("12px");
-  const provider = card.getByText("custom-research-model-provider-with-a-long-name", { exact: true });
+  const provider = card.getByText("Custom Research Model Provider With A Long Name", { exact: true });
   expect(await provider.evaluate((element) => element.parentElement!.scrollWidth - element.parentElement!.clientWidth)).toBeLessThanOrEqual(1);
   expect(await card.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   // Static content must route the pointer to the shared primary hit area.
@@ -1950,7 +1963,7 @@ test("Contacts directory uses one identity tree, readable metadata and independe
   await page.getByRole("option", { name: "Research and writing", exact: true }).click();
   await expect(fixture.getByRole("heading", { name: "Writer · 写作者", exact: true })).toHaveCount(0);
   await fixture.getByRole("searchbox").fill("no matching agent");
-  await expect(fixture.getByRole("status")).toContainText(copy(info, "没有符合当前筛选条件的智能体", "No agents match the current filters"));
+  await expect(fixture.locator('[data-resource-state="empty"]')).toContainText(copy(info, "没有符合当前筛选条件的智能体", "No agents match the current filters"));
   await expect(create).toHaveCount(1);
   await fixture.getByRole("button", { name: copy(info, "清除筛选", "Clear filters"), exact: true }).click();
   await expect(fixture.getByRole("searchbox")).toHaveValue("");
@@ -2003,7 +2016,11 @@ test("streaming Markdown catches up across concurrent streams and preserves sett
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const { errors } = await openGallery(page, info, "content");
   const fixture = page.locator("[data-gallery-streaming-markdown]");
-  await fixture.getByRole("button", { name: "Burst", exact: true }).click();
+  // Content previews may reflow while WebKit scrolls to this fixture. Start the
+  // stream by keyboard so this scheduler test does not race pointer hit testing.
+  await fixture.getByRole("button", { name: "Burst", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(fixture).toHaveAttribute("data-stream-source-length", /^[1-9]\d*$/);
   const outputs = fixture.locator("[data-stream-output]");
   await expect(outputs.first().locator("[data-markdown-anchor]").first()).toHaveText("稳定段落 Markdown 👩🏽‍💻。");
   const stableBlock = await outputs.first().locator("[data-markdown-anchor]").first().elementHandle();

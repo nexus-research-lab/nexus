@@ -48,9 +48,12 @@ test("live process collapse leaves no leading blank and continued generation fol
   expect((await geometry()).leading).toBe(0);
   await page.getByRole("button", { name: "Grow response", exact: true }).click();
   await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  const bottomTop = (await geometry()).top;
   await page.getByTestId("scroll").hover();
   await page.mouse.wheel(0, -200);
-  await expect.poll(async () => (await geometry()).top).toBeLessThan(450);
+  // Linux WebKit animates native wheel input. Capture the reading position only
+  // after the requested movement finishes, not at its first intermediate frame.
+  await expect.poll(async () => (await geometry()).top).toBe(bottomTop - 200);
   const readingTop = (await geometry()).top;
   await page.getByRole("button", { name: "Finish response", exact: true }).click();
   expect((await geometry()).top).toBe(readingTop);

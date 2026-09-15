@@ -1,10 +1,11 @@
-// INPUT: Composer 附件/目录/Goal/WorkGraph 动作与 Connector 只读目录。
-// OUTPUT: 主动作菜单与受控 Goal/Connector 勾选项；每行只有一个原生激活入口。
+// INPUT: Composer 附件/目录/Goal/Plan/WorkGraph 动作与 Connector 只读目录。
+// OUTPUT: 主动作菜单与受控 Plan/Goal/Connector 勾选项；每行只有一个原生激活入口。
 // POS: Composer Footer 动作入口；Connector 读取失败由外层可靠性面统一展示。
 import type { RefObject } from "react";
 import {
   FolderPlus,
   Loader2,
+  Lightbulb,
   Paperclip,
   Plus,
   Target,
@@ -22,11 +23,13 @@ import {
 import type { ComposerSessionSettingsController } from "../../controller/use-composer-session-settings";
 import type { ComposerLocalDirectoriesController } from "../../controller/use-composer-local-directories";
 
-type ComposerActionValue = "attachment" | "directory" | "goal" | "workgraph";
+type ComposerActionValue = "attachment" | "directory" | "goal" | "workgraph" | "plan";
 
 interface ComposerFooterActionsProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
   canCreateGoal: boolean;
+  canUsePlan: boolean;
+  isPlanMode: boolean;
   canUseWorkGraphDistillations: boolean;
   isActionMenuOpen: boolean;
   isGoalCreating: boolean;
@@ -37,6 +40,7 @@ interface ComposerFooterActionsProps {
   onActionMenuToggle: () => void;
   onAttachmentSelect: () => void;
   onGoalToggle: (checked: boolean) => void;
+  onPlanToggle: () => void;
   onWorkGraphDistillationsSelect: () => void;
   onLocalDirectorySelect: () => void;
   sessionSettingsController: ComposerSessionSettingsController;
@@ -51,6 +55,8 @@ interface VisibleActionItem {
 export function ComposerFooterActions({
   actionButtonRef,
   canCreateGoal,
+  canUsePlan,
+  isPlanMode,
   canUseWorkGraphDistillations,
   isActionMenuOpen,
   isGoalCreating,
@@ -61,6 +67,7 @@ export function ComposerFooterActions({
   onActionMenuToggle,
   onAttachmentSelect,
   onGoalToggle,
+  onPlanToggle,
   onWorkGraphDistillationsSelect,
   onLocalDirectorySelect,
   sessionSettingsController,
@@ -69,6 +76,8 @@ export function ComposerFooterActions({
   const { t } = useI18n();
   const items = buildActionItems({
     canCreateGoal,
+    canUsePlan,
+    isPlanMode,
     canUseLocalDirectories: localDirectoriesController.available,
     canUseWorkGraphDistillations,
     isGoalCreating,
@@ -83,6 +92,7 @@ export function ComposerFooterActions({
       attachment: t("composer.add_attachment"),
       directory: t("composer.add_local_directory"),
       goal: t("composer.start_goal"),
+      plan: t("composer.plan_mode"),
       workgraph: t("composer.open_workgraph_distillations"),
     },
   });
@@ -91,6 +101,7 @@ export function ComposerFooterActions({
     ["directory", onLocalDirectorySelect],
     ["workgraph", onWorkGraphDistillationsSelect],
     ["goal", () => onGoalToggle(!isGoalMode)],
+    ["plan", onPlanToggle],
   ]);
   for (const connector of sessionSettingsController.connectors) {
     commands.set(`connector:${connector.connector_id}`, () => {
@@ -184,6 +195,8 @@ function buildConnectorItems({
 
 function buildActionItems({
   canCreateGoal,
+  canUsePlan,
+  isPlanMode,
   canUseLocalDirectories,
   canUseWorkGraphDistillations,
   isGoalCreating,
@@ -193,6 +206,8 @@ function buildActionItems({
   labels,
 }: {
   canCreateGoal: boolean;
+  canUsePlan: boolean;
+  isPlanMode: boolean;
   canUseLocalDirectories: boolean;
   canUseWorkGraphDistillations: boolean;
   isGoalCreating: boolean;
@@ -231,7 +246,7 @@ function buildActionItems({
     {
       item: {
         active: isGoalMode,
-        disabled: !canCreateGoal || isGoalCreating,
+        disabled: !canCreateGoal || isGoalCreating || isPlanMode,
         icon: (
           <Target
             className={
@@ -247,6 +262,17 @@ function buildActionItems({
         value: "goal",
       },
       visible: true,
+    },
+    {
+      item: {
+        active: isPlanMode,
+        checked: isPlanMode,
+        disabled: isGoalMode || isGoalCreating || isPreparingAttachments,
+        icon: <Lightbulb className="h-4 w-4 text-(--icon-muted)" />,
+        label: labels.plan,
+        value: "plan",
+      },
+      visible: canUsePlan,
     },
   ];
   return candidates

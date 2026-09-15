@@ -1,5 +1,5 @@
 // INPUT: 配置域名称与操作名称。
-// OUTPUT: 稳定的配置能力目录、确认门槛与运行时生效语义。
+// OUTPUT: 稳定的配置能力目录、workspace 行为模板分流说明、确认门槛与运行时生效语义。
 // POS: configuration 控制面的能力真相源。
 package configuration
 
@@ -34,7 +34,7 @@ var domainCatalog = []DomainDefinition{
 		},
 	},
 	{
-		Name: DomainAgents, Description: "Agent 身份、模型、权限、工具、MCP server 与 Skill 选择",
+		Name: DomainAgents, Description: "Agent 身份、模型、权限、工具、MCP server 与 Skill 选择；行为模板的补充、修改或重写在 workspace 根级 AGENTS.md 中进行（自己用文件工具，其他 Agent 由主智能体通过 nexus-manager 处理），保留基础模板的 Baseline Rules",
 		Source: "database + derived workspace settings", ManagedBy: "nexuscfg", Mutable: true,
 		Operations: []OperationDefinition{
 			op("create", "创建 Agent 与独立 workspace", true, "next_round"),
@@ -242,7 +242,7 @@ func operationContract(domain, operation string) (string, any, []string) {
 	case DomainAgents + ".create":
 		return "", map[string]any{
 			"name": "string", "options": agentOptionsShape(), "avatar": "string",
-			"description": "string", "profile_template": "optional initial identity markdown",
+			"description": "string", "profile_template": "optional initial AGENTS.md markdown; after creation, edit workspace AGENTS.md",
 			"vibe_tags": "string[]",
 		}, []string{"name"}
 	case DomainAgents + ".update":

@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -12,7 +12,10 @@ import type { SkillImportDialogMode } from "../controller/skill-marketplace-cont
 import { SkillImportDialog } from "./skill-import-dialog";
 
 function Harness({ importing = false, onImportGit, onClose, onFileOpen }: {
-  importing?: boolean; onImportGit: ReturnType<typeof vi.fn>; onClose: ReturnType<typeof vi.fn>; onFileOpen: ReturnType<typeof vi.fn>;
+  importing?: boolean;
+  onImportGit: ComponentProps<typeof SkillImportDialog>["onImportGit"];
+  onClose: () => void;
+  onFileOpen: () => void;
 }) {
   const [mode, setMode] = useState<SkillImportDialogMode | null>("git");
   const fileInputRef = useRef<HTMLInputElement>(null);

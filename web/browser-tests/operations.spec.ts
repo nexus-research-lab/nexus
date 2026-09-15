@@ -71,9 +71,13 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
     await expect(page).toHaveURL(/\/settings$/);
     const menu = page.getByRole("button", { name: text("设置导航", "Settings navigation"), exact: true });
     if (await menu.isVisible()) await menu.click();
-    await expect(page.getByRole("navigation").getByRole("button", { name: text("项目权限", "Project access"), exact: true })).toHaveCount(0);
+    const navigation = page.getByRole("navigation", { name: text("设置", "Settings"), exact: true });
+    await expect(navigation).toBeVisible();
+    await expect(navigation.getByRole("button", { name: text("项目权限", "Project access"), exact: true })).toHaveCount(0);
     await expect(page.locator("[data-operations-page]")).toHaveCount(0);
     expect(projectRequests).toBe(0);
+    expect(errors).toEqual([]);
+    expect(rejected).toEqual([]);
     return;
   }
   const surface = page.locator("[data-operations-page]");
@@ -107,9 +111,8 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
   await page.keyboard.press("Escape");
   await expect(page.getByRole("listbox")).toHaveCount(0);
   const organizationTitle = surface.getByText("Nexus Research", { exact: true });
-  // 窄屏已有应用栏标题，正文标题按设置页合同隐藏。
-  if (page.viewportSize()!.width < 640) await expect(organizationTitle).toBeHidden();
-  else await expect(organizationTitle).toBeVisible();
+  // 组织名称是租户身份，宽窄屏均须可见。
+  await expect(organizationTitle).toBeVisible();
   await expect(surface.getByRole("complementary")).toHaveCount(0);
   await surface.getByRole("button", { name: text("邀请成员", "Invite member"), exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();

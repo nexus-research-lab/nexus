@@ -56,9 +56,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
 
 - Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
+- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
+
+- Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
+- Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
+
+- Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light/rain action contrast with the matching light Windows native projection, and keep long task suggestions inside their cards on WebKit.
+
+- Split the complete frontend browser test matrix across twelve CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
+- Move the collapsed sidebar control left, keep the macOS home canvas below the window controls, and align the Launcher spotlights over the wordmark.
+
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
+- Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
+- Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
 
 ### Changed
+
+- Add Plan mode to the Composer action menu and `/plan` completion, showing a removable footer mode indicator instead of a command prefix, while sharing one request-scoped planning and approval flow without changing permission settings.
 
 - Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
 - Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
@@ -71,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Upgrade Vitest to 4.1.11 and refresh Browserslist, baseline-browser-mapping, and humanfs to fix known frontend test and build toolchain vulnerabilities.
 - Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
 - Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
 - Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.

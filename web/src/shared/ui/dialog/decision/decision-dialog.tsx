@@ -115,7 +115,7 @@ export function ConfirmDialog({
         title={title}
         titleId={titleId}
       />
-      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2">
+      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2" scrollable>
         <p
           className="whitespace-pre-wrap text-sm leading-6 text-(--text-default)"
           id={messageId}
@@ -277,7 +277,7 @@ function PromptDialogContent({
         title={title}
         titleId={titleId}
       />
-      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2">
+      <UiDialogBody className="space-y-3 px-5 pb-4 pt-2" scrollable>
         {message ? (
           <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })} id={messageId}>{message}</p>
         ) : null}
