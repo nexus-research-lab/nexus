@@ -1,0 +1,15 @@
+ M CHANGELOG.md
+ M docs/README.md
+ M docs/explorations/desktop-sandbox/README.md
+ M docs/explorations/desktop-sandbox/codex-source-audit.md
+ M docs/explorations/desktop-sandbox/windows-broker-plan.md
+ M docs/specs/desktop-sandbox-spec.md
+ M makefile
+?? docs/explorations/desktop-sandbox/current-assessment-2026-09-15.md
+?? docs/explorations/desktop-sandbox/development-plan.md
+?? docs/explorations/desktop-sandbox/implementation-history.md
+?? docs/testing/desktop-sandbox-acceptance.md
+?? scripts/desktop/check-sandbox-baseline.mjs
+?? scripts/desktop/sandbox-test-evidence.mjs
+?? scripts/desktop/sandbox-test-evidence.test.mjs
+?? web/browser-tests/conversation-session-scroll.spec.ts

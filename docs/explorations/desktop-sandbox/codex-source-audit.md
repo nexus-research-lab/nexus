@@ -1,6 +1,6 @@
 # Codex Windows 沙箱源码差异审计
 
-状态：non-normative，2026-09-15，审计进行中。本文记录已读源码和影响实施顺序的差异，不代表 Nexus 或 Codex 安装包实机验收。当前 Nexus 产品合同仍在 `docs/specs/desktop-sandbox-spec.md`。
+状态：non-normative，2026-09-15，固定源码与实验快照。本文保留已读源码和原生证据，不代表 Nexus 或 Codex 安装包实机验收。后续实施状态统一见 [完整开发计划](development-plan.md)；当前 Nexus 产品合同仍在 `docs/specs/desktop-sandbox-spec.md`。
 
 ## 可复现来源
 

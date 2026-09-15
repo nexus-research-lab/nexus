@@ -1,6 +1,6 @@
 # Windows 可信启动器：部署与授权设计
 
-状态：non-normative，待实现与 Windows 原生验收。本文给出后续实施方向，不能据此声明当前产品已有服务端沙箱。当前合同仍是 `docs/specs/desktop-sandbox-spec.md`。整个 Goal 还包括 macOS、文件工具、审批、自动审核与旧功能回归。
+状态：non-normative，保留的架构候选与部署约束，尚未选定。实施顺序及进度统一见 [完整开发计划](development-plan.md)；下文中的“下一步”属于候选成立后的条件步骤。当前合同仍是 `docs/specs/desktop-sandbox-spec.md`，不能据此声明已有可用 Windows 后端。
 
 2026-09-15 源码复核修正：本文下方的“高权限 broker 创建每条命令”仅保留为待论证候选，暂停据此扩展实现。固定 Codex 源码版本显示，Windows service 的请求是安装注册与资源 provisioning；普通命令由宿主通过 `CreateProcessWithLogonW` 启动专用账号 runner，再创建受限子进程。两种职责不能混同。下一步以 [Codex 源码差异审计](codex-source-audit.md) 为实施前置依据，先核验完整参考路径与 Nexus 安全要求的兼容性；不能凭现有不同 API、不同 token 的失败实验确定服务架构。
 
