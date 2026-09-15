@@ -32,6 +32,16 @@ domain policy remain authoritative. Default mode asks the user; auto mode uses t
 existing independent reviewer and human fallback. Explicit command escape continues
 through the separate sandbox-bypass approval boundary.
 
+The current mandatory macOS SDK applies explicit read/write and protected-path
+movement denials after ordinary directory, device and PTY grants. A read grant
+cannot reopen content in a denied same, parent or child root; symlink reads use
+the same enforced boundary. `denyRead` and `denyWrite` remain separate, so secrets
+requiring both protections must appear in both. Legacy non-mandatory read
+carve-outs retain their existing semantics. These macOS guarantees do not prove
+equivalent Linux/Windows behavior or confinement of all SDK IO. Capability
+acknowledgement also does not establish that an older binary includes later
+policy fixes; fixed-version acceptance remains separate.
+
 Network approval carries the command input, tool-use identity, captured working
 directory and exact host/port, bound to the command's permission epoch. Nexus shows
 one pending connection and offers no persistent grant. Input changes or permission

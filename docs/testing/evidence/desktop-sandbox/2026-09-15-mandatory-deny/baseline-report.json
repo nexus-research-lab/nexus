@@ -1,0 +1,281 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-15T08:44:26.714Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "scope": "host-and-macos-native-baseline",
+  "releaseAccepted": false,
+  "passed": true,
+  "checks": [
+    {
+      "name": "nexus-revision",
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "nexus-changes",
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "go-version",
+      "command": "go",
+      "args": [
+        "env",
+        "GOVERSION"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "bridge-module",
+      "command": "go",
+      "args": [
+        "list",
+        "-mod=readonly",
+        "-m",
+        "-json",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-revision",
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "--verify",
+        "d9687a3e^{commit}"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-changes-excluded",
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-export",
+      "command": "git",
+      "args": [
+        "archive",
+        "--format=tar",
+        "--output",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk.tar",
+        "d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-extract",
+      "command": "tar",
+      "args": [
+        "-xf",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk.tar",
+        "-C",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-build",
+      "command": "go",
+      "args": [
+        "build",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+        "./cmd/nxs"
+      ],
+      "cwd": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "host-policy",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime/clientopts",
+        "./internal/runtime/permission",
+        "./internal/service/nxsruntime",
+        "-run",
+        "^(TestDesktopSandboxPolicySeparatesResourcesAndFullAccess|TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature|TestDesktopSandboxRealRuntimeNegotiation|TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules|TestUnknownApprovalBoundaryFailsBeforeCreatingPending|TestCancelledApprovalDoesNotCreateNewPending|TestSandboxNetworkApprovalUsesOneConnectionScope|TestSandboxDiagnosisDoesNotInventAvailability|TestSandboxDiagnosisRealNXS)$"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestDesktopSandboxPolicySeparatesResourcesAndFullAccess",
+        "TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature",
+        "TestDesktopSandboxRealRuntimeNegotiation",
+        "TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules",
+        "TestUnknownApprovalBoundaryFailsBeforeCreatingPending",
+        "TestCancelledApprovalDoesNotCreateNewPending",
+        "TestSandboxNetworkApprovalUsesOneConnectionScope",
+        "TestSandboxDiagnosisDoesNotInventAvailability",
+        "TestSandboxDiagnosisRealNXS"
+      ]
+    },
+    {
+      "name": "host-lifecycle",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime",
+        "./internal/service/room/realtime",
+        "-run",
+        "^(TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate|TestManagerHandlesSandboxModeReplacementAsExpectedTransition|TestManagerReplacesRuntimeForSandboxTransitions|TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay|TestRoomSandboxTransitionDoesNotHideCleanupFailure)$"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/nexus",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate",
+        "TestManagerHandlesSandboxModeReplacementAsExpectedTransition",
+        "TestManagerReplacesRuntimeForSandboxTransitions",
+        "TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay",
+        "TestRoomSandboxTransitionDoesNotHideCleanupFailure"
+      ]
+    },
+    {
+      "name": "macos-backend-path",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/tool/builtin/bash/sandboxexec",
+        "-run",
+        "^(TestMacOSSandboxDependencyUsesSystemPath|TestMacOSSandboxIgnoresTaskPath)$"
+      ],
+      "cwd": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestMacOSSandboxDependencyUsesSystemPath",
+        "TestMacOSSandboxIgnoresTaskPath",
+        "TestMacOSSandboxIgnoresTaskPath/shadowed_path",
+        "TestMacOSSandboxIgnoresTaskPath/empty_path"
+      ]
+    },
+    {
+      "name": "macos-resource-denials",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/tool/executor",
+        "-run",
+        "^(TestDarwinMandatorySandboxReadDenyPrecedence|TestDarwinMandatorySandboxCannotMoveDeniedAncestor)$"
+      ],
+      "cwd": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestDarwinMandatorySandboxReadDenyPrecedence",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Read",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Bash",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Read",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Bash",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Read",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Bash",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/symlink_target/Read",
+        "TestDarwinMandatorySandboxReadDenyPrecedence/symlink_target/Bash",
+        "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+        "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
+        "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write"
+      ]
+    },
+    {
+      "name": "macos-native",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/tool/executor",
+        "-run",
+        "^(TestDarwinSandboxFileToolsRuntime|TestDarwinFileInstructionsShareSandbox|TestDarwinLargeFileReadRetainsFullState|TestDarwinRequiredSandboxChildWriteBoundary|TestDarwinRequiredSandboxBlocksDirectNetwork|TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay|TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval)$"
+      ],
+      "cwd": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/sdk",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestDarwinSandboxFileToolsRuntime",
+        "TestDarwinFileInstructionsShareSandbox",
+        "TestDarwinLargeFileReadRetainsFullState",
+        "TestDarwinRequiredSandboxChildWriteBoundary",
+        "TestDarwinRequiredSandboxBlocksDirectNetwork",
+        "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+        "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+        "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/foreground_completion",
+        "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/permission_change"
+      ]
+    }
+  ],
+  "nexusRevision": "5747c2744f1f53474ad0e918a365de03d289cc08",
+  "nexusChanges": [
+    "M docs/README.md",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "goVersion": "go1.27.1",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915080938-a4fef0aec5bc",
+    "sum": "h1:GSjnxL0+p1yQtRf4bvoUeKQS3jv7qpKdoYL3efA9XEE="
+  },
+  "sdkRevision": "d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91",
+  "sdkWorktreeChanges": [],
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+    "sha256": "801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb",
+    "source": "fixed-sdk-archive"
+  },
+  "finishedAt": "2026-09-15T08:44:54.291Z"
+}

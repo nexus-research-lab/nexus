@@ -122,11 +122,27 @@ SDK `12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8`，Bridge 继续使用上述本地
 
 nxs SHA-256：`7482d5d18a6d00f510eaa78a5c172a71e9a618a8af21eca28e78a6ed6126b97e`。详见 [范围与限制](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/report.json)、[固定提交基线](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/baseline-report.json)、[修复前日志](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/seatbelt-path-before.jsonl) 和 [修复后原生日志](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/macos-backend-path.stdout.log)。所有提交与产物按用户要求仅保留本地；helper 版本准入、完整 IO、资源策略、生效回执和发布仍未完成。
 
+### P1/P2 强制资源禁止优先（2026-09-15）
+
+SDK `d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91`，Bridge 沿用本地固定模块 `a4fef0a`；Nexus 基线 `5747c2744` 加本次门禁变更，精确 dirty 清单保留在报告。所有版本与产物继续仅在本机，未发布。
+
+修复前，同级、父级和子级 `allowRead` 均让真实 Bash/Read 读出 `denyRead` 保护的测试内容，6 个子场景失败、exit 1。目录移动的原有保护已经通过，并非本次新发现的绕过。修复将必需模式的读写和移动禁止项最终施加在普通授权之后，保留非必需模式的兼容 read carve-out。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 重叠读根与符号链接的 Bash/Read | 8 个子场景通过，exit 0 | 允许文件仍可读；禁止内容不返回；两类工具共享实际 OS 边界 |
+| 受保护祖先目录移动 | read/write 两个子场景通过，exit 0 | 保留源目录、目标未创建，命令正常启动后被拒绝 |
+| 固定提交开发基线 | 25 个顶层用例通过，exit 0，必测项无 skip | 14 个宿主＋7 个原生隔离＋2 个后端路径＋2 个资源禁止；新增逐项核验 10 个资源子场景及 2 个后台网络子场景 |
+| sandboxexec 包、Windows 交叉编译 | 109 个顶层测试通过；编译 exit 0 | Linux helper 及未启用的原生路径测试有 skip；当前 macOS 场景由固定提交基线独立执行；未运行 Windows 原生 |
+| 门禁解析与入口语法 | 6 个解析测试通过；语法检查 exit 0 | 证据检查，不替代完整产品验收 |
+
+nxs SHA-256：`801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb`。详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/mandatory-deny-before.jsonl) 和 [真实资源回归](./evidence/desktop-sandbox/2026-09-15-mandatory-deny/macos-resource-denials.stdout.log)。`denyRead` 不自动变成 `denyWrite`；本批次未接入只读 profile、实际策略回执、其他平台或全部 SDK IO。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH 与空 PATH 子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 12ea63b8 或包含该批次测试的后续提交。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止与后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK d9687a3e 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -134,7 +150,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。

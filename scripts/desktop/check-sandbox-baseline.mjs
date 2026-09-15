@@ -114,6 +114,14 @@ try {
       "TestMacOSSandboxIgnoresTaskPath/shadowed_path",
       "TestMacOSSandboxIgnoresTaskPath/empty_path",
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-resource-denials", ["./internal/tool/executor"], [
+      "TestDarwinMandatorySandboxReadDenyPrecedence",
+      ...["same_root", "parent_root", "nested_root", "symlink_target"].flatMap((grant) =>
+        ["Read", "Bash"].map((tool) => `TestDarwinMandatorySandboxReadDenyPrecedence/${grant}/${tool}`)),
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
@@ -122,6 +130,8 @@ try {
       "TestDarwinRequiredSandboxBlocksDirectNetwork",
       "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
       "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/foreground_completion",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/permission_change",
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
   }
   if (sha256(binary) !== report.runtime.sha256) throw new Error("Runtime binary changed during acceptance.");
