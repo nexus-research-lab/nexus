@@ -24,6 +24,42 @@ func (f *syncRemote) CreateRoom(_ context.Context, token, key string, _ relaycon
 	f.token = token
 	return relaycontract.RoomView{}, f.err
 }
+func (f *syncRemote) GetRoom(context.Context, string, string) (relaycontract.RoomDetails, error) {
+	return relaycontract.RoomDetails{}, f.err
+}
+func (f *syncRemote) ListInvitations(context.Context, string) (relaycontract.RoomInvitationList, error) {
+	return relaycontract.RoomInvitationList{}, f.err
+}
+func (f *syncRemote) InviteUser(context.Context, string, string, string, relaycontract.InviteRoomMemberInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) AddAgent(context.Context, string, string, string, relaycontract.AddRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) RemoveAgent(context.Context, string, string, string, string, relaycontract.RemoveRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) UpdateAgent(context.Context, string, string, string, string, relaycontract.UpdateRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) UpdateRoom(context.Context, string, string, string, relaycontract.UpdateRoomInput) (relaycontract.RoomConfigurationMutation, error) {
+	return relaycontract.RoomConfigurationMutation{}, f.err
+}
+func (f *syncRemote) AcceptInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) RejectInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) RevokeInvitation(context.Context, string, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) UpdateMember(context.Context, string, string, string, string, relaycontract.UpdateRoomMemberInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
+func (f *syncRemote) TransferOwnership(context.Context, string, string, string, relaycontract.TransferRoomOwnershipInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, f.err
+}
 func (f *syncRemote) PostMessage(_ context.Context, token, _, key string, _ relaycontract.CreateMessageInput) (relaycontract.MessageCommit, error) {
 	f.key = key
 	f.token = token

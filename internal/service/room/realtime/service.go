@@ -110,6 +110,8 @@ type ChatRequest struct {
 	// continuation receipt after exact root registration and before any slot
 	// runtime is allowed to start.
 	continuationStartAdmission func(context.Context) error
+	// requireImmediateStart 禁止持租约调用退入普通用户队列，队列不能携带启动回调。
+	requireImmediateStart bool
 }
 
 // InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。

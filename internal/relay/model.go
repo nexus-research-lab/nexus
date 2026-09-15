@@ -29,6 +29,12 @@ type MessageContent struct {
 	Blocks  []ContentBlock `json:"blocks"`
 }
 
+// MessageMention 是消息中经过 Relay 校验的结构化 Agent 目标。
+type MessageMention struct {
+	MemberType string `json:"member_type"`
+	MemberID   string `json:"member_id"`
+}
+
 // Room 是显式创建的在线协作空间。
 type Room struct {
 	ID                     string    `json:"id"`
@@ -71,36 +77,147 @@ type RoomList struct {
 	Rooms []RoomView `json:"rooms"`
 }
 
+// RoomMember 是真人和 Agent 共用的在线 Room 成员记录。
+type RoomMember struct {
+	RoomID           string     `json:"room_id"`
+	Type             string     `json:"member_type"`
+	ID               string     `json:"member_id"`
+	Role             string     `json:"role"`
+	State            string     `json:"state"`
+	AgentOwnerUserID string     `json:"agent_owner_user_id,omitempty"`
+	AgentPaused      bool       `json:"agent_paused,omitempty"`
+	InvitedByUserID  string     `json:"invited_by_user_id"`
+	JoinedAt         *time.Time `json:"joined_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+// RoomDetails 是在线 Room 管理使用的成员快照。
+type RoomDetails struct {
+	RoomView
+	Members []RoomMember `json:"members"`
+}
+
+// RoomInvitation 是当前真人尚未处理的在线 Room 邀请。
+type RoomInvitation struct {
+	Room            Room      `json:"room"`
+	InvitedByUserID string    `json:"invited_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// RoomInvitationList 是当前真人的待处理邀请。
+type RoomInvitationList struct {
+	RecoveryRooms []RoomRecovery   `json:"recovery_rooms"`
+	Invitations   []RoomInvitation `json:"invitations"`
+}
+
+// RoomRecovery 只提供待接管群的治理信息，不授予消息读取权限。
+type RoomRecovery struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	MembershipVersion int64  `json:"membership_version"`
+}
+
+// RoomMembershipMutation 是成员治理命令的确定结果。
+type RoomMembershipMutation struct {
+	RoomID            string `json:"room_id"`
+	MembershipVersion int64  `json:"membership_version"`
+	Replayed          bool   `json:"replayed"`
+}
+
+// RoomConfigurationMutation 是 Room 配置命令的确定结果。
+type RoomConfigurationMutation struct {
+	RoomID               string `json:"room_id"`
+	ConfigurationVersion int64  `json:"configuration_version"`
+	Replayed             bool   `json:"replayed"`
+}
+
 // CreateRoomInput 是显式建群请求。
 type CreateRoomInput struct {
 	Name                   string   `json:"name"`
 	Description            string   `json:"description,omitempty"`
 	Avatar                 string   `json:"avatar,omitempty"`
-	CoordinatorAgentID     string   `json:"coordinator_agent_id,omitempty"`
-	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
 	PrivateMessagesEnabled bool     `json:"private_messages_enabled,omitempty"`
 	SkillNames             []string `json:"skill_names,omitempty"`
-	AgentIDs               []string `json:"agent_ids,omitempty"`
 	MemberUserIDs          []string `json:"member_user_ids,omitempty"`
+	AgentIDs               []string `json:"agent_ids,omitempty"`
+	CoordinatorAgentID     string   `json:"coordinator_agent_id,omitempty"`
 }
 
-// Message 是 Conversation 中只追加一次的真人消息。
+// AddRoomAgentInput 将当前真人拥有的 Control Agent 加入 Room。
+type AddRoomAgentInput struct {
+	AgentID                   string `json:"agent_id"`
+	ExpectedMembershipVersion int64  `json:"expected_membership_version"`
+}
+
+// RemoveRoomAgentInput 将 Agent 成员移出 Room。
+type RemoveRoomAgentInput struct {
+	ExpectedMembershipVersion int64 `json:"expected_membership_version"`
+}
+
+// UpdateRoomAgentInput 暂停或恢复当前真人拥有的 Agent。
+type UpdateRoomAgentInput struct {
+	Paused                    bool  `json:"paused"`
+	ExpectedMembershipVersion int64 `json:"expected_membership_version"`
+}
+
+// UpdateRoomInput 更新群资料、主持 Agent，或显式解散群。
+type UpdateRoomInput struct {
+	Dissolve                     bool    `json:"dissolve,omitempty"`
+	CoordinatorAgentID           *string `json:"coordinator_agent_id,omitempty"`
+	Name                         *string `json:"name,omitempty"`
+	Avatar                       *string `json:"avatar,omitempty"`
+	ExpectedConfigurationVersion int64   `json:"expected_configuration_version"`
+}
+
+// InviteRoomMemberInput 邀请一名 Organization 真人。
+type InviteRoomMemberInput struct {
+	UserID                    string `json:"user_id"`
+	ExpectedMembershipVersion int64  `json:"expected_membership_version"`
+}
+
+// ResolveRoomInvitationInput 接受、拒绝或撤销一条邀请。
+type ResolveRoomInvitationInput struct {
+	ExpectedMembershipVersion int64 `json:"expected_membership_version"`
+}
+
+// UpdateRoomMemberInput 修改真人成员角色或移除成员。
+type UpdateRoomMemberInput struct {
+	Role                      string `json:"role,omitempty"`
+	Remove                    bool   `json:"remove,omitempty"`
+	ExpectedMembershipVersion int64  `json:"expected_membership_version"`
+}
+
+// TransferRoomOwnershipInput 移交唯一真人群主。
+type TransferRoomOwnershipInput struct {
+	Takeover                  bool   `json:"takeover,omitempty"`
+	NewOwnerUserID            string `json:"new_owner_user_id"`
+	ExpectedMembershipVersion int64  `json:"expected_membership_version"`
+}
+
+// Message 是 Conversation 中只追加一次的真人消息或完整 Agent 回复。
 type Message struct {
-	ID                string         `json:"id"`
-	ConversationID    string         `json:"conversation_id"`
-	MessageSeq        int64          `json:"message_seq"`
-	AuthorType        string         `json:"author_type"`
-	AuthorUserID      string         `json:"author_user_id"`
-	AuthorUsername    string         `json:"author_username"`
-	AuthorDisplayName string         `json:"author_display_name"`
-	ClientMessageID   string         `json:"client_message_id"`
-	Content           MessageContent `json:"content"`
-	CreatedAt         time.Time      `json:"created_at"`
+	ID                string           `json:"id"`
+	ConversationID    string           `json:"conversation_id"`
+	MessageSeq        int64            `json:"message_seq"`
+	AuthorType        string           `json:"author_type"`
+	AuthorUserID      string           `json:"author_user_id"`
+	AuthorAgentID     string           `json:"author_agent_id,omitempty"`
+	DeliveryID        string           `json:"delivery_id,omitempty"`
+	OutputKind        string           `json:"output_kind,omitempty"`
+	AuthorUsername    string           `json:"author_username"`
+	AuthorDisplayName string           `json:"author_display_name"`
+	ClientMessageID   string           `json:"client_message_id"`
+	Content           MessageContent   `json:"content"`
+	Mentions          []MessageMention `json:"mentions"`
+	CreatedAt         time.Time        `json:"created_at"`
 }
 
 // CreateMessageInput 是 Relay M1 消息写入意图。
 type CreateMessageInput struct {
-	Content MessageContent `json:"content"`
+	Content                   MessageContent   `json:"content"`
+	Mentions                  []MessageMention `json:"mentions,omitempty"`
+	ExpectedMembershipVersion int64            `json:"expected_membership_version,omitempty"`
 }
 
 // MessageCommit 是 Message 与同步水位的原子提交结果。

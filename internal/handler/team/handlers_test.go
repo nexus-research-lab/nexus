@@ -1,5 +1,5 @@
 // INPUT: 认证上下文、Origin、Team HTTP 请求与 Relay/Control stub 结果。
-// OUTPUT: 身份隔离、四端点转发、幂等键和稳定 FailureCore 断言。
+// OUTPUT: 身份隔离、Team 路由转发、幂等键和稳定 FailureCore 断言。
 // POS: Team gateway 消费侧合同回归；不启动真实 Control、Relay 或数据库。
 package team
 
@@ -28,13 +28,21 @@ import (
 )
 
 type teamTokenStub struct {
-	token           string
-	err             error
-	verifyErr       error
-	principal       *authsvc.Principal
-	verifiedUserIDs []string
-	calls           int
-	verifyCalls     int
+	token            string
+	err              error
+	verifyErr        error
+	principal        *authsvc.Principal
+	verifiedUserIDs  []string
+	verifiedAgentIDs []string
+	calls            int
+	verifyCalls      int
+}
+
+func (stub *teamTokenStub) VerifyOwnedAgents(_ context.Context, principal *authsvc.Principal, agentIDs []string) error {
+	stub.verifyCalls++
+	stub.principal = principal
+	stub.verifiedAgentIDs = append([]string(nil), agentIDs...)
+	return stub.verifyErr
 }
 
 func (stub *teamTokenStub) VerifyOrganizationMembers(
@@ -77,6 +85,10 @@ type teamRelayStub struct {
 	messageCalls      int
 	snapshotCalls     int
 	differenceCalls   int
+	membershipCalls   int
+	membershipRoomID  string
+	membershipUserID  string
+	membershipInput   relaycontract.InviteRoomMemberInput
 	watchCalls        int
 	watchStreamEpoch  string
 	watchUpdate       relaycontract.StreamUpdated
@@ -131,6 +143,65 @@ func (stub *teamRelayStub) CreateRoom(
 	stub.idempotencyKey = idempotencyKey
 	stub.roomInput = input
 	return stub.room, stub.err
+}
+
+func (stub *teamRelayStub) GetRoom(context.Context, string, string) (relaycontract.RoomDetails, error) {
+	return relaycontract.RoomDetails{}, stub.err
+}
+
+func (stub *teamRelayStub) ListInvitations(context.Context, string) (relaycontract.RoomInvitationList, error) {
+	return relaycontract.RoomInvitationList{}, stub.err
+}
+
+func (stub *teamRelayStub) InviteUser(_ context.Context, token, roomID, key string, input relaycontract.InviteRoomMemberInput) (relaycontract.RoomMembershipMutation, error) {
+	stub.membershipCalls++
+	stub.tokens = append(stub.tokens, token)
+	stub.membershipRoomID = roomID
+	stub.membershipUserID = input.UserID
+	stub.membershipInput = input
+	stub.idempotencyKey = key
+	return relaycontract.RoomMembershipMutation{RoomID: roomID, MembershipVersion: input.ExpectedMembershipVersion + 1}, stub.err
+}
+
+func (stub *teamRelayStub) AddAgent(_ context.Context, token, roomID, key string, input relaycontract.AddRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	stub.membershipCalls++
+	stub.tokens = append(stub.tokens, token)
+	stub.membershipRoomID = roomID
+	stub.membershipUserID = input.AgentID
+	stub.idempotencyKey = key
+	return relaycontract.RoomMembershipMutation{RoomID: roomID, MembershipVersion: input.ExpectedMembershipVersion + 1}, stub.err
+}
+
+func (stub *teamRelayStub) RemoveAgent(context.Context, string, string, string, string, relaycontract.RemoveRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) UpdateAgent(context.Context, string, string, string, string, relaycontract.UpdateRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) UpdateRoom(context.Context, string, string, string, relaycontract.UpdateRoomInput) (relaycontract.RoomConfigurationMutation, error) {
+	return relaycontract.RoomConfigurationMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) AcceptInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) RejectInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) RevokeInvitation(context.Context, string, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) UpdateMember(context.Context, string, string, string, string, relaycontract.UpdateRoomMemberInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
+}
+
+func (stub *teamRelayStub) TransferOwnership(context.Context, string, string, string, relaycontract.TransferRoomOwnershipInput) (relaycontract.RoomMembershipMutation, error) {
+	return relaycontract.RoomMembershipMutation{}, stub.err
 }
 
 func (stub *teamRelayStub) PostMessage(
@@ -414,7 +485,7 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 	tokens := &teamTokenStub{token: "relay-token"}
 	router := newTeamTestRouterWithProjector(tokens, relay, projector, teamTestPrincipal())
 	created := teamRequest(
-		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","agent_ids":["agent-1"],"member_user_ids":["user-2"]}`, true,
+		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","member_user_ids":["user-2"],"agent_ids":["agent-1"],"coordinator_agent_id":"agent-1"}`, true,
 	)
 	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
 	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
@@ -422,11 +493,12 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
 		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
 	}
-	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) ||
-		!reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) {
+	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) ||
+		!reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) || relay.roomInput.CoordinatorAgentID != "agent-1" {
 		t.Fatalf("room input = %+v", relay.roomInput)
 	}
-	if tokens.verifyCalls != 1 || !reflect.DeepEqual(tokens.verifiedUserIDs, []string{"user-2"}) {
+	if tokens.verifyCalls != 2 || !reflect.DeepEqual(tokens.verifiedUserIDs, []string{"user-2"}) ||
+		!reflect.DeepEqual(tokens.verifiedAgentIDs, []string{"agent-1"}) {
 		t.Fatalf("organization verification = %+v", tokens)
 	}
 }
@@ -442,6 +514,34 @@ func TestTeamCreateRoomRejectsCrossOrganizationMember(t *testing.T) {
 	if created.Code != http.StatusForbidden || failure.Code != "team.organization_member_required" ||
 		tokens.verifyCalls != 1 || relay.createRoomCalls != 0 {
 		t.Fatalf("status=%d failure=%+v tokens=%+v relay calls=%d", created.Code, failure, tokens, relay.createRoomCalls)
+	}
+}
+
+func TestTeamInviteVerifiesOrganizationBeforeRelay(t *testing.T) {
+	tokens := &teamTokenStub{token: "relay-token"}
+	relay := &teamRelayStub{}
+	recorder := teamRequest(
+		t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost,
+		"/nexus/v1/team/rooms/room-1/invitations",
+		`{"user_id":"user-2","expected_membership_version":3}`, true,
+	)
+	if recorder.Code != http.StatusOK || tokens.verifyCalls != 1 || tokens.calls != 1 ||
+		!reflect.DeepEqual(tokens.verifiedUserIDs, []string{"user-2"}) ||
+		relay.membershipCalls != 1 || relay.membershipRoomID != "room-1" ||
+		relay.membershipUserID != "user-2" || relay.membershipInput.ExpectedMembershipVersion != 3 ||
+		relay.idempotencyKey != "command-1" {
+		t.Fatalf("status=%d tokens=%+v relay=%+v body=%s", recorder.Code, tokens, relay, recorder.Body.String())
+	}
+
+	tokens.verifyErr = authsvc.ErrOrganizationMemberInvalid
+	recorder = teamRequest(
+		t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost,
+		"/nexus/v1/team/rooms/room-1/invitations",
+		`{"user_id":"user-other","expected_membership_version":4}`, true,
+	)
+	failure := decodeTeamFailure(t, recorder)
+	if recorder.Code != http.StatusForbidden || failure.Code != "team.organization_member_required" || relay.membershipCalls != 1 {
+		t.Fatalf("status=%d failure=%+v relay calls=%d", recorder.Code, failure, relay.membershipCalls)
 	}
 }
 
@@ -494,6 +594,7 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 		body string
 	}{
 		{name: "room user", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","user_id":"forged"}`},
+		{name: "room forged agent owner", path: "/nexus/v1/team/rooms", body: `{"name":"研发群","agent_owner_user_id":"forged"}`},
 		{
 			name: "message deployment",
 			path: "/nexus/v1/team/conversations/conversation-1/messages",
@@ -771,6 +872,16 @@ func newTeamTestRouterWithProjector(
 	}
 	router.Get("/nexus/v1/team/rooms", handler.HandleListRooms)
 	router.Post("/nexus/v1/team/rooms", handler.HandleCreateRoom)
+	router.Get("/nexus/v1/team/invitations", handler.HandleListInvitations)
+	router.Get("/nexus/v1/team/rooms/{room_id}", handler.HandleGetRoom)
+	router.Patch("/nexus/v1/team/rooms/{room_id}", handler.HandleUpdateRoom)
+	router.Patch("/nexus/v1/team/rooms/{room_id}/agents/{agent_id}", handler.HandleUpdateAgent)
+	router.Post("/nexus/v1/team/rooms/{room_id}/invitations", handler.HandleInviteMember)
+	router.Post("/nexus/v1/team/rooms/{room_id}/invitations/accept", handler.HandleAcceptInvitation)
+	router.Post("/nexus/v1/team/rooms/{room_id}/invitations/reject", handler.HandleRejectInvitation)
+	router.Delete("/nexus/v1/team/rooms/{room_id}/invitations/{user_id}", handler.HandleRevokeInvitation)
+	router.Patch("/nexus/v1/team/rooms/{room_id}/members/{user_id}", handler.HandleUpdateMember)
+	router.Post("/nexus/v1/team/rooms/{room_id}/transfer", handler.HandleTransferOwnership)
 	router.Post("/nexus/v1/team/conversations/{conversation_id}/messages", handler.HandlePostMessage)
 	router.Get("/nexus/v1/team/conversations/{conversation_id}/snapshot", handler.HandleSnapshot)
 	router.Get("/nexus/v1/team/sync-streams/{stream_id}/difference", handler.HandleDifference)

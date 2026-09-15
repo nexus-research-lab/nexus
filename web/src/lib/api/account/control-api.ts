@@ -30,6 +30,24 @@ export interface ControlMemberDirectoryEntry {
   username: string;
 }
 
+export interface ControlAgent {
+  agent_id: string;
+  owner_user_id: string;
+  source_agent_id: string;
+  name: string;
+  avatar?: string;
+  status: "active" | "revoked";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ControlAgentDirectoryEntry {
+	agent_id: string;
+	owner_user_id: string;
+	name: string;
+	avatar?: string;
+}
+
 export interface SetupControlOwnerParams {
   setupToken: string;
   username: string;
@@ -96,6 +114,24 @@ export async function listControlMemberDirectoryApi(): Promise<ControlMemberDire
   return requestApi<ControlMemberDirectoryEntry[]>(`${CONTROL_AUTH_BASE_URL}/directory/members`, {
     method: "GET",
   });
+}
+
+export async function publishControlAgentApi(
+  sourceAgentID: string,
+  input: { name: string; avatar?: string | null },
+): Promise<ControlAgent> {
+  return requestApi<ControlAgent>(
+    `${CONTROL_AUTH_BASE_URL}/agents/${encodeURIComponent(sourceAgentID)}`,
+    { method: "PUT", body: { name: input.name, avatar: input.avatar ?? "" } },
+  );
+}
+
+export async function listControlAgentsApi(): Promise<ControlAgent[]> {
+	return requestApi<ControlAgent[]>(`${CONTROL_AUTH_BASE_URL}/agents`, { method: "GET" });
+}
+
+export async function listControlAgentDirectoryApi(): Promise<ControlAgentDirectoryEntry[]> {
+	return requestApi<ControlAgentDirectoryEntry[]>(`${CONTROL_AUTH_BASE_URL}/directory/agents`, { method: "GET" });
 }
 
 export async function createControlMemberApi(

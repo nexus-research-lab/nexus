@@ -13,6 +13,7 @@ export interface AuthStatus {
   authenticated: boolean;
   username: string | null;
   user_id?: string | null;
+  control_user_id?: string | null;
   display_name?: string | null;
   role?: string | null;
   avatar?: string | null;
@@ -112,6 +113,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     return {
       ...remoteStatus,
       auth_required: false,
+	  control_user_id: localStatus.control_user_id ?? remoteStatus.user_id,
       setup_enabled: false,
       setup_required: false,
       user_id: localStatus.user_id,

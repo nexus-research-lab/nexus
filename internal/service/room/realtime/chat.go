@@ -608,6 +608,13 @@ func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
 }
 
 func (e *roomChatExecution) routeActiveSlots() (bool, error) {
+	if e.request.requireImmediateStart {
+		_, paused := partitionRoomParticipationTargets(e.contextValue.Members, e.targetAgentIDs)
+		if len(paused) > 0 || len(e.service.findActiveDeliverySlotsByAgent(e.sessionKey, e.conversationID, e.targetAgentIDs)) > 0 {
+			return true, errors.New("持租约任务不能进入忙碌或暂停成员的用户队列")
+		}
+		return false, nil
+	}
 	if e.request.Internal {
 		return false, nil
 	}
@@ -856,6 +863,17 @@ func (e *roomChatExecution) reportUnavailableMembers() error {
 		),
 	)
 	return nil
+}
+
+// HandleAdmittedChat 复用原生启动屏障；宿主确认通过前不会启动任何 Agent slot。
+// admission 只存在 Go 内部调用，不能由 HTTP/WS 请求提供。
+func (s *Service) HandleAdmittedChat(ctx context.Context, request ChatRequest, admission func(context.Context) error) error {
+	if admission == nil {
+		return errors.New("缺少宿主启动确认")
+	}
+	request.continuationStartAdmission = admission
+	request.requireImmediateStart = true
+	return s.HandleChat(ctx, request)
 }
 
 func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) error {

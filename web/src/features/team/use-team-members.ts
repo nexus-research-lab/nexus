@@ -11,6 +11,7 @@ import { useAuth } from "@/shared/auth/auth-context";
 
 export function useTeamMembers(enabled: boolean) {
   const { status } = useAuth();
+  const userId = status?.control_user_id ?? status?.user_id;
   const [members, setMembers] = useState<ControlMemberDirectoryEntry[]>([]);
 
   useEffect(() => {
@@ -20,12 +21,12 @@ export function useTeamMembers(enabled: boolean) {
     }
     let active = true;
     void listControlMemberDirectoryApi().then((items) => {
-      if (active) setMembers(items.filter((item) => item.user_id !== status?.user_id));
+      if (active) setMembers(items.filter((item) => item.user_id !== userId));
     }).catch(() => {
       if (active) setMembers([]);
     });
     return () => { active = false; };
-  }, [enabled, status?.user_id]);
+  }, [enabled, userId, status?.organization_id]);
 
   return members;
 }

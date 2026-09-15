@@ -1,7 +1,8 @@
 # Team 页面
 
 - `team-page.tsx` 只允许已登录 Control 远程账户按 `room_id` 适配 Relay 真人消息模型；本地免登录用户返回本地聊天首页。Header、消息阅读轨道、本人消息和 Composer 外观复用 Room 的共享 UI 原语，加载、同步和发送仍交给 `features/team/use-team-room.ts`。
-- M1 只显示真人最终消息，不渲染远程 Agent 流。
+- 显示真人消息与 Agent 完整 assistant/final 回复，不渲染远程 Agent 流；Header 本机授权入口区分设备登记与尚未接入的执行器。
+- Header 的成员入口读取 Relay Room 管理快照；真人群主和管理员可以邀请、移除，真人群主还可以改角色和移交治理权；Agent 与真人分区显示，每名 active 真人可添加自己的 Agent。
 
 - Enter 发送先排除输入法组合事件（含 keyCode 229）；Shift+Enter 保留换行。空内容、加载前或发送中不得受理提交；失败保留草稿。加载与失败具备 status/alert 语义，加载失败不声明空会话。
 
@@ -14,3 +15,5 @@
 - 已有消息在读取刷新期间继续可见，列表标记 busy；只有没有消息的首次加载才显示整块加载提示。
 
 - 页面实例按 owner generation、用户与路由 room_id 隔离，草稿和未完成发送不能越过会话切换。
+- 成员弹窗的新快照回传 `useTeamRoom.updateDetails`，Agent 目录随成员版本重读；选中的目标失效后仍保留可移除 chip，不降级成普通消息。未确认发送冻结输入与目标选择，仅保留原请求重试。
+- Composer 恢复发件箱的原正文，不能用当前空草稿覆盖未知命令；失去群访问权后禁用输入。Header 使用远端 Room 当前名称和头像，解散/退出完成后重新核对目录。

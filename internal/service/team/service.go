@@ -27,6 +27,18 @@ type Access struct {
 type RelayClient interface {
 	ListRooms(context.Context, string) (relaycontract.RoomList, error)
 	CreateRoom(context.Context, string, string, relaycontract.CreateRoomInput) (relaycontract.RoomView, error)
+	GetRoom(context.Context, string, string) (relaycontract.RoomDetails, error)
+	ListInvitations(context.Context, string) (relaycontract.RoomInvitationList, error)
+	InviteUser(context.Context, string, string, string, relaycontract.InviteRoomMemberInput) (relaycontract.RoomMembershipMutation, error)
+	AddAgent(context.Context, string, string, string, relaycontract.AddRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	RemoveAgent(context.Context, string, string, string, string, relaycontract.RemoveRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateAgent(context.Context, string, string, string, string, relaycontract.UpdateRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateRoom(context.Context, string, string, string, relaycontract.UpdateRoomInput) (relaycontract.RoomConfigurationMutation, error)
+	AcceptInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	RejectInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	RevokeInvitation(context.Context, string, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateMember(context.Context, string, string, string, string, relaycontract.UpdateRoomMemberInput) (relaycontract.RoomMembershipMutation, error)
+	TransferOwnership(context.Context, string, string, string, relaycontract.TransferRoomOwnershipInput) (relaycontract.RoomMembershipMutation, error)
 	PostMessage(
 		context.Context,
 		string,
@@ -46,6 +58,26 @@ type RelayClient interface {
 		string,
 		relaycontract.DifferenceOptions,
 	) (relaycontract.Difference, error)
+}
+
+// AddAgent 将当前真人拥有的在线 Agent 加入 Room。
+func (s *Service) AddAgent(ctx context.Context, access Access, roomID, key string, input relaycontract.AddRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return s.relay.AddAgent(ctx, access.Token, roomID, key, input)
+}
+
+// RemoveAgent 将 Agent 成员移出 Room。
+func (s *Service) RemoveAgent(ctx context.Context, access Access, roomID, agentID, key string, input relaycontract.RemoveRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return s.relay.RemoveAgent(ctx, access.Token, roomID, agentID, key, input)
+}
+
+// UpdateAgent 暂停或恢复当前真人拥有的在线 Agent。
+func (s *Service) UpdateAgent(ctx context.Context, access Access, roomID, agentID, key string, input relaycontract.UpdateRoomAgentInput) (relaycontract.RoomMembershipMutation, error) {
+	return s.relay.UpdateAgent(ctx, access.Token, roomID, agentID, key, input)
+}
+
+// UpdateRoom 转发当前在线 Room 的资料、主持与解散命令。
+func (s *Service) UpdateRoom(ctx context.Context, access Access, roomID, key string, input relaycontract.UpdateRoomInput) (relaycontract.RoomConfigurationMutation, error) {
+	return s.relay.UpdateRoom(ctx, access.Token, roomID, key, input)
 }
 
 // Projector 负责将远端权威结果写入本地读模型。

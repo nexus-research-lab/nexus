@@ -197,6 +197,85 @@ func TestClientMatchesRelayM1HTTPContract(t *testing.T) {
 	}
 }
 
+func TestClientMatchesRoomMembershipHTTPContract(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		call   func(context.Context, *Client) error
+	}{
+		{name: "get room", method: http.MethodGet, path: "/api/relay/v1/rooms/room-1", call: func(ctx context.Context, client *Client) error {
+			_, err := client.GetRoom(ctx, "token", "room-1")
+			return err
+		}},
+		{name: "list invitations", method: http.MethodGet, path: "/api/relay/v1/invitations", call: func(ctx context.Context, client *Client) error {
+			_, err := client.ListInvitations(ctx, "token")
+			return err
+		}},
+		{name: "invite", method: http.MethodPost, path: "/api/relay/v1/rooms/room-1/invitations", call: func(ctx context.Context, client *Client) error {
+			_, err := client.InviteUser(ctx, "token", "room-1", "command-1", relaycontract.InviteRoomMemberInput{UserID: "user-2", ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "accept", method: http.MethodPost, path: "/api/relay/v1/rooms/room-1/invitations/accept", call: func(ctx context.Context, client *Client) error {
+			_, err := client.AcceptInvitation(ctx, "token", "room-1", "command-1", relaycontract.ResolveRoomInvitationInput{ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "reject", method: http.MethodPost, path: "/api/relay/v1/rooms/room-1/invitations/reject", call: func(ctx context.Context, client *Client) error {
+			_, err := client.RejectInvitation(ctx, "token", "room-1", "command-1", relaycontract.ResolveRoomInvitationInput{ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "revoke", method: http.MethodDelete, path: "/api/relay/v1/rooms/room-1/invitations/user-2", call: func(ctx context.Context, client *Client) error {
+			_, err := client.RevokeInvitation(ctx, "token", "room-1", "user-2", "command-1", relaycontract.ResolveRoomInvitationInput{ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "update", method: http.MethodPatch, path: "/api/relay/v1/rooms/room-1/members/user-2", call: func(ctx context.Context, client *Client) error {
+			_, err := client.UpdateMember(ctx, "token", "room-1", "user-2", "command-1", relaycontract.UpdateRoomMemberInput{Role: "admin", ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "update room", method: http.MethodPatch, path: "/api/relay/v1/rooms/room-1", call: func(ctx context.Context, client *Client) error {
+			_, err := client.UpdateRoom(ctx, "token", "room-1", "command-1", relaycontract.UpdateRoomInput{CoordinatorAgentID: new("agent-1"), ExpectedConfigurationVersion: 1})
+			return err
+		}},
+		{name: "pause agent", method: http.MethodPatch, path: "/api/relay/v1/rooms/room-1/agents/agent-1", call: func(ctx context.Context, client *Client) error {
+			_, err := client.UpdateAgent(ctx, "token", "room-1", "agent-1", "command-1", relaycontract.UpdateRoomAgentInput{Paused: true, ExpectedMembershipVersion: 1})
+			return err
+		}},
+		{name: "transfer", method: http.MethodPost, path: "/api/relay/v1/rooms/room-1/transfer", call: func(ctx context.Context, client *Client) error {
+			_, err := client.TransferOwnership(ctx, "token", "room-1", "command-1", relaycontract.TransferRoomOwnershipInput{NewOwnerUserID: "user-2", ExpectedMembershipVersion: 1})
+			return err
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				if request.Method != test.method || request.URL.Path != test.path || request.Header.Get("Authorization") != "Bearer token" {
+					t.Errorf("request = %s %s auth=%q", request.Method, request.URL.Path, request.Header.Get("Authorization"))
+				}
+				if test.method != http.MethodGet && request.Header.Get("Idempotency-Key") != "command-1" {
+					t.Errorf("Idempotency-Key = %q", request.Header.Get("Idempotency-Key"))
+				}
+				if test.name == "get room" {
+					writeRelayTestData(t, writer, http.StatusOK, relaycontract.RoomDetails{RoomView: relaycontract.RoomView{Conversation: relaycontract.Conversation{StreamEpoch: "epoch-1"}}})
+					return
+				}
+				if test.name == "list invitations" {
+					writeRelayTestData(t, writer, http.StatusOK, relaycontract.RoomInvitationList{})
+					return
+				}
+				writeRelayTestData(t, writer, http.StatusOK, relaycontract.RoomMembershipMutation{RoomID: "room-1", MembershipVersion: 2})
+			}))
+			t.Cleanup(server.Close)
+			client, err := NewClient(server.URL, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = test.call(context.Background(), client); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestClientReturnsRelayErrorEnvelope(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusConflict)

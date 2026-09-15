@@ -4,8 +4,10 @@
 //
 // 成员清单：
 //   - handlers.go：同源校验、Control 短令牌交换、Team service 调用、WSS 转发、stream 换代提示与稳定失败映射；提交和投影顺序归 service/team。
+//   - membership.go：Room 管理快照、真人邀请、角色、移除与群主移交入口。
+//   - node.go：独立 /team-node 本机授权入口，要求远程 Cookie 与同源变更；不进入 Desktop 的 /team 代理。
 //
-// 暴露接口：Handlers、New，以及 Room 创建/列表、message、snapshot、difference、stream handlers。
+// 暴露接口：Handlers、New，以及 Room 创建/列表/成员治理、message、snapshot、difference、stream handlers。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package team

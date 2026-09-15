@@ -113,10 +113,11 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     setHostAutoReplyEnabled: (enabled: boolean) =>
       update("hostAutoReplyEnabled", enabled),
     setMemberQuery: (query: string) => update("memberQuery", query),
-    setLocation: (location: RoomDialogFormState["location"]) => dispatch((current) => ({
+	setLocation: (location: RoomDialogFormState["location"]) => dispatch((current) => ({
       ...current,
       location,
       memberQuery: "",
+		...(location === "local" ? { selectedUserIds: [] } : {}),
     })),
     setName: (name: string) => update("name", name),
     setPrivateMessagesEnabled: (enabled: boolean) =>
@@ -191,7 +192,7 @@ function buildRoomDialogSubmission(
   state: RoomDialogFormState,
 ): RoomDialogSubmission {
   return {
-    agentIds: state.selectedAgentIds,
+		agentIds: state.selectedAgentIds,
     avatar: state.avatar || undefined,
     hostAgentId: state.hostAgentId || null,
     hostAutoReplyEnabled:

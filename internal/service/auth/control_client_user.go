@@ -19,6 +19,9 @@ const relayUserPrincipalAudience = "nexus-relay-user"
 // ErrOrganizationMemberInvalid 表示建群目标不属于当前 Organization。
 var ErrOrganizationMemberInvalid = errors.New("目标用户不属于当前组织")
 
+// ErrAgentOwnerInvalid 表示 Agent 不属于当前真人或当前组织。
+var ErrAgentOwnerInvalid = errors.New("目标 Agent 不属于当前真人")
+
 // ExchangeRelayUserToken 用当前已验证的 Control 远程 Session 换取 Relay 短令牌。
 // audience 固定在 Nexus 内部，调用方不能改写 Relay 令牌用途。
 func (a *ControlAuthority) ExchangeRelayUserToken(
@@ -65,6 +68,22 @@ func (a *ControlAuthority) VerifyOrganizationMembers(
 	var remote *controlRemoteError
 	if errors.As(err, &remote) && remote.Code == "operation_forbidden" {
 		return ErrOrganizationMemberInvalid
+	}
+	return mapControlError(err)
+}
+
+// VerifyOwnedAgents 让 Control 裁决一组在线 Agent 的组织与真人归属。
+func (a *ControlAuthority) VerifyOwnedAgents(ctx context.Context, principal *Principal, agentIDs []string) error {
+	if !IsRelayUserPrincipal(principal) {
+		return errors.New("Agent 归属校验必须来自已验证的 Control 远程 Session")
+	}
+	err := a.call(ctx, http.MethodPost, "/internal/agents/verify", map[string]any{
+		"deployment_id": principal.DeploymentID, "organization_id": principal.OrganizationID,
+		"owner_user_id": principal.ControlUserID, "agent_ids": agentIDs,
+	}, nil)
+	var remote *controlRemoteError
+	if errors.As(err, &remote) && remote.Code == "operation_forbidden" {
+		return ErrAgentOwnerInvalid
 	}
 	return mapControlError(err)
 }

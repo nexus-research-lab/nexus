@@ -44,6 +44,10 @@ func (s *Service) createRoom(
 	request protocol.CreateRoomRequest,
 	roomType string,
 ) (*protocol.ConversationContextAggregate, error) {
+	return s.createRoomWithIDs(ctx, request, roomType, roomdomain.NewEntityID(), roomdomain.NewEntityID())
+}
+
+func (s *Service) createRoomWithIDs(ctx context.Context, request protocol.CreateRoomRequest, roomType, roomID, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	ownerUserID := authctx.OwnerUserID(ctx)
 	normalizedRoomType, err := s.normalizeRoomType(roomType)
 	if err != nil {
@@ -65,7 +69,6 @@ func (s *Service) createRoom(
 	if err != nil {
 		return nil, err
 	}
-	roomID := roomdomain.NewEntityID()
 	roomName := roomdomain.NormalizeOptionalText(request.Name)
 	if roomName == "" {
 		roomName = roomdomain.BuildRoomName(agentRefs, normalizedRoomType)
@@ -75,7 +78,6 @@ func (s *Service) createRoom(
 		conversationTitle = roomName
 	}
 
-	conversationID := roomdomain.NewEntityID()
 	skillNames, err := s.normalizeRoomSkillNames(ctx, request.SkillNames)
 	if err != nil {
 		return nil, err
