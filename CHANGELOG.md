@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
+
 - Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
 - Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
 
