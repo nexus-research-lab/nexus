@@ -3,6 +3,7 @@
 // POS: 运营内容装配，不持有本地页签状态或额外导航壳层。
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import type { ReactNode } from "react";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -34,7 +35,7 @@ export function OperationsPanel({ section }: { section: OperationsSectionKey }) 
           title={t(getSettingsSectionLabelKey(section))}
         />
       ) : null}
-      {CONTENT[section]()}
+      {ownsHeader ? CONTENT[section]() : <div className={SETTINGS_CONTENT_BODY_CLASS_NAME}>{CONTENT[section]()}</div>}
     </div>
   );
 }

@@ -43,7 +43,7 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   const canViewOperations =
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
-    <div ref={contentRef}>
+    <div className="w-full min-w-0" ref={contentRef}>
       <SettingsSectionContent
         canViewOperations={canViewOperations && (activeSection !== "operations-projects" || projectPermissionsEnabled)}
         section={activeSection}

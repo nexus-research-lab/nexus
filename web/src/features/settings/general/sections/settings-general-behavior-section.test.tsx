@@ -35,7 +35,7 @@ function preferences(): Props {
     defaultModelCatalogFailed: false, defaultModelOptions: [], defaultModelSavingRole: null, defaultModelValue: "",
     onAgentSdkDiagnosticsChange: vi.fn(), onAutoMemoryEnabledChange: vi.fn(), onAutoDreamEnabledChange: vi.fn(),
     onEmotionEnabledChange: vi.fn(), onEchoEnabledChange: vi.fn(), onDefaultDeliveryPolicyChange: vi.fn(),
-    onDefaultModelChange: vi.fn(), onRetryDefaultModelCatalog: vi.fn(), onResetTours: vi.fn(),
+    onDefaultModelChange: vi.fn(), onRetryDefaultModelCatalog: vi.fn(),
     preferencesLoading: false, preferencesSaving: false, preferencesFeedback: null, providerOptionsLoading: false,
     preferencesRecovery: { canCompare: false, canRepairProjection: false, checking: false,
       checkLatest: vi.fn(), reapplyDraft: vi.fn(), repairProjection: vi.fn(), repairing: false },
@@ -51,13 +51,14 @@ function view(children: ReactNode, locale: "zh" | "en" = "zh") {
 }
 
 describe("General setting switches", () => {
-  it("uses one visible delivery group and preserves exact preference selection and saving locks", async () => {
+  it("uses one accessible delivery group without a repeated visible title and preserves exact preference selection and saving locks", async () => {
     const user = userEvent.setup();
     const props = preferences();
     const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
     const group = screen.getByRole("group", { name: "默认消息行为" });
-    expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.textContent).toBe("默认消息行为");
-    expect(screen.getAllByText("默认消息行为")).toHaveLength(1);
+    expect(group.getAttribute("aria-label")).toBe("默认消息行为");
+    expect(screen.queryByText("默认消息行为")).toBeNull();
+    expect(screen.queryByText("服务 / 模型")).toBeNull();
     await user.click(within(group).getByRole("button", { name: "打断" }));
     expect(props.onDefaultDeliveryPolicyChange).toHaveBeenCalledExactlyOnceWith("interrupt");
     expect(props.onEchoEnabledChange).not.toHaveBeenCalled();

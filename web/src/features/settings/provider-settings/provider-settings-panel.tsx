@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { useState } from "react";
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
@@ -51,15 +52,12 @@ export function ProviderSettingsPanel({
       {layout === "page" ? (
         <WorkspaceContentHeader
           className="max-sm:hidden"
-          description={t(visibilityScope === "public"
-            ? "settings.providers.public_section_description"
-            : "settings.providers.section_description")}
           title={t(visibilityScope === "public"
             ? "operations.tabs.subscription_providers"
             : "settings.providers.section_title")}
         />
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-visible @min-[720px]/provider:flex-row @min-[720px]/provider:items-stretch @min-[720px]/provider:gap-5 @min-[720px]/provider:overflow-hidden">
+      <div className={cn(SETTINGS_CONTENT_BODY_CLASS_NAME, "flex min-h-0 flex-1 flex-col gap-3 overflow-visible @min-[720px]/provider:flex-row @min-[720px]/provider:items-stretch @min-[720px]/provider:gap-5 @min-[720px]/provider:overflow-hidden")}>
         <ProviderSettingsSidebar
           configuredByPreset={state.configuredByPreset}
           customProviders={state.customProviders}

@@ -362,7 +362,7 @@ function ProviderModelListBody({
   const { t } = useI18n();
   if (!selectedRecord || displayedModels.length === 0) {
     return (
-      <div className={cn("flex min-h-28 items-center justify-center", getUiTypographyClassName({ role: "supporting", tone: "soft" }))}>
+      <div className={cn("flex min-h-20 items-center justify-center", getUiTypographyClassName({ role: "supporting", tone: "soft" }))}>
         {selectedRecord
           ? t("settings.providers.models_empty")
           : t("settings.providers.models_after_save")}
@@ -406,7 +406,7 @@ export function ProviderSettingsModelList({
   const { t } = useI18n();
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 pt-1">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 border-t border-(--divider-subtle-color) pt-4">
       <ProviderModelListHeader
         hasModelsEndpoint={hasModelsEndpoint}
         isApiFormatConfigurable={isApiFormatConfigurable}
@@ -419,16 +419,16 @@ export function ProviderSettingsModelList({
         selectedRecord={selectedRecord}
       />
 
-      <UiSearchInput
+      {modelQuery || (selectedRecord?.models.length ?? 0) > 0 ? <UiSearchInput
         className="w-full"
         controlSize="md"
         onChange={onModelQueryChange}
         placeholder={t("settings.providers.search_models")}
         value={modelQuery}
         variant="dialog"
-      />
+      /> : null}
 
-      <div className="soft-scrollbar surface-radius-md min-h-0 flex-1 overflow-y-auto border border-(--divider-subtle-color)">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
         <ProviderModelListBody
           displayedModels={displayedModels}
           onDefaultModelDisableAttempt={onDefaultModelDisableAttempt}

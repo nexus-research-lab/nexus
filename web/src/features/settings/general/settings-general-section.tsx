@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -24,26 +25,11 @@ type GeneralSettingsSectionKey =
   | "workspace"
   | "permissions";
 
-const SETTINGS_SECTION_COPY: Record<
-  GeneralSettingsSectionKey,
-  { description: TranslationKey; title: TranslationKey }
-> = {
-  appearance: {
-    description: "settings.general.section_appearance_description",
-    title: "settings.general.section_appearance",
-  },
-  general: {
-    description: "settings.general.section_general_description",
-    title: "settings.general.section_general",
-  },
-  permissions: {
-    description: "settings.general.section_permissions_description",
-    title: "settings.general.section_permissions",
-  },
-  workspace: {
-    description: "settings.general.section_workspace_description",
-    title: "settings.general.section_workspace",
-  },
+const SETTINGS_SECTION_TITLES: Record<GeneralSettingsSectionKey, TranslationKey> = {
+  appearance: "settings.general.section_appearance",
+  general: "settings.general.section_general",
+  permissions: "settings.general.section_permissions",
+  workspace: "settings.general.section_workspace",
 };
 
 export function SettingsGeneralSection({
@@ -52,7 +38,6 @@ export function SettingsGeneralSection({
   section: GeneralSettingsSectionKey;
 }) {
   const { t } = useI18n();
-  const copy = SETTINGS_SECTION_COPY[section];
 
   return (
     <div
@@ -63,10 +48,9 @@ export function SettingsGeneralSection({
     >
       <WorkspaceContentHeader
         className="max-sm:hidden"
-        description={t(copy.description)}
-        title={t(copy.title)}
+        title={t(SETTINGS_SECTION_TITLES[section])}
       />
-      <div className="flex flex-col gap-5">
+      <div className={cn(SETTINGS_CONTENT_BODY_CLASS_NAME, "flex flex-col gap-5")}>
         {section === "general" ? (
           <>
             <SettingsDesktopSection />
