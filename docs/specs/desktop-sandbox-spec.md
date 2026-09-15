@@ -2,7 +2,9 @@
 
 This document describes implemented host wiring, not acceptance of the full App
 sandbox. Remaining design and delivery work is tracked in
-[the exploration](../explorations/desktop-sandbox/README.md).
+[the development plan](../explorations/desktop-sandbox/development-plan.md);
+the [documentation index](../explorations/desktop-sandbox/README.md) separates
+the current contract, dated assessment, acceptance evidence and historical experiments.
 
 ## Activation and scope
 
@@ -70,10 +72,14 @@ approval explanation includes this directory, and automatic-review human fallbac
 preserves that explanation. This captures session state; it is not an inode lease
 against arbitrary filesystem renames.
 
-This policy currently confines shell execution. It does not establish an OS boundary
-around every in-process file tool, MCP server, Connector or the desktop UI. Those
-tools retain their existing authorization; complete App sandbox coverage remains
-unfinished. The feature must not be represented as fully accepted App isolation.
+The host's required_sandbox_v1 negotiation establishes the mandatory command
+policy; it does not independently negotiate native file-tool coverage. Newer SDK
+implementations also route file operations through a restricted helper, but that
+coverage depends on the configured nxs binary and is not implied by this handshake.
+The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
+records the verified SDK baseline and its remaining IO paths. MCP servers,
+Connectors and the desktop UI retain their separate authorization. The feature
+must not be represented as fully accepted App isolation.
 
 ## Approval modes and runtime replacement
 
@@ -117,10 +123,9 @@ when selecting nxs. Responses keep `available` independent and optionally includ
 sandboxing is enabled or tested for the active task. Failures remain unknown and
 do not change preferences, approval mode, or execution policy.
 
-The module pin is `v0.1.34-0.20260915041117-3da56a2e0534`. The exact local
-Bridge commit was packaged with Go's module zip implementation; its checksum is
-recorded in `go.sum`. Offline tests and the macOS server build pass with
-`GOWORK=off`, using that module rather than a workspace replacement. The commit
-has not been pushed or published: fresh machines need the corresponding local
-module source until publication is authorized. Packaged UI acceptance remains
-outstanding.
+The Bridge module version and checksum are owned by `go.mod` and `go.sum`.
+Dependency publication, the configured nxs binary, and packaged application
+acceptance are separate delivery facts, recorded in the
+[assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
+and [acceptance matrix](../testing/desktop-sandbox-acceptance.md). Dependency
+availability must not be inferred from a successful local workspace build.

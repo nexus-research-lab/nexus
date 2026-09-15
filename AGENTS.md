@@ -5,6 +5,7 @@
 - `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
+- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败；原生 macOS 完整入口见 docs/testing/desktop-sandbox-acceptance.md
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
 - `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
@@ -45,7 +46,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；server 只负责 HTTP/WS 与后台启停，goal / execution / workgraph / runtime 承载宿主适配；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
   mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；mcp/artifact 通过 deliver_files 登记 Skill/脚本等最终文件交付，由 workspace 服务校验后随产出 Agent 的精确轮次消息持久化；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
-docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单，specs/ 保存当前维护者合同，architecture-html/ 保存可独立打开的图解页面
+docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单与证据，specs/ 保存当前维护者合同，explorations/ 保存明确标记 non-normative 的在研专题及历史证据，architecture-html/ 保存可独立打开的图解页面
 </directory>
 ```
 
