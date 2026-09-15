@@ -28,6 +28,7 @@ import {
 } from "./create-room-dialog-model";
 import type { CreateRoomDialogProps } from "./create-room-dialog-types";
 import { RoomMemberSelector } from "./room-member-selector";
+import { RoomDialogColumns } from "./room-dialog-layout";
 import { RoomSettingsForm } from "./room-settings-form";
 import { RoomSkillsSelector } from "./skills/room-skills-selector";
 import { useRoomSkillOptions } from "./skills/use-room-skill-options";
@@ -138,8 +139,7 @@ function CreateRoomDialogContent({
           />
 
           <UiDialogBody className="flex min-h-0 flex-1 flex-col gap-5 px-5" scrollable>
-            <div className="grid min-h-0 grid-cols-[minmax(280px,0.9fr)_minmax(0,1.1fr)] gap-5 max-md:grid-cols-1">
-              <div className="flex min-w-0 flex-col gap-5">
+            <RoomDialogColumns settings={<>
                 {mode === "create" && onlineAvailable ? (
                   <UiSegmentedControl
                     density="compact"
@@ -180,8 +180,7 @@ function CreateRoomDialogContent({
                   query={form.state.skillQuery}
                   value={form.state.selectedSkillNames}
                 />
-              </div>
-              <div className="min-w-0 border-l divider-subtle pl-5 max-md:border-l-0 max-md:border-t max-md:pl-0 max-md:pt-4">
+              </>}>
                 <RoomMemberSelector
                   agents={form.filteredAgents}
                   disabled={pending}
@@ -198,8 +197,7 @@ function CreateRoomDialogContent({
                   separateUsers={form.state.location === "online"}
                   users={form.state.location === "online" ? form.filteredUsers : []}
                 />
-              </div>
-            </div>
+            </RoomDialogColumns>
           </UiDialogBody>
 
           {submitFailed ? (

@@ -17,3 +17,5 @@
 - 页面实例按 owner generation、用户与路由 room_id 隔离，草稿和未完成发送不能越过会话切换。
 - 成员弹窗的新快照回传 `useTeamRoom.updateDetails`，Agent 目录随成员版本重读；选中的目标失效后仍保留可移除 chip，不降级成普通消息。未确认发送冻结输入与目标选择，仅保留原请求重试。
 - Composer 恢复发件箱的原正文，不能用当前空草稿覆盖未知命令；失去群访问权后禁用输入。Header 使用远端 Room 当前名称和头像，解散/退出完成后重新核对目录。
+
+- 顶栏复用 Room 的 WorkspaceConversationTabs 与 GroupMemberAvatarStack：在线唯一会话不提供关闭、新建、固定或本地工作区命令；成员摘要仅计 active 真人和 Agent，目录只补名称与头像。本机授权作为同规格轻量动作，窄屏保留具名图标。

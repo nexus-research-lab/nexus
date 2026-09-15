@@ -12,7 +12,7 @@
 - `team-message-outbox.ts` 发送前写浏览器持久存储，按组织/Control 用户/会话隔离，每条命令独立 key 防止窗口覆盖；保存失败不发送。重新打开只恢复未确认意图，本人 snapshot/difference 的精确 `client_message_id` 才可清除；不自动发送、不自动丢弃损坏记录。
 - `team-command-outcome.ts` 区分本次未执行与先前未知提交：网关/身份拒绝不能释放先前未知命令，只有精确回执查询后的领域拒绝才能解除重试锁。
 - Room 目录也使用统一可见刷新；接受或接管响应丢失时同步刷新已加入目录。403/404 撤权读取清除旧 Room、消息和 WSS。组织管理员的 `recovery_rooms` 仅为待接管元数据，确认接管后才成为成员。
-- 群管理弹窗复用 Room 头像选择器和共享表单，支持名称/头像修改、清除主持、非群主退出与群主解散；危险操作先确认，幂等版本继续由资源层持有。
+- 群管理弹窗复用 Room 的 `RoomDialogColumns`、`RoomIdentityFields`、`RoomMemberDirectory`，左侧管理名称、头像和主持，右侧以人员/Agent 页签、搜索和紧凑行管理成员，切换保持目录高度。候选项直接在行尾邀请或添加；成员角色不重复显示，单一操作直接显示图标。退出、解散与移交保留确认，幂等版本继续由资源层持有，不能为重置 UI 草稿而卸载未确认命令。目录失败显示恢复入口并阻止未知 Agent 目录下添加。
 - `team-stream-event.ts` 只校验当前 stream/epoch 的水位提示与显式换代事件。
 - Room 可见刷新同时使用详情中的持久消息水位驱动 difference，恢复遗漏推送或失败补拉；epoch 改变才重建快照，不重发消息。
 - Relay 是共享消息权威源；浏览器只访问同源 Nexus gateway，不接触 Control 或 Relay token。

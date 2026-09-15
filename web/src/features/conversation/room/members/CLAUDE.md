@@ -2,6 +2,8 @@
 
 ## 职责边界
 
+- `room-dialog-layout.tsx` 提供本地与在线群管理共用的双栏、头像名称表单和固定高度成员目录；只组合视图，不持有权限、草稿或提交事务。
+
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口，消费已经完整化的具体参数。
 - `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 共用 `use-room-member-manager.ts` 的单飞目录准备与临时打开态。
 - `use-room-member-manager.ts` 只持有成员入口生命周期，不写成员或取消/重放目录请求；Room/owner 或挂载代次改变使迟到打开失效。它保留标题/目录刷新和同 Room 会话选择，辅助读取失败继续使用已有成员。

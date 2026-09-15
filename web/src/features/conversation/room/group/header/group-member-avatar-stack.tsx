@@ -14,7 +14,7 @@ import { getAgentDisplayName } from "@/lib/agent-display-name";
 interface GroupMemberAvatarStackProps {
   disabled?: boolean;
   isLoading?: boolean;
-  members: Agent[];
+  members: Pick<Agent, "agent_id" | "name" | "avatar">[];
   onClick: () => void;
   tourAnchor?: string;
 }

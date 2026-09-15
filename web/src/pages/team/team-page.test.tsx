@@ -17,6 +17,7 @@ vi.mock("@/features/home/home-directory-resource", () => ({ useHomeDirectory: ()
 vi.mock("@/lib/api/account/control-api", () => ({ listControlAgentDirectoryApi: model.agents }));
 let room: ReturnType<typeof useTeamRoom>;
 beforeEach(() => {
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, value: vi.fn() });
   model.agents.mockImplementation(() => new Promise(() => undefined));
   room = {pendingText: null, room: {
     room: {id: "room", organization_id: "organization", team_id: "team", name: "General", description: "", avatar: "", host_auto_reply_enabled: false, private_messages_enabled: false, skill_names: [], configuration_version: 1, membership_version: 1, created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z"},

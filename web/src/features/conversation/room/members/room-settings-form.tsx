@@ -7,14 +7,13 @@ import { Crown } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
-import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
 import type {
   RoomDialogFormState,
   RoomMemberAgentOption,
 } from "./create-room-dialog-types";
-import { RoomAvatarPicker } from "./room-avatar-picker";
+import { RoomIdentityFields } from "./room-dialog-layout";
 
 interface RoomSettingsFormProps {
   avatarFallbackTitle: string;
@@ -52,34 +51,8 @@ export function RoomSettingsForm({
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-4">
       <p className="dialog-label">{t("room.settings_title")}</p>
-      <div className="flex items-start gap-3">
-        <RoomAvatarPicker
-          avatar={state.avatar}
-          disabled={isCreating}
-          fallbackTitle={avatarFallbackTitle}
-          name={state.name}
-          onChange={setters.setAvatar}
-        />
-        <label className="min-w-0 flex-1 space-y-1.5">
-          <span className="dialog-label">{t("room.name")}</span>
-          <UiInput
-            aria-label={t("room.name")}
-            className="min-w-0"
-            data-autofocus="true"
-            disabled={isCreating}
-            maxLength={64}
-            onChange={(event) => setters.setName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229 && canSubmit) {
-                onSubmit();
-              }
-            }}
-            placeholder={t("room.name_required_placeholder")}
-            required
-            value={state.name}
-          />
-        </label>
-      </div>
+      <RoomIdentityFields avatar={state.avatar} name={state.name} disabled={isCreating} fallbackTitle={avatarFallbackTitle}
+        onAvatarChange={setters.setAvatar} onNameChange={setters.setName} onSubmit={canSubmit ? onSubmit : undefined} />
       <div className="flex flex-col gap-2 border-t divider-subtle pt-3">
         <div className="flex items-center gap-2">
           <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">

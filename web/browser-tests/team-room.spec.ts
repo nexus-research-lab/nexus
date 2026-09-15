@@ -13,6 +13,8 @@ test("online room settings and dissolution use the real dialog and revoke the co
   const details = {room, current_user_role: "owner", conversation: {id: "online-conversation", room_id: room.id, type: "room", high_water_message_seq: 0,
     last_activity_at: null, sync_stream_id: "online-stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
     members: [{room_id: room.id, member_type: "user", member_id: "ui-fixture", role: "owner", state: "active", invited_by_user_id: "ui-fixture", joined_at: now, created_at: now, updated_at: now}]};
+  details.members.push({room_id: room.id, member_type: "agent", member_id: "agent", role: "member", state: "active", invited_by_user_id: "ui-fixture", joined_at: now, created_at: now, updated_at: now});
+  details.members.push({...details.members[0], member_id: "teammate", role: "member"});
   let dissolved = false;
   let nodeState = "disconnected";
   let executionEnabled = false;
@@ -42,7 +44,8 @@ test("online room settings and dissolution use the real dialog and revoke the co
     if (path === "/nexus/v1/team/invitations") return route.fulfill({json: {data: {invitations: [], recovery_rooms: []}}});
     if (path.endsWith("/difference")) return route.fulfill({json: {data: {next_seq: 2, high_water_seq: 2, events: [{message: {id: "missed-message", conversation_id: "online-conversation", message_seq: 2, author_type: "user", author_user_id: "other", author_display_name: "Other member", author_username: "other", client_message_id: "missed", content: {version: 1, blocks: [{type: "markdown", text: "Message without a push notification"}]}, created_at: now}}]}}});
     if (path === "/auth/v1/directory/agents") return route.fulfill({json: {data: [{agent_id: "agent", name: "Research Agent", owner_user_id: "ui-fixture"}]}});
-    if (["/auth/v1/agents", "/auth/v1/directory/members"].includes(path)) return route.fulfill({json: {data: []}});
+    if (path === "/auth/v1/directory/members") return route.fulfill({json: {data: [{user_id: "teammate", username: "teammate", display_name: "Teammate"}]}});
+    if (path === "/auth/v1/agents") return route.fulfill({json: {data: []}});
     if (path === `/nexus/v1/team/rooms/${room.id}`) {
       if (request.method() === "PATCH") {
         const input = request.postDataJSON(); writes.push(input);
@@ -72,6 +75,11 @@ test("online room settings and dissolution use the real dialog and revoke the co
   details.conversation.high_water_sync_event_seq = 2;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(page.getByText("Message without a push notification", {exact: true})).toBeVisible();
+  const header = page.locator(".workspace-surface-header").filter({has: page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true})});
+  expect(await header.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  await expect(header.locator("nav")).toBeVisible();
+  await expect(header.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true})).toBeVisible();
+  await header.screenshot({path: info.outputPath("online-room-header.png")});
   await page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true}).click();
   const node = page.getByRole("dialog", {name: text("本机授权", "Host authorization"), exact: true});
   await expect(node).toBeVisible();
@@ -88,14 +96,29 @@ test("online room settings and dissolution use the real dialog and revoke the co
   await expect(node.getByText(text("设备授权已撤销", "Host authorization revoked"), {exact: true})).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(node).toHaveCount(0);
-  await page.getByRole("button", {name: text("成员", "Members"), exact: true}).click();
-  const dialog = page.getByRole("dialog", {name: text("群成员", "Room members"), exact: true});
+  await page.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true}).click();
+  const dialog = page.getByRole("dialog", {name: text("群聊设置", "Group chat settings"), exact: true});
   await expect(dialog).toBeVisible();
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await dialog.getByRole("textbox", {name: text("群聊名称", "Room name")}).fill("Renamed online room");
+  const initialHeight = await dialog.evaluate((element) => element.getBoundingClientRect().height);
+  await dialog.getByRole("button", {name: text("Agent (1)", "Agents (1)"), exact: true}).click();
+  await expect(dialog.locator("[data-room-member-selection-list]").getByText("Research Agent", {exact: true})).toBeVisible();
+  expect(await dialog.evaluate((element) => element.getBoundingClientRect().height)).toBe(initialHeight);
+  await dialog.getByRole("button", {name: text("人员 (2)", "People (2)"), exact: true}).click();
+  await expect(dialog.getByRole("button", {name: text("设置 Teammate 的角色", "Set role for Teammate")})).toBeVisible();
+  await dialog.getByRole("button", {name: text("更多操作: Teammate", "More actions: Teammate")}).click();
+  await page.getByRole("menuitem", {name: text("移交群主", "Transfer ownership"), exact: true}).click();
+  const transfer = page.getByRole("dialog", {name: text("移交群主", "Transfer ownership"), exact: true});
+  await expect(transfer).toBeVisible();
+  expect(writes).toHaveLength(0);
+  await transfer.getByRole("button", {name: text("取消", "Cancel"), exact: true}).click();
+  await dialog.getByRole("textbox", {name: text("名称", "Name")}).focus();
+  await dialog.screenshot({path: info.outputPath("room-settings.png")});
+  await dialog.getByRole("textbox", {name: text("名称", "Name")}).fill("Renamed online room");
   await dialog.getByRole("button", {name: text("保存", "Save"), exact: true}).click();
   await expect.poll(() => room.name).toBe("Renamed online room");
-  await dialog.getByRole("button", {name: text("取消主持 Agent", "Clear coordinator")}).click();
+  await dialog.getByRole("button", {name: text("主持 Agent", "Coordinator Agent"), exact: true}).click();
+  await page.getByRole("option", {name: text("未设置", "Not set"), exact: true}).click();
   await expect.poll(() => room.coordinator_agent_id).toBe("");
   await dialog.getByRole("button", {name: text("解散群聊", "Dissolve room"), exact: true}).click();
   expect(dissolved).toBe(false);
