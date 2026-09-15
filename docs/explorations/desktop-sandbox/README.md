@@ -1281,3 +1281,36 @@ state contract extension, protected installation, identity separation, approval 
 no-replay requirements before product integration. The existing installer verifier now
 also guards `PrivilegesRequired=lowest` and its LocalAppData Programs destination; it
 does not install or enable a privileged component.
+
+### 2026-09-15: kernel-derived broker identity admission and separated command probe
+
+SDK `0775db70` adds a broker-specific identity gate: retain original host/service-account
+rejection, read the current process token from the kernel, and reject an execution account
+matching that broker. This prevents an otherwise different original UI host SID from
+masking a same-account broker/command relationship. The gate is not yet a product broker.
+
+A new native integration test creates a write-restricted token only inside a test path
+that first passes this different-account gate. A fixed child verifies it is restricted,
+requires explicit denial for broker process query/handle duplication/memory/DACL access
+and thread impersonation/token/context/DACL access, then runs system PowerShell and a
+restricted Go descendant that creates/reopens a named event. It receives only fixed
+identity arguments plus SystemRoot/TEMP/TMP, never the CI account password. A private
+desktop and a Job remain in use. Stage exit codes distinguish identity/control/PowerShell/
+descendant failures without outputting credential environment.
+
+This test uses CreateProcessWithTokenW followed by suspended Job assignment; it does not
+prove the production creation-time atomic Job requirement, machine service installation,
+IPC authentication or network/file isolation. The product token factory remains fully
+restricted and unavailable through the Windows backend. Windows x64 cross-compilation
+passed. Native verification is tracked in
+[34915112445](https://github.com/nexus-research-lab/nexus-agent-sdk-go/actions/runs/34915112445).
+
+Native run `34915112445` at `0775db70` passed both broker identity admission tests.
+The actual separated-account child passed its restricted-token check and all broker
+process/thread denial checks, then exited at PowerShell stage 47 before testing the
+Go descendant. This proves the tested control-object access separation only; it does
+not establish command compatibility or validate a production write-restricted mode.
+The next diagnostic checks the command's own PROCESS_DUP_HANDLE access and records
+only the fixed PowerShell startup error in its disposable fixture directory. The
+product factory remains unchanged, and this path has no installed service or completed
+atomic-creation/IPC/network contract.
