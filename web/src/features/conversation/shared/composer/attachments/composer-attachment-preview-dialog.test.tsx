@@ -3,15 +3,15 @@
 // POS: Offline attachment preview regression; native image/text decoding and visual layout are not exercised.
 import type { ReactNode } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import { ComposerAttachmentPreviewDialog } from "./composer-attachment-preview-dialog";
 import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
 
-let createUrl: ReturnType<typeof vi.fn>;
-let revokeUrl: ReturnType<typeof vi.fn>;
+let createUrl: Mock<typeof URL.createObjectURL>;
+let revokeUrl: Mock<typeof URL.revokeObjectURL>;
 beforeEach(() => {
-  createUrl = vi.fn().mockImplementation(() => `blob:file-${createUrl.mock.calls.length}`);
+  createUrl = vi.fn<typeof URL.createObjectURL>().mockImplementation(() => `blob:file-${createUrl.mock.calls.length}`);
   revokeUrl = vi.fn();
   vi.stubGlobal("URL", class extends URL { static createObjectURL = createUrl; static revokeObjectURL = revokeUrl; });
 });

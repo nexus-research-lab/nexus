@@ -6,7 +6,7 @@ L3 | 父级: web/src/features/settings
 
 - `operations-access.ts` 定义运营分区的角色准入规则。
 - `operations-panel.tsx` 根据 URL 分区装配组织、订阅、套餐、公共 Provider 和项目页面；导航定义归设置侧栏，正文只保留当前子页标题，不拥有页签状态。
-- `organization-panel.tsx` 以 Organization 名称作为页面身份，成员目录占满内容宽度，不展示角色说明侧栏；邀请参数和一次性链接只在短弹窗中出现，邀请记录通过成员工具栏按钮打开弹窗，有效邀请可撤销，已接受、撤销或过期记录可删除；Control 校验组织和角色，删除不影响成员。
+- `organization-panel.tsx` 以 Organization 名称作为宽窄屏都必须可见的页面身份，成员目录占满内容宽度，不展示角色说明侧栏；邀请参数和一次性链接只在短弹窗中出现，邀请记录通过成员工具栏按钮打开弹窗，有效邀请可撤销，已接受、撤销或过期记录可删除；Control 校验组织和角色，删除不影响成员。
 - `control-members-panel.tsx` 是组织页内的成员子视图，消费当前 Organization 成员 API，只负责成员目录、角色与 active/revoked 状态，不提供部署账号创建。未知写结果不自动重放；成员读取与写入使用同步互斥，处理中所有成员行统一禁用，初次读失败不伪装成空目录。
 - `subscription-admin/` 负责订阅账号、套餐草稿与写事务；Control 提供套餐和成员 entitlement，Nexus 只提供本地 token 用量。
 - `project-admin/` 负责共享项目创建、成员 ACL 展示与管理员授权事务；读取与写入共用同步互斥，阻止迟到目录覆盖创建结果；角色权限仍由服务端判定。

@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
 import type { ComposerReadResource } from "../../controller/composer-settings-reliability";
+import { ComposerModeIndicator } from "./composer-footer-status";
 import { ComposerFooterActions } from "./composer-footer-actions";
 import { ComposerSessionSettingsReliability } from "./composer-session-settings-reliability";
 import { makeController } from "./composer-session-settings.test-support";
@@ -23,7 +24,7 @@ function Actions({ overrides = {} }: { overrides?: Partial<ActionProps> }) {
   const [isActionMenuOpen, setOpen] = useState(false);
   const [isGoalMode, setGoalMode] = useState(false);
   return <Localized><ComposerFooterActions
-    actionButtonRef={actionButtonRef} canCreateGoal canUseWorkGraphDistillations
+    actionButtonRef={actionButtonRef} canCreateGoal canUseWorkGraphDistillations canUsePlan isPlanMode={false} onPlanToggle={vi.fn()}
     isActionMenuOpen={isActionMenuOpen} isGoalCreating={false} isGoalMode={isGoalMode} isPreparingAttachments={false}
     localDirectoriesController={{ available: true, directories: [], failure: null, loading: false, saving: false,
       chooseDirectory: vi.fn(async () => undefined), removeDirectory: vi.fn(async () => undefined), reload: vi.fn() }}
@@ -35,6 +36,35 @@ function Actions({ overrides = {} }: { overrides?: Partial<ActionProps> }) {
 }
 
 describe("Composer Footer actions", () => {
+  it("shows Plan as a removable footer mode without command text", async () => {
+    const user = userEvent.setup();
+    const cancel = vi.fn();
+    render(<Localized><ComposerModeIndicator mode="plan" visible isCreating={false} onCancel={cancel} extra={null} scopeLabel="" /></Localized>);
+    expect(screen.getByText("composer.plan_mode")).toBeTruthy();
+    expect(screen.queryByText("/plan")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "composer.cancel_plan_mode" }));
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes Plan through the shared entry and closes the menu", async () => {
+    const user = userEvent.setup();
+    const onPlanToggle = vi.fn();
+    const { rerender } = render(<Actions overrides={{ onPlanToggle }} />);
+    await user.click(screen.getByRole("button", { name: "composer.open_actions" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "composer.plan_mode", checked: false }));
+    expect(onPlanToggle).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+    rerender(<Actions overrides={{ onPlanToggle, isPlanMode: true }} />);
+    await user.click(screen.getByRole("button", { name: "composer.open_actions" }));
+    screen.getByRole("menuitemcheckbox", { name: "composer.plan_mode", checked: true }).focus();
+    await user.keyboard("{Enter}");
+    expect(onPlanToggle).toHaveBeenCalledTimes(2);
+    rerender(<Actions overrides={{ onPlanToggle, isGoalMode: true }} />);
+    await user.click(screen.getByRole("button", { name: "composer.open_actions" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "composer.plan_mode" }));
+    expect(onPlanToggle).toHaveBeenCalledTimes(2);
+  });
+
   it("exposes one checked Goal item, closes on activation and respects Goal locks", async () => {
     const user = userEvent.setup();
     const onGoalToggle = vi.fn();

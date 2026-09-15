@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	catalogGeneration    = 7
+	catalogGeneration    = 8
 	browserCommandName   = "browser"
 	visualizeCommandName = "visualize"
 	workGraphCommandName = "workgraph"
@@ -153,6 +153,8 @@ func ExpandProductPrompt(content string) string {
 		return content
 	}
 	switch name {
+	case planCommandName:
+		return expandPlanPrompt(arguments)
 	case browserCommandName:
 		request := arguments
 		if request == "" {

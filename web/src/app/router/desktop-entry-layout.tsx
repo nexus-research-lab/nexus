@@ -1,5 +1,5 @@
 // INPUT: 桌面入口内容或嵌套路由出口。
-// OUTPUT: 统一桌面窗口客户区，以及使用共享 Spinner 的模块加载占位。
+// OUTPUT: 统一桌面窗口客户区，以及阻止提前报告启动就绪的共享 Spinner 加载占位。
 // POS: Desktop App 路由壳；不拥有宿主标题栏、页面业务或加载图标 recipe。
 
 import { LoaderCircle } from "lucide-react";
@@ -36,6 +36,7 @@ export function DesktopEntryFallback() {
   return (
     <DesktopEntryLayout>
       <div
+        data-bootstrap-pending="true"
         aria-busy="true"
         aria-label={t("common.loading")}
         className="flex h-full items-center justify-center"

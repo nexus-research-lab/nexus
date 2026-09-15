@@ -2,7 +2,7 @@
 
 - `app-layout.tsx` 是路由壳层，负责保持应用导航常驻并承载子路由 Outlet。
 - 可见 Header 通过 `data-desktop-window-drag-region` 接入 macOS 统一标题栏并由宿主仲裁短按与拖动；Windows 的拖窗止于独立原生栏，该属性在 WebView 内不产生非客户区，不得额外叠加透明拖动条。
-- `/app` 在 macOS 保留不改变画布布局的 60px 透明拖动面，让主内容区顶部可拖窗；浏览器与 Windows 不显示该拖动面，首页画布从各自客户区顶部开始。
+- `/app` 在 macOS 使用共享 Header 高度提供透明拖动面，首页画布从其下方开始，避免碰到窗口按钮与侧栏恢复控件；浏览器与 Windows 不显示该拖动面，保留既有首页留白。
 - macOS 窄窗口 Header 必须同时声明 `data-desktop-window-controls-leading`，让返回与标题内容避开原生 traffic lights；普通二级页和 Room 还必须共用 `shared/ui/layout/mobile-shell-header-layout.ts` 的高度与 gutter，macOS 高度服从宿主实测控件中心，Windows/浏览器保留客户区默认值，不得在业务文件复制固定尺寸或 padding。
 - `mobile-app-route-model.ts` 是手机布局的信息架构真相源：聊天、联系人、能力为一级目录，其余业务路由为带返回栏的全屏二级页面；设置页标题必须随 URL 中的当前分区变化，不能退回笼统的“设置”。
 - `lib/layout/home-layout.ts` 的 `APP_NARROW_VIEWPORT_MEDIA_QUERY` 与配套可见性类共同定义 559px 壳层交接线：交接线内由手机应用页头负责返回，交接线外管理详情必须保留正文 Header；不得再用 `sm/md/lg` 近似替代并制造中等窗口导航空档。

@@ -16,8 +16,11 @@ const READS = new Map([
   ["/nexus/v1/agents", AGENTS],
   ["/nexus/v1/runtime/options", { default_agent_id: "qa-main" }],
   ["/nexus/v1/launcher/bootstrap", { agents: AGENTS, rooms: [], conversations: [] }],
-  ["/nexus/v1/settings/providers/options", { default_selection: { provider: "qa", model: "qa-model" },
-    items: [{ provider: "qa", name: "Local UI Fixture", models: [{ model_id: "qa-model", name: "Fixture" }] }] }],
+  ["/nexus/v1/settings/providers/options", { default_provider: "qa", default_model: "qa-model",
+    default_selection: { provider: "qa", provider_display_name: "Local UI Fixture", model: "qa-model", model_display_name: "Fixture" },
+    default_image_provider: null, default_image_model: null, default_image_selection: null,
+    items: [{ provider: "qa", display_name: "Local UI Fixture", models: [{ model_id: "qa-model", display_name: "Fixture", is_default: true }] }],
+    background_items: [], image_items: [], vision_items: [] }],
 ]);
 
 export function appShellRead(method, pathname) {
@@ -45,6 +48,7 @@ export const APP_SHELL_INIT_SCRIPT = `(() => {
   localStorage.setItem('nexus-theme', theme);
   localStorage.setItem('nexus-locale', locale);
   localStorage.setItem('nexus:onboarding:tours', JSON.stringify({'launcher-guide':true,'sidebar-navigation':true}));
+  localStorage.setItem('nexus:onboarding:dismissed-tours', JSON.stringify({'launcher-guide':true,'sidebar-navigation':true}));
   localStorage.setItem('nexus:sidebar-onboarding-dismissed', 'true');
   window.qaEvents = []; window.qaErrors = [];
   for (const type of ['click','keydown','input']) document.addEventListener(type, e => qaEvents.push({type,key:e.key || null,trusted:e.isTrusted}),true);

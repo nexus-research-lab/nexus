@@ -552,19 +552,27 @@
     position: fixed;
     z-index: 70;
     top: 14px;
-    left: 20px;
+    left: 8px;
     display: flex;
   }
 
   :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
     top: var(--desktop-window-close-button-center-y, 24px);
-    left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
+    left: var(--desktop-window-controls-inset, 84px);
     transform: translateY(-50%);
+  }
+
+  .launcher-console-header {
+    --launcher-wordmark-left: 56px;
+  }
+
+  .launcher-console-brand {
+    left: calc(var(--launcher-wordmark-left) - 44px);
   }
 
   .launcher-console-spotlights {
     top: 20px;
-    left: 20px;
+    left: var(--launcher-wordmark-left);
     width: 139px;
     height: 16px;
   }
@@ -575,8 +583,7 @@
   }
 
   :root[data-desktop-platform="macos"] .launcher-console-spotlights {
-    top: var(--desktop-window-close-button-center-y, 24px);
-    left: var(--desktop-window-controls-inset, 84px);
+    top: var(--workspace-header-height);
     transform: translateY(-50%);
   }
 
@@ -656,6 +663,23 @@
 
   :root[data-desktop-platform="macos"] .home-desktop-drag-header {
     display: block;
+  }
+
+  .home-workspace-frame {
+    padding: 16px;
+  }
+
+  @media (width >= 40rem) {
+    .home-workspace-frame { padding: 20px; }
+  }
+
+  @media (width >= 80rem) {
+    .home-workspace-frame { padding: 24px; }
+  }
+
+  /* 首页画布避开原生标题栏，保留控件下方的呼吸空间。 */
+  :root[data-desktop-platform="macos"] .home-workspace-frame {
+    padding-block-start: var(--workspace-header-height);
   }
 
   .desktop-rail {
@@ -1199,26 +1223,26 @@
     grid-area: trailing;
   }
 
-  /* Goal 控制比普通状态更密集：让控制/提交占第一行，状态独占第二行，
+  /* Goal/Plan 模式控制比普通状态更密集：让控制/提交占第一行，状态独占第二行，
      避免负责人选择器的不可收缩宽度覆盖停止提示。 */
-  .nexus-chat-composer-footer[data-goal-mode="true"] {
+  .nexus-chat-composer-footer[data-mode-active="true"] {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "leading trailing";
     align-items: start;
     row-gap: 0.25rem;
   }
 
-  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
+  .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-leading {
     flex-wrap: wrap;
     overflow: visible;
     row-gap: 0.25rem;
   }
 
-  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-brand {
+  .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-brand {
     display: none;
   }
 
-  .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
+  .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-runtime-status {
     flex-basis: 100%;
     justify-content: center;
   }
@@ -1250,15 +1274,15 @@
       padding-inline: 0.75rem;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-lead {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-goal-lead {
       max-width: 9rem;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-metadata {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-metadata {
       display: none;
     }
 
-    .nexus-chat-composer-footer:not([data-goal-mode="true"]) .nexus-chat-composer-footer-metadata,
+    .nexus-chat-composer-footer:not([data-mode-active="true"]) .nexus-chat-composer-footer-metadata,
     .nexus-chat-composer-session-permission-label {
       display: none;
     }
@@ -1266,27 +1290,27 @@
   }
 
   @container nexus-chat-composer (max-width: 460px) {
-    .nexus-chat-composer-footer[data-goal-mode="true"] {
+    .nexus-chat-composer-footer[data-mode-active="true"] {
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
         "leading"
         "trailing";
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading,
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-trailing {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-leading,
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-trailing {
       width: 100%;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-trailing {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-footer-trailing {
       justify-self: stretch;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-submit {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-submit {
       margin-inline-start: auto;
     }
 
-    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
+    .nexus-chat-composer-footer[data-mode-active="true"] .nexus-chat-composer-goal-scope {
       display: none;
     }
   }

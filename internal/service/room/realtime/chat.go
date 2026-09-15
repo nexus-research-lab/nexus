@@ -1,5 +1,5 @@
 // INPUT: Room 用户输入、owner-scoped Slash 展开、内部触发与当前 round/queue 状态。
-// OUTPUT: 按显式目标或已启用的群主接管解析成员，保留共享消息原文并原子投递 Slash 的串行 Room round。
+// OUTPUT: 按显式目标或已启用的群主接管解析成员，保留共享消息原文并原子投递 Slash 的串行 Room round；显式 /plan 只覆盖本轮权限。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界，记录慢阶段与失败的请求关联诊断。
 package realtime
 
@@ -24,6 +24,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -230,6 +231,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	if err != nil {
 		return nil, err
 	}
+	request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(request.Content, request.Internal, request.PermissionMode)
 	ensureRoomChatIDs(&request)
 	recordStage := s.roomChatStageRecorder(ctx, request, "context")
 	defer func() { recordStage("", err) }()

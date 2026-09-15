@@ -911,6 +911,8 @@ export const zhConversationMessages = {
   "composer.workgraph_picker_empty": "还没有匹配的工作图",
   "composer.workgraph_picker_failed": "加载工作图失败",
   "composer.use_workgraph_command": "使用这个工作图",
+  "composer.cancel_plan_mode": "退出计划模式",
+  "composer.plan_mode": "计划模式",
   "composer.start_goal": "启动 Goal",
   "composer.goal_mode": "目标",
   "composer.goal_placeholder": "输入 Goal 目标，Enter 确认启动…",

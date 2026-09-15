@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - model.go / catalog.go：配置域、资源 scope、业务会话与 runtime lease 身份、能力目录、变更计划、reload 状态与审计协议。
+//   - model.go / catalog.go：配置域、资源 scope、业务会话与 runtime lease 身份、能力目录与 workspace 行为模板分流、变更计划、reload 状态与审计协议。
 //   - actor.go / access.go：逐次重验 active runtime lease、数据库 owner-main / agent-self / room-host / room-member 身份与字段级能力边界。
 //   - service.go / snapshot.go / host_snapshot.go：服务装配、按可信 scope 读取、Skills 全局/各 Agent workspace 来源目录、
 //     主机白名单投影与配置健康检查。

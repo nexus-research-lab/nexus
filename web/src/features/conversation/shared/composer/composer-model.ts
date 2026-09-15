@@ -102,7 +102,7 @@ export interface ComposerSessionSettingsScope {
   targets: ComposerSessionSettingsTarget[];
 }
 
-export type ComposerInputMode = "message" | "goal";
+export type ComposerInputMode = "message" | "goal" | "plan";
 export type ComposerRuntimeActivity =
   | "sending"
   | "compacting"

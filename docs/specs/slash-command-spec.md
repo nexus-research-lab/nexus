@@ -35,18 +35,28 @@ canonical 名称。
 - nxs runtime：`compact`、`skills`
 - Claude Code runtime：`compact`、`skills`
 - Nexus host：`model`
-- Nexus 固定产品提示：`visualize`、`workgraph`
+- Nexus 固定产品提示：`plan`、`visualize`、`workgraph`
 - Nexus 内置工作图模板：`deep-research`、`build-ship`、`decision-brief`、`review-improve`
 - Nexus owner 命名工作图：用户保存的命名项，例如 `market-scan`
 
-两个 runtime 在 Composer 中最终都展示 `compact`、`model`、`skills`、`visualize`
-与 `workgraph` 五个核心入口，并追加 Nexus 内置模板及当前 owner 的命名工作图，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
+两个 runtime 在 Composer 中最终都展示 `compact`、`model`、`plan`、`skills`、`visualize`
+与 `workgraph` 六个核心入口，并追加 Nexus 内置模板及当前 owner 的命名工作图，但执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
 校验并持久化 Agent 的 Provider/模型选择，`skills` 由 Composer 打开完整 Skill
 选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime；
 `visualize` 由 Nexus 在投递 runtime 时展开为简短的 Generative UI 提示；`workgraph`
 只要求当前请求使用 fresh WorkGraph 协作，不承担保存语义。动态 `/<command>` 在同一
 投递边界展开为语义节点和依赖模板，再由 `execution-orchestrator` Skill 通过
 `nexus.command` 创建 fresh Plan/WorkGraph。
+`/plan [request]` 在 DM/Room 的用户请求启动边界覆盖该轮权限为 Plan Mode，
+随后展开为规划提示，复用 runtime 的计划文件和 `ExitPlanMode` 人工确认流程。
+未确认前不得实施；确认后的退出和执行服从 runtime 现有权限规则。该入口不创建
+WorkGraph Plan，也不修改 Agent 默认权限或 Session 设置；后续普通请求继续使用
+已有设置。无参数时规划当前会话已明确的任务，没有任务则询问用户。
+加号菜单与 `/plan` 补全进入同一 Session 草稿的 Plan 模式；输入框只保留任务正文，
+底部复用 Goal 的模式标记和取消按钮。直接输入 `/plan ` 或粘贴带参数命令时收起前缀。
+提交时才编码为 `/plan <正文>`，继续复用原发送协议；取消保留正文，切换 Session 和
+明确发送失败按完整草稿恢复模式。Goal 与 Plan 使用同一 inputMode，互斥。
+
 nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
 需要立即释放上下文时统一使用 `/compact [instructions]`。
 

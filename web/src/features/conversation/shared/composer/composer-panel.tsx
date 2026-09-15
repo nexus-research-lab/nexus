@@ -206,6 +206,9 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onAttachmentSelect={actions.openAttachmentPicker}
                 onCancelGoal={actions.cancelGoalInput}
                 onGoalToggle={actions.toggleGoalInput}
+                canUsePlan={slashCommand.canUsePlan}
+                isPlanMode={slashCommand.isPlanMode}
+                onPlanToggle={actions.togglePlanInput}
                 onWorkGraphDistillationsSelect={() => {
                   actions.setIsActionMenuOpen(false);
                   setWorkGraphPickerOpen(true);
