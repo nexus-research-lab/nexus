@@ -3,7 +3,7 @@
  * OUTPUT: 独立的运行引擎检查反馈和偏好设置动作。
  * POS: Runtime 设置控制器；可用性读取失败不得触发 Preferences 对账。
  */
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { getNxsRuntimeStatusApi } from "@/lib/api/settings/runtime-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -11,6 +11,7 @@ import {
   DEFAULT_WEB_SEARCH_PROVIDER,
   normalizeAgentRuntimeKind,
   type AgentRuntimeKind,
+  type NXSSandboxDiagnosticState,
   type WebSearchProvider,
   type WebSearchSettings,
 } from "@/types/settings/preferences";
@@ -30,6 +31,24 @@ export function useRuntimeSettingsController() {
     updatePreferences,
     writable,
   } = preferencesStore;
+  const [sandboxChecking, setSandboxChecking] = useState(false);
+  const [sandboxState, setSandboxState] = useState<NXSSandboxDiagnosticState | null>(null);
+  const sandboxRequest = useRef(false);
+  const onCheckSandbox = useCallback(async () => {
+    if (sandboxRequest.current) return;
+    sandboxRequest.current = true;
+    setSandboxChecking(true);
+    setSandboxState(null);
+    try {
+      const status = await getNxsRuntimeStatusApi(true);
+      setSandboxState(status.sandbox?.state ?? "unknown");
+    } catch {
+      setSandboxState("unknown");
+    } finally {
+      sandboxRequest.current = false;
+      setSandboxChecking(false);
+    }
+  }, []);
   const [nxsRuntimeChecking, setNxsRuntimeChecking] = useState(false);
   const [runtimeFeedback, setRuntimeFeedback] =
     useState<PreferenceFeedback | null>(null);
@@ -140,6 +159,7 @@ export function useRuntimeSettingsController() {
   }, [updatePreferences]);
 
   return {
+    sandboxChecking, sandboxState, onCheckSandbox,
     preferencesFeedback: feedback,
     preferencesRecovery: recovery,
     runtimeFeedback,

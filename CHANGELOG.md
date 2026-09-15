@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add an explicit runtime-settings sandbox support check with independent unknown, unsupported and dependency results; keep engine selection and permission modes unchanged.
+
 - Show mandatory sandbox network approvals as one pending connection, without command replay or persistent grants.
 
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.

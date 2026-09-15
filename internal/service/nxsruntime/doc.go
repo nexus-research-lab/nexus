@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go：Status 直接查询 bridge 本地探测器并转换为 RuntimeStatus，不持有状态、不触发下载。
+//   - service.go：Status 直接查询 bridge 本地探测器并转换为 RuntimeStatus，不持有状态、不触发下载；StatusWithSandbox 仅为显式诊断启动有界 nxs 查询，未知不改变文件可用性。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package nxsruntime

@@ -105,3 +105,18 @@ process does not roll back prior side effects; an unknown or partial command res
 must not be interpreted as permission to replay it. Bridge cleanup waits for
 transport exit, not merely stream closure. This confirms the runtime main process;
 full descendant cleanup needs the remaining platform backend integration.
+
+## Explicit local diagnostics
+
+The runtime settings page offers an explicit sandbox-support check. Only
+`GET /settings/runtime/nxs/status?include_sandbox=true` launches the bounded Bridge
+query; the existing request without this option remains a file-only check used
+when selecting nxs. Responses keep `available` independent and optionally include
+`sandbox.state`: `unknown`, `unsupported`, `missing_dependencies`, or
+`dependencies_available`, plus a known platform. The latter state does not mean
+sandboxing is enabled or tested for the active task. Failures remain unknown and
+do not change preferences, approval mode, or execution policy.
+
+This development integration currently uses the local Bridge workspace containing
+`3da56a2`; the published module pin has not yet been advanced. Standalone release
+builds and packaged UI acceptance remain outstanding.

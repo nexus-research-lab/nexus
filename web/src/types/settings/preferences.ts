@@ -19,11 +19,14 @@ export function normalizeAgentRuntimeKind(value?: string | null): AgentRuntimeKi
   }
 }
 
+export type NXSSandboxDiagnosticState = "unknown" | "unsupported" | "missing_dependencies" | "dependencies_available";
+
 export interface NXSRuntimeStatus {
   available: boolean;
   path?: string;
   source?: "env" | string;
   can_download: boolean;
+  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string };
   message?: string;
 }
 
