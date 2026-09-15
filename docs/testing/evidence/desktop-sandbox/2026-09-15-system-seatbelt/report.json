@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "scope": "P2 macOS system sandbox executable; local integration only",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915080938-a4fef0aec5bc",
+    "sum": "h1:GSjnxL0+p1yQtRf4bvoUeKQS3jv7qpKdoYL3efA9XEE=",
+    "availability": "local-only, unpublished"
+  },
+  "nexusBaselineRevision": "18c9964a283e7e50693559a528f0d46d2669396d",
+  "nexusChanges": [
+    "M docs/explorations/desktop-sandbox/development-plan.md",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "reference": {
+    "repository": "openai/codex",
+    "revision": "4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd",
+    "file": "codex-rs/sandboxing/src/seatbelt.rs",
+    "line": 63
+  },
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-CAYpLZ/nxs",
+    "sha256": "7482d5d18a6d00f510eaa78a5c172a71e9a618a8af21eca28e78a6ed6126b97e",
+    "source": "fixed-sdk-archive"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "reproduction": {
+    "baseSDKRevision": "c8580cf49342a7d946c849ecb04c1db01c30eb4c",
+    "change": "only new regression tests before the production fix",
+    "exitCode": 1,
+    "log": "seatbelt-path-before.jsonl",
+    "reason": "task PATH selected fake sandbox-exec; empty PATH falsely hid the system backend"
+  },
+  "fixed": {
+    "requiredTests": [
+      "TestMacOSSandboxDependencyUsesSystemPath",
+      "TestMacOSSandboxIgnoresTaskPath",
+      "TestMacOSSandboxIgnoresTaskPath/shadowed_path",
+      "TestMacOSSandboxIgnoresTaskPath/empty_path"
+    ],
+    "exitCode": 0,
+    "log": "macos-backend-path.stdout.log",
+    "skips": []
+  },
+  "packageRegression": {
+    "log": "seatbelt-package.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 109,
+    "skips": [
+      "TestSandboxSeccompHelperUsesInjectedEnvironment",
+      "TestMacOSSandboxIgnoresTaskPath"
+    ]
+  },
+  "baseline": "baseline-report.json",
+  "windows": {
+    "scope": "cross-compilation only",
+    "command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -mod=readonly -c ./internal/tool/builtin/bash/sandboxexec",
+    "exitCode": 0,
+    "sha256": "0ae681f9310ad98a0c958721df2b59cd494fa9065fa7e1cd2c4e77167a292402"
+  },
+  "limitations": [
+    "Full IO coverage, helper version admission and installed effective policies remain incomplete",
+    "P1 resource profiles, Claude native adapter, native Windows, Linux owner and package/release acceptance remain outstanding",
+    "Basic language/tool bundle design is a development plan, not implemented packaging",
+    "All commits and artifacts remain local per user instruction"
+  ]
+}

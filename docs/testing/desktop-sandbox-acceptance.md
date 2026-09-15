@@ -36,6 +36,8 @@
 
 日期：2026-09-15。Nexus 基线 928c7e803；Bridge module 为 3da56a2；SDK 使用 c8245262 的独立导出，排除工作区未提交变更。
 
+本节是该版本组合的历史记录；复现时使用对应 Nexus 版本的脚本和依赖。当前入口及最新 SDK 参考见文末，不能用新增能力门禁验证不具备该能力的旧版本。
+
 实际平台：macOS 27.0（26A428），arm64；Go 1.26.2。本机独立源码/binary 目录为 /private/tmp/nexus-desktop-sandbox-audit.4mhcm0。该路径只用于复核本次结果；后续应使用下述自动入口生成新的源码导出和证据目录。
 
 | 检查 | 当前结果 | 证据范围 |
@@ -95,6 +97,7 @@ Bridge 固定为 `v0.1.34-0.20260915080938-a4fef0aec5bc`，由固定 Git 提交�
 固定 SDK 导出所构建 nxs 的 SHA-256 为 `2826515dc193bd41a5e05cde5cfe799c7361f0bf027d9223b39a38d2655e720f`；旧 binary 继续使用本页 P0 记录。详见 [汇总与局限](./evidence/desktop-sandbox/2026-09-15-file-capability/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-file-capability/baseline-report.json) 与 [真实新旧进程日志](./evidence/desktop-sandbox/2026-09-15-file-capability/bridge-pinned-real-process.jsonl)。本机 module proxy 位于 `/private/tmp/nexus-sandbox-capabilities.60SUhq/local-proxy`，生成器位于同目录的 `module-builder`，均为本地复核材料。
 
 ```sh
+# 本节使用 Nexus 18c9964a2 的入口；最新入口还要求 P2 新增原生用例。
 # 本机复核：先载入固定本地模块，保留其他模块与 toolchain 的常规校验。
 GOWORK=off GOPROXY=file:///private/tmp/nexus-sandbox-capabilities.60SUhq/local-proxy GONOPROXY=none GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge go mod download github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260915080938-a4fef0aec5bc
 GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref c8580cf49342a7d946c849ecb04c1db01c30eb4c
@@ -103,9 +106,27 @@ GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolu
 GOWORK=off GOPROXY=off NEXUS_SANDBOX_TEST_BINARY=/absolute/new/nxs NEXUS_SANDBOX_LEGACY_TEST_BINARY=/absolute/old/nxs go test -mod=readonly github.com/nexus-research-lab/nexus-agent-sdk-bridge/client -run 'Test(FileSandboxRealProcess|RequiredSandboxRealProcess)$' -count=1 -timeout=2m -json
 ```
 
+### P2 系统 Seatbelt 路径（2026-09-15）
+
+SDK `12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8`，Bridge 继续使用上述本地固定模块。Nexus 基线为 `18c9964a2`，本次入口变更及其他 dirty 清单记录在报告；SDK 由干净提交导出构建。
+
+修复前的真实测试复现两项问题：任务 PATH 能选中伪造的 `sandbox-exec`；PATH 不含系统目录会误报系统后端不可用。修复后固定 `/usr/bin/sandbox-exec`，在同一测试中证明允许写仍能完成、子进程的禁止写被拒绝、伪造程序未执行。参考为 Codex `4e6450bb` 的 `codex-rs/sandboxing/src/seatbelt.rs:63`，只是该路径选择规则的参考。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 修复前反例 | 预期失败，exit 1 | 仅新增测试、尚未修改生产代码；保留伪造后端与空 PATH 的失败事实 |
+| 固定提交系统路径回归 | 2 个顶层、2 个执行子场景通过，exit 0，无 skip | 空 PATH、同名可执行文件、真实允许/拒绝及子进程写入 |
+| sandboxexec 包回归 | 109 个顶层测试通过，exit 0 | Linux helper 与未启用的原生执行测试有 skip；原生场景由上一行独立验证 |
+| 固定版本完整开发基线 | 14 个宿主＋7 个原生隔离＋上述 2 个路径顶层用例通过，exit 0 | 命令/文件、审批、生命周期；无必测 skip，releaseAccepted=false |
+| Windows 变更包交叉编译、证据解析与入口语法 | 通过，exit 0；6 个证据解析用例 | 不代表 Windows 原生运行或安装包验收 |
+
+nxs SHA-256：`7482d5d18a6d00f510eaa78a5c172a71e9a618a8af21eca28e78a6ed6126b97e`。详见 [范围与限制](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/report.json)、[固定提交基线](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/baseline-report.json)、[修复前日志](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/seatbelt-path-before.jsonl) 和 [修复后原生日志](./evidence/desktop-sandbox/2026-09-15-system-seatbelt/macos-backend-path.stdout.log)。所有提交与产物按用户要求仅保留本地；helper 版本准入、完整 IO、资源策略、生效回执和发布仍未完成。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
+
+原生入口还逐项要求伪造 PATH 与空 PATH 子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 12ea63b8 或包含该批次测试的后续提交。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -113,7 +134,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref c824526230860fbfc2a28736980b5fa720dbffe4
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。
