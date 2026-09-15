@@ -122,6 +122,11 @@ try {
       "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
       "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write",
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-resource-scopes", ["./internal/tool/executor"], [
+      "TestDarwinSandboxResourceScopes",
+      "TestDarwinSandboxResourceScopes/read-only",
+      "TestDarwinSandboxResourceScopes/workspace-write",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
