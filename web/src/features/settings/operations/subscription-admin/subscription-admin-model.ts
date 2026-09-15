@@ -1,6 +1,7 @@
 // INPUT: 订阅目录、表单草稿，以及读取或修改结果证据。
 // OUTPUT: 保留草稿/最后快照的视图模型和 Problem/Impact/Recovery 反馈。
 // POS: Subscription Admin 的纯状态投影；不根据异常正文猜测 mutation 结果。
+import { generateUuid } from "@/lib/uuid";
 import { projectMutationFailure } from "@/lib/error-message";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -52,12 +53,6 @@ export interface SubscriptionAdminSnapshot {
   planDrafts: Record<string, PlanDraft>;
 }
 
-export interface SubscriptionSummary {
-  accountCount: number;
-  planCount: number;
-  usedTokens: number;
-}
-
 export interface AccountViewModel {
   accounts: SubscriptionAccount[];
   drafts: Record<string, AccountDraft>;
@@ -68,7 +63,6 @@ export interface AccountViewModel {
   periodStart: string;
   plans: SubscriptionPlan[];
   savingOwnerUserId: string | null;
-  summary: SubscriptionSummary;
 }
 
 export interface PlanViewModel {
@@ -193,7 +187,7 @@ const SHORT_DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
 
 export function createEmptyPlanDraft(): PlanDraft {
   return {
-    planKey: "",
+    planKey: generateUuid(),
     displayName: "",
     status: "active",
     monthlyTokenLimit: "",
@@ -237,20 +231,6 @@ export function buildSubscriptionSnapshot(
     ),
     planDrafts: Object.fromEntries(
       overview.plans.map((plan) => [plan.plan_key, createPlanDraft(plan)]),
-    ),
-  };
-}
-
-function buildSubscriptionSummary(
-  accounts: SubscriptionAccount[],
-  plans: SubscriptionPlan[],
-): SubscriptionSummary {
-  return {
-    accountCount: accounts.length,
-    planCount: plans.length,
-    usedTokens: accounts.reduce(
-      (total, account) => total + account.used_tokens,
-      0,
     ),
   };
 }
@@ -406,7 +386,6 @@ export function buildSubscriptionAdminViewModels(
       periodStart: snapshot.overview?.period_start ?? "",
       plans: getSelectablePlans(plans),
       savingOwnerUserId: getSavingOwnerUserId(pending),
-      summary: buildSubscriptionSummary(accounts, plans),
     },
     planView: {
       creating: pending?.kind === "create-plan",

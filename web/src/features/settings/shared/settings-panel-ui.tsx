@@ -14,6 +14,9 @@ import { cn } from "@/shared/ui/class-name";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
+// 正文独立居中限宽，页头与导航继续使用完整工作面。
+export const SETTINGS_CONTENT_BODY_CLASS_NAME = "settings-content-body mx-auto w-full min-w-0 max-w-[1200px]";
+
 export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
   "px-1",
   getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
@@ -23,6 +26,9 @@ export const SETTINGS_GROUP_CLASS_NAME = cn(
   SETTINGS_CARD_CLASS_NAME,
   "bg-[color:color-mix(in_srgb,var(--surface-control-background)_64%,transparent)]",
 );
+// 卡片内部的分隔线与行内容保持相同的水平留白。
+export const SETTINGS_DIVIDER_CLASS_NAME = "mx-4 border-t border-(--divider-subtle-color)";
+
 export const SETTINGS_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-center";
 export const SETTINGS_TEXT_ROW_CLASS_NAME = "flex min-w-0 items-start gap-3";
 export const SETTINGS_ICON_CLASS_NAME = "flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary";

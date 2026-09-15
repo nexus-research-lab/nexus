@@ -11,7 +11,7 @@
 - 密码修改每次生成 exact `request_id`；服务端以 `committed|not_applied` 终态回执在同一身份上提交或阻止迟到写入。前端只持久 user-scoped request 指针，不保存密码草稿；unknown 不创建 fresh request，有原草稿时显式续行同一 request，草稿丢失时必须先由服务端原子放弃再解锁。
 - 资料初始加载使用共享 `lg` Spinner，头像与密码保存使用 `xs/sm`；个人设置不维护独立的尺寸、颜色或 reduced-motion class。
 
-个人页内容限制为 max-w-4xl 并居中；身份、用量、安全按顺序排列。头像与名字居中，相同用户名不重复显示，角色和登录方式放入身份徽标的 Tooltip；密码表单使用原生 details 按需展开。接口提供累计值与最近 365 个 UTC 自然日聚合；personal-usage-history.tsx 使用真实每日数据渲染独立的年度 Token 活动热力图区块，下方单独保留近 30 天堆叠柱状图与明细表切换，不推算缺失历史。
+个人页正文复用设置共享的 1200px 上限并居中，页头保持全宽；身份、用量、安全按顺序排列。头像与名字居中，相同用户名不重复显示，角色和登录方式放入身份徽标的 Tooltip；密码表单使用原生 details 按需展开。接口提供累计值与最近 365 个 UTC 自然日聚合；personal-usage-history.tsx 使用真实每日数据渲染独立的年度 Token 活动热力图区块，下方单独保留近 30 天堆叠柱状图与明细表切换，不推算缺失历史。
 
 `personal-sections.test.tsx` 验证用量唯一明细和密码折叠/提交行为。
 

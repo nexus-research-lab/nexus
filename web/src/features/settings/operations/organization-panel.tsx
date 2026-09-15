@@ -1,18 +1,18 @@
 // INPUT: 当前 Organization 身份、成员目录、管理角色与 Control 邀请 API。
-// OUTPUT: 统一组织治理页、邀请弹窗、成员管理、角色说明与邀请记录。
+// OUTPUT: 统一组织治理页、邀请弹窗、紧凑成员目录与邀请记录。
 // POS: Operations 组织治理页；组织成员身份是页面的信息架构根。
 "use client";
 
-import { Copy, UserPlus } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
+import { Copy } from "lucide-react";
+import { useCallback, useId, useRef, useState } from "react";
 
 import {
-  SETTINGS_GROUP_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import {
   createControlOrganizationInvitationApi,
+  deleteControlOrganizationInvitationApi,
   listControlOrganizationInvitationsApi,
   revokeControlOrganizationInvitationApi,
   type ControlOrganizationInvitation,
@@ -20,10 +20,8 @@ import {
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
-import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
 import {
   UiDialogBackdrop,
   UiDialogBody,
@@ -47,6 +45,7 @@ export function OrganizationPanel() {
   const [role, setRole] = useState<"admin" | "member">("member");
   const [link, setLink] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [actionFailed, setActionFailed] = useState(false);
@@ -65,7 +64,6 @@ export function OrganizationPanel() {
       setLoading(false);
     }
   }, []);
-  useEffect(() => { void load(); }, [load]);
 
   const openInviteDialog = () => {
     setRole("member");
@@ -93,13 +91,14 @@ export function OrganizationPanel() {
       setPending(false);
     }
   };
-  const revoke = async (invitationID: string) => {
+  const mutateInvitation = async (invitationID: string, active: boolean) => {
     if (pendingRef.current) return;
     pendingRef.current = true;
     setPending(true);
     setActionFailed(false);
     try {
-      await revokeControlOrganizationInvitationApi(invitationID);
+      const mutate = active ? revokeControlOrganizationInvitationApi : deleteControlOrganizationInvitationApi;
+      await mutate(invitationID);
       await load();
     } catch {
       setActionFailed(true);
@@ -126,98 +125,85 @@ export function OrganizationPanel() {
   );
 
   return (
-    <div className="@container/organization grid w-full min-w-0 gap-6 pb-8">
+    <div className="grid w-full min-w-0 gap-6 pb-8">
       <WorkspaceContentHeader
         className="mb-0 max-sm:[&_h1]:hidden"
         title={status?.organization_name || t("organization.name_unavailable")}
-        description={t("organization.header_description", { role: roleLabel(status?.role) })}
-        actions={(
-          <UiButton onClick={openInviteDialog} size="sm" tone="primary" variant="solid">
-            <UserPlus className="h-4 w-4" />
-            {t("organization.invite_action")}
-          </UiButton>
-        )}
+
       />
 
-      <section aria-labelledby={`${titleId}-members`}>
-        <div className="mb-3">
-          <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME} id={`${titleId}-members`}>{t("members.title")}</h2>
-          <p className={cn("mt-1", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>{t("members.description")}</p>
-        </div>
-        <div className="grid items-start gap-4 @min-[960px]/organization:grid-cols-[minmax(0,1fr)_320px]">
-          <OrganizationMembersPanel />
-          <aside aria-labelledby={`${titleId}-roles`} className={SETTINGS_GROUP_CLASS_NAME}>
-            <h3 className={cn("border-b border-(--divider-subtle-color) px-4 py-3", SETTINGS_SECTION_TITLE_CLASS_NAME)} id={`${titleId}-roles`}>
-              {t("organization.roles_title")}
-            </h3>
-            <div className="divide-y divide-(--divider-subtle-color)">
-              {(["owner", "admin", "member"] as const).map((memberRole) => (
-                <div className="px-4 py-3" key={memberRole}>
-                  <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{roleLabel(memberRole)}</p>
-                  <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
-                    {t(`organization.role_${memberRole}_description`)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section aria-labelledby={`${titleId}-invitations`}>
-        <UiDisclosure
-          contentClassName="p-0"
-          label={<span id={`${titleId}-invitations`}>{t("organization.invitations_title")}</span>}
-          meta={<UiBadge size="xs">{invitations.length}</UiBadge>}
-          surfaceTone="subtle"
-          variant="panel"
-        >
-          <div className="divide-y divide-(--divider-subtle-color)">
-            {loading && invitations.length === 0 ? (
-              <UiResourceState size="sm" state="loading" title={t("organization.invitations_loading")} variant="plain" />
-            ) : null}
-            {!loading && loadFailed ? (
-              <UiResourceState
-                impact={t("organization.invitations_load_failed")}
-                primaryAction={{ label: t("members.refresh"), onClick: () => void load() }}
-                size="sm"
-                state="error"
-                title={t("organization.invitations_load_failed_title")}
-                variant="plain"
-              />
-            ) : null}
-            {!loading && !loadFailed && invitations.length === 0 ? (
-              <UiResourceState description={t("organization.invitations_empty_description")} size="sm" state="empty" title={t("organization.invitations_empty")} variant="plain" />
-            ) : null}
-            {invitations.map((invitation) => {
-              const active = !invitation.accepted_at
-                && !invitation.revoked_at
-                && new Date(invitation.expires_at).getTime() > Date.now();
-              return (
-                <article className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={invitation.invitation_id}>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{roleLabel(invitation.role)}</span>
-                    <UiBadge size="xs" tone={active ? "default" : "warning"}>
-                      {t(active ? "members.invite_pending" : invitation.accepted_at ? "members.invite_accepted" : "members.invite_inactive")}
-                    </UiBadge>
-                  </div>
-                  <p className={cn("mt-1", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
-                    {t("organization.invite_created_at", { date: new Date(invitation.created_at).toLocaleDateString(locale) })}
-                  </p>
-                </div>
-                {active ? (
-                  <UiButton disabled={pending} onClick={() => void revoke(invitation.invitation_id)} size="sm" tone="danger" variant="text">
-                    {t("members.invite_revoke")}
-                  </UiButton>
-                ) : null}
-                </article>
-              );
-            })}
+      <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-3`}>
+        <OrganizationMembersPanel toolbarActions={(
+          <div className="flex flex-wrap items-center gap-1">
+            <UiButton aria-haspopup="dialog" aria-expanded={dialogOpen} onClick={openInviteDialog} size="sm" variant="ghost">
+              {t("organization.invite_action")}
+            </UiButton>
+            <UiButton aria-haspopup="dialog" aria-expanded={historyOpen} onClick={() => { setHistoryOpen(true); setActionFailed(false); void load(); }} size="sm" variant="ghost">
+              {t("organization.invitations_title")}
+            </UiButton>
           </div>
-        </UiDisclosure>
-        {actionFailed && !dialogOpen ? <UiInlineNotice className="mt-3" message={t("members.invite_failed")} tone="danger" /> : null}
-      </section>
+        )} />
+      </div>
+
+      {historyOpen ? (
+        <UiDialogPortal>
+          <UiDialogBackdrop labelledBy={`${titleId}-history`} onClose={() => { if (!pending) setHistoryOpen(false); }}>
+            <UiDialogShell size="lg" viewport="adaptiveMax">
+              <UiDialogHeader appearance="plain" onClose={() => { if (!pending) setHistoryOpen(false); }} title={t("organization.invitations_title")} titleId={`${titleId}-history`} />
+              <UiDialogBody className="px-5 pb-5" scrollable>
+                {!loading && !loadFailed ? <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>{t("organization.invitations_summary", { total: invitations.length, pending: invitations.filter(isInvitationActive).length })}</p> : null}
+                <div className="divide-y divide-(--divider-subtle-color)">
+                  {loading && invitations.length === 0 ? (
+                    <UiResourceState size="sm" state="loading" title={t("organization.invitations_loading")} variant="plain" />
+                  ) : null}
+                  {!loading && loadFailed ? (
+                    <UiResourceState
+                      impact={t("organization.invitations_load_failed")}
+                      primaryAction={{ label: t("members.refresh"), onClick: () => void load() }}
+                      size="sm"
+                      state="error"
+                      title={t("organization.invitations_load_failed_title")}
+                      variant="plain"
+                    />
+                  ) : null}
+                  {!loading && !loadFailed && invitations.length === 0 ? (
+                    <UiResourceState description={t("organization.invitations_empty_description")} size="sm" state="empty" title={t("organization.invitations_empty")} variant="plain" />
+                  ) : null}
+                  {invitations.map((invitation) => {
+                    const active = isInvitationActive(invitation);
+                    return (
+                      <article className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background)" key={invitation.invitation_id}>
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={SETTINGS_ITEM_TITLE_CLASS_NAME}>{roleLabel(invitation.role)}</span>
+                            <UiBadge size="xs" tone={active ? "default" : "warning"}>
+                              {t(active ? "members.invite_pending" : invitation.accepted_at ? "members.invite_accepted" : "members.invite_inactive")}
+                            </UiBadge>
+                          </div>
+                          <p className={getUiTypographyClassName({ role: "caption", tone: "muted" })}>
+                            {t("organization.invite_created_at", { date: new Date(invitation.created_at).toLocaleDateString(locale) })}
+                          </p>
+                        </div>
+                        {status?.role === "owner" || (status?.role === "admin" && invitation.role === "member") ? (
+                          <UiButton
+                            disabled={pending || loading}
+                            onClick={() => void mutateInvitation(invitation.invitation_id, active)}
+                            size="sm"
+                            variant="text"
+                          >
+                            {t(active ? "members.invite_revoke" : "members.invite_delete")}
+                          </UiButton>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+                {actionFailed ? <UiInlineNotice className="mt-3" message={t("members.invite_failed")} tone="danger" /> : null}
+              </UiDialogBody>
+            </UiDialogShell>
+          </UiDialogBackdrop>
+        </UiDialogPortal>
+      ) : null}
 
       {dialogOpen ? (
         <UiDialogPortal>
@@ -269,4 +255,9 @@ export function OrganizationPanel() {
       ) : null}
     </div>
   );
+}
+
+function isInvitationActive(invitation: ControlOrganizationInvitation): boolean {
+  return !invitation.accepted_at && !invitation.revoked_at
+    && new Date(invitation.expires_at).getTime() > Date.now();
 }

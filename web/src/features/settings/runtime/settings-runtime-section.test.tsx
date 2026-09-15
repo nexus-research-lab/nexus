@@ -101,7 +101,7 @@ describe("runtime fields", () => {
       const user = userEvent.setup();
       const controller = configure(provider);
       const { container } = renderSettings();
-      await user.click(screen.getByText(text("web_search_provider"), { selector: "label" }));
+      await user.click(screen.getByRole("button", { name: text("web_search_provider") }));
       expect(screen.getByRole("listbox")).toBeTruthy();
       await user.keyboard("{Escape}");
       expect(controller.onWebSearchProviderChange).not.toHaveBeenCalled();

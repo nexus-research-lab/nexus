@@ -10,7 +10,7 @@ import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import {
   SettingsNavigationButton,
@@ -66,9 +66,9 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[190px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-4"
+      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[240px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-3"
     >
-      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none @min-[720px]/provider:pr-2">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none">
         {loading ? (
           <div role="status" aria-label={t("common.loading")} className="flex min-h-[180px] items-center justify-center text-(--text-soft)">
             <Loader2
@@ -163,21 +163,17 @@ export function ProviderSettingsSidebar({
                     <UiTooltip label={getProviderTitle(item)}><span className="min-w-0 flex-1 truncate" >{getProviderTitle(item)}</span></UiTooltip>
                   </SettingsNavigationButton>
                   {canShowDelete ? (
-                    <UiListActionButton
-                      aria-label={t("settings.providers.delete_aria", { name: getProviderTitle(item) })}
-                      className="absolute right-1 top-1/2 -translate-y-1/2"
-                      disabled={pendingAction !== null}
-                      onClick={() => onRequestDeleteProvider(item)}
-                      size="xs"
-                      title={item.usage_count > 0
-                        ? t("settings.providers.delete_in_use_title", { count: item.usage_count })
-                        : t("settings.providers.delete_provider")}
-                      tone={item.usage_count > 0 ? undefined : "danger"}
-                      type="button"
-                      visibility={isActive ? "visible" : "hover"}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </UiListActionButton>
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 [@media(hover:none)]:opacity-100">
+                      <UiIconButton
+                        aria-label={`${t("settings.providers.delete_provider")}: ${getProviderTitle(item)}`}
+                        disabled={pendingAction !== null}
+                        onClick={() => onRequestDeleteProvider(item)}
+                        size="xs"
+                        variant="ghost"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </UiIconButton>
+                    </div>
                   ) : null}
                 </div>
               );

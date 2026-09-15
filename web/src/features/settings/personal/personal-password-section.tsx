@@ -3,6 +3,7 @@
  * OUTPUT: 可修改时显示表单；不可修改时只显示原因，不渲染禁用字段。
  * POS: 个人设置的密码区，不能提供的动作不得伪装成可配置表单。
  */
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { type FormEvent, useId } from "react";
 
@@ -85,7 +86,8 @@ export function PersonalPasswordSection({
         {t("settings.personal.password_title")}
         <ChevronDown aria-hidden="true" className="h-4 w-4 text-(--text-muted) transition-transform group-open:rotate-180" />
       </summary>
-      <form aria-busy={isSubmitting} className="grid gap-4 border-t border-(--divider-subtle-color) p-4" onSubmit={handleSubmit}>
+      <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+      <form aria-busy={isSubmitting} className="grid gap-4 p-4" onSubmit={handleSubmit}>
 
         <div className="grid gap-3">
           {PASSWORD_INPUTS.map((input) => (

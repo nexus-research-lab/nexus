@@ -6,7 +6,6 @@
 import { useCallback } from "react";
 
 import { DEFAULT_AGENT_PERMISSION_MODE } from "@/lib/agent-options";
-import { useOnboardingTour } from "@/shared/ui/onboarding/use-onboarding-tour";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 import { normalizeAgentRuntimeKind } from "@/types/settings/preferences";
 
@@ -15,7 +14,6 @@ import { useEchoSettings } from "./use-echo-settings";
 import { useUserPreferences } from "./use-user-preferences";
 
 export function useGeneralSettingsController() {
-  const { resetAllTours } = useOnboardingTour();
   const preferencesStore = useUserPreferences();
   const {
     acceptExternalAggregateSnapshot,
@@ -176,7 +174,6 @@ export function useGeneralSettingsController() {
       onDefaultDeliveryPolicyChange: handleDeliveryPolicyChange,
       onDefaultModelChange: defaultModels.handleChange,
       onRetryDefaultModelCatalog: defaultModels.retryCatalog,
-      onResetTours: resetAllTours,
       preferencesLoading: loading,
       preferencesSaving: preferencesBusy,
       preferencesFeedback: feedback,

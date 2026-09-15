@@ -143,6 +143,12 @@ export async function revokeControlOrganizationInvitationApi(invitationID: strin
   });
 }
 
+export async function deleteControlOrganizationInvitationApi(invitationID: string): Promise<void> {
+  await requestApi(`${CONTROL_AUTH_BASE_URL}/organization/invitations/${encodeURIComponent(invitationID)}/record`, {
+    method: "DELETE",
+  });
+}
+
 export async function previewControlOrganizationInvitationApi(
   token: string,
 ): Promise<ControlOrganizationInvitationPreview> {

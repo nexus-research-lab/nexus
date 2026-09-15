@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Remove page-header subtitles across Settings for consistent, simpler headings.
+
+- Create subscription plans in a dialog with name, quota, notes, and automatically generated identifiers; hide plan keys and preserve them when renaming.
+
+- Edit subscription plans directly in compact rows with shared column headings and inline save actions.
+
+- Widen the provider directory and reduce duplicated inner spacing to show longer service names.
+
+- Show a compact delete icon on provider row hover or keyboard focus, keeping it visible on touch devices and preserving deletion confirmation and usage checks.
+
+- Simplify user subscription management by removing top-level statistics and the routine refresh action.
+
+- Group invite and invitation-history actions on the left of the member toolbar, with history in a dialog and direct revoke/delete actions; remove the redundant member heading and routine refresh button while retaining recovery actions.
+
+- Show subscription account column headings once on desktop and retain inline field labels in narrow layouts.
+
+- Inset settings card separators and remove the tour-reset entry from General settings and settings search.
+
+- Remove redundant right-side labels from default model, message behavior, runtime, and web search settings while retaining accessible control names.
+
+- Refine operations pages with flatter directories, inline plan editing, and secondary row actions.
+
+- Center settings bodies within a 1200px limit while preserving full-width page headers and simplify organization directories with compact rows, separate action menus, and invitation counts.
+
+- Add deletion of accepted, revoked and expired organization invitation records, retaining revoke for active invitations.
+
+- Remove the organization role-description sidebar and let the member directory use the full content width; retain member role management.
+
 - Align plain dialog titles with close buttons and normalize the Room skill placeholder typography.
 
 - Reorganize the Room dialog into compact configuration and member columns, with skills beside the member list and stable member header/list heights when switching tabs.

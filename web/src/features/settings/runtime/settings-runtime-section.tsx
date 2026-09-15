@@ -5,6 +5,8 @@
  */
 "use client";
 
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import {
   ChevronDown,
@@ -117,10 +119,9 @@ export function SettingsRuntimeSection() {
     >
       <WorkspaceContentHeader
         className="max-sm:hidden"
-        description={t("settings.runtime.section_description")}
         title={t("settings.runtime.section_title")}
       />
-      <section className="space-y-2.5">
+      <section className={cn(SETTINGS_CONTENT_BODY_CLASS_NAME, "space-y-2.5")}>
         <PreferencesReliabilityNotice
           feedback={settings.preferencesFeedback ?? settings.runtimeFeedback}
           recovery={settings.preferencesFeedback
@@ -154,7 +155,6 @@ export function SettingsRuntimeSection() {
                 value: option.value,
                 label: t(option.labelKey),
               }))}
-              showLabel
               stretch
               title={t("settings.runtime.kernel_label")}
               value={settings.runtimeKind}
@@ -163,13 +163,13 @@ export function SettingsRuntimeSection() {
 
           {settings.runtimeKind === "nxs" ? (
             <>
-              <div className="border-t border-(--divider-subtle-color)" />
+              <div className={SETTINGS_DIVIDER_CLASS_NAME} />
               <ToolSearchRow
                 checked={settings.toolSearchEnabled}
                 disabled={settings.loading || settings.preferencesBusy}
                 onChange={settings.onToolSearchChange}
               />
-              <div className="border-t border-(--divider-subtle-color)" />
+              <div className={SETTINGS_DIVIDER_CLASS_NAME} />
               <WebSearchRow
                 apiKey={settings.webSearchAPIKey}
                 disabled={settings.loading || settings.preferencesBusy}
@@ -184,7 +184,7 @@ export function SettingsRuntimeSection() {
             </>
           ) : (
             <>
-              <div className="border-t border-(--divider-subtle-color)" />
+              <div className={SETTINGS_DIVIDER_CLASS_NAME} />
               <RuntimeWithoutSettings />
             </>
           )}
@@ -264,7 +264,7 @@ function WebSearchRow({
 
   return (
     <>
-      <div className={cn(SETTINGS_ROW_CLASS_NAME, "md:items-start")}>
+      <div className={SETTINGS_ROW_CLASS_NAME}>
         <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
           <div className={SETTINGS_ICON_CLASS_NAME}>
             <Search className="h-3.5 w-3.5" />
@@ -278,31 +278,30 @@ function WebSearchRow({
             </p>
           </div>
         </div>
-        <UiField htmlFor={`${webSearchId}-provider`} label={t("settings.runtime.web_search_provider")}>
-          <UiSelectMenu
-            ariaLabel={t("settings.runtime.web_search_provider")}
-            disabled={disabled}
-            id={`${webSearchId}-provider`}
-            onChange={(value) => {
-              const nextProvider = value as WebSearchProvider;
-              setDraft((current) => ({
-                ...current,
-                enabled: nextProvider === DEFAULT_WEB_SEARCH_PROVIDER,
-                provider: nextProvider,
-              }));
-              onProviderChange(nextProvider);
-            }}
-            options={WEB_SEARCH_PROVIDERS.map((providerOption) => ({
-              value: providerOption.value,
-              label: t(providerOption.labelKey),
-            }))}
-            placement="bottom"
-            size="sm"
-            value={draft.provider ?? DEFAULT_WEB_SEARCH_PROVIDER}
-          />
-        </UiField>
+        <UiSelectMenu
+          ariaLabel={t("settings.runtime.web_search_provider")}
+          disabled={disabled}
+          id={`${webSearchId}-provider`}
+          onChange={(value) => {
+            const nextProvider = value as WebSearchProvider;
+            setDraft((current) => ({
+              ...current,
+              enabled: nextProvider === DEFAULT_WEB_SEARCH_PROVIDER,
+              provider: nextProvider,
+            }));
+            onProviderChange(nextProvider);
+          }}
+          options={WEB_SEARCH_PROVIDERS.map((providerOption) => ({
+            value: providerOption.value,
+            label: t(providerOption.labelKey),
+          }))}
+          placement="bottom"
+          size="sm"
+          value={draft.provider ?? DEFAULT_WEB_SEARCH_PROVIDER}
+        />
       </div>
-      <div className="border-t border-(--divider-subtle-color) px-4 pb-2 pt-2 md:pl-14">
+      <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+      <div className="px-4 pb-2 pt-2 md:pl-14">
         <div className="grid gap-2 md:grid-cols-2">
           <div className="md:col-span-2">
             {apiKeySupported ? (

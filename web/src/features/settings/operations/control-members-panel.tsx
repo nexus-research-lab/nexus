@@ -4,11 +4,10 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
-  SETTINGS_GROUP_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import {
@@ -29,9 +28,11 @@ import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
+import { SettingsRowActions } from "../shared/settings-row-actions";
+
 type Feedback = { tone: "success" | "error"; message: string } | null;
 
-export function OrganizationMembersPanel() {
+export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: ReactNode }) {
   const { t } = useI18n();
   const { status } = useAuth();
   const [members, setMembers] = useState<ControlDeploymentMember[]>([]);
@@ -124,28 +125,31 @@ export function OrganizationMembersPanel() {
         </p>
       ) : null}
 
-      <section aria-label={t("members.list_label")} className={SETTINGS_GROUP_CLASS_NAME}>
-        <div className="flex flex-wrap items-center gap-3 border-b border-(--divider-subtle-color) p-3">
-          <UiSearchInput
-            aria-label={t("members.search_placeholder")}
-            className="min-w-52 flex-1 sm:max-w-80"
-            onChange={setQuery}
-            placeholder={t("members.search_placeholder")}
-            value={query}
-          />
-          <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>
-            {t("members.results", { count: visibleMembers.length })}
-          </span>
+      {loadFailed || mutationsBlocked ? (
           <UiButton disabled={loading || pendingKey !== null} onClick={() => void loadMembers()} size="sm" variant="text">
             <RefreshCw className={loading ? getUiSpinnerClassName({ size: "sm" }) : "h-3.5 w-3.5"} />
             {t("members.refresh")}
           </UiButton>
+      ) : null}
+
+      <section aria-label={t("members.list_label")} className="min-w-0">
+        <div className="grid grid-cols-1 items-center justify-between gap-3 border-b border-(--divider-subtle-color) pb-3 @min-[560px]/members:flex">
+          {toolbarActions}
+          <UiSearchInput
+            aria-label={t("members.search_placeholder")}
+            className="order-last min-w-0 w-full @min-[560px]/members:order-none @min-[560px]/members:w-60"
+            onChange={setQuery}
+            placeholder={t("members.search_placeholder")}
+            value={query}
+          />
+
         </div>
         {members.length > 0 ? (
-          <div className="hidden grid-cols-[minmax(0,1fr)_160px_160px] gap-3 border-b border-(--divider-subtle-color) px-4 py-2 @min-[560px]/members:grid">
+          <div className="hidden grid-cols-[minmax(0,1fr)_140px_90px_48px] gap-3 border-b border-(--divider-subtle-color) px-4 py-2 @min-[560px]/members:grid">
             <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_member")}</span>
-            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_role")}</span>
+            <span className={cn("px-3", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>{t("members.column_role")}</span>
             <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_access")}</span>
+            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("members.column_actions")}</span>
           </div>
         ) : null}
         <div className="divide-y divide-(--divider-subtle-color)">
@@ -176,12 +180,11 @@ export function OrganizationMembersPanel() {
           ) : null}
           {visibleMembers.map((member) => {
             const isSelf = member.user_id === status?.user_id;
-            const isPending = pendingKey === `update:${member.user_id}`;
             const canEditRole = status?.role === "owner" && !isSelf;
             const canToggle = !isSelf && (status?.role === "owner" || member.role === "member");
             return (
-              <article className="grid items-center gap-3 px-4 py-3 @min-[560px]/members:grid-cols-[minmax(0,1fr)_160px_160px]" key={member.user_id}>
-              <div className="min-w-0">
+              <article className="grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background) @min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px_48px]" key={member.user_id}>
+              <div className="col-span-3 min-w-0 @min-[560px]/members:col-span-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className={cn("min-w-0 wrap-anywhere", SETTINGS_ITEM_TITLE_CLASS_NAME)}>
                     {member.display_name || member.username}
@@ -199,31 +202,28 @@ export function OrganizationMembersPanel() {
                   @{member.username}
                 </p>
               </div>
-              <UiSelectMenu
+              {canEditRole ? <UiSelectMenu
+                allowLabelWrap
+                surface="plain"
                 ariaLabel={`${t("members.role")}: ${member.display_name || member.username}`}
-                disabled={!canEditRole || writesDisabled}
+                disabled={writesDisabled}
                 onChange={(value) => void updateMember(member, { role: value as ControlMemberRole })}
                 options={roleOptions}
                 size="sm"
                 value={member.role}
-              />
-              <div className="flex min-w-0 items-center justify-between gap-2">
+              /> : <span className={cn("px-3", getUiTypographyClassName({ role: "supporting" }))}>{roleOptions.find((option) => option.value === member.role)?.label}</span>}
+              <div className="min-w-0">
                 <UiBadge size="xs" tone={member.membership_status === "active" ? "default" : "warning"}>
                   {t(member.membership_status === "active" ? "members.active" : "members.revoked")}
                 </UiBadge>
-                <UiButton
-                  disabled={!canToggle || writesDisabled}
-                  onClick={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}
-                  size="sm"
-                  tone={member.membership_status === "active" ? "danger" : "primary"}
-                  variant="text"
-                >
-                  {isPending
-                    ? t("members.updating")
-                    : member.membership_status === "active"
-                      ? t("members.suspend")
-                      : t("members.restore")}
-                </UiButton>
+              </div>
+              <div className="flex justify-end">
+                {canToggle ? <SettingsRowActions
+                  label={`${t("common.more_actions")}: ${member.display_name || member.username}`}
+                  disabled={writesDisabled}
+                  items={[{ value: "toggle", label: t(member.membership_status === "active" ? "members.suspend" : "members.restore"), tone: member.membership_status === "active" ? "danger" : "default" }]}
+                  onSelect={() => void updateMember(member, { status: member.membership_status === "active" ? "revoked" : "active" })}
+                /> : null}
               </div>
               </article>
             );

@@ -4,6 +4,7 @@
 
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import {
   Loader2,
   Plus,
@@ -14,7 +15,6 @@ import { type FormEvent, useMemo } from "react";
 
 import {
   SETTINGS_CONTROL_LABEL_CLASS_NAME,
-  SETTINGS_GROUP_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -74,8 +74,8 @@ function ProjectCard({
   };
 
   return (
-    <article className={SETTINGS_GROUP_CLASS_NAME}>
-      <div className="grid gap-3 border-b border-(--divider-subtle-color) px-4 py-3">
+    <article className="border-t border-(--divider-subtle-color)">
+      <div className="grid gap-3 px-3 pt-4 pb-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <p className={cn(
@@ -94,7 +94,7 @@ function ProjectCard({
         </div>
       </div>
 
-      <div className="px-4 py-3">
+      <div className="px-3 pb-4">
         <div className="flex items-center gap-2">
           <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
             {t("settings.projects.members")}
@@ -116,7 +116,7 @@ function ProjectCard({
               return (
                 <div
                   key={ownerUserId}
-                  className="grid gap-2 py-2.5 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_160px] @min-[480px]/projects:items-center"
+                  className="grid gap-2 py-2.5 hover:bg-(--surface-interactive-hover-background) @min-[480px]/projects:grid-cols-[minmax(0,1fr)_160px] @min-[480px]/projects:items-center"
                 >
                   <span className={cn(
                     "min-w-0 wrap-anywhere",
@@ -133,13 +133,15 @@ function ProjectCard({
                         ownerUserId,
                         value as ProjectAccess,
                       )}
+                      allowLabelWrap
+                      surface="plain"
                       options={accessOptions}
                       size="sm"
                       value={access}
                     />
                   ) : (
                     <span className={cn(
-                      "sm:text-right",
+                      "px-3",
                       getUiTypographyClassName({ role: "caption", tone: "soft", weight: "semibold" }),
                     )}>
                       {pending
@@ -222,13 +224,13 @@ export function ProjectAdminPanel() {
         <WorkspaceContentHeader
           className="mb-0 max-sm:[&_h1]:hidden"
           title={t("settings.projects.title")}
-          description={t("settings.projects.description")}
           actions={<UiButton disabled={refreshDisabled} onClick={() => void controller.refreshProjects()} size="sm" variant="text">
             <RefreshCw className={viewModel.loading ? getUiSpinnerClassName({ size: "sm" }) : "h-3.5 w-3.5"} />
             {t("settings.projects.refresh")}
           </UiButton>}
         />
-        <UiDisclosure label={t("settings.projects.create")} surfaceTone="subtle" variant="panel">
+        <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-4`}>
+        <UiDisclosure label={t("settings.projects.create")} leading={<Plus className="h-4 w-4" />} variant="inline" className="[&>summary]:w-fit [&>summary]:max-w-full" contentClassName="border-t border-(--divider-subtle-color) pt-4 pb-3">
           <form
             className="grid items-end gap-3 @min-[480px]/projects:grid-cols-[minmax(0,1fr)_auto]"
             onSubmit={handleCreateProject}
@@ -277,7 +279,7 @@ export function ProjectAdminPanel() {
             variant="plain"
           />
         ) : (
-          <div className="grid gap-3">
+          <div className="grid">
             {viewModel.projects.map((project) => (
               <ProjectCard
                 key={project.project_id}
@@ -290,6 +292,7 @@ export function ProjectAdminPanel() {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       <FeedbackBannerViewport

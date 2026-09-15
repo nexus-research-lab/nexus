@@ -28,16 +28,17 @@ it("一次成员写入期间禁止其他行和手动刷新，失败核对前保�
   api.update.mockImplementation(() => new Promise((_, reject) => { rejectUpdate = reject; }));
   render(<I18nProvider><OrganizationMembersPanel /></I18nProvider>);
   await screen.findByText("alice");
-  await user.click(screen.getAllByRole("button", { name: /停用|Suspend/ })[0]);
-  expect((screen.getByRole("button", { name: /停用|Suspend/ }) as HTMLButtonElement).disabled).toBe(true);
-  expect((screen.getByRole("button", { name: /刷新|Refresh/ }) as HTMLButtonElement).disabled).toBe(true);
+  await user.click(screen.getAllByRole("button", { name: /更多操作|More actions/ })[0]);
+  await user.click(screen.getByRole("menuitem", { name: /停用|Suspend/ }));
+  expect((screen.getAllByRole("button", { name: /更多操作|More actions/ })[1] as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole("button", { name: /刷新|Refresh/ })).toBeNull();
   api.list.mockRejectedValueOnce(new Error("offline"));
   await act(async () => rejectUpdate(new Error("unknown")));
   await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
-  expect(screen.getAllByRole("button", { name: /停用|Suspend/ }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+  expect(screen.getAllByRole("button", { name: /更多操作|More actions/ }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
   expect((screen.getByRole("button", { name: /刷新|Refresh/ }) as HTMLButtonElement).disabled).toBe(false);
   await user.click(screen.getByRole("button", { name: /刷新|Refresh/ }));
-  await waitFor(() => expect(screen.getAllByRole("button", { name: /停用|Suspend/ }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true));
+  await waitFor(() => expect(screen.getAllByRole("button", { name: /更多操作|More actions/ }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true));
   expect(api.update).toHaveBeenCalledTimes(1);
 });
 

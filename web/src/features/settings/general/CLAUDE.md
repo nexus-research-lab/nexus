@@ -16,7 +16,7 @@ L4 | 父级: web/src/features/settings
 
 布局常量与具名 `SettingsToggleRow` 来自 `../shared/settings-panel-ui.tsx`，General 不拥有跨域共享 UI；分段控件直接使用共享 UiSegmentedControl。行为分区共置测试覆盖双语名称、独立说明身份及 Preferences/Echo 的各自禁用条件和叶子更新。
 
-默认消息行为使用分段控件的 showLabel 关联唯一可见组名，不另建设置标签壳；排队/打断命令与 Preferences 加载/保存锁仍由原控制器拥有。
+默认消息行为复用左侧行标题，分段控件通过 aria-label 命名；默认模型行同样不重复显示右侧“服务 / 模型”标签；排队/打断命令与 Preferences 加载/保存锁仍由原控制器拥有。
 
 设置行在桌面与窄屏都保留影响用户判断的短说明；说明不解释 bridge、SDK 或请求链路等内部实现。
 
@@ -52,3 +52,5 @@ Preferences 首次 GET 成功并取得持久 version 前禁止写入，不得用
 日志导出、目录选择、迁移按钮的 busy 语义直接来自各自控制器；不新增 UI 事务状态。恢复提示的领域动作由 settings-reliability-notices.test.tsx 验证唯一分派与检查中的防重复。
 
 默认模型行直接合并 Preferences 首次加载与保存锁，目录重试由 providerOptionsLoading 禁用并播报忙碌；权限选择器由共享组件生成实例身份，不使用全局固定 DOM id。
+
+常规设置不提供“导览与引导”及重置入口，也不参与导览状态管理；设置搜索不登记此项。

@@ -3,6 +3,7 @@
 // POS: General 外观分区纯视图；不持久化服务端 Preferences。
 "use client";
 
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { Languages, Palette, RotateCcw } from "lucide-react";
 import { useId, useState, type ReactNode } from "react";
@@ -70,7 +71,7 @@ export function SettingsAppearanceSection() {
           </div>
         </div>
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
