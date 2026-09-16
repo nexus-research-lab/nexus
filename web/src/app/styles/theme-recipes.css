@@ -1631,12 +1631,12 @@
   }
 
   .segmented-control-option {
-    border: 1px solid transparent;
+    /* 紧凑文字与图标共用 24px 高度，透明边框也不能额外撑高文字选项。 */
+    border: 0;
     color: var(--chip-segmented-option-color);
     transition:
       background var(--motion-duration-fast) ease,
-      color var(--motion-duration-fast) ease,
-      border-color var(--motion-duration-fast) ease;
+      color var(--motion-duration-fast) ease;
   }
 
   .segmented-control-option:not(:disabled):hover {

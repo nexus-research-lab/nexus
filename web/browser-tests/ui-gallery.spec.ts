@@ -578,9 +578,9 @@ test("segmented selections share readable density, wrapping, focus hints and dis
   for (const button of await fixture.locator(".segmented-control-option").all()) {
     const groupCase = await button.evaluate((element) => element.closest("[data-segmented-case]")!.getAttribute("data-segmented-case")!);
     const compact = groupCase.startsWith("compact");
-    expect(await button.evaluate((element) => getComputedStyle(element).fontSize)).toBe(compact ? "13px" : "14px");
+    expect(await button.evaluate((element) => getComputedStyle(element).fontSize)).toBe("13px");
     expect(await button.evaluate((element) => getComputedStyle(element).fontWeight)).toBe("500");
-    if (!groupCase.endsWith("long")) expect((await button.boundingBox())!.height).toBe(compact ? 28 : 32);
+    if (!groupCase.endsWith("long")) expect((await button.boundingBox())!.height).toBe(compact ? 24 : 28);
     const contrast = await measureTextContrast(button);
     expect(contrast.ratio).toBeGreaterThanOrEqual(4.5);
     measurements.push({ ...contrast, ...await button.evaluate((element) => ({
@@ -635,7 +635,7 @@ test("semantic text and actions stay readable on page, card and overlay surfaces
   const invalidPaint = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
     return ["--material-chip-background", "--material-input-background", "--material-input-focus-background",
-      "--modal-btn-secondary-background", "--button-tonal-background", "--chip-segmented-background"]
+      "--modal-btn-secondary-background", "--button-tonal-background", "--chip-segmented-option-active-background"]
       .map((token) => ({ token, value: style.getPropertyValue(token).trim() }))
       .filter(({ value }) => !CSS.supports("background-color", value));
   });
