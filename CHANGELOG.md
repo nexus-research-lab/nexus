@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require independent nxs project-definition file confinement before desktop development-policy task admission. Cover startup discovery and refresh of Agent, command, Skill and hook-setting files; block incomplete snapshots and replace runtimes when the requirement changes. Global configuration and hook execution remain pending.
+
 - Require independent nxs instruction and compact-file confinement in the desktop development policy. Pin the local Bridge contract, replace runtimes when the requirement changes, and extend the fixed-SDK native gate with allowed/denied startup sources, exclusion settings and reload recovery. Global configuration, background IO and default product rollout remain pending.
 
 - Require independent nxs Skill file confinement before experimental desktop task admission. Skill catalogs, bodies, dynamic discovery, Git ignore queries and remember-availability settings now share the file boundary. Include this requirement in process replacement identity and the fixed-SDK native gate; global startup settings, hooks, background IO and default product rollout remain pending.

@@ -216,6 +216,20 @@ try {
       "TestDarwinSandboxInstructionReload",
       ...["settings", "cancel", "symlink"].map((failure) => `TestDarwinSandboxInstructionReload/${failure}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-project-contract", ["./cmd/nxs"], [
+      "TestSandboxProjectFilesNegotiation",
+      "TestSandboxProjectFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxProjectFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-project-files", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxProjectFiles",
+      ...["project_agent", "user_agent", "project_command", "user_command", "skill", "file_symlink", "directory_symlink", "directory", "hook_settings"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxProjectFiles/${source}/allowed=${allowed}`)),
+      "TestDarwinSandboxProjectRefresh",
+      ...["symlink", "cancel", "malformed_settings", "changed_agent", "changed_hook"].map(
+        (failure) => `TestDarwinSandboxProjectRefresh/${failure}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
