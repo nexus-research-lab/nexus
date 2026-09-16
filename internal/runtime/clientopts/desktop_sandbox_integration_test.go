@@ -46,7 +46,7 @@ func TestDesktopSandboxRealRuntimeNegotiation(t *testing.T) {
 			t.Errorf("runtime cleanup failed: %v", err)
 		}
 	}()
-	if !session.Supports(agentclient.CapabilityRequiredSandbox) || !session.Supports(agentclient.CapabilitySandboxFileTools) || !session.Supports(agentclient.CapabilitySandboxSearchTools) || !session.Supports(agentclient.CapabilitySandboxMediaFiles) || !session.Supports(agentclient.CapabilitySandboxSkillFiles) {
+	if !session.Supports(agentclient.CapabilityRequiredSandbox) || !session.Supports(agentclient.CapabilitySandboxFileTools) || !session.Supports(agentclient.CapabilitySandboxSearchTools) || !session.Supports(agentclient.CapabilitySandboxMediaFiles) || !session.Supports(agentclient.CapabilitySandboxSkillFiles) || !session.Supports(agentclient.CapabilitySandboxContextFiles) {
 		t.Fatal("host-required command, file, search and local-media contracts were not all acknowledged")
 	}
 }
