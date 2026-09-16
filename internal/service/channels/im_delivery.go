@@ -89,7 +89,7 @@ func (r *Router) stageIMDelivery(ctx context.Context, source imdelivery.Source, 
 
 func (r *Router) deliverTrackedIM(ctx context.Context, source imdelivery.Source, agent, text, session string) (DeliveryResult, error) {
 	if source.CallID == "" {
-		return DeliveryResult{}, errors.New("IM send requires a trusted tool call identity")
+		return DeliveryResult{}, errors.New("IM delivery unavailable: runtime MCP tool-use ID is missing; use a Bridge version that preserves call metadata")
 	}
 	d, err := r.stageIMDelivery(ctx, source, agent, session, text)
 	if err != nil {
