@@ -126,9 +126,11 @@ func sendMessage(
 		if err := allowOnly(args, "destination", "target_id", "content"); err != nil {
 			return nil, err
 		}
-		if callContext != nil {
-			sctx.Actor.CallID = strings.TrimSpace(callContext.ToolUseID)
+		callID, err := imDeliveryCallID(sctx, callContext, args)
+		if err != nil {
+			return nil, err
 		}
+		sctx.Actor.CallID = callID
 		return sendToAddressBook(
 			ctx, svc, sctx.Actor, communicationsvc.TargetTypeExternalSession, args,
 		)

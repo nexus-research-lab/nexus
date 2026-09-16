@@ -5,6 +5,9 @@ package communication
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -141,4 +144,28 @@ func sendDeliveryReply(ctx context.Context, svc *communicationsvc.Service, actor
 		return nil, errors.New("平台通讯服务未装配")
 	}
 	return svc.ReplyToDelivery(ctx, actor, stringArg(args, "target_id"), stringArg(args, "content"), refs)
+}
+
+// imDeliveryCallID follows the SDK's optional tool-use identity contract. The
+// fallback binds a canonical intent to this host-owned physical round; identical
+// retries reuse the durable send receipt, while a new round has a fresh identity.
+func imDeliveryCallID(sctx RuntimeContext, call *sdktool.CallContext, input map[string]any) (string, error) {
+	actor := sctx.Actor
+	if strings.TrimSpace(actor.SessionKey) == "" || strings.TrimSpace(actor.RoundID) == "" || strings.TrimSpace(actor.AgentID) == "" || strings.TrimSpace(actor.OwnerUserID) == "" {
+		return "", errors.New("IM send requires a host-bound session and round")
+	}
+	if call != nil && strings.TrimSpace(call.ToolUseID) != "" {
+		return strings.TrimSpace(call.ToolUseID), nil
+	}
+	canonical, err := json.Marshal(input)
+	if err != nil {
+		return "", fmt.Errorf("canonicalize IM delivery input: %w", err)
+	}
+	parts := []string{actor.OwnerUserID, actor.AgentID, actor.SessionKey, actor.RoundID, sctx.CurrentAgentRoundID, "send_message", string(canonical)}
+	raw, err := json.Marshal(parts)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(raw)
+	return "im-call-" + hex.EncodeToString(digest[:]), nil
 }
