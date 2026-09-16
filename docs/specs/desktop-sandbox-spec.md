@@ -170,6 +170,20 @@ assembly; a successful refresh may update Slash bodies directly. This requiremen
 participates in process replacement. Global permission/provider and managed-policy
 loading, persistence and hook execution remain separate work.
 
+The host also requires `SandboxSettings.RequireManagedPolicy`, initialize
+`required_sandbox_managed_policy` and `sandbox_managed_policy_v1`. Before settings
+environment projection, nxs fixes the managed root and an immutable policy
+snapshot. All later policy consumers use that source, including child runtimes.
+Malformed JSON, invalid known safety-field types, unreadable files and effective
+policy changes block query, manual compact, tool dispatch, file-context preparation
+and permission updates. The original effective policy can be restored; applying a
+new policy requires runtime recreation. The control-plane reader accepts regular
+files up to 16 MiB each, with nonblocking Unix open and descriptor type validation.
+Required execution excludes task settings before any such read. This requirement
+participates in process identity and currently acknowledges the macOS backend.
+Ordinary settings and credentials, permission-persistence concurrency, hook
+execution, background IO and effective-policy receipts remain separate work.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature

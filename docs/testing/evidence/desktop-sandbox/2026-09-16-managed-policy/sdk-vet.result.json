@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "vet",
+    "./internal/config",
+    "./internal/config/settings",
+    "./internal/environment/workspace",
+    "./internal/prompt",
+    "./internal/tool/builtin/bash",
+    "./internal/tool/builtin/bash/sandboxexec",
+    "./internal/tool/builtin/file/sandboxfs",
+    "./internal/tool/builtin/powershell",
+    "./internal/tool/executor",
+    "./internal/agent/runtime",
+    "./client",
+    "./cmd/nxs"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+  "started": 1789531263.06056,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 1.892
+}

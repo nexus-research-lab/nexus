@@ -303,3 +303,29 @@ node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-age
 [证据报告](evidence/desktop-sandbox/2026-09-16-project-files/report.json)、[固定基线](evidence/desktop-sandbox/2026-09-16-project-files/baseline-report.json)和 [SHA256 清单](evidence/desktop-sandbox/2026-09-16-project-files/manifest.json)记录完整范围、跳过项及局限。runtime 原生用例以测试可执行文件转发生产 worker 协议；真实 nxs 另用于固定宿主基线和新旧握手。普通竞态套件中的平台/live/显式原生开关 skip 均保留在报告，不能替代上述必测项。
 
 P1/P2 继续进行中：全局权限/Provider/managed 设置读取、权限持久化、hook 执行、后台 IO、网络、生效回执、完整后代监督与 scratch 尚未闭合。默认产品策略、原生 Windows、Linux owner、Claude 和安装包继续按 P3–P7 验收；本次独立 `sandbox_project_files_v1` 不代表整个 SDK 进程已统一隔离。全部仅本地，`releaseAccepted=false`。
+
+
+## 2026-09-16：托管策略完整性子批次
+
+在独立 worktree 先复现旧 SDK 的三条失败路径：managed 配置损坏、删除或变宽后，仍能准备新的文件执行范围。现在会话在任务 settings 环境投影前固定来源及不可变快照；query、手动 compact、工具派发、文件上下文和权限更新前核对同一来源。错误不能删除强制规则，也不能通过普通 settings 环境重定向到另一份 policy。恢复原有效内容可继续使用，应用新策略须重建 runtime。必需执行在读取前过滤普通设置；托管文件校验包括 drop-in、已知权限/沙箱字段类型、普通文件与大小上限，FIFO 不阻塞加载。
+
+SDK `8031091325a882d384ac40902e3905bd46b021db`、Bridge `796ab55c1b7d1481c7ee6946f49f6eda3e1c37f3`；Nexus 以 `e4a637552e975e5283539783b604b91006ca167c` 为本批次基线，报告记录最终变更源码哈希。固定 Bridge 为本地精确模块 `v0.1.34-0.20260916040534-796ab55c1b7d`，checksum `h1:RdDB4o0YV9S0pYUt6zrqI8ABilbEIe2VxVexYSxOU5I=`；固定 SDK archive 所构建 nxs SHA256 为 `6c92e19887668a53845b8e10f623d377db4ff590e532ad8725374b04f2b56b2a`。没有 replace 或 go.work 参与验收，模块尚未发布。
+
+| 验证 | 结果 |
+| --- | --- |
+| 旧 SDK 原生复现 | malformed/deleted/relaxed 三个子场景均失败，证明旧行为缺口 |
+| 固定 SDK 开发基线 | 72 个顶层、225 个指定子场景通过，必测项无 skip |
+| 新增原生完整性 | 三种策略变化均阻断文件范围、query、compact、Bash 与权限写入；恢复后强制 deny 保留 |
+| 新旧真实进程 | 9 个顶层、16 个子场景通过，无 skip；只缺托管能力的旧 nxs 被明确拒绝 |
+| 目标包 | SDK 12 包、Bridge 3 包、Nexus runtime 子包的 race 检查及 vet 通过；最终命名后的 config 子场景另行通过 |
+| 其他门禁 | 架构、证据解析器、SDK/Bridge 的 Windows amd64 与 Linux amd64 交叉编译通过 |
+
+证据：[汇总](./evidence/desktop-sandbox/2026-09-16-managed-policy/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-16-managed-policy/baseline-report.json)、[真实进程](./evidence/desktop-sandbox/2026-09-16-managed-policy/bridge-pinned-real-process.jsonl)、[哈希清单](./evidence/desktop-sandbox/2026-09-16-managed-policy/manifest.json)。宽范围 race 中按需原生/真实进程用例的 skip 均单列在汇总中，不能替代这里的显式原生门禁。
+
+本次只增加独立 `sandbox_managed_policy_v1` 保证，P1/P2 整体仍进行中。普通 settings/Provider 凭据、权限持久化、hook/后台 IO、网络、生效回执、完整后代监督与 scratch 尚未闭合；默认产品策略、原生 Windows、Linux owner、Claude 和安装包按 P3–P7 保留。全部仅本地，`releaseAccepted=false`，原目录现场未改动。
+
+```sh
+GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 8031091325a882d384ac40902e3905bd46b021db
+```
+
+此复核命令要求新 Bridge 精确模块已在本机缓存，并在原生 macOS 上运行；本地 file proxy 与历史 nxs 的位置记录在报告和真实进程命令中，不能当作新机器可取得的发布版本。

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "vet",
+    "-mod=readonly",
+    "./internal/runtime/..."
+  ],
+  "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+  "started": 1789531595.533987,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "GOPROXY": "off"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 0.779
+}

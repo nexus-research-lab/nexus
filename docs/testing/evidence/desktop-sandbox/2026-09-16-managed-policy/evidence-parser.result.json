@@ -1,0 +1,14 @@
+{
+  "command": [
+    "node",
+    "--test",
+    "scripts/desktop/sandbox-test-evidence.test.mjs"
+  ],
+  "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+  "started": 1789531621.484619,
+  "environment": {
+    "GOWORK": "off"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 0.064
+}

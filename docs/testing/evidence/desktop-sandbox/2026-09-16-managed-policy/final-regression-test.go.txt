@@ -1,0 +1,87 @@
+//go:build darwin
+
+// INPUT: 已启动会话、真实文件 worker 与托管策略的变化。
+// OUTPUT: 强制禁止规则未知时不再发出可读取私有内容的文件执行范围。
+// POS: managed policy 的原生运行期回归。
+package runtime
+
+import (
+	"context"
+	"encoding/json"
+	tools "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/protocol"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// TestDarwinManagedPolicyIntegrity 校验已绑定策略被破坏、删除或放宽后的文件准入。
+func TestDarwinManagedPolicyIntegrity(t *testing.T) {
+	for _, change := range []string{"malformed", "deleted", "relaxed"} {
+		t.Run(change, func(t *testing.T) {
+			cfg := contextFileFixture(t)
+			secret := filepath.Join(t.TempDir(), "private.txt")
+			writeContextFixture(t, secret, "MANAGED_PRIVATE_MARKER")
+			path := filepath.Join(os.Getenv("NEXUS_MANAGED_SETTINGS_PATH"), "managed-settings.json")
+			policy, err := json.Marshal(map[string]any{"sandbox": map[string]any{"filesystem": map[string]any{"denyRead": []string{secret}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeContextFixture(t, path, string(policy))
+			rt, err := New(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			files, err := rt.tools.PrepareContextFiles(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := files.ReadFile(context.Background(), secret); err == nil {
+				t.Fatal("initial mandatory deny not enforced")
+			}
+			switch change {
+			case "malformed":
+				writeContextFixture(t, path, `{"sandbox":`)
+			case "deleted":
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			case "relaxed":
+				writeContextFixture(t, path, `{}`)
+			}
+			if _, err := rt.tools.PrepareContextFiles(context.Background()); err == nil {
+				t.Fatal("changed managed policy still prepared a file execution scope")
+			}
+			assertBlocked := func(err error) {
+				t.Helper()
+				if err == nil || !strings.Contains(err.Error(), "managed") {
+					t.Fatalf("missing managed rejection: %v", err)
+				}
+			}
+			emit := func(protocol.ReceivedMessage) error { t.Fatal("changed policy reached model emitter"); return nil }
+			_, err = rt.RunQuery(context.Background(), QueryConfig{}, emit)
+			assertBlocked(err)
+			assertBlocked(rt.CompactSessionNow(context.Background(), QueryConfig{}, "", emit))
+			_, err = rt.tools.Run(context.Background(), tools.Request{Name: "Bash", Input: map[string]any{"command": "echo unsafe"}}, tools.PermissionContext{Mode: "bypassPermissions"})
+			assertBlocked(err)
+			assertBlocked(rt.ApplyPermissionUpdates(context.Background(), []permission.Update{{Type: "setMode", Mode: permission.ModeBypassPermissions, Destination: permission.UpdateDestinationLocalSettings}}))
+			if _, err := os.Stat(filepath.Join(cfg.Project.CWD, ".nexus", "settings.local.json")); !os.IsNotExist(err) {
+				t.Fatalf("permission write started: %v", err)
+			}
+			writeContextFixture(t, path, string(policy))
+			if err := rt.checkManagedPolicy(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			files, err = rt.tools.PrepareContextFiles(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := files.ReadFile(context.Background(), secret); err == nil {
+				t.Fatal("restored policy lost deny")
+			}
+
+		})
+	}
+}

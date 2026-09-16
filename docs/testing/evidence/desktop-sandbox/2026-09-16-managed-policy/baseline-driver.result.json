@@ -1,0 +1,19 @@
+{
+  "command": [
+    "node",
+    "scripts/desktop/check-sandbox-baseline.mjs",
+    "--sdk-source",
+    "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+    "--sdk-ref",
+    "8031091325a882d384ac40902e3905bd46b021db"
+  ],
+  "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+  "started": 1789531595.9096398,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "GOPROXY": "off"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 201.929
+}
