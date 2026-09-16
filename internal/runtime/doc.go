@@ -33,4 +33,5 @@
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
+// 桌面策略另要求 RequireContextFiles，并将其纳入进程身份；指令能力不代表全局配置和后台 IO。
 package runtime

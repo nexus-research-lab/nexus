@@ -196,6 +196,26 @@ try {
       ...["inline_enabled", "absolute_enabled", "relative_enabled", "relative_disabled"].map(
         (scenario) => `TestDarwinSandboxSkillMemorySettings/${scenario}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-context-contract", ["./cmd/nxs"], [
+      "TestSandboxContextFilesNegotiation",
+      "TestSandboxContextFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxContextFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-context-startup", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxStartupInstructions",
+      ...["project", "user", "local", "rule", "symlink", "include", "additional", "managed"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxStartupInstructions/${source}/allowed=${allowed}`)),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-context-recovery", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxCompactFileRestore",
+      ...["denied", "symlink", "allowed"].map((source) => `TestDarwinSandboxCompactFileRestore/${source}`),
+      "TestDarwinSandboxInstructionSettings",
+      ...["user", "project", "local", "relative_flag", "managed", "dropin", "symlink"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxInstructionSettings/${source}/allowed=${allowed}`)),
+      "TestDarwinSandboxInstructionReload",
+      ...["settings", "cancel", "symlink"].map((failure) => `TestDarwinSandboxInstructionReload/${failure}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",

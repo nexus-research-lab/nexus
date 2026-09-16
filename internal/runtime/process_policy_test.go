@@ -18,6 +18,7 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 		func() { base.Sandbox.RequireSearchTools = true },
 		func() { base.Sandbox.RequireMediaFiles = true },
 		func() { base.Sandbox.RequireSkillFiles = true },
+		func() { base.Sandbox.RequireContextFiles = true },
 		func() {
 			base.Sandbox.Resources = &bridge.SandboxResourcePolicy{Version: 1, WriteScope: bridge.SandboxWriteScopeReadOnly, ScratchRoot: t.TempDir()}
 		},

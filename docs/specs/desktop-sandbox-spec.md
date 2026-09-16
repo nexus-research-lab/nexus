@@ -144,6 +144,20 @@ The requirement participates in process identity and requires replacement when
 changed. Global startup settings, hooks, background memory, effective-policy
 receipts, other platforms and Claude remain separate acceptance work.
 
+The host separately requires `SandboxSettings.RequireContextFiles`, initialize
+`required_sandbox_context_files` and `sandbox_context_files_v1`. Startup and
+compact instruction loading, dynamic instruction discovery, and recent-file
+restoration use the file execution boundary for contents, metadata, directories,
+symlinks and instruction exclusion settings. A denied optional instruction is not
+injected. Unreadable or malformed selected exclusion settings stop startup or
+reload, rather than removing the exclusion policy. Failed reloads clear stale
+instructions and prevent the next model request until reading recovers. Query,
+manual compact and child-agent dispatch preserve the current cancellation context;
+startup/reload and compact file restoration have bounded total read time.
+This requirement participates in process identity. Global permission/provider
+settings, project definitions, hooks, persistence, background IO, effective-policy
+receipts and other runtime/platform acceptance remain separate work.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature

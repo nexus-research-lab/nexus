@@ -244,11 +244,34 @@ SDK `3d7938cdb4524a603c40401375195d7e162b474e`、Bridge `f903386e6cfaaf1fddc3615
 P1/P2 仍进行中。全局启动/compact 重载设置与指令、Skill hook、后台 IO、远程网络、生效回执、完整后代监督与 scratch 租约尚未闭合；默认产品策略、原生 Windows/Linux owner、Claude 与签名包/升级继续保留 P3–P7 门禁。所有提交仅本地，`releaseAccepted=false`。
 
 
+## P1/P2 指令与压缩上下文文件（2026-09-16）
+
+SDK `d3695455cb0323a2710440f5d57ab8864d3d5201`、Bridge `318c79166b2061369b1a65c4bd4609d746be1c36`；Nexus 在独立分支 `codex/desktop-sandbox-isolated` 的 `8a21bd633` 上验证本批次变更，报告保存对应源码文件的哈希。Bridge 固定为本地精确提交模块 `v0.1.34-0.20260916025049-318c79166b20`，checksum 为 `h1:pe2muTUpmkbuDkA0VfOt0nqoC7fRAo/kxTJc+TZHyYY=`，未发布。
+
+先在 SDK `3d7938cd` 上复现七类启动指令读取与两种 compact 文件恢复的越界内容，共九个失败子场景。修复后，启动和重载通过工具文件执行器读取指令及排除设置；compact 的近期文件恢复重新检查当前内容，历史 read-state 不再通向宿主读取。读取/解析排除配置失败会拒绝启动或重载；重载失败清除旧指令，并在读取恢复前阻止下一次模型请求。主任务、手动压缩及子任务传递当前取消上下文。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 固定 SDK 原生及宿主基线 | exit 0；58 个顶层、171 个指定子场景；必测项无 skip |
+| 上下文原生测试 | exit 0；4 个顶层、36 个子场景；允许/拒绝来源、include、链接、排除配置、取消与重载恢复 |
+| SDK 目标包 race / vet | exit 0；357 个顶层、134 个子场景；所有 opt-in/platform skip 在报告具名保存，原生用例由固定基线单独执行 |
+| Bridge 目标包 race / vet | exit 0；195 个顶层、106 个子场景；显式二进制用例在下一行独立执行 |
+| 实际固定模块的新旧 nxs | exit 0；7 个顶层、12 个子场景；全部执行、无模型请求、无 skip |
+| Nexus runtime 子包 race | exit 0；219 个顶层、191 个子场景；二进制 opt-in 由基线覆盖，Windows/Linux 原生 skip 不视为通过 |
+| SDK/Bridge Windows/Linux amd64 | CGO_ENABLED=0 编译通过；不代表原生或 owner 验收 |
+| 架构与门禁解析 | exit 0；依赖方向通过，6 个解析用例通过 |
+
+原生 runtime 测试通过测试入口运行生产文件 worker，并真实施加 Seatbelt；固定归档另构建真实 nxs 用于宿主和 Bridge 进程验收。原生上下文测试本身没有开启 race，受影响包另跑 race。真实进程首轮漏传旧资源二进制而 skip 一项，保留原记录；补齐后最终整组重跑无 skip。
+
+固定构建 nxs SHA-256 为 `35b5286f59c377f93f97ed5159d675dc1d994fd4fb901a85e5948f2a2a63b608`。完整记录见[报告与范围](./evidence/desktop-sandbox/2026-09-16-context-files/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-16-context-files/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-16-context-files/before.jsonl)、[原生上下文](./evidence/desktop-sandbox/2026-09-16-context-files/native-context.jsonl)、[真实进程](./evidence/desktop-sandbox/2026-09-16-context-files/bridge-pinned-real.jsonl)与[校验和](./evidence/desktop-sandbox/2026-09-16-context-files/manifest.json)。
+
+P1/P2 仍进行中。全局权限/Provider 配置、项目 Agent/命令定义、hook 和后台 IO、远程网络、有效策略回执、后代监督、scratch、默认产品策略、原生其他平台/Claude 及安装包仍未闭合。本批次只增加独立 `sandbox_context_files_v1` 能力，不代表整个 SDK 进程已被统一 OS 沙箱包住。所有提交仅本地，`releaseAccepted=false`。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索/媒体/Skill 合同、正常/拒绝搜索、图片与 Skill 读取、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 3d7938cd 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索/媒体/Skill 合同、正常/拒绝搜索、图片与 Skill 读取、后台网络子场景的成功证据，不能只凭父测试 PASS；指令启动/重载及配置排除用例也逐项要求正反向证据。当前使用 SDK d3695455 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -256,7 +279,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 3d7938cdb4524a603c40401375195d7e162b474e
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref d3695455cb0323a2710440f5d57ab8864d3d5201
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。
