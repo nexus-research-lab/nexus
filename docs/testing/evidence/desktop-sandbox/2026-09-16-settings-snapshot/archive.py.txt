@@ -1,0 +1,113 @@
+import datetime
+import hashlib
+import json
+import shutil
+from pathlib import Path
+
+scratch = Path(__file__).resolve().parent
+nexus = Path('/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox')
+sdk = Path('/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk')
+destination = nexus / 'docs/testing/evidence/desktop-sandbox/2026-09-16-settings-snapshot'
+baseline_dir = Path((scratch / 'baseline-driver.jsonl').read_text().splitlines()[0].split(': ', 1)[1])
+baseline = json.loads((baseline_dir / 'report.json').read_text())
+assert baseline['passed'] and not baseline['releaseAccepted'] and not baseline['sdkWorktreeChanges']
+names = ['baseline-driver', 'sdk-race-final', 'sdk-controls', 'sdk-vet', 'bridge-race', 'bridge-vet', 'native-recovery-final',
+         'nexus-race', 'nexus-vet', 'architecture', 'evidence-parser',
+         'sdk-windows', 'sdk-linux', 'bridge-windows', 'bridge-linux', 'bridge-pinned-real-process']
+records = {}
+for name in names:
+    record = json.loads((scratch / (name + '.result.json')).read_text())
+    assert record['exitCode'] == 0, (name, record)
+    record['log'] = name + '.jsonl'
+    events = []
+    for line in (scratch / record['log']).read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    if events:
+        failures = [e for e in events if e.get('Action') in ('fail', 'build-fail')]
+        assert not failures, (name, failures)
+        record['topLevelPassed'] = sum(e.get('Action') == 'pass' and 'Test' in e and '/' not in e['Test'] for e in events)
+        record['subtestsPassed'] = sum(e.get('Action') == 'pass' and '/' in e.get('Test', '') for e in events)
+        record['skipped'] = [{'package': e.get('Package'), 'test': e.get('Test')} for e in events if e.get('Action') == 'skip']
+    records[name] = record
+matrix = records['bridge-pinned-real-process']
+assert matrix['topLevelPassed'] == 10 and matrix['subtestsPassed'] == 18 and not matrix['skipped'], matrix
+required = [t for c in baseline['checks'] for t in c.get('passedTests', [])]
+assert all(c['exitCode'] == 0 for c in baseline['checks'])
+assert not destination.exists(), destination
+destination.mkdir(parents=True)
+for source in baseline_dir.glob('*.log'):
+    shutil.copyfile(source, destination / source.name)
+shutil.copyfile(baseline_dir / 'report.json', destination / 'baseline-report.json')
+initial_dir = Path((scratch / 'baseline-driver-initial.jsonl').read_text().splitlines()[0].split(': ', 1)[1])
+shutil.copyfile(initial_dir / 'report.json', destination / 'baseline-initial-report.json')
+for source in initial_dir.glob('*context-recovery*.log'):
+    shutil.copyfile(source, destination / ('initial-' + source.name))
+for name in names:
+    for suffix in ['.jsonl', '.result.json']:
+        shutil.copyfile(scratch / (name + suffix), destination / (name + suffix))
+for source, target in [('before.jsonl', 'reproduction-before.jsonl'), ('before.result.json', 'reproduction-before.result.json'),
+                       ('bridge-download.json', 'bridge-download.json'), ('run.py', 'run-check.py.txt'),
+                       ('matrix.py', 'run-matrix.py.txt'), ('archive.py', 'archive.py.txt'),
+                       ('baseline-driver-initial.jsonl', 'baseline-driver-initial.jsonl'),
+                       ('baseline-driver-initial.result.json', 'baseline-driver-initial.result.json'),
+                       ('before-settings_integrity_test.go.txt', 'before-client-test.go.txt'),
+                       ('before-settings_integrity_darwin_test.go.txt', 'before-runtime-test.go.txt')]:
+    shutil.copyfile(scratch / source, destination / target)
+for source, target in [('client/settings_integrity_test.go', 'final-client-test.go.txt'),
+                       ('client/settings_integrity_darwin_test.go', 'final-client-native-test.go.txt'),
+                       ('internal/agent/runtime/settings_integrity_darwin_test.go', 'final-runtime-native-test.go.txt'),
+                       ('cmd/nxs/settings_integrity_test.go', 'final-control-test.go.txt')]:
+    shutil.copyfile(sdk / source, destination / target)
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+sources = ['go.mod', 'go.sum', 'internal/runtime/process_policy.go', 'internal/runtime/process_policy_test.go',
+           'internal/runtime/clientopts/desktop_sandbox.go', 'internal/runtime/clientopts/desktop_sandbox_test.go',
+           'internal/runtime/clientopts/desktop_sandbox_integration_test.go', 'scripts/desktop/check-sandbox-baseline.mjs']
+legacy = []
+for variable, value in matrix['environment'].items():
+    if 'LEGACY' in variable:
+        binary = Path(value)
+        entry = {'variable': variable, 'path': value, 'sha256': sha(binary)}
+        report_path = binary.parent / 'report.json'
+        if report_path.exists():
+            entry['sdkRevision'] = json.loads(report_path.read_text()).get('sdkRevision')
+        legacy.append(entry)
+reproduction = json.loads((scratch / 'before.result.json').read_text())
+assert reproduction['exitCode'] == 1
+reproduction.update(sdkBase='8031091325a882d384ac40902e3905bd46b021db', log='reproduction-before.jsonl',
+                    fixtures=['before-client-test.go.txt', 'before-runtime-test.go.txt'])
+report = {
+    'version': 1, 'createdAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    'scope': 'ordinary settings confinement and checked runtime snapshots', 'releaseAccepted': False, 'localOnly': True,
+    'sdkRevision': baseline['sdkRevision'], 'bridgeRevision': '0f906d102f818e89425179d7f9d44e3b0c20f6ff',
+    'nexusBaseline': baseline['nexusRevision'], 'nexusWorktree': str(nexus),
+    'nexusSourceHashes': {p: sha(nexus / p) for p in sources}, 'bridge': baseline['bridge'], 'runtime': baseline['runtime'],
+    'platform': {p: baseline[p] for p in ['platform', 'architecture', 'osRelease', 'goVersion']},
+    'baseline': {'log': 'baseline-report.json', 'passed': True, 'exitCode': 0,
+                 'requiredTopLevel': sum('/' not in t for t in required),
+                 'requiredSubtests': sum('/' in t for t in required), 'requiredSkips': 0},
+    'reproduction': reproduction, 'checks': records, 'legacyRuntimes': legacy,
+    'initialGateFailure': {'log': 'baseline-initial-report.json',
+                          'test': 'TestDarwinSandboxInstructionReload/settings',
+                          'resolution': 'Restore the original absent settings source; creating a new empty JSON object is not restoration. Project refresh recovery fixtures now use the same rule.'},
+    'limitations': [
+        'Only local commits and a fixed local Bridge module; no push or public distribution.',
+        'Optional native/real-process skips in broad race suites are listed separately; explicit required baseline and real-process matrix have no required skips.',
+        'Windows/Linux checks are cross-compilation, not native runtime acceptance.',
+        'Snapshot checks do not provide rooted atomic permission writes, cross-process transactions, durable approval/receipts or unknown-result reconciliation.',
+        'Provider credential separation, hook execution, background IO, remote networking, full descendant supervision, scratch lifecycle, default product policy and P3-P7 remain incomplete.',
+        'The original Nexus worktree and its pending Git operation were not modified.'
+    ]
+}
+(destination / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+manifest = {p.name: sha(p) for p in sorted(destination.iterdir()) if p.is_file()}
+(destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+print(json.dumps({'destination': str(destination), 'manifestEntries': len(manifest), 'baseline': report['baseline'],
+                  'runtime': report['runtime'], 'bridge': report['bridge']}, ensure_ascii=False))

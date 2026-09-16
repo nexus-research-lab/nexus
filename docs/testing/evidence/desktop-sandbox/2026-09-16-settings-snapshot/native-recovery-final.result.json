@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-count=1",
+    "./internal/agent/runtime",
+    "./client",
+    "-run",
+    "^Test(DarwinSandboxInstructionReload|DarwinSandboxProjectRefresh|DarwinSettingsIntegrity|DarwinSettingsProfileFiles)$"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+  "started": 1789535156.624974,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "NEXUS_SANDBOX_INTEGRATION": "1"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 54.586
+}

@@ -18,4 +18,5 @@
 // auto 原样传给两种运行时；bridge 协商 nxs 能力并确认 Claude 原生模式。
 // RequireProjectFiles 与其余桌面文件要求共同进入启动选项，不从旧上下文能力推断项目定义覆盖。
 // RequireManagedPolicy 要求固定托管来源与执行前完整性，不推断普通配置或凭据已收口。
+// RequireSettingsFiles 确认普通配置的受限读取和完整快照，凭据隔离与原子持久化仍独立验收。
 package clientopts

@@ -329,3 +329,30 @@ GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-sou
 ```
 
 此复核命令要求新 Bridge 精确模块已在本机缓存，并在原生 macOS 上运行；本地 file proxy 与历史 nxs 的位置记录在报告和真实进程命令中，不能当作新机器可取得的发布版本。
+
+
+## 2026-09-16：普通配置输入与快照子批次
+
+先在 SDK `80310913` 复现 user/project/flag/inline 无效配置被忽略、配置 env 重定向根目录，以及 malformed/deleted/relaxed 后权限规则被丢弃。现在客户端在 profile 投影前固定根目录与来源，必需执行经文件 worker 完整读取；runtime 消费绑定快照，外部变化阻断 query、compact、工具、文件上下文和配置更新。动态控制拒绝尚不能生效的静态参数，stdio `get_settings` 读取同一快照，不再直接重读 flag 文件。仅覆盖运行配置输入和这条控制查询链；Config 工具自己的文件操作与权限持久化继续单列。
+
+SDK `c90c7f7c12f4f8ed9441d88d0a453ef9d07f3f03`、Bridge `0f906d102f818e89425179d7f9d44e3b0c20f6ff`；Nexus 基线 `0a45a8b9ca6ab0a6b5b0ebf46e9f2b332136b17a`。固定本地 Bridge 模块 `v0.1.34-0.20260916045904-0f906d102f81`，checksum `h1:ntkgUvnXF07qC4CarommTI1irtFt6AZdFG72EVIqTsI=`；固定 SDK archive 构建 nxs SHA256 `067114598b2deed78bfcd2677e6634e9a8aaa6bb475a9a168b4b23e1676c4cb2`。验收使用 `GOWORK=off`，没有 replace；模块未发布。
+
+| 验证 | 结果 |
+| --- | --- |
+| 旧 SDK 复现 | 四种无效来源、根目录覆盖及三种运行期文件变化均触发预期失败 |
+| 固定 SDK 开发基线 | 85 个顶层、256 个指定子场景通过，必测项无 skip |
+| 新增原生来源 | user/project/local/flag、链接和禁用来源共 12 个允许/拒绝场景通过 |
+| 新增配置恢复 | malformed/deleted/relaxed 阻断 query、compact、Bash 与权限更新；恢复原内容后仍保留 deny |
+| 控制与更新 | 取消、快照冲突、竞争更新、未知写后结果、成功更新、静态配置拒绝和 get_settings 快照投影通过 |
+| 真实进程 | 10 个顶层、18 个子场景通过，无 skip；只缺新配置能力的旧 nxs 被明确拒绝 |
+| 其他检查 | SDK/Bridge/Nexus 目标包 race、vet、架构与证据解析器通过；SDK/Bridge Windows amd64 和 Linux amd64 交叉编译通过 |
+
+证据：[汇总](./evidence/desktop-sandbox/2026-09-16-settings-snapshot/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-16-settings-snapshot/baseline-report.json)、[真实进程](./evidence/desktop-sandbox/2026-09-16-settings-snapshot/bridge-pinned-real-process.jsonl)、[哈希清单](./evidence/desktop-sandbox/2026-09-16-settings-snapshot/manifest.json)。宽范围 race 中可选原生/真实进程 skip 另列于报告，不替代显式必测门禁。
+
+本批次确认 `sandbox_settings_files_v1` 的配置输入边界，不证明权限写入原子性、跨进程版本/批准、持久回执或 unknown 对账。`Config` 工具仍有自身宿主文件读写路径，需随配置持久化改造；Provider 凭据与任务环境分离也未完成。P1/P2 整体及 P3–P7 继续保留，`releaseAccepted=false`，全部仅本地，原目录现场未改动。
+
+```sh
+GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref c90c7f7c12f4f8ed9441d88d0a453ef9d07f3f03
+```
+
+此命令要求精确 Bridge 模块已在本机缓存，并在原生 macOS 上运行；临时 file proxy 和历史 nxs 位置记录在报告，不是公开发布渠道。

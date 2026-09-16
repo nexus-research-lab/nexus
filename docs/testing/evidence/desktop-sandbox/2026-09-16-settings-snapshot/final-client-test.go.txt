@@ -1,0 +1,83 @@
+// INPUT: 启动配置来源、无效内容与任务环境中的根目录覆盖。
+// OUTPUT: 未知配置在 Provider 装配前拒绝，任务设置不能重新选择配置权威。
+// POS: SDK 客户端配置输入回归，不发送模型请求。
+package client
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	configdir "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config"
+)
+
+// settingsInputFixture 固定全部配置来源，避免读取用户真实配置。
+func settingsInputFixture(t *testing.T) Options {
+	t.Helper()
+	return Options{CWD: t.TempDir(), Env: map[string]string{
+		"NEXUS_CONFIG_DIR": t.TempDir(), "NEXUS_MANAGED_SETTINGS_PATH": t.TempDir(), "NEXUS_RUNTIME_KIND": "nxs",
+	}}
+}
+
+// writeSettingsInputFixture 只写当前测试拥有的设置。
+func writeSettingsInputFixture(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestSettingsProfileRejectsUnknown 任何已选配置未知时都不能生成较宽松的 profile。
+func TestSettingsProfileRejectsUnknown(t *testing.T) {
+	for _, source := range []string{"user", "project", "flag", "inline"} {
+		t.Run(source, func(t *testing.T) {
+			o := settingsInputFixture(t)
+			path := filepath.Join(o.Env["NEXUS_CONFIG_DIR"], "settings.json")
+			switch source {
+			case "project":
+				path = filepath.Join(o.CWD, ".nexus", "settings.json")
+			case "flag":
+				path = filepath.Join(o.CWD, "custom.json")
+				o.Settings = path
+			case "inline":
+				o.Settings = `{"permissions":`
+			}
+			if source != "inline" {
+				writeSettingsInputFixture(t, path, `{"permissions":`)
+			}
+			if _, err := o.normalizedContext(t.Context()); err == nil {
+				t.Fatal("invalid selected settings silently discarded")
+			}
+		})
+	}
+}
+
+// TestSettingsProfileCannotRedirectConfigRoot 普通文件中的 env 不能改变随后凭据、会话和权限的根。
+func TestSettingsProfileCannotRedirectConfigRoot(t *testing.T) {
+	o := settingsInputFixture(t)
+	original := o.Env["NEXUS_CONFIG_DIR"]
+	// 用进程环境表示宿主配置根，测试任务 profile 不能覆盖这个来源。
+	t.Setenv("NEXUS_CONFIG_DIR", original)
+	delete(o.Env, "NEXUS_CONFIG_DIR")
+	o.Settings = `{"env":{"NEXUS_CONFIG_DIR":"` + t.TempDir() + `"}}`
+	normalized, err := o.normalizedContext(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := configdir.ResolveFromMap(normalized.Env, ""); got != original {
+		t.Fatalf("task settings redirected config root to %q", got)
+	}
+}
+
+// TestSettingsProfileSkipsDisabledSource 禁用来源必须在可选沙箱和 profile 读取前同时过滤。
+func TestSettingsProfileSkipsDisabledSource(t *testing.T) {
+	o := settingsInputFixture(t)
+	o.SettingSources = []string{"user"}
+	writeSettingsInputFixture(t, filepath.Join(o.CWD, ".nexus", "settings.json"), `{"permissions":`)
+	if _, err := o.normalizedContext(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}

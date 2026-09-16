@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require independent nxs ordinary-settings confinement and snapshot integrity in the desktop development policy. Fixed sources, source filtering, checked startup and runtime controls prevent unknown settings from silently weakening restrictions. Include the requirement in process replacement and the fixed-SDK native gate. Credential separation, atomic permission persistence and default product rollout remain pending.
+
 - Require independent nxs managed-policy integrity in the desktop development policy. Freeze the policy source before task settings, reject invalid or changed rules before execution, and include the requirement in process replacement and fixed-SDK native validation. Ordinary configuration, persistence and default product rollout remain pending.
 
 - Require independent nxs project-definition file confinement before desktop development-policy task admission. Cover startup discovery and refresh of Agent, command, Skill and hook-setting files; block incomplete snapshots and replace runtimes when the requirement changes. Global configuration and hook execution remain pending.

@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-json",
+    "-count=1",
+    "./client",
+    "./cmd/nxs",
+    "./internal/config/...",
+    "./internal/agent/runtime",
+    "./internal/prompt",
+    "./internal/tool/executor",
+    "./internal/tool/builtin/bash/sandboxexec"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+  "started": 1789534668.3331552,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 17.753
+}

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-json",
+    "-count=1",
+    "./cmd/nxs",
+    "./client",
+    "./internal/config/settings",
+    "./internal/agent/runtime",
+    "-run",
+    "^Test(RuntimeSettings|RuntimeServerHandlesControls|RuntimeServerEnvironmentUpdate|Settings|SessionControl)"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+  "started": 1789534540.497631,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 5.723
+}

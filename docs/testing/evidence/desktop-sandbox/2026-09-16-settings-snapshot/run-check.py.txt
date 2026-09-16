@@ -1,0 +1,21 @@
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+
+name, cwd, *command = sys.argv[1:]
+root = Path(__file__).resolve().parent
+started = time.time()
+record = {'command': command, 'cwd': cwd, 'started': started,
+          'environment': {key: value for key, value in os.environ.items()
+                          if key in {'GOWORK','GOCACHE','GOPROXY','GONOPROXY','GOOS','GOARCH','CGO_ENABLED'}
+                          or key.startswith('NEXUS_SANDBOX_')
+                          or key.endswith('_SANDBOX_LEGACY_TEST_BINARY')}}
+with (root / (name + '.jsonl')).open('w') as output:
+    result = subprocess.run(command, cwd=cwd, stdout=output, stderr=subprocess.STDOUT)
+record.update(exitCode=result.returncode, elapsedSeconds=round(time.time()-started, 3))
+(root / (name + '.result.json')).write_text(json.dumps(record, indent=2)+'\n')
+print(json.dumps({'name': name, 'exitCode': result.returncode, 'elapsedSeconds': record['elapsedSeconds']}))
+sys.exit(result.returncode)

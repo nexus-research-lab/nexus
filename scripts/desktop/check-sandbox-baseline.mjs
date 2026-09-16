@@ -249,6 +249,26 @@ try {
       "TestDarwinManagedPolicyIntegrity",
       ...["malformed", "deleted", "relaxed"].map((change) => `TestDarwinManagedPolicyIntegrity/${change}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-settings-contract", ["./cmd/nxs"], [
+      "TestSandboxSettingsFilesNegotiation", "TestSandboxSettingsFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSettingsFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-settings-snapshots", ["./client", "./internal/config/settings", "./internal/agent/runtime", "./cmd/nxs"], [
+      "TestSettingsProfileRejectsUnknown",
+      ...["user", "project", "flag", "inline"].map((source) => `TestSettingsProfileRejectsUnknown/${source}`),
+      "TestSettingsProfileCannotRedirectConfigRoot", "TestSettingsProfileSkipsDisabledSource", "TestSettingsProfileRejectsFIFO",
+      "TestSettingsBindingSnapshot", "TestSettingsBindingConcurrentUpdates", "TestSettingsBindingUpdate",
+      ...["canceled", "conflict", "unexpected", "failed", "success"].map((outcome) => `TestSettingsBindingUpdate/${outcome}`),
+      "TestSettingsControlKeepsAppliedState", "TestRuntimeSettingsControlSnapshot",
+    ], sdkSource);
+    testGroup("macos-settings-native", ["./client", "./internal/agent/runtime"], [
+      "TestDarwinSettingsProfileFiles",
+      ...["user", "project", "local", "flag", "symlink", "filtered"].flatMap((source) =>
+        ["denied", "allowed"].map((access) => `TestDarwinSettingsProfileFiles/${source}/${access}`)),
+      "TestDarwinSettingsIntegrity",
+      ...["malformed", "deleted", "relaxed"].map((change) => `TestDarwinSettingsIntegrity/${change}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",

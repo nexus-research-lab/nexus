@@ -1,0 +1,1209 @@
+{
+  "version": 1,
+  "createdAt": "2026-09-16T05:13:08.464454+00:00",
+  "scope": "ordinary settings confinement and checked runtime snapshots",
+  "releaseAccepted": false,
+  "localOnly": true,
+  "sdkRevision": "c90c7f7c12f4f8ed9441d88d0a453ef9d07f3f03",
+  "bridgeRevision": "0f906d102f818e89425179d7f9d44e3b0c20f6ff",
+  "nexusBaseline": "0a45a8b9ca6ab0a6b5b0ebf46e9f2b332136b17a",
+  "nexusWorktree": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+  "nexusSourceHashes": {
+    "go.mod": "02aa8c5b58d521a726e664af28e292a290b66b71a1bb3af9a1afe977ac717e0c",
+    "go.sum": "400f187dcee77c34480fe7ce955aac7304a2c1c7a09dd5074fe5731f196ecfea",
+    "internal/runtime/process_policy.go": "d4f6859f70b6dc38d5616aa74035d166761269137385d6a67eb32de22839c37c",
+    "internal/runtime/process_policy_test.go": "ad9ab912593149b61dd65a9ee178a416a8648bd32b44df716a37e4456e0cf448",
+    "internal/runtime/clientopts/desktop_sandbox.go": "0c23fe4fb3c98fa88f3cc9a88671dece7fb0e50dc2830fd13b67fa1d0a03b1a0",
+    "internal/runtime/clientopts/desktop_sandbox_test.go": "385d4d4c9648be495d6266a1f81978da70c0d9dc00dda32ecc04d211b2b881d8",
+    "internal/runtime/clientopts/desktop_sandbox_integration_test.go": "3fe81e0e03c7ec304e37ed07b212b601e2fcbdac45bb5ad846048a018a1b4bec",
+    "scripts/desktop/check-sandbox-baseline.mjs": "8b74e7c7aa1eb1f63731908546a18bcd59afca694308655a646b036231f1abd5"
+  },
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260916045904-0f906d102f81",
+    "sum": "h1:ntkgUvnXF07qC4CarommTI1irtFt6AZdFG72EVIqTsI="
+  },
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-LCw3Jb/nxs",
+    "sha256": "067114598b2deed78bfcd2677e6634e9a8aaa6bb475a9a168b4b23e1676c4cb2",
+    "source": "fixed-sdk-archive"
+  },
+  "platform": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "27.0.0",
+    "goVersion": "go1.27.1"
+  },
+  "baseline": {
+    "log": "baseline-report.json",
+    "passed": true,
+    "exitCode": 0,
+    "requiredTopLevel": 85,
+    "requiredSubtests": 256,
+    "requiredSkips": 0
+  },
+  "reproduction": {
+    "command": [
+      "go",
+      "test",
+      "-json",
+      "-count=1",
+      "./client",
+      "./internal/agent/runtime",
+      "-run",
+      "^Test(SettingsProfileRejectsUnknown|SettingsProfileCannotRedirectConfigRoot|DarwinSettingsIntegrity)$"
+    ],
+    "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+    "started": 1789532372.2516322,
+    "environment": {
+      "GOWORK": "off",
+      "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+      "NEXUS_SANDBOX_INTEGRATION": "1"
+    },
+    "exitCode": 1,
+    "elapsedSeconds": 12.595,
+    "sdkBase": "8031091325a882d384ac40902e3905bd46b021db",
+    "log": "reproduction-before.jsonl",
+    "fixtures": [
+      "before-client-test.go.txt",
+      "before-runtime-test.go.txt"
+    ]
+  },
+  "checks": {
+    "baseline-driver": {
+      "command": [
+        "node",
+        "scripts/desktop/check-sandbox-baseline.mjs",
+        "--sdk-source",
+        "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+        "--sdk-ref",
+        "c90c7f7c12f4f8ed9441d88d0a453ef9d07f3f03"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "started": 1789535291.476224,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOPROXY": "off"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 266.667,
+      "log": "baseline-driver.jsonl"
+    },
+    "sdk-race-final": {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-count=1",
+        "./client",
+        "./cmd/nxs",
+        "./internal/config/...",
+        "./internal/agent/runtime",
+        "./internal/prompt",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/bash/sandboxexec"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789534668.3331552,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 17.753,
+      "log": "sdk-race-final.jsonl",
+      "topLevelPassed": 492,
+      "subtestsPassed": 225,
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec",
+          "test": "TestSandboxSeccompHelperUsesInjectedEnvironment"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec",
+          "test": "TestMacOSSandboxIgnoresTaskPath"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/project/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/project/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/user/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/user/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/local/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/local/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/rule/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/rule/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/symlink/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/symlink/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/include/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/include/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/additional/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/additional/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/managed/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxStartupInstructions/managed/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/user/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/user/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/project/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/project/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/local/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/local/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/relative_flag/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/relative_flag/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/managed/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/managed/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/dropin/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/dropin/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/symlink/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionSettings/symlink/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionReload/settings"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionReload/cancel"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxInstructionReload/symlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxCompactFileRestore/denied"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxCompactFileRestore/symlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxCompactFileRestore/allowed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinManagedPolicyIntegrity/malformed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinManagedPolicyIntegrity/deleted"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinManagedPolicyIntegrity/relaxed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/project_agent/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/project_agent/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/user_agent/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/user_agent/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/project_command/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/project_command/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/user_command/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/user_command/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/skill/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/skill/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/file_symlink/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/file_symlink/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/directory_symlink/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/directory_symlink/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/directory/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/directory/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/hook_settings/allowed=false"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectFiles/hook_settings/allowed=true"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectRefresh/symlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectRefresh/cancel"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectRefresh/malformed_settings"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectRefresh/changed_agent"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSandboxProjectRefresh/changed_hook"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestPowerShellBackgroundModesPreserveObjectStatusAndCWD"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxFileToolsRuntime"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinFileInstructionsShareSandbox"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinLargeFileReadRetainsFullState"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaFileSources/absolute"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaFileSources/file_url"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaFileSources/workspace_link"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaFileSources/attachment_reference"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/user_absolute"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/user_file_url"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/user_link"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/tool_absolute"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/tool_file_url"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreprocess/tool_link"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/absolute"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/relative"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/file_url"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/attachment_reference"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/inline"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/user_preprocess"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaAllowedSources/tool_preprocess"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreparationFailsClosed/view_image"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxMediaPreparationFailsClosed/preprocess"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestApprovedPowerShellExpandableStringReachesExecutor"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinRequiredSandboxChildWriteBoundary"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinRequiredSandboxBlocksDirectNetwork"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinMandatorySandboxReadDenyPrecedence"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinMandatorySandboxCannotMoveDeniedAncestor"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxResourceScopes"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSearchPreservesResults"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSearchPreparationFailsClosed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSearchToolsRuntime"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSearchAuxiliaryCannotExpandResources"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/additional/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/additional/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/additional/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/additional/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/additional/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/symlink/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/symlink/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/symlink/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/symlink/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/symlink/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/body/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/body/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/body/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/body/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/body/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/user/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/user/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/user/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/user/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillFileEntrypoints/user/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillMemoryGate"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillMemorySettings/inline_enabled"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillMemorySettings/absolute_enabled"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillMemorySettings/relative_enabled"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillMemorySettings/relative_disabled"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillGitAuxiliary"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/project/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/project/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/project/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/project/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/project/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/additional/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/additional/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/additional/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/user/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/user/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/user/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/user/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/user/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/symlink/initial_listing"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_catalog"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_run"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/symlink/skill"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillAllowedEntrypoints/symlink/discover"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillDynamicDiscovery/repository"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillDynamicDiscovery/no_repository"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillDynamicDiscovery/gitignored"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillDynamicDiscovery/denied_body"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+          "test": "TestDarwinSandboxSkillDynamicDiscovery/conditional"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSettingsIntegrity/malformed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSettingsIntegrity/deleted"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestDarwinSettingsIntegrity/relaxed"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/client",
+          "test": "TestDarwinSettingsProfileFiles"
+        }
+      ]
+    },
+    "sdk-controls": {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-count=1",
+        "./cmd/nxs",
+        "./client",
+        "./internal/config/settings",
+        "./internal/agent/runtime",
+        "-run",
+        "^Test(RuntimeSettings|RuntimeServerHandlesControls|RuntimeServerEnvironmentUpdate|Settings|SessionControl)"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789534540.497631,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 5.723,
+      "log": "sdk-controls.jsonl",
+      "topLevelPassed": 15,
+      "subtestsPassed": 9,
+      "skipped": []
+    },
+    "sdk-vet": {
+      "command": [
+        "go",
+        "vet",
+        "./client",
+        "./cmd/nxs",
+        "./internal/config/...",
+        "./internal/agent/runtime",
+        "./internal/prompt",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/bash/sandboxexec"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789534663.4652941,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 1.873,
+      "log": "sdk-vet.jsonl"
+    },
+    "bridge-race": {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-count=1",
+        "./client",
+        "./protocol"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "started": 1789534348.791475,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 3.185,
+      "log": "bridge-race.jsonl",
+      "topLevelPassed": 178,
+      "subtestsPassed": 92,
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestContextFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestContextFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestManagedPolicySandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestManagedPolicySandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestMediaFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestMediaFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestProjectFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestProjectFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestRequiredSandboxRealProcess"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSandboxResourcesRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSandboxResourcesRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSearchSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSearchSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSettingsFilesSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSettingsFilesSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSkillFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSkillFileSandboxRealProcess/legacy"
+        }
+      ]
+    },
+    "bridge-vet": {
+      "command": [
+        "go",
+        "vet",
+        "./client",
+        "./protocol"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "started": 1789534663.463688,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 0.446,
+      "log": "bridge-vet.jsonl"
+    },
+    "native-recovery-final": {
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-count=1",
+        "./internal/agent/runtime",
+        "./client",
+        "-run",
+        "^Test(DarwinSandboxInstructionReload|DarwinSandboxProjectRefresh|DarwinSettingsIntegrity|DarwinSettingsProfileFiles)$"
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789535156.624974,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "NEXUS_SANDBOX_INTEGRATION": "1"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 54.586,
+      "log": "native-recovery-final.jsonl",
+      "topLevelPassed": 4,
+      "subtestsPassed": 23,
+      "skipped": []
+    },
+    "nexus-race": {
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "-race",
+        "-json",
+        "-count=1",
+        "./internal/runtime/..."
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "started": 1789534797.785991,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOPROXY": "off"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 4.095,
+      "log": "nexus-race.jsonl",
+      "topLevelPassed": 219,
+      "subtestsPassed": 191,
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/provider",
+          "test": null
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/trace",
+          "test": null
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+          "test": "TestDesktopSandboxRealRuntimeNegotiation"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsPowerShellSlashRoot"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsWindowsBackslashTraversal"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestApplyMainAgentKeepsHookWithoutLauncher"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestOwnerProcessReaperRejectsUnsafeOwner"
+        }
+      ]
+    },
+    "nexus-vet": {
+      "command": [
+        "go",
+        "vet",
+        "-mod=readonly",
+        "./internal/runtime/..."
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "started": 1789534791.5344052,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOPROXY": "off"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 0.659,
+      "log": "nexus-vet.jsonl"
+    },
+    "architecture": {
+      "command": [
+        "make",
+        "check-architecture"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "started": 1789534791.541913,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOPROXY": "off"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 0.669,
+      "log": "architecture.jsonl"
+    },
+    "evidence-parser": {
+      "command": [
+        "node",
+        "--test",
+        "scripts/desktop/sandbox-test-evidence.test.mjs"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "started": 1789534791.5355148,
+      "environment": {},
+      "exitCode": 0,
+      "elapsedSeconds": 0.075,
+      "log": "evidence-parser.jsonl"
+    },
+    "sdk-windows": {
+      "command": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789534688.586124,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOOS": "windows",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "0"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 3.251,
+      "log": "sdk-windows.jsonl"
+    },
+    "sdk-linux": {
+      "command": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "started": 1789534688.586122,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "0"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 3.221,
+      "log": "sdk-linux.jsonl"
+    },
+    "bridge-windows": {
+      "command": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "started": 1789534688.586158,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOOS": "windows",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "0"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 0.514,
+      "log": "bridge-windows.jsonl"
+    },
+    "bridge-linux": {
+      "command": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "started": 1789534688.586144,
+      "environment": {
+        "GOWORK": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "0"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 0.482,
+      "log": "bridge-linux.jsonl"
+    },
+    "bridge-pinned-real-process": {
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "./client",
+        "-run",
+        "^Test(RequiredSandbox|FileSandbox|SearchSandbox|MediaFileSandbox|SkillFileSandbox|ContextFileSandbox|ProjectFileSandbox|ManagedPolicySandbox|SettingsFilesSandbox|SandboxResources)RealProcess$"
+      ],
+      "cwd": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260916045904-0f906d102f81",
+      "started": 1789535386.444822,
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+        "NEXUS_SANDBOX_TEST_BINARY": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-LCw3Jb/nxs",
+        "NEXUS_SANDBOX_LEGACY_TEST_BINARY": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+        "NEXUS_SANDBOX_RESOURCES_LEGACY_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-bm3p4d/nxs",
+        "NEXUS_SEARCH_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-z7S5G7/nxs",
+        "NEXUS_MEDIA_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-rXi6ah/nxs",
+        "NEXUS_SKILL_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-xr21tb/nxs",
+        "NEXUS_CONTEXT_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-I6JUXH/nxs",
+        "NEXUS_PROJECT_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-OLgioZ/nxs",
+        "NEXUS_MANAGED_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-ZhdwGl/nxs",
+        "NEXUS_SETTINGS_SANDBOX_LEGACY_TEST_BINARY": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-znxXCm/nxs"
+      },
+      "exitCode": 0,
+      "elapsedSeconds": 57.0,
+      "log": "bridge-pinned-real-process.jsonl",
+      "topLevelPassed": 10,
+      "subtestsPassed": 18,
+      "skipped": []
+    }
+  },
+  "legacyRuntimes": [
+    {
+      "variable": "NEXUS_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+      "sha256": "fbdb0b5b677ec8f274697f0e9f3e27aa65f6978292183ecf14700a0345477386"
+    },
+    {
+      "variable": "NEXUS_SANDBOX_RESOURCES_LEGACY_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-bm3p4d/nxs",
+      "sha256": "2826515dc193bd41a5e05cde5cfe799c7361f0bf027d9223b39a38d2655e720f",
+      "sdkRevision": "c8580cf49342a7d946c849ecb04c1db01c30eb4c"
+    },
+    {
+      "variable": "NEXUS_SEARCH_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-z7S5G7/nxs",
+      "sha256": "9168d5187010f9a1409e917d6372a04229115d795a3ecd80b93dfad121fc2c71",
+      "sdkRevision": "67975b901ce6700d88ac4b64da80ae2254b4c3cf"
+    },
+    {
+      "variable": "NEXUS_MEDIA_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-rXi6ah/nxs",
+      "sha256": "597cae76273dd59c71f3d911f7c203f5022e80b68287ee9e5784bd10d0ae742c",
+      "sdkRevision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d"
+    },
+    {
+      "variable": "NEXUS_SKILL_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-xr21tb/nxs",
+      "sha256": "a61a7f632062d9f209755e957b64c446e3c43bdd6d763776f5f8cc676d4490f6",
+      "sdkRevision": "143e987c2e45adece435bda1621aef81bcac4040"
+    },
+    {
+      "variable": "NEXUS_CONTEXT_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-I6JUXH/nxs",
+      "sha256": "ac7229b542218770a695be59104919b6fd1005bfb627785e3bc733f74999b6cb",
+      "sdkRevision": "3d7938cdb4524a603c40401375195d7e162b474e"
+    },
+    {
+      "variable": "NEXUS_PROJECT_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-OLgioZ/nxs",
+      "sha256": "35b5286f59c377f93f97ed5159d675dc1d994fd4fb901a85e5948f2a2a63b608",
+      "sdkRevision": "d3695455cb0323a2710440f5d57ab8864d3d5201"
+    },
+    {
+      "variable": "NEXUS_MANAGED_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-ZhdwGl/nxs",
+      "sha256": "58d7cbfa27d941fe6be69543b20af63ea7bc288fa5edfa8c7d5b0261a9ebe5d0",
+      "sdkRevision": "f9bddb5f8e2114d3a592b4f57d8e4b8bb3c736bd"
+    },
+    {
+      "variable": "NEXUS_SETTINGS_SANDBOX_LEGACY_TEST_BINARY",
+      "path": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-znxXCm/nxs",
+      "sha256": "6c92e19887668a53845b8e10f623d377db4ff590e532ad8725374b04f2b56b2a",
+      "sdkRevision": "8031091325a882d384ac40902e3905bd46b021db"
+    }
+  ],
+  "initialGateFailure": {
+    "log": "baseline-initial-report.json",
+    "test": "TestDarwinSandboxInstructionReload/settings",
+    "resolution": "Restore the original absent settings source; creating a new empty JSON object is not restoration. Project refresh recovery fixtures now use the same rule."
+  },
+  "limitations": [
+    "Only local commits and a fixed local Bridge module; no push or public distribution.",
+    "Optional native/real-process skips in broad race suites are listed separately; explicit required baseline and real-process matrix have no required skips.",
+    "Windows/Linux checks are cross-compilation, not native runtime acceptance.",
+    "Snapshot checks do not provide rooted atomic permission writes, cross-process transactions, durable approval/receipts or unknown-result reconciliation.",
+    "Provider credential separation, hook execution, background IO, remote networking, full descendant supervision, scratch lifecycle, default product policy and P3-P7 remain incomplete.",
+    "The original Nexus worktree and its pending Git operation were not modified."
+  ]
+}
