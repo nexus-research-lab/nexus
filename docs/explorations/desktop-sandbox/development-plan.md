@@ -1,8 +1,10 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-15**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-16**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
+
+当前开发位置（2026-09-16）：Nexus 已迁入独立 worktree `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`，分支 `codex/desktop-sandbox-isolated`；SDK 与 Bridge 继续使用各自独立 worktree。原 Nexus 目录的既有 rebase 现场按用户要求交给其他任务处理；本任务的代码、联调配置与后续测试只使用独立目录。所有提交仅本地。
 
 ## 1. 最终交付目标
 
@@ -285,3 +287,4 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-15 | P1/P2 清理前置修复完成：先复现 Bridge 的清理失败丢失、Nexus 的失败后重连/旧配置重试，再修复并补齐主动终止、重复与批量关闭、超时后失败和策略指纹回归。Bridge 034c449 本地提交，Nexus 固定对应模块；32 个基线顶层用例与 21 个指定子场景、runtime 子包、竞态、真实新旧 nxs、架构与 Windows/Linux 交叉编译通过，证据见验收矩阵 | 未完成完整进程树监督、持久清理回执、scratch 租约/回收及默认资源接入；下一步先验证另建 session 等后代边界与崩溃恢复依据。原生其他平台、Claude、全 SDK IO 和安装包门禁保留，Goal 继续 active；全部仅本地 |
 | 2026-09-16 | P1/P2 搜索子批次完成：SDK 19c80fb2、Bridge f6e456d 本地提交；Nexus 固定模块并单独要求搜索能力。修复 Glob/Grep 路径、rg 与元数据旁路，真实新旧二进制、38 个顶层/46 个指定基线场景、目标包和竞态验证通过；另以原生实验确认 session 清理与 NOTE_TRACK 不能提供完整后代监督，ES 后代 API 尚无授权 | 搜索范围已覆盖，下一项按 IO 清单核验 Notebook 与启动/Skill/配置/后台访问。完整监督、持久清理与 scratch 接入继续保留为前置要求；跨平台、Claude、默认策略与安装包均未完成，Goal 保持 active；全部仅本地 |
 | 2026-09-16 | P1/P2 媒体文件子批次完成：SDK 143e987c、Bridge eeaff7d 本地提交；Nexus 固定模块并独立要求媒体文件能力。修复 ViewImage 和主模型图片预处理的本地读取旁路，以及普通本地路径未物化问题；固定基线 44 个顶层/72 个指定子场景、真实新旧进程 5 个顶层/8 个子场景和目标包竞态通过，Windows/Linux 交叉编译通过 | 远程图片网络、启动/Skill/配置/后台 IO、生效回执、完整后代监督、scratch、默认策略、其他平台原生/Claude/安装包仍未完成。下一项收口剩余 SDK IO；完整 P0–P7 与 Goal 保持，所有提交仅本地 |
+| 2026-09-16 | P1/P2 Skill 文件子批次完成：SDK 3d7938cd、Bridge f903386 本地提交；Nexus 在独立 worktree 固定模块并要求 Skill 独立能力。修复目录/正文、Slash/工具/动态发现、Git 忽略及 remember 设置读取旁路，保留允许来源和相对设置语义。固定基线 52 个顶层/128 个指定子场景、真实新旧进程 6 个顶层/10 个子场景及目标包竞态通过，必测项无 skip；证据见验收矩阵 | P1/P2 整体仍进行中。下一项从 assembly.go、hooks.go 与 environment.go 复现启动/compact 重载指令和全局设置边界；Skill hook、后台 IO、远程网络、回执/后代/scratch、默认策略及跨平台/Claude/安装包继续保留。完整 P0–P7 不变，Goal active；不推送 |

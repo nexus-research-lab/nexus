@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require independent nxs Skill file confinement before experimental desktop task admission. Skill catalogs, bodies, dynamic discovery, Git ignore queries and remember-availability settings now share the file boundary. Include this requirement in process replacement identity and the fixed-SDK native gate; global startup settings, hooks, background IO and default product rollout remain pending.
+
 - Require independent nxs local-media confinement before experimental desktop task admission, covering ViewImage and model image preprocessing. Include the requirement in runtime replacement identity and extend the fixed-SDK gate with allowed/denied image paths, file URLs, symlinks and attachment references. Remote media networking and whole-SDK isolation remain pending.
 
 - Require separate nxs Glob/Grep sandbox acknowledgement before experimental desktop task admission, and include it in runtime replacement identity. Extend the fixed-SDK baseline to verify allowed searches, denied paths/symlinks and confined search auxiliaries; full SDK IO, descendant supervision and default product rollout remain pending.

@@ -172,6 +172,30 @@ try {
       "TestDarwinSandboxMediaPreparationFailsClosed",
       ...["view_image", "preprocess"].map((scenario) => `TestDarwinSandboxMediaPreparationFailsClosed/${scenario}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-skill-contract", ["./cmd/nxs"], [
+      "TestSandboxSkillFilesNegotiation",
+      "TestSandboxSkillFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSkillFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-skill-files", ["./internal/tool/executor"], [
+      "TestDarwinSandboxSkillFileEntrypoints",
+      ...["additional", "symlink", "body", "user"].flatMap((source) =>
+        ["initial_listing", "slash_catalog", "slash_run", "skill", "discover"].map(
+          (entry) => `TestDarwinSandboxSkillFileEntrypoints/${source}/${entry}`)),
+      "TestDarwinSandboxSkillAllowedEntrypoints",
+      ...["project", "additional", "user", "symlink"].flatMap((source) =>
+        ["initial_listing", "slash_catalog", "slash_run", "skill", "discover"].map(
+          (entry) => `TestDarwinSandboxSkillAllowedEntrypoints/${source}/${entry}`)),
+      "TestDarwinSandboxSkillDynamicDiscovery",
+      ...["repository", "no_repository", "gitignored", "denied_body", "conditional"].map(
+        (scenario) => `TestDarwinSandboxSkillDynamicDiscovery/${scenario}`),
+      "TestDarwinSandboxSkillGitAuxiliary",
+      "TestDarwinSandboxSkillMemoryGate",
+      "TestDarwinSandboxSkillMemorySettings",
+      ...["inline_enabled", "absolute_enabled", "relative_enabled", "relative_disabled"].map(
+        (scenario) => `TestDarwinSandboxSkillMemorySettings/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",

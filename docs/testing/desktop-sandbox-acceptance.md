@@ -222,11 +222,33 @@ SDK `143e987c2e45adece435bda1621aef81bcac4040`、Bridge `eeaff7df69f324bf5d1e346
 
 本地读取先于辅助分析缓存，失败不回退；每次读取端口独立传递，缓存拒绝及并发请求隔离另有竞态回归。该媒体能力不覆盖远程 HTTP 下载和图片 URL 直传的网络策略。启动/Skill/配置/后台 IO、后代监督、持久清理回执、scratch、默认产品策略、其他平台/Claude 与安装包继续待验收。
 
+## P1/P2 Skill 文件与发现链路（2026-09-16）
+
+SDK `3d7938cdb4524a603c40401375195d7e162b474e`、Bridge `f903386e6cfaaf1fddc3615b56af1362b0c03bf2`；Nexus 在独立分支 `codex/desktop-sandbox-isolated` 的 `69451849e` 上验证本批次变更。Bridge 固定为本地模块 `v0.1.34-0.20260916021122-f903386e6cfa`，checksum 为 `h1:flKp3ML5SGPuivpzsVYNzOimxxqYKFrEAL9WPPh+kwc=`。模块来自精确 Git 提交归档，未发布，不能作为新机器可在线取得依赖的证明。
+
+先在 SDK `143e987c` 复现四类来源 × 五个入口共 20 个 Skill 越界读取、记忆设置读取及 Git 辅助进程的文件/环境/网络旁路。修复将初始目录、DiscoverSkills、Skill、用户 Slash、Read 触发的动态发现及 remember 设置读取绑定到相同文件端口；Git 使用相同资源范围和最小环境。另以正常配置测试复现并修复相对 settings 路径未以当前 workspace 解析的问题。Git 测试增加可写 scratch 中的执行回执，独立证明命令确实运行、环境清理及文件/网络拒绝，不能仅凭未出现越界文件推断成功。
+
+| 验证 | 结果与范围 |
+| --- | --- |
+| 固定 SDK 导出构建、固定 Bridge 与 macOS 开发基线 | exit 0；52 个顶层、128 个指定子场景通过；所有必测项无 skip |
+| Skill 原生 race | exit 0；6 个顶层、49 个子场景；允许/拒绝入口、链接、动态/条件发现、Git 忽略、非仓库、配置和辅助进程 |
+| SDK 目标包 race 与 vet | exit 0；306 个顶层、125 个子场景通过；18 个 opt-in/platform skip 单列，不能替代原生门禁 |
+| Bridge 目标包 race | exit 0；192 个顶层、103 个子场景通过；3 个 opt-in skip 单列 |
+| Nexus runtime 目标包 race | exit 0；180 个顶层、51 个子场景通过；1 个显式二进制 opt-in 由固定基线单独执行 |
+| Nexus 实际固定 Bridge → 真实新旧 nxs | exit 0；6 个顶层、10 个子场景，当前与五个历史二进制均执行，无 skip；不发送模型请求 |
+| SDK/Bridge Windows 与 Linux amd64 | CGO_ENABLED=0 编译通过；没有原生运行、owner 或发布证明 |
+| 架构与证据解析 | exit 0；生产依赖方向通过，6 个门禁解析用例通过 |
+
+本次固定构建 nxs SHA-256 为 `ac7229b542218770a695be59104919b6fd1005bfb627785e3bc733f74999b6cb`。原始记录见[报告与限制](./evidence/desktop-sandbox/2026-09-16-skill-files/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-16-skill-files/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-16-skill-files/skills-before.jsonl)、[原生 Skill](./evidence/desktop-sandbox/2026-09-16-skill-files/macos-skill-files.stdout.log)、[真实新旧准入](./evidence/desktop-sandbox/2026-09-16-skill-files/skills-bridge-pinned-real.jsonl)及[校验和](./evidence/desktop-sandbox/2026-09-16-skill-files/manifest.json)。本机私有仓库配置曾绕过本地代理，成功取得模块使用任务级 `GONOPROXY=none` 和本地 file proxy；架构检查使用可写的任务 GOCACHE。
+
+P1/P2 仍进行中。全局启动/compact 重载设置与指令、Skill hook、后台 IO、远程网络、生效回执、完整后代监督与 scratch 租约尚未闭合；默认产品策略、原生 Windows/Linux owner、Claude 与签名包/升级继续保留 P3–P7 门禁。所有提交仅本地，`releaseAccepted=false`。
+
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索与媒体合同、正常/拒绝搜索和图片读取、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 143e987c 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索/媒体/Skill 合同、正常/拒绝搜索、图片与 Skill 读取、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 3d7938cd 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -234,7 +256,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 143e987c2e45adece435bda1621aef81bcac4040
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 3d7938cdb4524a603c40401375195d7e162b474e
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。

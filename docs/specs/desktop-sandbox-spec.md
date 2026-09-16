@@ -131,6 +131,19 @@ It participates in process-policy identity and requires runtime replacement when
 changed. It does not cover HTTP image downloads, remote URL forwarding policy,
 Claude or whole-SDK IO; those remain separate implementation and acceptance work.
 
+The host separately requires `SandboxSettings.RequireSkillFiles`, initialize
+`required_sandbox_skill_files` and `sandbox_skill_files_v1`. Current macOS
+coverage includes initial/model/Slash catalogs, Skill bodies, Read-triggered
+dynamic discovery, Git ignore queries and remember-availability settings.
+They share the captured file context and cwd, including metadata and symlinks.
+Allowed project/user/additional sources and conditional/Git ignore behavior
+remain supported. Git uses a minimal environment and denies network; cancellation,
+unknown exit results and preparation failures cannot trigger host IO fallback.
+Uncertain dynamic observations can be checked again on a later file access.
+The requirement participates in process identity and requires replacement when
+changed. Global startup settings, hooks, background memory, effective-policy
+receipts, other platforms and Claude remain separate acceptance work.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature
