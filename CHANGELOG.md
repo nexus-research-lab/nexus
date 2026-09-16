@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.
+
 - Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
 
 - Persist exact online message intents before sending, recover them without automatic replay, reconcile lost receipts from snapshots, and remove revoked Room resources and connections.
