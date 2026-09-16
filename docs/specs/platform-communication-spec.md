@@ -95,7 +95,7 @@ Contacts 的 Agent 详情在“联络”栏目直接呈现好友私聊客户端�
 
 发送前写入宿主数据库的 `im_deliveries`：owner、来源 Agent、精确 Session 及创建时间、round/tool call（或 job/run）、目标 Session 及创建时间、pairing、正文不可变快照和投递时间。不是 Agent MEMORY 文件，也不是 Room 私聊 ledger。正文快照用于重启后查询和同意图重试核对，不靠改写后的 transcript 重建。旧投递不按文本或时间推断来源。
 
-普通调用按可信 round/tool-use/目标身份去重；在物理发送之前持久化 `unknown`。成功记录 `sent` 和平台回执，已知尚未调用外部平台的失败记录 `not_sent`；外部调用结果未知不自动补发。Automation 重投继续由原 Automation attempt 机制授权，来源记录不授予重投权。
+普通调用按可信 round/tool-use/目标身份去重；SDK 未提供可选 tool-use ID 时，使用宿主 owner/Agent/Session/round/Agent-round 与规范化调用参数生成稳定身份，同轮同意图重试不重复外发，不同轮次或意图分别记录；在物理发送之前持久化 `unknown`。成功记录 `sent` 和平台回执，已知尚未调用外部平台的失败记录 `not_sent`；外部调用结果未知不自动补发。Automation 重投继续由原 Automation attempt 机制授权，来源记录不授予重投权。
 
 ### 8.2 IM 内查询和转交
 
