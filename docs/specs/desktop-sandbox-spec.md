@@ -158,6 +158,18 @@ This requirement participates in process identity. Global permission/provider
 settings, project definitions, hooks, persistence, background IO, effective-policy
 receipts and other runtime/platform acceptance remain separate work.
 
+The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
+`required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
+assembly, project discovery uses the file boundary for user/project Agent and
+command definitions, project Skill definitions, and selected hook-setting files.
+Directory entries, metadata, symlinks and contents share the same worker. Missing
+settings are allowed; denied, canceled or malformed settings reject the whole
+snapshot. Failed refresh clears the catalog and prevents subsequent model
+requests. Agent/hook changes require a new runtime because they are bound during
+assembly; a successful refresh may update Slash bodies directly. This requirement
+participates in process replacement. Global permission/provider and managed-policy
+loading, persistence and hook execution remain separate work.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature

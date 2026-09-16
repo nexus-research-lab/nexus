@@ -283,3 +283,23 @@ node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-age
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。
+
+
+## 2026-09-16：项目定义文件子批次
+
+在独立 worktree 完成项目 Agent/命令/Skill 定义与所选 hook 设置读取改造。先用固定旧 SDK 导出复现 Agent 定义被禁止读取却仍载入，再由宿主执行输入建立只读文件边界后进行发现。目录、元数据、链接和正文均经过 worker；未知设置不能作为空对象继续。刷新失败清空目录并阻止普通 query 与手动 compact；Agent/hook 绑定发生变化必须重建 runtime，Slash 正文仍可通过成功的受限刷新更新。
+
+版本固定：SDK `f9bddb5f8e2114d3a592b4f57d8e4b8bb3c736bd`，Bridge `aa46520ea55f6bcddcfba2054e4844b7f0805eb5`，Nexus 使用本地 module `v0.1.34-0.20260916032704-aa46520ea55f`，checksum `h1:OFneOwdNIvJlGq8BS+uJoqAuVy8XxwHnfHR4Fqy5bro=`。固定 SDK archive 构建的 nxs SHA256 为 `58d7cbfa27d941fe6be69543b20af63ea7bc288fa5edfa8c7d5b0261a9ebe5d0`。
+
+| 检查 | 结果与边界 |
+| --- | --- |
+| 修复前固定导出 | 拒绝 Agent 定义的子用例失败，允许读取的对照通过；原始日志与测试文件保留 |
+| 固定开发基线 | 62 个顶层、201 个指定子场景通过，无必测 skip；项目文件 18 个允许/拒绝场景及 5 个刷新场景纳入门禁 |
+| Bridge 固定模块真实进程 | 当前 nxs 与 7 个历史 binary，8 个顶层、14 个子场景全部通过，无 skip；不发送模型请求 |
+| SDK 相关包 | 8 包竞态首轮通过；刷新绑定及 compact 守卫追加后，3 包及 runtime 最终竞态补验通过，vet 通过 |
+| Bridge / Nexus | Bridge 3 包竞态 199 个顶层/109 个子场景；Nexus runtime 219 个顶层/191 个子场景，vet、架构及 6 个证据解析测试通过 |
+| 平台构建 | SDK 与 Bridge 的 Windows/Linux amd64 交叉编译通过，只是构建证据 |
+
+[证据报告](evidence/desktop-sandbox/2026-09-16-project-files/report.json)、[固定基线](evidence/desktop-sandbox/2026-09-16-project-files/baseline-report.json)和 [SHA256 清单](evidence/desktop-sandbox/2026-09-16-project-files/manifest.json)记录完整范围、跳过项及局限。runtime 原生用例以测试可执行文件转发生产 worker 协议；真实 nxs 另用于固定宿主基线和新旧握手。普通竞态套件中的平台/live/显式原生开关 skip 均保留在报告，不能替代上述必测项。
+
+P1/P2 继续进行中：全局权限/Provider/managed 设置读取、权限持久化、hook 执行、后台 IO、网络、生效回执、完整后代监督与 scratch 尚未闭合。默认产品策略、原生 Windows、Linux owner、Claude 和安装包继续按 P3–P7 验收；本次独立 `sandbox_project_files_v1` 不代表整个 SDK 进程已统一隔离。全部仅本地，`releaseAccepted=false`。

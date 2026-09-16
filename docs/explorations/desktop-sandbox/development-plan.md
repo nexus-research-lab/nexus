@@ -289,3 +289,17 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-16 | P1/P2 媒体文件子批次完成：SDK 143e987c、Bridge eeaff7d 本地提交；Nexus 固定模块并独立要求媒体文件能力。修复 ViewImage 和主模型图片预处理的本地读取旁路，以及普通本地路径未物化问题；固定基线 44 个顶层/72 个指定子场景、真实新旧进程 5 个顶层/8 个子场景和目标包竞态通过，Windows/Linux 交叉编译通过 | 远程图片网络、启动/Skill/配置/后台 IO、生效回执、完整后代监督、scratch、默认策略、其他平台原生/Claude/安装包仍未完成。下一项收口剩余 SDK IO；完整 P0–P7 与 Goal 保持，所有提交仅本地 |
 | 2026-09-16 | P1/P2 Skill 文件子批次完成：SDK 3d7938cd、Bridge f903386 本地提交；Nexus 在独立 worktree 固定模块并要求 Skill 独立能力。修复目录/正文、Slash/工具/动态发现、Git 忽略及 remember 设置读取旁路，保留允许来源和相对设置语义。固定基线 52 个顶层/128 个指定子场景、真实新旧进程 6 个顶层/10 个子场景及目标包竞态通过，必测项无 skip；证据见验收矩阵 | P1/P2 整体仍进行中。下一项从 assembly.go、hooks.go 与 environment.go 复现启动/compact 重载指令和全局设置边界；Skill hook、后台 IO、远程网络、回执/后代/scratch、默认策略及跨平台/Claude/安装包继续保留。完整 P0–P7 不变，Goal active；不推送 |
 | 2026-09-16 | P1/P2 指令与 compact 上下文子批次完成：SDK d3695455、Bridge 318c791 本地提交，Nexus 在独立 worktree 固定模块并要求独立上下文文件能力。先复现 9 个越界子场景，收口启动/动态指令、排除设置与 compact 近期文件读取；重载失败清除旧缓存并阻止后续模型请求。固定基线 58 个顶层/171 个指定子场景与真实新旧进程 7 个顶层/12 个子场景全部通过，race/vet/架构和 Windows/Linux 编译通过；证据见验收矩阵 | P1/P2 整体继续进行中。下一项处理 environment.go、permission.go 的全局设置读取及权限持久化，以及 environment/workspace 的 Agent/命令定义发现：先区分可信策略/凭据输入与任务文件，再用真实拒绝用例验证失败不会删除强制规则。hook/后台 IO、网络、回执/后代/scratch、默认策略及 P3–P7 平台/Claude/包验收全部保留。Goal active，不推送 |
+| 2026-09-16 | P1/P2 项目定义文件子批次完成：SDK f9bddb5f、Bridge aa46520 本地提交；Nexus 固定模块并独立要求项目定义文件能力。复现后修复启动发现旁路，hook 设置未知时拒绝完整快照，刷新故障阻止 query/compact，Agent/hook 变更须重建 runtime。固定基线 62 个顶层/201 个指定子场景、新旧真实进程 8 个顶层/14 个子场景通过，无必测 skip；竞态/vet/架构与跨平台编译通过，证据见验收矩阵 | 下一项按下面的输入所有权划分完成全局配置读取和权限持久化。P1/P2 整体及 P3–P7 保留，Goal active；原目录现场不动，所有提交仅本地 |
+
+
+### 下一批：配置读取与权限持久化（non-normative，尚未实现）
+
+项目定义读取已有独立边界，但以下入口仍不能据此视为安全。后续按输入所有权实施，不把所有设置文件直接套用同一种任务读写授权：
+
+1. **执行底座输入**：宿主传入的资源策略、固定执行身份与 managed policy 的来源必须可验证。`executor.PrepareInitialContextFiles` 和 `sandboxexec.sandboxSettingsSources` 当前仍依赖原 managed loader；后者还会先读取普通设置再过滤。改造必须在读取前确定来源，强制 deny 的读取/解析失败必须停止装配，不能降级为空规则，也不能用任务设置扩大宿主资源范围。
+2. **Provider 与凭据输入**：`client.Options.applySettingsProfile` 在 runtime 创建前加载全局配置。为可信来源建立显式快照或专用加载入口；Nexus 注入的凭据和策略不得通过项目设置、环境覆盖或新文件端口变成模型可读内容。独立 CLI 与 Nexus 托管模式的来源契约分别保留。
+3. **任务设置读取**：将 `runtimeSettingsSnapshot`、默认 shell、memory 及权限规则消费者接入带错误的读取契约。延续 user/project/local/flag/policy 的优先级、显式 Options 优先和来源过滤；任何选中限制未知时，不生成更宽松的运行态。动态刷新要有完整快照与失败状态，不继续使用部分更新。
+4. **经批准的权限写入**：`ApplyPermissionUpdates`/`persistPermissionUpdates` 需要独立的配置所有权和目的路径校验。普通任务文件写入不能解开 settings 的保护；实际写入绑定原批准、取消、版本和固定目标，采用可核对的原子更新。部分失败或结果未知不得自动重放，更不能在失败后删除已有 deny。
+5. **验证**：原生拒绝、malformed managed/drop-in、项目/flag 链接、取消、来源禁用、并发版本和部分写入故障均须有正反例；确认默认模式、强制 deny、hook 限制和凭据边界保持。使用新的独立能力或清晰版本合同，不能扩张已发布文件能力的含义。
+
+该批次不替代 P3–P7，也不删除 hook 执行、后台 IO、网络、生效回执、完整后代监督、scratch 生命周期、默认产品策略、Windows/Linux/Claude 与安装包门禁。所有工作继续在独立 worktree，仅保留本地提交。
