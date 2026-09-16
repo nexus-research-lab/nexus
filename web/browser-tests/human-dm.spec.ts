@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type WebSocketRoute } from "@playwright/test";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
 
 test("human contact opens a DM, sends durable messages and accepts a group invitation", async ({page,context},info) => {
@@ -14,7 +14,8 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  const errors:string[]=[];page.on("pageerror",e=>errors.push(e.message));
  await context.addInitScript(APP_SHELL_INIT_SCRIPT);
  await context.routeWebSocket("**/nexus/v1/chat/ws",socket=>socket.onMessage(raw=>{if(JSON.parse(raw.toString()).type==="ping")socket.send(JSON.stringify({event_type:"pong"}));}));
- await context.routeWebSocket("**/nexus/v1/team/stream?*",()=>{});
+ let messageStream: WebSocketRoute | undefined;
+ await context.routeWebSocket("**/nexus/v1/team/stream?*",socket=>{messageStream=socket;});
  await context.route("**/*",async route=>{
   const req=route.request(),url=new URL(req.url()),path=url.pathname;
   const data=(value:unknown)=>route.fulfill({json:{data:value}});
@@ -41,7 +42,7 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
   if(path.endsWith("/messages") && req.method()==="POST") {
    const input=req.postDataJSON();messages.push({id:"message",conversation_id:"dm-conversation",message_seq:3,author_type:"user",author_user_id:"ui-fixture",author_username:"me",author_display_name:"Me",client_message_id:req.headers()["idempotency-key"],content:input.content,created_at:now});
    details.conversation.high_water_sync_event_seq=messages.length;details.conversation.high_water_message_seq=messages.length;
-   return data({message:messages.at(-1),stream_id:"dm-stream",stream_epoch:"epoch",event_seq:messages.length,replayed:false});
+   return data({message:messages.at(-1),stream_id:"dm-stream",stream_epoch:"epoch",event_seq:messages.length,high_water_seq:messages.length,replayed:false});
   }
   const fixture=appShellRead(req.method(),path);if(fixture)return route.fulfill({json:fixture});
   if(!["localhost","127.0.0.1"].includes(url.hostname)||req.method()!=="GET")return route.abort();
@@ -74,10 +75,16 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await expect(page.getByText("Hello from Alice",{exact:true})).toBeVisible();
  await input.fill("Hello Alice");await input.press("Enter");
  await expect(page.getByText("Hello Alice",{exact:true})).toBeVisible();
+ // 对方的新消息必须由推送补拉，不能依赖刷新页面或再次发送。
+ await expect.poll(()=>Boolean(messageStream)).toBe(true);
+ messages.push({...messages[1],id:"reply",message_seq:4,client_message_id:"reply",content:{version:1,blocks:[{type:"markdown",text:"Alice replies live"}]}});
+ details.conversation.high_water_sync_event_seq=4;details.conversation.high_water_message_seq=4;
+ messageStream!.send(JSON.stringify({type:"stream.updated",stream_id:"dm-stream",stream_epoch:"epoch",high_water_seq:4}));
+ await expect(page.getByText("Alice replies live",{exact:true})).toBeVisible();
  await page.getByRole("button",{name:zh?"加入":"Join",exact:true}).click();
  await expect.poll(()=>accepted).toBe(true);
  await page.reload();await expect(page.getByText("Hello Alice",{exact:true})).toBeVisible();
- expect(messages).toHaveLength(3);
+ expect(messages).toHaveLength(4);
  const deleteButton=page.getByRole("button",{name:zh?"移出列表":"Remove from list",exact:true});
  await deleteButton.first().click({force:true});
  const dialog=page.getByRole("dialog");
@@ -93,6 +100,7 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await expect(input).toBeVisible();
  await expect(page.getByText("Hello from Alice",{exact:true})).toBeVisible();
  await expect(page.getByText("Hello Alice",{exact:true})).toBeVisible();
- expect(messages).toHaveLength(3);expect(clearKeys).toHaveLength(2);expect(errors).toEqual([]);
+ await expect(page.getByText("Alice replies live",{exact:true})).toBeVisible();
+ expect(messages).toHaveLength(4);expect(clearKeys).toHaveLength(2);expect(errors).toEqual([]);
  await page.screenshot({path:info.outputPath("human-dm.png")});
 });
