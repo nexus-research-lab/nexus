@@ -67,7 +67,7 @@ func isAutomationDeliveryAssistant(row protocol.Message) bool {
 		return false
 	}
 	metadata := mapValue(row["metadata"])
-	return stringValue(metadata["source"]) == "automation_delivery" &&
+	return stringValue(metadata["im_delivery_id"]) == "" && stringValue(metadata["source"]) == "automation_delivery" &&
 		stringValue(metadata["job_id"]) != "" &&
 		stringValue(metadata["run_id"]) != ""
 }

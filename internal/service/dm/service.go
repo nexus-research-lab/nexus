@@ -23,6 +23,7 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -233,6 +234,10 @@ type RuntimeSlashExpander interface {
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
+	imAutomationPolicy func(context.Context, imdelivery.Source) (*protocol.RuntimeToolPolicy, error)
+	imReplies          *imdelivery.Repository
+	imReplyValidate    func(context.Context, string, string) error
+
 	config       config.Config
 	agents       *agentsvc.Service
 	runtime      *runtimectx.Manager

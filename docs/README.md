@@ -55,6 +55,11 @@
 
 `/nexus/v1` 下的 HTTP 与 WebSocket 路由用于连接 Nexus 后端、Web 客户端和桌面宿主，当前没有作为稳定的第三方 API 发布。路由真相源位于 [`internal/app/server/routes.go`](../internal/app/server/routes.go)，不要另行维护容易漂移的端点清单。
 
+## IM 投递回传
+
+- [当前通讯合同](specs/platform-communication-spec.md)
+- [本地与真实通道验收](testing/im-delivery-replies.md)
+
 ## 文档维护规则
 
 - 只描述默认分支已经存在的行为。

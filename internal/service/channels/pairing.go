@@ -123,6 +123,11 @@ func (s *ControlService) updatePairing(
 			}
 			request.Status = &status
 		}
+		if (request.AgentID != nil && *request.AgentID != existing.AgentID) || (request.Status != nil && *request.Status != existing.Status) {
+			if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+				return err
+			}
+		}
 		updatedRow, loadErr = s.patchPairingRowWith(ctx, tx, ownerUserID, pairingID, request)
 		if loadErr != nil {
 			return loadErr
@@ -169,6 +174,9 @@ func (s *ControlService) deletePairing(
 	defer unlockPairing()
 
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+			return err
+		}
 		query := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)
 		result, deleteErr := tx.ExecContext(ctx, query, ownerUserID, pairingID)
 		if deleteErr != nil {

@@ -1,5 +1,7 @@
 // Package mcp 保存 Nexus 内置 MCP 工具在一个 physical round 中共享的可信上下文与命令回执状态。
 //
+// RoundContext 同时携带宿主实际派发正文，供 IM ingress 证据核对；正文不授予权限。
+//
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 具体工具实现位于各子包；宿主自有工具最终由 app/runtime 合并进单一 nexus MCP server。

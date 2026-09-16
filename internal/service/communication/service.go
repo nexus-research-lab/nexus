@@ -31,6 +31,8 @@ const (
 
 // Actor 是宿主根据当前 runtime 固化的通讯身份；字段不能来自模型参数。
 type Actor struct {
+	InputContent    string
+	CallID          string
 	OwnerUserID     string
 	AgentID         string
 	SessionKey      string
@@ -73,6 +75,7 @@ type SendRequest struct {
 
 // SendResult 返回现有 Room 或 Channels transport 的定位与接受状态。
 type SendResult struct {
+	DeliveryID     string `json:"delivery_id,omitempty"`
 	MessageID      string `json:"message_id"`
 	Status         string `json:"status"`
 	TargetType     string `json:"target_type"`
@@ -101,6 +104,7 @@ type sendContext struct {
 
 // Service 组合现有联系人、Room、Channels 和 realtime 消息主链。
 type Service struct {
+	im       *imScenario
 	agents   *agentsvc.Service
 	rooms    *roomsvc.Service
 	realtime messageTransport
@@ -200,6 +204,9 @@ func (s *Service) SendMessage(
 	if strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession) &&
 		strings.TrimSpace(request.TargetID) == strings.TrimSpace(actor.SessionKey) {
 		return nil, newInputError("当前外部私聊请直接使用 final reply")
+	}
+	if s.im != nil && request.TargetType == TargetTypeExternalSession {
+		scoped = withIMOrigin(scoped, actor)
 	}
 	trusted := sendContext{}
 	if actor.ContextKind == ContextKindRoom {
@@ -312,7 +319,7 @@ func (s *Service) sendToExternalSession(
 		messageID = result.Receipt.PrimaryPlatformMessageID
 	}
 	return &SendResult{
-		MessageID: messageID, Status: "delivered",
+		MessageID: messageID, Status: "delivered", DeliveryID: result.DeliveryID,
 		TargetType: TargetTypeExternalSession, TargetID: request.TargetID,
 		SessionKey: result.Target.SessionKey, Channel: result.Target.Channel,
 		RoutingSource: RoutingSourceExplicit,

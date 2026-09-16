@@ -309,7 +309,7 @@ func (s *Service) ensureClient(
 		runtimeServers, runtimeErr := s.nexusMCP(
 			mcpContext,
 			nexusmcp.RoundContext{
-				SessionKey: sessionKey, RoundID: request.RoundID,
+				SessionKey: sessionKey, RoundID: request.RoundID, InputContent: request.Content,
 				SubagentControl:   s.runtime.BindSubagentControl(sessionKey, request.RoundID),
 				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 				SourceContextLabel: agentValue.Name,
