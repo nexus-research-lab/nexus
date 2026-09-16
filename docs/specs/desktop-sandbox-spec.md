@@ -270,3 +270,7 @@ acceptance are separate delivery facts, recorded in the
 [assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 and [acceptance matrix](../testing/desktop-sandbox-acceptance.md). Dependency
 availability must not be inferred from a successful local workspace build.
+
+## Main integration compatibility
+
+The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished. [Acceptance evidence](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容) records this integration separately from default sandbox rollout and platform acceptance.
