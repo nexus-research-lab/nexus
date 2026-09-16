@@ -30,6 +30,18 @@ vi.mock("./sidebar-list-rows", () => ({
   ContactRow: ({ onChat, onOpenDirectory }: { onChat: () => void; onOpenDirectory: () => void }) => <><button onClick={onChat}>chat</button><button onClick={onOpenDirectory}>detail</button></>,
   SidebarListLoadingRows: () => null,
 }));
+vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
+  useAuth: () => ({
+    status: { authenticated: true, auth_method: "password", control_user_id: "owner", organization_id: "org" },
+    loading: false,
+    isBootstrapped: true,
+    error: null,
+    refreshStatus: vi.fn(),
+    login: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
 const target = { route: "/room/result", context: { room: { id: "room" }, conversation: { id: "conversation" } } };
 function mount() {
   return render(<I18N_CONTEXT.Provider value={{ locale: "en", setLocale: vi.fn(), t: (key) => key }}><ContactsSidebarPanelContent /></I18N_CONTEXT.Provider>);
