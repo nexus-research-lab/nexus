@@ -16,6 +16,7 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 	for _, change := range []func(){
 		func() { base.Sandbox.RequireFileTools = true },
 		func() { base.Sandbox.RequireSearchTools = true },
+		func() { base.Sandbox.RequireMediaFiles = true },
 		func() {
 			base.Sandbox.Resources = &bridge.SandboxResourcePolicy{Version: 1, WriteScope: bridge.SandboxWriteScopeReadOnly, ScratchRoot: t.TempDir()}
 		},

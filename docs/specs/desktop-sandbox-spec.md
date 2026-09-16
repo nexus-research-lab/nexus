@@ -119,6 +119,18 @@ requires runtime replacement when changed. It does not cover Notebook, startup
 configuration, Skills, background memory, full descendant supervision or an
 effective-policy receipt; the older file capability retains its original scope.
 
+The host also requires `SandboxSettings.RequireMediaFiles`, initialize
+`required_sandbox_media_files` and the separate `sandbox_media_files_v1`
+acknowledgement. Current macOS coverage includes local reads for ViewImage and
+main-model preprocessing: local paths, file URLs, symlinks, deferred references,
+user images and nested tool-result images all use the file executor. Local paths
+are materialized before provider dispatch. Preparation and read failures do not
+fall back; local access is checked before auxiliary analysis cache lookup.
+Old command/file/search acknowledgements cannot substitute for this capability.
+It participates in process-policy identity and requires runtime replacement when
+changed. It does not cover HTTP image downloads, remote URL forwarding policy,
+Claude or whole-SDK IO; those remain separate implementation and acceptance work.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature
