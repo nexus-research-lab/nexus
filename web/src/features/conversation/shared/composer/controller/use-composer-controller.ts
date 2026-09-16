@@ -94,6 +94,7 @@ export function useComposerController({
     clearAttachmentError,
   } = attachments;
   const mention = useComposerMention({
+    draftScopeKey,
     input: draftState.input,
     isGoalMode,
     roomMembers,

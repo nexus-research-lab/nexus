@@ -14,11 +14,17 @@ export interface TeamNodeView {
   candidates: Array<{ id: string; name: string }>;
   execution_available: boolean;
   execution_enabled?: boolean;
-  jobs?: Array<{ id: string; agent_id: string; state: "claiming" | "ready" | "running" | "draining" | "review_required" | "completed" | "failed"; room_id?: string; conversation_id?: string }>;
+  jobs?: Array<{ id: string; agent_id: string; state: "claiming" | "ready" | "running" | "draining" | "review_required" | "completed" | "failed"; room_id?: string; conversation_id?: string; local_agent_id?: string; round_id?: string; source_room_id?: string; source_message_id?: string; delivery_id?: string }>;
 }
 
-export function getTeamNode(signal?: AbortSignal) {
-  return requestApi<TeamNodeView>(NODE_URL, { method: "GET", signal });
+export function getTeamNode(signal?: AbortSignal, query?: {roomId: string; messageIds: string[]; jobId?: string | null}) {
+  const params = new URLSearchParams();
+  if (query) {
+    params.set("room_id", query.roomId);
+    for (const id of query.messageIds) params.append("message_id", id);
+    if (query.jobId) params.set("job_id", query.jobId);
+  }
+  return requestApi<TeamNodeView>(`${NODE_URL}${query ? `?${params}` : ""}`, { method: "GET", signal });
 }
 
 export function authorizeTeamNode(name: string, agentIds: string[], enableExecution = false) {
@@ -27,4 +33,17 @@ export function authorizeTeamNode(name: string, agentIds: string[], enableExecut
 
 export function revokeTeamNode() {
   return requestApi(NODE_URL, { method: "DELETE" });
+}
+
+export type TeamNodeJob = NonNullable<TeamNodeView["jobs"]>[number];
+
+export interface TeamRoomBinding {
+  agent_id: string;
+  local_agent_id: string;
+  room_id: string;
+  conversation_id: string;
+}
+
+export function prepareTeamRoom(roomId: string, signal?: AbortSignal) {
+  return requestApi<TeamRoomBinding[]>(`${NODE_URL}/room`, {method: "POST", body: {room_id: roomId}, signal});
 }

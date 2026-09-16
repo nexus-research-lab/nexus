@@ -773,6 +773,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		AuthorityEpoch:                    e.contextValue.Room.AuthorityEpoch,
 		TrustedConfigurationContext:       e.request.TrustedConfigurationContext,
 		ExecutionOrigin:                   strings.TrimSpace(e.request.ExecutionOrigin),
+		PublicContext:                     e.request.PublicContext,
 		trustedQueuedConfigurationContext: e.request.trustedQueuedConfigurationContext,
 		InputOptions:                      e.request.InputOptions,
 		PermissionMode:                    e.request.PermissionMode,

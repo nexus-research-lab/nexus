@@ -44,7 +44,11 @@ func (h *NodeHandlers) Handle(writer http.ResponseWriter, request *http.Request)
 		err = h.service.Revoke(request.Context(), cookie.Value)
 	case http.MethodGet:
 		var view teamsvc.NodeView
-		view, err = h.service.View(request.Context(), cookie.Value)
+		if request.URL.Query().Has("room_id") {
+			view, err = h.service.View(request.Context(), cookie.Value, teamsvc.NodeJobQuery{RoomID: request.URL.Query().Get("room_id"), MessageIDs: request.URL.Query()["message_id"], JobID: request.URL.Query().Get("job_id")})
+		} else {
+			view, err = h.service.View(request.Context(), cookie.Value)
+		}
 		if err == nil {
 			h.api.WriteSuccess(writer, view)
 			return
@@ -73,4 +77,31 @@ func (h *NodeHandlers) writeError(writer http.ResponseWriter, err error) {
 		message = "宿主凭据密钥不可用，未向远端发送授权"
 	}
 	h.api.WriteFailure(writer, status, message)
+}
+
+// HandleRoom 只物化已入群的本人 Agent 会话，不启用节点执行。
+func (h *NodeHandlers) HandleRoom(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Cache-Control", "no-store")
+	if !sameOrigin(request) {
+		h.api.WriteFailure(writer, http.StatusForbidden, "请求来源无效")
+		return
+	}
+	cookie, err := request.Cookie(h.cookieName)
+	if err != nil || cookie.Value == "" {
+		h.writeError(writer, teamsvc.ErrNodeLogin)
+		return
+	}
+	var input struct {
+		RoomID string `json:"room_id"`
+	}
+	if err := decodeStrictJSON(writer, request, &input); err != nil {
+		h.writeError(writer, teamsvc.ErrNodeInput)
+		return
+	}
+	bindings, err := h.service.PrepareRoom(request.Context(), cookie.Value, input.RoomID)
+	if err != nil {
+		h.writeError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, bindings)
 }

@@ -24,9 +24,9 @@ import {
 export interface WorkspaceFileTreeActions {
   onClickDirectory: (path: string) => void;
   onClickFile: (path: string) => void;
-  onContextMenu: (event: MouseEvent, entry: WorkspaceFileEntry) => void;
-  onDeleteEntry: (entry: WorkspaceFileEntry) => void;
-  onRenameEntry: (entry: WorkspaceFileEntry) => void;
+  onContextMenu?: (event: MouseEvent, entry: WorkspaceFileEntry) => void;
+  onDeleteEntry?: (entry: WorkspaceFileEntry) => void;
+  onRenameEntry?: (entry: WorkspaceFileEntry) => void;
 }
 
 interface WorkspaceFileTreeRowProps {
@@ -68,7 +68,7 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
   const handleContextMenu = useCallback((event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    actions.onContextMenu(event, entry);
+    actions.onContextMenu?.(event, entry);
   }, [actions, entry]);
 
   return (
@@ -102,11 +102,11 @@ export const WorkspaceFileTreeRow = memo(function WorkspaceFileTreeRow({
             {entry.name}
           </span>
         </button></UiTooltip>
-        <WorkspaceFileTreeRowActions
+        {actions.onDeleteEntry && actions.onRenameEntry ? <WorkspaceFileTreeRowActions
           actions={actions}
           entry={entry}
           visible={presentation.actionsVisible}
-        />
+        /> : null}
       </div>
       <WorkspaceFileTreeChildren
         actions={actions}
@@ -246,8 +246,8 @@ function WorkspaceFileTreeRowActions({
         minWidth={160}
         onClose={closeMenu}
         onSelect={(value) => {
-          if (value === "rename") actions.onRenameEntry(entry);
-          else if (value === "delete") actions.onDeleteEntry(entry);
+          if (value === "rename") actions.onRenameEntry?.(entry);
+          else if (value === "delete") actions.onDeleteEntry?.(entry);
         }}
       />
     </div>

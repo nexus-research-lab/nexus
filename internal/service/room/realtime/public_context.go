@@ -17,6 +17,17 @@ func (s *Service) buildSlotVisibleContext(
 	publicHistory []protocol.Message,
 	agentNameByID map[string]string,
 ) (string, error) {
+	if roundValue.PublicContext != nil {
+		publicHistory = roundValue.PublicContext
+		agentNameByID = make(map[string]string, len(publicHistory))
+		for _, item := range publicHistory {
+			id, _ := item["agent_id"].(string)
+			name, _ := item["agent_name"].(string)
+			if id != "" && name != "" {
+				agentNameByID[id] = name
+			}
+		}
+	}
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, roomdomain.PublicCursor{}, false)
 	if err != nil {
 		return "", err

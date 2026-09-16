@@ -72,12 +72,14 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 // RoundID / UserMessageID 由后端 mint：WS 入口不填，HandleChat 内部生成；
 // 后端内部调用方（automation / mention / queue）可预置 RoundID。
 type ChatRequest struct {
-	SessionKey            string
-	RoomID                string
-	ConversationID        string
-	CoordinatorAgentID    string
-	AttachmentAgentID     string
-	Content               string
+	SessionKey         string
+	RoomID             string
+	ConversationID     string
+	CoordinatorAgentID string
+	AttachmentAgentID  string
+	Content            string
+	// PublicContext 仅由服务端在线适配提供，沿用 Room 公区游标与上下文预算。
+	PublicContext         []protocol.Message
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64

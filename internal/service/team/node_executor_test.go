@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/message"
@@ -21,6 +21,54 @@ import (
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
+
+func TestDeliveryRoomContextUsesExactTriggerAndLocalAgent(t *testing.T) {
+	delivery := &relaycontract.Delivery{AgentID: "remote", MessageID: "trigger", Messages: []relaycontract.Message{
+		{ID: "prior", AuthorType: "agent", AuthorAgentID: "remote"},
+		{ID: "trigger", AuthorType: "user", Content: relaycontract.MessageContent{Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "执行任务"}}}},
+		{ID: "later", AuthorType: "user"},
+	}}
+	content, history, err := deliveryRoomContext(delivery, "local")
+	if err != nil || content != "执行任务" || len(history) != 2 || history[0]["agent_id"] != "local" {
+		t.Fatalf("unexpected Room context: %q %#v %v", content, history, err)
+	}
+	delivery.MessageID = "missing"
+	if _, _, err := deliveryRoomContext(delivery, "local"); err == nil {
+		t.Fatal("missing trigger must not fall back to the latest message")
+	}
+}
+
+func TestNodeMessageHistorySurvivesRecentWindowAndIsScoped(t *testing.T) {
+	db := newNodeTestDB(t)
+	repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
+	for index := 0; index < 105; index++ {
+		id := fmt.Sprintf("job-%03d", index)
+		job := teamstore.NodeJob{ID: id, OwnerUserID: "local-owner", Scope: "scope", NodeID: "node", LocalAgentID: "local", State: "completed", Delivery: &relaycontract.Delivery{ID: "delivery-" + id, RoomID: "room", MessageID: id}}
+		encoded, err := json.Marshal(job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.Exec(`INSERT INTO team_node_jobs(id,node_id,owner_user_id,local_agent_id,state,scope,data_json,source_room_id,source_message_id,delivery_id) VALUES (?,?,?,?,?,?,?,?,?,?)`, id, "node", "local-owner", "local", "completed", "scope", string(encoded), "room", id, "delivery-"+id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recent, err := repo.NodeJobs(t.Context(), "local-owner", "scope")
+	if err != nil || len(recent) != 100 {
+		t.Fatalf("recent window: %d %v", len(recent), err)
+	}
+	for _, reference := range []string{"job-000", "delivery-job-000"} {
+		jobs, err := repo.NodeMessageJobs(t.Context(), "local-owner", "scope", "room", []string{reference}, "")
+		if err != nil || len(jobs) != 1 || jobs[0].ID != "job-000" {
+			t.Fatalf("history lookup: %#v %v", jobs, err)
+		}
+	}
+	for _, scope := range [][3]string{{"other-owner", "scope", "room"}, {"local-owner", "other-scope", "room"}, {"local-owner", "scope", "other-room"}} {
+		jobs, err := repo.NodeMessageJobs(t.Context(), scope[0], scope[1], scope[2], nil, "job-000")
+		if err != nil || len(jobs) != 0 {
+			t.Fatalf("history crossed scope: %#v %v", jobs, err)
+		}
+	}
+}
 
 func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	ctx := t.Context()
@@ -44,7 +92,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 			if r.Header.Get("Idempotency-Key") != "first" {
 				t.Error("claim changed durable identity")
 			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"code": "0000", "data": map[string]any{"delivery": relaycontract.Delivery{ID: "delivery", NodeID: "node", AgentID: "online", LeaseID: "lease", State: "leased", RoomID: "online-room", MessageID: "message", Messages: []relaycontract.Message{{ID: "message"}}}}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "0000", "data": map[string]any{"delivery": relaycontract.Delivery{ID: "delivery", NodeID: "node", AgentID: "online", LeaseID: "lease", State: "leased", RoomID: "online-room", MessageID: "message", Messages: []relaycontract.Message{{ID: "message", AuthorType: "user", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "处理任务"}}}}}}}})
 			return
 		}
 		if r.URL.Path != "/api/relay/v1/node/deliveries/delivery/outputs" {
@@ -66,7 +114,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	defer server.Close()
 	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, AuthSessionCookieName: "nexus_session", ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
 	repo := teamstore.NewRepository(cfg, db)
-	nodes, err := NewNodeService(cfg, repo, nil)
+	nodes, err := NewNodeService(cfg, repo, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +159,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		}
 		job.State = "ready"
 		job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_"+id
-		job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", Messages: []relaycontract.Message{{ID: "message"}}}
+		job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", Messages: []relaycontract.Message{{ID: "message", AuthorType: "user", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "处理任务"}}}}}}
 		if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
 			t.Fatal(err)
 		}
@@ -124,7 +172,10 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 			return err
 		}
 		starts++
-		if request.PermissionMode != sdkpermission.ModeDefault || request.ExecutionOrigin != "relay" || len(request.TargetAgentIDs) != 1 || request.TargetAgentIDs[0] != "local" {
+		if request.Content != "处理任务" || len(request.PublicContext) != 1 || request.UserMessageID != "message" || !request.Internal {
+			t.Errorf("在线消息未通过 Room 公区上下文适配: %+v", request)
+		}
+		if request.PermissionMode != "" || request.ExecutionOrigin != "relay" || len(request.TargetAgentIDs) != 1 || request.TargetAgentIDs[0] != "local" {
 			t.Errorf("unsafe admission: %+v", request)
 		}
 		emit := func(id, text, stop string, complete bool, mode string) {

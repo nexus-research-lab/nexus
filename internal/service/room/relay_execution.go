@@ -25,7 +25,15 @@ func (s *Service) EnsureRelayExecutionRoom(ctx context.Context, binding, agentID
 		return nil, err
 	}
 	if existing == nil {
-		return s.createRoomWithIDs(ctx, protocol.CreateRoomRequest{AgentIDs: []string{agentID}, Name: "在线任务 · " + agentID}, protocol.RoomTypeGroup, roomID, conversationID)
+		created, createErr := s.createRoomWithIDs(ctx, protocol.CreateRoomRequest{AgentIDs: []string{agentID}, Name: "在线任务 · " + agentID}, protocol.RoomTypeGroup, roomID, conversationID)
+		if createErr == nil {
+			return created, nil
+		}
+		// 页面准备与投递领取可能同时建会话；只接受同一个确定性绑定。
+		existing, err = s.repository.GetConversationContext(ctx, authctx.OwnerUserID(ctx), conversationID)
+		if err != nil || existing == nil {
+			return nil, createErr
+		}
 	}
 	count := 0
 	for _, member := range existing.Members {

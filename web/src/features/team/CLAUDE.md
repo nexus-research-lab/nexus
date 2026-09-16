@@ -1,9 +1,20 @@
 # Team
 
+- 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
+
+
+- `team-workspace.tsx` 默认显示 Relay 群共享文件，复用公共 WorkspaceFileTree；本机 Agent 文件另列页签。上传按文件名和内容摘要生成稳定命令，不随失败重试变化；读错误不冒充空目录，上传未确认不被例行刷新清除，离开页面中止传输。当前支持有界上传/下载，不提供共享文件重命名、删除或编辑。
+- `POST /team-node/room` 为当前已加入的本人 Agent 准备确定性执行 Room；不需要 Node 授权或历史任务，不启动 runtime。工作图和子智能体沿原生会话空态展示，模型权限设置在第一轮前可用。成员与本机目录交集由服务端重新核验。
+
+- `team-execution-surface.tsx` 按已验证成员绑定复用 Room 工作图、子智能体、Agent 工作区与简介；只允许当前群 active Agent 与本机目录的交集，文件导航回到同一 Agent。本机工作区不冒充 Relay 共享目录。简介保存沿用 Agent Options 命令，工作图消费原生 execution_invalidated。
+
+- `team-execution-thread.tsx` 将当前用户的本机任务映射到共享 Room Thread，按精确 round/Agent 读取过程与权限；窄屏复用 Room 模态外壳。远程成员只看到完整 assistant/final，不订阅本机执行流。
+
 - Relay 资源同时要求远程登录和非空 organization_id；目录刷新作用域包含组织和组织角色。组织切换废弃旧在线目录与在途读取，不切换本地 owner 数据目录。
 
 - `team-node-dialog.tsx` 在在线群 Header 提供本机授权，复用共享弹窗与 Checkbox；待确认时锁定服务端原意图，读取失败禁用新授权。它只使用 `/team-node`，不获取机器凭据，也不把登记成功表示为执行器在线。
-- 已授权宿主必须另行显式开启执行；本机任务列表链接原生执行 Room 处理权限与问答。旧授权不自动开启，运行状态未知明确阻止重跑，不提供无证据解锁。
+- 已授权宿主必须另行显式开启执行；本机任务列表链接在线群的精确 Thread，处理权限与问答。旧授权不自动开启，运行状态未知明确阻止重跑，不提供无证据解锁。
+- `team-execution-thread.test.tsx` 验证精确本机轮次隔离、停止命令与历史读取重试。聊天按消息/Delivery ID 分批查询本机历史，深链额外查询精确 job；不依赖授权面板最近 100 条窗口。
 
 - `use-team-rooms.ts` 读取已加入的在线 Room；`use-team-invitations.ts` 独立读取和处理待加入邀请，不创建默认 General。
 - `use-team-room.ts` 负责快照、差量游标、WSS 水位/换代提示和真人消息提交；显式选择的 active Agent 以结构化 mention 和当前 `membership_version` 提交，WSS 不承载消息正文，提交成功后仍从旧游标走 difference 再前进。
@@ -26,8 +37,6 @@
 - 在线 Agent 暂停保留成员身份，只阻断后续投递资格；仅 Agent 所有者可暂停或恢复，暂停主持 Agent 时 Relay 同时清空主持职责。
 - Agent 发布和入群由成员资源的同一个同步单飞锁持有，发布错误进入可见失败状态；删除弹窗的独立异步发布路径。读取失败保留已有快照并可手动刷新。
 - `use-team-invitations.ts` 持有当前真人的 pending 邀请与幂等接受/拒绝；`team-invitation-list.tsx` 只在聊天目录展示待处理项。
-
-- 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
 
 - 邀请列表在无邀请、无群主接管待办且读取成功时不渲染，首次加载也不显示空标题；只在读取失败时显示重试。真人 DM 尚未接入前，保留待办的接受、拒绝与接管入口。
 

@@ -129,6 +129,11 @@ func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string,
 	if count != 1 {
 		return ErrNodeConflict
 	}
+	if item.Delivery != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE team_node_jobs SET source_room_id=`+r.dialect.Bind(1)+`,source_message_id=`+r.dialect.Bind(2)+`,delivery_id=`+r.dialect.Bind(3)+` WHERE id=`+r.dialect.Bind(4), item.Delivery.RoomID, item.Delivery.MessageID, item.Delivery.ID, item.ID); err != nil {
+			return err
+		}
+	}
 	if output != nil {
 		encoded, err := json.Marshal(output)
 		if err != nil {
@@ -164,7 +169,24 @@ func (r *Repository) AckNodeOutput(ctx context.Context, jobID string, sequence i
 }
 
 func (r *Repository) NodeJobs(ctx context.Context, owner, scope string) ([]NodeJob, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, owner, scope)
+	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, scope, owner, scope)
+}
+
+// NodeMessageJobs 通过精确消息索引读取旧执行，不扩大常规授权面板的任务窗口。
+func (r *Repository) NodeMessageJobs(ctx context.Context, owner, scope, room string, messages []string, jobID string) ([]NodeJob, error) {
+	args := []any{owner, scope, room, jobID}
+	match := `id=` + r.dialect.Bind(4)
+	for _, id := range messages {
+		args = append(args, id)
+		match += ` OR source_message_id=` + r.dialect.Bind(len(args))
+		args = append(args, id)
+		match += ` OR delivery_id=` + r.dialect.Bind(len(args))
+	}
+	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` AND source_room_id=`+r.dialect.Bind(3)+` AND (`+match+`) ORDER BY created_at,id`, scope, args...)
+}
+
+func (r *Repository) readNodeJobs(ctx context.Context, query, scope string, args ...any) ([]NodeJob, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

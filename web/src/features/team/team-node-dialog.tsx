@@ -81,7 +81,7 @@ export function TeamNodeDialog({ onClose }: { onClose: () => void }) {
               <h3 className={getUiTypographyClassName({ role: "sectionTitle" })}>{t("team.node_jobs")}</h3>
               {view.jobs.map((job) => <div key={job.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className={getUiTypographyClassName({ role: "supporting" })}>{view.candidates.find((agent) => agent.id === job.agent_id)?.name ?? t("team.node_agent")} · {t(`team.node_job_${job.state}`)}</span>
-                {job.room_id && job.conversation_id ? <Link className={getUiTypographyClassName({ role: "supporting", tone: "brand" })} to={AppRouteBuilders.roomConversation(job.room_id, job.conversation_id)} onClick={onClose}>{t("team.node_open_execution")}</Link> : null}
+                {job.source_room_id && job.round_id ? <Link className={getUiTypographyClassName({ role: "supporting", tone: "brand" })} to={`${AppRouteBuilders.team(job.source_room_id)}&thread=${encodeURIComponent(job.id)}`} onClick={onClose}>{t("team.node_open_execution")}</Link> : null}
               </div>)}
             </section> : null}
           </UiDialogBody>
