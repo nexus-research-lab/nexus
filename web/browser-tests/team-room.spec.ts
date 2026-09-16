@@ -37,7 +37,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
         return route.fulfill({json: {data: {ok: true}}});
       }
       if (request.method() === "DELETE") { nodeState = "revoked"; return route.fulfill({json: {data: {ok: true}}}); }
-      return route.fulfill({json: {data: {state: nodeState, name: "Nexus", agent_ids: nodeState === "authorized" ? ["agent"] : [], candidates: [{id: "agent", name: "Research Agent"}], execution_available: true, execution_enabled: executionEnabled, jobs: executionEnabled ? [{id: "job", agent_id: "agent", state: "running", room_id: "local-room", conversation_id: "local-conversation"}] : []}}});
+      return route.fulfill({json: {data: {state: nodeState, name: "Nexus", agent_ids: nodeState === "authorized" ? ["agent"] : [], candidates: [{id: "agent", name: "Research Agent"}], execution_available: true, execution_enabled: executionEnabled, jobs: executionEnabled ? [{id: "job", agent_id: "agent", state: "running", room_id: "local-room", conversation_id: "local-conversation", source_room_id: "online-room", round_id: "round"}] : []}}});
     }
     if (path === "/nexus/v1/auth/status") return route.fulfill({json: {data: {...appShellRead("GET", path)!.data as object, auth_method: "password", role: "owner", control_user_id: "ui-fixture", organization_id: "org"}}});
     if (path === "/nexus/v1/team/rooms") return route.fulfill({json: {data: {rooms: dissolved ? [] : [details]}}});
@@ -89,7 +89,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
   await expect(node.getByText(text("设备授权已登记", "Host authorization registered"), {exact: true})).toBeVisible();
   expect(executionEnabled).toBe(false);
   await node.getByRole("button", {name: text("开启任务执行", "Enable task execution"), exact: true}).click();
-  await expect(node.getByRole("link", {name: text("打开执行会话", "Open execution conversation")})).toHaveAttribute("href", "/rooms/local-room/conversations/local-conversation");
+  await expect(node.getByRole("link", {name: text("打开执行会话", "Open execution conversation")})).toHaveAttribute("href", "/team?room_id=online-room&thread=job");
   expect(executionEnabled).toBe(true);
   expect(await node.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await node.getByRole("button", {name: text("撤销授权", "Revoke authorization"), exact: true}).click();
@@ -124,7 +124,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
   expect(dissolved).toBe(false);
   const confirm = page.getByRole("dialog", {name: text("解散群聊", "Dissolve room"), exact: true});
   await confirm.getByRole("button", {name: text("解散群聊", "Dissolve room"), exact: true}).click();
-  await expect(page.getByRole("textbox", {name: text("团队消息", "Team message")})).toBeDisabled();
+  await expect(page.getByPlaceholder(text("发送消息到群聊", "Message room"))).toBeDisabled();
   expect(dissolved).toBe(true);
   expect(writes).toHaveLength(3);
   expect(errors).toEqual([]);

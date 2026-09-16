@@ -66,7 +66,7 @@ export interface ComposerPanelProps {
   stopLabel?: string;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
-  roomMembers?: Agent[];
+  roomMembers?: Pick<Agent, "agent_id" | "name" | "avatar">[];
   onPrepareAttachments: (
     files: File[],
   ) => Promise<MessageAttachment[]>;

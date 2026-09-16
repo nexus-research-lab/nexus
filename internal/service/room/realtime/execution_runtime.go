@@ -304,6 +304,10 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	permissionMode := runtimepermission.NormalizeMode(
 		sdkpermission.Mode(e.agent.Options.PermissionMode),
 	)
+	// 在线输入不继承 Agent 全局放行；仅允许主人显式设置该执行 Session 的权限。
+	if e.round.ExecutionOrigin == "relay" {
+		permissionMode = sdkpermission.ModeDefault
+	}
 	if sessionSettings.PermissionMode != "" {
 		permissionMode = runtimepermission.NormalizeMode(
 			sdkpermission.Mode(sessionSettings.PermissionMode),

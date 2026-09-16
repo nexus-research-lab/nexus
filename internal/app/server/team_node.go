@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"strings"
 
 	teamhandler "github.com/nexus-research-lab/nexus/internal/handler/team"
@@ -17,7 +19,21 @@ func (s *Server) mountTeamNodeRoutes() {
 	if strings.TrimSpace(s.config.RemoteURL) == "" && strings.TrimSpace(s.config.ControlURL) == "" {
 		return
 	}
-	service, err := teamsvc.NewNodeService(s.config, teamstore.NewRepository(s.config, s.services.DB), s.services.Core.Agent.ListAgents)
+	var readRoom func(context.Context, string, string) (relaycontract.RoomDetails, error)
+	if !strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") {
+		readRoom = func(ctx context.Context, _ string, roomID string) (relaycontract.RoomDetails, error) {
+			control, ok := s.services.Auth.(*authsvc.ControlAuthority)
+			if !ok || s.services.Relay == nil {
+				return relaycontract.RoomDetails{}, teamsvc.ErrNodeUnavailable
+			}
+			token, err := control.ExchangeRelayUserToken(ctx, authsvc.PrincipalFromContext(ctx))
+			if err != nil {
+				return relaycontract.RoomDetails{}, err
+			}
+			return s.services.Relay.GetRoom(ctx, token, roomID)
+		}
+	}
+	service, err := teamsvc.NewNodeService(s.config, teamstore.NewRepository(s.config, s.services.DB), s.services.Core.Agent.ListAgents, readRoom)
 	if err != nil {
 		s.api.BaseLogger().Error("本机节点授权未启用，服务地址配置无效")
 		return
@@ -38,6 +54,7 @@ func (s *Server) mountTeamNodeRoutes() {
 	s.router.Get(path, handler.Handle)
 	s.router.Post(path, handler.Handle)
 	s.router.Delete(path, handler.Handle)
+	s.router.Post(path+"/room", handler.HandleRoom)
 }
 
 func (s *Server) startTeamExecutor(ctx context.Context) (func(), error) {

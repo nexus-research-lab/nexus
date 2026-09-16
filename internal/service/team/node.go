@@ -18,6 +18,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
@@ -29,6 +30,7 @@ type NodeService struct {
 	keys                          *credentials.Keyring
 	listAgents                    func(context.Context) ([]protocol.Agent, error)
 	executor                      *NodeExecutor
+	readRoom                      func(context.Context, string, string) (relaycontract.RoomDetails, error)
 }
 
 type NodeView struct {
@@ -51,7 +53,7 @@ type NodeConnectInput struct {
 	EnableExecution bool     `json:"enable_execution"`
 }
 
-func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents func(context.Context) ([]protocol.Agent, error)) (*NodeService, error) {
+func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents func(context.Context) ([]protocol.Agent, error), readRoom func(context.Context, string, string) (relaycontract.RoomDetails, error)) (*NodeService, error) {
 	remote := strings.TrimRight(strings.TrimSpace(cfg.RemoteURL), "/")
 	if !strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
 		remote = strings.TrimRight(strings.TrimSpace(cfg.ControlURL), "/")
@@ -65,7 +67,65 @@ func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents f
 	keys, _ := credentials.NewKeyring(cfg.ConnectorCredentialsKey, cfg.ConnectorCredentialsLegacyKeys)
 	return &NodeService{remoteURL: remote, origin: parsed.Scheme + "://" + parsed.Host, cookieName: cfg.AuthSessionCookieName,
 		httpClient: &http.Client{Timeout: 5 * time.Second, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-		store:      store, keys: keys, listAgents: listAgents}, nil
+		store:      store, keys: keys, listAgents: listAgents, readRoom: readRoom}, nil
+}
+
+// NodeRoomBinding 与任务历史无关；准备会话不授权节点、不运行 Agent。
+type NodeRoomBinding struct {
+	AgentID        string `json:"agent_id"`
+	LocalAgentID   string `json:"local_agent_id"`
+	RoomID         string `json:"room_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([]NodeRoomBinding, error) {
+	if roomID == "" || len(roomID) > 128 || strings.ContainsAny(roomID, "/?#") {
+		return nil, ErrNodeInput
+	}
+	if s.executor == nil {
+		return nil, ErrNodeUnavailable
+	}
+	scope, _, err := s.scope(ctx, cookie)
+	if err != nil {
+		return nil, err
+	}
+	var details relaycontract.RoomDetails
+	if s.readRoom != nil {
+		details, err = s.readRoom(ctx, cookie, roomID)
+	} else {
+		// Desktop 只向固定远程 Gateway 发送 Cookie，不从请求体接收服务地址。
+		err = s.remoteRequest(ctx, cookie, "", http.MethodGet, "/nexus/v1/team/rooms/"+url.PathEscape(roomID), nil, &details)
+	}
+	if err != nil {
+		return nil, err
+	}
+	var online []nodeAgent
+	if err = s.callControl(ctx, cookie, http.MethodGet, "/agents", nil, &online); err != nil {
+		return nil, err
+	}
+	local, err := s.listAgents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bindings := make([]NodeRoomBinding, 0)
+	for _, agent := range online {
+		if !slices.ContainsFunc(local, func(value protocol.Agent) bool {
+			return value.AgentID == agent.SourceAgentID && value.Status == "active" && !value.IsMain
+		}) {
+			continue
+		}
+		if !slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
+			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active"
+		}) {
+			continue
+		}
+		room, err := s.executor.prepare(ctx, scope+":"+roomID, agent.SourceAgentID)
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, NodeRoomBinding{AgentID: agent.AgentID, LocalAgentID: agent.SourceAgentID, RoomID: room.Room.ID, ConversationID: room.Conversation.ID})
+	}
+	return bindings, nil
 }
 
 func nodeDigest(value any) string {
@@ -111,7 +171,16 @@ func (s *NodeService) candidates(ctx context.Context, cookie string) ([]NodeCand
 	return result, nil
 }
 
-func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error) {
+type NodeJobQuery struct {
+	RoomID     string
+	MessageIDs []string
+	JobID      string
+}
+
+func (s *NodeService) View(ctx context.Context, cookie string, queries ...NodeJobQuery) (NodeView, error) {
+	if len(queries) > 1 {
+		return NodeView{}, ErrNodeInput
+	}
 	scope, owner, err := s.scope(ctx, cookie)
 	if err != nil {
 		return NodeView{}, err
@@ -133,7 +202,21 @@ func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error)
 	if record != nil {
 		view.NodeID, view.State, view.Name, view.AgentIDs = record.NodeID, record.State, record.Name, record.AgentIDs
 		view.ExecutionEnabled = record.ExecutionEnabled && record.State == "authorized"
-		jobs, err := s.store.NodeJobs(ctx, owner, scope)
+		var jobs []teamstore.NodeJob
+		if len(queries) == 1 {
+			query := queries[0]
+			if query.RoomID == "" || len(query.MessageIDs) > 100 || len(query.RoomID) > 256 || len(query.JobID) > 256 {
+				return NodeView{}, ErrNodeInput
+			}
+			for _, id := range query.MessageIDs {
+				if len(id) > 256 || id == "" {
+					return NodeView{}, ErrNodeInput
+				}
+			}
+			jobs, err = s.store.NodeMessageJobs(ctx, owner, scope, query.RoomID, query.MessageIDs, query.JobID)
+		} else {
+			jobs, err = s.store.NodeJobs(ctx, owner, scope)
+		}
 		if err != nil {
 			return NodeView{}, err
 		}
@@ -142,7 +225,13 @@ func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error)
 			if state == "running" && (s.executor == nil || !s.executor.running(job.ID)) {
 				state = "review_required"
 			}
-			view.Jobs = append(view.Jobs, NodeJobView{ID: job.ID, AgentID: job.AgentID, State: state, RoomID: job.RoomID, ConversationID: job.ConversationID})
+			item := NodeJobView{ID: job.ID, AgentID: job.AgentID, State: state, RoomID: job.RoomID, ConversationID: job.ConversationID, LocalAgentID: job.LocalAgentID, RoundID: job.RoundID}
+			if job.Delivery != nil {
+				item.SourceRoomID = job.Delivery.RoomID
+				item.SourceMessageID = job.Delivery.MessageID
+				item.DeliveryID = job.Delivery.ID
+			}
+			view.Jobs = append(view.Jobs, item)
 		}
 	}
 	return view, nil
@@ -211,11 +300,16 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 }
 
 type NodeJobView struct {
-	ID             string `json:"id"`
-	AgentID        string `json:"agent_id"`
-	State          string `json:"state"`
-	RoomID         string `json:"room_id,omitempty"`
-	ConversationID string `json:"conversation_id,omitempty"`
+	LocalAgentID    string `json:"local_agent_id,omitempty"`
+	RoundID         string `json:"round_id,omitempty"`
+	SourceRoomID    string `json:"source_room_id,omitempty"`
+	SourceMessageID string `json:"source_message_id,omitempty"`
+	DeliveryID      string `json:"delivery_id,omitempty"`
+	ID              string `json:"id"`
+	AgentID         string `json:"agent_id"`
+	State           string `json:"state"`
+	RoomID          string `json:"room_id,omitempty"`
+	ConversationID  string `json:"conversation_id,omitempty"`
 }
 
 // reconcile 只用精确节点回执推进状态；未知注册的 404 不能证明迟到请求不会提交。

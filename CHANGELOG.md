@@ -15,9 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Separate Contacts into Agent and Organization members with the switch below search and aligned responsive gutters; select a person to view their profile, then start a direct message, with the same hover chat shortcut as Agent rows and without standalone DM buttons or a duplicate directory.
 
+- Prepare online Agent session settings before the first task without enabling node execution. Default the room workspace to Relay-persisted shared uploads/downloads and keep private local Agent files in a separate tab.
+
 - Add same-organization human direct messages from Contacts, reuse the online Room timeline and durable delivery, and deliver group invitations as actionable DM cards.
 
+- Connect online-room header panels to existing local execution work graphs, subagents, Agent workspaces and profiles; reuse per-session model and permission controls without exposing other members' local data. Relay execution defaults to approval unless its owner explicitly configures that execution session.
+
 - Hide the empty group-invitation sidebar section and show retry only after a read failure, preserving pending invitations and ownership recovery.
+
+- Keep online group header avatars consistent with the sidebar, resolve the current member avatar from remote account identity, and align host authorization controls with Room header sizing.
+
+- Resolve historical online Agent Threads by owner-scoped message and Delivery indexes, including migration backfill, instead of losing access outside the latest 100 jobs.
+
+- Anchor local execution Threads to their triggering group messages, route node-dialog execution links back to online groups, support exact-round stopping and history retries, and retain mention labels with Composer drafts across page navigation.
+
+- Reuse Room public-context budgeting, Agent execution Threads and the shared Composer for online groups; keep internal execution rooms out of the chat directory and local permission interactions inside their Thread.
 
 - Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
 

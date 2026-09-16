@@ -1,5 +1,9 @@
 # AGENTS.md
 
+- 在线群成员配置由 `/team-node/room` 独立物化本人本机 Agent 的确定性 Room，不要求历史任务或节点授权。默认工作区是 Relay 共享文件，私人 Agent 工作区另列；上传、列表与下载走 `/team/rooms/{room_id}/files` 认证流式网关，不自动成为消息附件或投递输入。
+
+- 在线 Agent 投递通过 Room 的 `PublicContext` 入口复用公区游标与上下文预算，不把序列化消息拼成可见用户输入。内部 `relay_` 执行 Room 保留数据但不列入聊天目录，在线页面通过本机任务绑定打开精确 Agent Thread。
+
 - 远程账号可无组织；平台 `role` 与 `organization_role` 独立。组织入口位于账户设置，非运营管理员专属。Relay 必须同时具有远程登录与组织身份；组织变更不能切换或清空 App 本地用户数据目录。
 
 - 在线 Room 元数据轮询由 `web/src/features/team/use-team-refresh.ts` 统一管理；成员治理新快照回传聊天资源，消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。

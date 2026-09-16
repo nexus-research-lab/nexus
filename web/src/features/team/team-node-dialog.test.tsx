@@ -45,7 +45,7 @@ it("freezes unknown grants, retries the stored intent and reconciles a lost revo
   expect(screen.getByRole("alert")).toBeTruthy();
 });
 
-it("requires an explicit execution opt-in and links approvals to the local conversation", async () => {
+it("requires an explicit execution opt-in and links approvals to the online Thread", async () => {
   const user = userEvent.setup();
   const initial: TeamNodeView = {state: "authorized", name: "Laptop", agent_ids: ["agent"], candidates: [{id: "agent", name: "Amy"}], execution_available: true, execution_enabled: false, jobs: []};
   api.get.mockResolvedValue(initial);
@@ -54,13 +54,13 @@ it("requires an explicit execution opt-in and links approvals to the local conve
   render(<MemoryRouter><I18N_CONTEXT.Provider value={{locale: "en", setLocale: vi.fn(), t: (key) => key}}><TeamNodeDialog onClose={close} /></I18N_CONTEXT.Provider></MemoryRouter>);
   const enable = await screen.findByRole("button", {name: "team.node_enable_execution"});
   expect(api.authorize).not.toHaveBeenCalled();
-  api.get.mockResolvedValue({...initial, execution_enabled: true, jobs: [{id: "job", agent_id: "agent", state: "running", room_id: "local-room", conversation_id: "local-conversation"}]});
+  api.get.mockResolvedValue({...initial, execution_enabled: true, jobs: [{id: "job", agent_id: "agent", state: "running", room_id: "local-room", conversation_id: "local-conversation", source_room_id: "online-room", round_id: "round"}]});
   await user.click(enable);
   await screen.findByText("team.node_execution_enabled");
   expect(api.authorize).toHaveBeenCalledExactlyOnceWith("Laptop", ["agent"], true);
   expect(screen.queryByRole("button", {name: "team.node_enable_execution"})).toBeNull();
   const link = screen.getByRole("link", {name: "team.node_open_execution"});
-  expect(link.getAttribute("href")).toBe("/rooms/local-room/conversations/local-conversation");
+  expect(link.getAttribute("href")).toBe("/team?room_id=online-room&thread=job");
   await user.click(link);
   expect(close).toHaveBeenCalledTimes(1);
 });

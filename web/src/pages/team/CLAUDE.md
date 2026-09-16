@@ -1,5 +1,9 @@
 # Team 页面
 
+- 顶部辅助栏目复用 `buildRoomHeaderTabs`，工作图/子智能体/工作区/简介与 Thread 互斥。成员绑定不依赖任务历史或节点授权，Composer 对真实本机 Room Agent Session 使用现有模型与权限设置，远程 Agent 不可编辑。工作区默认显示 Relay 群共享文件；本机工作区另列且不向在线草稿注入本地路径。共享文件上传/下载已接入，消息附件引用及 Agent 自动领取文件仍未接入。
+
+- 在线输入直接使用 `ComposerPanel` 的草稿、输入法和内联 @；不再保留独立 textarea/目标下拉框。本机任务在页面 Thread 打开，不进入聊天目录；任务元数据刷新后使用当前绑定。
+
 - `team-page.tsx` 只允许已登录 Control 远程账户按 `room_id` 适配 Relay 真人消息模型；本地免登录用户返回本地聊天首页。Header、消息阅读轨道、本人消息和 Composer 外观复用 Room 的共享 UI 原语，加载、同步和发送仍交给 `features/team/use-team-room.ts`。
 - 显示真人消息与 Agent 完整 assistant/final 回复，不渲染远程 Agent 流；Header 本机授权入口区分设备登记与尚未接入的执行器。
 - Header 的成员入口读取 Relay Room 管理快照；真人群主和管理员可以邀请、移除，真人群主还可以改角色和移交治理权；Agent 与真人分区显示，每名 active 真人可添加自己的 Agent。
@@ -18,6 +22,6 @@
 - 成员弹窗的新快照回传 `useTeamRoom.updateDetails`，Agent 目录随成员版本重读；选中的目标失效后仍保留可移除 chip，不降级成普通消息。未确认发送冻结输入与目标选择，仅保留原请求重试。
 - Composer 恢复发件箱的原正文，不能用当前空草稿覆盖未知命令；失去群访问权后禁用输入。Header 使用远端 Room 当前名称和头像，解散/退出完成后重新核对目录。
 
-- 顶栏复用 Room 的 WorkspaceConversationTabs 与 GroupMemberAvatarStack：在线唯一会话不提供关闭、新建、固定或本地工作区命令；成员摘要仅计 active 真人和 Agent，目录只补名称与头像。本机授权作为同规格轻量动作，窄屏保留具名图标。
+- 顶栏复用 Room 的 WorkspaceConversationTabs 与 GroupMemberAvatarStack：在线唯一会话不提供关闭、新建或固定；成员摘要仅计 active 真人和 Agent，目录只补名称与头像。本机授权作为同规格轻量动作，窄屏保留具名图标。
 
 - 真人 DM 通过 `room.direct_user_id` 解析对方姓名头像；消息沿用同一 Feed/Composer。`room_invitation` 是 Relay 生成的持久卡片，操作必须匹配当前待处理邀请和邀请时间；旧邀请没有消息卡片时在对应私聊补显示待办，不能根据卡片直接推断授权。

@@ -26,11 +26,15 @@ func (s *NodeService) callControl(ctx context.Context, cookie, method, path stri
 }
 
 func (s *NodeService) controlRequest(ctx context.Context, cookie, credential, method, path string, input, output any) error {
+	return s.remoteRequest(ctx, cookie, credential, method, "/auth/v1"+path, input, output)
+}
+
+func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, method, path string, input, output any) error {
 	data, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+"/auth/v1"+path, bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+path, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}

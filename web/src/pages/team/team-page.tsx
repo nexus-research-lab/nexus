@@ -2,7 +2,7 @@
 // OUTPUT: 复用 Room Header、FOLLOW/READING 阅读轨道、本人消息和 Composer，保留独立读取重试。
 // POS: Relay 真人消息与完整 Agent 回复到 Nexus Room UI 的窄适配层；不推断运行态或流式输出。
 
-import { useCallback, FormEvent, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { MonitorCheck } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
@@ -11,7 +11,7 @@ import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { UiButton } from "@/shared/ui/button/button";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
-import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import { listControlAgentDirectoryApi, type ControlMemberDirectoryEntry, type ControlAgentDirectoryEntry } from "@/lib/api/account/control-api";
 
 import { MessageUserSection } from "@/features/conversation/shared/message/item/view/user/message-user-section";
@@ -26,15 +26,6 @@ import {
   CONVERSATION_COMPOSER_LANE_CLASS_NAME,
   CONVERSATION_CONTENT_LANE_CLASS_NAME,
 } from "@/features/conversation/shared/conversation-panel-styles";
-import { ComposerSubmitButton } from "@/features/conversation/shared/composer/components/composer-submit-button";
-import { ComposerPoweredByNexus } from "@/features/conversation/shared/composer/components/footer/composer-footer";
-import {
-  COMPOSER_COMPACT_LANE_CLASS_NAME,
-  COMPOSER_FOOTER_CLASS_NAME,
-  COMPOSER_SHELL_CLASS_NAME,
-  COMPOSER_TEXTAREA_CLASS_NAME,
-  COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
-} from "@/features/conversation/shared/composer/composer-styles";
 import { formatMessageTime } from "@/features/conversation/shared/message/message-time";
 import { useTeamInvitations } from "@/features/team/use-team-invitations";
 import { TeamInvitationList } from "@/features/team/team-invitation-list";
@@ -42,11 +33,19 @@ import { useTeamRoom } from "@/features/team/use-team-room";
 import { useTeamMembers } from "@/features/team/use-team-members";
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { TeamRoomMembersDialog } from "@/features/team/team-room-members-dialog";
+import { TeamExecutionThread } from "@/features/team/team-execution-thread";
+import { TeamExecutionSurface } from "@/features/team/team-execution-surface";
+import { buildRoomHeaderTabs, type RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
+import { buildRoomAgentSessionKey } from "@/lib/conversation/session-key";
+import { useAgentStore } from "@/store/agent";
+import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
+import { useTeamRefresh } from "@/features/team/use-team-refresh";
+import { getTeamNode, prepareTeamRoom, type TeamNodeJob, type TeamRoomBinding } from "@/lib/api/conversation/team-node-api";
+import { ThreadActionButton } from "@/features/conversation/room/group/thread/round-card/thread-action-button";
 import { TeamNodeDialog } from "@/features/team/team-node-dialog";
 import type { TeamMessage } from "@/lib/api/conversation/team-api";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
-import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
@@ -69,23 +68,60 @@ export function TeamPage() {
 }
 
 function TeamPageContent({ roomId }: { roomId: string | null }) {
+  const [searchParams] = useSearchParams();
   const { t } = useI18n();
   const { status } = useAuth();
   const canUseRelay = hasOrganizationAccess(status);
   const room = useTeamRoom(roomId);
   const [membersOpen, setMembersOpen] = useState(false);
   const [nodeOpen, setNodeOpen] = useState(false);
+  const [jobs, setJobs] = useState<TeamNodeJob[]>([]);
+  const [jobsFailed, setJobsFailed] = useState(false);
+  const [bindings, setBindings] = useState<TeamRoomBinding[]>([]);
+  const [bindingsFailed, setBindingsFailed] = useState(false);
+  const [activeTab, setActiveTab] = useState<RoomSurfaceTabKey>("chat");
+  const [selectedLocalAgent, setSelectedLocalAgent] = useState("");
+  const [workspaceFile, setWorkspaceFile] = useState<{agentId: string; path: string | null} | null>(null);
+  const runtimeKind = useDefaultAgentRuntimeKind();
+  const [selectedThreadID, setSelectedThreadID] = useState<string | null>(searchParams.get("thread"));
+  const setThread = (job: TeamNodeJob | null) => { setSelectedThreadID(job?.id ?? null); setActiveTab("chat"); };
+  useEffect(() => { setSelectedThreadID(searchParams.get("thread")); }, [searchParams]);
+  const thread = room.room ? jobs.find((job) => job.id === selectedThreadID) : undefined;
+  const refreshJobs = useTeamRefresh(canUseRelay && room.room && !room.room.room.direct_user_id && roomId ? JSON.stringify([roomId, room.messages.map((message) => message.id), selectedThreadID]) : null, async (signal) => {
+    try {
+      if (!roomId) return;
+      const messageIds = [...new Set(room.messages.flatMap((message) => [message.id, ...(message.delivery_id ? [message.delivery_id] : [])]))];
+      const result: TeamNodeJob[] = [];
+      for (let offset = 0; offset < Math.max(messageIds.length, 1); offset += 100) {
+        const node = await getTeamNode(signal, {roomId, messageIds: messageIds.slice(offset, offset + 100), jobId: selectedThreadID});
+        result.push(...node.jobs ?? []);
+      }
+      if (!signal.aborted) {
+        setJobs([...new Map(result.map((job) => [job.id, job])).values()].filter((job) => job.source_room_id === roomId && job.room_id && job.conversation_id && job.local_agent_id && job.round_id));
+        setJobsFailed(false);
+      }
+    } catch { if (!signal.aborted) setJobsFailed(true); }
+  });
 	const [agentDirectory, setAgentDirectory] = useState<ControlAgentDirectoryEntry[]>([]);
-	const [mentionedAgentIDs, setMentionedAgentIDs] = useState<string[]>([]);
 	const memberDirectory = useTeamMembers(canUseRelay);
 	const localAgents = useHomeDirectory().agents;
+  const ownedAgents = useAgentStore((state) => state.agents);
+  const loadOwnedAgents = useAgentStore((state) => state.load_agents_from_server);
+  const refreshBindings = useTeamRefresh(canUseRelay && room.room ? JSON.stringify([roomId, room.room.room.membership_version]) : null, async (signal) => {
+    if (!roomId) return;
+    try {
+      const result = await prepareTeamRoom(roomId, signal);
+      if (signal.aborted) return;
+      setBindings(result); setBindingsFailed(false);
+      if (result.some((binding) => !ownedAgents.some((agent) => agent.agent_id === binding.local_agent_id))) await loadOwnedAgents();
+    } catch { if (!signal.aborted) { setBindings([]); setBindingsFailed(true); } }
+  });
 	useEffect(() => {
 		if (!canUseRelay) return;
         let cancelled = false;
 		void listControlAgentDirectoryApi().then((agents) => { if (!cancelled) setAgentDirectory(agents); }).catch(() => { if (!cancelled) setAgentDirectory([]); });
         return () => { cancelled = true; };
 	}, [canUseRelay, room.room?.room.membership_version]);
-  const [draft, setDraft] = useState("");
   const scroll = useFollowScroll({
     messageCount: room.messages.length,
     sessionKey: room.room?.conversation.id ?? null,
@@ -100,31 +136,26 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
     const isSelf = member.member_type === "user" && member.member_id === (status?.control_user_id ?? status?.user_id);
     return {
       agent_id: `${member.member_type}:${member.member_id}`,
-      name: agent?.name || person?.display_name || person?.username || (isSelf ? t("team.you") : member.member_id),
-      avatar: agent?.avatar || person?.avatar,
+      name: agent?.name || person?.display_name || person?.username || (isSelf ? status?.display_name || status?.username || t("team.you") : member.member_id),
+      avatar: agent?.avatar || person?.avatar || (isSelf ? status?.avatar : undefined),
     };
   });
   const errorMessage = room.error ? t(TEAM_ERROR_KEYS[room.error]) : null;
 	const activeAgentIDs = new Set(room.room?.members
 		.filter((member) => member.member_type === "agent" && member.state === "active" && !member.agent_paused)
 		.map((member) => member.member_id) ?? []);
-	const agentNames = new Map(agentDirectory.map((agent) => [agent.agent_id, agent.name]));
-	const mentionCandidates = agentDirectory.filter((agent) => activeAgentIDs.has(agent.agent_id) && !mentionedAgentIDs.includes(agent.agent_id));
-
-  const sendDraft = async () => {
-    if (!(room.pendingText ?? draft).trim() || room.isSending || !room.room) return;
-	const targets = mentionedAgentIDs;
-	const prefix = targets.map((agentID) => `@${agentNames.get(agentID) ?? agentID}`).join(" ");
-	const message = prefix ? `${prefix} ${draft.trim()}` : draft;
-    if (await (targets.length > 0 ? room.send(message, targets) : room.send(message))) {
-      setDraft("");
-	  setMentionedAgentIDs([]);
-    }
+  const sendMessage = async (content: string, _policy: unknown, _attachments?: unknown, targets: string[] = []) => {
+    if (!room.room || room.isSending || room.hasUnconfirmedSend) throw new Error("在线消息当前不可发送");
+    const ok = await (targets.length ? room.send(content, targets) : room.send(content));
+    if (!ok) throw new Error("在线消息未确认");
   };
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    void sendDraft();
-  };
+  const composerScope = JSON.stringify([status?.organization_id, status?.control_user_id, roomId]);
+  // 会话绑定独立于任务历史；暂停投递不剥夺本人查看和配置成员的能力。
+  const memberAgentIDs = new Set(room.room?.members.filter((member) => member.member_type === "agent" && member.state === "active").map((member) => member.member_id));
+  const executionBindings = room.room ? bindings.filter((binding) => memberAgentIDs.has(binding.agent_id)) : [];
+  const executionAgents = ownedAgents.filter((agent) => executionBindings.some((binding) => binding.local_agent_id === agent.agent_id));
+  const executionAgentId = executionAgents.some((agent) => agent.agent_id === selectedLocalAgent) ? selectedLocalAgent : executionAgents[0]?.agent_id ?? "";
+  const executionBinding = executionBindings.find((binding) => binding.local_agent_id === executionAgentId);
 
   if (!canUseRelay) {
     return <Navigate replace to={APP_ROUTE_PATHS.home} />;
@@ -138,10 +169,14 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
           header={(
             <div className="nexus-room-conversation-header-edge" data-room-conversation-header-edge="true">
               <WorkspaceSurfaceHeader
+                activeTab={activeTab}
+                tabs={room.room && !directUserId ? buildRoomHeaderTabs(t) : []}
+                compactTabsLabel={t("room.panels")}
+                onChangeTab={(tab) => { setActiveTab(activeTab === tab ? "chat" : tab); setSelectedThreadID(null); }}
                 leading={(
                   directUserId ? <UiAgentAvatar avatar={peer?.avatar} name={title} size="md" /> : <UiRoomAvatar
-                    avatar={room.room?.room.avatar}
-                    members={headerMembers.map((member) => ({ id: member.agent_id, name: member.name, avatar: member.avatar }))}
+                    avatar={directUserId ? peer?.avatar : room.room?.room.avatar}
+                    members={[]}
                     roomId={room.room?.room.id}
                     size="md"
                     title={title}
@@ -159,7 +194,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
                 ) : null}
                 navigationTrailing={room.room && !directUserId ? (
                   <>
-                    <UiButton aria-label={t("team.node_title")} className="workspace-surface-header-control-segment h-9 gap-1.5 px-2.5" onClick={() => setNodeOpen(true)} size="md" variant="ghost">
+                    <UiButton aria-label={t("team.node_title")} className="workspace-surface-header-control-segment h-9 min-h-0 gap-1.5 px-2.5" onClick={() => setNodeOpen(true)} size="md" variant="ghost">
                       <MonitorCheck aria-hidden="true" className="h-3.5 w-3.5" />
                       <span className="max-sm:hidden">{t("team.node_title")}</span>
                     </UiButton>
@@ -170,6 +205,8 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             </div>
           )}
         >
+        <div className="flex h-full min-h-0 min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <ConversationPanelLayout>
           <ConversationPanelViewportArea>
             <ConversationPanelViewport
@@ -179,8 +216,9 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             >
               <div ref={scroll.feedRef} className="min-h-full">
               <TeamMessageFeed
-                memberDirectory={memberDirectory} directUserId={directUserId}
+                jobs={jobs} selectedThreadID={thread?.id} onOpenThread={(job) => setThread(thread?.id === job.id ? null : job)}
                 agentDirectory={agentDirectory}
+                memberDirectory={memberDirectory} directUserId={directUserId}
                 currentUserId={status?.control_user_id ?? status?.user_id ?? null}
                 isCompact={isCompact}
                 isLoading={room.isLoading}
@@ -195,7 +233,13 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             </div>
           </ConversationPanelViewportArea>
 
-          <form className="relative z-10 shrink-0" data-conversation-bottom-area onSubmit={submit}>
+          <div className="relative z-10 shrink-0" data-conversation-bottom-area>
+            {bindingsFailed ? <div role="alert" className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6`}>
+              <span>{t("team.binding_error")}</span><UiButton onClick={refreshBindings} size="sm" variant="text">{t("state.retry")}</UiButton>
+            </div> : null}
+            {jobsFailed ? <div role="alert" className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6`}>
+              <span>{t("team.node_error")}</span><UiButton aria-label={t("team.node_refresh")} onClick={refreshJobs} size="sm" variant="text">{t("state.retry")}</UiButton>
+            </div> : null}
             {errorMessage ? (
               <p className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6 ${getUiTypographyClassName({ role: "supporting", tone: "danger" })}`} role="alert">
                 {errorMessage}
@@ -207,74 +251,50 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
                   onClick={() => { void room.retryLoad(); }}>{t("state.retry")}</UiButton>
               </div>
             ) : null}
-            <div data-conversation-composer-anchor>
-              <section className={cn(
-                "bg-transparent",
-                isCompact
-                  ? `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2`
-                  : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-2 pt-2 sm:px-5 xl:px-6`,
-              )}>
-                <div className="nexus-chat-composer-edge relative isolate" data-composer-edge="true">
-                  <div className={COMPOSER_SHELL_CLASS_NAME} data-composer-surface="input">
-					{activeAgentIDs.size > 0 || mentionedAgentIDs.length > 0 ? (
-					  <div className="flex flex-wrap items-center gap-1 px-3.5 pt-2">
-						{mentionedAgentIDs.map((agentID) => (
-						  <UiButton disabled={room.hasUnconfirmedSend} key={agentID} onClick={() => setMentionedAgentIDs((current) => current.filter((value) => value !== agentID))} size="xs" variant="surface">
-							@{agentNames.get(agentID) ?? agentID} ×
-						  </UiButton>
-						))}
-						<UiSelectMenu
-						  ariaLabel={t("team.mention_agent")}
-						  disabled={room.isSending || room.hasUnconfirmedSend || mentionCandidates.length === 0}
-						  onChange={(agentID) => setMentionedAgentIDs((current) => [...current, agentID])}
-						  options={mentionCandidates.map((agent) => ({ label: `@${agent.name}`, value: agent.agent_id }))}
-						  placeholder={t("team.mention_agent")}
-						  size="sm"
-						  value=""
-						/>
-					  </div>
-					) : null}
-                    <div className="flex items-end gap-2 px-3.5 pb-0.5 pt-1.5">
-                      <textarea
-                        aria-label={t("team.message")}
-                        className={COMPOSER_TEXTAREA_CLASS_NAME}
-                        disabled={!room.room || room.isSending || room.hasUnconfirmedSend}
-                        onChange={(event) => setDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.defaultPrevented) return;
-                          if (event.key === "Enter" && !event.shiftKey && !isImeKeyboardEvent(event.nativeEvent)) {
-                            event.preventDefault();
-                            void sendDraft();
-                          }
-                        }}
-                        placeholder={t(directUserId ? "team.direct_placeholder" : "team.message_placeholder")}
-                        rows={1}
-                        style={{ maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX }}
-                        value={room.pendingText ?? draft}
-                      />
-                    </div>
-                    <div className={COMPOSER_FOOTER_CLASS_NAME}>
-                      <span aria-hidden="true" className="nexus-chat-composer-footer-leading" />
-                      <ComposerPoweredByNexus visible />
-                      <div className="nexus-chat-composer-footer-trailing flex justify-self-end">
-                        <ComposerSubmitButton
-                          isDisabled={!(room.pendingText ?? draft).trim() || room.isSending || !room.room}
-                          isGoalCreating={false}
-                          isGoalMode={false}
-                          isPreparingAttachments={room.isSending}
-                          onSend={sendDraft}
-                          sendLabel={t("team.send")}
-                          shouldStop={false}
-                          stopLabel={t("composer.stop_generation")}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </form>
+            <fieldset disabled={!room.room || room.isSending} className="min-w-0 border-0 p-0 m-0">
+            <ComposerPanel
+              compact={isCompact} commandCatalog={{commands: [], status: "unavailable"}}
+              contextUsage={null} showActionMenu={false} defaultPlaceholder={t(directUserId ? "team.direct_placeholder" : "team.message_placeholder")}
+              draftScopeKey={composerScope} historyScopeKey={composerScope}
+              sessionSettings={executionAgents.length ? {
+                initialTargetId: executionAgentId, runtimeKind,
+                targets: executionAgents.map((agent) => ({
+                  agentId: agent.agent_id, name: agent.name, avatar: agent.avatar,
+                  defaultModel: agent.options.model, defaultProvider: agent.options.provider,
+                  defaultConnectorIds: agent.options.connector_ids, defaultPermissionMode: "default",
+                  sessionKey: buildRoomAgentSessionKey(executionBindings.find((binding) => binding.local_agent_id === agent.agent_id)!.conversation_id, agent.agent_id),
+                })),
+              } : undefined}
+              isLoading={!room.room || room.isSending} runtimePhase={null} runtimeKind={runtimeKind}
+              defaultDeliveryPolicy="queue" queueWhenSessionBusy={false}
+              roomMembers={agentDirectory.filter((agent) => activeAgentIDs.has(agent.agent_id))}
+              onSendMessage={sendMessage} onEnqueueMessage={sendMessage}
+              inputQueueItems={[]} onDeleteQueuedMessage={() => {}} onGuideQueuedMessage={() => {}} onReorderQueueMessages={() => {}}
+              onPrepareAttachments={async () => []} goalScopeLabel="" tourAnchor=""
+              interactionSurface={room.hasUnconfirmedSend ? <div className="p-4">
+                <p className="whitespace-pre-wrap break-words">{room.pendingText}</p>
+                <UiButton disabled={room.isSending || !room.room} onClick={() => { void room.send(room.pendingText ?? ""); }} size="sm" variant="surface">{t("state.retry")}</UiButton>
+              </div> : undefined}
+            />
+            </fieldset>
+          </div>
         </ConversationPanelLayout>
+        </div>
+        {room.room && activeTab !== "chat" ? <aside className={isCompact ? "contents" : "h-full min-h-0 w-[42%] min-w-80 border-l divider-subtle"}>
+          <TeamExecutionSurface roomId={room.room.room.id} tab={activeTab} agents={executionAgents} binding={executionBinding} selectedAgentId={executionAgentId} compact={isCompact}
+            activeWorkspacePath={workspaceFile?.agentId === executionAgentId ? workspaceFile.path : null}
+            onOpenWorkspaceFile={(path) => { setWorkspaceFile({agentId: executionAgentId, path}); setActiveTab("workspace"); }}
+            onSelectAgent={(id) => { setSelectedLocalAgent(id); setWorkspaceFile(null); }} onClose={() => setActiveTab("chat")} />
+        </aside> : null}
+        {thread ? <aside className={isCompact ? "contents" : "h-full min-h-0 w-[42%] min-w-80 border-l divider-subtle"}>
+          <TeamExecutionThread key={thread.id} job={thread} name={agentDirectory.find((agent) => agent.agent_id === thread.agent_id)?.name ?? thread.agent_id}
+            avatar={agentDirectory.find((agent) => agent.agent_id === thread.agent_id)?.avatar || undefined}
+            compact={isCompact} onClose={() => setThread(null)} onOpenWorkspaceFile={(path, workspaceAgentId) => {
+              if (workspaceAgentId !== undefined && workspaceAgentId !== thread.local_agent_id) return;
+              setSelectedLocalAgent(thread.local_agent_id!); setWorkspaceFile({agentId: thread.local_agent_id!, path}); setSelectedThreadID(null); setActiveTab("workspace");
+            }} />
+        </aside> : null}
+        </div>
         </WorkspaceSurfaceScaffold>
       </WorkspacePageFrame>
       {nodeOpen ? <TeamNodeDialog onClose={() => setNodeOpen(false)} /> : null}
@@ -293,6 +313,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
 }
 
 function TeamMessageFeed({
+  jobs, selectedThreadID, onOpenThread,
   agentDirectory,
   memberDirectory, directUserId,
   currentUserId,
@@ -301,6 +322,7 @@ function TeamMessageFeed({
   loadFailed,
   messages,
 }: {
+  jobs: TeamNodeJob[]; selectedThreadID?: string; onOpenThread: (job: TeamNodeJob) => void;
   agentDirectory: ControlAgentDirectoryEntry[];
   memberDirectory: ControlMemberDirectoryEntry[]; directUserId?: string;
   currentUserId: string | null;
@@ -346,6 +368,7 @@ function TeamMessageFeed({
           isCompact={isCompact}
           key={message.id}
           message={message}
+          threadAction={jobs.filter((job) => job.source_message_id === message.id || (message.delivery_id && job.delivery_id === message.delivery_id)).map((job) => <ThreadActionButton key={job.id} active={selectedThreadID === job.id} agentName={agentsByID.get(job.agent_id)?.name ?? job.agent_id} onClick={() => onOpenThread(job)} />)}
         />
       ))}
       {directUserId ? <li><TeamInvitationList {...invitations} invitations={pending.filter((item) => !messages.some((message) => message.content.blocks.some((block) => block.room_id === item.room.id && new Date(block.invited_at ?? "").getTime() === new Date(item.created_at).getTime())))} recoveryRooms={[]}
@@ -355,12 +378,14 @@ function TeamMessageFeed({
 }
 
 function TeamMessageItem({
+  threadAction,
   person,
   agent,
   currentUserId,
   isCompact,
   message,
 }: {
+  threadAction?: import("react").ReactNode;
   agent?: ControlAgentDirectoryEntry;
   person?: ControlMemberDirectoryEntry;
   currentUserId: string | null;
@@ -386,6 +411,7 @@ function TeamMessageItem({
             timestamp: new Date(message.created_at).getTime(),
           }}
         />
+        <div className="flex flex-wrap justify-end gap-2">{threadAction}</div>
       </li>
     );
   }
@@ -399,6 +425,7 @@ function TeamMessageItem({
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className={cn("min-w-0 break-words", getUiTypographyClassName({ role: "supporting", weight: "semibold", tone: "strong" }))}>{author}</span>
+            {threadAction}
             {message.author_type === "agent" ? <span className={getUiTypographyClassName({ role: "metadata", tone: "muted" })}>Agent</span> : null}
             <time className={getUiTypographyClassName({ role: "metadata", tone: "muted" })} dateTime={message.created_at}>
               {formatMessageTime(new Date(message.created_at).getTime())}

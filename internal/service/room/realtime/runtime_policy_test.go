@@ -197,9 +197,13 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	for _, tc := range []struct {
 		name, content string
 		mode          sdkpermission.Mode
+		origin        string
+		override      string
 	}{
-		{"ordinary", "测试 room bypass 权限处理器", sdkpermission.ModeBypassPermissions},
-		{"plan slash", "/plan improve search", sdkpermission.ModePlan},
+		{"ordinary", "测试 room bypass 权限处理器", sdkpermission.ModeBypassPermissions, "", ""},
+		{"plan slash", "/plan improve search", sdkpermission.ModePlan, "", ""},
+		{"relay safe default", "在线任务", sdkpermission.ModeDefault, "relay", ""},
+		{"relay explicit session setting", "在线任务", sdkpermission.ModeAcceptEdits, "relay", "acceptEdits"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := newRoomTestConfig(t)
@@ -224,6 +228,13 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 			roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 			if err != nil {
 				t.Fatalf("创建单成员 room 失败: %v", err)
+			}
+			if tc.override != "" {
+				sessions := app.NewSessionServiceWithDB(cfg, db, agentService)
+				key := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, protocol.RoomTypeGroup)
+				if _, err = sessions.UpdateRuntimeSettings(ctx, key, protocol.SessionRuntimeSettings{PermissionMode: tc.override}); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			client := newFakeRoomClient()
@@ -253,11 +264,12 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 			permission.BindSession(sharedSessionKey, sender)
 
 			if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-				SessionKey:     sharedSessionKey,
-				RoomID:         roomContext.Room.ID,
-				ConversationID: roomContext.Conversation.ID,
-				Content:        tc.content,
-				RoundID:        "room-round-bypass",
+				SessionKey:      sharedSessionKey,
+				RoomID:          roomContext.Room.ID,
+				ConversationID:  roomContext.Conversation.ID,
+				Content:         tc.content,
+				RoundID:         "room-round-bypass",
+				ExecutionOrigin: tc.origin,
 			}); err != nil {
 				t.Fatalf("HandleChat 失败: %v", err)
 			}
