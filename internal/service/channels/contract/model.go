@@ -97,8 +97,9 @@ func (t DeliveryTarget) Validate() error {
 
 // DeliveryResult 表示一次通道投递的目标解析结果与平台回执。
 type DeliveryResult struct {
-	Target  DeliveryTarget          `json:"target"`
-	Receipt *channelmessage.Receipt `json:"receipt,omitempty"`
+	DeliveryID string                  `json:"delivery_id,omitempty"`
+	Target     DeliveryTarget          `json:"target"`
+	Receipt    *channelmessage.Receipt `json:"receipt,omitempty"`
 }
 
 // AutomationDeliveryContext 是调度器签发的一次任务结果投递身份。
@@ -106,6 +107,7 @@ type DeliveryResult struct {
 // Channel adapter 不消费这些字段；Router 用它把同一结果稳定投影到 Nexus
 // 会话并关联外部平台回执。模型正文和平台 callback 均不能构造此身份。
 type AutomationDeliveryContext struct {
+	IMDeliveryID        string `json:"im_delivery_id,omitempty"`
 	ProducerAgentID     string `json:"producer_agent_id,omitempty"`
 	JobID               string `json:"job_id"`
 	RunID               string `json:"run_id"`

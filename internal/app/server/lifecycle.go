@@ -111,6 +111,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startControlIdentityInvalidations,
 		s.startSessionDeletionRecovery,
 		s.startChannels,
+		s.startIMReplyRecovery,
 		s.startEcho,
 		s.startAutomation,
 		s.startRoomPublicHandoffs,
@@ -560,4 +561,14 @@ func (s *Server) runRuntimeIdleSessionReclaimer(ctx context.Context, sweepInterv
 			}
 		}
 	}
+}
+
+// startIMReplyRecovery repairs local admissions only; unknown external sends stay untouched.
+func (s *Server) startIMReplyRecovery(ctx context.Context) (func(), error) {
+	if s.services != nil && s.services.Communication != nil {
+		if err := s.services.Communication.RecoverIMReplies(ctx); err != nil {
+			s.api.BaseLogger().Warn("IM feedback recovery requires attention", "err", err)
+		}
+	}
+	return func() {}, nil
 }

@@ -17,10 +17,13 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 	deliveryroute "github.com/nexus-research-lab/nexus/internal/service/channels/deliveryroute"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 )
 
 // Router 负责管理通道生命周期与统一投递。
 type Router struct {
+	imDeliveries    *imdelivery.Repository
+	imGrants        imPairingResolver
 	mu              sync.RWMutex
 	deliveryRoutes  *deliveryroute.Store
 	agents          agentWorkspaceResolver

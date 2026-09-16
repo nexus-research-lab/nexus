@@ -3,6 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - im_delivery*.go：IM 场景独立适配，来源查询、真实人类反馈、原 Session 权限复核和持久回传恢复；不改变好友私聊语义。
 //   - service.go：通讯专属 runtime Actor、身份重校验、通讯录投影、联系人私信 Room 复用、active-paired 外部 Session 投递，以及可信 current-conversation/root/Goal revision 归因下的群消息发送。
 //   - errors.go：在副作用前拒绝通讯输入的 typed error，供 transport 映射 not_applied。
 //

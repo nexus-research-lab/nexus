@@ -173,6 +173,33 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		"is_error":        false,
 	}
 
+	if delivery, tracked := imProjectionMetadata(ctx); tracked {
+		roundID = "im_delivery_round_" + delivery.ID
+		assistantMessage["round_id"] = roundID
+		assistantMessage["message_id"] = "im_delivery_assistant_" + delivery.ID
+		resultMessage["round_id"] = roundID
+		resultMessage["message_id"] = "im_delivery_result_" + delivery.ID
+		resultMessage["parent_id"] = assistantMessage["message_id"]
+		assistantMessage["metadata"] = map[string]any{"source": "im_delivery", "delivery_id": delivery.ID}
+		history := c.history.ForOwner(ownerUserID)
+		exists, readErr := automationMessageExists(history, workspacePath, *sessionValue, stringValue(assistantMessage["message_id"]))
+		if readErr != nil {
+			return nil, readErr
+		}
+		if !exists {
+			if err = history.AppendOverlayMessage(workspacePath, sessionKey, assistantMessage); err != nil {
+				return nil, err
+			}
+			if err = history.AppendOverlayMessage(workspacePath, sessionKey, resultMessage); err != nil {
+				return nil, err
+			}
+			if _, err = c.refreshAutomationSession(ownerUserID, workspacePath, *sessionValue, assistantMessage, 1); err != nil {
+				return nil, err
+			}
+			c.broadcastMessage(ctx, sessionKey, parsed.AgentID, message.ProjectResultMessage(assistantMessage, resultMessage))
+		}
+		return automationProjectionReceipt(c.channelType, sessionKey, parsed.ThreadID, stringValue(assistantMessage["message_id"])), nil
+	}
 	updated, err := c.persistMessage(ownerUserID, workspacePath, *sessionValue, assistantMessage)
 	if err != nil {
 		return nil, err

@@ -1,5 +1,7 @@
 // Package protocol 是 HTTP、WebSocket、前端与 runtime 共享的 wire truth。
 //
+// InputQueue 的 im_delivery_reply 来源区分 IM 人类反馈与直接用户输入，不授予用户控制权限。
+//
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 本包只定义跨边界模型、枚举、事件和代码生成输入。产品行为见
