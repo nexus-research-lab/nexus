@@ -151,6 +151,11 @@ func (s *ControlService) upsertPairingRowAndReloadAtVersion(
 
 	var created *pairingRow
 	_, err := s.withChannelControlMutation(ctx, row.OwnerUserID, expectedVersion, func(tx *sql.Tx) error {
+		// Any rebinding invalidates old return addresses in the same transaction.
+		query := "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id=" + s.bind(1) + " AND pairing_id IN (SELECT pairing_id FROM im_pairings WHERE owner_user_id=" + s.bind(2) + " AND channel_type=" + s.bind(3) + " AND account_id=" + s.bind(4) + " AND chat_type=" + s.bind(5) + " AND external_ref=" + s.bind(6) + " AND thread_id=" + s.bind(7) + " AND (agent_id<>" + s.bind(8) + " OR status<>" + s.bind(9) + "))"
+		if _, invalidateErr := tx.ExecContext(ctx, query, row.OwnerUserID, row.OwnerUserID, row.ChannelType, row.AccountID, row.ChatType, row.ExternalRef, row.ThreadID, row.AgentID, row.Status); invalidateErr != nil {
+			return invalidateErr
+		}
 		if writeErr := s.upsertPairingRowWith(ctx, tx, row); writeErr != nil {
 			return writeErr
 		}

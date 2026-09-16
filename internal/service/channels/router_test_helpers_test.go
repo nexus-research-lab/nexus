@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -267,6 +268,16 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 		);`
 	if _, err = db.Exec(schema); err != nil {
 		t.Fatalf("初始化 delivery schema 失败: %v", err)
+	}
+	if _, err = db.Exec(`CREATE TABLE im_ingress_messages(owner_user_id TEXT NOT NULL,channel_type TEXT NOT NULL,account_id TEXT NOT NULL DEFAULT '',req_id TEXT NOT NULL,agent_id TEXT NOT NULL,session_key TEXT NOT NULL,round_id TEXT NOT NULL,status TEXT NOT NULL,error_message TEXT,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,completed_at DATETIME,PRIMARY KEY(owner_user_id,channel_type,account_id,req_id))`); err != nil {
+		t.Fatal(err)
+	}
+	migration, readErr := os.ReadFile("../../../db/migrations/sqlite/00141_im_delivery_replies.sql")
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if _, execErr := db.Exec(strings.Split(string(migration), "-- +goose Down")[0]); execErr != nil {
+		t.Fatal(execErr)
 	}
 	return db
 }

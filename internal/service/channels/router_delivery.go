@@ -1,13 +1,18 @@
+// INPUT: Verified delivery destination and optional host-owned producer origin.
+// OUTPUT: Existing delivery receipts plus durable IM origin and send facts.
+// POS: Router delivery orchestration; IM tracking does not own Automation retries.
 package channels
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 )
 
 // DeliverMessage 按目标模式解析并完成消息投递，返回平台回执。
@@ -57,6 +62,9 @@ func (r *Router) deliverAgentSessionMessage(
 	text string,
 	sessionKey string,
 ) (DeliveryResult, error) {
+	if source, ok := ctx.Value(imSourceKey{}).(imdelivery.Source); ok {
+		return r.deliverTrackedIM(ctx, source, agentID, text, sessionKey)
+	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent ||
 		strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(agentID) ||
@@ -108,6 +116,16 @@ func (r *Router) DeliverAutomationResult(
 		return DeliveryResult{}, err
 	}
 
+	var tracked *imdelivery.Delivery
+	if r.imDeliveries != nil && !isSessionDeliveryChannel(resolved.Channel) {
+		source := imdelivery.Source{Kind: "automation", AgentID: delivery.ProducerAgentID, SessionKey: delivery.ExecutionSessionKey, RoundID: delivery.ExecutionRoundID, JobID: delivery.JobID, RunID: delivery.RunID}
+		record, stageErr := r.stageIMDelivery(ctx, source, routeAgentID, resolved.SessionKey, text)
+		if stageErr != nil {
+			return DeliveryResult{Target: resolved}, stageErr
+		}
+		tracked = &record
+		delivery.IMDeliveryID = record.ID
+	}
 	unlock := r.lockAutomationProjection(routeAgentID, delivery.RunID)
 	defer unlock()
 	projection, projectErr := r.projectAutomationResult(ctx, producerAgentID, text, resolved, delivery)
@@ -123,8 +141,29 @@ func (r *Router) DeliverAutomationResult(
 		return result, nil
 	}
 
+	if tracked != nil {
+		// Automation already claimed its exact durable attempt before calling here.
+		claimed, claimErr := r.imDeliveries.ClaimSend(ctx, tracked.OwnerUserID, tracked.ID, true)
+		if claimErr != nil {
+			return DeliveryResult{Target: resolved}, claimErr
+		}
+		if !claimed {
+			return DeliveryResult{Target: resolved}, errors.New("IM delivery grant was revoked before send")
+		}
+	}
 	result, sendErr := r.sendDelivery(ctx, routeAgentID, text, resolved)
 	result = normalizeDeliveryResult(result, resolved)
+	if tracked != nil {
+		result.DeliveryID = tracked.ID
+		state := "unknown"
+		if sendErr == nil {
+			state = "sent"
+		}
+		raw, _ := json.Marshal(result)
+		if persistErr := r.imDeliveries.FinishSend(ctx, tracked.OwnerUserID, tracked.ID, state, string(raw)); persistErr != nil {
+			return result, errors.Join(sendErr, persistErr)
+		}
+	}
 	if sendErr != nil {
 		if strings.TrimSpace(result.Target.Mode) != "" {
 			if validateErr := result.Target.Validate(); validateErr == nil {

@@ -165,6 +165,7 @@ SET agent_id = %s,
     status = %s,
     error_message = NULL,
     completed_at = NULL,
+    delivery_input_json = '',
     updated_at = CURRENT_TIMESTAMP
 	WHERE owner_user_id = %s
 	  AND channel_type = %s
