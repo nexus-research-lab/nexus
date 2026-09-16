@@ -11,7 +11,7 @@ import {
   Bug,
   HeartPulse,
   Image,
-  MessageSquareText,
+  MessageCircle,
   MonitorCog,
   Moon,
   RadioTower,
@@ -276,7 +276,7 @@ export function SettingsGeneralBehaviorSection({
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
             <div className={SETTINGS_ICON_CLASS_NAME}>
-              <MessageSquareText className="h-3.5 w-3.5" />
+              <MessageCircle className="h-3.5 w-3.5" />
             </div>
             <div className="min-w-0">
               <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>

@@ -3,7 +3,7 @@
  * OUTPUT: 能力入口下方带分割线、拖放落点、边缘滚动与独立取消位的固定会话 Dock。
  * POS: 主侧栏导航轨的固定会话纯视图，不读取 Store、路由或业务 API。
  */
-import { MessageSquareText, X } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 
 import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -177,7 +177,7 @@ export function SidebarPinnedConversations({
             <SidebarRailAction
               active={item.active}
               draggable
-              icon={MessageSquareText}
+              icon={MessageCircle}
               label={item.title}
               layout="pinned"
               onDragEnd={resetDragState}

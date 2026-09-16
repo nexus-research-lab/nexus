@@ -2,7 +2,7 @@
 // OUTPUT: 精确身份绑定的窄窗动作菜单，身份变化关闭旧菜单，未知值不派发命令。
 // POS: Contacts 详情窄窗操作装配；删除确认和业务事务继续由页面拥有。
 
-import { MessageCirclePlus, MessageSquareText, MoreHorizontal, Trash2 } from "lucide-react";
+import { MessageCirclePlus, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
 import { useRef } from "react";
 
 import { getAgentDisplayName } from "@/lib/agent-display-name";
@@ -35,7 +35,7 @@ export function ContactsAgentDetailActionsMenu({
   const actionLabel = t("contacts.agent_actions", { name: getAgentDisplayName(agentName, t) });
   const items: UiActionMenuItem[] = [
     {
-      icon: <MessageSquareText className="h-4 w-4 text-(--icon-muted)" />,
+      icon: <MessageCircle className="h-4 w-4 text-(--icon-muted)" />,
       label: t("contacts.chat"),
       value: "chat",
     },
