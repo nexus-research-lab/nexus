@@ -2,6 +2,7 @@
 // OUTPUT: 套餐创建表单与可编辑套餐列表。
 // POS: Operations 套餐订阅视图；不拥有通用按钮或表单视觉。
 
+import { useId, useState } from "react";
 import { Loader2, Plus, Save } from "lucide-react";
 
 import {
@@ -11,13 +12,11 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
-import { UiDisclosure } from "@/shared/ui/disclosure/disclosure";
-import { UiBadge } from "@/shared/ui/display/badge";
+import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader, UiDialogBody, UiDialogFooter } from "@/shared/ui/dialog/dialog";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { SubscriptionPlan } from "@/types/settings/subscription";
 
 import {
@@ -26,7 +25,6 @@ import {
   type PlanStatus,
   type PlanViewModel,
   createPlanDraft,
-  formatTokenLimit,
   normalizePlanStatus,
 } from "./subscription-admin-model";
 interface SubscriptionPlanViewProps {
@@ -51,6 +49,9 @@ const PLAN_STATUS_LABEL_KEYS: Record<PlanStatus, TranslationKey> = {
   archived: "settings.subscription.plan_status_archived",
 };
 
+const PLAN_COLUMNS_CLASS_NAME = "@min-[900px]/plans:grid-cols-[minmax(0,1fr)_100px_140px_70px_minmax(0,1.3fr)_80px]";
+const PLAN_ROW_CLASS_NAME = cn("grid min-w-0 items-center gap-3 px-3 py-3 @min-[480px]/plans:grid-cols-2", PLAN_COLUMNS_CLASS_NAME);
+
 function SubscriptionPlanRow({
   disabled,
   draft,
@@ -61,27 +62,13 @@ function SubscriptionPlanRow({
 }: SubscriptionPlanRowProps) {
   const { t } = useI18n();
   return (
-    <UiDisclosure
-      surfaceTone="subtle"
-      variant="panel"
-      summaryRole="control"
-      label={<span className="grid gap-1 wrap-anywhere">
-        <span>{plan.display_name}</span>
-        <span className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>
-          {t("settings.subscription.plan_current_limit")}: {formatTokenLimit(plan.monthly_token_limit, t("settings.subscription.limit_unlimited"))}
-        </span>
-      </span>}
-      meta={<UiBadge size="xs">{t(PLAN_STATUS_LABEL_KEYS[normalizePlanStatus(plan.status)])}</UiBadge>}
-    >
-      <p className={cn("mb-4 wrap-anywhere", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
-        {t("settings.subscription.plan_key")}: {plan.plan_key}
-      </p>
-      <div className="grid items-end gap-4 @min-[480px]/plans:grid-cols-2 @min-[900px]/plans:grid-cols-4">
+    <article aria-label={plan.display_name} className={cn(PLAN_ROW_CLASS_NAME, "border-b border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background)")}>
         <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+          <span className={cn("@min-[900px]/plans:sr-only", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
             {t("settings.subscription.display_name")}
           </span>
           <UiInput
+            controlSize="sm"
             variant="surface"
             disabled={disabled}
             onChange={(event) => onChangeDraft(plan.plan_key, {
@@ -91,7 +78,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+          <span className={cn("@min-[900px]/plans:sr-only", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
             {t("settings.subscription.plan_status")}
           </span>
           <UiSelectMenu
@@ -105,15 +92,16 @@ function SubscriptionPlanRow({
               label: t(PLAN_STATUS_LABEL_KEYS[status]),
               value: status,
             }))}
-            size="md"
+            size="sm"
             value={draft.status}
           />
         </label>
         <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+          <span className={cn("@min-[900px]/plans:sr-only", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
             {t("settings.subscription.plan_limit")}
           </span>
           <UiInput
+            controlSize="sm"
             variant="surface"
             disabled={disabled}
             inputMode="numeric"
@@ -127,10 +115,11 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+          <span className={cn("@min-[900px]/plans:sr-only", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
             {t("settings.subscription.sort_order")}
           </span>
           <UiInput
+            controlSize="sm"
             variant="surface"
             disabled={disabled}
             inputMode="numeric"
@@ -141,11 +130,12 @@ function SubscriptionPlanRow({
             value={draft.sortOrder}
           />
         </label>
-        <label className="grid min-w-0 gap-1.5 @min-[480px]/plans:col-span-2 @min-[900px]/plans:col-span-4">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+        <label className="grid min-w-0 gap-1.5">
+          <span className={cn("@min-[900px]/plans:sr-only", SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
             {t("settings.subscription.notes")}
           </span>
           <UiInput
+            controlSize="sm"
             variant="surface"
             disabled={disabled}
             onChange={(event) => onChangeDraft(plan.plan_key, {
@@ -155,15 +145,13 @@ function SubscriptionPlanRow({
             value={draft.notes}
           />
         </label>
-      </div>
 
-      <div className="mt-4 flex justify-end">
+      <div className="flex justify-end">
         <UiButton
           disabled={disabled}
           onClick={() => void onSave(plan.plan_key)}
-          size="md"
-          tone="primary"
-          variant="solid"
+          size="sm"
+          variant="surface"
         >
           {saving ? (
             <Loader2 className={getUiSpinnerClassName({ size: "sm" })} />
@@ -173,7 +161,7 @@ function SubscriptionPlanRow({
           {t("settings.subscription.save")}
         </UiButton>
       </div>
-    </UiDisclosure>
+    </article>
   );
 }
 
@@ -191,50 +179,62 @@ function NewSubscriptionPlanForm({
   onCreate: () => Promise<void>;
 }) {
   const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
+  const close = () => { if (!creating) setOpen(false); };
   return (
-    <UiDisclosure label={t("settings.subscription.create_plan")} surfaceTone="subtle" variant="panel">
-      <div className="grid items-end gap-4 @min-[480px]/plans:grid-cols-2 @min-[900px]/plans:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-            {t("settings.subscription.plan_key")}
-          </span>
-          <UiInput
-            variant="surface"
-            disabled={disabled}
-            onChange={(event) => onChange({ planKey: event.target.value })}
-            placeholder={t("settings.subscription.plan_key_placeholder")}
-            value={draft.planKey}
-          />
-        </label>
-        <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-            {t("settings.subscription.display_name")}
-          </span>
-          <UiInput
-            variant="surface"
-            disabled={disabled}
-            onChange={(event) => onChange({ displayName: event.target.value })}
-            placeholder={t("settings.subscription.display_name_placeholder")}
-            value={draft.displayName}
-          />
-        </label>
-        <label className="grid min-w-0 gap-1.5">
-          <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-            {t("settings.subscription.plan_limit")}
-          </span>
-          <UiInput
-            variant="surface"
-            disabled={disabled}
-            inputMode="numeric"
-            min={0}
-            onChange={(event) => onChange({
-              monthlyTokenLimit: event.target.value,
-            })}
-            placeholder={t("settings.subscription.limit_unlimited")}
-            type="number"
-            value={draft.monthlyTokenLimit}
-          />
-        </label>
+    <>
+      <UiButton className="w-fit" onClick={() => setOpen(true)} size="sm" variant="ghost" aria-haspopup="dialog">
+        <Plus className="h-4 w-4" />
+        {t("settings.subscription.create_plan")}
+      </UiButton>
+      {open ? <UiDialogPortal>
+        <UiDialogBackdrop labelledBy={titleId} onClose={close}>
+          <UiDialogShell size="md" viewport="adaptiveMax">
+            <UiDialogHeader appearance="plain" title={t("settings.subscription.create_plan")} titleId={titleId} onClose={close} />
+            <UiDialogBody className="grid gap-4 px-5" scrollable>
+              <label className="grid min-w-0 gap-1.5">
+                <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                  {t("settings.subscription.display_name")}
+                </span>
+                <UiInput
+                  variant="surface"
+                  disabled={disabled}
+                  onChange={(event) => onChange({ displayName: event.target.value })}
+                  placeholder={t("settings.subscription.display_name_placeholder")}
+                  value={draft.displayName}
+                />
+              </label>
+              <label className="grid min-w-0 gap-1.5">
+                <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+                  {t("settings.subscription.plan_limit")}
+                </span>
+                <UiInput
+                  variant="surface"
+                  disabled={disabled}
+                  inputMode="numeric"
+                  min={0}
+                  onChange={(event) => onChange({
+                    monthlyTokenLimit: event.target.value,
+                  })}
+                  placeholder={t("settings.subscription.limit_unlimited")}
+                  type="number"
+                  value={draft.monthlyTokenLimit}
+                />
+              </label>
+              <label className="grid min-w-0 gap-1.5">
+                <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>{t("settings.subscription.notes")}</span>
+                <UiInput
+                  variant="surface"
+                  disabled={disabled}
+                  onChange={(event) => onChange({ notes: event.target.value })}
+                  placeholder={t("settings.subscription.notes_placeholder")}
+                  value={draft.notes}
+                />
+              </label>
+            </UiDialogBody>
+            <UiDialogFooter>
+              <UiButton disabled={creating} onClick={close} size="sm" variant="surface">{t("common.cancel")}</UiButton>
         <UiButton
           disabled={disabled}
           onClick={() => void onCreate()}
@@ -249,8 +249,11 @@ function NewSubscriptionPlanForm({
           )}
           {t("settings.subscription.create_plan")}
         </UiButton>
-      </div>
-    </UiDisclosure>
+            </UiDialogFooter>
+          </UiDialogShell>
+        </UiDialogBackdrop>
+      </UiDialogPortal> : null}
+    </>
   );
 }
 
@@ -268,6 +271,7 @@ export function SubscriptionPlanView({
   return (
     <section className="@container/plans grid min-w-0 gap-4">
       <NewSubscriptionPlanForm
+        key={model.newPlanDraft.planKey}
         creating={model.creating}
         disabled={disabled}
         draft={model.newPlanDraft}
@@ -290,7 +294,10 @@ export function SubscriptionPlanView({
           variant="plain"
         />
       ) : (
-        <div className="grid gap-3">
+        <div className="grid">
+          <div className={cn("hidden items-center gap-3 border-b border-(--divider-subtle-color) px-3 py-2 @min-[900px]/plans:grid", PLAN_COLUMNS_CLASS_NAME, SETTINGS_CONTROL_LABEL_CLASS_NAME)}>
+            {(["settings.subscription.display_name", "settings.subscription.plan_status", "settings.subscription.plan_limit", "settings.subscription.sort_order", "settings.subscription.notes", "members.column_actions"] as const).map((key) => <span key={key}>{t(key)}</span>)}
+          </div>
           {model.plans.map((plan) => (
             <SubscriptionPlanRow
               key={plan.plan_key}

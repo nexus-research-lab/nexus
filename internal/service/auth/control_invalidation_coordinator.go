@@ -183,6 +183,10 @@ func (c *ControlIdentityInvalidationCoordinator) applyControlIdentityInvalidatio
 ) (string, int, error) {
 	ownerUserID, applyErr := source.ApplyControlIdentityInvalidation(ctx, event)
 	connections := 0
+	// 组织撤权由 Relay 关闭协作和执行资格，不中断同账号的私人/本地 Agent。
+	if event.Reason == "organization_changed" && event.OrganizationID != "" {
+		return ownerUserID, connections, applyErr
+	}
 	if ownerUserID != "" {
 		switch event.Reason {
 		case "session_revoked":

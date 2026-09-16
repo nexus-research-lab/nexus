@@ -74,10 +74,20 @@ owner_user_id, username, display_name, role, status, created_at, updated_at
 		t.Fatal(err)
 	}
 	third := testMessage("message-3", 3, "third")
+	third.AuthorType, third.AuthorAgentID, third.DeliveryID, third.OutputKind = "agent", "agent", "delivery", "final"
 	if err = repository.ProjectCommit(ctx, "owner-1", relaycontract.MessageCommit{
 		Message: third, StreamID: "stream-1", StreamEpoch: "epoch-1", EventSeq: 3,
 	}); err != nil {
 		t.Fatal(err)
+	}
+	var authorAgentID, deliveryID, outputKind string
+	if err = db.QueryRow(`SELECT author_agent_id, delivery_id, output_kind FROM team_relay_messages WHERE message_id = 'message-3'`).Scan(&authorAgentID, &deliveryID, &outputKind); err != nil || authorAgentID != "agent" || deliveryID != "delivery" || outputKind != "final" {
+		t.Fatalf("Agent output projection=%s/%s/%s: %v", authorAgentID, deliveryID, outputKind, err)
+	}
+	changed := third
+	changed.AuthorAgentID = "another"
+	if err = repository.ProjectCommit(ctx, "owner-1", relaycontract.MessageCommit{Message: changed, StreamID: "stream-1", StreamEpoch: "epoch-1", EventSeq: 3}); err == nil {
+		t.Fatal("同一消息 ID 不得改变 Agent 作者")
 	}
 	if err = repository.ProjectRoom(ctx, "owner-2", "deployment-1", room); err != nil {
 		t.Fatal(err)

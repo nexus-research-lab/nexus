@@ -1,5 +1,5 @@
 // INPUT: Control-backed 认证状态、当前路由和重新读取认证状态命令。
-// OUTPUT: 加载/恢复状态或通往 setup、login、受保护路由的唯一入口。
+// OUTPUT: 阻止提前报告启动就绪的加载态、恢复态或通往 setup、login、受保护路由的唯一入口。
 // POS: App 路由认证守卫；不拥有认证数据、通用反馈或按钮视觉。
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
@@ -20,7 +20,7 @@ export function AuthGuard() {
 
   if (!isBootstrapped) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
+      <main data-bootstrap-pending="true" className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
         <AppLoadingState message={t("auth_guard.connecting")} />
       </main>
     );

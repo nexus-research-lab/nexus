@@ -59,4 +59,5 @@ tags: [nexus, configuration, settings, agent, room]
 
 ## Agent 创建与行为模板
 
+
 创建 Agent 或修改已有 Agent 的角色职责、工作方式时，先读取 [references/agent-profile-template.md](references/agent-profile-template.md)，按创建或编辑流程处理 workspace 根级 `AGENTS.md`，保留基础规则并读回核对。名称、头像、目录摘要与 runtime 配置使用 `agents` 配置域。

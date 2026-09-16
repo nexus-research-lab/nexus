@@ -1,0 +1,40 @@
+// INPUT: 已验证的 Node 令牌与持久 claim/output identity。
+// OUTPUT: 只读任务提示、精确领取、续期、失败与完整输出回执。
+// POS: 复用现有 Relay HTTP adapter，不承担执行或自动重试。
+package relay
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+)
+
+func (c *Client) PendingAgents(ctx context.Context, token string) ([]string, error) {
+	var result struct {
+		AgentIDs []string `json:"agent_ids"`
+	}
+	err := c.do(ctx, http.MethodGet, "/node/deliveries/pending", nil, token, "", nil, &result)
+	return result.AgentIDs, err
+}
+func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID string) (*relaycontract.Delivery, error) {
+	var result struct {
+		Delivery *relaycontract.Delivery `json:"delivery"`
+	}
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/claim", nil, token, claimID, map[string]string{"agent_id": agentID}, &result)
+	return result.Delivery, err
+}
+func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool) (relaycontract.Delivery, error) {
+	action := "renew"
+	if failed {
+		action = "fail"
+	}
+	var result relaycontract.Delivery
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", map[string]string{"lease_id": leaseID}, &result)
+	return result, err
+}
+func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string, input relaycontract.DeliveryOutput) error {
+	var result relaycontract.MessageCommit
+	return c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/outputs", nil, token, outputID, input, &result)
+}

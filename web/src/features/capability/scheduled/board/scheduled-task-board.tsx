@@ -1,6 +1,6 @@
 /**
  * INPUT: 定时任务集合、资源状态、建议预设与任务命令。
- * OUTPUT: 快速创建目录或四列真实状态看板。
+ * OUTPUT: 按文字内容撑高的快速创建目录或四列真实状态看板。
  * POS: 定时任务主内容视图；空列由标题与数量自解释。
  */
 "use client";
@@ -180,7 +180,7 @@ function ScheduledTaskSuggestions({
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <UiButton
-              className="group h-auto min-h-[104px] w-full items-start justify-start gap-2.5 whitespace-normal wrap-anywhere p-3 text-left"
+              className="group h-max min-h-[104px] w-full items-start justify-start gap-2.5 whitespace-normal wrap-anywhere p-3 text-left"
               key={suggestion.title}
               onClick={() => onSelect(suggestion.preset)}
               size="sm"

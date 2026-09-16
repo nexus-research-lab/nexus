@@ -5,6 +5,8 @@
  */
 "use client";
 
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AppWindow,
@@ -141,11 +143,10 @@ export function BrowserSettingsSection() {
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} flex flex-col`}>
       <WorkspaceContentHeader
         className="max-sm:hidden"
-        description={t("settings.browser.section_description")}
         title={t("settings.browser.section_title")}
       />
 
-      <section className="space-y-2.5">
+      <section className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} space-y-2.5`}>
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             <div className="flex min-w-0 items-center gap-3">
@@ -192,7 +193,8 @@ export function BrowserSettingsSection() {
             </UiButton>
           </div>
 
-          <div className="border-t border-(--divider-subtle-color) px-4 py-3">
+          <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+          <div className="px-4 py-3">
             {connected ? (
               <div className={cn(
                 "flex items-center gap-2",

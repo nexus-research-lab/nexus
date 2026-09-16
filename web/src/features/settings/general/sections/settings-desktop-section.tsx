@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { Download, Loader2, MonitorCog } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -74,7 +75,7 @@ export function SettingsDesktopSection() {
           </div>
           {controller.versionFailed ? (
             <>
-              <div className="border-t border-(--divider-subtle-color)" />
+              <div className={SETTINGS_DIVIDER_CLASS_NAME} />
               <UiResourceState
                 className="border-0 bg-transparent"
                 impact={t("settings.desktop.version_failed_impact")}

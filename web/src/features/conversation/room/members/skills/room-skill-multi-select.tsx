@@ -209,7 +209,7 @@ function SelectedSkillChips({
   const { t } = useI18n();
   if (options.length === 0) {
     return (
-      <span className="truncate font-semibold text-(--text-muted)">
+      <span className="truncate font-normal text-(--text-muted)">
         {placeholder}
       </span>
     );
@@ -369,7 +369,7 @@ export function RoomSkillMultiSelect({
           </span>
         </SelectMenuTriggerContent>
       </SelectMenuTrigger>
-      <span className="pointer-events-none relative flex min-h-10 min-w-0 items-center py-1.5 pl-3 pr-10">
+      <span className={cn("pointer-events-none relative flex min-h-10 min-w-0 items-center py-1.5 pl-3 pr-10", textClassName)}>
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
           <SelectedSkillChips
             disabled={disabled}

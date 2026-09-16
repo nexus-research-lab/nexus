@@ -7,6 +7,7 @@ import { CircleAlert, MessageCirclePlus, MessageSquarePlus } from "lucide-react"
 import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
+import { TeamInvitationList } from "@/features/team/team-invitation-list";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -55,6 +56,18 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         label={t("sidebar.search_conversations")}
         value={controller.list.query}
       />
+
+      {controller.invitations.enabled ? <TeamInvitationList
+        busyRoomId={controller.invitations.busyRoomId}
+        errorRoomId={controller.invitations.errorRoomId}
+        invitations={controller.invitations.invitations}
+        failed={controller.invitations.failed}
+        loading={controller.invitations.loading}
+        recoveryRooms={controller.invitations.recoveryRooms}
+        onRecover={controller.invitations.recover}
+        onRefresh={controller.invitations.refresh}
+        onResolve={(invitation, resolution) => { void controller.invitations.resolve(invitation, resolution); }}
+      /> : null}
 
       {controller.list.isLoading ? (
         <SidebarListLoadingRows />

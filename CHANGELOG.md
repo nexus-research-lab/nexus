@@ -32,6 +32,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add an explicit runtime-settings sandbox support check with independent unknown, unsupported and dependency results; keep engine selection and permission modes unchanged.
 
 - Show mandatory sandbox network approvals as one pending connection, without command replay or persistent grants.
+- Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
+
+- Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.
+
+- Catch up group messages from durable stream watermarks during visible-page, focus and network refreshes, recovering missed notifications and temporary difference failures.
+
+- Refresh authentication status directly from Control so organization creation and membership changes appear immediately instead of reusing a stale identity lease.
+
+- Do not mislabel organization owners as leaving members when the backend omits their organization role; show a recovery notice and hide empty member-action columns.
+
+- Place organization actions and member search in one toolbar, with matching outlined action buttons.
+
+- Move organizations into account settings for all remote accounts, with organization creation, existing-account joining, rename, leave, ownership transfer and dissolution confirmations.
+- Separate organization permissions from platform operations; organization-less users retain personal/local capabilities without Relay access. Refresh remote identity on focus and scope online directories to the organization.
+
+- Remove page-header subtitles across Settings for consistent, simpler headings.
+
+- Create subscription plans in a dialog with name, quota, notes, and automatically generated identifiers; hide plan keys and preserve them when renaming.
+
+- Edit subscription plans directly in compact rows with shared column headings and inline save actions.
+
+- Widen the provider directory and reduce duplicated inner spacing to show longer service names.
+
+- Show a compact delete icon on provider row hover or keyboard focus, keeping it visible on touch devices and preserving deletion confirmation and usage checks.
+
+- Simplify user subscription management by removing top-level statistics and the routine refresh action.
+
+- Group invite and invitation-history actions on the left of the member toolbar, with history in a dialog and direct revoke/delete actions; remove the redundant member heading and routine refresh button while retaining recovery actions.
+
+- Show subscription account column headings once on desktop and retain inline field labels in narrow layouts.
+
+- Inset settings card separators and remove the tour-reset entry from General settings and settings search.
+
+- Remove redundant right-side labels from default model, message behavior, runtime, and web search settings while retaining accessible control names.
+
+- Refine operations pages with flatter directories, inline plan editing, and secondary row actions.
+
+- Center settings bodies within a 1200px limit while preserving full-width page headers and simplify organization directories with compact rows, separate action menus, and invitation counts.
+
+- Add deletion of accepted, revoked and expired organization invitation records, retaining revoke for active invitations.
+
+- Remove the organization role-description sidebar and let the member directory use the full content width; retain member role management.
+
+- Align plain dialog titles with close buttons and normalize the Room skill placeholder typography.
+
+- Reorganize the Room dialog into compact configuration and member columns, with skills beside the member list and stable member header/list heights when switching tabs.
+
+- Compact shared segmented controls and remove the outer tray and stacked selection borders.
+
+- Add explicit host authorization for online Agents, with encrypted durable credentials, exact registration/revocation recovery, and remote-account isolation. Desktop binds the local host; Web binds its Nexus server.
+- Add opt-in online Agent execution through native local Rooms, durable inbox/output recovery, exact lease cancellation, and local permission/question handling. Only complete replies reach remote members; existing grants remain execution-disabled and unknown interrupted runs never restart automatically.
+- Use the real runtime MCP tool-use identity preserved by Bridge for IM delivery; remove the content-hash workaround and report missing metadata as a runtime/Bridge integration error.
+
+- Track IM delivery origins and return human feedback to the original Session through the existing `list_targets` and `send_message` tools, with durable queue admission, pairing revocation and unchanged contact messaging.
+
 
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
@@ -46,6 +101,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
 
 - Clarify the existing entry points for local Skill content editing, long-term memory editing and role-scoped configuration discovery.
+- Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.
+
+- Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
+
+- Persist exact online message intents before sending, recover them without automatic replay, reconcile lost receipts from snapshots, and remove revoked Room resources and connections.
+- Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
+
+- Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
+- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
+
+- Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
+- Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
+
+- Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light/rain action contrast with the matching light Windows native projection, and keep long task suggestions inside their cards on WebKit.
+
+- Split the complete frontend browser test matrix across twelve CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
+- Move the collapsed sidebar control left, keep the macOS home canvas below the window controls, and align the Launcher spotlights over the wordmark.
+
+
 - Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
 - Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
 - Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
@@ -60,12 +134,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
 - Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
+- Add online Room invitations and human member governance, including accept, reject, revoke, role changes, removal, and human owner transfer; selected people now join only after accepting an invitation.
+- Publish only selected local Agent identities to Control, verify their ownership at the Nexus Gateway, and support adding or removing them as online Room members; the human owner can select and replace the coordinator from active Agent members.
+- Let Agent owners pause or resume their online Room Agent from the shared member-management surface; pausing a coordinator clears that role before future delivery work.
+- Let online Room members explicitly select active Agents in the composer and submit structured mentions with the current membership-version fence.
 - Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
 - Prepare the optional Relay state directory for persistent single-node SQLite deployments.
 
 ### Security
 
+- Upgrade Vitest to 4.1.11 and refresh Browserslist, baseline-browser-mapping, and humanfs to fix known frontend test and build toolchain vulnerabilities.
 - Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
+- Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
 - Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
 
 ## [0.2.0] - 2026-09-10

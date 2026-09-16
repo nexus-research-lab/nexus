@@ -12,7 +12,9 @@ import type { RoomDialogSubmission } from "@/features/conversation/room/members/
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
 import { useTeamRooms } from "@/features/team/use-team-rooms";
 import { useTeamMembers } from "@/features/team/use-team-members";
+import { useTeamInvitations } from "@/features/team/use-team-invitations";
 import { createTeamRoom } from "@/lib/api/conversation/team-api";
+import { publishControlAgentApi } from "@/lib/api/account/control-api";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
 import {
@@ -72,6 +74,7 @@ export function useChatSidebarController({
   );
   const roomActivity = useRoomActivity();
   const onlineRooms = useTeamRooms();
+  const teamInvitations = useTeamInvitations(onlineRooms.refresh);
   const teamMembers = useTeamMembers(onlineRooms.isAvailable);
   const {
     agents,
@@ -181,12 +184,21 @@ export function useChatSidebarController({
     createSubmittingRef.current = true;
     setIsCreating(true);
     try {
-      if (submission.location === "online") {
-        const input = {
-          agent_ids: submission.agentIds,
-          avatar: submission.avatar,
-          coordinator_agent_id: submission.hostAgentId ?? undefined,
-          host_auto_reply_enabled: submission.hostAutoReplyEnabled,
+		if (submission.location === "online") {
+			const selectedAgents = agents.filter((agent) => submission.agentIds.includes(agent.id));
+			const publishedAgents = selectedAgents.length > 0
+				? await Promise.all(selectedAgents.map((agent) => publishControlAgentApi(
+					agent.id,
+					{ name: agent.name, avatar: agent.avatar },
+				)))
+				: [];
+			const onlineIDBySourceID = new Map(publishedAgents.map((agent) => [agent.source_agent_id, agent.agent_id]));
+			const input = {
+				agent_ids: publishedAgents.map((agent) => agent.agent_id),
+				avatar: submission.avatar,
+				coordinator_agent_id: submission.hostAgentId
+					? onlineIDBySourceID.get(submission.hostAgentId)
+					: undefined,
           member_user_ids: submission.userIds,
           name: submission.name,
           private_messages_enabled: submission.privateMessagesEnabled,
@@ -220,7 +232,7 @@ export function useChatSidebarController({
       createSubmittingRef.current = false;
       setIsCreating(false);
     }
-  }, [navigate, onlineRooms, refreshDirectory]);
+	}, [agents, navigate, onlineRooms, refreshDirectory]);
 
   const finishDeletion = useCallback((target: DeleteTarget) => {
     unresolvedDeletionsRef.current.delete(target.id);
@@ -396,6 +408,7 @@ export function useChatSidebarController({
       retry: refreshDirectory,
       setQuery,
     },
+    invitations: teamInvitations,
   };
 }
 

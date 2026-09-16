@@ -27,6 +27,7 @@ import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
 import { isOperationsSection, type SettingsSectionKey } from "./settings-navigation-model";
+import { OrganizationPanel } from "./operations/organization-panel";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 import { useSettingsSearchTarget } from "./use-settings-search-target";
 import { useSettingsNavigation } from "./use-settings-navigation";
@@ -43,7 +44,7 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   const canViewOperations =
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
-    <div ref={contentRef}>
+    <div className="w-full min-w-0" ref={contentRef}>
       <SettingsSectionContent
         canViewOperations={canViewOperations && (activeSection !== "operations-projects" || projectPermissionsEnabled)}
         section={activeSection}
@@ -104,6 +105,7 @@ function SettingsSectionContent({
   canViewOperations: boolean;
   section: SettingsSectionKey;
 }) {
+  if (section === "operations-organization") return <OrganizationPanel />;
   if (isOperationsSection(section)) {
     return canViewOperations ? (
       <OperationsPanel section={section} />

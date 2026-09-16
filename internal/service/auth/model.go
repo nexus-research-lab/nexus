@@ -56,12 +56,15 @@ type StatusPayload struct {
 	Authenticated        bool    `json:"authenticated"`
 	Username             *string `json:"username"`
 	UserID               *string `json:"user_id,omitempty"`
+	ControlUserID        *string `json:"control_user_id,omitempty"`
 	DisplayName          *string `json:"display_name,omitempty"`
 	Role                 *string `json:"role,omitempty"`
 	Avatar               *string `json:"avatar,omitempty"`
 	AuthMethod           *string `json:"auth_method,omitempty"`
 	OrganizationID       *string `json:"organization_id,omitempty"`
 	OrganizationName     *string `json:"organization_name,omitempty"`
+	OrganizationRole     *string `json:"organization_role,omitempty"`
 	SetupRequired        bool    `json:"setup_required,omitempty"`
 	SetupEnabled         bool    `json:"setup_enabled"`
+	RegistrationEnabled  bool    `json:"registration_enabled"`
 }

@@ -32,6 +32,7 @@ func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
 	s.mountRemoteGateway()
 	s.mountTeamRoutes()
+	s.mountTeamNodeRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
 	s.mountProjectRoutes()
@@ -138,6 +139,18 @@ func (s *Server) mountTeamRoutes() {
 	}
 	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
 	s.router.Post(s.prefixPath("/team/rooms"), s.handlers.team.HandleCreateRoom)
+	s.router.Get(s.prefixPath("/team/invitations"), s.handlers.team.HandleListInvitations)
+	s.router.Get(s.prefixPath("/team/rooms/{room_id}"), s.handlers.team.HandleGetRoom)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/invitations"), s.handlers.team.HandleInviteMember)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/agents"), s.handlers.team.HandleAddAgent)
+	s.router.Delete(s.prefixPath("/team/rooms/{room_id}/agents/{agent_id}"), s.handlers.team.HandleRemoveAgent)
+	s.router.Patch(s.prefixPath("/team/rooms/{room_id}/agents/{agent_id}"), s.handlers.team.HandleUpdateAgent)
+	s.router.Patch(s.prefixPath("/team/rooms/{room_id}"), s.handlers.team.HandleUpdateRoom)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/invitations/accept"), s.handlers.team.HandleAcceptInvitation)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/invitations/reject"), s.handlers.team.HandleRejectInvitation)
+	s.router.Delete(s.prefixPath("/team/rooms/{room_id}/invitations/{user_id}"), s.handlers.team.HandleRevokeInvitation)
+	s.router.Patch(s.prefixPath("/team/rooms/{room_id}/members/{user_id}"), s.handlers.team.HandleUpdateMember)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/transfer"), s.handlers.team.HandleTransferOwnership)
 	s.router.Post(
 		s.prefixPath("/team/conversations/{conversation_id}/messages"),
 		s.handlers.team.HandlePostMessage,

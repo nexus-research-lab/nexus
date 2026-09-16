@@ -1,3 +1,6 @@
+// INPUT: Validated external ingress and current pairing.
+// OUTPUT: Existing DM admission with host-persisted human input evidence.
+// POS: Channels ingress boundary before runtime dispatch.
 package channels
 
 import (
@@ -199,6 +202,11 @@ func (s *IngressService) claimIngress(ctx context.Context, request normalizedIng
 }
 
 func (s *IngressService) dispatchIngress(ctx context.Context, request normalizedIngressRequest) error {
+	if request.trustedExternalInteractive && s.control != nil {
+		if err := s.control.recordDeliveryInput(ctx, request); err != nil {
+			return err
+		}
+	}
 	ownerCtx := contextWithIngressOwner(ctx, request.ownerUserID)
 	agentValue, err := s.agents.GetAgent(ownerCtx, request.agentID)
 	if err != nil {

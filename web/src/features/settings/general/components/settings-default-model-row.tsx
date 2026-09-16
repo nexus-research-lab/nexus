@@ -16,7 +16,6 @@ import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import {
-  SETTINGS_CONTROL_LABEL_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -69,10 +68,7 @@ export function SettingsDefaultModelRow({
           </p>
         </div>
       </div>
-      <div aria-busy={savingRole === modelCategory || providerOptionsLoading} className="flex min-w-0 flex-col gap-1.5">
-        <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
-          {t("settings.general.default_model_label")}
-        </span>
+      <div aria-busy={savingRole === modelCategory || providerOptionsLoading} className="min-w-0">
         <UiSelectMenu
           ariaLabel={t(titleKey)}
           disabled={

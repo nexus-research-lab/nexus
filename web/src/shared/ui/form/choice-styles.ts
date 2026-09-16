@@ -1,5 +1,5 @@
 // INPUT: Choice 的选择状态、尺寸、形状、tone 与视觉 variant。
-// OUTPUT: 与普通控件配套的字号/高度、唯一焦点/禁用状态与按内容区分的选择材质。
+// OUTPUT: 与普通控件配套的字号/高度、保留原生 Radio 焦点的禁用/选择材质。
 // POS: Choice 视觉状态真相；原生 button/input 决定禁用，不用穿透命中区替代语义。
 
 import { cn } from "@/shared/ui/class-name";
@@ -25,7 +25,7 @@ type ChoiceVariantClassResolver = (
 ) => ChoiceClassList;
 
 const CHOICE_BASE_CLASS_NAME =
-  "inline-flex cursor-pointer items-center justify-center gap-2 border ui-type-weight-medium transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) has-[input:disabled]:cursor-not-allowed has-[input:disabled]:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-[color:var(--ring)]";
+  "inline-flex cursor-pointer items-center justify-center gap-2 border ui-type-weight-medium transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) has-[input:disabled]:cursor-not-allowed has-[input:disabled]:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] has-[input:focus]:ring-2 has-[input:focus]:ring-[color:var(--ring)]";
 
 const SURFACE_CHOICE_SIZE_CLASS_MAP: Record<UiChoiceSize, string> = {
   xs: "min-h-7 px-2 py-1 ui-type-metadata",

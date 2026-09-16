@@ -18,7 +18,6 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.general.emotion_title", "settings.general.emotion_description"],
     ["settings.general.echo_title", "settings.general.echo_description"],
     ["settings.general.agent_sdk_diagnostics_title", "settings.general.agent_sdk_diagnostics_description"],
-    ["settings.onboarding_title", "settings.onboarding_description"],
   ],
   appearance: [
     ["theme.switch_title", "settings.general.theme_description"],
