@@ -169,11 +169,45 @@ Bridge `034c449fb4cf1d402213a07450e0d02d7578bf9d`，Nexus 固定本地模块 `v0
 
 详见 [结果与限制](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/baseline-report.json)、[宿主竞态](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/cleanup-host-race.jsonl)、[Bridge 竞态](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/cleanup-bridge-race.jsonl) 与 [文件校验和](./evidence/desktop-sandbox/2026-09-15-cleanup-fences/manifest.json)。Unix session 观察不覆盖另建 session 的后代；成功信号回调不代表 Bridge 独立确认退出。Nexus 栅栏只在当前进程内保留，尚无持久清理回执或自动对账恢复。本批没有准备、租约或回收 scratch，也没有启用默认产品资源策略；完整 IO、后代监督、Claude、其他平台及发布门禁仍未完成。
 
+### P1/P2 搜索工具隔离与独立准入（2026-09-16 归档）
+
+SDK `19c80fb21bb6a00d1132fdea3e63251dac4c015d`、Bridge `f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103` 已本地提交，Nexus 固定 `v0.1.34-0.20260915103347-f6e456da2ecb`，模块校验和 `h1:TOcpWlLdRaKpBe1rz5EldtyuwRR48WypXsj9C331gMo=`。固定 SDK 归档构建的 nxs SHA-256：`597cae76273dd59c71f3d911f7c203f5022e80b68287ee9e5784bd10d0ae742c`。运行记录主要产生于 9 月 15 日，9 月 16 日完成归档和文档/架构检查；所有提交和模块仍未发布。
+
+修复前，Glob 和 Grep 的三种输出模式可经直接目录或符号链接泄露被禁止文件的名称/内容；自定义 rg 可继承测试环境变量、连接测试回环服务并写入只读工作区。修复将路径检查、建议、rg 与结果元数据绑定到同一受限文件环境；独立 `sandbox_search_tools_v1` 要求让仅具备旧文件能力的 SDK 在任务前被拒绝。
+
+| 验证 | 结果 | 证据边界 |
+| --- | --- | --- |
+| 修复前反例 | 2 个顶层场景失败、exit 1 | 8 个直接/链接读取子场景与自定义 rg 越权事实；测试标记均为夹具数据 |
+| 原生搜索 | 4 个顶层与 18 个指定子场景通过 | 目录/绝对模式/单文件/计数/无匹配/路径建议，强制 deny、辅助环境/网络/写限制与准备失败；固定提交基线无必测 skip |
+| 分项搜索合同 | 2 个顶层与 7 个指定子场景通过 | 未协商、缺命令/文件依赖、类型错误、平台及兼容分支；普通 settings 不替代宿主要求 |
+| SDK 目标包 | 165 个顶层、76 个子场景通过 | 平台/显式原生测试及无测试文件包的 skip 在报告列出；受限搜索竞态另有原始记录 |
+| Bridge 与宿主竞态 | Bridge 154 个顶层/74 个子场景，Nexus 157 个顶层/39 个子场景通过 | 指定 client/protocol 和 runtime/clientopts 包；真实进程 opt-in 在独立组验证 |
+| 新旧真实 SDK | 4 个顶层与 6 个子场景通过、无 skip | GOWORK=off 的固定 Bridge 模块；当前版本及分别缺文件/资源/搜索能力的三个旧二进制；不发模型请求 |
+| 固定版本开发基线 | 38 个顶层、46 个指定子场景通过 | GOWORK=off、无 replace、固定源码构建、全部必测实际运行，releaseAccepted=false |
+| Windows/Linux | SDK 与 Bridge 变化包 amd64 交叉编译通过 | CGO 关闭，只证明编译，不证明原生限制、Linux owner 隔离或安装包可用 |
+| 其他门禁 | 架构检查、6 个证据解析用例、入口语法通过 | 依赖方向与验收记录完整性 |
+
+原始记录见[结果和限制](./evidence/desktop-sandbox/2026-09-16-search-tools/report.json)、[固定提交基线](./evidence/desktop-sandbox/2026-09-16-search-tools/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-16-search-tools/search-before.jsonl)、[原生搜索](./evidence/desktop-sandbox/2026-09-16-search-tools/macos-search.stdout.log)、[新旧真实进程](./evidence/desktop-sandbox/2026-09-16-search-tools/bridge-pinned-real.jsonl)和[校验和](./evidence/desktop-sandbox/2026-09-16-search-tools/manifest.json)。受限搜索取消、超时或达到输出限额时返回失败，不报告部分成功；自定义 argv0 尚不支持。Notebook、启动/Skill/配置/后台 IO、实际生效回执、默认产品策略、Claude 与安装包继续待验收。
+
+### macOS 后代监督实验
+
+9 月 15 日的两个原生探测只操作自身测试进程，不改系统授权、订阅系统事件或操作其他应用：
+
+| 实验 | 结果 | 下一步约束 |
+| --- | --- | --- |
+| 父进程退出，子进程另建 session | 原组已不存在，子进程仍存活；夹具最后显式清理自己的子进程并确认退出 | 原组/session 扫描不能作为全部后代终态或 scratch 回收证明 |
+| kqueue `NOTE_TRACK` | 返回 `ENOTSUP` | 不能依靠该接口跟踪 macOS 完整后代 |
+| macOS 27 `es_new_descendants_client` | API 存在，但返回 `ERR_NOT_ENTITLED`；没有订阅事件 | Endpoint Security entitlement、系统支持范围、精确身份、事件缺失及崩溃恢复均未完成验收；未改变产品最低系统版本 |
+
+见[原生结果](./evidence/desktop-sandbox/2026-09-16-search-tools/native.json)、[探测程序](./evidence/desktop-sandbox/2026-09-16-search-tools/probe.py)、[Endpoint Security 结果](./evidence/desktop-sandbox/2026-09-16-search-tools/endpoint.json)及[程序](./evidence/desktop-sandbox/2026-09-16-search-tools/endpoint_probe.c)。`NOTE_TRACK` 拒绝与 [Apple XNU 实现](https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/kern/kern_event.c)一致；新后代 API 的可用版本和 entitlement 来自本机 macOS SDK 的 `EndpointSecurity/ESClient.h`，公开入口见 [Apple 文档](<https://developer.apple.com/documentation/endpointsecurity/es_new_descendants_client(_:_:)>)。
+
+Codex 对照仍固定 `4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd`，此次读取 [spawn.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/spawn.rs) 和 [exec.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/exec.rs) 的进程启动/退出片段；局部进程组清理代码不能证明任意脱离后代已被监督。完整后代清理、持久失败回执、scratch 租约和自动回收仍未实现。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围与后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 67975b90 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索合同与正常/拒绝搜索、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 19c80fb2 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -181,7 +215,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 67975b901ce6700d88ac4b64da80ae2254b4c3cf
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 19c80fb21bb6a00d1132fdea3e63251dac4c015d
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。

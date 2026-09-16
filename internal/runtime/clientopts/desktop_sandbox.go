@@ -1,5 +1,5 @@
 // INPUT: Desktop host rollout flag, approval mode and explicitly mounted directories.
-// OUTPUT: Mandatory command and native file-tool contracts, or unchanged legacy/server options.
+// OUTPUT: Mandatory command, native file and search contracts, or unchanged legacy/server options.
 // POS: Common DM/Room/background sandbox policy assembly; backend negotiation is Bridge-owned.
 package clientopts
 
@@ -40,7 +40,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	}
 	yes := true
 	options.Sandbox = &agentclient.SandboxSettings{
-		RequireSandbox: true, RequireFileTools: true, Enabled: &yes, FailIfUnavailable: &yes,
+		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{

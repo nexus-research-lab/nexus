@@ -1,0 +1,190 @@
+[
+  {
+    "repository": "sdk",
+    "revision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "0",
+    "packages": [
+      "./cmd/nxs",
+      "./protocol",
+      "./internal/tool/executor",
+      "./internal/tool/builtin/glob",
+      "./internal/tool/builtin/grep",
+      "./internal/tool/builtin/ripgrep",
+      "./internal/tool/builtin/file"
+    ],
+    "command": [
+      "go",
+      "test",
+      "-c",
+      "-mod=readonly",
+      "-o",
+      "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows",
+      "./cmd/nxs",
+      "./protocol",
+      "./internal/tool/executor",
+      "./internal/tool/builtin/glob",
+      "./internal/tool/builtin/grep",
+      "./internal/tool/builtin/ripgrep",
+      "./internal/tool/builtin/file"
+    ],
+    "log": "sdk-windows-compile.log",
+    "exitCode": 0,
+    "nativeExecution": false,
+    "artifacts": [
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/executor.test.exe",
+        "sha256": "9a475e2a26711e948717a3b8edff40a84db3a650f634e1252834b49893c5ae11"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/file.test.exe",
+        "sha256": "f3c2614bbe4fccad41919a5eaae3fe299900d7c0657f3fe3f766ff84022fb023"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/grep.test.exe",
+        "sha256": "278eb3d7fcd99ae8e3a035889e3da8abd282f8eef8c24b141ba0bed36841c93e"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/nxs.test.exe",
+        "sha256": "800c9cc224ad377cc31f13c8cf03bc39b576135d61a6c18d23f868dd51f99401"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/protocol.test.exe",
+        "sha256": "f29aa3c7e6fc0c2ad78a8abacda870fc862c94fc7ba4267883cb08b1040070a7"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/ripgrep.test.exe",
+        "sha256": "4abd53398a5ddd681c533ef5f4802689ecfd252960dbeb9c9f691b1e80e2980f"
+      }
+    ]
+  },
+  {
+    "repository": "bridge",
+    "revision": "f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103",
+    "GOOS": "windows",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "0",
+    "packages": [
+      "./client",
+      "./protocol"
+    ],
+    "command": [
+      "go",
+      "test",
+      "-c",
+      "-mod=readonly",
+      "-o",
+      "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows",
+      "./client",
+      "./protocol"
+    ],
+    "log": "bridge-windows-compile.log",
+    "exitCode": 0,
+    "nativeExecution": false,
+    "artifacts": [
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows/client.test.exe",
+        "sha256": "c692bb54e25d9c344995310d0d5805b66acbe2b3fb27fa04053a9d6032f9369d"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows/protocol.test.exe",
+        "sha256": "cd8df7fc221b426b2e62c00c72386ecae6790304205847e37c711e4d91c31ba4"
+      }
+    ]
+  },
+  {
+    "repository": "sdk",
+    "revision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d",
+    "GOOS": "linux",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "0",
+    "packages": [
+      "./cmd/nxs",
+      "./protocol",
+      "./internal/tool/executor",
+      "./internal/tool/builtin/glob",
+      "./internal/tool/builtin/grep",
+      "./internal/tool/builtin/ripgrep",
+      "./internal/tool/builtin/file"
+    ],
+    "command": [
+      "go",
+      "test",
+      "-c",
+      "-mod=readonly",
+      "-o",
+      "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux",
+      "./cmd/nxs",
+      "./protocol",
+      "./internal/tool/executor",
+      "./internal/tool/builtin/glob",
+      "./internal/tool/builtin/grep",
+      "./internal/tool/builtin/ripgrep",
+      "./internal/tool/builtin/file"
+    ],
+    "log": "sdk-linux-compile.log",
+    "exitCode": 0,
+    "nativeExecution": false,
+    "artifacts": [
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/executor.test",
+        "sha256": "93827c4edb34ec91e566d33256f4d30a26cfbcd67f08c6437cfe0bd4a2fc405a"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/file.test",
+        "sha256": "0360cef8ec9203ef9e872dd24e59c470fd652938d8a2ae482745d51c85e17242"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/grep.test",
+        "sha256": "7f27eaacd6ffac389ab6e5a1e79130c69584ac8f26cf91adcecae44022354386"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/nxs.test",
+        "sha256": "de63ede1c06d3b8675cbf9b79fd71eb3a21ccf633b476956255bf9d70ac1f7ec"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/protocol.test",
+        "sha256": "94c5955324c2e1331efaecbc650e9e52519d6bf3d2b6d37a18e7ea340656ce5d"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/ripgrep.test",
+        "sha256": "8230a4ffee61c29bcfda7be035d21fb0582369d3e3d3a5a677d6c663883b45d5"
+      }
+    ]
+  },
+  {
+    "repository": "bridge",
+    "revision": "f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103",
+    "GOOS": "linux",
+    "GOARCH": "amd64",
+    "CGO_ENABLED": "0",
+    "packages": [
+      "./client",
+      "./protocol"
+    ],
+    "command": [
+      "go",
+      "test",
+      "-c",
+      "-mod=readonly",
+      "-o",
+      "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux",
+      "./client",
+      "./protocol"
+    ],
+    "log": "bridge-linux-compile.log",
+    "exitCode": 0,
+    "nativeExecution": false,
+    "artifacts": [
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux/client.test",
+        "sha256": "cdfb50627f2d57d09fabe112367e6f8c762a9b2ce3771b3a35baff3b1c2dda7e"
+      },
+      {
+        "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux/protocol.test",
+        "sha256": "61203a4efa12859b00da894e638990e6ecffeb29d48c59cc19e7abad98ac4c47"
+      }
+    ]
+  }
+]

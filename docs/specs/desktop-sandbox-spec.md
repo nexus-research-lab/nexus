@@ -14,8 +14,8 @@ Server deployments retain their existing runtime identity/isolation policy even
 if the flag is present. Agent settings cannot set the internal host policy marker.
 
 DM, Room and background memory maintenance use the same client-options builder.
-For restricted approval modes, it requires both nxs `required_sandbox_v1` and
-`sandbox_file_tools_v1` negotiation;
+For restricted approval modes, it requires nxs `required_sandbox_v1`,
+`sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation;
 an unsupported runtime fails instead of silently accepting an unenforced policy.
 Negotiation is not proof of current dependencies or an installed effective policy.
 Native file-tool capability is currently declared only by macOS nxs builds;
@@ -102,6 +102,23 @@ on preparation or execution failure. This contract does not cover Glob/Grep,
 Notebook, startup settings, Skills, background memory or the entire SDK process.
 Normal settings cannot substitute for this host requirement, and changing it
 requires runtime replacement. It is a coverage requirement, not a user sandbox toggle.
+
+The host additionally sets `SandboxSettings.RequireSearchTools` and initialize
+`required_sandbox_search_tools`. An older SDK that confirms commands and
+Read/Write/Edit but lacks `sandbox_search_tools_v1` is rejected before task writes.
+Search coverage is currently macOS-only: Glob/Grep path checks, missing-path
+suggestions, rg and result metadata use the same restricted file environment.
+The auxiliary process uses a minimal environment and denies network access,
+including when the runtime resolves a custom rg executable. If a ResourcePolicy
+is supplied, search uses the same write scope and scratch. Preparation, execution,
+cancellation and output-limit failures do not fall back to direct host IO or retry
+through the ordinary runner. Restricted searches return complete results or an
+explicit failure; single-file content/count results retain their filename.
+This independent requirement also participates in process-policy identity and
+requires runtime replacement when changed. It does not cover Notebook, startup
+configuration, Skills, background memory, full descendant supervision or an
+effective-policy receipt; the older file capability retains its original scope.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature

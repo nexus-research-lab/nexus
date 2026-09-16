@@ -1,5 +1,5 @@
 // INPUT: 不进入普通 settings JSON 的宿主沙箱要求。
-// OUTPUT: 文件能力、资源范围和 scratch 改变都会改变进程策略身份。
+// OUTPUT: 文件/搜索能力、资源范围和 scratch 改变都会改变进程策略身份。
 // POS: runtime 重用前的资源版本栅栏回归。
 package runtime
 
@@ -15,6 +15,7 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 	previous := managedRuntimeProcessPolicyFingerprint(base)
 	for _, change := range []func(){
 		func() { base.Sandbox.RequireFileTools = true },
+		func() { base.Sandbox.RequireSearchTools = true },
 		func() {
 			base.Sandbox.Resources = &bridge.SandboxResourcePolicy{Version: 1, WriteScope: bridge.SandboxWriteScopeReadOnly, ScratchRoot: t.TempDir()}
 		},
