@@ -3,10 +3,13 @@
  * OUTPUT: 可搜索、可恢复且保留 stale Agent 数据的联系人侧栏。
  * POS: Home 联系人目录视图；不直接发起 bootstrap 请求；私聊准备按导航代次隔离，未知结果只进入目录核对。
  */
+import { HumanContactsDirectory } from "@/features/team/human-contacts-directory";
 import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
@@ -33,6 +36,9 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
+  const { status } = useAuth();
+  const online = hasOrganizationAccess(status);
+  const members = online && new URLSearchParams(location.search).get("view") === "members";
   const setActiveItem = useSidebarStore((state) => state.set_active_panel_item);
   const clearTargetNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_target,
@@ -115,11 +121,17 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     }
   }, [clearTargetNotifications, openRoute, setActiveItem, t]);
 
+  const contactTabs = online ? <div className="mx-2.5 mb-2 max-[559px]:mx-4"><UiSegmentedControl density="compact" stretch title={t("sidebar.search_contacts")} value={members ? "members" : "agents"}
+        options={[{value: "agents", label: "Agent"}, {value: "members", label: t("team.human_contacts")}]}
+        onChange={(value) => { setQuery(""); openRoute(value === "members" ? "/contacts?view=members" : "/contacts"); }} /></div> : null;
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.contacts_list}
     >
+
+      {members ? <HumanContactsDirectory sidebar afterSearch={contactTabs} /> : <>
       <SidebarSearchField
         action={(
           <SidebarSearchAction
@@ -133,6 +145,8 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
         label={t("sidebar.search_contacts")}
         value={query}
       />
+      {contactTabs}
+
 
       {isLoading ? (
         <SidebarListLoadingRows />
@@ -194,6 +208,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
           )}
         </div>
       )}
+      </>}
     </div>
   );
 });

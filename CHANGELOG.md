@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Allow removing human DMs from your own sidebar while preserving both participants’ history; reopen from Contacts or receive a new message to show the chat again. Retry uncertain removal with the original command.
+
+- Remove the empty-chat prompt from online conversations while retaining loading feedback.
+
+- Show a searchable organization member list by default in Contacts, reusing the Agent directory header, content gutters and list layout.
+
+- Separate Contacts into Agent and Organization members with the switch below search and aligned responsive gutters; select a person to view their profile, then start a direct message, with the same hover chat shortcut as Agent rows and without standalone DM buttons or a duplicate directory.
+
+- Add same-organization human direct messages from Contacts, reuse the online Room timeline and durable delivery, and deliver group invitations as actionable DM cards.
+
+- Hide the empty group-invitation sidebar section and show retry only after a read failure, preserving pending invitations and ownership recovery.
+
 - Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
 
 - Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.

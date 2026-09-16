@@ -40,3 +40,5 @@
 - 保存反馈的 error 阶段也可能承载结果待确认的 warning；详情入口和标题统一使用中性“保存状态”，正文原样保留权威反馈，不从视图阶段推断已应用或失败。
 
 - 联络聊天将共享 FOLLOW 的 `showScrollToBottom` 与 `scrollToBottom` 原样投影到公共回到底部入口，同时声明浮动控件占位；不得固定隐藏滚动动作或另维护一份阅读状态。
+
+- Agent 与组织成员分别通过联系人侧栏页签进入；真人目录和详情复用 `team/human-contacts-directory.tsx`，不在 Agent 总览混入真人列表。

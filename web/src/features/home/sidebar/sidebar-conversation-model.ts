@@ -29,6 +29,7 @@ export interface SidebarConversationItem {
   conversationId?: string;
   sessionKey?: string;
   agentId?: string;
+  directUserId?: string;
   lastActivityAt: number;
   messageCount: number;
   notificationKey?: string | null;
@@ -110,11 +111,12 @@ export function buildTeamConversationItem({
   return {
     activityStatus: null,
     avatar: team.room.avatar || null,
-    canDelete: false,
+    canDelete: Boolean(team.room.direct_user_id),
     conversationId: team.conversation.id,
     id: `team:${team.conversation.id}`,
     isPinned: false,
     kind: "team",
+    directUserId: team.room.direct_user_id,
     lastActivityAt,
     members: [],
     messageCount: team.conversation.high_water_message_seq,

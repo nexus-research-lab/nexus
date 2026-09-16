@@ -6,7 +6,7 @@ const TEAM_API_BASE_URL = `${getAgentApiBaseUrl()}/team`;
 
 export interface TeamMessageContent {
   version: 1;
-  blocks: Array<{ type: "markdown"; text: string }>;
+  blocks: Array<{ type: "markdown" | "room_invitation"; text: string; room_id?: string; invitee_user_id?: string; invited_at?: string }>;
 }
 
 export interface TeamMessage {
@@ -30,6 +30,7 @@ export interface TeamRoomView {
   room: {
     id: string;
     organization_id: string;
+    direct_user_id?: string;
     team_id?: string;
     name: string;
     description: string;
@@ -154,6 +155,7 @@ export function listTeamRooms(signal?: AbortSignal): Promise<TeamRoomList> {
 
 export function createTeamRoom(
   input: {
+    direct_user_id?: string;
 		agent_ids: string[];
 		avatar?: string;
 		coordinator_agent_id?: string;
@@ -199,7 +201,7 @@ export function updateTeamRoomCoordinator(roomId: string, agentId: string, versi
   return updateTeamRoomSettings(roomId, { coordinator_agent_id: agentId }, version, commandId);
 }
 
-export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; coordinator_agent_id?: string; dissolve?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
+export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; coordinator_agent_id?: string; dissolve?: boolean; hide_direct?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
   return requestApi<TeamRoomConfigurationMutation>(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`, {
     body: { ...change, expected_configuration_version: version },
     headers: { "Idempotency-Key": commandId },

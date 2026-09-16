@@ -19,8 +19,11 @@ const (
 
 // ContentBlock 是一段版本化消息正文。
 type ContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	RoomID        string `json:"room_id,omitempty"`
+	InviteeUserID string `json:"invitee_user_id,omitempty"`
+	InvitedAt     string `json:"invited_at,omitempty"`
+	Type          string `json:"type"`
+	Text          string `json:"text"`
 }
 
 // MessageContent 是 Relay 保存的共享正文。
@@ -37,6 +40,7 @@ type MessageMention struct {
 
 // Room 是显式创建的在线协作空间。
 type Room struct {
+	DirectUserID           string    `json:"direct_user_id,omitempty"`
 	ID                     string    `json:"id"`
 	OrganizationID         string    `json:"organization_id"`
 	TeamID                 string    `json:"team_id,omitempty"`
@@ -134,6 +138,7 @@ type RoomConfigurationMutation struct {
 
 // CreateRoomInput 是显式建群请求。
 type CreateRoomInput struct {
+	DirectUserID           string   `json:"direct_user_id,omitempty"`
 	Name                   string   `json:"name"`
 	Description            string   `json:"description,omitempty"`
 	Avatar                 string   `json:"avatar,omitempty"`
@@ -163,6 +168,7 @@ type UpdateRoomAgentInput struct {
 
 // UpdateRoomInput 更新群资料、主持 Agent，或显式解散群。
 type UpdateRoomInput struct {
+	HideDirect                   bool    `json:"hide_direct,omitempty"`
 	Dissolve                     bool    `json:"dissolve,omitempty"`
 	CoordinatorAgentID           *string `json:"coordinator_agent_id,omitempty"`
 	Name                         *string `json:"name,omitempty"`

@@ -122,15 +122,19 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         busy={controller.deletion.action !== null}
         confirmText={deletionRecovery
           ? t(deletionRecovery.confirmTextKey)
-          : t("common.delete")}
-        failure={deletionFailure}
+          : t(controller.deletion.target?.directCommand ? "home.direct_remove" : "common.delete")}
+        failure={controller.deletion.directDeleteFailed ? {
+          title: t("home.direct_delete_failed"),
+          impact: t("home.direct_delete_unknown"),
+          nextStep: t("home.direct_delete_retry"),
+        } : deletionFailure}
         isOpen={controller.deletion.target !== null}
-        message={t("home.delete_message", {
+        message={t(controller.deletion.target?.directCommand ? "home.direct_delete_message" : "home.delete_message", {
           name: controller.deletion.target?.name ?? "",
         })}
         onCancel={controller.deletion.cancel}
         onConfirm={controller.deletion.confirm}
-        title={t("home.delete_confirm")}
+        title={t(controller.deletion.target?.directCommand ? "home.direct_remove" : "home.delete_confirm")}
         variant={deletionRecovery?.variant ?? "danger"}
       />
 
