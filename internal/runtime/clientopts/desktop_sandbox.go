@@ -40,7 +40,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	}
 	yes := true
 	options.Sandbox = &agentclient.SandboxSettings{
-		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, Enabled: &yes, FailIfUnavailable: &yes,
+		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireSkillFiles: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{
