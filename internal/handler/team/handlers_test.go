@@ -938,3 +938,24 @@ type relayClient interface {
 	teamsvc.RelayClient
 	relayStream
 }
+
+func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		tokens := &teamTokenStub{token: "relay-token"}
+		if denied {
+			tokens.verifyErr = authsvc.ErrOrganizationMemberInvalid
+		}
+		relay := &teamRelayStub{}
+		response := teamRequest(t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost, "/nexus/v1/team/rooms", `{"direct_user_id":"peer"}`, true)
+		if !reflect.DeepEqual(tokens.verifiedUserIDs, []string{"peer"}) {
+			t.Fatalf("peer not verified: %+v", tokens)
+		}
+		if denied {
+			if response.Code != http.StatusForbidden || relay.createRoomCalls != 0 {
+				t.Fatalf("unverified DM created: %d", response.Code)
+			}
+		} else if response.Code != http.StatusOK || relay.roomInput.DirectUserID != "peer" {
+			t.Fatalf("DM not forwarded: %d %+v", response.Code, relay.roomInput)
+		}
+	}
+}

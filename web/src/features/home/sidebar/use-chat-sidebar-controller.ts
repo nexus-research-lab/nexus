@@ -13,7 +13,7 @@ import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-
 import { useTeamRooms } from "@/features/team/use-team-rooms";
 import { useTeamMembers } from "@/features/team/use-team-members";
 import { useTeamInvitations } from "@/features/team/use-team-invitations";
-import { createTeamRoom } from "@/lib/api/conversation/team-api";
+import { createTeamRoom, updateTeamRoomSettings } from "@/lib/api/conversation/team-api";
 import { publishControlAgentApi } from "@/lib/api/account/control-api";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
 import { projectMutationFailure } from "@/lib/error-message";
@@ -41,6 +41,7 @@ import {
 } from "./room-deletion-recovery";
 
 interface DeleteTarget {
+  directCommand?: { id: string; version: number; ownerGeneration: number };
   agentId?: string;
   id: string;
   name: string;
@@ -91,6 +92,8 @@ export function useChatSidebarController({
   const [deleteAction, setDeleteAction] = useState<"check" | "delete" | null>(null);
   const [deleteFailure, setDeleteFailure] = useState<RoomDeletionFailure | null>(null);
   const deletionRunningRef = useRef(false);
+  const directCommandsRef = useRef(new Map<string, NonNullable<DeleteTarget["directCommand"]>>());
+  const [directDeleteFailed, setDirectDeleteFailed] = useState(false);
   const createSubmittingRef = useRef(false);
   const unresolvedDeletionsRef = useRef(new Map<string, {
     failure: RoomDeletionFailure;
@@ -137,8 +140,11 @@ export function useChatSidebarController({
       ...onlineRooms.rooms.map((team) => buildTeamConversationItem({
         fallbackTitle: t("team.shared_room"),
         locale,
-        summary: t("team.shared_room_summary"),
-        team,
+        summary: t(team.room.direct_user_id ? "team.direct_message" : "team.shared_room_summary"),
+        team: team.room.direct_user_id ? { ...team, room: { ...team.room,
+          name: teamMembers.find((member) => member.user_id === team.room.direct_user_id)?.display_name || teamMembers.find((member) => member.user_id === team.room.direct_user_id)?.username || team.room.direct_user_id,
+          avatar: teamMembers.find((member) => member.user_id === team.room.direct_user_id)?.avatar || "",
+        }} : team,
       })),
     ], locale);
   }, [
@@ -150,6 +156,7 @@ export function useChatSidebarController({
     conversationItems,
     locale,
     onlineRooms.rooms,
+    teamMembers,
     t,
   ]);
   const filteredItems = useMemo(
@@ -293,6 +300,27 @@ export function useChatSidebarController({
     const ownerGeneration = captureAuthOwnerScopeGeneration();
     const target = deleteTarget;
     try {
+      if (target.directCommand) {
+        if (target.directCommand.ownerGeneration !== ownerGeneration) return;
+        setDeleteAction("delete");
+        setDirectDeleteFailed(false);
+        try {
+          await updateTeamRoomSettings(target.id, { hide_direct: true }, target.directCommand.version, target.directCommand.id);
+          if (!isAuthOwnerScopeGenerationCurrent(ownerGeneration)) return;
+          directCommandsRef.current.delete(target.id);
+          finishDeletion(target);
+          onlineRooms.remove(target.id);
+          onlineRooms.refresh();
+          const selected = new URLSearchParams(location.search).get("room_id") ?? onlineRooms.rooms[0]?.room.id;
+          if (location.pathname === AppRouteBuilders.team() && selected === target.id) {
+            setActiveItem(null);
+            navigate(AppRouteBuilders.home());
+          }
+        } catch {
+          if (isAuthOwnerScopeGenerationCurrent(ownerGeneration)) setDirectDeleteFailed(true);
+        }
+        return;
+      }
       const command = getRoomDeletionCommand(deleteFailure);
       if (command === "dismiss") {
         finishDeletion(target);
@@ -337,6 +365,7 @@ export function useChatSidebarController({
       setDeleteAction(null);
     }
   }, [
+    location, navigate, onlineRooms, setActiveItem,
     deleteFailure,
     deleteTarget,
     finishDeletion,
@@ -348,6 +377,20 @@ export function useChatSidebarController({
     if (deletionRunningRef.current || !item.canDelete || !item.roomId || (item.kind === "dm" && isMainAgent(item.agentId))) {
       return;
     }
+    setDirectDeleteFailed(false);
+    if (item.kind === "team" && item.directUserId) {
+      const room = onlineRooms.rooms.find((value) => value.room.id === item.roomId);
+      if (!room) return;
+      const generation = captureAuthOwnerScopeGeneration();
+      const previous = directCommandsRef.current.get(item.roomId);
+      const command = previous?.ownerGeneration === generation ? previous : {
+        id: crypto.randomUUID(), version: room.room.configuration_version, ownerGeneration: generation,
+      };
+      directCommandsRef.current.set(item.roomId, command);
+      setDeleteFailure(null);
+      setDeleteTarget({ id: item.roomId, name: item.title, directCommand: command });
+      return;
+    }
     const unresolved = unresolvedDeletionsRef.current.get(item.roomId);
     setDeleteFailure(
       unresolved?.ownerGeneration === captureAuthOwnerScopeGeneration()
@@ -355,7 +398,7 @@ export function useChatSidebarController({
         : null,
     );
     setDeleteTarget({ id: item.roomId, name: item.title, agentId: item.kind === "dm" ? item.agentId : undefined });
-  }, []);
+  }, [onlineRooms.rooms]);
 
   const cancelDelete = useCallback(() => {
     if (deletionRunningRef.current) {
@@ -387,6 +430,7 @@ export function useChatSidebarController({
       users: teamMembers,
     },
     deletion: {
+      directDeleteFailed,
       action: deleteAction,
       cancel: cancelDelete,
       confirm: confirmDelete,
@@ -408,7 +452,7 @@ export function useChatSidebarController({
       retry: refreshDirectory,
       setQuery,
     },
-    invitations: teamInvitations,
+    invitations: {...teamInvitations, invitations: teamInvitations.invitations.filter((invitation) => !onlineRooms.rooms.some((room) => room.room.direct_user_id === invitation.invited_by_user_id))},
   };
 }
 

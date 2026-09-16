@@ -2,7 +2,7 @@
 // OUTPUT: 复用 Room Header、FOLLOW/READING 阅读轨道、本人消息和 Composer，保留独立读取重试。
 // POS: Relay 真人消息与完整 Agent 回复到 Nexus Room UI 的窄适配层；不推断运行态或流式输出。
 
-import { FormEvent, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, FormEvent, useEffect, useState, useSyncExternalStore } from "react";
 import { MonitorCheck } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
@@ -12,7 +12,7 @@ import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-l
 import { UiButton } from "@/shared/ui/button/button";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { listControlAgentDirectoryApi, type ControlAgentDirectoryEntry } from "@/lib/api/account/control-api";
+import { listControlAgentDirectoryApi, type ControlMemberDirectoryEntry, type ControlAgentDirectoryEntry } from "@/lib/api/account/control-api";
 
 import { MessageUserSection } from "@/features/conversation/shared/message/item/view/user/message-user-section";
 import { ContentRenderer } from "@/features/conversation/shared/message/item/view/content/content-renderer";
@@ -36,6 +36,8 @@ import {
   COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
 } from "@/features/conversation/shared/composer/composer-styles";
 import { formatMessageTime } from "@/features/conversation/shared/message/message-time";
+import { useTeamInvitations } from "@/features/team/use-team-invitations";
+import { TeamInvitationList } from "@/features/team/team-invitation-list";
 import { useTeamRoom } from "@/features/team/use-team-room";
 import { useTeamMembers } from "@/features/team/use-team-members";
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
@@ -47,7 +49,7 @@ import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { cn } from "@/shared/ui/class-name";
-import { UiRoomAvatar } from "@/shared/ui/display/avatar";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
@@ -89,7 +91,9 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
     sessionKey: room.room?.conversation.id ?? null,
   });
   const isCompact = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
-  const title = room.room?.room.name ?? t("team.shared_room");
+  const directUserId = room.room?.room.direct_user_id;
+  const peer = memberDirectory.find((member) => member.user_id === directUserId);
+  const title = directUserId ? peer?.display_name || peer?.username || directUserId : room.room?.room.name ?? t("team.shared_room");
   const headerMembers = (room.room?.members ?? []).filter((member) => member.state === "active").map((member) => {
     const agent = member.member_type === "agent" ? agentDirectory.find((entry) => entry.agent_id === member.member_id) : undefined;
     const person = member.member_type === "user" ? memberDirectory.find((entry) => entry.user_id === member.member_id) : undefined;
@@ -135,7 +139,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             <div className="nexus-room-conversation-header-edge" data-room-conversation-header-edge="true">
               <WorkspaceSurfaceHeader
                 leading={(
-                  <UiRoomAvatar
+                  directUserId ? <UiAgentAvatar avatar={peer?.avatar} name={title} size="md" /> : <UiRoomAvatar
                     avatar={room.room?.room.avatar}
                     members={headerMembers.map((member) => ({ id: member.agent_id, name: member.name, avatar: member.avatar }))}
                     roomId={room.room?.room.id}
@@ -153,7 +157,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
                     onCloseConversation={() => {}}
                   />
                 ) : null}
-                navigationTrailing={room.room ? (
+                navigationTrailing={room.room && !directUserId ? (
                   <>
                     <UiButton aria-label={t("team.node_title")} className="workspace-surface-header-control-segment h-9 gap-1.5 px-2.5" onClick={() => setNodeOpen(true)} size="md" variant="ghost">
                       <MonitorCheck aria-hidden="true" className="h-3.5 w-3.5" />
@@ -175,6 +179,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             >
               <div ref={scroll.feedRef} className="min-h-full">
               <TeamMessageFeed
+                memberDirectory={memberDirectory} directUserId={directUserId}
                 agentDirectory={agentDirectory}
                 currentUserId={status?.control_user_id ?? status?.user_id ?? null}
                 isCompact={isCompact}
@@ -242,7 +247,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
                             void sendDraft();
                           }
                         }}
-                        placeholder={t("team.message_placeholder")}
+                        placeholder={t(directUserId ? "team.direct_placeholder" : "team.message_placeholder")}
                         rows={1}
                         style={{ maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX }}
                         value={room.pendingText ?? draft}
@@ -289,6 +294,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
 
 function TeamMessageFeed({
   agentDirectory,
+  memberDirectory, directUserId,
   currentUserId,
   isCompact,
   isLoading,
@@ -296,6 +302,7 @@ function TeamMessageFeed({
   messages,
 }: {
   agentDirectory: ControlAgentDirectoryEntry[];
+  memberDirectory: ControlMemberDirectoryEntry[]; directUserId?: string;
   currentUserId: string | null;
   isCompact: boolean;
   isLoading: boolean;
@@ -303,37 +310,59 @@ function TeamMessageFeed({
   messages: TeamMessage[];
 }) {
   const { t } = useI18n();
+  const onAccepted = useCallback(() => { window.dispatchEvent(new Event("focus")); }, []);
+  const invitations = useTeamInvitations(onAccepted, Boolean(directUserId));
+  const pending = invitations.invitations.filter((item) => item.invited_by_user_id === directUserId);
   if (loadFailed && !isLoading && messages.length === 0) return null;
-  if (messages.length === 0) {
+  if (messages.length === 0 && pending.length === 0) {
+    if (!isLoading) return null;
     return (
-      <div role={isLoading ? "status" : undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex h-full min-h-64 items-center justify-center ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>
-        {t(isLoading ? "team.loading" : "team.empty")}
+      <div role="status" className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex h-full min-h-64 items-center justify-center ${getUiTypographyClassName({ role: "supporting", tone: "muted" })}`}>
+        {t("team.loading")}
       </div>
     );
   }
   const agentsByID = new Map(agentDirectory.map((agent) => [agent.agent_id, agent]));
   return (
     <ol aria-busy={isLoading || undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col gap-5`}>
-      {messages.map((message) => (
+      {messages.map((message) => message.content.blocks.some((block) => block.type === "room_invitation") ? (
+        <li key={message.id} className="px-3 py-2 text-sm text-(--text-muted)">
+          {message.content.blocks.filter((block) => block.type === "room_invitation").map((block, index) => {
+            const pendingInvitation = pending.find((item) => item.room.id === block.room_id && new Date(item.created_at).getTime() === new Date(block.invited_at ?? "").getTime());
+            return pendingInvitation ? <TeamInvitationList key={index} {...invitations} invitations={[pendingInvitation]} recoveryRooms={[]}
+              onRefresh={invitations.refresh} onResolve={invitations.resolve} onRecover={invitations.recover} /> : (
+            <div key={index} className="rounded-xl border divider-subtle p-4">
+              <span>{t("team.pending_invitations")} · {block.text}</span>
+              <time className="ml-3" dateTime={message.created_at}>{formatMessageTime(new Date(message.created_at).getTime())}</time>
+              <p className="mt-2">{t(block.invitee_user_id !== currentUserId ? "team.invitation_sent" : invitations.loading ? "team.loading" : invitations.failed ? "team.invitation_failed" : "team.invitation_closed")}</p>
+            </div>
+          ); })}
+        </li>
+      ) : (
         <TeamMessageItem
           agent={message.author_type === "agent" ? agentsByID.get(message.author_agent_id ?? "") : undefined}
+          person={memberDirectory.find((member) => member.user_id === message.author_user_id)}
           currentUserId={currentUserId}
           isCompact={isCompact}
           key={message.id}
           message={message}
         />
       ))}
+      {directUserId ? <li><TeamInvitationList {...invitations} invitations={pending.filter((item) => !messages.some((message) => message.content.blocks.some((block) => block.room_id === item.room.id && new Date(block.invited_at ?? "").getTime() === new Date(item.created_at).getTime())))} recoveryRooms={[]}
+        onRefresh={invitations.refresh} onResolve={invitations.resolve} onRecover={invitations.recover} /></li> : null}
     </ol>
   );
 }
 
 function TeamMessageItem({
+  person,
   agent,
   currentUserId,
   isCompact,
   message,
 }: {
   agent?: ControlAgentDirectoryEntry;
+  person?: ControlMemberDirectoryEntry;
   currentUserId: string | null;
   isCompact: boolean;
   message: TeamMessage;
@@ -360,11 +389,11 @@ function TeamMessageItem({
       </li>
     );
   }
-  const author = agent?.name || message.author_display_name || message.author_username || "?";
+  const author = agent?.name || person?.display_name || person?.username || message.author_display_name || message.author_username || "?";
   return (
     <li className="nexus-chat-message-section px-0 sm:px-3">
       <div className="flex min-w-0 gap-3">
-        <MessageAvatar avatarUrl={agent?.avatar} title={author}>
+        <MessageAvatar avatarUrl={agent?.avatar || person?.avatar} title={author}>
           <span aria-hidden="true" className={getUiTypographyClassName({ role: "supporting", weight: "semibold" })}>{getInitials(author, "?", 1)}</span>
         </MessageAvatar>
         <div className="min-w-0 flex-1">

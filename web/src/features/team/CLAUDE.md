@@ -26,3 +26,9 @@
 - 在线 Agent 暂停保留成员身份，只阻断后续投递资格；仅 Agent 所有者可暂停或恢复，暂停主持 Agent 时 Relay 同时清空主持职责。
 - Agent 发布和入群由成员资源的同一个同步单飞锁持有，发布错误进入可见失败状态；删除弹窗的独立异步发布路径。读取失败保留已有快照并可手动刷新。
 - `use-team-invitations.ts` 持有当前真人的 pending 邀请与幂等接受/拒绝；`team-invitation-list.tsx` 只在聊天目录展示待处理项。
+
+- 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
+
+- 邀请列表在无邀请、无群主接管待办且读取成功时不渲染，首次加载也不显示空标题；只在读取失败时显示重试。真人 DM 尚未接入前，保留待办的接受、拒绝与接管入口。
+
+- `human-contacts-directory.tsx` 展示当前组织真人，排除自己并通过 `direct_user_id` 打开唯一双人 Relay Room；不创建本地 Agent 会话。私聊复用发送、outbox、snapshot/difference 和邀请处理，隐藏群治理与本机 Agent 执行入口。

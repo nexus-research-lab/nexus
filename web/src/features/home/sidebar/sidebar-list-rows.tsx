@@ -59,7 +59,7 @@ function ConversationRowLeading({
   isActive: boolean;
   item: SidebarConversationItem;
 }) {
-  if (item.kind !== "dm") {
+  if (item.kind !== "dm" && !item.directUserId) {
     return (
       <UiRoomAvatar
         avatar={item.avatar}
@@ -181,7 +181,7 @@ export function ConversationRow({
       leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
-          deleteLabel={t("common.delete")}
+          deleteLabel={t(item.directUserId ? "home.direct_remove" : "common.delete")}
           onDelete={onDelete}
           timeLabel={item.timeLabel}
         />

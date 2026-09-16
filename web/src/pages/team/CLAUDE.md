@@ -19,3 +19,5 @@
 - Composer 恢复发件箱的原正文，不能用当前空草稿覆盖未知命令；失去群访问权后禁用输入。Header 使用远端 Room 当前名称和头像，解散/退出完成后重新核对目录。
 
 - 顶栏复用 Room 的 WorkspaceConversationTabs 与 GroupMemberAvatarStack：在线唯一会话不提供关闭、新建、固定或本地工作区命令；成员摘要仅计 active 真人和 Agent，目录只补名称与头像。本机授权作为同规格轻量动作，窄屏保留具名图标。
+
+- 真人 DM 通过 `room.direct_user_id` 解析对方姓名头像；消息沿用同一 Feed/Composer。`room_invitation` 是 Relay 生成的持久卡片，操作必须匹配当前待处理邀请和邀请时间；旧邀请没有消息卡片时在对应私聊补显示待办，不能根据卡片直接推断授权。

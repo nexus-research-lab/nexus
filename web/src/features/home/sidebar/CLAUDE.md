@@ -1,5 +1,8 @@
 # sidebar/ - Home 侧栏
 
+- 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
+
+
 - 聊天摘要使用共享 Markdown `summary` 入口并注入当前语言的公式标记；不在侧栏运行 KaTeX、展示公式滚动区或修改原始摘要。行高/截断仍由共享列表及目录密度负责。
 - `sidebar-directory.ts` 只提供共享 Home 目录；聊天和联系人入口都不得在侧栏订阅 Agent runtime。
 - `../home-directory-refresh-error-notice.tsx` 是 Launcher、聊天侧栏和联系人侧栏共用的 stale 目录恢复入口；它只提供安全重读，并通过 `UiInlineNotice` 获取提示与动作视觉，不得自建错误卡片。
@@ -23,3 +26,7 @@
 - 联系人私聊准备按路由代次屏蔽迟到导航和卸载后的副作用，同一智能体的 pending 请求禁止重复发送；只有服务端证明未应用才允许显式重试，其余失败只引导查看聊天目录核对，不自动重放准备命令。
 
 - 在线建群提交使用同步 in-flight ref 防重，失败继续复用相同名称的原 request identity；并发点击不能重复发起请求。
+
+- 在线真人 DM 保持 `team` 路由，使用 `directUserId` 选择真人头像；邀请人已有 DM 时在私聊内处理邀请，侧栏仅保留尚无 DM 的历史邀请和群主恢复入口。
+
+- 联系人侧栏通过共享分段控件切换“Agent｜组织成员”；真人列表复用侧栏行，点击进入 `/contacts?view=members&member=...` 详情，发消息才创建 DM；真人行复用 Agent 的悬浮聊天图标，图标点击阻止冒泡并直接打开 DM。聊天侧栏不放独立私聊入口。

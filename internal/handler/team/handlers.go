@@ -153,8 +153,12 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
+	memberIDs := append([]string(nil), input.MemberUserIDs...)
+	if input.DirectUserID != "" {
+		memberIDs = append(memberIDs, input.DirectUserID)
+	}
 	if err := h.tokens.VerifyOrganizationMembers(
-		request.Context(), authsvc.PrincipalFromContext(request.Context()), input.MemberUserIDs,
+		request.Context(), authsvc.PrincipalFromContext(request.Context()), memberIDs,
 	); err != nil {
 		if errors.Is(err, authsvc.ErrOrganizationMemberInvalid) {
 			h.api.WriteError(writer, request, http.StatusForbidden, handlershared.FailureSpec{
