@@ -47,6 +47,7 @@ type runtimeProcessPolicy struct {
 	SandboxContextFilesRequired  bool                               `json:"sandbox_context_files_required,omitempty"`
 	SandboxProjectFilesRequired  bool                               `json:"sandbox_project_files_required,omitempty"`
 	SandboxManagedPolicyRequired bool                               `json:"sandbox_managed_policy_required,omitempty"`
+	SandboxSettingsFilesRequired bool                               `json:"sandbox_settings_files_required,omitempty"`
 	SandboxResources             *agentclient.SandboxResourcePolicy `json:"sandbox_resources,omitempty"`
 	ExtraArgs                    map[string]string                  `json:"extra_args,omitempty"`
 	ExtraBoolArgs                []string                           `json:"extra_bool_args,omitempty"`
@@ -88,6 +89,7 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 		policy.SandboxContextFilesRequired = options.Sandbox.RequireContextFiles
 		policy.SandboxProjectFilesRequired = options.Sandbox.RequireProjectFiles
 		policy.SandboxManagedPolicyRequired = options.Sandbox.RequireManagedPolicy
+		policy.SandboxSettingsFilesRequired = options.Sandbox.RequireSettingsFiles
 		policy.SandboxResources = options.Sandbox.Resources
 	}
 	if options.DirectConnect != nil {

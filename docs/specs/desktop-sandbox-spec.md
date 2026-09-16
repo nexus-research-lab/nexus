@@ -184,6 +184,23 @@ participates in process identity and currently acknowledges the macOS backend.
 Ordinary settings and credentials, permission-persistence concurrency, hook
 execution, background IO and effective-policy receipts remain separate work.
 
+The host additionally requires `SandboxSettings.RequireSettingsFiles`, initialize
+`required_sandbox_settings_files` and `sandbox_settings_files_v1`. nxs fixes the
+config root and selected sources before profile projection. Required execution
+uses the file worker for ordinary user/project/local/flag settings, filters disabled
+sources before IO, and rejects incomplete or invalid snapshots. Runtime consumers
+share a bound snapshot; child runtimes clone independent update state. Source
+changes or read errors block query, compact, tool dispatch, file-context preparation
+and settings controls or permission updates. Restoring the original content permits recovery;
+new file contents require runtime recreation. `get_settings` uses the bound flag
+sources. Dynamic updates reject fields whose execution configuration is static.
+The requirement participates in process identity and currently acknowledges macOS.
+Snapshot checks around permission updates do not establish rooted atomic writes,
+cross-process transactions or durable approval/receipt ownership. Those guarantees,
+The builtin Config tool retains its separate file read/write path and is not covered
+by this runtime-input capability. Provider credential separation and background IO
+remain pending.
+
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature
