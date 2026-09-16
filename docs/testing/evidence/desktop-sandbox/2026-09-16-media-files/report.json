@@ -1,0 +1,421 @@
+{
+  "version": 1,
+  "archivedOn": "2026-09-16",
+  "scope": "macOS local media-file confinement and independent SDK/Bridge/host admission",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "143e987c2e45adece435bda1621aef81bcac4040",
+  "bridgeRevision": "eeaff7df69f324bf5d1e346692e30f39235ce0c5",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260916013218-eeaff7df69f3",
+    "sum": "h1:txRuwSPedbxkbZEPNilyj5BxoT2/de6t6ADnhxNI0X4=",
+    "availability": "local-only, unpublished; exact-commit file proxy"
+  },
+  "nexusBaselineRevision": "86ec36fca78a1bf89dc08a6891c002d1df74ab4e",
+  "nexusChangesDuringBaseline": [
+    "M AGENTS.md",
+    " M CHANGELOG.md",
+    " M docs/README.md",
+    " M docs/specs/desktop-sandbox-spec.md",
+    " M go.mod",
+    " M go.sum",
+    " M internal/runtime/clientopts/desktop_sandbox.go",
+    " M internal/runtime/clientopts/desktop_sandbox_integration_test.go",
+    " M internal/runtime/clientopts/desktop_sandbox_test.go",
+    " M internal/runtime/clientopts/doc.go",
+    " M internal/runtime/doc.go",
+    " M internal/runtime/process_policy.go",
+    " M internal/runtime/process_policy_test.go",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-xr21tb/nxs",
+    "sha256": "a61a7f632062d9f209755e957b64c446e3c43bdd6d763776f5f8cc676d4490f6",
+    "source": "fixed-sdk-archive"
+  },
+  "baseline": {
+    "log": "baseline-report.json",
+    "exitCode": 0,
+    "GOWORK": "off",
+    "requiredTopLevelTests": 44,
+    "requiredSubtests": 72,
+    "requiredSkips": [],
+    "logs": {
+      "nexus-revision": {
+        "stdout": "nexus-revision.stdout.log",
+        "stderr": "nexus-revision.stderr.log"
+      },
+      "nexus-changes": {
+        "stdout": "nexus-changes.stdout.log",
+        "stderr": "nexus-changes.stderr.log"
+      },
+      "go-version": {
+        "stdout": "go-version.stdout.log",
+        "stderr": "go-version.stderr.log"
+      },
+      "bridge-module": {
+        "stdout": "bridge-module.stdout.log",
+        "stderr": "bridge-module.stderr.log"
+      },
+      "sdk-revision": {
+        "stdout": "sdk-revision.stdout.log",
+        "stderr": "sdk-revision.stderr.log"
+      },
+      "sdk-changes-excluded": {
+        "stdout": "sdk-changes-excluded.stdout.log",
+        "stderr": "sdk-changes-excluded.stderr.log"
+      },
+      "sdk-export": {
+        "stdout": "sdk-export.stdout.log",
+        "stderr": "sdk-export.stderr.log"
+      },
+      "sdk-extract": {
+        "stdout": "sdk-extract.stdout.log",
+        "stderr": "sdk-extract.stderr.log"
+      },
+      "sdk-build": {
+        "stdout": "sdk-build.stdout.log",
+        "stderr": "sdk-build.stderr.log"
+      },
+      "host-policy": {
+        "stdout": "host-policy.stdout.log",
+        "stderr": "host-policy.stderr.log"
+      },
+      "host-lifecycle": {
+        "stdout": "host-lifecycle.stdout.log",
+        "stderr": "host-lifecycle.stderr.log"
+      },
+      "macos-backend-path": {
+        "stdout": "macos-backend-path.stdout.log",
+        "stderr": "macos-backend-path.stderr.log"
+      },
+      "macos-resource-denials": {
+        "stdout": "macos-resource-denials.stdout.log",
+        "stderr": "macos-resource-denials.stderr.log"
+      },
+      "macos-resource-scopes": {
+        "stdout": "macos-resource-scopes.stdout.log",
+        "stderr": "macos-resource-scopes.stderr.log"
+      },
+      "macos-search-contract": {
+        "stdout": "macos-search-contract.stdout.log",
+        "stderr": "macos-search-contract.stderr.log"
+      },
+      "macos-search": {
+        "stdout": "macos-search.stdout.log",
+        "stderr": "macos-search.stderr.log"
+      },
+      "macos-media-contract": {
+        "stdout": "macos-media-contract.stdout.log",
+        "stderr": "macos-media-contract.stderr.log"
+      },
+      "macos-media-files": {
+        "stdout": "macos-media-files.stdout.log",
+        "stderr": "macos-media-files.stderr.log"
+      },
+      "macos-native": {
+        "stdout": "macos-native.stdout.log",
+        "stderr": "macos-native.stderr.log"
+      }
+    }
+  },
+  "before": {
+    "log": "media-before.jsonl",
+    "exitCode": 1,
+    "scope": "SDK 19c80fb2 source resolution plus test harness and a behavior-preserving executor wiring move; absolute/file URL/symlink/reference ViewImage and user/tool preprocessing leaked only fixture PNG bytes to an in-process fake provider",
+    "topLevelPasses": 0,
+    "subtestPasses": 0,
+    "passedPackages": [],
+    "skips": [],
+    "failures": [
+      "TestDarwinSandboxMediaFileSources/absolute",
+      "TestDarwinSandboxMediaFileSources/file_url",
+      "TestDarwinSandboxMediaFileSources/workspace_link",
+      "TestDarwinSandboxMediaFileSources/attachment_reference",
+      "TestDarwinSandboxMediaFileSources",
+      "TestDarwinSandboxMediaPreprocess/user_image",
+      "TestDarwinSandboxMediaPreprocess/tool_image",
+      "TestDarwinSandboxMediaPreprocess",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ]
+  },
+  "firstRepair": {
+    "log": "media-after.jsonl",
+    "exitCode": 0,
+    "scope": "Initial confined reader repair: two native tests and six denial scenarios, before expanded compatibility and capability cases",
+    "topLevelPasses": 2,
+    "subtestPasses": 6,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ],
+    "skips": [],
+    "failures": []
+  },
+  "compatibilityFinding": {
+    "log": "media-race.jsonl",
+    "exitCode": 1,
+    "scope": "Expanded allowed-source checks found ordinary local paths were passed through instead of materialized; fixed by routing nonempty local image sources through the same resolver",
+    "topLevelPasses": 13,
+    "subtestPasses": 13,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/media/vision"
+    ],
+    "skips": [],
+    "failures": [
+      "TestDarwinSandboxMediaAllowedSources/user_preprocess",
+      "TestDarwinSandboxMediaAllowedSources/tool_preprocess",
+      "TestDarwinSandboxMediaAllowedSources",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ]
+  },
+  "nativeRace": {
+    "log": "media-focused-race.jsonl",
+    "exitCode": 0,
+    "scope": "Final source implementation and media contract with fixed SDK 19c80fb2 file helper; all four native media tests and 19 native subcases execute; the viewimage package has no standalone tests",
+    "topLevelPasses": 16,
+    "subtestPasses": 26,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/media/vision",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/cmd/nxs",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ],
+    "skips": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/viewimage"
+    ],
+    "failures": []
+  },
+  "sdkPackages": {
+    "log": "sdk-targets-race.jsonl",
+    "exitCode": 0,
+    "scope": "Changed command, protocol, vision, tool executor and agent runtime packages; opt-in/platform skips are listed and required native behavior is independently checked by the fixed-source baseline",
+    "topLevelPasses": 266,
+    "subtestPasses": 104,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/media/vision",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/cmd/nxs",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime"
+    ],
+    "skips": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/viewimage",
+      "TestPowerShellBackgroundModesPreserveObjectStatusAndCWD",
+      "TestDarwinSandboxFileToolsRuntime",
+      "TestDarwinFileInstructionsShareSandbox",
+      "TestDarwinLargeFileReadRetainsFullState",
+      "TestDarwinSandboxMediaFileSources/absolute",
+      "TestDarwinSandboxMediaFileSources/file_url",
+      "TestDarwinSandboxMediaFileSources/workspace_link",
+      "TestDarwinSandboxMediaFileSources/attachment_reference",
+      "TestDarwinSandboxMediaPreprocess/user_absolute",
+      "TestDarwinSandboxMediaPreprocess/user_file_url",
+      "TestDarwinSandboxMediaPreprocess/user_link",
+      "TestDarwinSandboxMediaPreprocess/tool_absolute",
+      "TestDarwinSandboxMediaPreprocess/tool_file_url",
+      "TestDarwinSandboxMediaPreprocess/tool_link",
+      "TestDarwinSandboxMediaAllowedSources/absolute",
+      "TestDarwinSandboxMediaAllowedSources/relative",
+      "TestDarwinSandboxMediaAllowedSources/file_url",
+      "TestDarwinSandboxMediaAllowedSources/attachment_reference",
+      "TestDarwinSandboxMediaAllowedSources/inline",
+      "TestDarwinSandboxMediaAllowedSources/user_preprocess",
+      "TestDarwinSandboxMediaAllowedSources/tool_preprocess",
+      "TestDarwinSandboxMediaPreparationFailsClosed/view_image",
+      "TestDarwinSandboxMediaPreparationFailsClosed/preprocess",
+      "TestApprovedPowerShellExpandableStringReachesExecutor",
+      "TestDarwinRequiredSandboxChildWriteBoundary",
+      "TestDarwinRequiredSandboxBlocksDirectNetwork",
+      "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+      "TestDarwinMandatorySandboxReadDenyPrecedence",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+      "TestDarwinSandboxResourceScopes",
+      "TestDarwinSandboxSearchPreservesResults",
+      "TestDarwinSandboxSearchPreparationFailsClosed",
+      "TestDarwinSandboxSearchToolsRuntime",
+      "TestDarwinSandboxSearchAuxiliaryCannotExpandResources"
+    ],
+    "failures": []
+  },
+  "bridgeRace": {
+    "log": "bridge-targets-race.jsonl",
+    "exitCode": 0,
+    "scope": "Client and protocol regressions; real-process cases opt in separately below",
+    "topLevelPasses": 158,
+    "subtestPasses": 77,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol",
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "skips": [
+      "TestFileSandboxRealProcess/current",
+      "TestFileSandboxRealProcess/legacy",
+      "TestMediaFileSandboxRealProcess/current",
+      "TestMediaFileSandboxRealProcess/legacy",
+      "TestRequiredSandboxRealProcess",
+      "TestSandboxResourcesRealProcess/current",
+      "TestSandboxResourcesRealProcess/legacy",
+      "TestSearchSandboxRealProcess/current",
+      "TestSearchSandboxRealProcess/legacy"
+    ],
+    "failures": []
+  },
+  "hostRace": {
+    "log": "host-targets-race.jsonl",
+    "exitCode": 0,
+    "scope": "Runtime and clientopts with temporary local integration.work; pinned GOWORK=off behavior is checked by the baseline",
+    "topLevelPasses": 157,
+    "subtestPasses": 39,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+      "github.com/nexus-research-lab/nexus/internal/runtime"
+    ],
+    "skips": [
+      "TestDesktopSandboxRealRuntimeNegotiation"
+    ],
+    "failures": []
+  },
+  "bridgeReal": {
+    "log": "bridge-pinned-real.jsonl",
+    "exitCode": 0,
+    "scope": "Pinned Bridge module with GOWORK=off; current SDK and four exact older binaries missing file/resource/search/media contracts; initialize and close only, no model requests",
+    "topLevelPasses": 5,
+    "subtestPasses": 8,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "skips": [],
+    "failures": []
+  },
+  "crossCompilation": {
+    "compileOnly": true,
+    "nativeAcceptance": false,
+    "checks": [
+      {
+        "name": "sdk-windows",
+        "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-mod=readonly",
+          "-o",
+          "/private/tmp/nexus-sandbox-media.xjjX3e/compile/sdk-windows/",
+          "./cmd/nxs",
+          "./protocol",
+          "./internal/environment/media/vision",
+          "./internal/tool/builtin/viewimage",
+          "./internal/tool/executor",
+          "./internal/agent/runtime"
+        ],
+        "exitCode": 0
+      },
+      {
+        "name": "bridge-windows",
+        "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-mod=readonly",
+          "-o",
+          "/private/tmp/nexus-sandbox-media.xjjX3e/compile/bridge-windows/",
+          "./client",
+          "./protocol"
+        ],
+        "exitCode": 0
+      },
+      {
+        "name": "sdk-linux",
+        "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-mod=readonly",
+          "-o",
+          "/private/tmp/nexus-sandbox-media.xjjX3e/compile/sdk-linux/",
+          "./cmd/nxs",
+          "./protocol",
+          "./internal/environment/media/vision",
+          "./internal/tool/builtin/viewimage",
+          "./internal/tool/executor",
+          "./internal/agent/runtime"
+        ],
+        "exitCode": 0
+      },
+      {
+        "name": "bridge-linux",
+        "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+        "command": [
+          "go",
+          "test",
+          "-c",
+          "-mod=readonly",
+          "-o",
+          "/private/tmp/nexus-sandbox-media.xjjX3e/compile/bridge-linux/",
+          "./client",
+          "./protocol"
+        ],
+        "exitCode": 0
+      }
+    ]
+  },
+  "architectureGate": {
+    "log": "architecture.log",
+    "exitCode": 0
+  },
+  "evidenceParser": {
+    "log": "evidence-parser.log",
+    "exitCode": 0,
+    "passedTests": 6
+  },
+  "entrySyntax": {
+    "command": [
+      "node",
+      "--check",
+      "scripts/desktop/check-sandbox-baseline.mjs"
+    ],
+    "exitCode": 0
+  },
+  "limits": [
+    "Remote media HTTP download and URL-forwarding network policy remain unimplemented in this contract.",
+    "Current backend coverage is native macOS. Windows/Linux compilation is not native acceptance; Claude has its own adapter and acceptance.",
+    "Whole-SDK IO, startup settings, Skill discovery and background access, effective-policy receipts and default product rollout remain pending.",
+    "Detached descendant supervision, durable cleanup receipts and host scratch leases/reclamation remain pending.",
+    "No clean-host, signed installer, upgrade, repair or uninstall acceptance; local dependency commits were not pushed or published.",
+    "Unrelated Nexus files and the original SDK worktree were preserved."
+  ],
+  "legacyRuntimes": [
+    {
+      "missingCapability": "file",
+      "path": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+      "sha256": "fbdb0b5b677ec8f274697f0e9f3e27aa65f6978292183ecf14700a0345477386"
+    },
+    {
+      "missingCapability": "resources",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+      "sha256": "801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb"
+    },
+    {
+      "missingCapability": "search",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-2kJZ8U/nxs",
+      "sha256": "66c9c61a7de6203ed13e46e8d8bb53b70273913a946e410def14b0c5c6dae0eb"
+    },
+    {
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-rXi6ah/nxs",
+      "sha256": "597cae76273dd59c71f3d911f7c203f5022e80b68287ee9e5784bd10d0ae742c",
+      "source": "fixed-sdk-archive",
+      "missingCapability": "media"
+    }
+  ]
+}

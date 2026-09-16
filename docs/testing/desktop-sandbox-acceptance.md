@@ -203,11 +203,30 @@ SDK `19c80fb21bb6a00d1132fdea3e63251dac4c015d`、Bridge `f6e456da2ecbfd3c6b9edfb
 
 Codex 对照仍固定 `4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd`，此次读取 [spawn.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/spawn.rs) 和 [exec.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/exec.rs) 的进程启动/退出片段；局部进程组清理代码不能证明任意脱离后代已被监督。完整后代清理、持久失败回执、scratch 租约和自动回收仍未实现。
 
+## 媒体文件入口子批次（2026-09-16）
+
+SDK `143e987c2e45adece435bda1621aef81bcac4040`、Bridge `eeaff7df69f324bf5d1e346692e30f39235ce0c5`；Nexus 在 `86ec36fca` 上验证本批次工作树，准确变更列表保存在报告。Bridge 固定为 `v0.1.34-0.20260916013218-eeaff7df69f3`，本机 exact-commit module archive 的 checksum 为 `h1:txRuwSPedbxkbZEPNilyj5BxoT2/de6t6ADnhxNI0X4=`。全部只保留本地提交，模块未发布，新机器取得依赖尚未验收。
+
+| 检查 | 结果 | 覆盖与限制 |
+| --- | --- | --- |
+| 修复前原生反例 | 2 个顶层、6 个子场景失败 | SDK 19c80fb2 的来源解析加测试和行为不变的入口整理；绝对路径、file URL、链接、附件引用以及主模型用户/工具图片可读取被禁止的测试 PNG |
+| 正常路径回归 | 初次发现 2 个子场景失败，修复后通过 | 普通本地路径曾原样传给模型；现在同 file URL 一起受限读取并物化 |
+| 原生媒体读取 | 4 个顶层、19 个指定子场景通过 | 允许/拒绝、用户/嵌套工具、惰性引用、内联图片及准备失败；使用真实 Seatbelt/helper 和进程内假模型 |
+| 独立媒体合同 | 2 个顶层、7 个指定子场景通过 | 类型、依赖、旧文件合同、协商与平台；不能冒用 Claude 的能力 |
+| SDK/Bridge/宿主目标包竞态 | 分别 266/158/157 个顶层用例通过 | 分别 104/77/39 个子场景；平台及 opt-in skip 在报告列明，原生媒体与真实进程由单独门禁强制执行 |
+| 新旧真实 SDK | 5 个顶层、8 个子场景通过，无 skip | GOWORK=off 固定 Bridge；当前 SDK 及分别缺文件、资源、搜索、媒体能力的旧二进制，不发送模型请求 |
+| 固定版本开发基线 | 44 个顶层、72 个指定子场景通过 | 固定 SDK git archive 构建、无 Bridge replace；缺失或 skip 必测均失败，releaseAccepted=false |
+| 其他门禁 | 架构、6 个证据解析器测试、入口语法通过 | SDK/Bridge Windows/Linux amd64 CGO=0 仅交叉编译，不计原生验收 |
+
+本次 nxs SHA-256：`a61a7f632062d9f209755e957b64c446e3c43bdd6d763776f5f8cc676d4490f6`。原始记录见[报告与限制](./evidence/desktop-sandbox/2026-09-16-media-files/report.json)、[固定版本基线](./evidence/desktop-sandbox/2026-09-16-media-files/baseline-report.json)、[修复前反例](./evidence/desktop-sandbox/2026-09-16-media-files/media-before.jsonl)、[普通路径问题](./evidence/desktop-sandbox/2026-09-16-media-files/media-race.jsonl)、[原生媒体读取](./evidence/desktop-sandbox/2026-09-16-media-files/macos-media-files.stdout.log)、[新旧真实进程](./evidence/desktop-sandbox/2026-09-16-media-files/bridge-pinned-real.jsonl)和[校验和](./evidence/desktop-sandbox/2026-09-16-media-files/manifest.json)。
+
+本地读取先于辅助分析缓存，失败不回退；每次读取端口独立传递，缓存拒绝及并发请求隔离另有竞态回归。该媒体能力不覆盖远程 HTTP 下载和图片 URL 直传的网络策略。启动/Skill/配置/后台 IO、后代监督、持久清理回执、scratch、默认产品策略、其他平台/Claude 与安装包继续待验收。
+
 ## 自动基线入口
 
 [check-sandbox-baseline.mjs](../../scripts/desktop/check-sandbox-baseline.mjs) 强制 GOWORK=off 和只读 module 解析，拒绝 Bridge replace，记录模块版本、checksum、源码提交、binary SHA-256、OS/架构、每条命令和最终退出码。具名必测用例 skip 或未匹配均失败，不以包级 PASS 替代。
 
-原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索合同与正常/拒绝搜索、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 19c80fb2 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
+原生入口还逐项要求伪造 PATH、空 PATH、资源禁止、写入范围、搜索与媒体合同、正常/拒绝搜索和图片读取、后台网络子场景的成功证据，不能只凭父测试 PASS；当前使用 SDK 143e987c 或包含这些用例的后续提交。历史记录使用各自对应的 Nexus 版本入口复核。
 
 ```sh
 # 已有 nxs：宿主集成基线，包含真实握手/诊断；不宣称原生隔离已验收。
@@ -215,7 +234,7 @@ NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox
 
 # macOS：导出固定 SDK 提交、构建 nxs，再执行宿主与原生隔离基线。
 # SDK dirty 改动只记录清单，git archive 不包含这些改动。
-node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 19c80fb21bb6a00d1132fdea3e63251dac4c015d
+node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /absolute/nexus-agent-sdk-go --sdk-ref 143e987c2e45adece435bda1621aef81bcac4040
 ```
 
 原生模式需允许运行临时回环服务器与 Seatbelt；不会发送模型请求、设置账号、防火墙或开启产品开关。控制台打印独立证据目录，其中 report.json 和各检查日志保留本次结果；releaseAccepted 始终为 false，UI/其他工具覆盖/安装包门禁仍需另行完成。

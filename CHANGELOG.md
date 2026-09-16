@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require independent nxs local-media confinement before experimental desktop task admission, covering ViewImage and model image preprocessing. Include the requirement in runtime replacement identity and extend the fixed-SDK gate with allowed/denied image paths, file URLs, symlinks and attachment references. Remote media networking and whole-SDK isolation remain pending.
+
 - Require separate nxs Glob/Grep sandbox acknowledgement before experimental desktop task admission, and include it in runtime replacement identity. Extend the fixed-SDK baseline to verify allowed searches, denied paths/symlinks and confined search auxiliaries; full SDK IO, descendant supervision and default product rollout remain pending.
 
 - Extend the fixed-SDK desktop sandbox development gate with native read-only/workspace-write, private scratch, environment override and link-write rejection checks. These SDK resource modes still require host scratch lifecycle integration before product use.

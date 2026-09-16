@@ -1,4 +1,4 @@
-// INPUT: 即将复用 runtime session 的进程路径、目录、沙箱文件/资源要求与身份隔离选项。
+// INPUT: 即将复用 runtime session 的进程路径、目录、沙箱文件/搜索/媒体/资源要求与身份隔离选项。
 // OUTPUT: 不包含明文凭据的稳定 process-policy 指纹。
 // POS: Reconfigure 之前的进程级安全边界；指纹变化必须替换旧 runtime。
 package runtime
@@ -42,6 +42,7 @@ type runtimeProcessPolicy struct {
 	Sandbox                    *agentclient.SandboxSettings       `json:"sandbox,omitempty"`
 	SandboxFileToolsRequired   bool                               `json:"sandbox_file_tools_required,omitempty"`
 	SandboxSearchToolsRequired bool                               `json:"sandbox_search_tools_required,omitempty"`
+	SandboxMediaFilesRequired  bool                               `json:"sandbox_media_files_required,omitempty"`
 	SandboxResources           *agentclient.SandboxResourcePolicy `json:"sandbox_resources,omitempty"`
 	ExtraArgs                  map[string]string                  `json:"extra_args,omitempty"`
 	ExtraBoolArgs              []string                           `json:"extra_bool_args,omitempty"`
@@ -78,6 +79,7 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 		// 这些项是宿主 initialize 合同，普通 sandbox JSON 故意不序列化它们。
 		policy.SandboxFileToolsRequired = options.Sandbox.RequireFileTools
 		policy.SandboxSearchToolsRequired = options.Sandbox.RequireSearchTools
+		policy.SandboxMediaFilesRequired = options.Sandbox.RequireMediaFiles
 		policy.SandboxResources = options.Sandbox.Resources
 	}
 	if options.DirectConnect != nil {

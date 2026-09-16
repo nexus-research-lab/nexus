@@ -1,0 +1,74 @@
+{
+  "compileOnly": true,
+  "nativeAcceptance": false,
+  "checks": [
+    {
+      "name": "sdk-windows",
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-media.xjjX3e/compile/sdk-windows/",
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/environment/media/vision",
+        "./internal/tool/builtin/viewimage",
+        "./internal/tool/executor",
+        "./internal/agent/runtime"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "bridge-windows",
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-media.xjjX3e/compile/bridge-windows/",
+        "./client",
+        "./protocol"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "sdk-linux",
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-media.xjjX3e/compile/sdk-linux/",
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/environment/media/vision",
+        "./internal/tool/builtin/viewimage",
+        "./internal/tool/executor",
+        "./internal/agent/runtime"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "bridge-linux",
+      "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-media.xjjX3e/compile/bridge-linux/",
+        "./client",
+        "./protocol"
+      ],
+      "exitCode": 0
+    }
+  ]
+}

@@ -153,6 +153,25 @@ try {
       "TestDarwinSandboxSearchPreparationFailsClosed",
       ...["Glob", "Grep"].map((tool) => `TestDarwinSandboxSearchPreparationFailsClosed/${tool}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-media-contract", ["./cmd/nxs"], [
+      "TestSandboxMediaFilesNegotiation",
+      "TestSandboxMediaFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxMediaFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-media-files", ["./internal/tool/executor"], [
+      "TestDarwinSandboxMediaFileSources",
+      ...["absolute", "file_url", "workspace_link", "attachment_reference"].map(
+        (scenario) => `TestDarwinSandboxMediaFileSources/${scenario}`),
+      "TestDarwinSandboxMediaPreprocess",
+      ...["user_absolute", "user_file_url", "user_link", "tool_absolute", "tool_file_url", "tool_link"].map(
+        (scenario) => `TestDarwinSandboxMediaPreprocess/${scenario}`),
+      "TestDarwinSandboxMediaAllowedSources",
+      ...["absolute", "relative", "file_url", "attachment_reference", "inline", "user_preprocess", "tool_preprocess"].map(
+        (scenario) => `TestDarwinSandboxMediaAllowedSources/${scenario}`),
+      "TestDarwinSandboxMediaPreparationFailsClosed",
+      ...["view_image", "preprocess"].map((scenario) => `TestDarwinSandboxMediaPreparationFailsClosed/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
