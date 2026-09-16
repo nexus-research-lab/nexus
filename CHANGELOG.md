@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix startup migration collisions by assigning Team Node message lookup version 142 in both SQLite and PostgreSQL, preserving IM delivery migration version 141.
+
 - Narrow organization role controls and expose the single Remove action directly; remove revoked memberships from the list without disabling accounts.
 
 - Allow removing human DMs from your own sidebar while preserving both participants’ history; reopen from Contacts or receive a new message to show the chat again. Retry uncertain removal with the original command.

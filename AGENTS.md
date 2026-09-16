@@ -1,5 +1,7 @@
 # AGENTS.md
 
+- Team Node 消息索引迁移为 `00142_team_node_message_lookup.sql`（SQLite/PostgreSQL）；`00141` 保留给 IM delivery。`cmd/nexus-server/main_test.go` 检查两种方言的完整迁移集合，避免并行合并重复编号。
+
 - 在线群成员配置由 `/team-node/room` 独立物化本人本机 Agent 的确定性 Room，不要求历史任务或节点授权。默认工作区是 Relay 共享文件，私人 Agent 工作区另列；上传、列表与下载走 `/team/rooms/{room_id}/files` 认证流式网关，不自动成为消息附件或投递输入。
 
 - 在线 Agent 投递通过 Room 的 `PublicContext` 入口复用公区游标与上下文预算，不把序列化消息拼成可见用户输入。内部 `relay_` 执行 Room 保留数据但不列入聊天目录，在线页面通过本机任务绑定打开精确 Agent Thread。
