@@ -51,6 +51,7 @@ import (
 	workgraphworkflowsvc "github.com/nexus-research-lab/nexus/internal/service/workgraphworkflow"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	teamrelaystore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
@@ -434,6 +435,12 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	communicationService := communicationsvc.NewService(
 		core.Agent, core.Room, roomRealtime, runtimeManager, channelControl,
 	)
+	imDeliveryStore := imdelivery.NewRepository(cfg, db)
+	channelRouter.SetIMDeliverySupport(imDeliveryStore, channelControl)
+	communicationService.SetIMDeliveryAdapter(imDeliveryStore, core.Session, channelControl, dmService)
+	dmService.SetIMDeliveryStore(imDeliveryStore, communicationService.ValidateIMReply)
+	dmService.SetIMAutomationPolicy(automationService.IMFeedbackPolicy)
+	communicationService.SetIMAutomationPolicy(automationService.IMFeedbackPolicy)
 	connectorBuilder := appruntime.NewConnectorBuilder(connectorService)
 	builtInTools := appruntime.CombineToolBuilders(
 		appruntime.NewCommunicationToolBuilder(

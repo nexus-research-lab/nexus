@@ -31,7 +31,8 @@ type ToolResult = sdktools.Result
 type ToolAnnotations = sdktools.Annotations
 
 // CallContext 承载 bridge 可提供的 tool_use、SDK session、round 与来源 identity。
-// 调用方必须允许字段为空，并使用 server context 的稳定 round identity 作为幂等回退。
+// Bridge 从 MCP params._meta 传递真实 tool-use identity；缺省字段保持为空。
+// 依赖调用身份的副作用必须拒绝缺失，不能用正文哈希冒充真实调用 ID。
 type CallContext = sdktools.Context
 
 // SimpleSDKMCPServer 表示 SDK 进程内 MCP server。

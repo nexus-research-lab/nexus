@@ -1,5 +1,7 @@
 // Package contract 定义通道无关的投递契约（DeliveryTarget 等）。
 //
+// DeliveryResult 可携带宿主生成的 IM delivery_id；Automation producer 上下文关联同一来源记录。
+//
 // L2 | 父级: internal/service/channels（L1 见 AGENTS.md）
 //
 // 成员清单：
