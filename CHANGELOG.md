@@ -96,6 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Use rounded chat bubbles consistently in place of square text-message icons across contacts, navigation, settings, and conversation actions.
+- Match contact chat actions to the neutral appearance of the adjacent group-chat action.
+
 - Forward WebSocket upgrades for online group and human direct-message streams through Nginx so incoming messages can refresh immediately.
 
 - Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.

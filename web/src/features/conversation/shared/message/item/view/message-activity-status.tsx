@@ -10,7 +10,7 @@ import {
   Globe,
   type LucideIcon,
   MessageCircleMore,
-  MessageSquareText,
+  MessageCircle,
   RefreshCw,
   Shield,
   Wrench,
@@ -43,7 +43,7 @@ const ACTIVITY_PRESENTATION: Record<
     toneClassName: "text-(--text-muted)",
   },
   sending: {
-    icon: MessageSquareText,
+    icon: MessageCircle,
     indicator: "active",
     labelKey: "message.activity_sending",
     toneClassName: "text-(--text-muted)",
@@ -55,7 +55,7 @@ const ACTIVITY_PRESENTATION: Record<
     toneClassName: "text-(--text-muted)",
   },
   replying: {
-    icon: MessageSquareText,
+    icon: MessageCircle,
     indicator: "active",
     labelKey: "message.activity_replying",
     toneClassName: "text-(--text-default)",

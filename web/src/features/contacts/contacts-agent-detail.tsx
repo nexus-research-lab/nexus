@@ -9,7 +9,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ArrowLeft,
   MessageCirclePlus,
-  MessageSquareText,
+  MessageCircle,
   Trash2,
 } from "lucide-react";
 
@@ -158,7 +158,7 @@ export function ContactsAgentDetail({
         size="sm"
         variant="ghost"
       >
-        <MessageSquareText className="h-4 w-4" />
+        <MessageCircle className="h-4 w-4" />
         {t("contacts.chat")}
       </UiButton>
       <UiButton
