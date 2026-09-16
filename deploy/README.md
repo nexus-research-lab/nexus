@@ -4,6 +4,8 @@
 
 首次部署运行 `make start`；日常更新运行 `make deploy`；检查状态和完整日志分别使用 `make status` 与 `make logs-all`。
 
+`/nexus/v1/chat/ws` 和 `/nexus/v1/team/stream` 共用 WebSocket 转发配置，后者用于在线群聊和真人私聊的新消息通知。修改该配置后需重新部署 Nginx；验收时两个路径的握手均应返回 `101 Switching Protocols`，仅 HTTP 消息接口返回 200 不代表实时推送已接通。
+
 ## 环境变量
 
 生产环境建议在仓库根目录 `.env` 中配置：
