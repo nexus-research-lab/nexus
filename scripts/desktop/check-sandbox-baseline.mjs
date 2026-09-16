@@ -230,6 +230,25 @@ try {
       ...["symlink", "cancel", "malformed_settings", "changed_agent", "changed_hook"].map(
         (failure) => `TestDarwinSandboxProjectRefresh/${failure}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-managed-contract", ["./cmd/nxs"], [
+      "TestSandboxManagedPolicyNegotiation", "TestSandboxManagedPolicyRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxManagedPolicyRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-managed-sources", ["./internal/config", "./client", "./internal/tool/builtin/bash/sandboxexec"], [
+      "TestManagedPolicySnapshot", "TestManagedPolicyInvalidSource", "TestManagedPolicyRejectsFIFO",
+      ...["empty", "null", "array", "malformed", "deny_string", "deny_element", "managed_only_type", "sandbox_null", "sandbox_deny_type"].map(
+        (source) => `TestManagedPolicyInvalidSource/${source}`),
+      "TestManagedPolicySettingsCannotRedirectSource", "TestManagedPolicyStartupRejectsUnknown",
+      "TestManagedPolicyConfigurationFailure",
+      ...["parse", "typed", "provided_error", "disabled", "force_unsandboxed"].map(
+        (scenario) => `TestManagedPolicyConfigurationFailure/${scenario}`),
+      "TestMandatoryPolicyDoesNotReadTaskSettings",
+    ], sdkSource);
+    testGroup("macos-managed-integrity", ["./internal/agent/runtime"], [
+      "TestDarwinManagedPolicyIntegrity",
+      ...["malformed", "deleted", "relaxed"].map((change) => `TestDarwinManagedPolicyIntegrity/${change}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",

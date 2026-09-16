@@ -35,4 +35,5 @@
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // 桌面策略另要求 RequireContextFiles，并将其纳入进程身份；指令能力不代表全局配置和后台 IO。
 // 桌面策略独立要求 RequireProjectFiles，项目发现读取失败不能被旧 nxs 能力掩盖。
+// 托管策略完整性通过 RequireManagedPolicy 独立要求；它同样进入进程指纹。
 package runtime
