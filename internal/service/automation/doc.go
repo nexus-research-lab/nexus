@@ -5,6 +5,7 @@
 // 与 internal/automation 分工：那里是调度域纯逻辑，这里是服务编排与运行时接线。
 //
 // 成员清单：
+//   - im_feedback.go：回传 producer 的 exact job/run/session/round 与当前工具策略复核，不修改旧 run。
 //   - command_schema.go：按 Actor/operation 生成精确封闭 schema，原始输入校验、可复用 plan 输入投影与确认前 revision/digest 校验。
 //   - task_crud.go / task_configuration.go / task_*.go / runtime_state.go：
 //     任务创建幂等、配置版本 CAS、纯查询投影、运行与统一运行态投影；删除先持久

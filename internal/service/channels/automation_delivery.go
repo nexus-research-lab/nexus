@@ -352,6 +352,9 @@ func automationDeliveryMetadata(delivery AutomationDeliveryContext) map[string]a
 		"job_id": delivery.JobID,
 		"run_id": delivery.RunID,
 	}
+	if delivery.IMDeliveryID != "" {
+		metadata["im_delivery_id"] = delivery.IMDeliveryID
+	}
 	if delivery.ProducerAgentID != "" {
 		metadata["producer_agent_id"] = delivery.ProducerAgentID
 	}

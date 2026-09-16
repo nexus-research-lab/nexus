@@ -14,6 +14,8 @@ import (
 
 // RoundContext 是一个 physical round 的完整内置 MCP 上下文。
 type RoundContext struct {
+	// InputContent is the actual host-dispatched input, used to match IM ingress evidence.
+	InputContent       string
 	SessionKey         string
 	RoundID            string
 	SourceContextType  string

@@ -51,6 +51,13 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 	}
 	// AgentHistoryStore 已按当前 DM Agent 隔离，因此不再要求历史行携带 agent_id。
 	inputs := conversationsvc.AutomationDeliveryContextualInputs(history, e.request.RoundID)
+	if e.service.imReplies != nil {
+		deliveries, readErr := e.service.imReplies.List(e.ctx, e.agent.OwnerUserID, e.sessionKey, "", 0, 5)
+		if readErr == nil {
+			inputs = append(inputs, conversationsvc.IMDeliveryContextualInputs(deliveries)...)
+		}
+	}
+
 	return append(inputs, conversationsvc.RoundRecoveryContextualInputs(history, "")...)
 }
 

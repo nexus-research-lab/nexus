@@ -4,7 +4,7 @@
 
 Agent 通讯是 Nexus 产品层能力。SDK 只执行单次 runtime 和工具调用，不拥有好友、群成员、可见性、持久消息、唤醒或回复路由，也不引入另一套 `SendMessage` team 协议。
 
-平台通讯复用现有 Room transport：好友私信用 Group Room directed message，群消息用 Room public feed，排队、唤醒、恢复和历史继续由 Room realtime 负责。
+平台通讯按场景适配：好友私信用 Group Room directed message，群消息用 Room public feed，IM 投递与来源记录由 Channels 和宿主数据库负责。IM 回传再交给原 Session 的 DM 队列或 Room 私域收件箱；各场景保留自己的排队、可见性与回复语义。
 
 ## 2. 通讯录
 
@@ -59,8 +59,8 @@ workspace、WorkBinding、ReviewBinding 或其他 capability。普通 Room round
 
 `nexus` MCP 中的平台通讯工具组提供两个始终加载的工具：
 
-- `list_targets`：读取当前 Agent 的好友、群与已配对外部私聊目标。
-- `send_message`：DM/外部 Agent runtime 使用 `destination=contact|room|external_session`；Room runtime
+- `list_targets`：无参数或 `scope=address_book` 读取当前 Agent 的好友、群与已配对外部私聊目标；`scope=delivery_sources` 在当前已配对 IM 会话内查询投递来源。
+- `send_message`：DM/外部 Agent runtime 使用 `destination=contact|room|external_session|delivery_source`；Room runtime
   额外支持宿主绑定的 `destination=current_room`，并以
   `visibility=private|public` 选择当前 Room 私域或公区。
 
@@ -84,4 +84,53 @@ Contacts 的 Agent 详情在“联络”栏目直接呈现好友私聊客户端�
 
 群成员继续在 Room 设置中管理。当前控制面不复制 Agent 配置页、独立“联络记录”页、群聊目录、消息组件或另一套消息历史。
 
-一句话：通讯录属于 Nexus，消息仍属于 Room，SDK 不拥有成员协议。
+通讯录和投递来源属于 Nexus；各 transport 拥有自己的消息与入队事实，SDK 不拥有成员协议。
+
+
+## 8. IM 投递来源与反馈回传
+
+### 8.1 入口与记录
+
+不新增 MCP server、工具或定时任务。`send_message(destination=external_session)` 的宿主调用上下文，以及 Automation 向已配对 IM 私聊投递结果的 producer 上下文，进入同一个 IM 来源适配器。
+
+发送前写入宿主数据库的 `im_deliveries`：owner、来源 Agent、精确 Session 及创建时间、round/tool call（或 job/run）、目标 Session 及创建时间、pairing、正文不可变快照和投递时间。不是 Agent MEMORY 文件，也不是 Room 私聊 ledger。正文快照用于重启后查询和同意图重试核对，不靠改写后的 transcript 重建。旧投递不按文本或时间推断来源。
+
+普通调用按可信 round/tool-use/目标身份去重；真实 tool-use ID 由 Bridge 从运行时 `params._meta["claudecode/toolUseId"]` 传入；不以业务正文哈希代替调用身份。相同真实调用重试复用记录，两个正文相同但 tool-use ID 不同的调用分别记录；缺少调用身份时明确报 runtime/Bridge 合同不可用，不解释为用户权限不足；在物理发送之前持久化 `unknown`。成功记录 `sent` 和平台回执，已知尚未调用外部平台的失败记录 `not_sent`；外部调用结果未知不自动补发。Automation 重投继续由原 Automation attempt 机制授权，来源记录不授予重投权。
+
+### 8.2 IM 内查询和转交
+
+当前 IM round 获得最近至多 5 条投递的有界上下文。更多记录由模型调用：
+
+```json
+{"scope":"delivery_sources","query":"草案","limit":10,"offset":0}
+```
+
+指定 `delivery_id` 查看完整正文及回传收据，不能与分页/搜索混用。查询只返回当前 owner、当前已配对 IM Session 的记录，不接受来源 Session 参数。结果包含 `can_reply`、不可用原因以及可用时的 `current_input_message_id`。
+
+智能体结合人类消息判断“确认”“修改”“回复过去”等反馈；多条来源无法确定时先消歧，不能自动选最新一条。确定后使用同一工具：
+
+```json
+{"destination":"delivery_source","target_id":"<delivery_id>","content":"请给 T4 增加人力资源部协办"}
+```
+
+如果当前消息只是对上一条反馈的消歧，可以指定 `content_source_message_ids`（1–10 条）；默认取当前人类消息。原始消息必须属于当前 IM Session 和 pairing。输入证据来自宿主 `im_ingress_messages.delivery_input_json`，以真实 ingress request、round、实际派发正文校验；模型正文、长期记忆或被编辑的工作区队列不能充当人类消息证据。
+
+宿主按 delivery 解析返回地址，模型不能填写 Session、任意收件人、wake 或 reply route。回传包含转交内容和可核对的人类消息原文。模型负责理解反馈；系统不把自然语言升级成审批状态，不改变任务完成条件。
+
+### 8.3 原会话受理与恢复
+
+`im_delivery_replies` 持久保存反馈意图。同一次人类请求对同一 delivery 只建立一条不可变回传；不同人类消息允许多次补充。重试相同意图返回已有收据，改变内容会冲突。
+
+- DM：进入精确来源 Session 的现有 InputQueue。忙碌时排队，不作为 guide 注入旧 round；空闲后让原 Agent 开始新 round。`accepted` 只表示已入队，`started` 表示已领取派发，不代表任务成功或业务批准。
+- Room：进入精确原 conversation 中来源 Agent 的私域收件箱，由原 directed-message wake ledger 负责恢复。回传不会自动公开，final reply route 固定为 `none`；私域关闭或成员离开时拒绝，不退回主 conversation 或公区。来源 Agent 仍可根据任务使用原有公开消息工具。
+- Automation：核对原 job/run/Session/round 与当前权限版本，反馈新轮次仅使用该任务可验证的工具限制；不复活旧 run、不改其终态或调度。没有可验证快照、任务删除/会话失效、权限版本变化，以及不支持隔离工具策略的 Automation Group 来源均拒绝回传。
+
+启动按分页读取未完成的本地回传意图，修复已持久化但尚未入队的反馈。已领取派发但执行结果不明时不自动重放；入队凭据存在但队列项已消失且没有派发证据时记为 `needs_attention`。这一恢复只处理本地反馈，不补发外部 IM 消息。
+
+### 8.4 权限与兼容
+
+发送、查询、回传和 DM 队列派发分别核对各自当前身份。返回地址按 owner、Agent、Session 创建时间、当前 pairing 及 Room 成员定位；原 Session 删除/替换后不能创建替代 Session。配对禁用、改绑或删除与旧投递回传资格撤销在同一数据库事务中提交，重新启用不恢复旧记录。
+
+反馈是外部输入，只进入新的执行轮次。它不携带来源旧 round 的 Goal、Execution、WorkBinding、ReviewBinding、configuration 或 Automation command authority。
+
+`contact` 和 `current_room/private` 的参数、final reply、唤醒与 ledger 不变；无参 `list_targets` 仍是原通讯录。IM 会话与 App 会话仍有独立 transcript，新增的只是可追溯投递和明确回传。

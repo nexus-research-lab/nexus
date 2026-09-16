@@ -26,6 +26,7 @@ type InputQueueSource string
 
 const (
 	InputQueueSourceUser               InputQueueSource = "user"
+	InputQueueSourceIMDeliveryReply    InputQueueSource = "im_delivery_reply"
 	InputQueueSourceAgentPublicMention InputQueueSource = "agent_public_mention"
 	InputQueueSourceAgentRoomMessage   InputQueueSource = "agent_room_directed_message"
 )
@@ -188,7 +189,7 @@ func NormalizeInputQueueScope(value string) InputQueueScope {
 func NormalizeInputQueueSource(value string) InputQueueSource {
 	normalized := InputQueueSource(strings.ToLower(strings.TrimSpace(value)))
 	switch normalized {
-	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomMessage:
+	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomMessage, InputQueueSourceIMDeliveryReply:
 		return normalized
 	default:
 		return InputQueueSourceUser

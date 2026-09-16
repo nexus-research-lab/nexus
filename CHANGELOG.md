@@ -82,12 +82,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add explicit host authorization for online Agents, with encrypted durable credentials, exact registration/revocation recovery, and remote-account isolation. Desktop binds the local host; Web binds its Nexus server.
 - Add opt-in online Agent execution through native local Rooms, durable inbox/output recovery, exact lease cancellation, and local permission/question handling. Only complete replies reach remote members; existing grants remain execution-disabled and unknown interrupted runs never restart automatically.
+- Use the real runtime MCP tool-use identity preserved by Bridge for IM delivery; remove the content-hash workaround and report missing metadata as a runtime/Bridge integration error.
+
+- Track IM delivery origins and return human feedback to the original Session through the existing `list_targets` and `send_message` tools, with durable queue admission, pairing revocation and unchanged contact messaging.
 
 - Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
 
 - Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
 
 ### Fixed
+
+- Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.
 
 - Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
 
