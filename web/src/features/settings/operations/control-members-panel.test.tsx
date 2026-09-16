@@ -28,17 +28,16 @@ it("一次成员写入期间禁止其他行和手动刷新，失败核对前保�
   api.update.mockImplementation(() => new Promise((_, reject) => { rejectUpdate = reject; }));
   render(<I18nProvider><OrganizationMembersPanel /></I18nProvider>);
   await screen.findByText("alice");
-  await user.click(screen.getAllByRole("button", { name: /更多操作|More actions/ })[0]);
-  await user.click(screen.getByRole("menuitem", { name: /停用|Suspend/ }));
-  expect((screen.getAllByRole("button", { name: /更多操作|More actions/ })[1] as HTMLButtonElement).disabled).toBe(true);
+  await user.click(screen.getAllByRole("button", { name: /移除:|Remove:/ })[0]);
+  expect((screen.getAllByRole("button", { name: /移除:|Remove:/ })[1] as HTMLButtonElement).disabled).toBe(true);
   expect(screen.queryByRole("button", { name: /刷新|Refresh/ })).toBeNull();
   api.list.mockRejectedValueOnce(new Error("offline"));
   await act(async () => rejectUpdate(new Error("unknown")));
   await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
-  expect(screen.getAllByRole("button", { name: /更多操作|More actions/ }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
+  expect(screen.getAllByRole("button", { name: /移除:|Remove:/ }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
   expect((screen.getByRole("button", { name: /刷新|Refresh/ }) as HTMLButtonElement).disabled).toBe(false);
   await user.click(screen.getByRole("button", { name: /刷新|Refresh/ }));
-  await waitFor(() => expect(screen.getAllByRole("button", { name: /更多操作|More actions/ }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true));
+  await waitFor(() => expect(screen.getAllByRole("button", { name: /移除:|Remove:/ }).every((button) => !(button as HTMLButtonElement).disabled)).toBe(true));
   expect(api.update).toHaveBeenCalledTimes(1);
 });
 
@@ -54,4 +53,19 @@ it("按姓名或用户名筛选成员并保留清晰的空结果", async () => {
   await user.clear(screen.getByRole("searchbox", { name: /搜索成员|Search members/ }));
   await user.type(screen.getByRole("searchbox", { name: /搜索成员|Search members/ }), "nobody");
   expect(screen.getByText(/没有匹配的成员|No matching members/)).toBeTruthy();
+});
+
+
+it("直接移除组织成员，保留账号并从列表移除该行", async () => {
+  api.list.mockResolvedValue([...members, {...members[0], user_id: "removed", username: "removed", display_name: "removed", membership_status: "revoked"}]);
+  api.update.mockResolvedValue({...members[0], membership_status: "revoked"});
+  const user = userEvent.setup();
+  render(<I18nProvider><OrganizationMembersPanel /></I18nProvider>);
+  await screen.findByText("alice");
+  expect(screen.queryByText("removed")).toBeNull();
+  expect(screen.queryByRole("button", {name: /更多操作|More actions/})).toBeNull();
+  await user.click(screen.getByRole("button", {name: /移除: alice|Remove: alice/}));
+  expect(api.update).toHaveBeenCalledExactlyOnceWith("alice", {status: "revoked"});
+  await waitFor(() => expect(screen.queryByText("alice")).toBeNull());
+  expect(screen.getByText("bob")).toBeTruthy();
 });

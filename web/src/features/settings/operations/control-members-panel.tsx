@@ -28,8 +28,6 @@ import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
-import { SettingsRowActions } from "../shared/settings-row-actions";
-
 type Feedback = { tone: "success" | "error"; message: string } | null;
 
 export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: ReactNode }) {
@@ -63,7 +61,7 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
     setLoading(true);
     setLoadFailed(false);
     try {
-      setMembers(await listControlMembersApi());
+      setMembers((await listControlMembersApi()).filter((member) => member.membership_status === "active"));
       setMutationsBlocked(false);
       if (!reconcileMutation) {
         setFeedback((current) => current?.tone === "error" ? null : current);
@@ -94,7 +92,7 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
       const updated = await updateControlMemberApi(member.user_id, change);
       setMembers((current) => current.map((item) => (
         item.user_id === updated.user_id ? updated : item
-      )));
+      )).filter((item) => item.membership_status === "active"));
       setFeedback({ tone: "success", message: t("members.update_success") });
     } catch {
       setFeedback({ tone: "error", message: t("members.update_unknown") });
@@ -115,8 +113,8 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
   );
   const showActions = visibleMembers.some(canRemoveMember);
   const columns = showActions
-    ? "@min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px_48px]"
-    : "@min-[560px]/members:grid-cols-[minmax(0,1fr)_140px_90px]";
+    ? "@min-[560px]/members:grid-cols-[minmax(0,1fr)_104px_90px_72px]"
+    : "@min-[560px]/members:grid-cols-[minmax(0,1fr)_104px_90px]";
 
   return (
     <div className="@container/members grid min-w-0 gap-3">
@@ -193,7 +191,7 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
             const canEditRole = status?.organization_role === "owner" && !isSelf && member.role !== "owner" && member.membership_status === "active";
             const canRemove = canRemoveMember(member);
             return (
-              <article className={cn("grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background)", columns)} key={member.user_id}>
+              <article className={cn("grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-4 py-3 hover:bg-(--surface-interactive-hover-background)", columns)} key={member.user_id}>
               <div className="col-span-3 min-w-0 @min-[560px]/members:col-span-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className={cn("min-w-0 wrap-anywhere", SETTINGS_ITEM_TITLE_CLASS_NAME)}>
@@ -213,6 +211,7 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
                 </p>
               </div>
               {canEditRole ? <UiSelectMenu
+                className="w-[104px] max-w-full"
                 allowLabelWrap
                 surface="plain"
                 ariaLabel={`${t("members.role")}: ${member.display_name || member.username}`}
@@ -228,12 +227,13 @@ export function OrganizationMembersPanel({ toolbarActions }: { toolbarActions?: 
                 </UiBadge>
               </div>
               {showActions ? <div className="flex justify-end">
-                {canRemove ? <SettingsRowActions
-                  label={`${t("common.more_actions")}: ${member.display_name || member.username}`}
+                {canRemove ? <UiButton
+                  aria-label={`${t("members.remove")}: ${member.display_name || member.username}`}
                   disabled={writesDisabled}
-                  items={[{ value: "remove", label: t("members.suspend"), tone: "danger" }]}
-                  onSelect={() => void updateMember(member, { status: "revoked" })}
-                /> : null}
+                  size="sm"
+                  variant="text"
+                  onClick={() => void updateMember(member, { status: "revoked" })}
+                >{t("members.remove")}</UiButton> : null}
               </div> : null}
               </article>
             );
