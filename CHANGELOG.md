@@ -94,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep real MCP tool-use identities when integrating current main with desktop sandbox capabilities; pin the combined Bridge revision and verify the IM and sandbox contracts together.
+
 - Preserve runtime cleanup failures across reconnects, configuration replacement and repeated closes. Keep failed sessions fenced, report cleanup errors even alongside closed-pipe errors, and include host-only sandbox file/resource requirements in the process-policy fingerprint. This in-memory fence does not yet establish complete descendant or crash-recovery guarantees.
 
 - Extend the desktop sandbox development gate to require real Bash/Read denial under overlapping resource grants and symlink access, protected-directory movement rejection, and both background network lifecycle scenarios.
@@ -109,7 +111,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
 
 - Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
-- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
 
 - Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
 - Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.

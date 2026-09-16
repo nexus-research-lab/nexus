@@ -209,7 +209,10 @@ func TestPermissionIMSlashApprovesAndDoesNotEnterAgentRuntime(t *testing.T) {
 	}
 	waitFor(t, 2*time.Second, func() bool {
 		runs, listErr := fixture.service.ListTaskRuns(fixture.ownerCtx, fixture.task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
+		// 执行完成和投递是两个独立持久阶段；只在投递已确认后断言回传正文。
+		return listErr == nil && len(runs) == 1 &&
+			runs[0].Status == automationdomain.RunStatusSucceeded &&
+			runs[0].DeliveryStatus == automationdomain.DeliveryStatusSucceeded
 	})
 	if got := len(fixture.dm.Requests()); got != requestsBefore+1 {
 		t.Fatalf("命令应只触发权限续跑，不应作为聊天再进入 runtime: before=%d after=%d", requestsBefore, got)

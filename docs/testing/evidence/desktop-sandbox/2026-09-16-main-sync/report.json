@@ -1,0 +1,646 @@
+{
+  "version": 1,
+  "createdAt": "2026-09-16T06:49:15.398970+00:00",
+  "scope": "merge main and retain sandbox plus MCP tool identity contracts",
+  "releaseAccepted": false,
+  "localOnly": true,
+  "nexusMain": "0e18e6aa7968863323000f7eb6963f4befbc8a91",
+  "nexusMerge": "05007997852f1f8bb6d9988044782a3d27ece3a5",
+  "sdkRevision": "c90c7f7c12f4f8ed9441d88d0a453ef9d07f3f03",
+  "bridgeRevision": "6325d2acc45057f341fc53ec0d3200d6507a582a",
+  "bridgeVersion": "v0.1.34-0.20260916063139-6325d2acc450",
+  "bridgeSum": "h1:odDCya2lEfIPGJvxp70RS1Le77nkyksPTUC1AFxR/Rk=",
+  "nexusSourceHashes": {
+    "go.mod": "74357c24ccb3cad7aaeec6da2bd64cd3b66712209aced1713e07e9ea3914a6b4",
+    "go.sum": "90549d8397904d691dbc783eef4f8ddcac82780523b79a3b700968a2bf7031be",
+    "internal/service/channels/ingress_test_helpers_test.go": "87acb11e97d4d3b726f4f7247ff07d784b1a8cea76c6d0f03019df3f7c33c45f",
+    "internal/service/automation/permission_im_command_test.go": "12a4887862d76cc9389eb0f926372cad5ac4a9f1fc687787ef2c2b800737f45d",
+    "web/src/features/settings/runtime/settings-runtime-section.tsx": "1635d3a1f9ad309f37c1923e9ec08931beed29f8d7d5af5a09811e34e1b932d4"
+  },
+  "platform": {
+    "system": "Darwin",
+    "release": "27.0.0",
+    "machine": "arm64"
+  },
+  "binaries": {
+    "nxs": "b9fb7dc0df0a4dc5bc4f31f899d4bbcf14f36d7b518d9d7a8dffc17d20673141",
+    "nxs-before-settings": "c27f4c50f2624f880507bcb92c070c2038c0e98e7cb5aec43e34eaaba1fcefe5"
+  },
+  "checks": {
+    "nexus-pinned-race": {
+      "exitCode": 1,
+      "scope": "33 affected Nexus packages with tests; two fixture failures subsequently corrected",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-mod=readonly",
+        "./internal/runtime/...",
+        "./internal/mcp/...",
+        "./internal/service/communication",
+        "./internal/service/channels",
+        "./internal/service/dm",
+        "./internal/service/room/...",
+        "./internal/service/team",
+        "./internal/app/runtime",
+        "./internal/app/server",
+        "./internal/handler/team",
+        "./internal/storage/imdelivery",
+        "./internal/storage/teamrelay",
+        "./internal/service/auth",
+        "./internal/service/configuration",
+        "./internal/service/automation"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/nexus-test-config"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "log": "nexus-pinned-race.jsonl.gz",
+      "rawSHA256": "d8d23b50f9be3309b0396657a34203d2e625b2fc16d885690e7a7d4a97157d6b",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus/internal/app/runtime",
+        "github.com/nexus-research-lab/nexus/internal/app/server",
+        "github.com/nexus-research-lab/nexus/internal/handler/team",
+        "github.com/nexus-research-lab/nexus/internal/mcp",
+        "github.com/nexus-research-lab/nexus/internal/mcp/artifact",
+        "github.com/nexus-research-lab/nexus/internal/mcp/channelauthorization/tool",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/operation",
+        "github.com/nexus-research-lab/nexus/internal/mcp/command/subagent",
+        "github.com/nexus-research-lab/nexus/internal/mcp/communication",
+        "github.com/nexus-research-lab/nexus/internal/mcp/connectorauthorization/tool",
+        "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/tool",
+        "github.com/nexus-research-lab/nexus/internal/mcp/imagegen",
+        "github.com/nexus-research-lab/nexus/internal/mcp/sdktool",
+        "github.com/nexus-research-lab/nexus/internal/runtime",
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+        "github.com/nexus-research-lab/nexus/internal/runtime/exec",
+        "github.com/nexus-research-lab/nexus/internal/runtime/permission",
+        "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "github.com/nexus-research-lab/nexus/internal/service/auth",
+        "github.com/nexus-research-lab/nexus/internal/service/communication",
+        "github.com/nexus-research-lab/nexus/internal/service/configuration",
+        "github.com/nexus-research-lab/nexus/internal/service/dm",
+        "github.com/nexus-research-lab/nexus/internal/service/room",
+        "github.com/nexus-research-lab/nexus/internal/service/room/realtime",
+        "github.com/nexus-research-lab/nexus/internal/service/team",
+        "github.com/nexus-research-lab/nexus/internal/storage/imdelivery",
+        "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
+      ],
+      "testsPassed": 1628,
+      "topLevelPassed": 1196,
+      "subtestsPassed": 432,
+      "failures": [
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/service/channels",
+          "test": "TestPairedExternalDMRequestsRuntimePermissionAndResolvesBySlashAcrossChannels/discord"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/service/channels",
+          "test": "TestPairedExternalDMRequestsRuntimePermissionAndResolvesBySlashAcrossChannels"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/service/channels",
+          "test": null
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/service/automation",
+          "test": "TestPermissionIMSlashApprovesAndDoesNotEnterAgentRuntime"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/service/automation",
+          "test": null
+        }
+      ],
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+          "test": "TestDesktopSandboxRealRuntimeNegotiation"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsPowerShellSlashRoot"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsWindowsBackslashTraversal"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestApplyMainAgentKeepsHookWithoutLauncher"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestOwnerProcessReaperRejectsUnsafeOwner"
+        }
+      ]
+    },
+    "approval-fixtures-final": {
+      "exitCode": 0,
+      "scope": "replacement final results for internal/service/channels and internal/service/automation",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-mod=readonly",
+        "./internal/service/channels",
+        "./internal/service/automation"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/fixture-test-config"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "log": "approval-fixtures-final.jsonl.gz",
+      "rawSHA256": "99603e5dcd582edbc3d402bf7b6b98f5c898f1d9fa8efa8e9aab0718782c3729",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus/internal/service/automation",
+        "github.com/nexus-research-lab/nexus/internal/service/channels"
+      ],
+      "testsPassed": 323,
+      "topLevelPassed": 271,
+      "subtestsPassed": 52,
+      "failures": [],
+      "skipped": []
+    },
+    "bridge-native-race": {
+      "exitCode": 0,
+      "scope": "tools/client/internal/transport/runtimes race tests; opt-in/live skips listed explicitly",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./tools",
+        "./client",
+        "./internal/transport/...",
+        "./runtimes/..."
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/bridge-test-config"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox",
+      "log": "bridge-native-race.jsonl.gz",
+      "rawSHA256": "a516cb6ed8d3fd2fbd587a96a08f56812e1bad4bf359fab60ef57170f2d0ec91",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/tools"
+      ],
+      "testsPassed": 293,
+      "topLevelPassed": 187,
+      "subtestsPassed": 106,
+      "failures": [],
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestContextFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestContextFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestManagedPolicySandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestManagedPolicySandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestMediaFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestMediaFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestProjectFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestProjectFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestRequiredSandboxRealProcess"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSandboxResourcesRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSandboxResourcesRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSearchSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSearchSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSettingsFilesSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSettingsFilesSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSkillFileSandboxRealProcess/current"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+          "test": "TestSkillFileSandboxRealProcess/legacy"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs",
+          "test": "TestSandboxStatusRealRuntime"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport",
+          "test": "TestProcessManagerStartsWindowsPowerShellScript"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport",
+          "test": "TestProcessManagerRedirectsWindowsBatchShimToPowerShell"
+        }
+      ]
+    },
+    "identity-before": {
+      "exitCode": 1,
+      "scope": "pre-fix pinned Bridge failed to preserve runtime tool use identity",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-mod=readonly",
+        "./internal/mcp/sdktool"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "log": "identity-before.jsonl.gz",
+      "rawSHA256": "3904b3cb409a2dc935d08b16958d45b5fb116b4f6cf2274820ab4a2db636a965",
+      "packagesPassed": [],
+      "testsPassed": 0,
+      "topLevelPassed": 0,
+      "subtestsPassed": 0,
+      "failures": [
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/mcp/sdktool",
+          "test": "TestSDKMCPPreservesRuntimeToolUseIdentity"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/mcp/sdktool",
+          "test": null
+        }
+      ],
+      "skipped": []
+    },
+    "consumer-replace-check": {
+      "exitCode": 0,
+      "scope": "local merge compatibility only, temporary modfile; final pinned module still pending",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-mod=readonly",
+        "-modfile=/private/tmp/nexus-sandbox-main-sync/consumer.mod",
+        "./internal/mcp/sdktool",
+        "./internal/runtime/...",
+        "./internal/mcp/communication",
+        "./internal/service/communication"
+      ],
+      "seconds": 22.949,
+      "log": "consumer-replace-check.jsonl.gz",
+      "rawSHA256": "24a379b0e372446f61bbf93cce86204e4957bcf50af4fd48e0c5dc0cb6b3d73c",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus/internal/mcp/communication",
+        "github.com/nexus-research-lab/nexus/internal/mcp/sdktool",
+        "github.com/nexus-research-lab/nexus/internal/runtime",
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+        "github.com/nexus-research-lab/nexus/internal/runtime/exec",
+        "github.com/nexus-research-lab/nexus/internal/runtime/permission",
+        "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "github.com/nexus-research-lab/nexus/internal/service/communication"
+      ],
+      "testsPassed": 421,
+      "topLevelPassed": 230,
+      "subtestsPassed": 191,
+      "failures": [],
+      "skipped": [
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+          "test": "TestDesktopSandboxRealRuntimeNegotiation"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsPowerShellSlashRoot"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestWorkspacePolicyHookRejectsWindowsBackslashTraversal"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestApplyMainAgentKeepsHookWithoutLauncher"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+          "test": "TestOwnerProcessReaperRejectsUnsafeOwner"
+        }
+      ]
+    },
+    "channels-permission-recheck": {
+      "exitCode": 0,
+      "scope": "three unchanged targeted reruns; lock failure is timing-sensitive",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-count=3",
+        "-mod=readonly",
+        "./internal/service/channels",
+        "-run",
+        "^TestPairedExternalDMRequestsRuntimePermissionAndResolvesBySlashAcrossChannels$"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/recheck-config"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "log": "channels-permission-recheck.jsonl.gz",
+      "rawSHA256": "32c9f1ccfe9bde1ded28b205cd08abf4e4dfe3d5415303c773db4951535cd3ef",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus/internal/service/channels"
+      ],
+      "testsPassed": 21,
+      "topLevelPassed": 3,
+      "subtestsPassed": 18,
+      "failures": [],
+      "skipped": []
+    },
+    "real-current": {
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-mod=readonly",
+        "-count=1",
+        "./client",
+        "-run",
+        "^Test(RequiredSandbox|FileSandbox|SearchSandbox|MediaFileSandbox|SkillFileSandbox|ContextFileSandbox|ProjectFileSandbox|ManagedPolicySandbox|SettingsFilesSandbox|SandboxResources)RealProcess$/^current$"
+      ],
+      "cwd": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260916063139-6325d2acc450",
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/real-process-config",
+        "NEXUS_SANDBOX_TEST_BINARY": "/private/tmp/nexus-sandbox-main-sync/nxs",
+        "NEXUS_SETTINGS_SANDBOX_LEGACY_TEST_BINARY": "/private/tmp/nexus-sandbox-main-sync/nxs-before-settings"
+      },
+      "exitCode": 0,
+      "seconds": 39.817,
+      "log": "real-current.jsonl.gz",
+      "rawSHA256": "b3c5879034988203fd893f16a3df33cb61e4fd8876c2c2dcc6830eb3db213a86",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+      ],
+      "testsPassed": 19,
+      "topLevelPassed": 10,
+      "subtestsPassed": 9,
+      "failures": [],
+      "skipped": []
+    },
+    "real-legacy-settings": {
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-mod=readonly",
+        "-count=1",
+        "./client",
+        "-run",
+        "^TestSettingsFilesSandboxRealProcess$/^legacy$"
+      ],
+      "cwd": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260916063139-6325d2acc450",
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/real-process-config",
+        "NEXUS_SANDBOX_TEST_BINARY": "/private/tmp/nexus-sandbox-main-sync/nxs",
+        "NEXUS_SETTINGS_SANDBOX_LEGACY_TEST_BINARY": "/private/tmp/nexus-sandbox-main-sync/nxs-before-settings"
+      },
+      "exitCode": 0,
+      "seconds": 4.848,
+      "log": "real-legacy-settings.jsonl.gz",
+      "rawSHA256": "7d630e747c2b4fe5b49f32d92b23505b9513ee14b06c7215b672554a21e39e67",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+      ],
+      "testsPassed": 2,
+      "topLevelPassed": 1,
+      "subtestsPassed": 1,
+      "failures": [],
+      "skipped": []
+    },
+    "nexus-real-process": {
+      "exitCode": 0,
+      "scope": "pinned Nexus to Bridge to real nxs handshake and diagnosis",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-mod=readonly",
+        "-count=1",
+        "./internal/runtime/clientopts",
+        "./internal/service/nxsruntime",
+        "-run",
+        "^Test(DesktopSandboxRealRuntimeNegotiation|SandboxDiagnosisRealNXS)$"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache",
+        "NEXUS_CONFIG_DIR": "/private/tmp/nexus-sandbox-main-sync/host-test-config",
+        "NEXUS_SANDBOX_TEST_BINARY": "/private/tmp/nexus-sandbox-main-sync/nxs"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "log": "nexus-real-process.jsonl.gz",
+      "rawSHA256": "3fc118541d86aba953d11d0428b4dae2f90fde38d15194577f8ac9e33125263a",
+      "packagesPassed": [
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+        "github.com/nexus-research-lab/nexus/internal/service/nxsruntime"
+      ],
+      "testsPassed": 2,
+      "topLevelPassed": 2,
+      "subtestsPassed": 0,
+      "failures": [],
+      "skipped": []
+    },
+    "settings-write-before": {
+      "exitCode": 1,
+      "scope": "expected four red regression scenarios against SDK c90c7f7c via a test-only Go overlay; implementation remains pending",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-overlay=/private/tmp/nexus-sandbox-main-sync/sdk-overlay.json",
+        "./internal/agent/runtime",
+        "-run",
+        "^TestPermissionSettingsWriteIdentity$"
+      ],
+      "environment": {
+        "GOWORK": "off",
+        "GOPROXY": "off",
+        "GOCACHE": "/private/tmp/nexus-sandbox-go-cache"
+      },
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox",
+      "log": "settings-write-before.jsonl.gz",
+      "rawSHA256": "37c12ec8eb51b78f72462cf1ea65bab95139414da8f56ebd05c10bd6a41189f9",
+      "packagesPassed": [],
+      "testsPassed": 0,
+      "topLevelPassed": 0,
+      "subtestsPassed": 0,
+      "failures": [
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestPermissionSettingsWriteIdentity/file_symlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestPermissionSettingsWriteIdentity/directory_symlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestPermissionSettingsWriteIdentity/directory_replaced"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestPermissionSettingsWriteIdentity/hardlink"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": "TestPermissionSettingsWriteIdentity"
+        },
+        {
+          "package": "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime",
+          "test": null
+        }
+      ],
+      "skipped": []
+    }
+  },
+  "nexusFinal": {
+    "packagesPassed": [
+      "github.com/nexus-research-lab/nexus/internal/app/runtime",
+      "github.com/nexus-research-lab/nexus/internal/app/server",
+      "github.com/nexus-research-lab/nexus/internal/handler/team",
+      "github.com/nexus-research-lab/nexus/internal/mcp",
+      "github.com/nexus-research-lab/nexus/internal/mcp/artifact",
+      "github.com/nexus-research-lab/nexus/internal/mcp/channelauthorization/tool",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/operation",
+      "github.com/nexus-research-lab/nexus/internal/mcp/command/subagent",
+      "github.com/nexus-research-lab/nexus/internal/mcp/communication",
+      "github.com/nexus-research-lab/nexus/internal/mcp/connectorauthorization/tool",
+      "github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/tool",
+      "github.com/nexus-research-lab/nexus/internal/mcp/imagegen",
+      "github.com/nexus-research-lab/nexus/internal/mcp/sdktool",
+      "github.com/nexus-research-lab/nexus/internal/runtime",
+      "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+      "github.com/nexus-research-lab/nexus/internal/runtime/exec",
+      "github.com/nexus-research-lab/nexus/internal/runtime/permission",
+      "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+      "github.com/nexus-research-lab/nexus/internal/service/auth",
+      "github.com/nexus-research-lab/nexus/internal/service/automation",
+      "github.com/nexus-research-lab/nexus/internal/service/channels",
+      "github.com/nexus-research-lab/nexus/internal/service/communication",
+      "github.com/nexus-research-lab/nexus/internal/service/configuration",
+      "github.com/nexus-research-lab/nexus/internal/service/dm",
+      "github.com/nexus-research-lab/nexus/internal/service/room",
+      "github.com/nexus-research-lab/nexus/internal/service/room/realtime",
+      "github.com/nexus-research-lab/nexus/internal/service/team",
+      "github.com/nexus-research-lab/nexus/internal/storage/imdelivery",
+      "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
+    ],
+    "topLevelPassed": 1198,
+    "subtestsPassed": 433,
+    "skipped": [
+      {
+        "package": "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+        "test": "TestDesktopSandboxRealRuntimeNegotiation"
+      },
+      {
+        "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "test": "TestWorkspacePolicyHookRejectsPowerShellSlashRoot"
+      },
+      {
+        "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "test": "TestWorkspacePolicyHookRejectsWindowsBackslashTraversal"
+      },
+      {
+        "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "test": "TestApplyMainAgentKeepsHookWithoutLauncher"
+      },
+      {
+        "package": "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+        "test": "TestOwnerProcessReaperRejectsUnsafeOwner"
+      }
+    ]
+  },
+  "frontend": {
+    "componentTests": 19,
+    "componentExitCode": 0,
+    "typecheckExitCode": 0,
+    "record": "frontend-and-architecture.txt"
+  },
+  "remaining": [
+    "Permission persistence follows symlink targets and writes shared hardlink inodes; four failures retained as next implementation input",
+    "Config tool direct IO, credential separation, durable receipts and unknown reconciliation",
+    "All unclosed P1-P7 requirements including default policy, scratch, process descendants, native Windows/Linux owner/Claude and packages"
+  ],
+  "staticChecks": "static-checks.json"
+}

@@ -4,7 +4,7 @@
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-16）：Nexus 已迁入独立 worktree `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`，分支 `codex/desktop-sandbox-isolated`；SDK 与 Bridge 继续使用各自独立 worktree。原 Nexus 目录的既有 rebase 现场按用户要求交给其他任务处理；本任务的代码、联调配置与后续测试只使用独立目录。所有提交仅本地。
+当前开发位置（2026-09-16）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
 ## 1. 最终交付目标
 
@@ -292,6 +292,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-16 | P1/P2 项目定义文件子批次完成：SDK f9bddb5f、Bridge aa46520 本地提交；Nexus 固定模块并独立要求项目定义文件能力。复现后修复启动发现旁路，hook 设置未知时拒绝完整快照，刷新故障阻止 query/compact，Agent/hook 变更须重建 runtime。固定基线 62 个顶层/201 个指定子场景、新旧真实进程 8 个顶层/14 个子场景通过，无必测 skip；竞态/vet/架构与跨平台编译通过，证据见验收矩阵 | 下一项按下面的输入所有权划分完成全局配置读取和权限持久化。P1/P2 整体及 P3–P7 保留，Goal active；原目录现场不动，所有提交仅本地 |
 | 2026-09-16 | P1/P2 托管策略完整性子批次完成：SDK 80310913、Bridge 796ab55 本地提交。先复现损坏/删除/放宽后的文件范围旁路，再固定来源与不可变快照，执行前错误阻断，读取前排除非可信设置，补齐独立能力与进程指纹。固定基线 72 个顶层/225 个指定子场景，真实新旧进程 9 个顶层/16 个子场景通过，无必测 skip；race/vet/架构和 SDK/Bridge 跨平台编译通过，见验收矩阵 | 下一项继续普通配置/Provider 凭据可信加载和权限持久化，完整快照、原子更新、版本/批准绑定与未知结果对账不能省略。P1/P2 整体及 P3–P7 保留，Goal active；原目录现场不动，仅本地提交 |
 | 2026-09-16 | P1/P2 普通配置输入与快照子批次完成：SDK c90c7f7c、Bridge 0f906d1 本地提交。固定根目录和来源，受限读取完整快照，外部变化阻断执行；动态设置只确认实际应用值，get_settings 复用绑定快照。独立能力进入 Nexus 准入和进程指纹。固定基线 85 个顶层/256 个指定子场景、真实进程 10 个顶层/18 个子场景通过，无必测 skip；race/vet/架构及跨平台编译通过 | 下一项先处理 Config 工具与权限文件读写：目录身份、原子替换、批准/版本与 unknown 对账；随后拆分 Provider 凭据和任务环境。完整 P1/P2 与 P3–P7 保留，Goal active；仅本地，原目录现场不动 |
+| 2026-09-16 | main 同步子批次完成：Nexus 合并 `050079978` 纳入 main `0e18e6aa7`；合并后复现 Bridge 工具身份丢失，Bridge `6325d2a` 合并 main 所需 `c7ecea2` 后固定新模块，保留全部沙箱能力。当前真实进程十项能力与旧配置能力拒绝通过；Nexus 受影响包及两处审批测试夹具修正后的竞态验证通过，设置页 19 例与类型检查通过 | 配置持久化继续为下一实施项：四个链接/目录身份反例已复现并归档，尚未修复。完整 P1–P7 与 Goal 保持；仅本地，不推送。证据见验收矩阵的 main 同步记录 |
 
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）
@@ -302,6 +303,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 2. **Provider 与凭据输入（部分完成，仍未验收）**：`client.Options.applySettingsProfile` 已使用固定来源、受限读取和完整快照，任务 settings 不能改写配置根。仍须拆开 Provider 凭据环境与命令/工具环境，验证项目或 flag 不能重路由宿主凭据、不能通过工具读取其明文；独立 CLI 与 Nexus 托管模式的所有权契约分别保留。
 3. **运行配置输入（快照子批次已实现）**：`runtimeSettingsSnapshot`、shell、memory 和权限消费者使用 Binding；user/project/local/flag/policy 顺序和显式 Options 优先保留，来源过滤在 IO 前完成。动态设置拒绝静态执行字段，get_settings 查询同一快照。`Config` 内置工具的独立设置读写入口不在这项输入能力内，必须与下一项一起改造。
 4. **经批准的配置写入（下一实施项）**：`ApplyPermissionUpdates` 已从选中快照构造预期结果并检查取消、冲突和写后内容，但 `writeRuntimeSettingsObject` 仍使用 os.MkdirAll/os.WriteFile；`internal/tool/builtin/config` 同样有直接宿主 IO。这些入口统一交给配置持久化领域所有者，runtime 只传递经过批准的语义更新。按宿主 config root 和项目根固定目录身份，拒绝目标文件或祖先链接切换，以原子替换避免硬链接原地改写。真实写入绑定 exact request/批准、取消及 durable revision；多文件部分结果必须有持久回执和 unknown 对账。快照内容相等不代替版本/批准证明，恢复、超时或重连不得自动重放。普通文件工具不能获得修改受保护设置的捷径。
+   - 已固定 SDK `c90c7f7c` 复现 `file_symlink`、`directory_symlink`、`directory_replaced`、`hardlink` 四种身份失效：内容快照未变化仍会写入替换目标或共同 inode。修复须拒绝前三类变更，硬链接通过原子替换保留外部目标；[测试夹具与日志](../../testing/evidence/desktop-sandbox/2026-09-16-main-sync/report.json) 已保留。此复现使用配置持久化入口，不是整个 SDK OS 隔离的验收。
 5. **验证**：原生拒绝、malformed managed/drop-in、项目/flag 链接、取消、来源禁用、并发版本和部分写入故障均须有正反例；确认默认模式、强制 deny、hook 限制和凭据边界保持。使用新的独立能力或清晰版本合同，不能扩张已发布文件能力的含义。
 
 该批次不替代 P3–P7，也不删除 hook 执行、后台 IO、网络、生效回执、完整后代监督、scratch 生命周期、默认产品策略、Windows/Linux/Claude 与安装包门禁。所有工作继续在独立 worktree，仅保留本地提交。

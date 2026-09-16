@@ -1,0 +1,32 @@
+{
+  "nexus": {
+    "command": [
+      "go",
+      "vet",
+      "-mod=readonly",
+      "./internal/runtime/...",
+      "./internal/mcp/sdktool",
+      "./internal/mcp/communication",
+      "./internal/service/channels",
+      "./internal/service/automation"
+    ],
+    "exitCode": 0
+  },
+  "bridge": {
+    "command": [
+      "go",
+      "vet",
+      "./tools",
+      "./client",
+      "./internal/transport/...",
+      "./runtimes/..."
+    ],
+    "exitCode": 0
+  },
+  "environment": {
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-go-cache"
+  },
+  "source": "captured completed exec_command results"
+}

@@ -356,3 +356,22 @@ GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-sou
 ```
 
 此命令要求精确 Bridge 模块已在本机缓存，并在原生 macOS 上运行；临时 file proxy 和历史 nxs 位置记录在报告，不是公开发布渠道。
+
+
+## 2026-09-16：main 同步与 Bridge 兼容
+
+Nexus 在独立 worktree 以合并提交 `050079978` 纳入 main `0e18e6aa7`。首次固定旧沙箱 Bridge 时，main 的 `TestSDKMCPPreservesRuntimeToolUseIdentity` 复现空 `tool_use_id`；Bridge `6325d2a` 合并 `c7ecea2` 的真实 MCP 元数据传递后，Nexus 固定 `v0.1.34-0.20260916063139-6325d2acc450`（`h1:odDCya2lEfIPGJvxp70RS1Le77nkyksPTUC1AFxR/Rk=`）。最终验收使用 `GOWORK=off`、`-mod=readonly` 和实际固定模块；中途临时 modfile 检查仅作诊断，不代替固定版本验证。SDK 保持 `c90c7f7c`，本批次未修改 SDK 生产代码。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Nexus 受影响包竞态 | 最终 33 个测试包、1198 个顶层及 433 个子场景通过。首轮两包失败记录保留；修正夹具后单独重跑 channels/automation 的 323 个测试事件通过，其他未变包沿用首轮通过结果，并非声称首轮整体通过 |
+| 审批夹具 | 通道测试改用生产数据库连接配置；Automation 等待持久投递成功后才断言消息。修正测试中的数据库竞争和执行/投递阶段混淆，没有修改产品审批逻辑 |
+| Bridge 竞态与静态检查 | tools/client/transport/nxs 四包通过；Nexus 与 Bridge 目标包 vet 通过。普通套件中的可选真实进程和其他平台 skip 逐项保留 |
+| 固定 Bridge → 真实 nxs | 当前十项能力的 10 个顶层/9 个子场景通过；SDK `80310913` 缺普通配置能力的拒绝场景另行通过，无必测 skip。其他八个历史缺能力 binary 未在本批次重跑 |
+| Nexus → 固定 Bridge → 真实 nxs | 宿主装配/握手和诊断两个用例通过，无 skip，不发送模型请求 |
+| 前端与架构 | 设置页 19 个组件测试、TypeScript 类型检查和架构检查通过；不替代安装包视觉验收 |
+| 后续权限持久化反例 | 固定 SDK 配合 test-only overlay，`file_symlink`、`directory_symlink`、`directory_replaced`、`hardlink` 四个子场景如预期失败：内容相等仍可写入替换路径或共同 inode，尚未修复 |
+
+[报告](./evidence/desktop-sandbox/2026-09-16-main-sync/report.json)、[SHA256 清单](./evidence/desktop-sandbox/2026-09-16-main-sync/manifest.json)保存版本、源码/二进制哈希、命令、最终退出码、skip 与压缩原始日志。该目录的 README 解释合并结果与后续红色反例。SDK/Bridge 已从缺失的临时目录恢复到固定的独立 worktree，具体位置见开发计划；原 Nexus main 的未提交文件保持原状。
+
+仅本地提交及本地模块缓存，模块尚未发布；本批次没有重新声明全 SDK 原生隔离、跨平台、默认策略、完整进程树、持久回执或安装包验收。完整 P1–P7 与 Goal 继续。
