@@ -298,15 +298,19 @@ func (r *Repository) insertMessage(
 	}
 	var existingSeq int64
 	var existingContent []byte
-	err = tx.QueryRowContext(ctx, `SELECT message_seq, content_json FROM team_relay_messages
+	var authorType, authorUserID, authorAgentID, deliveryID, outputKind string
+	err = tx.QueryRowContext(ctx, `SELECT message_seq, content_json, author_type, author_user_id,
+author_agent_id, delivery_id, output_kind FROM team_relay_messages
 WHERE deployment_id = `+r.dialect.Bind(1)+` AND conversation_id = `+r.dialect.Bind(2)+`
 AND message_id = `+r.dialect.Bind(3), conversation.deploymentID, conversation.id, message.ID).Scan(
-		&existingSeq, &existingContent,
+		&existingSeq, &existingContent, &authorType, &authorUserID, &authorAgentID, &deliveryID, &outputKind,
 	)
 	if err == nil {
 		var existing relaycontract.MessageContent
 		if json.Unmarshal(existingContent, &existing) != nil ||
-			existingSeq != message.MessageSeq || !reflect.DeepEqual(existing, message.Content) {
+			existingSeq != message.MessageSeq || !reflect.DeepEqual(existing, message.Content) ||
+			authorType != message.AuthorType || authorUserID != message.AuthorUserID ||
+			authorAgentID != message.AuthorAgentID || deliveryID != message.DeliveryID || outputKind != message.OutputKind {
 			return errors.New("Relay 消息幂等内容冲突")
 		}
 		return nil
@@ -325,13 +329,15 @@ RETURNING next_room_seq - 1`, conversation.deploymentID, conversation.id).Scan(&
 	}
 	query := `INSERT INTO team_relay_messages (
 deployment_id, conversation_id, message_id, message_seq, room_seq, author_type,
-author_user_id, author_username, author_display_name, client_message_id, content_json, created_at
-) VALUES (` + r.dialect.BindList(10) + `,` + r.dialect.JSONValue(11) + `,` + r.dialect.Bind(12) + `)`
+author_user_id, author_username, author_display_name, client_message_id, content_json, created_at,
+author_agent_id, delivery_id, output_kind
+) VALUES (` + r.dialect.BindList(10) + `,` + r.dialect.JSONValue(11) + `,` + r.dialect.Bind(12) + `,` + r.dialect.Bind(13) + `,` + r.dialect.Bind(14) + `,` + r.dialect.Bind(15) + `)`
 	_, err = tx.ExecContext(ctx, query,
 		conversation.deploymentID, conversation.id, message.ID, message.MessageSeq, roomSeq,
 		message.AuthorType, message.AuthorUserID, message.AuthorUsername,
 		message.AuthorDisplayName, message.ClientMessageID, string(content),
 		r.dialect.TimestampValue(message.CreatedAt),
+		message.AuthorAgentID, message.DeliveryID, message.OutputKind,
 	)
 	return err
 }

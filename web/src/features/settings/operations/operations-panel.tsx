@@ -3,6 +3,7 @@
 // POS: 运营内容装配，不持有本地页签状态或额外导航壳层。
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import type { ReactNode } from "react";
 import { ProviderSettingsPanel } from "@/features/settings/provider-settings/provider-settings-panel";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -11,10 +12,8 @@ import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-
 import { getSettingsSectionLabelKey, type OperationsSectionKey } from "../settings-navigation-model";
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
-import { OrganizationPanel } from "./organization-panel";
 
 const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
-  "operations-organization": () => <OrganizationPanel />,
   "operations-subscriptions": () => <SubscriptionAdminPanel view="users" />,
   "operations-plans": () => <SubscriptionAdminPanel view="plans" />,
   "operations-providers": () => <ProviderSettingsPanel layout="section" visibilityScope="public" />,
@@ -24,8 +23,7 @@ const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
 export function OperationsPanel({ section }: { section: OperationsSectionKey }) {
   const { t } = useI18n();
   // 组织和项目页的标题与动作由各自事务视图组合。
-  const ownsHeader = section === "operations-organization"
-    || section === "operations-projects";
+  const ownsHeader = section === "operations-projects";
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME} data-operations-page={section}>
       {!ownsHeader ? (
@@ -34,7 +32,7 @@ export function OperationsPanel({ section }: { section: OperationsSectionKey }) 
           title={t(getSettingsSectionLabelKey(section))}
         />
       ) : null}
-      {CONTENT[section]()}
+      {ownsHeader ? CONTENT[section]() : <div className={SETTINGS_CONTENT_BODY_CLASS_NAME}>{CONTENT[section]()}</div>}
     </div>
   );
 }

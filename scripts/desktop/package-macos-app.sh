@@ -390,6 +390,7 @@ case "${ARTIFACT_FORMAT}" in
     COPYFILE_DISABLE=1 retry_hdiutil create \
       -volname "${APP_NAME}" \
       -srcfolder "${DMG_DIR}" \
+      -fs HFS+ \
       -ov \
       -format UDRW \
       "${DMG_RW_PATH}" >/dev/null

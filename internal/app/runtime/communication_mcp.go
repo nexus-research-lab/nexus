@@ -39,6 +39,7 @@ func NewCommunicationToolBuilder(
 		if !ok {
 			return nil
 		}
+		actor.InputContent = round.InputContent
 		sctx := communicationmcp.RuntimeContext{
 			Actor:                actor,
 			CurrentAgentRoundID:  actor.LeaseRoundID,

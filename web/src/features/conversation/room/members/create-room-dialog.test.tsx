@@ -39,13 +39,13 @@ describe("CreateRoomDialog submission", () => {
     fireEvent.click(screen.getByRole("button", { name: "room.location_online" }));
     expect(screen.getByRole("button", { name: "room.people_count" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByRole("button", { name: "room.agent_select_remove" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "room.agents_count" }));
-    expect(screen.getByRole("button", { name: "room.agent_select_remove Nova" })).toBeTruthy();
+		fireEvent.click(screen.getByRole("button", { name: "room.agents_count" }));
+		expect(screen.getByRole("button", { name: "room.agent_select_remove Nova" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "room.people_count" }));
     fireEvent.click(screen.getByRole("button", { name: "room.user_select_add Lee" }));
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "room.create_action" })); });
     expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({
-      agentIds: ["agent"],
+			agentIds: ["agent"],
       location: "online",
       userIds: ["user"],
     }));

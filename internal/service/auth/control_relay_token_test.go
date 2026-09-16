@@ -114,3 +114,32 @@ func TestControlAuthorityVerifiesOrganizationMembers(t *testing.T) {
 		t.Fatalf("cross-organization error = %v", err)
 	}
 }
+
+func TestControlAuthorityVerifiesOwnedAgents(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != controlAPIBase+"/internal/agents/verify" {
+			http.NotFound(writer, request)
+			return
+		}
+		var input struct {
+			DeploymentID   string   `json:"deployment_id"`
+			OrganizationID string   `json:"organization_id"`
+			OwnerUserID    string   `json:"owner_user_id"`
+			AgentIDs       []string `json:"agent_ids"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			t.Fatal(err)
+		}
+		if input.OwnerUserID != "control-user" || len(input.AgentIDs) != 1 || input.AgentIDs[0] != "agent-1" {
+			t.Fatalf("agent verification = %+v", input)
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"code": "0000", "data": map[string]any{"agents": []any{}}})
+	}))
+	t.Cleanup(server.Close)
+	authority := NewControlAuthority(config.Config{ControlURL: server.URL, ControlServiceToken: "control-service-token-32-characters", ControlRequestTimeoutSeconds: 2}, nil, nil)
+	sessionID := "session-1"
+	principal := &Principal{ControlUserID: "control-user", DeploymentID: "deployment-1", OrganizationID: "organization-1", AuthMethod: AuthMethodPassword, SessionID: &sessionID}
+	if err := authority.VerifyOwnedAgents(context.Background(), principal, []string{"agent-1"}); err != nil {
+		t.Fatal(err)
+	}
+}

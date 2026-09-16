@@ -30,6 +30,24 @@ export interface ControlMemberDirectoryEntry {
   username: string;
 }
 
+export interface ControlAgent {
+  agent_id: string;
+  owner_user_id: string;
+  source_agent_id: string;
+  name: string;
+  avatar?: string;
+  status: "active" | "revoked";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ControlAgentDirectoryEntry {
+	agent_id: string;
+	owner_user_id: string;
+	name: string;
+	avatar?: string;
+}
+
 export interface SetupControlOwnerParams {
   setupToken: string;
   username: string;
@@ -98,6 +116,24 @@ export async function listControlMemberDirectoryApi(): Promise<ControlMemberDire
   });
 }
 
+export async function publishControlAgentApi(
+  sourceAgentID: string,
+  input: { name: string; avatar?: string | null },
+): Promise<ControlAgent> {
+  return requestApi<ControlAgent>(
+    `${CONTROL_AUTH_BASE_URL}/agents/${encodeURIComponent(sourceAgentID)}`,
+    { method: "PUT", body: { name: input.name, avatar: input.avatar ?? "" } },
+  );
+}
+
+export async function listControlAgentsApi(): Promise<ControlAgent[]> {
+	return requestApi<ControlAgent[]>(`${CONTROL_AUTH_BASE_URL}/agents`, { method: "GET" });
+}
+
+export async function listControlAgentDirectoryApi(): Promise<ControlAgentDirectoryEntry[]> {
+	return requestApi<ControlAgentDirectoryEntry[]>(`${CONTROL_AUTH_BASE_URL}/directory/agents`, { method: "GET" });
+}
+
 export async function createControlMemberApi(
   params: CreateControlMemberParams,
 ): Promise<ControlDeploymentMember> {
@@ -122,6 +158,10 @@ export async function updateControlMemberApi(
   );
 }
 
+export async function mutateControlOrganizationApi(action: "create" | "rename" | "leave" | "transfer" | "dissolve", input: { name?: string; target_user_id?: string } = {}): Promise<AuthStatus> {
+  return requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/organization/${action}`, { method: "POST", body: input });
+}
+
 export async function listControlOrganizationInvitationsApi(): Promise<ControlOrganizationInvitation[]> {
   return requestApi<ControlOrganizationInvitation[]>(`${CONTROL_AUTH_BASE_URL}/organization/invitations`, {
     method: "GET",
@@ -143,6 +183,12 @@ export async function revokeControlOrganizationInvitationApi(invitationID: strin
   });
 }
 
+export async function deleteControlOrganizationInvitationApi(invitationID: string): Promise<void> {
+  await requestApi(`${CONTROL_AUTH_BASE_URL}/organization/invitations/${encodeURIComponent(invitationID)}/record`, {
+    method: "DELETE",
+  });
+}
+
 export async function previewControlOrganizationInvitationApi(
   token: string,
 ): Promise<ControlOrganizationInvitationPreview> {
@@ -154,7 +200,7 @@ export async function previewControlOrganizationInvitationApi(
 
 export async function acceptControlOrganizationInvitationApi(
   token: string,
-  input: { username: string; display_name: string; password: string },
+  input: { username?: string; display_name?: string; password?: string } = {},
 ): Promise<AuthStatus> {
   return requestApi<AuthStatus>(
     `${CONTROL_AUTH_BASE_URL}/organization-invitations/${encodeURIComponent(token)}/accept`,

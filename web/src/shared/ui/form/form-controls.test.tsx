@@ -498,7 +498,8 @@ describe("form primitives", () => {
     expect(group.className).not.toContain("rounded-full");
     expect(once.getAttribute("aria-pressed")).toBe("true");
     expect(once.className).toContain("radius-control-sm");
-    expect(once.className).toContain("ui-type-control");
+    expect(once.className).toContain("ui-type-supporting");
+    expect(once.className).toContain("min-h-7");
     expect(once.className).toContain("whitespace-normal");
     expect(once.className).toContain("min-w-0");
     expect(once.className).not.toContain("shadow-");
@@ -566,7 +567,7 @@ describe("form primitives", () => {
     const grid = within(group).getByRole("button", { name: "卡片视图" });
     const list = within(group).getByRole("button", { name: "列表视图" });
     expect(grid.getAttribute("aria-pressed")).toBe("true");
-    expect(grid.className).toContain("h-7");
+    expect(grid.className).toContain("h-6");
     expect(grid.querySelector("span")?.className).toBe("sr-only");
     expect(grid.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     await user.click(list);

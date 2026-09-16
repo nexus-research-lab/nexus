@@ -118,7 +118,8 @@ func (a *ControlAuthority) BuildStatusPayload(
 	ctx context.Context,
 	request *http.Request,
 ) (StatusPayload, error) {
-	principal, state, err := a.InspectRequest(ctx, request)
+	// 显式刷新必须读取 Control 最新身份，不能等待异步失效事件清理旧组织租约。
+	principal, state, err := a.exchangeFresh(ctx, a.extractSessionToken(request))
 	if err != nil {
 		return StatusPayload{}, err
 	}
@@ -128,18 +129,21 @@ func (a *ControlAuthority) BuildStatusPayload(
 		Authenticated:        principal != nil,
 		SetupRequired:        state.SetupRequired,
 		SetupEnabled:         state.SetupEnabled,
+		RegistrationEnabled:  state.RegistrationEnabled,
 	}
 	if principal == nil {
 		return result, nil
 	}
 	result.Username = stringPointer(principal.Username)
 	result.UserID = stringPointer(principal.ControlUserID)
+	result.ControlUserID = stringPointer(principal.ControlUserID)
 	result.DisplayName = stringPointer(principal.DisplayName)
 	result.Role = stringPointer(principal.Role)
 	result.Avatar = stringPointer(principal.Avatar)
 	result.AuthMethod = stringPointer(principal.AuthMethod)
 	result.OrganizationID = stringPointer(principal.OrganizationID)
 	result.OrganizationName = stringPointer(principal.OrganizationName)
+	result.OrganizationRole = stringPointer(principal.OrganizationRole)
 	return result, nil
 }
 
@@ -184,6 +188,14 @@ func (a *ControlAuthority) exchange(
 	if principal, state, ok := a.cachedLease(sessionToken); ok {
 		return principal, state, nil
 	}
+	return a.exchangeFresh(ctx, sessionToken)
+}
+
+func (a *ControlAuthority) exchangeFresh(ctx context.Context, sessionToken string) (*Principal, State, error) {
+	// 核验失败或 Session 已退出时也不得留下可被后续请求复用的旧身份。
+	a.leaseMu.Lock()
+	delete(a.leases, hashSessionToken(sessionToken))
+	a.leaseMu.Unlock()
 	var response controlExchangeResult
 	err := a.call(ctx, http.MethodPost, "/internal/principals/exchange", map[string]string{
 		"session_token": sessionToken,
@@ -357,6 +369,7 @@ func projectControlPrincipal(value controlPrincipal, localOwnerKey string) *Prin
 		DeploymentID:     strings.TrimSpace(value.DeploymentID),
 		OrganizationID:   strings.TrimSpace(value.OrganizationID),
 		OrganizationName: strings.TrimSpace(value.OrganizationName),
+		OrganizationRole: strings.TrimSpace(value.OrganizationRole),
 		Username:         strings.TrimSpace(value.Username),
 		DisplayName:      strings.TrimSpace(value.DisplayName),
 		Role:             strings.TrimSpace(value.Role),
@@ -370,6 +383,7 @@ func toControlState(value controlState) State {
 	return authctx.State{
 		SetupRequired:        value.SetupRequired,
 		SetupEnabled:         value.SetupEnabled,
+		RegistrationEnabled:  value.RegistrationEnabled,
 		AuthRequired:         true,
 		PasswordLoginEnabled: value.PasswordLoginEnabled,
 	}

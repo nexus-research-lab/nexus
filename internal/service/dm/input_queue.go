@@ -177,6 +177,9 @@ func (s *Service) guideInputQueueItem(
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
+	if selected.Source == protocol.InputQueueSourceIMDeliveryReply {
+		return errors.New("IM 反馈必须按原会话队列独立处理")
+	}
 	if protocol.ShouldGuideRunningRound(selected.DeliveryPolicy) {
 		items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyQueue)
 		if err != nil {
@@ -248,6 +251,20 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
 	dispatchCtx := contextWithQueueOwner(ctx, item.OwnerUserID)
+	if item.Source == protocol.InputQueueSourceIMDeliveryReply {
+		err := s.dispatchIMDeliveryReply(dispatchCtx, normalizedSessionKey, *item)
+		if err != nil {
+			s.loggerFor(ctx).Error("IM feedback dispatch requires attention", "reply_id", item.ID, "err", err)
+			if s.imReplies != nil {
+				_, _ = s.imReplies.TransitionReply(dispatchCtx, item.OwnerUserID, item.ID, "accepted", "needs_attention")
+			}
+		}
+		s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItemAtLocation(taskCtx, normalizedSessionKey, item.AgentID, location)
+		})
+		return err == nil
+	}
+
 	claim, trustedQueue, err := s.claimTrustedQueueAdmission(
 		dispatchCtx,
 		normalizedSessionKey,

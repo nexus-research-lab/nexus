@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { SETTINGS_DIVIDER_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import {
   Brain,
   Bug,
@@ -36,7 +37,6 @@ import {
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
 import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
-import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 import { PreferencesReliabilityNotice } from "../components/preferences-reliability-notice";
 import { EchoSettingsReliabilityNotice } from "../components/echo-settings-reliability-notice";
 import type {
@@ -83,7 +83,6 @@ interface SettingsGeneralBehaviorSectionProps {
     role: DefaultModelPreferenceRole,
   ) => void;
   onRetryDefaultModelCatalog: () => void;
-  onResetTours: () => void;
   preferencesLoading: boolean;
   preferencesSaving: boolean;
   preferencesFeedback: PreferenceFeedback | null;
@@ -121,7 +120,6 @@ export function SettingsGeneralBehaviorSection({
   onDefaultDeliveryPolicyChange,
   onDefaultModelChange,
   onRetryDefaultModelCatalog,
-  onResetTours,
   preferencesLoading,
   preferencesSaving,
   preferencesFeedback,
@@ -165,7 +163,7 @@ export function SettingsGeneralBehaviorSection({
           title={t("settings.general.agent_sdk_diagnostics_title")}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsToggleRow
           checked={autoMemoryEnabled}
@@ -176,7 +174,7 @@ export function SettingsGeneralBehaviorSection({
           title={t("settings.general.auto_memory_title")}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsToggleRow
           checked={autoDreamEnabled}
@@ -187,7 +185,7 @@ export function SettingsGeneralBehaviorSection({
           title={t("settings.general.auto_dream_title")}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsToggleRow
           checked={emotionEnabled}
@@ -198,7 +196,7 @@ export function SettingsGeneralBehaviorSection({
           title={t("settings.general.emotion_title")}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsToggleRow
           checked={echoEnabled}
@@ -209,7 +207,7 @@ export function SettingsGeneralBehaviorSection({
           title={t("settings.general.echo_title")}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsDefaultModelRow
           disabled={preferencesLoading || preferencesSaving}
@@ -225,7 +223,7 @@ export function SettingsGeneralBehaviorSection({
           value={defaultModelValue}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsDefaultModelRow
           disabled={preferencesLoading || preferencesSaving}
@@ -241,7 +239,7 @@ export function SettingsGeneralBehaviorSection({
           value={defaultImageModelValue}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsDefaultModelRow
           disabled={preferencesLoading || preferencesSaving}
@@ -257,7 +255,7 @@ export function SettingsGeneralBehaviorSection({
           value={defaultVisionModelValue}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <SettingsDefaultModelRow
           disabled={preferencesLoading || preferencesSaving}
@@ -273,7 +271,7 @@ export function SettingsGeneralBehaviorSection({
           value={defaultBackgroundModelValue}
         />
 
-        <div className="border-t border-(--divider-subtle-color)" />
+        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -298,14 +296,12 @@ export function SettingsGeneralBehaviorSection({
               value: option.value,
               label: t(option.labelKey),
             }))}
-            showLabel
             stretch
             title={t("settings.general.default_delivery")}
             value={chatDefaultDeliveryPolicy}
           />
         </div>
 
-        <SettingsOnboardingRow onReset={onResetTours} />
       </div>
     </section>
   );

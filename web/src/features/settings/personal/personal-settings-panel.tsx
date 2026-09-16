@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 import { Loader2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -34,7 +35,7 @@ export function PersonalSettingsPanel() {
           className="max-sm:hidden"
           title={t("settings.personal.section_title")}
         />
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 pb-8">
+        <div className={cn(SETTINGS_CONTENT_BODY_CLASS_NAME, "flex flex-col gap-8 pb-8")}>
           {controller.profile.isLoading && !controller.profile.value ? (
             <section role="status" aria-label={t("common.loading")} aria-busy="true" className={cn(
               SETTINGS_CARD_CLASS_NAME,

@@ -11,15 +11,17 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 // Server 表示完整 HTTP 进程入口。
 type Server struct {
-	config   config.Config
-	api      *handlershared.API
-	router   chi.Router
-	services *app.AppServices
-	handlers handlerSet
+	config       config.Config
+	api          *handlershared.API
+	router       chi.Router
+	services     *app.AppServices
+	handlers     handlerSet
+	teamExecutor *teamsvc.NodeExecutor
 
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc

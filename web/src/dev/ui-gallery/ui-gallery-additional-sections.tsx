@@ -948,7 +948,7 @@ function StreamingMarkdownGallery() {
   const sample = "稳定段落 **Markdown** 👩🏽‍💻。\n\n".repeat(10)
     + "长段落 e\u0301 与中文连续输出。".repeat(160);
   return (
-    <div className="grid gap-3" data-gallery-streaming-markdown>
+    <div className="grid gap-3" data-gallery-streaming-markdown data-stream-source-length={content.length}>
       <div className="flex flex-wrap gap-2">
         <UiButton onClick={() => { setStreaming(true); setContent(sample); }}>Burst</UiButton>
         <UiButton onClick={() => { setContent(sample + "\n\nSTREAM_DONE 👩🏽‍💻"); setStreaming(false); }}>Finish</UiButton>

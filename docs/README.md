@@ -59,6 +59,11 @@
 ## 在研改造资料
 
 - [桌面沙箱：现状评估、Codex 对照、开发计划与验收](./explorations/desktop-sandbox/README.md)（non-normative）。
+## IM 投递回传
+
+- [当前通讯合同](specs/platform-communication-spec.md)
+- [本地与真实通道验收](testing/im-delivery-replies.md)
+
 
 ## 文档维护规则
 

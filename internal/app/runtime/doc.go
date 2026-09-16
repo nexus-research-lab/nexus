@@ -1,5 +1,7 @@
 // Package runtime 装配 Nexus 进程向 Agent runtime 暴露的宿主能力。
 //
+// 通讯 MCP 固化实际输入证据与 exact Session/round，IM 回传地址由宿主解析。
+//
 // L2 | 父级: internal/app（L2 见 ../doc.go）
 //
 // 成员清单：

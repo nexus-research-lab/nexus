@@ -17,6 +17,7 @@ import type { LoginFormMode } from "./login-page-model";
 import type { LoginRecoveryNotice } from "./login-page-model";
 
 interface LoginAuthPanelProps {
+  registering?: boolean;
   authFailure: LoginRecoveryNotice | null;
   formMode: LoginFormMode;
   isSubmitting: boolean;
@@ -86,6 +87,7 @@ function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
 }
 
 function PasswordLoginForm({
+  registering,
   authFailure,
   isSubmitting,
   onChangePassword,
@@ -140,7 +142,7 @@ function PasswordLoginForm({
         type="submit"
         variant="solid"
       >
-        <span>{isSubmitting ? t("login.submitting") : t("login.submit")}</span>
+        <span>{isSubmitting ? t("login.submitting") : t(registering ? "organization.register" : "login.submit")}</span>
         <ArrowRight className="h-4 w-4" />
       </UiButton>
     </form>
@@ -148,6 +150,7 @@ function PasswordLoginForm({
 }
 
 export function LoginAuthPanel({
+  registering,
   authFailure,
   formMode,
   isSubmitting,
@@ -164,7 +167,7 @@ export function LoginAuthPanel({
   return (
     <UiPanel aria-labelledby={titleId} className="w-full" padding="lg" radius="lg" variant="filled">
       <h2 className={getUiTypographyClassName({ role: "objectTitle", tone: "strong" })} id={titleId}>
-        {t("login.title")}
+        {t(registering ? "organization.register" : "login.title")}
       </h2>
 
       <LoginErrorBanner notice={authFailure} onCheckStatus={onRefresh} />
@@ -172,6 +175,7 @@ export function LoginAuthPanel({
         <DisabledLoginForm onRefresh={onRefresh} />
       ) : (
         <PasswordLoginForm
+          registering={registering}
           authFailure={authFailure}
           isSubmitting={isSubmitting}
           onChangePassword={onChangePassword}
