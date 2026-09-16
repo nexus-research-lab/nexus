@@ -136,6 +136,23 @@ try {
       "TestDarwinSandboxResourceScopes/read-only",
       "TestDarwinSandboxResourceScopes/workspace-write",
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-search-contract", ["./cmd/nxs"], [
+      "TestSandboxSearchToolsNegotiation",
+      "TestSandboxSearchToolsRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSearchToolsRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-search", ["./internal/tool/executor"], [
+      "TestDarwinSandboxSearchToolsRuntime",
+      ...["direct", "symlink"].flatMap((target) =>
+        ["glob", "content", "count", "files_with_matches"].map((mode) => `TestDarwinSandboxSearchToolsRuntime/${target}/${mode}`)),
+      "TestDarwinSandboxSearchAuxiliaryCannotExpandResources",
+      "TestDarwinSandboxSearchPreservesResults",
+      ...["glob", "absolute_glob", "content", "single_file", "count", "filenames", "no_matches", "suggestion"].map(
+        (scenario) => `TestDarwinSandboxSearchPreservesResults/${scenario}`),
+      "TestDarwinSandboxSearchPreparationFailsClosed",
+      ...["Glob", "Grep"].map((tool) => `TestDarwinSandboxSearchPreparationFailsClosed/${tool}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-native", ["./internal/tool/executor"], [
       "TestDarwinSandboxFileToolsRuntime",
       "TestDarwinFileInstructionsShareSandbox",
