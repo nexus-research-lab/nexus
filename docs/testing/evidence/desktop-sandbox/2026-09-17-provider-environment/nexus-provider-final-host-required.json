@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "requiredTests": [
+    "TestProviderOwnershipChangeReplacesRuntime",
+    "TestProviderOwnershipChangeReplacesRuntime/NEXUS_PROVIDER_MANAGED_BY_HOST",
+    "TestProviderOwnershipChangeReplacesRuntime/NEXUS_SUBPROCESS_ENV_SCRUB",
+    "TestProviderOwnershipChangeReplacesRuntime/CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+    "TestProviderOwnershipChangeReplacesRuntime/NEXUS_AUTO_DREAM_WAKE_MODE",
+    "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange"
+  ],
+  "scope": "Final Nexus process-policy delta after the fixed-SDK baseline started"
+}

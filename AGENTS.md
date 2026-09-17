@@ -91,6 +91,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `service/configuration` 测试按身份授权、输入与风险、脱敏、审批、审计及业务集成归组；共享装配与审批辅助集中在现有集成测试文件，重复成功路径复用完整场景，独立保留越权、CAS、凭据和删除恢复边界。
 - `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
+- `runtime/clientopts` 在所有环境合并后固定 nxs Provider 与 AutoDream 唤醒的宿主所有权；任务 settings 和附加环境不能撤销该声明。Provider 环境隔离不代表整个 SDK 的文件、网络、MCP 或进程秘密隔离，当前范围见 `docs/specs/desktop-sandbox-spec.md`。
 - Nexus 只生产按 priority/name/content/metadata 确定性排序的内部上下文块；bridge 将它们绑定到下一条 user 消息，nxs 在 user 落盘前提取为当前 live model history 的隐藏 reminder，Claude Code 通过 `UserPromptSubmit` hook 生成同语义 attachment；两者后续请求继续携带但不进入 transcript。workspace `AGENTS.md` 只由 SDK 启动加载器读取，产品 prompt builder 不再重复拼接。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态与待确认人工交互只按 Room ID 输出；容器内部必须按精确 Conversation/Session source 隔离后取并集，空快照或终态不得清除其他 source。Room 活动快照必须携带捕获时 `room_seq` 作重放栅栏；持久 Assistant 历史只表达结构和终态，不得独立复活执行态。DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。

@@ -394,3 +394,20 @@ SDK `65e65b86` 完成配置 writer、绑定快照与逐次请求栅栏，`00b72d
 [汇总报告](./evidence/desktop-sandbox/2026-09-17-settings-writes/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-17-settings-writes/baseline-report.json)、[证据说明](./evidence/desktop-sandbox/2026-09-17-settings-writes/README.md)和[SHA256 清单](./evidence/desktop-sandbox/2026-09-17-settings-writes/manifest.json)保存最终结果及修复前失败。Bridge 模块按 Go canonical zip 生成；此前普通 Git zip 的校验和未进入本次最终依赖。
 
 本批次只完成进程内配置边界，不证明持久 request/approval/revision、跨进程 CAS、多文件原子事务、父目录 fsync 或重启 unknown 对账。Provider 凭据隔离、其余 SDK IO、完整后代监督、scratch、默认策略、Claude、其他平台原生及安装包继续按 P1–P7 推进。`releaseAccepted=false`；所有提交与模块仅本地，原目录现场未修改。
+
+## 2026-09-17：Provider 环境所有权与插值隔离
+
+SDK 本地提交 `101f34fa`、`460c0f1c` 收口 settings 到主/辅助请求、命令/hook 环境及 HTTP hook/MCP 变量插值的凭据流。Nexus 在最后的环境合并边界固定宿主管理标记；标记、scrub 或后台唤醒所有权变化时替换旧进程，普通 Provider 凭据更新仍可热更新。Bridge 保持 `a2316d7` 的固定模块；没有发布或推送。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 修复前反例 | SDK 旧提交加测试复现 26 个失败事件（含父子项）；请求正文替换、Nexus 启动覆盖、HTTP hook/MCP 插值与旧进程复用另有独立失败记录 |
+| 固定 SDK 基线 | `460c0f1c` 导出构建；143 个顶层、309 个指定子场景通过，必测 skip 为 0；含真实 nxs 握手与 macOS 文件/命令测试 |
+| 最终宿主增量 | 基线启动后补入进程标记指纹；最终 runtime/clientopts 的 205 个通过事件、1 个可选 skip，race 通过；新增 2 个顶层/4 个指定子场景另经严格证据解析确认通过。不是声称初次基线已经包含这 6 项 |
+| SDK 目标包 | 首批受影响包 1171 个通过事件、167 个可选 skip，下游调用方 247 个通过事件、1 个可选 skip；定向 race 31 个事件通过。插值补充后相关包 race 358 个通过事件、90 个可选 skip |
+| 兼容性 | 独立 SDK/CLI settings、独立 MCP 插值、专用 hook/MCP 认证变量与普通 Provider 凭据热更新保持；未访问真实 Provider |
+| 静态/跨平台 | 目标包 vet、架构和脚本检查通过；Windows/Linux amd64 仅交叉编译通过，不代表原生环境或安装包验收 |
+
+[汇总报告](./evidence/desktop-sandbox/2026-09-17-provider-environment/report.json)、[基线报告](./evidence/desktop-sandbox/2026-09-17-provider-environment/baseline-report.json)、[复核说明](./evidence/desktop-sandbox/2026-09-17-provider-environment/README.md)与[哈希清单](./evidence/desktop-sandbox/2026-09-17-provider-environment/manifest.json)保留精确版本、源文件差异、修复前后日志和 skip。最终自动入口已要求总计 145 个顶层/313 个指定子场景；本批证据由固定 SDK 基线与随后实际执行的宿主增量组合证明。
+
+这批仅证明已知环境凭据不会经上述输入通路借出，不证明任意秘密文件、其他进程或继承句柄不可读，也不证明外部 MCP/认证 helper 已进入 OS 边界。后台 IO、网络、持久恢复、完整后代监督、scratch、默认权限体验、Claude、其他平台原生及安装包仍按 P1–P7 继续；`releaseAccepted=false`，Goal active。

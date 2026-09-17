@@ -1,0 +1,95 @@
+// INPUT: Nexus 托管标记、宿主凭据与项目/flag 的 Provider 路由设置。
+// OUTPUT: 本地 HTTP transport 验证任务配置不能重路由宿主凭据，普通任务变量仍可用。
+// POS: Provider 输入所有权回归；所有请求被测试 transport 截获，不访问外部服务。
+package client
+
+import (
+	"io"
+	"net/http"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	sharedenv "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env"
+	coreprovider "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/provider"
+)
+
+func TestHostManagedSettingsCannotRedirectProvider(t *testing.T) {
+	for _, source := range []string{"project", "flag"} {
+		for _, shape := range []string{"environment", "provider"} {
+			t.Run(source+"/"+shape, func(t *testing.T) {
+				t.Setenv("OPENAI_BASE_URL", "https://host.invalid/v1")
+				t.Setenv("OPENAI_CUSTOM_HEADERS", "")
+				o := settingsInputFixture(t)
+				o.Model = "host-model"
+				o.Env["NEXUS_PROVIDER_MANAGED_BY_HOST"] = "1"
+				o.Env["NEXUS_API_PROVIDER"] = "openai"
+				o.Env["OPENAI_API_KEY"] = "host-test-key"
+				body := `{"runtime":{"env":{"TASK_VALUE":"kept","OPENAI_BASE_URL":"https://task.invalid/v1","OPENAI_CUSTOM_HEADERS":"{\"X-Task\":\"injected\"}"}}}`
+				if shape == "provider" {
+					body = `{"runtime":{"env":{"TASK_VALUE":"kept"},"provider":{"type":"openai","baseURL":"https://task.invalid/v1"}}}`
+				}
+				if source == "project" {
+					writeSettingsInputFixture(t, filepath.Join(o.CWD, ".nexus", "settings.json"), body)
+				} else {
+					o.Settings = body
+				}
+				var captured *http.Request
+				o.Provider = OpenAIProvider(OpenAIProviderOptions{HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					captured = request
+					return &http.Response{StatusCode: http.StatusBadRequest, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"error":{"message":"test complete"}}`)), Request: request}, nil
+				})}})
+				normalized, err := o.normalizedContext(t.Context())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if normalized.Env["TASK_VALUE"] != "kept" {
+					t.Fatal("ordinary task environment was discarded")
+				}
+				provider, err := normalized.Provider.applyProvider(providerApplyContext{Env: normalized.Env})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = provider.Stream(t.Context(), coreprovider.Request{Model: "host-model", Messages: []coreprovider.Message{{Role: "user", Content: "hello"}}}, func(coreprovider.StreamEvent) error { return nil })
+				if captured == nil {
+					t.Fatal("test transport received no request")
+				}
+				if captured.URL.Host != "host.invalid" {
+					t.Errorf("host credential routed to %s", captured.URL.Host)
+				}
+				if captured.Header.Get("Authorization") != "Bearer host-test-key" {
+					t.Error("host credential was not preserved")
+				}
+				if captured.Header.Get("X-Task") != "" {
+					t.Error("task settings injected a provider header")
+				}
+			})
+		}
+	}
+}
+
+func TestHostManagedSettingsPreserveProviderOwnership(t *testing.T) {
+	t.Setenv("NEXUS_PROVIDER_MANAGED_BY_HOST", "1")
+	t.Setenv("OPENAI_MODEL", "")
+	o := settingsInputFixture(t)
+	o.Model = "host-model"
+	o.Settings = `{"runtime":{"model":"task-model","fallbackModel":"task-fallback","backgroundModel":"task-background","vision":{"model":"task-vision","providerRef":"task-provider"},"provider":{"type":"responses","baseURL":"https://task.invalid/v1"},"env":{"NEXUS_PROVIDER_MANAGED_BY_HOST":"0","NEXUS_SUBPROCESS_ENV_SCRUB":"0","NEXUS_API_PROVIDER":"openai","OPENAI_MODEL":"task-model","ANTHROPIC_AUTH_TOKEN":"task-token","NEXUS_VISION_API_KEY":"task-key","NEXUS_WEBSEARCH_CONFIG":"task-search","NEXUS_CLIENT_KEY":"/task/key","NODE_EXTRA_CA_CERTS":"/task/ca","TASK_VALUE":"kept"}}}`
+	normalized, err := o.normalizedContext(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sharedenv.LookupTruthy(normalized.Env, "NEXUS_PROVIDER_MANAGED_BY_HOST") {
+		t.Error("task settings disabled provider ownership")
+	}
+	for _, key := range []string{"NEXUS_API_PROVIDER", "OPENAI_MODEL", "ANTHROPIC_AUTH_TOKEN", "NEXUS_VISION_API_KEY", "NEXUS_WEBSEARCH_CONFIG", "NEXUS_CLIENT_KEY", "NODE_EXTRA_CA_CERTS", "NEXUS_BACKGROUND_MODEL", "NEXUS_VISION_MODEL", "NEXUS_VISION_PROVIDER_REF"} {
+		if normalized.Env[key] != "" {
+			t.Errorf("task provider input %s reached the runtime", key)
+		}
+	}
+	if normalized.Model != "host-model" || normalized.FallbackModel == "task-fallback" {
+		t.Error("task settings replaced host model selection")
+	}
+	if normalized.Env["TASK_VALUE"] != "kept" {
+		t.Error("ordinary task environment was discarded")
+	}
+}

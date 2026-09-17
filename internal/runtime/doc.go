@@ -38,4 +38,6 @@
 // 托管策略完整性通过 RequireManagedPolicy 独立要求；它同样进入进程指纹。
 // 普通配置读取和完整快照通过 RequireSettingsFiles 独立要求并参与进程替换。
 // 受控配置写入通过 RequireSettingsWrites 独立要求；成功更新后旧 runtime 不再发起 provider 请求。
+// clientopts 在最终环境中固定 nxs Provider/后台唤醒的宿主所有权，任务覆盖不能撤销。
+// Provider 所有权、凭据清理和后台唤醒标记参与进程指纹；变化先替换进程，不伪装成环境热更新。
 package runtime

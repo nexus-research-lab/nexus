@@ -90,6 +90,10 @@ try {
   environment.NEXUS_SANDBOX_TEST_BINARY = binary;
 
   testGroup("host-policy", ["./internal/runtime/clientopts", "./internal/runtime/permission", "./internal/service/nxsruntime"], [
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership",
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership/extra",
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership/configuration",
+    "TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership",
     "TestDesktopSandboxPolicySeparatesResourcesAndFullAccess",
     "TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature",
     "TestDesktopSandboxRealRuntimeNegotiation",
@@ -115,8 +119,32 @@ try {
     "TestManagerBulkCleanupReportsAndRetainsFailure",
     ...["owner", "idle", "agent_revocation"].map((entry) => `TestManagerBulkCleanupReportsAndRetainsFailure/${entry}`),
     "TestProcessPolicyIncludesHostSandboxRequirements",
+    "TestProviderOwnershipChangeReplacesRuntime",
+    ...["NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"].map((key) => `TestProviderOwnershipChangeReplacesRuntime/${key}`),
+    "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
   ]);
   if (sdkSource) {
+    testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
+      "TestHostManagedSettingsCannotRedirectProvider",
+      ...["project", "flag"].flatMap((source) => ["environment", "provider"].map((shape) => `TestHostManagedSettingsCannotRedirectProvider/${source}/${shape}`)),
+      "TestHostManagedSettingsCannotReplaceProviderRequestBody",
+      "TestHostManagedSettingsPreserveProviderOwnership",
+      "TestStandaloneSettingsRetainProviderInputs",
+      "TestHostManagedSubprocessRemovesSDKCredentials",
+      ...["OPENAI_API_KEY", "OPENAI_CUSTOM_HEADERS", "NEXUS_WEBSEARCH_API_KEY", "NEXUS_WEBFETCH_SUMMARIZER_API_KEY", "NEXUS_WEBFETCH_DOMAIN_CHECK_API_KEY", "NEXUS_CLIENT_KEY", "NEXUS_CLIENT_KEY_PASSPHRASE", "NEXUS_API_KEY_FILE_DESCRIPTOR", "NEXUS_OAUTH_TOKEN_FILE_DESCRIPTOR", "INPUT_OPENAI_API_KEY"].map((key) => `TestHostManagedSubprocessRemovesSDKCredentials/${key}`),
+      "TestHostProviderOwnershipCannotBeDisabledByTaskEnvironment",
+      "TestCommandHookRespectsRuntimeProviderOwnership",
+      "TestShellProcessesRespectRuntimeProviderOwnership",
+      ...["bash", "selected_shell", "powershell_environment"].map((shell) => `TestShellProcessesRespectRuntimeProviderOwnership/${shell}`),
+      "TestMemoryModelRespectsHostProviderOwnership",
+      "TestMemoryModelRespectsHostProviderOwnership/standalone",
+      "TestMemoryModelRespectsHostProviderOwnership/host_managed",
+      "TestHostManagedBackgroundSettingDoesNotAcknowledgeUnusedUpdate",
+      "TestHTTPHookCannotInterpolateHostProviderCredentials",
+      ...["process", "runtime", "standalone"].map((mode) => `TestHTTPHookCannotInterpolateHostProviderCredentials/${mode}`),
+      "TestMCPInterpolationCannotBorrowHostProviderCredentials",
+      "TestStandaloneMCPInterpolationPreservesEnvironment",
+    ], sdkSource);
     testGroup("macos-backend-path", ["./internal/tool/builtin/bash/sandboxexec"], [
       "TestMacOSSandboxDependencyUsesSystemPath",
       "TestMacOSSandboxIgnoresTaskPath",

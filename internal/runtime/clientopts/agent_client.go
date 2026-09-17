@@ -1,5 +1,5 @@
 // INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、后台进度模型环境投影、固定宿主子智能体定义与 MCP 名称隔离后的 SDK client options。
+// OUTPUT: 经统一校验、固定宿主 Provider 所有权、后台模型投影与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -152,7 +152,6 @@ func BuildAgentClientOptionsWithConfig(
 	// bridge 会继承宿主进程环境；先清掉全局路径和密钥，再由后续
 	// provider/runtime 投影显式恢复当前会话允许使用的变量。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
@@ -195,6 +194,8 @@ func BuildAgentClientOptionsWithConfig(
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
+	// Provider 所有权和后台唤醒归宿主，调用方环境不能在装配末尾撤销。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 

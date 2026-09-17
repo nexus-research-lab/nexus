@@ -20,4 +20,5 @@
 // RequireManagedPolicy 要求固定托管来源与执行前完整性，不推断普通配置或凭据已收口。
 // RequireSettingsFiles 确认普通配置的受限读取和完整快照，凭据隔离与原子持久化仍独立验收。
 // RequireSettingsWrites 确认 Config 更新复用同一受检来源并在写后强制替换 runtime；跨进程事务和持久回执仍独立验收。
+// nxs Provider 与 AutoDream 唤醒的宿主所有权在所有环境合并后固定；ExtraEnv/ConfigurationEnv 不能撤销。
 package clientopts

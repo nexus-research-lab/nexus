@@ -227,7 +227,40 @@ power-loss durability, exact request/approval/revision persistence, durable rece
 restart recovery of unknown outcomes or automatic replay. Unix replacement preserves
 ordinary permission bits but does not claim owner, ACL, xattr or file flags. Windows
 only has compile coverage and its Go writable-bit checks do not establish DACL
-privacy. Provider credential separation and background IO remain pending.
+privacy. Whole-process Provider credential isolation and background IO remain pending.
+
+## Host-owned Provider inputs
+
+Nexus finalizes `NEXUS_PROVIDER_MANAGED_BY_HOST=1` and host-owned AutoDream wake
+after every environment merge. `ExtraEnv` and `ConfigurationEnv` cannot revoke
+these nxs-specific declarations; Claude does not receive an nxs ownership claim.
+Provider ownership, subprocess scrub and background-wake declarations are part of
+the process-policy fingerprint. Changing them replaces the old process before
+reconfiguration; ordinary Provider credential rotation remains a hot update.
+The fixed SDK checks Provider ownership before projecting ordinary settings.
+In host-managed mode, settings cannot supply Provider/main/fallback/background
+models, vision routes, credentials, custom headers, request-body overrides,
+proxy or certificate inputs. Explicit host Options/environment remain authoritative,
+and ordinary task environment values remain available. Standalone SDK settings
+retain their existing routing semantics. Background-model settings updates that
+cannot take effect in host-managed mode return an error.
+
+Command and hook environment builders remove known SDK main/auxiliary credentials
+after applying runtime environment values. Task values cannot disable a Provider
+ownership declaration already present in the host process. This is a versioned
+implementation guarantee checked by the fixed-source baseline, not a new wire
+capability inferred from settings-write acknowledgement. It does not establish
+credential secrecy against host-file reads, process inspection, inherited handles,
+external MCP or network egress; those boundaries and default product activation
+remain separately pending.
+
+HTTP hook Header interpolation also uses the task-visible environment, even when
+the hook allowlist names a Provider credential. nxs MCP configuration interpolation
+treats such process credentials as missing, including URL, argument, environment
+alias and Header locations, and preserves the existing missing/fallback semantics.
+Dedicated hook/MCP authentication variables and explicit host-provided values
+remain independent. This prevents implicit credential borrowing; it does not
+establish confinement of external MCP servers.
 
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,

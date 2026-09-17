@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
+
+- Include HTTP hook and MCP variable interpolation in Provider environment acceptance. Known host Provider credentials cannot be borrowed into request headers, URLs, arguments or renamed environment values; dedicated authentication variables retain their existing behavior.
+
 - Require an independent nxs settings-write capability before restricted desktop sessions start. Route Config and permission persistence through the checked settings binding, reject path-identity changes, use same-directory replacement, protect settings from task processes, and retire the runtime after an effective Config update. This remains a macOS development contract; cross-process transactions, durable receipts, provider credential separation and default product rollout remain pending.
 
 - Require independent nxs ordinary-settings confinement and snapshot integrity in the desktop development policy. Fixed sources, source filtering, checked startup and runtime controls prevent unknown settings from silently weakening restrictions. Include the requirement in process replacement and the fixed-SDK native gate. Credential separation, atomic permission persistence and default product rollout remain pending.

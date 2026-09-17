@@ -1,0 +1,506 @@
+{
+  "version": 1,
+  "algorithm": "sha256",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "82f27320d1a09ced8d2138a665249ffdf39d47d0c182a49050964579e50da80a",
+      "bytes": 2754
+    },
+    {
+      "path": "baseline-bridge-module.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-bridge-module.stdout.log.gz",
+      "sha256": "5d5218913344d0df2cc92fa450a551c4266823779ade073c2ae4199c53f58e92",
+      "bytes": 320
+    },
+    {
+      "path": "baseline-go-version.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-go-version.stdout.log.gz",
+      "sha256": "d9bf2053ca65b92974965ec479760e6029fbc62b103aa2778c0c6c8d144a28f0",
+      "bytes": 29
+    },
+    {
+      "path": "baseline-host-lifecycle.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-host-lifecycle.stdout.log.gz",
+      "sha256": "720bc33fafe910f7a56d9a06d48d2627088991e5dc129b00a9e1837875201ba8",
+      "bytes": 1388
+    },
+    {
+      "path": "baseline-host-policy.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-host-policy.stdout.log.gz",
+      "sha256": "8c9189b52b27967208c500361527cb17075db5d56a9fc2b2645f990a10782c52",
+      "bytes": 1335
+    },
+    {
+      "path": "baseline-macos-backend-path.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-backend-path.stdout.log.gz",
+      "sha256": "abab50236d68dc37cf4bc3eaaef2f6f30c3b1543f59da80f1782991d9d5e9d13",
+      "bytes": 537
+    },
+    {
+      "path": "baseline-macos-context-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-context-contract.stdout.log.gz",
+      "sha256": "0fea52c503a81bda17ca85bfb946a16b5d2a0d82a3caefa2aa63ff17b4caf10e",
+      "bytes": 697
+    },
+    {
+      "path": "baseline-macos-context-recovery.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-context-recovery.stdout.log.gz",
+      "sha256": "4ad0121676297add5e1054416cc31a665c243d600932a20adc46d5e51898b12c",
+      "bytes": 1544
+    },
+    {
+      "path": "baseline-macos-context-startup.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-context-startup.stdout.log.gz",
+      "sha256": "3635eb65dcf6a504637aa7099a3682dc3b9f24c4f0de6de1fad676c83e273051",
+      "bytes": 1208
+    },
+    {
+      "path": "baseline-macos-managed-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-managed-contract.stdout.log.gz",
+      "sha256": "69d3a0cfdfc48485445dd6ce598d31b56e69c16bb23681f51c078a54428a5a14",
+      "bytes": 706
+    },
+    {
+      "path": "baseline-macos-managed-integrity.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-managed-integrity.stdout.log.gz",
+      "sha256": "ea11434ddca952781924cca8c99454ed09e667d401f883bc88922c57d20b6ce2",
+      "bytes": 514
+    },
+    {
+      "path": "baseline-macos-managed-sources.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-managed-sources.stdout.log.gz",
+      "sha256": "4ef573dbd9797c00aa40c080fdd8b8628d2ec9624755762743f81bd42873312d",
+      "bytes": 1554
+    },
+    {
+      "path": "baseline-macos-media-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-media-contract.stdout.log.gz",
+      "sha256": "3f1c7184e465f9a4f00142d3926c7c6379905d53814827360813655f6ac5c058",
+      "bytes": 697
+    },
+    {
+      "path": "baseline-macos-media-files.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-media-files.stdout.log.gz",
+      "sha256": "c014cb4447419a152c35d35eaf2e417cc0c4bb6e9fc3290e0648f0b196ca9a16",
+      "bytes": 1447
+    },
+    {
+      "path": "baseline-macos-native.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-native.stdout.log.gz",
+      "sha256": "0fbb64264366f1236716f4a590cfb64abc2700eb6cb8281f2f13d4cf1246fe8e",
+      "bytes": 916
+    },
+    {
+      "path": "baseline-macos-project-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-project-contract.stdout.log.gz",
+      "sha256": "7d873bbf65316c81f696fd288d32700ce49d5eb0bfc42ea8a50e51dc632c79de",
+      "bytes": 698
+    },
+    {
+      "path": "baseline-macos-project-files.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-project-files.stdout.log.gz",
+      "sha256": "cd42f96268ca597ccb67fa85d09973afa3d8f5df1e1565bbdf1ac770130e8f0d",
+      "bytes": 1630
+    },
+    {
+      "path": "baseline-macos-resource-denials.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-resource-denials.stdout.log.gz",
+      "sha256": "f5cbf2b990bc6257119dde85ef2ce0c674f20752a7cb1aa4f4c0bea87ddca761",
+      "bytes": 1146
+    },
+    {
+      "path": "baseline-macos-resource-scopes.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-resource-scopes.stdout.log.gz",
+      "sha256": "3f69e3451e4591414178e95269f7678c8374f7cdb1d0c3356b74e036a20164ce",
+      "bytes": 463
+    },
+    {
+      "path": "baseline-macos-search-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-search-contract.stdout.log.gz",
+      "sha256": "86aa1a70ce7ed61eabbea7eddaaa0a546f7281421022e31759e0b9cd048ce16b",
+      "bytes": 694
+    },
+    {
+      "path": "baseline-macos-search.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-search.stdout.log.gz",
+      "sha256": "e6be0be7b160d05956718d6429b774433f53c5f606a7b34e11c9493c45274632",
+      "bytes": 1454
+    },
+    {
+      "path": "baseline-macos-settings-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-settings-contract.stdout.log.gz",
+      "sha256": "d2777938ffa7ffd61fe312f7fd4d4e7c68b0b4ac4320455bb0eb208d9cd2bbf0",
+      "bytes": 701
+    },
+    {
+      "path": "baseline-macos-settings-native.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-settings-native.stdout.log.gz",
+      "sha256": "0bfdbd499de99dc5209faa0707d4581991b33d2df76ac31c277fba0b32d3829e",
+      "bytes": 1246
+    },
+    {
+      "path": "baseline-macos-settings-snapshots.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-settings-snapshots.stdout.log.gz",
+      "sha256": "cd416368c016e54ad5c305bfdac99b1b9b6bd2c9eabda8db0d4f89ee32bc947d",
+      "bytes": 1311
+    },
+    {
+      "path": "baseline-macos-settings-writes.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-settings-writes.stdout.log.gz",
+      "sha256": "84b700d8c262b8028f546380999a7d98ea4b279d62a3cc52e667e6cc2629b229",
+      "bytes": 1123
+    },
+    {
+      "path": "baseline-macos-skill-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-skill-contract.stdout.log.gz",
+      "sha256": "1453679683e25eeff07bfd127af5e07bacf9551be30a6d8472fe4b4e9b1b3d5f",
+      "bytes": 705
+    },
+    {
+      "path": "baseline-macos-skill-files.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-macos-skill-files.stdout.log.gz",
+      "sha256": "b9a217a2966215a03fb8420799cb6a57d90a00c95ad7cf8dc6dae27f7a58072d",
+      "bytes": 3068
+    },
+    {
+      "path": "baseline-nexus-changes.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-nexus-changes.stdout.log.gz",
+      "sha256": "080cc5949084a3f867c1ffbcfe2549e7c31cca30ce65c10a12d3fd61f5aff75d",
+      "bytes": 193
+    },
+    {
+      "path": "baseline-nexus-revision.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-nexus-revision.stdout.log.gz",
+      "sha256": "9a52a7e1eed583bdd217b66cf8610e115974dbd99695ae38402075fae376458a",
+      "bytes": 59
+    },
+    {
+      "path": "baseline-provider-environment.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-provider-environment.stdout.log.gz",
+      "sha256": "1e33da1be342ab78d6475c93ec2be5858f126f580b2861993b1285eeefd19ef1",
+      "bytes": 2531
+    },
+    {
+      "path": "baseline-report.json",
+      "sha256": "5ae798f7e4886f5db53af7a44a030e7afd4b00f3cfab5e4a30a0fe5d545bafcf",
+      "bytes": 50595
+    },
+    {
+      "path": "baseline-sdk-build.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-build.stdout.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-changes-excluded.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-changes-excluded.stdout.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-export.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-export.stdout.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-extract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-extract.stdout.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-revision.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-sdk-revision.stdout.log.gz",
+      "sha256": "95162463d7092d4571f961efb106e41216505d940d30453023ce81d65975eece",
+      "bytes": 59
+    },
+    {
+      "path": "baseline-settings-request-admission.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-settings-request-admission.stdout.log.gz",
+      "sha256": "fc60547fe5c0bd7ec2f1ffadbdfb1dab09c2579afeaeadca5710d0cc34b00637",
+      "bytes": 996
+    },
+    {
+      "path": "baseline-settings-writers.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-settings-writers.stdout.log.gz",
+      "sha256": "935901cf16eb238807f513905c76dbc7f11333d407d388cb3e1901f63ffb2a71",
+      "bytes": 2987
+    },
+    {
+      "path": "baseline-settings-writes-contract.stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "baseline-settings-writes-contract.stdout.log.gz",
+      "sha256": "132c7199daaa3e6a611769facc06afb9720811ade610363f436c63326a4f0913",
+      "bytes": 924
+    },
+    {
+      "path": "before-fixture-client-provider_environment_test.go.source",
+      "sha256": "ba21f10471ff40eb8365e946da9cfae95e01a7e131170fb3e49d45972b69baff",
+      "bytes": 4598
+    },
+    {
+      "path": "before-fixture-internal-agent-runtime-memory_model_test.go.source",
+      "sha256": "a54323c383b9db8b09abfaf9b003592e7fb812213089ac8f802d00e92af93f14",
+      "bytes": 2400
+    },
+    {
+      "path": "before-fixture-internal-config-env-provider_test.go.source",
+      "sha256": "c268ed4d9c25e824c338d5db7cdf4786928eddc81e0ae416c86992ecdab5321e",
+      "bytes": 1530
+    },
+    {
+      "path": "before-fixture-internal-tool-executor-hooks-provider_environment_test.go.source",
+      "sha256": "2a3b913e3a493a6ebf307531a92cbb45b107dd363b1bf66e0981ae86b6abe695",
+      "bytes": 3048
+    },
+    {
+      "path": "final-host.jsonl.gz",
+      "sha256": "30fa2969af78b68692749e2f2a9ad6534c8d403d51975c93538da5bef3cc2155",
+      "bytes": 13109
+    },
+    {
+      "path": "host-before.jsonl.gz",
+      "sha256": "b66cb60252e9884fa21c07bd60bf044be99319ceb7a074ae57a9a35ce1f83b65",
+      "bytes": 596
+    },
+    {
+      "path": "host-replace-before.jsonl.gz",
+      "sha256": "453f0fd41b17abda74744766a8a3ede1e73c26693baf70d6501de619d1069bf7",
+      "bytes": 672
+    },
+    {
+      "path": "interpolation-after.jsonl.gz",
+      "sha256": "f329e5c8903f02053f30d57e3efc81480ebb714f963c99a8d80848d1d4c2b30b",
+      "bytes": 26730
+    },
+    {
+      "path": "interpolation-before.jsonl.gz",
+      "sha256": "d7c64201a3da335e6cbfee884a1031896da5cfbbf7bd579fa12fe723ae5e162e",
+      "bytes": 828
+    },
+    {
+      "path": "nexus-provider-cross-compile.json",
+      "sha256": "6d00aee75e168c979dcc8a16fa3ee16e12d18627e6d881b91896e6132753d543",
+      "bytes": 653
+    },
+    {
+      "path": "nexus-provider-final-host-required.json",
+      "sha256": "af27874530dcbc1f58925ddfb8ce013c7fb137dc1bb9fbe61f7c36a9e196a635",
+      "bytes": 582
+    },
+    {
+      "path": "nexus-provider-interpolation-cross-compile.json",
+      "sha256": "4e969d9c48fcd834d949311f73f96bc7db0b69804a287c55946c163918d59fce",
+      "bytes": 611
+    },
+    {
+      "path": "nexus-provider-interpolation-linux-compile.log.gz",
+      "sha256": "fb8bbe5051ab780d4f37ddff91b0e3d52cffe36a14a0e34621d1804a5089dde4",
+      "bytes": 136
+    },
+    {
+      "path": "nexus-provider-interpolation-windows-compile.log.gz",
+      "sha256": "e41e9c9123e8f9d70b3048ee5926550111e7ca0ff77808634e5ebfaec97cb4c7",
+      "bytes": 129
+    },
+    {
+      "path": "nexus-provider-linux-compile.log.gz",
+      "sha256": "aa74a8dba4014dd99d86b7086694618aab18291501cb7b4b7f65b3bad0ffc8b1",
+      "bytes": 138
+    },
+    {
+      "path": "nexus-provider-windows-compile.log.gz",
+      "sha256": "11e66661f332c6f5c05047a575d264b18f805b7b5a9af476323ee15b738b2b79",
+      "bytes": 142
+    },
+    {
+      "path": "nexus-source.patch.gz",
+      "sha256": "dc41079c7a27939c06b178cb51397e4d5d0d8a94667591638f53ea29554bfa72",
+      "bytes": 12227
+    },
+    {
+      "path": "provider-body-before.go.source",
+      "sha256": "c09979ef4e31c375dc07fd22d5ba17fdeeb97d6e973b4fe4fafb9b20cdf824d0",
+      "bytes": 2145
+    },
+    {
+      "path": "report.json",
+      "sha256": "0ceb733465a7121c1ebfad05e20fb2989d3bd076c8beb88ccc438076503cc65e",
+      "bytes": 54370
+    },
+    {
+      "path": "sdk-before.jsonl.gz",
+      "sha256": "a143cf903d6371390cc700cbaf3578451e5b9f1f89a29ef0893ded4906c30db2",
+      "bytes": 2800
+    },
+    {
+      "path": "sdk-body-before.jsonl.gz",
+      "sha256": "4f15a17f3f75a5e4fcb016852b8c93f08100de0f05733f242b3ee6d1aa2bdbfe",
+      "bytes": 484
+    },
+    {
+      "path": "sdk-consumers.jsonl.gz",
+      "sha256": "aabceca24efb76c3e03f203203aff9dd68b704a97f2773c41ed1d948f947a88e",
+      "bytes": 14367
+    },
+    {
+      "path": "sdk-packages.jsonl.gz",
+      "sha256": "9ef1408f9403251f0e5eeae4849276b402e61783f11d10a51ba11ab10b7010af",
+      "bytes": 83726
+    },
+    {
+      "path": "sdk-race.jsonl.gz",
+      "sha256": "f4372af145ca4851ef506c0babaa4384350eb908253857aec454a37887d547f0",
+      "bytes": 2349
+    }
+  ]
+}
