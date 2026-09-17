@@ -791,6 +791,8 @@ export const zhSettingsMessages = {
   "settings.providers.model_capabilities_description": "仅在自动识别不准确时调整。",
   "settings.providers.capability_vision": "视觉理解",
   "settings.providers.model_recommended_hint": "Nexus 建议的起步选择；不代表最低价格，实际可用性以当前服务商为准。",
+  "settings.providers.model_multimodal": "多模态",
+  "settings.providers.model_multimodal_hint": "支持文字和图片输入。能否生成或编辑图片，请查看具体能力。",
   "settings.providers.model_recommended": "推荐",
   "settings.providers.capability_text_output": "文本对话",
   "settings.providers.capability_image_editing": "图片编辑",

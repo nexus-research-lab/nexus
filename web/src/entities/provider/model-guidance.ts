@@ -10,7 +10,7 @@ export function modelGuidanceLabel(guidance: ModelGuidance | undefined, purpose:
   const labels: string[] = [];
   if (guidance.recommendations[purpose]) labels.push(t("settings.providers.model_recommended"));
   const c = guidance.capabilities;
-  if (c.vision) labels.push(t("settings.providers.capability_vision"));
+  if (c.vision) labels.push(t("settings.providers.model_multimodal"));
   if (c.image_output) labels.push(t("settings.providers.capability_image_output"));
   if (c.image_editing) labels.push(t("settings.providers.capability_image_editing"));
   return labels.join(" · ");

@@ -794,6 +794,8 @@ export const enSettingsMessages = {
   "settings.providers.model_capabilities_description": "Change only when auto-detection is wrong.",
   "settings.providers.capability_vision": "Vision",
   "settings.providers.model_recommended_hint": "A Nexus starting-point recommendation; pricing and availability depend on your provider.",
+  "settings.providers.model_multimodal": "Multimodal",
+  "settings.providers.model_multimodal_hint": "Supports text and image input. Image generation and editing are separate capabilities.",
   "settings.providers.model_recommended": "Recommended",
   "settings.providers.capability_text_output": "Text chat",
   "settings.providers.capability_image_editing": "Image editing",
