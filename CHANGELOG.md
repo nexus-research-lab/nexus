@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Label models with image input as “Multimodal” in selection lists, keeping detailed vision and image-output capabilities separate.
+
 - Share model recommendations and capability labels across onboarding, Provider settings, chat and default image selection; preserve saved defaults, support automatic/explicit capability overrides, and enforce separate chat, image generation and editing eligibility.
 
 - Fix startup migration collisions by assigning Team Node message lookup version 142 in both SQLite and PostgreSQL, preserving IM delivery migration version 141.

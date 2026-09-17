@@ -10,7 +10,7 @@ it("uses purpose-specific advice independently of capability badges", () => {
  const t = (key: string) => key;
  expect(modelGuidanceLabel(guidance,"chat",t)).not.toContain("model_recommended");
  expect(modelGuidanceLabel(guidance,"image_generation",t)).toContain("model_recommended");
- expect(modelGuidanceLabel(guidance,"chat",t)).toContain("capability_vision");
+ expect(modelGuidanceLabel(guidance,"chat",t)).toContain("model_multimodal");
  expect(modelGuidanceLabel(undefined,"chat",t)).toBe("");
 });
 it("sorts recommendations without mutating the original or saved default", () => {
