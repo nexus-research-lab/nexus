@@ -77,9 +77,10 @@ type UsageAgent struct {
 
 // ModelOption 表示可供 Agent 选择的单个模型。
 type ModelOption struct {
-	ModelID     string `json:"model_id"`
-	DisplayName string `json:"display_name"`
-	IsDefault   bool   `json:"is_default"`
+	ModelID     string         `json:"model_id"`
+	DisplayName string         `json:"display_name"`
+	IsDefault   bool           `json:"is_default"`
+	Guidance    *ModelGuidance `json:"guidance,omitempty"`
 }
 
 // ModelSelection 表示完整运行模型选择。
@@ -213,6 +214,7 @@ type PresetFormat struct {
 
 // ModelRecord 表示单个 Provider 下的模型卡。
 type ModelRecord struct {
+	Guidance             *ModelGuidance    `json:"guidance,omitempty"`
 	ID                   string            `json:"id"`
 	ProviderID           string            `json:"provider_id"`
 	ModelID              string            `json:"model_id"`
@@ -232,11 +234,13 @@ type ModelRecord struct {
 
 // ModelCapabilities 描述模型能力。
 type ModelCapabilities struct {
-	Vision      *bool `json:"vision,omitempty"`
-	ImageOutput *bool `json:"image_output,omitempty"`
-	ToolCalling *bool `json:"tool_calling,omitempty"`
-	Reasoning   *bool `json:"reasoning,omitempty"`
-	Embedding   *bool `json:"embedding,omitempty"`
+	TextOutput   *bool `json:"text_output,omitempty"`
+	Vision       *bool `json:"vision,omitempty"`
+	ImageOutput  *bool `json:"image_output,omitempty"`
+	ToolCalling  *bool `json:"tool_calling,omitempty"`
+	Reasoning    *bool `json:"reasoning,omitempty"`
+	Embedding    *bool `json:"embedding,omitempty"`
+	ImageEditing *bool `json:"image_editing,omitempty"`
 }
 
 // UpdateModelInput 表示模型卡更新输入。
@@ -276,6 +280,7 @@ type TestResult struct {
 
 // ImageConfig 表示图片生成要使用的 Provider 运行时配置。
 type ImageConfig struct {
+	ImageEditing    *bool
 	Provider        string
 	DisplayName     string
 	APIFormat       string

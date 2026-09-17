@@ -28,7 +28,7 @@ func (s *Service) recordForScopedItem(ctx context.Context, item providerstore.En
 			return nil, err
 		}
 	}
-	models, err := s.modelsForRecord(ctx, item.ID)
+	models, err := s.modelsForRecord(ctx, item)
 	if err != nil {
 		return nil, err
 	}

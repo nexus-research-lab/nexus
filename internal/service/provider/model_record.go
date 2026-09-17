@@ -12,14 +12,17 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-func (s *Service) modelsForRecord(ctx context.Context, providerID string) ([]ModelRecord, error) {
-	items, err := s.repository.ListModelsByProviderID(ctx, providerID)
+func (s *Service) modelsForRecord(ctx context.Context, provider providerstore.Entity) ([]ModelRecord, error) {
+	items, err := s.repository.ListModelsByProviderID(ctx, provider.ID)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ModelRecord, 0, len(items))
 	for _, item := range items {
-		result = append(result, toModelRecord(item))
+		record := toModelRecord(item)
+		guidance := projectModelGuidance(provider, item)
+		record.Guidance = &guidance
+		result = append(result, record)
 	}
 	return result, nil
 }

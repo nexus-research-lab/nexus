@@ -1,3 +1,6 @@
+// INPUT: Remote model cards, modality arrays and optional capability booleans.
+// OUTPUT: Independent input/output capabilities; discovery persists remote facts only.
+// POS: Model discovery decoder; category remains a compatibility hint.
 package provider
 
 import (
@@ -18,9 +21,9 @@ func defaultModelCard(modelID string, providerKind string) (ModelCapabilities, s
 	category := "chat"
 	if normalizeProviderKind(providerKind) == ProviderKindImageGeneration {
 		category = "image"
-		return modelCapabilitiesWithDefaults(modelID, ModelCapabilities{}), category, nil, nil
+		return ModelCapabilities{}, category, nil, nil
 	}
-	return modelCapabilitiesWithDefaults(modelID, ModelCapabilities{}), category,
+	return ModelCapabilities{}, category,
 		contextWindowOrDefault(modelID, nil), maxOutputTokensOrDefault(modelID, nil)
 }
 
@@ -35,13 +38,14 @@ func (model remoteModel) modelCard(providerKind string) (ModelCapabilities, stri
 		contextWindow = contextWindowOrDefault(model.ID, contextWindow)
 		maxOutputTokens = maxOutputTokensOrDefault(model.ID, maxOutputTokens)
 	}
-	return modelCapabilitiesWithDefaults(model.ID, model.Capabilities), category, contextWindow, maxOutputTokens
+	return model.Capabilities, category, contextWindow, maxOutputTokens
 }
 
 func modelCapabilitiesWithDefaults(modelID string, capabilities ModelCapabilities) ModelCapabilities {
 	result := ModelCapabilities{
-		Vision:    knownVisionCapability(modelID),
-		Reasoning: knownReasoningCapability(modelID),
+		TextOutput: capabilities.TextOutput,
+		Vision:     knownVisionCapability(modelID),
+		Reasoning:  knownReasoningCapability(modelID),
 	}
 	if capabilities.Vision != nil {
 		result.Vision = capabilities.Vision
@@ -57,6 +61,9 @@ func modelCapabilitiesWithDefaults(modelID string, capabilities ModelCapabilitie
 	}
 	if capabilities.Embedding != nil {
 		result.Embedding = capabilities.Embedding
+	}
+	if capabilities.ImageEditing != nil {
+		result.ImageEditing = capabilities.ImageEditing
 	}
 	return result
 }
@@ -96,7 +103,8 @@ func remoteModelFromCard(card map[string]any) remoteModel {
 }
 
 func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
-	return ModelCapabilities{
+	result := ModelCapabilities{
+		TextOutput: capabilityPointerFromCard(card, "text_output", "supports_text_output"),
 		Vision: capabilityPointerFromCard(
 			card,
 			"vision",
@@ -105,7 +113,6 @@ func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
 			"supports_vision",
 			"supports_image_input",
 			"supports_image_in",
-			"supports_video_in",
 		),
 		ImageOutput: capabilityPointerFromCard(
 			card,
@@ -137,7 +144,44 @@ func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
 			"supports_embedding",
 			"supports_embeddings",
 		),
+		ImageEditing: capabilityPointerFromCard(
+			card,
+			"image_editing",
+			"image_edit",
+			"supports_image_editing",
+			"supports_image_edit",
+		),
 	}
+	// Some model APIs declare modalities instead of boolean capability fields.
+	sources := []map[string]any{card}
+	if architecture, ok := mapFromAny(card["architecture"]); ok {
+		sources = append(sources, architecture)
+	}
+	for _, source := range sources {
+		for _, spec := range []struct {
+			key, modality string
+			target        **bool
+		}{
+			{"input_modalities", "image", &result.Vision},
+			{"output_modalities", "text", &result.TextOutput},
+			{"output_modalities", "image", &result.ImageOutput},
+		} {
+			if *spec.target != nil {
+				continue
+			}
+			if values, ok := stringSliceFromAny(source[spec.key]); ok && len(values) > 0 {
+				found := false
+				for _, value := range values {
+					if strings.EqualFold(value, spec.modality) {
+						found = true
+					}
+				}
+				*spec.target = boolPointer(found)
+			}
+		}
+	}
+	return result
+
 }
 
 func modelCategoryFromCard(card map[string]any, capabilities ModelCapabilities) string {
@@ -152,6 +196,9 @@ func modelCategoryFromCard(card map[string]any, capabilities ModelCapabilities) 
 	}
 	if capabilities.Embedding != nil && *capabilities.Embedding {
 		return "embedding"
+	}
+	if capabilities.TextOutput != nil && *capabilities.TextOutput {
+		return "chat"
 	}
 	if capabilities.ImageOutput != nil && *capabilities.ImageOutput {
 		return "image"

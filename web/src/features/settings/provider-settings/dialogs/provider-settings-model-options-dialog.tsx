@@ -20,7 +20,7 @@ import { UiField, UiInput, UiTextarea } from "@/shared/ui/form/form-control";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
-import { CapabilitySwitch } from "../components/provider-settings-capability-switch";
+import { CapabilitySelect } from "../components/provider-settings-capability-select";
 import type { ProviderPendingAction } from "../actions/use-provider-command";
 import type { ModelOptionsState } from "../model/provider-settings-types";
 
@@ -34,6 +34,8 @@ interface ProviderModelOptionsDialogProps {
 }
 
 const CAPABILITY_FIELDS = [
+  { key: "text_output", label: "settings.providers.capability_text_output" },
+  { key: "image_editing", label: "settings.providers.capability_image_editing" },
   { key: "vision", label: "settings.providers.capability_vision" },
   { key: "image_output", label: "settings.providers.capability_image_output" },
   { key: "tool_calling", label: "settings.providers.capability_tool_calling" },
@@ -85,8 +87,8 @@ export function ProviderModelOptionsDialog({
               </div>
               <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
                 {CAPABILITY_FIELDS.map(({ key, label }) => (
-                  <CapabilitySwitch
-                    checked={!!modelOptions.capabilities[key]}
+                  <CapabilitySelect
+                    checked={modelOptions.capabilities[key]}
                     disabled={controlsDisabled}
                     key={key}
                     label={t(label)}

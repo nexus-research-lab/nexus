@@ -21,7 +21,7 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 		if item.ProviderKind == ProviderKindLLM {
 			usageCount = len(usageAgents[item.Provider])
 		}
-		models, err := s.modelsForRecord(ctx, item.ID)
+		models, err := s.modelsForRecord(ctx, item)
 		if err != nil {
 			return nil, err
 		}
@@ -105,7 +105,12 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		switch {
 		case item.ProviderKind == ProviderKindLLM:
 			result.BackgroundItems = append(result.BackgroundItems, option)
-			visionModels := visionModelOptions(models)
+			visionModels := []ModelOption{}
+			for _, model := range llmModels {
+				if model.Guidance.Eligibility[PurposeVision].Available {
+					visionModels = append(visionModels, model)
+				}
+			}
 			if len(visionModels) > 0 {
 				result.VisionItems = append(result.VisionItems, Option{
 					Provider:    item.Provider,

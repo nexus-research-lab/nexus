@@ -1,3 +1,6 @@
+import { modelGuidanceLabel, recommendedModelsFirst } from "@/entities/provider/model-guidance";
+import type { ModelPurpose } from "@/types/capability/provider";
+import type { useI18n } from "@/shared/i18n/i18n-context";
 import { normalizeModelSelectionPreference } from "@/lib/settings/preferences-normalization";
 import {
   formatProviderOptionLabel,
@@ -126,14 +129,16 @@ function encodeOptionalModelSelection(
 function buildDefaultModelOptions(
   providerOptions: ProviderOption[],
   subscriptionLabel: string,
+  purpose: ModelPurpose,
+  t?: ReturnType<typeof useI18n>["t"],
 ) {
   return providerOptions.flatMap((provider) => (
-    provider.models.map((model) => {
+    recommendedModelsFirst(provider.models, purpose).map((model) => {
       const providerLabel = formatProviderOptionLabel(provider, subscriptionLabel);
       const modelLabel = model.display_name || model.model_id;
       return {
         value: encodeDefaultModelValue(provider.provider, model.model_id),
-        label: `${providerLabel} / ${modelLabel}`,
+        label: [`${providerLabel} / ${modelLabel}`, t ? modelGuidanceLabel(model.guidance, purpose, t) : ""].filter(Boolean).join(" · "),
       };
     })
   ));
@@ -216,24 +221,29 @@ export function buildDefaultModelPreferencesView(
   catalog: DefaultModelCatalog,
   preferences: UserPreferences,
   subscriptionLabel: string,
+  t?: ReturnType<typeof useI18n>["t"],
 ): DefaultModelPreferencesView {
   return {
     options: {
       agent: buildDefaultModelOptions(
         catalog.agentOptions,
         subscriptionLabel,
+        "chat", t,
       ),
       background: buildDefaultModelOptions(
         catalog.backgroundOptions,
         subscriptionLabel,
+        "chat", t,
       ),
       image: buildDefaultModelOptions(
         catalog.imageOptions,
         subscriptionLabel,
+        "image_generation", t,
       ),
       vision: buildDefaultModelOptions(
         catalog.visionOptions,
         subscriptionLabel,
+        "vision", t,
       ),
     },
     values: buildDefaultModelValues(catalog, preferences),

@@ -349,7 +349,7 @@ func (s *Service) Get(ctx context.Context, provider string) (*Record, error) {
 			return nil, usageErr
 		}
 	}
-	models, err := s.modelsForRecord(ctx, item.ID)
+	models, err := s.modelsForRecord(ctx, *item)
 	if err != nil {
 		return nil, err
 	}

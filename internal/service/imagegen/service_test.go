@@ -312,3 +312,16 @@ func TestResolveImageConfigSelectsProviderModel(t *testing.T) {
 		})
 	}
 }
+
+func TestImageAdmissionRejectsUnsupportedRouteAndEditingBeforeIO(t *testing.T) {
+	service := NewService(nil, t.TempDir())
+	config := &providercfg.ImageConfig{APIFormat: providercfg.APIFormatChatCompletions}
+	if _, _, _, err := service.callGenerateProvider(context.Background(), config, GenerateInput{}); err == nil {
+		t.Fatal("chat route admitted image generation")
+	}
+	denied := false
+	config = &providercfg.ImageConfig{APIFormat: providercfg.APIFormatOpenAIImageGeneration, ImageEditing: &denied}
+	if _, _, _, err := service.callEditProvider(context.Background(), config, EditInput{}); err == nil {
+		t.Fatal("unconfirmed editing reached transport")
+	}
+}
