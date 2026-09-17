@@ -3,8 +3,8 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 2209,
-      "sha256": "57cf7460f5131bd7678f7ac6357b2a23a2494dececddaee47e79d5a460767438"
+      "bytes": 2230,
+      "sha256": "e25677281376a27766d4128015d4429cd97a0022870cda8cda6d233bc6471ccb"
     },
     {
       "path": "architecture.stderr.log.gz",
@@ -442,9 +442,9 @@
       "sha256": "5993b01656f87f72017f9ca331daa621ec0c1162a798adc4b2d8115cb4f0c716"
     },
     {
-      "path": "nexus-source.patch",
-      "bytes": 24340,
-      "sha256": "61d3064ed70d76072a38c3c8a2574bfb85ca344aad2b259d9d3291b14734ec13"
+      "path": "nexus-source.patch.gz",
+      "bytes": 6461,
+      "sha256": "1a0de2a7c4c489a8fe106dbd82bb0282b066a793351ea34d03065501d1178f1d"
     },
     {
       "path": "nexus-tool-identity.stderr.log.gz",
@@ -468,8 +468,8 @@
     },
     {
       "path": "report.json",
-      "bytes": 73014,
-      "sha256": "c66d34b9d8cb6f6a05be0df9923dd20a1fb3c5e0ed825c345db246f7acc19df7"
+      "bytes": 73023,
+      "sha256": "da2f11f5e084b5f8e42c3d754a46ab14ec1d68f3392ef9e5edbaa61a6e621591"
     },
     {
       "path": "run-check.py",
@@ -527,7 +527,7 @@
       "sha256": "cc8659ccb20ecf3cbabfebde1f40244b18f7dc6a381a551226ac8ae835d7f4e6"
     },
     {
-      "path": "web-summary-admission_test.go.txt",
+      "path": "web-summary-admission_test.go.source",
       "bytes": 3880,
       "sha256": "19c643f7d224e5699a15b23047821561b5344c188602ccc8ff30af545e42f401"
     },

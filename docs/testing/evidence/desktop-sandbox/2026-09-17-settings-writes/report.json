@@ -19,8 +19,8 @@
   "moduleProxy": "/private/tmp/nexus-sandbox-bridge-a2316d7",
   "nexusBaseRevision": "8c934838a8a16928872db50c2e8ec8f31f446d91",
   "nexusSourcePatch": {
-    "path": "nexus-source.patch",
-    "sha256": "61d3064ed70d76072a38c3c8a2574bfb85ca344aad2b259d9d3291b14734ec13"
+    "path": "nexus-source.patch.gz",
+    "rawSHA256": "61d3064ed70d76072a38c3c8a2574bfb85ca344aad2b259d9d3291b14734ec13"
   },
   "nexusSourceFiles": [
     {
@@ -1321,7 +1321,7 @@
   "redReproduction": {
     "log": "web-summary-before.jsonl.gz",
     "sdkBaseRevision": "65e65b8647571485381e0619f16720c13c48b8e1",
-    "testFile": "web-summary-admission_test.go.txt",
+    "testFile": "web-summary-admission_test.go.source",
     "failedCases": [
       "TestWebFetchSummaryRechecksConfiguration/environment/changed",
       "TestWebFetchSummaryRechecksConfiguration/adapter/changed"
