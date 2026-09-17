@@ -1,4 +1,4 @@
-// INPUT: 即将复用 runtime session 的进程路径、目录、沙箱文件/搜索/媒体/Skill/上下文/设置写入/资源要求与身份隔离选项。
+// INPUT: 即将复用 runtime session 的进程路径、目录、沙箱要求、Provider 所有权与身份隔离选项。
 // OUTPUT: 不包含明文凭据的稳定 process-policy 指纹。
 // POS: Reconfigure 之前的进程级安全边界；指纹变化必须替换旧 runtime。
 package runtime
@@ -127,7 +127,9 @@ func runtimeIsolationEnvironment(environment map[string]string) map[string]strin
 func runtimeProcessEnvironmentKey(key string) bool {
 	switch key {
 	case "HOME", "PATH", "TMPDIR", "NEXUS_STATE_ROOT", "NEXUS_CONFIG_DIR",
-		"CLAUDE_CONFIG_DIR", "NEXUS_RUNTIME_USER_ID", "NEXUS_RUNTIME_LAUNCHER":
+		"CLAUDE_CONFIG_DIR", "NEXUS_RUNTIME_USER_ID", "NEXUS_RUNTIME_LAUNCHER",
+		"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB",
+		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE":
 		return true
 	}
 	return strings.HasPrefix(key, "NEXUS_RUNTIME_IDENTITY_") ||

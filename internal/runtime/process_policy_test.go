@@ -1,5 +1,5 @@
-// INPUT: 不进入普通 settings JSON 的宿主沙箱要求。
-// OUTPUT: 文件/搜索/媒体/Skill/设置写入能力、资源范围和 scratch 改变都会改变进程策略身份。
+// INPUT: 不进入普通 settings JSON 的宿主沙箱要求与进程级 Provider 所有权。
+// OUTPUT: 能力、资源范围、scratch 与凭据隔离声明改变时替换进程，普通凭据更新仍可复用。
 // POS: runtime 重用前的资源版本栅栏回归。
 package runtime
 
@@ -35,5 +35,31 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 			t.Fatal("host sandbox requirement did not change process identity")
 		}
 		previous = next
+	}
+}
+
+func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
+	for _, key := range []string{"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"} {
+		t.Run(key, func(t *testing.T) {
+			stale, fresh := &fakeRuntimeClient{}, &fakeRuntimeClient{}
+			manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
+			base := bridge.Options{CWD: t.TempDir(), Env: map[string]string{key: "0"}}
+			first, err := manager.GetOrCreate(t.Context(), "agent:nexus:ws:dm:provider-policy", base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := base
+			next.Env = map[string]string{key: "1"}
+			if key == "NEXUS_AUTO_DREAM_WAKE_MODE" {
+				next.Env[key] = "host"
+			}
+			second, err := manager.GetOrCreate(t.Context(), "agent:nexus:ws:dm:provider-policy", next)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first != stale || second != fresh || stale.reconfigureCalls != 0 || stale.disconnectCalls != 1 {
+				t.Fatal("process-owned environment change reused the old runtime")
+			}
+		})
 	}
 }
