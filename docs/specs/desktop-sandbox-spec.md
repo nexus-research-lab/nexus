@@ -188,18 +188,46 @@ The host additionally requires `SandboxSettings.RequireSettingsFiles`, initializ
 `required_sandbox_settings_files` and `sandbox_settings_files_v1`. nxs fixes the
 config root and selected sources before profile projection. Required execution
 uses the file worker for ordinary user/project/local/flag settings, filters disabled
-sources before IO, and rejects incomplete or invalid snapshots. Runtime consumers
-share a bound snapshot; child runtimes clone independent update state. Source
-changes or read errors block query, compact, tool dispatch, file-context preparation
-and settings controls or permission updates. Restoring the original content permits recovery;
-new file contents require runtime recreation. `get_settings` uses the bound flag
-sources. Dynamic updates reject fields whose execution configuration is static.
-The requirement participates in process identity and currently acknowledges macOS.
-Snapshot checks around permission updates do not establish rooted atomic writes,
-cross-process transactions or durable approval/receipt ownership. Those guarantees,
-The builtin Config tool retains its separate file read/write path and is not covered
-by this runtime-input capability. Provider credential separation and background IO
-remain pending.
+sources before IO, applies a 16 MiB limit to every selected document, and rejects
+incomplete or invalid snapshots. Runtime consumers share a bound snapshot; child
+runtimes keep independent logical snapshots. Source changes or read errors block
+query, compact, tool dispatch, file-context preparation and settings controls or
+permission updates. Restoring the original content permits recovery; new file
+contents require runtime recreation. `get_settings` uses the bound flag sources.
+Dynamic updates reject fields whose execution configuration is static. This
+requirement participates in process identity and currently acknowledges macOS.
+
+Restricted desktop sessions also require `SandboxSettings.RequireSettingsWrites`,
+initialize `required_sandbox_settings_writes` and `sandbox_settings_writes_v1`.
+The write contract depends on required sandbox, file tools and settings files, and
+is admitted only for nxs. Config and permission updates share the checked Binding,
+physical directory identity and process-local write transaction. Existing or newly
+created parents must remain real directories beneath the fixed physical root;
+symlink swaps, directory generation changes, special files and read-only targets
+fail closed. A single document is replaced through a same-directory temporary file,
+and task sandbox rules deny both lexical and physical aliases of protected settings
+and temporary names. Multi-document permission updates use deterministic order and
+mark the shared store unknown after a partial commit.
+
+Config writes canonical nested settings keys. Explicit SDK Options and process
+environment values retain their higher precedence, so a persisted value is a
+settings default rather than proof of the effective runtime value. A real Config
+change marks the runtime for recreation; the query loop checks this fence before
+every provider turn, while a no-op leaves the runtime usable. WebFetch also checks
+the binding immediately before calling its selected summary provider, environment
+endpoint or host adapter, including changes during page retrieval. Initialization
+reserves its admission state when enqueued; at most 32 ordinary stream messages
+wait for success, and initialization failure discards them without creating a
+base-config Session. The requirement and its host-only flag participate in Bridge
+and Nexus process identity.
+
+The write contract currently acknowledges native macOS only. It does not establish
+cross-process locking or CAS, multi-file atomicity, parent-directory fsync or
+power-loss durability, exact request/approval/revision persistence, durable receipts,
+restart recovery of unknown outcomes or automatic replay. Unix replacement preserves
+ordinary permission bits but does not claim owner, ACL, xattr or file flags. Windows
+only has compile coverage and its Go writable-bit checks do not establish DACL
+privacy. Provider credential separation and background IO remain pending.
 
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,

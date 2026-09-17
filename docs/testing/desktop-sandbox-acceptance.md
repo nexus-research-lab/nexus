@@ -375,3 +375,22 @@ Nexus 在独立 worktree 以合并提交 `050079978` 纳入 main `0e18e6aa7`。�
 [报告](./evidence/desktop-sandbox/2026-09-16-main-sync/report.json)、[SHA256 清单](./evidence/desktop-sandbox/2026-09-16-main-sync/manifest.json)保存版本、源码/二进制哈希、命令、最终退出码、skip 与压缩原始日志。该目录的 README 解释合并结果与后续红色反例。SDK/Bridge 已从缺失的临时目录恢复到固定的独立 worktree，具体位置见开发计划；原 Nexus main 的未提交文件保持原状。
 
 仅本地提交及本地模块缓存，模块尚未发布；本批次没有重新声明全 SDK 原生隔离、跨平台、默认策略、完整进程树、持久回执或安装包验收。完整 P1–P7 与 Goal 继续。
+
+## 2026-09-17：配置受控写入与请求准入
+
+SDK `65e65b86` 完成配置 writer、绑定快照与逐次请求栅栏，`00b72d22` 补齐 WebFetch 环境端点和宿主摘要 adapter 的准入；Bridge `a2316d7` 增加独立 `sandbox_settings_writes_v1`。Nexus 固定 `v0.1.34-0.20260917020413-a2316d747b09`（`h1:nOd4a9+Fw0jdd37FgYFGIweRYb8WURNBu/56K1RF+hM=`），受限桌面启动要求该能力并将其纳入进程指纹。验证全部脱离 `go.work`，Nexus 使用真实固定模块。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 文件写入 | 固定物理根和目录身份；叶子/祖先链接、目录换代、特殊/只读文件拒绝；同目录替换保留外部硬链接目标；多个 clone 共用部分提交 unknown 和重建栅栏 |
+| 原生任务写保护 | 字面/物理别名、临时名字、正则特殊字符与新建硬链接拒绝；required macOS 对预先存在的多硬链接配置拒绝启动 |
+| 配置语义与请求 | canonical Config 字段、显式 Options/env 优先和 no-op 保留；有效写入后主模型、摘要/权限审核/compact 请求停止。页面抓取期间配置变化时，环境摘要和宿主 adapter 两条反例先失败，修复后均阻断 |
+| 初始化顺序 | initialize 入队时保留准入状态；普通消息最多缓冲 32 条，成功后才继续；失败与控制入口不能绕过创建 base-config Session |
+| 固定 SDK 开发基线 | 128 个顶层、285 个指定子场景通过，无必测 skip；`macos-settings-writes` 为真实 Seatbelt 检查 |
+| 真实进程 | 当前十一项能力 11 个顶层/10 个子场景通过；旧 SDK 缺写能力的顶层/legacy 场景通过，无 skip；不发送模型请求 |
+| SDK 回归 | 全包测试 1786 个通过事件、226 个可选 skip；vet、配置/Provider/初始化目标竞态通过；Windows/Linux 仅编译通过 |
+| Nexus/Bridge 回归 | runtime、nxsruntime、Room realtime 目标包 718 个通过事件、8 个可选 skip；目标竞态、vet、架构与证据解析器通过。实际 Nexus MCP 包的工具身份竞态回归通过 |
+
+[汇总报告](./evidence/desktop-sandbox/2026-09-17-settings-writes/report.json)、[固定基线](./evidence/desktop-sandbox/2026-09-17-settings-writes/baseline-report.json)、[证据说明](./evidence/desktop-sandbox/2026-09-17-settings-writes/README.md)和[SHA256 清单](./evidence/desktop-sandbox/2026-09-17-settings-writes/manifest.json)保存最终结果及修复前失败。Bridge 模块按 Go canonical zip 生成；此前普通 Git zip 的校验和未进入本次最终依赖。
+
+本批次只完成进程内配置边界，不证明持久 request/approval/revision、跨进程 CAS、多文件原子事务、父目录 fsync 或重启 unknown 对账。Provider 凭据隔离、其余 SDK IO、完整后代监督、scratch、默认策略、Claude、其他平台原生及安装包继续按 P1–P7 推进。`releaseAccepted=false`；所有提交与模块仅本地，原目录现场未修改。
