@@ -96,6 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Align the web Launcher spotlight decoration with the brand icon while preserving desktop placement.
+
 - Unify online conversation errors with shared inline notices and scoped recovery actions, and distinguish task-status read failures from unknown mutations.
 
 - Render selected Agent mentions in the composer with subtle highlighting while preserving native text editing and Slash command styling.
