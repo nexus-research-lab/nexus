@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require an independent nxs settings-write capability before restricted desktop sessions start. Route Config and permission persistence through the checked settings binding, reject path-identity changes, use same-directory replacement, protect settings from task processes, and retire the runtime after an effective Config update. This remains a macOS development contract; cross-process transactions, durable receipts, provider credential separation and default product rollout remain pending.
+
 - Require independent nxs ordinary-settings confinement and snapshot integrity in the desktop development policy. Fixed sources, source filtering, checked startup and runtime controls prevent unknown settings from silently weakening restrictions. Include the requirement in process replacement and the fixed-SDK native gate. Credential separation, atomic permission persistence and default product rollout remain pending.
 
 - Require independent nxs managed-policy integrity in the desktop development policy. Freeze the policy source before task settings, reject invalid or changed rules before execution, and include the requirement in process replacement and fixed-SDK native validation. Ordinary configuration, persistence and default product rollout remain pending.

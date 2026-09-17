@@ -26,7 +26,7 @@
 //     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - lifecycle.go：session 关闭栅栏、保留失败结果与跨 core/exec 共用的 round 中断宽限。
-//   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/媒体/Skill 能力与资源要求。
+//   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/媒体/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
@@ -37,4 +37,5 @@
 // 桌面策略独立要求 RequireProjectFiles，项目发现读取失败不能被旧 nxs 能力掩盖。
 // 托管策略完整性通过 RequireManagedPolicy 独立要求；它同样进入进程指纹。
 // 普通配置读取和完整快照通过 RequireSettingsFiles 独立要求并参与进程替换。
+// 受控配置写入通过 RequireSettingsWrites 独立要求；成功更新后旧 runtime 不再发起 provider 请求。
 package runtime

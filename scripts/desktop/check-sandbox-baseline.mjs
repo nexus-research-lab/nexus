@@ -259,9 +259,57 @@ try {
       ...["user", "project", "flag", "inline"].map((source) => `TestSettingsProfileRejectsUnknown/${source}`),
       "TestSettingsProfileCannotRedirectConfigRoot", "TestSettingsProfileSkipsDisabledSource", "TestSettingsProfileRejectsFIFO",
       "TestSettingsBindingSnapshot", "TestSettingsBindingConcurrentUpdates", "TestSettingsBindingUpdate",
-      ...["canceled", "conflict", "unexpected", "failed", "success"].map((outcome) => `TestSettingsBindingUpdate/${outcome}`),
+      ...["canceled", "conflict", "success"].map((outcome) => `TestSettingsBindingUpdate/${outcome}`),
       "TestSettingsControlKeepsAppliedState", "TestRuntimeSettingsControlSnapshot",
     ], sdkSource);
+    testGroup("settings-writes-contract", ["./cmd/nxs"], [
+      "TestSandboxSettingsWritesNegotiation", "TestSandboxSettingsWritesRequirement",
+      ...["supported", "missing_base", "missing_files", "missing_settings_requirement", "missing_settings_capability", "missing_writes_capability", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSettingsWritesRequirement/${scenario}`),
+      "TestRuntimeInitializationAdmission", "TestRuntimeTextCLISessionAdmission",
+    ], sdkSource);
+    testGroup("settings-writers", ["./client", "./internal/config/settings", "./internal/agent/runtime", "./internal/tool/executor", "./internal/tool/builtin/config"], [
+      "TestSettingsProfileStaysBelowExplicitOptionsAndEnv",
+      "TestDocumentTemporaryPattern", "TestDocumentStoreSharesMissingProjectDirectoryGeneration",
+      "TestDocumentStoreWritesTwoDocuments", "TestDocumentStoreAdoptsPhysicalParentCreatedAfterBinding",
+      "TestDocumentStorePreflightsAllDocumentSizes", "TestDocumentStoreRejectsLeafSymlink",
+      "TestDocumentStoreRejectsParentSymlink", "TestDocumentStoreRejectsParentReplacement",
+      "TestDocumentStoreBreaksHardlinkOnWrite", "TestDocumentStorePreservesExistingMode",
+      "TestDocumentStorePreservesExistingPermissionBitsUnderUmask", "TestDocumentStoreRejectsExistingReadOnlyLeaf",
+      "TestSettingsBindingUnknownIsShared",
+      ...["parent", "child"].map((runtime) => `TestSettingsBindingUnknownIsShared/${runtime}`),
+      "TestSettingsBindingConfigTarget",
+      ...["user_default", "relative_flag", "absolute_flag", "inline_falls_back_to_user", "no_writable_source"].map(
+        (scenario) => `TestSettingsBindingConfigTarget/${scenario}`),
+      "TestSettingsBindingConfigNoOp", "TestSettingsBindingConfigRejectsOverride", "TestSettingsBindingConfigRejectsSameValueOverride",
+      "TestPermissionSettingsWriteIdentity",
+      ...["file_symlink", "directory_symlink", "directory_replaced", "hardlink"].map(
+        (scenario) => `TestPermissionSettingsWriteIdentity/${scenario}`),
+      "TestDefinitionDisablesConcurrentExecution", "TestRunGetReadsBoundStoreDocument",
+      "TestRunGetPrefersCanonicalValueOverLegacyFallback", "TestRunSetWritesCanonicalPathAndPreservesLegacyValue",
+      "TestRunSetUsesControlledStoreUpdateAndRequestsRestart", "TestRunSetNoOpDoesNotRequestRestart",
+      "TestRunWithoutStoreFailsClosed", "TestRunStoreErrorsDoNotFallBack",
+      ...["read", "update"].map((operation) => `TestRunStoreErrorsDoNotFallBack/${operation}`),
+      "TestConfigWriteRequiresFreshRuntime",
+    ], sdkSource);
+    testGroup("settings-request-admission", ["./internal/provider", "./internal/agent/runtime", "./internal/tool/executor"], [
+      "TestWithRequestAdmissionGuardsStreamAndComplete", "TestWithRequestAdmissionPreservesOptionalCapabilities",
+      "TestRunQueryStopsAllSamplingAfterConfigWriteWithToolSummariesEnabled",
+      "TestManualCompactRechecksConfigurationAfterPreCompactHook",
+      "TestWebFetchSummaryRechecksConfiguration",
+      ...["environment", "adapter"].flatMap((source) => ["unchanged", "changed"].map(
+        (change) => `TestWebFetchSummaryRechecksConfiguration/${source}/${change}`)),
+    ], sdkSource);
+    testGroup("macos-settings-writes", ["./client", "./internal/config/settings", "./internal/tool/executor"], [
+      "TestDarwinMandatorySandboxProtectsSettingsTemporaryEntries",
+      "TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters",
+      ...["settings", "temporary"].map((target) => `TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters/${target}`),
+      "TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases",
+      ...["target_physical", "target_logical", "temporary_physical"].map(
+        (target) => `TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases/${target}`),
+      "TestDarwinMandatorySandboxCannotCreateSettingsHardlink",
+      "TestDarwinRequiredSandboxRejectsHardlinkedSettingsProfile", "TestRequiredSandboxBindingRejectsHardlinkedSettings",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-settings-native", ["./client", "./internal/agent/runtime"], [
       "TestDarwinSettingsProfileFiles",
       ...["user", "project", "local", "flag", "symlink", "filtered"].flatMap((source) =>
