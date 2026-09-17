@@ -16,6 +16,7 @@ const MAX_JOURNAL_STRING_LENGTH = 512;
 export type ProviderSetupJournalStage =
   | "complete"
   | "default"
+  | "model"
   | "persist"
   | "test";
 
@@ -360,7 +361,7 @@ function validJournalStageState(
   ) {
     return false;
   }
-  return journal.stage === "test" || Boolean(journal.model?.trim());
+  return journal.stage === "model" || journal.stage === "test" || Boolean(journal.model?.trim());
 }
 
 function validString(value: unknown, allowEmpty = false): value is string {
@@ -397,7 +398,8 @@ function testTimestampAdvanced(
 }
 
 function validStage(value: unknown): value is ProviderSetupJournalStage {
-  return value === "persist"
+  return value === "model"
+    || value === "persist"
     || value === "test"
     || value === "default"
     || value === "complete";

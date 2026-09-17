@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reuse Room public-context budgeting, Agent execution Threads and the shared Composer for online groups; keep internal execution rooms out of the chat directory and local permission interactions inside their Thread.
 
+- Add an explicit model selection step to Provider onboarding, with a discovered model list, manual model ID fallback, and resumable verification before selecting defaults.
+
+- Fix Provider onboarding stopping after saving credentials and testing the connection by retaining the preferences revision before selecting default models.
+
 - Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
 
 - Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.
