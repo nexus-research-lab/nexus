@@ -96,6 +96,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unify online conversation errors with shared inline notices and scoped recovery actions, and distinguish task-status read failures from unknown mutations.
+
+- Render selected Agent mentions in the composer with subtle highlighting while preserving native text editing and Slash command styling.
+
+- Reduce the default action-menu width to 160px and center option text so short row actions stay compact and balanced.
+
+- Align thought and process disclosure icons with tool rows by using consistent inset spacing and icon slots.
+- Use a subtle shared hover background for process, thought, and tool rows without shadows or layout shifts.
+
+- Keep organization settings headers and page spacing consistent before sign-in or joining an organization by reusing the standard page layout.
+
 - Use rounded chat bubbles consistently in place of square text-message icons across contacts, navigation, settings, and conversation actions.
 - Match contact chat actions to the neutral appearance of the adjacent group-chat action.
 

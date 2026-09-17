@@ -1,7 +1,7 @@
 // INPUT: Team read-model snapshots and controlled send outcomes.
 // OUTPUT: IME-safe submit, draft retention and accessible load/error feedback.
 // POS: Team page interaction regressions; no Team transport is invoked.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -113,7 +113,7 @@ it("announces loading and load failure without claiming an empty conversation", 
   expect(screen.getByRole("status").textContent).toBe("team.loading");
   room = {...room, isLoading: false, error: "load"};
   view.rerender(page());
-  expect(screen.getByRole("alert").textContent).toBe("team.error_load");
+  expect(screen.getByRole("alert").querySelector("[data-inline-notice-message]")?.textContent).toBe("team.error_load");
   expect(screen.queryByText("team.empty")).toBeNull();
 });
 
@@ -235,4 +235,26 @@ it("resets the draft on room navigation and ignores a previous room send complet
   await userEvent.type(next, "New draft");
   resolve(true);
   await waitFor(() => expect((next as HTMLTextAreaElement).value).toBe("New draft"));
+});
+
+it("uses shared notices while keeping each recovery action scoped to its failed read", async () => {
+  model.prepare.mockRejectedValueOnce(new Error("bindings unavailable"));
+  model.node.mockRejectedValueOnce(new Error("jobs unavailable"));
+  room = {...room, error: "sync"};
+  render(page());
+  await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(3));
+  const binding = screen.getByText("team.binding_error").closest('[role="alert"]') as HTMLElement;
+  const jobs = screen.getByText("team.node_jobs_error").closest('[role="alert"]') as HTMLElement;
+  const sync = screen.getByText("team.error_sync").closest('[role="alert"]') as HTMLElement;
+  expect(binding.dataset.inlineNoticeTone).toBe("danger");
+  expect(jobs.dataset.inlineNoticeTone).toBe("danger");
+  expect(sync.dataset.inlineNoticeTone).toBe("warning");
+  expect(within(sync).queryByRole("button")).toBeNull();
+  await userEvent.click(within(binding).getByRole("button", {name: "state.retry"}));
+  await waitFor(() => expect(screen.queryByText("team.binding_error")).toBeNull());
+  expect(screen.getByText("team.node_jobs_error")).toBeTruthy();
+  await userEvent.click(within(jobs).getByRole("button", {name: "team.node_refresh"}));
+  await waitFor(() => expect(screen.queryByText("team.node_jobs_error")).toBeNull());
+  expect(room.send).not.toHaveBeenCalled();
+  expect(room.retryLoad).not.toHaveBeenCalled();
 });

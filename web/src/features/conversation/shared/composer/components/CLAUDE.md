@@ -17,3 +17,5 @@ L5 | 父级: web/src/features/conversation/shared/composer
 Slash 浮层必须与 Composer 输入壳同宽并复用 `SelectMenuPanel`、`SelectMenuOptionRow`、`UiSearchInput`、共享菜单行状态和锚定浮层生命周期；一级命令与模型各占一行，其中一级命令为名称预留稳定列宽，让说明从同一纵向基线开始、参数提示保持右对齐，Skill 最多保留名称与说明两行，不再增加标题区、计数徽标或重复状态文案。浮层高度保持有界，搜索栏固定，只有条目列表承担纵向滚动。
 
 - Slash 选项通过原生 click 统一键盘与指针激活，mousedown 只用于保留输入焦点；不得仅用 mousedown 执行业务选择。
+
+输入镜像复用原生 textarea 的文字几何与滚动位置，同时装饰 Slash 和已选 Agent 提及；Mention 只加底色与文字色，不插入头像、额外间距或改变原文，避免光标偏移。

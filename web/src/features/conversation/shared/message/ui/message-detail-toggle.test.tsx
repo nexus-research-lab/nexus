@@ -41,7 +41,7 @@ describe("MessageDetailToggle", () => {
       </MessageDetailToggle>,
     );
     expect(button.getAttribute("aria-expanded")).toBe("true");
-    expect(button.querySelector("svg:last-child")?.getAttribute("class"))
+    expect(button.querySelector(":scope > svg:last-child")?.getAttribute("class"))
       .toContain("rotate-90");
   });
 });

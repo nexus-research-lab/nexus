@@ -25,3 +25,5 @@
 - 顶栏复用 Room 的 WorkspaceConversationTabs 与 GroupMemberAvatarStack：在线唯一会话不提供关闭、新建或固定；成员摘要仅计 active 真人和 Agent，目录只补名称与头像。本机授权作为同规格轻量动作，窄屏保留具名图标。
 
 - 真人 DM 通过 `room.direct_user_id` 解析对方姓名头像；消息沿用同一 Feed/Composer。`room_invitation` 是 Relay 生成的持久卡片，操作必须匹配当前待处理邀请和邀请时间；旧邀请没有消息卡片时在对应私聊补显示待办，不能根据卡片直接推断授权。
+
+- Composer 上方的绑定读取、任务状态、消息加载/同步错误统一复用 `UiInlineNotice`，共用阅读宽度、字号、间距和恢复按钮；每项仍执行自己的读取重试，自动同步与未确认发送不借用加载重试动作。
