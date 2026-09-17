@@ -572,12 +572,13 @@
 
   .launcher-console-spotlights {
     top: 20px;
-    left: var(--launcher-wordmark-left);
+    left: calc(var(--launcher-wordmark-left) - 44px);
     width: 139px;
     height: 16px;
   }
 
   :root[data-desktop-runtime="true"] .launcher-console-spotlights {
+    left: var(--launcher-wordmark-left);
     width: 104px;
     height: 12px;
   }
