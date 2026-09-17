@@ -26,7 +26,7 @@ function props(overrides: Partial<Props> = {}): Props {
     detailTitle: "Example",
     draft: { provider_kind: "llm", provider: "example", preset_key: "custom", api_format: "responses", display_name: "Example", auth_token: "", base_url: "https://example.com", models_path: "/models", enabled: true },
     formatOptions: [{ value: "responses", label: "Responses" }, { value: "chat_completions", label: "Chat Completions" }],
-    isEditing: false,
+    isEditing: false, pending: false, onClearAuthToken: vi.fn(),
     onApiFormatChange: vi.fn(), onAuthTokenChange: vi.fn(), onBaseUrlChange: vi.fn(), onFieldBlur: vi.fn(),
     onProviderDisplayNameChange: vi.fn(), onProviderKindChange: vi.fn(),
     providerKindOptions: [{ value: "llm", label: "Language model" }, { value: "image_generation", label: "Image generation" }],

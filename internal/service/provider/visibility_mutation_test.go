@@ -396,7 +396,6 @@ func TestProviderDisablePreservesExplicitBindingsForAutomaticRestore(t *testing.
 		BaseURL:      record.BaseURL,
 		ModelsPath:   record.ModelsPath,
 		ProviderKind: record.ProviderKind,
-		AuthToken:    stringPointer(""),
 		Enabled:      false,
 	})
 	if err != nil {
@@ -409,8 +408,8 @@ func TestProviderDisablePreservesExplicitBindingsForAutomaticRestore(t *testing.
 	if err != nil {
 		t.Fatalf("读取 provider 失败: %v", err)
 	}
-	if entity == nil || entity.AuthToken != "" {
-		t.Fatalf("关闭 provider 应清空 token: %+v", entity)
+	if entity == nil || entity.AuthToken != "private-token" {
+		t.Fatalf("关闭 provider 应保留 token: %+v", entity)
 	}
 	runtimes := runtimeSelectionsByAgent(t, db, "agent-main", "agent-used-private")
 	if runtimes["agent-main"].provider != record.Provider || runtimes["agent-main"].model != "target-model" ||
@@ -419,7 +418,7 @@ func TestProviderDisablePreservesExplicitBindingsForAutomaticRestore(t *testing.
 	}
 }
 
-func TestProviderDisableRejectsCurrentDefaultModel(t *testing.T) {
+func TestProviderDisableAndClearLastKeyAllowEmptyDefault(t *testing.T) {
 	service, db := newTestService(t)
 	ctx := providerTestContext("owner-user", authctx.RoleMember)
 	record, err := service.Create(ctx, CreateInput{
@@ -445,28 +444,55 @@ func TestProviderDisableRejectsCurrentDefaultModel(t *testing.T) {
 	})
 	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-current", "current", "Current", "", false, record.Provider, "active")
 
-	if _, err = service.Update(ctx, record.Provider, UpdateInput{
-		ProviderKind: record.ProviderKind,
-		PresetKey:    record.PresetKey,
-		APIFormat:    record.APIFormat,
-		DisplayName:  record.DisplayName,
-		AuthToken:    stringPointer(""),
-		BaseURL:      record.BaseURL,
-		ModelsPath:   record.ModelsPath,
-		Enabled:      false,
-	}); err == nil || !strings.Contains(err.Error(), "默认模型仍使用") {
-		t.Fatalf("删除当前默认模型凭据应被拒绝: %v", err)
-	}
-	entity, err := service.repository.GetVisibleByProvider(ctx, "owner-user", record.Provider)
-	if err != nil {
-		t.Fatalf("读取 provider 失败: %v", err)
-	}
-	if entity == nil || !entity.Enabled || entity.AuthToken != "current-token" {
-		t.Fatalf("被拒绝后 provider 不应变更: %+v", entity)
-	}
-	runtimes := runtimeSelectionsByAgent(t, db, "agent-current")
-	if runtimes["agent-current"].provider != record.Provider {
-		t.Fatalf("被拒绝后显式绑定不应变更: %+v", runtimes)
+	for _, tc := range []struct {
+		name    string
+		key     *string
+		enabled bool
+		wantKey string
+	}{
+		{"disable", nil, false, "current-token"},
+		{"enable", nil, true, "current-token"},
+		{"replace", stringPointer("new-token"), true, "new-token"},
+		{"clear", stringPointer(""), false, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := service.Update(ctx, record.Provider, UpdateInput{
+				ProviderKind: record.ProviderKind, PresetKey: record.PresetKey, APIFormat: record.APIFormat,
+				DisplayName: record.DisplayName, AuthToken: tc.key, BaseURL: record.BaseURL,
+				ModelsPath: record.ModelsPath, Enabled: tc.enabled,
+			})
+			if err != nil {
+				t.Fatalf("update failed: %v", err)
+			}
+			entity, err := service.repository.GetVisibleByProvider(ctx, "owner-user", record.Provider)
+			if err != nil || entity == nil || entity.Enabled != tc.enabled || entity.AuthToken != tc.wantKey {
+				t.Fatal("credential or enabled state was not preserved correctly")
+			}
+			options, err := service.ListOptions(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.enabled {
+				if options.DefaultSelection == nil || options.DefaultSelection.Model != "current-model" {
+					t.Fatal("saved default was lost")
+				}
+			} else {
+				if options.DefaultSelection != nil || len(options.Items) != 0 || len(options.BackgroundItems) != 0 || len(options.ImageItems) != 0 || len(options.VisionItems) != 0 {
+					t.Fatal("unavailable provider still selectable")
+				}
+				if _, err := service.ResolveRuntimeConfig(ctx, "", ""); err == nil {
+					t.Fatal("runtime invented a default")
+				}
+			}
+			models, err := service.repository.ListModelsByProviderID(ctx, record.ID)
+			if err != nil || len(models) != 1 || !models[0].Enabled || !models[0].IsDefault {
+				t.Fatal("model configuration was lost")
+			}
+			runtimes := runtimeSelectionsByAgent(t, db, "agent-current")
+			if runtimes["agent-current"].provider != record.Provider {
+				t.Fatal("explicit agent binding was lost")
+			}
+		})
 	}
 }
 

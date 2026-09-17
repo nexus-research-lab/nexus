@@ -41,33 +41,6 @@ func (model remoteModel) modelCard(providerKind string) (ModelCapabilities, stri
 	return model.Capabilities, category, contextWindow, maxOutputTokens
 }
 
-func modelCapabilitiesWithDefaults(modelID string, capabilities ModelCapabilities) ModelCapabilities {
-	result := ModelCapabilities{
-		TextOutput: capabilities.TextOutput,
-		Vision:     knownVisionCapability(modelID),
-		Reasoning:  knownReasoningCapability(modelID),
-	}
-	if capabilities.Vision != nil {
-		result.Vision = capabilities.Vision
-	}
-	if capabilities.ImageOutput != nil {
-		result.ImageOutput = capabilities.ImageOutput
-	}
-	if capabilities.ToolCalling != nil {
-		result.ToolCalling = capabilities.ToolCalling
-	}
-	if capabilities.Reasoning != nil {
-		result.Reasoning = capabilities.Reasoning
-	}
-	if capabilities.Embedding != nil {
-		result.Embedding = capabilities.Embedding
-	}
-	if capabilities.ImageEditing != nil {
-		result.ImageEditing = capabilities.ImageEditing
-	}
-	return result
-}
-
 func remoteModelFromCard(card map[string]any) remoteModel {
 	capabilities := modelCapabilitiesFromCard(card)
 	return remoteModel{

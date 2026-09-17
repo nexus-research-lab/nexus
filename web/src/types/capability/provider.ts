@@ -31,6 +31,8 @@ export interface ProviderModelCapabilities {
 
 export type ModelPurpose = "chat" | "vision" | "image_generation" | "image_editing";
 export interface ModelGuidance {
+  evidence?: { reviewed_at: string; urls: string[]; notice?: string };
+  text_only?: boolean;
   catalog_version: string;
   capabilities: ProviderModelCapabilities;
   sources: Record<string, string>;

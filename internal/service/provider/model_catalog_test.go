@@ -66,51 +66,6 @@ func TestKnownContextWindow(t *testing.T) {
 	}
 }
 
-func TestKnownVisionCapability(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		modelID string
-		want    bool
-	}{
-		{modelID: "gpt-5.4-mini-2026-03-17", want: true},
-		{modelID: "claude-sonnet-4-6-20260217", want: true},
-		{modelID: "models/gemini-3.1-pro-preview", want: true},
-		{modelID: "grok-4.6", want: true},
-		{modelID: "qwen3-vl-plus", want: true},
-		{modelID: "qwen3.8-max", want: true},
-		{modelID: "glm-5.3-flash", want: true},
-		{modelID: "glm-5.3", want: false},
-		{modelID: "glm-4v-plus", want: true},
-		{modelID: "kimi-for-coding", want: true},
-		{modelID: "kimi-k3", want: true},
-		{modelID: "kimi-k2", want: false},
-		{modelID: "MiniMax-M3", want: true},
-		{modelID: "doubao-seed-2-0-pro-260215", want: true},
-		{modelID: "ernie-5.0", want: true},
-		{modelID: "step-3.7-flash", want: true},
-		{modelID: "mistral-large-2512", want: true},
-		{modelID: "meta-llama/Llama-4-Maverick-17B-128E-Instruct", want: true},
-		{modelID: "command-a-plus-05-2026", want: true},
-		{modelID: "us.amazon.nova-2-lite-v1:0", want: true},
-		{modelID: "private-model-v1", want: false},
-		{modelID: "deepseek-v4", want: false},
-	}
-
-	for _, test := range tests {
-		t.Run(test.modelID, func(t *testing.T) {
-			t.Parallel()
-			got := knownVisionCapability(test.modelID)
-			if test.want && (got == nil || !*got) {
-				t.Fatalf("knownVisionCapability(%q) = %v, want true", test.modelID, got)
-			}
-			if !test.want && got != nil {
-				t.Fatalf("knownVisionCapability(%q) = %v, want unknown", test.modelID, *got)
-			}
-		})
-	}
-}
-
 func TestKnownMaxOutputTokens(t *testing.T) {
 	t.Parallel()
 
@@ -127,32 +82,6 @@ func TestKnownMaxOutputTokens(t *testing.T) {
 	for modelID, want := range tests {
 		if got := knownMaxOutputTokens(modelID); got == nil || *got != want {
 			t.Fatalf("knownMaxOutputTokens(%q) = %v, want %d", modelID, got, want)
-		}
-	}
-}
-
-func TestKnownReasoningCapability(t *testing.T) {
-	t.Parallel()
-
-	for _, modelID := range []string{
-		"gpt-oss-120b",
-		"claude-sonnet-5",
-		"gemini-3.7-flash",
-		"grok-4.6",
-		"glm-5.3-flash",
-		"kimi-k3",
-		"qwen3.8-max",
-		"MiniMax-M3",
-		"doubao-seed-2-0-lite-260215",
-		"ernie-5.0",
-		"hy3",
-		"step-3.5-flash",
-		"mistral-small-2603",
-		"command-a-plus-05-2026",
-	} {
-		model := providerstore.ModelEntity{ModelID: modelID}
-		if !modelHasReasoningCapability(model) {
-			t.Fatalf("modelHasReasoningCapability(%q) = false, want true", modelID)
 		}
 	}
 }
@@ -201,7 +130,7 @@ func TestModelVisionOverrideWinsKnownCatalog(t *testing.T) {
 		CapabilitiesAutoJSON:     `{"vision":true}`,
 		CapabilitiesOverrideJSON: `{"vision":false}`,
 	}
-	if modelHasVisionCapability(model) {
+	if projectModelGuidance(providerstore.Entity{ProviderKind: ProviderKindLLM, PresetKey: presetOpenAI}, model).Eligibility[PurposeVision].Available {
 		t.Fatal("用户 vision=false 覆盖应优先于 Provider 与内置模型卡")
 	}
 }
@@ -269,9 +198,8 @@ func TestStoredModelWithoutLimitsUsesKnownCatalog(t *testing.T) {
 		ModelID:              "gpt-5.6-sol",
 		CapabilitiesAutoJSON: "{}",
 	})
-	if legacy.CapabilitiesAuto.Vision == nil || !*legacy.CapabilitiesAuto.Vision ||
-		legacy.CapabilitiesAuto.Reasoning == nil || !*legacy.CapabilitiesAuto.Reasoning {
-		t.Fatalf("模型列表未展示内置能力: %+v", legacy.CapabilitiesAuto)
+	if legacy.CapabilitiesAuto.Vision != nil || legacy.CapabilitiesAuto.Reasoning != nil {
+		t.Fatalf("原始模型卡不应包含名称推断能力: %+v", legacy.CapabilitiesAuto)
 	}
 }
 
