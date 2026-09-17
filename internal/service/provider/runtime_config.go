@@ -145,7 +145,7 @@ func (s *Service) llmConfigFromTarget(
 	var modelRecord *providerstore.ModelEntity
 	var err error
 	if targetModel == "" {
-		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
+		modelRecord, err = s.defaultOrFirstEnabledModelForKind(ctx, *target, ProviderKindLLM)
 	} else {
 		modelRecord, err = s.getModelByID(ctx, target.ID, targetModel)
 	}
@@ -160,6 +160,10 @@ func (s *Service) llmConfigFromTarget(
 	}
 	if !modelRecord.Enabled {
 		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
+	}
+
+	if !modelUsableForProviderKind(*target, *modelRecord, ProviderKindLLM) {
+		return nil, fmt.Errorf("provider=%s model=%s 不支持文本对话", target.Provider, modelRecord.ModelID)
 	}
 
 	missing := make([]string, 0, 3)

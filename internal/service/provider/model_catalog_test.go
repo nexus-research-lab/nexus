@@ -232,8 +232,8 @@ func TestDefaultModelCardFillsCatalogAndRuntimeDefaults(t *testing.T) {
 	if maxOutputTokens == nil || *maxOutputTokens != defaultModelMaxOutputTokens {
 		t.Fatalf("模型缺少输出上限时未应用运行时默认值: %v", maxOutputTokens)
 	}
-	if category != "chat" || capabilities.Vision == nil || !*capabilities.Vision {
-		t.Fatalf("手动添加模型未应用内置模型卡: category=%s capabilities=%+v", category, capabilities)
+	if category != "chat" || capabilities.Vision != nil {
+		t.Fatalf("手动添加模型不得持久化目录能力猜测: category=%s capabilities=%+v", category, capabilities)
 	}
 
 	_, _, contextWindow, maxOutputTokens = defaultModelCard("private-model-v1", ProviderKindLLM)

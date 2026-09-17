@@ -131,7 +131,7 @@ func (s *Service) fetchModelsForItem(
 	if err != nil {
 		return nil, err
 	}
-	saved, err := s.modelsForRecord(ctx, item.ID)
+	saved, err := s.modelsForRecord(ctx, item)
 	if err != nil {
 		return nil, err
 	}
@@ -422,6 +422,8 @@ func (u *modelUpdate) loadRecord() (*ModelRecord, error) {
 		return nil, fmt.Errorf("模型不存在: %s", u.modelID)
 	}
 	record := toModelRecord(*updated)
+	guidance := projectModelGuidance(u.item, *updated)
+	record.Guidance = &guidance
 	return &record, nil
 }
 
@@ -509,5 +511,7 @@ func (s *Service) setDefaultModelForItem(
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
 	record := toModelRecord(*updated)
+	guidance := projectModelGuidance(item, *updated)
+	record.Guidance = &guidance
 	return &record, nil
 }

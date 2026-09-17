@@ -16,6 +16,9 @@ func (s *Service) callGenerateProvider(
 	config *providercfg.ImageConfig,
 	input GenerateInput,
 ) ([]byte, string, string, error) {
+	if config != nil && config.APIFormat != "" && config.APIFormat != providercfg.APIFormatOpenAIImageGeneration && config.APIFormat != providercfg.APIFormatDashScopeImageGeneration && config.APIFormat != providercfg.APIFormatModelScopeImageGeneration {
+		return nil, "", "", errors.New("unsupported image API format")
+	}
 	if config != nil {
 		switch strings.TrimSpace(config.APIFormat) {
 		case providercfg.APIFormatDashScopeImageGeneration:
@@ -80,6 +83,12 @@ func (s *Service) callEditProvider(
 	config *providercfg.ImageConfig,
 	input EditInput,
 ) ([]byte, string, string, error) {
+	if config != nil && config.ImageEditing != nil && !*config.ImageEditing {
+		return nil, "", "", errors.New("model image editing capability is not confirmed")
+	}
+	if config != nil && config.APIFormat != "" && config.APIFormat != providercfg.APIFormatOpenAIImageGeneration && config.APIFormat != providercfg.APIFormatDashScopeImageGeneration && config.APIFormat != providercfg.APIFormatModelScopeImageGeneration {
+		return nil, "", "", errors.New("unsupported image API format")
+	}
 	if config != nil {
 		switch strings.TrimSpace(config.APIFormat) {
 		case providercfg.APIFormatDashScopeImageGeneration:

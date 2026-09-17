@@ -129,8 +129,8 @@ export function useDefaultModelPreferences({
   const view = useMemo(() => buildDefaultModelPreferencesView(
     catalog.catalog,
     preferences,
-    subscriptionLabel,
-  ), [catalog.catalog, preferences, subscriptionLabel]);
+    subscriptionLabel, t,
+  ), [catalog.catalog, preferences, subscriptionLabel, t]);
 
   const handleChange = useCallback((
     value: string,

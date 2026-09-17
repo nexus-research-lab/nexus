@@ -62,6 +62,8 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 [PROTOCOL]: 变更时更新此头部，然后检查各 Go 包入口 `doc.go`（L2）
 
+- Provider 模型推荐与用途资格统一由 `service/provider` 投影，推荐不改写默认选择；聊天、视觉、生图与编辑独立判定，图片输出不代表图片协议可调用。当前合同见 `docs/specs/provider-model-guidance-spec.md`。
+
 ## 状态根契约
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；Nexus 宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，供 Nexus 读取的公钥镜像位于 `.nexus/control-public`。

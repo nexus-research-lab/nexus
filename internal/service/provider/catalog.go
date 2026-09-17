@@ -58,6 +58,7 @@ var providerPresets = []Preset{
 				BaseURL:    "https://api.openai.com/v1",
 				ModelsPath: "/models",
 			},
+			{ProviderKind: ProviderKindImageGeneration, APIFormat: APIFormatOpenAIImageGeneration, BaseURL: "https://api.openai.com/v1", ModelsPath: "/models"},
 		},
 	},
 	{

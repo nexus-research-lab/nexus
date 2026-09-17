@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { ModelGuidanceBadges } from "@/entities/provider/model-guidance-badges";
 import {
   Brain,
   Eye,
@@ -254,7 +255,7 @@ function ProviderModelRow({
   const showSubscriptionDefault = selectedRecord?.visibility === "public"
     && selectedRecord.provider_kind === "llm"
     && selectedRecord.agent_runtime_supported
-    && !getEffectiveCapabilities(model).image_output;
+    && (model.guidance?.eligibility.chat.available ?? !getEffectiveCapabilities(model).image_output);
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -262,6 +263,7 @@ function ProviderModelRow({
           {displayName}
         </span>
         <ProviderModelCapabilities model={model} />
+        <ModelGuidanceBadges guidance={model.guidance} purpose={selectedRecord?.provider_kind === "image_generation" ? "image_generation" : "chat"} />
       </div>
       <div className="flex min-w-0 items-center gap-2">
         {showSubscriptionDefault ? (

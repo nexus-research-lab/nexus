@@ -48,7 +48,7 @@ export function getEffectiveCapabilities(
   model: ProviderModelRecord,
 ): ProviderModelCapabilities {
   return {
-    ...model.capabilities_auto,
+    ...(model.guidance?.capabilities ?? model.capabilities_auto),
     ...model.capabilities_override,
   };
 }
@@ -60,6 +60,9 @@ export function sortModelsEnabledFirst(
     if (left.enabled !== right.enabled) {
       return left.enabled ? -1 : 1;
     }
+    const advice = Number(Object.keys(right.guidance?.recommendations ?? {}).length > 0)
+      - Number(Object.keys(left.guidance?.recommendations ?? {}).length > 0);
+    if (advice) return advice;
     return (left.display_name || left.model_id).localeCompare(
       right.display_name || right.model_id,
       "zh-Hans-CN",

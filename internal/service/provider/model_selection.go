@@ -1,3 +1,6 @@
+// INPUT: Provider/model snapshots and requested purpose.
+// OUTPUT: Eligible options carrying unified model guidance, without changing defaults.
+// POS: Provider selection and default resolution policy.
 package provider
 
 import (
@@ -67,10 +70,12 @@ func modelOptionsForKind(
 			continue
 		}
 		modelID := normalizeModelID(model.ModelID)
+		guidance := projectModelGuidance(item, model)
 		result = append(result, ModelOption{
 			ModelID:     modelID,
 			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
 			IsDefault:   model.IsDefault,
+			Guidance:    &guidance,
 		})
 	}
 	return result
@@ -81,29 +86,11 @@ func modelUsableForProviderKind(
 	model providerstore.ModelEntity,
 	providerKind string,
 ) bool {
-	switch normalizeProviderKind(providerKind) {
-	case ProviderKindImageGeneration:
-		if item.ProviderKind != ProviderKindImageGeneration && !providerSupportsImageGeneration(item) {
-			return false
-		}
-		if item.ProviderKind == ProviderKindImageGeneration && !imageProviderRequiresModelFilter(item) {
-			return true
-		}
-		return modelHasImageOutputCapability(model)
-	case ProviderKindLLM:
-		return !modelHasImageOutputCapability(model)
-	default:
-		return true
+	purpose := PurposeChat
+	if normalizeProviderKind(providerKind) == ProviderKindImageGeneration {
+		purpose = PurposeImage
 	}
-}
-
-func modelHasImageOutputCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.ImageOutput != nil {
-		return *overrideCapabilities.ImageOutput
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	return autoCapabilities.ImageOutput != nil && *autoCapabilities.ImageOutput
+	return projectModelGuidance(item, model).Eligibility[purpose].Available
 }
 
 func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
@@ -131,22 +118,6 @@ func modelHasVisionCapability(model providerstore.ModelEntity) bool {
 	}
 	known := knownVisionCapability(model.ModelID)
 	return known != nil && *known
-}
-
-// visionModelOptions 只暴露已经明确支持视觉的模型，未知能力不乐观放行。
-func visionModelOptions(models []providerstore.ModelEntity) []ModelOption {
-	result := make([]ModelOption, 0, len(models))
-	for _, model := range models {
-		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" || !modelHasVisionCapability(model) {
-			continue
-		}
-		result = append(result, ModelOption{
-			ModelID:     normalizeModelID(model.ModelID),
-			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
-			IsDefault:   model.IsDefault,
-		})
-	}
-	return result
 }
 
 func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
@@ -181,7 +152,7 @@ func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEnti
 		}
 		return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
 	case ProviderKindImageGeneration:
-		return true
+		return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
 	default:
 		return false
 	}

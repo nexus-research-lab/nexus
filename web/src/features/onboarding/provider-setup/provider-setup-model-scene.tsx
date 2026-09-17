@@ -1,6 +1,7 @@
 // INPUT: 已保存 Provider 的模型目录、选择草稿与恢复锁。
 // OUTPUT: 显式模型选择、手填回退及验证提交。
 // POS: 初始化向导模型选择视图；不保存凭据或发起网络请求。
+import { modelGuidanceLabel, recommendedModelsFirst } from "@/entities/provider/model-guidance";
 import type { ReactNode } from "react";
 import type { ProviderModelRecord } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -29,7 +30,7 @@ export function ProviderSetupModelScene({ models, value, onChange, busy, locked,
         <UiSelectMenu id="provider-setup-model-choice" ariaLabel={t("onboarding.provider_setup_choose_model")} surface="dialog" size="md"
           value={value} onChange={onChange} disabled={busy || locked}
           placeholder={t("onboarding.provider_setup_choose_model")}
-          options={models.map((model) => ({ value: model.model_id, label: model.display_name === model.model_id ? model.model_id : `${model.display_name} (${model.model_id})` }))} />
+          options={recommendedModelsFirst(models, "chat").map((model) => ({ value: model.model_id, label: [model.display_name === model.model_id ? model.model_id : `${model.display_name} (${model.model_id})`, modelGuidanceLabel(model.guidance, "chat", t)].filter(Boolean).join(" · "), disabled: model.guidance?.eligibility.chat.available === false }))} />
       </UiField> : null}
       <UiField label={t("onboarding.provider_setup_model")} htmlFor="provider-setup-selected-model" description={t("onboarding.provider_setup_model_manual")} required>
         <UiInput id="provider-setup-selected-model" value={value} onChange={(event) => onChange(event.target.value)}
