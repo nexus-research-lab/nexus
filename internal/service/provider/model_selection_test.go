@@ -30,7 +30,7 @@ func TestModelGuidancePurposeBoundaries(t *testing.T) {
 	}
 }
 func TestAdviceIsScopedAndDoesNotChangeDefaults(t *testing.T) {
-	model := providerstore.ModelEntity{ModelID: "deepseek-chat", Enabled: true, IsDefault: false}
+	model := providerstore.ModelEntity{ModelID: "deepseek-flash", Enabled: true, IsDefault: false}
 	item := providerstore.Entity{ProviderKind: ProviderKindLLM, PresetKey: presetDeepSeek}
 	options := modelOptionsForKind(item, []providerstore.ModelEntity{model}, ProviderKindLLM)
 	if len(options) != 1 || options[0].Guidance.Recommendations[PurposeChat] == "" || options[0].IsDefault {
@@ -41,7 +41,7 @@ func TestAdviceIsScopedAndDoesNotChangeDefaults(t *testing.T) {
 		t.Fatal("custom provider inherited vendor advice")
 	}
 	item.PresetKey = presetDeepSeek
-	model.ModelID = "other/deepseek-chat"
+	model.ModelID = "other/deepseek-flash"
 	if len(projectModelGuidance(item, model).Recommendations) != 0 {
 		t.Fatal("namespace was stripped")
 	}

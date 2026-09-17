@@ -99,8 +99,8 @@ func (s *Service) ReconcileDefaultAgentBindings(ctx context.Context, selection D
 	return s.repository.ClearRuntimeSelectionsByOwner(ctx, ownerUserID, toClear)
 }
 
-// validateProviderInvalidationFallback 防止停用当前全局默认模型后，令主智能体和临时回退的 Agent 无可用模型。
-func (s *Service) validateProviderInvalidationFallback(ctx context.Context, item providerstore.Entity) error {
+// validateProviderDeletionFallback 删除前验证默认模型回退；停用和清除 Key 允许有效默认值为空，不走此检查。
+func (s *Service) validateProviderDeletionFallback(ctx context.Context, item providerstore.Entity) error {
 	ownerUserIDs := []string{item.OwnerUserID}
 	if item.Visibility == providerstore.VisibilityPublic {
 		owners, err := s.repository.ListActiveOwnerUserIDs(ctx)

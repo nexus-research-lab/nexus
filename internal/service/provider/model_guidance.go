@@ -1,11 +1,12 @@
-// INPUT: Provider route, remote model facts, legacy catalog fallback and user overrides.
+// INPUT: Provider route, remote model facts, officially sourced catalog and user overrides.
 // OUTPUT: Read-only effective capabilities, provenance, purpose eligibility and recommendations.
 // POS: Shared model projection for settings, onboarding, selectors and execution admission.
 package provider
 
 import (
-	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 	"strings"
+
+	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
 const (
@@ -19,7 +20,15 @@ type ModelEligibility struct {
 	Available bool   `json:"available"`
 	Reason    string `json:"reason,omitempty"`
 }
+type ModelAdviceEvidence struct {
+	ReviewedAt string   `json:"reviewed_at"`
+	URLs       []string `json:"urls"`
+	Notice     string   `json:"notice,omitempty"`
+}
+
 type ModelGuidance struct {
+	Evidence        *ModelAdviceEvidence        `json:"evidence,omitempty"`
+	TextOnly        bool                        `json:"text_only,omitempty"`
 	CatalogVersion  string                      `json:"catalog_version"`
 	Capabilities    ModelCapabilities           `json:"capabilities"`
 	Sources         map[string]string           `json:"sources"`
@@ -31,7 +40,7 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 	entry := lookupModelAdvice(item.PresetKey, model.ModelID)
 	var c ModelCapabilities
 	sources := map[string]string{}
-	merge := func(value ModelCapabilities, source string) {
+	merge := func(value ModelCapabilities, source string, preserveDenials bool) {
 		for _, field := range []struct {
 			name   string
 			value  *bool
@@ -46,17 +55,21 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 			{"embedding", value.Embedding, &c.Embedding},
 		} {
 			if field.value != nil {
+				if preserveDenials && *field.target != nil && !**field.target && *field.value {
+					continue
+				}
 				*field.target = field.value
 				sources[field.name] = source
 			}
 		}
 	}
-	merge(modelCapabilitiesWithDefaults(model.ModelID, ModelCapabilities{}), "legacy_catalog")
 	if entry != nil {
-		merge(entry.Capabilities, "catalog")
+		merge(entry.Capabilities, "catalog", false)
 	}
-	merge(decodeModelCapabilities(model.CapabilitiesAutoJSON), "provider_record")
-	merge(decodeModelCapabilities(model.CapabilitiesOverrideJSON), "user")
+	// An automatic positive cannot undo an explicit catalog denial (including old
+	// materialized guesses). Explicit remote false remains a conservative veto.
+	merge(decodeModelAutoCapabilities(model.CapabilitiesAutoJSON), "provider_record", true)
+	merge(decodeModelCapabilities(model.CapabilitiesOverrideJSON), "user", false)
 	yes := func(v *bool) bool { return v != nil && *v }
 	// Preserve unknown ordinary chat IDs. Known non-chat models need explicit text output.
 	chat := item.ProviderKind == ProviderKindLLM && !yes(c.Embedding)
@@ -87,9 +100,11 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 			PurposeChat:   eligible(chat, "not_chat_model"),
 			PurposeVision: eligible(chat && yes(c.Vision), "vision_not_confirmed"),
 			PurposeImage:  eligible(image, "image_output_or_route_unavailable"),
-			PurposeEdit:   eligible(image && yes(c.ImageEditing) && imageRoute.APIFormat != APIFormatModelScopeImageGeneration, "image_editing_not_confirmed"),
+			PurposeEdit:   eligible(image && yes(c.ImageEditing) && imageRoute.APIFormat != APIFormatModelScopeImageGeneration && item.PresetKey != presetDoubao, "image_editing_not_confirmed"),
 		}, Recommendations: map[string]string{}}
 	if entry != nil {
+		g.Evidence = &entry.Evidence
+		g.TextOnly = entry.TextOnly && c.Vision != nil && !*c.Vision && !yes(c.ImageOutput)
 		for purpose, reason := range entry.Recommendations {
 			if g.Eligibility[purpose].Available {
 				g.Recommendations[purpose] = reason

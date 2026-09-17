@@ -1,4 +1,4 @@
-// INPUT: 三类 Provider 弹窗、模型草稿、能力开关、使用者目录与命令状态。
+// INPUT: 三类 Provider 弹窗、模型草稿、三态能力覆盖、使用者目录与命令状态。
 // OUTPUT: 证明焦点/字段身份、草稿更新、具名忙碌动作和使用者展示不改变命令目标。
 // POS: 真实弹窗行为测试；命令为本地回调，不执行 Provider 请求或删除。
 
@@ -87,9 +87,10 @@ describe("Provider model dialogs", () => {
     render(view(<Harness />));
     const draft = () => JSON.parse(screen.getByTestId("options").textContent!) as ModelOptionsState;
     expect(screen.getByText(MODEL.model_id)).toBeTruthy();
-    for (const key of ["vision", "image_output", "tool_calling", "reasoning", "embedding"] as const) {
+    for (const key of ["text_output", "vision", "image_output", "image_editing", "tool_calling", "reasoning", "embedding"] as const) {
       const before = draft();
-      await user.click(screen.getByRole("switch", { name: `settings.providers.capability_${key}` }));
+      await user.click(screen.getByRole("button", { name: `settings.providers.capability_${key}` }));
+      await user.click(screen.getByRole("option", { name: before.capabilities[key] ? "settings.providers.capability_no" : "settings.providers.capability_yes" }));
       expect(draft()).toEqual({ ...before, capabilities: { ...before.capabilities, [key]: !before.capabilities[key] } });
     }
     await user.click(screen.getAllByText("settings.providers.provider_options_json").find((node) => node.closest("summary"))!);
@@ -155,7 +156,7 @@ describe("Provider model dialogs", () => {
     rerender(view(<ProviderModelOptionsDialog modelOptions={OPTIONS} onClose={vi.fn()} onSave={vi.fn()}
       pendingAction={pendingAction} selectedCanManage={canManage} setModelOptions={setOptions} />));
     for (const input of screen.getAllByRole("textbox")) expect((input as HTMLInputElement).disabled).toBe(true);
-    for (const control of screen.getAllByRole("switch")) {
+    for (const control of screen.getAllByRole("button", { name: /^settings.providers.capability_/ })) {
       expect((control as HTMLButtonElement).disabled).toBe(true);
       await user.click(control);
     }

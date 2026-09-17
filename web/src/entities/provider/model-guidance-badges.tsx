@@ -4,13 +4,12 @@
 import type { ModelGuidance, ModelPurpose } from "@/types/capability/provider";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { modelGuidanceLabel } from "./model-guidance";
-export function ModelGuidanceBadges({ guidance, purpose = "chat" }: { guidance?: ModelGuidance; purpose?: ModelPurpose }) {
+import { modelGuidanceHint, modelGuidanceLabel } from "./model-guidance";
+export function ModelGuidanceBadges({ guidance, purpose = "chat", recommendationOnly = false }: { guidance?: ModelGuidance; purpose?: ModelPurpose; recommendationOnly?: boolean }) {
   const { t } = useI18n();
-  const label = modelGuidanceLabel(guidance, purpose, t);
-  const hint = [
-    guidance?.recommendations[purpose] ? t("settings.providers.model_recommended_hint") : "",
-    guidance?.capabilities.vision ? t("settings.providers.model_multimodal_hint") : "",
-  ].filter(Boolean).join(" ");
+  const label = recommendationOnly
+    ? (guidance?.recommendations[purpose] ? t("settings.providers.model_recommended") : "")
+    : modelGuidanceLabel(guidance, purpose, t);
+  const hint = modelGuidanceHint(guidance, purpose, t);
   return label ? <UiBadge title={hint || label} className="max-w-full truncate" size="xs" tone="default">{label}</UiBadge> : null;
 }

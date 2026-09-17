@@ -88,7 +88,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		VisionItems:     make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
-		if !item.Enabled {
+		if !providerHasCredentials(item) {
 			continue
 		}
 		models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -192,7 +192,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			continue
 		}
 		state.Total++
-		if !item.Enabled || !isAnyAgentRuntimeProvider(item) {
+		if !providerHasCredentials(item) || !isAnyAgentRuntimeProvider(item) {
 			continue
 		}
 		state.EnabledList = append(state.EnabledList, item.Provider)

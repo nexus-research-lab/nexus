@@ -1,6 +1,6 @@
 // INPUT: Provider create/update patch/delete 请求、可见域与期望 configuration_version。
 // OUTPUT: 规范化后的 Provider 持久化结果，或稳定的 CAS/不存在/使用中错误。
-// POS: Provider 主记录变更及强制删除重分配的服务事务编排层。
+// POS: Provider 主记录事务；停用保留凭证/选择，清除凭证允许无可用默认模型。
 package provider
 
 import (
@@ -165,11 +165,6 @@ func (s *Service) updateProviderAtVersion(
 		return nil, invalidInputError(err)
 	}
 	updated.UpdatedAt = s.now()
-	if providerBecameUnavailable(current, updated) {
-		if err = s.validateProviderInvalidationFallback(ctx, current); err != nil {
-			return nil, mutationNotAppliedError(err)
-		}
-	}
 	if _, err = s.repository.WithProviderMutation(
 		ctx,
 		current.ID,
@@ -278,7 +273,7 @@ func (s *Service) deleteProviderAtVersion(
 		return nil, fmt.Errorf("%w: provider=%s 仍被 %d 个 Agent 使用，不能删除", ErrProviderInUse, normalizedProvider, bindingCount)
 	}
 	if current.ProviderKind == ProviderKindLLM {
-		if err = s.validateProviderInvalidationFallback(ctx, current); err != nil {
+		if err = s.validateProviderDeletionFallback(ctx, current); err != nil {
 			return nil, mutationNotAppliedError(err)
 		}
 	}
@@ -311,10 +306,6 @@ func (s *Service) deleteProviderAtVersion(
 		return nil, err
 	}
 	return result, nil
-}
-
-func providerBecameUnavailable(current providerstore.Entity, updated providerstore.Entity) bool {
-	return current.ProviderKind == ProviderKindLLM && current.Enabled && !updated.Enabled
 }
 
 // Get 读取单个 Provider 配置。

@@ -192,7 +192,7 @@ func (s *Service) selectImageTarget(
 	var fallback *providerModelTarget
 	for _, item := range items {
 		imageItem, ok := imageRuntimeProvider(item)
-		if !item.Enabled || !ok {
+		if !providerHasCredentials(item) || !ok {
 			continue
 		}
 		model, err := s.defaultOrFirstEnabledModelForKind(ctx, item, ProviderKindImageGeneration)

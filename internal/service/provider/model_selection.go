@@ -21,7 +21,7 @@ func (s *Service) defaultRuntimeSelectionForRuntime(ctx context.Context, runtime
 	}
 	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	for _, item := range items {
-		if !item.Enabled || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
+		if !providerHasCredentials(item) || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 			continue
 		}
 		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -93,33 +93,6 @@ func modelUsableForProviderKind(
 	return projectModelGuidance(item, model).Eligibility[purpose].Available
 }
 
-func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.Reasoning != nil {
-		return *overrideCapabilities.Reasoning
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	if autoCapabilities.Reasoning != nil {
-		return *autoCapabilities.Reasoning
-	}
-	known := knownReasoningCapability(model.ModelID)
-	return known != nil && *known
-}
-
-// modelHasVisionCapability 以用户覆盖优先，判断模型是否能接收图片输入。
-func modelHasVisionCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.Vision != nil {
-		return *overrideCapabilities.Vision
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	if autoCapabilities.Vision != nil {
-		return *autoCapabilities.Vision
-	}
-	known := knownVisionCapability(model.ModelID)
-	return known != nil && *known
-}
-
 func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
 	preset := resolvePreset(item.PresetKey)
 	if preset.PresetKey == presetCustom {
@@ -139,7 +112,7 @@ func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
 }
 
 func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEntity) bool {
-	if !item.Enabled {
+	if !providerHasCredentials(item) {
 		return false
 	}
 	switch item.ProviderKind {
@@ -212,4 +185,9 @@ func (s *Service) resolveMissingExplicitModel(ctx context.Context, providerID st
 		return "", nil
 	}
 	return normalizeModelID(model.ModelID), nil
+}
+
+// providerHasCredentials is readiness, not a remote credential validity check.
+func providerHasCredentials(item providerstore.Entity) bool {
+	return item.Enabled && strings.TrimSpace(item.AuthToken) != "" && strings.TrimSpace(item.BaseURL) != ""
 }

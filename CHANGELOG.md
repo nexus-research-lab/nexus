@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Separate Provider disable, replace-key and confirmed clear-key actions; disabling preserves credentials and model bindings, clearing a key disables the Provider, and unavailable defaults display as empty. Move chat, image, vision and background defaults into the dedicated Models settings page.
+
+- Replace speculative model recommendations with officially sourced provider/plan-specific guidance, current model IDs, text-only versus multimodal labels and plan restrictions; remove name-based capability guesses, preserve user overrides, and gate image editing by the implemented transport.
+
 - Label models with image input as “Multimodal” in selection lists, keeping detailed vision and image-output capabilities separate.
 
 - Share model recommendations and capability labels across onboarding, Provider settings, chat and default image selection; preserve saved defaults, support automatic/explicit capability overrides, and enforce separate chat, image generation and editing eligibility.

@@ -14,13 +14,13 @@ import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
-import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
+import type { DefaultModelPreferenceRole } from "./default-model-preferences-model";
 import {
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
-} from "../../shared/settings-panel-ui";
+} from "../shared/settings-panel-ui";
 
 const SETTINGS_DEFAULT_MODEL_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_300px] md:items-center";
 

@@ -160,6 +160,7 @@ export function ProviderSettingsDetailHeader({
           aria-label={t("settings.providers.toggle_provider", {
             name: detailTitle,
           })}
+          title={t("settings.providers.toggle_preserves_key")}
           checked={enabled}
           disabled={controlsDisabled}
           size="sm"

@@ -1,3 +1,6 @@
+// INPUT: Available provider options and saved model preferences.
+// OUTPUT: Eligible default choices; unavailable saved choices display as empty.
+// POS: Default-model presentation; never silently rewrites saved selection intent.
 import { modelGuidanceLabel, recommendedModelsFirst } from "@/entities/provider/model-guidance";
 import type { ModelPurpose } from "@/types/capability/provider";
 import type { useI18n } from "@/shared/i18n/i18n-context";
@@ -9,7 +12,7 @@ import {
 } from "@/types/capability/provider";
 import type { UserPreferences } from "@/types/settings/preferences";
 
-import { normalizePreferences } from "./settings-preferences-model";
+import { normalizePreferences } from "../general/model/settings-preferences-model";
 
 export type DefaultModelPreferenceRole =
   | "agent_runtime"
@@ -203,7 +206,7 @@ function buildDefaultModelValues(
   const visionSelection = normalizeModelSelectionPreference(
     preferences.default_vision_model_selection,
   );
-  return {
+  const values = {
     agent: encodeModelSelection(preferModelSelection(
       agentSelection,
       catalog.agentDefault,
@@ -215,6 +218,16 @@ function buildDefaultModelValues(
     )),
     vision: encodeModelSelection(visionSelection),
   };
+  const available: Record<keyof typeof values, ProviderOption[]> = {
+    agent: catalog.agentOptions, background: catalog.backgroundOptions,
+    image: catalog.imageOptions, vision: catalog.visionOptions,
+  };
+  for (const role of Object.keys(values) as Array<keyof typeof values>) {
+    const selectable = available[role].some((provider) => provider.models.some((model) =>
+      encodeDefaultModelValue(provider.provider, model.model_id) === values[role]));
+    if (!selectable) values[role] = "";
+  }
+  return values;
 }
 
 export function buildDefaultModelPreferencesView(

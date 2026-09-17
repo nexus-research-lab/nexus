@@ -176,6 +176,7 @@ func (s *Service) llmConfigFromTarget(
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
 	}
+	guidance := projectModelGuidance(*target, *modelRecord)
 	return &clientopts.RuntimeConfig{
 		Provider:               target.Provider,
 		DisplayName:            target.DisplayName,
@@ -184,8 +185,8 @@ func (s *Service) llmConfigFromTarget(
 		Model:                  normalizeModelID(modelRecord.ModelID),
 		APIFormat:              target.APIFormat,
 		UseMaxCompletionTokens: usesMaxCompletionTokens(*target),
-		Reasoning:              modelHasReasoningCapability(*modelRecord),
-		Vision:                 modelHasVisionCapability(*modelRecord),
+		Reasoning:              guidance.Capabilities.Reasoning != nil && *guidance.Capabilities.Reasoning,
+		Vision:                 guidance.Eligibility[PurposeVision].Available,
 		ContextWindow:          modelContextWindow(modelRecord),
 		MaxOutputTokens:        modelMaxOutputTokens(modelRecord),
 	}, nil

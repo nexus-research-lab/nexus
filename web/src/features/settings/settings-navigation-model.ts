@@ -25,6 +25,7 @@ export type SettingsSectionKey =
 	| "browser"
   | "personal"
   | "operations-organization"
+  | "default-models"
   | "providers"
   | OperationsSectionKey;
 
@@ -66,6 +67,7 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
     key: "models",
     labelKey: "settings.navigation.models",
     items: [
+      { key: "default-models", labelKey: "settings.tabs.default_models" },
       { key: "providers", labelKey: "settings.tabs.providers" },
     ],
   },

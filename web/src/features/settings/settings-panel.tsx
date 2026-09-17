@@ -23,6 +23,7 @@ import { PersonalSettingsPanel } from "./personal/personal-settings-panel";
 import { canUseOperations } from "./operations/operations-access";
 import { OperationsPanel } from "./operations/operations-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
+import { SettingsDefaultModelsSection } from "./default-models/settings-default-models-section";
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
@@ -116,6 +117,7 @@ function SettingsSectionContent({
   if (section === "personal") {
     return <PersonalSettingsPanel />;
   }
+  if (section === "default-models") return <SettingsDefaultModelsSection />;
   if (section === "providers") {
     return <ProviderSettingsPanel />;
   }

@@ -1,5 +1,5 @@
 /**
- * INPUT: 通用偏好、Echo 与默认模型目录状态。
+ * INPUT: 通用偏好与 Echo 状态。
  * OUTPUT: 分域恢复提示、唯一设置开关行与具名分段偏好字段。
  * POS: General 行为分区视图；Preferences 写入仍由版本化控制器负责。
  */
@@ -10,22 +10,15 @@ import {
   Brain,
   Bug,
   HeartPulse,
-  Image,
   MessageCircle,
-  MonitorCog,
   Moon,
   RadioTower,
-  ScanEye,
-  Sparkles,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
-import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import type { AgentConversationDefaultDeliveryPolicy } from "@/types/agent/agent-conversation";
 
-import { SettingsDefaultModelRow } from "../components/settings-default-model-row";
 import { DELIVERY_POLICY_OPTIONS } from "../model/settings-options";
 import {
   SettingsToggleRow,
@@ -36,7 +29,6 @@ import {
   SETTINGS_ROW_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
-import type { DefaultModelPreferenceRole } from "../model/default-model-preferences-model";
 import { PreferencesReliabilityNotice } from "../components/preferences-reliability-notice";
 import { EchoSettingsReliabilityNotice } from "../components/echo-settings-reliability-notice";
 import type {
@@ -60,16 +52,6 @@ interface SettingsGeneralBehaviorSectionProps {
   echoLoading: boolean;
   echoRecovery: EchoSettingsRecoveryControls;
   echoSaving: boolean;
-  defaultBackgroundModelOptions: UiSelectMenuOption[];
-  defaultBackgroundModelValue: string;
-  defaultImageModelOptions: UiSelectMenuOption[];
-  defaultImageModelValue: string;
-  defaultVisionModelOptions: UiSelectMenuOption[];
-  defaultVisionModelValue: string;
-  defaultModelCatalogFailed: boolean;
-  defaultModelOptions: UiSelectMenuOption[];
-  defaultModelSavingRole: DefaultModelPreferenceRole | null;
-  defaultModelValue: string;
   onAgentSdkDiagnosticsChange: (checked: boolean) => void;
   onAutoMemoryEnabledChange: (checked: boolean) => void;
   onAutoDreamEnabledChange: (checked: boolean) => void;
@@ -78,16 +60,10 @@ interface SettingsGeneralBehaviorSectionProps {
   onDefaultDeliveryPolicyChange: (
     value: AgentConversationDefaultDeliveryPolicy,
   ) => void;
-  onDefaultModelChange: (
-    value: string,
-    role: DefaultModelPreferenceRole,
-  ) => void;
-  onRetryDefaultModelCatalog: () => void;
   preferencesLoading: boolean;
   preferencesSaving: boolean;
   preferencesFeedback: PreferenceFeedback | null;
   preferencesRecovery: PreferenceRecoveryControls;
-  providerOptionsLoading: boolean;
 }
 
 export function SettingsGeneralBehaviorSection({
@@ -102,29 +78,16 @@ export function SettingsGeneralBehaviorSection({
   echoLoading,
   echoRecovery,
   echoSaving,
-  defaultBackgroundModelOptions,
-  defaultBackgroundModelValue,
-  defaultImageModelOptions,
-  defaultImageModelValue,
-  defaultVisionModelOptions,
-  defaultVisionModelValue,
-  defaultModelCatalogFailed,
-  defaultModelOptions,
-  defaultModelSavingRole,
-  defaultModelValue,
   onAgentSdkDiagnosticsChange,
   onAutoMemoryEnabledChange,
   onAutoDreamEnabledChange,
   onEmotionEnabledChange,
   onEchoEnabledChange,
   onDefaultDeliveryPolicyChange,
-  onDefaultModelChange,
-  onRetryDefaultModelCatalog,
   preferencesLoading,
   preferencesSaving,
   preferencesFeedback,
   preferencesRecovery,
-  providerOptionsLoading,
 }: SettingsGeneralBehaviorSectionProps) {
   const { t } = useI18n();
 
@@ -138,21 +101,6 @@ export function SettingsGeneralBehaviorSection({
         feedback={echoFeedback}
         recovery={echoRecovery}
       />
-      {defaultModelCatalogFailed ? (
-        <UiResourceState
-          impact={t("settings.general.default_model_catalog_failed_impact")}
-          primaryAction={{
-            busy: providerOptionsLoading,
-            busyLabel: t("settings.general.default_model_loading"),
-            label: t("settings.general.default_model_catalog_retry"),
-            onClick: onRetryDefaultModelCatalog,
-          }}
-          size="sm"
-          state="error"
-          title={t("settings.general.default_model_catalog_failed_title")}
-          urgency="polite"
-        />
-      ) : null}
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <SettingsToggleRow
           checked={agentSdkDiagnosticsEnabled}
@@ -205,70 +153,6 @@ export function SettingsGeneralBehaviorSection({
           icon={<RadioTower className="h-3.5 w-3.5" />}
           onChange={onEchoEnabledChange}
           title={t("settings.general.echo_title")}
-        />
-
-        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-
-        <SettingsDefaultModelRow
-          disabled={preferencesLoading || preferencesSaving}
-          descriptionKey="settings.general.default_model_description"
-          emptyPlaceholderKey="settings.general.default_model_empty"
-          icon={<MonitorCog className="h-3.5 w-3.5" />}
-          onChange={onDefaultModelChange}
-          options={defaultModelOptions}
-          providerOptionsLoading={providerOptionsLoading}
-          modelCategory="agent_runtime"
-          savingRole={defaultModelSavingRole}
-          titleKey="settings.general.default_model_title"
-          value={defaultModelValue}
-        />
-
-        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-
-        <SettingsDefaultModelRow
-          disabled={preferencesLoading || preferencesSaving}
-          descriptionKey="settings.general.default_image_model_description"
-          emptyPlaceholderKey="settings.general.default_image_model_empty"
-          icon={<Image className="h-3.5 w-3.5" />}
-          onChange={onDefaultModelChange}
-          options={defaultImageModelOptions}
-          providerOptionsLoading={providerOptionsLoading}
-          modelCategory="image_generation"
-          savingRole={defaultModelSavingRole}
-          titleKey="settings.general.default_image_model_title"
-          value={defaultImageModelValue}
-        />
-
-        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-
-        <SettingsDefaultModelRow
-          disabled={preferencesLoading || preferencesSaving}
-          descriptionKey="settings.general.default_vision_model_description"
-          emptyPlaceholderKey="settings.general.default_vision_model_empty"
-          icon={<ScanEye className="h-3.5 w-3.5" />}
-          onChange={onDefaultModelChange}
-          options={defaultVisionModelOptions}
-          providerOptionsLoading={providerOptionsLoading}
-          modelCategory="vision_understanding"
-          savingRole={defaultModelSavingRole}
-          titleKey="settings.general.default_vision_model_title"
-          value={defaultVisionModelValue}
-        />
-
-        <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-
-        <SettingsDefaultModelRow
-          disabled={preferencesLoading || preferencesSaving}
-          descriptionKey="settings.general.default_background_model_description"
-          emptyPlaceholderKey="settings.general.default_background_model_empty"
-          icon={<Sparkles className="h-3.5 w-3.5" />}
-          onChange={onDefaultModelChange}
-          options={defaultBackgroundModelOptions}
-          providerOptionsLoading={providerOptionsLoading}
-          modelCategory="background_task"
-          savingRole={defaultModelSavingRole}
-          titleKey="settings.general.default_background_model_title"
-          value={defaultBackgroundModelValue}
         />
 
         <div className={SETTINGS_DIVIDER_CLASS_NAME} />

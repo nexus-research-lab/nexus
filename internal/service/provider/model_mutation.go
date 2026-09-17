@@ -74,7 +74,7 @@ func (s *Service) fetchModelsForItem(
 			Category:                 category,
 			Enabled:                  false,
 			IsDefault:                false,
-			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+			CapabilitiesAutoJSON:     encodeModelAutoCapabilities(capabilities),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindow,
 			MaxOutputTokens:          maxOutput,
@@ -344,7 +344,7 @@ func (u *modelUpdate) defaultCandidate() providerstore.ModelEntity {
 	return providerstore.ModelEntity{
 		ModelID:                  u.modelID,
 		DisplayName:              u.modelID,
-		CapabilitiesAutoJSON:     encodeModelCapabilities(ModelCapabilities{}),
+		CapabilitiesAutoJSON:     encodeModelAutoCapabilities(ModelCapabilities{}),
 		CapabilitiesOverrideJSON: encodeModelCapabilities(u.input.CapabilitiesOverride),
 	}
 }
@@ -373,7 +373,7 @@ func (u *modelUpdate) newModel() *providerstore.ModelEntity {
 		Category:                 category,
 		Enabled:                  u.input.Enabled || u.input.IsDefault,
 		IsDefault:                u.input.IsDefault,
-		CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+		CapabilitiesAutoJSON:     encodeModelAutoCapabilities(capabilities),
 		CapabilitiesOverrideJSON: encodeModelCapabilities(u.input.CapabilitiesOverride),
 		ContextWindow:            contextWindow,
 		MaxOutputTokens:          maxOutput,

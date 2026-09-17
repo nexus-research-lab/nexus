@@ -31,7 +31,7 @@ import {
   buildDefaultModelCatalog,
   buildDefaultModelPreferencesView,
   decodeDefaultModelValue,
-} from "./model/default-model-preferences-model";
+} from "./default-model-preferences-model";
 
 interface ProviderCatalogState {
   catalog: DefaultModelCatalog;
