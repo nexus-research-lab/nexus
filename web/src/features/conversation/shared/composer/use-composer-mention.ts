@@ -61,6 +61,10 @@ export function useComposerMention({
     [input, mentionTargetItems, selectedNames, selectedTargetIDs],
   );
 
+  const mentionSegments = useMemo(() => splitComposerMentions(input, selectedTargetIDs.map(
+    (id) => selectedNames?.[id] ?? mentionTargetItems.find((item) => item.id === id)?.label ?? "",
+  )), [input, mentionTargetItems, selectedNames, selectedTargetIDs]);
+
   const closeMention = useCallback(() => {
     setMentionMatch(null);
   }, []);
@@ -116,16 +120,36 @@ export function useComposerMention({
     mentionActive: Boolean(mentionMatch),
     mentionFilter: mentionMatch?.filter ?? "",
     mentionTargetItems,
+    mentionSegments,
     selectedTargetIDs: activeSelectedTargetIDs,
     selectMentionItem,
     updateMentionForInput,
   };
 }
 
+export interface ComposerMentionSegment {
+  text: string;
+  mentioned: boolean;
+}
+
+/** 只装饰已选择目标的完整名称，保留原文长度，避免镜像与原生光标错位。 */
+export function splitComposerMentions(input: string, labels: readonly string[]): ComposerMentionSegment[] {
+  const names = [...new Set(labels.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!names.length) return [{ text: input, mentioned: false }];
+  const escaped = names.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  const pattern = new RegExp(`(?:^|\\s)(@(?:${escaped}))(?=$|\\s|[，。！？、,.!?;:：；])`, "giu");
+  const segments: ComposerMentionSegment[] = [];
+  let end = 0;
+  for (const match of input.matchAll(pattern)) {
+    const start = match.index + match[0].length - match[1].length;
+    segments.push({ text: input.slice(end, start), mentioned: false });
+    segments.push({ text: match[1], mentioned: true });
+    end = start + match[1].length;
+  }
+  segments.push({ text: input.slice(end), mentioned: false });
+  return segments;
+}
+
 function hasComposerMention(input: string, label: string): boolean {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `(?:^|\\s)@${escaped}(?=$|\\s|[，。！？、,.!?;:：；])`,
-    "iu",
-  ).test(input);
+  return splitComposerMentions(input, [label]).some((segment) => segment.mentioned);
 }

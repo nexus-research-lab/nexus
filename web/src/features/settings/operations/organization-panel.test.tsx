@@ -7,8 +7,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { OrganizationPanel } from "./organization-panel";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { SETTINGS_CONTENT_BODY_CLASS_NAME } from "@/features/settings/shared/settings-panel-ui";
 
-const auth = vi.hoisted(() => ({ organizationRole: "owner" as string | undefined }));
+const auth = vi.hoisted(() => ({ organizationRole: "owner" as string | undefined, organizationId: "org-1" as string | undefined }));
 const api = vi.hoisted(() => ({
   create: vi.fn(),
   list: vi.fn(),
@@ -28,12 +30,13 @@ vi.mock("@/lib/api/account/control-api", () => ({
 }));
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
-  useAuth: () => ({ status: { authenticated: true, auth_method: "password", organization_id: "org-1", organization_role: auth.organizationRole, organization_name: "Nexus Research", role: "member", user_id: "self" } }),
+  useAuth: () => ({ status: { authenticated: true, auth_method: "password", organization_id: auth.organizationId, organization_role: auth.organizationRole, organization_name: "Nexus Research", role: "member", user_id: "self" } }),
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
   auth.organizationRole = "owner";
+  auth.organizationId = "org-1";
   api.list.mockResolvedValue([]);
   api.listMembers.mockResolvedValue([{
     user_id: "self",
@@ -44,6 +47,19 @@ beforeEach(() => {
   }]);
 });
 afterEach(cleanup);
+
+it("未加入组织时仍复用全宽页头与独立居中正文，不请求成员目录", () => {
+  auth.organizationId = undefined;
+  const { container } = render(<I18nProvider><OrganizationPanel /></I18nProvider>);
+  const page = container.querySelector("[data-organization-page]")!;
+  expect(WORKSPACE_CONTENT_PAGE_CLASS_NAME.split(" ").every((name) => page.classList.contains(name))).toBe(true);
+  const heading = screen.getByRole("heading", { name: /^(组织|Organization)$/ });
+  const body = screen.getByText(/你还没有加入组织|You are not in an organization/).parentElement!;
+  expect(SETTINGS_CONTENT_BODY_CLASS_NAME.split(" ").every((name) => body.classList.contains(name))).toBe(true);
+  expect(body.contains(heading)).toBe(false);
+  expect(screen.getByRole("button", { name: /创建组织|Create organization/ })).toBeTruthy();
+  expect(api.listMembers).not.toHaveBeenCalled();
+});
 
 it.each(["owner", "admin", "member", undefined])("组织动作依据组织角色 %s，缺失时不冒充普通成员", async (role) => {
   auth.organizationRole = role;

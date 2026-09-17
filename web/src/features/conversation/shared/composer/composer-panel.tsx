@@ -145,6 +145,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   active: mention.mentionActive,
                   filter: mention.mentionFilter,
                   items: mention.mentionTargetItems,
+                  segments: mention.mentionSegments,
                   onClose: mention.closeMention,
                   onSelect: mention.selectMentionItem,
                 }}

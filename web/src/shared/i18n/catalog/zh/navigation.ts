@@ -203,6 +203,7 @@ export const zhNavigationMessages = {
   "team.node_revoke": "撤销授权",
   "team.node_retry": "重试原授权",
   "team.node_authorize": "授权所选 Agent",
+  "team.node_jobs_error": "本机任务状态读取失败，请刷新状态。",
   "team.node_error": "未能确认操作结果，请刷新状态后重试原操作。",
   "team.node_disconnected": "此宿主尚未授权",
   "team.node_pending": "授权结果待确认，已保留原选择",

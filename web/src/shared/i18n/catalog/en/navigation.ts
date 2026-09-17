@@ -205,6 +205,7 @@ export const enNavigationMessages = {
   "team.node_revoke": "Revoke authorization",
   "team.node_retry": "Retry original authorization",
   "team.node_authorize": "Authorize selected Agents",
+  "team.node_jobs_error": "Could not load local task status. Refresh the status to try again.",
   "team.node_error": "The result could not be confirmed. Refresh status and retry the original operation.",
   "team.node_disconnected": "This host is not authorized",
   "team.node_pending": "Authorization is unconfirmed; original selection preserved",

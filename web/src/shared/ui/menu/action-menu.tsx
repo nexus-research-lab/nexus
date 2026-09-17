@@ -150,7 +150,7 @@ export function UiActionMenu({
   footerItems = EMPTY_ACTION_MENU_ITEMS,
   isOpen,
   items,
-  minWidth = 220,
+  minWidth = 160,
   placement = "auto",
   onClose,
   onSelect,
@@ -309,6 +309,7 @@ function ActionMenuItem({
     <UiMenuActionRow
       active={item.active}
       checked={item.checked}
+      className="text-center"
       contentSized
       density={density}
       disabled={disabled || item.disabled}

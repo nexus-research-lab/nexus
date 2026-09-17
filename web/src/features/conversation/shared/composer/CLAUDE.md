@@ -14,7 +14,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `composer-draft-store.ts`: 保存正文、图片/文件附件、Message/Goal/Plan 模式、Room Goal 负责人和 Mention 目标组成的完整草稿胶囊，并以修订号保护本地派发认领与失败恢复；Goal 提交额外保存 submitting/confirming phase、提交前 durable Goal version fence，以及带 exact transport identity 与恢复修订号的 failed-restored recovery receipt。Auth owner 变化必须清空全部草稿/回执并标记旧快照失效，迟到失败不得把上一账号草稿恢复到新账号
 - `composer-goal-observation.ts` 与 `composer-goal-submission-reconciliation.ts`: 有界观察 GoalPanel owner-scoped 快照，并在 ACK 未知或 post-send 失败恢复后，用更新过的 Goal ID/version 或原 Session exact `client_message_id` durable 控制记录精确收口原 scope
 - `composer-draft-scope.ts`: 分别生成包含 Session ID 的 Room/DM 完整草稿作用域，以及排除 Session ID 的发送历史作用域
-- `use-composer-mention.ts`: 以单一匹配对象管理 Room 成员提及，并复用共享 Mention 文本模型
+- `use-composer-mention.ts`: 以单一匹配对象管理 Room 成员提及，并复用共享 Mention 文本模型；已选目标的完整名称匹配同时服务投递资格与输入镜像，目录刷新时保留草稿身份
 - `slash-command-model.ts`: 解析输入框起始 Slash 查询，并以纯函数完成筛选和插入
 - `use-composer-slash-command.ts`: 管理加号菜单与 Slash 共用的 Plan 草稿模式切换，以及命令、模型与技能三级补全状态、选择、键盘导航、按需目录加载与草稿清空后的浮层收口
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
@@ -49,3 +49,5 @@ Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层
 Composer 的工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
 
 - 工作图选择器的临时打开意图按完整草稿/工作图 Session 与人工介入状态重置，切页返回不得恢复旧选择器。
+
+- `use-composer-mention.test.ts`: 验证已选名称匹配的边界、重叠名称与原文保真。

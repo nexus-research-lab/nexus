@@ -1,7 +1,7 @@
 // INPUT: Composer 草稿、mention/slash picker 状态与 textarea 交互。
-// OUTPUT: 保留草稿的输入区和就近只读 picker 反馈。
+// OUTPUT: 保留草稿的输入区、Slash/已选 Mention 原文镜像与就近 picker。
 // POS: Composer 输入行展示边界；不执行 Session 设置 mutation。
-import { useRef } from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import type {
   ClipboardEventHandler,
   KeyboardEvent,
@@ -26,6 +26,7 @@ import {
   COMPOSER_TEXTAREA_CLASS_NAME,
   COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
 } from "../composer-styles";
+import type { ComposerMentionSegment } from "../use-composer-mention";
 import type { SlashModelOption } from "../slash-command-model";
 import type { ComposerReadFailure } from "../controller/composer-settings-reliability";
 import { SlashCommandPopover } from "./slash-command-popover";
@@ -48,6 +49,7 @@ interface ComposerInputRowProps {
     active: boolean;
     filter: string;
     items: MentionTargetItem[];
+    segments: ComposerMentionSegment[];
     onClose: () => void;
     onSelect: (item: MentionTargetItem) => void;
   };
@@ -96,10 +98,17 @@ export function ComposerInputRow({
   textareaRef,
 }: ComposerInputRowProps) {
   const slashCommandPresentation = projectLeadingSlashCommand(input.value);
-  const slashCommandMirrorRef = useRef<HTMLDivElement>(null);
+  const segments = mention.segments;
+  const hasPresentation = Boolean(slashCommandPresentation) || segments.some((segment) => segment.mentioned);
+  const textMirrorRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (textMirrorRef.current && textareaRef.current) {
+      textMirrorRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, [input.value, hasPresentation, textareaRef]);
   const handleScroll = (event: UIEvent<HTMLTextAreaElement>) => {
-    if (slashCommandMirrorRef.current) {
-      slashCommandMirrorRef.current.scrollTop = event.currentTarget.scrollTop;
+    if (textMirrorRef.current) {
+      textMirrorRef.current.scrollTop = event.currentTarget.scrollTop;
     }
   };
 
@@ -143,20 +152,28 @@ export function ComposerInputRow({
         />
       ) : null}
       <div className="relative min-w-0 flex-1">
-        {slashCommandPresentation ? (
+        {hasPresentation ? (
           <div
-            ref={slashCommandMirrorRef}
+            ref={textMirrorRef}
             aria-hidden="true"
             className={cn(
               "pointer-events-none absolute inset-0 overflow-hidden px-1.5 py-1 text-base leading-6 whitespace-pre-wrap text-(--text-strong) [overflow-wrap:break-word]",
               input.disabled && "opacity-(--disabled-opacity)",
             )}
-            data-composer-slash-command="true"
+            data-composer-slash-command={slashCommandPresentation ? "true" : undefined}
+            data-composer-text-mirror="true"
           >
-            <SlashCommandToken variant="composer">
-              {slashCommandPresentation.command}
-            </SlashCommandToken>
-            {slashCommandPresentation.remainder}
+            {segments.map((segment, index) => (
+              <Fragment key={index}>
+                {segment.mentioned ? (
+                  <span className="rounded-[5px] bg-primary/10 text-primary ring-1 ring-inset ring-primary/15" data-composer-mention="true">{segment.text}</span>
+                ) : index === 0 && slashCommandPresentation ? (
+                  <><SlashCommandToken variant="composer">{slashCommandPresentation.command}</SlashCommandToken>{segment.text.slice(slashCommandPresentation.command.length)}</>
+                ) : segment.text}
+              </Fragment>
+            ))}
+            {/* 保留末尾换行产生的空行，让镜像与 textarea 的滚动高度一致。 */}
+            {input.value.endsWith("\n") ? "\u200b" : null}
           </div>
         ) : null}
         <textarea
@@ -164,7 +181,7 @@ export function ComposerInputRow({
           aria-label={input.placeholder}
           className={cn(
             COMPOSER_TEXTAREA_CLASS_NAME,
-            slashCommandPresentation ? "text-transparent" : "text-(--text-strong)",
+            hasPresentation ? "text-transparent" : "text-(--text-strong)",
           )}
           disabled={input.disabled}
           onChange={(event) => input.onChange(event.target.value)}
@@ -177,7 +194,7 @@ export function ComposerInputRow({
           placeholder={input.placeholder}
           rows={1}
           style={{
-            caretColor: slashCommandPresentation
+            caretColor: hasPresentation
               ? "var(--text-strong)"
               : undefined,
             maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,

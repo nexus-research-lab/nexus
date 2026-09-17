@@ -295,6 +295,7 @@ export function useComposerController({
       mentionActive: mention.mentionActive,
       mentionFilter: mention.mentionFilter,
       mentionTargetItems: mention.mentionTargetItems,
+      mentionSegments: mention.mentionSegments,
       selectMentionItem: mention.selectMentionItem,
     },
     slashCommand: {

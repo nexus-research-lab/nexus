@@ -3,13 +3,14 @@
 // POS: Relay 真人消息与完整 Agent 回复到 Nexus Room UI 的窄适配层；不推断运行态或流式输出。
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { MonitorCheck } from "lucide-react";
+import { CircleAlert, MonitorCheck } from "lucide-react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { getInitials } from "@/lib/avatar";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { UiButton } from "@/shared/ui/button/button";
+import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import { listControlAgentDirectoryApi, type ControlMemberDirectoryEntry, type ControlAgentDirectoryEntry } from "@/lib/api/account/control-api";
@@ -234,21 +235,26 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
           </ConversationPanelViewportArea>
 
           <div className="relative z-10 shrink-0" data-conversation-bottom-area>
-            {bindingsFailed ? <div role="alert" className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6`}>
-              <span>{t("team.binding_error")}</span><UiButton onClick={refreshBindings} size="sm" variant="text">{t("state.retry")}</UiButton>
-            </div> : null}
-            {jobsFailed ? <div role="alert" className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6`}>
-              <span>{t("team.node_error")}</span><UiButton aria-label={t("team.node_refresh")} onClick={refreshJobs} size="sm" variant="text">{t("state.retry")}</UiButton>
-            </div> : null}
-            {errorMessage ? (
-              <p className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6 ${getUiTypographyClassName({ role: "supporting", tone: "danger" })}`} role="alert">
-                {errorMessage}
-              </p>
-            ) : null}
-            {room.error === "load" ? (
-              <div className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-6`}>
-                <UiButton size="sm" variant="text" disabled={room.isLoading} aria-busy={room.isLoading}
-                  onClick={() => { void room.retryLoad(); }}>{t("state.retry")}</UiButton>
+            {bindingsFailed || jobsFailed || errorMessage ? (
+              <div className={`${CONVERSATION_COMPOSER_LANE_CLASS_NAME} grid gap-2 px-6 pb-2`}>
+                {bindingsFailed ? (
+                  <UiInlineNotice role="alert" tone="danger" icon={<CircleAlert />}
+                    message={t("team.binding_error")}
+                    action={{ label: t("state.retry"), onClick: refreshBindings }} />
+                ) : null}
+                {jobsFailed ? (
+                  <UiInlineNotice role="alert" tone="danger" icon={<CircleAlert />}
+                    message={t("team.node_jobs_error")}
+                    action={{ label: t("team.node_refresh"), onClick: refreshJobs }} />
+                ) : null}
+                {errorMessage ? (
+                  <UiInlineNotice role="alert" tone={room.error === "sync" ? "warning" : "danger"} icon={<CircleAlert />}
+                    message={errorMessage}
+                    action={room.error === "load" ? {
+                      label: t("state.retry"), pending: room.isLoading,
+                      onClick: () => { void room.retryLoad(); },
+                    } : undefined} />
+                ) : null}
               </div>
             ) : null}
             <fieldset disabled={!room.room || room.isSending} className="min-w-0 border-0 p-0 m-0">
