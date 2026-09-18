@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
 
+- Preserve the first observed order of concurrent Room Agent execution cards while later runtime snapshots update their state.
+
 - Keep text-capable multimodal Provider models eligible for both conversation and vision
   routing when their endpoint also reports embedding support.
 
