@@ -76,6 +76,29 @@ node scripts/desktop/check-claude-restricted.mjs \
 启动过一个已认证的 Claude 会话，也不能证明真实工具、网络或子进程被隔离；
 取消/清理及 Windows、Linux、安装包验收仍未闭合。
 
+### 2026-09-18：Bridge Claude 受限准入预检
+
+Bridge 已在本地提交 `6ea77309fdd4ed4f8177e9d9731253cd1f03879c` 接入正式进程
+启动前的 CLI 预检。`RequireClaudeRestricted=true` 时，Bridge 使用和正式会话
+相同的已解析可执行程序（Windows 使用安全 PowerShell shim）运行有界的
+`--restricted --help`；非零退出、超时或帮助文本未声明该参数均失败关闭。预检
+环境剥离常见 Provider token/key/secret/password、Cookie、代理变量，且输出有上限。
+Full Access 不触发该预检。
+
+本批次 Nexus 精确固定 Bridge 模块
+`v0.1.34-0.20260918074231-6ea7730`，checksum 为
+`h1:xRd4iHVLEDL08Ey0FqYk66D087/SkkQsGrl8B0LfxVQ=`；go.mod checksum 为
+`h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`。证据目录为
+[2026-09-18-claude-bridge-probe](evidence/desktop-sandbox/2026-09-18-claude-bridge-probe/)，
+包含 Bridge target/race/vet、Nexus clientopts、`make check-desktop-sandbox`、
+模块清单和 macOS Claude CLI 只读探测结果。
+
+结果：Bridge 目标包、竞态和 vet 通过；Nexus Claude 接线测试通过；桌面 gate
+exit 0；本机 Claude Code `2.1.273` 的 `--help` 声明 `--restricted`，两个 bypass
+组合均 exit 1。该证据只闭合 Bridge 的启动参数准入和 Nexus 传递，不证明已认证
+Claude 会话、取消/清理、Provider/网络/文件/子进程 OS 隔离，也不替代 Windows、
+Linux 或安装包验收；因此 `releaseAccepted=false` 继续成立。
+
 ## 本次重新审计的执行记录
 
 日期：2026-09-15。Nexus 基线 928c7e803；Bridge module 为 3da56a2；SDK 使用 c8245262 的独立导出，排除工作区未提交变更。

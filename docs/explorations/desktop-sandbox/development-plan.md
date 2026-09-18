@@ -6,7 +6,7 @@
 
 当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 settings-writes 回滚批次固定 SDK `9d60e166`、Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502`，Nexus 本地提交为 `223dd495a`。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。该批次仅本地提交，未推送。此前锁批次及 Notebook 版本仍见验收矩阵及其独立证据目录。
+当前 Claude Bridge 接线批次固定 SDK `9d60e166`、Bridge `6ea77309fdd4ed4f8177e9d9731253cd1f03879c`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918074231-6ea7730`（`h1:xRd4iHVLEDL08Ey0FqYk66D087/SkkQsGrl8B0LfxVQ=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。Bridge 在正式 stream-json 进程前探测精确 Claude CLI 的 `--restricted --help`，并对探测环境剥离常见 Provider/代理秘密。该批次仅本地提交，未推送；此前 settings-writes 锁与回滚版本仍见验收矩阵及其独立证据目录。
 
 ## 1. 最终交付目标
 
@@ -98,7 +98,9 @@ Nexus 把 nxs 能力名投影给 Claude。Bridge 的 typed options 至少需要�
   它被选中而宣称 Claude 已具备 nxs 沙箱能力。
 - 由 Bridge 固定传递 Claude Code 的原生 `--restricted` 参数，拒绝通过
   `ExtraArgs`、普通 settings 或环境变量伪造/覆盖该参数；启动参数缺失、版本
-  不支持或探测结果不明确时，在首条任务前失败关闭。
+  不支持或探测结果不明确时，在首条任务前失败关闭。当前实现对已解析的
+  Claude CLI 执行有界的 `--restricted --help` 预检，并不把预检结果当作
+  OS 隔离回执。
 - 以独立的 `CapabilityClaudeRestricted`（版本化 Bridge typed capability）回报
   本次连接已安装的原生受限启动合同，并把要求纳入会话快照/重启指纹；它不是
   Claude 的 wire 能力或实际 OS 隔离回执。切换受限状态必须退休旧进程后重建，
