@@ -28,6 +28,26 @@ func unavailableExternalSessionGrant(reason string) error {
 	return fmt.Errorf("%w: %s", ErrExternalSessionGrantUnavailable, reason)
 }
 
+// fallbackPairingSessionMatches permits only legacy, generation-less keys when
+// the exact concrete pairing-session row is unavailable. A rotated key must
+// never regain authority merely because its platform target still matches.
+func fallbackPairingSessionMatches(pairing *pairingRow, parsed protocol.SessionKey, sessionKey string) bool {
+	if pairing == nil {
+		return false
+	}
+	if pairingSessionKey(*pairing) == strings.TrimSpace(sessionKey) {
+		return true
+	}
+	// Wildcard pairings use a separate concrete mapping per account/thread.
+	// Before that mapping existed, only the original generation-less key may
+	// use the target fallback; generated keys require an exact mapping.
+	if parsed.Generation != "" {
+		return false
+	}
+	return pairing.AccountID != strings.TrimSpace(parsed.AccountID) ||
+		pairing.ThreadID != ingressPairingThreadID(parsed.ChatType, parsed.ThreadID)
+}
+
 // ListAgentExternalSessions 列出同 owner、同 Agent 的 active-paired 真实私聊。
 // 返回结构化 Session，而不是裸 recipient，后续发送仍会再次校验 pairing。
 func (s *ControlService) ListAgentExternalSessions(
@@ -157,6 +177,9 @@ func (s *ControlService) ValidateExternalSessionGrant(
 	}
 	if pairing == nil {
 		return unavailableExternalSessionGrant("pairing is not active")
+	}
+	if !fallbackPairingSessionMatches(pairing, parsed, sessionKey) {
+		return unavailableExternalSessionGrant("session key is stale or rotated")
 	}
 	if strings.TrimSpace(pairing.AgentID) != strings.TrimSpace(agentID) {
 		return unavailableExternalSessionGrant("pairing is bound to another Agent")
