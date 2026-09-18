@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Route restricted Claude Code sessions through a separate Bridge typed launch contract. Nexus now requests `RequireClaudeRestricted` without claiming nxs `required_sandbox_v1`; Bridge injects exactly one native `--restricted` argument and rejects nxs, bypass, dangerous-bypass, or untyped argument attempts. Claude Full Access remains an explicit exception and does not receive `--restricted`; this proves only the Bridge launch contract, while Claude CLI version, OS isolation, and clean-host acceptance remain pending.
+
 - Make the desktop sandbox contract built in for `NEXUS_APP_MODE=desktop`; the legacy `NEXUS_DESKTOP_SANDBOX_ENABLED` environment opt-in no longer disables the default restricted path. Unsupported backend/platform contracts continue to fail closed.
 
 - Present the desktop restricted runtime as always on in Runtime settings. There is no sandbox enable/disable control; tool dependencies, tool discovery and web search remain independently configurable, and missing required capabilities fail closed.

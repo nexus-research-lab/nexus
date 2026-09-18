@@ -86,6 +86,30 @@ Claude Code 自带 Bash/子进程沙箱，Read/Edit/Write 使用工具权限系�
 
 Claude Code 使用独立的原生适配合同：配置透传只是输入，固定版本的受限执行、设置合并、不可用时拒绝及批准/取消回归才是接入证据。原生接口无法保证的资源约束或批准范围必须明确拒绝，不能为了统一菜单而放宽要求。
 
+#### Bridge 的 Claude 受限合同（P1，进行中）
+
+这条合同必须在 Bridge 中独立于 nxs 的 `required_sandbox_v1` 实现，不能让
+Nexus 把 nxs 能力名投影给 Claude。Bridge 的 typed options 至少需要表达
+`RequireClaudeRestricted`，并在 Claude 受限会话中完成以下闭环：
+
+- 连接前验证该要求只适用于 Claude；Full Access 不设置这条要求，也不能因为
+  它被选中而宣称 Claude 已具备 nxs 沙箱能力。
+- 由 Bridge 固定传递 Claude Code 的原生 `--restricted` 参数，拒绝通过
+  `ExtraArgs`、普通 settings 或环境变量伪造/覆盖该参数；启动参数缺失、版本
+  不支持或探测结果不明确时，在首条任务前失败关闭。
+- 以独立的 `CapabilityClaudeRestricted`（版本化 Bridge typed capability）回报
+  本次连接已安装的原生受限启动合同，并把要求纳入会话快照/重启指纹；它不是
+  Claude 的 wire 能力或实际 OS 隔离回执。切换受限状态必须退休旧进程后重建，
+  不能热改正在运行的 Claude 进程。
+- 覆盖参数顺序、版本/能力失败、Full Access 兼容、错误二进制和取消/清理的
+  Bridge 单测、真实 Claude CLI 验收；证据只能证明 Claude 自己的原生边界，不能
+  复用 nxs 的文件 helper、网络或平台隔离证据。
+
+Nexus 只在选择 Claude 且权限模式不是 Full Access 时设置这条 Bridge 要求；
+选择 Full Access 保留用户明确的例外语义，但仍受宿主生命周期、领域权限和
+其他强制策略约束。Bridge 合同、Nexus 接线和固定依赖未全部完成前，受限 Claude
+仍必须拒绝启动，不能静默裸执行。
+
 执行描述固定可执行文件/参数、cwd、受信任环境、请求资源和批准摘要。审批后输入变化、scope 失效、策略变化、路径身份不再匹配，都须拒绝旧批准。环境、项目配置、hook 或工具 allow 不得覆盖强制边界。
 
 #### 基础工具包与项目依赖（待实现方案）
@@ -209,7 +233,7 @@ Windows 11 是首个完整验收平台；Windows 10 1809+ 的支持范围以真�
 | 阶段 | 工作包与交付物 | 依赖 | 验收出口 | 状态 |
 | --- | --- | --- | --- | --- |
 | P0 基线与可重复验证 | 整理文档；固定三仓 SHA；建立 GOWORK=off + 真实 nxs 的验证入口；记录 Windows 失败 | 无 | 本次所有结论可定位到代码/原生记录，未执行项不会显示通过 | 已验收 |
-| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
+| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；在 Bridge 接入 Claude `--restricted` typed contract、独立 capability、版本/参数失败关闭和 Full Access 例外 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 受限参数与能力回报可核验；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
 | P2 macOS 全工具链 | 收口文件 helper、动态指令/Skill/设置、PDF/Git/附件与后台 IO；系统后端路径信任与完整资源策略 | P1；复用已有 SDK 文件实现 | 真实工具允许/拒绝、符号链接、特殊文件、大文件、取消、敏感元数据与网络测试 | 进行中 |
 | P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 待开始 |
 | P4 Windows 可部署后端 | 设置/修复/卸载、受保护发布、身份、文件/网络、IPC、Job、清理；接入 SDK/Bridge | P1、P3 | 原生全链路＋安装/升级故障注入；不支持时拒绝，没有静默弱化 | 待开始 |
@@ -303,6 +327,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | 宿主资源合同入口补齐：Nexus `5af222fbb` 复制并校验 host-prepared `SandboxResourcePolicy`，受限模式才可携带 read-only/workspace-write 与 scratch 根；Full Access 携带受限资源合同时失败关闭。Bridge `6bb7b495`、`162cc79` 在 Windows 为每个 runtime 绑定 Job Object，清理继续执行并合并 SignalProcess 错误 | 入口与 Windows Bridge 修复均已本地验证，但 Nexus 尚未把 scratch 创建、租约、后代监督和回收接入 DM/Room/后台 runtime；Bridge 最新提交尚未发布，Windows/macOS/Linux clean-host、持久回执、Claude、网络、安装包与 P3–P7 仍未闭合 |
 | 2026-09-18 | 资源与恢复接线继续完成：Nexus `3fb64260c`、`53a6be247`、`1e04e87ad`、`2c4c2ff61`、`ab2377744`、`a7be59f53` 在 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，注入独立资源合同；Bridge close 成功后才回收，失败保留会话栅栏与 scratch，并覆盖默认 nxs、释放竞态、旧状态根归一化、`~` 展开与 L2 文档。Nexus `46229c723` 将超过租约窗口的 settings `applying` receipt 持久收口为 `reconcile_required`/`applied: unknown`，跨数据库重启测试通过；Nexus `go.mod` 精确 pin Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，本地 file proxy checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=` | scratch 崩溃后 stale sweep、后台恢复调度、实际 inspect/reconcile 入口、跨进程 all-or-nothing/CAS/fsync、完整后代/句柄/秘密文件/网络隔离、Claude、原生平台和 P3–P7 发布证据仍未闭合；本地 Bridge 模块尚未发布 |
 | 2026-09-18 | 网络/Provider 准入子批次：`DesktopSandboxNetworkAdmission` 仅接受宿主准备的精确 HTTPS 域名，nil/空 grant 序列化为显式 deny-all；受限桌面 nxs 的 HTTP/SSE MCP 只有获宿主域名批准才可挂载，`headersHelper` 仍需独立受信 helper。Provider、视觉与 WebSearch 凭据在 ExtraEnv/ConfigurationEnv 合并后再次由解析配置覆盖，任务环境不能改写请求凭据；桌面 WebSearch 的 private-network 输入失败关闭。 | 仅完成 Nexus 输入准入和进程内环境所有权；没有把 env scrub 当作 OS 进程、秘密文件、句柄或网络出口隔离，也未证明域名 DNS/代理/IPv4/IPv6 与真实 Provider 可达性。Bridge/native Windows/macOS/Linux、辅助进程、持久批准/回执、Claude、安装包和 P3–P7 仍保留，`releaseAccepted=false`，提交只在本地 |
+| 2026-09-18 | 根据用户澄清补齐 Claude 接入的 Bridge 任务边界并完成 typed launch 批次：Bridge `35fbf72b` 增加 `RequireClaudeRestricted`、`CapabilityClaudeRestricted`、唯一 `--restricted` 参数注入/防伪造、快照/重启指纹、连接前失败关闭和 Full Access 例外；Nexus 已更新精确本地 pin，并在 Claude 受限模式只设置该合同、不再要求 nxs 能力。 | Bridge capability 只证明本次 argv 合同已安装，不是 Claude wire/OS 隔离回执；仍需固定 CLI 版本与 `--help`/真实受限行为、取消清理、macOS/Windows/Linux 与安装包证据。当前仍 `releaseAccepted=false` |
 
 ### 2026-09-18：scratch durable marker 与显式恢复 primitive
 

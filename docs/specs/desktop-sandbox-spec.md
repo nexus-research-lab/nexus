@@ -14,9 +14,12 @@ retain their existing runtime identity/isolation policy. Agent settings cannot
 set or clear the internal host policy marker.
 
 DM, Room and background memory maintenance use the same client-options builder.
-For restricted approval modes, it requires nxs `required_sandbox_v1`,
-`sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation;
-an unsupported runtime fails instead of silently accepting an unenforced policy.
+For restricted nxs sessions, it requires nxs `required_sandbox_v1`,
+`sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation. Restricted
+Claude sessions use the separate Bridge `RequireClaudeRestricted` contract and
+the Claude-native `--restricted` launch argument; they do not claim nxs
+capabilities. An unsupported runtime fails instead of silently accepting an
+unenforced policy.
 Negotiation is not proof of current dependencies or an installed effective policy.
 Native file-tool capability is currently declared only by macOS nxs builds;
 Windows native execution is still incomplete and these desktop sessions fail
@@ -35,11 +38,13 @@ through the separate sandbox-bypass approval boundary.
 
 The pinned Bridge also exposes host-only `SandboxSettings.Resources` and the
 independent `sandbox_resources_v1` contract for macOS command/file write scopes
-and a host-prepared private scratch directory. Nexus does not yet supply this
-object: runtime-owned scratch allocation, leases and cleanup must be integrated
-before the product can use these scopes. The SDK-level tests do not establish
-default product enforcement, whole-SDK IO confinement or an effective-policy
-receipt. The progress and acceptance boundaries remain in the development plan.
+and a host-prepared private scratch directory. Nexus now prepares owner/runtime
+scoped leases for desktop nxs DM, Room and background memory maintenance and
+releases them only after a confirmed Bridge close; failed cleanup keeps the
+runtime fence and lease for recovery. Durable markers and explicit stale-sweep
+primitives exist, while automatic crash sweep, whole-SDK IO confinement and an
+effective-policy receipt remain separate acceptance work. The progress and
+acceptance boundaries remain in the development plan.
 
 The current mandatory macOS SDK applies explicit read/write and protected-path
 movement denials after ordinary directory, device and PTY grants. A read grant
@@ -286,9 +291,16 @@ restricted runtime is already part of every desktop task contract. A fresh nxs
 Full Access (`bypassPermissions`) runtime still installs the nxs capability and
 lifecycle boundary; it broadens the command/file resource policy through the
 SDK setting instead of disabling the runtime. This does not grant OS
-administrator privileges or override domain authorization. Claude's native
-adapter remains a separate contract; until it is negotiated and verified, a
-restricted Claude task fails closed rather than claiming nxs capabilities.
+administrator privileges or override domain authorization. A restricted Claude
+session installs Bridge's typed `RequireClaudeRestricted` contract, which adds
+exactly one native `--restricted` argument and rejects nxs-only requirements,
+bypass permissions, and untyped flag injection before transport startup. The
+corresponding `CapabilityClaudeRestricted` is a local Bridge launch-contract
+capability, not a Claude wire response or proof of OS/file/network/Provider
+isolation. Claude Full Access is an explicit exception and does not install the
+contract or flag; it still retains host lifecycle, domain authorization, and
+other mandatory policy. Fixed CLI-version, native behavior, and clean-host
+acceptance remain separate release evidence.
 
 For host-managed desktop policy, a live change crossing into or out of Full Access
 retires the old client before returning the transition signal. DM closes the old

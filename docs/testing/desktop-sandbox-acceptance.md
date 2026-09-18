@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 准入 | 旧关闭环境变量、server、macOS/Windows、旧 nxs、Claude、缺能力 | 旧变量不能关闭桌面合同；需要但无法提供的边界在命令开始前拒绝 |
 | 默认权限与后端 | 新任务、升级后默认值、nxs/Claude 切换、缺依赖/不支持平台、显式 Full Access | 默认请求批准/自动审核均自动受限；旧实例收口、新实例确认后才能发任务；不支持不静默裸执行 |
-| Claude 原生接入 | 固定版本、settings 来源/合并、Bash 子进程、文件权限、网络批准、取消、模式切换 | 配置确实生效，缺依赖拒绝；原生接口保证不了的边界明确拒绝；不伪造 nxs 协议或文件 helper 覆盖 |
+| Claude 原生接入 | Bridge typed `RequireClaudeRestricted`/`CapabilityClaudeRestricted`、唯一 `--restricted` 参数、固定 CLI 版本、settings 来源/合并、Bash 子进程、文件权限、网络批准、取消、模式切换 | 受限模式只由 Bridge 注入并验证一次 `--restricted`；缺参数/版本/能力不明时首条任务前拒绝；Full Access 不要求也不注入该参数；不伪造 nxs 协议或文件 helper 覆盖 |
 | 策略 | default/auto/Full Access、未来只读 profile、附加目录、deny 优先 | 审批方式不改变资源；强制策略不被用户设置/env/hook 覆盖 |
 | shell | 文件/子进程、构建、Git、包管理、PTY、后台进程 | 边界内正常工作，子孙继承；普通工具 allow 不能授予越界 |
 | 文件 | Read/Write/Edit/Glob/Grep、Notebook/附件、流式与大文件 | 真实工具通过同一受限数据面；拒绝未授权读写且不破坏原语义 |
@@ -31,6 +31,25 @@
 | Windows 升级 | 签名失败、版本不兼容、更新中断、卸载、遗留 Job | 受保护文件和状态完整；撤销资源不影响其他实例 |
 | 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude 支持版本/环境、旧数据根 | nxs 全链路及 Claude 原生接入分别有真实证据；WSL2 通过不能表示原生 Windows 通过 |
 | 产品路径 | 设置、Composer、审批卡、DM/Room/自动化、重载 | 展示实际边界；一个清晰下一步；不泄漏内部标识，不自动重发 |
+
+### Claude Bridge 受限合同（当前待接线）
+
+Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
+
+- Bridge 单测/静态检查证明 `RequireClaudeRestricted` 只接受 `RuntimeClaude`，拒绝
+  nxs、Full Access/bypass、危险 bypass 以及通过 `ExtraArgs` 或其他普通输入伪造
+  `--restricted`；受限参数必须恰好出现一次，且策略变化触发进程替换。
+- Bridge 真实进程证据至少记录固定 Claude CLI 版本、`claude --help` 中的
+  `--restricted` 可用性、最终 argv 和取消/清理结果。Bridge 的 capability 只表示
+  本次启动参数合同已安装，不能单独证明 Claude 已经实施 OS 文件/网络/Provider
+  隔离，也不能借用 nxs 的 capability 或原生证据。
+- Nexus 接线证据必须分别覆盖：Claude 受限设置 `RequireClaudeRestricted=true`
+  且不设置 nxs `RequireSandbox`；Claude Full Access 不设置该要求并保留用户明确的
+  例外语义；缺少 Bridge 合同或能力不明时首条任务前失败关闭。
+- Windows 原生 Claude 不因 WSL2 或交叉编译而通过；WSL2、macOS CLI 和 Linux
+  owner 证据分别记录，不能互相替代。
+
+在上述三层证据齐全前，本矩阵中的 Claude 仍为“未闭合”，`releaseAccepted=false`。
 
 ## 本次重新审计的执行记录
 
@@ -528,3 +547,23 @@ grant 精确匹配 URL 主机时才会进入 runtime；没有 grant 仍 fail clo
 | 未闭合项 | 真实 Provider、DNS/代理、IPv4/IPv6、loopback/private、TCP/UDP、辅助进程/句柄/秘密文件、Bridge/native 网络执行、持久批准/epoch、Windows/macOS/Linux clean-host、Claude 与安装包尚未验收；env scrub 不能替代 OS 隔离 |
 
 本批次只完成 Nexus 进程内网络和 Provider 输入准入，未改变 SDK/Bridge 版本，也不构成完整网络沙箱或 P0–P7 发布通过；`releaseAccepted=false`，提交仅本地、未推送。
+
+## 2026-09-18：Claude Bridge 原生受限启动合同
+
+Bridge `35fbf72bfd062b5f7ca3965e37428347598b473a` 增加独立的
+`RequireClaudeRestricted` 与 `CapabilityClaudeRestricted` typed contract。仅当
+runtime 是 Claude 且权限模式不是 Full Access 时，Bridge 才注入恰好一个原生
+`--restricted`；nxs、bypass/dangerous bypass、ExtraArgs/ExtraBoolArgs 冒用和
+受限策略变化均在 transport/进程替换边界拒绝或触发重建。Nexus 已固定本地模块
+`v0.1.34-0.20260918045243-35fbf72bfd06`，checksum 为
+`h1:54adZydLrjKDvkfv2bRocdwPuUdfKhV+j5G+Lj4trUU=`，Claude 受限只设置该合同，
+不再设置 nxs `RequireSandbox`；Claude Full Access 不设置合同或参数。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Bridge typed contract | `go test ./...` 与 `go test -race ./client` 通过；`TestClaudeRestricted` 覆盖参数唯一性、runtime/bypass/伪造拒绝、Connect 失败关闭、无 transport 写入、快照/重启指纹 |
+| Nexus 接线 | `GOWORK=off GOPROXY=file:///private/tmp/nexus-bridge-35fbf72-proxy ... go test ./internal/runtime/clientopts -run 'TestDesktopSandbox(UsesClaudeNativeRestrictedContract|ClaudeFullAccessDoesNotInstallRestrictedContract|ClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSContract|PolicySeparatesResourcesAndFullAccess|DoesNotAlterServerIsolationOrDisabledFeature)$' -count=1` 通过 |
+| 合同边界 | capability 只证明 Bridge 已安装 argv 合同，不是 Claude wire 能力或 OS 文件/网络/Provider 隔离回执；没有复用 nxs capability/原生证据 |
+| 未闭合项 | 固定 Claude CLI 版本、`claude --help`/真实 `--restricted` 行为、取消/清理、macOS/Windows/Linux clean-host 和安装包验收仍未完成；`releaseAccepted=false` |
+
+本批次提交和模块只保留在本地 worktree，未推送；真实 Claude CLI 与平台证据必须另行归档后，才能把 Claude 从未闭合状态移出 P1/P6/P7 门禁。
