@@ -115,7 +115,8 @@ func (s *Service) ObserveRuntimeMessage(
 		identity.AgentRoundID,
 	)
 	parentNodeBySubject := map[string]string{
-		identity.AgentRoundID: rootNodeID,
+		runtimeGraphParentKey(identity.AgentRoundID, identity.AgentRoundID): rootNodeID,
+		identity.AgentRoundID: rootNodeID, // legacy events without round scoping
 	}
 	nodeByKindSubject := map[string]string{
 		runtimeGraphKindSubjectKey(
@@ -167,7 +168,10 @@ func (s *Service) ObserveRuntimeMessage(
 			continue
 		}
 		sourceNodeID := rootNodeID
-		if parentNodeID := parentNodeBySubject[parentSubjectID]; parentNodeID != "" {
+		if parentNodeID := firstNonEmpty(
+			parentNodeBySubject[runtimeGraphParentKey(identity.AgentRoundID, parentSubjectID)],
+			parentNodeBySubject[parentSubjectID],
+		); parentNodeID != "" {
 			sourceNodeID = parentNodeID
 		}
 		finishedAt := (*time.Time)(nil)
@@ -306,11 +310,14 @@ func (s *Service) ObserveRuntimeMessage(
 		}
 		subjectID := strings.TrimSpace(event.SubjectID)
 		nodeByKindSubject[runtimeGraphKindSubjectKey(nodeKind, subjectID)] = nodeID
-		if _, alreadyBound := parentNodeBySubject[subjectID]; !alreadyBound || nodeKind == protocol.ExecutionRuntimeNodeSubagent {
-			parentNodeBySubject[subjectID] = nodeID
+		parentKey := runtimeGraphParentKey(identity.AgentRoundID, subjectID)
+		if _, alreadyBound := parentNodeBySubject[parentKey]; !alreadyBound || nodeKind == protocol.ExecutionRuntimeNodeSubagent {
+			parentNodeBySubject[parentKey] = nodeID
+			parentNodeBySubject[subjectID] = nodeID // legacy parent references
 		}
 		if nodeKind == protocol.ExecutionRuntimeNodeSubagent {
 			if toolUseID := strings.TrimSpace(event.Metadata["tool_use_id"]); toolUseID != "" {
+				parentNodeBySubject[runtimeGraphParentKey(identity.AgentRoundID, toolUseID)] = nodeID
 				parentNodeBySubject[toolUseID] = nodeID
 			}
 		}
@@ -331,6 +338,7 @@ func indexRuntimeGraphParents(
 ) {
 	for _, node := range nodes {
 		if subjectID := strings.TrimSpace(node.SubjectID); subjectID != "" {
+			result[runtimeGraphParentKey(node.AgentRoundID, subjectID)] = node.ID
 			result[subjectID] = node.ID
 		}
 	}
@@ -343,9 +351,14 @@ func indexRuntimeGraphParents(
 		}
 		toolUseID, _ := node.Metadata["tool_use_id"].(string)
 		if toolUseID = strings.TrimSpace(toolUseID); toolUseID != "" {
+			result[runtimeGraphParentKey(node.AgentRoundID, toolUseID)] = node.ID
 			result[toolUseID] = node.ID
 		}
 	}
+}
+
+func runtimeGraphParentKey(agentRoundID, subjectID string) string {
+	return strings.TrimSpace(agentRoundID) + "\x00" + strings.TrimSpace(subjectID)
 }
 
 func (s *Service) observeRuntimeSubagentLifecycle(
