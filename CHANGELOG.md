@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.
 
+- Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
+
 - Keep text-capable multimodal Provider models eligible for both conversation and vision
   routing when their endpoint also reports embedding support.
 
