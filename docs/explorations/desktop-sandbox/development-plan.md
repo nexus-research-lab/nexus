@@ -6,7 +6,7 @@
 
 当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 Notebook 文件能力批次固定 SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982`、Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502`，Nexus 本地提交为 `2fa81e09f`。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`）；固定 nxs SHA-256 为 `b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`。该批次仅本地提交，未推送。
+当前 settings-writes 锁批次固定 SDK `ce136cfe`、Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502`，Nexus 本地提交为 `223dd495a`。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`）；由 SDK `ce136cfe` 构建的 nxs SHA-256 为 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671afb`。该批次仅本地提交，未推送。Notebook 批次版本仍见验收矩阵及其独立证据目录。
 
 ## 1. 最终交付目标
 
@@ -332,6 +332,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | 根据用户澄清补齐 Claude 接入的 Bridge 任务边界并完成 typed launch 批次：Bridge `35fbf72b` 增加 `RequireClaudeRestricted`、`CapabilityClaudeRestricted`、唯一 `--restricted` 参数注入/防伪造、快照/重启指纹、连接前失败关闭和 Full Access 例外；Nexus 已更新精确本地 pin，并在 Claude 受限模式只设置该合同、不再要求 nxs 能力。 | Bridge capability 只证明本次 argv 合同已安装，不是 Claude wire/OS 隔离回执；仍需固定 CLI 版本与 `--help`/真实受限行为、取消清理、macOS/Windows/Linux 与安装包证据。当前仍 `releaseAccepted=false` |
 | 2026-09-18 | 在 macOS 27.0/arm64 使用 `scripts/desktop/check-claude-restricted.mjs` 探测本机 `/Users/berhand/.local/bin/claude`：固定版本 `2.1.273`，`--help` 含 `--restricted`；`--restricted --dangerously-skip-permissions` 和 `--restricted --permission-mode bypassPermissions` 均在参数预检阶段 exit 1 并返回 `bypassPermissions not supported in restricted mode`。探测无 prompt、无 Provider 凭据且不发模型请求。 | 仅证明当前 CLI 的版本与原生参数语义；取消/清理、真实已认证会话、Provider/网络/文件/进程隔离、Windows/Linux/安装包仍未验收，不能移除 Claude P1/P6/P7 门禁，`releaseAccepted=false` |
 | 2026-09-18 | Notebook 文件能力子批次：SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982` 增加 `sandbox_notebook_files_v1`，Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502` 发送和验证独立 Notebook 要求；Nexus `2fa81e09f` 将其纳入默认能力合同和进程指纹。固定模块为 `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`），nxs SHA-256 为 `b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`；SDK/Bridge 目标、Bridge race、Bridge→真实 nxs 和 Nexus runtime 目标测试通过，无模型请求 | 当前仅证明 macOS 本地 Notebook 内容/cell output 读取的能力准入；Notebook 执行、远程网络、完整 SDK IO、Provider/秘密文件/句柄、崩溃恢复、Windows/Linux、Claude 和安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
+| 2026-09-18 | settings-writes 跨进程锁批次：SDK `ce136cfe` 为每个物理 settings 根增加稳定 `.nexus-settings.lock`，按根路径排序获取锁、支持 context 取消、锁后重新核验快照，并在原子替换后同步打开的父目录；Bridge 仍为 `8a4576ba`，Nexus 为 `223dd495a`。从该 SDK 构建 nxs SHA-256 为 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671afb`；目标测试、race 测试和 Nexus→Bridge→真实 nxs 桌面门禁通过 | 该批次只证明跨进程写窗口的互斥和本机 macOS 集成；多文件断电 all-or-nothing、持久 request/approval/revision receipt、重启 inspect/reconcile UI、Provider/辅助进程/网络/后代隔离及原生平台/Claude/安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
 
 ### 2026-09-18：scratch durable marker 与显式恢复 primitive
 

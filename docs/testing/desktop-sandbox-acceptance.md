@@ -612,3 +612,23 @@ SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982` 增加
 | 固定版本 | SDK `7bc597ea`、Bridge `8a4576ba`、模块 checksum、binary SHA-256、命令和日志见 [Notebook 证据目录](./evidence/desktop-sandbox/2026-09-18-notebook-files/README.md)；提交仅本地、未推送 |
 
 本批次只证明 macOS nxs 本地 Notebook 内容与 cell output 读取的能力准入，读取复用受限文件执行器。Notebook 执行、远程网络、完整 SDK IO、Provider/秘密文件/句柄、崩溃恢复、Windows/Linux 原生、Claude 和签名安装包仍未验收；`releaseAccepted=false`。
+
+## 2026-09-18：settings-writes 跨进程锁与真实 nxs 集成
+
+SDK `ce136cfe` 为每个物理 settings 根增加稳定的 `.nexus-settings.lock`，按根路径排序获取多根锁，等待支持 context 取消；获得锁后重新核验预期快照，原子替换后同步已打开的父目录，并在锁关闭或写入已发生但结果无法证明时进入既有 unknown 栅栏。Bridge 继续固定为
+`8a4576ba97ece60e0485f2bfbb0bce53e5b89502`，Nexus 为 `223dd495a915842a7676ec7b5f95e852670203da`。
+
+固定模块为 `v0.1.34-0.20260918053632-8a4576ba97ec`，checksum 为
+`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`。从 SDK `ce136cfe` 构建的
+nxs SHA-256 为 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671afb`。
+命令、版本、退出码和原始日志见 [settings-lock 证据目录](./evidence/desktop-sandbox/2026-09-18-settings-lock/README.md)。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| SDK target | `GOWORK=off GOPROXY=off go test ./cmd/nxs ./internal/config/settings ./internal/agent/runtime ./internal/tool/builtin/config` 通过 |
+| SDK race | `GOWORK=off GOPROXY=off go test -race ./internal/config/settings ./internal/agent/runtime` 通过 |
+| nxs build | `GOWORK=off GOPROXY=off go build -o /tmp/nxs-settings-lock ./cmd/nxs` 通过；SHA-256 已固定 |
+| Nexus desktop gate | `NEXUS_SANDBOX_TEST_BINARY=/tmp/nxs-settings-lock make check-desktop-sandbox` 通过；证据解析、Bridge module、host policy、host lifecycle 和真实 Nexus→Bridge→nxs negotiation 均 exit 0，无模型请求 |
+| 当前边界 | 仍未证明多文件断电 all-or-nothing、持久 SDK request/approval/revision receipt、设置页 inspect/reconcile、Provider 秘密文件/继承句柄、外部 MCP/网络出口、完整后代清理、Windows/Linux 原生、Claude 认证会话或安装包发布；`releaseAccepted=false` |
+
+本批次只完成 settings-writes 的跨进程串行化和最新固定 nxs 的桌面集成证据；所有提交仍仅本地、未推送。
