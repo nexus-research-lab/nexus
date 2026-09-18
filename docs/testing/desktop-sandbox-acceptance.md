@@ -32,7 +32,7 @@
 | 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude 支持版本/环境、旧数据根 | nxs 全链路及 Claude 原生接入分别有真实证据；WSL2 通过不能表示原生 Windows 通过 |
 | 产品路径 | 设置、Composer、审批卡、DM/Room/自动化、重载 | 展示实际边界；一个清晰下一步；不泄漏内部标识，不自动重发 |
 
-### Claude Bridge 受限合同（当前待接线）
+### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
 
