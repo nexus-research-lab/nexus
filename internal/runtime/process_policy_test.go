@@ -39,7 +39,7 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 }
 
 func TestProviderOwnershipChangeReplacesRuntime(t *testing.T) {
-	for _, key := range []string{"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"} {
+	for _, key := range []string{"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE", "NEXUS_MEMORY_DIR", "NEXUS_ENABLE_REMOTE_MEMORY", "NEXUS_REMOTE_MEMORY_DIR"} {
 		t.Run(key, func(t *testing.T) {
 			stale, fresh := &fakeRuntimeClient{}, &fakeRuntimeClient{}
 			manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
