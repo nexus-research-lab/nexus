@@ -105,7 +105,7 @@ an older binary with only command acknowledgement is rejected before any task
 or internal continuation is sent. File content, directory suggestions, link/metadata
 and freshness checks use the restricted file executor, with no direct-IO fallback
 on preparation or execution failure. This contract does not cover Glob/Grep,
-Notebook, startup settings, Skills, background memory or the entire SDK process.
+startup settings, Skills, background memory or the entire SDK process.
 Normal settings cannot substitute for this host requirement, and changing it
 requires runtime replacement. It is a coverage requirement, not a user sandbox toggle.
 
@@ -136,6 +136,16 @@ Old command/file/search acknowledgements cannot substitute for this capability.
 It participates in process-policy identity and requires runtime replacement when
 changed. It does not cover HTTP image downloads, remote URL forwarding policy,
 Claude or whole-SDK IO; those remain separate implementation and acceptance work.
+
+The host separately requires `SandboxSettings.RequireNotebookFiles`, initialize
+`required_sandbox_notebook_files` and the separate `sandbox_notebook_files_v1`
+acknowledgement. Notebook content and cell outputs are parsed only after the
+local bytes have been read through the restricted file executor. The requirement
+depends on the command and native file contracts, participates in process-policy
+identity and currently acknowledges only the macOS nxs backend. Old command,
+file, search or media acknowledgements cannot substitute for it. This is a local
+read/parse guarantee; Notebook execution, remote networking and whole-SDK IO
+remain separate work.
 
 The host separately requires `SandboxSettings.RequireSkillFiles`, initialize
 `required_sandbox_skill_files` and `sandbox_skill_files_v1`. Current macOS
