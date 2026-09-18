@@ -1,4 +1,4 @@
-package sandboxresources
+package runtime
 
 import (
 	"context"

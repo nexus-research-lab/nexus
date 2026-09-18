@@ -14,7 +14,6 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -52,7 +51,7 @@ type dmClientPreparation struct {
 	permissionMode         sdkpermission.Mode
 }
 
-func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
 	if lease == nil {
 		return nil
 	}
@@ -372,12 +371,12 @@ func (s *Service) ensureClient(
 		toolPolicy,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
-	var scratchLease *sandboxresources.Lease
+	var scratchLease *runtimectx.SandboxResourceLease
 	scratchLeaseOwned := false
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
 		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
-		scratchLease, err = sandboxresources.Acquire(ctx, sandboxresources.Input{
+		scratchLease, err = runtimectx.AcquireSandboxResource(ctx, runtimectx.SandboxResourceInput{
 			OwnerUserID: agentValue.OwnerUserID,
 			SessionKey:  sessionKey,
 			RoundID:     request.RoundID,

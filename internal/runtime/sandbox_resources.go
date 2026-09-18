@@ -2,7 +2,7 @@
 // OUTPUT: A private, versioned scratch directory and an idempotent release lease.
 // POS: The desktop host owns scratch creation and cleanup; the SDK/Bridge only
 // receives the resulting SandboxResourcePolicy.
-package sandboxresources
+package runtime
 
 import (
 	"context"
@@ -17,7 +17,6 @@ import (
 	"sync"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 const (
@@ -53,6 +52,49 @@ type Lease struct {
 	released bool
 }
 
+func ownerRuntimeRoot(owner string) string {
+	stateRoot := strings.TrimSpace(os.Getenv("NEXUS_STATE_ROOT"))
+	if stateRoot == "" {
+		stateRoot = strings.TrimSpace(os.Getenv("NEXUS_CONFIG_DIR"))
+	}
+	if stateRoot == "" {
+		if home, err := os.UserHomeDir(); err == nil {
+			stateRoot = filepath.Join(home, ".nexus")
+		} else {
+			stateRoot = filepath.Join(".", ".nexus")
+		}
+	}
+	return filepath.Join(filepath.Clean(stateRoot), "users", safeOwnerPathSegment(owner), "runtime")
+}
+
+func safeOwnerPathSegment(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "__system__"
+	}
+	var builder strings.Builder
+	for _, character := range trimmed {
+		switch {
+		case character >= 'a' && character <= 'z', character >= 'A' && character <= 'Z', character >= '0' && character <= '9', character == '-', character == '_', character == '.', character == '@':
+			builder.WriteRune(character)
+		default:
+			builder.WriteByte('_')
+		}
+	}
+	sanitized := builder.String()
+	if sanitized == "" || sanitized == "." || sanitized == ".." || sanitized != trimmed || strings.HasSuffix(sanitized, ".") {
+		sum := sha256.Sum256([]byte(trimmed))
+		return sanitized + "-" + hex.EncodeToString(sum[:4])
+	}
+	return sanitized
+}
+
+// SandboxResourceInput is the public host input used by DM, Room and background runtimes.
+type SandboxResourceInput = Input
+
+// SandboxResourceLease is the public host-owned scratch lease.
+type SandboxResourceLease = Lease
+
 // Acquire creates a private scratch directory before SDK initialize. It does
 // not trust caller-provided absolute paths and never follows an existing
 // symlink at the created leaf.
@@ -78,7 +120,7 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 
 	root := strings.TrimSpace(input.Root)
 	if root == "" {
-		root = appfs.UserRuntimeRoot(owner)
+		root = ownerRuntimeRoot(owner)
 	}
 	root, err := absoluteCleanDirectory(root)
 	if err != nil {
@@ -219,6 +261,11 @@ func (l *Lease) Release() error {
 	return nil
 }
 
+// AcquireSandboxResource creates or reuses the active owner/session scratch lease.
+func AcquireSandboxResource(ctx context.Context, input SandboxResourceInput) (*SandboxResourceLease, error) {
+	return Acquire(ctx, input)
+}
+
 // ReleasePath is used by the runtime client cleanup path. It only releases
 // paths previously created by Acquire; an arbitrary bridge option cannot make
 // the host delete a user-selected directory.
@@ -234,6 +281,11 @@ func ReleasePath(path string) error {
 		return nil
 	}
 	return lease.Release()
+}
+
+// ReleaseSandboxPath releases only a path previously registered by the host.
+func ReleaseSandboxPath(path string) error {
+	return ReleasePath(path)
 }
 
 func removeOwnedScratch(root, path string) error {

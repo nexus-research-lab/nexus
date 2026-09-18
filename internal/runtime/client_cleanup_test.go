@@ -13,7 +13,6 @@ import (
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 )
 
 // TestAgentClientCleanupFailureBlocksReconnect 不将完成清理尝试误认为清理成功。
@@ -163,7 +162,7 @@ func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
 }
 
 func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T) {
-	lease, err := sandboxresources.Acquire(t.Context(), sandboxresources.Input{
+	lease, err := Acquire(t.Context(), Input{
 		OwnerUserID: "cleanup-owner",
 		SessionKey:  "session-a",
 		Root:        t.TempDir(),
@@ -189,7 +188,7 @@ func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T)
 }
 
 func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
-	lease, err := sandboxresources.Acquire(t.Context(), sandboxresources.Input{
+	lease, err := Acquire(t.Context(), Input{
 		OwnerUserID: "cleanup-owner",
 		SessionKey:  "session-b",
 		Root:        t.TempDir(),
