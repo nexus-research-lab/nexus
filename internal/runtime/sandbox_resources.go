@@ -139,6 +139,13 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return nil, fmt.Errorf("create sandbox scratch parent: %w", err)
 	}
+	resolvedBase, err := filepath.EvalSymlinks(base)
+	if err != nil || filepath.Clean(resolvedBase) != base {
+		if err == nil {
+			err = errors.New("sandbox scratch parent resolves through a symlink")
+		}
+		return nil, fmt.Errorf("validate sandbox scratch parent: %w", err)
+	}
 	if err := os.Chmod(base, 0o700); err != nil {
 		return nil, fmt.Errorf("lock sandbox scratch parent: %w", err)
 	}
