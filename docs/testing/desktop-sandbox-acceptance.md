@@ -632,3 +632,20 @@ nxs SHA-256 为 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671af
 | 当前边界 | 仍未证明多文件断电 all-or-nothing、持久 SDK request/approval/revision receipt、设置页 inspect/reconcile、Provider 秘密文件/继承句柄、外部 MCP/网络出口、完整后代清理、Windows/Linux 原生、Claude 认证会话或安装包发布；`releaseAccepted=false` |
 
 本批次只完成 settings-writes 的跨进程串行化和最新固定 nxs 的桌面集成证据；所有提交仍仅本地、未推送。
+
+## 2026-09-18：settings-writes 可证明失败回滚
+
+SDK `9d60e166` 在同一物理根的跨进程锁窗口内记录每个已提交文档；当后续文档写入、写后读取或计划核对失败时，按逆序恢复已有文档，删除本次创建的文档。回滚前后都重新校验绑定目录、文件身份和当前内容；外部改动、删除失败或回滚结果不明仍进入 unknown，不会把未证明的状态当作成功。
+
+固定 Bridge 仍为 `v0.1.34-0.20260918053632-8a4576ba97ec`
+（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`），Nexus 为
+`223dd495a915842a7676ec7b5f95e852670203da`；新 SDK 构建的 nxs SHA-256 为
+`374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。命令和压缩日志见 [settings-rollback 证据目录](./evidence/desktop-sandbox/2026-09-18-settings-rollback/README.md)。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| SDK target/race | `go test ./internal/config/settings ./cmd/nxs ./internal/agent/runtime ./internal/tool/builtin/config` 与 `go test -race ./internal/config/settings ./internal/agent/runtime`（均 `GOWORK=off GOPROXY=off`）通过；新建/已有文档回滚测试通过 |
+| Nexus desktop gate | `NEXUS_SANDBOX_TEST_BINARY=/tmp/nxs-settings-rollback make check-desktop-sandbox` 通过；固定 Bridge、host policy/lifecycle 和真实 Nexus→Bridge→nxs negotiation 均通过，无模型请求 |
+| 当前边界 | 只闭合可证明的运行期失败；掉电跨文件 all-or-nothing、持久 SDK request/approval/revision receipt、设置页 inspect/reconcile、Provider/辅助进程/网络/后代隔离、Windows/Linux 原生、Claude 认证会话和安装包仍未验收，`releaseAccepted=false` |
+
+本批次仍只在本地 worktree 提交，未推送。
