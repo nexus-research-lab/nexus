@@ -49,15 +49,19 @@ func (r *Repository) createWorkflow(ctx context.Context, tx *sql.Tx, workflow pr
 	if err != nil {
 		return err
 	}
+	artifactContractJSON, err := marshalJSON(workflow.ArtifactContract)
+	if err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `
 INSERT INTO workgraph_workflows (
     workflow_id, owner_user_id, slash_name, title, description,
     source_execution_id, source_session_key, objective,
-    completion_criteria_json, version, created_at, updated_at
+    completion_criteria_json, artifact_contract_json, version, created_at, updated_at
 ) VALUES (`+
 		r.bind(1)+`,`+r.bind(2)+`,`+r.bind(3)+`,`+r.bind(4)+`,`+r.bind(5)+`,`+
-		r.bind(6)+`,`+r.bind(7)+`,`+r.bind(8)+`,`+r.jsonBind(9)+`,`+r.bind(10)+`,`+
-		r.bind(11)+`,`+r.bind(12)+`)`,
+		r.bind(6)+`,`+r.bind(7)+`,`+r.bind(8)+`,`+r.jsonBind(9)+`,`+r.jsonBind(10)+`,`+r.bind(11)+`,`+
+		r.bind(12)+`,`+r.bind(13)+`)`,
 		workflow.ID,
 		workflow.OwnerUserID,
 		workflow.SlashName,
@@ -67,6 +71,7 @@ INSERT INTO workgraph_workflows (
 		workflow.SourceSessionKey,
 		workflow.Objective,
 		criteriaJSON,
+		artifactContractJSON,
 		workflow.Version,
 		r.timestamp(workflow.CreatedAt),
 		r.timestamp(workflow.UpdatedAt),
@@ -161,17 +166,21 @@ func (r *Repository) updateWorkflow(ctx context.Context, tx *sql.Tx, workflow pr
 	if err != nil {
 		return err
 	}
+	artifactContractJSON, err := marshalJSON(workflow.ArtifactContract)
+	if err != nil {
+		return err
+	}
 	result, err := tx.ExecContext(ctx, `
 UPDATE workgraph_workflows
 SET slash_name = `+r.bind(1)+`, title = `+r.bind(2)+`, description = `+r.bind(3)+`,
     source_execution_id = `+r.bind(4)+`, source_session_key = `+r.bind(5)+`,
-    objective = `+r.bind(6)+`, completion_criteria_json = `+r.jsonBind(7)+`,
-    version = `+r.bind(8)+`, updated_at = `+r.bind(9)+`
-WHERE owner_user_id = `+r.bind(10)+` AND workflow_id = `+r.bind(11)+`
-  AND version = `+r.bind(12),
+	    objective = `+r.bind(6)+`, completion_criteria_json = `+r.jsonBind(7)+`,
+	    artifact_contract_json = `+r.jsonBind(8)+`, version = `+r.bind(9)+`, updated_at = `+r.bind(10)+`
+WHERE owner_user_id = `+r.bind(11)+` AND workflow_id = `+r.bind(12)+`
+  AND version = `+r.bind(13),
 		workflow.SlashName, workflow.Title, nullString(workflow.Description),
 		workflow.SourceExecutionID, workflow.SourceSessionKey, workflow.Objective,
-		criteriaJSON, workflow.Version, r.timestamp(workflow.UpdatedAt),
+		criteriaJSON, artifactContractJSON, workflow.Version, r.timestamp(workflow.UpdatedAt),
 		workflow.OwnerUserID, workflow.ID, workflow.Version-1,
 	)
 	if err != nil {
@@ -428,6 +437,7 @@ func (r *Repository) workflowSelect() string {
 	return `SELECT workflow_id, owner_user_id, slash_name, title, description,
        source_execution_id, source_session_key, objective,
        ` + r.dialect.JSONText("completion_criteria_json") + `,
+       ` + r.dialect.JSONText("artifact_contract_json") + `,
        version, created_at, updated_at
 FROM workgraph_workflows`
 }
@@ -440,6 +450,7 @@ func scanWorkflow(scanner rowScanner) (protocol.WorkGraphWorkflow, error) {
 	var workflow protocol.WorkGraphWorkflow
 	var description sql.NullString
 	var criteriaJSON string
+	var artifactContractJSON string
 	err := scanner.Scan(
 		&workflow.ID,
 		&workflow.OwnerUserID,
@@ -450,6 +461,7 @@ func scanWorkflow(scanner rowScanner) (protocol.WorkGraphWorkflow, error) {
 		&workflow.SourceSessionKey,
 		&workflow.Objective,
 		&criteriaJSON,
+		&artifactContractJSON,
 		&workflow.Version,
 		&workflow.CreatedAt,
 		&workflow.UpdatedAt,
@@ -460,6 +472,11 @@ func scanWorkflow(scanner rowScanner) (protocol.WorkGraphWorkflow, error) {
 	workflow.Description = description.String
 	if err = unmarshalJSON(criteriaJSON, &workflow.CompletionCriteria); err != nil {
 		return protocol.WorkGraphWorkflow{}, err
+	}
+	if strings.TrimSpace(artifactContractJSON) != "" && strings.TrimSpace(artifactContractJSON) != "null" {
+		if err = unmarshalJSON(artifactContractJSON, &workflow.ArtifactContract); err != nil {
+			return protocol.WorkGraphWorkflow{}, err
+		}
 	}
 	workflow.CreatedAt = workflow.CreatedAt.UTC()
 	workflow.UpdatedAt = workflow.UpdatedAt.UTC()

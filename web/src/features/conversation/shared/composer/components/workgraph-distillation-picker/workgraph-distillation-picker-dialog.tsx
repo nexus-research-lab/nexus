@@ -112,7 +112,7 @@ function OpenWorkGraphDistillationPickerDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop initialFocusRef={searchInputRef} labelledBy={titleId} onClose={onClose}>
-        <UiDialogShell size="lg" viewport="compact">
+        <UiDialogShell size="wide" viewport="compact">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
