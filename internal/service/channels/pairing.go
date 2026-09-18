@@ -177,6 +177,9 @@ func (s *ControlService) deletePairing(
 		if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+			return err
+		}
 		query := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)
 		result, deleteErr := tx.ExecContext(ctx, query, ownerUserID, pairingID)
 		if deleteErr != nil {

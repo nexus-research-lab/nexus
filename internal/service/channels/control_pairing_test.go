@@ -7,7 +7,136 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+type deletedSessionResolver struct{ deleted map[string]bool }
+
+func (r deletedSessionResolver) ResolveDeliverySession(_ context.Context, _ string) (*protocol.Session, error) {
+	return nil, nil
+}
+
+func (r deletedSessionResolver) IsSessionDeleted(_ context.Context, key string) (bool, error) {
+	return r.deleted[key], nil
+}
+
+func TestControlServiceRotatesDeletedMaterializedPairingSession(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite"}
+	router := NewRouter(cfg, db, nil, nil)
+	router.SetSessionProjectionResolver(imTestSessions{})
+	service := NewControlService(cfg, db, nil, router)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		AccountID:   "cli-a",
+		ChatType:    protocol.RoomTypeDM,
+		ExternalRef: "ou-user-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("创建配对失败: %v", err)
+	}
+	if _, err = db.Exec("UPDATE im_pairings SET session_materialized = 1 WHERE pairing_id = ?", created.PairingID); err != nil {
+		t.Fatalf("准备已物化配对失败: %v", err)
+	}
+	agentID, sessionKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		AccountID:   "cli-a",
+		ChatType:    protocol.RoomTypeDM,
+		Ref:         "ou-user-a",
+	})
+	if err != nil || agentID != "agent-a" {
+		t.Fatalf("删除后的配对应仍解析到原 Agent: agent=%q key=%q err=%v", agentID, sessionKey, err)
+	}
+	if sessionKey == created.SessionKey {
+		t.Fatalf("已删除的当前 session 不应被复用: %q", sessionKey)
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Ref != "ou-user-a" || parsed.AccountID != "cli-a" || parsed.Generation == "" {
+		t.Fatalf("新 session 应保留外部路由并带代次: %q parsed=%+v", sessionKey, parsed)
+	}
+	var materialized bool
+	if err = db.QueryRow("SELECT session_materialized FROM im_pairings WHERE pairing_id = ?", created.PairingID).Scan(&materialized); err != nil {
+		t.Fatalf("读取配对代次状态失败: %v", err)
+	}
+	if materialized {
+		t.Fatalf("新 session 在首次 DM 物化前不应标记为已物化")
+	}
+	_, nextKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a", Channel: ChannelTypeFeishu, AccountID: "cli-a", ChatType: protocol.RoomTypeDM, Ref: "ou-user-a",
+	})
+	if err != nil || nextKey != sessionKey {
+		t.Fatalf("同一配对后续 ingress 应复用新 session: first=%q next=%q err=%v", sessionKey, nextKey, err)
+	}
+}
+
+func TestControlServiceRotatesDeletedWildcardThreadSession(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite"}
+	router := NewRouter(cfg, db, nil, nil)
+	router.SetSessionProjectionResolver(imTestSessions{})
+	service := NewControlService(cfg, db, nil, router)
+	if _, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    "group",
+		ExternalRef: "oc-group-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	}); err != nil {
+		t.Fatalf("创建群级配对失败: %v", err)
+	}
+	request := IngressRequest{OwnerUserID: "owner-a", Channel: ChannelTypeFeishu, AccountID: "cli-a", ChatType: "group", Ref: "oc-group-a", ThreadID: "omt-thread-a"}
+	_, firstKey, err := service.ResolveIngressSession(context.Background(), request)
+	if err != nil {
+		t.Fatalf("解析通配群话题 session 失败: %v", err)
+	}
+	if _, err = db.Exec("UPDATE im_pairing_sessions SET session_materialized = 1 WHERE session_key = ?", firstKey); err != nil {
+		t.Fatalf("准备群话题 session 失败: %v", err)
+	}
+	_, secondKey, err := service.ResolveIngressSession(context.Background(), request)
+	if err != nil {
+		t.Fatalf("删除后的群话题 session 未恢复: %v", err)
+	}
+	if firstKey == secondKey || protocol.ParseSessionKey(secondKey).Generation == "" {
+		t.Fatalf("群话题应生成新的 session 代次: first=%q second=%q", firstKey, secondKey)
+	}
+	parsed := protocol.ParseSessionKey(secondKey)
+	if parsed.AccountID != "cli-a" || parsed.Ref != "oc-group-a" || parsed.ThreadID != "omt-thread-a" {
+		t.Fatalf("群话题新 session 不应改变平台路由: %q parsed=%+v", secondKey, parsed)
+	}
+}
+
+func TestControlServiceRecreatedPairingAvoidsDeletedSessionKey(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite"}
+	router := NewRouter(cfg, db, nil, nil)
+	service := NewControlService(cfg, db, nil, router)
+	request := CreatePairingRequest{ChannelType: ChannelTypeWeChat, ChatType: protocol.RoomTypeDM, ExternalRef: "wx-user-a", AgentID: "agent-a", Status: PairingStatusActive}
+	first, err := service.CreatePairing(context.Background(), "owner-a", request)
+	if err != nil {
+		t.Fatalf("创建初始配对失败: %v", err)
+	}
+	if err = service.DeletePairing(context.Background(), "owner-a", first.PairingID); err != nil {
+		t.Fatalf("删除旧配对失败: %v", err)
+	}
+	second, err := service.CreatePairing(context.Background(), "owner-a", request)
+	if err != nil {
+		t.Fatalf("重新创建配对失败: %v", err)
+	}
+	router.SetSessionProjectionResolver(deletedSessionResolver{deleted: map[string]bool{first.SessionKey: true}})
+	_, current, err := service.ResolveIngressSession(context.Background(), IngressRequest{OwnerUserID: "owner-a", Channel: ChannelTypeWeChat, ChatType: protocol.RoomTypeDM, Ref: "wx-user-a"})
+	if err != nil {
+		t.Fatalf("重建配对后的入站解析失败: %v", err)
+	}
+	if current == second.SessionKey || protocol.ParseSessionKey(current).Generation == "" {
+		t.Fatalf("重建配对不得复用已删除 key: old=%q current=%q", first.SessionKey, current)
+	}
+}
 
 func TestControlServiceUpdatePairingPatchesOnlyRequestedFields(t *testing.T) {
 	db := newChannelTestDB(t)

@@ -75,9 +75,13 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 		return "", protocol.SessionKey{}, "", ErrIngressRefRequired
 	}
 
-	agentID, err := s.resolveIngressAgent(ctx, request)
+	agentID, pairedSessionKey, err := s.resolveIngressSession(ctx, request)
 	if err != nil {
 		return "", protocol.SessionKey{}, "", err
+	}
+	if strings.TrimSpace(pairedSessionKey) != "" {
+		parsed := protocol.ParseSessionKey(pairedSessionKey)
+		return pairedSessionKey, parsed, agentID, nil
 	}
 	accountID := strings.TrimSpace(request.AccountID)
 	sessionKey := protocol.BuildAgentAccountSessionKey(
@@ -93,23 +97,28 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 }
 
 func (s *IngressService) resolveIngressAgent(ctx context.Context, request IngressRequest) (string, error) {
+	agentID, _, err := s.resolveIngressSession(ctx, request)
+	return agentID, err
+}
+
+func (s *IngressService) resolveIngressSession(ctx context.Context, request IngressRequest) (string, string, error) {
 	if s.control != nil {
-		agentID, err := s.control.ResolveIngressAgent(ctx, request)
+		agentID, sessionKey, err := s.control.ResolveIngressSession(ctx, request)
 		if err != nil || strings.TrimSpace(agentID) != "" {
-			return strings.TrimSpace(agentID), err
+			return strings.TrimSpace(agentID), strings.TrimSpace(sessionKey), err
 		}
 	}
 	if agentID := strings.TrimSpace(request.AgentID); agentID != "" {
-		return agentID, nil
+		return agentID, "", nil
 	}
 	if s.agents == nil {
-		return "", errors.New("channel ingress 缺少默认 agent 解析器")
+		return "", "", errors.New("channel ingress 缺少默认 agent 解析器")
 	}
 	defaultAgent, err := s.agents.GetDefaultAgent(ctx)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return strings.TrimSpace(defaultAgent.AgentID), nil
+	return strings.TrimSpace(defaultAgent.AgentID), "", nil
 }
 
 func (s *IngressService) resolveRememberedTarget(

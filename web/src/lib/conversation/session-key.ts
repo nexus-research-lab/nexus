@@ -5,6 +5,7 @@ const ROOM_SESSION_PREFIX = "room";
 const ROOM_SHARED_SESSION_PREFIX = "room:group:";
 const TOPIC_SEGMENT = "topic";
 const ACCOUNT_SEGMENT = "acct";
+const GENERATION_SEGMENT = "gen";
 
 export interface BuildSessionKeyOptions {
   channel: string;
@@ -13,6 +14,7 @@ export interface BuildSessionKeyOptions {
   agent_id?: string | null;
   account_id?: string | null;
   thread_id?: string | null;
+  generation?: string | null;
 }
 
 type SessionKeyKind = "agent" | "room" | "unknown";
@@ -28,6 +30,7 @@ export interface ParsedSessionKey {
   account_id: string | null;
   ref: string | null;
   thread_id: string | null;
+  generation: string | null;
   conversation_id: string | null;
 }
 
@@ -61,6 +64,7 @@ function createParsedSessionKey(raw: string): ParsedSessionKey {
     account_id: null,
     ref: null,
     thread_id: null,
+    generation: null,
     conversation_id: null,
   };
 }
@@ -71,8 +75,14 @@ function findTopicIndex(parts: string[], minIndex: number): number {
   );
 }
 
+function findGenerationIndex(parts: string[], minIndex: number): number {
+  return parts.findIndex(
+    (part, index) => part === GENERATION_SEGMENT && index >= minIndex,
+  );
+}
+
 function agentSessionKeyShapeError(): string {
-  return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]";
+  return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>][:gen:<generation>]";
 }
 
 function splitAgentRefParts(parts: string[]): AgentRefParts {
@@ -104,13 +114,19 @@ function parseAgentReference(parts: string[]): ParsedAgentReference {
 
   // `:topic:` 是协议边界，ref 内部仍可包含冒号。
   const topicIndex = findTopicIndex(parts, split.ref_start);
+  const generationIndex = findGenerationIndex(parts, split.ref_start);
   const hasTopic = topicIndex >= 0;
-  const refEnd = hasTopic ? topicIndex : parts.length;
+  const refEnd = Math.min(
+    hasTopic ? topicIndex : parts.length,
+    generationIndex >= 0 ? generationIndex : parts.length,
+  );
   return {
     account_id: split.account_id,
     ref: parts.slice(split.ref_start, refEnd).join(":") || null,
     thread_id: hasTopic
-      ? parts.slice(topicIndex + 1).join(":") || null
+      ? parts
+          .slice(topicIndex + 1, generationIndex >= 0 ? generationIndex : undefined)
+          .join(":") || null
       : null,
   };
 }
@@ -124,13 +140,31 @@ function validateAgentReference(
   refStart: number,
 ): string | null {
   const topicIndex = findTopicIndex(parts, refStart);
-  if (topicIndex < 0) {
-    return parts.slice(refStart).join(":").trim()
-      ? null
-      : agentSessionKeyShapeError();
+  const generationIndex = findGenerationIndex(parts, refStart);
+  if (topicIndex >= 0 && generationIndex >= 0 && generationIndex < topicIndex) {
+    return agentSessionKeyShapeError();
   }
-  const ref = parts.slice(refStart, topicIndex).join(":").trim();
-  const threadId = parts.slice(topicIndex + 1).join(":").trim();
+  const refEnd = Math.min(
+    topicIndex >= 0 ? topicIndex : parts.length,
+    generationIndex >= 0 ? generationIndex : parts.length,
+  );
+  if (!parts.slice(refStart, refEnd).join(":").trim()) {
+    return agentSessionKeyShapeError();
+  }
+  if (
+    generationIndex >= 0 &&
+    !parts.slice(generationIndex + 1).join(":").trim()
+  ) {
+    return agentSessionKeyShapeError();
+  }
+  if (topicIndex < 0) {
+    return null;
+  }
+  const ref = parts.slice(refStart, refEnd).join(":").trim();
+  const threadId = parts
+    .slice(topicIndex + 1, generationIndex >= 0 ? generationIndex : undefined)
+    .join(":")
+    .trim();
   return ref && threadId ? null : agentSessionKeyShapeError();
 }
 
@@ -152,6 +186,7 @@ function parseAgentSessionKey(
   isStructured: boolean,
 ): ParsedSessionKey {
   const parts = sessionKey.split(":");
+  const generationIndex = findGenerationIndex(parts, 4);
   return {
     ...createParsedSessionKey(sessionKey),
     ...parseAgentReference(parts),
@@ -160,6 +195,10 @@ function parseAgentSessionKey(
     agent_id: resolveAgentId(parts[1]),
     channel: parts[2] || null,
     chat_type: parts[3] || "dm",
+    generation:
+      generationIndex >= 0
+        ? parts.slice(generationIndex + 1).join(":") || null
+        : null,
   };
 }
 
@@ -226,6 +265,7 @@ export function buildSessionKey({
   agent_id: agentId,
   account_id: accountId,
   thread_id: threadId,
+  generation,
 }: BuildSessionKeyOptions): string {
   const segments = [
     AGENT_SESSION_PREFIX,
@@ -241,6 +281,10 @@ export function buildSessionKey({
   const resolvedThreadId = threadId?.trim();
   if (resolvedThreadId) {
     segments.push(TOPIC_SEGMENT, resolvedThreadId);
+  }
+  const resolvedGeneration = generation?.trim();
+  if (resolvedGeneration) {
+    segments.push(GENERATION_SEGMENT, resolvedGeneration);
   }
   return segments.join(":");
 }
