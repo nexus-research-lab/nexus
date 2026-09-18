@@ -236,7 +236,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		}
 	}()
 	if strings.EqualFold(strings.TrimSpace(e.service.config.AppMode), "desktop") &&
-		strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs") &&
+		(strings.TrimSpace(selection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchLease, err = sandboxresources.Acquire(e.ctx, sandboxresources.Input{
 			OwnerUserID: e.agent.OwnerUserID,

@@ -375,7 +375,7 @@ func (s *Service) ensureClient(
 	var scratchLease *sandboxresources.Lease
 	scratchLeaseOwned := false
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
-		strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs") &&
+		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchLease, err = sandboxresources.Acquire(ctx, sandboxresources.Input{
 			OwnerUserID: agentValue.OwnerUserID,
