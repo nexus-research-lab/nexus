@@ -66,6 +66,54 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 	}
 }
 
+func TestDesktopSandboxCopiesHostPreparedResources(t *testing.T) {
+	input := AgentClientOptionsInput{
+		AppMode:               "desktop",
+		DesktopSandboxEnabled: true,
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version:     1,
+			WriteScope:  agentclient.SandboxWriteScopeWorkspaceWrite,
+			ScratchRoot: "/tmp/nexus-sandbox/session-a",
+		},
+	}
+	for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto} {
+		before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: mode}}
+		got, err := applyDesktopSandboxForPlatform(before, input, "darwin")
+		if err != nil {
+			t.Fatalf("mode %s: %v", mode, err)
+		}
+		if got.Sandbox == nil || got.Sandbox.Resources == nil {
+			t.Fatalf("mode %s: resources missing", mode)
+		}
+		if got.Sandbox.Resources == input.SandboxResources {
+			t.Fatalf("mode %s: resource policy aliases caller", mode)
+		}
+		if *got.Sandbox.Resources != *input.SandboxResources {
+			t.Fatalf("mode %s: resources = %#v, want %#v", mode, got.Sandbox.Resources, input.SandboxResources)
+		}
+		got.Sandbox.Resources.ScratchRoot = "/tmp/changed"
+		if input.SandboxResources.ScratchRoot != "/tmp/nexus-sandbox/session-a" {
+			t.Fatalf("mode %s: caller resource policy mutated", mode)
+		}
+	}
+}
+
+func TestDesktopSandboxRejectsInvalidOrFullAccessResources(t *testing.T) {
+	invalid := AgentClientOptionsInput{
+		AppMode:               "desktop",
+		DesktopSandboxEnabled: true,
+		SandboxResources:      &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "relative"},
+	}
+	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, invalid, "darwin"); err == nil {
+		t.Fatal("invalid host resources accepted")
+	}
+	fullAccess := invalid
+	fullAccess.SandboxResources = &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "/tmp/nexus-sandbox/session-b"}
+	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, fullAccess, "darwin"); err == nil {
+		t.Fatal("Full Access silently accepted a restricted resource policy")
+	}
+}
+
 func TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature(t *testing.T) {
 	for _, input := range []AgentClientOptionsInput{{AppMode: "server", DesktopSandboxEnabled: true}, {AppMode: "desktop"}} {
 		original := &agentclient.SandboxSettings{}

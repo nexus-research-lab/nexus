@@ -112,6 +112,10 @@ type AgentClientOptionsInput struct {
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
+	// SandboxResources is a host-prepared, versioned resource contract. The
+	// builder only copies and validates it; scratch creation and cleanup remain
+	// owned by the runtime/session host.
+	SandboxResources *agentclient.SandboxResourcePolicy
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
