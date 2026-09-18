@@ -161,7 +161,7 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	// user-controlled identifiers in a filesystem path. One active process
 	// session keeps one path so routine round reconfiguration does not force a
 	// scratch replacement.
-	scopeKey := owner + "\x00" + session
+	scopeKey := root + "\x00" + owner + "\x00" + session
 	registryMu.Lock()
 	existing := byScope[scopeKey]
 	registryMu.Unlock()
