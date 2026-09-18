@@ -1,5 +1,7 @@
 # Team
 
+- 原生会话绑定必须同时携带本机 `local_agent_id`、Room 和 Conversation；观察器、Thread、辅助面板均不得用 Control Agent ID 替代本机身份，或省略命令目录所需的 Agent 成员校验。
+
 - 消息附件复用共享文件上传与有界下载；发送前把 id/name/size/sha256 冻结到原有持久发件箱，未知结果重放原引用，支持附件单独发送。UI 的 relayRoom 作用域不含本机路径，接收节点才物化为原生 Room 附件。消息下载与工作区共用 saveTeamFile。
 
 - 执行观察器直接提供原生 Room 停止、stopping 与权限响应能力，按 conversation 绑定并在卸载时清理。主 Composer 复用人工介入队列，桌面 Thread 不重复审批面；窄屏 Thread 覆盖时保留其可达入口，不向其他群成员公开本机权限。

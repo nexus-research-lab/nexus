@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+- Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
+
+- Preserve stable conversation transport callbacks to prevent online Room control observers from looping and blocking navigation to other chats.
 - Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.
 
 - Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.

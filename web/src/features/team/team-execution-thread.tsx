@@ -25,7 +25,7 @@ export function TeamExecutionObserver({binding, onChange, onControls}: {
   onChange: (conversationId: string, states: RoomAgentExecutionState[]) => void;
   onControls?: (conversationId: string, controls: TeamExecutionControls | null) => void;
 }) {
-  const identity = useMemo(() => ({session_key: buildRoomSharedSessionKey(binding.conversation_id), room_id: binding.room_id, conversation_id: binding.conversation_id, chat_type: "group" as const}), [binding.room_id, binding.conversation_id]);
+  const identity = useMemo(() => ({session_key: buildRoomSharedSessionKey(binding.conversation_id), agent_id: binding.local_agent_id, room_id: binding.room_id, conversation_id: binding.conversation_id, chat_type: "group" as const}), [binding.local_agent_id, binding.room_id, binding.conversation_id]);
   const conversation = useAgentConversation({identity});
   const {pending_permissions, stop_generation, send_permission_response, room_agent_execution_states, stopping_agent_round_ids} = conversation;
   useEffect(() => {
@@ -56,7 +56,7 @@ export function TeamExecutionThread({job, name, avatar, compact, onClose, onOpen
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
   const sessionKey = buildRoomSharedSessionKey(job.conversation_id!);
-  const identity = useMemo(() => ({session_key: sessionKey, room_id: job.room_id, conversation_id: job.conversation_id, chat_type: "group" as const}), [sessionKey, job.room_id, job.conversation_id]);
+  const identity = useMemo(() => ({session_key: sessionKey, agent_id: job.local_agent_id, room_id: job.room_id, conversation_id: job.conversation_id, chat_type: "group" as const}), [sessionKey, job.local_agent_id, job.room_id, job.conversation_id]);
   const conversation = useAgentConversation({identity});
   const load = conversation.load_round_window;
   const reload = useCallback(async () => {
