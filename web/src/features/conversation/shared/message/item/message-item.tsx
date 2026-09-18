@@ -39,6 +39,7 @@ function MessageItemInner({
   onStopMessage,
   defaultProcessExpanded,
   assistantHeaderAction,
+  assistantReplyTarget,
   assistantEmptyState,
   assistantContentMode = "dm_archived",
   showAssistantHeader = true,
@@ -103,6 +104,7 @@ function MessageItemInner({
         unresolvedToolStatus={unresolvedToolStatus}
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
+        assistantReplyTarget={assistantReplyTarget}
         assistantEmptyState={assistantEmptyState}
         assistantContentMode={assistantContentMode}
         showHeader={showAssistantHeader}

@@ -13,6 +13,7 @@ import { cn } from "@/shared/ui/class-name";
 
 import {
   AgentHandoffReplyChip,
+  MessageReplyChip,
   type AgentMentionDirectory,
 } from "../../../agent-mention-chip";
 import { formatMessageTime } from "../../../message-time";
@@ -26,6 +27,7 @@ interface AssistantMessageHeaderProps {
   echo: boolean;
   agentMentionDirectory?: AgentMentionDirectory;
   headerAction?: ReactNode;
+  replyTarget?: {name: string; avatar?: string | null; message?: string};
   handoffReplySourceAgentId?: string | null;
   model?: string;
   name?: string | null;
@@ -48,6 +50,7 @@ export function AssistantMessageHeader({
   echo,
   agentMentionDirectory,
   headerAction,
+  replyTarget,
   handoffReplySourceAgentId,
   model,
   name,
@@ -77,7 +80,7 @@ export function AssistantMessageHeader({
       </span>
       <AssistantAutomationBadge taskName={automationTaskName} />
       <AssistantEchoBadge visible={echo} />
-      {handoffReplySourceAgentId ? (
+      {replyTarget ? <MessageReplyChip {...replyTarget} /> : handoffReplySourceAgentId ? (
         <AgentHandoffReplyChip
           agentId={handoffReplySourceAgentId}
           directory={agentMentionDirectory}

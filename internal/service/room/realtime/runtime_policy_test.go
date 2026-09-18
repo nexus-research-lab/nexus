@@ -203,6 +203,7 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 		{"ordinary", "测试 room bypass 权限处理器", sdkpermission.ModeBypassPermissions, "", ""},
 		{"plan slash", "/plan improve search", sdkpermission.ModePlan, "", ""},
 		{"relay safe default", "在线任务", sdkpermission.ModeDefault, "relay", ""},
+		{"relay plan prompt", "/plan @Lucy improve search", sdkpermission.ModePlan, "relay", ""},
 		{"relay explicit session setting", "在线任务", sdkpermission.ModeAcceptEdits, "relay", "acceptEdits"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -270,6 +271,8 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 				Content:         tc.content,
 				RoundID:         "room-round-bypass",
 				ExecutionOrigin: tc.origin,
+				Internal:        tc.origin == "relay",
+				TargetAgentIDs:  []string{memberAgent.AgentID},
 			}); err != nil {
 				t.Fatalf("HandleChat 失败: %v", err)
 			}

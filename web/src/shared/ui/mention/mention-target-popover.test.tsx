@@ -72,6 +72,27 @@ const targets = [
   { id: "lin", label: "Lin", marker: "L" },
 ];
 
+it("anchors a single choice above the composer while keeping keyboard ownership on its editor", () => {
+  const editorRef = createRef<HTMLInputElement>();
+  const shellRef = createRef<HTMLDivElement>();
+  const onSelect = vi.fn();
+  render(<>
+    <div ref={shellRef}><input ref={editorRef} aria-label="输入" /><button>发送</button></div>
+    <MentionTargetPopover anchorRef={editorRef} positionAnchorRef={shellRef} placement="top" filter="" items={[targets[0]]} onClose={vi.fn()} onSelect={onSelect} />
+  </>, {wrapper: I18n});
+  vi.spyOn(shellRef.current!, "getBoundingClientRect").mockReturnValue(new DOMRect(20, 400, 500, 120));
+  vi.spyOn(editorRef.current!, "getBoundingClientRect").mockReturnValue(new DOMRect(40, 420, 460, 32));
+  fireEvent.resize(window);
+  const list = screen.getByRole("listbox");
+  expect(list.dataset.placement).toBe("top");
+  expect(list.style.width).toBe("500px");
+  expect(window.innerHeight - parseFloat(list.style.bottom)).toBe(392);
+  expect(editorRef.current?.getAttribute("aria-controls")).toBe(list.id);
+  expect(shellRef.current?.hasAttribute("aria-controls")).toBe(false);
+  fireEvent.keyDown(editorRef.current!, {key: "Enter"});
+  expect(onSelect).toHaveBeenCalledWith(targets[0]);
+});
+
 it("links active options to the focused editor and restores previous attributes on close", () => {
   const anchorRef = createRef<HTMLInputElement>();
   const view = (open: boolean) => <>

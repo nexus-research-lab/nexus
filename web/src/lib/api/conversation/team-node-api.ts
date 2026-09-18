@@ -1,4 +1,4 @@
-// INPUT: 本机授权、显式执行开关和读取命令。
+// INPUT: 本人在线群成员与本机任务读取命令。
 // OUTPUT: 不包含机器凭据的授权与本机任务视图。
 // POS: 本机入口不走 /team 远程代理。
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
@@ -14,7 +14,7 @@ export interface TeamNodeView {
   candidates: Array<{ id: string; name: string }>;
   execution_available: boolean;
   execution_enabled?: boolean;
-  jobs?: Array<{ id: string; agent_id: string; state: "claiming" | "ready" | "running" | "draining" | "review_required" | "completed" | "failed"; room_id?: string; conversation_id?: string; local_agent_id?: string; round_id?: string; source_room_id?: string; source_message_id?: string; delivery_id?: string }>;
+  jobs?: Array<{ id: string; agent_id: string; state: "claiming" | "ready" | "running" | "draining" | "review_required" | "completed" | "failed" | "cancelled"; room_id?: string; conversation_id?: string; local_agent_id?: string; round_id?: string; source_room_id?: string; source_message_id?: string; delivery_id?: string }>;
 }
 
 export function getTeamNode(signal?: AbortSignal, query?: {roomId: string; messageIds: string[]; jobId?: string | null}) {
@@ -25,14 +25,6 @@ export function getTeamNode(signal?: AbortSignal, query?: {roomId: string; messa
     if (query.jobId) params.set("job_id", query.jobId);
   }
   return requestApi<TeamNodeView>(`${NODE_URL}${query ? `?${params}` : ""}`, { method: "GET", signal });
-}
-
-export function authorizeTeamNode(name: string, agentIds: string[], enableExecution = false) {
-  return requestApi(NODE_URL, { method: "POST", body: { name, agent_ids: agentIds, enable_execution: enableExecution } });
-}
-
-export function revokeTeamNode() {
-  return requestApi(NODE_URL, { method: "DELETE" });
 }
 
 export type TeamNodeJob = NonNullable<TeamNodeView["jobs"]>[number];

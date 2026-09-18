@@ -22,6 +22,15 @@ const bootstrap = {
     sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
   members: [],
 };
+it("refreshes shared delivery state even when the stream message cursor does not advance", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const { result } = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(result.current.room?.room.id).toBe("room"));
+  const deliveries = [{id: "delivery", message_id: "message", agent_id: "remote", state: "leased"}];
+  api.get.mockResolvedValue({...bootstrap, deliveries});
+  await act(async () => { api.socket.mock.calls.at(-1)![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 0}); });
+  await waitFor(() => expect(result.current.room?.deliveries).toEqual(deliveries));
+});
 beforeEach(() => {
   localStorage.clear();
   api.bootstrap.mockReset().mockRejectedValueOnce(new Error("unavailable"));
@@ -89,16 +98,19 @@ it("posts exact Agent targets with the loaded membership fence", async () => {
   expect(api.post).toHaveBeenCalledExactlyOnceWith(
     "conversation", "@Amy 分析", expect.any(String),
     {agentIds: ["agent-one"], expectedMembershipVersion: 7},
+    undefined,
   );
 });
 
 it("replays the frozen intent after an unknown result and accepts refreshed membership only for a new command", async () => {
+  const files = [{id:"file-one",name:"report.txt",size:3,sha256:"a".repeat(64)}];
   api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
   const {result} = renderHook(() => useTeamRoom(null));
   await waitFor(() => expect(result.current.room).toEqual(bootstrap));
   api.get.mockResolvedValue({...bootstrap, room: {...bootstrap.room, membership_version: 8}});
   api.post.mockRejectedValueOnce(new Error("response lost"));
-  await act(async () => { expect(await result.current.send("@Amy 原始任务", ["agent-one"])).toBe(false); });
+  await act(async () => { expect(await result.current.send("@Amy 原始任务", ["agent-one"], files)).toBe(false); });
+  expect(api.post.mock.calls[0][4]).toEqual(files);
   expect(result.current.room?.room.membership_version).toBe(8);
   expect(result.current.hasUnconfirmedSend).toBe(true);
   api.post.mockResolvedValueOnce({message: {id: "message", message_seq: 1}});

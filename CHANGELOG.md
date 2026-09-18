@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Connect online Room Slash prompts and attachments to native Room execution: explicit Agent mentions, shared-file references in the durable message outbox, lease-scoped verified downloads, and reusable message attachment actions. Keep private host commands and workspaces isolated.
+
+- Remove online Room metadata polling. Reuse the shared WebSocket connection for directory, invitation, binding and file invalidation, retain focus/reconnect recovery, and stop scanning execution outputs on successful lease maintenance.
+
+- Reuse native Room execution controls in online groups: exact-round stop actions and stopping feedback, plus the shared Composer permission/question queue scoped to the current user's bound Agents.
+
+- Replace the five-second online Agent claim poll with scoped Relay WebSocket hints and the existing due-work scheduler. Reconcile durable work on startup/reconnect, wake immediately on local grant changes and slot release, and publish complete Room outputs from native observer notifications instead of one-second scans.
+
+- Discover online-room local Threads through native Room WebSocket subscriptions instead of a 15-second job poll. Reconcile job links on connection and execution changes, and use native Room terminal states without waiting for metadata refresh.
+
+- Show other members' Agent delivery progress and failures in online rooms, retain progress after intermediate replies, and clear it on final output. Renew expired Relay WSS principals without dropping the browser connection; reuse valid machine tokens and suppress empty polling logs.
+
+- Reuse the local Room reply chip beside online Agent names, showing the actual triggering member's identity instead of a separate quoted-text label.
+
+- Distinguish interrupted online Agent executions from failures, prefer native cancelled Thread status, and label locally tracked replies with their exact triggering message.
+
+- Share allowlisted online Agent execution statistics through the durable outbox and render duration, tokens, cost, cache usage and model with the existing Room message footer. Private memory references remain local.
+
+- Preserve online human sender account IDs and names in Room history and exact trigger context, with explicit guidance separating group speakers from the local owner's private memories.
+
+- Automatically provision host execution for your active online-room Agents and recover confirmed-invalid node credentials using the current login. Remove the separate host-authorization dialog; tool approvals and Relay membership checks remain enforced.
+
+- Add correlated, rate-limited online Agent executor failure logs and claim/output/completion lifecycle logs without logging credentials or message bodies.
+
+- Unify online human messages with Room user bubbles, author identity, copy actions and timestamps; reuse Agent action groups and resizable Room side panels. Reject unsupported online message attachments explicitly while preserving the draft.
+
+- Show the local Agent execution identity before online replies; drive Thread activity from Room execution state and reload persisted history when the delivery finishes instead of treating history fetching as thinking.
+
+- Anchor chat mention suggestions above the entire composer, matching Slash pickers and preventing a single candidate from covering the send toolbar.
+
+- Preserve Agent avatars in shared mention suggestions, render explicit online mentions with Room chips, and keep execution Thread actions out of human message identity headers.
+
+- Reuse the Room message renderer for online Agent replies and resolve your group-settings avatar from the signed-in remote account.
+
 - Fix startup migration collisions by assigning Team Node message lookup version 142 in both SQLite and PostgreSQL, preserving IM delivery migration version 141.
 
 - Narrow organization role controls and expose the single Remove action directly; remove revoked memberships from the list without disabling accounts.
@@ -101,6 +135,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restore left-aligned labels for action-menu items with icons or secondary content while keeping plain text actions centered.
 
 - Align the web Launcher spotlight decoration with the brand icon while preserving desktop placement.
+
+- Show the signed-in user avatar in online Agent reply badges when the invitation directory excludes the current user.
 
 - Unify online conversation errors with shared inline notices and scoped recovery actions, and distinguish task-status read failures from unknown mutations.
 

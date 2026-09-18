@@ -3,7 +3,7 @@
 // POS: 群共享工作区与本机 Agent 工作区的边界。
 import { useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
-import { listTeamFiles, uploadTeamFile, downloadTeamFile, type TeamFile } from "@/lib/api/conversation/team-files-api";
+import { listTeamFiles, uploadTeamFile, saveTeamFile, type TeamFile } from "@/lib/api/conversation/team-files-api";
 import { useTeamRefresh } from "./use-team-refresh";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import { UiButton } from "@/shared/ui/button/button";
@@ -40,10 +40,7 @@ export function TeamWorkspace({roomId}: {roomId: string}) {
     lock.current = true; setBusy(true);
     const controller = new AbortController(); transfer.current = controller;
     try {
-      const blob = await downloadTeamFile(roomId, file, controller.signal);
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a"); anchor.href = objectUrl; anchor.download = file.name; anchor.click();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      await saveTeamFile(roomId, file, controller.signal);
     } catch { if (!controller.signal.aborted) setError(t("team.files_error")); }
     finally {lock.current = false; setBusy(false);}
   };

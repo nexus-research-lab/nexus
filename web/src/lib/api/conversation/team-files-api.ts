@@ -5,7 +5,7 @@ import { requestApi } from "@/lib/api/core/http";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { applyDesktopRequestHeaders } from "@/config/desktop-runtime";
 
-export interface TeamFile {id: string; name: string; size: number; created_at: string}
+export interface TeamFile {id: string; name: string; size: number; created_at: string; sha256?: string}
 const filesURL = (roomId: string) => `${getAgentApiBaseUrl()}/team/rooms/${encodeURIComponent(roomId)}/files`;
 const hexDigest = async (data: BufferSource) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", data)), (value) => value.toString(16).padStart(2,"0")).join("");
 
@@ -23,7 +23,7 @@ export async function uploadTeamFile(roomId: string, file: File, signal: AbortSi
   }});
 }
 
-export async function downloadTeamFile(roomId: string, file: TeamFile, signal: AbortSignal) {
+export async function downloadTeamFile(roomId: string, file: Pick<TeamFile, "id" | "size">, signal: AbortSignal) {
   const url = `${filesURL(roomId)}/${encodeURIComponent(file.id)}`;
   const headers = new Headers(); applyDesktopRequestHeaders(url, headers);
   const response = await fetch(url, {credentials: "include", headers, signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)])});
@@ -31,4 +31,11 @@ export async function downloadTeamFile(roomId: string, file: TeamFile, signal: A
   const blob = await response.blob(); signal.throwIfAborted();
   if (blob.size !== file.size || blob.size > 32 * 1024 * 1024) throw new Error("Invalid file size");
   return blob;
+}
+
+export async function saveTeamFile(roomId: string, file: Pick<TeamFile, "id" | "size" | "name">, signal: AbortSignal) {
+  const blob = await downloadTeamFile(roomId, file, signal);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a"); anchor.href = objectUrl; anchor.download = file.name; anchor.click();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }

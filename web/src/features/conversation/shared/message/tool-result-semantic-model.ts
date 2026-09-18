@@ -6,6 +6,11 @@
 import type { ToolResultContent } from "@/types/conversation/message/content";
 
 const MUTATION_RESULT_JSON_LIMIT = 64 * 1024;
+
+// 宿主中断补齐的工具回执不是工具执行异常；只识别精确哨兵，不猜测普通错误正文。
+export function isInterruptedToolResult(result: ToolResultContent | undefined): boolean {
+  return result?.is_error === true && result.content === "Interrupted by user";
+}
 const MUTATION_OUTCOMES = new Set<MutationResultOutcome>([
   "applied",
   "no_op",

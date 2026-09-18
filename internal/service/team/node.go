@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -31,6 +32,7 @@ type NodeService struct {
 	listAgents                    func(context.Context) ([]protocol.Agent, error)
 	executor                      *NodeExecutor
 	readRoom                      func(context.Context, string, string) (relaycontract.RoomDetails, error)
+	provisionMu                   sync.Mutex
 }
 
 type NodeView struct {
@@ -70,7 +72,7 @@ func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents f
 		store:      store, keys: keys, listAgents: listAgents, readRoom: readRoom}, nil
 }
 
-// NodeRoomBinding 与任务历史无关；准备会话不授权节点、不运行 Agent。
+// NodeRoomBinding 与任务历史无关；本人入群同时授权执行，仍只由显式投递启动 Agent。
 type NodeRoomBinding struct {
 	AgentID        string `json:"agent_id"`
 	LocalAgentID   string `json:"local_agent_id"`
@@ -108,6 +110,7 @@ func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([
 		return nil, err
 	}
 	bindings := make([]NodeRoomBinding, 0)
+	var executable []string
 	for _, agent := range online {
 		if !slices.ContainsFunc(local, func(value protocol.Agent) bool {
 			return value.AgentID == agent.SourceAgentID && value.Status == "active" && !value.IsMain
@@ -124,8 +127,92 @@ func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([
 			return nil, err
 		}
 		bindings = append(bindings, NodeRoomBinding{AgentID: agent.AgentID, LocalAgentID: agent.SourceAgentID, RoomID: room.Room.ID, ConversationID: room.Conversation.ID})
+		if slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
+			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active" && !member.AgentPaused
+		}) {
+			executable = append(executable, agent.AgentID)
+		}
+	}
+	if len(executable) > 0 {
+		if err := s.ensureRoomExecution(ctx, cookie, executable); err != nil {
+			return nil, err
+		}
 	}
 	return bindings, nil
+}
+
+// 只消费已由 PrepareRoom 校验的本人入群成员；凭据未知写入复用原意图，失效恢复仍须有效真人登录。
+func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, agentIDs []string) error {
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	scope, owner, err := s.scope(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	record, err := s.store.NodeGrant(ctx, scope, owner)
+	if err != nil {
+		return err
+	}
+	if record == nil || record.State == "revoked" {
+		return s.Connect(ctx, cookie, NodeConnectInput{Name: "Nexus", AgentIDs: agentIDs, EnableExecution: true})
+	}
+	// 未确认登记先重放原请求，不换凭据、不以 404 推断未提交。
+	if record.State == "pending" && record.CookieHash == nodeDigest(cookie) {
+		if err = s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: record.AgentIDs, EnableExecution: true}); err != nil {
+			return err
+		}
+		record, err = s.store.NodeGrant(ctx, scope, owner)
+		if err != nil {
+			return err
+		}
+		if record == nil {
+			return ErrNodeUnavailable
+		}
+	}
+	ids := slices.Clone(agentIDs)
+	candidates, err := s.candidates(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	for _, id := range record.AgentIDs {
+		if slices.ContainsFunc(candidates, func(candidate NodeCandidate) bool { return candidate.ID == id }) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	if record.State == "authorized" && record.CookieHash == nodeDigest(cookie) && slices.Equal(record.AgentIDs, ids) {
+		wasEnabled := record.ExecutionEnabled
+		record.ExecutionEnabled = true
+		_, err = s.executor.machineToken(ctx, *record)
+		if err == nil {
+			if !wasEnabled {
+				return s.setNodeState(ctx, *record, "authorized", "authorized")
+			}
+			return nil
+		}
+		if !errors.Is(err, ErrNodeLogin) {
+			return err
+		}
+	}
+	// 变更设备范围前先等待现有任务收尾，不能因新增成员打断其他群的执行。
+	local, err := s.listAgents(ctx)
+	if err != nil {
+		return err
+	}
+	for _, agent := range local {
+		job, err := s.store.ActiveNodeJob(ctx, owner, agent.AgentID)
+		if err != nil {
+			return err
+		}
+		if job != nil && job.NodeID == record.NodeID {
+			return ErrNodeUnavailable
+		}
+	}
+	if err = s.Revoke(ctx, cookie); err != nil {
+		return err
+	}
+	return s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: ids, EnableExecution: true})
 }
 
 func nodeDigest(value any) string {
@@ -294,9 +381,9 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 	}
 	record.ExecutionEnabled, record.RemoteURL = input.EnableExecution, s.remoteURL
 	if record.State == "authorized" {
-		return s.store.SetNodeState(ctx, *record, "authorized", "authorized")
+		return s.setNodeState(ctx, *record, "authorized", "authorized")
 	}
-	return s.store.SetNodeState(ctx, *record, "pending", "authorized")
+	return s.setNodeState(ctx, *record, "pending", "authorized")
 }
 
 type NodeJobView struct {
@@ -339,7 +426,7 @@ func (s *NodeService) reconcile(ctx context.Context, cookie string, record *team
 	if next == record.State {
 		return nil
 	}
-	if err = s.store.SetNodeState(ctx, *record, record.State, next); err != nil {
+	if err = s.setNodeState(ctx, *record, record.State, next); err != nil {
 		return err
 	}
 	record.State = next
@@ -362,7 +449,7 @@ func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
 		return nil
 	}
 	if record.State != "revoking" {
-		if err = s.store.SetNodeState(ctx, *record, record.State, "revoking"); err != nil {
+		if err = s.setNodeState(ctx, *record, record.State, "revoking"); err != nil {
 			return err
 		}
 	}
@@ -370,5 +457,15 @@ func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
 	if err != nil {
 		return err
 	}
-	return s.store.SetNodeState(ctx, *record, "revoking", "revoked")
+	return s.setNodeState(ctx, *record, "revoking", "revoked")
+}
+
+func (s *NodeService) setNodeState(ctx context.Context, record teamstore.NodeGrant, from, to string) error {
+	if err := s.store.SetNodeState(ctx, record, from, to); err != nil {
+		return err
+	}
+	if s.executor != nil {
+		s.executor.loop.Notify()
+	}
+	return nil
 }

@@ -145,6 +145,8 @@ export function ComposerInputRow({
       ) : mention.active && mention.items.length > 0 ? (
         <MentionTargetPopover
           anchorRef={textareaRef}
+          positionAnchorRef={composerShellRef}
+          placement="top"
           filter={mention.filter}
           items={mention.items}
           onClose={mention.onClose}

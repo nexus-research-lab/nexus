@@ -2731,6 +2731,12 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const { buildProcessSummary } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
   );
+  const interrupted = {type: "tool_result", tool_use_id: "cancel-tool", is_error: true, content: "Interrupted by user"};
+  const cancelledContent = [{type: "tool_use", id: "cancel-tool", name: "Bash", input: {}}, interrupted];
+  const [cancelledSegment] = projectToolRunSegments({interactiveToolUseIds: new Set(), live: false, projection: {content: cancelledContent, streamingIndexes: new Set()}, responseResumed: true, toolUseSummary: null});
+  assert.equal(cancelledSegment.phase, "stopped");
+  assert.equal(cancelledSegment.errorCount, 0);
+  assert.deepEqual(buildProcessSummary({pendingPermissionCount: 0, processContent: cancelledContent}).metrics, [{kind: "action", count: 1}]);
   const { I18nProvider } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-provider.tsx",
   );
@@ -5656,6 +5662,8 @@ test("Room stopping controls and unresolved tools share the interrupted terminal
   assert.doesNotMatch(toolHtml, />执行中</);
   assert.doesNotMatch(toolHtml, /处理中…/);
   assert.equal(resolveToolBlockStatus(undefined, false, "stopped"), "stopped");
+  assert.equal(resolveToolBlockStatus({result: {content: "Interrupted by user", is_error: true}}, false), "stopped");
+  assert.equal(resolveToolBlockStatus({result: {content: "real failure", is_error: true}}, false, "stopped"), "error");
   assert.equal(
     resolveToolBlockStatus({ result: { content: "ok", is_error: false } }, false, "stopped"),
     "success",
