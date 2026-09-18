@@ -467,3 +467,18 @@ Nexus `5af222fbb` 将宿主准备的 `SandboxResourcePolicy` 作为独立输入�
 | 未闭合项 | Nexus 尚未在 DM/Room/后台 runtime 创建和回收 scratch 租约；Bridge 提交尚未发布；无 Windows 实机/clean-host、持久回执、完整后代监督、网络、Claude、签名安装包证据 |
 
 本批只收口输入合同和 Windows Bridge 的进程树边界，不能据此宣称桌面沙箱或 P0–P7 完成；`releaseAccepted=false`，提交仅本地。
+
+## 2026-09-18：scratch lease 与 settings unknown 恢复增量
+
+Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，并把独立的 `SandboxResourcePolicy` 传给 Bridge；默认未显式指定的桌面 runtime 也进入 nxs scratch 路径。Bridge session 成功关闭后才释放 scratch；关闭失败时保留 scratch 和 runtime close fence。Nexus `46229c723` 增加 durable settings receipt 恢复：超过 5 分钟仍处于 `applying` 的 receipt 通过条件更新收口为 `reconcile_required`，结果持久化为 `applied: "unknown"`，等待新的 inspect/reconcile 请求。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| scratch helper | `GOWORK=off go test ./internal/runtime/sandboxresources` 通过；路径身份、私有目录、scope 重用、取消与幂等释放覆盖 |
+| runtime lifecycle | `GOWORK=off go test ./internal/runtime -run 'TestAgentClientCleanup|TestManagerCleanup'` 通过；Bridge 失败不释放 scratch，成功关闭后释放 |
+| DM/Room/background | `GOWORK=off go test ./internal/service/dm ./internal/service/room/realtime ./internal/service/memorymaintenance` 通过；三类入口均在 Build/initialize 前注入资源合同 |
+| durable unknown | `GOWORK=off go test ./internal/service/configuration` 通过；关闭数据库后重新打开，旧 `applying` receipt 恢复为 `reconcile_required` |
+| dependency pin | Nexus `go.mod` 使用 Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=`；固定提交由本机 file proxy 提供，未发布 |
+| 当前边界 | 内存 registry 尚不能在宿主崩溃后自动 sweep stale scratch；恢复 primitive 尚未接入 scheduler/startup 或实际 inspect/reconcile UI；全后代、句柄、秘密文件、网络、Claude、原生平台和安装包仍未验收 |
+
+本批次改变了真实启动和恢复路径，但仍不能宣称 P0–P7 或发布完成；`releaseAccepted=false`，本地提交未推送。

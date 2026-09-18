@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Carry a host-prepared sandbox resource contract into desktop nxs options with copy-and-validate semantics; restricted sessions may use read-only or workspace-write scopes, while Full Access rejects a restricted resource contract. This is only the input boundary: Nexus scratch leases, runtime cleanup, durable receipts and native platform acceptance remain pending.
 
+- Pin the local Bridge dependency to the Windows Job Object cleanup commits `6bb7b495`/`162cc79` and wire host-owned scratch leases into desktop nxs DM, Room and AutoDream runtimes. A failed Bridge close keeps the lease and runtime fence for recovery; stale scratch sweeping and native platform acceptance remain pending.
+
+- Persist expired settings `applying` receipts as `reconcile_required` with `applied: "unknown"` across service/database restart. This provides a durable recovery primitive and does not infer whether the underlying write committed or automatically replay it.
+
 ### Added
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
