@@ -510,3 +510,21 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 | 当前边界 | 该 primitive 不证明任意后代、句柄、秘密文件或网络已停止/清理；未连接设置页、启动调度、native cleanup、Provider/辅助进程、Claude、原生平台和安装包验收，`releaseAccepted=false` |
 
 本批次只把 scratch 从易失内存 registry 扩展为可发现、可审计、经用户明确批准才可执行的恢复边界；所有提交仍仅本地、未推送。
+
+## 2026-09-18：桌面 nxs 网络域名与 Provider 凭据准入
+
+新增 `DesktopSandboxNetworkAdmission` 作为宿主准备的网络 grant：精确 bare DNS
+域名、HTTPS、默认 443 端口才可通过；nil/空 grant 保持 Bridge 显式
+`allowedDomains=[]` 的 deny-all 语义。受限桌面 nxs 的持久 HTTP/SSE MCP 只有在该
+grant 精确匹配 URL 主机时才会进入 runtime；没有 grant 仍 fail closed，未受信的
+`headersHelper` 仍被拒绝。桌面 WebSearch 的 `allow_private_network` 也在启动时拒绝，
+不能借用户偏好绕过宿主网络策略。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Nexus 目标测试 | `GOWORK=off go test ./internal/runtime/clientopts` 通过；覆盖 nil/空 deny-all、域名规范化/重复消除、非 HTTPS/非 443/IP/userinfo 拒绝、HTTP/SSE MCP 未批准与已批准两条路径、sandbox network 配置复制以及 WebSearch private-network fail closed |
+| Provider 环境 | 覆盖 desktop nxs 只从解析 `RuntimeConfig` 投影 Provider credential；`ExtraEnv` 不能覆盖 `OPENAI_API_KEY`。该断言只证明输入来源和 merge 顺序 |
+| 安全结论 | 桌面受限 runtime 没有隐式外网 allowlist；HTTP/SSE MCP 与 private WebSearch 必须取得宿主准入，未声明或无效 grant 不会创建远程连接配置 |
+| 未闭合项 | 真实 Provider、DNS/代理、IPv4/IPv6、loopback/private、TCP/UDP、辅助进程/句柄/秘密文件、Bridge/native 网络执行、持久批准/epoch、Windows/macOS/Linux clean-host、Claude 与安装包尚未验收；env scrub 不能替代 OS 隔离 |
+
+本批次只完成 Nexus 进程内网络和 Provider 输入准入，未改变 SDK/Bridge 版本，也不构成完整网络沙箱或 P0–P7 发布通过；`releaseAccepted=false`，提交仅本地、未推送。

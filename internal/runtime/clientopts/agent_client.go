@@ -116,6 +116,11 @@ type AgentClientOptionsInput struct {
 	// builder only copies and validates it; scratch creation and cleanup remain
 	// owned by the runtime/session host.
 	SandboxResources *agentclient.SandboxResourcePolicy
+	// DesktopSandboxNetworkAdmission is a host-prepared exact-domain grant.
+	// A nil value means deny all sandbox network destinations. User/task
+	// settings must not manufacture this grant; changing it requires runtime
+	// replacement so pending connections cannot outlive the approval epoch.
+	DesktopSandboxNetworkAdmission *DesktopSandboxNetworkAdmission
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -155,12 +160,13 @@ func BuildAgentClientOptionsWithConfig(
 	// a false value disable the product default for desktop sessions.
 	input.DesktopSandboxEnabled = input.DesktopSandboxEnabled ||
 		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
-	if err := RejectDesktopSandboxRemoteMCP(
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		input.AgentMCPServers,
 		effectiveRuntimeKind,
 		input.AppMode,
 		input.DesktopSandboxEnabled,
 		input.PermissionMode,
+		input.DesktopSandboxNetworkAdmission,
 	); err != nil {
 		return agentclient.Options{}, nil, err
 	}
@@ -214,6 +220,14 @@ func BuildAgentClientOptionsWithConfig(
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
+	// Provider, vision and WebSearch credentials are host-resolved inputs. They
+	// must be projected again after ExtraEnv/ConfigurationEnv so task-scoped
+	// environment values cannot reroute a request or borrow another owner's
+	// secret. This is input ownership only; it does not claim OS process or
+	// handle isolation from arbitrary descendants.
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	// Long-term memory is an nxs host-owned workspace boundary. Configuration
 	// capabilities may add their own broker keys, but cannot redirect memory or
 	// opt the runtime into a remote store.
@@ -308,6 +322,14 @@ func BuildAgentClientOptionsWithConfig(
 	options, err = applyDesktopSandbox(options, input)
 	if err != nil {
 		return agentclient.Options{}, nil, err
+	}
+	options, err = applyDesktopSandboxNetworkAdmission(options, input)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	if strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") &&
+		input.DesktopSandboxEnabled && input.WebSearch.AllowPrivateNetwork {
+		return agentclient.Options{}, nil, errors.New("desktop sandbox rejects WebSearch private-network access without a host network grant")
 	}
 	return options, runtimeConfig, nil
 }
