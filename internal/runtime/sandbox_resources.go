@@ -135,6 +135,11 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid sandbox runtime root: %w", err)
 	}
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return nil, fmt.Errorf("validate sandbox runtime root: %w", err)
+	}
+	root = filepath.Clean(resolvedRoot)
 	base := filepath.Join(root, scratchDirName)
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		return nil, fmt.Errorf("create sandbox scratch parent: %w", err)
