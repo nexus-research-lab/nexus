@@ -77,20 +77,22 @@ type channelConfigRow struct {
 }
 
 type pairingRow struct {
-	PairingID     string
-	OwnerUserID   string
-	ChannelType   string
-	AccountID     string
-	ChatType      string
-	ExternalRef   string
-	ThreadID      string
-	ExternalName  sql.NullString
-	AgentID       string
-	Status        string
-	Source        string
-	LastMessageAt sql.NullTime
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	PairingID           string
+	OwnerUserID         string
+	ChannelType         string
+	AccountID           string
+	ChatType            string
+	ExternalRef         string
+	ThreadID            string
+	ExternalName        sql.NullString
+	AgentID             string
+	Status              string
+	Source              string
+	SessionKey          string
+	SessionMaterialized bool
+	LastMessageAt       sql.NullTime
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type pairingApprovalError = channelmanagement.PairingApprovalError

@@ -105,6 +105,13 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 		s.markIngressMessageFailed(ctx, claimed, normalized, err)
 		return nil, err
 	}
+	if s.control != nil {
+		if err = s.control.MarkIngressSessionMaterialized(ctx, normalized.ownerUserID, normalized.sessionKey); err != nil {
+			logger.Error("记录通道 Session 物化状态失败", "err", err)
+			s.markIngressMessageFailed(ctx, claimed, normalized, err)
+			return nil, err
+		}
+	}
 	if err = s.finishAcceptedIngress(ctx, claimed, normalized); err != nil {
 		logger.Error("标记通道消息幂等状态失败", "err", err)
 		return nil, err

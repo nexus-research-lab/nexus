@@ -5,6 +5,7 @@ package channels
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -55,14 +56,7 @@ func (s *ControlService) ListAgentExternalSessions(
 		if protocol.NormalizeSessionChatType(row.ChatType) != protocol.RoomTypeDM {
 			continue
 		}
-		sessionKey := protocol.BuildAgentAccountSessionKey(
-			row.AgentID,
-			protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
-			row.ChatType,
-			row.AccountID,
-			row.ExternalRef,
-			row.ThreadID,
-		)
+		sessionKey := pairingSessionKey(row)
 		stored, resolveErr := s.resolveDeliverySession(ctx, sessionKey)
 		if resolveErr != nil {
 			return nil, resolveErr
@@ -142,18 +136,24 @@ func (s *ControlService) ValidateExternalSessionGrant(
 	if channelType == "" || channelType == ChannelTypeInternal || channelType == ChannelTypeWebSocket {
 		return unavailableExternalSessionGrant("validation requires an external IM session")
 	}
-	pairing, err := s.findIngressPairingByTarget(
-		ctx,
-		normalizeChannelOwnerUserID(ownerUserID),
-		channelType,
-		strings.TrimSpace(parsed.AccountID),
-		protocol.NormalizeSessionChatType(parsed.ChatType),
-		strings.TrimSpace(parsed.Ref),
-		ingressPairingThreadID(parsed.ChatType, parsed.ThreadID),
-		PairingStatusActive,
-	)
+	pairing, err := s.findPairingBySessionKey(ctx, normalizeChannelOwnerUserID(ownerUserID), sessionKey, PairingStatusActive)
 	if err != nil {
 		return err
+	}
+	if pairing == nil {
+		pairing, err = s.findIngressPairingByTarget(
+			ctx,
+			normalizeChannelOwnerUserID(ownerUserID),
+			channelType,
+			strings.TrimSpace(parsed.AccountID),
+			protocol.NormalizeSessionChatType(parsed.ChatType),
+			strings.TrimSpace(parsed.Ref),
+			ingressPairingThreadID(parsed.ChatType, parsed.ThreadID),
+			PairingStatusActive,
+		)
+		if err != nil {
+			return err
+		}
 	}
 	if pairing == nil {
 		return unavailableExternalSessionGrant("pairing is not active")
@@ -162,4 +162,18 @@ func (s *ControlService) ValidateExternalSessionGrant(
 		return unavailableExternalSessionGrant("pairing is bound to another Agent")
 	}
 	return nil
+}
+
+func (s *ControlService) findPairingBySessionKey(ctx context.Context, ownerUserID, sessionKey, status string) (*pairingRow, error) {
+	query := `
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+FROM im_pairings
+WHERE owner_user_id = ` + s.bind(1) + ` AND session_key = ` + s.bind(2) + ` AND status = ` + s.bind(3) + `
+	LIMIT 1`
+	item, err := scanPairingScanner(s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(sessionKey), normalizePairingStatus(status, PairingStatusActive)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return s.findPairingSessionBySessionKey(ctx, ownerUserID, sessionKey)
+	}
+	return item, err
 }

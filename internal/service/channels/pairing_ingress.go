@@ -5,6 +5,7 @@ package channels
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -22,9 +23,18 @@ type ingressPairingTarget struct {
 }
 
 func (s *ControlService) ResolveIngressAgent(ctx context.Context, request IngressRequest) (string, error) {
+	agentID, _, err := s.ResolveIngressSession(ctx, request)
+	return agentID, err
+}
+
+// ResolveIngressSession resolves both the current Agent and the persisted
+// Session identity for an active pairing. A deleted materialized Session is
+// replaced with a new generation; the old key remains fenced by Session
+// deletion tombstones.
+func (s *ControlService) ResolveIngressSession(ctx context.Context, request IngressRequest) (string, string, error) {
 	target, pairingRequired := ingressPairingTargetFromRequest(ctx, request)
 	if !pairingRequired {
-		return strings.TrimSpace(request.AgentID), nil
+		return strings.TrimSpace(request.AgentID), "", nil
 	}
 	active, err := s.findIngressPairingByTarget(
 		ctx,
@@ -37,19 +47,58 @@ func (s *ControlService) ResolveIngressAgent(ctx context.Context, request Ingres
 		PairingStatusActive,
 	)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if active != nil {
 		if err = s.touchPairing(ctx, target.ownerUserID, active.PairingID); err != nil {
-			return "", err
+			return "", "", err
 		}
-		return active.AgentID, nil
+		// Group pairings may intentionally be account/topic wildcards. Their
+		// persisted key belongs to the wildcard row, while each concrete ingress
+		// still needs its own platform-scoped Session identity.
+		if active.AccountID != target.accountID || active.ThreadID != strings.TrimSpace(target.threadID) {
+			concreteTarget := pairingSessionTargetFromIngress(target.ownerUserID, target)
+			sessionKey, resolveErr := s.resolveConcretePairingSession(ctx, concreteTarget, *active)
+			return active.AgentID, sessionKey, resolveErr
+		}
+		sessionKey := pairingSessionKey(*active)
+		if s.router != nil && s.router.sessionProjectionConfigured() {
+			var stored *protocol.Session
+			if active.SessionMaterialized {
+				var resolveErr error
+				stored, resolveErr = s.resolveDeliverySession(ctx, sessionKey)
+				if resolveErr != nil {
+					return "", "", resolveErr
+				}
+			}
+			deleted, deletionErr := s.router.sessionDeleted(ctx, sessionKey)
+			if deletionErr != nil {
+				return "", "", deletionErr
+			}
+			if deleted || (active.SessionMaterialized && stored == nil) {
+				generation := s.idFactory("session")
+				sessionKey = protocol.BuildAgentAccountSessionKeyWithGeneration(
+					active.AgentID,
+					protocol.NormalizeSessionKeyChannelSegment(active.ChannelType),
+					active.ChatType,
+					active.AccountID,
+					active.ExternalRef,
+					active.ThreadID,
+					generation,
+				)
+				if sessionKey, err = s.rotatePairingSessionKey(ctx, target.ownerUserID, active.PairingID, pairingSessionKey(*active), sessionKey); err != nil {
+					return "", "", err
+				}
+			}
+		}
+		return active.AgentID, sessionKey, nil
 	}
 	candidateAgentID := s.ingressPairingCandidateAgent(ctx, request.AgentID, target)
 	if candidateAgentID == "" {
-		return "", errors.New("channel ingress requires an active pairing or agent_id")
+		return "", "", errors.New("channel ingress requires an active pairing or agent_id")
 	}
-	return s.createPendingIngressPairing(ctx, request, target, candidateAgentID)
+	agentID, err := s.createPendingIngressPairing(ctx, request, target, candidateAgentID)
+	return agentID, "", err
 }
 
 func ingressPairingTargetFromRequest(ctx context.Context, request IngressRequest) (ingressPairingTarget, bool) {
@@ -180,5 +229,60 @@ func (s *ControlService) touchPairing(ctx context.Context, ownerUserID string, p
 
 	query := "UPDATE im_pairings SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)
 	_, err := s.db.ExecContext(ctx, query, ownerUserID, strings.TrimSpace(pairingID))
+	return err
+}
+
+func (s *ControlService) rotatePairingSessionKey(ctx context.Context, ownerUserID, pairingID, expectedSessionKey, sessionKey string) (string, error) {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	pairingID = strings.TrimSpace(pairingID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return "", errors.New("pairing session_key is required")
+	}
+	unlockControl := s.lockControlMutation(ownerUserID)
+	defer unlockControl()
+	unlockPairing := s.lockPairingMutation(ownerUserID)
+	defer unlockPairing()
+	currentSessionKey := sessionKey
+	_, err := s.withChannelControlMutation(ctx, ownerUserID, 0, func(tx *sql.Tx) error {
+		if _, updateErr := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); updateErr != nil {
+			return updateErr
+		}
+		result, updateErr := tx.ExecContext(ctx, "UPDATE im_pairings SET session_key="+s.bind(1)+", session_materialized="+s.bind(2)+", updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(3)+" AND pairing_id="+s.bind(4)+" AND status="+s.bind(5)+" AND session_key="+s.bind(6), sessionKey, false, ownerUserID, pairingID, PairingStatusActive, strings.TrimSpace(expectedSessionKey))
+		if updateErr != nil {
+			return updateErr
+		}
+		affected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return rowsErr
+		}
+		if affected == 0 {
+			current, loadErr := s.getPairingRowFrom(ctx, tx, ownerUserID, pairingID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if current == nil || current.Status != PairingStatusActive {
+				return ErrPairingNotFound
+			}
+			currentSessionKey = pairingSessionKey(*current)
+		}
+		return nil
+	})
+	return currentSessionKey, err
+}
+
+// MarkIngressSessionMaterialized records that DM admission has successfully
+// created or updated the current pairing Session. It distinguishes an initial
+// pairing (which has no Session yet) from a deleted Session that needs rotation.
+func (s *ControlService) MarkIngressSessionMaterialized(ctx context.Context, ownerUserID, sessionKey string) error {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	return s.markIngressSessionMaterialized(ctx, ownerUserID, sessionKey)
+}
+
+func (s *ControlService) markIngressSessionMaterialized(ctx context.Context, ownerUserID, sessionKey string) error {
+	if _, err := s.db.ExecContext(ctx, "UPDATE im_pairings SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND session_key="+s.bind(2)+" AND status="+s.bind(3), ownerUserID, strings.TrimSpace(sessionKey), PairingStatusActive); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, "UPDATE im_pairing_sessions SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND session_key="+s.bind(2), ownerUserID, strings.TrimSpace(sessionKey))
 	return err
 }

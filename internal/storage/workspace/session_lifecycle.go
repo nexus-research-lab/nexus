@@ -64,6 +64,20 @@ type PendingSessionDeletion struct {
 	Lease                SessionDeletionLease
 }
 
+// IsSessionDeleted reports whether the exact Session key has a durable
+// deleting/deleted tombstone. A missing record means the key may be a fresh
+// pairing and must not be rotated merely because no Session has been created.
+func (s *SessionFileStore) IsSessionDeleted(workspacePath, sessionKey string) (bool, error) {
+	record, err := s.readSessionLifecycle(workspacePath, strings.TrimSpace(sessionKey))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return record != nil && (record.State == sessionLifecycleStateDeleting || record.State == sessionLifecycleStateDeleted), nil
+}
+
 // BeginSessionDeletion 在关闭 runtime 之前持久写入 deleting tombstone。
 func (s *SessionFileStore) BeginSessionDeletion(
 	workspacePath string,

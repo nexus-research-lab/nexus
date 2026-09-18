@@ -59,6 +59,10 @@ type sessionProjectionResolver interface {
 	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
 }
 
+type sessionDeletionResolver interface {
+	IsSessionDeleted(context.Context, string) (bool, error)
+}
+
 func (r *Router) resolveDeliverySession(
 	ctx context.Context,
 	sessionKey string,
@@ -73,6 +77,29 @@ func (r *Router) resolveDeliverySession(
 		return nil, errors.New("delivery session resolver is not configured")
 	}
 	return resolver.ResolveDeliverySession(ctx, strings.TrimSpace(sessionKey))
+}
+
+func (r *Router) sessionProjectionConfigured() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessions != nil
+}
+
+func (r *Router) sessionDeleted(ctx context.Context, sessionKey string) (bool, error) {
+	if r == nil {
+		return false, nil
+	}
+	r.mu.RLock()
+	resolver := r.sessions
+	r.mu.RUnlock()
+	deletion, ok := resolver.(sessionDeletionResolver)
+	if !ok {
+		return false, nil
+	}
+	return deletion.IsSessionDeleted(ctx, strings.TrimSpace(sessionKey))
 }
 
 // NewRouter 创建通道路由器。
