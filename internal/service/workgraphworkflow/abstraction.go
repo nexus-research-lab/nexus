@@ -34,7 +34,7 @@ const (
 8. 除 slash_name 和必须原样保留的 logical_key 外，title、description、objective、completion_criteria 及节点 subject/objective/deliverable/acceptance_criteria 必须使用%s；即使输入主要为其他语言，也要翻译后再抽象。简体中文输出不得保留“Core Subject Summary”这类可自然翻译的纯英文标题，专有名词除外。
 9. 验收条件应保持严格但改写为与主题无关的可验证表述。
 10. 只输出一个 JSON 对象，不要 Markdown、解释或代码围栏。
-JSON 结构：{"slash_name":"...","title":"...","description":"...","objective":"...","completion_criteria":["..."],"nodes":[{"logical_key":"...","role":"key|collaboration","subject":"...","objective":"...","deliverable":"...","acceptance_criteria":["..."]}]}`
+JSON 结构：{"slash_name":"...","title":"...","description":"...","objective":"...","completion_criteria":["..."],"artifact_contract":{"profile":"...","source_of_truth":"...","render_hint":"...","primary":{"name":"...","kind":"...","format":"...","purpose":"...","required_sections":["..."]},"supporting":[{"name":"...","kind":"...","format":"...","purpose":"...","required_sections":["..."]}]},"nodes":[{"logical_key":"...","role":"key|collaboration","subject":"...","objective":"...","deliverable":"...","acceptance_criteria":["..."]}]}`
 )
 
 // AbstractionSourceNode 是用于结构抽取的安全节点输入；只保留责任语义和粗粒度执行信号。
@@ -76,12 +76,13 @@ type AbstractedNode struct {
 }
 
 type AbstractionOutput struct {
-	SlashName          string           `json:"slash_name"`
-	Title              string           `json:"title"`
-	Description        string           `json:"description"`
-	Objective          string           `json:"objective"`
-	CompletionCriteria []string         `json:"completion_criteria"`
-	Nodes              []AbstractedNode `json:"nodes"`
+	SlashName          string                              `json:"slash_name"`
+	Title              string                              `json:"title"`
+	Description        string                              `json:"description"`
+	Objective          string                              `json:"objective"`
+	CompletionCriteria []string                            `json:"completion_criteria"`
+	ArtifactContract   *protocol.WorkGraphArtifactContract `json:"artifact_contract,omitempty"`
+	Nodes              []AbstractedNode                    `json:"nodes"`
 }
 
 type Abstractor interface {
@@ -183,6 +184,7 @@ type ValidatedAbstraction struct {
 	Description        string
 	Objective          string
 	CompletionCriteria []string
+	ArtifactContract   *protocol.WorkGraphArtifactContract
 	Nodes              []protocol.WorkGraphWorkflowNode
 }
 
@@ -246,9 +248,17 @@ func applyAbstraction(sourceNodes []protocol.WorkGraphWorkflowNode, abstractionN
 	if !hasTerminal {
 		return ValidatedAbstraction{}, fmt.Errorf("%w: abstraction omitted the terminal delivery", ErrInvalidInput)
 	}
+	artifactContract := cloneArtifactContract(output.ArtifactContract)
+	if artifactContract == nil {
+		// Older abstractors and owner-created graphs may not know the newer
+		// contract field. Preserve the graph's delivery semantics with a
+		// generic, explicit package instead of silently dropping the contract.
+		artifactContract = defaultArtifactContract(output.SlashName)
+	}
 	return ValidatedAbstraction{
 		SlashName: output.SlashName, Title: output.Title, Description: output.Description,
-		Objective: output.Objective, CompletionCriteria: cleanStrings(output.CompletionCriteria), Nodes: nodes,
+		Objective: output.Objective, CompletionCriteria: cleanStrings(output.CompletionCriteria),
+		ArtifactContract: artifactContract, Nodes: nodes,
 	}, nil
 }
 

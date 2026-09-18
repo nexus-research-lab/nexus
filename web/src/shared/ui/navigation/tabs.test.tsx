@@ -42,6 +42,9 @@ describe("UiTabs", () => {
     await user.click(active);
     expect(active.getAttribute("aria-pressed")).toBe("true");
     expect(active.hasAttribute("aria-current")).toBe(false);
+    expect(all.getAttribute("aria-pressed")).toBe("false");
+    expect(all.className).toContain("border-transparent");
+    expect(all.className).not.toContain("border-(--text-strong)");
   });
 
   it("renders page-level choices as a stable single-line indicator", () => {
@@ -60,6 +63,8 @@ describe("UiTabs", () => {
     const inactive = screen.getByRole("button", { name: "社区技能" });
     expect(active.className).toContain("whitespace-nowrap");
     expect(active.className).toContain("border-(--text-strong)");
+    expect(active.className).toContain("transition-[background,color]");
+    expect(active.className).not.toContain("border-color");
     expect(active.className).not.toContain("radius-control-sm");
     expect(inactive.className).toContain("border-transparent");
   });

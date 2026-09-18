@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Keep text-capable multimodal Provider models eligible for both conversation and vision
+  routing when their endpoint also reports embedding support.
+
+- Fix directory tab selection indicators so the previous option's underline disappears immediately when switching.
+
+- Expand WorkGraph template descriptions with practical use cases and the concrete records each method produces.
+
+- Consolidate WorkGraph detail-page guidance into the Slash command description and remove the separate user-facing artifact-contract panel.
+
+- Add nine reusable WorkGraph methodology templates, including First Principles, MECE strategy, Systems Thinking, Double Diamond, JTBD, Business Model, Pyramid Brief, OODA and a governed ontology operating model. Group them in the WorkGraph directory and persist an artifact contract that names the canonical model, human-readable brief, audit projection and render hint.
+
 - Surface model Token/context-limit failures with actionable guidance and clear stale conversation failure notices after a later send starts.
 
 - Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.

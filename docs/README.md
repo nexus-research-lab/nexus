@@ -12,6 +12,10 @@
 | 技术架构 | [Nexus 技术架构](./nexus-architecture-blueprint.md) |
 | 前端代码与 UI 规范 | [工程与设计系统治理](./specs/frontend-engineering-spec.md) · [视觉与交互唯一入口](../design.md) · [Agent 入口](../web/AGENTS.md) |
 | Room Skill 编写 | [中文指南](./guides/room-skill-authoring.md) · [英文指南](./guides/room-skill-authoring.en.md) |
+| WorkGraph 设计理念 | [问题定义与设计原则](./guides/workgraph-design-principles.zh-CN.md) |
+| WorkGraph 实现方案 | [实现流程与使用说明](./guides/workgraph-implementation-design.zh-CN.md) |
+| WorkGraph 代码解读 | [代码依据与保护边界](./guides/workgraph-code-reading-report.zh-CN.md) |
+| WorkGraph 方法论模板 | [模板分类与产物契约](./guides/workgrpah/workgraph-methodology-templates.zh-CN.md) |
 | Linux 生产隔离 | [Linux Runtime 隔离运维](./operations/runtime-isolation.md) |
 | Control 部署与账号迁移 | [Nexus Control 部署与迁移](./operations/control-migration.md) |
 | OpenAI Responses runtime | [OpenAI Responses runtime 集成](./specs/openai-responses-runtime-spec.md) |

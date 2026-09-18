@@ -40,13 +40,56 @@ import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner-c
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import { useAgentStore } from "@/store/agent";
-import type { WorkGraphWorkflow, WorkGraphWorkflowPreview } from "@/types/conversation/workgraph-workflow";
+import type {
+  WorkGraphMethodologyCategory,
+  WorkGraphWorkflow,
+  WorkGraphWorkflowPreview,
+} from "@/types/conversation/workgraph-workflow";
 
 import { useWorkGraphDeletion } from "./use-workgraph-deletion";
 import { WorkGraphDistillationDetail } from "./workgraph-distillation-detail";
+
+type WorkGraphDirectoryCategory = WorkGraphMethodologyCategory | "all";
+
+const BUILTIN_CATEGORY_BY_SLASH: Record<string, WorkGraphMethodologyCategory> = {
+  "business-model": "business",
+  "deep-research": "research",
+  "decision-brief": "strategy",
+  "double-diamond": "product",
+  "first-principles": "strategy",
+  "build-ship": "delivery",
+  "jtbd-discovery": "product",
+  "mece-strategy": "strategy",
+  "ooda-loop": "operations",
+  "ontology-model": "operations",
+  "ontology-operating-model": "operations",
+  "pyramid-brief": "expression",
+  "review-improve": "expression",
+  "systems-thinking": "strategy",
+};
+
+function getWorkGraphCategory(item: WorkGraphWorkflow): WorkGraphMethodologyCategory {
+  if (!item.built_in) return "saved";
+  const declared = item.methodology_category;
+  if (declared && [
+    "strategy",
+    "research",
+    "product",
+    "business",
+    "delivery",
+    "expression",
+    "operations",
+    "saved",
+    "other",
+  ].includes(declared)) {
+    return declared as WorkGraphMethodologyCategory;
+  }
+  return BUILTIN_CATEGORY_BY_SLASH[item.slash_name] ?? "other";
+}
 
 export function WorkGraphDistillationsDirectory() {
   const { locale, t } = useI18n();
@@ -54,6 +97,7 @@ export function WorkGraphDistillationsDirectory() {
   const { distillationId } = useParams<{ distillationId?: string }>();
   const [items, setItems] = useState<WorkGraphWorkflow[]>([]);
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<WorkGraphDirectoryCategory>("all");
   const [loading, setLoading] = useState(true);
   const [loadFailure, setLoadFailure] = useState<ResourceFailure | null>(null);
   const [loadedLocale, setLoadedLocale] = useState<string | null>(null);
@@ -130,8 +174,8 @@ export function WorkGraphDistillationsDirectory() {
       item.description,
       item.objective,
       ...item.nodes.flatMap((node) => [node.subject, node.objective, node.deliverable]),
-    ]));
-  }, [items, query]);
+    ]) && (category === "all" || getWorkGraphCategory(item) === category));
+  }, [category, items, query]);
   const selected = items.find((item) => item.id === distillationId) ?? null;
 
   const copyCommand = async (item: WorkGraphWorkflow) => {
@@ -274,12 +318,31 @@ export function WorkGraphDistillationsDirectory() {
           description={t("capability.workgraph_intro_description")}
           title={t("capability.workgraph_intro_title")}
         >
-          <CapabilityFilterBar>
-          <CapabilityFilterSearchInput
-            onChange={setQuery}
-            placeholder={t("capability.workgraph_search_placeholder")}
-            value={query}
-          />
+          <CapabilityFilterBar className="sm:justify-between">
+            <UiDirectoryTabs
+              activeValue={category}
+              ariaLabel={t("capability.workgraph_category_aria")}
+              onChange={setCategory}
+              options={[
+                { label: t("capability.workgraph_category_all"), value: "all" },
+                { label: t("capability.workgraph_category_strategy"), value: "strategy" },
+                { label: t("capability.workgraph_category_research"), value: "research" },
+                { label: t("capability.workgraph_category_product"), value: "product" },
+                { label: t("capability.workgraph_category_business"), value: "business" },
+                { label: t("capability.workgraph_category_delivery"), value: "delivery" },
+                { label: t("capability.workgraph_category_expression"), value: "expression" },
+                { label: t("capability.workgraph_category_operations"), value: "operations" },
+                { label: t("capability.workgraph_category_saved"), value: "saved" },
+                { label: t("capability.workgraph_category_other"), value: "other" },
+              ]}
+            />
+            <div className="flex min-w-0 flex-1 sm:ml-auto sm:max-w-[420px]">
+              <CapabilityFilterSearchInput
+                onChange={setQuery}
+                placeholder={t("capability.workgraph_search_placeholder")}
+                value={query}
+              />
+            </div>
           </CapabilityFilterBar>
           {loadFailure && hasSnapshot && !loadFailure.access ? (
           <UiResourceState
@@ -330,7 +393,10 @@ export function WorkGraphDistillationsDirectory() {
               ? {
                   primaryAction: {
                     label: t("state.clear_filters"),
-                    onClick: () => setQuery(""),
+                    onClick: () => {
+                      setQuery("");
+                      setCategory("all");
+                    },
                   },
                 }
               : { nextStep: t("capability.workgraph_empty_description") })}

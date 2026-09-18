@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - builtins.go：系统内置的双语通用责任拓扑；只进入目录、Slash catalog 与 runtime 展开，不写数据库或携带运行事实。
+//   - builtins.go / methodology_builtins.go：系统内置的双语通用责任拓扑与第一性原理、MECE、系统思维、双钻、JTBD、商业模式、金字塔、OODA、本体论运营模板；每个模板带结构化产物契约，只进入目录、Slash catalog 与 runtime 展开，不写数据库或携带运行事实。
 //   - service.go / save_confirmation.go：完成图抽取/复用、用户确认后的直接事务保存、按完整草图内容核验的受管 command 幂等保存、读取/删除、Slash descriptor 投影、含 plan 的保留名称校验与 runtime prompt 展开；旧请求不得推进新草图的保存标记，exact editor revision 冲突在写入前关闭。
 //   - slash_name_availability.go：按 owner 与 exact Draft 判断命名 Slash 是否被固定命令或其他命名图占用。
 //   - abstraction.go：把完整源节点/拓扑交给默认对话模型，默认保留结构关键 logical key、抽象具体任务语义，并校验主路径/terminal/关键节点与来源边界。

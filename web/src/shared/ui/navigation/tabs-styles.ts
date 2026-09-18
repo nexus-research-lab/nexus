@@ -29,7 +29,11 @@ export function getUiTabClassName(
   } = options;
 
   return cn(
-    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-0 transition-[background,border-color,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+    // The underline is the selection indicator.  Letting its color transition
+    // leaves the previously selected item visibly underlined for a frame after
+    // a switch (especially when the next item is clicked quickly).  Keep the
+    // text/background transition, but make the indicator state discrete.
+    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-0 transition-[background,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
     density === "compact" ? "h-8" : "h-9",
     getUiTypographyClassName({ role: "metadata", tone: active ? "strong" : "muted", weight: active ? "semibold" : "medium" }),
     "rounded-none border-x-0 border-t-0 border-b-2 bg-transparent",
