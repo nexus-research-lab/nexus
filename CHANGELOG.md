@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Make the desktop sandbox contract built in for `NEXUS_APP_MODE=desktop`; the legacy `NEXUS_DESKTOP_SANDBOX_ENABLED` environment opt-in no longer disables the default restricted path. Unsupported backend/platform contracts continue to fail closed.
+
 - Fail closed for persisted MCP `headersHelper` paths in desktop nxs sessions until the host supplies an independently attested helper capability; Full Access keeps the nxs lifecycle boundary and does not admit an arbitrary external helper.
 
 - Pin nxs long-term memory to the current Agent workspace after configuration capability merges, and pass the runtime-owned environment into MCP authentication helpers. Managed helpers cannot borrow known Provider credentials or redirect the memory root; external MCP process and OS-level file, handle, and network confinement remain pending.

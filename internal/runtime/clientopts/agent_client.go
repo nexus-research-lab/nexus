@@ -64,7 +64,9 @@ type RuntimeConfigForRuntimeResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
-	// DesktopSandboxEnabled is a host rollout switch, independent of tool approval mode.
+	// DesktopSandboxEnabled is retained for internal/test option plumbing. The
+	// production builder derives it from AppMode so desktop sessions cannot
+	// disable the sandbox through an environment switch.
 	DesktopSandboxEnabled bool
 	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
@@ -144,6 +146,11 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	// Desktop execution always enters the selected backend's restricted
+	// contract. Keep the explicit field for server/test callers, but do not let
+	// a false value disable the product default for desktop sessions.
+	input.DesktopSandboxEnabled = input.DesktopSandboxEnabled ||
+		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
 	if err := RejectDesktopSandboxRemoteMCP(
 		input.AgentMCPServers,
 		effectiveRuntimeKind,
