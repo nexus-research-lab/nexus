@@ -1,7 +1,7 @@
 # Shared Menu
 
 - `UiActionMenu` 默认最小宽度为 160px，适合行尾短操作；带说明或复杂内容的消费者按需要显式传入 `minWidth`，弹层继续受视口约束。
-- `UiActionMenu` 的选项文字统一居中，复用同一内容层的操作菜单保持一致。
+- `UiActionMenu` 的纯文字操作项居中；带自定义身份内容、图标、说明、尾部内容或勾选状态的条目左对齐，保持身份菜单和复杂选项的阅读基线。
 
 - `menu-styles.ts` 的 getMenuItemLayout 同时拥有 compact/default、单行/说明行的渲染尺寸与估算高度；UiMenuActionRow、Action Menu 估算和 Mention Option 共用，禁止分别维护相同数字。
 - `getMenuContentHeight` 统一累加行、分隔线、上下内边距和条目间距；Action、Workspace 与 Room 模型菜单直接消费。分隔线外观由 `MENU_SEPARATOR_CLASS_NAME` 持有，不再各自推导 footer 高度。Action 行透传原生 ref，且不参与 flex 压缩，长菜单通过外层滚动保留有限行高。

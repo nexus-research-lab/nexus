@@ -96,6 +96,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep sticky thought and tool headers covered across button states so scrolling detail text cannot overlap their labels.
+
+- Restore left-aligned labels for action-menu items with icons or secondary content while keeping plain text actions centered.
+
 - Align the web Launcher spotlight decoration with the brand icon while preserving desktop placement.
 
 - Unify online conversation errors with shared inline notices and scoped recovery actions, and distinguish task-status read failures from unknown mutations.
