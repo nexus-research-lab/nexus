@@ -6,7 +6,6 @@
     "nexus": {
       "worktree": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
       "commitBeforeEvidence": "89edc7a7fd96399e7d296dbc4b1cae6090859523",
-      "commit": "0adb7fd0614f2106f57196547e914de569599266",
       "branch": "codex/desktop-sandbox-isolated"
     },
     "bridge": {
