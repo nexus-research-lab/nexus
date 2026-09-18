@@ -3,6 +3,7 @@
 // POS: 浏览器仅保存未确认意图；消息事实仍以 Relay 为准，不自动发送。
 
 export interface TeamMessageIntent {
+  attachments?: import("@/lib/api/conversation/team-api").TeamMessageContent["attachments"];
   id: string;
   text: string;
   agentIds: string[];
@@ -41,7 +42,9 @@ function isIntent(value: unknown): value is TeamMessageIntent {
   if (!value || typeof value !== "object") return false;
   const intent = value as Partial<TeamMessageIntent>;
   return typeof intent.id === "string" && intent.id.length > 0 &&
-    typeof intent.text === "string" && intent.text.trim().length > 0 &&
+    typeof intent.text === "string" && (intent.text.trim().length > 0 || Boolean(intent.attachments?.length)) &&
+    (intent.attachments === undefined || (Array.isArray(intent.attachments) && intent.attachments.length <= 8 && intent.attachments.every((file) =>
+      typeof file.id === "string" && typeof file.name === "string" && typeof file.sha256 === "string" && file.sha256.length === 64 && Number.isSafeInteger(file.size) && file.size >= 0 && file.size <= 20 * 1024 * 1024))) &&
     Array.isArray(intent.agentIds) && intent.agentIds.every((id) => typeof id === "string") &&
     typeof intent.membershipVersion === "number" && Number.isSafeInteger(intent.membershipVersion) && intent.membershipVersion > 0;
 }

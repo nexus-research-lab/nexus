@@ -4,9 +4,10 @@
 
 export type MessageAttachmentKind = "text" | "image" | "file";
 
-export type MessageAttachmentScope = "agentWorkspace" | "roomConversation";
+export type MessageAttachmentScope = "agentWorkspace" | "roomConversation" | "relayRoom";
 
 export interface MessageAttachment {
+  relay_file?: { id: string; sha256: string };
   file_name: string;
   workspace_path: string;
   workspace_agent_id?: string;

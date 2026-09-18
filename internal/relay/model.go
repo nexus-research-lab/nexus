@@ -28,8 +28,39 @@ type ContentBlock struct {
 
 // MessageContent 是 Relay 保存的共享正文。
 type MessageContent struct {
-	Version int            `json:"version"`
-	Blocks  []ContentBlock `json:"blocks"`
+	Attachments []MessageAttachment `json:"attachments,omitempty"`
+	Version     int                 `json:"version"`
+	Blocks      []ContentBlock      `json:"blocks"`
+	Execution   *ExecutionMetadata  `json:"execution,omitempty"`
+}
+
+// MessageAttachment 仅引用已持久化的群文件，不接受本机路径或远程 URL。
+type MessageAttachment struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// ExecutionMetadata 只共享回复统计，不包含私人记忆、路径、工具输入和运行凭据。
+type ExecutionMetadata struct {
+	Model         string                  `json:"model,omitempty"`
+	ResultSummary *ExecutionResultSummary `json:"result_summary,omitempty"`
+}
+
+type ExecutionResultSummary struct {
+	DurationMS    float64         `json:"duration_ms"`
+	DurationAPIMS float64         `json:"duration_api_ms"`
+	NumTurns      int64           `json:"num_turns"`
+	TotalCostUSD  *float64        `json:"total_cost_usd,omitempty"`
+	Usage         *ExecutionUsage `json:"usage,omitempty"`
+}
+
+type ExecutionUsage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens,omitempty"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens,omitempty"`
 }
 
 // MessageMention 是消息中经过 Relay 校验的结构化 Agent 目标。
@@ -99,7 +130,17 @@ type RoomMember struct {
 // RoomDetails 是在线 Room 管理使用的成员快照。
 type RoomDetails struct {
 	RoomView
-	Members []RoomMember `json:"members"`
+	Members    []RoomMember     `json:"members"`
+	Deliveries []DeliveryStatus `json:"deliveries"`
+}
+
+// DeliveryStatus 是所有群成员可见的最小进度，不包含本机执行信息。
+type DeliveryStatus struct {
+	ID          string `json:"id"`
+	MessageID   string `json:"message_id"`
+	AgentID     string `json:"agent_id"`
+	State       string `json:"state"`
+	FailureCode string `json:"failure_code,omitempty"`
 }
 
 // RoomInvitation 是当前真人尚未处理的在线 Room 邀请。

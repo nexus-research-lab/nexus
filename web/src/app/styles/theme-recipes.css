@@ -464,7 +464,8 @@
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--surface-popover-background);
+    /* 吸顶遮挡优先于按钮的展开、悬浮和按下态背景，防止正文透出。 */
+    background: var(--surface-popover-background) !important;
   }
 
   [data-message-detail-scroll]:has([data-message-detail-sticky-header="true"])[data-message-detail-fade="both"] {
@@ -572,12 +573,13 @@
 
   .launcher-console-spotlights {
     top: 20px;
-    left: var(--launcher-wordmark-left);
+    left: calc(var(--launcher-wordmark-left) - 44px);
     width: 139px;
     height: 16px;
   }
 
   :root[data-desktop-runtime="true"] .launcher-console-spotlights {
+    left: var(--launcher-wordmark-left);
     width: 104px;
     height: 12px;
   }

@@ -22,8 +22,21 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
+
+// HandleCommands 只发布跨节点可分发的产品提示命令，不暴露宿主管理与私人 Skill 目录。
+func (h *Handlers) HandleCommands(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if _, ok := h.exchangeToken(w, r, false); !ok {
+		return
+	}
+	h.api.WriteSuccess(w, protocol.CommandCatalogData{Status: protocol.CommandCatalogStatusReady, Commands: []protocol.CommandDescriptor{
+		slashcommandsvc.PlanCommandDescriptor(), slashcommandsvc.BrowserCommandDescriptor(),
+		slashcommandsvc.VisualizeCommandDescriptor(), slashcommandsvc.WorkGraphCommandDescriptor(),
+	}})
+}
 
 const (
 	// 64 KiB 正文在 JSON Unicode 转义的最坏情况下约为 384 KiB。
@@ -93,11 +106,27 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	defer connection.CloseNow()
 	connection.SetReadLimit(1024)
 	ctx := connection.CloseRead(request.Context())
-	err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {
-		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		return wsjson.Write(writeCtx, connection, update)
-	})
+	for {
+		started := time.Now()
+		err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {
+			writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			return wsjson.Write(writeCtx, connection, update)
+		})
+		var closed websocket.CloseError
+		if ctx.Err() != nil || !errors.As(err, &closed) || closed.Code != websocket.StatusPolicyViolation || closed.Reason != "principal expired" {
+			break
+		}
+		// 仅正常到期可重新换取短令牌；撤销、越权与身份服务异常仍关闭连接。
+		if time.Since(started) < time.Second {
+			break
+		}
+		token, err = h.tokens.ExchangeRelayUserToken(ctx, authsvc.PrincipalFromContext(request.Context()))
+		if err != nil {
+			break
+		}
+		h.api.BaseLogger().Debug("Team WSS 凭证已刷新，重新订阅", "stream_id", streamID)
+	}
 	if ctx.Err() != nil {
 		return
 	}

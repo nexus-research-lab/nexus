@@ -138,3 +138,41 @@ for (const virtual of [false, true]) {
     expect(samples.filter((sample) => Math.abs(sample.gap) > 1)).toEqual([]);
   });
 }
+
+test("expanded thought headers cover scrolling detail text", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const thoughtPath = "/src/features/conversation/shared/message/blocks/thinking-block.tsx";
+    const railPath = "/src/features/conversation/shared/message/ui/message-rail.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { ThinkingBlock } = await import(thoughtPath);
+    const { MessageDetailScroll } = await import(railPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:30px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      React.createElement(MessageDetailScroll, null, React.createElement(ThinkingBlock, {
+        defaultExpanded: true, thinking: "Long thought content that must not show through the sticky title.\n\n".repeat(60),
+      }))));
+  });
+  const header = page.locator('[data-message-detail-sticky-header="true"]');
+  const scroll = page.locator('[data-message-detail-scroll]').last();
+  await expect(header).toBeVisible();
+  await scroll.evaluate((element) => { element.scrollTop = 120; });
+  const headerTop = (await header.boundingBox())!.y;
+  expect(Math.abs(headerTop - (await scroll.boundingBox())!.y)).toBeLessThan(1);
+  // 展开、悬浮和按下态都必须遮住已经滚过标题的正文。
+  const background = () => header.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await header.hover();
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await page.mouse.down();
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+});

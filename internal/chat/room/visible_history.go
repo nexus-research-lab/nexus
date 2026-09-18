@@ -42,7 +42,7 @@ func formatHistoryLine(message protocol.Message, agentNameByID map[string]string
 
 	switch role {
 	case "user":
-		return "User: " + content
+		return formatHumanSource(normalizeAnyString(message["author_user_id"]), normalizeAnyString(message["author_username"]), normalizeAnyString(message["author_display_name"])) + ": " + content
 	case "assistant":
 		agentID := normalizeAnyString(message["agent_id"])
 		return fmt.Sprintf("Assistant(%s): %s", firstNonEmpty(agentNameByID[agentID], agentID, "Assistant"), content)

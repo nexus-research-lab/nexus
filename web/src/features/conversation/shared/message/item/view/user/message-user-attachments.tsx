@@ -25,12 +25,14 @@ const ATTACHMENT_PRESENTATION: Record<
 };
 
 interface MessageUserAttachmentsProps {
+  onOpenAttachment?: (attachment: MessageAttachment) => void;
   attachments: MessageAttachment[];
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }
 
 export function MessageUserAttachments({
+  onOpenAttachment,
   attachments,
   onOpenWorkspaceFile,
   workspaceAgentId,
@@ -43,6 +45,7 @@ export function MessageUserAttachments({
     <div className="mt-2 flex flex-wrap justify-end gap-1.5">
       {attachments.map((attachment, index) => (
         <MessageUserAttachment
+          onOpenAttachment={onOpenAttachment}
           attachment={attachment}
           key={`${attachment.workspace_path}-${index}`}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -54,10 +57,12 @@ export function MessageUserAttachments({
 }
 
 function MessageUserAttachment({
+  onOpenAttachment,
   attachment,
   onOpenWorkspaceFile,
   workspaceAgentId,
 }: {
+  onOpenAttachment?: (attachment: MessageAttachment) => void;
   attachment: MessageAttachment;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
@@ -82,7 +87,7 @@ function MessageUserAttachment({
     </>
   );
 
-  if (!attachmentView.canOpen) {
+  if (!attachmentView.canOpen && !onOpenAttachment) {
     return (
       <UiBadge className="max-w-[260px] min-w-0 gap-1.5" size="sm" title={attachmentView.title}>
         {content}
@@ -94,7 +99,7 @@ function MessageUserAttachment({
       size="xs"
       variant="outline"
       className="max-w-[260px] min-w-0 gap-1.5"
-      onClick={() => openMessageUserAttachment(
+      onClick={() => onOpenAttachment ? onOpenAttachment(attachment) : openMessageUserAttachment(
         attachment,
         onOpenWorkspaceFile,
         workspaceAgentId,

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -93,6 +94,7 @@ type teamRelayStub struct {
 	watchStreamEpoch  string
 	watchUpdate       relaycontract.StreamUpdated
 	watchErr          error
+	watchExpireOnce   bool
 }
 
 type teamProjectorStub struct {
@@ -253,6 +255,10 @@ func (stub *teamRelayStub) Watch(
 	handle func(relaycontract.StreamUpdated) error,
 ) error {
 	stub.watchCalls++
+	if stub.watchExpireOnce && stub.watchCalls == 1 {
+		time.Sleep(time.Second)
+		return websocket.CloseError{Code: websocket.StatusPolicyViolation, Reason: "principal expired"}
+	}
 	stub.tokens = append(stub.tokens, token)
 	stub.streamID = streamID
 	stub.watchStreamEpoch = streamEpoch
@@ -291,6 +297,39 @@ func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
 		relay.streamID != "stream-1" || relay.watchStreamEpoch != "epoch-1" ||
 		tokens.principal == nil || tokens.principal.UserID != "local-owner" {
 		t.Fatalf("update=%+v relay=%+v principal=%+v", got, relay, tokens.principal)
+	}
+}
+
+func TestTeamStreamRenewsOnlyExpiredPrincipal(t *testing.T) {
+	for _, expired := range []bool{true, false} {
+		t.Run(fmt.Sprint(expired), func(t *testing.T) {
+			tokens := &teamTokenStub{token: "renewed"}
+			relay := &teamRelayStub{watchExpireOnce: expired, watchErr: websocket.CloseError{Code: websocket.StatusPolicyViolation, Reason: "principal invalidated"}}
+			done := make(chan struct{})
+			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { defer close(done); router.ServeHTTP(w, r) }))
+			defer server.Close()
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			connection, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-1", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {server.URL}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer connection.CloseNow()
+			_, _, _ = connection.Read(ctx)
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			want := 1
+			if expired {
+				want = 2
+			}
+			if tokens.calls != want || relay.watchCalls != want {
+				t.Fatalf("renewal calls: %d watches: %d", tokens.calls, relay.watchCalls)
+			}
+		})
 	}
 }
 

@@ -130,6 +130,7 @@ export interface MessageAssistantSectionProps {
   assistantContentMode: AssistantContentMode;
   assistantEmptyState?: ReactNode;
   assistantHeaderAction?: ReactNode;
+  assistantReplyTarget?: {name: string; avatar?: string | null; message?: string};
   canRespondToPermissions: boolean;
   compact: boolean;
   currentAgentAvatar?: string | null;

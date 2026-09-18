@@ -1,11 +1,21 @@
 /** Nexus Team gateway 的 M1 真人消息、同步与 stream 换代协议。 */
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
+import type { ResultSummary } from "@/types/conversation/message/entity";
 
 const TEAM_API_BASE_URL = `${getAgentApiBaseUrl()}/team`;
 
+export function getTeamCommands(signal: AbortSignal) {
+  return requestApi<import("@/types/generated/protocol").CommandCatalogData>(`${TEAM_API_BASE_URL}/commands`, {signal});
+}
+
 export interface TeamMessageContent {
+  attachments?: Array<{id: string; name: string; size: number; sha256: string}>;
   version: 1;
+  execution?: {
+    model?: string;
+    result_summary?: Pick<ResultSummary, "duration_ms" | "duration_api_ms" | "num_turns" | "total_cost_usd" | "usage">;
+  };
   blocks: Array<{ type: "markdown" | "room_invitation"; text: string; room_id?: string; invitee_user_id?: string; invited_at?: string }>;
 }
 
@@ -77,6 +87,15 @@ export interface TeamRoomMember {
 
 export interface TeamRoomDetails extends TeamRoomView {
   members: TeamRoomMember[];
+  deliveries?: TeamDeliveryStatus[];
+}
+
+export interface TeamDeliveryStatus {
+  id: string;
+  message_id: string;
+  agent_id: string;
+  state: "pending" | "leased" | "completed" | "failed" | "cancelled";
+  failure_code?: string;
 }
 
 export interface TeamRoomInvitation {
@@ -272,12 +291,13 @@ export function postTeamMessage(
   text: string,
   clientMessageId: string,
 	options?: { agentIds: string[]; expectedMembershipVersion: number },
+  attachments: NonNullable<TeamMessageContent["attachments"]> = [],
 ): Promise<TeamMessageCommit> {
   return requestApi<TeamMessageCommit>(
     `${TEAM_API_BASE_URL}/conversations/${encodeURIComponent(conversationId)}/messages`,
     {
       body: {
-        content: { version: 1, blocks: [{ type: "markdown", text }] },
+        content: { version: 1, blocks: [{ type: "markdown", text }], ...(attachments.length ? {attachments} : {}) },
 		mentions: options?.agentIds.map((memberId) => ({ member_type: "agent", member_id: memberId })) ?? [],
 		expected_membership_version: options?.agentIds.length ? options.expectedMembershipVersion : undefined,
       },

@@ -99,6 +99,34 @@ func (c *Client) Watch(
 	if err != nil {
 		return err
 	}
+	if handle == nil {
+		return errors.New("Relay WSS 缺少处理函数")
+	}
+	return c.watch(ctx, token, "/ws/relay", url.Values{"stream_id": {streamID}, "stream_epoch": {streamEpoch}}, func(update relaycontract.StreamUpdated) error {
+		if update.Type != "stream.updated" || update.StreamID != streamID || update.StreamEpoch != streamEpoch || update.HighWaterSeq < 0 {
+			return errors.New("Nexus Relay WSS 返回无效水位提示")
+		}
+		return handle(update)
+	})
+}
+
+// WatchDeliveries 只订阅签名节点范围的任务提示，领取仍走持久幂等 API。
+func (c *Client) WatchDeliveries(ctx context.Context, token string, handle func() error) error {
+	if handle == nil {
+		return errors.New("Relay WSS 缺少处理函数")
+	}
+	return c.watch(ctx, token, "/ws/relay/node", nil, func(update relaycontract.StreamUpdated) error {
+		if update.Type != "deliveries.updated" {
+			return errors.New("Nexus Relay WSS 返回无效任务提示")
+		}
+		return handle()
+	})
+}
+
+func (c *Client) watch(ctx context.Context, token, path string, query url.Values, handle func(relaycontract.StreamUpdated) error) error {
+	if c == nil || c.wsClient == nil || c.baseURL == "" {
+		return errors.New("Relay client 未配置")
+	}
 	token = strings.TrimSpace(token)
 	if token == "" || handle == nil {
 		return errors.New("Relay WSS 缺少 token 或处理函数")
@@ -112,11 +140,8 @@ func (c *Client) Watch(
 	} else {
 		parsed.Scheme = "ws"
 	}
-	parsed.Path = "/ws/relay"
-	parsed.RawQuery = url.Values{
-		"stream_id":    {streamID},
-		"stream_epoch": {streamEpoch},
-	}.Encode()
+	parsed.Path = path
+	parsed.RawQuery = query.Encode()
 	header := http.Header{"Authorization": {"Bearer " + token}}
 	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
 		HTTPClient: c.wsClient,
@@ -137,10 +162,6 @@ func (c *Client) Watch(
 				return ctx.Err()
 			}
 			return fmt.Errorf("读取 Nexus Relay WSS: %w", err)
-		}
-		if update.Type != "stream.updated" || update.StreamID != streamID ||
-			update.StreamEpoch != streamEpoch || update.HighWaterSeq < 0 {
-			return errors.New("Nexus Relay WSS 返回无效水位提示")
 		}
 		if err = handle(update); err != nil {
 			return err

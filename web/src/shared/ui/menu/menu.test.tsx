@@ -296,6 +296,22 @@ describe("UiSelectMenu listbox navigation", () => {
 });
 
 describe("UiActionMenu", () => {
+  it("centers plain actions but keeps structured action labels left aligned", () => {
+    render(<UiActionMenuContent items={[
+      { value: "plain", label: "Remove" },
+      { value: "identity", label: <span>Account</span> },
+      { value: "icon", label: "Settings", icon: <svg /> },
+      { value: "description", label: "Details", description: "Help text" },
+      { value: "trailing", label: "Shortcut", trailing: "⌘K" },
+      { value: "checked", label: "Toggle", checked: false },
+    ]} onSelect={() => {}} />);
+    expect(screen.getByRole("menuitem", {name: "Remove"}).className).toContain("text-center");
+    for (const name of ["Account", "Settings", "Details Help text", "Shortcut ⌘K"]) {
+      expect(screen.getByRole("menuitem", {name}).className).toContain("text-left");
+    }
+    expect(screen.getByRole("menuitemcheckbox", {name: "Toggle"}).className).toContain("text-left");
+  });
+
   it("keeps complete action copy in semantic, content-sized rows and hides decorative icons", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

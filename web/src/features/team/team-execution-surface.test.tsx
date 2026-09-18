@@ -23,7 +23,7 @@ it("uses only the bound local session for all four panels and forwards artifact 
     binding: {agent_id: "remote", local_agent_id: "local", room_id: "internal-room", conversation_id: "internal-conversation"},
     onSelectAgent: vi.fn(), onClose: vi.fn(), onOpenWorkspaceFile: vi.fn()};
   const view = render(<TeamExecutionSurface {...props} tab="workgraph" />);
-  expect(model.conversation.mock.lastCall?.[0].identity).toMatchObject({room_id: "internal-room", conversation_id: "internal-conversation", chat_type: "group"});
+  expect(model.conversation.mock.lastCall?.[0].identity).toMatchObject({agent_id: "local", room_id: "internal-room", conversation_id: "internal-conversation", chat_type: "group"});
   fireEvent.click(screen.getByText("artifact"));
   expect(props.onOpenWorkspaceFile).toHaveBeenCalledWith("report.md");
   view.rerender(<TeamExecutionSurface {...props} tab="subagents" />);
