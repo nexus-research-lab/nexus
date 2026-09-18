@@ -253,4 +253,16 @@ func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
 	}, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); err != nil {
 		t.Fatalf("stdio MCP should remain a separate lifecycle boundary: %v", err)
 	}
+	for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeBypassPermissions} {
+		err := RejectDesktopSandboxRemoteMCP(map[string]any{
+			"helper": map[string]any{
+				"type":          "http",
+				"url":           "https://mcp.example.com/mcp",
+				"headersHelper": "/tmp/unattested-helper",
+			},
+		}, runtimeKindNXS, "desktop", true, mode)
+		if err == nil || !strings.Contains(err.Error(), "headers helper") {
+			t.Fatalf("mode %v admitted unattested headers helper: %v", mode, err)
+		}
+	}
 }

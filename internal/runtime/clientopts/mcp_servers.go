@@ -96,7 +96,7 @@ func RejectDesktopSandboxRemoteMCP(
 	permissionMode sdkpermission.Mode,
 ) error {
 	if !desktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(appMode), "desktop") ||
-		!runtimeProfileForKind(runtimeKind).isNXS() || permissionMode == sdkpermission.ModeBypassPermissions {
+		!runtimeProfileForKind(runtimeKind).isNXS() {
 		return nil
 	}
 	for _, name := range sortedConfiguredMCPNames(configured) {
@@ -104,9 +104,16 @@ func RejectDesktopSandboxRemoteMCP(
 		if !ok {
 			continue
 		}
+		// An arbitrary headers helper is an external executable and may read
+		// credentials or create network connections outside the nxs-owned
+		// runtime boundary. Until the host supplies a separately attested
+		// helper capability, fail closed for every desktop permission mode.
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" {
+			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
+		}
 		serverType, _ := object["type"].(string)
 		serverType = strings.ToLower(strings.TrimSpace(serverType))
-		if serverType == "http" || serverType == "sse" {
+		if permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝外部 HTTP/SSE MCP；需要宿主显式网络域名准入")
 		}
 	}
