@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject persisted Agent HTTP/SSE MCP servers in restricted desktop nxs sessions until the host supplies reviewed network-domain admission. Stdio and in-process MCP lifecycle confinement remain separate Bridge/launcher work.
 
+- Carry a host-prepared sandbox resource contract into desktop nxs options with copy-and-validate semantics; restricted sessions may use read-only or workspace-write scopes, while Full Access rejects a restricted resource contract. This is only the input boundary: Nexus scratch leases, runtime cleanup, durable receipts and native platform acceptance remain pending.
+
 ### Added
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.

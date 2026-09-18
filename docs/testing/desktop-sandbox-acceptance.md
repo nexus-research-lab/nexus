@@ -454,3 +454,16 @@ Nexus 在 `internal/runtime/clientopts` 的桌面 nxs 准入层拒绝持久 MCP 
 | 安全边界 | 旧开关不能把桌面会话变成裸 runtime；能力/平台不满足时仍拒绝启动或任务发送 |
 
 该批次只完成产品默认入口收口，不证明 Claude 原生沙箱、Windows/Linux/macOS 实机、有效策略回执、完整进程树、持久恢复、scratch 或安装包发布验收；`releaseAccepted=false`。
+
+## 2026-09-18：宿主资源合同入口与 Windows Bridge 进程边界
+
+Nexus `5af222fbb` 将宿主准备的 `SandboxResourcePolicy` 作为独立输入复制并校验；资源合同只能在桌面受限模式进入 SDK options，Full Access 携带受限资源合同会在任务前失败关闭。Bridge `6bb7b495`、`162cc79` 为 Windows runtime 绑定 Job Object，并在宿主信号回调失败时仍继续本地后代收口，保留合并清理错误。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Nexus 目标测试 | `GOWORK=off go test ./internal/runtime/clientopts` 通过；覆盖资源策略复制、别名隔离、非法路径与 Full Access 冲突 |
+| Bridge 目标测试 | `go test ./internal/transport ./client` 通过；Windows amd64/arm64 transport 交叉编译通过 |
+| 安全结论 | 资源策略不是普通 task settings；未携带有效宿主合同时不会获得资源能力，Full Access 仍保留 nxs runtime/lifecycle 边界 |
+| 未闭合项 | Nexus 尚未在 DM/Room/后台 runtime 创建和回收 scratch 租约；Bridge 提交尚未发布；无 Windows 实机/clean-host、持久回执、完整后代监督、网络、Claude、签名安装包证据 |
+
+本批只收口输入合同和 Windows Bridge 的进程树边界，不能据此宣称桌面沙箱或 P0–P7 完成；`releaseAccepted=false`，提交仅本地。
