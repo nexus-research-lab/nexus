@@ -144,6 +144,15 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	if err := RejectDesktopSandboxRemoteMCP(
+		input.AgentMCPServers,
+		effectiveRuntimeKind,
+		input.AppMode,
+		input.DesktopSandboxEnabled,
+		input.PermissionMode,
+	); err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, nil, err
