@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Fail closed for persisted MCP `headersHelper` paths in desktop nxs sessions until the host supplies an independently attested helper capability; Full Access keeps the nxs lifecycle boundary and does not admit an arbitrary external helper.
+
 - Pin nxs long-term memory to the current Agent workspace after configuration capability merges, and pass the runtime-owned environment into MCP authentication helpers. Managed helpers cannot borrow known Provider credentials or redirect the memory root; external MCP process and OS-level file, handle, and network confinement remain pending.
 
 - Reject persisted Agent HTTP/SSE MCP servers in restricted desktop nxs sessions until the host supplies reviewed network-domain admission. Stdio and in-process MCP lifecycle confinement remain separate Bridge/launcher work.

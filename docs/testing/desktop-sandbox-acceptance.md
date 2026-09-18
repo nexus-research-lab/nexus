@@ -428,3 +428,16 @@ SDK `81104dd9c4a2a0c2a22c6cb7b021da4065a51351`、Nexus `064ccb7fa02e68199c0bb5be
 [证据说明与日志归档](./evidence/desktop-sandbox/2026-09-18-mcp-memory/README.md)、[基线报告](./evidence/desktop-sandbox/2026-09-18-mcp-memory/baseline-report.json)、[哈希清单](./evidence/desktop-sandbox/2026-09-18-mcp-memory/manifest.json)。
 
 本批次只证明 MCP authentication helper 的环境来源和 nxs 后台记忆根所有权。外部 MCP server 的 OS 进程/句柄/秘密文件/网络边界、完整后台 summary/transcript IO、持久回执与重启恢复、后代监督、scratch、默认策略、Claude、原生 Windows/Linux/macOS 安装包和生产发布仍未闭合；全部仅本地，Goal active。
+
+## 2026-09-18：未受信 MCP authentication helper 失败关闭
+
+Nexus 在 `internal/runtime/clientopts` 的桌面 nxs 准入层拒绝持久 MCP 配置中的任意 `headersHelper` 路径。该检查在默认受限与 Full Access 两种权限模式都执行；Full Access 仍保留 nxs runtime/lifecycle 边界，不能把未证明的外部认证进程当作安全例外。Claude、非桌面调用和 stdio MCP 不复用这条 nxs-only 规则。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 目标测试 | `GOWORK=off go test ./internal/runtime/clientopts` 通过；远程 MCP 受限拒绝、Full Access 兼容行为与 helper 两种模式拒绝均覆盖 |
+| 交叉编译 | `GOOS=windows GOARCH=amd64` 与 `GOOS=linux GOARCH=amd64` 的 clientopts 测试二进制均构建成功；这只是编译证据，不代表原生 helper 或 OS 权限验收 |
+| 安全结论 | 任意 helper 路径不能进入受限桌面 nxs 会话；错误包含 server 名称和 helper 准入原因 |
+| 未闭合项 | 宿主 attested helper 能力、helper 的 OS 进程/文件/句柄/网络边界、持久批准与跨平台原生验收仍未完成 |
+
+本批次仅是 Nexus 准入保护，未改变 SDK/Bridge 版本或声称外部 MCP 已完成沙箱隔离；`releaseAccepted=false`，提交仅本地。
