@@ -37,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Require an independent nxs `sandbox_notebook_files_v1` capability for restricted desktop Notebook reads. Notebook content and cell outputs use the restricted file executor, and old command/file acknowledgements cannot substitute for it; Notebook execution, remote network policy and whole-SDK IO remain separate acceptance work.
+
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
 
 - Include HTTP hook and MCP variable interpolation in Provider environment acceptance. Known host Provider credentials cannot be borrowed into request headers, URLs, arguments or renamed environment values; dedicated authentication variables retain their existing behavior.

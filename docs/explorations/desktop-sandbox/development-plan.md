@@ -6,6 +6,8 @@
 
 当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
+当前 Notebook 文件能力批次固定 SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982`、Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502`，Nexus 本地提交为 `5eb67ef0d`。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`）；固定 nxs SHA-256 为 `b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`。该批次仅本地提交，未推送。
+
 ## 1. 最终交付目标
 
 完善 SDK 执行任务的受控运行环境。沙箱是这个环境内建的安全边界，用户选择 nxs 或 Claude Code 后，由对应后端落实当前资源与权限策略，产品不提供独立的“开启/关闭沙箱”开关。自主沙箱核心仍在 nxs 建设，完成 macOS 和原生 Windows 的安装、运行、诊断、恢复与升级；Claude Code 复用其原生实现，由 Nexus/Bridge 补齐接入和验收。用户能明确知道本任务的文件、命令与网络边界；边界内正常工作无需重复批准，新增权限按精确操作审批；结果不明时先对账；Full Access 转换有明确的旧进程清理结果。领域权限、人工专属审批、Linux owner 隔离和现有工作流持续成立。
@@ -168,7 +170,7 @@ Nexus 只在选择 Claude 且权限模式不是 Full Access 时设置这条 Brid
 
 后代监督继续要求可部署的系统版本/授权路径、精确后代身份、事件缺失时拒绝确认、宿主崩溃后的事实恢复和真实清理验证。当前不接入依赖此证明的 scratch 自动回收；独立 IO 工作继续推进。搜索子批次已将 Glob/Grep 的前置路径、rg 和结果元数据纳入文件执行边界，并以独立搜索能力拒绝旧 SDK。
 
-媒体子批次已将 ViewImage 与主模型图片预处理的本地读取纳入同一边界，覆盖普通路径、file URL、符号链接、惰性附件引用和嵌套工具图片；读取先于分析缓存，普通路径先物化再发给 Provider。SDK/Bridge/Nexus 通过独立媒体文件能力拒绝旧版本。HTTP 图片下载和远程 URL 直传的网络策略仍单独待实现。Notebook Read 当前解析已读取的字节，本次未单独完成其原生验收；下一项继续沿清单收口启动/Skill/配置和后台访问，不能从媒体或搜索覆盖推断整个 SDK 已受限。
+媒体子批次已将 ViewImage 与主模型图片预处理的本地读取纳入同一边界，覆盖普通路径、file URL、符号链接、惰性附件引用和嵌套工具图片；读取先于分析缓存，普通路径先物化再发给 Provider。SDK/Bridge/Nexus 通过独立媒体文件能力拒绝旧版本。HTTP 图片下载和远程 URL 直传的网络策略仍单独待实现。Notebook 文件批次现在独立要求 `required_sandbox_notebook_files` 与 `sandbox_notebook_files_v1`，Notebook 内容和 cell output 先经受限文件执行器读取再解析，旧命令/文件能力不能暗含覆盖；该批次不包含 Notebook 执行、远程网络或整个 SDK IO。下一项继续沿清单收口启动/Skill/配置和后台访问，不能从媒体或 Notebook 读取覆盖推断整个 SDK 已受限。
 
 ### 2.5 网络
 
@@ -329,6 +331,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | 网络/Provider 准入子批次：`DesktopSandboxNetworkAdmission` 仅接受宿主准备的精确 HTTPS 域名，nil/空 grant 序列化为显式 deny-all；受限桌面 nxs 的 HTTP/SSE MCP 只有获宿主域名批准才可挂载，`headersHelper` 仍需独立受信 helper。Provider、视觉与 WebSearch 凭据在 ExtraEnv/ConfigurationEnv 合并后再次由解析配置覆盖，任务环境不能改写请求凭据；桌面 WebSearch 的 private-network 输入失败关闭。 | 仅完成 Nexus 输入准入和进程内环境所有权；没有把 env scrub 当作 OS 进程、秘密文件、句柄或网络出口隔离，也未证明域名 DNS/代理/IPv4/IPv6 与真实 Provider 可达性。Bridge/native Windows/macOS/Linux、辅助进程、持久批准/回执、Claude、安装包和 P3–P7 仍保留，`releaseAccepted=false`，提交只在本地 |
 | 2026-09-18 | 根据用户澄清补齐 Claude 接入的 Bridge 任务边界并完成 typed launch 批次：Bridge `35fbf72b` 增加 `RequireClaudeRestricted`、`CapabilityClaudeRestricted`、唯一 `--restricted` 参数注入/防伪造、快照/重启指纹、连接前失败关闭和 Full Access 例外；Nexus 已更新精确本地 pin，并在 Claude 受限模式只设置该合同、不再要求 nxs 能力。 | Bridge capability 只证明本次 argv 合同已安装，不是 Claude wire/OS 隔离回执；仍需固定 CLI 版本与 `--help`/真实受限行为、取消清理、macOS/Windows/Linux 与安装包证据。当前仍 `releaseAccepted=false` |
 | 2026-09-18 | 在 macOS 27.0/arm64 使用 `scripts/desktop/check-claude-restricted.mjs` 探测本机 `/Users/berhand/.local/bin/claude`：固定版本 `2.1.273`，`--help` 含 `--restricted`；`--restricted --dangerously-skip-permissions` 和 `--restricted --permission-mode bypassPermissions` 均在参数预检阶段 exit 1 并返回 `bypassPermissions not supported in restricted mode`。探测无 prompt、无 Provider 凭据且不发模型请求。 | 仅证明当前 CLI 的版本与原生参数语义；取消/清理、真实已认证会话、Provider/网络/文件/进程隔离、Windows/Linux/安装包仍未验收，不能移除 Claude P1/P6/P7 门禁，`releaseAccepted=false` |
+| 2026-09-18 | Notebook 文件能力子批次：SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982` 增加 `sandbox_notebook_files_v1`，Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502` 发送和验证独立 Notebook 要求；Nexus `5eb67ef0d` 将其纳入默认能力合同和进程指纹。固定模块为 `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`），nxs SHA-256 为 `b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`；SDK/Bridge 目标、Bridge race、Bridge→真实 nxs 和 Nexus runtime 目标测试通过，无模型请求 | 当前仅证明 macOS 本地 Notebook 内容/cell output 读取的能力准入；Notebook 执行、远程网络、完整 SDK IO、Provider/秘密文件/句柄、崩溃恢复、Windows/Linux、Claude 和安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
 
 ### 2026-09-18：scratch durable marker 与显式恢复 primitive
 

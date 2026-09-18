@@ -53,7 +53,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	}
 	yes := true
 	options.Sandbox = &agentclient.SandboxSettings{
-		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
+		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{
@@ -87,7 +87,7 @@ func cloneClaudeSandboxSettings(input *agentclient.SandboxSettings) (*agentclien
 	if input == nil {
 		return &agentclient.SandboxSettings{}, nil
 	}
-	if input.Resources != nil || input.RequireSandbox || input.RequireFileTools || input.RequireSearchTools || input.RequireMediaFiles || input.RequireSkillFiles || input.RequireContextFiles || input.RequireProjectFiles || input.RequireManagedPolicy || input.RequireSettingsFiles || input.RequireSettingsWrites {
+	if input.Resources != nil || input.RequireSandbox || input.RequireFileTools || input.RequireSearchTools || input.RequireMediaFiles || input.RequireNotebookFiles || input.RequireSkillFiles || input.RequireContextFiles || input.RequireProjectFiles || input.RequireManagedPolicy || input.RequireSettingsFiles || input.RequireSettingsWrites {
 		return nil, fmt.Errorf("Claude native restricted contract cannot carry nxs sandbox requirements")
 	}
 	settings := *input

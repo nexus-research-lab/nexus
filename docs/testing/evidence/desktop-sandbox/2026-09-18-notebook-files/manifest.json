@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "README.md",
+      "size": 1354,
+      "sha256": "d747ea944322a69fe6f167fd0568fc0a9aa533074f93fa1a5d41049a32a38f1a"
+    },
+    {
+      "path": "bridge-race.log",
+      "size": 74,
+      "sha256": "1f78f82cabb1dd9dd883991c5f4bd8bb71b49781d5756c6ff92dfea2aa60573c"
+    },
+    {
+      "path": "bridge-real.log",
+      "size": 72,
+      "sha256": "5a20e565fa0275b4990cb5f7263d27dd231ec31272a014fe301ff6fce084b246"
+    },
+    {
+      "path": "bridge-target.log",
+      "size": 150,
+      "sha256": "23de184354e5c1fed5263d566db4c1946b00bf603889e4106517b280a90e1c31"
+    },
+    {
+      "path": "nexus-target.log",
+      "size": 145,
+      "sha256": "b3549b8d3800e61f21181ab0dd9d67852cb525046f7d11a8bb4e09b108dbfb30"
+    },
+    {
+      "path": "report.json",
+      "size": 4468,
+      "sha256": "306ca9f27625b5528dbe5db0cb54cf5d9f5bbdee71c60f41a390ad7e10222c76"
+    },
+    {
+      "path": "sdk-target.log",
+      "size": 143,
+      "sha256": "7f40283a78489d1115bcc13d65e88b4c77d6c1435094179ba1d007f856e2ac9a"
+    }
+  ]
+}

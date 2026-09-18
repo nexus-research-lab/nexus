@@ -592,3 +592,23 @@ runtime 是 Claude 且权限模式不是 Full Access 时，Bridge 才注入恰�
 | 未闭合项 | 固定 Claude CLI 版本、`claude --help`/真实 `--restricted` 行为、取消/清理、macOS/Windows/Linux clean-host 和安装包验收仍未完成；`releaseAccepted=false` |
 
 本批次提交和模块只保留在本地 worktree，未推送；真实 Claude CLI 与平台证据必须另行归档后，才能把 Claude 从未闭合状态移出 P1/P6/P7 门禁。
+
+## 2026-09-18：Notebook 文件能力独立准入
+
+SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982` 增加
+`sandbox_notebook_files_v1`，Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502`
+发送并验证 `required_sandbox_notebook_files`，Nexus 桌面 nxs 将该能力纳入默认
+受限合同和进程策略指纹。Nexus 固定本地 Bridge 模块
+`v0.1.34-0.20260918053632-8a4576ba97ec`，checksum 为
+`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`；固定 nxs SHA-256 为
+`b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| SDK 目标包 | `GOWORK=off GOPROXY=off go test ./cmd/nxs ./protocol` 通过；初始化前校验 Notebook 要求依赖必需沙箱和原生文件能力，缺能力不改变会话状态 |
+| Bridge 目标与竞态 | `GOWORK=off GOPROXY=off go test ./client ./protocol` 与 `go test -race ./client` 通过；覆盖能力顺序、旧/部分能力拒绝、nxs/Claude 后端区分、进程替换指纹和无 transport 写入失败 |
+| Bridge → 真实 nxs | `NEXUS_SANDBOX_TEST_BINARY=/private/tmp/nexus-notebook-evidence/nxs` 的 `TestNotebookFileSandbox` 通过，无模型请求；nxs 回报 `sandbox_notebook_files_v1` |
+| Nexus 宿主 | 固定 Bridge 模块下 `go test ./internal/runtime/clientopts ./internal/runtime` 通过；nxs 默认合同要求 Notebook 能力，Claude 不冒用该 nxs 能力 |
+| 固定版本 | SDK `7bc597ea`、Bridge `8a4576ba`、模块 checksum、binary SHA-256、命令和日志见 [Notebook 证据目录](./evidence/desktop-sandbox/2026-09-18-notebook-files/README.md)；提交仅本地、未推送 |
+
+本批次只证明 macOS nxs 本地 Notebook 内容与 cell output 读取的能力准入，读取复用受限文件执行器。Notebook 执行、远程网络、完整 SDK IO、Provider/秘密文件/句柄、崩溃恢复、Windows/Linux 原生、Claude 和签名安装包仍未验收；`releaseAccepted=false`。
