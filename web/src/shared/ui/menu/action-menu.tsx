@@ -309,7 +309,7 @@ function ActionMenuItem({
     <UiMenuActionRow
       active={item.active}
       checked={item.checked}
-      className="text-center"
+      className={typeof item.label !== "string" || item.icon || item.description || item.trailing || item.checked !== undefined ? undefined : "text-center"}
       contentSized
       density={density}
       disabled={disabled || item.disabled}
