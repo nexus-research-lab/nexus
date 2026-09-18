@@ -198,6 +198,50 @@ func TestControlServiceUpdatePairingPatchesOnlyRequestedFields(t *testing.T) {
 	}
 }
 
+func TestControlServiceUpdatePairingAgentRotatesSessionIdentity(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeTelegram,
+		ChatType:    protocol.RoomTypeDM,
+		ExternalRef: "chat-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("创建配对失败: %v", err)
+	}
+	if _, err = db.Exec("UPDATE im_pairings SET session_materialized = 1 WHERE pairing_id = ?", created.PairingID); err != nil {
+		t.Fatalf("准备已物化 Session 失败: %v", err)
+	}
+	agentB := "agent-b"
+	updated, err := service.UpdatePairing(context.Background(), "owner-a", created.PairingID, UpdatePairingRequest{AgentID: &agentB})
+	if err != nil {
+		t.Fatalf("重新绑定 Agent 失败: %v", err)
+	}
+	if updated.AgentID != agentB {
+		t.Fatalf("重新绑定 Agent 未生效: %+v", updated)
+	}
+	var sessionKey string
+	var materialized bool
+	if err = db.QueryRow("SELECT session_key, session_materialized FROM im_pairings WHERE pairing_id = ?", created.PairingID).Scan(&sessionKey, &materialized); err != nil {
+		t.Fatalf("读取重绑定 Session 失败: %v", err)
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.AgentID != agentB || parsed.Generation == "" || materialized {
+		t.Fatalf("重绑定必须生成未物化的新 Session: key=%q parsed=%+v materialized=%v", sessionKey, parsed, materialized)
+	}
+	var concreteCount int
+	if err = db.QueryRow("SELECT COUNT(*) FROM im_pairing_sessions WHERE pairing_id = ?", created.PairingID).Scan(&concreteCount); err != nil {
+		t.Fatalf("读取具体 Session 映射失败: %v", err)
+	}
+	if concreteCount != 0 {
+		t.Fatalf("重绑定不得保留旧具体 Session 映射: count=%d", concreteCount)
+	}
+}
+
 func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
