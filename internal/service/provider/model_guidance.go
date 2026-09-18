@@ -71,12 +71,15 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 	merge(decodeModelAutoCapabilities(model.CapabilitiesAutoJSON), "provider_record", true)
 	merge(decodeModelCapabilities(model.CapabilitiesOverrideJSON), "user", false)
 	yes := func(v *bool) bool { return v != nil && *v }
-	// Preserve unknown ordinary chat IDs. Known non-chat models need explicit text output.
-	chat := item.ProviderKind == ProviderKindLLM && !yes(c.Embedding)
+	// Preserve unknown ordinary chat IDs. A model that explicitly produces text
+	// remains chat-capable even when the same endpoint also advertises embeddings;
+	// embedding support is not an exclusive model kind. Only an embedding-only
+	// record with no text evidence is kept out of chat.
+	chat := item.ProviderKind == ProviderKindLLM
 	if c.TextOutput != nil {
 		chat = chat && *c.TextOutput
 	} else {
-		chat = chat && !yes(c.ImageOutput)
+		chat = chat && !yes(c.Embedding) && !yes(c.ImageOutput)
 		switch strings.ToLower(model.Category) {
 		case "image", "embedding", "audio", "video", "rerank":
 			chat = false
