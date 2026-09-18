@@ -18,6 +18,92 @@ const (
 	staleAuditAfter    = 5 * time.Minute
 )
 
+// RecoverStaleApplyingChanges closes durable applying receipts whose executor
+// lease has expired. It only records that the outcome requires reconciliation;
+// it never guesses whether the underlying settings write committed.
+//
+// This is intentionally a recovery primitive. Callers still need to inspect
+// the current settings state before presenting a resolved outcome.
+func (s *Service) RecoverStaleApplyingChanges(
+	ctx context.Context,
+	ownerUserID string,
+	limit int,
+) ([]AuditRecord, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, errors.New("owner_user_id 不能为空")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	cutoff := time.Now().UTC().Add(-staleAuditAfter)
+	query := fmt.Sprintf(
+		`SELECT request_id
+		 FROM configuration_changes
+		 WHERE owner_user_id = %s AND status = 'applying' AND updated_at <= %s
+		 ORDER BY updated_at ASC
+		 LIMIT %s`,
+		s.dialect.Bind(1), s.dialect.Bind(2), s.dialect.Bind(3),
+	)
+	rows, err := s.db.QueryContext(ctx, query, ownerUserID, cutoff, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	requestIDs := make([]string, 0, limit)
+	for rows.Next() {
+		var requestID string
+		if err := rows.Scan(&requestID); err != nil {
+			return nil, err
+		}
+		requestIDs = append(requestIDs, requestID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	recovered := make([]AuditRecord, 0, len(requestIDs))
+	recoveryErr := errors.New("配置执行租约已过期，实际写入结果未知；必须重新 inspect 并使用新的 request_id reconcile")
+	for _, requestID := range requestIDs {
+		resultJSON := string(sanitizedJSON(map[string]any{
+			"applied": "unknown",
+			"error":   recoveryErr.Error(),
+		}))
+		updateQuery := fmt.Sprintf(
+			`UPDATE configuration_changes
+			 SET result_json = %s, status = 'reconcile_required', error_message = %s,
+			     updated_at = %s
+			 WHERE owner_user_id = %s AND request_id = %s
+			   AND status = 'applying' AND updated_at <= %s`,
+			s.dialect.Bind(1), s.dialect.Bind(2), s.dialect.CurrentTimestamp(),
+			s.dialect.Bind(3), s.dialect.Bind(4), s.dialect.Bind(5),
+		)
+		updated, err := s.db.ExecContext(
+			ctx, updateQuery, resultJSON, recoveryErr.Error(),
+			ownerUserID, requestID, cutoff,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if count, err := updated.RowsAffected(); err != nil {
+			return nil, err
+		} else if count == 0 {
+			continue
+		}
+		record, err := s.auditByID(ctx, ownerUserID, requestID)
+		if err != nil {
+			return nil, err
+		}
+		if record != nil {
+			recovered = append(recovered, *record)
+		}
+	}
+	return recovered, nil
+}
+
 func (s *Service) beginAudit(
 	ctx context.Context,
 	actor *resolvedActor,
