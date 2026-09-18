@@ -116,6 +116,37 @@
       ],
       "exitCode": 0,
       "log": "nexus-target.log"
+    },
+    {
+      "name": "nexus-make-check-go",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "make",
+        "check-go"
+      ],
+      "exitCode": 0,
+      "log": "make-check-go.log",
+      "note": "GO_CHECK_BASE_REF=dc2ec1583 forced the incremental Go scope to include the committed Notebook code."
+    },
+    {
+      "name": "nexus-make-check-architecture",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "make",
+        "check-architecture"
+      ],
+      "exitCode": 0,
+      "log": "make-check-architecture.log"
     }
   ],
   "contract": {
@@ -133,5 +164,10 @@
     "This batch does not prove Notebook execution, remote network policy, or whole-SDK IO confinement.",
     "Provider credential separation, descendant/handle/secret-file cleanup, durable recovery, Claude acceptance, signed packages, and P0-P7 release gates remain open.",
     "The nxs binary and Bridge module are local evidence and are not published or available as a clean-host dependency."
-  ]
+  ],
+  "nexusCommittedRevisions": [
+    "2fa81e09f",
+    "0e3e1c21f"
+  ],
+  "nexusWorkingTreeCleanAtVerification": true
 }

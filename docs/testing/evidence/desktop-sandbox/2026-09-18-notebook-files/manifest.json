@@ -22,14 +22,24 @@
       "sha256": "23de184354e5c1fed5263d566db4c1946b00bf603889e4106517b280a90e1c31"
     },
     {
+      "path": "make-check-architecture.log",
+      "size": 61,
+      "sha256": "a2d1d8f9adb696233d402fa3adc1147abcfef1968bf3256a1bdfa3e8cdc5b7b7"
+    },
+    {
+      "path": "make-check-go.log",
+      "size": 13034,
+      "sha256": "19eaa574d90748a1ad4ff30488056c6d956c35943822bb686f6f51d274326061"
+    },
+    {
       "path": "nexus-target.log",
       "size": 145,
       "sha256": "b3549b8d3800e61f21181ab0dd9d67852cb525046f7d11a8bb4e09b108dbfb30"
     },
     {
       "path": "report.json",
-      "size": 4468,
-      "sha256": "306ca9f27625b5528dbe5db0cb54cf5d9f5bbdee71c60f41a390ad7e10222c76"
+      "size": 5643,
+      "sha256": "df18239156d856ba3c5a6dbdf732c21972d443ff17b5b6c4b8ce36bd274a69cf"
     },
     {
       "path": "sdk-target.log",
