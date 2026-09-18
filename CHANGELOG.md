@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Connect the Bridge's Claude restricted admission probe to Nexus. The exact
+  resolved CLI must accept `--restricted --help` before a stream-json session
+  starts; failures, timeouts, or missing help text fail closed, and common
+  Provider/proxy secrets are scrubbed from the probe environment. This closes
+  the Bridge launch preflight only; authenticated Claude, OS, Provider,
+  network, file, descendant cleanup, and platform acceptance remain pending.
+
 - Route restricted Claude Code sessions through a separate Bridge typed launch contract. Nexus now requests `RequireClaudeRestricted` without claiming nxs `required_sandbox_v1`; Bridge injects exactly one native `--restricted` argument and rejects nxs, bypass, dangerous-bypass, or untyped argument attempts. Claude Full Access remains an explicit exception and does not receive `--restricted`; this proves only the Bridge launch contract, while Claude CLI version, OS isolation, and clean-host acceptance remain pending.
 
 - Add a no-model-request Claude CLI probe that records the explicitly pinned local version, verifies `--restricted` in `--help`, and confirms Claude rejects both dangerous and permission-mode bypasses in restricted mode. The probe records cancellation, cleanup, Provider, network, file and platform isolation as separate pending evidence.
