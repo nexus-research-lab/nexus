@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 var persistedMCPServerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
@@ -79,6 +80,46 @@ func MergeAgentMCPServers(
 		merged[name] = server
 	}
 	return merged, nil
+}
+
+// RejectDesktopSandboxRemoteMCP rejects persisted Agent HTTP/SSE servers when
+// the desktop sandbox is enforced. The current desktop contract sends an
+// explicit empty network allowlist to Bridge, which means external network
+// MCP cannot be admitted until the host supplies a reviewed domain grant.
+// In-process SDK servers and stdio servers remain separate concerns: this
+// check does not claim an OS boundary for their child processes.
+func RejectDesktopSandboxRemoteMCP(
+	configured map[string]any,
+	runtimeKind string,
+	appMode string,
+	desktopSandboxEnabled bool,
+	permissionMode sdkpermission.Mode,
+) error {
+	if !desktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(appMode), "desktop") ||
+		!runtimeProfileForKind(runtimeKind).isNXS() || permissionMode == sdkpermission.ModeBypassPermissions {
+		return nil
+	}
+	for _, name := range sortedConfiguredMCPNames(configured) {
+		object, ok := configured[name].(map[string]any)
+		if !ok {
+			continue
+		}
+		serverType, _ := object["type"].(string)
+		serverType = strings.ToLower(strings.TrimSpace(serverType))
+		if serverType == "http" || serverType == "sse" {
+			return agentMCPServerError(name, "桌面沙箱当前拒绝外部 HTTP/SSE MCP；需要宿主显式网络域名准入")
+		}
+	}
+	return nil
+}
+
+func sortedConfiguredMCPNames(configured map[string]any) []string {
+	names := make([]string, 0, len(configured))
+	for name := range configured {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func validateAgentMCPServerName(name string, builtIn map[string]sdkmcp.ServerConfig) error {

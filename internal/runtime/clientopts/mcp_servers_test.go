@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type countingMCPRuntimeResolver struct {
@@ -228,5 +229,28 @@ func TestBuildAgentClientOptionsMergesAgentMCPServersBeforeRuntimeResolution(t *
 	}
 	if resolver.calls != 0 {
 		t.Fatalf("invalid MCP config reached runtime resolver: calls=%d", resolver.calls)
+	}
+}
+
+func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
+	configured := map[string]any{
+		"remote": map[string]any{
+			"type": "http",
+			"url":  "https://mcp.example.com/mcp",
+		},
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); err == nil || !strings.Contains(err.Error(), "remote") {
+		t.Fatalf("remote MCP was admitted in desktop sandbox: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions); err != nil {
+		t.Fatalf("explicit bypass should retain existing MCP behavior: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindClaude, "desktop", true, sdkpermission.ModeDefault); err != nil {
+		t.Fatalf("Claude must not receive nxs-only rejection: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(map[string]any{
+		"local": map[string]any{"type": "stdio", "command": "local-mcp"},
+	}, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); err != nil {
+		t.Fatalf("stdio MCP should remain a separate lifecycle boundary: %v", err)
 	}
 }
