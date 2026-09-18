@@ -441,3 +441,16 @@ Nexus 在 `internal/runtime/clientopts` 的桌面 nxs 准入层拒绝持久 MCP 
 | 未闭合项 | 宿主 attested helper 能力、helper 的 OS 进程/文件/句柄/网络边界、持久批准与跨平台原生验收仍未完成 |
 
 本批次仅是 Nexus 准入保护，未改变 SDK/Bridge 版本或声称外部 MCP 已完成沙箱隔离；`releaseAccepted=false`，提交仅本地。
+
+## 2026-09-18：桌面默认受限策略
+
+配置与 client-options builder 现在把 `NEXUS_APP_MODE=desktop` 直接映射为沙箱合同；`NEXUS_DESKTOP_SANDBOX_ENABLED=false` 不再关闭该路径。服务端模式仍使用独立的 runtime isolation 入口。选定后端或平台无法证明所需能力时，builder 在发送任务前失败关闭。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 配置回归 | desktop 模式即使设置旧环境变量为 `false` 仍得到 `DesktopSandboxEnabled=true` |
+| builder 回归 | `AppMode=desktop` 且未显式设置标记时进入桌面策略；server 模式不受影响 |
+| 目标门禁 | `GOWORK=off go test ./internal/config ./internal/runtime/clientopts`、`GOWORK=off make check-go` 通过 |
+| 安全边界 | 旧开关不能把桌面会话变成裸 runtime；能力/平台不满足时仍拒绝启动或任务发送 |
+
+该批次只完成产品默认入口收口，不证明 Claude 原生沙箱、Windows/Linux/macOS 实机、有效策略回执、完整进程树、持久恢复、scratch 或安装包发布验收；`releaseAccepted=false`。

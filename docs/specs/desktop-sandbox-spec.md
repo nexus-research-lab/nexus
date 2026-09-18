@@ -8,10 +8,10 @@ the current contract, dated assessment, acceptance evidence and historical exper
 
 ## Activation and scope
 
-`NEXUS_DESKTOP_SANDBOX_ENABLED=true` is an explicit host rollout switch, defaulting
-to false. It is effective only with `NEXUS_APP_MODE=desktop` on macOS or Windows.
-Server deployments retain their existing runtime identity/isolation policy even
-if the flag is present. Agent settings cannot set the internal host policy marker.
+Desktop execution derives the host sandbox contract from `NEXUS_APP_MODE=desktop`;
+there is no user-facing or process-environment on/off switch. Server deployments
+retain their existing runtime identity/isolation policy. Agent settings cannot
+set or clear the internal host policy marker.
 
 DM, Room and background memory maintenance use the same client-options builder.
 For restricted approval modes, it requires nxs `required_sandbox_v1`,
@@ -20,7 +20,8 @@ an unsupported runtime fails instead of silently accepting an unenforced policy.
 Negotiation is not proof of current dependencies or an installed effective policy.
 Native file-tool capability is currently declared only by macOS nxs builds;
 Windows native execution is still incomplete and these desktop sessions fail
-closed before receiving a task. This wiring is not yet enabled by desktop packaging defaults.
+closed before receiving a task. A desktop session therefore never silently
+falls back to an unrestricted backend when the selected contract is unavailable.
 
 The host passes Skill directories as read resources and user-mounted directories
 as explicit sandbox write grants. The SDK additionally grants its stable workspace
