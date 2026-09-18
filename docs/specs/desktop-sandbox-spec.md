@@ -227,7 +227,7 @@ power-loss durability, exact request/approval/revision persistence, durable rece
 restart recovery of unknown outcomes or automatic replay. Unix replacement preserves
 ordinary permission bits but does not claim owner, ACL, xattr or file flags. Windows
 only has compile coverage and its Go writable-bit checks do not establish DACL
-privacy. Whole-process Provider credential isolation and background IO remain pending.
+privacy. Whole-process Provider credential isolation and full background IO confinement remain pending.
 
 ## Host-owned Provider inputs
 
@@ -260,7 +260,18 @@ treats such process credentials as missing, including URL, argument, environment
 alias and Header locations, and preserves the existing missing/fallback semantics.
 Dedicated hook/MCP authentication variables and explicit host-provided values
 remain independent. This prevents implicit credential borrowing; it does not
-establish confinement of external MCP servers.
+establish confinement of external MCP servers. The MCP registry passes the
+runtime-owned environment into `headersHelper` and refreshes it on an environment
+update; managed helpers cannot read known Provider credentials or redirect the
+managed memory root. This remains an environment-source boundary, not an OS
+boundary for external MCP processes.
+
+For nxs, Nexus fixes `NEXUS_MEMORY_DIR` to the current Agent workspace after all
+configuration capability merges and clears remote-memory overrides. The SDK typed
+memory profile applies the same rule to Summary, AutoMemory and AutoDream
+consumers. These ownership inputs participate in the process-policy fingerprint,
+so a changed root cannot reuse an old runtime. Claude does not receive this
+nxs-specific ownership claim.
 
 The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
 records the verified SDK baseline and its remaining IO paths. MCP servers,

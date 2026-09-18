@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Pin nxs long-term memory to the current Agent workspace after configuration capability merges, and pass the runtime-owned environment into MCP authentication helpers. Managed helpers cannot borrow known Provider credentials or redirect the memory root; external MCP process and OS-level file, handle, and network confinement remain pending.
+
 ### Added
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
