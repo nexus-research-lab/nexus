@@ -7,11 +7,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
 )
 
 // TestAgentClientCleanupFailureBlocksReconnect 不将完成清理尝试误认为清理成功。
@@ -157,5 +159,57 @@ func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
 				t.Fatal("cleanup failure evidence removed")
 			}
 		})
+	}
+}
+
+func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T) {
+	lease, err := sandboxresources.Acquire(t.Context(), sandboxresources.Input{
+		OwnerUserID: "cleanup-owner",
+		SessionKey:  "session-a",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	client := &agentClient{closeSession: func(*bridge.Session) error { return nil }}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchRoot: path}
+	client.startBridgeSessionCleanup(nil, nil, cleanup)
+	select {
+	case <-cleanup.done:
+	case <-time.After(time.Second):
+		t.Fatal("scratch cleanup did not finish")
+	}
+	if cleanup.err != nil {
+		t.Fatalf("cleanup error = %v", cleanup.err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("scratch remains after successful bridge close: %v", err)
+	}
+}
+
+func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
+	lease, err := sandboxresources.Acquire(t.Context(), sandboxresources.Input{
+		OwnerUserID: "cleanup-owner",
+		SessionKey:  "session-b",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	want := errors.New("descendants remain")
+	client := &agentClient{closeSession: func(*bridge.Session) error { return want }}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchRoot: path}
+	client.startBridgeSessionCleanup(nil, nil, cleanup)
+	<-cleanup.done
+	if !errors.Is(cleanup.err, want) {
+		t.Fatalf("cleanup error = %v", cleanup.err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("scratch removed after failed bridge close: %v", err)
+	}
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
 	}
 }

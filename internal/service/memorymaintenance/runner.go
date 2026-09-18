@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
@@ -52,6 +53,13 @@ func NewCoordinator(
 		admission:   admission,
 	}
 	return newCoordinator(cfg.MemoryMaintenance, agents, preferences, runner)
+}
+
+func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+	if lease == nil {
+		return nil
+	}
+	return lease.Resources()
 }
 
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
@@ -102,6 +110,23 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: autoDreamProviderUnavailableReason,
 		}, nil
 	}
+	var scratchLease *sandboxresources.Lease
+	scratchLeaseOwned := false
+	if strings.EqualFold(strings.TrimSpace(r.config.AppMode), "desktop") {
+		scratchLease, err = sandboxresources.Acquire(ownerContext, sandboxresources.Input{
+			OwnerUserID: agentValue.OwnerUserID,
+			SessionKey:  "memory-maintenance:" + strings.TrimSpace(agentValue.AgentID),
+			RoundID:     "auto-dream",
+		})
+		if err != nil {
+			return agentclient.AutoDreamResult{}, err
+		}
+		defer func() {
+			if !scratchLeaseOwned {
+				_ = scratchLease.Release()
+			}
+		}()
+	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
 		AppMode:               r.config.AppMode,
 		DesktopSandboxEnabled: r.config.DesktopSandboxEnabled,
@@ -121,6 +146,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		WebSearch:             selection.WebSearch,
 		RuntimeIsolationMode:  r.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:   r.config.RuntimeLauncherPath,
+		SandboxResources:      sandboxResourcesFromLease(scratchLease),
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",
@@ -134,10 +160,14 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
+	scratchLeaseOwned = scratchLease != nil
 	var closeOnce sync.Once
 	closeSession := func() {
 		closeOnce.Do(func() {
 			closeDreamSession(session)
+			if scratchLease != nil {
+				_ = scratchLease.Release()
+			}
 		})
 	}
 	defer closeSession()
