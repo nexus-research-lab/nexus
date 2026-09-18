@@ -482,3 +482,17 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 | 当前边界 | 内存 registry 尚不能在宿主崩溃后自动 sweep stale scratch；恢复 primitive 尚未接入 scheduler/startup 或实际 inspect/reconcile UI；全后代、句柄、秘密文件、网络、Claude、原生平台和安装包仍未验收 |
 
 本批次改变了真实启动和恢复路径，但仍不能宣称 P0–P7 或发布完成；`releaseAccepted=false`，本地提交未推送。
+
+## 2026-09-18：settings unknown 启动与周期恢复接入
+
+`RecoverStaleApplyingChangesForAllOwners` 现在由 server lifecycle 在其他后台调度器前执行一次，并以每分钟周期任务继续扫描。入口按 owner 发现 stale `applying` receipt，再委托原有 owner/request 条件更新；全局批次有界，未知结果持久为 `reconcile_required` / `applied: "unknown"`，不会自动 inspect 或重放。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| owner-scoped recovery | `GOWORK=off go test ./internal/service/configuration -run 'TestRecoverStaleApplyingChanges'` 通过；覆盖跨 owner 的全局批次限制和后续扫描收口 |
+| target package | `GOWORK=off go test ./internal/service/configuration ./internal/app/server` 通过 |
+| startup/scheduler wiring | `startBackgroundServices` 首先执行配置恢复首扫，随后启动每分钟 ticker；停止函数等待恢复 goroutine 退出 |
+| fail-closed boundary | 首次数据库扫描失败会阻止 server 启动；周期扫描失败只记录告警并保留 durable receipt，等待下一次扫描 |
+| 未闭合项 | 尚未连接设置页 inspect/reconcile 操作；跨进程 all-or-nothing/CAS/fsync、scratch 崩溃后 stale sweep、Provider/辅助进程/网络、Claude、原生 Windows/macOS/Linux 与安装包验收仍未完成 |
+
+该批次只证明 durable unknown recovery 已进入明确的 server 启动与周期调度，不构成 P0–P7 或发布通过；`releaseAccepted=false`，本地提交未推送。

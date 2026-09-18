@@ -6,13 +6,72 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
+	"github.com/nexus-research-lab/nexus/internal/storage"
+	"github.com/pressly/goose/v3"
 )
+
+func TestStartConfigurationRecoveryRunsInitialSweep(t *testing.T) {
+	cfg := config.Config{
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    filepath.Join(t.TempDir(), "nexus.db"),
+	}
+	db, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.ExecContext(
+		t.Context(),
+		`INSERT INTO configuration_changes (
+			request_id, owner_user_id, actor_agent_id, domain, operation, status, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-10 minutes'))`,
+		"request-startup-recovery", "owner-startup", "nexus", "preferences", "update", "applying",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	server := &Server{
+		api: handlershared.NewAPI(logx.NewDiscardLogger()),
+		services: &app.AppServices{
+			Configuration: configurationsvc.NewService(cfg, db, nil, nil, nil, nil, nil, nil, nil),
+		},
+	}
+	stop, err := server.startConfigurationRecovery(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stop == nil {
+		t.Fatal("configuration recovery returned nil stop")
+	}
+	stop()
+
+	var status, result string
+	if err := db.QueryRowContext(
+		t.Context(),
+		`SELECT status, result_json FROM configuration_changes WHERE owner_user_id = ?`, "owner-startup",
+	).Scan(&status, &result); err != nil {
+		t.Fatal(err)
+	}
+	if status != "reconcile_required" || !strings.Contains(result, `"applied":"unknown"`) {
+		t.Fatalf("startup recovery status=%q result=%s", status, result)
+	}
+}
 
 func TestServerCloseWaitsForHTTPDrain(t *testing.T) {
 	reservation, err := net.Listen("tcp", "127.0.0.1:0")

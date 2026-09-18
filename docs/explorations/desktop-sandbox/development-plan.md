@@ -213,7 +213,7 @@ Windows 11 是首个完整验收平台；Windows 10 1809+ 的支持范围以真�
 | P2 macOS 全工具链 | 收口文件 helper、动态指令/Skill/设置、PDF/Git/附件与后台 IO；系统后端路径信任与完整资源策略 | P1；复用已有 SDK 文件实现 | 真实工具允许/拒绝、符号链接、特殊文件、大文件、取消、敏感元数据与网络测试 | 进行中 |
 | P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 待开始 |
 | P4 Windows 可部署后端 | 设置/修复/卸载、受保护发布、身份、文件/网络、IPC、Job、清理；接入 SDK/Bridge | P1、P3 | 原生全链路＋安装/升级故障注入；不支持时拒绝，没有静默弱化 | 待开始 |
-| P5 审批与执行恢复 | exact execution 回执、策略代次、取消与后代终态、unknown 对账、自动审核/人工覆盖边界 | P1；平台事实接入依赖 P2/P4 | 各崩溃窗口、重复/乱序/断连/晚到批准均不多执行一次，跨源状态不互相清除 | 待开始 |
+| P5 审批与执行恢复 | exact execution 回执、策略代次、取消与后代终态、unknown 对账、自动审核/人工覆盖边界 | P1；平台事实接入依赖 P2/P4 | 各崩溃窗口、重复/乱序/断连/晚到批准均不多执行一次，跨源状态不互相清除 | 进行中 |
 | P6 UI 与端到端 | 内建受控环境、后端与权限策略切换、设置/Composer/批准卡/诊断、目录/连接授权，DM/Room/后台完整路径 | P1、P2、P4、P5 | 无独立沙箱开关；两后端实际边界与失败路径明确；浏览器与安装包交互验收 | 待开始 |
 | P7 版本与发布验收 | 发布可取得的 SDK/Bridge；固定 Nexus 与 Claude 支持版本；签名包/升级/回退、Linux owner 与各后端默认权限验收 | P2–P6 | 平台矩阵和发布清单全有证据，SDK 内建运行环境落实默认资源策略 | 待开始 |
 
@@ -302,6 +302,19 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | 桌面默认策略收口：`NEXUS_APP_MODE=desktop` 自动启用沙箱合同，旧 `NEXUS_DESKTOP_SANDBOX_ENABLED` 环境变量不再提供关闭入口；builder 在生产路径从 AppMode 派生强制标记，平台/后端能力缺失继续失败关闭。配置、clientopts 目标测试及增量 Go 门禁通过，提交 `codex/desktop-sandbox-isolated` 本地 `dfe31b8a9` | 这只关闭了 rollout 开关偏差；Claude 原生合同、Windows/Linux/macOS 实机、有效策略回执、持久恢复、后代监督、scratch、安装包与 P3–P7 仍未闭合 |
 | 2026-09-18 | 宿主资源合同入口补齐：Nexus `5af222fbb` 复制并校验 host-prepared `SandboxResourcePolicy`，受限模式才可携带 read-only/workspace-write 与 scratch 根；Full Access 携带受限资源合同时失败关闭。Bridge `6bb7b495`、`162cc79` 在 Windows 为每个 runtime 绑定 Job Object，清理继续执行并合并 SignalProcess 错误 | 入口与 Windows Bridge 修复均已本地验证，但 Nexus 尚未把 scratch 创建、租约、后代监督和回收接入 DM/Room/后台 runtime；Bridge 最新提交尚未发布，Windows/macOS/Linux clean-host、持久回执、Claude、网络、安装包与 P3–P7 仍未闭合 |
 | 2026-09-18 | 资源与恢复接线继续完成：Nexus `3fb64260c`、`53a6be247`、`1e04e87ad`、`2c4c2ff61`、`ab2377744`、`a7be59f53` 在 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，注入独立资源合同；Bridge close 成功后才回收，失败保留会话栅栏与 scratch，并覆盖默认 nxs、释放竞态、旧状态根归一化、`~` 展开与 L2 文档。Nexus `46229c723` 将超过租约窗口的 settings `applying` receipt 持久收口为 `reconcile_required`/`applied: unknown`，跨数据库重启测试通过；Nexus `go.mod` 精确 pin Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，本地 file proxy checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=` | scratch 崩溃后 stale sweep、后台恢复调度、实际 inspect/reconcile 入口、跨进程 all-or-nothing/CAS/fsync、完整后代/句柄/秘密文件/网络隔离、Claude、原生平台和 P3–P7 发布证据仍未闭合；本地 Bridge 模块尚未发布 |
+
+### 2026-09-18：settings unknown 启动与周期恢复接入
+
+配置控制面新增进程级恢复入口 `RecoverStaleApplyingChangesForAllOwners`。它只扫描超过租约窗口仍处于 `applying` 的 owner，按全局批次上限委托已有的 owner-scoped 条件更新，将回执收口为 `reconcile_required` 与 `applied: "unknown"`；恢复逻辑不猜测底层写入是否已提交，也不自动重放。HTTP server 启动在其他后台调度器之前先执行一次有界扫描；之后每分钟再执行同一批次，数据库故障在启动首扫时阻止服务呈现健康状态，周期故障保留 durable receipt 并记录告警等待下一次扫描。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| owner-scoped recovery | `GOWORK=off go test ./internal/service/configuration -run 'TestRecoverStaleApplyingChanges'` 通过；跨 owner 扫描全局限量，后续调用继续收口剩余 owner |
+| server startup/scheduler | `startBackgroundServices` 先接入配置恢复首扫，再启动每分钟周期；停止时等待恢复 goroutine 退出 |
+| 安全边界 | 只更新 stale `applying` 且使用 owner/request 条件；未知写入保持 `reconcile_required`，不执行隐式 inspect、replay 或跨 owner 合并 |
+| 当前边界 | 该入口尚未连接设置页的 inspect/reconcile 动作；多进程 CAS、全文件原子提交、父目录 fsync、崩溃后的 scratch lease sweep、Provider/辅助进程/网络和原生平台验收仍未完成 |
+
+本批次只把 durable unknown recovery 接入明确的 server 启动与周期调度路径；`releaseAccepted=false`，提交仅本地未推送。
 
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）

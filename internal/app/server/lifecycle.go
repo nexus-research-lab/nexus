@@ -26,9 +26,11 @@ const (
 	httpWriteTimeout = 6 * time.Minute
 	httpIdleTimeout  = 60 * time.Second
 
-	executionDispatchBatch     = 32
-	subagentReconcileBatch     = 32
-	orchestrationRecoveryBatch = 32
+	executionDispatchBatch        = 32
+	subagentReconcileBatch        = 32
+	orchestrationRecoveryBatch    = 32
+	configurationRecoveryBatch    = 32
+	configurationRecoveryInterval = time.Minute
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -109,6 +111,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 	starters := []func(context.Context) (func(), error){
 		s.startControlIdentityInvalidations,
+		s.startConfigurationRecovery,
 		s.startSessionDeletionRecovery,
 		s.startChannels,
 		s.startIMReplyRecovery,
@@ -138,6 +141,62 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startConfigurationRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Configuration == nil {
+		return nil, nil
+	}
+	recovered, err := s.services.Configuration.RecoverStaleApplyingChangesForAllOwners(
+		ctx,
+		configurationRecoveryBatch,
+	)
+	if err != nil {
+		// A failed initial scan leaves durable applying receipts unresolved. Abort
+		// startup so the host does not present a healthy process without its
+		// recovery fence; the next launch can retry the same idempotent sweep.
+		s.api.BaseLogger().Error("配置变更恢复扫描失败", "err", err)
+		return nil, err
+	}
+	if len(recovered) > 0 {
+		s.api.BaseLogger().Warn(
+			"配置变更未知结果已收口，等待 inspect/reconcile",
+			"recovered", len(recovered),
+		)
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(configurationRecoveryInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				recovered, recoverErr := s.services.Configuration.RecoverStaleApplyingChangesForAllOwners(
+					runCtx,
+					configurationRecoveryBatch,
+				)
+				if recoverErr != nil && !errors.Is(recoverErr, context.Canceled) {
+					s.api.BaseLogger().Warn("配置变更周期恢复未完成", "err", recoverErr)
+					continue
+				}
+				if len(recovered) > 0 {
+					s.api.BaseLogger().Warn(
+						"配置变更未知结果已收口，等待 inspect/reconcile",
+						"recovered", len(recovered),
+					)
+				}
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}, nil
 }
 
 func (s *Server) startControlIdentityInvalidations(ctx context.Context) (func(), error) {
