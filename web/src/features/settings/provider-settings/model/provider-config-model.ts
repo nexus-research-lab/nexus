@@ -119,7 +119,6 @@ export function buildProviderCreatePayload(
 export function buildProviderEnabledPayload(
   record: ProviderConfigRecord,
   enabled: boolean,
-  authToken: string,
 ): UpdateProviderConfigPayload {
   const payload: UpdateProviderConfigPayload = {
     provider_kind: record.provider_kind,
@@ -130,11 +129,8 @@ export function buildProviderEnabledPayload(
     models_path: record.models_path || "",
     enabled,
   };
-  const normalizedToken = authToken.trim();
-  if (!enabled) {
-    return { ...payload, auth_token: "" };
-  }
-  return normalizedToken ? { ...payload, auth_token: normalizedToken } : payload;
+  // Enabling/disabling never changes credentials or submits an unfinished key draft.
+  return payload;
 }
 
 export function getProviderDraftError(

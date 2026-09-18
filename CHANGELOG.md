@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.
+
+- Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.
+
+- Reject stale generation-less IM grants after Session rotation instead of authorizing by platform target alone.
+
+- Separate Provider disable, replace-key and confirmed clear-key actions; disabling preserves credentials and model bindings, clearing a key disables the Provider, and unavailable defaults display as empty. Move chat, image, vision and background defaults into the dedicated Models settings page.
+
+- Replace speculative model recommendations with officially sourced provider/plan-specific guidance, current model IDs, text-only versus multimodal labels and plan restrictions; remove name-based capability guesses, preserve user overrides, and gate image editing by the implemented transport.
+
+- Label models with image input as “Multimodal” in selection lists, keeping detailed vision and image-output capabilities separate.
+
+- Share model recommendations and capability labels across onboarding, Provider settings, chat and default image selection; preserve saved defaults, support automatic/explicit capability overrides, and enforce separate chat, image generation and editing eligibility.
 
 - Connect online Room Slash prompts and attachments to native Room execution: explicit Agent mentions, shared-file references in the durable message outbox, lease-scoped verified downloads, and reusable message attachment actions. Keep private host commands and workspaces isolated.
 
@@ -68,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Anchor local execution Threads to their triggering group messages, route node-dialog execution links back to online groups, support exact-round stopping and history retries, and retain mention labels with Composer drafts across page navigation.
 
 - Reuse Room public-context budgeting, Agent execution Threads and the shared Composer for online groups; keep internal execution rooms out of the chat directory and local permission interactions inside their Thread.
+
+- Add an explicit model selection step to Provider onboarding, with a discovered model list, manual model ID fallback, and resumable verification before selecting defaults.
+
+- Fix Provider onboarding stopping after saving credentials and testing the connection by retaining the preferences revision before selecting default models.
 
 - Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
 

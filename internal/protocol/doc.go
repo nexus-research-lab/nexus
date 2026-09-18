@@ -10,7 +10,7 @@
 //
 // 成员地图：
 //   - agent.go / agent_private.go / skill.go：Agent 运行时画像、独立业务标签、owner-scoped 创建对账结果、同 owner 联系人、可游标翻页的私域消息投影、受控执行工具策略与 Skill 协议。
-//   - session*.go / message_annotation.go / input_queue.go：会话、消息、轮次、
+//   - session*.go / message_annotation.go / input_queue.go：会话、消息、轮次、结构化 Agent Session key 的外部路由与删除后代次隔离、
 //     Connector 继承/显式选择快照与待物化 runtime fork 边界、
 //     公开 handoff 回复因果注解、外部 IM 身份、Goal 完成收据、记忆引用、
 //     上下文占用和持久输入队列。

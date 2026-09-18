@@ -1,6 +1,6 @@
 /**
  * INPUT: Owner 作用域、Provider 精确 key/version、连接测试与默认偏好命令。
- * OUTPUT: 可恢复的保存、测试、默认选择三阶段单栏连接向导及精简失败提示。
+ * OUTPUT: 可恢复的保存、模型选择、测试、默认选择四阶段单栏连接向导及精简失败提示。
  * POS: 首次 Provider 配置编排边界；owner 标识只消费无副作用共享投影，写前 journal 不保存密钥、Base URL、请求正文或 HTTP 身份。
  */
 "use client";
@@ -31,6 +31,7 @@ import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/pr
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import {
   createProviderConfigApi,
+  fetchProviderModelsApi,
   listProviderConfigsApi,
   listProviderPresetsApi,
   testProviderConfigApi,
@@ -80,10 +81,10 @@ import {
   findManageablePresetProvider,
   listCustomProviderSetupFormats,
   listProviderSetupPresets,
-  providerSetupModelIsRequired,
   selectInitialProviderSetupPreset,
   type ProviderSetupPreset,
 } from "./provider-setup-model";
+import { ProviderSetupModelScene } from "./provider-setup-model-scene";
 import { ProviderSetupFailureView } from "./provider-setup-failure";
 import {
   fingerprintProviderSetup,
@@ -102,8 +103,8 @@ interface ProviderSetupDialogProps {
   onStart?: () => void;
 }
 
-type SetupScene = "provider" | "credentials" | "custom" | "verify" | "ready";
-type JourneyPhase = "connect" | "discover" | "start";
+type SetupScene = "provider" | "credentials" | "custom" | "models" | "verify" | "ready";
+type JourneyPhase = "connect" | "discover" | "models" | "start";
 type SetupFailureKind =
   | "default_not_applied"
   | "default_unknown"
@@ -129,7 +130,6 @@ interface ProviderConnectionDraft {
   displayName: string;
   existingProvider: ProviderConfigRecord | null;
   modelID: string;
-  modelRequired: boolean;
   modelsPath: string;
   presetKey: string;
   providerKey: string;
@@ -173,6 +173,9 @@ export function ProviderSetupDialog({
   const [error, setError] = useState<string | null>(null);
   const [errorKind, setErrorKind] = useState<SetupFailureKind>("read");
   const [result, setResult] = useState<SetupResult | null>(null);
+  const [selectionModel, setSelectionModel] = useState("");
+  const [modelChoices, setModelChoices] = useState<ProviderConfigRecord["models"]>([]);
+  const [modelListFailed, setModelListFailed] = useState(false);
   const [journal, setJournal] = useState<ProviderSetupJournal | null>(null);
 
   useEffect(() => {
@@ -209,9 +212,6 @@ export function ProviderSetupDialog({
     )) ?? null,
     [customProviderKey, providers],
   );
-  const modelRequired = selected
-    ? providerSetupModelIsRequired(selected.format, existingProvider)
-    : false;
   const apiKeyRequired = !existingProvider?.auth_token_masked?.trim();
   const usesBuiltinEndpoint = selected?.preset.endpoint_mode === "fixed";
 
@@ -232,6 +232,9 @@ export function ProviderSetupDialog({
     setCCSwitchOpen(false);
     setError(null);
     setResult(null);
+    setModelChoices([]);
+    setSelectionModel(recoveredJournal?.model ?? "");
+    setModelListFailed(false);
     setJournal(recoveredJournal);
     setApiKey("");
     setBaseUrl("");
@@ -266,6 +269,11 @@ export function ProviderSetupDialog({
         recoveredJournal?.apiFormat
         ?? selectInitialCustomAPIFormat(nextCustomSetups),
       );
+      if (recoveredJournal && recoveredJournal.stage !== "persist") {
+        setModelChoices(nextProviders.find((item) => item.can_manage && item.provider === recoveredJournal.providerKey)?.models ?? []);
+        setScene("models");
+        return;
+      }
       if (recoveredJournal) {
         restoreProviderSetupJournal({
           journal: recoveredJournal,
@@ -374,7 +382,7 @@ export function ProviderSetupDialog({
 
   const submitConnection = (
     draft: ProviderConnectionDraft,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
   ) => {
     if (busyRef.current) {
       return;
@@ -395,11 +403,7 @@ export function ProviderSetupDialog({
       setError(t("onboarding.provider_setup_base_url_required"));
       return;
     }
-    if (!resumesWithoutDraft && draft.modelRequired && !normalizedModelID) {
-      setErrorKind("validation");
-      setError(t("onboarding.provider_setup_model_required"));
-      return;
-    }
+
 
     const normalizedDraft: ProviderConnectionDraft = {
       ...draft,
@@ -434,7 +438,7 @@ export function ProviderSetupDialog({
 
   const runProviderSetup = async (
     draft: ProviderConnectionDraft,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ) => {
     assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
@@ -486,6 +490,10 @@ export function ProviderSetupDialog({
       }
       activeJournal = persisted;
     }
+    if (activeJournal.stage === "model") {
+      await loadModelSelection(activeJournal, draft.modelsPath, ownerGeneration);
+      return;
+    }
     if (activeJournal.stage === "test") {
       setVerifyPhase(1);
       const tested = await ensureProviderTested(
@@ -508,7 +516,7 @@ export function ProviderSetupDialog({
   const ensureProviderPersisted = async (
     activeJournal: ProviderSetupJournal,
     draft: ProviderConnectionDraft,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ): Promise<ProviderSetupJournal | null> => {
     if (activeJournal.outcome === "unknown") {
@@ -572,7 +580,7 @@ export function ProviderSetupDialog({
 
   const reconcilePersistStage = async (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
     commitConfirmed = false,
   ): Promise<ProviderSetupJournal | null> => {
@@ -607,7 +615,7 @@ export function ProviderSetupDialog({
   const advanceJournalAfterPersist = (
     activeJournal: ProviderSetupJournal,
     record: ProviderConfigRecord,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
   ): ProviderSetupJournal | null => {
     if (!validConfigurationVersion(record.configuration_version)) {
       setSetupFailure(
@@ -622,7 +630,7 @@ export function ProviderSetupDialog({
       configurationVersion: record.configuration_version,
       outcome: "ready",
       providerDisplayName: record.display_name || activeJournal.providerDisplayName,
-      stage: "test",
+      stage: "model",
       testBaselineAt: record.last_test_at?.trim() || null,
     };
     if (!storeJournalBeforeEffect(next, setJournal)) {
@@ -636,9 +644,93 @@ export function ProviderSetupDialog({
     return next;
   };
 
+  const loadModelSelection = async (
+    activeJournal: ProviderSetupJournal,
+    modelsPath: string,
+    ownerGeneration: number,
+  ) => {
+    let failed = false;
+    if (modelsPath.trim() && activeJournal.outcome === "ready") {
+      const discovering = { ...activeJournal, outcome: "unknown" as const };
+      if (!storeJournalBeforeEffect(discovering, setJournal)) {
+        setSetupFailure("journal_after_save", t("onboarding.provider_setup_journal_after_problem"), activeJournal.presetKey === "custom" ? "custom" : "credentials");
+        return;
+      }
+      try {
+        await fetchProviderModelsApi(activeJournal.providerKey, { expectedVersion: activeJournal.configurationVersion ?? undefined });
+      } catch (error) {
+        if (isAuthOwnerScopeSupersededError(error)) throw error;
+        failed = true;
+      }
+    }
+    assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+    try {
+      const latest = await listProviderConfigsApi();
+      assertAuthOwnerScopeGenerationCurrent(ownerGeneration);
+      setProviders(latest);
+      const record = latest.find((item) => item.can_manage && item.provider === activeJournal.providerKey);
+      setModelChoices(record?.models ?? []);
+    } catch (error) {
+      if (isAuthOwnerScopeSupersededError(error)) throw error;
+      failed = true;
+      setModelChoices([]);
+    }
+    setSelectionModel(activeJournal.model);
+    setModelListFailed(failed);
+    setScene("models");
+  };
+
+  const submitSelectedModel = async () => {
+    if (busyRef.current || !journal || !selectionModel.trim()) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError(null);
+    const generation = captureAuthOwnerScopeGeneration();
+    try {
+      if (journal.stage === "default" || journal.stage === "test" && journal.outcome === "unknown") {
+        const next = journal.stage === "default" ? journal : await ensureProviderTested(journal, "models", generation);
+        assertAuthOwnerScopeGenerationCurrent(generation);
+        if (next) await ensureDefaultSelection(next, "models", generation);
+        return;
+      }
+      // Discovery changes the aggregate revision; test only a fresh authoritative snapshot.
+      const latest = await listProviderConfigsApi();
+      assertAuthOwnerScopeGenerationCurrent(generation);
+      const record = latest.find((item) => item.can_manage && item.provider === journal.providerKey);
+      if (!record || !validConfigurationVersion(record.configuration_version)) throw new Error("Provider unavailable");
+      setProviders(latest);
+      const next: ProviderSetupJournal = {
+        ...journal, stage: "test", outcome: "ready", model: selectionModel.trim(),
+        configurationVersion: record.configuration_version,
+        testBaselineAt: record.last_test_at?.trim() || null,
+      };
+      if (!storeJournalBeforeEffect(next, setJournal)) throw new Error("Journal unavailable");
+      setScene("verify");
+      setVerifyPhase(1);
+      const failureScene = "models";
+      const tested = await ensureProviderTested(next, failureScene, generation);
+      assertAuthOwnerScopeGenerationCurrent(generation);
+      if (tested) {
+        setVerifyPhase(2);
+        await ensureDefaultSelection(tested, failureScene, generation);
+      }
+    } catch (error) {
+      if (!isAuthOwnerScopeSupersededError(error)) {
+        setErrorKind("read");
+        setError(t("onboarding.provider_setup_load_failed"));
+        setScene("models");
+      }
+    } finally {
+      if (isAuthOwnerScopeGenerationCurrent(generation)) {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    }
+  };
+
   const ensureProviderTested = async (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ): Promise<ProviderSetupJournal | null> => {
     if (activeJournal.outcome === "unknown") {
@@ -707,7 +799,7 @@ export function ProviderSetupDialog({
 
   const reconcileTestStage = async (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ): Promise<ProviderSetupJournal | null> => {
     try {
@@ -755,7 +847,7 @@ export function ProviderSetupDialog({
 
   const advanceJournalAfterTest = (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
   ): ProviderSetupJournal | null => {
     if (!activeJournal.model || !validConfigurationVersion(activeJournal.configurationVersion)) {
       setSetupFailure(
@@ -783,7 +875,7 @@ export function ProviderSetupDialog({
 
   const ensureDefaultSelection = async (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ) => {
     if (activeJournal.outcome === "unknown") {
@@ -813,7 +905,12 @@ export function ProviderSetupDialog({
       );
       return;
     }
-    const inFlight = { ...activeJournal, outcome: "unknown" as const };
+    // 默认选择阶段的 unknown journal 必须携带偏好基线版本，否则恢复层不变量拒绝落盘。
+    const inFlight: ProviderSetupJournal = {
+      ...activeJournal,
+      outcome: "unknown" as const,
+      preferencesBaselineVersion: currentPreferences.version,
+    };
     if (!storeJournalBeforeEffect(inFlight, setJournal)) {
       setSetupFailure(
         "journal_after_save",
@@ -855,7 +952,7 @@ export function ProviderSetupDialog({
 
   const reconcileDefaultStage = async (
     activeJournal: ProviderSetupJournal,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
     ownerGeneration: number,
   ) => {
     try {
@@ -918,7 +1015,7 @@ export function ProviderSetupDialog({
   const setSetupFailure = (
     kind: SetupFailureKind,
     message: string,
-    failureScene: "credentials" | "custom",
+    failureScene: "credentials" | "custom" | "models",
   ) => {
     setErrorKind(kind);
     setError(message);
@@ -936,7 +1033,6 @@ export function ProviderSetupDialog({
       displayName: selected.preset.display_name,
       existingProvider,
       modelID: modelId,
-      modelRequired,
       modelsPath: selected.format.models_path,
       presetKey: selected.preset.preset_key,
       providerKey: existingProvider?.provider ?? selected.preset.preset_key,
@@ -962,7 +1058,6 @@ export function ProviderSetupDialog({
       displayName,
       existingProvider: customExistingProvider,
       modelID: customModelId,
-      modelRequired: true,
       modelsPath: customSetup.format.models_path,
       presetKey: "custom",
       providerKey: customExistingProvider?.provider ?? customProviderKey,
@@ -1007,7 +1102,7 @@ export function ProviderSetupDialog({
       ? t("onboarding.provider_setup_retry_test")
       : persistenceLocked
         ? t("onboarding.provider_setup_reconcile_action")
-        : t("onboarding.provider_setup_submit");
+        : t("onboarding.provider_setup_provider_continue");
 
   return (
     <>
@@ -1075,8 +1170,6 @@ export function ProviderSetupDialog({
                         error={error}
                         errorKind={errorKind}
                         existingProvider={existingProvider}
-                        modelId={modelId}
-                        modelRequired={modelRequired}
                         locked={persistenceLocked}
                         onApiKeyChange={(value) => {
                           setApiKey(value);
@@ -1085,10 +1178,6 @@ export function ProviderSetupDialog({
                         onBack={handleBack}
                         onBaseUrlChange={(value) => {
                           setBaseUrl(value);
-                          markConfigurationEdited();
-                        }}
-                        onModelIDChange={(value) => {
-                          setModelId(value);
                           markConfigurationEdited();
                         }}
                         onStartNewIntent={startNewIntent}
@@ -1107,7 +1196,6 @@ export function ProviderSetupDialog({
                         existingProvider={customExistingProvider}
                         formats={customSetups}
                         locked={persistenceLocked}
-                        modelId={customModelId}
                         onApiFormatChange={(value) => {
                           const nextSetup = customSetups.find(
                             (item) => item.format.api_format === value,
@@ -1126,10 +1214,6 @@ export function ProviderSetupDialog({
                           setCustomBaseUrl(value);
                           markConfigurationEdited();
                         }}
-                        onModelIDChange={(value) => {
-                          setCustomModelId(value);
-                          markConfigurationEdited();
-                        }}
                         onNameChange={(value) => {
                           setCustomProviderName(value);
                           markConfigurationEdited();
@@ -1139,6 +1223,16 @@ export function ProviderSetupDialog({
                         providerName={customProviderName}
                         submitLabel={submitLabel}
                     />
+                  ) : null}
+                  {scene === "models" ? (
+                    <ProviderSetupModelScene
+                      models={modelChoices} value={selectionModel} onChange={setSelectionModel}
+                      busy={busy} failed={modelListFailed}
+                      locked={journal?.stage === "default" || journal?.stage === "test" && journal.outcome === "unknown"}
+                      onSubmit={() => { void submitSelectedModel(); }}
+                    >
+                      {error ? <ProviderSetupFailure kind={errorKind} /> : null}
+                    </ProviderSetupModelScene>
                   ) : null}
                   {scene === "verify" ? <VerifyScene phase={verifyPhase} /> : null}
                   {scene === "ready" && result ? (
@@ -1171,6 +1265,7 @@ function JourneyProgress({ scene }: { scene: SetupScene }) {
   const phases: Array<{ id: JourneyPhase; label: string }> = [
     { id: "connect", label: t("onboarding.provider_setup_step_provider") },
     { id: "discover", label: t("onboarding.provider_setup_step_credentials") },
+    { id: "models", label: t("onboarding.provider_setup_choose_model") },
     { id: "start", label: t("onboarding.provider_setup_step_verify") },
   ];
   const currentIndex = phases.findIndex((phase) => phase.id === currentPhase);
@@ -1458,12 +1553,9 @@ function CredentialsScene({
   errorKind,
   existingProvider,
   locked,
-  modelId,
-  modelRequired,
   onApiKeyChange,
   onBack,
   onBaseUrlChange,
-  onModelIDChange,
   onStartNewIntent,
   onSubmit,
   setup,
@@ -1476,12 +1568,9 @@ function CredentialsScene({
   errorKind: SetupFailureKind;
   existingProvider: ProviderConfigRecord | null;
   locked: boolean;
-  modelId: string;
-  modelRequired: boolean;
   onApiKeyChange: (value: string) => void;
   onBack: () => void;
   onBaseUrlChange: (value: string) => void;
-  onModelIDChange: (value: string) => void;
   onStartNewIntent: () => void;
   onSubmit: () => void;
   setup: ProviderSetupPreset;
@@ -1574,28 +1663,6 @@ function CredentialsScene({
           </UiField>
         ) : null}
 
-        {modelRequired ? (
-          <UiField
-            htmlFor="provider-setup-model-id"
-            label={t("onboarding.provider_setup_model")}
-            required={!locked}
-          >
-            <UiInput
-              autoCapitalize="off"
-              autoCorrect="off"
-              controlSize="md"
-              id="provider-setup-model-id"
-              onChange={(event) => onModelIDChange(event.target.value)}
-              placeholder={t("onboarding.provider_setup_model_placeholder")}
-              readOnly={locked}
-              required={!locked}
-              spellCheck={false}
-              type="text"
-              value={modelId}
-            />
-          </UiField>
-        ) : null}
-
         {error ? <ProviderSetupFailure kind={errorKind} /> : null}
       </div>
 
@@ -1628,12 +1695,10 @@ function CustomProviderScene({
   existingProvider,
   formats,
   locked,
-  modelId,
   onApiFormatChange,
   onApiKeyChange,
   onBack,
   onBaseUrlChange,
-  onModelIDChange,
   onNameChange,
   onStartNewIntent,
   onSubmit,
@@ -1648,12 +1713,10 @@ function CustomProviderScene({
   existingProvider: ProviderConfigRecord | null;
   formats: ProviderSetupPreset[];
   locked: boolean;
-  modelId: string;
   onApiFormatChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onBack: () => void;
   onBaseUrlChange: (value: string) => void;
-  onModelIDChange: (value: string) => void;
   onNameChange: (value: string) => void;
   onStartNewIntent: () => void;
   onSubmit: () => void;
@@ -1766,26 +1829,6 @@ function CustomProviderScene({
           />
         </UiField>
 
-        <UiField
-          htmlFor="provider-setup-custom-model-id"
-          label={t("onboarding.provider_setup_model")}
-          required={!locked}
-        >
-          <UiInput
-            autoCapitalize="off"
-            autoCorrect="off"
-            controlSize="md"
-            id="provider-setup-custom-model-id"
-            onChange={(event) => onModelIDChange(event.target.value)}
-            placeholder={t("onboarding.provider_setup_model_placeholder")}
-            readOnly={locked}
-            required={!locked}
-            spellCheck={false}
-            type="text"
-            value={modelId}
-          />
-        </UiField>
-
         {error ? <ProviderSetupFailure kind={errorKind} /> : null}
       </div>
 
@@ -1890,10 +1933,11 @@ function SceneMessage({
 }
 
 function resolveJourneyPhase(scene: SetupScene): JourneyPhase {
+  if (scene === "models" || scene === "verify") return "models";
   if (scene === "ready") {
     return "start";
   }
-  if (scene === "credentials" || scene === "custom" || scene === "verify") {
+  if (scene === "credentials" || scene === "custom") {
     return "discover";
   }
   return "connect";

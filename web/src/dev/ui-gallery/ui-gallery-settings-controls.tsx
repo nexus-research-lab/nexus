@@ -5,7 +5,7 @@
 import { Brain, MonitorCog } from "lucide-react";
 import { useState } from "react";
 
-import { SettingsDefaultModelRow } from "@/features/settings/general/components/settings-default-model-row";
+import { SettingsDefaultModelRow } from "@/features/settings/default-models/settings-default-model-row";
 import { SettingsPermissionsSection } from "@/features/settings/general/sections/settings-permissions-section";
 import { SettingsNavigationGroupLabel, SettingsToggleRow } from "@/features/settings/shared/settings-panel-ui";
 import { useI18n } from "@/shared/i18n/i18n-context";

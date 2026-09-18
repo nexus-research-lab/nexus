@@ -35,6 +35,14 @@ func (s *ControlService) buildPairingRow(ctx context.Context, ownerUserID string
 	if source == "" {
 		return pairingRow{}, invalidChannelControl(errors.New("source is invalid"))
 	}
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		agentID,
+		protocol.NormalizeSessionKeyChannelSegment(channelType),
+		chatType,
+		strings.TrimSpace(request.AccountID),
+		externalRef,
+		strings.TrimSpace(request.ThreadID),
+	)
 	return pairingRow{
 		PairingID:    s.idFactory("pair"),
 		OwnerUserID:  strings.TrimSpace(ownerUserID),
@@ -47,7 +55,22 @@ func (s *ControlService) buildPairingRow(ctx context.Context, ownerUserID string
 		AgentID:      agentID,
 		Status:       status,
 		Source:       source,
+		SessionKey:   sessionKey,
 	}, nil
+}
+
+func pairingSessionKey(row pairingRow) string {
+	if sessionKey := strings.TrimSpace(row.SessionKey); sessionKey != "" {
+		return sessionKey
+	}
+	return protocol.BuildAgentAccountSessionKey(
+		row.AgentID,
+		protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
+		row.ChatType,
+		row.AccountID,
+		row.ExternalRef,
+		row.ThreadID,
+	)
 }
 
 func (s *ControlService) pairingView(ctx context.Context, row pairingRow) PairingView {
@@ -63,7 +86,7 @@ func (s *ControlService) pairingView(ctx context.Context, row pairingRow) Pairin
 		ChatType:      row.ChatType,
 		ExternalRef:   row.ExternalRef,
 		ThreadID:      row.ThreadID,
-		SessionKey:    protocol.BuildAgentAccountSessionKey(row.AgentID, protocol.NormalizeSessionKeyChannelSegment(row.ChannelType), row.ChatType, row.AccountID, row.ExternalRef, row.ThreadID),
+		SessionKey:    pairingSessionKey(row),
 		ExternalName:  nullStringValue(row.ExternalName),
 		AgentID:       row.AgentID,
 		AgentName:     s.agentName(ctx, row.AgentID),

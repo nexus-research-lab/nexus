@@ -30,13 +30,9 @@ function preferences(): Props {
     echoDisabled: false, echoEnabled: true, echoFeedback: null, echoLoading: false, echoSaving: false,
     echoRecovery: { canCheckLatest: false, canCompare: false, canFinishDisabling: false, checking: false,
       checkLatest: vi.fn(), finishDisabling: vi.fn(), reapplyChange: vi.fn(), repairing: false },
-    defaultBackgroundModelOptions: [], defaultBackgroundModelValue: "", defaultImageModelOptions: [],
-    defaultImageModelValue: "", defaultVisionModelOptions: [], defaultVisionModelValue: "",
-    defaultModelCatalogFailed: false, defaultModelOptions: [], defaultModelSavingRole: null, defaultModelValue: "",
     onAgentSdkDiagnosticsChange: vi.fn(), onAutoMemoryEnabledChange: vi.fn(), onAutoDreamEnabledChange: vi.fn(),
     onEmotionEnabledChange: vi.fn(), onEchoEnabledChange: vi.fn(), onDefaultDeliveryPolicyChange: vi.fn(),
-    onDefaultModelChange: vi.fn(), onRetryDefaultModelCatalog: vi.fn(),
-    preferencesLoading: false, preferencesSaving: false, preferencesFeedback: null, providerOptionsLoading: false,
+    preferencesLoading: false, preferencesSaving: false, preferencesFeedback: null,
     preferencesRecovery: { canCompare: false, canRepairProjection: false, checking: false,
       checkLatest: vi.fn(), reapplyDraft: vi.fn(), repairProjection: vi.fn(), repairing: false },
   };
@@ -84,7 +80,6 @@ describe("General setting switches", () => {
       await user.click(control);
       expect(props[callback]).toHaveBeenCalledExactlyOnceWith(!checked);
     }
-    expect(props.onDefaultModelChange).not.toHaveBeenCalled();
     expect(props.onDefaultDeliveryPolicyChange).not.toHaveBeenCalled();
   });
 
@@ -129,33 +124,4 @@ describe("General setting switches", () => {
     await user.click(screen.getByRole("switch", { name: "自动记忆" }));
     expect(props.onAutoMemoryEnabledChange).toHaveBeenCalledExactlyOnceWith(false);
   });
-});
-
-
-it.each(["preferencesLoading", "preferencesSaving"] as const)("locks all populated model selectors during %s", (flag) => {
-  const options = [{ value: "provider/model", label: "Model" }];
-  const props = { ...preferences(), [flag]: true,
-    defaultModelOptions: options, defaultImageModelOptions: options,
-    defaultVisionModelOptions: options, defaultBackgroundModelOptions: options,
-  };
-  const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
-  const modelNames = ["默认对话模型", "默认生图模型", "视觉理解模型", "后台任务模型"];
-  const selectors = modelNames.map((name) => screen.getByRole("button", { name }));
-  expect(selectors).toHaveLength(4);
-  for (const selector of selectors) expect((selector as HTMLButtonElement).disabled).toBe(true);
-  rerender(view(<SettingsGeneralBehaviorSection {...props} preferencesLoading={false} preferencesSaving={false} />));
-  for (const selector of modelNames.map((name) => screen.getByRole("button", { name }))) expect((selector as HTMLButtonElement).disabled).toBe(false);
-});
-
-it("blocks duplicate model catalog retries while its read is pending", async () => {
-  const user = userEvent.setup();
-  const props = { ...preferences(), defaultModelCatalogFailed: true };
-  const { rerender } = render(view(<SettingsGeneralBehaviorSection {...props} />));
-  await user.click(screen.getByRole("button", { name: zhSettingsMessages["settings.general.default_model_catalog_retry"] }));
-  expect(props.onRetryDefaultModelCatalog).toHaveBeenCalledOnce();
-  rerender(view(<SettingsGeneralBehaviorSection {...props} providerOptionsLoading />));
-  const retry = screen.getByRole("button", { name: zhSettingsMessages["settings.general.default_model_loading"] });
-  expect((retry as HTMLButtonElement).disabled).toBe(true);
-  await user.click(retry);
-  expect(props.onRetryDefaultModelCatalog).toHaveBeenCalledOnce();
 });

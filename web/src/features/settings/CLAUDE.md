@@ -7,7 +7,7 @@ L2 | 父级: web/src/features
 ## 职责
 
 - 根目录定义设置分区、URL 导航和页面装配。
-- `general/`、`runtime/`、`browser/`、`personal/` 与 `provider-settings/` 各自拥有设置资源和交互；`general/` 管理当前用户所有 Agent 共享的 Echo 开关，`browser/` 只在桌面端展示扩展安装、连接状态和完整 CDP 权限。
+- `general/`、`default-models/`、`runtime/`、`browser/`、`personal/` 与 `provider-settings/` 各自拥有设置资源和交互；`default-models/` 管理对话、生图、视觉和后台任务默认模型，`general/` 管理当前用户所有 Agent 共享的 Echo 开关，`browser/` 只在桌面端展示扩展安装、连接状态和完整 CDP 权限。
 - `operations/` 是设置管理分区，负责组织治理、成员管理、角色准入、订阅运营与公共 Provider 管理装配。
 - `shared/` 只保存多个设置分区共用的展示原语。
 - `shared/settings-panel-ui.tsx` 的 `SettingsToggleRow` 统一常规行为和工具发现的开关行、具名控件及实例说明关联；各分区仍传入自身禁用条件与回调。Browser 风险卡和模型表单保持领域组合。

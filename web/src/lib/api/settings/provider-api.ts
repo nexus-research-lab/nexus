@@ -142,11 +142,13 @@ export async function updateSubscriptionProviderConfigApi(
 
 export async function fetchProviderModelsApi(
   provider: string,
+  options?: { expectedVersion?: number },
 ): Promise<FetchProviderModelsResponse> {
   return requestApi<FetchProviderModelsResponse>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/fetch`,
     {
       method: "POST",
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }

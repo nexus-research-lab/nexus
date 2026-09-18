@@ -21,6 +21,7 @@ Workspace 刷新必须按请求代次提交，过期结果不得写状态、反�
 Provider 表单弹窗使用 plain chrome：添加模型只显示 Model ID 与启用开关；模型能力使用设置行而非图标卡；占用删除只显示目标、真实后果与 Agent 名称，不暴露内部 Agent ID。
 三个弹窗使用 `adaptiveMax` 与唯一可滚动 Body；模型标识和占用名称允许完整换行。初始焦点由公共 Backdrop 管理，字段文字尺寸与 code 字体由 UiField/Input/Textarea 的角色拥有，不添加私有字段壳或字号。
 所有异步命令共享一个基于 ref 的互斥入口，不增加镜像 busy/submitting 状态。
+凭证编辑由 `components/provider-settings-key-field.tsx` 提供更换、保存、取消和清除确认；空白更换草稿不删除 Key。启停只提交持久配置并保留 Key，显式清除 Key 同时停用，均保留模型与默认绑定。四类默认模型选择由兄弟 `default-models/` 管理；模型行保留带具名说明的能力图标，推荐徽标独立显示。
 模型与测试动作只依赖 `PersistProvider` 窄命令，不读取配置动作控制器的完整状态。
 模型同步、添加、更新和测试分别声明所需的 API 子集，不依赖完整模型 API 门面。
 侧栏目录、格式选项、标题和能力标志只由纯展示模型推导，控制器与面板不得重复解释 Provider 规则。

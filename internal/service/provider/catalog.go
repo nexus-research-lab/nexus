@@ -58,6 +58,7 @@ var providerPresets = []Preset{
 				BaseURL:    "https://api.openai.com/v1",
 				ModelsPath: "/models",
 			},
+			{ProviderKind: ProviderKindImageGeneration, APIFormat: APIFormatOpenAIImageGeneration, BaseURL: "https://api.openai.com/v1", ModelsPath: "/models"},
 		},
 	},
 	{
@@ -99,7 +100,7 @@ var providerPresets = []Preset{
 		PresetKey:     presetMiniMaxToken,
 		ProviderKind:  ProviderKindLLM,
 		DisplayName:   "MiniMax Token Plan",
-		Description:   "MiniMax Token Plan for M2.7 coding models through Anthropic-compatible or OpenAI-compatible APIs.",
+		Description:   "MiniMax Token Plan for M-series coding models through Anthropic-compatible or OpenAI-compatible APIs.",
 		KeyURL:        "https://platform.minimaxi.com/user-center/payment/token-plan",
 		DefaultFormat: APIFormatAnthropicMessages,
 		Formats: []PresetFormat{

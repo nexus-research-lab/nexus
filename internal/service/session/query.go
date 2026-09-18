@@ -27,6 +27,30 @@ func (s *Service) ResolveDeliverySession(
 	return item, err
 }
 
+// IsSessionDeleted exposes the durable deletion fence to channel recovery. A
+// missing Session and a deleted Session are different states: only the latter
+// requires rotating a reused external pairing key.
+func (s *Service) IsSessionDeleted(ctx context.Context, rawSessionKey string) (bool, error) {
+	sessionKey, parsed, err := s.requireSessionKey(rawSessionKey)
+	if err != nil {
+		return false, err
+	}
+	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
+	if err != nil {
+		return false, err
+	}
+	for _, workspacePath := range workspacePaths {
+		deleted, checkErr := s.ownerFiles(ctx).IsSessionDeleted(workspacePath, sessionKey)
+		if checkErr != nil {
+			return false, checkErr
+		}
+		if deleted {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // ListSessions 列出全部会话视图。
 func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) {
 	items, err := s.listSessionDirectory(ctx)

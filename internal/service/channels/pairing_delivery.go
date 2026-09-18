@@ -5,6 +5,7 @@ package channels
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,6 +26,26 @@ type AgentExternalSession struct {
 
 func unavailableExternalSessionGrant(reason string) error {
 	return fmt.Errorf("%w: %s", ErrExternalSessionGrantUnavailable, reason)
+}
+
+// fallbackPairingSessionMatches permits only legacy, generation-less keys when
+// the exact concrete pairing-session row is unavailable. A rotated key must
+// never regain authority merely because its platform target still matches.
+func fallbackPairingSessionMatches(pairing *pairingRow, parsed protocol.SessionKey, sessionKey string) bool {
+	if pairing == nil {
+		return false
+	}
+	if pairingSessionKey(*pairing) == strings.TrimSpace(sessionKey) {
+		return true
+	}
+	// Wildcard pairings use a separate concrete mapping per account/thread.
+	// Before that mapping existed, only the original generation-less key may
+	// use the target fallback; generated keys require an exact mapping.
+	if parsed.Generation != "" {
+		return false
+	}
+	return pairing.AccountID != strings.TrimSpace(parsed.AccountID) ||
+		pairing.ThreadID != ingressPairingThreadID(parsed.ChatType, parsed.ThreadID)
 }
 
 // ListAgentExternalSessions 列出同 owner、同 Agent 的 active-paired 真实私聊。
@@ -55,14 +76,7 @@ func (s *ControlService) ListAgentExternalSessions(
 		if protocol.NormalizeSessionChatType(row.ChatType) != protocol.RoomTypeDM {
 			continue
 		}
-		sessionKey := protocol.BuildAgentAccountSessionKey(
-			row.AgentID,
-			protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
-			row.ChatType,
-			row.AccountID,
-			row.ExternalRef,
-			row.ThreadID,
-		)
+		sessionKey := pairingSessionKey(row)
 		stored, resolveErr := s.resolveDeliverySession(ctx, sessionKey)
 		if resolveErr != nil {
 			return nil, resolveErr
@@ -142,24 +156,47 @@ func (s *ControlService) ValidateExternalSessionGrant(
 	if channelType == "" || channelType == ChannelTypeInternal || channelType == ChannelTypeWebSocket {
 		return unavailableExternalSessionGrant("validation requires an external IM session")
 	}
-	pairing, err := s.findIngressPairingByTarget(
-		ctx,
-		normalizeChannelOwnerUserID(ownerUserID),
-		channelType,
-		strings.TrimSpace(parsed.AccountID),
-		protocol.NormalizeSessionChatType(parsed.ChatType),
-		strings.TrimSpace(parsed.Ref),
-		ingressPairingThreadID(parsed.ChatType, parsed.ThreadID),
-		PairingStatusActive,
-	)
+	pairing, err := s.findPairingBySessionKey(ctx, normalizeChannelOwnerUserID(ownerUserID), sessionKey, PairingStatusActive)
 	if err != nil {
 		return err
 	}
 	if pairing == nil {
+		pairing, err = s.findIngressPairingByTarget(
+			ctx,
+			normalizeChannelOwnerUserID(ownerUserID),
+			channelType,
+			strings.TrimSpace(parsed.AccountID),
+			protocol.NormalizeSessionChatType(parsed.ChatType),
+			strings.TrimSpace(parsed.Ref),
+			ingressPairingThreadID(parsed.ChatType, parsed.ThreadID),
+			PairingStatusActive,
+		)
+		if err != nil {
+			return err
+		}
+	}
+	if pairing == nil {
 		return unavailableExternalSessionGrant("pairing is not active")
+	}
+	if !fallbackPairingSessionMatches(pairing, parsed, sessionKey) {
+		return unavailableExternalSessionGrant("session key is stale or rotated")
 	}
 	if strings.TrimSpace(pairing.AgentID) != strings.TrimSpace(agentID) {
 		return unavailableExternalSessionGrant("pairing is bound to another Agent")
 	}
 	return nil
+}
+
+func (s *ControlService) findPairingBySessionKey(ctx context.Context, ownerUserID, sessionKey, status string) (*pairingRow, error) {
+	query := `
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+FROM im_pairings
+WHERE owner_user_id = ` + s.bind(1) + ` AND session_key = ` + s.bind(2) + ` AND status = ` + s.bind(3) + `
+	LIMIT 1`
+	item, err := scanPairingScanner(s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(sessionKey), normalizePairingStatus(status, PairingStatusActive)))
+	if errors.Is(err, sql.ErrNoRows) {
+		return s.findPairingSessionBySessionKey(ctx, ownerUserID, sessionKey)
+	}
+	return item, err
 }

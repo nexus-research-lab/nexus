@@ -30,7 +30,10 @@ func (s *ControlService) IMDeliveryPairing(ctx context.Context, owner, agent, se
 	if stored == nil || stored.AgentID != agent {
 		return "", ErrExternalSessionGrantUnavailable
 	}
-	row, err := s.findIngressPairingByTarget(ctx, owner, normalizeIMChannelType(p.Channel), p.AccountID, protocol.RoomTypeDM, p.Ref, ingressPairingThreadID(p.ChatType, p.ThreadID), PairingStatusActive)
+	row, err := s.findPairingBySessionKey(ctx, owner, session, PairingStatusActive)
+	if row == nil && err == nil {
+		row, err = s.findIngressPairingByTarget(ctx, owner, normalizeIMChannelType(p.Channel), p.AccountID, protocol.RoomTypeDM, p.Ref, ingressPairingThreadID(p.ChatType, p.ThreadID), PairingStatusActive)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +47,13 @@ func (s *ControlService) recordDeliveryInput(ctx context.Context, r normalizedIn
 	p := r.parsed
 	// Session materialization occurs in DM. Pairing has already been revalidated
 	// by ingress; do not require an existing Session on its first human turn.
-	row, err := s.findIngressPairingByTarget(ctx, r.ownerUserID, normalizeIMChannelType(p.Channel), p.AccountID, protocol.RoomTypeDM, p.Ref, ingressPairingThreadID(p.ChatType, p.ThreadID), PairingStatusActive)
+	row, err := s.findPairingBySessionKey(ctx, r.ownerUserID, r.sessionKey, PairingStatusActive)
+	if row == nil && err == nil {
+		row, err = s.findIngressPairingByTarget(ctx, r.ownerUserID, normalizeIMChannelType(p.Channel), p.AccountID, protocol.RoomTypeDM, p.Ref, ingressPairingThreadID(p.ChatType, p.ThreadID), PairingStatusActive)
+		if err == nil && !fallbackPairingSessionMatches(row, p, r.sessionKey) {
+			row = nil
+		}
+	}
 	if err != nil {
 		return err
 	}

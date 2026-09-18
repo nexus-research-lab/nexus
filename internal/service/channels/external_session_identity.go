@@ -73,6 +73,11 @@ func (s *ControlService) externalSessionPairing(
 	channelType string,
 	parsed protocol.SessionKey,
 ) (*pairingRow, error) {
+	if exact, exactErr := s.findPairingBySessionKey(ctx, ownerUserID, parsed.Raw, PairingStatusActive); exactErr != nil {
+		return nil, exactErr
+	} else if exact != nil {
+		return exact, nil
+	}
 	rows, err := s.listPairingRows(ctx, ownerUserID, PairingQuery{
 		ChannelType: channelType,
 		AgentID:     parsed.AgentID,
