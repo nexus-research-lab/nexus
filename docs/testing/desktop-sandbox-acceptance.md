@@ -474,7 +474,7 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 
 | 验证 | 结果与边界 |
 | --- | --- |
-| scratch helper | `GOWORK=off go test ./internal/runtime/sandboxresources` 通过；路径身份、私有目录、scope 重用、取消与幂等释放覆盖 |
+| scratch helper | `GOWORK=off go test ./internal/runtime -run 'Test(Acquire|ReleasePath)'` 通过；路径身份、私有目录、scope 重用、取消与幂等释放覆盖 |
 | runtime lifecycle | `GOWORK=off go test ./internal/runtime -run 'TestAgentClientCleanup|TestManagerCleanup'` 通过；Bridge 失败不释放 scratch，成功关闭后释放 |
 | DM/Room/background | `GOWORK=off go test ./internal/service/dm ./internal/service/room/realtime ./internal/service/memorymaintenance` 通过；三类入口均在 Build/initialize 前注入资源合同 |
 | durable unknown | `GOWORK=off go test ./internal/service/configuration` 通过；关闭数据库后重新打开，旧 `applying` receipt 恢复为 `reconcile_required` |
