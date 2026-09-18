@@ -15,6 +15,7 @@ import (
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
 )
 
 // Client 抽象出宿主管理 Agent runtime 所需的最小能力，便于测试替身接入。
@@ -96,8 +97,9 @@ type agentClientConfigFlight struct {
 }
 
 type agentClientSessionCleanup struct {
-	done chan struct{}
-	err  error
+	done        chan struct{}
+	err         error
+	scratchRoot string
 }
 
 // NewAgentClient 创建负责并发连接、配置换代和进程回收的 Agent client。
@@ -225,7 +227,10 @@ func (c *agentClient) runConnectFlight(
 			go c.pumpMessages(pumpCtx, session, messages)
 			return nil
 		}
-		cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
+		cleanup := &agentClientSessionCleanup{
+			done:        make(chan struct{}),
+			scratchRoot: sandboxScratchRoot(options),
+		}
 		c.cleanup = cleanup
 		c.mu.Unlock()
 
@@ -635,7 +640,10 @@ func (c *agentClient) detachCurrentSessionLocked(
 	c.streamErr = err
 	session := c.session
 	cancel := c.cancel
-	cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
+	cleanup := &agentClientSessionCleanup{
+		done:        make(chan struct{}),
+		scratchRoot: sandboxScratchRoot(c.options),
+	}
 	c.session = nil
 	c.messages = nil
 	c.cancel = nil
@@ -721,9 +729,24 @@ func (c *agentClient) startBridgeSessionCleanup(
 		cancel()
 	}
 	go func() {
-		cleanup.err = c.closeBridgeSession(session)
+		closeErr := c.closeBridgeSession(session)
+		// A scratch lease is released only after bridge close succeeds. If the
+		// process cannot be proven stopped, preserve the path for recovery and
+		// keep the runtime session close fence active.
+		var scratchErr error
+		if closeErr == nil && cleanup.scratchRoot != "" {
+			scratchErr = sandboxresources.ReleasePath(cleanup.scratchRoot)
+		}
+		cleanup.err = errors.Join(closeErr, scratchErr)
 		close(cleanup.done)
 	}()
+}
+
+func sandboxScratchRoot(options bridge.Options) string {
+	if options.Sandbox == nil || options.Sandbox.Resources == nil {
+		return ""
+	}
+	return strings.TrimSpace(options.Sandbox.Resources.ScratchRoot)
 }
 
 func (c *agentClient) openSession(

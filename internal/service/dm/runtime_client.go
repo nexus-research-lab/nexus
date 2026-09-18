@@ -18,6 +18,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -49,6 +50,13 @@ type dmClientPreparation struct {
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
 	commandReceipts        *nexusmcp.CommandReceiptState
 	permissionMode         sdkpermission.Mode
+}
+
+func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+	if lease == nil {
+		return nil
+	}
+	return lease.Resources()
 }
 
 func (s *Service) ensureClient(
@@ -364,6 +372,25 @@ func (s *Service) ensureClient(
 		toolPolicy,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
+	var scratchLease *sandboxresources.Lease
+	scratchLeaseOwned := false
+	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
+		strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs") &&
+		permissionMode != sdkpermission.ModeBypassPermissions {
+		scratchLease, err = sandboxresources.Acquire(ctx, sandboxresources.Input{
+			OwnerUserID: agentValue.OwnerUserID,
+			SessionKey:  sessionKey,
+			RoundID:     request.RoundID,
+		})
+		if err != nil {
+			return dmClientPreparation{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
+		}
+		defer func() {
+			if !scratchLeaseOwned {
+				_ = scratchLease.Release()
+			}
+		}()
+	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    s.config.AppMode,
 		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled,
@@ -402,6 +429,7 @@ func (s *Service) ensureClient(
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
+		SandboxResources:           sandboxResourcesFromLease(scratchLease),
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -554,6 +582,7 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
+	scratchLeaseOwned = scratchLease != nil && options.Sandbox != nil && options.Sandbox.Resources != nil
 	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())

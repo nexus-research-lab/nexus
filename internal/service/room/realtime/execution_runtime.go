@@ -20,6 +20,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -44,6 +45,7 @@ type preparedSlotRuntime struct {
 	toolSurfaceFingerprint string
 	toolSurfaceComplete    bool
 	forkLegacyToolSurface  bool
+	scratchLease           *sandboxresources.Lease
 }
 
 type roomRuntimePrompt struct {
@@ -111,6 +113,13 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
+func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+	if lease == nil {
+		return nil
+	}
+	return lease.Resources()
+}
+
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if e.round == nil {
 		return nil, errors.New("room round is required")
@@ -130,6 +139,9 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
+		if runtimeValue.scratchLease != nil {
+			_ = runtimeValue.scratchLease.Release()
+		}
 		return nil, err
 	}
 	e.logger.Info("Room runtime 启动成功",
@@ -216,6 +228,25 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		}
 	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
+	var scratchLease *sandboxresources.Lease
+	scratchLeaseOwned := false
+	defer func() {
+		if scratchLease != nil && !scratchLeaseOwned {
+			_ = scratchLease.Release()
+		}
+	}()
+	if strings.EqualFold(strings.TrimSpace(e.service.config.AppMode), "desktop") &&
+		strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs") &&
+		permissionMode != sdkpermission.ModeBypassPermissions {
+		scratchLease, err = sandboxresources.Acquire(e.ctx, sandboxresources.Input{
+			OwnerUserID: e.agent.OwnerUserID,
+			SessionKey:  e.round.SessionKey,
+			RoundID:     e.round.RootRoundID,
+		})
+		if err != nil {
+			return preparedSlotRuntime{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
+		}
+	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    e.service.config.AppMode,
 		DesktopSandboxEnabled:      e.service.config.DesktopSandboxEnabled,
@@ -255,6 +286,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
+		SandboxResources:           sandboxResourcesFromLease(scratchLease),
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -270,12 +302,14 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, fmt.Errorf("计算 Room runtime 工具面指纹: %w", err)
 	}
+	scratchLeaseOwned = true
 	return preparedSlotRuntime{
 		options:                options,
 		selection:              selection,
 		provider:               runtimeProvider,
 		toolSurfaceFingerprint: toolSurfaceFingerprint,
 		toolSurfaceComplete:    toolSurfaceComplete,
+		scratchLease:           scratchLease,
 		forkLegacyToolSurface: len(protocol.EffectiveSessionConnectorIDs(
 			e.agent.Options.ConnectorIDs,
 			roomAgentSessionOptions(e.round, e.agent.AgentID),
