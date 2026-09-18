@@ -239,6 +239,74 @@ func TestRecoverStaleApplyingChangesPersistsUnknownAcrossServiceRestart(t *testi
 	}
 }
 
+func TestRecoverStaleApplyingChangesForAllOwnersIsBoundedAndScoped(t *testing.T) {
+	service, _, _ := newAuditTestService(t)
+	for _, ownerUserID := range []string{"owner-a", "owner-b", "owner-c"} {
+		actor := Actor{OwnerUserID: ownerUserID, AgentID: "nexus", IsMainAgent: true}
+		resolved := &resolvedActor{
+			Actor: actor, Authority: AuthorityOwnerMain,
+			Context: ScopeRef{Kind: ScopeKindOwner, ID: ownerUserID},
+		}
+		request := ChangeRequest{
+			RequestID: "request-recovery-" + ownerUserID, Domain: DomainPreferences, Operation: "update",
+			Input: []byte(`{"chat_default_delivery_policy":"queue"}`),
+		}
+		plan := ChangePlan{
+			Domain: DomainPreferences, Operation: "update", CurrentRevision: "before",
+			Scope: ScopeRef{Kind: ScopeKindOwner, ID: ownerUserID}, PlanDigest: "intent-" + ownerUserID,
+		}
+		if _, created, err := service.beginAudit(t.Context(), resolved, request, plan, nil); err != nil || !created {
+			t.Fatalf("owner %s beginAudit created=%v err=%v", ownerUserID, created, err)
+		}
+		if _, err := service.db.ExecContext(
+			t.Context(),
+			`UPDATE configuration_changes SET updated_at = datetime('now', '-10 minutes')
+			 WHERE owner_user_id = ? AND request_id = ?`,
+			ownerUserID, request.RequestID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	recovered, err := service.RecoverStaleApplyingChangesForAllOwners(t.Context(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recovered) != 2 {
+		t.Fatalf("bounded recovery returned %d records, want 2: %+v", len(recovered), recovered)
+	}
+	for _, ownerUserID := range []string{"owner-a", "owner-b"} {
+		var status string
+		if err := service.db.QueryRowContext(
+			t.Context(),
+			`SELECT status FROM configuration_changes WHERE owner_user_id = ?`, ownerUserID,
+		).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if status != "reconcile_required" {
+			t.Fatalf("owner %s status = %s, want reconcile_required", ownerUserID, status)
+		}
+	}
+	var pending int
+	if err := service.db.QueryRowContext(
+		t.Context(),
+		`SELECT COUNT(*) FROM configuration_changes WHERE owner_user_id = ? AND status = 'applying'`, "owner-c",
+	).Scan(&pending); err != nil {
+		t.Fatal(err)
+	}
+	if pending != 1 {
+		t.Fatalf("owner-c pending applying count = %d, want 1", pending)
+	}
+
+	recovered, err = service.RecoverStaleApplyingChangesForAllOwners(t.Context(), 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recovered) != 1 || recovered[0].OwnerUserID != "owner-c" {
+		t.Fatalf("second recovery returned %+v, want owner-c only", recovered)
+	}
+}
+
 func newAuditTestService(t *testing.T) (*Service, Actor, *resolvedActor) {
 	t.Helper()
 	cfg := config.Config{

@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Persist expired settings `applying` receipts as `reconcile_required` with `applied: "unknown"` across service/database restart. This provides a durable recovery primitive and does not infer whether the underlying write committed or automatically replay it.
 
+- Run durable settings unknown recovery during server startup and on a bounded periodic sweep. The process discovers stale `applying` receipts across owners, keeps the owner/request conditional update, and fails startup closed when the initial scan cannot run; it still leaves `reconcile_required` outcomes for an explicit inspect/reconcile action and never replays an unknown write.
+
 ### Added
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.

@@ -19,7 +19,8 @@
 //   - change_input.go / change_dispatch.go：共用 JSON 补丁合并与领域执行路由，不再平铺所有操作分支。
 //   - member_change.go：管理员主智能体私聊的 Control 成员创建、资料/权限修改、撤销与写后核对。
 //   - audit.go：同时绑定业务 session/root round 与真实 runtime lease、按 owner 与资源 scope 隔离的配置变更审计仓储；
-//     提供过期 applying receipt 的 durable unknown 收口，结果保持 reconcile_required，等待后续 inspect。
+//     提供过期 applying receipt 的 durable unknown 收口，结果保持 reconcile_required，等待后续 inspect；启动恢复入口按 owner
+//     有界扫描并委托同一 scoped primitive，不猜测或重放未知写入。
 //   - human_approval.go / sanitize.go：绑定认证 session/runtime lease 的一次性批准与带外 secret slot、私有 Skill Bearer 轮换、
 //     任意配置树的凭据与内部提示词脱敏。
 //

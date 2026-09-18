@@ -104,6 +104,65 @@ func (s *Service) RecoverStaleApplyingChanges(
 	return recovered, nil
 }
 
+// RecoverStaleApplyingChangesForAllOwners is the process recovery entrypoint
+// used by the host lifecycle. It discovers only owners with stale applying
+// receipts and then delegates each owner to the scoped recovery primitive.
+// The limit is global to this invocation; a later scheduler tick can continue
+// with any remaining owners. Unknown outcomes remain reconcile_required and
+// are never replayed by this sweep.
+func (s *Service) RecoverStaleApplyingChangesForAllOwners(
+	ctx context.Context,
+	limit int,
+) ([]AuditRecord, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	cutoff := time.Now().UTC().Add(-staleAuditAfter)
+	query := fmt.Sprintf(
+		`SELECT DISTINCT owner_user_id
+		 FROM configuration_changes
+		 WHERE status = 'applying' AND updated_at <= %s
+		 ORDER BY owner_user_id ASC`,
+		s.dialect.Bind(1),
+	)
+	rows, err := s.db.QueryContext(ctx, query, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	owners := make([]string, 0)
+	for rows.Next() {
+		var ownerUserID string
+		if err := rows.Scan(&ownerUserID); err != nil {
+			return nil, err
+		}
+		ownerUserID = strings.TrimSpace(ownerUserID)
+		if ownerUserID != "" {
+			owners = append(owners, ownerUserID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	recovered := make([]AuditRecord, 0, limit)
+	for _, ownerUserID := range owners {
+		remaining := limit - len(recovered)
+		if remaining <= 0 {
+			break
+		}
+		items, err := s.RecoverStaleApplyingChanges(ctx, ownerUserID, remaining)
+		if err != nil {
+			return nil, err
+		}
+		recovered = append(recovered, items...)
+	}
+	return recovered, nil
+}
+
 func (s *Service) beginAudit(
 	ctx context.Context,
 	actor *resolvedActor,
