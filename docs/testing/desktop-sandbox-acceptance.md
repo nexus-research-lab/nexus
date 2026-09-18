@@ -411,3 +411,20 @@ SDK 本地提交 `101f34fa`、`460c0f1c` 收口 settings 到主/辅助请求、�
 [汇总报告](./evidence/desktop-sandbox/2026-09-17-provider-environment/report.json)、[基线报告](./evidence/desktop-sandbox/2026-09-17-provider-environment/baseline-report.json)、[复核说明](./evidence/desktop-sandbox/2026-09-17-provider-environment/README.md)与[哈希清单](./evidence/desktop-sandbox/2026-09-17-provider-environment/manifest.json)保留精确版本、源文件差异、修复前后日志和 skip。最终自动入口已要求总计 145 个顶层/313 个指定子场景；本批证据由固定 SDK 基线与随后实际执行的宿主增量组合证明。
 
 这批仅证明已知环境凭据不会经上述输入通路借出，不证明任意秘密文件、其他进程或继承句柄不可读，也不证明外部 MCP/认证 helper 已进入 OS 边界。后台 IO、网络、持久恢复、完整后代监督、scratch、默认权限体验、Claude、其他平台原生及安装包仍按 P1–P7 继续；`releaseAccepted=false`，Goal active。
+
+## 2026-09-18：MCP helper 与后台记忆根所有权
+
+SDK `81104dd9c4a2a0c2a22c6cb7b021da4065a51351`、Nexus `064ccb7fa02e68199c0bb5beae8092c1c423bdcb` 和 Bridge `a2316d7` 均为独立 worktree 的本地提交。SDK 的 MCP registry 将 runtime-owned 环境传给 `headersHelper`，更新环境时替换 helper 环境；托管 helper 看不到已知 Provider 凭据、`NEXUS_MEMORY_DIR` 或远端 memory 覆盖。SDK 的 Summary、AutoMemory、AutoDream 统一从宿主 workspace 解析记忆根。Nexus 在所有 ConfigurationEnv/capability 合并完成后再次固定 nxs 的 workspace memory 根，并把 memory 所有权纳入进程复用指纹。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 固定跨仓基线 | `check-sandbox-baseline.mjs` 使用 SDK `81104dd9` 运行通过；提交干净，Nexus 无未提交代码改动（证据归档另列）；`releaseAccepted=false`，未推送 |
+| SDK 目标包 | `client`、`internal/config/env`、`internal/mcp/client`、`internal/agent/runtime` 定向测试、vet 通过；MCP/runtime race 通过 |
+| MCP helper 反例 | helper 只读到普通 task 值；已知 Provider 凭据和 memory 根为空；registry 环境更新后新 helper 使用新 runtime-owned 环境 |
+| 后台记忆根反例 | 托管 profile 清除任务/远端 memory 根覆盖，memory store 解析为 workspace；standalone profile 保留既有配置语义 |
+| Nexus 宿主边界 | `ConfigurationEnv` 无法重定向 managed memory；memory ownership key 参与 process-policy replacement；`make check-go` 与 `make check-architecture` 通过 |
+| 跨平台证据 | SDK client/env/MCP/runtime 的 Windows/Linux amd64 `go test -c` 交叉编译通过；这只是编译证据，不代表原生权限、DACL、Seatbelt 或安装包验收 |
+
+[证据说明与日志归档](./evidence/desktop-sandbox/2026-09-18-mcp-memory/README.md)、[基线报告](./evidence/desktop-sandbox/2026-09-18-mcp-memory/baseline-report.json)、[哈希清单](./evidence/desktop-sandbox/2026-09-18-mcp-memory/manifest.json)。
+
+本批次只证明 MCP authentication helper 的环境来源和 nxs 后台记忆根所有权。外部 MCP server 的 OS 进程/句柄/秘密文件/网络边界、完整后台 summary/transcript IO、持久回执与重启恢复、后代监督、scratch、默认策略、Claude、原生 Windows/Linux/macOS 安装包和生产发布仍未闭合；全部仅本地，Goal active。

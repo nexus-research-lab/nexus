@@ -1,10 +1,10 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-17**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-18**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-17）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
+当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
 ## 1. 最终交付目标
 
@@ -297,6 +297,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-16 | main 同步子批次完成：Nexus 合并 `050079978` 纳入 main `0e18e6aa7`；合并后复现 Bridge 工具身份丢失，Bridge `6325d2a` 合并 main 所需 `c7ecea2` 后固定新模块，保留全部沙箱能力。当前真实进程十项能力与旧配置能力拒绝通过；Nexus 受影响包及两处审批测试夹具修正后的竞态验证通过，设置页 19 例与类型检查通过 | 配置持久化继续为下一实施项：四个链接/目录身份反例已复现并归档，尚未修复。完整 P1–P7 与 Goal 保持；仅本地，不推送。证据见验收矩阵的 main 同步记录 |
 | 2026-09-17 | 新 Goal 已创建并保持 active。配置受控写入子批次完成：SDK `65e65b86`、`00b72d22` 与 Bridge `a2316d7` 本地提交，Nexus 固定 canonical Go 模块。Config/权限写入统一目录身份与同目录替换，部分结果共享 unknown 栅栏；有效 Config 修改阻止后续主/辅助请求，初始化成功前不创建 Session。固定基线 128 个顶层/285 个指定子场景通过，无必测 skip；真实当前十一项能力、旧写能力拒绝、工具身份回归、SDK 全包与目标竞态检查通过 | 下一项拆分 Provider 凭据与任务环境，先覆盖项目/flag 重路由和子进程环境泄漏反例。当前写入仅保证进程内边界，持久批准/revision/receipt、跨进程事务和重启对账仍待实现；P1/P2 整体与 P3–P7 保留，原目录不动，仅本地。证据见验收矩阵 |
 | 2026-09-17 | Provider 环境所有权子批次完成：SDK `101f34fa`、`460c0f1c` 本地提交；Nexus 最终固定宿主管理/唤醒标记，所有权或 scrub 声明变化时替换进程。已复现并修复任务 settings 重路由、请求正文替换、命令/hook 环境泄漏、HTTP hook/MCP 插值借用凭据，以及旧进程继续复用。固定 SDK 基线 143 个顶层/309 个指定子场景通过，后补最终宿主进程策略 2 个顶层/4 个子场景通过，均无必测 skip；目标包、竞态和跨平台编译通过 | 下一项收口 MCP 配置加载与认证 helper 的来源/执行边界，以及后台 summary/长期记忆 IO；环境过滤不能代替秘密文件、进程/句柄和网络隔离。持久回执/跨进程事务、完整后代监督、scratch、默认策略与 P3–P7 保留。Goal 已恢复 active；原目录不动，仅本地提交。证据见验收矩阵 |
+| 2026-09-18 | MCP helper 与后台记忆根子批次完成：SDK `81104dd9` 让 `headersHelper` 使用 runtime-owned 环境，托管模式过滤已知 Provider 凭据及 memory/remote 根，且环境热更新同步到 MCP registry；`runtimeSettingsProfile` 让 Summary/AutoMemory/AutoDream 只消费宿主 workspace。Nexus `064ccb7fa` 在 `ConfigurationEnv` 后再次固定 nxs memory 根并将三项 memory 所有权纳入进程指纹。固定提交基线通过，SDK client/env/MCP/runtime 目标包与 race/vet、Windows/Linux amd64 交叉编译、Nexus 增量门禁和架构检查通过 | 外部 MCP server/认证 helper 的 OS 执行边界、秘密文件/进程/句柄、完整后台 IO 约束、网络、持久恢复、后代监督、scratch、默认策略与 P3–P7 继续保留；全部仅本地、不推送。证据见验收矩阵 |
 
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）
@@ -305,6 +306,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 
 1. **执行底座输入（托管策略子批次已实现，见验收证据）**：managed 来源在任务 settings 环境投影前固定为不可变快照；启动、query/compact、工具、文件上下文和权限更新前读取/解析或完整性失败均阻断。`executor.PrepareInitialContextFiles` 继承此快照，`sandboxexec.sandboxSettingsSources` 在读取前排除非可信来源。独立 `sandbox_managed_policy_v1` 要求进入 Bridge/Nexus 准入与进程指纹。资源生命周期、有效策略回执和其他平台执行身份仍按 P1–P7 保留。
 2. **Provider 与凭据输入（环境所有权子批次已实现，完整隔离待验收）**：`client.Options.applySettingsProfile` 已使用固定来源、受限读取和完整快照，任务 settings 不能改写配置根。SDK `101f34fa` 在 settings 合并前固定托管所有权，排除任务 Provider/模型、认证、请求正文、代理和证书输入；命令/hook 环境合并后清理已知凭据，独立 CLI 保留原配置语义。Nexus 在最终环境固定托管标记。SDK `460c0f1c` 进一步收口 HTTP hook 与 MCP 变量插值，保留专用认证变量。项目/flag 重路由、请求正文替换、子进程环境、宿主标记覆盖及插值泄漏均有反例；固定提交集成证据见验收矩阵。宿主秘密文件、进程/句柄、外部 MCP 认证与网络出口尚未闭合，不能据此认定完整凭据隔离。
+   - SDK `81104dd9` 为 `headersHelper` 增加 runtime-owned 环境入口，并在 Registry 热更新时替换 helper 环境；托管模式的 memory/remote 根同样不进入辅助进程。`runtimeSettingsProfile` 在后台记忆消费者前清除任务根覆盖，standalone 保留原行为。Nexus `064ccb7fa` 在配置 capability 合并后固定 nxs workspace memory 根，并让 memory 所有权参与进程复用指纹。该批仍只证明输入来源和根目录所有权，外部 MCP、秘密文件、进程/句柄和 OS 网络边界仍未闭合。
 3. **运行配置输入（快照子批次已实现）**：`runtimeSettingsSnapshot`、shell、memory 和权限消费者使用 Binding；user/project/local/flag/policy 顺序和显式 Options 优先保留，来源过滤在 IO 前完成。动态设置拒绝静态执行字段，get_settings 查询同一快照。所有读取端口采用统一的 16 MiB 单文件上限。
 4. **经批准的配置写入（进程内安全子批次已实现，持久事务仍未完成）**：`Config` 和 `ApplyPermissionUpdates` 已统一进入 Binding 持有的 document store；固定物理根和目录身份，拒绝祖先/叶子链接切换、目录换代、特殊文件和只读目标，并以同目录临时文件替换，避免硬链接原地改写。任务沙箱同时禁止 settings 的字面和物理别名及临时文件模式。多文件按确定顺序提交，部分提交后把所有 clone 共用的 store 标记为 unknown；Config 有效修改触发 recreate 栅栏，query 在每次 provider 请求前核验，WebFetch 的环境端点与宿主摘要 adapter 也单独核验。独立 `sandbox_settings_writes_v1` 已进入 Bridge/Nexus 的准入和进程指纹；当前只声明 macOS。初始化进行中会缓冲有界普通消息，初始化失败不创建后续 Session。
    - 已固定 SDK `c90c7f7c` 复现 `file_symlink`、`directory_symlink`、`directory_replaced`、`hardlink` 四种身份失效，修复后的 writer 拒绝前三类，硬链接只替换授权目录项；[测试夹具与日志](../../testing/evidence/desktop-sandbox/2026-09-16-main-sync/report.json) 保留修复前事实。终审另复现 Seatbelt 只禁止字面链接路径时仍可写物理目标，当前实现把两类路径都加入强制禁止。上述是当前进程内文件边界，不是 durable 事务或整个 SDK OS 隔离的验收。
