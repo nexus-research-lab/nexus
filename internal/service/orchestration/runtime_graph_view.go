@@ -214,7 +214,8 @@ func mergeExecutionRuntimeGraph(
 	for _, runtimeNode := range runtimeGraph.Nodes {
 		projectedID := runtimeNodeProjection[runtimeNode.ID]
 		if subjectID := strings.TrimSpace(runtimeNode.SubjectID); projectedID != "" && subjectID != "" {
-			parentNodeBySubject[subjectID] = projectedID
+			parentNodeBySubject[runtimeGraphParentKey(runtimeNode.AgentRoundID, subjectID)] = projectedID
+			parentNodeBySubject[subjectID] = projectedID // legacy parent references
 		}
 	}
 	for _, runtimeNode := range runtimeGraph.Nodes {
@@ -223,7 +224,9 @@ func mergeExecutionRuntimeGraph(
 		}
 		toolUseID, _ := runtimeNode.Metadata["tool_use_id"].(string)
 		if toolUseID = strings.TrimSpace(toolUseID); toolUseID != "" {
-			parentNodeBySubject[toolUseID] = runtimeNodeProjection[runtimeNode.ID]
+			projectedID := runtimeNodeProjection[runtimeNode.ID]
+			parentNodeBySubject[runtimeGraphParentKey(runtimeNode.AgentRoundID, toolUseID)] = projectedID
+			parentNodeBySubject[toolUseID] = projectedID
 		}
 	}
 	runtimeNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun, len(runtimeGraph.Nodes))
@@ -256,7 +259,10 @@ func mergeExecutionRuntimeGraph(
 					sourceID = segmentOwnerID
 				}
 			}
-			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID &&
+			if exactParentID := firstNonEmpty(
+				parentNodeBySubject[runtimeGraphParentKey(targetRuntimeNode.AgentRoundID, targetRuntimeNode.ParentSubjectID)],
+				parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)],
+			); exactParentID != "" && exactParentID != targetID &&
 				(segmentOwnerID == "" || exactParentID != agentNodeByRound[targetRuntimeNode.AgentRoundID]) {
 				sourceID = exactParentID
 			}
@@ -321,7 +327,10 @@ func mergeExecutionRuntimeGraph(
 		if _, exists := incomingRuntimeNode[targetID]; exists {
 			continue
 		}
-		sourceID := parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)]
+		sourceID := firstNonEmpty(
+			parentNodeBySubject[runtimeGraphParentKey(runtimeNode.AgentRoundID, runtimeNode.ParentSubjectID)],
+			parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)],
+		)
 		if segment := runtimeExecutionSegmentFromNode(runtimeNode); segment.valid() {
 			segmentOwnerID := firstNonEmpty(
 				agentNodeByAttempt[segment.AttemptID],

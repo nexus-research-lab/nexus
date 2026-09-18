@@ -23,7 +23,7 @@ import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
 import { ComposerRoomModelControl } from "./composer-room-model-control";
-import { SESSION_MODEL_MENU_WIDTH } from "./composer-session-control-layout";
+import { SESSION_DIRECT_MODEL_MENU_WIDTH } from "./composer-session-control-layout";
 import {
   buildResetSessionSettingItem,
   buildSessionModelItems,
@@ -183,7 +183,7 @@ function ComposerModelControl({
         footerItems={[resetItem]}
         isOpen={isOpen && !disabled && !controller.modelBusy}
         items={modelItems}
-        minWidth={SESSION_MODEL_MENU_WIDTH}
+        minWidth={SESSION_DIRECT_MODEL_MENU_WIDTH}
         onClose={() => setIsOpen(false)}
         onSelect={(value) => {
           applySessionModelSelection(controller, value);
