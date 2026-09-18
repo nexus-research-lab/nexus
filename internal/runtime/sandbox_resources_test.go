@@ -17,7 +17,11 @@ func TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := lease.Path()
-	if !filepath.IsAbs(path) || filepath.Dir(filepath.Dir(path)) != filepath.Clean(root) {
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(path) || filepath.Dir(filepath.Dir(path)) != filepath.Clean(canonicalRoot) {
 		t.Fatalf("scratch path = %q", path)
 	}
 	if got := lease.Resources(); got == nil || got.Version != 1 || got.WriteScope != agentclient.SandboxWriteScopeReadOnly || got.ScratchRoot != path {
