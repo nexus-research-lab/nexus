@@ -6,7 +6,7 @@
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
-import { memo, useMemo } from "react";
+import { memo, useMemo, type ReactNode } from "react";
 
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
@@ -124,12 +124,6 @@ function GroupAgentExecutionShellInner({
     : status === "error"
       ? t("room.agent_status_failed")
       : null;
-  const stopLabel = t(isStopping
-    ? "room.agent_stopping"
-    : "room.agent_stop");
-  const stopActionLabel = t(isStopping
-    ? "room.agent_stopping"
-    : "room.agent_stop_action");
 
   return (
     <div
@@ -148,32 +142,14 @@ function GroupAgentExecutionShellInner({
         animateEntry={false}
         assistantContentMode="room_result"
         assistantHeaderAction={showThread || showStop || terminalLabel ? (
-          <div
-            aria-label={t("room.agent_actions")}
-            className="radius-control-sm inline-flex min-h-8 items-center bg-(--surface-control-field-background) p-0.5"
-            data-room-agent-execution-actions
-            role="group"
-          >
+          <RoomAgentExecutionActions>
             {terminalLabel ? (
               <span className={cn("px-2", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                 {terminalLabel}
               </span>
             ) : null}
             {showStop ? (
-              <UiButton
-                aria-busy={isStopping || undefined}
-                aria-label={stopActionLabel}
-                data-room-agent-action="stop"
-                disabled={isStopping}
-                onClick={onStopAgentRound}
-                size="xs"
-                title={stopActionLabel}
-                tone="danger"
-                variant="text"
-              >
-                <Square aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
-                <span className="hidden sm:inline">{stopLabel}</span>
-              </UiButton>
+              <RoomAgentStopButton isStopping={isStopping} onClick={onStopAgentRound!} />
             ) : null}
             {(showStop || terminalLabel) && showThread ? (
               <span
@@ -188,7 +164,7 @@ function GroupAgentExecutionShellInner({
                 onClick={onClickThread}
               />
             ) : null}
-          </div>
+          </RoomAgentExecutionActions>
         ) : undefined}
         currentAgentAvatar={agentAvatar}
         currentAgentName={agentName}
@@ -212,3 +188,21 @@ function GroupAgentExecutionShellInner({
 }
 
 export const GroupAgentExecutionShell = memo(GroupAgentExecutionShellInner);
+
+export function RoomAgentStopButton({isStopping = false, onClick}: {isStopping?: boolean; onClick: () => void}) {
+  const {t} = useI18n();
+  const label = t(isStopping ? "room.agent_stopping" : "room.agent_stop_action");
+  return <UiButton aria-busy={isStopping || undefined} aria-label={label} title={label}
+    data-room-agent-action="stop" disabled={isStopping} onClick={onClick} size="xs" tone="danger" variant="text">
+    <Square aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
+    <span className="hidden sm:inline">{t(isStopping ? "room.agent_stopping" : "room.agent_stop")}</span>
+  </UiButton>;
+}
+
+/** 本地执行和在线投递复用同一动作条；动作权限仍由各自的数据源决定。 */
+export function RoomAgentExecutionActions({children}: {children: ReactNode}) {
+  const { t } = useI18n();
+  return <div aria-label={t("room.agent_actions")}
+    className="radius-control-sm inline-flex min-h-8 items-center bg-(--surface-control-field-background) p-0.5"
+    data-room-agent-execution-actions role="group">{children}</div>;
+}

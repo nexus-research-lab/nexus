@@ -28,6 +28,7 @@ import type { UserMessagePresentation } from "./user-message-model";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 interface UserMessageContentProps {
+  onOpenAttachment?: (attachment: MessageAttachment) => void;
   attachments: MessageAttachment[];
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;
@@ -40,6 +41,7 @@ interface UserMessageContentProps {
 }
 
 export function UserMessageContent({
+  onOpenAttachment,
   attachments,
   agentMentions,
   agentMentionDirectory,
@@ -136,6 +138,7 @@ export function UserMessageContent({
         </>
       ) : null}
       <MessageUserAttachments
+        onOpenAttachment={onOpenAttachment}
         attachments={attachments}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         workspaceAgentId={workspaceAgentId}

@@ -10,6 +10,7 @@ import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import {
   getMenuItemStateClassName,
   getMenuItemLayout,
@@ -22,6 +23,7 @@ import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-la
 import { resolveUiAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-layout";
 import { isTopAnchoredOverlay } from "@/shared/ui/overlay/overlay-dismissal-runtime";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import type { UiAnchoredOverlayPlacement } from "@/shared/ui/overlay/anchored-overlay-model";
 
 import {
   filterMentionTargets,
@@ -32,6 +34,8 @@ import {
 
 interface MentionTargetPopoverProps {
   anchorRef: RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+  positionAnchorRef?: RefObject<HTMLElement | null>;
+  placement?: UiAnchoredOverlayPlacement;
   filter: string;
   items: MentionTargetItem[];
   onClose: () => void;
@@ -41,6 +45,8 @@ interface MentionTargetPopoverProps {
 
 export const MentionTargetPopover = memo(function MentionTargetPopover({
   anchorRef,
+  positionAnchorRef = anchorRef,
+  placement = "auto",
   filter,
   items,
   onClose,
@@ -62,14 +68,14 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
   const open = isOpen && filteredItems.length > 0;
   const estimatePosition = useCallback((anchor: HTMLElement) => resolveUiAnchoredOverlayPosition({
     anchor,
-    placement: "auto",
+    placement,
     preset: "reference-list",
     estimatedContentHeight: MENU_SURFACE_VERTICAL_PADDING_PX
       + filteredItems.reduce((height, item) => height + getMenuItemLayout({ hasDescription: Boolean(item.subtitle) }).height, 0)
       + MENU_ITEM_GAP_PX * Math.max(0, filteredItems.length - 1),
-  }), [filteredItems]);
+  }), [filteredItems, placement]);
   const { overlayId, overlayPosition, overlayRef, overlayStyle, portalContainer } = useAnchoredOverlayLayer({
-    anchorRef,
+    anchorRef: positionAnchorRef,
     captureEscape: true,
     disabled: false,
     estimatePosition,
@@ -172,12 +178,12 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
             tabIndex={-1}
             title={item.subtitle ? `${item.label} — ${item.subtitle}` : item.label}
           >
-            <span
+            {item.avatar ? <UiAgentAvatar avatar={item.avatar} name={item.label} size="sm" /> : <span
               aria-hidden="true"
               className={cn("flex h-6 w-6 shrink-0 items-center justify-center radius-control-sm bg-(--surface-avatar-background) text-(--surface-avatar-foreground)", getUiTypographyClassName({ role: "metadata" }))}
             >
               {item.marker}
-            </span>
+            </span>}
             <span className="min-w-0 flex-1">
               <span className="block truncate">{item.label}</span>
               {item.subtitle ? (

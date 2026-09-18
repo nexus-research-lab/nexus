@@ -31,6 +31,7 @@ DM 可在桌面端为当前 Session 挂载多个本机工作文件夹，Web 不�
 原生 IME 标志与兼容键码的识别唯一复用 `shared/lib/browser/ime-keyboard-event.ts`；composition 生命周期和结束后的时序仍属于 Composer。中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
 Slash 命令目录只消费后端从版本化内置清单合成的快照中的公开名称、说明、参数提示和执行类型；输入恰为 `/` 时按公开命令名（忽略前导 `/` 与大小写）字母序展示当前快照的全部指令，继续输入字母后只保留命令名前缀匹配并维持字母序，说明与参数提示只用于展示、不参与匹配。`/skills` 是宿主侧技能入口：一级命令只负责进入技能子面板，技能列表按快照中的当前 Agent ID 拉取并在子面板中筛选，Nexus 内置 Skill 使用共享双语说明参与展示与搜索，最终只把 `/<skill> ` 写回正文；未为当前 Agent 启用的 Skill 以弱化的“单次使用”状态显示并允许显式选择，完整 `SKILL.md` 的读取、参数展开和单轮上下文注入全部由所选 runtime 负责。`/model` 同样进入模型子面板，按当前 runtime 拉取 Nexus Provider 模型选项，并为 Claude runtime 合入版本内置别名；Provider 模型选择写回 `/model <provider>/<model> `，由 Nexus 原子更新当前 Session 的 Provider/模型覆盖，Claude 内置别名保持原生 `/model <alias> ` 透传。`/plan` 补全或带空白的原文输入转成 Plan 草稿模式：正文隐藏前缀，底部复用 Goal 模式标记；发送时才编码回原 `/plan` 协议。其他 host/runtime 选择只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链。所有消息开头的 `/<command>` 都通过不接管指针的同步镜像显示为轻量命令标签，原生 textarea 仍独占输入、光标、选择、IME 与滚动；`/visualize` 同样只写回原始指令，后端在 runtime 投递边界展开简短的 Generative UI 提示，前端不得拼接隐藏提示。前端不得查询命令目录或按浮层打开触发 runtime，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
+在线 Room 的页面适配器可读取经过远程身份校验的固定产品提示命令快照；共享 Composer 仍只消费传入目录，不查询运行时或公开本机私有目录。Slash 选择后的延迟光标更新必须核对正文快照，避免覆盖用户紧接着输入的 Mention。
 紧凑 Composer 只用于手机与窄窗专注模式：外层至少保留 16px 横向安全留白，较宽窄窗保持 720px 居中上限，底部留白必须覆盖常规间距与系统 safe area；不得把输入壳铺满整个视口。
 常规桌面 Composer 在底部保留 8px 呼吸区，使输入壳贴近窗口底边但不截断边框与阴影；不得通过改变输入壳自身高度模拟抬升。紧凑模式继续取常规间距与系统 safe area 的较大值。
 常规桌面 Composer 与消息轨道保持同一中心线，但使用独立的 880px 外层上限；桌面横向内边距扣除后，输入壳约 832px 宽，不得随超宽屏继续拉成长条。
@@ -46,6 +47,7 @@ Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，�
 队列命令和附件准备是 DM/Room 的共同能力；DM Composer 的停止针对当前会话，Room Composer 的“全部停止”必须在点击时冻结所有 active slot 的精确 `agent_round_id`，逐个复用定向停止，禁止退化为无目标的 session interrupt。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。
+不支持消息附件的消费端使用 `attachmentsDisabledReason`：粘贴及已有草稿附件提交均明确拒绝并保留正文，不得通过返回空附件数组静默丢弃文件；隐藏动作菜单不能吞掉该能力错误。
 Composer 的工作图目录使用 plain Dialog 标题和扁平选择行，不显示解释选择动作的副标题或装饰图标；工作图在同一选择器内以目录/预览双栏查看，窄屏纵向排列。
 
 - 工作图选择器的临时打开意图按完整草稿/工作图 Session 与人工介入状态重置，切页返回不得恢复旧选择器。

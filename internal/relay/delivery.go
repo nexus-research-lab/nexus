@@ -5,6 +5,11 @@ package relay
 
 import "time"
 
+type PendingDeliveries struct {
+	AgentIDs  []string   `json:"agent_ids"`
+	NextDueAt *time.Time `json:"next_due_at,omitempty"`
+}
+
 type Delivery struct {
 	ID             string     `json:"id"`
 	RoomID         string     `json:"room_id"`

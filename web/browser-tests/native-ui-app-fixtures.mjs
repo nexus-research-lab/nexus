@@ -24,6 +24,9 @@ const READS = new Map([
 ]);
 
 export function appShellRead(method, pathname) {
+  if (method === "GET" && pathname === "/nexus/v1/team/commands") {
+    return {data:{status:"ready",commands:[{name:"browser",description:"Browser",execution:"runtime",enabled:true}]}};
+  }
   if (method === "POST" && pathname === "/nexus/v1/team/bootstrap") {
     return { data: {
       team: { id: "qa-team", deployment_id: "qa-deployment", name: "QA Team" },

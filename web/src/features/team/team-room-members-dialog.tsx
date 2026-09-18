@@ -37,6 +37,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import { useTeamRoomMembers } from "./use-team-room-members";
+import { useAuth } from "@/shared/auth/auth-context";
 
 export function TeamRoomMembersDialog({
 	agents,
@@ -58,6 +59,8 @@ export function TeamRoomMembersDialog({
   roomId: string | null;
 }) {
   const { t } = useI18n();
+  const { status } = useAuth();
+  const selfAvatar = (status?.control_user_id ?? status?.user_id) === currentUserId ? status?.avatar : undefined;
   const titleId = useId();
   const resource = useTeamRoomMembers(roomId, open, onChanged);
   const [settings, setSettings] = useState<{name: string; avatar: string} | null>(null);
@@ -150,7 +153,7 @@ export function TeamRoomMembersDialog({
                       const editable = member.state === "active" && member.role !== "owner" && canChangeRoles;
                       const removable = member.state === "active" && member.role !== "owner" && canManage && !(current?.role === "admin" && member.role === "admin");
                       return <UiListRow key={member.member_id} className="max-sm:grid max-sm:grid-cols-[28px_minmax(0,1fr)_auto]" density="dense" title={name}
-                        leading={<UiAgentAvatar avatar={directory.find((entry) => entry.user_id === member.member_id)?.avatar} name={name} size="sm" />}
+                        leading={<UiAgentAvatar avatar={member.member_id === currentUserId ? selfAvatar : directory.find((entry) => entry.user_id === member.member_id)?.avatar} name={name} size="sm" />}
                         right={editable ? <UiSelectMenu ariaLabel={t("team.member_role", { name })} className="w-24 shrink-0 max-sm:col-span-2 max-sm:col-start-2 max-sm:row-start-2 max-sm:w-full" disabled={resource.busy}
                           onChange={(value) => { void resource.setRole(member.member_id, value as "admin" | "member"); }}
                           options={[{ label: t("team.role_member"), value: "member" }, { label: t("team.role_admin"), value: "admin" }]}

@@ -79,7 +79,7 @@ func (h *NodeHandlers) writeError(writer http.ResponseWriter, err error) {
 	h.api.WriteFailure(writer, status, message)
 }
 
-// HandleRoom 只物化已入群的本人 Agent 会话，不启用节点执行。
+// HandleRoom 校验本人入群 Agent，物化会话并自动登记执行；工具审批仍由本机 Room 持有。
 func (h *NodeHandlers) HandleRoom(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Cache-Control", "no-store")
 	if !sameOrigin(request) {

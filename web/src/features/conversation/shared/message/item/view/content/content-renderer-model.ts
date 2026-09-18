@@ -13,6 +13,7 @@ import type {
 import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
 import {
   isRejectedToolResult,
+  isInterruptedToolResult,
   isSupersededToolResult,
 } from "../../../tool-result-semantic-model";
 
@@ -82,6 +83,9 @@ export function resolveToolBlockStatus(
   unresolvedToolStatus?: Extract<ToolBlockStatus, "error" | "stopped">,
 ): ToolBlockStatus {
   if (toolUse?.result) {
+    if (isInterruptedToolResult(toolUse.result)) {
+      return "stopped";
+    }
     if (toolUse.result.is_error) {
       return "error";
     }

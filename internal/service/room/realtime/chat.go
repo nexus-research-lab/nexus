@@ -231,7 +231,8 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	if err != nil {
 		return nil, err
 	}
-	request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(request.Content, request.Internal, request.PermissionMode)
+	// Relay 是显式用户输入；/plan 同样只能收紧本轮权限，不继承远端的宿主设置。
+	request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(request.Content, request.Internal && request.ExecutionOrigin != "relay", request.PermissionMode)
 	ensureRoomChatIDs(&request)
 	recordStage := s.roomChatStageRecorder(ctx, request, "context")
 	defer func() { recordStage("", err) }()
@@ -759,6 +760,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		Content:     strings.TrimSpace(e.runtimeTriggerText),
 		MessageID:   e.request.UserMessageID,
 	}
+	initialTrigger = initialTrigger.WithPublicSource(e.request.PublicContext)
 	activeRound := &activeRoomRound{
 		SessionKey:                        e.sessionKey,
 		RoomID:                            e.roomID,

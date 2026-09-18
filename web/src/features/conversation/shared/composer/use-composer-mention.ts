@@ -45,6 +45,7 @@ export function useComposerMention({
         id: member.agent_id,
         label: member.name,
         marker: member.name.charAt(0).toUpperCase(),
+        avatar: member.avatar,
         subtitle: null,
       })),
     [roomMembers],

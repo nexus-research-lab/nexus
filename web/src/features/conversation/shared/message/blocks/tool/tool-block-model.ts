@@ -14,7 +14,7 @@ import {
   getToolInputSummary,
   getLocalizedToolTitle as resolveLocalizedToolTitle,
 } from "../../tool-activity";
-import { projectToolResultMutation } from "../../tool-result-semantic-model";
+import { isInterruptedToolResult, projectToolResultMutation } from "../../tool-result-semantic-model";
 import { resolveExecutionToolVisualKind } from "../../../execution/execution-tool-visual";
 import type {
   ToolBlockProps,
@@ -261,6 +261,9 @@ function resolveFinalStatus(
   result: ToolResultContent | undefined,
   status: ToolBlockStatus,
 ): ToolBlockStatus {
+  if (isInterruptedToolResult(result)) {
+    return "stopped";
+  }
   if (result?.is_error) {
     return "error";
   }

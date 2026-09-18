@@ -103,13 +103,15 @@ export function useTeamRoom(roomId: string | null) {
     setRoom(next);
   }, []);
 
+  const detailsRequestRef = useRef(0);
   const refreshDetails = useCallback(async (signal?: AbortSignal) => {
+    const requestID = ++detailsRequestRef.current;
     const generation = captureAuthOwnerScopeGeneration();
     const current = roomRef.current;
     if (!current) return;
     try {
       const next = await getTeamRoom(current.room.id, signal);
-      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) {
+      if (!signal?.aborted && requestID === detailsRequestRef.current && isAuthOwnerScopeGenerationCurrent(generation)) {
         updateDetails(next);
         return next;
       }
@@ -308,7 +310,7 @@ export function useTeamRoom(roomId: string | null) {
     const next = await refreshDetails(signal);
     if (!next || signal.aborted || roomRef.current?.room.id !== next.room.id) return;
     try {
-      // 推送只是提示；定期读取的持久水位也必须驱动差量恢复。
+      // 目录变更或恢复连接后，按持久水位补读，推送本身不作为消息事实。
       if (next.conversation.stream_epoch !== room?.conversation.stream_epoch) {
         await recoverStream();
       } else {
@@ -330,7 +332,9 @@ export function useTeamRoom(roomId: string | null) {
       return;
     }
     void synchronize(event.high_water_seq).catch(handleReadFailure);
-  }, [handleReadFailure, recoverStream, synchronize]);
+    // 同水位也可能是投递领取或失败提示；共享进度独立于消息序列。
+    void refreshDetails();
+  }, [handleReadFailure, recoverStream, synchronize, refreshDetails]);
   useWebSocket({
     autoConnect: canUseRelay && Boolean(room),
     heartbeatInterval: 0,
@@ -345,11 +349,11 @@ export function useTeamRoom(roomId: string | null) {
       : "",
   });
 
-  const send = useCallback(async (text: string, agentIds: string[] = []) => {
+  const send = useCallback(async (text: string, agentIds: string[] = [], attachments: NonNullable<import("@/lib/api/conversation/team-api").TeamMessageContent["attachments"]> = []) => {
     const generation = captureAuthOwnerScopeGeneration();
     const value = roomRef.current;
     const normalized = (pendingSendRef.current?.text ?? text).trim();
-    if (!canUseRelay || !value || !normalized || sendingRef.current) {
+    if (!canUseRelay || !value || (!normalized && !(pendingSendRef.current?.attachments ?? attachments).length) || sendingRef.current) {
       return false;
     }
     sendingRef.current = true;
@@ -358,7 +362,7 @@ export function useTeamRoom(roomId: string | null) {
 	const normalizedAgentIDs = [...new Set(agentIds)];
     // 未确认的写入必须重放原始意图，不能在刷新成员后替换版本或静默丢弃目标。
     const previous = pendingSendRef.current;
-    const command = previous ?? { agentIds: normalizedAgentIDs, id: crypto.randomUUID(), text: normalized, membershipVersion: value.room.membership_version };
+    const command = previous ?? { agentIds: normalizedAgentIDs, id: crypto.randomUUID(), text: normalized, membershipVersion: value.room.membership_version, ...(attachments.length ? {attachments} : {}) };
     try {
       if (!outboxRef.current) throw new Error("缺少在线账号的持久化作用域");
       outboxRef.current.save(command);
@@ -370,6 +374,7 @@ export function useTeamRoom(roomId: string | null) {
         command.text,
         command.id,
 		command.agentIds.length > 0 ? { agentIds: command.agentIds, expectedMembershipVersion: command.membershipVersion } : undefined,
+        command.attachments,
       );
       if (!isAuthOwnerScopeGenerationCurrent(generation)) return false;
       outboxRef.current.confirm(command.id);
@@ -403,6 +408,7 @@ export function useTeamRoom(roomId: string | null) {
     isSending: canUseRelay && isSending,
     hasUnconfirmedSend: canUseRelay && hasUnconfirmedSend,
     pendingText: canUseRelay ? pendingText : null,
+    pendingAttachmentNames: canUseRelay ? (pendingSendRef.current?.attachments ?? []).map((file) => file.name) : [],
     messages: canUseRelay ? messages : [],
     retryLoad,
     room: canUseRelay ? room : null,

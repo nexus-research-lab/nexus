@@ -9,8 +9,10 @@ import type { TeamRoomInvitation } from "@/lib/api/conversation/team-api";
 import { useTeamInvitations } from "./use-team-invitations";
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-const api = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), recover: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), recover: vi.fn(), socket: vi.fn() }));
+vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: api.socket}));
 vi.mock("@/lib/api/conversation/team-api", () => ({
+  buildTeamStreamUrl: () => "ws://localhost/directory",
   listTeamInvitations: api.list,
   resolveTeamRoomInvitation: api.resolve,
   transferTeamRoomOwnership: api.recover,
@@ -35,24 +37,22 @@ it("accepts the current invitation version and refreshes the Room directory", as
   expect(accepted).toHaveBeenCalledOnce();
 });
 
-it("discovers late invitations on visible refresh, retains data on failure and stops polling when hidden", async () => {
+it("discovers late invitations through WS, retains failed reads and never polls", async () => {
   api.list.mockReset().mockResolvedValue({invitations: []});
   const {result, unmount} = renderHook(() => useTeamInvitations(vi.fn()));
   await waitFor(() => expect(result.current.loading).toBe(false));
   vi.useFakeTimers();
   const invitation = {room: {id: "late-room", membership_version: 2}} as TeamRoomInvitation;
   api.list.mockResolvedValue({invitations: [invitation]});
-  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => { api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "directory"}); });
   expect(result.current.invitations).toEqual([invitation]);
   api.list.mockRejectedValueOnce(new Error("offline"));
-  await act(async () => { result.current.refresh(); result.current.refresh(); });
+  await act(async () => { result.current.refresh(); });
   expect(api.list).toHaveBeenCalledTimes(3);
   expect(result.current.failed).toBe(true);
   expect(result.current.invitations).toEqual([invitation]);
-  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(api.list).toHaveBeenCalledTimes(3);
-  visibility.mockReturnValue("visible");
   await act(async () => { document.dispatchEvent(new Event("visibilitychange")); });
   expect(api.list).toHaveBeenCalledTimes(4);
   expect(result.current.failed).toBe(false);
