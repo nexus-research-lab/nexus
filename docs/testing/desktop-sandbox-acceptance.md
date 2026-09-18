@@ -51,6 +51,31 @@ Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
 
 在上述三层证据齐全前，本矩阵中的 Claude 仍为“未闭合”，`releaseAccepted=false`。
 
+### 2026-09-18：Claude CLI 受限参数探测（macOS 本机）
+
+使用 `scripts/desktop/check-claude-restricted.mjs` 对本机安装的 Claude Code
+执行只读的 CLI 探测。探测进程使用临时 `HOME`、`CLAUDE_CONFIG_DIR` 和
+`XDG_CONFIG_HOME`，不继承 Provider 凭据；只调用 `--version`、`--help` 以及
+两个在参数预检阶段失败的 bypass 组合，不提供 prompt，也不发起模型请求。
+
+```sh
+node scripts/desktop/check-claude-restricted.mjs \
+  --binary /Users/berhand/.local/bin/claude \
+  --expected-version 2.1.273 \
+  --report /tmp/claude-restricted-probe.json
+```
+
+本机结果：macOS 27.0 / arm64，Claude Code `2.1.273`；`--help` 明确列出
+`--restricted`，并说明会移除代码执行工具、限制文件工具工作目录和拒绝
+`bypassPermissions`。`--restricted --dangerously-skip-permissions` 与
+`--restricted --permission-mode bypassPermissions` 均以 exit 1 结束，并返回
+`bypassPermissions not supported in restricted mode`。报告中的 `scope` 明确把
+取消、清理、Provider、网络、文件和 OS 隔离标为未测试。
+
+这条记录证明当前机器的 CLI 版本和参数语义可被复现，不能证明 Bridge 已经
+启动过一个已认证的 Claude 会话，也不能证明真实工具、网络或子进程被隔离；
+取消/清理及 Windows、Linux、安装包验收仍未闭合。
+
 ## 本次重新审计的执行记录
 
 日期：2026-09-15。Nexus 基线 928c7e803；Bridge module 为 3da56a2；SDK 使用 c8245262 的独立导出，排除工作区未提交变更。
