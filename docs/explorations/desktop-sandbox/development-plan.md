@@ -391,7 +391,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 3. **运行配置输入（快照子批次已实现）**：`runtimeSettingsSnapshot`、shell、memory 和权限消费者使用 Binding；user/project/local/flag/policy 顺序和显式 Options 优先保留，来源过滤在 IO 前完成。动态设置拒绝静态执行字段，get_settings 查询同一快照。所有读取端口采用统一的 16 MiB 单文件上限。
 4. **经批准的配置写入（进程内安全子批次已实现，持久事务仍未完成）**：`Config` 和 `ApplyPermissionUpdates` 已统一进入 Binding 持有的 document store；固定物理根和目录身份，拒绝祖先/叶子链接切换、目录换代、特殊文件和只读目标，并以同目录临时文件替换，避免硬链接原地改写。任务沙箱同时禁止 settings 的字面和物理别名及临时文件模式。多文件按确定顺序提交，部分提交后把所有 clone 共用的 store 标记为 unknown；Config 有效修改触发 recreate 栅栏，query 在每次 provider 请求前核验，WebFetch 的环境端点与宿主摘要 adapter 也单独核验。独立 `sandbox_settings_writes_v1` 已进入 Bridge/Nexus 的准入和进程指纹；当前只声明 macOS。初始化进行中会缓冲有界普通消息，初始化失败不创建后续 Session。
    - 已固定 SDK `c90c7f7c` 复现 `file_symlink`、`directory_symlink`、`directory_replaced`、`hardlink` 四种身份失效，修复后的 writer 拒绝前三类，硬链接只替换授权目录项；[测试夹具与日志](../../testing/evidence/desktop-sandbox/2026-09-16-main-sync/report.json) 保留修复前事实。终审另复现 Seatbelt 只禁止字面链接路径时仍可写物理目标，当前实现把两类路径都加入强制禁止。上述是当前进程内文件边界，不是 durable 事务或整个 SDK OS 隔离的验收。
-   - 仍待实现 exact request/批准/revision 的持久绑定、跨进程锁或 CAS、多文件 all-or-nothing、父目录 fsync/断电持久性、durable receipt、重启后的 unknown 对账和明确用户驱动的恢复；不得自动重放未知写入。
+   - exact request/批准/revision 的 durable receipt、启动/周期 unknown 收口和人工 review/reconcile 控制面已接入；仍待实现跨进程 CAS、多文件 all-or-nothing、父目录 fsync/断电持久性、跨完整性密钥重启的稳定 revision 比较和设置页原生入口。不得自动重放未知写入。
 5. **验证**：原生拒绝、malformed managed/drop-in、项目/flag 链接、取消、来源禁用、并发更新、部分写入故障、符号链接物理别名和 Config 后续 provider 栅栏均须有正反例；确认默认模式、强制 deny、hook 限制和凭据边界保持。独立写能力不能扩张已发布读取能力的含义。
 
 该批次不替代 P3–P7，也不删除 hook 执行、后台 IO、网络、生效回执、完整后代监督、scratch 生命周期、默认产品策略、Windows/Linux/Claude 与安装包门禁。所有工作继续在独立 worktree，仅保留本地提交。

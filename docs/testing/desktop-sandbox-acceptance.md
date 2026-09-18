@@ -69,6 +69,8 @@ GOWORK=off go test ./internal/cli ./internal/app/runtime
 
 结果：集成测试证明人工收口不会再次推进 Preferences 版本，备注正文不落审计；CLI 和
 loopback broker 编译/目标测试通过。原始日志、报告与校验和见[证据目录](evidence/desktop-sandbox/2026-09-18-settings-receipt/)。
+使用 SDK `9d60e166` 构建的真实 nxs 和当前精确 Bridge 运行 host integration gate 也通过；
+gate report 明确为 `releaseAccepted=false` 的无模型 host integration-only 范围。
 此批次仍不证明 revision 在跨进程密钥生命周期外
 可比较，也不替代设置页 UI、掉电事务、Provider/网络/辅助进程、Claude 真实会话或
 Windows/macOS/Linux/安装包验收；`releaseAccepted=false` 继续成立。

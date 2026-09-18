@@ -1,11 +1,14 @@
 {
   "files": {
-    "README.md": "sha256:8c9cb41ed3cf2a5894240097bdf65e5c9a972c8ed576602588e0eed9d1032bde",
+    "README.md": "sha256:f7fb671721a4fcf0afd056d051d36710706de11f0e50d761c4814a667c568e6b",
     "report.json": "sha256:96e02630e393974e1f3938ab35870e4ca0c59642a77475358e241f3bc9574940",
     "configuration-review.log": "sha256:664d872ad6a95219bc4f7d3bc949fe19a33581991388772db70fd465f1781faf",
     "configuration-review-race.log": "sha256:3cd844444ea4be66f96a668fdd530c7057f71b930d49373361f87175495e45aa",
     "target-packages.log": "sha256:e894b4ecc5df5a9998b0c4207f51abd9a315b99d3996771fccaa78141ee504fe",
-    "architecture.log": "sha256:a2d1d8f9adb696233d402fa3adc1147abcfef1968bf3256a1bdfa3e8cdc5b7b7"
+    "architecture.log": "sha256:a2d1d8f9adb696233d402fa3adc1147abcfef1968bf3256a1bdfa3e8cdc5b7b7",
+    "desktop-gate-report.json": "sha256:c3ff41ff484d3dde03a4c8130276ed182b6d8cef0df564111a60d2d38d635353",
+    "desktop-gate-host-policy.stdout.log": "sha256:b45e68d1fbde2e1ad68e26764faf882d3ce704caf588c58ec388156196961e11",
+    "desktop-gate-host-lifecycle.stdout.log": "sha256:111e7fecebcdd2251ed9f0ca39bb562b30b32b25bcdc40567eff327621d63acc"
   },
   "note": "Hashes cover the captured logs and evidence files; no remote upload is implied."
 }

@@ -19,6 +19,11 @@
 | `configuration-review-race.log` | `GOWORK=off go test -race ./internal/service/configuration -run 'TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay' -count=1 -timeout=2m` | exit 0 |
 | `target-packages.log` | `GOWORK=off go test ./internal/service/configuration ./internal/cli ./internal/app/runtime -count=1` | exit 0 |
 | `architecture.log` | `GOWORK=off make check-architecture` | exit 0 |
+| `desktop-gate-report.json` | `NEXUS_SANDBOX_TEST_BINARY=/private/tmp/nexus-settings-receipt-gate/nxs make check-desktop-sandbox` | host integration passed; exit 0 |
+
+桌面 gate 使用 SDK `9d60e166` 构建的 nxs（SHA-256 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`），
+Bridge 固定为 `v0.1.34-0.20260918074231-6ea7730`，scope 是无模型请求的 host integration-only；
+它不替代 macOS 原生工具链、Claude 真实会话或其他平台验收。
 
 ## Evidence boundary
 
@@ -26,4 +31,3 @@
 跨进程 all-or-nothing/CAS、父目录 fsync、跨重启 revision 完整性密钥、设置页原生 UI、
 Provider/网络/辅助进程隔离、完整后代清理、Claude 真实认证会话、Windows/macOS/Linux
 实机或安装包发布验收；`releaseAccepted=false` 继续成立。
-
