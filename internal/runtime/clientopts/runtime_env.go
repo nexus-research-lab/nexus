@@ -369,6 +369,17 @@ func nxsHostManagedRuntimeEnv(runtimeKind string) map[string]string {
 	}
 }
 
+func managedMemoryRuntimeEnv(runtimeKind string, workspacePath string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	return map[string]string{
+		nexusMemoryDirEnvName:          strings.TrimSpace(workspacePath),
+		nexusEnableRemoteMemoryEnvName: "",
+		nexusRemoteMemoryDirEnvName:    "",
+	}
+}
+
 // hostManagedScheduleRuntimeEnv 关闭仍内置调度器的第三方内核。
 func hostManagedScheduleRuntimeEnv(runtimeKind string) map[string]string {
 	if runtimeProfileForKind(runtimeKind).isNXS() {

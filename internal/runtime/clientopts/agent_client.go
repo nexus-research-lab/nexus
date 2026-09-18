@@ -194,6 +194,10 @@ func BuildAgentClientOptionsWithConfig(
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
+	// Long-term memory is an nxs host-owned workspace boundary. Configuration
+	// capabilities may add their own broker keys, but cannot redirect memory or
+	// opt the runtime into a remote store.
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, managedMemoryRuntimeEnv(effectiveRuntimeKind, input.WorkspacePath))
 	// Provider 所有权和后台唤醒归宿主，调用方环境不能在装配末尾撤销。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
