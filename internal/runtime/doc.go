@@ -28,6 +28,7 @@
 //   - lifecycle.go：session 关闭栅栏、保留失败结果与跨 core/exec 共用的 round 中断宽限。
 //   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/媒体/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
+//   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；Bridge 关闭成功后才回收，失败保留会话栅栏。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。
