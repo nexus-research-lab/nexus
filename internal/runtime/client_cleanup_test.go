@@ -13,7 +13,7 @@ import (
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	"github.com/nexus-research-lab/nexus/internal/runtime/sandboxresources"
+	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 )
 
 // TestAgentClientCleanupFailureBlocksReconnect 不将完成清理尝试误认为清理成功。
