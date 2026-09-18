@@ -13,7 +13,8 @@ The fixed local Bridge module is
 from the SDK commit with `GOWORK=off GOPROXY=off`; its SHA-256 is
 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671afb`.
 
-The SDK target tests and race tests passed. The Nexus
+The SDK target tests and race tests passed. Compressed command output is kept
+alongside the report and manifest. The Nexus
 `make check-desktop-sandbox` gate passed on macOS arm64 with Go 1.27.1,
 including the fixed Bridge module, host policy/lifecycle tests and the real
 Nexus → Bridge → nxs negotiation path. No model request was sent.

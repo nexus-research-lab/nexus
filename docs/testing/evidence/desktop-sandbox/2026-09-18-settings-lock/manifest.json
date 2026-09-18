@@ -12,24 +12,24 @@
       "sha256": "d3fbb41847a0807ef6fd207f70d704f3bab8404246d1715e0755124cd4ac4761"
     },
     {
-      "path": "bridge-module.stdout.log",
-      "size": 597,
-      "sha256": "1e74cfbac866d8d3cad1ba1b60cc46ed37f98f2c1a89c03351591aa7398ee126"
+      "path": "bridge-module.stdout.log.gz",
+      "size": 322,
+      "sha256": "7c7ecfd7ffb98477a09302e9652ba07dfa5725678fb9c4517bfb322a1b3c1086"
     },
     {
-      "path": "host-lifecycle.stdout.log",
-      "size": 28317,
-      "sha256": "bf72ddc3e041cb39d0e1c39b22b9c8edfe3994980f06f3066c1cf9f26e7db605"
+      "path": "host-lifecycle.stdout.log.gz",
+      "size": 1941,
+      "sha256": "e61ecf96926dab57c242f2d1977e715870ec4736eadc726c3b7525e9fbd6ce5f"
     },
     {
-      "path": "host-policy.stdout.log",
-      "size": 15473,
-      "sha256": "dea316c969b1444c8b7f6a446e9298ce721b7bb07ab915f4d27e12923f00a048"
+      "path": "host-policy.stdout.log.gz",
+      "size": 1341,
+      "sha256": "eafbb738e9007b7ab64c976bc74570c06325dc1b8bfc9ffeda29d64033856bab"
     },
     {
-      "path": "nexus-desktop-gate.log",
-      "size": 1717,
-      "sha256": "867a0312d4704a5ff832a7712b432c84ccab8cde8f4924311aede6a29da1b216"
+      "path": "nexus-desktop-gate.log.gz",
+      "size": 707,
+      "sha256": "7adfc62a3283c26fb48bcd1c717e6fada766a5d3b86535bb983c21947f117260"
     },
     {
       "path": "nxs-settings-lock.sha256",
@@ -42,14 +42,14 @@
       "sha256": "13f7d3b4ed25a56f1ef2c9213550fd389a3eeb76214b4469f9f83e3e85b6c3e2"
     },
     {
-      "path": "sdk-race.log",
-      "size": 173,
-      "sha256": "4f56ed0270f2e605aabd94baee8e6967be419892ed41a25cab07a3fdc7e9051e"
+      "path": "sdk-race.log.gz",
+      "size": 119,
+      "sha256": "f6700bb9a93c4772608ea4d13d33cc63aa2a540f290062250c864317e4120219"
     },
     {
-      "path": "sdk-target.log",
-      "size": 337,
-      "sha256": "0fe29831643d8d663dd0df6f83283990dcfbacfc3f7a02d7e4a2d9be9000a198"
+      "path": "sdk-target.log.gz",
+      "size": 129,
+      "sha256": "162d9c5dc374838579588925b48be3016be37a6e7751f113d9ff0a5b6e2cdd2a"
     }
   ]
 }
