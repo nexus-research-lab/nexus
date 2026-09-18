@@ -496,3 +496,17 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 | 未闭合项 | 尚未连接设置页 inspect/reconcile 操作；跨进程 all-or-nothing/CAS/fsync、scratch 崩溃后 stale sweep、Provider/辅助进程/网络、Claude、原生 Windows/macOS/Linux 与安装包验收仍未完成 |
 
 该批次只证明 durable unknown recovery 已进入明确的 server 启动与周期调度，不构成 P0–P7 或发布通过；`releaseAccepted=false`，本地提交未推送。
+
+## 2026-09-18：scratch durable marker 与显式 stale recovery
+
+`internal/runtime` 为每个 owner/runtime/session scratch 目录持久化版本化 `.nexus-sandbox-lease.json` marker。marker 通过独占创建和文件 `Sync` 写入，包含 lease、owner/session/round、canonical runtime root、创建 PID 与 UTC 时间；它只用于发现和人工恢复，不能让新进程采用旧 lease。正常 Bridge close 后 marker 随 scratch 删除；close 失败仍保留 scratch、marker 与 runtime close fence。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| marker 生命周期 | `GOWORK=off go test ./internal/runtime -run 'Test(AcquirePersistsDurableMarker|SweepStaleSandboxResources)' -count=1` 通过；覆盖 durable marker、正常释放删除、模拟崩溃 dead-PID dry-run/apply、owner/root 身份和 malformed marker |
+| 显式恢复 API | 只读 `DiscoverSandboxResources` 列举有效 marker；`SweepStaleSandboxResources` 要求 owner 与正 `OlderThan`，默认 `Apply=false`，只有显式 `Apply=true` 才删除过期 dead-PID candidate |
+| fail-closed 条件 | 当前 registry lease、Unix 可证明存活的 PID、平台无法证明存活、年龄不足、损坏/不匹配 marker 均保留；不在启动或 scheduler 中自动 sweep，不自动采用未知 runtime |
+| 交叉编译 | `GOOS=windows GOARCH=amd64`、`GOOS=linux GOARCH=amd64` 的 `internal/runtime` 测试二进制构建通过；Windows 进程存活探测仍未知并故意保留 marker，这不是 Windows 原生清理验收 |
+| 当前边界 | 该 primitive 不证明任意后代、句柄、秘密文件或网络已停止/清理；未连接设置页、启动调度、native cleanup、Provider/辅助进程、Claude、原生平台和安装包验收，`releaseAccepted=false` |
+
+本批次只把 scratch 从易失内存 registry 扩展为可发现、可审计、经用户明确批准才可执行的恢复边界；所有提交仍仅本地、未推送。

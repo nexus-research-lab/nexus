@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Run durable settings unknown recovery during server startup and on a bounded periodic sweep. The process discovers stale `applying` receipts across owners, keeps the owner/request conditional update, and fails startup closed when the initial scan cannot run; it still leaves `reconcile_required` outcomes for an explicit inspect/reconcile action and never replays an unknown write.
 
+- Persist a versioned owner/session/process marker beside every desktop nxs scratch lease and add owner-scoped `DiscoverSandboxResources` plus explicit `SweepStaleSandboxResources` recovery. Dry runs are the default; deletion requires a positive age and an explicit apply request, while active registry leases, live or uncheckable processes, malformed markers, and young leases remain untouched. This makes crash leftovers discoverable without silently adopting or deleting an unknown runtime; native descendant, handle, secret-file, network, and platform cleanup remain pending.
+
 ### Added
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.

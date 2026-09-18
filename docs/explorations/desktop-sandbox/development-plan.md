@@ -303,6 +303,14 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | 宿主资源合同入口补齐：Nexus `5af222fbb` 复制并校验 host-prepared `SandboxResourcePolicy`，受限模式才可携带 read-only/workspace-write 与 scratch 根；Full Access 携带受限资源合同时失败关闭。Bridge `6bb7b495`、`162cc79` 在 Windows 为每个 runtime 绑定 Job Object，清理继续执行并合并 SignalProcess 错误 | 入口与 Windows Bridge 修复均已本地验证，但 Nexus 尚未把 scratch 创建、租约、后代监督和回收接入 DM/Room/后台 runtime；Bridge 最新提交尚未发布，Windows/macOS/Linux clean-host、持久回执、Claude、网络、安装包与 P3–P7 仍未闭合 |
 | 2026-09-18 | 资源与恢复接线继续完成：Nexus `3fb64260c`、`53a6be247`、`1e04e87ad`、`2c4c2ff61`、`ab2377744`、`a7be59f53` 在 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，注入独立资源合同；Bridge close 成功后才回收，失败保留会话栅栏与 scratch，并覆盖默认 nxs、释放竞态、旧状态根归一化、`~` 展开与 L2 文档。Nexus `46229c723` 将超过租约窗口的 settings `applying` receipt 持久收口为 `reconcile_required`/`applied: unknown`，跨数据库重启测试通过；Nexus `go.mod` 精确 pin Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，本地 file proxy checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=` | scratch 崩溃后 stale sweep、后台恢复调度、实际 inspect/reconcile 入口、跨进程 all-or-nothing/CAS/fsync、完整后代/句柄/秘密文件/网络隔离、Claude、原生平台和 P3–P7 发布证据仍未闭合；本地 Bridge 模块尚未发布 |
 
+### 2026-09-18：scratch durable marker 与显式恢复 primitive
+
+`internal/runtime` 为每个 owner/runtime/session scratch 目录写入版本化 `.nexus-sandbox-lease.json` marker。marker 只记录 lease ID、owner/session/round、canonical runtime root、创建进程 PID 与 UTC 创建时间；文件以独占创建和 `Sync` 持久化，不能作为另一个进程的采用或授权凭据。宿主正常释放时连同 scratch 一起删除，Bridge/宿主关闭失败仍保留原目录和 marker。
+
+新增只读 `DiscoverSandboxResources` 与显式 `SweepStaleSandboxResources`。恢复请求必须指定 owner、正的 `OlderThan`，且 `Apply=false` 默认只返回 dry-run candidates；只有用户驱动的 `Apply=true` 才尝试删除。当前进程 registry、Unix 可证明存活的 PID、无法确定存活状态的平台、年龄不足、owner/root 不匹配和损坏 marker 均保留，不在启动或 scheduler 中自动 sweep。Windows/未知进程存活平台故意 fail closed，原生清理能力仍需平台验收。
+
+目标包验证覆盖 marker 持久与正常释放、模拟崩溃后的过期 dead-PID dry-run/apply、活动 lease 与 malformed marker 保留；Windows/Linux 测试二进制交叉编译通过。该 primitive 解决了“可发现、可列举、用户明确批准后可回收”的本地恢复边界，不能证明任意后代已停止、句柄/秘密/网络已清理，也未连接设置页、启动调度或跨平台安装恢复；`releaseAccepted=false`。
+
 ### 2026-09-18：settings unknown 启动与周期恢复接入
 
 配置控制面新增进程级恢复入口 `RecoverStaleApplyingChangesForAllOwners`。它只扫描超过租约窗口仍处于 `applying` 的 owner，按全局批次上限委托已有的 owner-scoped 条件更新，将回执收口为 `reconcile_required` 与 `applied: "unknown"`；恢复逻辑不猜测底层写入是否已提交，也不自动重放。HTTP server 启动在其他后台调度器之前先执行一次有界扫描；之后每分钟再执行同一批次，数据库故障在启动首扫时阻止服务呈现健康状态，周期故障保留 durable receipt 并记录告警等待下一次扫描。

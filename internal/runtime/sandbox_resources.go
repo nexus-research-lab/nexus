@@ -6,22 +6,28 @@ package runtime
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 const (
-	policyVersion  = 1
-	scratchDirName = "sandbox"
+	policyVersion      = 1
+	scratchDirName     = "sandbox"
+	leaseMarkerName    = ".nexus-sandbox-lease.json"
+	leaseMarkerVersion = 1
 )
 
 var (
@@ -49,7 +55,52 @@ type Lease struct {
 	root     string
 	scopeKey string
 	policy   agentclient.SandboxResourcePolicy
+	marker   SandboxLeaseMarker
 	released bool
+}
+
+// SandboxLeaseMarker is the durable identity left beside a scratch lease.
+// It intentionally records only scope and process metadata; it is not an
+// execution receipt and does not authorize another process to adopt the lease.
+type SandboxLeaseMarker struct {
+	Version     int       `json:"version"`
+	LeaseID     string    `json:"lease_id"`
+	OwnerUserID string    `json:"owner_user_id"`
+	SessionKey  string    `json:"session_key"`
+	RoundID     string    `json:"round_id,omitempty"`
+	RuntimeRoot string    `json:"runtime_root"`
+	ProcessID   int       `json:"process_id"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// SandboxResourceSweepInput is an explicit, owner-scoped recovery request.
+// OlderThan must be positive. Apply=false performs a dry run; only a caller
+// that deliberately sets Apply=true may remove dead, expired leases.
+type SandboxResourceSweepInput struct {
+	OwnerUserID string
+	Root        string
+	OlderThan   time.Duration
+	Now         time.Time
+	Apply       bool
+}
+
+// SandboxResourceRecord describes a marker discovered beneath one owner's
+// canonical runtime root. Records with a live process or an active in-memory
+// lease are never eligible for removal.
+type SandboxResourceRecord struct {
+	Path          string
+	Marker        SandboxLeaseMarker
+	Age           time.Duration
+	ProcessActive bool
+}
+
+// SandboxResourceSweepResult preserves the dry-run candidates and records
+// skipped because they are still active. Removal is never automatic at
+// startup; callers must issue this explicit recovery operation.
+type SandboxResourceSweepResult struct {
+	Candidates []SandboxResourceRecord
+	Removed    []SandboxResourceRecord
+	Skipped    []SandboxResourceRecord
 }
 
 func ownerRuntimeRoot(owner string) string {
@@ -209,7 +260,16 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 		_ = os.RemoveAll(path)
 		return nil, fmt.Errorf("validate sandbox resource policy: %w", err)
 	}
-	lease := &Lease{path: path, root: base, scopeKey: scopeKey, policy: policy}
+	marker, err := newSandboxLeaseMarker(owner, session, strings.TrimSpace(input.RoundID), root)
+	if err != nil {
+		_ = os.RemoveAll(path)
+		return nil, fmt.Errorf("create sandbox lease marker: %w", err)
+	}
+	if err := writeSandboxLeaseMarker(path, marker); err != nil {
+		_ = os.RemoveAll(path)
+		return nil, fmt.Errorf("persist sandbox lease marker: %w", err)
+	}
+	lease := &Lease{path: path, root: base, scopeKey: scopeKey, policy: policy, marker: marker}
 	registryMu.Lock()
 	if existing := byScope[scopeKey]; existing != nil {
 		registryMu.Unlock()
@@ -291,6 +351,251 @@ func (l *Lease) Release() error {
 // AcquireSandboxResource creates or reuses the active owner/session scratch lease.
 func AcquireSandboxResource(ctx context.Context, input SandboxResourceInput) (*SandboxResourceLease, error) {
 	return Acquire(ctx, input)
+}
+
+func newSandboxLeaseMarker(owner, session, roundID, runtimeRoot string) (SandboxLeaseMarker, error) {
+	var rawID [16]byte
+	if _, err := rand.Read(rawID[:]); err != nil {
+		return SandboxLeaseMarker{}, err
+	}
+	return SandboxLeaseMarker{
+		Version:     leaseMarkerVersion,
+		LeaseID:     hex.EncodeToString(rawID[:]),
+		OwnerUserID: owner,
+		SessionKey:  session,
+		RoundID:     roundID,
+		RuntimeRoot: filepath.Clean(runtimeRoot),
+		ProcessID:   os.Getpid(),
+		CreatedAt:   time.Now().UTC(),
+	}, nil
+}
+
+func writeSandboxLeaseMarker(path string, marker SandboxLeaseMarker) error {
+	payload, err := json.Marshal(marker)
+	if err != nil {
+		return err
+	}
+	markerPath := filepath.Join(path, leaseMarkerName)
+	file, err := os.OpenFile(markerPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	writeErr := error(nil)
+	if _, writeErr = file.Write(payload); writeErr == nil {
+		writeErr = file.Sync()
+	}
+	closeErr := file.Close()
+	if writeErr == nil {
+		writeErr = closeErr
+	}
+	if writeErr != nil {
+		_ = os.Remove(markerPath)
+		return writeErr
+	}
+	return nil
+}
+
+func readSandboxLeaseMarker(path, runtimeRoot, owner string) (SandboxLeaseMarker, error) {
+	markerPath := filepath.Join(path, leaseMarkerName)
+	info, err := os.Lstat(markerPath)
+	if err != nil {
+		return SandboxLeaseMarker{}, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return SandboxLeaseMarker{}, errors.New("sandbox lease marker is not a regular file")
+	}
+	file, err := os.Open(markerPath)
+	if err != nil {
+		return SandboxLeaseMarker{}, err
+	}
+	payload, readErr := io.ReadAll(io.LimitReader(file, 64<<10))
+	closeErr := file.Close()
+	if readErr != nil {
+		return SandboxLeaseMarker{}, readErr
+	}
+	if closeErr != nil {
+		return SandboxLeaseMarker{}, closeErr
+	}
+	var marker SandboxLeaseMarker
+	if err := json.Unmarshal(payload, &marker); err != nil {
+		return SandboxLeaseMarker{}, err
+	}
+	if marker.Version != leaseMarkerVersion || strings.TrimSpace(marker.LeaseID) == "" ||
+		strings.TrimSpace(marker.OwnerUserID) == "" || marker.OwnerUserID != owner ||
+		marker.SessionKey == "" || marker.RuntimeRoot != runtimeRoot ||
+		marker.ProcessID <= 0 || marker.CreatedAt.IsZero() {
+		return SandboxLeaseMarker{}, errors.New("sandbox lease marker identity is invalid")
+	}
+	return marker, nil
+}
+
+// DiscoverSandboxResources lists valid durable markers for one owner. It is
+// read-only and deliberately ignores malformed/untrusted marker directories.
+func DiscoverSandboxResources(ctx context.Context, input SandboxResourceSweepInput) ([]SandboxResourceRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	owner := strings.TrimSpace(input.OwnerUserID)
+	if owner == "" {
+		return nil, errors.New("sandbox resource discovery requires owner")
+	}
+	runtimeRoot, base, err := sandboxResourceRoots(owner, input.Root)
+	if err != nil {
+		return nil, err
+	}
+	return scanSandboxResources(ctx, owner, runtimeRoot, base, input.Now)
+}
+
+// SweepStaleSandboxResources performs an explicit owner-scoped stale cleanup.
+// A dry run (Apply=false) returns eligible candidates without deleting them.
+// Even with Apply=true, active in-process leases, live/unknown processes,
+// malformed markers and younger leases are always retained.
+func SweepStaleSandboxResources(ctx context.Context, input SandboxResourceSweepInput) (SandboxResourceSweepResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if input.OlderThan <= 0 {
+		return SandboxResourceSweepResult{}, errors.New("sandbox resource sweep requires a positive age")
+	}
+	owner := strings.TrimSpace(input.OwnerUserID)
+	if owner == "" {
+		return SandboxResourceSweepResult{}, errors.New("sandbox resource sweep requires owner")
+	}
+	runtimeRoot, base, err := sandboxResourceRoots(owner, input.Root)
+	if err != nil {
+		return SandboxResourceSweepResult{}, err
+	}
+	records, err := scanSandboxResources(ctx, owner, runtimeRoot, base, input.Now)
+	if err != nil {
+		return SandboxResourceSweepResult{}, err
+	}
+	result := SandboxResourceSweepResult{}
+	for _, record := range records {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if record.Age < input.OlderThan || record.ProcessActive {
+			result.Skipped = append(result.Skipped, record)
+			continue
+		}
+		result.Candidates = append(result.Candidates, record)
+	}
+	if !input.Apply {
+		return result, nil
+	}
+	for _, record := range result.Candidates {
+		// Re-check the in-memory registry immediately before deletion. A host
+		// restart cannot silently adopt a marker, and a concurrent local lease
+		// must win over an explicit sweep.
+		if sandboxResourceIsActive(record.Path) {
+			result.Skipped = append(result.Skipped, record)
+			continue
+		}
+		if err := removeOwnedScratch(base, record.Path); err != nil {
+			return result, fmt.Errorf("remove stale sandbox resource %q: %w", record.Path, err)
+		}
+		result.Removed = append(result.Removed, record)
+	}
+	return result, nil
+}
+
+func sandboxResourceRoots(owner, requestedRoot string) (string, string, error) {
+	runtimeRoot := strings.TrimSpace(requestedRoot)
+	if runtimeRoot == "" {
+		runtimeRoot = ownerRuntimeRoot(owner)
+	}
+	runtimeRoot, err := absoluteCleanDirectory(runtimeRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid sandbox runtime root: %w", err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(runtimeRoot)
+	if err != nil {
+		return "", "", fmt.Errorf("validate sandbox runtime root: %w", err)
+	}
+	runtimeRoot = filepath.Clean(resolvedRoot)
+	base := filepath.Join(runtimeRoot, scratchDirName)
+	info, err := os.Lstat(base)
+	if errors.Is(err, os.ErrNotExist) {
+		return runtimeRoot, base, nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return "", "", errors.New("sandbox scratch parent is not a directory")
+	}
+	resolvedBase, err := filepath.EvalSymlinks(base)
+	if err != nil || filepath.Clean(resolvedBase) != base {
+		if err == nil {
+			err = errors.New("sandbox scratch parent resolves through a symlink")
+		}
+		return "", "", fmt.Errorf("validate sandbox scratch parent: %w", err)
+	}
+	return runtimeRoot, base, nil
+}
+
+func scanSandboxResources(ctx context.Context, owner, runtimeRoot, base string, now time.Time) ([]SandboxResourceRecord, error) {
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	entries, err := os.ReadDir(base)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("scan sandbox scratch parent: %w", err)
+	}
+	var records []SandboxResourceRecord
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return records, err
+		}
+		if !strings.HasPrefix(entry.Name(), ".scratch-") {
+			continue
+		}
+		path := filepath.Join(base, entry.Name())
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return records, fmt.Errorf("inspect sandbox resource %q: %w", path, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			continue
+		}
+		marker, err := readSandboxLeaseMarker(path, runtimeRoot, owner)
+		if err != nil {
+			continue
+		}
+		active := sandboxResourceIsActive(path)
+		if !active {
+			alive, known := sandboxProcessAlive(marker.ProcessID)
+			active = alive || !known
+		}
+		age := now.Sub(marker.CreatedAt)
+		if age < 0 {
+			age = 0
+		}
+		records = append(records, SandboxResourceRecord{Path: path, Marker: marker, Age: age, ProcessActive: active})
+	}
+	return records, nil
+}
+
+func sandboxResourceIsActive(path string) bool {
+	registryMu.Lock()
+	lease := registry[path]
+	registryMu.Unlock()
+	if lease == nil {
+		return false
+	}
+	lease.mu.Lock()
+	active := !lease.released
+	lease.mu.Unlock()
+	return active
 }
 
 // ReleasePath is used by the runtime client cleanup path. It only releases
