@@ -14,7 +14,7 @@ it("observes the native Room before a job exists, ignores stream chunks and reco
   const state = {round_id: "round", agent_id: "local", agent_round_id: "execution", phase: "active", status: "streaming"};
   model.session.mockReturnValue({ws_state: "connected", room_agent_execution_states: []});
   const view = render(<TeamExecutionObserver binding={binding} onChange={changed} />);
-  expect(model.session.mock.lastCall?.[0].identity).toMatchObject({chat_type: "group", room_id: "room", conversation_id: "conversation"});
+  expect(model.session.mock.lastCall?.[0].identity).toMatchObject({agent_id: "local", chat_type: "group", room_id: "room", conversation_id: "conversation"});
   expect(changed).toHaveBeenCalledTimes(1);
   model.session.mockReturnValue({ws_state: "connected", room_agent_execution_states: [state]});
   view.rerender(<TeamExecutionObserver binding={binding} onChange={changed} />);
@@ -89,6 +89,7 @@ it("retries history and stops only the exact local Agent execution", async () =>
   expect(model.stop).toHaveBeenCalledExactlyOnceWith("execution");
   expect(model.panel.mock.lastCall?.[0].messages).toHaveLength(1);
   expect(model.session.mock.lastCall?.[0].identity.chat_type).toBe("group");
+  expect(model.session.mock.lastCall?.[0].identity.agent_id).toBe("local");
 });
 
 it("separates history fetching from execution and reloads after the final output arrives", async () => {
