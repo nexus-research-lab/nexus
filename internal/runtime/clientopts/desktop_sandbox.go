@@ -57,7 +57,16 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	// runtime, capability handshake and lifecycle remain installed. Carry the
 	// explicit escape in the SDK setting instead of dropping the environment.
 	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+		if input.SandboxResources != nil {
+			return agentclient.Options{}, fmt.Errorf("Full Access cannot carry a restricted sandbox resource policy")
+		}
 		options.Sandbox.Filesystem = &agentclient.SandboxFilesystemConfig{}
+	} else if input.SandboxResources != nil {
+		resources := *input.SandboxResources
+		if err := resources.Validate(); err != nil {
+			return agentclient.Options{}, fmt.Errorf("invalid desktop sandbox resources: %w", err)
+		}
+		options.Sandbox.Resources = &resources
 	}
 	return options, nil
 }
