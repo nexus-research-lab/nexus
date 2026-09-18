@@ -32,15 +32,24 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Env = make(map[string]string)
 	}
 	options.Env[protocol.NexusDesktopSandboxPolicyEnvName] = "1"
-	if options.Runtime.Kind != agentclient.RuntimeNXS {
-		// Claude's native sandbox adapter has a separate contract. Until that
-		// contract is negotiated here, a desktop request cannot claim the nxs
-		// required-sandbox capabilities. Preserve legacy Full Access handling
-		// for Claude while keeping the failure closed for restricted mode.
+	if options.Runtime.Kind == agentclient.RuntimeClaude {
+		// Claude's native sandbox is a separate Bridge contract. Full Access is
+		// an explicit user exception and therefore does not install --restricted;
+		// restricted Claude must carry the typed requirement instead of claiming
+		// any nxs capability.
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
-		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a runtime with required_sandbox_v1 support")
+		settings, err := cloneClaudeSandboxSettings(options.Sandbox)
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+		settings.RequireClaudeRestricted = true
+		options.Sandbox = settings
+		return options, nil
+	}
+	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a supported runtime contract")
 	}
 	yes := true
 	options.Sandbox = &agentclient.SandboxSettings{
@@ -69,4 +78,29 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Sandbox.Resources = &resources
 	}
 	return options, nil
+}
+
+// cloneClaudeSandboxSettings preserves ordinary Claude sandbox presentation
+// settings while refusing to mix nxs-only capability requirements or host
+// resource contracts into the native --restricted launch path.
+func cloneClaudeSandboxSettings(input *agentclient.SandboxSettings) (*agentclient.SandboxSettings, error) {
+	if input == nil {
+		return &agentclient.SandboxSettings{}, nil
+	}
+	if input.Resources != nil || input.RequireSandbox || input.RequireFileTools || input.RequireSearchTools || input.RequireMediaFiles || input.RequireSkillFiles || input.RequireContextFiles || input.RequireProjectFiles || input.RequireManagedPolicy || input.RequireSettingsFiles || input.RequireSettingsWrites {
+		return nil, fmt.Errorf("Claude native restricted contract cannot carry nxs sandbox requirements")
+	}
+	settings := *input
+	settings.EnabledPlatforms = slices.Clone(input.EnabledPlatforms)
+	settings.ExcludedCommands = slices.Clone(input.ExcludedCommands)
+	if input.IgnoreViolations != nil {
+		settings.IgnoreViolations = make(map[string][]string, len(input.IgnoreViolations))
+		for key, values := range input.IgnoreViolations {
+			settings.IgnoreViolations[key] = slices.Clone(values)
+		}
+	}
+	if input.Extra != nil {
+		settings.Extra = maps.Clone(input.Extra)
+	}
+	return &settings, nil
 }
