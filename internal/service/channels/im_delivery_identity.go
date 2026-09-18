@@ -50,6 +50,9 @@ func (s *ControlService) recordDeliveryInput(ctx context.Context, r normalizedIn
 	row, err := s.findPairingBySessionKey(ctx, r.ownerUserID, r.sessionKey, PairingStatusActive)
 	if row == nil && err == nil {
 		row, err = s.findIngressPairingByTarget(ctx, r.ownerUserID, normalizeIMChannelType(p.Channel), p.AccountID, protocol.RoomTypeDM, p.Ref, ingressPairingThreadID(p.ChatType, p.ThreadID), PairingStatusActive)
+		if err == nil && !fallbackPairingSessionMatches(row, p, r.sessionKey) {
+			row = nil
+		}
 	}
 	if err != nil {
 		return err

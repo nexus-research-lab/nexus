@@ -61,6 +61,45 @@ func TestValidateExternalSessionGrantRequiresExactActivePairing(t *testing.T) {
 	}
 }
 
+func TestValidateExternalSessionGrantRejectsRotatedSessionKey(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	deleted := map[string]bool{}
+	router.SetSessionProjectionResolver(deletedSessionResolver{deleted: deleted})
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, router)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeWeChat,
+		ChatType:    protocol.RoomTypeDM,
+		ExternalRef: "wx-user-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("创建配对失败: %v", err)
+	}
+	if _, err = db.Exec("UPDATE im_pairings SET session_materialized = 1 WHERE pairing_id = ?", created.PairingID); err != nil {
+		t.Fatalf("准备已物化 Session 失败: %v", err)
+	}
+	oldKey := created.SessionKey
+	deleted[oldKey] = true
+	_, rotatedKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeWeChat,
+		ChatType:    protocol.RoomTypeDM,
+		Ref:         "wx-user-a",
+	})
+	if err != nil || rotatedKey == oldKey || protocol.ParseSessionKey(rotatedKey).Generation == "" {
+		t.Fatalf("删除后应轮换 Session: old=%q new=%q err=%v", oldKey, rotatedKey, err)
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", oldKey); err == nil {
+		t.Fatal("已轮换的旧 Session key 不得通过 IM grant 校验")
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", rotatedKey); err != nil {
+		t.Fatalf("当前 Session key 应保持可授权: %v", err)
+	}
+}
+
 func TestSendAgentExternalSessionMessageRevalidatesAndProjects(t *testing.T) {
 	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-a")
 	db := newChannelTestDB(t)

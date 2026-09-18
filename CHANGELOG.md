@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.
 
+- Reject stale generation-less IM grants after Session rotation instead of authorizing by platform target alone.
+
 - Separate Provider disable, replace-key and confirmed clear-key actions; disabling preserves credentials and model bindings, clearing a key disables the Provider, and unavailable defaults display as empty. Move chat, image, vision and background defaults into the dedicated Models settings page.
 
 - Replace speculative model recommendations with officially sourced provider/plan-specific guidance, current model IDs, text-only versus multimodal labels and plan restrictions; remove name-based capability guesses, preserve user overrides, and gate image editing by the implemented transport.
