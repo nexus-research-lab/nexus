@@ -16,8 +16,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
   details.members.push({room_id: room.id, member_type: "agent", member_id: "agent", role: "member", state: "active", invited_by_user_id: "ui-fixture", joined_at: now, created_at: now, updated_at: now});
   details.members.push({...details.members[0], member_id: "teammate", role: "member"});
   let dissolved = false;
-  let nodeState = "disconnected";
-  let executionEnabled = false;
+  let roomPrepared = false;
   const writes: Record<string, unknown>[] = [];
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -25,19 +24,23 @@ test("online room settings and dissolution use the real dialog and revoke the co
   await context.routeWebSocket("**/nexus/v1/chat/ws", (socket) => socket.onMessage((raw) => {
     if (JSON.parse(raw.toString()).type === "ping") socket.send(JSON.stringify({event_type: "pong"}));
   }));
-  await context.routeWebSocket("**/nexus/v1/team/stream?*", () => {});
+  let notifyDirectory: (() => void) | undefined;
+  await context.routeWebSocket("**/nexus/v1/team/stream?*", (socket) => {
+    if (new URL(socket.url()).searchParams.get("stream_id") === "directory") {
+      notifyDirectory = () => socket.send(JSON.stringify({type: "stream.updated", stream_id: "directory", stream_epoch: "directory", high_water_seq: 0}));
+      notifyDirectory();
+    }
+  });
   await context.route("**/*", async (route) => {
     const request = route.request(); const url = new URL(request.url()); const path = url.pathname;
     if (path === "/nexus/v1/team-node") {
-      if (request.method() === "POST") {
-        const input = request.postDataJSON();
-        expect(input).toEqual({name: "Nexus", agent_ids: ["agent"], enable_execution: nodeState === "authorized"});
-        executionEnabled = input.enable_execution;
-        nodeState = "authorized";
-        return route.fulfill({json: {data: {ok: true}}});
-      }
-      if (request.method() === "DELETE") { nodeState = "revoked"; return route.fulfill({json: {data: {ok: true}}}); }
-      return route.fulfill({json: {data: {state: nodeState, name: "Nexus", agent_ids: nodeState === "authorized" ? ["agent"] : [], candidates: [{id: "agent", name: "Research Agent"}], execution_available: true, execution_enabled: executionEnabled, jobs: executionEnabled ? [{id: "job", agent_id: "agent", state: "running", room_id: "local-room", conversation_id: "local-conversation", source_room_id: "online-room", round_id: "round"}] : []}}});
+      expect(request.method()).toBe("GET");
+      return route.fulfill({json: {data: {state: "authorized", agent_ids: ["agent"], candidates: [], execution_available: true, execution_enabled: true, jobs: []}}});
+    }
+    if (path === "/nexus/v1/team-node/room") {
+      expect(request.postDataJSON()).toEqual({room_id: "online-room"});
+      roomPrepared = true;
+      return route.fulfill({json: {data: []}});
     }
     if (path === "/nexus/v1/auth/status") return route.fulfill({json: {data: {...appShellRead("GET", path)!.data as object, auth_method: "password", role: "owner", control_user_id: "ui-fixture", organization_id: "org"}}});
     if (path === "/nexus/v1/team/rooms") return route.fulfill({json: {data: {rooms: dissolved ? [] : [details]}}});
@@ -70,32 +73,44 @@ test("online room settings and dissolution use the real dialog and revoke the co
   await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/team?${params}`)}`);
   await expect(page.getByText("Research Agent", {exact: true})).toBeVisible();
   await expect(page.getByText("Completed result", {exact: true})).toBeVisible();
-  await expect(page.getByText("Agent", {exact: true})).toBeVisible();
-  // WebSocket 不发送通知，恢复焦点仍应按服务端水位补齐新消息。
+  const editor = page.getByPlaceholder(text("发送消息到群聊", "Message room"));
+  await editor.fill("@");
+  const suggestions = page.getByRole("listbox", {name: text("提及候选", "Mention suggestions")});
+  await expect(suggestions).toBeVisible();
+  await expect(suggestions).toHaveAttribute("data-placement", "top");
+  const suggestionBounds = (await suggestions.boundingBox())!;
+  const editorBounds = (await editor.boundingBox())!;
+  expect(suggestionBounds.y + suggestionBounds.height).toBeLessThan(editorBounds.y);
+  await page.screenshot({path: info.outputPath("single-mention-above-composer.png")});
+  await editor.press("Escape");
+  await editor.fill("");
+  await expect(page.getByText("Research Agent", {exact: true}).locator('xpath=ancestor::div[contains(@class,"nexus-chat-message-round")]')).toBeVisible();
+  // 目录 WS 提示按持久水位补齐，不依赖定时器或恢复焦点。
   details.conversation.high_water_sync_event_seq = 2;
-  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect.poll(() => Boolean(notifyDirectory)).toBe(true);
+  notifyDirectory!();
   await expect(page.getByText("Message without a push notification", {exact: true})).toBeVisible();
-  const header = page.locator(".workspace-surface-header").filter({has: page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true})});
+  const incoming = page.getByText("Message without a push notification", {exact: true});
+  await expect(incoming.locator('xpath=ancestor::div[contains(@class,"nexus-chat-user-content-shell")]')).toBeVisible();
+  await expect(incoming.locator("xpath=ancestor::li").getByRole("button", {name: text("复制消息", "Copy message"), exact: true})).toBeVisible();
+  await page.screenshot({path: info.outputPath("online-room-message-parity.png")});
+  const header = page.locator(".workspace-surface-header").filter({has: page.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true})});
   expect(await header.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await expect(header.locator("nav")).toBeVisible();
   await expect(header.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true})).toBeVisible();
   await header.screenshot({path: info.outputPath("online-room-header.png")});
-  await page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true}).click();
-  const node = page.getByRole("dialog", {name: text("本机授权", "Host authorization"), exact: true});
-  await expect(node).toBeVisible();
-  expect(await node.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await node.getByRole("checkbox", {name: "Research Agent"}).check();
-  await node.getByRole("button", {name: text("授权所选 Agent", "Authorize selected Agents"), exact: true}).click();
-  await expect(node.getByText(text("设备授权已登记", "Host authorization registered"), {exact: true})).toBeVisible();
-  expect(executionEnabled).toBe(false);
-  await node.getByRole("button", {name: text("开启任务执行", "Enable task execution"), exact: true}).click();
-  await expect(node.getByRole("link", {name: text("打开执行会话", "Open execution conversation")})).toHaveAttribute("href", "/team?room_id=online-room&thread=job");
-  expect(executionEnabled).toBe(true);
-  expect(await node.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await node.getByRole("button", {name: text("撤销授权", "Revoke authorization"), exact: true}).click();
-  await expect(node.getByText(text("设备授权已撤销", "Host authorization revoked"), {exact: true})).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(node).toHaveCount(0);
+  if (info.project.use.viewport!.width >= 1024) {
+    await header.getByRole("button", {name: text("工作区", "Workspace"), exact: true}).click();
+    const resize = page.getByRole("separator", {name: text("调整右侧面板宽度", "Resize side panel")});
+    await expect(resize).toBeVisible();
+    await resize.press("Home");
+    const minimum = Number(await resize.getAttribute("aria-valuenow"));
+    await resize.press("ArrowLeft");
+    await expect.poll(async () => Number(await resize.getAttribute("aria-valuenow"))).toBeGreaterThan(minimum);
+    await header.getByRole("button", {name: text("工作区", "Workspace"), exact: true}).click();
+  }
+  await expect(page.getByRole("button", {name: text("本机授权", "Host authorization"), exact: true})).toHaveCount(0);
+  expect(roomPrepared).toBe(true);
   await page.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true}).click();
   const dialog = page.getByRole("dialog", {name: text("群聊设置", "Group chat settings"), exact: true});
   await expect(dialog).toBeVisible();

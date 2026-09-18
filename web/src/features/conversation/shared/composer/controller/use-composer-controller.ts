@@ -33,6 +33,7 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
+  attachmentsDisabledReason,
   defaultPlaceholder,
   defaultDeliveryPolicy,
   draftScopeKey,
@@ -83,6 +84,7 @@ export function useComposerController({
   }, []);
   const isGoalMode = draftState.inputMode === "goal";
   const attachments = useComposerAttachments({
+    disabledReason: attachmentsDisabledReason,
     attachments: draftState.attachments,
     isGoalMode,
     onGoalAttachmentRejected: setGoalError,
@@ -295,6 +297,7 @@ export function useComposerController({
       mentionActive: mention.mentionActive,
       mentionFilter: mention.mentionFilter,
       mentionTargetItems: mention.mentionTargetItems,
+      mentionSegments: mention.mentionSegments,
       selectMentionItem: mention.selectMentionItem,
     },
     slashCommand: {

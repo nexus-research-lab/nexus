@@ -6,7 +6,7 @@ import { expect, it, vi } from "vitest";
 import { TeamWorkspace } from "./team-workspace";
 
 const api = vi.hoisted(() => ({list: vi.fn(), upload: vi.fn(), download: vi.fn()}));
-vi.mock("@/lib/api/conversation/team-files-api", () => ({listTeamFiles: api.list, uploadTeamFile: api.upload, downloadTeamFile: api.download}));
+vi.mock("@/lib/api/conversation/team-files-api", () => ({listTeamFiles: api.list, uploadTeamFile: api.upload, saveTeamFile: api.download}));
 vi.mock("@/shared/i18n/i18n-context", () => ({useI18n: () => ({t: (key: string) => key})}));
 
 it("keeps an unconfirmed file retryable through refresh and aborts on unmount", async () => {

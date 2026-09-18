@@ -57,7 +57,7 @@ export function ToolBlockHeader({
       className={cn(
         "grid min-h-7 min-w-0 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-1.5 radius-control-sm px-1.5 py-0.5 text-sm font-normal leading-5 text-(--text-soft) transition-colors",
         canToggle
-          ? "cursor-pointer hover:bg-(--surface-interactive-hover-background)"
+          ? "cursor-pointer hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) [&:hover_span]:text-(--text-strong) [&:hover_svg]:text-(--icon-strong)"
           : "cursor-default",
       )}
       data-activity-row="tool"

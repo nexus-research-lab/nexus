@@ -112,22 +112,30 @@ export function AgentHandoffReplyChip({
     directory,
     t("message.assistant_fallback"),
   );
-  const name = identity.label.replace(/^@+/, "");
+  return <MessageReplyChip name={identity.label} avatar={identity.avatar} handoff />;
+}
+
+export function MessageReplyChip({name, avatar, message, handoff = false}: {name: string; avatar?: string | null; message?: string; handoff?: boolean}) {
+  const { t } = useI18n();
+  name = name.replace(/^@+/, "");
   const label = t("room.agent_handoff_reply", { name });
+  const description = message ? `${label} · ${message}` : label;
   return (
-    <UiTooltip label={label}><span
-      aria-label={label}
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/8 px-1.5 py-0.5 text-2xs font-medium leading-none text-primary"
-      data-handoff-reply="true"
+    <UiTooltip label={description}><span
+      aria-label={description}
+      className="inline-flex min-w-0 items-center gap-1 radius-control-sm border border-primary/20 bg-primary/8 px-1.5 py-0.5 text-2xs font-medium leading-none text-primary"
+      data-reply-chip="true"
+      data-handoff-reply={handoff ? "true" : undefined}
 
     >
       <UiAgentAvatar
-        avatar={identity.avatar}
+        avatar={avatar}
         className="h-3.5 w-3.5 border-0 shadow-none"
-        name={identity.label}
+        name={name}
         size="xs"
       />
-      <span>{label}</span>
+      <span className="shrink-0">{label}</span>
+      {message ? <span className="max-w-48 truncate text-(--text-muted)">· {message}</span> : null}
     </span></UiTooltip>
   );
 }

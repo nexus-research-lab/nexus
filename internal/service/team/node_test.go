@@ -68,6 +68,105 @@ func TestPrepareRoomWithoutAuthorizationOrPriorJob(t *testing.T) {
 	}
 }
 
+func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
+	var registered nodeStatus
+	posts, deletes, tokenStatus := 0, 0, http.StatusOK
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data any
+		switch r.URL.Path {
+		case "/auth/v1/status":
+			data = nodeIdentity{Authenticated: true, UserID: "remote", OrganizationID: "org"}
+		case "/auth/v1/agents":
+			data = []nodeAgent{{AgentID: "online", SourceAgentID: "local"}, {AgentID: "foreign", SourceAgentID: "other-host"}}
+		case "/auth/v1/nodes/token":
+			if tokenStatus != http.StatusOK {
+				w.WriteHeader(tokenStatus)
+				return
+			}
+			data = nodeToken{Token: "token", ExpiresAt: time.Now().Add(time.Minute)}
+		case "/auth/v1/nodes":
+			posts++
+			var input struct {
+				NodeID   string   `json:"node_id"`
+				Name     string   `json:"name"`
+				AgentIDs []string `json:"agent_ids"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+			}
+			if len(input.AgentIDs) != 1 || input.AgentIDs[0] != "online" {
+				t.Error("不能授权其他宿主 Agent")
+			}
+			registered = nodeStatus{NodeID: input.NodeID, Name: input.Name, AgentIDs: input.AgentIDs}
+			data = registered
+		default:
+			if r.Method == http.MethodDelete {
+				deletes++
+				tokenStatus = http.StatusOK
+			} else {
+				w.WriteHeader(404)
+				return
+			}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer remote.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: remote.URL, AuthSessionCookieName: "session", ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, newNodeTestDB(t))
+	members := []relaycontract.RoomMember{{Type: "agent", ID: "online", State: "active"}, {Type: "agent", ID: "foreign", State: "active"}}
+	service, err := NewNodeService(cfg, repo, func(context.Context) ([]protocol.Agent, error) {
+		return []protocol.Agent{{AgentID: "local", Name: "Lucy", Status: "active"}}, nil
+	}, func(context.Context, string, string) (relaycontract.RoomDetails, error) {
+		return relaycontract.RoomDetails{Members: members}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.executor = &NodeExecutor{nodes: service, prepare: func(context.Context, string, string) (*protocol.ConversationContextAggregate, error) {
+		return &protocol.ConversationContextAggregate{Room: protocol.RoomRecord{ID: "room"}, Conversation: protocol.ConversationRecord{ID: "conversation"}}, nil
+	}}
+	service.executor.ready.Store(true)
+	ctx := authctx.WithPrincipal(t.Context(), &authctx.Principal{UserID: "local-owner"})
+	prepare := func() error { _, err := service.PrepareRoom(ctx, "cookie", "online-room"); return err }
+	if _, err := service.PrepareRoom(ctx, "", "online-room"); !errors.Is(err, ErrNodeLogin) {
+		t.Fatal("本地免登录不可登记", err)
+	}
+	if err := prepare(); err != nil {
+		t.Fatal(err)
+	}
+	scope, _, _ := service.scope(ctx, "cookie")
+	grant, err := repo.NodeGrant(ctx, scope, "local-owner")
+	if err != nil || grant == nil || !grant.ExecutionEnabled || grant.State != "authorized" {
+		t.Fatalf("入群未启用: %+v %v", grant, err)
+	}
+	if err := prepare(); err != nil || posts != 1 {
+		t.Fatalf("重复准备重新登记: %v posts=%d", err, posts)
+	}
+	tokenStatus = http.StatusServiceUnavailable
+	if err := prepare(); err == nil || posts != 1 || deletes != 0 {
+		t.Fatal("网络故障不能重建授权")
+	}
+	tokenStatus = http.StatusUnauthorized
+	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "inflight", NodeID: grant.NodeID, OwnerUserID: "local-owner", LocalAgentID: "local", AgentID: "online", Scope: scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(); err == nil || deletes != 0 {
+		t.Fatal("不能在已有任务收尾前替换节点")
+	}
+	job.State = "completed"
+	if err := repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepare(); err != nil || posts != 2 || deletes != 1 {
+		t.Fatalf("未恢复已失效授权: %v posts=%d deletes=%d", err, posts, deletes)
+	}
+	members[0].State = "removed"
+	if err := prepare(); err != nil || posts != 2 {
+		t.Fatal("被移除成员不能重新登记")
+	}
+}
+
 func newNodeTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "node.db")+"?_pragma=foreign_keys(0)")

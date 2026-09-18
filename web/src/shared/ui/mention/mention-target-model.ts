@@ -9,6 +9,7 @@ export interface MentionTargetItem {
   id: string;
   label: string;
   marker: string;
+  avatar?: string | null;
   subtitle?: string | null;
 }
 

@@ -55,7 +55,7 @@ function BoundExecutionSurface({ agent, binding, tab, compact, activeWorkspacePa
 }) {
   const [revision, setRevision] = useState(0);
   const sessionKey = buildRoomSharedSessionKey(binding.conversation_id);
-  const identity = useMemo(() => ({session_key: sessionKey, room_id: binding.room_id, conversation_id: binding.conversation_id, chat_type: "group" as const}), [sessionKey, binding.room_id, binding.conversation_id]);
+  const identity = useMemo(() => ({session_key: sessionKey, agent_id: binding.local_agent_id, room_id: binding.room_id, conversation_id: binding.conversation_id, chat_type: "group" as const}), [sessionKey, binding.local_agent_id, binding.room_id, binding.conversation_id]);
   const onRoomEvent = useCallback((type: string) => { if (type === "execution_invalidated") setRevision((value) => value + 1); }, []);
   const conversation = useAgentConversation({identity, on_room_event: onRoomEvent});
   const resource = useExecutionResource({sessionKey, invalidationKey: revision});

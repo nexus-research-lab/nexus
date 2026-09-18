@@ -6,6 +6,7 @@
 import { useCallback } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
@@ -21,7 +22,9 @@ import {
 import { useUserMessageEditor } from "./use-user-message-editor";
 
 interface MessageUserSectionProps {
+  onOpenAttachment?: (attachment: import("@/types/conversation/message/attachment").MessageAttachment) => void;
   compact: boolean;
+  author?: { name: string; avatar?: string | null };
   agentMentionDirectory?: AgentMentionDirectory;
   message: UserMessage;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
@@ -36,7 +39,9 @@ export function MessageUserSection(props: MessageUserSectionProps) {
 }
 
 function MessageUserSectionContent({
+  onOpenAttachment,
   compact,
+  author,
   agentMentionDirectory,
   message,
   onEditUserMessage,
@@ -84,6 +89,10 @@ function MessageUserSectionContent({
             className="group relative ml-auto w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full"
             data-editing={String(editor.isEditing)}
           >
+            {author ? <div className="nexus-chat-message-header mb-2 flex min-w-0 items-center justify-end gap-2">
+              <UiAgentAvatar aria-hidden="true" avatar={author.avatar} name={author.name} size={compact ? "xs" : "sm"} />
+              <span className="nexus-chat-author min-w-0 truncate text-sm font-medium text-(--text-strong)">{author.name}</span>
+            </div> : null}
             {editor.isEditing ? (
               <UserMessageEditor
                 canSubmit={editor.canSubmit}
@@ -97,6 +106,7 @@ function MessageUserSectionContent({
             ) : (
               <>
                 <UserMessageContent
+                  onOpenAttachment={onOpenAttachment}
                   contentClassName={layout.content}
                   agentMentions={message.agent_mentions}
                   agentMentionDirectory={agentMentionDirectory}

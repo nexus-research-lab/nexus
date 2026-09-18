@@ -11,12 +11,10 @@ import (
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
-func (c *Client) PendingAgents(ctx context.Context, token string) ([]string, error) {
-	var result struct {
-		AgentIDs []string `json:"agent_ids"`
-	}
+func (c *Client) PendingAgents(ctx context.Context, token string) (relaycontract.PendingDeliveries, error) {
+	var result relaycontract.PendingDeliveries
 	err := c.do(ctx, http.MethodGet, "/node/deliveries/pending", nil, token, "", nil, &result)
-	return result.AgentIDs, err
+	return result, err
 }
 func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID string) (*relaycontract.Delivery, error) {
 	var result struct {

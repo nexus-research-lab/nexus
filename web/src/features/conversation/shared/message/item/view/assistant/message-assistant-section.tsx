@@ -22,6 +22,7 @@ export function MessageAssistantSection({
   assistantContentMode,
   assistantEmptyState,
   assistantHeaderAction,
+  assistantReplyTarget,
   canRespondToPermissions,
   compact,
   currentAgentAvatar,
@@ -64,6 +65,7 @@ export function MessageAssistantSection({
               compact={compact}
               echo={assistant.header.echo}
               headerAction={assistantHeaderAction}
+              replyTarget={assistantReplyTarget}
               handoffReplySourceAgentId={
                 assistant.header.handoffReply?.source_agent_id ?? null
               }

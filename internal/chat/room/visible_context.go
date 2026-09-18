@@ -16,12 +16,32 @@ type VisibleContextInput struct {
 
 // Trigger 描述 Room round 里唤醒单个成员的直接原因。
 type Trigger struct {
-	TriggerType   string
-	Content       string
-	MessageID     string
-	SourceAgentID string
-	TargetAgentID string
-	ReplyRoute    protocol.RoomReplyRoute
+	TriggerType       string
+	Content           string
+	MessageID         string
+	SourceAgentID     string
+	SourceUserID      string
+	SourceUsername    string
+	SourceDisplayName string
+	TargetAgentID     string
+	ReplyRoute        protocol.RoomReplyRoute
+}
+
+// WithPublicSource 从完整公区提取精确触发者，必须在游标裁剪和去重之前调用。
+func (trigger Trigger) WithPublicSource(messages []protocol.Message) Trigger {
+	if trigger.MessageID == "" || trigger.SourceAgentID != "" {
+		return trigger
+	}
+	for _, message := range messages {
+		if normalizeAnyString(message["message_id"]) != trigger.MessageID || normalizeAnyString(message["role"]) != "user" {
+			continue
+		}
+		trigger.SourceUserID = normalizeAnyString(message["author_user_id"])
+		trigger.SourceUsername = normalizeAnyString(message["author_username"])
+		trigger.SourceDisplayName = normalizeAnyString(message["author_display_name"])
+		break
+	}
+	return trigger
 }
 
 // BuildVisibleContext 构建 Room 成员本轮动态输入。

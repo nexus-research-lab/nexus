@@ -1,31 +1,248 @@
 package team
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
+func TestDeliveryAttachmentUsesNativeRoomUploadAndVerifiedBytes(t *testing.T) {
+	data := []byte("shared report")
+	hash := sha256.Sum256(data)
+	file := relaycontract.MessageAttachment{ID: "file", Name: "report.txt", Size: int64(len(data)), SHA256: hex.EncodeToString(hash[:])}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/renew") {
+			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
+			return
+		}
+		if r.URL.Path != "/api/relay/v1/node/deliveries/delivery/files/file" || r.Header.Get("X-Delivery-Lease") != "lease" || r.Header.Get("Authorization") != "Bearer machine" {
+			t.Errorf("附件凭据/路径错误: %s", r.URL.Path)
+		}
+		_, _ = w.Write(data)
+	}))
+	defer server.Close()
+	client, err := relaysvc.NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var uploads int
+	executor := &NodeExecutor{relay: client, upload: func(_ context.Context, room, conversation, name, destination string, reader io.Reader) (*workspacesvc.UploadResult, error) {
+		uploads++
+		got, _ := io.ReadAll(reader)
+		if room != "local-room" || conversation != "local-conversation" || name != file.Name || destination != "attachments/file" || !bytes.Equal(got, data) {
+			t.Fatal("未使用精确原生 Room 附件作用域")
+		}
+		return &workspacesvc.UploadResult{Path: destination + "/" + name}, nil
+	}}
+	delivery := &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", Messages: []relaycontract.Message{{ID: "message", Content: relaycontract.MessageContent{Version: 1, Attachments: []relaycontract.MessageAttachment{file}}}}}
+	job := teamstore.NodeJob{RoomID: "local-room", ConversationID: "local-conversation", Delivery: delivery}
+	content, _, err := deliveryRoomContext(delivery, "agent")
+	if err != nil || content != "" {
+		t.Fatalf("附件单独发送失败: %q %v", content, err)
+	}
+	attachments, err := executor.prepareDeliveryAttachments(t.Context(), job, "machine")
+	if err != nil || len(attachments) != 1 || attachments[0].Scope != protocol.ChatAttachmentScopeRoomConversation || attachments[0].Kind != protocol.ChatAttachmentKindText {
+		t.Fatalf("原生附件: %+v %v", attachments, err)
+	}
+	delivery.Messages[0].Content.Attachments[0].SHA256 = strings.Repeat("0", 64)
+	if _, err = executor.prepareDeliveryAttachments(t.Context(), job, "machine"); err == nil || uploads != 1 {
+		t.Fatal("校验失败的内容进入本机工作区")
+	}
+	delivery.Messages[0].Content.Blocks = []relaycontract.ContentBlock{{Type: "markdown", Text: "/browser @Lucy inspect report"}}
+	content, _, err = deliveryRoomContext(delivery, "agent")
+	if err != nil || content != "/browser @Lucy inspect report" {
+		t.Fatalf("Slash 被改写: %q %v", content, err)
+	}
+}
+
+func TestNodeExecutorWakesFromWebSocketWithoutTaskPolling(t *testing.T) {
+	var pending atomic.Bool
+	var reads, claims atomic.Int32
+	hints := make(chan struct{}, 8)
+	claimed := make(chan struct{}, 8)
+	connected := make(chan struct{}, 8)
+	disconnect := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/v1/nodes/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": nodeToken{Token: "machine", ExpiresAt: time.Now().Add(time.Minute), Agents: []nodeAgent{{AgentID: "online", SourceAgentID: "local"}}}})
+		case "/ws/relay/node":
+			if r.Header.Get("Authorization") != "Bearer machine" || r.Header.Get("Cookie") != "" {
+				t.Error("node websocket mixed credentials")
+			}
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.CloseNow()
+			ctx := conn.CloseRead(r.Context())
+			connected <- struct{}{}
+			for {
+				if wsjson.Write(ctx, conn, relaycontract.StreamUpdated{Type: "deliveries.updated"}) != nil {
+					return
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-disconnect:
+					return
+				case <-hints:
+				}
+			}
+		case "/api/relay/v1/node/deliveries/pending":
+			reads.Add(1)
+			ids := []string{}
+			if pending.Load() {
+				ids = append(ids, "online")
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": "0000", "data": map[string]any{"agent_ids": ids}})
+		case "/api/relay/v1/node/deliveries/claim":
+			claims.Add(1)
+			pending.Store(false)
+			_, _ = w.Write([]byte(`{"code":"0000","data":{"delivery":null}}`))
+			claimed <- struct{}{}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, newNodeTestDB(t))
+	nodes, err := NewNodeService(cfg, repo, func(context.Context) ([]protocol.Agent, error) {
+		return []protocol.Agent{{AgentID: "local", Status: "active"}}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := nodes.keys.EncryptEnvelope([]byte("machine"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(t.Context(), teamstore.NodeGrant{Scope: "scope", OwnerUserID: "local-owner", NodeID: "node", RemoteURL: server.URL, CredentialEncrypted: credential, AgentIDs: []string{"online"}, ExecutionEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := relaysvc.NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor := &NodeExecutor{nodes: nodes, relay: client, logger: slog.Default(), active: map[string]string{}, loop: duework.New(duework.Options{})}
+	nodes.executor = executor
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+	go func() { executor.Run(ctx); close(done) }()
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Error("executor did not stop")
+		}
+	}()
+	// 进程已启动后登记，必须由提交唤醒发现，不能等下一次扫描。
+	if err = nodes.setNodeState(t.Context(), *grant, "pending", "authorized"); err != nil {
+		t.Fatal(err)
+	}
+	wait := func(ch <-chan struct{}) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(3 * time.Second):
+			t.Fatal("missing websocket wake")
+		}
+	}
+	wait(connected)
+	time.Sleep(100 * time.Millisecond)
+	before := reads.Load()
+	time.Sleep(5200 * time.Millisecond)
+	if before == 0 || reads.Load() != before || claims.Load() != 0 {
+		t.Fatalf("idle task polling: before=%d after=%d claims=%d", before, reads.Load(), claims.Load())
+	}
+	pending.Store(true)
+	hints <- struct{}{}
+	wait(claimed)
+	// 无新消息提示的积压在重连初始通知后仍会被发现。
+	pending.Store(true)
+	disconnect <- struct{}{}
+	wait(connected)
+	wait(claimed)
+	if claims.Load() != 2 {
+		t.Fatalf("claim count = %d", claims.Load())
+	}
+	if err = nodes.setNodeState(t.Context(), *grant, "authorized", "revoked"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	before = reads.Load()
+	pending.Store(true)
+	hints <- struct{}{}
+	time.Sleep(100 * time.Millisecond)
+	if reads.Load() != before || claims.Load() != 2 {
+		t.Fatal("revoked node continued reading or claiming")
+	}
+}
+
+func TestNodeFailureLoggingIsCorrelatedThrottledAndRedacted(t *testing.T) {
+	var output bytes.Buffer
+	executor := &NodeExecutor{logger: slog.New(slog.NewJSONHandler(&output, nil))}
+	grant := teamstore.NodeGrant{NodeID: "node", OwnerUserID: "owner"}
+	job := teamstore.NodeJob{ID: "job", AgentID: "agent", Delivery: &relaycontract.Delivery{ID: "delivery", MessageID: "message"}}
+	err := &relaycontract.RemoteError{StatusCode: 403, Code: "forbidden", RequestID: "request", Message: "SECRET_REMOTE_BODY"}
+	executor.logFailure(t.Context(), "publish_output", grant, job, err)
+	executor.logFailure(t.Context(), "publish_output", grant, job, err)
+	if strings.Count(output.String(), "\n") != 1 || strings.Contains(output.String(), "SECRET_REMOTE_BODY") {
+		t.Fatalf("日志重复或泄露正文: %s", &output)
+	}
+	var record map[string]any
+	if decodeErr := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &record); decodeErr != nil {
+		t.Fatal(decodeErr)
+	}
+	for key, want := range map[string]any{"stage": "publish_output", "job_id": "job", "delivery_id": "delivery", "source_message_id": "message", "http_status": float64(403), "remote_request_id": "request"} {
+		if record[key] != want {
+			t.Fatalf("%s = %v, want %v", key, record[key], want)
+		}
+	}
+	executor.logTimes["node:agent:publish_output"] = time.Now().Add(-2 * time.Minute)
+	executor.logFailure(t.Context(), "publish_output", grant, job, err)
+	executor.logFailure(t.Context(), "claim_delivery", grant, job, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	executor.logFailure(ctx, "cancelled", grant, job, err)
+	if strings.Count(output.String(), "\n") != 3 {
+		t.Fatalf("限频窗口或取消过滤不正确: %s", &output)
+	}
+}
+
 func TestDeliveryRoomContextUsesExactTriggerAndLocalAgent(t *testing.T) {
 	delivery := &relaycontract.Delivery{AgentID: "remote", MessageID: "trigger", Messages: []relaycontract.Message{
-		{ID: "prior", AuthorType: "agent", AuthorAgentID: "remote"},
-		{ID: "trigger", AuthorType: "user", Content: relaycontract.MessageContent{Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "执行任务"}}}},
+		{ID: "prior", AuthorType: "agent", AuthorAgentID: "remote", AuthorUserID: "agent-owner"},
+		{ID: "trigger", AuthorType: "user", AuthorUserID: "speaker", AuthorUsername: "test", AuthorDisplayName: "测试用户", Content: relaycontract.MessageContent{Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "执行任务"}}}},
 		{ID: "later", AuthorType: "user"},
 	}}
 	content, history, err := deliveryRoomContext(delivery, "local")
@@ -33,6 +250,9 @@ func TestDeliveryRoomContextUsesExactTriggerAndLocalAgent(t *testing.T) {
 		t.Fatalf("unexpected Room context: %q %#v %v", content, history, err)
 	}
 	delivery.MessageID = "missing"
+	if history[1]["author_user_id"] != "speaker" || history[1]["author_username"] != "test" || history[1]["author_display_name"] != "测试用户" || history[0]["author_user_id"] != nil {
+		t.Fatalf("真人身份丢失或混入 Agent 所有者: %#v", history)
+	}
 	if _, _, err := deliveryRoomContext(delivery, "local"); err == nil {
 		t.Fatal("missing trigger must not fall back to the latest message")
 	}
@@ -76,11 +296,13 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	var received []relaycontract.DeliveryOutput
 	var ids []string
 	loseReceipt := true
+	tokenRequests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "Bearer machine" {
 			t.Error("machine request mixed browser credentials")
 		}
 		if r.URL.Path == "/auth/v1/nodes/token" {
+			tokenRequests++
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": nodeToken{Token: "machine", ExpiresAt: time.Now().Add(time.Minute)}})
 			return
 		}
@@ -146,6 +368,13 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	if _, err = executor.machineToken(ctx, *grant); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = executor.cachedToken(ctx, *grant); err != nil || tokenRequests != 1 {
+		t.Fatalf("valid machine token not reused: %d %v", tokenRequests, err)
+	}
+	executor.tokens[grant.NodeID] = cachedNodeToken{credential: secret, value: nodeToken{ExpiresAt: time.Now().Add(time.Second)}}
+	if _, err = executor.cachedToken(ctx, *grant); err != nil || tokenRequests != 2 {
+		t.Fatalf("expiring machine token not refreshed: %d %v", tokenRequests, err)
+	}
 	wrongURL := *grant
 	wrongURL.RemoteURL = "https://other.invalid"
 	if _, err = executor.machineToken(ctx, wrongURL); !errors.Is(err, ErrNodeUnavailable) {
@@ -187,11 +416,15 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		emit("intermediate", "工作进展", "tool_use", true, protocol.DeliveryModeDurable)
 		// 最终消息走真实 SDK→Nexus mapper，避免只用手写事件验证消费者。
 		mapper := message.NewEventMapper(message.EventMapperOptions{Context: message.MessageContext{RoundID: job.RoundID, AgentID: "local", RoomID: job.RoomID, ConversationID: job.ConversationID}})
-		mapped, err := mapper.Map(sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult, UUID: "answer", Result: &sdkprotocol.ResultMessage{Subtype: "success", Result: "完成结果"}})
+		mapped, err := mapper.Map(sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult, UUID: "answer", Result: &sdkprotocol.ResultMessage{Subtype: "success", Result: "完成结果", DurationMS: 53400, TotalCostUSD: 0.0785, Usage: map[string]any{"input_tokens": 3500, "output_tokens": 1600, "cache_read_input_tokens": 40000}}})
 		if err != nil {
 			return err
 		}
 		for _, event := range mapped.Events {
+			if event.Data["role"] == "assistant" {
+				event.Data["model"] = "glm-5.3-flash"
+				event.Data["recalled_memories"] = []any{"PRIVATE_MEMORY"}
+			}
 			request.EventObserver(ctx, event)
 		}
 		request.EventObserver(ctx, protocol.EventMessage{EventType: protocol.EventTypeRoundStatus, RoundID: job.RoundID, Data: map[string]any{"is_terminal": true, "status": "finished"}})
@@ -219,6 +452,14 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	}
 	if out, err := repo.NextNodeOutput(ctx, job.ID); err != nil || out != nil {
 		t.Fatalf("outbox=%+v %v", out, err)
+	}
+	stats := received[2].Content.Execution
+	if stats == nil || stats.Model != "glm-5.3-flash" || stats.ResultSummary == nil || stats.ResultSummary.DurationMS != 53400 || stats.ResultSummary.Usage.CacheReadInputTokens != 40000 || *stats.ResultSummary.TotalCostUSD != 0.0785 {
+		t.Fatalf("最终输出统计丢失: %+v", stats)
+	}
+	wire, _ := json.Marshal(received)
+	if strings.Contains(string(wire), "PRIVATE_MEMORY") || strings.Contains(string(wire), "thinking") {
+		t.Fatal("私人执行信息进入共享输出")
 	}
 	if err = executor.execute(ctx, *grant, job, nodeToken{}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
 		t.Fatalf("replayed tools: %d %v", starts, err)
@@ -258,5 +499,36 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	}
 	if active, err := repo.ActiveNodeJob(ctx, "local-owner", "other-local"); err != nil || active == nil || active.State != "running" {
 		t.Fatalf("unknown run must remain blocked: %+v %v", active, err)
+	}
+}
+
+func TestNodeTerminalStatusDistinguishesInterruption(t *testing.T) {
+	for _, status := range []string{"interrupted", "cancelled", "error"} {
+		t.Run(status, func(t *testing.T) {
+			repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
+			job, err := repo.PrepareNodeJob(t.Context(), teamstore.NodeJob{ID: "terminal", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			job.State = "running"
+			if err := repo.SaveNodeJob(t.Context(), *job, "claiming", nil); err != nil {
+				t.Fatal(err)
+			}
+			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
+			if err := observer.apply(t.Context(), job, protocol.EventMessage{EventType: protocol.EventTypeRoundStatus, Data: map[string]any{"is_terminal": true, "status": status}}); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := repo.NodeJob(t.Context(), job.OwnerUserID, job.ID)
+			want := "cancelled"
+			if status == "error" {
+				want = "failed"
+			}
+			if err != nil || saved == nil || saved.State != want {
+				t.Fatalf("终态=%+v, err=%v", saved, err)
+			}
+			if active, err := repo.ActiveNodeJob(t.Context(), job.OwnerUserID, job.LocalAgentID); err != nil || active != nil {
+				t.Fatalf("终态仍占用执行槽: %+v %v", active, err)
+			}
+		})
 	}
 }

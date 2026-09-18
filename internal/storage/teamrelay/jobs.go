@@ -18,6 +18,7 @@ type NodeJob struct {
 	RoomID, ConversationID, RoundID                              string
 	Delivery                                                     *relaycontract.Delivery
 	CandidateID, CandidateText                                   string
+	CandidateExecution                                           *relaycontract.ExecutionMetadata
 	Sequence, OutputBytes                                        int
 	Failed                                                       bool
 	CandidateSent                                                bool
@@ -75,6 +76,7 @@ func (r *Repository) PrepareNodeJob(ctx context.Context, item NodeJob) (*NodeJob
 func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput) error {
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
+		item.CandidateExecution = nil
 	}
 	if output != nil {
 		item.Sequence++
@@ -169,7 +171,7 @@ func (r *Repository) AckNodeOutput(ctx context.Context, jobID string, sequence i
 }
 
 func (r *Repository) NodeJobs(ctx context.Context, owner, scope string) ([]NodeJob, error) {
-	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, scope, owner, scope)
+	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed','cancelled') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, scope, owner, scope)
 }
 
 // NodeMessageJobs 通过精确消息索引读取旧执行，不扩大常规授权面板的任务窗口。
