@@ -64,6 +64,11 @@ func ownerRuntimeRoot(owner string) string {
 			stateRoot = filepath.Join(".", ".nexus")
 		}
 	}
+	if strings.HasPrefix(stateRoot, "~/") || stateRoot == "~" {
+		if home, err := os.UserHomeDir(); err == nil {
+			stateRoot = filepath.Join(home, strings.TrimPrefix(stateRoot, "~/"))
+		}
+	}
 	stateRoot = filepath.Clean(stateRoot)
 	if (filepath.Base(stateRoot) == "app" || filepath.Base(stateRoot) == "config") && filepath.Base(filepath.Dir(stateRoot)) == ".nexus" {
 		stateRoot = filepath.Dir(stateRoot)
