@@ -15,7 +15,6 @@ import (
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 )
 
 // Client 抽象出宿主管理 Agent runtime 所需的最小能力，便于测试替身接入。
@@ -735,7 +734,7 @@ func (c *agentClient) startBridgeSessionCleanup(
 		// keep the runtime session close fence active.
 		var scratchErr error
 		if closeErr == nil && cleanup.scratchRoot != "" {
-			scratchErr = sandboxresources.ReleasePath(cleanup.scratchRoot)
+			scratchErr = ReleaseSandboxPath(cleanup.scratchRoot)
 		}
 		cleanup.err = errors.Join(closeErr, scratchErr)
 		close(cleanup.done)

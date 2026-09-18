@@ -14,7 +14,6 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -55,7 +54,7 @@ func NewCoordinator(
 	return newCoordinator(cfg.MemoryMaintenance, agents, preferences, runner)
 }
 
-func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
 	if lease == nil {
 		return nil
 	}
@@ -110,10 +109,10 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: autoDreamProviderUnavailableReason,
 		}, nil
 	}
-	var scratchLease *sandboxresources.Lease
+	var scratchLease *runtimectx.SandboxResourceLease
 	scratchLeaseOwned := false
 	if strings.EqualFold(strings.TrimSpace(r.config.AppMode), "desktop") {
-		scratchLease, err = sandboxresources.Acquire(ownerContext, sandboxresources.Input{
+		scratchLease, err = runtimectx.AcquireSandboxResource(ownerContext, runtimectx.SandboxResourceInput{
 			OwnerUserID: agentValue.OwnerUserID,
 			SessionKey:  "memory-maintenance:" + strings.TrimSpace(agentValue.AgentID),
 			RoundID:     "auto-dream",

@@ -16,7 +16,6 @@ import (
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/sandboxresources"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -45,7 +44,7 @@ type preparedSlotRuntime struct {
 	toolSurfaceFingerprint string
 	toolSurfaceComplete    bool
 	forkLegacyToolSurface  bool
-	scratchLease           *sandboxresources.Lease
+	scratchLease           *runtimectx.SandboxResourceLease
 }
 
 type roomRuntimePrompt struct {
@@ -113,7 +112,7 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
-func sandboxResourcesFromLease(lease *sandboxresources.Lease) *agentclient.SandboxResourcePolicy {
+func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
 	if lease == nil {
 		return nil
 	}
@@ -228,7 +227,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		}
 	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
-	var scratchLease *sandboxresources.Lease
+	var scratchLease *runtimectx.SandboxResourceLease
 	scratchLeaseOwned := false
 	defer func() {
 		if scratchLease != nil && !scratchLeaseOwned {
@@ -238,7 +237,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if strings.EqualFold(strings.TrimSpace(e.service.config.AppMode), "desktop") &&
 		(strings.TrimSpace(selection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
-		scratchLease, err = sandboxresources.Acquire(e.ctx, sandboxresources.Input{
+		scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
 			OwnerUserID: e.agent.OwnerUserID,
 			SessionKey:  e.round.SessionKey,
 			RoundID:     e.round.RootRoundID,
