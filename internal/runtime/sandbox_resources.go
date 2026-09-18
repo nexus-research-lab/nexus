@@ -64,7 +64,11 @@ func ownerRuntimeRoot(owner string) string {
 			stateRoot = filepath.Join(".", ".nexus")
 		}
 	}
-	return filepath.Join(filepath.Clean(stateRoot), "users", safeOwnerPathSegment(owner), "runtime")
+	stateRoot = filepath.Clean(stateRoot)
+	if (filepath.Base(stateRoot) == "app" || filepath.Base(stateRoot) == "config") && filepath.Base(filepath.Dir(stateRoot)) == ".nexus" {
+		stateRoot = filepath.Dir(stateRoot)
+	}
+	return filepath.Join(stateRoot, "users", safeOwnerPathSegment(owner), "runtime")
 }
 
 func safeOwnerPathSegment(value string) string {
