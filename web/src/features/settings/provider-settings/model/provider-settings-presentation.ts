@@ -188,13 +188,6 @@ export function buildProviderSettingsPresentation({
   };
 }
 
-export function formatTokenPreview(
-  maskedToken: string | null | undefined,
-  emptyLabel: string,
-): string {
-  return maskedToken?.trim() || emptyLabel;
-}
-
 export function formatCount(value?: number | null): string {
   if (!value || value <= 0) {
     return "auto";

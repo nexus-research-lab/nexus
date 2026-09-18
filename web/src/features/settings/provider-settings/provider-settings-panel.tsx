@@ -109,6 +109,8 @@ export function ProviderSettingsPanel({
                     base_url: value,
                   })}
                   onFieldBlur={actions.handleProviderFieldBlur}
+                  onClearAuthToken={actions.handleClearAuthToken}
+                  pending={state.pendingAction !== null}
                   onProviderDisplayNameChange={
                     actions.handleProviderDisplayNameChange
                   }

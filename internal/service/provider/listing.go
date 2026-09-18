@@ -21,7 +21,7 @@ func (s *Service) List(ctx context.Context) ([]Record, error) {
 		if item.ProviderKind == ProviderKindLLM {
 			usageCount = len(usageAgents[item.Provider])
 		}
-		models, err := s.modelsForRecord(ctx, item.ID)
+		models, err := s.modelsForRecord(ctx, item)
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +88,7 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		VisionItems:     make([]Option, 0, len(items)),
 	}
 	for _, item := range items {
-		if !item.Enabled {
+		if !providerHasCredentials(item) {
 			continue
 		}
 		models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -105,7 +105,12 @@ func (s *Service) ListOptionsForRuntime(ctx context.Context, runtimeKind string)
 		switch {
 		case item.ProviderKind == ProviderKindLLM:
 			result.BackgroundItems = append(result.BackgroundItems, option)
-			visionModels := visionModelOptions(models)
+			visionModels := []ModelOption{}
+			for _, model := range llmModels {
+				if model.Guidance.Eligibility[PurposeVision].Available {
+					visionModels = append(visionModels, model)
+				}
+			}
 			if len(visionModels) > 0 {
 				result.VisionItems = append(result.VisionItems, Option{
 					Provider:    item.Provider,
@@ -187,7 +192,7 @@ func (s *Service) Availability(ctx context.Context) (AvailabilityState, error) {
 			continue
 		}
 		state.Total++
-		if !item.Enabled || !isAnyAgentRuntimeProvider(item) {
+		if !providerHasCredentials(item) || !isAnyAgentRuntimeProvider(item) {
 			continue
 		}
 		state.EnabledList = append(state.EnabledList, item.Provider)

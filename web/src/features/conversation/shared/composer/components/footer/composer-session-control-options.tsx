@@ -6,6 +6,8 @@
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
+import { ModelGuidanceBadges } from "@/entities/provider/model-guidance-badges";
+import { recommendedModelsFirst } from "@/entities/provider/model-guidance";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
@@ -81,7 +83,7 @@ export function buildSessionModelItems(
   const currentModel = controller.settings.model || controller.inheritedModel;
   const items: UiActionMenuItem[] = [];
   for (const provider of controller.providerOptions?.items ?? []) {
-    for (const model of provider.models) {
+    for (const model of recommendedModelsFirst(provider.models, "chat")) {
       const active = currentProvider === provider.provider
         && currentModel === model.model_id;
       items.push({
@@ -91,6 +93,7 @@ export function buildSessionModelItems(
             <UiTooltip label={model.display_name || model.model_id}><span className="min-w-0 flex-1 truncate" >
               {model.display_name || model.model_id}
             </span></UiTooltip>
+            <ModelGuidanceBadges guidance={model.guidance} />
             <UiTooltip label={provider.display_name || provider.provider}><span
               className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
 

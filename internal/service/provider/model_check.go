@@ -151,7 +151,7 @@ func (s *Service) ensureTestedModelReadyInMutation(
 			Category:                 category,
 			Enabled:                  true,
 			IsDefault:                false,
-			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+			CapabilitiesAutoJSON:     encodeModelAutoCapabilities(capabilities),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindow,
 			MaxOutputTokens:          maxOutput,

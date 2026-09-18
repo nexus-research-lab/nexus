@@ -1,3 +1,6 @@
+// INPUT: Provider 草稿、持久配置及串行命令入口。
+// OUTPUT: 保存、独立启停和显式清除凭证命令，保留未知写入结果的反馈。
+// POS: Provider 配置事务编排；启停不改凭证，清除凭证同时停用服务。
 import { useCallback, useMemo } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -174,7 +177,6 @@ export function useProviderPersistence({
           buildProviderEnabledPayload(
             selectedRecord,
             checked,
-            draft.auth_token,
           ),
         );
         if (!await refreshAll(result.provider)) {
@@ -199,7 +201,6 @@ export function useProviderPersistence({
       }
     });
   }, [
-    draft.auth_token,
     persistProvider,
     providerApi,
     refreshAll,
@@ -211,7 +212,31 @@ export function useProviderPersistence({
     updateDraft,
   ]);
 
+  const handleClearAuthToken = useCallback(() => {
+    if (!selectedCanManage || !selectedRecord) return;
+    void runCommand({ kind: "clear-provider-key" }, async () => {
+      try {
+        const result = await providerApi.updateConfig(selectedRecord.provider, {
+          ...buildProviderEnabledPayload(selectedRecord, false),
+          auth_token: "",
+        });
+        updateDraft({ auth_token: "", enabled: false });
+        if (!await refreshAll(result.provider)) {
+          setFeedback(buildProviderCommittedRefreshFeedback(
+            t("settings.providers.refresh_after_change_failed_message"), t,
+          ));
+          return;
+        }
+        setFeedback({ tone: "success", title: t("settings.providers.key_cleared_title"),
+          message: t("settings.providers.key_cleared_message") });
+      } catch (error) {
+        reportPersistenceFailure(error, setFeedback, t);
+      }
+    });
+  }, [providerApi, refreshAll, runCommand, selectedCanManage, selectedRecord, setFeedback, t, updateDraft]);
+
   return {
+    handleClearAuthToken,
     handleEnabledChange,
     handleProviderFieldBlur,
     persistProvider,

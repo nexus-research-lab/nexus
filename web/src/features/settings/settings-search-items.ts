@@ -8,16 +8,18 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
   general: [
     ["settings.desktop.version_title"],
     ["settings.desktop.export_logs"],
-    ["settings.general.default_model_title", "settings.general.default_model_description"],
-    ["settings.general.default_background_model_title", "settings.general.default_background_model_description"],
-    ["settings.general.default_image_model_title", "settings.general.default_image_model_description"],
-    ["settings.general.default_vision_model_title", "settings.general.default_vision_model_description"],
     ["settings.general.runtime_title", "settings.general.runtime_description"],
     ["settings.general.auto_memory_title", "settings.general.auto_memory_description"],
     ["settings.general.auto_dream_title", "settings.general.auto_dream_description"],
     ["settings.general.emotion_title", "settings.general.emotion_description"],
     ["settings.general.echo_title", "settings.general.echo_description"],
     ["settings.general.agent_sdk_diagnostics_title", "settings.general.agent_sdk_diagnostics_description"],
+  ],
+  "default-models": [
+    ["settings.general.default_model_title", "settings.general.default_model_description"],
+    ["settings.general.default_background_model_title", "settings.general.default_background_model_description"],
+    ["settings.general.default_image_model_title", "settings.general.default_image_model_description"],
+    ["settings.general.default_vision_model_title", "settings.general.default_vision_model_description"],
   ],
   appearance: [
     ["theme.switch_title", "settings.general.theme_description"],

@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - im_delivery*.go：发送前持久来源、发送结果去重及精确 ingress 人类消息证据；pairing writer 同事务撤销旧回传资格。
-//   - ingress*.go：入站接收、消息归一化、投递目标解析、权限与会话映射；active-paired 私聊签发同 Agent 交互能力，把普通 runtime permission 投递为不暴露内部 ID 的 session-scoped `/y`、`/a`、`/d` 确认，可信控制命令在 Agent runtime 前跨 runtime/Automation 统一消歧、消费并回投当前 IM。
+//   - ingress*.go：入站接收、消息归一化、投递目标解析、权限与会话映射；active-paired 私聊签发同 Agent 交互能力，把普通 runtime permission 投递为不暴露内部 ID 的 session-scoped `/y`、`/a`、`/d` 确认，可信控制命令在 Agent runtime 前跨 runtime/Automation 统一消歧、消费并回投当前 IM；配对持久化当前 Session 代次，删除后只轮换新 key，不复活旧 tombstone。
 //   - router.go / router_*.go：generation 防护的通道路由、候选先启动后替换、
 //     通道自报的动态 runtime readiness、投递记录与平台配置注册表。
 //   - channel_*.go / existence.go / personal_weixin_runtime_store.go：通道账号、配置存储、

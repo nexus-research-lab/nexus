@@ -161,6 +161,7 @@ export function useProviderSettingsController(
       handleCCSwitchSynced,
       handleCreateFromPreset,
       handleDelete: configActions.handleDelete,
+      handleClearAuthToken: configActions.handleClearAuthToken,
       handleEnabledChange: configActions.handleEnabledChange,
       handleProviderFieldBlur: configActions.handleProviderFieldBlur,
       handleProviderDisplayNameChange:

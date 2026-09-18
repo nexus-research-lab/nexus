@@ -232,7 +232,7 @@ func operationContract(domain, operation string) (string, any, []string) {
 			"model_id": "string",
 			"input": map[string]any{
 				"enabled": "boolean", "is_default": "boolean",
-				"capabilities_override": "object with optional vision/image_output/tool_calling/reasoning/embedding booleans",
+				"capabilities_override": "object with optional text_output/vision/image_output/image_editing/tool_calling/reasoning/embedding booleans",
 				"context_window":        "optional integer", "max_output_tokens": "optional integer",
 				"provider_options": "mixed JSON object; keep structural string/number/boolean/array/object values literal; token/client_secret/api_key/password leaves and every headers/env/credentials value use {$secret: opaque_slot_id}",
 			},

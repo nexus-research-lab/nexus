@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func (s *ControlService) ListPairings(ctx context.Context, ownerUserID string, query PairingQuery) ([]PairingView, error) {
@@ -128,6 +130,27 @@ func (s *ControlService) updatePairing(
 				return err
 			}
 		}
+		if request.AgentID != nil && *request.AgentID != existing.AgentID {
+			// Rebinding an IM target must fence every concrete session derived
+			// from the old Agent and start a fresh generation for the pairing.
+			// Otherwise the next ingress can route through the old Agent key.
+			if _, err := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+				return err
+			}
+			existing.SessionKey = protocol.BuildAgentAccountSessionKeyWithGeneration(
+				*request.AgentID,
+				protocol.NormalizeSessionKeyChannelSegment(existing.ChannelType),
+				existing.ChatType,
+				existing.AccountID,
+				existing.ExternalRef,
+				existing.ThreadID,
+				s.idFactory("session"),
+			)
+			existing.SessionMaterialized = false
+			if _, err := tx.ExecContext(ctx, "UPDATE im_pairings SET session_key="+s.bind(1)+", session_materialized="+s.bind(2)+" WHERE owner_user_id="+s.bind(3)+" AND pairing_id="+s.bind(4), existing.SessionKey, false, ownerUserID, pairingID); err != nil {
+				return err
+			}
+		}
 		updatedRow, loadErr = s.patchPairingRowWith(ctx, tx, ownerUserID, pairingID, request)
 		if loadErr != nil {
 			return loadErr
@@ -175,6 +198,9 @@ func (s *ControlService) deletePairing(
 
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
 			return err
 		}
 		query := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)

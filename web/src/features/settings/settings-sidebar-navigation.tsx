@@ -12,6 +12,7 @@ import {
   Cable,
   CreditCard,
   ListChecks,
+  MonitorCog,
   Chrome,
   Cpu,
   FolderKanban,
@@ -57,6 +58,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
 	browser: Chrome,
   personal: UserRound,
   providers: Cable,
+  "default-models": MonitorCog,
   workspace: FolderKanban,
 };
 
