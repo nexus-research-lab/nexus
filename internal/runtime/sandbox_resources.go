@@ -142,11 +142,17 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	// scratch replacement.
 	scopeKey := owner + "\x00" + session
 	registryMu.Lock()
-	if existing := byScope[scopeKey]; existing != nil {
-		registryMu.Unlock()
-		return existing, nil
-	}
+	existing := byScope[scopeKey]
 	registryMu.Unlock()
+	if existing != nil {
+		existing.mu.Lock()
+		active := !existing.released
+		existing.mu.Unlock()
+		if active {
+			return existing, nil
+		}
+	}
+
 	digest := sha256.Sum256([]byte(scopeKey))
 	name := ".scratch-" + hex.EncodeToString(digest[:])[:16]
 	path := filepath.Join(base, name)
