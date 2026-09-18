@@ -14,6 +14,7 @@
 | --- | --- | --- |
 | 准入 | 旧关闭环境变量、server、macOS/Windows、旧 nxs、Claude、缺能力 | 旧变量不能关闭桌面合同；需要但无法提供的边界在命令开始前拒绝 |
 | 默认权限与后端 | 新任务、升级后默认值、nxs/Claude 切换、缺依赖/不支持平台、显式 Full Access | 默认请求批准/自动审核均自动受限；旧实例收口、新实例确认后才能发任务；不支持不静默裸执行 |
+| Settings receipt | applying/reconcile_required、跨重启恢复、review、人工 reconcile、重复/过期 revision | unknown 持久化且不自动重放；review 重新读取同一 scope；人工收口必须带当前 revision，Agent 不能代替真人确认 |
 | Claude 原生接入 | Bridge typed `RequireClaudeRestricted`/`CapabilityClaudeRestricted`、唯一 `--restricted` 参数、固定 CLI 版本、settings 来源/合并、Bash 子进程、文件权限、网络批准、取消、模式切换 | 受限模式只由 Bridge 注入并验证一次 `--restricted`；缺参数/版本/能力不明时首条任务前拒绝；Full Access 不要求也不注入该参数；不伪造 nxs 协议或文件 helper 覆盖 |
 | 策略 | default/auto/Full Access、未来只读 profile、附加目录、deny 优先 | 审批方式不改变资源；强制策略不被用户设置/env/hook 覆盖 |
 | shell | 文件/子进程、构建、Git、包管理、PTY、后台进程 | 边界内正常工作，子孙继承；普通工具 allow 不能授予越界 |
@@ -50,6 +51,27 @@ Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
   owner 证据分别记录，不能互相替代。
 
 在上述三层证据齐全前，本矩阵中的 Claude 仍为“未闭合”，`releaseAccepted=false`。
+
+### 2026-09-18：settings receipt review/reconcile
+
+`internal/service/configuration` 新增按 owner/scope 重新授权的 `ReviewChange` 和
+`ReconcileChange`；`nexuscfg review` 返回当前脱敏快照、receipt 和 revision 关系，
+`nexuscfg reconcile` 只接受带当前 `observed_revision` 的人工 `applied`/
+`not_applied` 决定。round-scoped Agent 可以 review 但不能提交人工 reconcile；收口只
+把 receipt 更新为 `reconciled`，不会再次调用原始领域写入。
+
+验证：
+
+```sh
+GOWORK=off go test ./internal/service/configuration -run 'TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay' -count=1
+GOWORK=off go test ./internal/cli ./internal/app/runtime
+```
+
+结果：集成测试证明人工收口不会再次推进 Preferences 版本，备注正文不落审计；CLI 和
+loopback broker 编译/目标测试通过。原始日志、报告与校验和见[证据目录](evidence/desktop-sandbox/2026-09-18-settings-receipt/)。
+此批次仍不证明 revision 在跨进程密钥生命周期外
+可比较，也不替代设置页 UI、掉电事务、Provider/网络/辅助进程、Claude 真实会话或
+Windows/macOS/Linux/安装包验收；`releaseAccepted=false` 继续成立。
 
 ### 2026-09-18：Claude CLI 受限参数探测（macOS 本机）
 

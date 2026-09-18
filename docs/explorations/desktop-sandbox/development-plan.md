@@ -336,6 +336,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | Notebook 文件能力子批次：SDK `7bc597ea3c9db479b561d6203fb2a8d03698c982` 增加 `sandbox_notebook_files_v1`，Bridge `8a4576ba97ece60e0485f2bfbb0bce53e5b89502` 发送和验证独立 Notebook 要求；Nexus `2fa81e09f` 将其纳入默认能力合同和进程指纹。固定模块为 `v0.1.34-0.20260918053632-8a4576ba97ec`（`h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=`），nxs SHA-256 为 `b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5`；SDK/Bridge 目标、Bridge race、Bridge→真实 nxs 和 Nexus runtime 目标测试通过，无模型请求 | 当前仅证明 macOS 本地 Notebook 内容/cell output 读取的能力准入；Notebook 执行、远程网络、完整 SDK IO、Provider/秘密文件/句柄、崩溃恢复、Windows/Linux、Claude 和安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
 | 2026-09-18 | settings-writes 跨进程锁批次：SDK `ce136cfe` 为每个物理 settings 根增加稳定 `.nexus-settings.lock`，按根路径排序获取锁、支持 context 取消、锁后重新核验快照，并在原子替换后同步打开的父目录；Bridge 仍为 `8a4576ba`，Nexus 为 `223dd495a`。从该 SDK 构建 nxs SHA-256 为 `3ec4aeb09208733c74a135f923f04fc0e89269f94b49530f1dc85d0779671afb`；目标测试、race 测试和 Nexus→Bridge→真实 nxs 桌面门禁通过 | 该批次只证明跨进程写窗口的互斥和本机 macOS 集成；多文件断电 all-or-nothing、持久 request/approval/revision receipt、重启 inspect/reconcile UI、Provider/辅助进程/网络/后代隔离及原生平台/Claude/安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
 | 2026-09-18 | settings-writes 回滚增量：SDK `9d60e166` 在跨进程锁窗口内对已证明写入的文档执行逆序回滚；新建文档删除、已有文档恢复均再次核验物理目录和目标内容，无法证明时仍保留 unknown。固定 Bridge `8a4576ba`，Nexus `223dd495a`；从新 SDK 构建 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`；目标/race 测试和最新真实 Nexus→Bridge→nxs 桌面门禁通过 | 只闭合可证明运行期失败的回滚，不等同于掉电跨文件事务；持久 request/approval/revision receipt、重启 inspect/reconcile UI、Provider/辅助进程/网络/后代隔离及原生平台/Claude/安装包仍未验收，`releaseAccepted=false`，提交仅本地 |
+| 2026-09-18 | settings receipt review/reconcile 控制面完成：Nexus `0adb7fd0614f2106f57196547e914de569599266` 本地提交。`ReviewChange` 按 owner/scope 重新读取脱敏 receipt 与当前 revision；`ReconcileChange` 只允许人工确认 `applied|not_applied`，拒绝 stale revision、Agent round 和重复收口，且不重放配置写入。目标测试、race、CLI/app runtime 包和架构门禁 exit 0；证据见 [settings receipt evidence](../../testing/evidence/desktop-sandbox/2026-09-18-settings-receipt/) | revision 跨完整性密钥重启、多进程事务、设置页 UI、Provider/辅助进程/网络、Claude 真实会话、原生平台与安装包仍未验收，`releaseAccepted=false`，仅本地未推送 |
 
 ### 2026-09-18：scratch durable marker 与显式恢复 primitive
 
@@ -354,9 +355,30 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | owner-scoped recovery | `GOWORK=off go test ./internal/service/configuration -run 'TestRecoverStaleApplyingChanges'` 通过；跨 owner 扫描全局限量，后续调用继续收口剩余 owner |
 | server startup/scheduler | `startBackgroundServices` 先接入配置恢复首扫，再启动每分钟周期；停止时等待恢复 goroutine 退出 |
 | 安全边界 | 只更新 stale `applying` 且使用 owner/request 条件；未知写入保持 `reconcile_required`，不执行隐式 inspect、replay 或跨 owner 合并 |
-| 当前边界 | 该入口尚未连接设置页的 inspect/reconcile 动作；多进程 CAS、全文件原子提交、父目录 fsync、崩溃后的 scratch lease sweep、Provider/辅助进程/网络和原生平台验收仍未完成 |
+| 当前边界 | 已连接配置服务与 nexuscfg 的 review/reconcile 控制面，但设置页原生 UI 尚未接入；多进程 CAS、全文件原子提交、父目录 fsync、崩溃后的 scratch lease sweep、Provider/辅助进程/网络和原生平台验收仍未完成 |
 
 本批次只把 durable unknown recovery 接入明确的 server 启动与周期调度路径；`releaseAccepted=false`，提交仅本地未推送。
+
+### 2026-09-18：settings receipt review/reconcile 入口接入
+
+配置服务新增 owner/scope 绑定的 `ReviewChange` 与 `ReconcileChange`。`review` 只把
+旧 request 的脱敏 receipt、当前真相源快照、revision 关系和 checks 返回给有权 Actor；
+它不会改变状态。`reconcile` 必须携带 review 返回的当前 revision、`applied` 或
+`not_applied` 的人工决定和显式确认，只能由当前 owner 的人工配置入口提交；它把
+`reconcile_required` 收口为 `reconciled`，记录 `human_confirmation` 和是否填写备注，
+不保存备注正文、不执行原始请求，也不允许 Agent round capability 代替真人批准。
+`nexuscfg review/reconcile` 和 loopback broker 的 Agent review/人工 reconcile 拒绝路径
+已接入，集成测试证明收口不会再次推进 Preferences 版本。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| durable receipt review | owner/scope/domain 重新授权，当前快照和 revision 关系可读取；越权与不存在 request 拒绝 |
+| human reconcile | stale observed revision、缺确认、Agent round、重复收口均拒绝；成功只更新 receipt，不重放配置写入 |
+| 当前边界 | revision 关系仍受当前配置服务的完整性密钥生命周期影响；设置页原生 UI、跨进程 all-or-nothing/CAS/fsync、Provider/辅助进程/网络和原生平台验收仍未完成 |
+
+本批次只补齐 durable unknown 的显式 review/reconcile 控制面，不宣称未知写入已被宿主自动判定；原始日志和
+版本清单见[证据目录](../../testing/evidence/desktop-sandbox/2026-09-18-settings-receipt/)；
+`releaseAccepted=false`，提交仅本地未推送。
 
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）

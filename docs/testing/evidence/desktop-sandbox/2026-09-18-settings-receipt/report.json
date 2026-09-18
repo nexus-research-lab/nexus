@@ -1,0 +1,48 @@
+{
+  "batch": "2026-09-18-settings-receipt-review-reconcile",
+  "scope": "durable settings receipt review and human-only reconcile",
+  "releaseAccepted": false,
+  "source": {
+    "nexus": {
+      "worktree": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "commitBeforeEvidence": "89edc7a7fd96399e7d296dbc4b1cae6090859523",
+      "commit": "0adb7fd0614f2106f57196547e914de569599266",
+      "branch": "codex/desktop-sandbox-isolated"
+    },
+    "bridge": {
+      "worktree": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox",
+      "commit": "6ea77309fdd4ed4f8177e9d9731253cd1f03879c",
+      "branch": "codex/desktop-sandbox-file-capability"
+    },
+    "sdk": {
+      "worktree": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox",
+      "commit": "9d60e1661bc05fe516e7db0ac4e346c8c88a2b0f",
+      "branch": "codex/desktop-sandbox-file-capability"
+    },
+    "bridgeModule": {
+      "version": "v0.1.34-0.20260918074231-6ea7730",
+      "sum": "h1:xRd4iHVLEDL08Ey0FqYk66D087/SkkQsGrl8B0LfxVQ=",
+      "goModSum": "h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y="
+    }
+  },
+  "checks": [
+    {"name": "configuration review/reconcile target", "log": "configuration-review.log", "exitCode": 0},
+    {"name": "configuration review/reconcile race", "log": "configuration-review-race.log", "exitCode": 0},
+    {"name": "target packages", "log": "target-packages.log", "exitCode": 0},
+    {"name": "architecture", "log": "architecture.log", "exitCode": 0}
+  ],
+  "proven": [
+    "review is owner/scope authorized and read-only",
+    "human reconcile requires observed current revision and explicit confirmation",
+    "Agent round capability cannot submit reconcile",
+    "reconcile does not advance Preferences version or replay the original write",
+    "reconcile note body is not persisted"
+  ],
+  "notProven": [
+    "cross-process all-or-nothing/CAS and parent-directory fsync",
+    "stable revision comparison across integrity-key restart",
+    "native settings-page inspect/reconcile UI",
+    "Provider, auxiliary-process, handle, secret-file and network isolation",
+    "full descendant cleanup, Claude authenticated sessions and native platform/package acceptance"
+  ]
+}

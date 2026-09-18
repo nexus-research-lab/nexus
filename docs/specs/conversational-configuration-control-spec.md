@@ -292,8 +292,15 @@ Connector 数据库与宿主 keyring 构成不可拆分的加密身份。所有�
 - `nexuscfg plan`：验证精确 operation/target/input，返回风险、确认要求和 runtime effect，不写入。
 - `nexuscfg apply`：在同一进程重新 plan，执行 revision CAS，并返回写后 snapshot、checks 与 reload status。
 - `nexuscfg history`：查询当前 Actor 有权查看范围内的脱敏审计和 reconcile 状态。
+- `nexuscfg review --request-id <id>`：读取一条配置 receipt，并在同一 owner/scope
+  下重新读取当前脱敏真相源；只返回 revision 关系和 checks，不改变状态。
+- `nexuscfg reconcile --request-id <id> --decision applied|not_applied
+  --observed-revision <revision> --confirm`：只能由当前 owner 的人工配置入口提交，
+  把 `reconcile_required` 收口为带 `human_confirmation` 证据的 `reconciled`。它不
+  重放原始请求、不修改配置值，也不接受 Agent round capability 的提交。
 
-审计读取沿用同一作用域：
+结果不确定时先查询 history，再用 `review` 取得当前 revision 并由真人显式
+`reconcile`；不使用旧 request ID 发起新的副作用进程。审计读取沿用同一作用域：
 
 - 主智能体只查看宿主绑定 owner 的私有记录。
 - Host 与公共管理记录仍要求 local single-user 或真实 owner/admin。

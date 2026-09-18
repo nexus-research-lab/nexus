@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add owner-scoped `nexuscfg review` and human-only `nexuscfg reconcile` for durable
+  settings receipts. Review re-reads the redacted source of truth and reports the
+  recorded/current revision relationship; reconcile records an explicit
+  `human_confirmation` decision without replaying the unknown write, while Agent
+  round capabilities can review but cannot submit it. Cross-process power-loss
+  transactions, stable cross-restart revision comparison, and settings-page UI remain
+  pending.
+
 - Require an independent nxs `sandbox_notebook_files_v1` capability for restricted desktop Notebook reads. Notebook content and cell outputs use the restricted file executor, and old command/file acknowledgements cannot substitute for it; Notebook execution, remote network policy and whole-SDK IO remain separate acceptance work.
 
 - Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
