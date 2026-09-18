@@ -129,15 +129,14 @@ export function MessageActivityStatus({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center px-1.5",
-        stableSlot && "h-7",
+        "flex h-7 min-w-0 items-center px-1.5",
         className,
       )}
       data-message-activity-stable-slot={stableSlot || undefined}
     >
       <div className={cn(
         "inline-flex min-w-0 items-center gap-1.5 text-sm transition-colors",
-        stableSlot ? "py-0 font-normal leading-5" : "py-1 font-medium",
+        stableSlot ? "font-normal leading-5" : "font-medium leading-5",
         uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
         <span
