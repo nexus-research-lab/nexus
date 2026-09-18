@@ -1,5 +1,7 @@
 # 桌面沙箱现状、问题与 Codex 差距
 
+> 历史快照：本文记录 2026-09-15 的默认关闭实验状态。2026-09-18 起，桌面模式由 `NEXUS_APP_MODE=desktop` 自动进入受限运行环境，当前产品合同与交付状态以[规范](../../specs/desktop-sandbox-spec.md)、[开发计划](development-plan.md)和[验收矩阵](../../testing/desktop-sandbox-acceptance.md)为准；这里的“默认关闭”描述不代表当前设置体验。
+
 状态：**2026-09-15 的审计快照，non-normative**。本文解释已有代码与证据，不定义新的产品行为。
 当前合同见 [桌面沙箱规范](../../specs/desktop-sandbox-spec.md)；后续工作与状态只在 [开发计划](development-plan.md) 维护。
 

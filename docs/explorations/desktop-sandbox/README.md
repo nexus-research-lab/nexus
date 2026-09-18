@@ -1,6 +1,6 @@
 # 桌面沙箱改造文档入口
 
-状态：实验集成，默认关闭。此目录为 non-normative 的开发资料；当前产品合同唯一入口是 [桌面沙箱规范](../../specs/desktop-sandbox-spec.md)。
+状态：实验集成，桌面受限运行环境默认内建且没有用户关闭开关。此目录为 non-normative 的开发资料；当前产品合同唯一入口是 [桌面沙箱规范](../../specs/desktop-sandbox-spec.md)。
 
 ## 阅读顺序
 

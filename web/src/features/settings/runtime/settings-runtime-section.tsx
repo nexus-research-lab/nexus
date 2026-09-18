@@ -161,6 +161,26 @@ export function SettingsRuntimeSection() {
             />
           </div>
 
+          <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+          <div className={SETTINGS_ROW_CLASS_NAME}>
+            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+              <div className={SETTINGS_ICON_CLASS_NAME}>
+                <ShieldCheck className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                  {t("settings.runtime.sandbox_title")}
+                </h3>
+                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                  {t("settings.runtime.sandbox_description")}
+                </p>
+              </div>
+            </div>
+            <p className={cn(SETTINGS_ITEM_DESCRIPTION_CLASS_NAME, "font-medium") }>
+              {t("settings.runtime.sandbox_always_on")}
+            </p>
+          </div>
+
           {settings.runtimeKind === "nxs" ? (
             <>
               <div className={SETTINGS_DIVIDER_CLASS_NAME} />

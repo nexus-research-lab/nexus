@@ -281,10 +281,14 @@ must not be represented as fully accepted App isolation.
 
 ## Approval modes and runtime replacement
 
-The host does not change the selected approval mode to enable sandboxing. A fresh
-Full Access (`bypassPermissions`) runtime receives no additional host sandbox
-policy; existing legacy settings and OS permissions retain their prior semantics.
-This does not grant OS administrator privileges or override domain authorization.
+The host does not change the selected approval mode to enable sandboxing: the
+restricted runtime is already part of every desktop task contract. A fresh nxs
+Full Access (`bypassPermissions`) runtime still installs the nxs capability and
+lifecycle boundary; it broadens the command/file resource policy through the
+SDK setting instead of disabling the runtime. This does not grant OS
+administrator privileges or override domain authorization. Claude's native
+adapter remains a separate contract; until it is negotiated and verified, a
+restricted Claude task fails closed rather than claiming nxs capabilities.
 
 For host-managed desktop policy, a live change crossing into or out of Full Access
 retires the old client before returning the transition signal. DM closes the old
@@ -333,9 +337,12 @@ The runtime settings page offers an explicit sandbox-support check. Only
 query; the existing request without this option remains a file-only check used
 when selecting nxs. Responses keep `available` independent and optionally include
 `sandbox.state`: `unknown`, `unsupported`, `missing_dependencies`, or
-`dependencies_available`, plus a known platform. The latter state does not mean
-sandboxing is enabled or tested for the active task. Failures remain unknown and
-do not change preferences, approval mode, or execution policy.
+`dependencies_available`, plus a known platform. `dependencies_available`
+means the default local prerequisites for the restricted runtime are present;
+task admission still confirms the exact negotiated capability and effective
+policy before starting. Failures remain unknown and do not change preferences,
+approval mode, or execution policy. This diagnostic never acts as an on/off
+control.
 
 The Bridge module version and checksum are owned by `go.mod` and `go.sum`.
 Dependency publication, the configured nxs binary, and packaged application
