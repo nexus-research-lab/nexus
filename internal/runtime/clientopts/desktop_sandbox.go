@@ -32,10 +32,14 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Env = make(map[string]string)
 	}
 	options.Env[protocol.NexusDesktopSandboxPolicyEnvName] = "1"
-	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-		return options, nil
-	}
 	if options.Runtime.Kind != agentclient.RuntimeNXS {
+		// Claude's native sandbox adapter has a separate contract. Until that
+		// contract is negotiated here, a desktop request cannot claim the nxs
+		// required-sandbox capabilities. Preserve legacy Full Access handling
+		// for Claude while keeping the failure closed for restricted mode.
+		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+			return options, nil
+		}
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a runtime with required_sandbox_v1 support")
 	}
 	yes := true
@@ -48,6 +52,12 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 			AllowWrite: slices.Clone(input.AdditionalDirectories),
 		},
 		Network: &agentclient.SandboxNetworkConfig{AllowedDomains: []string{}},
+	}
+	// Full Access changes the command/file resource policy, but the nxs
+	// runtime, capability handshake and lifecycle remain installed. Carry the
+	// explicit escape in the SDK setting instead of dropping the environment.
+	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+		options.Sandbox.Filesystem = &agentclient.SandboxFilesystemConfig{}
 	}
 	return options, nil
 }

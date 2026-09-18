@@ -47,8 +47,8 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 				t.Fatal("sandbox changed approval mode")
 			}
 			if mode == sdkpermission.ModeBypassPermissions {
-				if got.Sandbox != nil {
-					t.Fatal("Full Access acquired a sandbox restriction")
+				if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !got.Sandbox.RequireFileTools || !got.Sandbox.RequireSettingsWrites || got.Sandbox.AllowUnsandboxedCommands == nil || !*got.Sandbox.AllowUnsandboxedCommands {
+					t.Fatal("Full Access dropped the nxs runtime boundary")
 				}
 				continue
 			}
