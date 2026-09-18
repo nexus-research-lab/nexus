@@ -662,6 +662,11 @@ func TestRoundErrorDisplayMessageHidesStreamDiagnostics(t *testing.T) {
 			want: "provider_error=rate_limit",
 		},
 		{
+			name: "token limit is explained to the user",
+			err:  errors.New("anthropic status 400: context_length_exceeded"),
+			want: "模型的 Token 或上下文额度已达到上限。请缩短提示内容、清理会话上下文，或切换模型后重试。",
+		},
+		{
 			name: "nil",
 			want: "",
 		},

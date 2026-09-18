@@ -73,11 +73,10 @@ function sessionActivityDisprovesFailure(failure: ConversationFailure): boolean 
 }
 
 function submissionSupersedesFailure(failure: ConversationFailure): boolean {
-  return failure.code === "permission_not_sent"
-    || failure.code === "request_rejected"
-    || failure.code === "round_failed"
-    || failure.code === "safety_rejected"
-    || failure.code === "validation_failed";
+  // 新命令已经成功写入当前连接后，上一轮已经结束的失败提示不应继续
+  // 占据 Composer。delivery_unknown 仍必须保留，直到精确 ACK 或对账证据
+  // 到达，避免把未知副作用误当成已收口。
+  return failure.code !== "delivery_unknown";
 }
 
 function reduceTransportState(

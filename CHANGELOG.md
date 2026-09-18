@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Surface model Token/context-limit failures with actionable guidance and clear stale conversation failure notices after a later send starts.
+
 - Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.
 
 - Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.
