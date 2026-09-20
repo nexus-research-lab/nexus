@@ -1188,7 +1188,7 @@ test("Room public activity survives the pause between reply text and tool work",
   );
   assert.match(
     continuedHtml,
-    /class="flex h-7 min-w-0 items-center px-0 \[&amp;_\[data-message-activity-icon\]\]:justify-start" data-message-activity-stable-slot="true"/,
+    /class="flex h-7 min-w-0 items-center px-0" data-message-activity-stable-slot="true"/,
     "Room thinking and replying reuse the fixed-height flush-left public activity slot",
   );
 

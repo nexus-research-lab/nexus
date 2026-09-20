@@ -15,7 +15,7 @@ interface FileArtifactLayout {
 
 const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactLayout> = {
   compact: {
-    card: "max-w-[28rem] gap-1.5 px-2.5 py-2",
+    card: "gap-1.5 px-2.5 py-2",
     fileIcon: "h-3.5 w-3.5",
     fileName: getUiTypographyClassName({ role: "supporting", tone: "strong", weight: "medium" }),
     iconFrame: "h-8 w-8",
@@ -23,7 +23,7 @@ const DENSITY_STYLE: Record<"compact" | "regular", FileArtifactLayout> = {
     wrapper: "my-0",
   },
   regular: {
-    card: "max-w-[32rem] gap-2 px-3 py-2.5",
+    card: "gap-2 px-3 py-2.5",
     fileIcon: "h-4 w-4",
     fileName: getUiTypographyClassName({ role: "body", tone: "strong", weight: "medium" }),
     iconFrame: "h-9 w-9",

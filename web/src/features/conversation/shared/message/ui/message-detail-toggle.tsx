@@ -42,7 +42,7 @@ export function MessageDetailToggle({
       {...props}
       aria-expanded={expanded}
       className={cn(
-        "min-h-7 w-full min-w-0 justify-start gap-1.5 border-0 px-1.5 py-0.5 text-left font-normal",
+        "min-h-7 w-full min-w-0 justify-start gap-1.5 border-0 px-0 py-0.5 text-left font-normal",
         "shadow-none active:bg-transparent aria-[expanded=true]:bg-transparent [&:not(:disabled):hover]:bg-(--surface-interactive-hover-background)",
         tone === "default" && "aria-[expanded=true]:text-(--text-muted) [&:not(:disabled):hover]:text-(--text-strong) [&:not(:disabled):hover_span]:text-(--text-strong) [&:not(:disabled):hover_svg]:text-(--icon-strong)",
         className,
