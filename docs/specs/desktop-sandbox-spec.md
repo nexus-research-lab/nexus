@@ -16,10 +16,11 @@ set or clear the internal host policy marker.
 DM, Room and background memory maintenance use the same client-options builder.
 For restricted nxs sessions, it requires nxs `required_sandbox_v1`,
 `sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation. Restricted
-Claude sessions use the separate Bridge `RequireClaudeRestricted` contract and
-the Claude-native `--restricted` launch argument; they do not claim nxs
-capabilities. An unsupported runtime fails instead of silently accepting an
-unenforced policy.
+Claude sessions use the separate Bridge `RequireClaudeNativeSandbox` contract
+and generated native `sandbox` settings (`enabled=true`,
+`failIfUnavailable=true`, `allowUnsandboxedCommands=false`); they do not claim
+nxs capabilities or use `--restricted` tool removal as a command-sandbox proof.
+An unsupported runtime fails instead of silently accepting an unenforced policy.
 Negotiation is not proof of current dependencies or an installed effective policy.
 Native file-tool capability is currently declared only by macOS nxs builds;
 Windows native execution is still incomplete and these desktop sessions fail
@@ -307,21 +308,25 @@ Full Access (`bypassPermissions`) runtime still installs the nxs capability and
 lifecycle boundary; it broadens the command/file resource policy through the
 SDK setting instead of disabling the runtime. This does not grant OS
 administrator privileges or override domain authorization. A restricted Claude
-session installs Bridge's typed `RequireClaudeRestricted` contract, which adds
-exactly one native `--restricted` argument and rejects nxs-only requirements,
-bypass permissions, and untyped flag injection before transport startup. The
-corresponding `CapabilityClaudeRestricted` is a local Bridge launch-contract
-capability, not a Claude wire response or proof of OS/file/network/Provider
-isolation. Claude Full Access is an explicit exception and does not install the
-contract or flag; it still retains host lifecycle, domain authorization, and
-other mandatory policy. Fixed CLI-version, native behavior, and clean-host
-acceptance remain separate release evidence.
+session installs Bridge's typed `RequireClaudeNativeSandbox` contract, which
+generates one host-owned `--settings` object and rejects missing, duplicate or
+overridden JSON, bypass permissions, `--restricted` tool-mode mixing, and any
+unsandboxed-command setting before transport startup. The corresponding
+`CapabilityClaudeNativeSandbox` is a local Bridge configuration capability, not
+a Claude wire response or proof of OS/file/network/Provider isolation. Claude
+Full Access is an explicit exception and does not install the contract or
+settings; it still retains host lifecycle, domain authorization, and other
+mandatory policy. Fixed CLI-version, native behavior, and clean-host acceptance
+remain separate release evidence.
 
 The recorded Claude CLI 2.1.273 help describes `--restricted` as removing code
-execution tools and limiting file tools to the working directory. This path does
-not implement the intended ability to run normal commands inside an OS sandbox.
-Claude's native command sandbox configuration, effective-policy admission and
-allowed/denied command tests remain separate unfinished integration work.
+execution tools and limiting file tools to the working directory. The desktop
+contract therefore uses Claude's native command sandbox settings so Bash and
+build commands remain available. Bridge settings validation is implemented;
+Claude's effective-policy admission and real allowed/denied command, network,
+credential, cancellation and cleanup tests remain separate unfinished
+integration work. Native Windows Claude is rejected until a supported native
+environment is verified.
 
 For host-managed desktop policy, a live change crossing into or out of Full Access
 retires the old client before returning the transition signal. DM closes the old
