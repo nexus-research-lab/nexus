@@ -650,7 +650,10 @@ func (s *Service) resolveRoomInputQueuePrimaryLocation(
 			targetAgentIDs = []string{agentID}
 		}
 	}
-	if len(targetAgentIDs) == 0 && allowDefaultTarget {
+	// 与普通 chat 的目标解析保持一致：Host 自动接管是浏览器群聊的
+	// 未 @ 默认目标，即使本次输入已经走 input_queue，也不能被
+	// TrustedConfigurationContext 的显式目标闸门误挡住。
+	if len(targetAgentIDs) == 0 {
 		if hostAgentID, ok := resolveRoomHostDefaultTarget(contextValue, agentNameByIDFromInputLocations(locationsByAgentID)); ok {
 			targetAgentIDs = []string{hostAgentID}
 		}
