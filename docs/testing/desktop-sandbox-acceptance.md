@@ -93,6 +93,24 @@ GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs \
 
 完整报告、选定原始日志和 `manifest.sha256` 见[2026-09-20-macos-baseline](evidence/desktop-sandbox/2026-09-20-macos-baseline/)。
 
+### 2026-09-20：SDK durable settings transaction journal
+
+SDK `431966dd8862429f80a0bb555aef048d02dedf23` 在每个物理 settings 根增加
+`.nexus-settings-transaction.json`。journal 只保存旧/新 canonical 内容摘要，不复制
+Provider 或其他设置正文；写入前持久化，重启时核对全部文档。全旧/全新状态安全清除，
+混合、损坏或无法证明的状态保留 journal 并失败关闭，不能自动重放。Bridge 继续固定
+`v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`）。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| SDK settings target/race/vet | `go test ./internal/config/settings`、`go test -race ./internal/config/settings`、`go vet ./internal/config/settings` 均 exit 0 | journal 写入/清理、全旧/全新恢复、混合失败关闭、正文脱敏 |
+| 固定 macOS 基线 | `check-sandbox-baseline.mjs --sdk-ref 431966dd...` exit 0；38 个检查无必测 skip | host policy/lifecycle/settings recovery/Provider 与 macOS 全能力路径；无模型请求 |
+| settings writers | 46 个指定通过事件 | 新增 5 个 journal 场景已进入脚本必测清单 |
+| 固定 runtime | nxs SHA-256 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd` | SDK archive 构建；Bridge 无 replace |
+| 当前边界 | `releaseAccepted=false` | journal 不等同于跨根掉电 all-or-nothing、exact 领域 receipt/reconcile、Provider 秘密文件/句柄/网络出口、Windows/Linux/Claude/签名安装包验收 |
+
+完整报告、选定日志和 `manifest.sha256` 见[2026-09-20-settings-journal-baseline](evidence/desktop-sandbox/2026-09-20-settings-journal-baseline/)。
+
 ### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：

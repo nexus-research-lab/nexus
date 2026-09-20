@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin the desktop sandbox baseline to SDK `431966dd8862429f80a0bb555aef048d02dedf23` and include its durable settings transaction journal scenarios in the required evidence script. The fixed archive-built nxs passes all 38 macOS development checks; full-old/full-new settings states recover safely while mixed or unverifiable states remain fail-closed. This does not close cross-root power-loss atomicity, domain receipts, Provider secret-file/handle/network isolation, or Windows/Linux/Claude/package acceptance.
+
 - Re-run the fixed SDK `9d60e166` and Bridge `02fbc0e5f6a6...` macOS arm64
   no-model baseline after the runtime environment scrub. Host policy,
   lifecycle, settings recovery, Provider environment, settings-writes and all

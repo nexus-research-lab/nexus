@@ -6,7 +6,7 @@
 
 当前开发位置（2026-09-20）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 Claude Bridge 接线批次固定 SDK `9d60e166`、Bridge `02fbc0e5f6a699fad7106e202d119c272ef4e170`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
+当前 Claude Bridge 接线批次固定 SDK `431966dd8862429f80a0bb555aef048d02dedf23`、Bridge `02fbc0e5f6a699fad7106e202d119c272ef4e170`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `431966dd8862429f80a0bb555aef048d02dedf23` 构建的最新 nxs SHA-256 为 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
 
 ## 1. 最终交付目标
 
@@ -431,6 +431,27 @@ environment、settings-writes 和 macOS 文件/搜索/媒体/Skill/上下文/项
 外部 MCP/helper 和生产发布仍未闭合，`releaseAccepted=false`。
 
 证据见[2026-09-20-macos-baseline](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline/)。
+
+### 2026-09-20：SDK durable settings transaction journal
+
+SDK 本地提交 `431966dd8862429f80a0bb555aef048d02dedf23` 在 settings writer 首个
+文档替换前，为每个物理 settings 根写入只含 canonical SHA-256 摘要的
+`.nexus-settings-transaction.json`。配置可能包含 Provider 密钥，因此 journal 不保存
+旧/新正文。新进程在加载快照前持有同一跨进程锁并核对 journal：所有文档仍为旧摘要或
+均为新摘要时安全清除；混合、损坏、路径身份变化或无法核对时保留 journal 并失败关闭，
+等待显式人工恢复，不自动回滚猜测或重放原请求。运行期可证明失败仍按既有逆序回滚，
+成功或可证明回滚后清除 journal。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| SDK settings target | `GOWORK=off GOPROXY=off go test ./internal/config/settings -count=1` 通过 |
+| SDK settings race/vet | `go test -race ./internal/config/settings -count=1` 与 `go vet ./internal/config/settings` 通过 |
+| 固定跨仓门禁 | `check-sandbox-baseline.mjs` 使用 SDK `431966dd...`、Bridge `02fbc0e5...` exit 0；38 个检查无必测 skip；`settings-writers` 46 个通过事件 |
+| journal 反例 | 成功清理、全旧恢复、全新恢复、混合失败关闭并保留 journal、正文不落 journal 五组通过 |
+| nxs binary | 固定 SDK archive 构建 SHA-256 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd`；无模型请求 |
+| 当前边界 | journal 只提供崩溃分类与失败关闭；跨根多文档掉电 all-or-nothing、exact request/approval/revision receipt、领域 reconcile、Provider 秘密文件/句柄/网络、Windows/Linux/Claude/安装包仍未验收 |
+
+证据见 [2026-09-20-settings-journal-baseline](../../testing/evidence/desktop-sandbox/2026-09-20-settings-journal-baseline/)。本批次提交仅本地，未推送，`releaseAccepted=false`。
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）
 
