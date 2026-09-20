@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix unmentioned Room input queue submissions so Host auto-reply still selects the Room owner while an Agent is running.
+
 - Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
 
 - Keep the conversation at the real bottom when the activity Dock adds its 56px clearance while FOLLOW is active.
