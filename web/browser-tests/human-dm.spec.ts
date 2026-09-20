@@ -58,7 +58,9 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  const directory=isNarrow()?page:page.getByRole("region",{name:zh?"组织成员":"Organization members",exact:true});
  const memberText=isNarrow()?page.getByRole("button",{name:"Alice @peer",exact:true}):directory.getByText("Alice",{exact:true});
  await expect(memberText).toBeVisible();
- const search=directory.getByRole("searchbox");
+ const search=isNarrow()
+  ? page.getByPlaceholder(zh?"搜索":"Search",{exact:true})
+  : directory.getByPlaceholder(zh?"搜索成员":"Search people",{exact:true});
  await search.fill("no-match");
  await expect(memberText).toHaveCount(0);
  await search.fill("");
