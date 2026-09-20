@@ -15,7 +15,7 @@
 | 准入 | 旧关闭环境变量、server、macOS/Windows、旧 nxs、Claude、缺能力 | 旧变量不能关闭桌面合同；需要但无法提供的边界在命令开始前拒绝 |
 | 默认权限与后端 | 新任务、升级后默认值、nxs/Claude 切换、缺依赖/不支持平台、显式 Full Access | 默认请求批准/自动审核均自动受限；旧实例收口、新实例确认后才能发任务；不支持不静默裸执行 |
 | Settings receipt | applying/reconcile_required、数据库重开/独立进程、旧 revision、密钥损坏、review、人工 reconcile、重复/过期 revision | unknown 持久化且不自动重放；同一快照跨重启可比，旧计划仍失效；旧格式明确不可比较；缺失/损坏密钥拒绝；人工收口必须带当前 revision，Agent 不能代替真人确认 |
-| Claude 启动合同 | Bridge typed `RequireClaudeRestricted`/`CapabilityClaudeRestricted`、唯一 `--restricted` 参数、固定 CLI 版本、取消、模式切换 | 参数只由 Bridge 注入一次；缺参数/版本不明时首条任务前拒绝；Full Access 不注入；只计启动合同，不能替代命令沙箱 |
+| Claude 原生设置合同 | Bridge typed `RequireClaudeNativeSandbox`/`CapabilityClaudeNativeSandbox`、唯一 host-owned `--settings`、`enabled`/`failIfUnavailable`/`allowUnsandboxedCommands`、Full Access、模式切换 | settings 缺失/重复/覆盖/尾随 JSON、bypass 或 unsandboxed command 在首条任务前拒绝；保留 Bash/构建能力；只计 Bridge 配置合同，不能替代 Claude 实际命令沙箱 |
 | Claude 原生命令沙箱 | 独立原生 sandbox 配置、settings 来源/合并、缺依赖和未受限回退、Bash/构建命令、文件权限、网络批准、取消 | 必須保留正常命令能力，并证明允许操作成功、越界确实拒绝；`--restricted` 移除代码执行工具不能满足本行；不伪造 nxs 协议或复用文件 helper 覆盖 |
 | 策略 | default/auto/Full Access、未来只读 profile、附加目录、deny 优先 | 审批方式不改变资源；强制策略不被用户设置/env/hook 覆盖 |
 | shell | 文件/子进程、构建、Git、包管理、PTY、后台进程 | 边界内正常工作，子孙继承；普通工具 allow 不能授予越界 |
@@ -126,7 +126,10 @@ node scripts/desktop/check-claude-restricted.mjs \
 启动过一个已认证的 Claude 会话，也不能证明真实工具、网络或子进程被隔离；
 取消/清理及 Windows、Linux、安装包验收仍未闭合。
 
-### 2026-09-18：Bridge Claude 受限准入预检
+### 2026-09-18（历史）：Bridge Claude 受限准入预检
+
+本节记录的 `--restricted` 启动参数合同已由 2026-09-20 的原生 sandbox settings
+合同取代，仅保留作为参数语义和回归基线，不能作为当前桌面实现状态。
 
 Bridge 已在本地提交 `6ea77309fdd4ed4f8177e9d9731253cd1f03879c` 接入正式进程
 启动前的 CLI 预检。`RequireClaudeRestricted=true` 时，Bridge 使用和正式会话
@@ -145,9 +148,34 @@ Full Access 不触发该预检。
 
 结果：Bridge 目标包、竞态和 vet 通过；Nexus Claude 接线测试通过；桌面 gate
 exit 0；本机 Claude Code `2.1.273` 的 `--help` 声明 `--restricted`，两个 bypass
-组合均 exit 1。该证据只闭合 Bridge 的启动参数准入和 Nexus 传递，不证明已认证
+组合均 exit 1。该历史证据只闭合 Bridge 的启动参数准入和 Nexus 传递，不证明已认证
 Claude 会话、取消/清理、Provider/网络/文件/子进程 OS 隔离，也不替代 Windows、
 Linux 或安装包验收；因此 `releaseAccepted=false` 继续成立。
+
+### 2026-09-20：Claude 原生命令 sandbox settings 接线
+
+Bridge 本地提交 `02fbc0e5f6a699fad7106e202d119c272ef4e170` 增加
+`RequireClaudeNativeSandbox` 与 `CapabilityClaudeNativeSandbox`。正式 Claude
+进程启动前，Bridge 对唯一 host-owned `--settings` 做严格 JSON 解析，要求
+`sandbox.enabled=true`、`sandbox.failIfUnavailable=true` 和
+`sandbox.allowUnsandboxedCommands=false`；非法、重复、覆盖或尾随 JSON 均失败关闭。
+Bridge 不再用 `--restricted` 移除 Bash/构建工具来冒充命令沙箱。
+
+Nexus 本地提交 `67cb67e85` 固定 Bridge 模块
+`v0.1.34-0.20260920021254-02fbc0e5f6a6`，checksum 为
+`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod checksum 为
+`h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`。受限 Claude 当前只在 macOS
+安装该合同；原生 Windows 受限路径拒绝，Full Access 不安装该合同。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Bridge | `go test ./...`、`go test -race ./client ./internal/transport` 通过；覆盖 Bash 参数保留、settings 校验、bypass/覆盖/混用拒绝和尾随 JSON |
+| Nexus | `GOWORK=off GOPROXY=off go test ./internal/runtime/clientopts ./internal/runtime`、对应 race、`go vet` 通过；确认 Claude settings 合同、网络域名准入和进程策略 fingerprint |
+| 三仓 pin | SDK `9d60e166`、Bridge `02fbc0e5f6a6...`、Nexus `67cb67e85` 均为本地提交，未推送；Nexus 无 replace，使用本地 module cache/proxy 精确校验 |
+| 未闭合项 | Claude 真实命令允许/拒绝、网络/Provider 凭据/辅助 IO、取消/后代清理、macOS/Windows/Linux clean-host、签名安装包与 P7 发布验收仍未完成 |
+
+本批次将 Claude 从“仅 `--restricted` 启动参数”推进到“原生 settings 配置已接线”，
+但不把配置准入当作 OS 生效回执；`releaseAccepted=false`，Goal 仍 active。
 
 ## 本次重新审计的执行记录
 

@@ -6,7 +6,7 @@
 
 当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 Claude Bridge 接线批次固定 SDK `9d60e166`、Bridge `6ea77309fdd4ed4f8177e9d9731253cd1f03879c`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260918074231-6ea7730`（`h1:xRd4iHVLEDL08Ey0FqYk66D087/SkkQsGrl8B0LfxVQ=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。Bridge 在正式 stream-json 进程前探测精确 Claude CLI 的 `--restricted --help`，并对探测环境剥离常见 Provider/代理秘密。该批次仅本地提交，未推送；此前 settings-writes 锁与回滚版本仍见验收矩阵及其独立证据目录。
+当前 Claude Bridge 接线批次固定 SDK `9d60e166`、Bridge `02fbc0e5f6a699fad7106e202d119c272ef4e170`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
 
 ## 1. 最终交付目标
 
@@ -56,7 +56,7 @@ Nexus 提供工作区、允许资源和用户授权，Bridge 传输并核验后�
 
 Claude Code 自带 Bash/子进程沙箱，Read/Edit/Write 使用工具权限系统，原生 Windows 不受支持，见 [官方范围说明](https://code.claude.com/docs/en/sandboxing#scope)。其原生适配不能宣称与 nxs 文件 helper 相同的 OS 覆盖。Windows 上若使用 Claude Code，必须有经过验证的受限执行环境（例如 WSL2）；尚无可用环境时，受限任务不能启动，并提供配置环境或切换受支持后端的入口。不能静默降级，也不把实现外部 VM/容器纳入本轮默认方案。
 
-当前 nxs 的独立能力准入仍是保护边界；Claude 已接入独立的启动参数合同，但该合同尚未完成命令沙箱接入。Claude Code adapter 的配置、生效、权限和故障验收仍须按自身证据闭环；不能给 Claude Code 声称 required_sandbox_v1。
+当前 nxs 的独立能力准入仍是保护边界；Claude 已接入独立的原生 sandbox settings 合同，但真实命令生效、网络/凭据边界、取消清理和平台验收仍须按自身证据闭环；不能给 Claude Code 声称 required_sandbox_v1。
 
 ### 2.2 两条独立的控制轴
 
@@ -88,33 +88,26 @@ Claude Code 自带 Bash/子进程沙箱，Read/Edit/Write 使用工具权限系�
 
 Claude Code 使用独立的原生适配合同：配置透传只是输入，固定版本的受限执行、设置合并、不可用时拒绝及批准/取消回归才是接入证据。原生接口无法保证的资源约束或批准范围必须明确拒绝，不能为了统一菜单而放宽要求。
 
-#### Bridge 的 Claude 受限合同（启动接线已实现；命令沙箱接入与验收未完成）
+#### Bridge 的 Claude 原生命令沙箱合同（设置接线已实现；真实生效与平台验收未完成）
 
-当前 `--restricted` 是工具受限启动模式。已归档的 Claude CLI `2.1.273` 帮助明确
-说明它会移除代码执行工具，并把文件工具限制到工作目录；因此该启动合同不能作为
-“正常执行 Bash/构建命令，同时由 OS 沙箱限制命令”的实现。接下来的 Bridge 工作必须
-单独固定 Claude 原生命令沙箱的配置、来源优先级、禁止未受限回退、平台依赖与生效核验，
-再由 Nexus 请求该合同，并验证真实命令的允许/拒绝、网络、取消和清理。不得通过移除
-命令工具来把完整开发工作流标为已交付，也不因为当前参数预检通过就关闭 P1/P2/P6/P7。
+已归档的 Claude CLI `2.1.273` 帮助明确 `--restricted` 会移除代码执行工具；它
+不能作为“保留 Bash/构建命令并由 OS 沙箱限制命令”的实现。Bridge 现在独立安装
+Claude Code 的原生 `sandbox` settings，并在正式进程前严格校验生成的 `--settings`
+对象：`sandbox.enabled=true`、`sandbox.failIfUnavailable=true`、
+`sandbox.allowUnsandboxedCommands=false`。重复参数、非法 JSON、尾随 JSON、
+`ExtraArgs` 覆盖、bypass 权限和 `--restricted` 混用均失败关闭。
 
-这条合同必须在 Bridge 中独立于 nxs 的 `required_sandbox_v1` 实现，不能让
-Nexus 把 nxs 能力名投影给 Claude。Bridge 的 typed options 至少需要表达
-`RequireClaudeRestricted`，并在 Claude 受限会话中完成以下闭环：
+这条合同独立于 nxs 的 `required_sandbox_v1`，不能让 Nexus 把 nxs 能力名投影给
+Claude。Bridge 的 typed options 表达 `RequireClaudeNativeSandbox` 与
+`CapabilityClaudeNativeSandbox`；它只表示 Bridge 已安装并校验配置，不是 Claude
+wire 能力或实际 OS 隔离回执。Full Access 是显式例外，不安装该要求；切换状态
+必须退休旧进程后重建，不能热改正在运行的 Claude 进程。
 
-- 连接前验证该要求只适用于 Claude；Full Access 不设置这条要求，也不能因为
-  它被选中而宣称 Claude 已具备 nxs 沙箱能力。
-- 由 Bridge 固定传递 Claude Code 的原生 `--restricted` 参数，拒绝通过
-  `ExtraArgs`、普通 settings 或环境变量伪造/覆盖该参数；启动参数缺失、版本
-  不支持或探测结果不明确时，在首条任务前失败关闭。当前实现对已解析的
-  Claude CLI 执行有界的 `--restricted --help` 预检，并不把预检结果当作
-  OS 隔离回执。
-- 以独立的 `CapabilityClaudeRestricted`（版本化 Bridge typed capability）回报
-  本次连接已安装的原生受限启动合同，并把要求纳入会话快照/重启指纹；它不是
-  Claude 的 wire 能力或实际 OS 隔离回执。切换受限状态必须退休旧进程后重建，
-  不能热改正在运行的 Claude 进程。
-- 覆盖参数顺序、版本/能力失败、Full Access 兼容、错误二进制和取消/清理的
-  Bridge 单测、真实 Claude CLI 验收；证据只能证明 Claude 自己的原生边界，不能
-  复用 nxs 的文件 helper、网络或平台隔离证据。
+当前 Nexus 仅在受限 macOS Claude 会话安装该合同；原生 Windows Claude 受限路径
+直接拒绝，不能用 WSL2 或交叉编译冒充原生通过。仍须用固定 CLI 和真实会话验证
+正常命令允许、越界命令拒绝、网络批准/拒绝、取消/后代清理、Provider 凭据与
+辅助 IO 边界，并分别记录 macOS、Windows、Linux 和安装包证据；在这些证据完成
+前不能关闭 P1/P2/P6/P7。
 
 Nexus 只在选择 Claude 且权限模式不是 Full Access 时设置这条 Bridge 要求；
 选择 Full Access 保留用户明确的例外语义，但仍受宿主生命周期、领域权限和
@@ -244,7 +237,7 @@ Windows 11 是首个完整验收平台；Windows 10 1809+ 的支持范围以真�
 | 阶段 | 工作包与交付物 | 依赖 | 验收出口 | 状态 |
 | --- | --- | --- | --- | --- |
 | P0 基线与可重复验证 | 整理文档；固定三仓 SHA；建立 GOWORK=off + 真实 nxs 的验证入口；记录 Windows 失败 | 无 | 本次所有结论可定位到代码/原生记录，未执行项不会显示通过 | 已验收 |
-| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；Bridge 已有 `--restricted` 启动合同，仍须完成保留命令能力的 Claude 原生沙箱配置、生效核验、失败关闭和 Full Access 例外 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 真实命令在受限边界内可用且越界被拒绝；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
+| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；Bridge 已完成原生 `sandbox` settings 的 typed 接线与失败关闭校验，仍须完成真实命令生效、网络/凭据边界和 Full Access 例外验收 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 真实命令在受限边界内可用且越界被拒绝；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
 | P2 macOS 全工具链 | 收口文件 helper、动态指令/Skill/设置、PDF/Git/附件与后台 IO；系统后端路径信任与完整资源策略 | P1；复用已有 SDK 文件实现 | 真实工具允许/拒绝、符号链接、特殊文件、大文件、取消、敏感元数据与网络测试 | 进行中 |
 | P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 待开始 |
 | P4 Windows 可部署后端 | 设置/修复/卸载、受保护发布、身份、文件/网络、IPC、Job、清理；接入 SDK/Bridge | P1、P3 | 原生全链路＋安装/升级故障注入；不支持时拒绝，没有静默弱化 | 待开始 |
