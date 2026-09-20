@@ -230,7 +230,9 @@ function buildExecutionStateEntries(
       state.agent_round_id,
     );
     entries.set(entryId, state);
-    orders.set(entryId, state.display_order);
+    if (!orders.has(entryId)) {
+      orders.set(entryId, state.display_order);
+    }
   }
   return { orders, states: entries };
 }

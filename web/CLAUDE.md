@@ -7,9 +7,9 @@
 - 公共 UI 按 `token -> recipe -> primitive -> pattern -> domain widget` 分层。业务组件不得复制 raw color、任意阴影、任意高 z-index、公共圆角、产品断点或 dialog/overlay 视口公式。
 - 修改业务入口、状态机、协议 mapper、复杂 Hook 或跨文件基础组件时，同步维护顶部 `INPUT / OUTPUT / POS` 契约；注释解释所有权和失败边界，不复述 JSX。
 - 公共视觉修改必须检查全部消费者，并覆盖窄屏、三主题、键盘焦点和叠层关系；源码正则只能作为架构门禁，不能替代真实交互测试。
-- React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑 DOM 行为，`npm run test:contracts` 跑 Node 合同，`npm test` 必须覆盖两者。
+- React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑日常 DOM 行为（默认排除开发期 UI Gallery 陈列测试），`npm run test:ui-gallery` 跑 Gallery DOM 合同，`npm run test:contracts` 跑 Node 合同，`npm run test` 必须覆盖日常两类。
 - 共享组件的真实浏览器验收使用开发专用 `ui-gallery.html`；它直接消费 `shared/ui`，用 `theme` 与 `locale` 查询参数固定检查条件，不得加入生产构建入口或演变成第二套组件实现。
-- `npm run check` 运行 lint、类型、合同/组件测试及生产构建；公共 UI、布局和浮层变更还必须运行 `npm run test:browser`，或由 `make check-web` 一次执行。浏览器矩阵和验收证据规则只在工程规范中维护。
+- `npm run check` / `make check-web` 运行日常 lint、类型、合同/组件测试及生产构建，不启动 Playwright；公共 UI、布局和浮层变更还必须显式运行 `npm run test:browser:full`，或由 `make check-web-ui` 一次执行。日常快速浏览器复核使用 `npm run test:browser:smoke`，完整矩阵和验收证据规则只在工程规范中维护。
 - 前端治理固定按三阶段执行：先将可归并的私有控件、样式和交互收口到唯一共享所有者；再基于真实 Web/macOS/Windows 页面复核规范本身的尺寸、密度、字体、命中区、交互状态、频闪与近似模块一致性；最后反向扫描原生控件、重复常量、过渡适配层、无引用导出、不可达分支、失效状态和过期文档，逐项合并、删除或登记为有测试的边界例外。详细退出条件见 `docs/specs/frontend-engineering-spec.md`。
 
 React 19 + Vite 7 + React Router 7 + Tailwind 4 + Zustand + TypeScript

@@ -40,10 +40,12 @@ Catalog changes must update sources/date/version together with regression covera
 
 ## Purpose eligibility
 
-- Chat: an LLM provider, no embedding capability, and no explicit text denial.
-  Unknown ordinary chat IDs remain usable for manual provider compatibility.
-  Image output or image/audio/video/rerank/embedding categories require explicit
-  text output; a multimodal model may belong to both chat and image selections.
+- Chat: an LLM provider with no explicit text denial. An explicit `text_output=true`
+  keeps a model chat-eligible even when the same endpoint also advertises embeddings;
+  an embedding-only record with no text evidence remains ineligible. Unknown ordinary
+  chat IDs remain usable for manual provider compatibility. Image output or
+  image/audio/video/rerank categories require explicit text output; a multimodal model
+  may belong to both chat and vision selections.
 - Vision: chat eligibility plus confirmed image input.
 - Generation: confirmed image output and an implemented image protocol. For a
   dedicated custom image provider, explicit endpoint configuration preserves the

@@ -250,7 +250,9 @@ export function createMarkdownComponents(
       return image;
     },
     h1({ children }) {
-      return <h1 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.375rem] leading-[1.65rem] font-semibold text-foreground first:mt-0">{children}</h1>;
+      // Streaming Markdown can change the first parsed block from a paragraph
+      // to a heading. Keep its block geometry stable while the response grows.
+      return <h1 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.375rem] leading-[1.65rem] font-semibold text-foreground">{children}</h1>;
     },
     h2({ children }) {
       return <h2 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.125rem] leading-[1.65rem] font-semibold text-foreground">{children}</h2>;

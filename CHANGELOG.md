@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
+
+- Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.
+
+- Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
+
+- Preserve the first observed order of concurrent Room Agent execution cards while later runtime snapshots update their state.
 
 - Reuse validated transcript parsing across single-file, segmented and explicit history reads; preserve unchanged files during index rebuilds while reapplying current markers, session identity and fork boundaries.
 
@@ -30,6 +37,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
 
 - Preserve stable conversation transport callbacks to prevent online Room control observers from looping and blocking navigation to other chats.
+
+- Keep text-capable multimodal Provider models eligible for both conversation and vision
+  routing when their endpoint also reports embedding support.
+
+- Fix directory tab selection indicators so the previous option's underline disappears immediately when switching.
+
+- Expand WorkGraph template descriptions with practical use cases and the concrete records each method produces.
+
+- Consolidate WorkGraph detail-page guidance into the Slash command description and remove the separate user-facing artifact-contract panel.
+
+- Add nine reusable WorkGraph methodology templates, including First Principles, MECE strategy, Systems Thinking, Double Diamond, JTBD, Business Model, Pyramid Brief, OODA and a governed ontology operating model. Group them in the WorkGraph directory and persist an artifact contract that names the canonical model, human-readable brief, audit projection and render hint.
+
+- Surface model Token/context-limit failures with actionable guidance and clear stale conversation failure notices after a later send starts.
+
 - Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.
 
 - Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.

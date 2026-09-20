@@ -67,6 +67,20 @@ func TestAdviceAutomaticDenialsAndUserOverride(t *testing.T) {
 	}
 }
 
+func TestMultimodalTextOutputWinsOverEmbeddingFlag(t *testing.T) {
+	item := providerstore.Entity{PresetKey: presetKimiCode, ProviderKind: ProviderKindLLM}
+	model := providerstore.ModelEntity{
+		ModelID:                  "k3-256k",
+		CapabilitiesAutoJSON:     `{"vision":true,"reasoning":true}`,
+		CapabilitiesOverrideJSON: `{"vision":true,"image_output":true,"tool_calling":true,"reasoning":true,"embedding":true}`,
+	}
+
+	guidance := projectModelGuidance(item, model)
+	if !guidance.Eligibility[PurposeChat].Available || !guidance.Eligibility[PurposeVision].Available {
+		t.Fatalf("text-capable multimodal model must remain eligible for chat and vision: %+v", guidance)
+	}
+}
+
 func TestHistoricalGuessesRequireRediscovery(t *testing.T) {
 	item := providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}
 	model := providerstore.ModelEntity{ModelID: "gemini-future", CapabilitiesAutoJSON: `{"vision":true,"reasoning":true}`}

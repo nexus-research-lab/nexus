@@ -1,5 +1,5 @@
 // INPUT: 一个命名 WorkGraph 与详情页动作回调。
-// OUTPUT: 证明详情使用共享 Button、Panel、Typography、语义画布形状并保持动作行为。
+// OUTPUT: 证明详情把方法说明集中在身份区，并使用共享 Button、Typography、语义画布形状保持动作行为。
 // POS: WorkGraph 能力详情 DOM 合同；资源、删除和编辑事务由目录/controller 门禁负责。
 
 import { render, screen } from "@testing-library/react";
@@ -63,7 +63,7 @@ describe("WorkGraphDistillationDetail", () => {
       node.className.includes("ui-type-metadata")
     ))).toBe(true);
     expect(screen.getByText(WORKFLOW.description ?? "").className).toContain("ui-type-supporting");
-    expect(screen.getByText(WORKFLOW.objective).className).toContain("ui-type-body");
+    expect(screen.queryByText(WORKFLOW.objective)).toBeNull();
     expect(screen.getByTestId("workflow-canvas").className).toContain("surface-radius-md");
 
     await user.click(screen.getByRole("button", { name: "capability.workgraph_distillations" }));
@@ -88,5 +88,40 @@ describe("WorkGraphDistillationDetail", () => {
     expect(screen.queryByRole("button", {
       name: "capability.workgraph_edit",
     })).toBeNull();
+  });
+
+  it("keeps internal artifact structure out of the user-facing detail", () => {
+    render(
+      <WorkGraphDistillationDetail
+        item={{
+          ...WORKFLOW,
+          artifact_contract: {
+            profile: "decision",
+            source_of_truth: "JSON model",
+            render_hint: "Markdown plus a table",
+            primary: {
+              name: "decision-record.md",
+              kind: "conclusion",
+              format: "Markdown",
+              purpose: "Record the decision and its conditions.",
+              required_sections: ["Decision", "Evidence"],
+            },
+            supporting: [{
+              name: "evidence.csv",
+              kind: "audit table",
+              format: "CSV",
+              purpose: "Keep claims traceable.",
+            }],
+          },
+        }}
+        onBack={vi.fn()}
+        onCopy={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(document.querySelector("[data-slot='workgraph-artifact-contract']")).toBeNull();
+    expect(screen.queryByText("decision-record.md")).toBeNull();
+    expect(screen.queryByText("evidence.csv")).toBeNull();
   });
 });

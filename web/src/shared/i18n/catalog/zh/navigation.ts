@@ -296,7 +296,7 @@ export const zhNavigationMessages = {
   "launcher.enter_app": "进入工作台",
   "launcher.hero_title": "和你的 Agents 开始协作",
   "launcher.query_input": "输入启动器指令",
-  "launcher.query_placeholder": "@提及 Agent 或 #群聊 来启动协作...",
+  "launcher.query_placeholder": "告诉 Nexus 你想完成什么……",
   "launcher.send": "发送",
   "launcher.recent_dm": "私聊",
   "launcher.recent_room": "房间",
