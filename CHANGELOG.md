@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Expand the desktop runtime inheritance scrub to clear SDK bootstrap
+  descriptors, Provider and auxiliary-request credentials, TLS client-key
+  inputs, telemetry headers, SSH-agent hooks, and Connector client secrets
+  before later host-resolved values are projected. Empty host variables do not
+  create synthetic overrides; this closes known environment-source leaks only,
+  and does not prove arbitrary secret-file, inherited-handle, descendant, or
+  network isolation.
+
 - Route restricted Claude desktop sessions through Claude Code's native command
   sandbox settings (`enabled`, `failIfUnavailable`, and
   `allowUnsandboxedCommands=false`) on macOS, preserving Bash/build commands and
