@@ -1,5 +1,8 @@
 # Team 页面
 
+- 等待领取的投递向原消息作者提供取消入口；Relay 校验作者或 Agent 所有者及 pending 状态，已领取任务不能作为取消等待处理。失败保留重试并重新读取权威状态。
+- Agent 显式文件输出复用附件展示与 saveTeamFile；纯文件回复也保留 Agent 身份和下载入口，失败可见，不构造私人工作区路径。
+
 - 在线资源没有固定刷新间隔。目录、邀请、绑定、文件及 Room 详情通过 owner-scoped directory WS 失效提示单飞补读；本机任务仅由原生 Room 事件唤醒。首次、重连、焦点/网络恢复和手动恢复仍读取权威快照，提示不包含群内容。
 
 - 本机执行绑定准备完成即挂载原生 Room 订阅，不等待 Agent 回复或打开 Thread。任务关联读取禁用定时器，WS 连接/执行变化驱动补读；同会话只订阅一次，round 与本机 Agent 精确匹配，native 终态优先于尚未更新的任务运行态。
@@ -62,6 +65,8 @@
 
 - Composer 上方的绑定读取、任务状态、消息加载/同步错误统一复用 `UiInlineNotice`，共用阅读宽度、字号、间距和恢复按钮；每项仍执行自己的读取重试，自动同步与未确认发送不借用加载重试动作。
 # 共享投递进度
+
+- 远程 pending/leased 等待行复用本地 `MessageActivityStatus` 的图标、LoadingOrb、稳定高度与共享 Room 左对齐规则，保留真实投递文案；终态停止动效，不将远程领取状态伪装成本机思考流。
 
 - 远程 Agent 状态来自 RoomDetails.deliveries；本机执行才显示 Thread。中间 assistant 消息不清除远程状态，final 或 completed 才清除。来源消息由 delivery.message_id 关联，不按姓名或顺序猜测。
 

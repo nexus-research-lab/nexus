@@ -6,7 +6,20 @@ import { expect, it, vi } from "vitest";
 import { TeamExecutionObserver, TeamExecutionThread } from "./team-execution-thread";
 import { useTeamRefresh } from "./use-team-refresh";
 
-const model = vi.hoisted(() => ({ load: vi.fn(), stop: vi.fn(), panel: vi.fn(), session: vi.fn() }));
+const model = vi.hoisted(() => ({ load: vi.fn(), stop: vi.fn(), panel: vi.fn(), session: vi.fn(), recover: vi.fn() }));
+vi.mock("@/lib/api/conversation/team-node-api", () => ({recoverTeamJob: model.recover}));
+
+it("keeps unknown execution recoverable after a rejected verification", async () => {
+  model.load.mockResolvedValue(true);
+  model.session.mockReturnValue({load_round_window: model.load, messages: [], pending_permissions: []});
+  model.recover.mockRejectedValueOnce(new Error("not stopped")).mockResolvedValueOnce(undefined);
+  render(<TeamExecutionThread job={{id: "unknown", agent_id: "remote", state: "review_required", room_id: "room", conversation_id: "conversation", local_agent_id: "local", round_id: "round"}} name="Agent" compact={false} onClose={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", {name: "team.recover_execution"}));
+  expect((await screen.findByRole("alert")).textContent).toContain("team.recovery_failed");
+  fireEvent.click(screen.getByRole("button", {name: "team.recover_execution"}));
+  await waitFor(() => expect(model.recover).toHaveBeenCalledTimes(2));
+  expect(model.recover).toHaveBeenLastCalledWith("unknown");
+});
 
 it("observes the native Room before a job exists, ignores stream chunks and reconciles reconnects", () => {
   const binding = {agent_id: "remote", local_agent_id: "local", room_id: "room", conversation_id: "conversation"};
@@ -75,7 +88,7 @@ vi.mock("@/features/conversation/shared/thread/conversation-thread-panel", () =>
 }));
 
 it("retries history and stops only the exact local Agent execution", async () => {
-  model.load.mockResolvedValueOnce(false).mockResolvedValue(true);
+  model.load.mockReset().mockResolvedValueOnce(false).mockResolvedValue(true);
   model.session.mockReturnValue({ load_round_window: model.load, stop_generation: model.stop,
     pending_permissions: [], messages: [
       {message_id: "message", role: "assistant", agent_id: "local", round_id: "round", agent_round_id: "execution", content: []},

@@ -4,9 +4,11 @@
 package relay
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,40 @@ import (
 
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
+
+func (c *Client) UploadDeliveryFile(ctx context.Context, token, deliveryID, leaseID, command, name string, data []byte) (relaycontract.MessageAttachment, error) {
+	var result relaycontract.MessageAttachment
+	hash := sha256.Sum256(data)
+	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+relayAPIBase+"/node/deliveries/"+url.PathEscape(deliveryID)+"/files", bytes.NewReader(data))
+	if err != nil {
+		return result, err
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
+	r.Header.Set("X-Delivery-Lease", leaseID)
+	r.Header.Set("Idempotency-Key", command)
+	r.Header.Set("X-File-Name", url.QueryEscape(name))
+	r.Header.Set("X-File-SHA256", hex.EncodeToString(hash[:]))
+	response, err := c.wsClient.Do(r)
+	if err != nil {
+		return result, err
+	}
+	if response.StatusCode != http.StatusCreated {
+		return result, readRemoteError(response)
+	}
+	defer response.Body.Close()
+	var envelope struct {
+		Data relaycontract.MessageAttachment `json:"data"`
+	}
+	err = json.NewDecoder(io.LimitReader(response.Body, 64<<10)).Decode(&envelope)
+	if err != nil {
+		return result, err
+	}
+	result = envelope.Data
+	if result.ID == "" || result.Name != name || result.Size != int64(len(data)) || result.SHA256 != hex.EncodeToString(hash[:]) {
+		return result, fmt.Errorf("共享产物回执不匹配")
+	}
+	return result, nil
+}
 
 // DeliveryFile 下载当前投递引用的有界文件；验证摘要后才交给原生 Room 附件存储。
 func (c *Client) DeliveryFile(ctx context.Context, token, deliveryID, leaseID string, file relaycontract.MessageAttachment) ([]byte, error) {

@@ -15,8 +15,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
@@ -127,7 +130,10 @@ func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
 	}}
 	service.executor.ready.Store(true)
 	ctx := authctx.WithPrincipal(t.Context(), &authctx.Principal{UserID: "local-owner"})
-	prepare := func() error { _, err := service.PrepareRoom(ctx, "cookie", "online-room"); return err }
+	prepare := func() error {
+		_, err := service.PrepareRooms(ctx, "cookie", []string{"online-room", "another-room", "online-room"})
+		return err
+	}
 	if _, err := service.PrepareRoom(ctx, "", "online-room"); !errors.Is(err, ErrNodeLogin) {
 		t.Fatal("本地免登录不可登记", err)
 	}
@@ -164,6 +170,93 @@ func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
 	members[0].State = "removed"
 	if err := prepare(); err != nil || posts != 2 {
 		t.Fatal("被移除成员不能重新登记")
+	}
+}
+
+func TestRecoverJobRequiresExactStoppedRoundAndRemoteReceipt(t *testing.T) {
+	remoteState := "leased"
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data any
+		switch r.URL.Path {
+		case "/auth/v1/status":
+			data = nodeIdentity{Authenticated: true, UserID: "remote", OrganizationID: "org"}
+		case "/auth/v1/nodes/node":
+			data = nodeStatus{NodeID: "node", Name: "Node", AgentIDs: []string{"agent"}}
+		case "/auth/v1/nodes/token":
+			data = nodeToken{Token: "token", ExpiresAt: time.Now().Add(time.Hour)}
+		case "/api/relay/v1/node/deliveries/claim":
+			if r.Header.Get("Idempotency-Key") != "job" {
+				t.Error("恢复更换了 claim")
+			}
+			data = map[string]any{"delivery": relaycontract.Delivery{ID: "delivery", LeaseID: "lease", State: remoteState}}
+		case "/api/relay/v1/node/deliveries/delivery/fail":
+			remoteState = "failed"
+			data = map[string]any{}
+		default:
+			t.Errorf("意外调用 %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": "0000", "data": data})
+	}))
+	defer remote.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: remote.URL, ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, newNodeTestDB(t))
+	svc, err := NewNodeService(cfg, repo, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := authctx.WithPrincipal(t.Context(), &authctx.Principal{UserID: "local-owner"})
+	scope, _, err := svc.scope(ctx, "cookie")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := svc.keys.EncryptEnvelope([]byte("credential"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(ctx, teamstore.NodeGrant{Scope: scope, OwnerUserID: "local-owner", NodeID: "node", Name: "Node", AgentIDs: []string{"agent"}, RemoteURL: remote.URL, CredentialEncrypted: secret, ExecutionEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.SetNodeState(ctx, *grant, "pending", "authorized"); err != nil {
+		t.Fatal(err)
+	}
+	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "job", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", AgentID: "agent", Scope: scope})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.State = "running"
+	job.RoundID = "round"
+	job.ConversationID = "conversation"
+	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease"}
+	if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+		t.Fatal(err)
+	}
+	client, _ := relaysvc.NewClient(remote.URL, time.Second)
+	stopped := false
+	svc.executor = &NodeExecutor{nodes: svc, relay: client, loop: duework.New(duework.Options{}), stop: func(_ context.Context, request roomrealtime.InterruptRequest) error {
+		if request.RoundID != "round" || request.SessionKey != protocol.BuildRoomSharedSessionKey("conversation") {
+			t.Fatal("停止越界")
+		}
+		if stopped {
+			return roomrealtime.ErrTargetRoomRoundNotRunning
+		}
+		return nil
+	}}
+	if err = svc.RecoverJob(ctx, "cookie", "job"); !errors.Is(err, teamstore.ErrNodeConflict) {
+		t.Fatal("仅发送停止就解锁", err)
+	}
+	if current, _ := repo.NodeJob(ctx, "local-owner", "job"); current.State != "running" {
+		t.Fatal("提前解锁")
+	}
+	stopped = true
+	if err = svc.RecoverJob(ctx, "cookie", "job"); err != nil {
+		t.Fatal(err)
+	}
+	if active, err := repo.ActiveNodeJob(ctx, "local-owner", "local"); err != nil || active != nil || remoteState != "failed" {
+		t.Fatal("未释放执行槽", active, err)
+	}
+	if err = svc.RecoverJob(ctx, "cookie", "job"); err != nil {
+		t.Fatal("重复恢复失败", err)
 	}
 }
 

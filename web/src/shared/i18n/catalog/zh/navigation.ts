@@ -1,4 +1,12 @@
 export const zhNavigationMessages = {
+  "team.artifact_delivery_failed": "文件未能完成交付，已发送的回复和文件仍保留。请让所有者检查后重新交付。",
+  "team.recovery_notice": "本次执行状态未知。核验并结束原执行，不会自动重跑；已产生的外部操作不会撤回。",
+  "team.recover_execution": "核验并结束执行",
+  "team.recovery_failed": "尚未确认停止或远端状态，请稍后重试核验。",
+  "team.cancel_waiting": "取消等待",
+  "team.cancel_failed": "取消未确认，请刷新状态后重试。",
+  "team.queue_expired": "等待超过 30 分钟，未执行。需要时请重新发送。",
+  "team.request_cancelled": "已取消，未执行。",
   "auth_guard.connecting": "正在连接 Nexus",
   "auth_guard.unavailable_impact": "确认登录状态前无法加载账号内容，已保存的数据不会改变。",
   "auth_guard.retry_hint": "检查网络连接后重新读取登录状态。",

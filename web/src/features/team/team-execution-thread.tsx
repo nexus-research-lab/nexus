@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAgentConversation } from "@/hooks/agent/use-agent-conversation";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { TeamNodeJob } from "@/lib/api/conversation/team-node-api";
+import { recoverTeamJob } from "@/lib/api/conversation/team-node-api";
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import { getRoomThreadMessages } from "@/features/conversation/room/group/round/round-thread-model";
 import { getRoomAgentRoundEntry, isAgentRoundActive } from "@/features/conversation/room/group/round/round-agent-model";
@@ -55,6 +56,8 @@ export function TeamExecutionThread({job, name, avatar, compact, onClose, onOpen
   const { t } = useI18n();
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [recoveryFailed, setRecoveryFailed] = useState(false);
   const sessionKey = buildRoomSharedSessionKey(job.conversation_id!);
   const identity = useMemo(() => ({session_key: sessionKey, agent_id: job.local_agent_id, room_id: job.room_id, conversation_id: job.conversation_id, chat_type: "group" as const}), [sessionKey, job.local_agent_id, job.room_id, job.conversation_id]);
   const conversation = useAgentConversation({identity});
@@ -81,6 +84,16 @@ export function TeamExecutionThread({job, name, avatar, compact, onClose, onOpen
     pendingPermissions={permissions}
     onOpenWorkspaceFile={onOpenWorkspaceFile}
     footer={<>
+      {job.state === "review_required" ? <div className="p-3">
+        <p>{t("team.recovery_notice")}</p>
+        <UiButton variant="surface" disabled={recovering} onClick={async () => {
+          setRecovering(true); setRecoveryFailed(false);
+          try { await recoverTeamJob(job.id); window.dispatchEvent(new Event("focus")); }
+          catch { setRecoveryFailed(true); }
+          finally { setRecovering(false); }
+        }}>{t("team.recover_execution")}</UiButton>
+        {recoveryFailed ? <p role="alert">{t("team.recovery_failed")}</p> : null}
+      </div> : null}
       {loadFailed ? <div role="alert" className="p-3"><UiButton disabled={loading} onClick={() => { void reload(); }} variant="surface">{t("state.retry")}</UiButton></div> : null}
       {showInteraction && permissions.length ? <ComposerInteractionSurface permissions={permissions} onResponse={conversation.send_permission_response} fallbackAgentId={job.local_agent_id} agentNameMap={{[job.local_agent_id!]: name}} /> : null}
     </>}

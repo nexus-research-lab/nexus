@@ -28,6 +28,9 @@ func (s *RoomHistoryStore) historyPageAccess(
 	return historyPageIndexAccess{
 		Scope:     scope,
 		ReadModel: s.readModel,
+		Refresh: func(ctx context.Context) (historyPageIndexBuild, bool) {
+			return s.refreshRoomHistoryTail(ctx, ownerUserID, conversationID, scope)
+		},
 		OpenRoot: func(create bool) (*confinedfs.Root, error) {
 			return s.openRoomHistoryPageIndexRoot(ownerUserID, conversationID, create)
 		},
@@ -315,11 +318,6 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 			}
 			continue
 		}
-		for _, source := range dependenciesBefore {
-			if source.Kind == historyPageSourceTranscript && source.Exists {
-				s.agentHistory.ForOwner(ownerUserID).invalidateTranscriptCache(source.ResolvedPath)
-			}
-		}
 		resolved, err := s.resolveRoomHistoryRowsContext(ctx, ownerUserID, conversationID, rawRows)
 		if err != nil {
 			return historyPageIndexBuild{}, err
@@ -347,6 +345,7 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 		}
 		after := append([]historyPageSourceSnapshot{ledgerAfter}, dependenciesAfter...)
 		latest = historyPageIndexBuild{
+			TailRows:   roomHistoryTailRows(rawRows, groups, resolved),
 			Groups:     groups,
 			RoundIndex: roundIndex.Items,
 			Sources:    after,

@@ -1,6 +1,6 @@
-// INPUT: Agent/Room 持久摘要、只读 Session metadata 目录与有界最新消息页。
+// INPUT: Agent/Room 持久摘要、只读 Session metadata 目录与 SQLite 短摘要。
 // OUTPUT: 保持 wire 兼容的 Launcher 首屏 agents、rooms 与 conversations 摘要。
-// POS: Launcher 首屏投影；回复预览只读最近两个 round 的末尾正文，排除思考/工具过程，单个历史失败不得阻断目录。
+// POS: Launcher 首屏投影；回复预览不读取历史页，按 Room 聚合最新有效正文，单个历史失败不得阻断目录。
 package launcher
 
 import (
@@ -9,16 +9,11 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
-const (
-	latestReplyPreviewRuneLimit = 160
-	slowBootstrapLogThreshold   = 500 * time.Millisecond
-)
+const slowBootstrapLogThreshold = 500 * time.Millisecond
 
 // Bootstrap 幂等保证主智能体默认聊天存在，并返回 Launcher 首屏最小必要数据。
 func (s *Service) Bootstrap(ctx context.Context) (_ BootstrapResponse, err error) {
@@ -133,54 +128,16 @@ func (s *Service) attachLatestReplyPreviews(
 	ctx context.Context,
 	items []BootstrapConversation,
 ) {
-	seenPreviewKeys := make(map[string]struct{}, len(items))
+	ctx, cancel := context.WithTimeout(ctx, slowBootstrapLogThreshold)
+	defer cancel()
+	previews, err := s.session.ListRoomReplyPreviews(ctx)
+	if err != nil {
+		logx.FromContext(ctx).Warn("Launcher 摘要查询失败", "err", err)
+		return
+	}
 	for index := range items {
-		if ctx.Err() != nil {
-			logx.FromContext(ctx).Warn("Launcher 预览读取已取消",
-				"remaining_count", len(items)-index, "err", ctx.Err(),
-			)
-			return
-		}
-		if isExternalLauncherConversation(items[index]) {
-			continue
-		}
-		sessionKey := previewSessionKey(items[index])
-		roomID := strings.TrimSpace(items[index].RoomID)
-		previewKey := roomID
-		if previewKey == "" {
-			previewKey = strings.TrimSpace(sessionKey)
-		}
-		if previewKey == "" {
-			continue
-		}
-		if _, exists := seenPreviewKeys[previewKey]; exists {
-			continue
-		}
-		seenPreviewKeys[previewKey] = struct{}{}
-
-		startedAt := time.Now()
-		page, err := s.session.GetSessionMessagesPage(
-			ctx,
-			sessionKey,
-			sessionsvc.MessagePageRequest{Limit: 2},
-		)
-		duration := time.Since(startedAt)
-		if err != nil || duration >= slowBootstrapLogThreshold {
-			logx.FromContext(ctx).WarnContext(
-				ctx,
-				"Launcher 最新回复预览读取诊断",
-				"room_id", roomID,
-				"session_key", sessionKey,
-				"duration_ms", duration.Milliseconds(),
-				"context_err", ctx.Err(),
-				"err", err,
-			)
-		}
-		if err != nil {
-			continue
-		}
-		if page != nil {
-			items[index].LastReplyPreview = latestReplyPreview(page.Items)
+		if !isExternalLauncherConversation(items[index]) {
+			items[index].LastReplyPreview = previews[items[index].RoomID]
 		}
 	}
 }
@@ -197,54 +154,6 @@ func isExternalLauncherConversation(item BootstrapConversation) bool {
 	default:
 		return false
 	}
-}
-
-// previewSessionKey 返回摘要读取入口：群聊使用共享历史，DM 使用成员历史。
-func previewSessionKey(item BootstrapConversation) string {
-	conversationID := strings.TrimSpace(item.ConversationID)
-	if item.RoomType == protocol.RoomTypeDM || conversationID == "" {
-		return item.SessionKey
-	}
-	return protocol.BuildRoomSharedSessionKey(conversationID)
-}
-
-func latestReplyPreview(messages []protocol.Message) string {
-	for index := len(messages) - 1; index >= 0; index-- {
-		item := messages[index]
-		if protocol.MessageRole(item) != "assistant" {
-			continue
-		}
-		resultSummary, _ := item["result_summary"].(map[string]any)
-		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
-			continue
-		}
-
-		text := messageutil.ExtractAssistantFinalText(item)
-		if text == "" {
-			text = replySummaryString(resultSummary["result"])
-		}
-		if preview := compactReplyPreview(text); preview != "" {
-			return preview
-		}
-	}
-	return ""
-}
-
-func compactReplyPreview(value string) string {
-	normalized := strings.Join(strings.Fields(value), " ")
-	if normalized == "" {
-		return ""
-	}
-	runes := []rune(normalized)
-	if len(runes) <= latestReplyPreviewRuneLimit {
-		return normalized
-	}
-	return string(runes[:latestReplyPreviewRuneLimit-1]) + "…"
-}
-
-func replySummaryString(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
 }
 
 func buildBootstrapRoomMembers(

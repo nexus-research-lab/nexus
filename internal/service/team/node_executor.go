@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ type NodeExecutor struct {
 	start    func(context.Context, roomrealtime.ChatRequest, func(context.Context) error) error
 	upload   func(context.Context, string, string, string, string, io.Reader) (*workspacesvc.UploadResult, error)
 	stop     func(context.Context, roomrealtime.InterruptRequest) error
+	openFile func(context.Context, string, string) (*os.File, string, error)
 	ready    atomic.Bool
 	mu       sync.Mutex
 	active   map[string]string
@@ -49,11 +51,12 @@ type cachedNodeToken struct {
 	value      nodeToken
 }
 
-func NewNodeExecutor(nodes *NodeService, relay *relaysvc.Client, rooms *roomsvc.Service, runtime *roomrealtime.Service, logger *slog.Logger) *NodeExecutor {
+func NewNodeExecutor(nodes *NodeService, relay *relaysvc.Client, rooms *roomsvc.Service, runtime *roomrealtime.Service, workspace *workspacesvc.Service, logger *slog.Logger) *NodeExecutor {
 	e := &NodeExecutor{nodes: nodes, relay: relay, logger: logger, prepare: rooms.EnsureRelayExecutionRoom, start: runtime.HandleAdmittedChat, stop: runtime.HandleInterrupt, active: map[string]string{}}
 	e.loop = duework.New(duework.Options{})
 	nodes.executor = e
 	e.upload = rooms.UploadConversationAttachment
+	e.openFile = workspace.OpenFileForDownload
 	return e
 }
 
@@ -317,6 +320,32 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token string) (resultErr error) {
 	stage := "read_output"
 	defer func() { e.logFailure(ctx, stage, grant, job, resultErr) }()
+	defer func() {
+		// 续租和发布的明确拒绝都必须收口，不能永久占用已结束执行的槽位。
+		if !nodeOutputRejected(resultErr) {
+			return
+		}
+		if job.State != "draining" {
+			if stage == "publish_files" {
+				current, err := e.nodes.store.NodeJob(ctx, job.OwnerUserID, job.ID)
+				if err == nil && current != nil {
+					current.FailureCode = "artifact_delivery_failed"
+					err = e.nodes.store.SaveNodeJob(ctx, *current, current.State, nil)
+				}
+				resultErr = errors.Join(resultErr, err)
+			}
+			return
+		}
+		job.State = "failed"
+		if stage == "publish_files" {
+			job.FailureCode = "artifact_delivery_failed"
+		}
+		if err := e.nodes.store.SaveNodeJob(ctx, job, "draining", nil); err != nil {
+			resultErr = errors.Join(resultErr, err)
+		}
+		_, settleErr := e.relay.SettleDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, true, job.FailureCode)
+		e.logFailure(ctx, "fail_delivery", grant, job, settleErr)
+	}()
 	for {
 		if _, err := e.activeGrant(ctx, grant); err != nil {
 			return err
@@ -336,13 +365,21 @@ func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job
 			}
 		}
 		stage = "publish_output"
-		if err = e.relay.DeliveryOutput(ctx, token, job.Delivery.ID, output.ID, output.Input); err != nil {
-			if job.State == "draining" && nodeOutputRejected(err) {
-				job.State = "failed"
-				if saveErr := e.nodes.store.SaveNodeJob(ctx, job, "draining", nil); saveErr != nil {
-					return saveErr
+		if len(output.Files) > 0 {
+			stage = "publish_files"
+			for index, file := range output.Files {
+				ref, err := e.relay.UploadDeliveryFile(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, fmt.Sprintf("%s_%d", output.ID, index), file.Name, file.Data)
+				if err != nil {
+					return err
 				}
+				output.Input.Content.Attachments = append(output.Input.Content.Attachments, ref)
 			}
+			if err = e.nodes.store.PrepareNodeOutput(ctx, job.ID, *output); err != nil {
+				return err
+			}
+		}
+		stage = "publish_output"
+		if err = e.relay.DeliveryOutput(ctx, token, job.Delivery.ID, output.ID, output.Input); err != nil {
 			return err
 		}
 		stage = "ack_output"

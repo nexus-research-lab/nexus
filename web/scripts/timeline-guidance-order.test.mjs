@@ -186,10 +186,10 @@ test("FOLLOW and READING preserve intent at the real bottom edge", async () => {
   assert.deepEqual(
     getConversationViewportSize({
       clientHeight: 480,
-      clientWidth: 640,
+      clientWidth: 320,
     }),
-    { height: 480, width: 640 },
-    "the reading viewport is defined by its available content size",
+    { height: 480, width: 320 },
+    "the reading viewport is defined by its available content height",
   );
   assert.equal(
     hasConversationViewportSizeChanged(
@@ -1188,7 +1188,7 @@ test("Room public activity survives the pause between reply text and tool work",
   );
   assert.match(
     continuedHtml,
-    /class="flex h-7 min-w-0 items-center px-0 \[&amp;_\[data-message-activity-icon\]\]:justify-start" data-message-activity-stable-slot="true"/,
+    /class="flex h-7 min-w-0 items-center px-0" data-message-activity-stable-slot="true"/,
     "Room thinking and replying reuse the fixed-height flush-left public activity slot",
   );
 

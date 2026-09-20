@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 5 // 重建曾丢失空白 Goal 续跑边界的派生历史。
+	historyReadModelSchemaVersion = 6 // 为 Room 增量读取保存原始尾轮检查点。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
@@ -180,7 +180,9 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		// version=0 也会清理，使上次初始化中断留下的半张表自愈。
 		if _, err = tx.ExecContext(
 			ctx,
-			`DROP TABLE IF EXISTS history_read_details;
+			`DROP TABLE IF EXISTS history_read_message_keys;
+			 DROP TABLE IF EXISTS history_read_tail;
+			 DROP TABLE IF EXISTS history_read_details;
 			 DROP TABLE IF EXISTS history_read_groups;
 			 DROP TABLE IF EXISTS history_read_scopes;`,
 		); err != nil {
@@ -188,6 +190,8 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS history_read_message_keys (scope TEXT NOT NULL, generation TEXT NOT NULL, message_id TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(scope,generation,message_id)) WITHOUT ROWID`,
+		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS history_read_scopes (
 			scope TEXT PRIMARY KEY,
 			schema_version INTEGER NOT NULL,
@@ -217,6 +221,7 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 			scope TEXT NOT NULL,
 			generation TEXT NOT NULL,
 			detail_ref TEXT NOT NULL,
+			sequence INTEGER NOT NULL,
 			kind TEXT NOT NULL,
 			media_type TEXT NOT NULL,
 			byte_size INTEGER NOT NULL,
@@ -224,6 +229,9 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 			payload_digest TEXT NOT NULL,
 			PRIMARY KEY (scope, generation, detail_ref)
 		) WITHOUT ROWID`,
+		`CREATE INDEX IF NOT EXISTS history_read_message_sequence ON history_read_message_keys(scope,generation,sequence)`,
+		`CREATE INDEX IF NOT EXISTS history_read_detail_sequence ON history_read_details(scope,generation,sequence)`,
+		`CREATE INDEX IF NOT EXISTS history_read_group_key ON history_read_groups(scope,generation,group_key,sequence)`,
 		`CREATE INDEX IF NOT EXISTS history_read_groups_cursor
 			ON history_read_groups(scope, generation, cursor_round_id, sequence)`,
 		`CREATE INDEX IF NOT EXISTS history_read_groups_time
@@ -282,7 +290,9 @@ func (m *historyReadModel) load(
 	}
 	if !valid {
 		_ = tx.Rollback()
-		_ = m.deleteScope(ctx, access.Scope)
+		if access.Refresh == nil {
+			_ = m.deleteScope(ctx, access.Scope)
+		}
 		return protocol.MessagePage{}, false, errHistoryPageIndexInvalid
 	}
 	metadata, metadataStart, metadataEnd, err := readHistoryReadModelMetadataWindow(
@@ -376,7 +386,9 @@ func (m *historyReadModel) loadRoundIndex(
 	}
 	if !valid {
 		_ = tx.Rollback()
-		_ = m.deleteScope(ctx, access.Scope)
+		if access.Refresh == nil {
+			_ = m.deleteScope(ctx, access.Scope)
+		}
 		return protocol.SessionRoundIndex{}, false, errHistoryPageIndexInvalid
 	}
 	items, err := readHistoryReadModelRoundIndex(ctx, tx, access.Scope)
@@ -838,6 +850,9 @@ func (m *historyReadModel) persist(
 		return err
 	}
 	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_message_keys WHERE scope = ?`, access.Scope); err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope = ?`, access.Scope); err != nil {
 		return err
 	}
@@ -861,6 +876,9 @@ func (m *historyReadModel) persist(
 		if err = insertHistoryReadModelGroups(ctx, tx, access.Scope, generation, built.Groups); err != nil {
 			return err
 		}
+	}
+	if err = persistHistoryReadTail(ctx, tx, access.Scope, generation, built.TailRows); err != nil {
+		return err
 	}
 	_, err = tx.ExecContext(
 		ctx,
@@ -905,6 +923,7 @@ func insertHistoryReadModelGroups(
 	scope string,
 	generation string,
 	groups []historyPageIndexedGroup,
+	startSequence ...int,
 ) error {
 	statement, err := tx.PrepareContext(
 		ctx,
@@ -920,10 +939,10 @@ func insertHistoryReadModelGroups(
 	defer statement.Close()
 	detailStatement, err := tx.PrepareContext(
 		ctx,
-		`INSERT INTO history_read_details(
-			scope, generation, detail_ref, kind, media_type,
+		`INSERT OR REPLACE INTO history_read_details(
+			scope, generation, detail_ref, sequence, kind, media_type,
 			byte_size, payload, payload_digest
-		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+		 ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 	)
 	if err != nil {
 		return err
@@ -931,6 +950,9 @@ func insertHistoryReadModelGroups(
 	defer detailStatement.Close()
 	totalBytes := int64(0)
 	for index, group := range groups {
+		if len(startSequence) > 0 {
+			index += startSequence[0]
+		}
 		if err = ctx.Err(); err != nil {
 			return err
 		}
@@ -982,12 +1004,20 @@ func insertHistoryReadModelGroups(
 		); err != nil {
 			return err
 		}
+		for _, row := range group.Items {
+			if id := stringFromAny(row["message_id"]); id != "" {
+				if _, err = tx.ExecContext(ctx, `INSERT OR IGNORE INTO history_read_message_keys(scope,generation,message_id,sequence) VALUES(?,?,?,?)`, scope, generation, id, index); err != nil {
+					return err
+				}
+			}
+		}
 		for _, detail := range details {
 			if _, err = detailStatement.ExecContext(
 				ctx,
 				scope,
 				generation,
 				detail.Ref,
+				index,
 				detail.Kind,
 				detail.MediaType,
 				len(detail.Payload),
@@ -1020,6 +1050,12 @@ func (m *historyReadModel) deleteScope(ctx context.Context, scope string) error 
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_groups WHERE scope = ?`, scope); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_message_keys WHERE scope = ?`, scope); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_tail WHERE scope = ?`, scope); err != nil {
 		return err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM history_read_scopes WHERE scope = ?`, scope); err != nil {
@@ -1056,6 +1092,18 @@ func (m *historyReadModel) evictColdScopes(ctx context.Context, cutoff time.Time
 	}
 	if _, err = tx.ExecContext(
 		ctx,
+		`DELETE FROM history_read_message_keys WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
+		cutoff.UnixMilli(),
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
+		`DELETE FROM history_read_tail WHERE scope IN (SELECT scope FROM history_read_scopes WHERE accessed_at_ms < ?)`,
+		cutoff.UnixMilli(),
+	); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx,
 		`DELETE FROM history_read_scopes WHERE accessed_at_ms < ?`,
 		cutoff.UnixMilli(),
 	); err != nil {

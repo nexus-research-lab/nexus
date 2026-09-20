@@ -468,14 +468,6 @@ func (s *Service) startPublicMentionRoundLocked(
 	if err != nil {
 		return err
 	}
-	publicHistory, err := s.roomHistory.ReadMessages(
-		contextValue.Room.OwnerUserID,
-		contextValue.Conversation.ID,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
 	pendingSlots := buildPendingPublicMentionSlots(contextValue, wakes, agentByID)
 	availableTargets := make(map[string]struct{}, len(pendingSlots))
 	for _, pendingSlot := range pendingSlots {
@@ -513,7 +505,7 @@ func (s *Service) startPublicMentionRoundLocked(
 		pendingSlots,
 		targetAgentIDs,
 		pending,
-		publicHistory,
+		nil,
 		agentNameByID,
 		agentByID,
 	) {
