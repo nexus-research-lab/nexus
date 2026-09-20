@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
+
 - Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.
 
 - Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
