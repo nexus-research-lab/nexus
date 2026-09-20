@@ -792,6 +792,9 @@ test("private timelines share metadata and message editing preserves keyboard an
     const padding = await sections.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).paddingLeft));
     expect(padding[0]).toBe(padding[1]);
     await expect(sample.getByText(copy(info, "已保存到", "Saved to"), { exact: true })).toBeVisible();
+    const card = (await sample.locator(".content-artifact-row").boundingBox())!;
+    const content = (await sample.boundingBox())!;
+    expect(Math.abs(card.width - content.width)).toBeLessThanOrEqual(1);
     const open = sample.getByRole("button", { name: /^source\.md/ });
     await expect(open).toContainText("source.md");
     await expect(open).not.toContainText(copy(info, "打开", "Open"));

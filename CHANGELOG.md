@@ -9,7 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 消息过程标题、工具行与即时活动移除额外水平内边距，图标组左边缘与同层正文对齐。
+
+- 生成文件卡片撑满消息内容区，移除紧凑与普通密度下的独立宽度上限。
+
 - Fix Automation list, delivery target, run and event queries failing when the command adapter receives an array; preserve the original JSON text and wrap non-object structured results in a result field.
+
+- 统一消息过程收起、展开与即时思考状态的图标尺寸和左侧对齐，避免折叠后图标错位。
 
 - Fix duplicate migration version 00144 after merging Room reply previews and workgraph artifact contracts; move reply previews to 00145 for SQLite and PostgreSQL.
 

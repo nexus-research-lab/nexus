@@ -176,3 +176,49 @@ test("expanded thought headers cover scrolling detail text", async ({ page }) =>
   await page.mouse.move(0, 0);
   await page.mouse.up();
 });
+
+test("process icons stay aligned when collapsed and expanded", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const runsPath = "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { AssistantToolRuns } = await import(runsPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:20px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      React.createElement(AssistantToolRuns, {
+        activity: { emptyStreamStatus: null, label: null, showCursor: true, standalone: false, state: "thinking", toolUseSummary: null },
+        environment: { mode: "dm_live", hiddenToolNames: [], canRespondToPermissions: false },
+        permissions: { all: [], matchedByToolUseId: new Map(), owner: "composer", unmatched: [] },
+        projection: { content: [
+          { type: "text", text: "Alignment paragraph" },
+          { type: "thinking", thinking: "Inspect source" },
+          { type: "tool_use", id: "align-read", name: "Read", input: { file_path: "a.md" } },
+        ], streamingIndexes: new Set() },
+        responseResumed: false,
+      })));
+  });
+  const group = page.locator('[data-tool-run-id]').last();
+  const toggle = group.locator('button[aria-expanded]').first();
+  const stackIcon = group.locator('[data-process-activity-icon] svg').first();
+  await expect(stackIcon).toBeVisible();
+  const stack = (await group.locator("[data-process-activity-icon-stack]").boundingBox())!;
+  const paragraph = (await page.getByText("Alignment paragraph", { exact: true }).boundingBox())!;
+  expect(Math.abs(stack.x - paragraph.x)).toBeLessThan(1);
+  const collapsed = (await stackIcon.boundingBox())!;
+  const thinking = (await group.locator('[data-message-activity-icon] svg').boundingBox())!;
+  expect(Math.abs(collapsed.x - thinking.x)).toBeLessThan(1);
+  expect(collapsed.width).toBe(thinking.width);
+  await toggle.click();
+  const expanded = (await toggle.locator('svg').first().boundingBox())!;
+  expect(Math.abs(collapsed.x - expanded.x)).toBeLessThan(1);
+  expect(collapsed.width).toBe(expanded.width);
+  await toggle.click();
+  expect(Math.abs((await stackIcon.boundingBox())!.x - collapsed.x)).toBeLessThan(1);
+});

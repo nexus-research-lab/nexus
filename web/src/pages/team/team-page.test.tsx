@@ -142,7 +142,7 @@ it("shows remote delivery progress and failure without exposing a private Thread
   expect(await screen.findByText("team.delivery_pending")).toBeTruthy();
   const activitySlot = screen.getByText("team.delivery_pending").closest('[data-message-activity-stable-slot]');
   expect(activitySlot?.className).toContain("px-0");
-  expect(activitySlot?.className).toContain("[&_[data-message-activity-icon]]:justify-start");
+  expect(activitySlot?.querySelector("[data-message-activity-icon]")?.className).toContain("justify-center");
   expect(activitySlot?.className).not.toContain("px-1.5");
   expect(screen.getByText("team.delivery_pending").closest('[role="status"]')?.querySelector('[data-loading-orb="active"]')).toBeTruthy();
   expect(screen.queryByRole("button", {name: "room.thread_action_open"})).toBeNull();
