@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin the desktop sandbox Bridge to local commit `436346420c2905907375cc63b8fee9b88bc07287` and scrub inherited Provider, bearer-token, secret, cookie, SSH-agent, and proxy-auth environment names at the final Claude/nxs process boundary. Typed host-resolved environment overrides remain available. Target/race/vet, Nexus runtime regression, and Windows/Linux cross-compilation checks pass; this does not prove secret-file, inherited-handle, network, Claude OS-sandbox, descendant-cleanup, or package acceptance.
+
 - Pin the desktop sandbox baseline to SDK `431966dd8862429f80a0bb555aef048d02dedf23` and include its durable settings transaction journal scenarios in the required evidence script. The fixed archive-built nxs passes all 38 macOS development checks; full-old/full-new settings states recover safely while mixed or unverifiable states remain fail-closed. This does not close cross-root power-loss atomicity, domain receipts, Provider secret-file/handle/network isolation, or Windows/Linux/Claude/package acceptance.
 
 - Re-run the fixed SDK `9d60e166` and Bridge `02fbc0e5f6a6...` macOS arm64

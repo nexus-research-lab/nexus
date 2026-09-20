@@ -6,7 +6,7 @@
 
 当前开发位置（2026-09-20）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 Claude Bridge 接线批次固定 SDK `431966dd8862429f80a0bb555aef048d02dedf23`、Bridge `02fbc0e5f6a699fad7106e202d119c272ef4e170`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `431966dd8862429f80a0bb555aef048d02dedf23` 构建的最新 nxs SHA-256 为 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
+当前 Claude Bridge 接线批次固定 SDK `431966dd8862429f80a0bb555aef048d02dedf23`、Bridge `436346420c2905907375cc63b8fee9b88bc07287`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920062457-436346420c29`（`h1:kwNq8HuqV0NihWeE96YulddxdlX6Gbq+XiAJEkGs8nM=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `431966dd8862429f80a0bb555aef048d02dedf23` 构建的最新 nxs SHA-256 为 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱；本批次又在 Bridge 最终进程环境过滤继承的 Provider、代理和常见秘密变量，显式 typed `Options.Env` 仍可投影宿主已解析凭据。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
 
 ## 1. 最终交付目标
 
@@ -452,6 +452,25 @@ SDK 本地提交 `431966dd8862429f80a0bb555aef048d02dedf23` 在 settings writer 
 | 当前边界 | journal 只提供崩溃分类与失败关闭；跨根多文档掉电 all-or-nothing、exact request/approval/revision receipt、领域 reconcile、Provider 秘密文件/句柄/网络、Windows/Linux/Claude/安装包仍未验收 |
 
 证据见 [2026-09-20-settings-journal-baseline](../../testing/evidence/desktop-sandbox/2026-09-20-settings-journal-baseline/)。本批次提交仅本地，未推送，`releaseAccepted=false`。
+
+### 2026-09-20：Bridge 最终进程入口的继承凭据过滤
+
+Bridge 本地提交 `436346420c2905907375cc63b8fee9b88bc07287` 在
+`buildEnvironmentForPlatform` 的宿主继承环境阶段过滤常见 Provider/API key、bearer
+token、secret/password/private key、cookie、SSH agent 和代理认证变量；随后才合并
+typed `Options.Env`。因此 Nexus 或其他可信宿主仍能显式投影当前已解析的 Provider
+凭据，但 Claude/nxs 不会因为启动 Bridge 的 shell 恰好带有另一套凭据而继承它们。
+Windows 使用不区分大小写的同一规则，普通 PATH、HOME、runtime identity 保留。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Bridge target/race/vet | `go test ./client ./internal/transport`、`go test -race ./internal/transport`、`go vet ./client ./internal/transport` 通过 |
+| 反例 | Unix 继承 `OPENAI_API_KEY`/Anthropic token/AWS secret/GitHub token/HTTPS proxy 被清除；typed Provider override 保留；Windows 大小写变体只保留显式 override |
+| 跨平台 | Bridge `client`/`internal/transport` Windows amd64 与 Linux amd64 交叉编译通过；SDK settings package 同步交叉编译通过 |
+| Nexus 接入 | go.mod 固定 Bridge `v0.1.34-0.20260920062457-436346420c29`；`internal/runtime/clientopts` 与 `internal/runtime` 定向测试、vet 通过 |
+| 当前边界 | 这是进程环境输入边界，不证明任意秘密文件、继承句柄、外部 MCP helper、Provider 网络出口、Claude OS 沙箱或后代清理；`releaseAccepted=false` |
+
+证据见 [2026-09-20-provider-env-boundary](../../testing/evidence/desktop-sandbox/2026-09-20-provider-env-boundary/)。本批次提交仅本地，未推送。
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）
 

@@ -111,6 +111,24 @@ Provider 或其他设置正文；写入前持久化，重启时核对全部文�
 
 完整报告、选定日志和 `manifest.sha256` 见[2026-09-20-settings-journal-baseline](evidence/desktop-sandbox/2026-09-20-settings-journal-baseline/)。
 
+### 2026-09-20：Bridge 最终进程入口的继承凭据过滤
+
+Bridge `436346420c2905907375cc63b8fee9b88bc07287` 已固定到 Nexus
+`v0.1.34-0.20260920062457-436346420c29`（模块 checksum
+`h1:kwNq8HuqV0NihWeE96YulddxdlX6Gbq+XiAJEkGs8nM=`）。Bridge 在合并 typed
+`Options.Env` 前过滤继承环境中的常见 Provider/API key、bearer token、secret/password、
+private key、cookie、SSH agent 与 proxy-auth 名称；显式宿主投影仍可提供当前会话凭据。
+Windows 按不区分大小写执行同一规则，普通 PATH、HOME 与 runtime identity 保留。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| Bridge target/race/vet | `go test ./client ./internal/transport`、`go test -race ./internal/transport`、`go vet ./client ./internal/transport` exit 0 | 继承秘密清理、显式 Provider override、Unix/Windows 大小写行为 |
+| Nexus 接入 | `GOWORK=off GOPROXY=file:///private/tmp/nexus-bridge-4363464-proxy go test -mod=readonly ./internal/runtime/clientopts ./internal/runtime` 与 vet exit 0 | 固定 module pin 下的宿主 Provider ownership、runtime replacement 与进程选项 |
+| 跨平台编译 | Bridge client/transport Windows amd64、Linux amd64；SDK settings package Windows/Linux amd64 均通过 `go test -c` | 仅编译证据，不替代原生运行与安装包验收 |
+| 当前边界 | `releaseAccepted=false` | 不证明秘密文件、继承句柄、外部 MCP helper、Provider 网络出口、Claude OS 沙箱、后代清理或签名包 |
+
+完整日志、固定版本和 manifest 见[2026-09-20-provider-env-boundary](evidence/desktop-sandbox/2026-09-20-provider-env-boundary/)。
+
 ### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
