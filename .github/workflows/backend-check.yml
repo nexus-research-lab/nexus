@@ -1,0 +1,50 @@
+name: Backend checks
+
+on:
+  pull_request:
+    paths:
+      - "internal/**"
+      - "cmd/**"
+      - "db/migrations/**"
+      - "scripts/check-architecture/**"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - ".github/workflows/backend-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "internal/**"
+      - "cmd/**"
+      - "db/migrations/**"
+      - "scripts/check-architecture/**"
+      - "go.mod"
+      - "go.sum"
+      - "Makefile"
+      - ".github/workflows/backend-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Backend code checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Check internal production dependency boundaries
+        run: go run ./scripts/check-architecture
+      - name: Static analysis
+        run: go vet -p=4 ./...
+      - name: Tests
+        run: go test -p=4 -count=1 ./...
