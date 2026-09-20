@@ -41,6 +41,7 @@ interface UseFollowScrollReturn {
   bottomAnchorRef: React.RefObject<HTMLDivElement | null>;
   isBottomScrollActive: () => boolean;
   isFollowingLatest: () => boolean;
+  reconcileFollowLatest: () => void;
   isUserScrollActive: () => boolean;
   liveLayoutActive: boolean;
   showScrollToBottom: boolean;
@@ -120,6 +121,18 @@ export function useFollowScroll({
     () => shouldFollowLatestRef.current,
     [],
   );
+  const reconcileFollowLatest = useCallback(() => {
+    if (!shouldFollowLatestRef.current) {
+      return;
+    }
+    // Dock clearance is content outside the Feed. Reuse the shared bottom
+    // writer so it cannot race a pending FOLLOW/virtualizer commit.
+    animatorRef.current?.follow();
+    const container = scrollRef.current;
+    if (container) {
+      viewportAnchorRef.current.capture(container, feedRef.current);
+    }
+  }, []);
 
   const setScrollToBottomVisibility = useCallback(
     (visible: boolean) => {
@@ -148,6 +161,27 @@ export function useFollowScroll({
     animatorRef.current?.cancel();
   }, []);
 
+  const pauseFollowLatest = useCallback(() => {
+    const container = scrollRef.current;
+    if (!container || !hasScrollableOverflow(container)) {
+      shouldFollowLatestRef.current = true;
+      setScrollToBottomVisibility(false);
+      return;
+    }
+    cancelAnimation();
+    shouldFollowLatestRef.current = false;
+    viewportAnchorRef.current.capture(container, feedRef.current);
+    setScrollToBottomVisibility(!isAtScrollBottom(container));
+  }, [cancelAnimation, setScrollToBottomVisibility]);
+
+  const interactions = useFollowScrollInteractions({
+    lastScrollTopRef,
+    pauseFollowLatest,
+    scrollRef,
+    updateFollowState,
+  });
+  const isUserScrollActive = interactions.isUserScrollActive;
+
   const retainPositionForViewportResize = useCallback((
     container: HTMLDivElement,
   ): boolean => {
@@ -163,6 +197,21 @@ export function useFollowScroll({
     if (getConversationRoundNavigationTarget(container)) {
       return false;
     }
+    if (!shouldFollowLatestRef.current) {
+      const restoredScrollTop = viewportAnchorRef.current.restore(
+        container,
+        feedRef.current,
+        { userScrollActive: isUserScrollActive() },
+      );
+      if (restoredScrollTop !== null) {
+        lastScrollTopRef.current = restoredScrollTop;
+        setScrollToBottomVisibility(
+          hasScrollableOverflow(container)
+            && !isAtScrollBottom(container),
+        );
+        return true;
+      }
+    }
     const resizeState = resolveConversationViewportResizeState(
       container,
       lastScrollTopRef.current,
@@ -175,7 +224,7 @@ export function useFollowScroll({
     viewportAnchorRef.current.capture(container, feedRef.current);
     setScrollToBottomVisibility(resizeState.showScrollToBottom);
     return true;
-  }, [cancelAnimation, setScrollToBottomVisibility]);
+  }, [cancelAnimation, isUserScrollActive, setScrollToBottomVisibility]);
 
   const scheduleScrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -218,19 +267,6 @@ export function useFollowScroll({
     [scheduleScrollToBottom, setScrollToBottomVisibility],
   );
 
-  const pauseFollowLatest = useCallback(() => {
-    const container = scrollRef.current;
-    if (!container || !hasScrollableOverflow(container)) {
-      shouldFollowLatestRef.current = true;
-      setScrollToBottomVisibility(false);
-      return;
-    }
-    cancelAnimation();
-    shouldFollowLatestRef.current = false;
-    viewportAnchorRef.current.capture(container, feedRef.current);
-    setScrollToBottomVisibility(!isAtScrollBottom(container));
-  }, [cancelAnimation, setScrollToBottomVisibility]);
-
   const prepareHistoryPrependRestore = useCallback(() => {
     const container = scrollRef.current;
     if (!container) {
@@ -245,14 +281,6 @@ export function useFollowScroll({
   const cancelHistoryPrependRestore = useCallback(() => {
     historyAnchorRef.current.cancel();
   }, []);
-
-  const interactions = useFollowScrollInteractions({
-    lastScrollTopRef,
-    pauseFollowLatest,
-    scrollRef,
-    updateFollowState,
-  });
-  const isUserScrollActive = interactions.isUserScrollActive;
 
   useLayoutEffect(() => {
     const container = scrollRef.current;
@@ -466,12 +494,13 @@ export function useFollowScroll({
 
   const interactionOnScroll = interactions.onScroll;
   const onScroll = useCallback(() => {
+    const userScrollActive = isUserScrollActive();
     interactionOnScroll();
     const container = scrollRef.current;
-    if (container) {
+    if (container && userScrollActive) {
       viewportAnchorRef.current.capture(container, feedRef.current);
     }
-  }, [interactionOnScroll]);
+  }, [interactionOnScroll, isUserScrollActive]);
 
   return {
     scrollRef,
@@ -479,6 +508,7 @@ export function useFollowScroll({
     bottomAnchorRef,
     isBottomScrollActive,
     isFollowingLatest,
+    reconcileFollowLatest,
     liveLayoutActive,
     showScrollToBottom,
     scrollToBottom,

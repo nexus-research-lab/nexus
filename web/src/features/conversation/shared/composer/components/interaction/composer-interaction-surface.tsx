@@ -110,7 +110,7 @@ function ComposerInteractionRequest({
     >
       <div
         className={cn(
-          "soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto overscroll-contain",
+          "soft-scrollbar max-h-[min(46vh,30rem)] supports-[height:100dvh]:max-h-[min(46dvh,30rem)] overflow-y-auto overscroll-contain",
           kind === "question"
             ? "p-3 sm:p-4"
             : "p-4 sm:p-5",
