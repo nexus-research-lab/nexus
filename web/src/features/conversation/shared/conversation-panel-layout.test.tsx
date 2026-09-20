@@ -61,7 +61,7 @@ describe("ConversationPanelBottomArea Goal anchoring", () => {
     const floatingGoal = container.querySelector<HTMLElement>("[data-conversation-goal-float]");
     const activityDock = floatingGoal?.querySelector<HTMLElement>("[data-conversation-activity-dock]");
 
-    expect(floatingGoal?.className).toContain("pb-2");
+    expect(floatingGoal?.className).toContain("pb-3");
     expect(activityDock?.className).toContain("mb-2");
     expect(activityDock?.querySelector("[data-test-activity]")).toBeTruthy();
   });

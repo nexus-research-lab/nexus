@@ -1,6 +1,6 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、可靠性快照、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，不改变正文 viewport 的最低点。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，正文只按浮层真实高度增加滚动尾部避让。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import {
@@ -19,6 +19,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME,
   CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME,
+  CONVERSATION_ACTIVITY_STACK_GAP_PX,
+  CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX,
   CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME,
 } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 
@@ -44,7 +46,7 @@ type ScrollViewportEvents = Pick<
 export type ConversationViewportModel = ScrollViewportEvents & {
   ariaLabel?: string;
   isHistoryLoading: boolean;
-  /** FOLLOW 的唯一状态所有者；Dock 占位变化需要在绘制前重新贴底。 */
+  /** FOLLOW 的唯一状态所有者；浮层占位变化需要在绘制前重新贴底。 */
   isFollowingLatest?: () => boolean;
   reconcileFollowLatest?: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -97,48 +99,100 @@ export function ConversationPanelViewport({
 }) {
   const { t } = useI18n();
   const { isFollowingLatest, reconcileFollowLatest, scrollRef } = viewport;
-  const [activityDockHeight, setActivityDockHeight] = useState(0);
-  const dockClearance = floatingDockOccupied
-    ? Math.max(56, activityDockHeight + 8)
-    : 0;
-  const previousDockClearanceRef = useRef(dockClearance);
+  const [floatingDockClearance, setFloatingDockClearance] = useState(0);
+  const previousDockClearanceRef = useRef(floatingDockClearance);
 
   useLayoutEffect(() => {
     const container = scrollRef.current;
     const layout = container?.closest<HTMLElement>("[data-conversation-panel-layout]");
-    const dock = layout?.querySelector<HTMLElement>("[data-conversation-activity-dock]");
-    if (!dock) {
-      setActivityDockHeight(0);
+    if (!layout) {
+      setFloatingDockClearance(
+        floatingDockOccupied ? CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX : 0,
+      );
+      return;
+    }
+    const bottomArea = layout.querySelector<HTMLElement>("[data-conversation-bottom-area]");
+
+    let observedGoal: HTMLElement | null = null;
+    let observedDock: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const updateObservedElements = () => {
+      const goal = layout.querySelector<HTMLElement>("[data-conversation-goal-float]");
+      const dock = layout.querySelector<HTMLElement>("[data-conversation-activity-dock]");
+      if (goal === observedGoal && dock === observedDock) {
+        return { goal, dock };
+      }
+      observedGoal = goal;
+      observedDock = dock;
+      resizeObserver?.disconnect();
+      if (goal) {
+        resizeObserver?.observe(goal);
+      }
+      if (dock) {
+        resizeObserver?.observe(dock);
+      }
+      return { goal, dock };
+    };
+
+    const updateClearance = () => {
+      const { goal, dock } = updateObservedElements();
+      const goalHeight = goal
+        ? Math.ceil(goal.getBoundingClientRect().height)
+        : 0;
+      const dockHeight = dock
+        ? Math.ceil(dock.getBoundingClientRect().height)
+        : 0;
+      const goalClearance = goalHeight > 0
+        ? goalHeight + (dockHeight > 0 ? dockHeight + CONVERSATION_ACTIVITY_STACK_GAP_PX : 0)
+        : 0;
+      const nextClearance = goalClearance > 0
+        ? goalClearance
+        : floatingDockOccupied || dockHeight > 0
+          ? Math.max(
+              CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX,
+              dockHeight + CONVERSATION_ACTIVITY_STACK_GAP_PX,
+            )
+          : 0;
+      setFloatingDockClearance((current) => current === nextClearance ? current : nextClearance);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateClearance);
+    }
+    updateClearance();
+
+    const mutationObserver = bottomArea && typeof MutationObserver !== "undefined"
+      ? new MutationObserver(updateClearance)
+      : null;
+    if (mutationObserver && bottomArea) {
+      mutationObserver.observe(bottomArea, { childList: true, subtree: true });
+    }
+
+    if (!resizeObserver && !mutationObserver) {
       return;
     }
 
-    const updateDockHeight = () => {
-      const nextHeight = Math.ceil(dock.getBoundingClientRect().height);
-      setActivityDockHeight((current) => current === nextHeight ? current : nextHeight);
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
     };
-    updateDockHeight();
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-    const observer = new ResizeObserver(updateDockHeight);
-    observer.observe(dock);
-    return () => observer.disconnect();
-  }, [scrollRef]);
+  }, [floatingDockOccupied, scrollRef]);
 
   useLayoutEffect(() => {
     const previousDockClearance = previousDockClearanceRef.current;
-    previousDockClearanceRef.current = dockClearance;
-    if (previousDockClearance === dockClearance) {
+    previousDockClearanceRef.current = floatingDockClearance;
+    if (previousDockClearance === floatingDockClearance) {
       return;
     }
     if (!isFollowingLatest?.()) {
       return;
     }
-    // Dock clearance is a sibling of the Feed, so the Feed ResizeObserver
+    // Floating clearance is a sibling of the Feed, so the Feed ResizeObserver
     // cannot see this change. Keep FOLLOW at the new real bottom before paint;
     // READING is intentionally left untouched.
     reconcileFollowLatest?.();
-  }, [dockClearance, isFollowingLatest, reconcileFollowLatest]);
+  }, [floatingDockClearance, isFollowingLatest, reconcileFollowLatest]);
 
   return (
     <div
@@ -171,12 +225,12 @@ export function ConversationPanelViewport({
         </div>
       ) : null}
       {children}
-      {floatingDockOccupied ? (
+      {floatingDockClearance > 0 ? (
         <div
           aria-hidden="true"
           className="h-14"
           data-conversation-dock-clearance
-          style={{ height: `${dockClearance}px` }}
+          style={{ height: `${floatingDockClearance}px` }}
         />
       ) : null}
     </div>
