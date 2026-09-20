@@ -56,7 +56,7 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  // 该分支没有 section/region，成员直接渲染为 “Alice @peer” 列表行，搜索框是 SidebarSearchField。
  const isNarrow=()=>page.viewportSize()!.width<768;
  const directory=isNarrow()?page:page.getByRole("region",{name:zh?"组织成员":"Organization members",exact:true});
- const memberText=directory.getByText("Alice",{exact:true});
+ const memberText=isNarrow()?page.getByRole("button",{name:"Alice @peer",exact:true}):directory.getByText("Alice",{exact:true});
  await expect(memberText).toBeVisible();
  const search=directory.getByRole("searchbox");
  await search.fill("no-match");
