@@ -13,7 +13,7 @@
 - Surface 与普通页面 Header 的文字动作直接使用 `UiButton size="2xs" variant="text"`，纯图标动作使用 `UiIconButton size="sm" variant="ghost"`；不得再增加 Header 专属 Button 适配器或在页面重写 hover、focus 和禁用态。
 - Session 新建动作在等待事务完成时必须以共享 Spinner 替换加号并设置 `aria-busy`；不得旋转加号或让按钮私有定义加载动画。
 - `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，计数和正文消费同一归一化列表，不创造第二套 Task 生命周期。
-- `conversation-activity-chip-styles.ts` 是 Task、WorkGraph Dock 与 Room 协作状态的共用材质/排版入口，Task 选择 plain 表面，多动作 Dock 继续选 toolbar；主题 recipe 持有对应表面，具体几何与状态色只在 `design.md` 定义。
+- `conversation-activity-chip-styles.ts` 是 Task、WorkGraph Dock 与 Room 协作状态的共用材质、排版与活动间距入口；这些入口统一使用控件表面，`toolbar` 只表达多动作 Dock 的 36px 内框，主题 recipe 持有背景不透明度、边框与阴影，具体几何与状态色只在 `design.md` 定义。
 - `workspace-task-strip.tsx` 拥有只读摘要与明细：摘要的独立原生按钮负责外层命中区与内层可换行视觉行，不能在其中嵌入成员菜单；展开内容通过共享 Portal、reference-list 定位和非模态关闭仲裁覆盖正文。明细首焦点在具名根，Tab 按自然控件顺序进入/退出；共同的退出焦点续接归 `overlay-focus-navigation.ts`。窗口/滚动和摘要内容变化都使用同一定位入口，不能自己拼视口公式或复制关闭监听。
 - DM/Room 生产装配必须传入精确 `scopeKey`。会话变化、任务清空或关闭时重置临时展开；来源和目录结构变化只清空单项详情，允许在已打开列表内换成员。没有持久任务 ID 时只为唯一名称保留 DOM 连续性，同名任务变化保守关闭；状态/进展刷新不重置正常阅读，被移除控件丢失的焦点回到明细根。
 - `WorkspaceTaskSource.label` 可承载领域提供的去歧义名称，`name` 继续给头像缩写；摘要和展开头部使用相同身份，图片由公共 Avatar 处理，Task Strip 不读取 Room 目录。Room 的来源切换由业务适配层注入已有成员选择器，不把选择规则下沉到共享 UI。
