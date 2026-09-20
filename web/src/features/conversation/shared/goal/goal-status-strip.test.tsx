@@ -47,8 +47,8 @@ describe("GoalStatusStrip", () => {
     const panel = container.querySelector("section");
     const usage = container.querySelector(".tabular-nums");
 
-    expect(panel?.className).toContain("bg-transparent");
-    expect(panel?.className).toContain("shadow-none");
+    expect(panel?.className).toContain("conversation-activity-chip");
+    expect(panel?.className).toContain("px-3");
     expect(leading?.className).toContain("min-h-5");
     expect(leading?.className).toContain("!p-0");
     expect(status.className).toContain("min-h-5");
