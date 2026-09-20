@@ -120,7 +120,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		return RejectDesktopSandboxRemoteMCP(configured, runtimeKind, appMode, desktopSandboxEnabled, permissionMode)
 	}
 	if !desktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(appMode), "desktop") ||
-		!runtimeProfileForKind(runtimeKind).isNXS() {
+		(runtimeKind != runtimeKindNXS && runtimeKind != runtimeKindClaude) {
 		return nil
 	}
 	if _, err := admission.CanonicalAllowedDomains(); err != nil {
@@ -150,7 +150,11 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 // applyDesktopSandboxNetworkAdmission replaces the copied network object only
 // after applyDesktopSandbox has installed the mandatory nxs contract.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
-	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") || options.Runtime.Kind != agentclient.RuntimeNXS {
+	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
+		(options.Runtime.Kind != agentclient.RuntimeNXS && options.Runtime.Kind != agentclient.RuntimeClaude) {
+		return options, nil
+	}
+	if options.Runtime.Kind == agentclient.RuntimeClaude && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 		return options, nil
 	}
 	network, err := input.DesktopSandboxNetworkAdmission.DesktopSandboxNetworkConfig()

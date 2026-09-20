@@ -40,10 +40,10 @@ func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if options.Sandbox == nil || !options.Sandbox.RequireClaudeRestricted {
-		t.Fatalf("Claude native restricted contract missing: %#v", options.Sandbox)
+	if options.Sandbox == nil || !options.Sandbox.RequireClaudeNativeSandbox {
+		t.Fatalf("Claude native sandbox contract missing: %#v", options.Sandbox)
 	}
-	if options.Sandbox.RequireSandbox || options.Sandbox.RequireFileTools || options.Sandbox.RequireSearchTools {
+	if options.Sandbox.RequireClaudeRestricted || options.Sandbox.RequireSandbox || options.Sandbox.RequireFileTools || options.Sandbox.RequireSearchTools || options.Sandbox.Enabled == nil || !*options.Sandbox.Enabled || options.Sandbox.FailIfUnavailable == nil || !*options.Sandbox.FailIfUnavailable || options.Sandbox.AllowUnsandboxedCommands == nil || *options.Sandbox.AllowUnsandboxedCommands {
 		t.Fatalf("Claude claimed nxs sandbox capabilities: %#v", options.Sandbox)
 	}
 }
@@ -84,9 +84,9 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 	}
 }
 
-func TestDesktopSandboxUsesClaudeNativeRestrictedContract(t *testing.T) {
+func TestDesktopSandboxUsesClaudeNativeCommandSandboxContract(t *testing.T) {
 	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}
-	for _, platform := range []string{"darwin", "windows"} {
+	for _, platform := range []string{"darwin"} {
 		for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto, sdkpermission.ModeAcceptEdits} {
 			got, err := applyDesktopSandboxForPlatform(agentclient.Options{
 				Env:     map[string]string{"existing": "value"},
@@ -98,13 +98,16 @@ func TestDesktopSandboxUsesClaudeNativeRestrictedContract(t *testing.T) {
 			if got.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "1" {
 				t.Fatalf("platform=%s mode=%s: host policy marker missing", platform, mode)
 			}
-			if got.Sandbox == nil || !got.Sandbox.RequireClaudeRestricted {
-				t.Fatalf("platform=%s mode=%s: Claude restricted contract missing: %#v", platform, mode, got.Sandbox)
+			if got.Sandbox == nil || !got.Sandbox.RequireClaudeNativeSandbox {
+				t.Fatalf("platform=%s mode=%s: Claude native sandbox contract missing: %#v", platform, mode, got.Sandbox)
 			}
-			if got.Sandbox.RequireSandbox || got.Sandbox.RequireFileTools || got.Sandbox.Resources != nil {
+			if got.Sandbox.RequireClaudeRestricted || got.Sandbox.RequireSandbox || got.Sandbox.RequireFileTools || got.Sandbox.Resources != nil || got.Sandbox.Enabled == nil || !*got.Sandbox.Enabled || got.Sandbox.FailIfUnavailable == nil || !*got.Sandbox.FailIfUnavailable || got.Sandbox.AllowUnsandboxedCommands == nil || *got.Sandbox.AllowUnsandboxedCommands {
 				t.Fatalf("platform=%s mode=%s: Claude claimed nxs sandbox contract: %#v", platform, mode, got.Sandbox)
 			}
 		}
+	}
+	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}}, input, "windows"); err == nil {
+		t.Fatal("Windows Claude restricted mode silently accepted without a native sandbox")
 	}
 }
 
@@ -133,12 +136,12 @@ func TestDesktopSandboxClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSCon
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Sandbox == ordinary || got.Sandbox == nil || !got.Sandbox.RequireClaudeRestricted || got.Sandbox.Enabled == nil || !*got.Sandbox.Enabled || got.Sandbox.Extra["uiHint"] != "native" {
+	if got.Sandbox == ordinary || got.Sandbox == nil || !got.Sandbox.RequireClaudeNativeSandbox || got.Sandbox.RequireClaudeRestricted || got.Sandbox.Enabled == nil || !*got.Sandbox.Enabled || got.Sandbox.FailIfUnavailable == nil || !*got.Sandbox.FailIfUnavailable || got.Sandbox.AllowUnsandboxedCommands == nil || *got.Sandbox.AllowUnsandboxedCommands || got.Sandbox.Extra["uiHint"] != "native" {
 		t.Fatalf("ordinary Claude settings were not copied: %#v", got.Sandbox)
 	}
-	ordinary.RequireClaudeRestricted = false
-	if got.Sandbox.RequireClaudeRestricted != true {
-		t.Fatal("Claude restricted contract aliases caller settings")
+	ordinary.RequireClaudeNativeSandbox = false
+	if got.Sandbox.RequireClaudeNativeSandbox != true {
+		t.Fatal("Claude native sandbox contract aliases caller settings")
 	}
 	for _, existing := range []*agentclient.SandboxSettings{{RequireSandbox: true}, {RequireFileTools: true}, {Resources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "/tmp/scratch"}}} {
 		if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Sandbox: existing, Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}}, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin"); err == nil {

@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Route restricted Claude desktop sessions through Claude Code's native command
+  sandbox settings (`enabled`, `failIfUnavailable`, and
+  `allowUnsandboxedCommands=false`) on macOS, preserving Bash/build commands and
+  failing closed when the native backend is unavailable. Full Access remains an
+  explicit exception; real command, network, credential, cleanup, and
+  cross-platform acceptance are still pending.
+
 - Preserve configuration revisions across host restarts with a private database
   HMAC key while keeping plan approval digests process-local. Migration preserves
   existing receipts; legacy revisions report an incomparable result, and missing
