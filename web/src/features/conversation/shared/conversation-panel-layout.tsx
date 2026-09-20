@@ -1,6 +1,6 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、可靠性快照、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，不改变正文 viewport 的最低点。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import {
@@ -16,6 +16,11 @@ import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session
 import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME,
+  CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME,
+  CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME,
+} from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
 import {
@@ -180,19 +185,26 @@ export function ConversationPanelViewport({
 
 export function ConversationPanelFloatingControls({
   activity,
+  anchor = "stack",
   isMobileLayout,
   scrollToLatest,
 }: {
+  anchor?: "goal" | "stack";
   activity?: ReactNode;
   isMobileLayout: boolean;
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
+  const anchoredToGoal = anchor === "goal";
   return (
     <div
       className={
-        isMobileLayout
-          ? "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-4"
-          : "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-3 sm:px-5 xl:px-6"
+        anchoredToGoal
+          ? isMobileLayout
+            ? `pointer-events-none absolute inset-x-0 bottom-full z-30 mx-auto ${CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME} flex min-h-11 w-full max-w-[720px] items-center justify-center px-4`
+            : `pointer-events-none absolute inset-x-0 bottom-full z-30 mx-auto ${CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME} flex min-h-11 w-full max-w-[880px] items-center justify-center px-3 sm:px-5 xl:px-6`
+          : isMobileLayout
+            ? `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-4`
+            : `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-3 sm:px-5 xl:px-6`
       }
       data-conversation-activity-dock
     >
@@ -255,6 +267,11 @@ export function ConversationPanelBottomArea({
   const providerStatusVisible = !conversationStatusVisible
     && !roundIndexStatusVisible
     && providerWarningVisible;
+  const visibleGoal = !conversationStatusVisible
+    && !roundIndexStatusVisible
+    && !providerStatusVisible
+    ? goal
+    : null;
   return (
     <div
       className="relative z-10 shrink-0"
@@ -264,11 +281,13 @@ export function ConversationPanelBottomArea({
         className="relative"
         data-conversation-bottom-stack
       >
-        <ConversationPanelFloatingControls
-          activity={activity}
-          isMobileLayout={isMobileLayout}
-          scrollToLatest={scrollToLatest}
-        />
+        {visibleGoal ? null : (
+          <ConversationPanelFloatingControls
+            activity={activity}
+            isMobileLayout={isMobileLayout}
+            scrollToLatest={scrollToLatest}
+          />
+        )}
         <div data-conversation-status-stack>
           {conversationStatusVisible ? (
             <ConversationReliabilityNotice
@@ -299,9 +318,30 @@ export function ConversationPanelBottomArea({
             </div>
           ) : providerStatusVisible ? (
             <ProviderUnavailableBanner compact={isMobileLayout} />
-          ) : goal}
+          ) : null}
         </div>
-        <div data-conversation-composer-anchor>
+        <div
+          className="relative"
+          data-conversation-composer-anchor
+        >
+          {visibleGoal ? (
+            <div
+              className={`pointer-events-none absolute inset-x-0 bottom-full z-20 ${CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME}`}
+              data-conversation-goal-float
+            >
+              <div className="relative">
+                <div className="pointer-events-auto">
+                  {visibleGoal}
+                </div>
+                <ConversationPanelFloatingControls
+                  activity={activity}
+                  anchor="goal"
+                  isMobileLayout={isMobileLayout}
+                  scrollToLatest={scrollToLatest}
+                />
+              </div>
+            </div>
+          ) : null}
           {children}
         </div>
       </div>

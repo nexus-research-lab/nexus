@@ -55,7 +55,7 @@ describe("WorkspaceTaskPanel", () => {
     const visual = container.querySelector("[data-workspace-task-visual]");
     expect(trigger).not.toBeNull();
     expect(visual?.className).toContain("conversation-activity-chip");
-    expect(visual?.className).toContain("conversation-activity-plain");
+    expect(visual?.className).not.toContain("conversation-activity-plain");
     expect(visual?.className).toContain("ui-type-metadata");
     expect(screen.getByText("Nexus").className).toContain("ui-type-caption");
 

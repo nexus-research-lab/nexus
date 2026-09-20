@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Unify the conversation Goal, Task and activity Dock surfaces with the shared control material and keep their Composer stack spacing stable.
+
 - Fix unmentioned Room input queue submissions so Host auto-reply still selects the Room owner while an Agent is running.
 
 ### Fixed

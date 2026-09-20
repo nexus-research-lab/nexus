@@ -1,14 +1,19 @@
-// INPUT: Composer 上方会话活动入口的布局 class 与平面摘要/控件表面语境。
-// OUTPUT: 共用 metadata 排版；Task 使用轻量平面，Room 保留控件材质，多动作工具条使用 36px 外框。
+// INPUT: Composer 上方会话活动入口的布局 class 与控件表面语境。
+// OUTPUT: Task、WorkGraph Dock 与 Room 协作状态共用的 metadata 排版、控件材质和活动间距。
 // POS: Conversation activity chip 的视觉入口；业务组件只补充布局，不重定义字号。
 
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
-export function getConversationActivityChipClassName(className?: string, surface: "control" | "plain" = "control"): string {
+/** 活动条与相邻工作栈节点之间的唯一紧凑间距。 */
+export const CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME = "mb-2";
+export const CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME = "pb-2";
+export const CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME =
+  "-translate-y-[calc(100%+0.5rem)]";
+
+export function getConversationActivityChipClassName(className?: string): string {
   return cn(
     "conversation-activity-chip",
-    surface === "plain" && "conversation-activity-plain",
     getUiTypographyClassName({ role: "metadata" }),
     className,
   );
