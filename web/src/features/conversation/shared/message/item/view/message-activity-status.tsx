@@ -25,6 +25,9 @@ import {
 
 import type { MessageActivityState } from "../activity/message-activity-state";
 
+export const ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME =
+  "px-0 [&_[data-message-activity-icon]]:justify-start";
+
 interface MessageActivityPresentation {
   icon: LucideIcon;
   indicator: LoadingOrbVariant | null;

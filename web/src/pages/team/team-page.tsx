@@ -16,6 +16,7 @@ import { listControlAgentDirectoryApi, type ControlMemberDirectoryEntry, type Co
 
 import { MessageUserSection } from "@/features/conversation/shared/message/item/view/user/message-user-section";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { MessageActivityStatus, ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME } from "@/features/conversation/shared/message/item/view/message-activity-status";
 import type { AgentMention } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import {
@@ -542,9 +543,16 @@ function TeamMessageFeed({
               currentAgentName={agentsByID.get(delivery.agent_id)?.name ?? delivery.agent_id}
               currentAgentAvatar={agentsByID.get(delivery.agent_id)?.avatar}
               roundId={delivery.id} messages={[]} isLastRound isLoading={false} canRespondToPermissions={false}
-              assistantEmptyState={<span role="status" className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
-                {t(delivery.failure_code === "lease_expired" ? "team.delivery_expired" : delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`)}
-              </span>} />
+              assistantEmptyState={<div role="status">
+                {delivery.state === "pending" || delivery.state === "leased" ? (
+                  <MessageActivityStatus className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME} stableSlot state={delivery.state === "pending" ? "sending" : "replying"}
+                    label={t(`team.delivery_${delivery.state}`)} />
+                ) : (
+                  <span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
+                    {t(delivery.failure_code === "lease_expired" ? "team.delivery_expired" : delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`)}
+                  </span>
+                )}
+              </div>} />
           </li>)}
         </Fragment>
       ))}

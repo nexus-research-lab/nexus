@@ -18,7 +18,7 @@ import type {
 import { type ContentProjection, shouldShowAssistantTimeline } from "../../message-item-projection";
 import { getLocalizedToolActivityLabel } from "../../../tool-activity";
 import { ProcessActivityIconStack } from "../../../ui/activity-icon";
-import { LocalizedMessageActivityStatus } from "../message-activity-status";
+import { LocalizedMessageActivityStatus, ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
 import type {
   AssistantActivityState,
@@ -30,9 +30,6 @@ import type {
 } from "./assistant-message-model";
 import { AssistantToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
-
-const ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME =
-  "px-0 [&_[data-message-activity-icon]]:justify-start";
 
 interface AssistantMessageContentProps {
   activity: AssistantActivityState;
