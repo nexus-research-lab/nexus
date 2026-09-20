@@ -304,6 +304,122 @@ test("wrapped activity Dock clearance tracks its measured height without moving 
   expect((await geometry()).bottomGap).toBe(158);
 });
 
+test("Goal clearance keeps the latest message above the floating Goal while FOLLOW reaches the real bottom", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+    const layoutPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { I18nProvider } = await import(i18nPath);
+    const { useFollowScroll } = await import(hookPath);
+    const {
+      ConversationPanelBottomArea,
+      ConversationPanelLayout,
+      ConversationPanelViewport,
+      ConversationPanelViewportArea,
+    } = await import(layoutPath);
+    const h = React.createElement;
+    const healthyReliability = {
+      failure: null,
+      provider_retry: null,
+      transport_phase: "healthy",
+    };
+
+    function Harness() {
+      const [showGoal, setShowGoal] = React.useState(false);
+      const [goalHeight, setGoalHeight] = React.useState(96);
+      const scroll = useFollowScroll({
+        contentKey: "goal-clearance",
+        messageCount: 1,
+        sessionKey: "goal-clearance-test",
+        topologyKey: "goal-clearance",
+      });
+      return h(I18nProvider, null,
+        h(ConversationPanelLayout, null,
+          h(ConversationPanelViewportArea, null,
+            h(ConversationPanelViewport, {
+              floatingDockOccupied: false,
+              isMobileLayout: false,
+              viewport: {
+                isFollowingLatest: scroll.isFollowingLatest,
+                isHistoryLoading: false,
+                onPointerDown: scroll.onPointerDown,
+                onScroll: scroll.onScroll,
+                onTouchEnd: scroll.onTouchEnd,
+                onTouchMove: scroll.onTouchMove,
+                onTouchStart: scroll.onTouchStart,
+                onWheel: scroll.onWheel,
+                reconcileFollowLatest: scroll.reconcileFollowLatest,
+                scrollRef: scroll.scrollRef,
+              },
+            },
+              h("div", { ref: scroll.feedRef, style: { height: 1800, flexShrink: 0 } }, "feed"),
+            ),
+          ),
+          h(ConversationPanelBottomArea, {
+            children: h("div", { style: { height: 80 } }),
+            goal: showGoal
+              ? h("div", {
+                  "data-test-goal": true,
+                  style: { height: goalHeight, width: "100%" },
+                }, "Goal")
+              : null,
+            isMobileLayout: false,
+            isReconciling: false,
+            onReconcile: () => undefined,
+            providerWarningVisible: false,
+            reliability: healthyReliability,
+            scrollToLatest: { isGenerating: false, onClick: () => undefined, visible: false },
+          }),
+          h("button", { onClick: () => setShowGoal((value: boolean) => !value) }, "Toggle Goal"),
+          h("button", { onClick: () => setGoalHeight(180) }, "Grow Goal"),
+          h("button", {
+            onClick: () => {
+              const element = scroll.scrollRef.current;
+              if (element) {
+                element.scrollTop -= 240;
+                scroll.pauseFollowLatest();
+              }
+            },
+          }, "Read earlier"),
+          h("button", { onClick: () => scroll.scrollToBottom("auto") }, "Go latest"),
+        ),
+      );
+    }
+
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+
+  const viewport = page.locator(".overflow-y-auto").last();
+  const geometry = () => viewport.evaluate((element) => ({
+    bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+    clearance: element.querySelector("[data-conversation-dock-clearance]")?.getBoundingClientRect().height ?? 0,
+    scrollTop: element.scrollTop,
+  }));
+
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Toggle Goal" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
+  expect((await geometry()).bottomGap).toBe(0);
+
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(240);
+  const readingTop = await viewport.evaluate((element) => element.scrollTop);
+  await page.getByRole("button", { name: "Grow Goal" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
+  expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
+
+  await page.getByRole("button", { name: "Go latest" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+});
+
 test("conversation width reflow keeps the same reading anchor while a right panel is resized", async ({ page }) => {
   await page.goto("/ui-gallery.html");
   await page.evaluate(async () => {
