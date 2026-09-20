@@ -28,6 +28,7 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiPanel } from "@/shared/ui/panel";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { getConversationActivityChipClassName } from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 import type { Goal, GoalExecutionBinding } from "@/types/conversation/goal";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 import type { GoalMutationBlockReason } from "./goal-lifecycle-recovery";
@@ -150,7 +151,12 @@ export function GoalStatusStrip({
         compact ? GOAL_PANEL_COMPACT_CLASS_NAME : GOAL_PANEL_STRIP_CLASS_NAME
       }
     >
-      <UiPanel className="px-3 py-1.5" padding="none" radius="lg">
+      <UiPanel
+        className={getConversationActivityChipClassName("px-3 py-1.5")}
+        padding="none"
+        radius="sm"
+        variant="plain"
+      >
         <div className={GOAL_PANEL_ROW_CLASS_NAME}>
           <GoalLeadingIcon model={model} />
           <GoalStatusSummary
