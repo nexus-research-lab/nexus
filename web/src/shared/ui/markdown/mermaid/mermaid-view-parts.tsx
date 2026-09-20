@@ -15,6 +15,7 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 import {
   getMermaidBodyClassName,
+  getMermaidMinimumHeightClassName,
   getMermaidSvgClassName,
 } from "./mermaid-view-layout";
 import type { MermaidRenderFailure } from "./use-mermaid-svg";
@@ -39,6 +40,7 @@ export function MermaidSourceView({
       className={cn(
         "soft-scrollbar min-w-0 overflow-auto bg-(--surface-panel-background) outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-(--ring)",
         getMermaidBodyClassName(compact, constrainHeight),
+        getMermaidMinimumHeightClassName(compact, constrainHeight),
       )}
     >
       <pre className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-compact leading-[1.5] text-(--text-strong)">
@@ -67,7 +69,13 @@ export function MermaidRenderedPreview({
   svg: string;
 }) {
   const { t } = useI18n();
-  const minimumHeightClassName = compact ? "min-h-24" : "min-h-56";
+  // The lazy fallback uses the same minimum block height. Keep that contract
+  // after the SVG arrives too; otherwise the first measured diagram can be
+  // shorter than the fallback and pull the conversation upward by one frame.
+  const minimumHeightClassName = getMermaidMinimumHeightClassName(
+    compact,
+    constrainHeight,
+  );
   if (isRendering && !svg) {
     return (
       <div
@@ -90,18 +98,20 @@ export function MermaidRenderedPreview({
   }
   if (error) {
     return (
-      <UiResourceState
-        className="m-3 min-h-0 py-4"
-        impact={t("markdown.mermaid.render_failed_impact")}
-        nextStep={t("markdown.mermaid.render_failed_next_step")}
-        size="sm"
-        state="error"
-        title={t(error === "invalid_syntax"
-          ? "markdown.mermaid.invalid_syntax"
-          : "markdown.mermaid.render_failed")}
-        urgency="polite"
-        variant="card"
-      />
+      <div className={cn(getMermaidMinimumHeightClassName(compact, constrainHeight), "p-3")}>
+        <UiResourceState
+          className="min-h-0 py-4"
+          impact={t("markdown.mermaid.render_failed_impact")}
+          nextStep={t("markdown.mermaid.render_failed_next_step")}
+          size="sm"
+          state="error"
+          title={t(error === "invalid_syntax"
+            ? "markdown.mermaid.invalid_syntax"
+            : "markdown.mermaid.render_failed")}
+          urgency="polite"
+          variant="card"
+        />
+      </div>
     );
   }
   if (!svg) {
@@ -117,7 +127,13 @@ export function MermaidRenderedPreview({
   }
 
   return (
-    <div className={cn("group relative min-h-0 w-full", !compact && "flex flex-1")}>
+    <div
+      className={cn(
+        "group relative w-full",
+        minimumHeightClassName,
+        !compact && "flex flex-1",
+      )}
+    >
       <button
         aria-label={t("markdown.mermaid.open_preview")}
         className={cn(

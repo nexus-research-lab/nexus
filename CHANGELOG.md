@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
 
+- Keep the conversation at the real bottom when the activity Dock adds its 56px clearance while FOLLOW is active.
+
+- Hide the generating scroll control at the real bottom and show it only while reading earlier content.
+
+- Keep async conversation surfaces at stable initial heights across Mermaid, generated UI, keyboard viewport changes and Room breakpoint transitions.
+
+- Keep generated UI recovery in the existing frame and coalesce soft-keyboard Composer resize commits after the viewport settles.
+
+- Keep missing generated UI errors in the reserved content slot and keep streaming detail observers attached across content updates.
+
 - Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.
 
 - Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.

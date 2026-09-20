@@ -15,10 +15,42 @@ it("replaces the failed iframe on retry and rejects messages from its old window
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   act(fail);
   expect(container.querySelector('[data-generative-ui-status="error"]')).toBeTruthy();
+  expect(container.querySelector("[data-generative-ui-error-overlay]")).toBeTruthy();
+  expect(container.querySelectorAll("iframe")).toHaveLength(1);
   fireEvent.click(screen.getByRole("button", { name: /Display again|重新显示|重试/i }));
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   expect(container.querySelector("iframe")).not.toBe(frame);
   expect(container.querySelector("iframe")?.getAttribute("sandbox")).toBe("allow-scripts");
   act(fail);
   expect(container.querySelector('[data-generative-ui-status="loading"]')).toBeTruthy();
+});
+
+it("keeps the streaming placeholder at the iframe initial height", () => {
+  const { container } = render(
+    <I18nProvider>
+      <GenerativeUIBlock
+        complete={false}
+        toolUse={{ type: "tool_use", id: "widget", name: "show_widget", input: {} }}
+      />
+    </I18nProvider>,
+  );
+
+  const placeholder = Array.from(container.querySelectorAll("span[aria-hidden='true']"))
+    .find((element) => element.className.includes("w-full")) as HTMLElement | undefined;
+  expect(placeholder?.style.height).toBe("320px");
+});
+
+it("keeps a missing widget error in the reserved content slot", () => {
+  const { container } = render(
+    <I18nProvider>
+      <GenerativeUIBlock
+        complete
+        toolUse={{ type: "tool_use", id: "widget", name: "show_widget", input: {} }}
+      />
+    </I18nProvider>,
+  );
+
+  const errorSurface = container.querySelector("[data-generative-ui-error-overlay]") as HTMLElement | null;
+  expect(errorSurface?.style.height).toBe("320px");
+  expect(errorSurface?.textContent).toContain("No interactive content to display");
 });

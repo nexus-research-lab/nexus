@@ -312,7 +312,7 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
         <ConversationPanelLayout>
           <ConversationPanelViewportArea>
             <ConversationPanelViewport
-              floatingDockOccupied={false}
+              floatingDockOccupied={scroll.showScrollToBottom}
               isMobileLayout={isCompact}
               viewport={{ ...scroll, isHistoryLoading: false, ariaLabel: t("team.shared_room") }}
             >
@@ -334,7 +334,10 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
               <div ref={scroll.bottomAnchorRef} />
               </div>
             </ConversationPanelViewport>
-            <div className="pointer-events-none absolute inset-x-0 bottom-2 grid justify-items-center">
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-2 grid justify-items-center"
+              data-conversation-activity-dock
+            >
               <ScrollToLatestButton visible={scroll.showScrollToBottom} onClick={() => scroll.scrollToBottom()} />
             </div>
           </ConversationPanelViewportArea>

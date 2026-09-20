@@ -12,6 +12,11 @@ import {
 } from "react";
 
 const HEIGHT_TOLERANCE_PX = 0.5;
+// Mobile browsers emit a burst of visualViewport.resize events while the
+// keyboard animates. Re-measuring the interaction surface for every event
+// makes the Composer hand its height back to the page one frame at a time.
+// Wait for the burst to settle and commit the new intrinsic height once.
+const VIEWPORT_RESIZE_SETTLE_MS = 120;
 
 interface ComposerInteractionHeightState {
   minimumHeight: number;
@@ -147,6 +152,54 @@ export function useComposerInteractionHeightGuard({
     observer.observe(element);
     return () => observer.disconnect();
   }, [active, applyRevision, elementRef]);
+
+  useEffect(() => {
+    if (!active || typeof window === "undefined") {
+      return;
+    }
+    const viewport = window.visualViewport;
+    if (!viewport) {
+      return;
+    }
+
+    let settleTimer: number | null = null;
+
+    const commitViewportResize = () => {
+      settleTimer = null;
+      const element = elementRef.current;
+      if (!element || !activeRef.current) {
+        return;
+      }
+      // The old high-water mark was measured against the previous visual
+      // viewport. Clear it before measuring again so a soft keyboard or
+      // orientation change cannot keep an oversized interaction surface.
+      clearComposerInteractionHeightStyle(element);
+      stateRef.current = {
+        minimumHeight: 0,
+        scopeKey,
+        wasActive: false,
+      };
+      applyRevision(element);
+    };
+
+    const resetForViewportResize = () => {
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+      }
+      settleTimer = window.setTimeout(
+        commitViewportResize,
+        VIEWPORT_RESIZE_SETTLE_MS,
+      );
+    };
+
+    viewport.addEventListener("resize", resetForViewportResize);
+    return () => {
+      viewport.removeEventListener("resize", resetForViewportResize);
+      if (settleTimer !== null) {
+        window.clearTimeout(settleTimer);
+      }
+    };
+  }, [active, applyRevision, elementRef, scopeKey]);
 
   useEffect(() => () => {
     const element = guardedElementRef.current;
