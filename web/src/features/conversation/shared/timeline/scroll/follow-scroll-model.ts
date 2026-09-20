@@ -23,6 +23,7 @@ interface ScrollMetrics {
 
 export interface ConversationViewportSize {
   height: number;
+  width: number;
 }
 
 export interface ConversationViewportResizeState {
@@ -49,6 +50,7 @@ interface ConversationFollowCommitOptions {
 
 interface ConversationViewportElement {
   clientHeight: number;
+  clientWidth: number;
 }
 
 export type FollowScrollIntent = "down" | "up";
@@ -166,6 +168,7 @@ export function getConversationViewportSize(
 ): ConversationViewportSize {
   return {
     height: element.clientHeight,
+    width: element.clientWidth,
   };
 }
 
@@ -175,6 +178,7 @@ export function hasConversationViewportSizeChanged(
 ): boolean {
   return (
     Math.abs(previous.height - current.height) > VIEWPORT_SIZE_TOLERANCE_PX
+    || Math.abs(previous.width - current.width) > VIEWPORT_SIZE_TOLERANCE_PX
   );
 }
 

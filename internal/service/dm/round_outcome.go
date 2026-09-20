@@ -109,6 +109,12 @@ func (r *roundRunner) failRoundAtPhase(
 			protocol.NewErrorEvent(r.sessionKey, displayError),
 			protocol.ConversationFailureRoundFailed,
 		)
+		if result.UsageLimitReached || protocol.IsProviderTokenLimitError(displayError) {
+			protocol.WithConversationFailureCode(
+				errorEvent,
+				protocol.ConversationFailureUsageLimited,
+			)
+		}
 		errorEvent.AgentID = r.agent.AgentID
 		errorEvent.RoundID = r.roundID
 		errorEvent.AgentRoundID = r.agentRoundID
@@ -118,6 +124,9 @@ func (r *roundRunner) failRoundAtPhase(
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
 	}
 	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, displayError)
+	if result.UsageLimitReached || protocol.IsProviderTokenLimitError(displayError) {
+		protocol.WithConversationFailureCode(roundStatus, protocol.ConversationFailureUsageLimited)
+	}
 	roundStatus.AgentID = r.agent.AgentID
 	roundStatus.RoundID = r.roundID
 	roundStatus.AgentRoundID = r.agentRoundID

@@ -35,6 +35,83 @@ type ImageIdentityResolver = (
 export const DEFAULT_ASSISTANT_ERROR_MESSAGE =
   "本轮执行失败，模型或工具没有正常完成。请稍后重试。";
 
+const TOKEN_LIMIT_CODES = new Set([
+  "contextlength",
+  "contextlengthexceeded",
+  "contextlimit",
+  "maxtokens",
+  "maxoutputtokens",
+  "outputtokenlimit",
+  "tokenlimit",
+  "tokenlimitexceeded",
+  "toolargetoken",
+  "toomanytokens",
+  "promptistoolong",
+  "requesttoolarge",
+  "outoftokens",
+  "notokensleft",
+  "usagelimit",
+  "usagelimitreached",
+  "usagelimitexceeded",
+  "quotaexceeded",
+  "quotaexhausted",
+  "insufficientquota",
+  "tokenbudgetexceeded",
+]);
+
+const TOKEN_LIMIT_MARKERS = [
+  "contextlength",
+  "contextlimit",
+  "maxtokens",
+  "maxoutputtokens",
+  "outputtokenlimit",
+  "tokenlimit",
+  "toomanytokens",
+  "promptistoolong",
+  "requesttoolarge",
+  "outoftokens",
+  "notokensleft",
+  "usagelimit",
+  "quotaexceeded",
+  "quotaexhausted",
+  "insufficientquota",
+  "tokenbudgetexceeded",
+] as const;
+
+/**
+ * Provider 可能把上下文/输出 Token 耗尽返回为 invalid_request，并把具体
+ * 信号放在 result/errors；不能只看 terminal_reason，否则用户只能看到“回复生成失败”。
+ */
+function isTokenLimitSignal(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  const compact = normalized.replace(/[_.\-\s]/g, "");
+  return TOKEN_LIMIT_CODES.has(compact)
+    || TOKEN_LIMIT_MARKERS.some((marker) => compact.includes(marker))
+    || normalized.includes("maximum context length")
+    || normalized.includes("context length exceeded")
+    || normalized.includes("too many tokens")
+    || normalized.includes("prompt is too long")
+    || normalized.includes("request is too large")
+    || normalized.includes("out of tokens")
+    || normalized.includes("no tokens left")
+    || normalized.includes("insufficient quota")
+    || normalized.includes("token limit")
+    || normalized.includes("usage limit")
+    || normalized.includes("token budget exceeded")
+    || (normalized.includes("上下文长度")
+      && (normalized.includes("超过") || normalized.includes("上限")))
+    || (normalized.includes("token")
+      && (normalized.includes("耗尽") || normalized.includes("上限")))
+    || (normalized.includes("额度")
+      && (normalized.includes("用尽") || normalized.includes("不足")));
+}
+
 export interface AssistantResultFailureIdentity {
   agent_round_id: string | null;
   code: ConversationFailureCode;
@@ -44,7 +121,16 @@ export interface AssistantResultFailureIdentity {
 export function resolveAssistantFailureCode(
   message: AssistantMessage,
 ): ConversationFailureCode {
-  switch (message.result_summary?.terminal_reason?.trim().toLowerCase()) {
+  const summary = message.result_summary;
+  const errorSignals = [
+    summary?.terminal_reason,
+    summary?.result,
+    ...(summary?.errors ?? []),
+  ];
+  if (errorSignals.some(isTokenLimitSignal)) {
+    return "usage_limited";
+  }
+  switch (summary?.terminal_reason?.trim().toLowerCase()) {
     case "content_filtered":
       return "safety_rejected";
     case "rate_limit":
@@ -217,14 +303,32 @@ export function latestAssistantResultFailure(
   messages: readonly Message[],
 ): AssistantResultFailureIdentity | null {
   let latestAssistant: AssistantMessage | null = null;
+  let latestAssistantIndex = -1;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message.role === "assistant") {
       latestAssistant = message;
+      latestAssistantIndex = index;
       break;
     }
   }
   if (!latestAssistant) {
+    return null;
+  }
+  // 对账结果可能在新消息发送后才返回。此时上一轮失败仍是最后一条
+  // assistant，但已经不是当前请求的失败，不能把旧提示重新挂回 Composer。
+  if (messages.some((message, index) => (
+    message.role === "user"
+    && !message.hidden_from_user
+    && !message.is_synthetic
+    && (
+      message.timestamp > latestAssistant.timestamp
+      || (
+        message.timestamp === latestAssistant.timestamp
+        && index > latestAssistantIndex
+      )
+    )
+  ))) {
     return null;
   }
   const latestRoundId = latestAssistant.round_id?.trim() ?? "";

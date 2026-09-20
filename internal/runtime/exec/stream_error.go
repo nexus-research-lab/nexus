@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 )
 
@@ -92,6 +93,8 @@ func RoundErrorDisplayMessage(err error) string {
 		return "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。"
 	case errors.Is(err, ErrRoundStreamIdleTimeout):
 		return "Agent runtime 长时间没有响应，本轮已停止，请重试。"
+	case protocol.IsProviderTokenLimitError(err.Error()):
+		return "模型的 Token 或上下文额度已达到上限。请缩短提示内容、清理会话上下文，或切换模型后重试。"
 	default:
 		return err.Error()
 	}

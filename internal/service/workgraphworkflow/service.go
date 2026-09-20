@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -29,17 +30,26 @@ const (
 var workflowSlashNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,63}$`)
 
 var reservedWorkflowSlashNames = map[string]struct{}{
-	"build-ship":     {},
-	"compact":        {},
-	"decision-brief": {},
-	"deep-research":  {},
-	"goal":           {},
-	"model":          {},
-	"plan":           {},
-	"review-improve": {},
-	"skills":         {},
-	"visualize":      {},
-	"workgraph":      {},
+	"build-ship":       {},
+	"compact":          {},
+	"decision-brief":   {},
+	"deep-research":    {},
+	"first-principles": {},
+	"mece-strategy":    {},
+	"systems-thinking": {},
+	"double-diamond":   {},
+	"jtbd-discovery":   {},
+	"business-model":   {},
+	"pyramid-brief":    {},
+	"ooda-loop":        {},
+	"ontology-model":   {},
+	"goal":             {},
+	"model":            {},
+	"plan":             {},
+	"review-improve":   {},
+	"skills":           {},
+	"visualize":        {},
+	"workgraph":        {},
 }
 
 var (
@@ -241,7 +251,8 @@ func (s *Service) PreviewFromExecution(
 		Title: validated.Title, Description: validated.Description,
 		SourceExecutionID: source.ID, SourceSessionKey: source.SessionKey,
 		Objective: validated.Objective, CompletionCriteria: validated.CompletionCriteria,
-		Nodes: nodes, Dependencies: dependencies, ExpiresAt: now.Add(workflowPreviewTTL),
+		ArtifactContract: cloneArtifactContract(validated.ArtifactContract),
+		Nodes:            nodes, Dependencies: dependencies, ExpiresAt: now.Add(workflowPreviewTTL),
 	}
 	sourceAgentID := strings.TrimSpace(source.CoordinatorAgentID)
 	if sourceAgentID == "" {
@@ -358,7 +369,8 @@ func (s *Service) SavePreview(
 		SlashName: preview.SlashName, Title: preview.Title, Description: preview.Description,
 		SourceExecutionID: preview.SourceExecutionID, SourceSessionKey: preview.SourceSessionKey,
 		Objective: preview.Objective, CompletionCriteria: slices.Clone(preview.CompletionCriteria),
-		Nodes: cloneWorkflowNodes(preview.Nodes), Dependencies: slices.Clone(preview.Dependencies),
+		ArtifactContract: cloneArtifactContract(preview.ArtifactContract),
+		Nodes:            cloneWorkflowNodes(preview.Nodes), Dependencies: slices.Clone(preview.Dependencies),
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if workflow.ID == "" {
@@ -385,6 +397,7 @@ func workflowMatchesPreview(workflow protocol.WorkGraphWorkflow, preview protoco
 		workflow.Description != preview.Description || workflow.Objective != preview.Objective ||
 		workflow.SourceSessionKey != preview.SourceSessionKey || workflow.SourceExecutionID != preview.SourceExecutionID ||
 		!slices.Equal(workflow.CompletionCriteria, preview.CompletionCriteria) ||
+		!reflect.DeepEqual(workflow.ArtifactContract, preview.ArtifactContract) ||
 		len(workflow.Nodes) != len(preview.Nodes) || len(workflow.Dependencies) != len(preview.Dependencies) {
 		return false
 	}
@@ -867,9 +880,23 @@ func previewCacheKey(ownerUserID string, previewID string) string {
 
 func cloneWorkflowPreview(preview protocol.WorkGraphWorkflowPreview) protocol.WorkGraphWorkflowPreview {
 	preview.CompletionCriteria = slices.Clone(preview.CompletionCriteria)
+	preview.ArtifactContract = cloneArtifactContract(preview.ArtifactContract)
 	preview.Nodes = cloneWorkflowNodes(preview.Nodes)
 	preview.Dependencies = slices.Clone(preview.Dependencies)
 	return preview
+}
+
+func cloneArtifactContract(contract *protocol.WorkGraphArtifactContract) *protocol.WorkGraphArtifactContract {
+	if contract == nil {
+		return nil
+	}
+	clone := *contract
+	clone.Primary.RequiredSections = slices.Clone(contract.Primary.RequiredSections)
+	clone.Supporting = slices.Clone(contract.Supporting)
+	for index := range clone.Supporting {
+		clone.Supporting[index].RequiredSections = slices.Clone(contract.Supporting[index].RequiredSections)
+	}
+	return &clone
 }
 
 func cloneWorkflowNodes(nodes []protocol.WorkGraphWorkflowNode) []protocol.WorkGraphWorkflowNode {
@@ -896,6 +923,22 @@ func renderWorkflowPrompt(
 		request,
 		workflow.Objective,
 	)
+	if contract := workflow.ArtifactContract; contract != nil {
+		fmt.Fprintf(&output, "Artifact contract (must be delivered, not merely described):\n- profile: %s\n- source of truth: %s\n- render hint: %s\n- primary: %s [%s, %s] — %s\n",
+			contract.Profile, contract.SourceOfTruth, contract.RenderHint,
+			contract.Primary.Name, contract.Primary.Kind, contract.Primary.Format, contract.Primary.Purpose)
+		if len(contract.Primary.RequiredSections) > 0 {
+			fmt.Fprintf(&output, "  required sections: %s\n", strings.Join(contract.Primary.RequiredSections, ", "))
+		}
+		for _, supporting := range contract.Supporting {
+			fmt.Fprintf(&output, "- supporting: %s [%s, %s] — %s\n", supporting.Name, supporting.Kind, supporting.Format, supporting.Purpose)
+			if len(supporting.RequiredSections) > 0 {
+				fmt.Fprintf(&output, "  required sections: %s\n", strings.Join(supporting.RequiredSections, ", "))
+			}
+		}
+		output.WriteByte('\n')
+	}
+	output.WriteString("WorkGraph nodes:\n")
 	for _, node := range workflow.Nodes {
 		fmt.Fprintf(
 			&output,

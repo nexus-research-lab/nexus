@@ -146,6 +146,7 @@ func (s *Service) persistDraft(ctx context.Context, draft protocol.WorkGraphWork
 		SlashName: preview.SlashName, Title: preview.Title, Description: preview.Description,
 		SourceExecutionID: preview.SourceExecutionID, SourceSessionKey: preview.SourceSessionKey,
 		Objective: preview.Objective, CompletionCriteria: slices.Clone(preview.CompletionCriteria),
+		ArtifactContract: cloneArtifactContract(preview.ArtifactContract),
 		Nodes: cloneWorkflowNodes(preview.Nodes), Dependencies: slices.Clone(preview.Dependencies),
 		Version: 1, CreatedAt: now, UpdatedAt: now,
 	}

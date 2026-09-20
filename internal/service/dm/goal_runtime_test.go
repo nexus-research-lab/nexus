@@ -114,6 +114,23 @@ func TestTerminalRoundStatusEventCarriesRuntimeError(t *testing.T) {
 	}
 }
 
+func TestTerminalRoundStatusEventCarriesUsageLimitFailureCode(t *testing.T) {
+	runner := &roundRunner{
+		sessionKey: "agent:nexus:ws:dm:terminal-usage-limit",
+		roundID:    "round-terminal-usage-limit",
+		agent:      &protocol.Agent{AgentID: "nexus"},
+	}
+	event := terminalRoundStatusEvent(runner, exec.RoundExecutionResult{
+		TerminalStatus:    "error",
+		ResultSubtype:     "error",
+		ErrorMessage:      "provider returned an invalid request",
+		UsageLimitReached: true,
+	})
+	if event.Data["failure_code"] != protocol.ConversationFailureUsageLimited {
+		t.Fatalf("failure_code = %#v, want %q", event.Data["failure_code"], protocol.ConversationFailureUsageLimited)
+	}
+}
+
 func TestDMFinalGoalUsageSnapshotPrefersExplicitZeroResultOverAssistantUsage(t *testing.T) {
 	runner := &roundRunner{}
 	assistant := goalAssistantUsageMessage(80, 20)

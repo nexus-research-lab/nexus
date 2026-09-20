@@ -371,9 +371,9 @@ Composer 的间距配方
 - `scripts/*.test.mjs`：纯模型、协议、架构边界和禁止项合同；不得在这里伪造 DOM 交互结论，统一入口以有界并发运行，避免大量独立 Vite 转换进程使门禁随机崩溃；
 - 公共控件调用方原则上只传布局 class；场景确需组合特殊表面时由设计规范、组件行为测试和浏览器验收判断，不使用源码正则冻结实现细节。
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
-- `npm run test:components` 与 `npm run test:contracts` 可分别定位失败，`npm test` 必须串行覆盖两类测试。
-- `npm run check` 串行执行 lint、typecheck、上述两类测试和生产构建。
-- `npm run test:browser` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行真实浏览器合同；浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web` 覆盖完整前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
+- `npm run test:components` 与 `npm run test:contracts` 可分别定位日常失败；前者默认排除开发期 `src/dev/ui-gallery` 陈列测试，后者继续覆盖规范、边界、恢复和禁止项合同。`npm run test:ui-gallery` 只运行 Gallery 的 DOM 陈列合同，`npm run test:components:all` 用于需要一次覆盖全部 Vitest 文件的显式场景，`npm test` / `npm run test:standard` 必须串行覆盖日常两类测试。
+- `npm run check` / `npm run check:standard` 串行执行 lint、typecheck、日常合同/组件测试和生产构建；默认不启动真实浏览器，不把截图或视口矩阵混入普通打包门禁。Vitest 默认使用两个 fork worker，可用 `VITEST_MAX_WORKERS` 为本机资源或 CI 覆盖。
+- `npm run test:browser:smoke` 固定运行 `ui-gallery.spec.ts` 的 `light-zh-1440` Playwright 项目和一个 worker，供本地快速确认真实共享 UI 行为，不依赖业务后端；`npm run test:browser:full` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行完整真实浏览器合同。浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web-ui` 才覆盖日常门禁、Gallery DOM 合同和完整浏览器矩阵；根目录 `make check-web` 只覆盖标准前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
 - `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 - `make app-check-ui` 在已解锁的 macOS 图形会话中编译独立 QA App，复用当前生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。独立应用标识、偏好、状态根、端口和优化缓存隔离测试；不得启动产品 sidecar 或把旧安装包作为当前源码证据。源码清单、日志、报告与截图按运行保存，具体环境和边界见 `desktop/macos/README.md`；此入口不加入无图形会话的默认前端门禁，也不替代完整业务或 Windows 宿主检查。
 - `make app-check-ui-app` 用同一宿主验证真实 Launcher/工作台、响应式导航、Header 双击缩放与恢复。读取和空闲订阅必须由隔离夹具提供，Vite HTTP/WS 代理必须禁用；`native-ui-fixtures.test.mjs` 用真实本地服务验证读写边界与零转发。锁屏或无图形会话不能用脚本合成 DOM 事件代替原生输入证据。

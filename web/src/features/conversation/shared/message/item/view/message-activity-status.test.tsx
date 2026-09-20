@@ -47,4 +47,14 @@ describe("MessageActivityStatus", () => {
       )?.className,
     ).toContain("h-7");
   });
+
+  it("uses the same fixed row height for the ordinary reply status", () => {
+    const { container } = render(
+      <MessageActivityStatus label="正在回复" state="replying" />,
+    );
+
+    expect(container.firstElementChild?.className).toContain("h-7");
+    expect(container.querySelector("[data-message-activity-indicator]")?.className)
+      .toContain("h-5");
+  });
 });

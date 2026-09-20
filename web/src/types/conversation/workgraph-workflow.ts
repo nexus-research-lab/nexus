@@ -8,6 +8,39 @@ import type { ExecutionWorkItemKind } from "./execution";
 
 export type WorkGraphWorkflowNodeRole = "key" | "collaboration";
 
+/**
+ * A stable UI grouping for reusable methodology templates. The server may add
+ * a more specific value over time; consumers should fall back to `other` when
+ * they do not recognise it.
+ */
+export type WorkGraphMethodologyCategory =
+  | "strategy"
+  | "research"
+  | "product"
+  | "business"
+  | "delivery"
+  | "expression"
+  | "operations"
+  | "saved"
+  | "other";
+
+export interface WorkGraphArtifactSpec {
+  name: string;
+  kind: string;
+  format: string;
+  purpose: string;
+  required_sections?: string[];
+}
+
+/** The durable output contract for a methodology template. */
+export interface WorkGraphArtifactContract {
+  profile: string;
+  source_of_truth: string;
+  render_hint: string;
+  primary: WorkGraphArtifactSpec;
+  supporting?: WorkGraphArtifactSpec[];
+}
+
 export interface WorkGraphWorkflowNode {
   logical_key: string;
   source_work_item_id?: string;
@@ -32,6 +65,7 @@ export interface WorkGraphWorkflowDependency {
 export interface WorkGraphWorkflow {
   id: string;
   built_in?: boolean;
+  methodology_category?: WorkGraphMethodologyCategory | string;
   slash_name: string;
   title: string;
   description?: string;
@@ -41,6 +75,7 @@ export interface WorkGraphWorkflow {
   completion_criteria?: string[];
   nodes: WorkGraphWorkflowNode[];
   dependencies?: WorkGraphWorkflowDependency[];
+  artifact_contract?: WorkGraphArtifactContract;
   version: number;
   created_at: string;
   updated_at: string;
@@ -51,6 +86,7 @@ export interface WorkGraphWorkflowPreview {
   head_revision?: number;
   selected_revision?: number;
   preview_id: string;
+  methodology_category?: WorkGraphMethodologyCategory | string;
   slash_name: string;
   title: string;
   description?: string;
@@ -60,6 +96,7 @@ export interface WorkGraphWorkflowPreview {
   completion_criteria?: string[];
   nodes: WorkGraphWorkflowNode[];
   dependencies?: WorkGraphWorkflowDependency[];
+  artifact_contract?: WorkGraphArtifactContract;
   expires_at: string;
 }
 

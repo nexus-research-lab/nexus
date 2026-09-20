@@ -206,6 +206,9 @@ func terminalRoundStatusEvent(r *roundRunner, result exec.RoundExecutionResult) 
 	var event protocol.EventMessage
 	if result.TerminalStatus == "error" || result.ResultSubtype == "error" {
 		event = protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, result.ErrorMessage)
+		if result.UsageLimitReached || protocol.IsProviderTokenLimitError(result.ErrorMessage) {
+			protocol.WithConversationFailureCode(event, protocol.ConversationFailureUsageLimited)
+		}
 	} else {
 		event = protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, result.TerminalStatus, result.ResultSubtype)
 	}

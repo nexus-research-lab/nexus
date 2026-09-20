@@ -13,6 +13,27 @@ const (
 	WorkGraphWorkflowNodeCollaboration WorkGraphWorkflowNodeRole = "collaboration"
 )
 
+// WorkGraphArtifactSpec 描述一个方法模板必须交付的具体产物。
+// Markdown 适合人读，JSON/YAML 是机器可核验的结构真相，CSV 是审计投影；
+// render_hint 只描述展示方式，不把可视化文件当成唯一事实来源。
+type WorkGraphArtifactSpec struct {
+	Name             string   `json:"name"`
+	Kind             string   `json:"kind"`
+	Format           string   `json:"format"`
+	Purpose          string   `json:"purpose"`
+	RequiredSections []string `json:"required_sections,omitempty"`
+}
+
+// WorkGraphArtifactContract 是模板的产物契约，不是一次运行的产物内容。
+// source_of_truth 约束模型应维护的权威文件；render_hint 只提供 UI 渲染提示。
+type WorkGraphArtifactContract struct {
+	Profile       string                  `json:"profile"`
+	SourceOfTruth string                  `json:"source_of_truth"`
+	RenderHint    string                  `json:"render_hint"`
+	Primary       WorkGraphArtifactSpec   `json:"primary"`
+	Supporting    []WorkGraphArtifactSpec `json:"supporting,omitempty"`
+}
+
 // WorkGraphWorkflow 是从实际完成图抽象并由用户确认保存的可复用命名工作图。
 // Source* 只保留 provenance；运行身份和结果事实永不进入模板。
 type WorkGraphWorkflow struct {
@@ -26,6 +47,7 @@ type WorkGraphWorkflow struct {
 	SourceSessionKey   string                        `json:"source_session_key"`
 	Objective          string                        `json:"objective"`
 	CompletionCriteria []string                      `json:"completion_criteria,omitempty"`
+	ArtifactContract   *WorkGraphArtifactContract    `json:"artifact_contract,omitempty"`
 	Nodes              []WorkGraphWorkflowNode       `json:"nodes"`
 	Dependencies       []WorkGraphWorkflowDependency `json:"dependencies,omitempty"`
 	Version            int64                         `json:"version"`
@@ -71,6 +93,7 @@ type WorkGraphWorkflowPreview struct {
 	SourceSessionKey   string                        `json:"source_session_key"`
 	Objective          string                        `json:"objective"`
 	CompletionCriteria []string                      `json:"completion_criteria,omitempty"`
+	ArtifactContract   *WorkGraphArtifactContract    `json:"artifact_contract,omitempty"`
 	Nodes              []WorkGraphWorkflowNode       `json:"nodes"`
 	Dependencies       []WorkGraphWorkflowDependency `json:"dependencies,omitempty"`
 	ExpiresAt          time.Time                     `json:"expires_at"`

@@ -112,7 +112,7 @@ function OpenWorkGraphDistillationPickerDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop initialFocusRef={searchInputRef} labelledBy={titleId} onClose={onClose}>
-        <UiDialogShell size="lg" viewport="compact">
+        <UiDialogShell size="wide" viewport="compact">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}
@@ -189,7 +189,7 @@ function OpenWorkGraphDistillationPickerDialog({
                 variant="plain"
               />
             ) : (
-              <UiPanel className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]" padding="none" radius="sm">
+              <UiPanel className="grid min-h-0 flex-1 overflow-hidden md:grid-cols-[minmax(300px,0.36fr)_minmax(0,0.64fr)]" padding="none" radius="sm">
                 <div
                   aria-label={t("composer.workgraph_picker_title")}
                   className="soft-scrollbar min-h-0 divide-y divide-(--divider-subtle-color) overflow-y-auto md:border-r md:border-(--divider-subtle-color)"

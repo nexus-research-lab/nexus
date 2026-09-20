@@ -1,6 +1,6 @@
 /**
  * INPUT: 单个命名 WorkGraph、返回/复制/继续编辑动作。
- * OUTPUT: 共享对象身份区中的说明与动作、目标摘要及只读完整画布。
+ * OUTPUT: 共享对象身份区中的统一方法说明与动作，以及只读完整画布。
  * POS: WorkGraph 能力详情纯视图；身份几何归 capability/shared，不读取路由、资源或命令状态。
  */
 "use client";
@@ -14,10 +14,7 @@ import {
 import { WorkGraphWorkflowCanvasPreview } from "@/features/conversation/shared/execution/workgraph-workflow-canvas-preview";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
-import { UiPanel } from "@/shared/ui/panel";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { WorkGraphWorkflow } from "@/types/conversation/workgraph-workflow";
 
 interface WorkGraphDistillationDetailProps {
@@ -64,16 +61,6 @@ export function WorkGraphDistillationDetail({
           leading={<UiSeededAvatar seed={item.slash_name} size="lg" />}
           title={`/${item.slash_name}`}
         />
-        <UiPanel
-          className={cn(
-            "shrink-0",
-            getUiTypographyClassName({ role: "body", tone: "default" }),
-          )}
-          padding="sm"
-          radius="md"
-        >
-          {item.objective}
-        </UiPanel>
         <WorkGraphWorkflowCanvasPreview
           className="min-h-[360px] flex-1 overflow-hidden surface-radius-md border border-(--divider-subtle-color) bg-(--surface-canvas-background)"
           workflow={item}
