@@ -63,6 +63,31 @@ describe("Mermaid view parts", () => {
     await user.keyboard("{Enter}");
     expect(onOpenPreview).toHaveBeenCalledTimes(2);
   });
+
+  it("keeps source and failure states on the same minimum-height contract", () => {
+    const { container, rerender } = render(
+      <I18nProvider>
+        <MermaidSourceView chart="graph TD\nA --> B" compact constrainHeight />
+      </I18nProvider>,
+    );
+    const source = container.querySelector('[role="region"]') as HTMLElement;
+    expect(source.className).toContain("min-h-24");
+
+    rerender(
+      <I18nProvider>
+        <MermaidRenderedPreview
+          compact
+          constrainHeight
+          error="render_failed"
+          isRendering={false}
+          isStreaming={false}
+          onOpenPreview={vi.fn()}
+          svg=""
+        />
+      </I18nProvider>,
+    );
+    expect(container.firstElementChild?.className).toContain("min-h-24");
+  });
 });
 
 

@@ -225,7 +225,11 @@ test("show_widget 工具块渲染为仅允许脚本的 iframe", async () => {
     path.join(webRoot, "src/features/conversation/shared/message/blocks/tool/generative-ui-block.tsx"),
     "utf8",
   );
-  assert.match(source, /<UiSkeleton className="h-\[180px\] w-full surface-radius-sm"/);
+  assert.match(
+    source,
+    /<UiSkeleton[\s\S]*?className="w-full surface-radius-sm"[\s\S]*?style=\{\{ height: INITIAL_HEIGHT \}\}/,
+    "the streaming placeholder must reserve the iframe initial height",
+  );
   assert.doesNotMatch(source, /h-\[180px\][^"\n]*animate-pulse/);
   assert.doesNotMatch(source, /rounded-\[8px\]|text-compact|font-medium/);
   assert.doesNotMatch(markup, /rounded-2xl/);
