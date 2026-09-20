@@ -116,7 +116,10 @@ function MessageDetailScrollRoot({
       observer.observe(contentRef.current);
     }
     return () => observer.disconnect();
-  }, [children, updateLayout]);
+  // 内容尺寸由 contentRef 的 ResizeObserver 收口；不要把每次流式 React
+  // 子树更新都当成观察器重挂载，否则高频 Markdown 提交会反复解绑/重绑，
+  // 让明细滚动在生成期间出现额外的时序抖动。
+  }, [followContent, updateLayout]);
 
   return (
     <div

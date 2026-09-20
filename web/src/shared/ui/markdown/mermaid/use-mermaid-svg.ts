@@ -55,7 +55,10 @@ export function useMermaidSvg(
     setRenderState((previous) => ({
       error: null,
       is_rendering: Boolean(normalizedChart),
-      svg: isStreaming && normalizedChart ? previous.svg : "",
+      // Keep the last valid diagram visible while the final render catches up.
+      // Clearing it here creates a visible blank/loading flash at the end of a
+      // streamed response even though the surrounding block keeps its height.
+      svg: normalizedChart ? previous.svg : "",
     }));
   }
 

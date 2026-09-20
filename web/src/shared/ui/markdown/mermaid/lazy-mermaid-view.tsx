@@ -12,7 +12,10 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
-import { getMermaidContainerClassName } from "./mermaid-view-layout";
+import {
+  getMermaidContainerClassName,
+  getMermaidMinimumHeightClassName,
+} from "./mermaid-view-layout";
 
 import { type MermaidViewProps } from "./mermaid-view";
 
@@ -25,7 +28,8 @@ function MermaidViewLoadingFallback({
   className: className,
   compact = false,
   constrainHeight: constrainHeight = true,
-}: Pick<MermaidViewProps, "className" | "compact" | "constrainHeight">) {
+  showHeader = true,
+}: Pick<MermaidViewProps, "className" | "compact" | "constrainHeight" | "showHeader">) {
   const { t } = useI18n();
 
   return (
@@ -36,13 +40,23 @@ function MermaidViewLoadingFallback({
         className,
       )}
     >
+      {showHeader ? (
+        <div
+          aria-hidden="true"
+          className="min-h-9 shrink-0 border-b border-(--divider-subtle-color) bg-(--surface-panel-background)"
+        />
+      ) : null}
       <div
         aria-busy="true"
         aria-live="polite"
         className={cn(
           "flex items-center justify-center px-4",
           getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-          compact ? "min-h-24 py-6" : constrainHeight ? "min-h-56 py-8" : "min-h-[240px] flex-1 py-8",
+          compact
+            ? `${getMermaidMinimumHeightClassName(compact, constrainHeight)} py-6`
+            : constrainHeight
+              ? `${getMermaidMinimumHeightClassName(compact, constrainHeight)} py-8`
+              : `${getMermaidMinimumHeightClassName(compact, constrainHeight)} flex-1 py-8`,
         )}
         role="status"
       >
@@ -64,6 +78,7 @@ export function LazyMermaidView(props: MermaidViewProps) {
           className={props.className}
           compact={props.compact}
           constrainHeight={props.constrainHeight}
+          showHeader={props.showHeader}
         />
       )}
     >

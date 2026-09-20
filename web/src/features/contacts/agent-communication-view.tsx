@@ -404,6 +404,8 @@ function ContactConversation({
           isMobileLayout={isCompactLayout}
           viewport={{
             isHistoryLoading,
+            isFollowingLatest: scroll.isFollowingLatest,
+            reconcileFollowLatest: scroll.reconcileFollowLatest,
             onPointerDown: scroll.onPointerDown,
             onScroll: history.handleScroll,
             onTouchEnd: scroll.onTouchEnd,
