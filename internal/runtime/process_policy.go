@@ -40,6 +40,7 @@ type runtimeProcessPolicy struct {
 	Settings                      string                             `json:"settings"`
 	SettingsObject                map[string]any                     `json:"settings_object,omitempty"`
 	Sandbox                       *agentclient.SandboxSettings       `json:"sandbox,omitempty"`
+	ClaudeNativeSandboxRequired   bool                               `json:"claude_native_sandbox_required,omitempty"`
 	SandboxFileToolsRequired      bool                               `json:"sandbox_file_tools_required,omitempty"`
 	SandboxSearchToolsRequired    bool                               `json:"sandbox_search_tools_required,omitempty"`
 	SandboxMediaFilesRequired     bool                               `json:"sandbox_media_files_required,omitempty"`
@@ -85,6 +86,7 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 	if options.Sandbox != nil {
 		// 这些项是宿主 initialize 合同，普通 sandbox JSON 故意不序列化它们。
 		policy.SandboxFileToolsRequired = options.Sandbox.RequireFileTools
+		policy.ClaudeNativeSandboxRequired = options.Sandbox.RequireClaudeNativeSandbox
 		policy.SandboxSearchToolsRequired = options.Sandbox.RequireSearchTools
 		policy.SandboxMediaFilesRequired = options.Sandbox.RequireMediaFiles
 		policy.SandboxNotebookFilesRequired = options.Sandbox.RequireNotebookFiles
