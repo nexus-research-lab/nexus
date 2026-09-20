@@ -26,6 +26,36 @@ import (
 	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
+// HandleCancelDelivery 由 Relay 核验发起人与领取状态，不在浏览器推断写权限。
+func (h *Handlers) HandleCancelDelivery(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if !h.requireMutationOrigin(w, r) {
+		return
+	}
+	roomID, id := chi.URLParam(r, "room_id"), chi.URLParam(r, "delivery_id")
+	if !validResourceID(roomID) || !validResourceID(id) {
+		h.api.WriteFailure(w, http.StatusBadRequest, "投递身份无效")
+		return
+	}
+	token, ok := h.exchangeToken(w, r, false)
+	if !ok {
+		return
+	}
+	client, ok := h.relay.(interface {
+		CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error)
+	})
+	if !ok {
+		h.api.WriteFailure(w, http.StatusServiceUnavailable, "投递服务不可用")
+		return
+	}
+	result, err := client.CancelPendingDelivery(r.Context(), token, roomID, id)
+	if err != nil {
+		h.api.WriteFailure(w, http.StatusConflict, "取消未确认，请刷新状态后重试")
+		return
+	}
+	h.api.WriteSuccess(w, result)
+}
+
 // HandleCommands 只发布跨节点可分发的产品提示命令，不暴露宿主管理与私人 Skill 目录。
 func (h *Handlers) HandleCommands(w http.ResponseWriter, r *http.Request) {
 	h.noStore(w)

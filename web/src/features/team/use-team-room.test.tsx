@@ -41,6 +41,59 @@ beforeEach(() => {
   api.socket.mockClear();
 });
 
+it("coalesces delivery hints while a room detail read is pending", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  let finish!: (value: typeof bootstrap) => void;
+  api.get.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const hint = {type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 0};
+  act(() => {
+    for (let i = 0; i < 8; i++) api.socket.mock.lastCall![0].onMessage(hint);
+  });
+  expect(api.get).toHaveBeenCalledTimes(3);
+  await act(async () => { finish(bootstrap); });
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(4));
+  expect(result.current.error).toBeNull();
+  expect(api.snapshot).toHaveBeenCalledTimes(1);
+});
+
+it("does not revoke a new room when the previous room difference fails late", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result, rerender} = renderHook(({id}) => useTeamRoom(id), {initialProps: {id: "room"}});
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  let reject!: (cause: Error) => void;
+  api.difference.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+  act(() => api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 1}));
+  const next = {...bootstrap, room: {...bootstrap.room, id: "other"}, conversation: {...bootstrap.conversation, id: "other-conversation", room_id: "other"}};
+  api.bootstrap.mockResolvedValue({rooms: [next]});
+  api.get.mockResolvedValue(next);
+  rerender({id: "other"});
+  await waitFor(() => expect(result.current.room?.room.id).toBe("other"));
+  const message = {id: "new-room-message", message_seq: 1, author_type: "user", author_user_id: "other"};
+  api.difference.mockResolvedValue({events: [{message}], next_seq: 1, high_water_seq: 1});
+  act(() => api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 1}));
+  await waitFor(() => expect(result.current.messages).toEqual([message]));
+  await act(async () => { reject(new ApiRequestError("previous room revoked", 403)); });
+  expect(result.current.room?.room.id).toBe("other");
+  expect(result.current.error).toBeNull();
+});
+
+it("ignores an obsolete detail failure after a newer send recovery snapshot", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  let reject!: (cause: Error) => void;
+  api.get.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+  act(() => window.dispatchEvent(new Event("focus")));
+  api.post.mockRejectedValueOnce(new Error("lost receipt"));
+  await act(async () => { await result.current.send("hello"); });
+  await act(async () => { reject(new ApiRequestError("stale denied", 403)); });
+  expect(result.current.room?.room.id).toBe("room");
+  expect(result.current.error).toBe("send");
+  expect(result.current.hasUnconfirmedSend).toBe(true);
+});
+
 it("在推送补拉失败后通过焦点刷新水位补齐消息，不重载历史或重发消息", async () => {
   api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
   const {result} = renderHook(() => useTeamRoom("room"));

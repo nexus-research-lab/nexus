@@ -12,7 +12,7 @@
 
 - 远程账号可无组织；平台 `role` 与 `organization_role` 独立。组织入口位于账户设置，非运营管理员专属。Relay 必须同时具有远程登录与组织身份；组织变更不能切换或清空 App 本地用户数据目录。
 
-- 在线本机 Thread 从预先绑定的 Room 复用原生 WS 订阅、快照及执行投影；任务关联只在初次读取、WS 连接/执行变化和恢复时对账，不轮询，不把流式 delta 转成 HTTP 请求。成员等远端元数据的低频刷新仍由 `web/src/features/team/use-team-refresh.ts` 管理；消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
+- 在线本机 Thread 从预先绑定的 Room 复用原生 WS 订阅、快照及执行投影；任务关联只在初次读取、WS 连接/执行变化和恢复时对账，不轮询，不把流式 delta 转成 HTTP 请求。成员等远端元数据由 `web/src/features/team/use-team-refresh.ts` 沿 WS 失效提示单飞补读；消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 
 ## Build & Validation Commands
@@ -141,7 +141,7 @@ cmd -> app -> handler -> service -> domain/storage
 
 `/nexus/v1/team-node` 是本机授权入口，不在 Desktop 的 `/team` 远程代理内。服务端以当前远程 Cookie 验证账号/组织，再将本人已发布 Agent 与本机 owner Agent 目录取交集；设备凭据使用现有宿主 keyring 加密后先落盘，Cookie 只留哈希。未知注册只重试原意图，撤销先冻结本机授权，精确回执更新本地状态；不能以未知注册的 404 当作撤销证明。授权只代表设备已登记，不表示 worker 已上线。
 
-入群即授权本人 Agent 在群内执行，节点登记与执行开关由 `/team-node/room` 自动维护，不再暴露独立授权入口。失效凭据只能在有效真人登录下恢复，未知注册重放原意图，设备范围变化先等已有任务收尾。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型、未知运行人工解锁和远程产物尚未验收/实现。
+入群即授权本人 Agent 在群内执行，常驻目录及群页面通过 `/team-node/room` 批量准备与登记，不再暴露独立授权入口。失效凭据只能在有效真人登录下恢复，未知注册重放原意图，设备范围变化先等已有任务收尾。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑，人工核验必须确认精确 round 已停止及 Control/Relay 回执。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；`node_files.go` 只回传当前轮次显式 deliverable，冻结字节后沿同一 outbox 上传至 Relay，单文件 20 MiB、单任务 32 MiB/32 项，不扫描工作区。final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型及宕机演练仍待验收。
 
 当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
 

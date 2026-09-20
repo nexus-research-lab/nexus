@@ -9,10 +9,10 @@ import type { useTeamRoom } from "@/features/team/use-team-room";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import { AUTH_CONTEXT } from "@/shared/auth/auth-context";
 import { TeamPage } from "./team-page";
-const model = vi.hoisted(() => ({ agents: vi.fn(), read: vi.fn(), node: vi.fn(), prepare: vi.fn(), observe: vi.fn(), upload: vi.fn(), commands: vi.fn() }));
-vi.mock("@/lib/api/conversation/team-files-api", () => ({uploadTeamFile: model.upload, saveTeamFile: vi.fn()}));
+const model = vi.hoisted(() => ({ agents: vi.fn(), read: vi.fn(), node: vi.fn(), prepare: vi.fn(), observe: vi.fn(), upload: vi.fn(), commands: vi.fn(), download: vi.fn(), cancel: vi.fn() }));
+vi.mock("@/lib/api/conversation/team-files-api", () => ({uploadTeamFile: model.upload, saveTeamFile: model.download}));
 vi.mock("@/lib/api/conversation/team-api", async (original) => ({
-  ...await original<typeof import("@/lib/api/conversation/team-api")>(), getTeamCommands: model.commands,
+  ...await original<typeof import("@/lib/api/conversation/team-api")>(), getTeamCommands: model.commands, cancelTeamDelivery: model.cancel,
 }));
 vi.mock("@/features/team/team-execution-thread", async (original) => ({
   ...await original<typeof import("@/features/team/team-execution-thread")>(),
@@ -93,6 +93,32 @@ it("renders my Agent as an independent member, without a human own-message bubbl
   expect(screen.getByText("Completed").closest(".nexus-chat-message-round")).toBeTruthy();
   expect(screen.getByText("Completed").tagName).toBe("STRONG");
 });
+it("renders an Agent file-only output and reports download failures", async () => {
+  model.agents.mockResolvedValue([{agent_id: "agent", name: "Lucy"}]);
+  model.download.mockReset().mockRejectedValue(new Error("offline"));
+  const file = {id: "file", name: "report.txt", size: 3, sha256: "a".repeat(64)};
+  room.messages = [{id: "files", conversation_id: "conversation", message_seq: 1,
+    author_type: "agent", author_agent_id: "agent", author_user_id: "owner", author_username: "Lucy", author_display_name: "Lucy", delivery_id: "delivery", output_kind: "assistant", client_message_id: "files", content: {version: 1, blocks: [{type: "markdown", text: ""}], attachments: [file]}, created_at: "2026-09-09T01:00:00Z"}];
+  render(page());
+  fireEvent.click(await screen.findByRole("button", {name: /report.txt/}));
+  await waitFor(() => expect(model.download).toHaveBeenCalledWith("room", file, expect.any(AbortSignal)));
+  expect(await screen.findByText("team.files_error")).toBeTruthy();
+});
+
+it("lets the author retry cancelling only the pending delivery", async () => {
+  model.agents.mockResolvedValue([{agent_id: "agent", name: "Lucy"}]);
+  model.cancel.mockReset().mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(undefined);
+  room.messages = [{id: "trigger", conversation_id: "conversation", message_seq: 1,
+    author_type: "user", author_user_id: "owner", author_username: "owner", author_display_name: "Owner", client_message_id: "trigger", content: {version: 1, blocks: [{type: "markdown", text: "Request"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  room.room!.deliveries = [{id: "delivery", message_id: "trigger", agent_id: "agent", state: "pending"}];
+  render(page());
+  fireEvent.click(await screen.findByRole("button", {name: "team.cancel_waiting"}));
+  expect(await screen.findByText("team.cancel_failed")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", {name: "team.cancel_waiting"}));
+  await waitFor(() => expect(model.cancel).toHaveBeenCalledTimes(2));
+  expect(model.cancel).toHaveBeenLastCalledWith("room", "delivery");
+});
+
 it("renders online execution statistics through the shared Room footer", async () => {
   model.agents.mockResolvedValue([{agent_id: "agent", name: "Lucy"}]);
   room.messages = [{id: "stats", conversation_id: "conversation", message_seq: 1,

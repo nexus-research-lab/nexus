@@ -92,16 +92,46 @@ func (h *NodeHandlers) HandleRoom(writer http.ResponseWriter, request *http.Requ
 		return
 	}
 	var input struct {
-		RoomID string `json:"room_id"`
+		RoomID  string   `json:"room_id"`
+		RoomIDs []string `json:"room_ids"`
 	}
 	if err := decodeStrictJSON(writer, request, &input); err != nil {
 		h.writeError(writer, teamsvc.ErrNodeInput)
 		return
 	}
-	bindings, err := h.service.PrepareRoom(request.Context(), cookie.Value, input.RoomID)
+	if input.RoomID != "" {
+		input.RoomIDs = append(input.RoomIDs, input.RoomID)
+	}
+	bindings, err := h.service.PrepareRooms(request.Context(), cookie.Value, input.RoomIDs)
 	if err != nil {
 		h.writeError(writer, err)
 		return
 	}
 	h.api.WriteSuccess(writer, bindings)
+}
+
+// HandleRecover 核验原执行后结算，不暴露绕过核验的状态改写入口。
+func (h *NodeHandlers) HandleRecover(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !sameOrigin(r) {
+		h.api.WriteFailure(w, http.StatusForbidden, "请求来源无效")
+		return
+	}
+	cookie, err := r.Cookie(h.cookieName)
+	if err != nil || cookie.Value == "" {
+		h.writeError(w, teamsvc.ErrNodeLogin)
+		return
+	}
+	var input struct {
+		JobID string `json:"job_id"`
+	}
+	if decodeStrictJSON(w, r, &input) != nil || input.JobID == "" || len(input.JobID) > 128 {
+		h.writeError(w, teamsvc.ErrNodeInput)
+		return
+	}
+	if err = h.service.RecoverJob(r.Context(), cookie.Value, input.JobID); err != nil {
+		h.writeError(w, err)
+		return
+	}
+	h.api.WriteSuccess(w, map[string]bool{"ok": true})
 }

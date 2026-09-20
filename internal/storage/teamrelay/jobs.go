@@ -22,12 +22,22 @@ type NodeJob struct {
 	Sequence, OutputBytes                                        int
 	Failed                                                       bool
 	CandidateSent                                                bool
+	ArtifactIDs                                                  []string
+	ArtifactBytes                                                int64
+	FailureCode                                                  string
 }
 
 type NodeOutput struct {
 	Sequence int
 	ID       string
 	Input    relaycontract.DeliveryOutput
+	Files    []NodeFile
+}
+
+// NodeFile 是明确交付时冻结的有界文件；重试不重新读取可能变化的工作区。
+type NodeFile struct {
+	Name string
+	Data []byte
 }
 
 func (r *Repository) NodeJob(ctx context.Context, owner, id string) (*NodeJob, error) {
@@ -74,6 +84,15 @@ func (r *Repository) PrepareNodeJob(ctx context.Context, item NodeJob) (*NodeJob
 
 // SaveNodeJob 和可选输出同事务提交。旧状态不能覆盖新终态或接管另一台机器的执行。
 func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput) error {
+	return r.saveNodeJob(ctx, item, from, output, nil)
+}
+
+func (r *Repository) SaveNodeFiles(ctx context.Context, item NodeJob, files []NodeFile) error {
+	output := relaycontract.DeliveryOutput{LeaseID: item.Delivery.LeaseID, Kind: "assistant", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: ""}}}}
+	return r.saveNodeJob(ctx, item, "running", &output, files)
+}
+
+func (r *Repository) saveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput, files []NodeFile) error {
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
 		item.CandidateExecution = nil
@@ -137,7 +156,10 @@ func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string,
 		}
 	}
 	if output != nil {
-		encoded, err := json.Marshal(output)
+		encoded, err := json.Marshal(struct {
+			*relaycontract.DeliveryOutput
+			Files []NodeFile `json:"local_files,omitempty"`
+		}{output, files})
 		if err != nil {
 			return err
 		}
@@ -162,7 +184,24 @@ func (r *Repository) NextNodeOutput(ctx context.Context, jobID string) (*NodeOut
 	if err = json.Unmarshal([]byte(data), &item.Input); err != nil {
 		return nil, err
 	}
+	var local struct {
+		Files []NodeFile `json:"local_files"`
+	}
+	if err = json.Unmarshal([]byte(data), &local); err != nil {
+		return nil, err
+	}
+	item.Files = local.Files
 	return &item, nil
+}
+
+// 保存远端不可变引用后再提交消息，最终回执重放不需要重新上传文件。
+func (r *Repository) PrepareNodeOutput(ctx context.Context, jobID string, output NodeOutput) error {
+	data, err := json.Marshal(output.Input)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `UPDATE team_node_outputs SET data_json=`+r.dialect.Bind(1)+` WHERE job_id=`+r.dialect.Bind(2)+` AND sequence=`+r.dialect.Bind(3)+` AND sent=FALSE`, string(data), jobID, output.Sequence)
+	return err
 }
 
 func (r *Repository) AckNodeOutput(ctx context.Context, jobID string, sequence int) error {

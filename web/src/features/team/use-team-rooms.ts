@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTeamRefresh } from "./use-team-refresh";
+import { prepareTeamRooms } from "@/lib/api/conversation/team-node-api";
 
 import { listTeamRooms, type TeamRoomView } from "@/lib/api/conversation/team-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
@@ -26,6 +27,32 @@ export function useTeamRooms() {
     captureAuthOwnerScopeGeneration,
   );
   const scope = canUseRelay ? JSON.stringify([generation, status?.organization_id, status?.control_user_id, status?.organization_role]) : null;
+  const preparation = useRef("");
+  const preparationKey = scope ? JSON.stringify([scope, rooms.filter((item) => !item.room.direct_user_id).map((item) => [item.room.id, item.room.membership_version])]) : null;
+  useTeamRefresh(preparationKey, async (signal) => {
+    if (preparation.current === preparationKey) return;
+    const ids = rooms.filter((item) => !item.room.direct_user_id).map((item) => item.room.id);
+    if (!ids.length) return;
+    // 目录常驻，不依赖打开某个群；失败退避仅重试原准备操作，不轮询任务。
+    let delay = 1000;
+    while (!signal.aborted) {
+      try {
+        for (let offset = 0; offset < ids.length; offset += 256) await prepareTeamRooms(ids.slice(offset, offset + 256), signal);
+        if (!signal.aborted) preparation.current = preparationKey ?? "";
+        return;
+      } catch (error) {
+        if (signal.aborted) return;
+        if (error instanceof ApiRequestError && [401, 403, 404].includes(error.status)) return;
+        console.warn("Team Agent preparation failed", error);
+        await new Promise<void>((resolve) => {
+          const done = () => { clearTimeout(timer); signal.removeEventListener("abort", done); resolve(); };
+          const timer = setTimeout(done, delay);
+          signal.addEventListener("abort", done, {once: true});
+        });
+        delay = Math.min(delay * 2, 30000);
+      }
+    }
+  });
   useEffect(() => {
     setRooms([]);
     setIsAvailable(false);
