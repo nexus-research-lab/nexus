@@ -416,6 +416,22 @@ Connector client secret。之后仍由宿主解析的当前 Provider 配置再�
 
 证据见[继承环境清理记录](../../testing/evidence/desktop-sandbox/2026-09-20-runtime-env-scrub/)。提交仅本地，未推送，`releaseAccepted=false`。
 
+### 2026-09-20：固定 SDK + macOS 无模型基线重验
+
+在当前 Nexus 提交 `29ba7eef9`、SDK `9d60e166` 和 Bridge
+`02fbc0e5f6a699fad7106e202d119c272ef4e170` 上运行固定归档构建的 macOS arm64
+基线。`scripts/desktop/check-sandbox-baseline.mjs --sdk-source ... --sdk-ref 9d60e166`
+exit 0，38 个检查全部通过，包含 host policy/lifecycle、settings recovery、Provider
+environment、settings-writes 和 macOS 文件/搜索/媒体/Skill/上下文/项目/托管策略/原生
+路径；无模型请求。生成 nxs SHA-256 为
+`45525bf29672249dc2a99eb4cb88ccd7e8fa6b9d5fb7623005546c34d34d1ce8`。
+
+这次重验确认新环境清理没有破坏既有 macOS 开发基线，但仍只是固定本地依赖的开发
+证据；Windows/Linux 原生、签名包、clean-host、已认证 Claude、任意秘密文件/句柄、
+外部 MCP/helper 和生产发布仍未闭合，`releaseAccepted=false`。
+
+证据见[2026-09-20-macos-baseline](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline/)。
+
 ### 配置读取与权限持久化（non-normative，分阶段实施）
 
 项目定义读取已有独立边界，但以下入口仍不能据此视为安全。后续按输入所有权实施，不把所有设置文件直接套用同一种任务读写授权：

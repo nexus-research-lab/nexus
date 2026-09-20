@@ -73,6 +73,26 @@ Connector client secret。空宿主变量不会制造显式空覆盖；后续宿
 证据见[2026-09-20-runtime-env-scrub](evidence/desktop-sandbox/2026-09-20-runtime-env-scrub/)。
 三个仓库仍仅本地提交，`releaseAccepted=false`。
 
+### 2026-09-20：固定 SDK + macOS 无模型基线重验
+
+在 Nexus `29ba7eef9`、SDK `9d60e166` 和 Bridge
+`02fbc0e5f6a699fad7106e202d119c272ef4e170` 上运行：
+
+```text
+GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs \
+  --sdk-source /Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox \
+  --sdk-ref 9d60e166
+```
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 固定版本与构建 | exit 0；Bridge 精确模块无 replace；SDK clean archive 构建 nxs | nxs SHA-256 `45525bf29672249dc2a99eb4cb88ccd7e8fa6b9d5fb7623005546c34d34d1ce8` |
+| host 与 settings | 13 个 host policy、22 个 host lifecycle、18 个 settings recovery、35 个 Provider environment 用例通过 | 本地无模型请求、macOS arm64 |
+| macOS 能力路径 | 文件、资源、搜索、媒体、Skill、上下文、项目、托管策略、settings-writes 和原生路径全部通过 | 38 个检查均 exit 0，必测项无 skip |
+| 发布结论 | `releaseAccepted=false` | 不替代签名安装包、clean-host、Windows/Linux、Claude 认证会话或生产验收 |
+
+完整报告、选定原始日志和 `manifest.sha256` 见[2026-09-20-macos-baseline](evidence/desktop-sandbox/2026-09-20-macos-baseline/)。
+
 ### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：

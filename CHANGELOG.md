@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Re-run the fixed SDK `9d60e166` and Bridge `02fbc0e5f6a6...` macOS arm64
+  no-model baseline after the runtime environment scrub. Host policy,
+  lifecycle, settings recovery, Provider environment, settings-writes and all
+  existing macOS capability groups passed; the report remains development
+  evidence only and does not change the Windows/Linux/Claude/signed-package
+  release gates.
+
 - Expand the desktop runtime inheritance scrub to clear SDK bootstrap
   descriptors, Provider and auxiliary-request credentials, TLS client-key
   inputs, telemetry headers, SSH-agent hooks, and Connector client secrets
