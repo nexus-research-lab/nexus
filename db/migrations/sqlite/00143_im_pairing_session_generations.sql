@@ -33,8 +33,10 @@ CREATE TABLE im_pairing_sessions (
 CREATE INDEX idx_im_pairing_sessions_pairing ON im_pairing_sessions(owner_user_id, pairing_id);
 
 -- +goose Down
--- SQLite cannot drop columns on all supported versions without rebuilding the
--- table; the migration is intentionally forward-only once session generations
--- have been persisted.
+-- Keep the migration reversible to preserve the rollback-to-v56 contract:
+-- SQLite >= 3.35 supports DROP COLUMN, matching the Postgres variant which
+-- drops the pairing generation columns on rollback.
 DROP INDEX idx_im_pairing_sessions_pairing;
 DROP TABLE im_pairing_sessions;
+ALTER TABLE im_pairings DROP COLUMN session_key;
+ALTER TABLE im_pairings DROP COLUMN session_materialized;
