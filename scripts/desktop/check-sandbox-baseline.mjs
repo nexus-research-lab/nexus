@@ -318,6 +318,7 @@ try {
       "TestDocumentStorePreservesExistingPermissionBitsUnderUmask", "TestDocumentStoreRejectsExistingReadOnlyLeaf",
       "TestSettingsJournalIsClearedAfterSuccessfulUpdate", "TestSettingsJournalRecoversFullOldState",
       "TestSettingsJournalRecoversFullNewState", "TestSettingsJournalMixedStateFailsClosed",
+      "TestSettingsJournalCrossRootMixedStateFailsClosed",
       "TestSettingsJournalDoesNotStoreDocumentPlaintext",
       "TestSettingsBindingUnknownIsShared",
       ...["parent", "child"].map((runtime) => `TestSettingsBindingUnknownIsShared/${runtime}`),
