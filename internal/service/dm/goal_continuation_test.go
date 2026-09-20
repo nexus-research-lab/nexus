@@ -568,6 +568,20 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 		state != goalAuthority.ObjectiveRevisionState() {
 		t.Fatal("DM Goal and Execution commands did not share one round authority state")
 	}
+	if commandRound.SourceContextType != runtimectx.SourceContextGoalContinuation {
+		t.Fatalf("DM continuation source context = %q, want %q", commandRound.SourceContextType, runtimectx.SourceContextGoalContinuation)
+	}
+	continuationAuthority := commandRound.CommandContext.GoalContinuationAuthority
+	if continuationAuthority == nil || !continuationAuthority.Valid() ||
+		strings.TrimSpace(continuationAuthority.OwnerUserID) == "" ||
+		continuationAuthority.AgentID != "nexus" ||
+		continuationAuthority.ScopeSessionKey != sessionKey ||
+		continuationAuthority.GoalID != plan.Goal.ID ||
+		continuationAuthority.ObjectiveRevision != plan.Goal.ObjectiveRevision() ||
+		continuationAuthority.ExecutionID != plan.ExecutionID ||
+		continuationAuthority.RootRoundID != plan.RoundID {
+		t.Fatalf("DM continuation authority = %+v", continuationAuthority)
+	}
 	authority, ok := goalAuthority.Load()
 	if !ok || authority.GoalID != plan.Goal.ID ||
 		authority.ObjectiveRevision != plan.Goal.ObjectiveRevision() ||

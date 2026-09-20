@@ -754,6 +754,54 @@ same service fences. This source exception does not authorize `update_goal`,
 Objective Alignment, Execution mutation, internal continuations, external
 ingress, or Agent-to-Agent handoffs.
 
+### 5.1 DM continuation authority
+
+DM and Room use the same Goal/Execution/WorkGraph service, but their transport
+session identities remain separate. The shared control-plane binding is
+`goal_id + objective_revision + execution_id`; the source boundary is still the
+exact DM `session_key` or the exact Room `room_id + conversation_id`.
+
+After the Goal service validates and claims a durable continuation plan, the DM
+dispatcher may issue a host-only continuation authority for that physical round:
+
+```text
+owner_user_id
+agent_id
+scope_session_key       // exact structured DM session
+goal_id
+objective_revision
+execution_id             // optional for Goal-only continuation
+root_round_id
+```
+
+The runtime command builder accepts this authority only when every field matches
+the live Agent, DM session, Goal authority, Responsibility authority, runtime
+lease and current round. The structured session must be a local WebSocket DM;
+paired external IM, queue, echo, automation and ordinary `agent_internal` rounds
+do not inherit it. `execution_id` alone is never sufficient.
+
+An exact continuation authority selects the same full Execution operation
+registry as a trusted ordinary DM round. If the authority is missing, stale,
+cross-owner, cross-session, cross-revision, cross-Execution or cross-round, the
+round fails closed. A managed continuation must return an explicit identity or
+service error; it must not silently fall back to the WorkGraph authoring-only
+registry, because that would make `summary=ready → verify=waiting` look like a
+valid execution state without ever calling `assign_work`.
+
+Room behavior is unchanged: Room rounds retain their verified Room source and
+membership boundaries, and only exact WorkBinding/ReviewBinding or verified
+coordinator inspection can authorize mutations. The shared implementation may
+reuse the identity comparison helper, but no Room ID is accepted as a DM ID and
+no Room capability is propagated to a DM round.
+
+The model-visible contract remains transport-neutral. Skills and schemas do not
+accept owner, Agent, session, Goal revision, or round authority fields. The model
+continues to call `execution` `inspect`, load the fresh operation contract, and
+invoke only closed business input. Locator fields such as `execution_id`,
+`work_item_id`, and `logical_key` identify business records; they cannot mint or
+expand the host authority. `round_refresh_required` or an identity mismatch ends
+the old physical round and waits for a host-issued successor.
+
 ## 6. Execution operations
 
 The Execution operation directory exposes exactly 12 operations through round-scoped

@@ -68,9 +68,12 @@ type RuntimeCommandContext struct {
 	PermissionMode          sdkpermission.Mode
 	GoalAuthority           *GoalAuthorityState
 	ResponsibilityAuthority *ResponsibilityAuthorityState
-	SDKSessionIdentity      *SDKSessionIdentityState
-	AutomationRun           *protocol.AutomationRunContext
-	WorkGraphPreviewID      string
+	// GoalContinuationAuthority 只能由 DM continuation 调度器在 durable claim
+	// 成功后注入；普通 agent_internal round 不得自行获得它。
+	GoalContinuationAuthority *GoalContinuationAuthority
+	SDKSessionIdentity        *SDKSessionIdentityState
+	AutomationRun             *protocol.AutomationRunContext
+	WorkGraphPreviewID        string
 }
 
 // CurrentSDKSessionID 在 command 真正调用时读取动态 provider identity。
