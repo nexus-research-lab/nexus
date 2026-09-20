@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix Automation list, delivery target, run and event queries failing when the command adapter receives an array; preserve the original JSON text and wrap non-object structured results in a result field.
+
 - Fix duplicate migration version 00144 after merging Room reply previews and workgraph artifact contracts; move reply previews to 00145 for SQLite and PostgreSQL.
 
 - Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
