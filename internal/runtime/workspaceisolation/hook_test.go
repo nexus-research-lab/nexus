@@ -957,7 +957,10 @@ func TestWorkspacePolicyHookRunsAfterExistingHooks(t *testing.T) {
 }
 
 func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
-	stateRoot := t.TempDir()
+	// Keep the synthetic state root outside the Unix shared temp root. On Linux,
+	// t.TempDir() lives below /tmp, which is intentionally allowed by the audit
+	// policy and would mask the cross-owner denial this test is checking.
+	stateRoot := filepath.Join(filepath.Dir(os.TempDir()), "nexus-audit-policy-state-root")
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
 	workspace := t.TempDir()
 	policy, err := buildAuditPolicy(Input{
@@ -977,7 +980,7 @@ func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
 	); err != nil {
 		t.Fatalf("audit policy 应允许当前 owner 数据根: %v", err)
 	}
-	if _, err = policy.authorize(appfs.UserDataRoot("owner-b"), false); err == nil {
+	if _, err = policy.authorize(appfs.UserDataRootAt(stateRoot, "owner-b"), false); err == nil {
 		t.Fatal("audit policy 不应允许其他 owner 数据根")
 	}
 	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
