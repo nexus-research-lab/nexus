@@ -7,7 +7,10 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 /** 活动条与相邻工作栈节点之间的唯一紧凑间距。 */
 export const CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME = "mb-2";
-export const CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME = "pb-2";
+export const CONVERSATION_ACTIVITY_STACK_GAP_PX = 8;
+/** Goal 在 Composer 上方保留一小档上移，正文避让由尾部 spacer 完整承接。 */
+export const CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME = "pb-3";
+export const CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX = 56;
 export const CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME =
   "-translate-y-[calc(100%+0.5rem)]";
 
