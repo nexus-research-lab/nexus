@@ -55,6 +55,24 @@
 reconcile 的跨进程原子性、完整凭据/网络隔离或 Claude/原生平台/安装包验收。
 `releaseAccepted=false`；三个仓库均仅本地，未推送。
 
+### 2026-09-20：Provider 与辅助请求继承环境清理
+
+Nexus 提交 `a1eaa106f` 扩展 `scrubInheritedRuntimeEnv`，在 Bridge 继承宿主环境前
+清理 SDK bootstrap 描述符与 fallback、Provider 凭据/自定义 headers、WebSearch 与
+WebFetch helper 密钥、TLS client key/passphrase、OTEL headers、SSH agent/命令入口和
+Connector client secret。空宿主变量不会制造显式空覆盖；后续宿主解析的当前 Provider
+值仍会在环境合并末端重新投影。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| Nexus 目标包 | `GOWORK=off GOPROXY=off go test ./internal/runtime/clientopts -count=1`，exit 0 | 清理清单、Provider ownership 和显式 credential projection 回归 |
+| Nexus race | `GOWORK=off GOPROXY=off go test -race ./internal/runtime/clientopts -count=1`，exit 0 | 目标包并发安全 |
+| 关联 runtime/vet | `GOWORK=off GOPROXY=off go test ./internal/runtime -count=1`、`GOWORK=off GOPROXY=off go vet ./internal/runtime/clientopts ./internal/runtime`，exit 0 | 关联运行时回归与静态检查 |
+| 当前边界 | 未通过发布门禁 | 该批次是环境来源清理，不证明任意秘密文件、继承句柄、外部 MCP/helper、后代进程、真实网络出口或原生平台隔离 |
+
+证据见[2026-09-20-runtime-env-scrub](evidence/desktop-sandbox/2026-09-20-runtime-env-scrub/)。
+三个仓库仍仅本地提交，`releaseAccepted=false`。
+
 ### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：

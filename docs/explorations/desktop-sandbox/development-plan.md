@@ -4,7 +4,7 @@
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-18）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
+当前开发位置（2026-09-20）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
 当前 Claude Bridge 接线批次固定 SDK `9d60e166`、Bridge `02fbc0e5f6a699fad7106e202d119c272ef4e170`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920021254-02fbc0e5f6a6`（`h1:4sQoNTQUHwidSCAP6DawenSZcrKIhwf23Gm542GI2XU=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `9d60e166` 构建的 nxs SHA-256 为 `374a022e84a1dd081c2c9e2b56474dcc61dbfd4868b70f9fbeaf05de8ff49330`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
 
@@ -397,6 +397,24 @@ P6 因已有默认入口和部分设置交互修正为“进行中”，完整�
 其余未完成项包括完整资源/网络/凭据与辅助进程隔离、后代监督与 scratch 崩溃恢复、
 SDK 持久执行回执、多文件掉电一致性、跨进程 reconcile 原子性、Windows 架构与部署、
 macOS/Linux/Claude/安装包实机验收。`releaseAccepted=false`；仅本地提交，不修改 main。
+
+### 2026-09-20：Provider 与辅助请求继承环境清理
+
+Nexus 本地提交 `a1eaa106f` 扩展 `scrubInheritedRuntimeEnv`。runtime
+transport 继承宿主环境前，现在会显式清理 SDK bootstrap API/OAuth 描述符与
+fallback、Anthropic/OpenAI/Azure/AWS/Google 等 Provider 输入、WebSearch/WebFetch
+辅助请求密钥、TLS client key/passphrase、OTEL headers、SSH agent/命令入口和
+Connector client secret。之后仍由宿主解析的当前 Provider 配置再次投影，避免把
+环境清理误当成凭据解析或授权本身。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 目标测试 | `GOWORK=off GOPROXY=off go test ./internal/runtime/clientopts -count=1` 通过，覆盖清理、显式 Provider 投影和 host ownership 回归 |
+| 竞态测试 | `GOWORK=off GOPROXY=off go test -race ./internal/runtime/clientopts -count=1` 通过 |
+| 关联 runtime | `GOWORK=off GOPROXY=off go test ./internal/runtime -count=1` 与 `go vet ./internal/runtime/clientopts ./internal/runtime` 通过 |
+| 当前边界 | 只证明已知环境输入不会从 Nexus 宿主继承；任意秘密文件、已打开句柄、外部 MCP/helper 进程、后代环境、真实 Provider 网络出口和跨平台原生隔离仍未完成 |
+
+证据见[继承环境清理记录](../../testing/evidence/desktop-sandbox/2026-09-20-runtime-env-scrub/)。提交仅本地，未推送，`releaseAccepted=false`。
 
 ### 配置读取与权限持久化（non-normative，分阶段实施）
 
