@@ -48,7 +48,7 @@ export function useTeamRoom(roomId: string | null) {
   const roomRef = useRef<TeamRoomDetails | null>(null);
   const cursorRef = useRef(0);
   const messagesRef = useRef<TeamMessage[]>([]);
-  const syncingRef = useRef(false);
+  const syncingRef = useRef<object | null>(null);
   const recoveringRef = useRef(false);
   const reloadRequestRef = useRef(0);
   const sendingRef = useRef(false);
@@ -116,7 +116,7 @@ export function useTeamRoom(roomId: string | null) {
         return next;
       }
     } catch (cause) {
-      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) handleReadFailure(cause);
+      if (!signal?.aborted && requestID === detailsRequestRef.current && isAuthOwnerScopeGenerationCurrent(generation)) handleReadFailure(cause);
     }
   }, [handleReadFailure, updateDetails]);
 
@@ -200,7 +200,8 @@ export function useTeamRoom(roomId: string | null) {
     if (syncingRef.current) {
       return;
     }
-    syncingRef.current = true;
+    const sync = {};
+    syncingRef.current = sync;
     try {
       while (cursorRef.current < pendingHighWaterRef.current) {
         const value = roomRef.current;
@@ -213,7 +214,7 @@ export function useTeamRoom(roomId: string | null) {
             cursorRef.current,
             value.conversation.stream_epoch,
           );
-          if (roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
+          if (syncingRef.current !== sync || roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
             return;
           }
           replaceMessages([
@@ -229,6 +230,10 @@ export function useTeamRoom(roomId: string | null) {
             difference.high_water_seq,
           );
         } catch (cause) {
+          // 切群或换代后的旧请求失败不能撤销当前会话，也不能触发旧快照恢复。
+          if (syncingRef.current !== sync || roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
+            return;
+          }
           if (cause instanceof ApiRequestError && cause.failure?.code === "team.full_snapshot_required") {
             if (!await reload()) {
               return;
@@ -240,7 +245,7 @@ export function useTeamRoom(roomId: string | null) {
       }
       setError((current) => current === "sync" ? null : current);
     } finally {
-      syncingRef.current = false;
+      if (syncingRef.current === sync) syncingRef.current = null;
     }
   }, [reload, replaceMessages]);
 
@@ -279,6 +284,7 @@ export function useTeamRoom(roomId: string | null) {
       });
     return () => {
       controller.abort();
+      syncingRef.current = null;
       retryControllerRef.current?.abort();
       retryControllerRef.current = null;
       reloadRequestRef.current += 1;
@@ -306,7 +312,7 @@ export function useTeamRoom(roomId: string | null) {
     }
   }, [reload, replaceMessages]);
 
-  useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
+  const refreshRoom = useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
     const next = await refreshDetails(signal);
     if (!next || signal.aborted || roomRef.current?.room.id !== next.room.id) return;
     try {
@@ -333,8 +339,8 @@ export function useTeamRoom(roomId: string | null) {
     }
     void synchronize(event.high_water_seq).catch(handleReadFailure);
     // 同水位也可能是投递领取或失败提示；共享进度独立于消息序列。
-    void refreshDetails();
-  }, [handleReadFailure, recoverStream, synchronize, refreshDetails]);
+    refreshRoom();
+  }, [handleReadFailure, recoverStream, synchronize, refreshRoom]);
   useWebSocket({
     autoConnect: canUseRelay && Boolean(room),
     heartbeatInterval: 0,

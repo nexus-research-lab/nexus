@@ -46,7 +46,7 @@ func (s *Server) mountTeamNodeRoutes() {
 	if relayURL != "" && s.services.RoomRealtime != nil && s.services.Core.Room != nil {
 		client, err := relaysvc.NewClient(relayURL, 0)
 		if err == nil {
-			s.teamExecutor = teamsvc.NewNodeExecutor(service, client, s.services.Core.Room, s.services.RoomRealtime, s.api.BaseLogger())
+			s.teamExecutor = teamsvc.NewNodeExecutor(service, client, s.services.Core.Room, s.services.RoomRealtime, s.services.Workspace, s.api.BaseLogger())
 		}
 	}
 	// 不能挂在 /team 代理下；本地和在线登录各自提供宿主与远程账号证据。
@@ -55,6 +55,7 @@ func (s *Server) mountTeamNodeRoutes() {
 	s.router.Post(path, handler.Handle)
 	s.router.Delete(path, handler.Handle)
 	s.router.Post(path+"/room", handler.HandleRoom)
+	s.router.Post(path+"/jobs/recover", handler.HandleRecover)
 }
 
 func (s *Server) startTeamExecutor(ctx context.Context) (func(), error) {

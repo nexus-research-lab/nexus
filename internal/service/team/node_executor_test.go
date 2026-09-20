@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -296,6 +298,8 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	var received []relaycontract.DeliveryOutput
 	var ids []string
 	loseReceipt := true
+	uploads := 0
+	renewStatus := http.StatusOK
 	tokenRequests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Cookie") != "" || r.Header.Get("Authorization") != "Bearer machine" {
@@ -306,7 +310,27 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": nodeToken{Token: "machine", ExpiresAt: time.Now().Add(time.Minute)}})
 			return
 		}
+		if r.URL.Path == "/api/relay/v1/node/deliveries/delivery/files" {
+			data, _ := io.ReadAll(r.Body)
+			if string(data) != "original" || r.Header.Get("X-Delivery-Lease") != "lease" {
+				t.Error("产物不是冻结内容或缺少租约")
+			}
+			uploads++
+			sum := sha256.Sum256(data)
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": relaycontract.MessageAttachment{ID: "shared-file", Name: "result.txt", Size: int64(len(data)), SHA256: hex.EncodeToString(sum[:])}})
+			return
+		}
 		if r.URL.Path == "/api/relay/v1/node/deliveries/delivery/renew" {
+			if renewStatus != http.StatusOK {
+				w.WriteHeader(renewStatus)
+				_, _ = w.Write([]byte(`{"code":"lease_rejected","message":"lease unavailable"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
+			return
+		}
+		if r.URL.Path == "/api/relay/v1/node/deliveries/delivery/fail" {
 			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
 			return
 		}
@@ -464,6 +488,34 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	if err = executor.execute(ctx, *grant, job, nodeToken{}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
 		t.Fatalf("replayed tools: %d %v", starts, err)
 	}
+	// 已结束执行的恢复区分暂时故障与明确拒绝，不重跑 runtime。
+	for _, status := range []int{http.StatusServiceUnavailable, http.StatusUnauthorized, http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusConflict} {
+		pending := prepare(fmt.Sprintf("renew-%d", status), fmt.Sprintf("local-%d", status))
+		pending.State = "running"
+		if err := repo.SaveNodeJob(ctx, pending, "ready", nil); err != nil {
+			t.Fatal(err)
+		}
+		pending.State = "draining"
+		if err := repo.SaveNodeJob(ctx, pending, "running", outputText("lease", "assistant", "待交付结果", nil)); err != nil {
+			t.Fatal(err)
+		}
+		renewStatus = status
+		if err := executor.drain(ctx, *grant, pending, "machine"); err == nil {
+			t.Fatal("续租拒绝不能当作成功")
+		}
+		current, err := repo.NodeJob(ctx, pending.OwnerUserID, pending.ID)
+		want := "draining"
+		if status == http.StatusConflict {
+			want = "failed"
+		}
+		if err != nil || current == nil || current.State != want {
+			t.Fatalf("续租 HTTP %d: job=%+v err=%v", status, current, err)
+		}
+		if starts != 1 || len(received) != 3 {
+			t.Fatal("续租失败后不应重新执行或发布结果")
+		}
+	}
+	renewStatus = http.StatusOK
 	// 两个进程式调用争抢同一条 inbox，只有一个能跨越副作用边界。
 	concurrent := prepare("concurrent", "other-local")
 	concurrent.State = "running"
@@ -485,6 +537,58 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	}
 	if success != 1 {
 		t.Fatalf("admitted %d executions", success)
+	}
+	// 明确交付文件冻结到原 outbox，重复快照不再交付，普通工作文件不外发。
+	filesJob := prepare("files", "file-agent")
+	filesJob.State = "running"
+	if err = repo.SaveNodeJob(ctx, filesJob, "ready", nil); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "result.txt")
+	if err = os.WriteFile(path, []byte("original"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	executor.openFile = func(context.Context, string, string) (*os.File, string, error) {
+		f, err := os.Open(path)
+		return f, "result.txt", err
+	}
+	observer := nodeObserver{executor: executor}
+	block := protocol.WorkspaceFileArtifactBlock{ID: "artifact", Type: protocol.ContentBlockTypeWorkspaceFileArtifact, Role: "deliverable", ProducerAgentID: "file-agent", WorkspaceAgentID: "file-agent", Scope: protocol.WorkspaceFileArtifactScopeAgentWorkspace, SourceAgentRoundID: "agent-round", Path: "result.txt"}
+	event := protocol.EventMessage{AgentRoundID: "agent-round", Data: map[string]any{"content": []any{block.Map()}}}
+	if err = observer.captureFiles(ctx, &filesJob, event); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(path, []byte("changed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = observer.captureFiles(ctx, &filesJob, event); err != nil {
+		t.Fatal(err)
+	}
+	output, err := repo.NextNodeOutput(ctx, filesJob.ID)
+	if err != nil || output == nil || len(output.Files) != 1 || string(output.Files[0].Data) != "original" || filesJob.Sequence != 1 {
+		t.Fatal("交付内容未冻结或重复", output, err)
+	}
+	block.ID = "working"
+	block.Role = "working_file"
+	event.Data["content"] = []any{block.Map()}
+	if err = observer.captureFiles(ctx, &filesJob, event); err != nil || filesJob.Sequence != 1 {
+		t.Fatal("普通工作文件外发", err)
+	}
+	block.Role = "deliverable"
+	block.SourceAgentRoundID = "other-round"
+	event.Data["content"] = []any{block.Map()}
+	if err = observer.captureFiles(ctx, &filesJob, event); err == nil {
+		t.Fatal("接受其他轮次产物")
+	}
+	filesJob.State = "draining"
+	if err = repo.SaveNodeJob(ctx, filesJob, "running", outputText("lease", "final", "完成", nil)); err != nil {
+		t.Fatal(err)
+	}
+	if err = executor.drain(ctx, *grant, filesJob, "machine"); err != nil {
+		t.Fatal(err)
+	}
+	if uploads != 1 || len(received) != 5 || len(received[3].Content.Attachments) != 1 || received[3].Content.Attachments[0].ID != "shared-file" {
+		t.Fatal("未复用输出完成文件交付", uploads, received)
 	}
 	unstarted := prepare("cancel", "cancel-local")
 	if err = repo.SetNodeState(ctx, *grant, "authorized", "revoking"); err != nil {

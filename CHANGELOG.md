@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Prepare joined Agents from the persistent room directory, support cancelling pending deliveries, safely reconcile unknown executions, and publish explicit Room file deliverables through the durable outbox to Relay shared storage without rerunning tools.
+
+- Release completed online Agent execution slots when output recovery receives a definitive lease-renewal rejection; preserve pending output retries for transient failures without rerunning the Agent.
+
+- Coalesce online Room delivery-state refreshes through the shared WebSocket recovery path; fence stale detail failures and release synchronization ownership on room changes so old responses cannot clear or block the new chat.
+
 - Reuse the local Room activity indicator and left alignment for remote Agent waiting and replying states, with stable row height and no animation after failure.
 
 - Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
