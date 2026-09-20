@@ -1,5 +1,5 @@
 // INPUT: 宿主绑定的 physical-round Actor 与 Goal/Execution/Automation/Subagent 领域分发函数。
-// OUTPUT: 带 request_id 格式与使用说明的 nexus.command 工具、纠错结果与宿主可信 typed receipt。
+// OUTPUT: 带 request_id 格式与使用说明的 nexus.command 工具、对象化结构结果、纠错结果与宿主可信 typed receipt。
 // POS: 模型工具协议与 Nexus 领域 command adapter 之间的唯一 MCP 边界。
 package command
 
@@ -110,11 +110,14 @@ func toolResult(value any) sdktool.ToolResult {
 	if err != nil {
 		return errorResult(err)
 	}
-	structured := map[string]any{}
-	if value != nil {
-		if err = json.Unmarshal(payload, &structured); err != nil {
-			return errorResult(err)
-		}
+	var decoded any
+	if err = json.Unmarshal(payload, &decoded); err != nil {
+		return errorResult(err)
+	}
+	structured, ok := decoded.(map[string]any)
+	if !ok {
+		// MCP 结构结果必须是对象；列表等值放入 result，文本仍保留原始 JSON。
+		structured = map[string]any{"result": decoded}
 	}
 	return sdktool.ToolResult{
 		Content:           []map[string]any{{"type": "text", "text": string(payload)}},

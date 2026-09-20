@@ -6,6 +6,10 @@ import { requestApi } from "@/lib/api/core/http";
 
 const NODE_URL = `${getAgentApiBaseUrl()}/team-node`;
 
+export function recoverTeamJob(id: string) {
+  return requestApi(`${NODE_URL}/jobs/recover`, {method: "POST", body: {job_id: id}});
+}
+
 export interface TeamNodeView {
   node_id?: string;
   state: "disconnected" | "pending" | "authorized" | "revoking" | "revoked";
@@ -27,7 +31,7 @@ export function getTeamNode(signal?: AbortSignal, query?: {roomId: string; messa
   return requestApi<TeamNodeView>(`${NODE_URL}${query ? `?${params}` : ""}`, { method: "GET", signal });
 }
 
-export type TeamNodeJob = NonNullable<TeamNodeView["jobs"]>[number];
+export type TeamNodeJob = NonNullable<TeamNodeView["jobs"]>[number] & {failure_code?: string};
 
 export interface TeamRoomBinding {
   agent_id: string;
@@ -38,4 +42,8 @@ export interface TeamRoomBinding {
 
 export function prepareTeamRoom(roomId: string, signal?: AbortSignal) {
   return requestApi<TeamRoomBinding[]>(`${NODE_URL}/room`, {method: "POST", body: {room_id: roomId}, signal});
+}
+
+export function prepareTeamRooms(roomIds: string[], signal?: AbortSignal) {
+  return requestApi<TeamRoomBinding[]>(`${NODE_URL}/room`, {method: "POST", body: {room_ids: roomIds}, signal});
 }

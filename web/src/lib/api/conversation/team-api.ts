@@ -5,6 +5,10 @@ import type { ResultSummary } from "@/types/conversation/message/entity";
 
 const TEAM_API_BASE_URL = `${getAgentApiBaseUrl()}/team`;
 
+export function cancelTeamDelivery(roomId: string, deliveryId: string) {
+  return requestApi(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/deliveries/${encodeURIComponent(deliveryId)}/cancel`, {method: "POST"});
+}
+
 export function getTeamCommands(signal: AbortSignal) {
   return requestApi<import("@/types/generated/protocol").CommandCatalogData>(`${TEAM_API_BASE_URL}/commands`, {signal});
 }

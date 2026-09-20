@@ -1,5 +1,13 @@
 # AGENTS.md
 
+- Transcript 缓存保存解析后的原始条目，普通、分段与显式读取共用；按已打开文件的身份、大小、mtime 和首尾指纹验证，读中变化不缓存。marker/会话身份/fork 边界每次重新投影，DM/Room 索引重建不再全量清缓存，删除仍失效对应目录。
+
+- Room runtime 公区上下文复用历史读模型按成员消费游标读取；保留最近终态用于失败恢复，当前轮次不投影为中断，普通输入不提前消费后续排队消息。冷启动、缺失游标及大 detail 回退完整正文。
+
+- Room 历史复用 SQLite 读模型保存原始尾轮检查点与消息身份索引。后台单飞任务优先读取 ledger 新增字节并更新尾轮/新轮；已有 transcript 变化、文件替换及跨轮修正仍完整重建，canonical JSONL 不改写。
+
+- 左侧 DM/Room 短摘要独立存于 `room_reply_previews`（SQLite/PostgreSQL 迁移 `00145`；`00144` 保留给工作图产物契约），每 owner/Room 至多一行；完成回复落盘后更新，编辑与 Session 删除失效，来源 conversation/Room 删除级联清理。首屏一次查询，不扫描历史；正常历史页可顺带补齐旧数据。
+
 - 在线 Agent 领取复用 `infra/duework` 与 Relay Node WS 提示，不做固定五秒轮询；启动/重连、授权变更及执行槽释放对账持久待办。原生 Room 观察器落盘后唤醒完整输出，计时器仅保留租约维护与失败退避；未知运行不重跑。
 
 - Team Node 消息索引迁移为 `00142_team_node_message_lookup.sql`（SQLite/PostgreSQL）；`00141` 保留给 IM delivery。`cmd/nexus-server/main_test.go` 检查两种方言的完整迁移集合，避免并行合并重复编号。
@@ -12,7 +20,7 @@
 
 - 远程账号可无组织；平台 `role` 与 `organization_role` 独立。组织入口位于账户设置，非运营管理员专属。Relay 必须同时具有远程登录与组织身份；组织变更不能切换或清空 App 本地用户数据目录。
 
-- 在线本机 Thread 从预先绑定的 Room 复用原生 WS 订阅、快照及执行投影；任务关联只在初次读取、WS 连接/执行变化和恢复时对账，不轮询，不把流式 delta 转成 HTTP 请求。成员等远端元数据的低频刷新仍由 `web/src/features/team/use-team-refresh.ts` 管理；消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
+- 在线本机 Thread 从预先绑定的 Room 复用原生 WS 订阅、快照及执行投影；任务关联只在初次读取、WS 连接/执行变化和恢复时对账，不轮询，不把流式 delta 转成 HTTP 请求。成员等远端元数据由 `web/src/features/team/use-team-refresh.ts` 沿 WS 失效提示单飞补读；消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 
 ## Build & Validation Commands
@@ -141,7 +149,7 @@ cmd -> app -> handler -> service -> domain/storage
 
 `/nexus/v1/team-node` 是本机授权入口，不在 Desktop 的 `/team` 远程代理内。服务端以当前远程 Cookie 验证账号/组织，再将本人已发布 Agent 与本机 owner Agent 目录取交集；设备凭据使用现有宿主 keyring 加密后先落盘，Cookie 只留哈希。未知注册只重试原意图，撤销先冻结本机授权，精确回执更新本地状态；不能以未知注册的 404 当作撤销证明。授权只代表设备已登记，不表示 worker 已上线。
 
-入群即授权本人 Agent 在群内执行，节点登记与执行开关由 `/team-node/room` 自动维护，不再暴露独立授权入口。失效凭据只能在有效真人登录下恢复，未知注册重放原意图，设备范围变化先等已有任务收尾。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型、未知运行人工解锁和远程产物尚未验收/实现。
+入群即授权本人 Agent 在群内执行，常驻目录及群页面通过 `/team-node/room` 批量准备与登记，不再暴露独立授权入口。失效凭据只能在有效真人登录下恢复，未知注册重放原意图，设备范围变化先等已有任务收尾。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑，人工核验必须确认精确 round 已停止及 Control/Relay 回执。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；`node_files.go` 只回传当前轮次显式 deliverable，冻结字节后沿同一 outbox 上传至 Relay，单文件 20 MiB、单任务 32 MiB/32 项，不扫描工作区。final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型及宕机演练仍待验收。
 
 当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
 

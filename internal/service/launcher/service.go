@@ -21,15 +21,10 @@ const (
 	actionOpenApp     = "open_app"
 )
 
-// directorySessionReader 提供持久 Session 目录与有界最新消息页。
-// Launcher 只读取最近两个 round，不能退回完整历史扫描。
+// directorySessionReader 首屏只消费目录与持久摘要，不具备历史页读取能力。
 type directorySessionReader interface {
 	ListDirectorySessions(context.Context) ([]protocol.Session, error)
-	GetSessionMessagesPage(
-		context.Context,
-		string,
-		sessionsvc.MessagePageRequest,
-	) (*protocol.MessagePage, error)
+	ListRoomReplyPreviews(context.Context) (map[string]string, error)
 }
 
 // Service 提供 Launcher 查询和推荐能力。

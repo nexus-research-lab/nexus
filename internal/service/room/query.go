@@ -3,10 +3,8 @@ package room
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -30,7 +28,7 @@ func (s *Service) GetRoom(ctx context.Context, roomID string) (*protocol.RoomAgg
 	return roomValue, nil
 }
 
-// GetRoomContexts 读取房间全部上下文，并用 canonical Room/workspace 历史补全消息计数。
+// GetRoomContexts 读取房间全部上下文，不扫描消息历史补算计数。
 func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protocol.ConversationContextAggregate, error) {
 	contexts, err := s.repository.GetRoomContexts(ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID))
 	if err != nil {
@@ -38,9 +36,6 @@ func (s *Service) GetRoomContexts(ctx context.Context, roomID string) ([]protoco
 	}
 	if len(contexts) == 0 {
 		return nil, ErrRoomNotFound
-	}
-	if err = s.hydrateConversationMessageCounts(ctx, contexts); err != nil {
-		return nil, err
 	}
 	return contexts, nil
 }
@@ -54,9 +49,6 @@ func (s *Service) GetConversationContext(ctx context.Context, conversationID str
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.hydrateConversationMessageCount(ctx, contextValue); err != nil {
-		return nil, err
-	}
 	return contextValue, nil
 }
 
@@ -69,93 +61,7 @@ func (s *Service) GetConversationContextForSystem(ctx context.Context, conversat
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	if err = s.hydrateConversationMessageCount(ctx, contextValue); err != nil {
-		return nil, err
-	}
 	return contextValue, nil
-}
-
-func (s *Service) hydrateConversationMessageCounts(
-	ctx context.Context,
-	contexts []protocol.ConversationContextAggregate,
-) error {
-	for index := range contexts {
-		if err := s.hydrateConversationMessageCount(ctx, &contexts[index]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Service) hydrateConversationMessageCount(
-	ctx context.Context,
-	contextValue *protocol.ConversationContextAggregate,
-) error {
-	startedAt := time.Now()
-	count, err := s.canonicalConversationMessageCount(contextValue)
-	if contextValue != nil && (err != nil || time.Since(startedAt) >= 500*time.Millisecond) {
-		logx.FromContext(ctx).Warn("Room 上下文消息计数诊断",
-			"room_id", contextValue.Room.ID,
-			"conversation_id", contextValue.Conversation.ID,
-			"duration_ms", time.Since(startedAt).Milliseconds(),
-			"message_count", count, "context_err", ctx.Err(), "err", err,
-		)
-	}
-	if err != nil {
-		return err
-	}
-	if contextValue != nil && count > contextValue.Conversation.MessageCount {
-		contextValue.Conversation.MessageCount = count
-	}
-	return nil
-}
-
-func (s *Service) canonicalConversationMessageCount(
-	contextValue *protocol.ConversationContextAggregate,
-) (int, error) {
-	if contextValue == nil {
-		return 0, nil
-	}
-	if contextValue.Room.RoomType != protocol.RoomTypeDM {
-		return s.roomHistory.MessageCount(
-			contextValue.Room.OwnerUserID,
-			contextValue.Conversation.ID,
-		)
-	}
-	for _, sessionValue := range contextValue.Sessions {
-		if !sessionValue.IsPrimary || strings.TrimSpace(sessionValue.AgentID) == "" {
-			continue
-		}
-		agentValue := findConversationMemberAgent(contextValue.MemberAgents, sessionValue.AgentID)
-		if agentValue == nil || strings.TrimSpace(agentValue.WorkspacePath) == "" {
-			continue
-		}
-		sessionKey := protocol.BuildRoomAgentSessionKey(
-			contextValue.Conversation.ID,
-			sessionValue.AgentID,
-			protocol.RoomTypeDM,
-		)
-		fileSession, _, err := s.files.ForOwner(contextValue.Room.OwnerUserID).FindSession(
-			[]string{agentValue.WorkspacePath},
-			sessionKey,
-		)
-		if err != nil {
-			return 0, err
-		}
-		if fileSession != nil {
-			return fileSession.MessageCount, nil
-		}
-	}
-	return 0, nil
-}
-
-func findConversationMemberAgent(items []protocol.Agent, agentID string) *protocol.Agent {
-	for index := range items {
-		if strings.TrimSpace(items[index].AgentID) == strings.TrimSpace(agentID) {
-			return &items[index]
-		}
-	}
-	return nil
 }
 
 // FindContactRoomContext 查找一对 Agent 已有的联系人直聊上下文。

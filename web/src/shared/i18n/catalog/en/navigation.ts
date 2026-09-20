@@ -2,6 +2,14 @@ import type { MessageSegment } from "../message-segment";
 import type { zhNavigationMessages } from "../zh/navigation";
 
 export const enNavigationMessages = {
+  "team.artifact_delivery_failed": "File delivery failed. Existing replies and files are retained. Ask the owner to check and deliver again.",
+  "team.recovery_notice": "Execution is unknown. Verify and end it without rerunning. External effects are not undone.",
+  "team.recover_execution": "Verify and end execution",
+  "team.recovery_failed": "Stop or remote status is not confirmed. Retry verification later.",
+  "team.cancel_waiting": "Cancel waiting",
+  "team.cancel_failed": "Cancellation is unconfirmed. Refresh and retry.",
+  "team.queue_expired": "Not executed: the 30-minute wait expired. Send a new request if needed.",
+  "team.request_cancelled": "Cancelled before execution.",
   "auth_guard.connecting": "Connecting to Nexus",
   "auth_guard.unavailable_impact": "Account content cannot load until sign-in status is confirmed. Your saved data is unchanged.",
   "auth_guard.retry_hint": "Check your connection and reload sign-in status.",

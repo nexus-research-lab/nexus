@@ -444,3 +444,43 @@ func buildSyntheticAssistantMessageID(result protocol.Message) string {
 	}
 	return "assistant_result"
 }
+
+// LatestReplyPreview 提取最近可展示正文，排除中断、思考和工具过程。
+func LatestReplyPreview(messages []protocol.Message) string {
+	for index := len(messages) - 1; index >= 0; index-- {
+		item := messages[index]
+		if protocol.MessageRole(item) != "assistant" {
+			continue
+		}
+		resultSummary, _ := item["result_summary"].(map[string]any)
+		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
+			continue
+		}
+
+		text := ExtractAssistantFinalText(item)
+		if text == "" {
+			text = replySummaryString(resultSummary["result"])
+		}
+		if preview := compactReplyPreview(text); preview != "" {
+			return preview
+		}
+	}
+	return ""
+}
+
+func compactReplyPreview(value string) string {
+	normalized := strings.Join(strings.Fields(value), " ")
+	if normalized == "" {
+		return ""
+	}
+	runes := []rune(normalized)
+	if len(runes) <= 160 {
+		return normalized
+	}
+	return string(runes[:160-1]) + "…"
+}
+
+func replySummaryString(value any) string {
+	text, _ := value.(string)
+	return strings.TrimSpace(text)
+}

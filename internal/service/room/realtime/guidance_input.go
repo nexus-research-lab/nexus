@@ -361,14 +361,6 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 		return nil
 	}
 	agentNameByID := buildMemberNameDirectory(e.round.Context)
-	publicHistory, err := e.service.roomHistory.ReadMessages(
-		e.round.OwnerUserID,
-		e.round.ConversationID,
-		nil,
-	)
-	if err != nil {
-		return err
-	}
 	trigger := e.trigger
 	if strings.TrimSpace(trigger.TriggerType) == "" {
 		trigger.TriggerType = "public_chat"
@@ -381,7 +373,7 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 		e.ctx,
 		e.round,
 		e.slot,
-		publicHistory,
+		nil,
 		agentNameByID,
 		trigger,
 	)

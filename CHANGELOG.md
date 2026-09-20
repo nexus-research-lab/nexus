@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix unmentioned Room input queue submissions so Host auto-reply still selects the Room owner while an Agent is running.
 
+### Fixed
+
+- 消息过程标题、工具行与即时活动移除额外水平内边距，图标组左边缘与同层正文对齐。
+
+- 生成文件卡片撑满消息内容区，移除紧凑与普通密度下的独立宽度上限。
+
+- Fix Automation list, delivery target, run and event queries failing when the command adapter receives an array; preserve the original JSON text and wrap non-object structured results in a result field.
+
+- 统一消息过程收起、展开与即时思考状态的图标尺寸和左侧对齐，避免折叠后图标错位。
+
+- Fix duplicate migration version 00144 after merging Room reply previews and workgraph artifact contracts; move reply previews to 00145 for SQLite and PostgreSQL.
+
 - Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
 
 - Keep the conversation at the real bottom when the activity Dock adds its 56px clearance while FOLLOW is active.
@@ -30,6 +42,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
 
 - Preserve the first observed order of concurrent Room Agent execution cards while later runtime snapshots update their state.
+
+- Reuse validated transcript parsing across single-file, segmented and explicit history reads; preserve unchanged files during index rebuilds while reapplying current markers, session identity and fork boundaries.
+
+- Read Room runtime context by each Agent’s public cursor from the existing history index; retain terminal recovery context and full-content fallbacks without blocking input admission on a full history scan.
+
+- Prepare joined Agents from the persistent room directory, support cancelling pending deliveries, safely reconcile unknown executions, and publish explicit Room file deliverables through the durable outbox to Relay shared storage without rerunning tools.
+
+- Stop scanning full DM/Room history to recount messages during context queries, avoiding unnecessary work when opening conversations.
+
+- Release completed online Agent execution slots when output recovery receives a definitive lease-renewal rejection; preserve pending output retries for transient failures without rerunning the Agent.
+
+- Incrementally refresh Room history pages from appended ledger bytes and the retained final round, updating pages and navigation atomically; fall back to canonical rebuilds for changed transcript dependencies, rewritten files and cross-round corrections.
+
+- Coalesce online Room delivery-state refreshes through the shared WebSocket recovery path; fence stale detail failures and release synchronization ownership on room changes so old responses cannot clear or block the new chat.
+
+- Reuse the local Room activity indicator and left alignment for remote Agent waiting and replying states, with stable row height and no animation after failure.
+
+- Update sidebar activity and completed reply previews locally from durable WebSocket messages instead of fetching the directory every round; retain reconciliation on reconnect and directory changes, and protect live updates from stale HTTP responses.
+
+- Keep one persistent reply preview per DM/Room, update it after completed replies are saved, and load the sidebar with one query instead of reading history; invalidate previews on edit/deletion and fill missing previews from normally requested history pages.
 
 - Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
 

@@ -138,6 +138,7 @@ func (s *Server) mountTeamRoutes() {
 		return
 	}
 	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/deliveries/{delivery_id}/cancel"), s.handlers.team.HandleCancelDelivery)
 	s.router.Get(s.prefixPath("/team/commands"), s.handlers.team.HandleCommands)
 	s.router.Post(s.prefixPath("/team/rooms"), s.handlers.team.HandleCreateRoom)
 	s.router.Get(s.prefixPath("/team/invitations"), s.handlers.team.HandleListInvitations)

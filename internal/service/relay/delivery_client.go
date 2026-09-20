@@ -16,6 +16,12 @@ func (c *Client) PendingAgents(ctx context.Context, token string) (relaycontract
 	err := c.do(ctx, http.MethodGet, "/node/deliveries/pending", nil, token, "", nil, &result)
 	return result, err
 }
+
+func (c *Client) CancelPendingDelivery(ctx context.Context, token, roomID, id string) (relaycontract.Delivery, error) {
+	var result relaycontract.Delivery
+	err := c.do(ctx, http.MethodPost, "/rooms/"+url.PathEscape(roomID)+"/deliveries/"+url.PathEscape(id)+"/cancel", nil, token, "", nil, &result)
+	return result, err
+}
 func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID string) (*relaycontract.Delivery, error) {
 	var result struct {
 		Delivery *relaycontract.Delivery `json:"delivery"`
@@ -23,13 +29,17 @@ func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID stri
 	err := c.do(ctx, http.MethodPost, "/node/deliveries/claim", nil, token, claimID, map[string]string{"agent_id": agentID}, &result)
 	return result.Delivery, err
 }
-func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool) (relaycontract.Delivery, error) {
+func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool, failureCodes ...string) (relaycontract.Delivery, error) {
 	action := "renew"
 	if failed {
 		action = "fail"
 	}
 	var result relaycontract.Delivery
-	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", map[string]string{"lease_id": leaseID}, &result)
+	input := map[string]string{"lease_id": leaseID}
+	if failed && len(failureCodes) == 1 && failureCodes[0] != "" {
+		input["failure_code"] = failureCodes[0]
+	}
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", input, &result)
 	return result, err
 }
 func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string, input relaycontract.DeliveryOutput) error {

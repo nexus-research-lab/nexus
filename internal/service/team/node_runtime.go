@@ -68,7 +68,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			}
 		}
 		if current.State == "failed" || current.State == "cancelled" || current.State == "review_required" {
-			_, settleErr := e.relay.SettleDelivery(stopCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, true)
+			_, settleErr := e.relay.SettleDelivery(stopCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, true, current.FailureCode)
 			e.logFailure(stopCtx, "fail_delivery", grant, *current, settleErr)
 		}
 	}()
@@ -175,7 +175,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 
 func nodeOutputRejected(err error) bool {
 	var remote *relaycontract.RemoteError
-	return errors.As(err, &remote) && remote.StatusCode >= 400 && remote.StatusCode < 500 && remote.StatusCode != 429
+	return errors.As(err, &remote) && remote.StatusCode >= 400 && remote.StatusCode < 500 && remote.StatusCode != 401 && remote.StatusCode != 408 && remote.StatusCode != 429
 }
 
 type nodeObserver struct {
@@ -203,7 +203,7 @@ func (o *nodeObserver) observe(ctx context.Context, event protocol.EventMessage)
 		return
 	}
 	// durable 也包含流式快照；只有明确完成的 assistant 才能出本机。
-	if event.EventType == protocol.EventTypeMessage && (event.DeliveryMode != protocol.DeliveryModeDurable || event.Data["is_complete"] != true) {
+	if event.EventType == protocol.EventTypeMessage && event.DeliveryMode != protocol.DeliveryModeDurable {
 		return
 	}
 	o.mu.Lock()
@@ -252,6 +252,9 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 			job.State = "cancelled"
 		}
 		var err error
+		if status == "finished" && job.CandidateText == "" && len(job.ArtifactIDs) > 0 {
+			job.CandidateText = "文件已交付。"
+		}
 		if status == "finished" && !job.Failed && !job.CandidateSent && job.CandidateText != "" {
 			job.State = "draining"
 			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution))
@@ -267,6 +270,13 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	}
 	role, _ := event.Data["role"].(string)
 	if role != "assistant" {
+		return nil
+	}
+	if err := o.captureFiles(ctx, job, event); err != nil {
+		job.FailureCode = "artifact_delivery_failed"
+		return errors.Join(err, o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil))
+	}
+	if event.Data["is_complete"] != true {
 		return nil
 	}
 	if summary, ok := event.Data["result_summary"].(map[string]any); ok {

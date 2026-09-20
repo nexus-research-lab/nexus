@@ -374,7 +374,9 @@ func (m *historyReadModel) loadDetail(
 	}
 	if !valid {
 		_ = tx.Rollback()
-		_ = m.deleteScope(ctx, access.Scope)
+		if access.Refresh == nil {
+			_ = m.deleteScope(ctx, access.Scope)
+		}
 		return HistoryMessageDetail{}, ErrHistoryMessageDetailUnavailable
 	}
 	var detail HistoryMessageDetail

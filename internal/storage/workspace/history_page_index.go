@@ -131,6 +131,7 @@ type historyPageIndexedGroup struct {
 }
 
 type historyPageIndexBuild struct {
+	TailRows   []protocol.Message
 	Groups     []historyPageIndexedGroup
 	RoundIndex []protocol.SessionRoundIndexItem
 	Sources    []historyPageSourceSnapshot
@@ -160,6 +161,7 @@ type historyPageIndexSelection struct {
 }
 
 type historyPageIndexAccess struct {
+	Refresh         func(context.Context) (historyPageIndexBuild, bool)
 	Scope           string
 	ReadModel       *historyReadModel
 	OpenRoot        func(create bool) (*confinedfs.Root, error)
@@ -215,7 +217,7 @@ func readHistoryPageWithIndex(
 		page, _, buildErr := buildCanonicalHistoryPage(ctx, access, request)
 		return page, buildErr
 	}
-	if historyPageBuildHasLargeDetails(built) {
+	if built.Groups == nil || historyPageBuildHasLargeDetails(built) {
 		// 大内容 generation 在 ready 前同步发布；优先从读模型返回 detail
 		// 引用。落盘失败时仍回退完整 canonical 页，不牺牲历史可读性。
 		if page, ok, loadErr := loadHistoryPageIndex(ctx, access, request); loadErr == nil && ok {
@@ -223,6 +225,10 @@ func readHistoryPageWithIndex(
 		} else if errors.Is(loadErr, context.Canceled) || errors.Is(loadErr, context.DeadlineExceeded) {
 			return protocol.MessagePage{}, loadErr
 		}
+	}
+	// 增量任务只发布数据库，不携带全量 groups；缓存失效不能伪装成空对话。
+	if built.Groups == nil {
+		return protocol.MessagePage{}, errHistoryPageIndexInvalid
 	}
 	return paginateHistoryPageIndexedGroups(built.Groups, request), nil
 }
@@ -398,6 +404,14 @@ func (m *historyPageRebuildManager) run(
 	buildCtx, cancel := context.WithTimeout(base, historyPageRebuildTimeout)
 	defer cancel()
 
+	if access.Refresh != nil {
+		if refreshed, ok := access.Refresh(buildCtx); ok {
+			future.built = refreshed
+			close(future.ready)
+			m.finish(access.Scope, future)
+			return
+		}
+	}
 	future.built, future.err = access.Build(buildCtx)
 	if future.built.Groups == nil {
 		future.built.Groups = []historyPageIndexedGroup{}

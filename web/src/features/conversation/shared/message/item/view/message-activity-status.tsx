@@ -25,6 +25,9 @@ import {
 
 import type { MessageActivityState } from "../activity/message-activity-state";
 
+export const ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME =
+  "px-0";
+
 interface MessageActivityPresentation {
   icon: LucideIcon;
   indicator: LoadingOrbVariant | null;
@@ -129,7 +132,7 @@ export function MessageActivityStatus({
   return (
     <div
       className={cn(
-        "flex h-7 min-w-0 items-center px-1.5",
+        "flex h-7 min-w-0 items-center px-0",
         className,
       )}
       data-message-activity-stable-slot={stableSlot || undefined}

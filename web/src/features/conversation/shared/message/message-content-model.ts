@@ -129,3 +129,20 @@ export function extractTextFromContentBlocks(
       .join("\n\n"),
   );
 }
+
+/** 与宿主持久摘要一致，只使用工具/思考之后的末尾正文。 */
+export function extractAssistantReplyPreview(message: AssistantMessage): string {
+  if (message.result_summary?.subtype === "interrupted") return "";
+  const blocks = message.content;
+  let start = blocks.length;
+  while (start > 0) {
+    const block = blocks[start - 1];
+    if (block.type !== "workspace_file_artifact"
+      && (block.type !== "text" || !block.text.trim())) break;
+    start--;
+  }
+  const text = extractTextFromContentBlocks(blocks.slice(start))
+    || stripRoomControlMarkers(message.result_summary?.result ?? "");
+  const runes = Array.from(text.trim().replace(/\s+/g, " "));
+  return runes.length <= 160 ? runes.join("") : `${runes.slice(0, 159).join("")}…`;
+}

@@ -6,6 +6,11 @@ package realtime
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -25,11 +30,8 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -494,4 +496,9 @@ func eventRoundID(event protocol.EventMessage) string {
 		return roundID
 	}
 	return strings.TrimSpace(event.RoundID)
+}
+
+// SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
+func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.roomHistory.SetReplyPreviewRepository(repository)
 }

@@ -308,11 +308,6 @@ func (s *AgentHistoryStore) buildAgentHistoryPageIndexWithSourceLimit(
 			}
 			continue
 		}
-		for _, source := range before {
-			if source.Kind == historyPageSourceTranscript && source.Exists {
-				s.invalidateTranscriptCache(source.ResolvedPath)
-			}
-		}
 		rows, err := s.readHistoryRowsContext(ctx, workspacePath, sessionValue)
 		if err != nil {
 			return historyPageIndexBuild{}, err

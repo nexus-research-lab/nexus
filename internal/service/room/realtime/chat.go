@@ -45,7 +45,6 @@ type roomChatExecution struct {
 	targetAgentIDs     []string
 	targetResolution   string
 	deliveryPolicy     protocol.ChatDeliveryPolicy
-	history            []protocol.Message
 	userMessage        protocol.Message
 }
 
@@ -340,11 +339,6 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 		targetAgentIDs,
 		targetResolution,
 	)
-	recordStage("history", nil)
-	history, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
-	if err != nil {
-		return nil, err
-	}
 
 	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
 	annotateRoomUserMessage(contextValue, userMessage)
@@ -364,7 +358,6 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 		targetAgentIDs:     targetAgentIDs,
 		targetResolution:   targetResolution,
 		deliveryPolicy:     deliveryPolicy,
-		history:            history,
 		userMessage:        userMessage,
 	}, nil
 }
@@ -517,7 +510,6 @@ func (e *roomChatExecution) persistInput() error {
 				return err
 			}
 		}
-		e.history = append(e.history, e.userMessage)
 		realtimeUserMessage := protocol.Clone(e.userMessage)
 		if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
 			// client_message_id 只用于当前连接把 durable 广播原子替换到 optimistic
@@ -929,7 +921,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 		e.broadcastAck(pending, true)
 	}
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
-	go e.service.runRound(roundCtx, activeRound, e.history, e.agentNameByID, e.agentByID)
+	go e.service.runRound(roundCtx, activeRound, nil, e.agentNameByID, e.agentByID)
 	return nil
 }
 

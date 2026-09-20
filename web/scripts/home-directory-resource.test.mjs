@@ -284,3 +284,48 @@ function pickStatus(snapshot) {
 async function flushPromises() {
   await new Promise((resolve) => setImmediate(resolve));
 }
+
+test("live updates survive stale HTTP and deletion cannot resurrect a room", async () => {
+  const requests = [];
+  const store = createHomeDirectoryStore({ load: () => { const request = deferred(); requests.push(request); return request.promise; }, reportError: assert.fail });
+  const payload = directoryPayload("room");
+  Object.assign(payload.conversations[0], { room_id: "room", conversation_id: "conv", last_reply_preview: "old" });
+  store.acceptAuthoritativePayload(payload);
+  store.refresh();
+  const timestamp = Date.parse("2026-09-20T00:00:00Z");
+  assert.equal(store.applyRoomUpdate({ roomId: "room", conversationId: "conv", timestamp, preview: "new" }), true);
+  requests[0].resolve(payload);
+  await flushPromises();
+  assert.equal(store.getSnapshot().conversations[0].last_reply_preview, "new");
+  assert.equal(Date.parse(store.getSnapshot().conversations[0].last_activity), timestamp);
+  assert.equal(requests.length, 1);
+  store.refresh();
+  store.applyRoomUpdate({ roomId: "room", timestamp: timestamp + 1, deleted: true });
+  requests[1].resolve(payload);
+  await flushPromises();
+  store.applyRoomUpdate({ roomId: "room", timestamp: timestamp + 2, preview: "late" });
+  assert.equal(store.getSnapshot().rooms.length, 0);
+  assert.equal(store.getSnapshot().conversations.length, 0);
+  store.resetOwnerScope();
+  store.acceptAuthoritativePayload(payload);
+  assert.equal(store.getSnapshot().conversations[0].last_reply_preview, "old");
+});
+
+test("room preview is shared but source activity and newer reconciliations stay isolated", () => {
+  const store = createHomeDirectoryStore({ load: assert.fail, reportError: assert.fail });
+  const payload = directoryPayload("room");
+  Object.assign(payload.conversations[0], { room_id: "room", conversation_id: "first" });
+  payload.conversations.push({ ...payload.conversations[0], conversation_id: "second" });
+  store.acceptAuthoritativePayload(payload);
+  const timestamp = Date.parse("2026-09-20T00:00:00Z");
+  store.applyRoomUpdate({ roomId: "room", conversationId: "first", timestamp, preview: "reply" });
+  store.applyRoomUpdate({ roomId: "room", conversationId: "first", timestamp: timestamp - 1, preview: "old replay" });
+  assert.deepEqual(store.getSnapshot().conversations.map((item) => item.last_reply_preview), ["reply", "reply"]);
+  assert.equal(store.getSnapshot().conversations[1].last_activity, payload.conversations[1].last_activity);
+  const oldRevision = store.getRevision();
+  store.applyRoomUpdate({ roomId: "room", timestamp: timestamp + 1, preview: "" });
+  const fresh = { ...payload, conversations: payload.conversations.map((item) => ({ ...item, last_reply_preview: "authoritative" })) };
+  store.acceptAuthoritativePayload(fresh, store.getRevision());
+  store.acceptAuthoritativePayload(payload, oldRevision);
+  assert.equal(store.getSnapshot().conversations[0].last_reply_preview, "authoritative");
+});

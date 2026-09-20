@@ -16,6 +16,7 @@ import { listControlAgentDirectoryApi, type ControlMemberDirectoryEntry, type Co
 
 import { MessageUserSection } from "@/features/conversation/shared/message/item/view/user/message-user-section";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { MessageActivityStatus, ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME } from "@/features/conversation/shared/message/item/view/message-activity-status";
 import type { AgentMention } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import {
@@ -35,6 +36,7 @@ import { useTeamMembers } from "@/features/team/use-team-members";
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
 import { TeamRoomMembersDialog } from "@/features/team/team-room-members-dialog";
 import { TeamExecutionObserver, TeamExecutionThread, type TeamExecutionControls } from "@/features/team/team-execution-thread";
+import { cancelTeamDelivery } from "@/lib/api/conversation/team-api";
 import { ComposerInteractionSurface } from "@/features/conversation/shared/composer/components/interaction/composer-interaction-surface";
 import { getRoomAgentRoundEntry, isAgentRoundActive } from "@/features/conversation/room/group/round/round-agent-model";
 import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
@@ -51,6 +53,7 @@ import type { TeamMessage } from "@/lib/api/conversation/team-api";
 import { getTeamCommands } from "@/lib/api/conversation/team-api";
 import { uploadTeamFile, saveTeamFile } from "@/lib/api/conversation/team-files-api";
 import { inspectComposerAttachment, ComposerAttachmentRejectedError } from "@/features/conversation/shared/composer/attachments/composer-attachments";
+import { MessageUserAttachments } from "@/features/conversation/shared/message/item/view/user/message-user-attachments";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 import type { CommandCatalogData } from "@/types/generated/protocol";
 import { APP_NARROW_VIEWPORT_MEDIA_QUERY, clampHomeSidePanelWidthPercent, HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT } from "@/lib/layout/home-layout";
@@ -436,6 +439,18 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
   );
 }
 
+function DeliveryCancelButton({roomId, deliveryId}: {roomId: string; deliveryId: string}) {
+  const {t} = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return <><UiButton variant="ghost" disabled={busy} onClick={async () => {
+    setBusy(true); setFailed(false);
+    try { await cancelTeamDelivery(roomId, deliveryId); }
+    catch { setFailed(true); }
+    finally { setBusy(false); window.dispatchEvent(new Event("focus")); }
+  }}>{t("team.cancel_waiting")}</UiButton>{failed ? <span role="alert">{t("team.cancel_failed")}</span> : null}</>;
+}
+
 function TeamMessageFeed({
   roomId,
   stopAction,
@@ -531,7 +546,7 @@ function TeamMessageFeed({
             roundId={job.round_id!} messages={[]} isLastRound
             isLoading={job.state === "running" || job.state === "ready"}
             activityState={job.state === "ready" ? "sending" : job.state === "running" ? "thinking" : undefined}
-            assistantEmptyState={<span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>{t(`team.node_job_${job.state}`)}</span>}
+            assistantEmptyState={<span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>{t(job.failure_code === "artifact_delivery_failed" ? "team.artifact_delivery_failed" : `team.node_job_${job.state}`)}</span>}
             canRespondToPermissions={false}
             assistantHeaderAction={<RoomAgentExecutionActions>{stopAction(job)}<ThreadActionButton active={selectedThreadID === job.id} agentName={agentsByID.get(job.agent_id)?.name ?? job.agent_id} onClick={() => onOpenThread(job)} /></RoomAgentExecutionActions>} />
         </li>)}
@@ -545,9 +560,17 @@ function TeamMessageFeed({
               currentAgentName={agentsByID.get(delivery.agent_id)?.name ?? delivery.agent_id}
               currentAgentAvatar={agentsByID.get(delivery.agent_id)?.avatar}
               roundId={delivery.id} messages={[]} isLastRound isLoading={false} canRespondToPermissions={false}
-              assistantEmptyState={<span role="status" className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
-                {t(delivery.failure_code === "lease_expired" ? "team.delivery_expired" : delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`)}
-              </span>} />
+              assistantHeaderAction={delivery.state === "pending" && message.author_user_id === currentUserId ? <DeliveryCancelButton roomId={roomId} deliveryId={delivery.id} /> : undefined}
+              assistantEmptyState={<div role="status">
+                {delivery.state === "pending" || delivery.state === "leased" ? (
+                  <MessageActivityStatus className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME} stableSlot state={delivery.state === "pending" ? "sending" : "replying"}
+                    label={t(`team.delivery_${delivery.state}`)} />
+                ) : (
+                  <span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
+                    {t(DELIVERY_FAILURE_KEYS[delivery.failure_code ?? ""] ?? (delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`))}
+                  </span>
+                )}
+              </div>} />
           </li>)}
         </Fragment>
       ))}
@@ -598,7 +621,9 @@ function TeamMessageItem({
   const agentMentions = projectTeamMentions(content, message.mentions ?? [], mentionDirectory);
   // 在线回复只适配消息事实，身份头、正文、复制与 Thread 排布沿用 Room 展示面。
   if (message.author_type === "agent") {
+    const files = attachments.length ? <div className="flex"><MessageUserAttachments attachments={attachments} onOpenAttachment={download} /></div> : null;
     return <li><MessageItem
+      assistantEmptyState={files}
       assistantReplyTarget={replyTarget}
       animateEntry={false}
       compact={isCompact}
@@ -621,7 +646,7 @@ function TeamMessageItem({
           ? {...message.content.execution.result_summary, subtype: "success", is_error: false}
           : undefined,
       }]}
-    /></li>;
+    />{content.trim() ? files : null}{downloadFailed ? <p role="alert">{t("team.files_error")}</p> : null}</li>;
   }
   const author = person?.display_name || person?.username || message.author_display_name || message.author_username || "?";
     return (
@@ -671,3 +696,10 @@ const TEAM_ERROR_KEYS = {
   send: "team.error_send",
   sync: "team.error_sync",
 } as const;
+
+const DELIVERY_FAILURE_KEYS: Record<string, "team.artifact_delivery_failed" | "team.queue_expired" | "team.request_cancelled" | "team.delivery_expired"> = {
+  artifact_delivery_failed: "team.artifact_delivery_failed",
+  queue_expired: "team.queue_expired",
+  request_cancelled: "team.request_cancelled",
+  lease_expired: "team.delivery_expired",
+};

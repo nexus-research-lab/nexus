@@ -10,12 +10,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // AppendOverlayMessage 追加一条 Nexus overlay 消息。
 func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message protocol.Message) error {
-	return s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
+	if err := s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), message); err != nil {
+		return err
+	}
+	s.RecordReplyPreview(sessionKey, message)
+	return nil
 }
 
 // AppendExternalDeliveryReceipt 追加一条外部 IM 投递回执 overlay 控制行。
@@ -291,4 +296,22 @@ func isSessionOverlayControlRow(row map[string]any) bool {
 	default:
 		return false
 	}
+}
+
+// RecordReplyPreview 只在 transcript/overlay 的 durable 消息已落盘后调用。
+func (s *AgentHistoryStore) RecordReplyPreview(sessionKey string, message protocol.Message) {
+	if s.replyPreviews == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if err := s.replyPreviews.RecordReplyPreview(ctx, s.ownerUserID, parsed.Ref, sessionKey, false, message); err != nil {
+		logx.FromContext(ctx).Warn("DM 摘要写入失败", "session_key", sessionKey, "err", err)
+	}
+}
+
+// InvalidateReplyPreview 在编辑历史前失效摘要，失败时阻止继续改写。
+func (s *AgentHistoryStore) InvalidateReplyPreview(ctx context.Context, sessionKey string) error {
+	return s.replyPreviews.InvalidateReplyPreview(ctx, s.ownerUserID, sessionKey)
 }
