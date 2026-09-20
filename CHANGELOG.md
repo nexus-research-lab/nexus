@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+- Fix duplicate migration version 00144 after merging Room reply previews and workgraph artifact contracts; move reply previews to 00145 for SQLite and PostgreSQL.
+
 - Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
 
 - Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.

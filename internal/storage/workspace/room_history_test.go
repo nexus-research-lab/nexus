@@ -349,7 +349,7 @@ func TestDurableHistoryWritesRoomPreviewWithoutHistoryIndex(t *testing.T) {
 	}
 	defer db.Close()
 	db.SetMaxOpenConns(1)
-	schema, err := os.ReadFile("../../../db/migrations/sqlite/00144_room_reply_previews.sql")
+	schema, err := os.ReadFile("../../../db/migrations/sqlite/00145_room_reply_previews.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

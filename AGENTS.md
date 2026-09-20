@@ -6,7 +6,7 @@
 
 - Room 历史复用 SQLite 读模型保存原始尾轮检查点与消息身份索引。后台单飞任务优先读取 ledger 新增字节并更新尾轮/新轮；已有 transcript 变化、文件替换及跨轮修正仍完整重建，canonical JSONL 不改写。
 
-- 左侧 DM/Room 短摘要独立存于 `room_reply_previews`（SQLite/PostgreSQL 迁移 `00144`），每 owner/Room 至多一行；完成回复落盘后更新，编辑与 Session 删除失效，来源 conversation/Room 删除级联清理。首屏一次查询，不扫描历史；正常历史页可顺带补齐旧数据。
+- 左侧 DM/Room 短摘要独立存于 `room_reply_previews`（SQLite/PostgreSQL 迁移 `00145`；`00144` 保留给工作图产物契约），每 owner/Room 至多一行；完成回复落盘后更新，编辑与 Session 删除失效，来源 conversation/Room 删除级联清理。首屏一次查询，不扫描历史；正常历史页可顺带补齐旧数据。
 
 - 在线 Agent 领取复用 `infra/duework` 与 Relay Node WS 提示，不做固定五秒轮询；启动/重连、授权变更及执行槽释放对账持久待办。原生 Room 观察器落盘后唤醒完整输出，计时器仅保留租约维护与失败退避；未知运行不重跑。
 

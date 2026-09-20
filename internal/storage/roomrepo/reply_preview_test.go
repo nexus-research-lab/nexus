@@ -30,7 +30,7 @@ func TestReplyPreviewOneRowIsolationAndInvalidation(t *testing.T) {
 	 CREATE TABLE conversations (id TEXT PRIMARY KEY, room_id TEXT REFERENCES rooms(id) ON DELETE CASCADE);
 	 INSERT INTO rooms VALUES ('dm','a','dm'),('group','a','room'),('other','b','dm');
 	 INSERT INTO conversations VALUES ('one','dm'),('two','dm'),('public','group'),('foreign','other');`)
-	migration, err := os.ReadFile(filepath.Join(roomRepositoryMigrationDir(t, "sqlite"), "00144_room_reply_previews.sql"))
+	migration, err := os.ReadFile(filepath.Join(roomRepositoryMigrationDir(t, "sqlite"), "00145_room_reply_previews.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}
