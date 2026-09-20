@@ -3,7 +3,14 @@
  * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
-import type { ComponentProps, ReactNode, RefObject } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
@@ -32,6 +39,9 @@ type ScrollViewportEvents = Pick<
 export type ConversationViewportModel = ScrollViewportEvents & {
   ariaLabel?: string;
   isHistoryLoading: boolean;
+  /** FOLLOW 的唯一状态所有者；Dock 占位变化需要在绘制前重新贴底。 */
+  isFollowingLatest?: () => boolean;
+  reconcileFollowLatest?: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -43,7 +53,10 @@ export interface ConversationScrollToLatestModel {
 
 export function ConversationPanelLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+    <div
+      className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent"
+      data-conversation-panel-layout
+    >
       {children}
     </div>
   );
@@ -78,6 +91,50 @@ export function ConversationPanelViewport({
   viewport: ConversationViewportModel;
 }) {
   const { t } = useI18n();
+  const { isFollowingLatest, reconcileFollowLatest, scrollRef } = viewport;
+  const [activityDockHeight, setActivityDockHeight] = useState(0);
+  const dockClearance = floatingDockOccupied
+    ? Math.max(56, activityDockHeight + 8)
+    : 0;
+  const previousDockClearanceRef = useRef(dockClearance);
+
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    const layout = container?.closest<HTMLElement>("[data-conversation-panel-layout]");
+    const dock = layout?.querySelector<HTMLElement>("[data-conversation-activity-dock]");
+    if (!dock) {
+      setActivityDockHeight(0);
+      return;
+    }
+
+    const updateDockHeight = () => {
+      const nextHeight = Math.ceil(dock.getBoundingClientRect().height);
+      setActivityDockHeight((current) => current === nextHeight ? current : nextHeight);
+    };
+    updateDockHeight();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(updateDockHeight);
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [scrollRef]);
+
+  useLayoutEffect(() => {
+    const previousDockClearance = previousDockClearanceRef.current;
+    previousDockClearanceRef.current = dockClearance;
+    if (previousDockClearance === dockClearance) {
+      return;
+    }
+    if (!isFollowingLatest?.()) {
+      return;
+    }
+    // Dock clearance is a sibling of the Feed, so the Feed ResizeObserver
+    // cannot see this change. Keep FOLLOW at the new real bottom before paint;
+    // READING is intentionally left untouched.
+    reconcileFollowLatest?.();
+  }, [dockClearance, isFollowingLatest, reconcileFollowLatest]);
+
   return (
     <div
       data-tour-anchor={tourAnchor}
@@ -114,6 +171,7 @@ export function ConversationPanelViewport({
           aria-hidden="true"
           className="h-14"
           data-conversation-dock-clearance
+          style={{ height: `${dockClearance}px` }}
         />
       ) : null}
     </div>

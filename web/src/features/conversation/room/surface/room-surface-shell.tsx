@@ -5,7 +5,7 @@
  * OUTPUT: 聊天/工作区/WorkGraph 共用布局和原右栏尺寸命令，以及只由 execution_invalidated 驱动的 ExecutionResource revision。
  * POS: Room 页面桌面与移动 Surface 的资源组合根；不从 message/round/Goal 活动猜测图变化。
  */
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
@@ -119,6 +119,18 @@ export function RoomSurfaceShell({
   const isConversationFocusMode = useMediaQuery(
     APP_NARROW_VIEWPORT_MEDIA_QUERY,
   );
+  const [stableConversationFocusMode, setStableConversationFocusMode] = useState(
+    isConversationFocusMode,
+  );
+  useEffect(() => {
+    if (stableConversationFocusMode === isConversationFocusMode) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setStableConversationFocusMode(isConversationFocusMode);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [isConversationFocusMode, stableConversationFocusMode]);
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
   const [executionEventRevision, setExecutionEventRevision] = useState(0);
@@ -198,7 +210,7 @@ export function RoomSurfaceShell({
     }
   }, [onOpenWorkspaceFile]);
 
-  if (isConversationFocusMode) {
+  if (stableConversationFocusMode) {
     return (
       <RoomMobileSurface
         activeWorkspacePath={activeWorkspacePath}
