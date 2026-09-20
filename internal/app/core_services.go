@@ -35,6 +35,7 @@ func NewCoreServicesWithDB(cfg config.Config, db *sql.DB) *CoreServices {
 	roomService := room.NewService(cfg, agentService, newRoomRepository(cfg, db))
 	roomService.SetDeletionCoordinator(deletionCoordinator)
 	sessionService := session.NewService(cfg, agentService, newSessionRepository(cfg, db))
+	sessionService.SetReplyPreviewRepository(newRoomRepository(cfg, db))
 	sessionService.SetDeletionCoordinator(deletionCoordinator)
 	agentService.SetDeletionLifecycle(sessionService, nil)
 	return &CoreServices{
@@ -70,6 +71,7 @@ func NewRoomServiceWithDB(cfg config.Config, db *sql.DB, agentService *agent.Ser
 // NewSessionServiceWithDB 使用共享 DB 创建 Session 服务。
 func NewSessionServiceWithDB(cfg config.Config, db *sql.DB, agentService *agent.Service) *session.Service {
 	service := session.NewService(cfg, agentService, newSessionRepository(cfg, db))
+	service.SetReplyPreviewRepository(newRoomRepository(cfg, db))
 	service.SetDeletionCoordinator(deletionsvc.NewCoordinator(cfg, db))
 	return service
 }

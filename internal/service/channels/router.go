@@ -18,6 +18,7 @@ import (
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 	deliveryroute "github.com/nexus-research-lab/nexus/internal/service/channels/deliveryroute"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 // Router 负责管理通道生命周期与统一投递。
@@ -115,8 +116,13 @@ func NewRouter(
 		channels:       make(map[string]*registeredChannel),
 		logger:         logx.NewDiscardLogger(),
 	}
-	router.RegisterForOwner("", newSessionDeliveryChannel(ChannelTypeWebSocket, agents, permission, cfg.WorkspacePath))
-	router.RegisterForOwner("", newSessionDeliveryChannel(ChannelTypeInternal, agents, permission, cfg.WorkspacePath))
+	for _, channelType := range []string{ChannelTypeWebSocket, ChannelTypeInternal} {
+		channel := newSessionDeliveryChannel(channelType, agents, permission, cfg.WorkspacePath)
+		repository := roomrepo.NewSQLRepository(cfg.DatabaseDriver, db)
+		channel.history.SetReplyPreviewRepository(repository)
+		channel.roomHistory.SetReplyPreviewRepository(repository)
+		router.RegisterForOwner("", channel)
+	}
 	if cfg.DiscordEnabled && strings.TrimSpace(cfg.DiscordBotToken) != "" {
 		router.RegisterForOwner("", channeladapters.NewDiscordChannel(cfg.DiscordBotToken, nil))
 	}

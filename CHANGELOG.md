@@ -7,13 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Reuse validated transcript parsing across single-file, segmented and explicit history reads; preserve unchanged files during index rebuilds while reapplying current markers, session identity and fork boundaries.
+
+- Read Room runtime context by each Agent’s public cursor from the existing history index; retain terminal recovery context and full-content fallbacks without blocking input admission on a full history scan.
+
 - Prepare joined Agents from the persistent room directory, support cancelling pending deliveries, safely reconcile unknown executions, and publish explicit Room file deliverables through the durable outbox to Relay shared storage without rerunning tools.
 
+- Stop scanning full DM/Room history to recount messages during context queries, avoiding unnecessary work when opening conversations.
+
 - Release completed online Agent execution slots when output recovery receives a definitive lease-renewal rejection; preserve pending output retries for transient failures without rerunning the Agent.
+
+- Incrementally refresh Room history pages from appended ledger bytes and the retained final round, updating pages and navigation atomically; fall back to canonical rebuilds for changed transcript dependencies, rewritten files and cross-round corrections.
 
 - Coalesce online Room delivery-state refreshes through the shared WebSocket recovery path; fence stale detail failures and release synchronization ownership on room changes so old responses cannot clear or block the new chat.
 
 - Reuse the local Room activity indicator and left alignment for remote Agent waiting and replying states, with stable row height and no animation after failure.
+
+- Update sidebar activity and completed reply previews locally from durable WebSocket messages instead of fetching the directory every round; retain reconciliation on reconnect and directory changes, and protect live updates from stale HTTP responses.
+
+- Keep one persistent reply preview per DM/Room, update it after completed replies are saved, and load the sidebar with one query instead of reading history; invalidate previews on edit/deletion and fill missing previews from normally requested history pages.
 
 - Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
 

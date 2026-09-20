@@ -1,17 +1,23 @@
+// INPUT: owner-scoped transcript/overlay 与可选 Room SQL 摘要仓储。
+// OUTPUT: 隔离的历史读写门面及完成回复摘要投影。
+// POS: Agent 历史依赖装配与 owner 视图。
 package workspace
 
 import (
 	"strings"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 type agentHistoryCache struct {
-	mu       sync.RWMutex
-	messages map[string]transcriptCacheEntry
+	mu      sync.RWMutex
+	entries map[string]transcriptCacheEntry
 }
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
 type AgentHistoryStore struct {
+	replyPreviews *roomrepo.SQLRepository
 	paths         *Store
 	files         *SessionFileStore
 	readModel     *historyReadModel
@@ -27,7 +33,7 @@ func NewAgentHistoryStore(root string) *AgentHistoryStore {
 		files:     NewSessionFileStore(root),
 		readModel: sharedHistoryReadModel(root),
 		cache: &agentHistoryCache{
-			messages: make(map[string]transcriptCacheEntry),
+			entries: make(map[string]transcriptCacheEntry),
 		},
 		runtimeRepair: newRuntimePermissionRepair(),
 	}
@@ -44,7 +50,13 @@ func (s *AgentHistoryStore) ForOwner(ownerUserID string) *AgentHistoryStore {
 		files:         s.files.ForOwner(ownerUserID),
 		readModel:     s.readModel,
 		ownerUserID:   ownerUserID,
+		replyPreviews: s.replyPreviews,
 		cache:         s.cache,
 		runtimeRepair: s.runtimeRepair,
 	}
+}
+
+// SetReplyPreviewRepository 注入当前宿主数据库的独立摘要投影。
+func (s *AgentHistoryStore) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.replyPreviews = repository
 }

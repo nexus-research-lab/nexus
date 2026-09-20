@@ -205,7 +205,18 @@ Room ledger/private transcript 继续是唯一 canonical 真相源；分页索�
 
 ### 5.1 首屏
 
-- 默认加载最近一页 round
+- 左侧 DM/Room 目录从宿主数据库 `room_reply_previews` 一次读取当前 owner 的摘要，
+  `(owner_user_id, room_id)` 唯一，每个 DM/Room 至多一行，不随消息或 conversation 数量增加。
+  完整 assistant 回复落盘后更新摘要，保留来源 conversation、session、message 和回复时间；
+  多 conversation 按回复时间更新同一行，私有成员消息不能更新群聊摘要，流式 delta 不写库。
+- 编辑重发在修改历史前清空来源摘要并保留时间栅栏，拒绝此前消息的延迟写回；
+  Session 删除在同一个次级数据事务中失效摘要，来源 conversation/Room 删除由外键级联清理。
+  失效后保持空摘要，等待新回复，不扫描历史寻找回退内容。
+- 前端正常消息通过全局 WebSocket 更新共享目录中的活动时间及完整回复摘要，不在每轮状态变化时查询 bootstrap。冷加载、重连、未知会话和目录失效才对账；请求期间的消息增量与删除保留到 HTTP 快照合并后，避免旧响应覆盖新状态。
+- 首屏摘要查询共用 500ms context 预算，不读取历史文件或建立历史索引。
+  旧数据、新摘要写入失败时，用户正常读取的历史页可补齐摘要；不额外全量扫描，
+  投影失败只记诊断日志，不把已经成功落盘的消息误报为失败或触发重复发送。
+- 对话正文默认加载最近一页 round
 
 ### 5.2 向上翻页
 
@@ -219,6 +230,10 @@ Room ledger/private transcript 继续是唯一 canonical 真相源；分页索�
 
 ### 5.4 派生索引与故障恢复
 
+- Transcript 内存缓存保存规范化 JSONL 条目，不保存绑定会话身份或 marker 的投影结果。普通、分段与显式读取共用缓存，并按受控文件句柄的文件身份、大小、mtime、首尾指纹校验；读取期间发生变化不发布缓存。缓存与调用方通过深拷贝隔离，分段重编号不污染旧条目。索引重建不主动清空全部 transcript，历史删除仍按目录失效。缓存继续采用既有 12 个文件的 LRU 上限；不变更 canonical JSONL 格式，不做活跃文件的字节级增量解析。
+
+- Room 发送受理不预读全量公区历史。slot 在 runtime 确认可恢复状态后，复用消息身份索引读取游标所在轮次及其后消息，再由既有公区 batch 过滤已消费部分；为失败恢复保留目标 Agent 最近终态。普通输入以当前触发消息为上界，当前活跃轮次不物化 synthetic interrupt。轮内引导与公开 mention 共用读取入口。冷启动、无法定位游标、超预算或所选内容包含 UI detail 时保留 canonical 完整正文；不把 UI 页大小和正文预览当作模型上下文预算。
+
 - DM 与 Room 的 runtime transcript、overlay 和 Room ledger/private transcript 始终是唯一
   canonical 真相。旧用户数据不改写、不搬迁；首次读取只从 canonical 生成宿主
   `app/cache/history-read-model.v1.sqlite` 派生读模型。
@@ -227,6 +242,8 @@ Room ledger/private transcript 继续是唯一 canonical 真相源；分页索�
 - DM 与 Room 先完成第 6 节定义的完整规范化，再在单个 SQLite 事务中发布新
   generation。每个 physical round 分开保存 B-Tree 游标元数据、完整 payload 与摘要；
   不调用模型压缩、不丢弃消息块。
+- Room 在后台单飞任务中优先尝试增量：保存原始尾轮与已处理 ledger 长度；同文件追加且已有引用未变化时，只读取新增完整 JSONL 行，并重投影尾轮和新增轮次。分页 payload、导航、消息身份索引和尾轮检查点在同一 SQLite 事务中提交，失败不推进进度。已有 transcript/private overlay 变化、文件替换/截断、跨旧轮次修改、特殊控制行或超预算时回退完整重建；首次建模仍需扫描 canonical。增量保持既有 generation，清理被替换尾轮的 detail；完整重建才更换 generation。
+- 增量成功记录源文件字节数、新增字节数、更新/保留轮次数和耗时；不能增量时记录回退原因。
 - 热读先验证全部 canonical source 快照，再通过 B-Tree 读取有界的游标元数据窗口和
   本页命中的 round payload。单组摘要、scope 元数据或数据库损坏时一律放弃
   派生结果并安全回建，不得返回未经校验的历史。

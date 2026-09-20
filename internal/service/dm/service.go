@@ -6,14 +6,17 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -25,11 +28,8 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var (
@@ -496,4 +496,9 @@ func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string)
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+// SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
+func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.history.SetReplyPreviewRepository(repository)
 }

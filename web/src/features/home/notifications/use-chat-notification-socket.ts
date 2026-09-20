@@ -1,9 +1,12 @@
 /**
  * INPUT: 全局 Room 订阅目录、完成消息与删除事件回调。
- * OUTPUT: 可重连的单 WebSocket 完成事件流、按 Conversation/Session source 隔离的 Room 活动态和目录刷新信号。
+ * OUTPUT: 可重连的单 WebSocket 完成事件流、Room 活动态、目录本地增量与失效对账信号。
  * POS: Home 全局聊天通知的协议边界；未读/删除状态由上层回调处理。
  */
 import { useCallback, useEffect, useRef } from "react";
+
+import { applyHomeDirectoryRoomUpdate } from "../home-directory-resource";
+import { extractAssistantReplyPreview } from "@/features/conversation/shared/message/message-content-model";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
 import { getAgentWsUrl } from "@/config/runtime-endpoints";
@@ -15,6 +18,7 @@ import {
   updateRoomActivity,
   updateRoomInteraction,
 } from "@/features/home/room-activity-resource";
+import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
@@ -58,7 +62,18 @@ export function useChatNotificationSocket({
         directoryIndexRef.current,
       );
       if (roomId) {
+        applyHomeDirectoryRoomUpdate({ roomId, timestamp: event.timestamp, deleted: true });
         onRoomDeleted?.(roomId);
+      }
+      notifyRoomDirectoryUpdated();
+      return;
+    }
+    if (event.event_type === "session_resync_required"
+      || (event.event_type === "directory_changed" && readString(event.data, "reason") === "session_deleted")) {
+      const roomId = resolveRoomActivityRoomId(event, directoryIndexRef.current)
+        || readString(event.data, "room_id");
+      if (roomId && ["history_rewrite", "session_deleted"].includes(readString(event.data, "reason") ?? "")) {
+        applyHomeDirectoryRoomUpdate({ roomId, timestamp: event.timestamp, preview: "" });
       }
       notifyRoomDirectoryUpdated();
       return;
@@ -81,7 +96,6 @@ export function useChatNotificationSocket({
       return;
     }
     syncRoomActivity(event, directoryIndexRef.current);
-    if (event.event_type === "round_status") notifyRoomDirectoryUpdated();
     recordRoomSequence(roomSeqCursorRef.current, event);
     if (event.event_type === "room_resync_required") {
       recordResyncSequence(roomSeqCursorRef.current, event);
@@ -95,9 +109,24 @@ export function useChatNotificationSocket({
       deliveryMode: event.delivery_mode,
       sessionKey: event.session_key,
     });
-    if (message?.role === "user") notifyRoomDirectoryUpdated();
+    if (message && !isExternalSessionChannel(null, event.session_key ?? message.session_key)
+      && (message.role === "user" || (message.role === "assistant" && message.is_complete))) {
+      const roomId = resolveRoomActivityRoomId(event, directoryIndexRef.current);
+      const room = roomId ? directoryIndexRef.current.roomsById.get(roomId) : undefined;
+      const publicMessage = room?.room_type === "dm" || (event.session_key ?? message.session_key).startsWith("room:");
+      if (roomId && publicMessage) {
+        const preview = message.role === "assistant" ? extractAssistantReplyPreview(message) : "";
+        const known = applyHomeDirectoryRoomUpdate({
+          roomId,
+          conversationId: event.conversation_id ?? message.conversation_id ?? undefined,
+          sessionKey: event.session_key ?? message.session_key,
+          timestamp: message.timestamp,
+          ...(preview ? { preview } : {}),
+        });
+        if (!known) notifyRoomDirectoryUpdated();
+      } else if (!room) notifyRoomDirectoryUpdated();
+    }
     if (message && isCompletedAssistantMessage(message)) {
-      notifyRoomDirectoryUpdated();
       onCompletedMessage(event, message);
     }
   }, [onCompletedMessage, onRoomDeleted]);
@@ -311,9 +340,9 @@ function resolveRoomActivityRoomId(
   event: EventMessage,
   directoryIndex: ChatNotificationDirectoryIndex,
 ): string | null {
-  const eventRoomId = normalize(event.room_id);
-  const eventConversationId = normalize(event.conversation_id);
-  const sessionKey = normalize(event.session_key);
+  const eventRoomId = normalize(event.room_id ?? readString(event.data, "room_id"));
+  const eventConversationId = normalize(event.conversation_id ?? readString(event.data, "conversation_id"));
+  const sessionKey = normalize(event.session_key ?? readString(event.data, "session_key"));
   const sessionConversation = sessionKey
     ? directoryIndex.conversationsBySessionKey.get(sessionKey)
     : undefined;

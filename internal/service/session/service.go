@@ -14,6 +14,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -60,6 +61,7 @@ var (
 
 // Service 负责编排文件会话与 Room SQL 会话视图。
 type Service struct {
+	replyPreviews              *roomrepo.SQLRepository
 	config                     config.Config
 	agentService               *agentsvc.Service
 	repository                 SQLRepository
@@ -140,4 +142,9 @@ func (s *Service) ownerFiles(ctx context.Context) *workspacestore.SessionFileSto
 
 func (s *Service) ownerHistory(ctx context.Context) *workspacestore.AgentHistoryStore {
 	return s.history.ForOwner(authctx.OwnerUserID(ctx))
+}
+
+// SetReplyPreviewRepository 注入首屏独立摘要查询。
+func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.replyPreviews = repository
 }
