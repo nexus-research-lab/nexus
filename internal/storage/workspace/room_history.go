@@ -8,9 +8,11 @@ import (
 	"errors"
 	"os"
 	"strings"
-	"sync"
+	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 const overlayKindTranscriptRef = "transcript_ref"
@@ -29,18 +31,11 @@ type RoomTranscriptReference struct {
 // 1. Room 自己的 inline overlay（用户消息、synthetic result 等）。
 // 2. 指向成员 transcript 的引用行，真正正文从 transcript 投影恢复。
 type RoomHistoryStore struct {
-	paths        *Store
-	files        *SessionFileStore
-	agentHistory *AgentHistoryStore
-	readModel    *historyReadModel
-	countMu      sync.Mutex
-	countByKey   map[string]roomHistoryCountSnapshot
-}
-
-type roomHistoryCountSnapshot struct {
-	fileSize       int64
-	modifiedUnixNS int64
-	count          int
+	replyPreviews *roomrepo.SQLRepository
+	paths         *Store
+	files         *SessionFileStore
+	agentHistory  *AgentHistoryStore
+	readModel     *historyReadModel
 }
 
 // NewRoomHistoryStore 创建 Room 共享历史门面。
@@ -52,7 +47,6 @@ func NewRoomHistoryStore(root string) *RoomHistoryStore {
 		files:        newSessionFileStore(paths),
 		agentHistory: agentHistory,
 		readModel:    agentHistory.readModel,
-		countByKey:   make(map[string]roomHistoryCountSnapshot),
 	}
 }
 
@@ -64,11 +58,11 @@ func (s *RoomHistoryStore) AppendInlineMessage(
 ) error {
 	message = protocol.Clone(message)
 	message["conversation_id"] = strings.TrimSpace(conversationID)
-	return s.files.appendRoomJSONL(
-		ownerUserID,
-		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
-		message,
-	)
+	if err := s.files.appendRoomJSONL(ownerUserID, s.paths.RoomConversationOverlayPath(ownerUserID, conversationID), message); err != nil {
+		return err
+	}
+	s.recordReplyPreview(ownerUserID, conversationID, message)
+	return nil
 }
 
 // AppendTranscriptReference 追加一条 transcript 引用。
@@ -85,11 +79,11 @@ func (s *RoomHistoryStore) AppendTranscriptReference(
 		return s.AppendInlineMessage(ownerUserID, conversationID, message)
 	}
 	row["conversation_id"] = strings.TrimSpace(conversationID)
-	return s.files.appendRoomJSONL(
-		ownerUserID,
-		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
-		row,
-	)
+	if err := s.files.appendRoomJSONL(ownerUserID, s.paths.RoomConversationOverlayPath(ownerUserID, conversationID), row); err != nil {
+		return err
+	}
+	s.recordReplyPreview(ownerUserID, conversationID, message)
+	return nil
 }
 
 // ReadMessages 读取 Room 共享历史。
@@ -103,73 +97,6 @@ func (s *RoomHistoryStore) ReadMessages(
 		return nil, err
 	}
 	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
-}
-
-// MessageCount 返回 Room 共享历史的可见消息数。
-// 计数以 JSONL ledger 为真相，按文件长度缓存；只有 ledger 变化时才重新投影。
-func (s *RoomHistoryStore) MessageCount(ownerUserID string, conversationID string) (int, error) {
-	path := s.paths.RoomConversationOverlayPath(ownerUserID, conversationID)
-	parent, name, err := s.files.openRoomFileParent(ownerUserID, path, false)
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	info, err := parent.Lstat(name)
-	parent.Close()
-	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	cacheKey := strings.Join([]string{
-		strings.TrimSpace(ownerUserID),
-		strings.TrimSpace(conversationID),
-	}, "\x00")
-	s.countMu.Lock()
-	cached, ok := s.countByKey[cacheKey]
-	s.countMu.Unlock()
-	if ok && cached.fileSize == info.Size() && cached.modifiedUnixNS == info.ModTime().UnixNano() {
-		return cached.count, nil
-	}
-	rows, err := s.ReadMessages(ownerUserID, conversationID, nil)
-	if err != nil {
-		return 0, err
-	}
-	parent, name, err = s.files.openRoomFileParent(ownerUserID, path, false)
-	if err != nil {
-		return 0, err
-	}
-	latestInfo, err := parent.Lstat(name)
-	parent.Close()
-	if err != nil {
-		return 0, err
-	}
-	if latestInfo.Size() != info.Size() || latestInfo.ModTime() != info.ModTime() {
-		rows, err = s.ReadMessages(ownerUserID, conversationID, nil)
-		if err != nil {
-			return 0, err
-		}
-		parent, name, err = s.files.openRoomFileParent(ownerUserID, path, false)
-		if err != nil {
-			return 0, err
-		}
-		info, err = parent.Lstat(name)
-		parent.Close()
-		if err != nil {
-			return 0, err
-		}
-	}
-	s.countMu.Lock()
-	s.countByKey[cacheKey] = roomHistoryCountSnapshot{
-		fileSize:       info.Size(),
-		modifiedUnixNS: info.ModTime().UnixNano(),
-		count:          len(rows),
-	}
-	s.countMu.Unlock()
-	return len(rows), nil
 }
 
 // ListTranscriptReferences 在共享 overlay 删除前抽取所有历史 transcript 引用。
@@ -472,5 +399,21 @@ func overrideRoomTranscriptFields(target protocol.Message, source protocol.Messa
 	}
 	if sessionID := stringFromAny(source["session_id"]); sessionID != "" {
 		target["session_id"] = sessionID
+	}
+}
+
+// SetReplyPreviewRepository 注入当前宿主数据库的独立摘要投影。
+func (s *RoomHistoryStore) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.replyPreviews = repository
+}
+
+func (s *RoomHistoryStore) recordReplyPreview(owner, conversation string, message protocol.Message) {
+	if s.replyPreviews == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := s.replyPreviews.RecordReplyPreview(ctx, owner, conversation, protocol.BuildRoomSharedSessionKey(conversation), true, message); err != nil {
+		logx.FromContext(ctx).Warn("Room 摘要写入失败", "conversation_id", conversation, "err", err)
 	}
 }

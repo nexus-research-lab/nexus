@@ -494,6 +494,11 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 		len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
+	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
+		if err := e.service.history.ForOwner(e.agent.OwnerUserID).InvalidateReplyPreview(runtimeCtx, e.sessionKey); err != nil {
+			return err
+		}
+	}
 	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)
 	if len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		if err := client.RemoveMessages(runtimeCtx, e.request.RewriteRemoveMessageUUIDs); err != nil {

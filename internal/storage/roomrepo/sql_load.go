@@ -233,8 +233,8 @@ ORDER BY m.joined_at ASC`, roomID)
 }
 
 func (r *SQLRepository) listConversations(ctx context.Context, querier roomQueryer, roomID string) ([]protocol.ConversationRecord, error) {
-	// messages 是历史导入兼容表；Room service 会从 canonical owner ledger/workspace
-	// 重建实时 message_count，并只把这里的 COUNT 当作迁移数据下限。
+	// messages 是历史导入兼容表；这里的计数仅代表已入库数据，
+	// 元数据查询不额外扫描 canonical 历史补算实时消息数。
 	rows, err := querier.QueryContext(ctx, `
 SELECT
     c.id,

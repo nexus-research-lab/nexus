@@ -2,16 +2,19 @@ package workspace
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
@@ -54,58 +57,6 @@ func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
 		if ledgerInfo.Mode().Perm() != wantMode {
 			t.Fatalf("Room ledger mode=%#o, want %#o", ledgerInfo.Mode().Perm(), wantMode)
 		}
-	}
-}
-
-func TestRoomHistoryStoreMessageCountTracksVisibleLedgerChanges(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-
-	history := NewRoomHistoryStore("")
-	conversationID := "conversation-count"
-	ownerUserID := "user-count"
-	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 0 {
-		t.Fatalf("空 Room 消息数 = %d, err=%v", count, err)
-	}
-	for _, message := range []protocol.Message{
-		{
-			"message_id": "message-user",
-			"round_id":   "round-count",
-			"role":       "user",
-			"content":    "设定目标",
-			"timestamp":  int64(1000),
-		},
-		{
-			"message_id":  "message-assistant",
-			"round_id":    "round-count",
-			"role":        "assistant",
-			"content":     "处理中",
-			"is_complete": true,
-			"stop_reason": "end_turn",
-			"timestamp":   int64(1100),
-		},
-	} {
-		if err := history.AppendInlineMessage(ownerUserID, conversationID, message); err != nil {
-			t.Fatalf("写入 Room 消息失败: %v", err)
-		}
-	}
-	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 2 {
-		t.Fatalf("Room 消息数 = %d, want 2, err=%v", count, err)
-	}
-	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
-		"message_id":  "message-assistant",
-		"round_id":    "round-count",
-		"role":        "assistant",
-		"content":     "已完成",
-		"is_complete": true,
-		"stop_reason": "end_turn",
-		"timestamp":   int64(1200),
-	}); err != nil {
-		t.Fatalf("写入 Room assistant 新快照失败: %v", err)
-	}
-	if count, err := history.MessageCount(ownerUserID, conversationID); err != nil || count != 2 {
-		t.Fatalf("重复 message_id 压缩后消息数 = %d, want 2, err=%v", count, err)
 	}
 }
 
@@ -385,5 +336,70 @@ func TestRoomHistoryRepairsTranscriptPermissions(t *testing.T) {
 				t.Fatalf("Room 读取应修复权限并成功重试: %v", err)
 			}
 		})
+	}
+}
+
+func TestDurableHistoryWritesRoomPreviewWithoutHistoryIndex(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	schema, err := os.ReadFile("../../../db/migrations/sqlite/00144_room_reply_previews.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`CREATE TABLE rooms(id TEXT PRIMARY KEY, owner_user_id TEXT, room_type TEXT);
+ CREATE TABLE conversations(id TEXT PRIMARY KEY, room_id TEXT);
+ INSERT INTO rooms VALUES ('dm','owner','dm'),('group','owner','room');
+ INSERT INTO conversations VALUES ('dm-conv','dm'),('group-conv','group');` + strings.Split(string(schema), "-- +goose Down")[0]); err != nil {
+		t.Fatal(err)
+	}
+	repository := roomrepo.NewSQLRepository("sqlite", db)
+	history := NewAgentHistoryStore(appfs.UsersRoot())
+	history.SetReplyPreviewRepository(repository)
+	history = history.ForOwner("owner")
+	workspace := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner"), "agent")
+	if err = os.MkdirAll(workspace, 0700); err != nil {
+		t.Fatal(err)
+	}
+	message := protocol.Message{"role": "assistant", "message_id": "reply", "timestamp": int64(1), "is_complete": true, "content": "新回复"}
+	if err = history.AppendOverlayMessage(workspace, "agent:agent:ws:dm:dm-conv", message); err != nil {
+		t.Fatal(err)
+	}
+	values, err := repository.ListRoomReplyPreviews(context.Background(), "owner")
+	if err != nil || values["dm"] != "新回复" {
+		t.Fatalf("DM preview=%v, err=%v", values, err)
+	}
+	// 私有成员历史不能更新群聊；只有公区持久化入口可以写群聊摘要。
+	history.RecordReplyPreview("agent:agent:ws:group:group-conv", message)
+	values, _ = repository.ListRoomReplyPreviews(context.Background(), "owner")
+	if values["group"] != "" {
+		t.Fatal("私有消息泄漏到公区摘要")
+	}
+	rooms := NewRoomHistoryStore(appfs.UsersRoot())
+	rooms.SetReplyPreviewRepository(repository)
+	if err = rooms.AppendInlineMessage("owner", "group-conv", message); err != nil {
+		t.Fatal(err)
+	}
+	values, err = repository.ListRoomReplyPreviews(context.Background(), "owner")
+	if err != nil || values["group"] != "新回复" {
+		t.Fatalf("Room preview=%v, err=%v", values, err)
+	}
+	message["content"] = "未落盘内容"
+	message["timestamp"] = int64(2)
+	if err = history.AppendOverlayMessage(t.TempDir(), "agent:agent:ws:dm:dm-conv", message); err == nil {
+		t.Fatal("跨 owner 路径应拒绝落盘")
+	}
+	values, _ = repository.ListRoomReplyPreviews(context.Background(), "owner")
+	if values["dm"] != "新回复" {
+		t.Fatal("失败的落盘改写了摘要")
+	}
+	if _, err = os.Stat(historyReadModelPath(appfs.UsersRoot())); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("不应建立历史索引: %v", err)
 	}
 }

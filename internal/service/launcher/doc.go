@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go / bootstrap.go：Service 与 Session metadata/有界最新消息页组成的首屏最小必要数据（Bootstrap），幂等保证主智能体默认聊天存在，并记录慢查询阶段耗时；预览提取末尾正文而非思考/工具过程，单个历史读取失败不得阻断目录。
+//   - service.go / bootstrap.go：Service 与 Session metadata/SQLite 短摘要组成的首屏最小必要数据（Bootstrap），幂等保证主智能体默认聊天存在，并记录慢查询阶段耗时；预览按 owner 一次查询独立摘要表，读取共享 500ms 预算；缺失或失效时留空，不扫描或重建历史。
 //   - model.go：Launcher 视图模型。
 //
 // 慢查询与单会话预览失败必须走请求上下文 logger，确保耗时和 request_id 进入桌面导出日志。

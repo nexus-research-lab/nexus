@@ -1,5 +1,13 @@
 # AGENTS.md
 
+- Transcript 缓存保存解析后的原始条目，普通、分段与显式读取共用；按已打开文件的身份、大小、mtime 和首尾指纹验证，读中变化不缓存。marker/会话身份/fork 边界每次重新投影，DM/Room 索引重建不再全量清缓存，删除仍失效对应目录。
+
+- Room runtime 公区上下文复用历史读模型按成员消费游标读取；保留最近终态用于失败恢复，当前轮次不投影为中断，普通输入不提前消费后续排队消息。冷启动、缺失游标及大 detail 回退完整正文。
+
+- Room 历史复用 SQLite 读模型保存原始尾轮检查点与消息身份索引。后台单飞任务优先读取 ledger 新增字节并更新尾轮/新轮；已有 transcript 变化、文件替换及跨轮修正仍完整重建，canonical JSONL 不改写。
+
+- 左侧 DM/Room 短摘要独立存于 `room_reply_previews`（SQLite/PostgreSQL 迁移 `00144`），每 owner/Room 至多一行；完成回复落盘后更新，编辑与 Session 删除失效，来源 conversation/Room 删除级联清理。首屏一次查询，不扫描历史；正常历史页可顺带补齐旧数据。
+
 - 在线 Agent 领取复用 `infra/duework` 与 Relay Node WS 提示，不做固定五秒轮询；启动/重连、授权变更及执行槽释放对账持久待办。原生 Room 观察器落盘后唤醒完整输出，计时器仅保留租约维护与失败退避；未知运行不重跑。
 
 - Team Node 消息索引迁移为 `00142_team_node_message_lookup.sql`（SQLite/PostgreSQL）；`00141` 保留给 IM delivery。`cmd/nexus-server/main_test.go` 检查两种方言的完整迁移集合，避免并行合并重复编号。

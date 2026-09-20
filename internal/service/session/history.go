@@ -10,6 +10,7 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -88,6 +89,7 @@ func (s *Service) GetSessionMessagesPage(
 		}
 		page.Items = s.refreshGoalCompletionReceipts(ctx, page.Items)
 		page.Items = attachMessageDetailSessionKey(page.Items, sessionKey)
+		s.backfillReplyPreview(ctx, sessionKey, page.Items)
 		return &page, nil
 	}
 
@@ -121,6 +123,7 @@ func (s *Service) GetSessionMessagesPage(
 	}
 	page.Items = s.refreshGoalCompletionReceipts(ctx, page.Items)
 	page.Items = attachMessageDetailSessionKey(page.Items, sessionKey)
+	s.backfillReplyPreview(ctx, sessionKey, page.Items)
 	return &page, nil
 }
 
@@ -437,4 +440,27 @@ func (s *Service) hydrateRoomHistorySession(
 		}
 	}
 	return &merged, nil
+}
+
+// ListRoomReplyPreviews 一次查询当前 owner 的 DM/Room 摘要，不读取历史。
+func (s *Service) ListRoomReplyPreviews(ctx context.Context) (map[string]string, error) {
+	return s.replyPreviews.ListRoomReplyPreviews(ctx, authctx.OwnerUserID(ctx))
+}
+
+// backfillReplyPreview 复用用户已经请求的历史页修复摘要，不为首屏额外读历史。
+func (s *Service) backfillReplyPreview(ctx context.Context, sessionKey string, items []protocol.Message) {
+	if s.replyPreviews == nil {
+		return
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	for index := len(items) - 1; index >= 0; index-- {
+		item := items[index]
+		if item["is_complete"] != true || messageutil.LatestReplyPreview([]protocol.Message{item}) == "" {
+			continue
+		}
+		if err := s.replyPreviews.RecordReplyPreview(ctx, authctx.OwnerUserID(ctx), parsed.Ref, sessionKey, parsed.Kind == protocol.SessionKeyKindRoom, item); err != nil {
+			logx.FromContext(ctx).Warn("历史页补齐摘要失败", "session_key", sessionKey, "err", err)
+		}
+		return
+	}
 }

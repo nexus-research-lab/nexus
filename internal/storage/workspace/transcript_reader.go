@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -30,7 +31,35 @@ func (s *AgentHistoryStore) readTranscriptEntriesAtContext(
 		return nil, err
 	}
 	defer file.Close()
-	return readTranscriptEntriesFileContext(ctx, file)
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	before, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(root.Name(), relative)
+	if cached, ok := s.readTranscriptCache(path, before); ok {
+		return cached, nil
+	}
+	entries, err := readTranscriptEntriesFileContext(ctx, file)
+	if err != nil {
+		return nil, err
+	}
+	info, err = file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	after, err := snapshotOpenedFile(ctx, file, info, historyPageSourceSnapshot{})
+	if err != nil {
+		return nil, err
+	}
+	// 读取期间仍在写入的文件不进入缓存，由调用方原有 source 校验决定是否重试。
+	if before == after {
+		s.writeTranscriptCache(path, after, entries)
+	}
+	return entries, nil
 }
 
 // openTranscriptReadFile 让 Room 引用投影和分页指纹也复用 owner ACL 修复。

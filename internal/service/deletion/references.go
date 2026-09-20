@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 	executionstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 type sessionGoalCleaner interface {
@@ -24,19 +25,21 @@ type sessionTaskCleaner interface {
 
 // Coordinator 统一清理 Session 作用域的次级数据。
 type Coordinator struct {
-	db         *sql.DB
-	automation *automationstore.Repository
-	executions *executionstore.Repository
-	goals      sessionGoalCleaner
-	tasks      sessionTaskCleaner
+	replyPreviews *roomrepo.SQLRepository
+	db            *sql.DB
+	automation    *automationstore.Repository
+	executions    *executionstore.Repository
+	goals         sessionGoalCleaner
+	tasks         sessionTaskCleaner
 }
 
 // NewCoordinator 创建共享删除协调器。
 func NewCoordinator(cfg config.Config, db *sql.DB) *Coordinator {
 	return &Coordinator{
-		db:         db,
-		automation: automationstore.NewRepository(cfg, db),
-		executions: executionstore.NewRepository(cfg, db),
+		db:            db,
+		replyPreviews: roomrepo.NewSQLRepository(cfg.DatabaseDriver, db),
+		automation:    automationstore.NewRepository(cfg, db),
+		executions:    executionstore.NewRepository(cfg, db),
 	}
 }
 
@@ -117,6 +120,9 @@ func (c *Coordinator) cleanupSessionReferences(
 		return err
 	}
 	if err = c.executions.DeleteSessionReferences(ctx, tx, ownerUserID, sessionKeys); err != nil {
+		return err
+	}
+	if err = c.replyPreviews.InvalidateReplyPreviewsTx(ctx, tx, ownerUserID, sessionKeys); err != nil {
 		return err
 	}
 	return tx.Commit()
