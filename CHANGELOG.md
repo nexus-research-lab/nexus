@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix unmentioned Room input queue submissions so Host auto-reply still selects the Room owner while an Agent is running.
+
 ### Fixed
 
 - 消息过程标题、工具行与即时活动移除额外水平内边距，图标组左边缘与同层正文对齐。
