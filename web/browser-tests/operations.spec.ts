@@ -168,11 +168,11 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
   expect(bodyBox.width).toBeLessThanOrEqual(1200);
   expect(Math.abs(bodyBox.x + bodyBox.width / 2 - headerBox.x - headerBox.width / 2)).toBeLessThanOrEqual(1);
   if (page.viewportSize()!.width >= 1920) expect(headerBox.width).toBeGreaterThan(bodyBox.width);
-  const memberActions = surface.getByRole("button", { name: new RegExp(`${text("更多操作", "More actions")}:`) }).first();
-  await memberActions.click();
-  await expect(page.getByRole("menuitem", { name: text("停用", "Suspend"), exact: true })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(memberActions).toBeFocused();
+  // 403f51b8c 起成员行不再有“更多操作”菜单与“停用”项，改为直接的“移除”按钮；
+  // 这里只验证入口存在，不点击（点击会触发写请求，被本测试的 rejected 拦截）。
+  await expect(surface.getByRole("button", { name: new RegExp(`${text("更多操作", "More actions")}:`) })).toHaveCount(0);
+  const memberRemove = surface.getByRole("button", { name: new RegExp(`${text("移除", "Remove")}:`) }).first();
+  await expect(memberRemove).toBeVisible();
   const historyButton = surface.getByRole("button", { name: text("邀请记录", "Invitation history"), exact: true });
   await expect(surface.getByRole("button", { name: text("刷新", "Refresh"), exact: true })).toHaveCount(0);
   await historyButton.click();

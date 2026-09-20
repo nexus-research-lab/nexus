@@ -52,16 +52,26 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/contacts?theme=${info.project.metadata.theme}&locale=${info.project.metadata.locale}`)}`);
  await expect(page.getByRole("button",{name:zh?"发起私聊":"New direct message",exact:true})).toHaveCount(0);
  await page.getByRole("button",{name:zh?"组织成员":"Organization members",exact:true}).click();
- const directory=page.getByRole("region",{name:zh?"组织成员":"Organization members",exact:true});
- await expect(directory.getByText("Alice",{exact:true})).toBeVisible();
- const search=directory.getByRole("searchbox");
+ // 窄视口走 app shell sidebar 形态（contacts-sidebar-panel → HumanContactsDirectory sidebar）：
+ // 该分支没有 section/region，成员直接渲染为 “Alice @peer” 列表行，搜索框是 SidebarSearchField。
+ const isNarrow=()=>page.viewportSize()!.width<768;
+ const directory=isNarrow()?page:page.getByRole("region",{name:zh?"组织成员":"Organization members",exact:true});
+ const memberText=isNarrow()?page.getByRole("button",{name:"Alice @peer",exact:true}):directory.getByText("Alice",{exact:true});
+ await expect(memberText).toBeVisible();
+ const search=isNarrow()
+  ? page.getByPlaceholder(zh?"搜索":"Search",{exact:true})
+  : directory.getByPlaceholder(zh?"搜索成员":"Search people",{exact:true});
  await search.fill("no-match");
- await expect(directory.getByText("Alice",{exact:true})).toHaveCount(0);
+ await expect(memberText).toHaveCount(0);
  await search.fill("");
- await expect(directory.getByText("Alice",{exact:true})).toBeVisible();
+ await expect(memberText).toBeVisible();
  await directory.screenshot({path:info.outputPath("organization-member-directory.png")});
  const memberRow=page.getByRole("button",{name:"Alice @peer",exact:true});
- if (zh) {
+ if (isNarrow()) {
+  // sidebar 行点击是选中导航而非发起私聊；发起聊天动作在行尾 hover 按钮上。
+  await memberRow.hover();
+  await memberRow.getByRole("button").click();
+ } else if (zh) {
   await memberRow.click();
   expect(opened).toBe(false);
   await page.getByRole("button",{name:"发消息: Alice",exact:true}).click();
@@ -85,6 +95,9 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await expect.poll(()=>accepted).toBe(true);
  await page.reload();await expect(page.getByText("Hello Alice",{exact:true})).toBeVisible();
  expect(messages).toHaveLength(4);
+ // “移出列表”入口只存在于 sidebar 聊面板（chat-sidebar-panel 的行级删除按钮），窄视口
+ // shell 不渲染该面板；这里回到宽视口验证同一段 hide_direct 产品逻辑。
+ if (isNarrow()) await page.setViewportSize({width:1440,height:900});
  const deleteButton=page.getByRole("button",{name:zh?"移出列表":"Remove from list",exact:true});
  await deleteButton.first().click({force:true});
  const dialog=page.getByRole("dialog");
@@ -95,8 +108,14 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await expect(dialog).toHaveCount(0);
  await expect(input).toHaveCount(0);
  await page.goto("/app.html?desktop_route="+encodeURIComponent("/contacts?view=members"));
- await page.getByRole("button",{name:"Alice @peer",exact:true}).click();
- await page.getByRole("button",{name:zh?"发消息: Alice":"Message: Alice",exact:true}).click();
+ const restoredRow=page.getByRole("button",{name:"Alice @peer",exact:true});
+ if (isNarrow()) {
+  await restoredRow.hover();
+  await restoredRow.getByRole("button").click();
+ } else {
+  await restoredRow.click();
+  await page.getByRole("button",{name:zh?"发消息: Alice":"Message: Alice",exact:true}).click();
+ }
  await expect(input).toBeVisible();
  await expect(page.getByText("Hello from Alice",{exact:true})).toBeVisible();
  await expect(page.getByText("Hello Alice",{exact:true})).toBeVisible();
