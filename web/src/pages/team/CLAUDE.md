@@ -63,6 +63,8 @@
 - Composer 上方的绑定读取、任务状态、消息加载/同步错误统一复用 `UiInlineNotice`，共用阅读宽度、字号、间距和恢复按钮；每项仍执行自己的读取重试，自动同步与未确认发送不借用加载重试动作。
 # 共享投递进度
 
+- 远程 pending/leased 等待行复用本地 `MessageActivityStatus` 的图标、LoadingOrb、稳定高度与共享 Room 左对齐规则，保留真实投递文案；终态停止动效，不将远程领取状态伪装成本机思考流。
+
 - 远程 Agent 状态来自 RoomDetails.deliveries；本机执行才显示 Thread。中间 assistant 消息不清除远程状态，final 或 completed 才清除。来源消息由 delivery.message_id 关联，不按姓名或顺序猜测。
 
 - 回复来源为本人时，头像从当前登录身份补齐；可邀请成员目录排除了本人，不可作为本人头像的唯一来源。Agent 来源不会继承其拥有者的真人头像。

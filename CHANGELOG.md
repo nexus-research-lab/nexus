@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Reuse the local Room activity indicator and left alignment for remote Agent waiting and replying states, with stable row height and no animation after failure.
+
 - Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
 
 - Preserve stable conversation transport callbacks to prevent online Room control observers from looping and blocking navigation to other chats.
