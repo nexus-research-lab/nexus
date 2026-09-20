@@ -142,6 +142,10 @@ type Request struct {
 	// continuation receipt after exact runtime registration and before the
 	// provider receives a query.
 	continuationStartAdmission func(context.Context) error
+	// goalContinuationAuthority is host-only. It is populated only after the
+	// Goal service has validated and claimed the exact continuation plan; an
+	// ordinary Internal request must remain agent_internal and fail closed.
+	goalContinuationAuthority *runtimectx.GoalContinuationAuthority
 }
 
 // DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。

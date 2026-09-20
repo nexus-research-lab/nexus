@@ -13,6 +13,7 @@
 //   - quota.go / subagent_task.go / runtime_client.go / runtime_settings_preparation.go：账号额度门禁与 Goal 限制投影、子任务、带 Execution-aware Agent hook 装配，以及 exact 临时 Session 的受限 system prompt / tool policy，
 //     Connector 选择提交后按 Session latest-wins 预备工具面 fork，真实输入仍同步兜底；工具面变化时从旧 transcript 幂等 fork 新物理 Session，并签发 nexuscfg 与 Agent-facing nexus command 的 physical-round capability；active-paired
 //     外部私聊复用同 Agent Skill，provider init/fork 后的 SDK Session identity 动态写回同轮 command context，受控 Automation 执行可覆盖创建时工具快照且 CLI 只读绑定当前 job/run。
+//     Goal continuation 只有在 durable claim 后携带 host-only exact continuation authority，普通 internal round 不得借用该能力。
 //
 // 运行开始、消息、命令回执、附件、结束及 compact 证据共用 orchestration/runtimehook.Observer；Goal 快照转换共用 goal/runtimeusage，子任务证据合并与确认由 Goal 观察值负责。本包保留可信身份、锁、结算屏障和会话编排。
 //

@@ -9,6 +9,29 @@
 - `action=contract, operation=get_execution|get_goal` 仍可读取精确 schema。其他 operation 按 contract 调用；名字含 inspect/get 并不意味着使用固定 inspect 入口。隐藏草图编辑会话只使用其已绑定的 revise/select 目录。
 - 入口纠正不授予权限。仍服从最新 lane/binding；`round_refresh_required` 继续结束旧轮，不把入口纠正当作重新取得 authority 的办法。
 
+## DM Goal continuation 的 exact binding
+
+DM 自动续跑必须由宿主在 durable continuation plan 完成 `validate` 和 `claim` 后签发
+host-only authority，并逐字段绑定：`owner`、`Agent`、DM `session`、`goal_id`、
+`objective_revision`、可选 `execution_id` 和 `root_round_id`。同一轮的 Goal authority
+与 Responsibility authority 必须同时匹配；只看到一个 Execution ID、Goal 卡片或
+`agent_internal` source label 都不构成执行权限。
+
+这套 binding 只修复 DM 的 continuation 入口，不把所有内部 round 放行。queue、echo、
+automation、外部 IM 和普通 internal round 仍然按各自 source policy 处理。Room 续跑
+继续使用 verified Room authority；它与 DM 使用同一组 Goal/Execution service，但保留
+独立的 `room_id/conversation_id` 边界。
+
+因此，DM continuation 的正常调用顺序仍是：
+
+1. `execution` `action=inspect` 读取当前 Execution context。
+2. 读取当前 operation 的 fresh contract；schema 中的 locator 只能来自 inspect 或 typed receipt。
+3. 按 contract 调用 `assign_work`、`submit_work` 或 `review_work`。
+
+模型不应把 owner、Agent、session、Goal、revision、Execution 或 round identity 填进
+业务 input 来“补授权”。任何一项宿主绑定不一致都必须 fail closed；如果服务端返回
+`round_refresh_required`，结束当前 physical round，等待新的宿主 continuation。
+
 ## block_work 与 resume_work
 
 - block 只用于缺少具体外部输入或 authority；Plan dependency 由图自动管理，不是 blocker。由 current Assignment owner 或 coordinator 提交具体 `reason` 与 `needed_input`。存在未审核 Submission 时先 review，不能用 block 催审。
