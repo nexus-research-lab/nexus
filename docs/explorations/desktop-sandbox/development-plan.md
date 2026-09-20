@@ -1,6 +1,6 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-18**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-20**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
@@ -56,7 +56,7 @@ Nexus 提供工作区、允许资源和用户授权，Bridge 传输并核验后�
 
 Claude Code 自带 Bash/子进程沙箱，Read/Edit/Write 使用工具权限系统，原生 Windows 不受支持，见 [官方范围说明](https://code.claude.com/docs/en/sandboxing#scope)。其原生适配不能宣称与 nxs 文件 helper 相同的 OS 覆盖。Windows 上若使用 Claude Code，必须有经过验证的受限执行环境（例如 WSL2）；尚无可用环境时，受限任务不能启动，并提供配置环境或切换受支持后端的入口。不能静默降级，也不把实现外部 VM/容器纳入本轮默认方案。
 
-当前代码中的 nxs-only 强制准入仍是保护边界。只有 Claude Code adapter 的配置、生效、权限和故障验收完成后，才能按该 adapter 的独立合同放行；不能直接删掉判断，或给 Claude Code 声称 required_sandbox_v1。
+当前 nxs 的独立能力准入仍是保护边界；Claude 已接入独立的启动参数合同，但该合同尚未完成命令沙箱接入。Claude Code adapter 的配置、生效、权限和故障验收仍须按自身证据闭环；不能给 Claude Code 声称 required_sandbox_v1。
 
 ### 2.2 两条独立的控制轴
 
@@ -88,7 +88,14 @@ Claude Code 自带 Bash/子进程沙箱，Read/Edit/Write 使用工具权限系�
 
 Claude Code 使用独立的原生适配合同：配置透传只是输入，固定版本的受限执行、设置合并、不可用时拒绝及批准/取消回归才是接入证据。原生接口无法保证的资源约束或批准范围必须明确拒绝，不能为了统一菜单而放宽要求。
 
-#### Bridge 的 Claude 受限合同（P1，进行中）
+#### Bridge 的 Claude 受限合同（启动接线已实现；命令沙箱接入与验收未完成）
+
+当前 `--restricted` 是工具受限启动模式。已归档的 Claude CLI `2.1.273` 帮助明确
+说明它会移除代码执行工具，并把文件工具限制到工作目录；因此该启动合同不能作为
+“正常执行 Bash/构建命令，同时由 OS 沙箱限制命令”的实现。接下来的 Bridge 工作必须
+单独固定 Claude 原生命令沙箱的配置、来源优先级、禁止未受限回退、平台依赖与生效核验，
+再由 Nexus 请求该合同，并验证真实命令的允许/拒绝、网络、取消和清理。不得通过移除
+命令工具来把完整开发工作流标为已交付，也不因为当前参数预检通过就关闭 P1/P2/P6/P7。
 
 这条合同必须在 Bridge 中独立于 nxs 的 `required_sandbox_v1` 实现，不能让
 Nexus 把 nxs 能力名投影给 Claude。Bridge 的 typed options 至少需要表达
@@ -237,12 +244,12 @@ Windows 11 是首个完整验收平台；Windows 10 1809+ 的支持范围以真�
 | 阶段 | 工作包与交付物 | 依赖 | 验收出口 | 状态 |
 | --- | --- | --- | --- | --- |
 | P0 基线与可重复验证 | 整理文档；固定三仓 SHA；建立 GOWORK=off + 真实 nxs 的验证入口；记录 Windows 失败 | 无 | 本次所有结论可定位到代码/原生记录，未执行项不会显示通过 | 已验收 |
-| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；在 Bridge 接入 Claude `--restricted` typed contract、独立 capability、版本/参数失败关闭和 Full Access 例外 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 受限参数与能力回报可核验；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
+| P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；Bridge 已有 `--restricted` 启动合同，仍须完成保留命令能力的 Claude 原生沙箱配置、生效核验、失败关闭和 Full Access 例外 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 真实命令在受限边界内可用且越界被拒绝；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
 | P2 macOS 全工具链 | 收口文件 helper、动态指令/Skill/设置、PDF/Git/附件与后台 IO；系统后端路径信任与完整资源策略 | P1；复用已有 SDK 文件实现 | 真实工具允许/拒绝、符号链接、特殊文件、大文件、取消、敏感元数据与网络测试 | 进行中 |
 | P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 待开始 |
 | P4 Windows 可部署后端 | 设置/修复/卸载、受保护发布、身份、文件/网络、IPC、Job、清理；接入 SDK/Bridge | P1、P3 | 原生全链路＋安装/升级故障注入；不支持时拒绝，没有静默弱化 | 待开始 |
 | P5 审批与执行恢复 | exact execution 回执、策略代次、取消与后代终态、unknown 对账、自动审核/人工覆盖边界 | P1；平台事实接入依赖 P2/P4 | 各崩溃窗口、重复/乱序/断连/晚到批准均不多执行一次，跨源状态不互相清除 | 进行中 |
-| P6 UI 与端到端 | 内建受控环境、后端与权限策略切换、设置/Composer/批准卡/诊断、目录/连接授权，DM/Room/后台完整路径 | P1、P2、P4、P5 | 无独立沙箱开关；两后端实际边界与失败路径明确；浏览器与安装包交互验收 | 待开始 |
+| P6 UI 与端到端 | 内建受控环境、后端与权限策略切换、设置/Composer/批准卡/诊断、目录/连接授权，DM/Room/后台完整路径；默认入口和部分设置交互已有实现，恢复 UI 与完整端到端仍未完成 | P1、P2、P4、P5 | 无独立沙箱开关；两后端实际边界与失败路径明确；浏览器与安装包交互验收 | 进行中 |
 | P7 版本与发布验收 | 发布可取得的 SDK/Bridge；固定 Nexus 与 Claude 支持版本；签名包/升级/回退、Linux owner 与各后端默认权限验收 | P2–P6 | 平台矩阵和发布清单全有证据，SDK 内建运行环境落实默认资源策略 | 待开始 |
 
 P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独立实现，不把平台缺口删出目标。实际并行安排不能让跨仓代码共享一份未冻结的 dirty 工作区。
@@ -381,6 +388,23 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 `releaseAccepted=false`，提交仅本地未推送。
 
 
+### 2026-09-20：配置 revision 跨重启恢复与 Claude 范围纠正
+
+旧实现的数据库关闭重开反例已复现：配置未变化但 HMAC revision 因随机进程密钥而改变。
+Nexus 现以 migration 142 的宿主私有单例保存独立 revision 密钥，初始 CAS 防止并发宿主
+采用各自候选值；计划批准摘要继续随进程失效。旧格式 receipt 返回 `incomparable`，
+缺失/损坏/未知密钥版本拒绝，人工对账不重放配置写入。SQLite 独立进程、数据库重开、
+升级保留 receipt、目标包、race/vet、应用装配与真实 nxs host gate 通过；新增必测组
+`host-settings-recovery`。细节与精确版本由[本批次证据](../../testing/evidence/desktop-sandbox/2026-09-20-settings-revision/)
+记录，不把这一批次视为 P5 整体完成。
+
+Claude `--restricted` 移除代码执行工具的事实已从启动合同中单独说明。Bridge 原生命令
+沙箱接入仍须保留正常开发命令并证明其受限；P1/P2/P6/P7 的这一项继续未完成。
+P6 因已有默认入口和部分设置交互修正为“进行中”，完整端到端与恢复 UI 仍未验收。
+其余未完成项包括完整资源/网络/凭据与辅助进程隔离、后代监督与 scratch 崩溃恢复、
+SDK 持久执行回执、多文件掉电一致性、跨进程 reconcile 原子性、Windows 架构与部署、
+macOS/Linux/Claude/安装包实机验收。`releaseAccepted=false`；仅本地提交，不修改 main。
+
 ### 配置读取与权限持久化（non-normative，分阶段实施）
 
 项目定义读取已有独立边界，但以下入口仍不能据此视为安全。后续按输入所有权实施，不把所有设置文件直接套用同一种任务读写授权：
@@ -391,7 +415,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 3. **运行配置输入（快照子批次已实现）**：`runtimeSettingsSnapshot`、shell、memory 和权限消费者使用 Binding；user/project/local/flag/policy 顺序和显式 Options 优先保留，来源过滤在 IO 前完成。动态设置拒绝静态执行字段，get_settings 查询同一快照。所有读取端口采用统一的 16 MiB 单文件上限。
 4. **经批准的配置写入（进程内安全子批次已实现，持久事务仍未完成）**：`Config` 和 `ApplyPermissionUpdates` 已统一进入 Binding 持有的 document store；固定物理根和目录身份，拒绝祖先/叶子链接切换、目录换代、特殊文件和只读目标，并以同目录临时文件替换，避免硬链接原地改写。任务沙箱同时禁止 settings 的字面和物理别名及临时文件模式。多文件按确定顺序提交，部分提交后把所有 clone 共用的 store 标记为 unknown；Config 有效修改触发 recreate 栅栏，query 在每次 provider 请求前核验，WebFetch 的环境端点与宿主摘要 adapter 也单独核验。独立 `sandbox_settings_writes_v1` 已进入 Bridge/Nexus 的准入和进程指纹；当前只声明 macOS。初始化进行中会缓冲有界普通消息，初始化失败不创建后续 Session。
    - 已固定 SDK `c90c7f7c` 复现 `file_symlink`、`directory_symlink`、`directory_replaced`、`hardlink` 四种身份失效，修复后的 writer 拒绝前三类，硬链接只替换授权目录项；[测试夹具与日志](../../testing/evidence/desktop-sandbox/2026-09-16-main-sync/report.json) 保留修复前事实。终审另复现 Seatbelt 只禁止字面链接路径时仍可写物理目标，当前实现把两类路径都加入强制禁止。上述是当前进程内文件边界，不是 durable 事务或整个 SDK OS 隔离的验收。
-   - exact request/批准/revision 的 durable receipt、启动/周期 unknown 收口和人工 review/reconcile 控制面已接入；仍待实现跨进程 CAS、多文件 all-or-nothing、父目录 fsync/断电持久性、跨完整性密钥重启的稳定 revision 比较和设置页原生入口。不得自动重放未知写入。
+   - Nexus 配置控制面的 exact request/批准/revision receipt、启动/周期 unknown 收口、人工 review/reconcile 与跨重启稳定 revision 已接入。固定 SDK 已有跨进程锁、父目录同步和可证明运行期失败的回滚；SDK 持久执行回执、多文件掉电 all-or-nothing、所有领域写入与人工 reconcile 的跨进程原子性及设置页原生入口仍未完成。不得自动重放未知写入。
 5. **验证**：原生拒绝、malformed managed/drop-in、项目/flag 链接、取消、来源禁用、并发更新、部分写入故障、符号链接物理别名和 Config 后续 provider 栅栏均须有正反例；确认默认模式、强制 deny、hook 限制和凭据边界保持。独立写能力不能扩张已发布读取能力的含义。
 
 该批次不替代 P3–P7，也不删除 hook 执行、后台 IO、网络、生效回执、完整后代监督、scratch 生命周期、默认产品策略、Windows/Linux/Claude 与安装包门禁。所有工作继续在独立 worktree，仅保留本地提交。

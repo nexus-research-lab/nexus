@@ -593,6 +593,12 @@ func reconciliationEvidence(record AuditRecord, current DomainSnapshot) Reconcil
 		relation = "matches_recorded_before"
 	case record.RevisionAfter != "" && current.Revision == record.RevisionAfter:
 		relation = "matches_recorded_after"
+	case !strings.HasPrefix(current.Revision, durableRevisionPrefix) ||
+		(!strings.HasPrefix(record.RevisionBefore, durableRevisionPrefix) &&
+			!strings.HasPrefix(record.RevisionAfter, durableRevisionPrefix)):
+		// Old revisions used a process-local key that cannot be recovered.
+		// A format change is not evidence that the configuration changed.
+		relation = "incomparable"
 	}
 	evidence := ReconciliationEvidence{
 		CurrentRevision:        current.Revision,

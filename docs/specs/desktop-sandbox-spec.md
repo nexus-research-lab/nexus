@@ -237,10 +237,15 @@ wait for success, and initialization failure discards them without creating a
 base-config Session. The requirement and its host-only flag participate in Bridge
 and Nexus process identity.
 
-The write contract currently acknowledges native macOS only. It does not establish
-cross-process locking or CAS, multi-file atomicity, parent-directory fsync or
-power-loss durability, exact request/approval/revision persistence, durable receipts,
-restart recovery of unknown outcomes or automatic replay. Unix replacement preserves
+The write contract currently acknowledges native macOS only. The pinned SDK adds
+per-root cross-process locks, post-lock snapshot checks, parent-directory syncing,
+and reverse-order rollback when the changed documents can still be identified.
+It does not establish multi-file power-loss atomicity or durable SDK execution
+receipts. Nexus configuration-control receipts have their own unknown recovery,
+human review/reconcile and stable revision contract in the
+[configuration specification](conversational-configuration-control-spec.md);
+they do not substitute for SDK file-transaction evidence. Neither path replays an
+unknown write automatically. Unix replacement preserves
 ordinary permission bits but does not claim owner, ACL, xattr or file flags. Windows
 only has compile coverage and its Go writable-bit checks do not establish DACL
 privacy. Whole-process Provider credential isolation and full background IO confinement remain pending.
@@ -311,6 +316,12 @@ isolation. Claude Full Access is an explicit exception and does not install the
 contract or flag; it still retains host lifecycle, domain authorization, and
 other mandatory policy. Fixed CLI-version, native behavior, and clean-host
 acceptance remain separate release evidence.
+
+The recorded Claude CLI 2.1.273 help describes `--restricted` as removing code
+execution tools and limiting file tools to the working directory. This path does
+not implement the intended ability to run normal commands inside an OS sandbox.
+Claude's native command sandbox configuration, effective-policy admission and
+allowed/denied command tests remain separate unfinished integration work.
 
 For host-managed desktop policy, a live change crossing into or out of Full Access
 retires the old client before returning the transition signal. DM closes the old

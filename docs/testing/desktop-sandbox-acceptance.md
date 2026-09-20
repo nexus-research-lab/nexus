@@ -1,6 +1,6 @@
 # 桌面沙箱验收矩阵
 
-状态：开发验收清单，non-normative，2026-09-15。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+状态：开发验收清单，non-normative，更新至 2026-09-20。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
 
 ## 证据记录要求
 
@@ -14,8 +14,9 @@
 | --- | --- | --- |
 | 准入 | 旧关闭环境变量、server、macOS/Windows、旧 nxs、Claude、缺能力 | 旧变量不能关闭桌面合同；需要但无法提供的边界在命令开始前拒绝 |
 | 默认权限与后端 | 新任务、升级后默认值、nxs/Claude 切换、缺依赖/不支持平台、显式 Full Access | 默认请求批准/自动审核均自动受限；旧实例收口、新实例确认后才能发任务；不支持不静默裸执行 |
-| Settings receipt | applying/reconcile_required、跨重启恢复、review、人工 reconcile、重复/过期 revision | unknown 持久化且不自动重放；review 重新读取同一 scope；人工收口必须带当前 revision，Agent 不能代替真人确认 |
-| Claude 原生接入 | Bridge typed `RequireClaudeRestricted`/`CapabilityClaudeRestricted`、唯一 `--restricted` 参数、固定 CLI 版本、settings 来源/合并、Bash 子进程、文件权限、网络批准、取消、模式切换 | 受限模式只由 Bridge 注入并验证一次 `--restricted`；缺参数/版本/能力不明时首条任务前拒绝；Full Access 不要求也不注入该参数；不伪造 nxs 协议或文件 helper 覆盖 |
+| Settings receipt | applying/reconcile_required、数据库重开/独立进程、旧 revision、密钥损坏、review、人工 reconcile、重复/过期 revision | unknown 持久化且不自动重放；同一快照跨重启可比，旧计划仍失效；旧格式明确不可比较；缺失/损坏密钥拒绝；人工收口必须带当前 revision，Agent 不能代替真人确认 |
+| Claude 启动合同 | Bridge typed `RequireClaudeRestricted`/`CapabilityClaudeRestricted`、唯一 `--restricted` 参数、固定 CLI 版本、取消、模式切换 | 参数只由 Bridge 注入一次；缺参数/版本不明时首条任务前拒绝；Full Access 不注入；只计启动合同，不能替代命令沙箱 |
+| Claude 原生命令沙箱 | 独立原生 sandbox 配置、settings 来源/合并、缺依赖和未受限回退、Bash/构建命令、文件权限、网络批准、取消 | 必須保留正常命令能力，并证明允许操作成功、越界确实拒绝；`--restricted` 移除代码执行工具不能满足本行；不伪造 nxs 协议或复用文件 helper 覆盖 |
 | 策略 | default/auto/Full Access、未来只读 profile、附加目录、deny 优先 | 审批方式不改变资源；强制策略不被用户设置/env/hook 覆盖 |
 | shell | 文件/子进程、构建、Git、包管理、PTY、后台进程 | 边界内正常工作，子孙继承；普通工具 allow 不能授予越界 |
 | 文件 | Read/Write/Edit/Glob/Grep、Notebook/附件、流式与大文件 | 真实工具通过同一受限数据面；拒绝未授权读写且不破坏原语义 |
@@ -33,9 +34,34 @@
 | 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude 支持版本/环境、旧数据根 | nxs 全链路及 Claude 原生接入分别有真实证据；WSL2 通过不能表示原生 Windows 通过 |
 | 产品路径 | 设置、Composer、审批卡、DM/Room/自动化、重载 | 展示实际边界；一个清晰下一步；不泄漏内部标识，不自动重发 |
 
+### 2026-09-20：配置 revision 跨重启恢复
+
+先以 `TestConfigurationRevisionSurvivesDatabaseReopen` 在旧实现复现：配置未变化，
+数据库关闭重开后 `revision_relation` 却变成 `different`，测试 exit 1。新实现将
+持久 revision 与进程内 plan digest 分开；migration 142 保留旧 receipt，旧格式返回
+`incomparable`，不改写旧历史或自动决定写入结果。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 数据库重开、旧计划拒绝、人工 reconcile | 通过，exit 0 | 未变化的 Preferences 与 recorded-after 可比；旧 plan digest 被拒绝且不创建执行 receipt；人工对账不推进配置版本 |
+| 两个独立进程、并发初始化、升级 | 通过，exit 0 | SQLite 单例密钥 CAS；独立宿主读取同一持久值；升级与重复 migration 保留既有回执和密钥 |
+| 缺行、损坏、空密钥、未知版本、非法初始状态 | 五个具名子场景通过 | 现有/新 Store 均拒绝，不缓存旧值、不重建密钥、不回显秘密 |
+| 配置目标包、定向 race/vet、migration/CLI/app runtime/server | 通过，exit 0 | 本机服务、存储与应用装配；不是 PostgreSQL 原生或安装包验收 |
+| 固定 Bridge + 原有真实 nxs 桌面 gate | 通过，exit 0，必测项无 skip | 新增 `host-settings-recovery` 必测组，保留 host-policy/host-lifecycle；SDK/Bridge 提交和 binary 未变 |
+| 架构、脚本语法、diff 格式 | 通过，exit 0 | 生产依赖方向与门禁入口 |
+
+证据见 [2026-09-20-settings-revision](evidence/desktop-sandbox/2026-09-20-settings-revision/)。
+本批次是 Nexus 配置控制面恢复证据，不证明 SDK 多文件掉电事务、所有领域写入与人工
+reconcile 的跨进程原子性、完整凭据/网络隔离或 Claude/原生平台/安装包验收。
+`releaseAccepted=false`；三个仓库均仅本地，未推送。
+
 ### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
 
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
+
+已记录的 CLI `2.1.273` 将 `--restricted` 描述为移除代码执行工具并限制文件工作目录。
+该参数测试只能证明当前工具受限启动路径；正常 Bash/构建命令在 OS 沙箱内执行仍须
+按上表独立验收，不能以禁用代码执行作为功能完整的通过证据。
 
 - Bridge 单测/静态检查证明 `RequireClaudeRestricted` 只接受 `RuntimeClaude`，拒绝
   nxs、Full Access/bypass、危险 bypass 以及通过 `ExtraArgs` 或其他普通输入伪造

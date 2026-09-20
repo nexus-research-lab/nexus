@@ -201,8 +201,8 @@ func actorWithTrustedRequestPrincipal(ctx context.Context, actor Actor) Actor {
 	return actor
 }
 
-// integrityKeyBytes 返回当前进程的不可导出摘要密钥。进程重启会使旧 plan
-// 自动失效，避免把低熵凭据编码成可离线猜测的公开 revision。
+// integrityKeyBytes 只用于进程内 plan digest；重启使旧 plan 自动失效。
+// 可跨重启比较的配置 revision 使用 revision.go 中独立的宿主持久密钥。
 func (s *Service) integrityKeyBytes() ([]byte, error) {
 	s.integrityMu.Lock()
 	defer s.integrityMu.Unlock()
