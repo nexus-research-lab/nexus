@@ -35,10 +35,11 @@ func TestRealtimeDirectUserQueueKeepsConfigurationContextAfterAdmissionClaim(t *
 	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: false})
 	host := createTestAgent(t, agentService, ctx, "Queue Host")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs:    []string{host.AgentID},
-		HostAgentID: host.AgentID,
-		Name:        "queue provenance",
-		Title:       "main",
+		AgentIDs:             []string{host.AgentID},
+		HostAgentID:          host.AgentID,
+		HostAutoReplyEnabled: true,
+		Name:                 "queue provenance",
+		Title:                "main",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +102,6 @@ func TestRealtimeDirectUserQueueKeepsConfigurationContextAfterAdmissionClaim(t *
 		ClientMessageID:             "client-room-queue-provenance",
 		Action:                      "enqueue",
 		Content:                     "update the room settings safely",
-		TargetAgentIDs:              []string{host.AgentID},
 		TrustedConfigurationContext: true,
 	})
 	if err != nil {
