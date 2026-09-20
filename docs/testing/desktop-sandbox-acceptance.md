@@ -93,6 +93,22 @@ GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs \
 
 完整报告、选定原始日志和 `manifest.sha256` 见[2026-09-20-macos-baseline](evidence/desktop-sandbox/2026-09-20-macos-baseline/)。
 
+### 2026-09-20：跨物理根 settings journal 基线重验
+
+SDK `9956def130da33af47accf799a9c27c16a551104` 将 settings journal 恢复提升为跨根事务
+判断：恢复前同时锁定用户与项目物理根，按 transaction ID 统一核对；一根旧一根新时保留
+全部 journal 并失败关闭，不能清理其中一根后继续。门禁脚本新增
+`TestSettingsJournalCrossRootMixedStateFailsClosed` 必测用例。
+
+| 检查 | 结果 | 证据范围 |
+| --- | --- | --- |
+| 固定版本与构建 | exit 0；Bridge 精确模块无 replace；SDK clean archive 构建 nxs | SDK `9956def1`；nxs SHA-256 `e004c631ec555df466c14e13fc091e53f29a0ca4e113e1cd81031c0a2bab0f84` |
+| macOS 开发基线 | 38 个检查全部 exit 0，无必测 skip | host policy/lifecycle、Provider environment、settings-writes 与 macOS 全能力路径；无模型请求 |
+| settings writers | 47 个通过事件，包含跨根混合失败关闭 | 全旧/全新收口、混合/损坏失败关闭、正文脱敏、目录身份和写入准入 |
+| 发布结论 | `releaseAccepted=false` | 不替代跨根掉电 all-or-nothing、领域 receipt/reconcile、Provider 秘密文件/句柄/网络、Claude OS 沙箱、Windows/Linux、clean-host 或签名包验收 |
+
+完整报告、日志和 `manifest.sha256` 见[2026-09-20-settings-journal-cross-root](evidence/desktop-sandbox/2026-09-20-settings-journal-cross-root/)。
+
 ### 2026-09-20：SDK durable settings transaction journal
 
 SDK `431966dd8862429f80a0bb555aef048d02dedf23` 在每个物理 settings 根增加

@@ -453,6 +453,24 @@ SDK 本地提交 `431966dd8862429f80a0bb555aef048d02dedf23` 在 settings writer 
 
 证据见 [2026-09-20-settings-journal-baseline](../../testing/evidence/desktop-sandbox/2026-09-20-settings-journal-baseline/)。本批次提交仅本地，未推送，`releaseAccepted=false`。
 
+### 2026-09-20：跨物理根 settings journal 恢复基线
+
+SDK `9956def130da33af47accf799a9c27c16a551104` 将 journal 恢复从单根判断收口为跨根
+判断：启动时同时锁定参与的 user/project 物理根，按 transaction ID 检查全部 marker；
+所有文档都是旧值或新值时一起清除，任何跨根混合、损坏或无法核对的状态都保留全部
+journal 并失败关闭。Nexus 门禁脚本已把 `TestSettingsJournalCrossRootMixedStateFailsClosed`
+列为必测，固定归档 nxs SHA-256 为
+`e004c631ec555df466c14e13fc091e53f29a0ca4e113e1cd81031c0a2bab0f84`。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| SDK target/race/vet | `go test ./internal/config/settings`、`go test -race ./internal/config/settings`、`go vet ./internal/config/settings` 通过 |
+| 固定跨仓门禁 | `check-sandbox-baseline.mjs --sdk-ref 9956def1` exit 0；38 个检查无必测 skip；settings-writers 47 个通过事件 |
+| 新跨根反例 | 用户根旧值、项目根新值时两份 journal 都保留，Binding 拒绝启动；没有自动重放或单根清理 |
+| 当前边界 | 仍不提供跨根掉电 all-or-nothing、exact request/approval/revision receipt 或领域 reconcile；Provider 秘密文件/句柄/网络、Claude、Windows/Linux、签名包继续未验收 |
+
+证据见 [2026-09-20-settings-journal-cross-root](../../testing/evidence/desktop-sandbox/2026-09-20-settings-journal-cross-root/)。提交仅本地，未推送，`releaseAccepted=false`。
+
 ### 2026-09-20：Bridge 最终进程入口的继承凭据过滤
 
 Bridge 本地提交 `436346420c2905907375cc63b8fee9b88bc07287` 在
