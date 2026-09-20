@@ -7,6 +7,8 @@
 //   - actor.go / access.go：逐次重验 active runtime lease、数据库 owner-main / agent-self / room-host / room-member 身份与字段级能力边界。
 //   - service.go / snapshot.go / host_snapshot.go：服务装配、按可信 scope 读取、Skills 全局/各 Agent workspace 来源目录、
 //     主机白名单投影与配置健康检查。
+//   - revision.go：用宿主数据库中的独立持久密钥生成绑定 domain/scope/target/version 的 v2 revision；
+//     plan digest 继续使用进程临时密钥，旧格式回执无法比较时明确报告 incomparable。
 //   - skill_change_snapshot.go / connector_change_snapshot.go：Skills target_scope/source_identity、私有来源安全元数据、owner catalog CAS、
 //     目标 Agent 与 Connector 目标资源的版本、状态和写后结果绑定。
 //   - change.go / change_validate.go / change_verify.go：有界分片资源锁、plan digest、CAS、幂等、

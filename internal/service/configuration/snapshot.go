@@ -81,11 +81,7 @@ func (s *Service) domainSnapshot(
 		return DomainSnapshot{}, err
 	}
 	safeValues := sanitizeValue(values)
-	key, err := s.integrityKeyBytes()
-	if err != nil {
-		return DomainSnapshot{}, fmt.Errorf("初始化配置 revision 密钥: %w", err)
-	}
-	revision, err := integrityRevisionFor(values, key)
+	revision, err := s.snapshotRevision(ctx, definition.Name, scope, target, stateVersion, values)
 	if err != nil {
 		return DomainSnapshot{}, err
 	}

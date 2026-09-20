@@ -265,7 +265,8 @@ func TestHostDomainSnapshotDoesNotExposeCredentials(t *testing.T) {
 		ConnectorShopifyClientID:       "shopify-client-id",
 		ConnectorShopifyClientSecret:   secrets[9],
 	}
-	service := &Service{cfg: cfg}
+	service, _, _ := newAuditTestService(t)
+	service.cfg = cfg
 	actor := &resolvedActor{
 		Actor: Actor{
 			OwnerUserID:     authctx.SystemUserID,

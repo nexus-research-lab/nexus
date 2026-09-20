@@ -84,6 +84,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `handler` 在消费侧定义小接口，只依赖当前端点需要的操作；实现返回具体类型。
 - `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
 - `service/configuration` 按领域聚合操作输入、校验、执行与核对，共用授权、批准、CAS 和审计；`service/orchestration` 命令在同包内按业务归组，`runtimehook.Observer` 统一 DM/Room 运行观察，可信会话身份仍由各宿主提供。
+- 配置 revision 使用宿主数据库中的独立持久密钥绑定 domain/scope/target/state version；plan digest 仍随进程失效。旧格式 receipt 明确报告不可比较，禁止通过重算历史 revision 或自动重放来猜测结果；完整合同见 `docs/specs/conversational-configuration-control-spec.md`。
 - Goal 持有目标状态、续跑租约与用量结算规则，Execution 持有责任图及 binding 真相，DM/Room 持有输入优先级、运行身份和输出权限；Goal 用量转换共用 `goal/runtimeusage`，子任务 pending 的合并与确认共用 Goal 观察值，禁止把宿主锁或 Room 公私输出策略下沉为通用流程。
 - `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
 - `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。

@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Preserve configuration revisions across host restarts with a private database
+  HMAC key while keeping plan approval digests process-local. Migration preserves
+  existing receipts; legacy revisions report an incomparable result, and missing
+  or corrupt key state fails closed. Review/reconcile never replays the write.
+
+- Clarify that the current Claude `--restricted` launch path removes code execution
+  tools. Native command sandbox integration and real command/network/cleanup
+  acceptance remain required before the Claude development workflow is complete.
+
 - Connect the Bridge's Claude restricted admission probe to Nexus. The exact
   resolved CLI must accept `--restricted --help` before a stream-json session
   starts; failures, timeouts, or missing help text fail closed, and common

@@ -123,6 +123,18 @@ try {
     ...["NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"].map((key) => `TestProviderOwnershipChangeReplacesRuntime/${key}`),
     "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
   ]);
+  testGroup("host-settings-recovery", ["./internal/storage/configuration", "./internal/service/configuration"], [
+    "TestRevisionKeyConcurrentInitialization",
+    "TestRevisionKeyAcrossProcesses",
+    "TestRevisionKeyMigrationPreservesReceipts",
+    "TestRevisionKeyRejectsMissingOrCorruptState",
+    ...["missing", "malformed", "empty", "unknown_version", "invalid_bootstrap"].map((entry) => `TestRevisionKeyRejectsMissingOrCorruptState/${entry}`),
+    "TestConfigurationRevisionSurvivesDatabaseReopen",
+    "TestConfigurationRevisionBindsScopeAndSecrets",
+    ...["scope", "domain", "target", "version", "secret"].map((entry) => `TestConfigurationRevisionBindsScopeAndSecrets/${entry}`),
+    "TestConfigurationRevisionLegacyReceiptIsIncomparable",
+    "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
+  ]);
   if (sdkSource) {
     testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
       "TestHostManagedSettingsCannotRedirectProvider",
