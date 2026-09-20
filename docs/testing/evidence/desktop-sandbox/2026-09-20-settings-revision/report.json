@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "date": "2026-09-20",
+  "scope": "Nexus configuration-control revision persistence and recovery; host integration only",
+  "releaseAccepted": false,
+  "source": {
+    "nexus": "219f4f53dc194db8fa67a2aeb946f4eb94c984eb",
+    "testedBase": "a936290cce6f49ba4e1a7c32b5100597e5f9eb5b",
+    "bridge": "6ea77309fdd4ed4f8177e9d9731253cd1f03879c",
+    "sdk": "9d60e1661bc05fe516e7db0ac4e346c8c88a2b0f",
+    "bridgeModule": {
+      "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+      "version": "v0.1.34-0.20260918074231-6ea7730",
+      "sum": "h1:xRd4iHVLEDL08Ey0FqYk66D087/SkkQsGrl8B0LfxVQ="
+    },
+    "changedFiles": {
+      "AGENTS.md": "sha256:b751a96eb386676bd94387c3d368623830c5d561b6eff1838ba97346f125ea6d",
+      "CHANGELOG.md": "sha256:3e0364b1a864afa0d6695396af137e789d5f108bbfadfcec7b43e96a8448dd4d",
+      "db/migrations/postgres/00142_configuration_revision_key.sql": "sha256:87ff28dd43be3c1063ff13b0c595a3dcd574af1df5f4f1d3cfa8128bc46eea64",
+      "db/migrations/sqlite/00142_configuration_revision_key.sql": "sha256:87ff28dd43be3c1063ff13b0c595a3dcd574af1df5f4f1d3cfa8128bc46eea64",
+      "docs/explorations/desktop-sandbox/development-plan.md": "sha256:c681193e7aa3b5c8853098e9c721112211168cc7ecec763fb45e88a9cc6a0177",
+      "docs/specs/conversational-configuration-control-spec.md": "sha256:9f0c92827105e20da2d2eb09ae3a1656e9f04d275f54625c9ecf9e640636e91c",
+      "docs/specs/desktop-sandbox-spec.md": "sha256:5be2164cddec9288f0fb861fe96df3a403436a69effdb2e4f8b08f744c429284",
+      "docs/testing/desktop-sandbox-acceptance.md": "sha256:7845265fce76965e5886c28183b8ecc410694fc144aec02ed78282fd071b8aca",
+      "internal/service/configuration/audit.go": "sha256:7d374fd9bac1911c6d9620fbedf2982d4975435ae46d90a9506aef73b99ce46e",
+      "internal/service/configuration/connector_change_snapshot.go": "sha256:53b62d7c516abb11eb957dac4acdcfe1817550f632776bf5845abe6db906e551",
+      "internal/service/configuration/doc.go": "sha256:12892d11b1ac482a505c09e7ae53106bd06b67f3dfda44cfad6e832f4eb8a136",
+      "internal/service/configuration/revision.go": "sha256:426db22151cf9388b57014dcabca6f6159e37f0e96f5275d3e2b3a89916f258a",
+      "internal/service/configuration/revision_restart_integration_test.go": "sha256:0c0323786ba06a4a1a348b350b5a684dc7607e7c0f882ad706a582655a237346",
+      "internal/service/configuration/revision_test.go": "sha256:a2597f9d6df3b7864898d3c3289a7b69edb2d368da9175a095328bb0935963c5",
+      "internal/service/configuration/sanitize_test.go": "sha256:009c2f39f4f4987a65402e3e40f1fa5cd859250068b1d7c59734ad5820196428",
+      "internal/service/configuration/service.go": "sha256:9debfbd858ff35f86d04c6a2e193447ba25afb547370301f4d404d7070d23610",
+      "internal/service/configuration/skill_change_snapshot.go": "sha256:b6d8354ff8355e84fbecf7492bf1f5c400c2d1404b6a1ddc88ba41ba36041fcc",
+      "internal/service/configuration/snapshot.go": "sha256:03af3f906491503b8c51d4aac38d6ca48bba87dbb958e3998f12b8117aef727f",
+      "internal/storage/configuration/doc.go": "sha256:56ede636c4274fb9b378097c4c9230eece54f65badcfedb3634ab6cd3ca64d44",
+      "internal/storage/configuration/revision_key.go": "sha256:544d71fa27fd85af43326f1314020758f14607bb0e5ac4efbf0658db643bc683",
+      "internal/storage/configuration/revision_key_test.go": "sha256:9ed645b7f05f0c8063ca3c19911e0fd04848780d5f6981f7e216a5cf7505bebb",
+      "internal/storage/doc.go": "sha256:599609db1b62b2f82173735d089646eb1f89f947178c848019166815788fb2e4",
+      "scripts/desktop/check-sandbox-baseline.mjs": "sha256:2d71020a2b57e8bff67347233b648d5bc9f4b327a08b293d5070bc8c8401d44f"
+    }
+  },
+  "sourceNote": "Tests ran on the source changes subsequently committed as nexus above. Documentation was finalized after the tests. Gate captures the original base plus the exact dirty path list.",
+  "platform": {
+    "os": "Darwin",
+    "release": "27.0.0",
+    "architecture": "arm64",
+    "goVersion": "go1.27.1"
+  },
+  "checks": [
+    {
+      "name": "before-reproduction",
+      "command": "GOWORK=off go test -mod=readonly ./internal/service/configuration -run ^TestConfigurationRevisionSurvivesDatabaseReopen$ -count=1",
+      "exitCode": 1,
+      "expectedFailure": true,
+      "log": "before.log.gz"
+    },
+    {
+      "name": "changed-packages",
+      "command": "GOWORK=off go test -mod=readonly ./internal/storage/configuration ./internal/service/configuration -count=1",
+      "exitCode": 0,
+      "log": "packages.log.gz"
+    },
+    {
+      "name": "race",
+      "command": "GOWORK=off go test -mod=readonly -race ./internal/storage/configuration ./internal/service/configuration -run '^(TestRevisionKey.*|TestConfigurationRevision.*|TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay)$' -count=1",
+      "exitCode": 0,
+      "log": "race.log.gz"
+    },
+    {
+      "name": "integration",
+      "command": "GOWORK=off go test -mod=readonly ./internal/migration ./internal/cli ./internal/app/runtime ./cmd/nexus-server -count=1",
+      "exitCode": 0,
+      "log": "integration.log.gz"
+    },
+    {
+      "name": "vet",
+      "command": "GOWORK=off go vet ./internal/storage/configuration ./internal/service/configuration",
+      "exitCode": 0,
+      "log": "vet.log.gz"
+    },
+    {
+      "name": "architecture",
+      "command": "GOWORK=off make check-architecture",
+      "exitCode": 0,
+      "log": "architecture.log.gz"
+    },
+    {
+      "name": "desktop-gate",
+      "command": "GOWORK=off GOPROXY=off NEXUS_SANDBOX_TEST_BINARY=/private/tmp/nexus-settings-receipt-gate/nxs make check-desktop-sandbox",
+      "exitCode": 0,
+      "log": "desktop-gate.log.gz",
+      "report": "desktop-gate-report.json"
+    },
+    {
+      "name": "script-syntax-and-diff",
+      "command": "git diff --check && node --check scripts/desktop/check-sandbox-baseline.mjs",
+      "exitCode": 0
+    }
+  ],
+  "proven": [
+    "Unchanged Preferences revision remains comparable after closing and reopening the database with new application services.",
+    "Approval digest expires across service restart; the stale unexecuted plan creates no execution receipt.",
+    "Two independently spawned processes load the same SQLite-persisted key.",
+    "Concurrent initialization and repeated migration preserve the winning key and existing receipts.",
+    "Missing, malformed, empty, unknown-version and invalid-bootstrap states fail closed without secret output.",
+    "Scope/domain/target/state version and secret-only changes are bound into revision.",
+    "Legacy receipt comparison is explicitly incomparable.",
+    "Human reconcile preserves the configuration version and does not replay the write.",
+    "Pinned Bridge plus unchanged real nxs passes host policy, lifecycle and settings recovery gates."
+  ],
+  "notProven": [
+    "Native PostgreSQL execution.",
+    "Atomic reconciliation against all concurrent domain writers across processes.",
+    "SDK durable settings execution receipts or multi-document power-loss transactions.",
+    "Complete Provider credential, auxiliary-process, handle, secret-file and network-exit isolation.",
+    "Full descendant and crash cleanup.",
+    "Claude native command sandbox or authenticated tool execution.",
+    "Windows/Linux native isolation, signed packages, clean-host install, upgrade or rollback."
+  ]
+}
