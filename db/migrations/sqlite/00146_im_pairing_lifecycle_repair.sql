@@ -71,5 +71,5 @@ WHERE return_revoked = 0
 
 -- +goose Down
 
--- This migration repairs authorization data irreversibly; there is no safe
--- reverse operation that could recreate deleted projections or delivery grants.
+-- 只回滚新增字段；已清理的投影与撤销的授权不可恢复。
+ALTER TABLE automation_delivery_routes DROP COLUMN target_session_key;
