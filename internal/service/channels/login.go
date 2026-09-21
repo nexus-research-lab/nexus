@@ -83,6 +83,7 @@ type channelLoginStore struct {
 	mu       sync.Mutex
 	active   map[string]string
 	sessions map[string]*channelLoginSession
+	keyLocks map[string]*sync.Mutex
 }
 
 type channelLoginSession struct {
@@ -111,5 +112,6 @@ func newChannelLoginStore() *channelLoginStore {
 	return &channelLoginStore{
 		active:   map[string]string{},
 		sessions: map[string]*channelLoginSession{},
+		keyLocks: map[string]*sync.Mutex{},
 	}
 }

@@ -21,10 +21,11 @@ type Store struct {
 }
 
 type rememberedRoute struct {
-	RouteID    string
-	SessionKey string
-	Target     channelcontract.DeliveryTarget
-	Enabled    bool
+	RouteID          string
+	SessionKey       string
+	TargetSessionKey string
+	Target           channelcontract.DeliveryTarget
+	Enabled          bool
 }
 
 func NewStore(cfg config.Config, db *sql.DB) *Store {
@@ -38,6 +39,7 @@ INSERT INTO automation_delivery_routes (
     route_id,
     agent_id,
     session_key,
+    target_session_key,
     mode,
     channel,
     "to",
@@ -51,6 +53,7 @@ INSERT INTO automation_delivery_routes (
 ON CONFLICT(route_id) DO UPDATE SET
     agent_id = EXCLUDED.agent_id,
     session_key = EXCLUDED.session_key,
+    target_session_key = EXCLUDED.target_session_key,
     mode = EXCLUDED.mode,
     channel = EXCLUDED.channel,
     "to" = EXCLUDED."to",
@@ -59,12 +62,13 @@ ON CONFLICT(route_id) DO UPDATE SET
     context_token = EXCLUDED.context_token,
     enabled = EXCLUDED.enabled,
     updated_at = CURRENT_TIMESTAMP`,
-		store.bindList(10),
+		store.bindList(11),
 	)
 	store.latestRouteQuery = `
 SELECT
     route_id,
     session_key,
+    target_session_key,
     mode,
     channel,
     "to",
@@ -81,6 +85,7 @@ LIMIT 1`
 SELECT
     route_id,
     session_key,
+    target_session_key,
     mode,
     channel,
     "to",
@@ -141,8 +146,16 @@ func normalizedRememberedTarget(row *rememberedRoute, err error) (*channelcontra
 	if normalized.Channel == "" || normalized.To == "" {
 		return nil, nil
 	}
-	if sessionKey := strings.TrimSpace(row.SessionKey); sessionKey != "" {
+	if sessionKey := strings.TrimSpace(row.TargetSessionKey); sessionKey != "" {
 		normalized.SessionKey = sessionKey
+	} else if sessionKey := strings.TrimSpace(row.SessionKey); sessionKey != "" {
+		// Rows created before target_session_key was introduced used the scope
+		// column for session routes. Preserve those exact routes while keeping
+		// agent-scoped legacy rows fail-closed for external IM delivery.
+		normalized.SessionKey = sessionKey
+	}
+	if isExternalRouteChannel(normalized.Channel) && strings.TrimSpace(normalized.SessionKey) == "" {
+		return nil, nil
 	}
 	return &normalized, nil
 }
@@ -174,6 +187,14 @@ func (m *Store) rememberRoute(
 	if err := normalized.Validate(); err != nil {
 		return nil, err
 	}
+	scopeSessionKey := strings.TrimSpace(sessionKey)
+	targetSessionKey := strings.TrimSpace(normalized.SessionKey)
+	if scopeSessionKey != "" {
+		targetSessionKey = scopeSessionKey
+	}
+	if targetSessionKey != "" {
+		normalized.SessionKey = targetSessionKey
+	}
 
 	routeID := m.idFactory("route")
 	existing, err := m.getLatestRouteRowForScope(ctx, agentID, sessionKey)
@@ -189,7 +210,8 @@ func (m *Store) rememberRoute(
 		m.rememberRouteQuery,
 		routeID,
 		strings.TrimSpace(agentID),
-		strings.TrimSpace(sessionKey),
+		scopeSessionKey,
+		targetSessionKey,
 		channelcontract.DeliveryModeExplicit,
 		channelcontract.NullableString(normalized.Channel),
 		channelcontract.NullableString(normalized.To),
@@ -202,6 +224,20 @@ func (m *Store) rememberRoute(
 		return nil, err
 	}
 	return &normalized, nil
+}
+
+func isExternalRouteChannel(channel string) bool {
+	switch strings.TrimSpace(channel) {
+	case channelcontract.ChannelTypeDiscord,
+		channelcontract.ChannelTypeTelegram,
+		channelcontract.ChannelTypeDingTalk,
+		channelcontract.ChannelTypeWeChat,
+		channelcontract.ChannelTypeWeixinPersonal,
+		channelcontract.ChannelTypeFeishu:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Store) getLatestRouteRow(ctx context.Context, agentID string) (*rememberedRoute, error) {
@@ -237,6 +273,7 @@ func scanRememberedRoute(row sqlScanner) (*rememberedRoute, error) {
 	if err := row.Scan(
 		&item.RouteID,
 		&item.SessionKey,
+		&item.TargetSessionKey,
 		&item.Target.Mode,
 		&channel,
 		&toValue,

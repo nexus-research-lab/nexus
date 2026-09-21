@@ -120,17 +120,16 @@ func TestChannelLoginCompletionRejectsChangedControlVersion(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	close(client.release)
 	failed := waitChannelLoginStatus(
 		t,
 		service,
 		"owner-a",
 		ChannelTypeWeixinPersonal,
 		started.LoginID,
-		ChannelLoginStatusError,
+		ChannelLoginStatusCancelled,
 	)
-	if !strings.Contains(failed.Error, "配置版本已变化") {
-		t.Fatalf("stale login failure = %+v", failed)
+	if failed.QRPayload != "" || failed.QRPayloadType != "" {
+		t.Fatalf("配置重绑后取消的登录仍保留二维码: %+v", failed)
 	}
 	row, err := service.getChannelConfigRow(
 		context.Background(),

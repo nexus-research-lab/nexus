@@ -40,6 +40,7 @@ interface ChannelConnectionFieldsController {
   requestDeleteAccount: (account: ChannelAccountView) => void;
   setAgentId: (agentId: string) => void;
   showsQRCode: boolean;
+  startLogin: () => Promise<boolean>;
   submitVerifyCode: (value: string) => Promise<boolean>;
   updateField: (field: ChannelCredentialField, value: string) => void;
 }
@@ -62,11 +63,13 @@ export function ChannelConnectionFields({
 
       {controller.showsQRCode ? (
         <ChannelLoginPanel
+          canStartLogin={currentItem.configured}
           channelType={currentItem.channel_type}
           channelTitle={currentItem.title}
           loading={controller.loginLoading}
           loginView={controller.loginView}
           mutationBlocked={controller.loginMutationBlocked}
+          onStartLogin={controller.startLogin}
           onSubmitVerifyCode={controller.submitVerifyCode}
           recoveryNotice={controller.loginRecoveryNotice}
         />
