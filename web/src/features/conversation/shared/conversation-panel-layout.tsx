@@ -248,6 +248,9 @@ export function ConversationPanelFloatingControls({
   isMobileLayout: boolean;
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
+  if (!activity && !scrollToLatest.visible) {
+    return null;
+  }
   const anchoredToGoal = anchor === "goal";
   return (
     <div

@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recovered half-open chat connections and renewed Node credentials without tying device execution to browser-session expiry.
 - Fenced stale IM QR login, pairing, delivery, and Session generations across rebinding, deletion, and Agent changes; returned delivery feedback to its original Session.
 - Restored DM Goal continuation authority, Room host selection for queued input, and non-object Automation query results.
+- Isolated scheduled-task execution locks so slow delivery cannot block unrelated task updates through hash collisions.
+- Removed empty floating-control spacing at the bottom of conversations.
 - Prevented duplicate migration versions and preserved reversible SQLite migrations, entitlement isolation, and organization-scoped access checks.
 - Improved model-limit errors, Echo Gate decision budgets, WebSocket failure diagnostics, and exported Agent runtime logs.
 - Waited for route/authentication readiness before desktop startup navigation and used explicit HFS+ staging for macOS packages.

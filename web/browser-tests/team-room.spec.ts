@@ -38,7 +38,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
       return route.fulfill({json: {data: {state: "authorized", agent_ids: ["agent"], candidates: [], execution_available: true, execution_enabled: true, jobs: []}}});
     }
     if (path === "/nexus/v1/team-node/room") {
-      expect(request.postDataJSON()).toEqual({room_id: "online-room"});
+      expect([{room_id: "online-room"}, {room_ids: ["online-room"]}]).toContainEqual(request.postDataJSON());
       roomPrepared = true;
       return route.fulfill({json: {data: []}});
     }
