@@ -48,13 +48,6 @@ func (h *Handler) sendChatFailure(
 	if clientMessageID != "" {
 		details["client_message_id"] = clientMessageID
 	}
-	logx.Resolve(ctx, h.api.BaseLogger()).Warn("WebSocket chat 请求失败",
-		"session_key", sessionKey,
-		"type", msgType,
-		"client_request_id", clientRequestID,
-		"client_message_id", clientMessageID,
-		"err", err,
-	)
 	h.sendGatewayError(ctx, sender, sessionKey, errorType, err, details)
 }
 

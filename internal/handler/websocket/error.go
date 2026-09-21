@@ -1,5 +1,5 @@
 // INPUT: WebSocket gateway 的内部错误、命令类型与可选关联身份。
-// OUTPUT: 脱敏 message、稳定 failure_code 和精确 round/request 字段的 error event。
+// OUTPUT: 带请求身份与底层原因的失败日志，以及脱敏 message、稳定 failure_code 的 error event。
 // POS: Conversation gateway 错误到公开 wire 的唯一分类边界。
 package websocket
 
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
@@ -26,7 +27,21 @@ func (h *Handler) sendGatewayError(
 		details = make(map[string]any)
 	}
 	details["failure_code"] = gatewayFailureCode(errorType, err)
-	_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(sessionKey, errorType, message, details))
+	fields := []any{
+		"session_key", sessionKey, "error_type", errorType,
+		"failure_code", details["failure_code"], "err", err, "context_err", ctx.Err(),
+	}
+	// 只提取关联身份，不展开请求正文、附件或配置等业务输入。
+	for _, key := range []string{"type", "action", "client_request_id", "client_message_id", "room_id", "conversation_id", "round_id", "agent_round_id", "item_id"} {
+		if value, ok := details[key]; ok {
+			fields = append(fields, key, value)
+		}
+	}
+	logger := logx.Resolve(ctx, h.api.BaseLogger()).With(fields...)
+	logger.Warn("WebSocket 请求失败")
+	if sendErr := sender.SendEvent(ctx, h.newGatewayErrorEvent(sessionKey, errorType, message, details)); sendErr != nil {
+		logger.Warn("WebSocket 错误事件发送失败", "send_err", sendErr)
+	}
 }
 
 func gatewayFailureCode(errorType string, err error) protocol.ConversationFailureCode {
