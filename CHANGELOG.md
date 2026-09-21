@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Record underlying WebSocket gateway errors with request identities and error-event delivery failures so rejected queue submissions can be diagnosed without logging request payloads.
+
 - Increase the Echo Gate output budget from 220 to 2048 tokens so reasoning models have room to return a JSON decision.
 
 - 消息过程标题、工具行与即时活动移除额外水平内边距，图标组左边缘与同层正文对齐。
