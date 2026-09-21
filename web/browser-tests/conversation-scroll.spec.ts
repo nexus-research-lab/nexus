@@ -94,25 +94,27 @@ test("generation scroll control stays out of the bottom layout until the reader 
       );
     }
     const host = document.createElement("div");
+    host.dataset.scrollControlHarness = "true";
     host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
     document.body.append(host);
     createRoot(host).render(h(Harness));
   });
 
-  await expect(page.locator("[data-scroll-to-latest]")).toHaveCount(0);
-  await expect(page.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+  const harness = page.locator("[data-scroll-control-harness]");
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Read earlier" }).click();
-  await expect(page.locator("[data-scroll-to-latest]")).toHaveCount(1);
-  await expect(page.locator("[data-scroll-to-latest]")).toHaveAttribute("data-generating", "true");
-  await expect(page.locator("[data-conversation-dock-clearance]")).toHaveCount(1);
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(1);
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveAttribute("data-generating", "true");
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(1);
 
   await page.getByRole("button", { name: "Toggle generation" }).click();
-  await expect(page.locator("[data-scroll-to-latest]")).not.toHaveAttribute("data-generating", "true");
+  await expect(harness.locator("[data-scroll-to-latest]")).not.toHaveAttribute("data-generating", "true");
 
   await page.getByRole("button", { name: "Read earlier" }).click();
-  await expect(page.locator("[data-scroll-to-latest]")).toHaveCount(0);
-  await expect(page.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
 });
 
 test("activity Dock clearance keeps FOLLOW pinned at the real bottom", async ({ page }) => {

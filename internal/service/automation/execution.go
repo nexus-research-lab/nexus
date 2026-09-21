@@ -138,14 +138,10 @@ func (e *runtimeClaimExpectation) apply(input *automationstore.JobRuntimeClaimIn
 }
 
 func (s *Service) taskExecutionFence(jobID string) *sync.Mutex {
-	const offset32 = uint32(2166136261)
-	const prime32 = uint32(16777619)
-	hash := offset32
-	for _, value := range []byte(strings.TrimSpace(jobID)) {
-		hash ^= uint32(value)
-		hash *= prime32
-	}
-	return &s.taskExecutionFences[int(hash%uint32(len(s.taskExecutionFences)))]
+	// 按任务身份隔离，避免分桶碰撞让慢外投阻塞其他任务。
+	// ponytail: 锁随 Service 保留；任务大量创建和删除时再引入引用计数回收。
+	value, _ := s.taskExecutionFences.LoadOrStore(strings.TrimSpace(jobID), &sync.Mutex{})
+	return value.(*sync.Mutex)
 }
 
 type jobExecutionStarter struct {

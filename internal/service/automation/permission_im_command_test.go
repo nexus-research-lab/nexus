@@ -214,7 +214,11 @@ func TestPermissionIMSlashApprovesAndDoesNotEnterAgentRuntime(t *testing.T) {
 	if got := len(fixture.dm.Requests()); got != requestsBefore+1 {
 		t.Fatalf("命令应只触发权限续跑，不应作为聊天再进入 runtime: before=%d after=%d", requestsBefore, got)
 	}
-	messages = fixture.delivery.Messages()
+	// 执行终态先于异步结果投递，等待投递完成后再核对正文。
+	waitFor(t, 2*time.Second, func() bool {
+		messages = fixture.delivery.Messages()
+		return len(messages) >= 2
+	})
 	if len(messages) < 2 || messages[len(messages)-1] != "审批后的执行结果" {
 		t.Fatalf("续跑结果应原样回投且不能带固定任务前缀: %+v", messages)
 	}

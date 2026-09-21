@@ -238,6 +238,23 @@ WHERE job_id = ?`, task.JobID); err != nil {
 	}
 }
 
+func TestTaskExecutionFenceSeparatesTaskIdentities(t *testing.T) {
+	service := &Service{}
+	seen := make(map[*sync.Mutex]string)
+	// 超过旧实现的 64 个桶，确定性覆盖不同任务共用锁的回归。
+	for index := 0; index < 65; index++ {
+		jobID := fmt.Sprintf("job-%d", index)
+		fence := service.taskExecutionFence(jobID)
+		if previous, exists := seen[fence]; exists {
+			t.Fatalf("tasks %s and %s share a fence", previous, jobID)
+		}
+		if service.taskExecutionFence(" "+jobID+" ") != fence {
+			t.Fatalf("task %s did not reuse its fence", jobID)
+		}
+		seen[fence] = jobID
+	}
+}
+
 func TestSlowDeliveryRetryDoesNotBlockUnrelatedTaskConfiguration(t *testing.T) {
 	db := newAutomationTestDB(t)
 	delivery := newBlockingDeliveryRouter()
