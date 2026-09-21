@@ -476,7 +476,8 @@ func (s *Service) evaluateConversation(
 			Content: "最近对话：\n" + buildGateHistory(history) +
 				"\n\n只返回三个字段：decision 为 follow_up 或 skip；follow_up 的 reason_code 只能是 awaiting_answer、promised_followup、unfinished_decision、requested_check_in，且 focus 必须是一句不超过 160 字的具体关注点；skip 的 reason_code 只能是 concluded、no_new_value、would_repeat、social_only、too_ambiguous、sensitive_context、needs_tool，focus 为空字符串。",
 		}},
-		MaxTokens:        220,
+		// 输出额度包含思考内容，为无法关闭思考的模型预留 JSON 正文空间。
+		MaxTokens:        2048,
 		Temperature:      0,
 		DisableReasoning: true,
 	})
