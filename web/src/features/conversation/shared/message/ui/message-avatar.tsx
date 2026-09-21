@@ -2,7 +2,7 @@
 // OUTPUT: Compact/full message avatar with local image failure recovery.
 // POS: Message rail avatar geometry and accessible detail affordance.
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
-import { useState, type MouseEvent, type ReactNode } from "react";
+import { useState, type ComponentProps, type MouseEvent, type ReactNode } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import { getIconAvatarSrc } from "@/lib/avatar";
@@ -10,6 +10,11 @@ import { cn } from "@/shared/ui/class-name";
 
 type MessageAvatarSize = "full" | "compact";
 type MessageAvatarRadius = "content" | "control";
+
+// 真人和 Agent 的作者头像共用阅读尺寸，避免身份类型影响消息头对齐。
+export function MessageAuthorAvatar({ compact, ...props }: Omit<ComponentProps<typeof MessageAvatar>, "className" | "size" | "radius"> & { compact: boolean }) {
+  return <MessageAvatar {...props} size={compact ? "compact" : "full"} radius="control" className={cn("nexus-chat-avatar shrink-0", !compact && "h-8 w-8")} />;
+}
 
 const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
   full: "h-10 w-10",

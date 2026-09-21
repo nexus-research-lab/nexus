@@ -93,6 +93,10 @@ test("online room settings and dissolution use the real dialog and revoke the co
   const incoming = page.getByText("Message without a push notification", {exact: true});
   await expect(incoming.locator('xpath=ancestor::div[contains(@class,"nexus-chat-user-content-shell")]')).toBeVisible();
   await expect(incoming.locator("xpath=ancestor::li").getByRole("button", {name: text("复制消息", "Copy message"), exact: true})).toBeVisible();
+  const humanAvatar = (await incoming.locator("xpath=ancestor::li").locator(".nexus-chat-avatar").boundingBox())!;
+  const agentAvatar = (await page.getByText("Research Agent", {exact: true}).locator("..").locator(".nexus-chat-avatar").boundingBox())!;
+  expect(humanAvatar.width).toBe(agentAvatar.width);
+  expect(humanAvatar.height).toBe(agentAvatar.height);
   await page.screenshot({path: info.outputPath("online-room-message-parity.png")});
   const header = page.locator(".workspace-surface-header").filter({has: page.getByRole("button", {name: text("成员（3 人）", "Members (3)"), exact: true})});
   expect(await header.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);

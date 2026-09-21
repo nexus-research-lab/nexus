@@ -10,12 +10,18 @@ on:
         description: "要发布的 Git tag，例如 v0.0.1"
         required: true
         type: string
+      skip_smoke:
+        description: "跳过安装包冒烟测试（仅用于已验证的重新发布）"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_smoke && '1' || '0' }}
 
 jobs:
   macos_app:
