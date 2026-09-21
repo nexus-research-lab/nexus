@@ -44,8 +44,28 @@ func fallbackPairingSessionMatches(pairing *pairingRow, parsed protocol.SessionK
 	if parsed.Generation != "" {
 		return false
 	}
-	return pairing.AccountID != strings.TrimSpace(parsed.AccountID) ||
-		pairing.ThreadID != ingressPairingThreadID(parsed.ChatType, parsed.ThreadID)
+	// Once the pairing itself has rotated to a generated key, its old
+	// generation-less target-shaped key is no longer a legacy alias. Requiring
+	// the current pairing key to be generation-less prevents a stale key from
+	// regaining authority through the target fallback after Session deletion or
+	// Agent rebinding.
+	if current := protocol.ParseSessionKey(pairingSessionKey(*pairing)); current.Generation != "" {
+		return false
+	}
+	if normalizeIMChannelType(pairing.ChannelType) != normalizeIMChannelType(parsed.Channel) ||
+		protocol.NormalizeSessionChatType(pairing.ChatType) != protocol.NormalizeSessionChatType(parsed.ChatType) ||
+		strings.TrimSpace(pairing.ExternalRef) != strings.TrimSpace(parsed.Ref) {
+		return false
+	}
+	// A generation-less key may use the legacy target fallback only when the
+	// pairing itself is a wildcard for the dimensions that differ. The old
+	// implementation used OR here, which let an explicit account/topic pairing
+	// authorize a different account or topic whenever either dimension differed.
+	accountMatches := strings.TrimSpace(pairing.AccountID) == "" ||
+		strings.TrimSpace(pairing.AccountID) == strings.TrimSpace(parsed.AccountID)
+	threadMatches := strings.TrimSpace(pairing.ThreadID) ==
+		ingressPairingThreadID(parsed.ChatType, parsed.ThreadID)
+	return accountMatches && threadMatches
 }
 
 // ListAgentExternalSessions 列出同 owner、同 Agent 的 active-paired 真实私聊。

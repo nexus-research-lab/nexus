@@ -379,6 +379,50 @@ func TestControlServiceSerializesUpsertAndDeleteThroughRuntimeReload(t *testing.
 	}
 }
 
+func TestControlServiceUpsertCancelsActiveQRLoginBeforeRebind(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{
+		DatabaseDriver:          "sqlite",
+		ConnectorCredentialsKey: testChannelCredentialKey(),
+	}, db, nil, nil)
+	active := activeChannelLoginTestSession(
+		"owner-a",
+		ChannelTypeFeishu,
+		"login-stale-qr",
+		"",
+	)
+	active.view.QRPayload = "https://platform.test/stale-qr"
+	active.view.QRPayloadType = "text"
+	store := service.effectiveChannelLoginStore()
+	store.sessions[active.view.LoginID] = active
+	store.active[active.activeKey] = active.view.LoginID
+
+	if _, err := service.UpsertChannelConfig(
+		context.Background(),
+		"owner-a",
+		ChannelTypeFeishu,
+		UpsertChannelConfigRequest{
+			AgentID:     "agent-b",
+			Config:      map[string]string{"app_id": "cli-new"},
+			Credentials: map[string]string{"app_secret": "secret-new"},
+		},
+	); err != nil {
+		t.Fatalf("重绑 Channel Agent 不应失败: %v", err)
+	}
+	view := active.snapshot()
+	if view.Status != ChannelLoginStatusCancelled || view.QRPayload != "" || view.QRPayloadType != "" {
+		t.Fatalf("Channel 重绑后旧扫码会话仍可见: %+v", view)
+	}
+	store.mu.Lock()
+	_, activeStillIndexed := store.active[active.activeKey]
+	store.mu.Unlock()
+	if activeStillIndexed {
+		t.Fatal("Channel 重绑后不得保留旧扫码会话的 active 索引")
+	}
+}
+
 func TestControlServiceRejectsIncompleteChannelConfig(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()

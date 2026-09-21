@@ -49,6 +49,10 @@ func (s *channelLoginSession) finish(status string, errorMessage string) {
 	}
 	s.view.UpdatedAt = now
 	s.view.FinishedAt = &now
+	// A terminal login can never be resumed. Do not keep the provider token in
+	// the terminal read model or let a reopened panel render an expired QR.
+	s.view.QRPayload = ""
+	s.view.QRPayloadType = ""
 	s.committing = false
 	s.verifyCode = ""
 }
@@ -160,6 +164,8 @@ func (s *channelLoginSession) cancelLogin() (ChannelLoginView, error) {
 	s.view.Output = trimChannelLoginOutput(s.view.Output + "扫码授权已取消。\n")
 	s.view.UpdatedAt = now
 	s.view.FinishedAt = &now
+	s.view.QRPayload = ""
+	s.view.QRPayloadType = ""
 	s.verifyCode = ""
 	view := cloneChannelLoginView(s.view)
 	s.mu.Unlock()

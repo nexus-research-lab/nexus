@@ -124,7 +124,7 @@ GROUP BY channel_type, chat_type, status`
 		if status == PairingStatusActive && protocol.NormalizeSessionChatType(chatType) == "dm" {
 			item.PairedUserCount += count
 		}
-		if status == PairingStatusActive && protocol.NormalizeSessionChatType(chatType) == "group" {
+		if status == PairingStatusActive && (protocol.NormalizeSessionChatType(chatType) == "group" || protocol.NormalizeSessionChatType(chatType) == protocol.RoomTypeGroup) {
 			item.PairedGroupCount += count
 		}
 		result[channelType] = item

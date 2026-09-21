@@ -33,13 +33,34 @@ func (s *ControlService) CoordinateAgentDeletion(
 		return errors.New("Agent 持久删除回调不能为空")
 	}
 
-	unlockControl := s.lockControlMutation(ownerUserID)
-	defer unlockControl()
-
 	channelTypes, err := s.agentDeletionChannelTypes(ctx, ownerUserID, agentID)
 	if err != nil {
 		return fmt.Errorf("读取 Agent Channel 删除影响: %w", err)
 	}
+	// Fence any in-process QR authorization before taking the database locks.
+	// A login completion may itself need those locks to persist credentials; the
+	// cancellation helper waits for that exact completion first and therefore
+	// cannot deadlock behind the deletion transaction.
+	loginUnlocks := make([]func(), 0, len(channelTypes))
+	for _, channelType := range channelTypes {
+		unlock := s.lockChannelLogin(ownerUserID, channelType)
+		loginUnlocks = append(loginUnlocks, unlock)
+		if cancelErr := s.cancelActiveChannelLoginsLocked(ctx, ownerUserID, channelType); cancelErr != nil {
+			for index := len(loginUnlocks) - 1; index >= 0; index-- {
+				loginUnlocks[index]()
+			}
+			return fmt.Errorf("取消 Agent Channel 扫码会话: %w", cancelErr)
+		}
+	}
+	defer func() {
+		for index := len(loginUnlocks) - 1; index >= 0; index-- {
+			loginUnlocks[index]()
+		}
+	}()
+
+	unlockControl := s.lockControlMutation(ownerUserID)
+	defer unlockControl()
+
 	channelUnlocks := make([]func(), 0, len(channelTypes))
 	for _, channelType := range channelTypes {
 		channelUnlocks = append(channelUnlocks, s.lockChannelMutation(ownerUserID, channelType))
