@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin the desktop sandbox Bridge to local commit `8e90ff5e35e3` and verify the
+  generated Claude native sandbox settings through the exact CLI's
+  `--settings <json> --help` parser path before a session starts. The fixed
+  SDK `9956def1` macOS archive baseline passes all 38 checks with 47 settings
+  writer events; Claude Code `2.1.273` accepts the settings entry point and
+  rejects both restricted bypass forms. This is still configuration and local
+  development evidence only: authenticated Claude command/network/credential
+  isolation, cleanup, Windows/Linux, clean-host, signed-package and production
+  acceptance remain pending (`releaseAccepted=false`).
+
 - Pin the desktop sandbox Bridge to local commit `436346420c2905907375cc63b8fee9b88bc07287` and scrub inherited Provider, bearer-token, secret, cookie, SSH-agent, and proxy-auth environment names at the final Claude/nxs process boundary. Typed host-resolved environment overrides remain available. Target/race/vet, Nexus runtime regression, and Windows/Linux cross-compilation checks pass; this does not prove secret-file, inherited-handle, network, Claude OS-sandbox, descendant-cleanup, or package acceptance.
 
 - Pin the desktop sandbox baseline to SDK `9956def130da33af47accf799a9c27c16a551104` and include cross-physical-root journal recovery in the required evidence script. The fixed archive-built nxs (`e004c631ec555df466c14e13fc091e53f29a0ca4e113e1cd81031c0a2bab0f84`) passes all 38 macOS development checks and 47 settings-writer events; full-old/full-new states close together, while mixed or unverifiable states retain every journal and fail closed. This does not close cross-root power-loss atomicity, domain receipts, Provider secret-file/handle/network isolation, or Windows/Linux/Claude/package acceptance.

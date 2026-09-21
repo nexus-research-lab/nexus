@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // INPUT: A Claude Code executable and an explicitly expected version.
-// OUTPUT: JSON evidence for the local CLI's restricted flag and safe rejection paths.
+// OUTPUT: JSON evidence for CLI flags/settings entry point; not effective OS policy.
 // POS: No-model-request probe; it never supplies a prompt to a command that could reach a model.
 
 import fs from "node:fs";
@@ -60,6 +60,10 @@ function run(args) {
 
 const version = run(["--version"]);
 const help = run(["--help"]);
+const nativeSandboxSettings = JSON.stringify({
+  sandbox: { enabled: true, failIfUnavailable: true, allowUnsandboxedCommands: false },
+});
+const nativeSandboxHelp = run(["--settings", nativeSandboxSettings, "--help"]);
 const dangerousBypass = run(["--restricted", "--dangerously-skip-permissions"]);
 const bypassMode = run(["--restricted", "--permission-mode", "bypassPermissions"]);
 const versionText = version.text.trim();
@@ -73,6 +77,10 @@ const report = {
   expectedVersion: options["--expected-version"],
   actualVersion,
   restrictedHelp,
+  nativeSandboxSettings: {
+    exitCode: nativeSandboxHelp.exitCode,
+    settingsHelp: /--settings\s+<file-or-json>/s.test(nativeSandboxHelp.text),
+  },
   rejection: {
     dangerousBypass: { exitCode: dangerousBypass.exitCode, message: expectedRejection.test(dangerousBypass.text) },
     permissionModeBypass: { exitCode: bypassMode.exitCode, message: expectedRejection.test(bypassMode.text) },
@@ -80,12 +88,14 @@ const report = {
   commands: [
     { ...version, text: undefined },
     { ...help, text: undefined },
+    { ...nativeSandboxHelp, text: undefined },
     { ...dangerousBypass, text: undefined },
     { ...bypassMode, text: undefined },
   ],
   scope: {
     noPromptSupplied: true,
-    noModelRequestEvidence: "The probe only invokes --version, --help, and preflight-rejected bypass combinations.",
+    noModelRequestEvidence: "The probe only invokes --version, --help, a --settings/--help parser check, and preflight-rejected bypass combinations.",
+    nativeSandbox: "The settings check proves only that this CLI accepts the generated settings entry point; it does not prove OS command enforcement.",
     cancellationAndCleanup: "not tested; requires an authenticated, isolated Claude session and platform evidence",
   },
 };
@@ -95,6 +105,8 @@ console.log(JSON.stringify(report, null, 2));
 const failed = [
   actualVersion !== options["--expected-version"] && `expected ${options["--expected-version"]}, got ${actualVersion ?? "unknown"}`,
   !restrictedHelp && "--help did not describe --restricted",
+  nativeSandboxHelp.exitCode !== 0 && "--settings JSON --help probe failed",
+  !/--settings\s+<file-or-json>/s.test(nativeSandboxHelp.text) && "--settings JSON --help probe did not advertise --settings",
   dangerousBypass.exitCode === 0 && "dangerous bypass unexpectedly succeeded",
   !expectedRejection.test(dangerousBypass.text) && "dangerous bypass rejection message missing",
   bypassMode.exitCode === 0 && "bypass permission mode unexpectedly succeeded",

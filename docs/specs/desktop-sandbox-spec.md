@@ -311,7 +311,11 @@ administrator privileges or override domain authorization. A restricted Claude
 session installs Bridge's typed `RequireClaudeNativeSandbox` contract, which
 generates one host-owned `--settings` object and rejects missing, duplicate or
 overridden JSON, bypass permissions, `--restricted` tool-mode mixing, and any
-unsandboxed-command setting before transport startup. The corresponding
+unsandboxed-command setting before transport startup. Bridge also probes the exact
+resolved CLI with `--settings <generated-json> --help` using a bounded timeout,
+bounded output and scrubbed environment; a rejected or unadvertised settings
+entry point prevents startup. Help output does not attest that the policy is
+effective. The corresponding
 `CapabilityClaudeNativeSandbox` is a local Bridge configuration capability, not
 a Claude wire response or proof of OS/file/network/Provider isolation. Claude
 Full Access is an explicit exception and does not install the contract or
