@@ -7,297 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Repair IM QR login cleanup and pairing/Session generation fencing so stale Feishu, DingTalk, WeCom and Weixin login or delivery state cannot survive rebinding, deletion or Agent changes.
-- Detect half-open online Room connections with the existing browser heartbeat and native Relay WebSocket Ping/Pong; recover missed messages through durable cursors without replaying sends or Agent execution.
-- Reconnect shared chat sockets after heartbeat timeout without waiting for an unresponsive connection's close event.
+## [0.2.1] - 2026-09-21
 
-- Renew online Agent credentials on the existing Relay WebSocket instead of reconnecting every minute.
+### Added
 
-- Restore full Execution command capability for exact DM Goal continuations while keeping ordinary internal rounds and Room session boundaries fail-closed.
-
-- Unify the conversation Goal, Task and activity Dock surfaces with the shared control material and keep their Composer stack spacing stable.
-
-- Keep the conversation tail scrollable above the floating Goal and remeasure Goal/Activity clearance without moving a reader's position.
-
-- Fix unmentioned Room input queue submissions so Host auto-reply still selects the Room owner while an Agent is running.
-
-### Fixed
-
-- Record underlying WebSocket gateway errors with request identities and error-event delivery failures so rejected queue submissions can be diagnosed without logging request payloads.
-
-- Increase the Echo Gate output budget from 220 to 2048 tokens so reasoning models have room to return a JSON decision.
-
-- 消息过程标题、工具行与即时活动移除额外水平内边距，图标组左边缘与同层正文对齐。
-
-- 生成文件卡片撑满消息内容区，移除紧凑与普通密度下的独立宽度上限。
-
-- Fix Automation list, delivery target, run and event queries failing when the command adapter receives an array; preserve the original JSON text and wrap non-object structured results in a result field.
-
-- 统一消息过程收起、展开与即时思考状态的图标尺寸和左侧对齐，避免折叠后图标错位。
-
-- Fix duplicate migration version 00144 after merging Room reply previews and workgraph artifact contracts; move reply previews to 00145 for SQLite and PostgreSQL.
-
-- Split frontend validation into standard checks, package builds, browser smoke tests and explicit full UI coverage; cap local Vitest parallelism to reduce memory pressure.
-
-- Keep the conversation at the real bottom when the activity Dock adds its 56px clearance while FOLLOW is active.
-
-- Hide the generating scroll control at the real bottom and show it only while reading earlier content.
-
-- Keep async conversation surfaces at stable initial heights across Mermaid, generated UI, keyboard viewport changes and Room breakpoint transitions.
-
-- Keep generated UI recovery in the existing frame and coalesce soft-keyboard Composer resize commits after the viewport settles.
-
-- Keep missing generated UI errors in the reserved content slot and keep streaming detail observers attached across content updates.
-
-- Stabilize conversation activity row geometry and preserve scroll position when opening a Thread changes the main conversation width.
-
-- Keep the first streamed Markdown heading's top spacing stable while the response is being parsed.
-
-- Preserve the first observed order of concurrent Room Agent execution cards while later runtime snapshots update their state.
-
-- Reuse validated transcript parsing across single-file, segmented and explicit history reads; preserve unchanged files during index rebuilds while reapplying current markers, session identity and fork boundaries.
-
-- Read Room runtime context by each Agent’s public cursor from the existing history index; retain terminal recovery context and full-content fallbacks without blocking input admission on a full history scan.
-
-- Prepare joined Agents from the persistent room directory, support cancelling pending deliveries, safely reconcile unknown executions, and publish explicit Room file deliverables through the durable outbox to Relay shared storage without rerunning tools.
-
-- Stop scanning full DM/Room history to recount messages during context queries, avoiding unnecessary work when opening conversations.
-
-- Release completed online Agent execution slots when output recovery receives a definitive lease-renewal rejection; preserve pending output retries for transient failures without rerunning the Agent.
-
-- Incrementally refresh Room history pages from appended ledger bytes and the retained final round, updating pages and navigation atomically; fall back to canonical rebuilds for changed transcript dependencies, rewritten files and cross-round corrections.
-
-- Coalesce online Room delivery-state refreshes through the shared WebSocket recovery path; fence stale detail failures and release synchronization ownership on room changes so old responses cannot clear or block the new chat.
-
-- Reuse the local Room activity indicator and left alignment for remote Agent waiting and replying states, with stable row height and no animation after failure.
-
-- Update sidebar activity and completed reply previews locally from durable WebSocket messages instead of fetching the directory every round; retain reconciliation on reconnect and directory changes, and protect live updates from stale HTTP responses.
-
-- Keep one persistent reply preview per DM/Room, update it after completed replies are saved, and load the sidebar with one query instead of reading history; invalidate previews on edit/deletion and fill missing previews from normally requested history pages.
-
-- Include the bound local Agent identity in online Room observers, Threads and execution panels so native session binding and command catalog validation succeed.
-
-- Preserve stable conversation transport callbacks to prevent online Room control observers from looping and blocking navigation to other chats.
-
-- Keep text-capable multimodal Provider models eligible for both conversation and vision
-  routing when their endpoint also reports embedding support.
-
-- Fix directory tab selection indicators so the previous option's underline disappears immediately when switching.
-
-- Expand WorkGraph template descriptions with practical use cases and the concrete records each method produces.
-
-- Consolidate WorkGraph detail-page guidance into the Slash command description and remove the separate user-facing artifact-contract panel.
-
-- Add nine reusable WorkGraph methodology templates, including First Principles, MECE strategy, Systems Thinking, Double Diamond, JTBD, Business Model, Pyramid Brief, OODA and a governed ontology operating model. Group them in the WorkGraph directory and persist an artifact contract that names the canonical model, human-readable brief, audit projection and render hint.
-
-- Surface model Token/context-limit failures with actionable guidance and clear stale conversation failure notices after a later send starts.
-
-- Add a code-grounded Chinese WorkGraph design and introduction covering Goal/Plan reuse, responsibility and runtime graphs, Agent commands, persistence, authoring drafts, named workflow reuse, and UI/API boundaries.
-
-- Persist the current IM pairing Session generation and rotate to a new structured Session key after deletion or Agent rebinding, while keeping old Session tombstones and delivery grants fenced.
-
-- Reject stale generation-less IM grants after Session rotation instead of authorizing by platform target alone.
-
-- Separate Provider disable, replace-key and confirmed clear-key actions; disabling preserves credentials and model bindings, clearing a key disables the Provider, and unavailable defaults display as empty. Move chat, image, vision and background defaults into the dedicated Models settings page.
-
-- Replace speculative model recommendations with officially sourced provider/plan-specific guidance, current model IDs, text-only versus multimodal labels and plan restrictions; remove name-based capability guesses, preserve user overrides, and gate image editing by the implemented transport.
-
-- Label models with image input as “Multimodal” in selection lists, keeping detailed vision and image-output capabilities separate.
-
-- Share model recommendations and capability labels across onboarding, Provider settings, chat and default image selection; preserve saved defaults, support automatic/explicit capability overrides, and enforce separate chat, image generation and editing eligibility.
-
-- Connect online Room Slash prompts and attachments to native Room execution: explicit Agent mentions, shared-file references in the durable message outbox, lease-scoped verified downloads, and reusable message attachment actions. Keep private host commands and workspaces isolated.
-
-- Remove online Room metadata polling. Reuse the shared WebSocket connection for directory, invitation, binding and file invalidation, retain focus/reconnect recovery, and stop scanning execution outputs on successful lease maintenance.
-
-- Reuse native Room execution controls in online groups: exact-round stop actions and stopping feedback, plus the shared Composer permission/question queue scoped to the current user's bound Agents.
-
-- Replace the five-second online Agent claim poll with scoped Relay WebSocket hints and the existing due-work scheduler. Reconcile durable work on startup/reconnect, wake immediately on local grant changes and slot release, and publish complete Room outputs from native observer notifications instead of one-second scans.
-
-- Discover online-room local Threads through native Room WebSocket subscriptions instead of a 15-second job poll. Reconcile job links on connection and execution changes, and use native Room terminal states without waiting for metadata refresh.
-
-- Show other members' Agent delivery progress and failures in online rooms, retain progress after intermediate replies, and clear it on final output. Renew expired Relay WSS principals without dropping the browser connection; reuse valid machine tokens and suppress empty polling logs.
-
-- Reuse the local Room reply chip beside online Agent names, showing the actual triggering member's identity instead of a separate quoted-text label.
-
-- Distinguish interrupted online Agent executions from failures, prefer native cancelled Thread status, and label locally tracked replies with their exact triggering message.
-
-- Share allowlisted online Agent execution statistics through the durable outbox and render duration, tokens, cost, cache usage and model with the existing Room message footer. Private memory references remain local.
-
-- Preserve online human sender account IDs and names in Room history and exact trigger context, with explicit guidance separating group speakers from the local owner's private memories.
-
-- Automatically provision host execution for your active online-room Agents and recover confirmed-invalid node credentials using the current login. Remove the separate host-authorization dialog; tool approvals and Relay membership checks remain enforced.
-
-- Add correlated, rate-limited online Agent executor failure logs and claim/output/completion lifecycle logs without logging credentials or message bodies.
-
-- Unify online human messages with Room user bubbles, author identity, copy actions and timestamps; reuse Agent action groups and resizable Room side panels. Reject unsupported online message attachments explicitly while preserving the draft.
-
-- Show the local Agent execution identity before online replies; drive Thread activity from Room execution state and reload persisted history when the delivery finishes instead of treating history fetching as thinking.
-
-- Anchor chat mention suggestions above the entire composer, matching Slash pickers and preventing a single candidate from covering the send toolbar.
-
-- Preserve Agent avatars in shared mention suggestions, render explicit online mentions with Room chips, and keep execution Thread actions out of human message identity headers.
-
-- Reuse the Room message renderer for online Agent replies and resolve your group-settings avatar from the signed-in remote account.
-
-- Fix startup migration collisions by assigning Team Node message lookup version 142 in both SQLite and PostgreSQL, preserving IM delivery migration version 141.
-
-- Narrow organization role controls and expose the single Remove action directly; remove revoked memberships from the list without disabling accounts.
-
-- Allow removing human DMs from your own sidebar while preserving both participants’ history; reopen from Contacts or receive a new message to show the chat again. Retry uncertain removal with the original command.
-
-- Remove the empty-chat prompt from online conversations while retaining loading feedback.
-
-- Show a searchable organization member list by default in Contacts, reusing the Agent directory header, content gutters and list layout.
-
-- Separate Contacts into Agent and Organization members with the switch below search and aligned responsive gutters; select a person to view their profile, then start a direct message, with the same hover chat shortcut as Agent rows and without standalone DM buttons or a duplicate directory.
-
-- Prepare online Agent session settings before the first task without enabling node execution. Default the room workspace to Relay-persisted shared uploads/downloads and keep private local Agent files in a separate tab.
-
-- Add same-organization human direct messages from Contacts, reuse the online Room timeline and durable delivery, and deliver group invitations as actionable DM cards.
-
-- Connect online-room header panels to existing local execution work graphs, subagents, Agent workspaces and profiles; reuse per-session model and permission controls without exposing other members' local data. Relay execution defaults to approval unless its owner explicitly configures that execution session.
-
-- Hide the empty group-invitation sidebar section and show retry only after a read failure, preserving pending invitations and ownership recovery.
-
-- Keep online group header avatars consistent with the sidebar, resolve the current member avatar from remote account identity, and align host authorization controls with Room header sizing.
-
-- Resolve historical online Agent Threads by owner-scoped message and Delivery indexes, including migration backfill, instead of losing access outside the latest 100 jobs.
-
-- Anchor local execution Threads to their triggering group messages, route node-dialog execution links back to online groups, support exact-round stopping and history retries, and retain mention labels with Composer drafts across page navigation.
-
-- Reuse Room public-context budgeting, Agent execution Threads and the shared Composer for online groups; keep internal execution rooms out of the chat directory and local permission interactions inside their Thread.
-
-- Add an explicit model selection step to Provider onboarding, with a discovered model list, manual model ID fallback, and resumable verification before selecting defaults.
-
-- Fix Provider onboarding stopping after saving credentials and testing the connection by retaining the preferences revision before selecting default models.
-
-- Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
-
-- Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.
-
-- Catch up group messages from durable stream watermarks during visible-page, focus and network refreshes, recovering missed notifications and temporary difference failures.
-
-- Refresh authentication status directly from Control so organization creation and membership changes appear immediately instead of reusing a stale identity lease.
-
-- Do not mislabel organization owners as leaving members when the backend omits their organization role; show a recovery notice and hide empty member-action columns.
-
-- Place organization actions and member search in one toolbar, with matching outlined action buttons.
-
-- Move organizations into account settings for all remote accounts, with organization creation, existing-account joining, rename, leave, ownership transfer and dissolution confirmations.
-- Separate organization permissions from platform operations; organization-less users retain personal/local capabilities without Relay access. Refresh remote identity on focus and scope online directories to the organization.
-
-- Remove page-header subtitles across Settings for consistent, simpler headings.
-
-- Create subscription plans in a dialog with name, quota, notes, and automatically generated identifiers; hide plan keys and preserve them when renaming.
-
-- Edit subscription plans directly in compact rows with shared column headings and inline save actions.
-
-- Widen the provider directory and reduce duplicated inner spacing to show longer service names.
-
-- Show a compact delete icon on provider row hover or keyboard focus, keeping it visible on touch devices and preserving deletion confirmation and usage checks.
-
-- Simplify user subscription management by removing top-level statistics and the routine refresh action.
-
-- Group invite and invitation-history actions on the left of the member toolbar, with history in a dialog and direct revoke/delete actions; remove the redundant member heading and routine refresh button while retaining recovery actions.
-
-- Show subscription account column headings once on desktop and retain inline field labels in narrow layouts.
-
-- Inset settings card separators and remove the tour-reset entry from General settings and settings search.
-
-- Remove redundant right-side labels from default model, message behavior, runtime, and web search settings while retaining accessible control names.
-
-- Refine operations pages with flatter directories, inline plan editing, and secondary row actions.
-
-- Center settings bodies within a 1200px limit while preserving full-width page headers and simplify organization directories with compact rows, separate action menus, and invitation counts.
-
-- Add deletion of accepted, revoked and expired organization invitation records, retaining revoke for active invitations.
-
-- Remove the organization role-description sidebar and let the member directory use the full content width; retain member role management.
-
-- Align plain dialog titles with close buttons and normalize the Room skill placeholder typography.
-
-- Reorganize the Room dialog into compact configuration and member columns, with skills beside the member list and stable member header/list heights when switching tabs.
-
-- Compact shared segmented controls and remove the outer tray and stacked selection borders.
-
-- Add explicit host authorization for online Agents, with encrypted durable credentials, exact registration/revocation recovery, and remote-account isolation. Desktop binds the local host; Web binds its Nexus server.
-- Add opt-in online Agent execution through native local Rooms, durable inbox/output recovery, exact lease cancellation, and local permission/question handling. Only complete replies reach remote members; existing grants remain execution-disabled and unknown interrupted runs never restart automatically.
-- Use the real runtime MCP tool-use identity preserved by Bridge for IM delivery; remove the content-hash workaround and report missing metadata as a runtime/Bridge integration error.
-
-- Track IM delivery origins and return human feedback to the original Session through the existing `list_targets` and `send_message` tools, with durable queue admission, pairing revocation and unchanged contact messaging.
-
-- Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
-
-- Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
-
-### Fixed
-
-- Keep sticky thought and tool headers covered across button states so scrolling detail text cannot overlap their labels.
-
-- Restore left-aligned labels for action-menu items with icons or secondary content while keeping plain text actions centered.
-
-- Align the web Launcher spotlight decoration with the brand icon while preserving desktop placement.
-
-- Show the signed-in user avatar in online Agent reply badges when the invitation directory excludes the current user.
-
-- Unify online conversation errors with shared inline notices and scoped recovery actions, and distinguish task-status read failures from unknown mutations.
-
-- Render selected Agent mentions in the composer with subtle highlighting while preserving native text editing and Slash command styling.
-
-- Reduce the default action-menu width to 160px and center option text so short row actions stay compact and balanced.
-
-- Align thought and process disclosure icons with tool rows by using consistent inset spacing and icon slots.
-- Use a subtle shared hover background for process, thought, and tool rows without shadows or layout shifts.
-
-- Keep organization settings headers and page spacing consistent before sign-in or joining an organization by reusing the standard page layout.
-
-- Use rounded chat bubbles consistently in place of square text-message icons across contacts, navigation, settings, and conversation actions.
-- Match contact chat actions to the neutral appearance of the adjacent group-chat action.
-
-- Forward WebSocket upgrades for online group and human direct-message streams through Nginx so incoming messages can refresh immediately.
-
-- Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.
-
-- Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
-
-- Persist exact online message intents before sending, recover them without automatic replay, reconcile lost receipts from snapshots, and remove revoked Room resources and connections.
-- Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
-
-- Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
-- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
-
-- Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
-- Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
-
-- Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light/rain action contrast with the matching light Windows native projection, and keep long task suggestions inside their cards on WebKit.
-
-- Split the complete frontend browser test matrix across twelve CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
-- Move the collapsed sidebar control left, keep the macOS home canvas below the window controls, and align the Launcher spotlights over the wordmark.
-
-- Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
-- Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
-- Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
+- Added online Agent execution through native Rooms, with structured mentions, local permission/questions, exact-round stopping, delivery status, and complete shared replies.
+- Added shared online Room files and explicit Agent file delivery while keeping private workspaces, tool traces, and memory local.
+- Added human direct messages, organization invitations and lifecycle management, and Room ownership, membership, pause/resume, leave, and dissolution controls.
+- Added request-scoped Plan mode in the Composer and nine reusable WorkGraph methodology templates with structured artifact contracts.
 
 ### Changed
 
-- Add Plan mode to the Composer action menu and `/plan` completion, showing a removable footer mode indicator instead of a command prefix, while sharing one request-scoped planning and approval flow without changing permission settings.
+- Reused native Room Threads, context budgets, execution panels, and message controls for online collaboration; joined local Agents are prepared automatically.
+- Replaced online metadata and delivery polling with scoped WebSocket events, durable recovery, and in-place device credential renewal.
+- Accelerated sidebar previews and Room history through persisted summaries, incremental ledger indexing, and validated transcript caches.
+- Unified model recommendations and capability labels, added explicit onboarding model selection, and separated Provider disable, replace-key, and clear-key actions.
+- Stabilized conversation scrolling, floating Goal/activity spacing, streamed content, generated UI, file cards, and narrow-window settings.
+- Updated the bundled nxs runtime to v0.1.33 and Bridge dependency to v0.1.34.
 
-- Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
-- Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
-- Add online Room invitations and human member governance, including accept, reject, revoke, role changes, removal, and human owner transfer; selected people now join only after accepting an invitation.
-- Publish only selected local Agent identities to Control, verify their ownership at the Nexus Gateway, and support adding or removing them as online Room members; the human owner can select and replace the coordinator from active Agent members.
-- Let Agent owners pause or resume their online Room Agent from the shared member-management surface; pausing a coordinator clears that role before future delivery work.
-- Let online Room members explicitly select active Agents in the composer and submit structured mentions with the current membership-version fence.
-- Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
-- Prepare the optional Relay state directory for persistent single-node SQLite deployments.
+### Fixed
+
+- Preserved exact online message and execution identities during uncertain responses, reconnects, revocation, and interrupted work without automatically replaying sends or executions.
+- Recovered half-open chat connections and renewed Node credentials without tying device execution to browser-session expiry.
+- Fenced stale IM QR login, pairing, delivery, and Session generations across rebinding, deletion, and Agent changes; returned delivery feedback to its original Session.
+- Restored DM Goal continuation authority, Room host selection for queued input, and non-object Automation query results.
+- Prevented duplicate migration versions and preserved reversible SQLite migrations, entitlement isolation, and organization-scoped access checks.
+- Improved model-limit errors, Echo Gate decision budgets, WebSocket failure diagnostics, and exported Agent runtime logs.
+- Waited for route/authentication readiness before desktop startup navigation and used explicit HFS+ staging for macOS packages.
 
 ### Security
 
-- Upgrade Vitest to 4.1.11 and refresh Browserslist, baseline-browser-mapping, and humanfs to fix known frontend test and build toolchain vulnerabilities.
-- Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
-- Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
-- Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
+- Hardened organization, Agent ownership, device authorization, and revocation boundaries and updated vulnerable frontend build/test dependencies.
 
 ## [0.2.0] - 2026-09-10
 

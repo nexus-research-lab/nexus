@@ -642,6 +642,7 @@ CREATE TABLE automation_delivery_routes (
     route_id VARCHAR(64) NOT NULL PRIMARY KEY,
     agent_id VARCHAR(64) NOT NULL,
     session_key VARCHAR(512) NOT NULL DEFAULT '',
+    target_session_key VARCHAR(512) NOT NULL DEFAULT '',
     mode VARCHAR(32) NOT NULL,
     channel VARCHAR(64),
     "to" VARCHAR(255),
