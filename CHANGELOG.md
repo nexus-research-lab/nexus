@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 聊天列表删除与移出按钮相对整行垂直居中，不再贴着标题行；保留原有样式和悬浮显示。
+
 - Preserved exact online message and execution identities during uncertain responses, reconnects, revocation, and interrupted work without automatically replaying sends or executions.
 - Recovered half-open chat connections and renewed Node credentials without tying device execution to browser-session expiry.
 - Fenced stale IM QR login, pairing, delivery, and Session generations across rebinding, deletion, and Agent changes; returned delivery feedback to its original Session.

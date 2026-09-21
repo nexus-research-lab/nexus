@@ -868,3 +868,40 @@ test("process icons stay aligned when collapsed and expanded", async ({ page }) 
   await toggle.click();
   expect(Math.abs((await stackIcon.boundingBox())!.x - collapsed.x)).toBeLessThan(1);
 });
+
+test("conversation delete actions align with the whole row", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const rowPath = "/src/features/home/sidebar/sidebar-list-rows.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { ConversationRow } = await import(rowPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.dataset.deleteAlignment = "true";
+    host.style.cssText = "position:fixed;inset:20px;max-width:300px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      ...["person", "dm", "room"].map((kind) => React.createElement(ConversationRow, {
+        key: kind, isActive: false, onClick: () => {}, onDelete: () => {},
+        item: { id: kind, kind: kind === "person" ? "dm" : kind, directUserId: kind === "person" ? "user" : undefined,
+          title: kind, summary: "Conversation preview", timeLabel: "12:30", members: [],
+          isPinned: false, lastActivityAt: 0, messageCount: 1, activityStatus: null, canDelete: true },
+      }))));
+  });
+  const rows = page.locator('[data-delete-alignment] .group\\/item');
+  await expect(rows).toHaveCount(3);
+  for (const row of await rows.all()) {
+    await row.hover();
+    const action = row.locator("button");
+    await expect(action).toBeVisible();
+    const bounds = (await row.boundingBox())!;
+    const button = (await action.boundingBox())!;
+    expect(Math.abs(button.y + button.height / 2 - bounds.y - bounds.height / 2)).toBeLessThan(1);
+    expect(button.x).toBeGreaterThan(bounds.x + bounds.width / 2);
+    expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+  }
+});
