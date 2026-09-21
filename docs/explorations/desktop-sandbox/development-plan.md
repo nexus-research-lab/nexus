@@ -6,7 +6,18 @@
 
 当前开发位置（2026-09-20）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
-当前 Claude Bridge 接线批次固定 SDK `431966dd8862429f80a0bb555aef048d02dedf23`、Bridge `436346420c2905907375cc63b8fee9b88bc07287`，Nexus 工作树本地接入该版本。Nexus 通过本地 module proxy 固定 Bridge `v0.1.34-0.20260920062457-436346420c29`（`h1:kwNq8HuqV0NihWeE96YulddxdlX6Gbq+XiAJEkGs8nM=`，go.mod `h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=`）；由 SDK `431966dd8862429f80a0bb555aef048d02dedf23` 构建的最新 nxs SHA-256 为 `96da0c6022a7eda42ffe5a3fb3a2df59a1dea80c0d38a67be6a6dbf98b36f4cd`。Bridge 已在正式 Claude 进程前校验生成的原生 `sandbox` settings：必须启用、不可用时失败关闭、禁止 unsandboxed command，且不再把 `--restricted` 工具裁剪模式当作命令沙箱；本批次又在 Bridge 最终进程环境过滤继承的 Provider、代理和常见秘密变量，显式 typed `Options.Env` 仍可投影宿主已解析凭据。该批次仅本地提交，未推送；真实命令/网络/凭据/清理和平台验收仍见验收矩阵。
+当前固定基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
+`8e90ff5e35e3`，Nexus 使用精确模块
+`v0.1.34-0.20260920071621-8e90ff5e35e3`（checksum
+`h1:Craz/NDn5xxVYC9uTP29wm4FEUdPZiOHopbS7kY+qTM=`）。2026-09-20 固定 SDK
+归档构建的 nxs SHA-256 为
+`9896f72b69797b180d24274f861ed5fca77f153f9c54e6a0796d700251d894ac`。
+Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并以精确 CLI 的
+`--settings <json> --help` 检查该参数入口；这不是实际 OS 隔离回执。最终进程环境
+过滤继承的常见 Provider、代理和秘密变量，typed `Options.Env` 保留宿主凭据投影。
+38 项 macOS 开发基线通过；已认证 Claude 命令/网络/凭据/清理、原生其他平台与
+安装包验收仍未闭合。版本和证据见[最新固定基线](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)。
+所有提交仅本地，未推送。
 
 ## 1. 最终交付目标
 
@@ -415,6 +426,29 @@ Connector client secret。之后仍由宿主解析的当前 Provider 配置再�
 | 当前边界 | 只证明已知环境输入不会从 Nexus 宿主继承；任意秘密文件、已打开句柄、外部 MCP/helper 进程、后代环境、真实 Provider 网络出口和跨平台原生隔离仍未完成 |
 
 证据见[继承环境清理记录](../../testing/evidence/desktop-sandbox/2026-09-20-runtime-env-scrub/)。提交仅本地，未推送，`releaseAccepted=false`。
+
+### 2026-09-20：Bridge 原生 Claude settings 探测与最新固定基线
+
+Bridge `8e90ff5e35e3` 已固定到 Nexus
+`v0.1.34-0.20260920071621-8e90ff5e35e3`（checksum
+`h1:Craz/NDn5xxVYC9uTP29wm4FEUdPZiOHopbS7kY+qTM=`）。Bridge 启动 Claude
+受限会话前使用唯一 host-owned `--settings` JSON，并要求
+`sandbox.enabled=true`、`sandbox.failIfUnavailable=true`、
+`sandbox.allowUnsandboxedCommands=false`；Nexus 的脚本现在对同一 JSON 做
+`--settings ... --help` 无模型探测，CLI 不接受或不声明该入口即失败关闭。
+
+本机 Claude Code `2.1.273` 探测通过；`--restricted` 下两个 bypass 参数仍被
+CLI 拒绝。固定 SDK `9956def1` 归档构建的 nxs SHA-256 为
+`9896f72b69797b180d24274f861ed5fca77f153f9c54e6a0796d700251d894ac`；跨仓
+macOS 基线 38 项全部通过，settings writers 47 个通过事件。
+
+这批证据仍只覆盖 Bridge/CLI 配置入口和 nxs macOS 开发回归；不把
+`--restricted` 的工具裁剪误报成原生命令 OS 隔离。已认证 Claude 的允许命令与越界
+拒绝、网络批准、Provider/秘密文件/句柄、取消与完整 descendant cleanup，以及
+Windows/Linux/clean-host/签名安装包仍是 P1/P2/P6/P7 的必测项。证据见
+[macOS 固定基线](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)
+和 [Claude settings 探测](../../testing/evidence/desktop-sandbox/2026-09-20-claude-native-probe.json)。
+`releaseAccepted=false`；三个仓库仍只保留本地提交。
 
 ### 2026-09-20：固定 SDK + macOS 无模型基线重验
 

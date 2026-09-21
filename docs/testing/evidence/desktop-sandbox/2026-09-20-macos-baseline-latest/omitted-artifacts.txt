@@ -1,0 +1,6 @@
+The baseline runner generated these local artifacts outside the checked-in logs.
+They are intentionally omitted from the repository because they are platform-specific build products.
+
+nxs SHA-256: 9896f72b69797b180d24274f861ed5fca77f153f9c54e6a0796d700251d894ac
+sdk.tar SHA-256: 9c203f071ad1210ba3351b57bf4e1d8ee4b801d9c652ed8b92ba861e9bdf307e
+source directory: /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-ObPhiC

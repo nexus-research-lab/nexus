@@ -145,8 +145,32 @@ Windows 按不区分大小写执行同一规则，普通 PATH、HOME 与 runtime
 
 完整日志、固定版本和 manifest 见[2026-09-20-provider-env-boundary](evidence/desktop-sandbox/2026-09-20-provider-env-boundary/)。
 
-### Claude Bridge 受限合同（Bridge 已接线，三层验收待闭环）
+## 2026-09-20：Bridge 原生 Claude settings 探测与最新固定基线
 
+Nexus 工作树将 Bridge 精确 pin 更新为
+`v0.1.34-0.20260920071621-8e90ff5e35e3`（Bridge 本地提交
+`8e90ff5e35e3`，模块 checksum
+`h1:Craz/NDn5xxVYC9uTP29wm4FEUdPZiOHopbS7kY+qTM=`）。
+`check-claude-restricted.mjs` 现在除版本、`--restricted` 和 bypass 拒绝外，
+还用生成的 `sandbox.enabled=true`、`sandbox.failIfUnavailable=true`、
+`sandbox.allowUnsandboxedCommands=false` 调用 `--settings <json> --help`，确认
+正式 CLI 接受该 settings 入口；探测仍不发送 prompt 或模型请求。
+
+本机 `/Users/berhand/.local/bin/claude` `2.1.273` 的 settings 探测 exit 0，
+帮助文本声明 `--settings`；两个 restricted bypass 组合仍 exit 1。固定 SDK
+`9956def130da33af47accf799a9c27c16a551104` 的 macOS arm64 归档基线共 38 项
+检查 exit 0，settings writers 47 个事件通过，nxs SHA-256 为
+`9896f72b69797b180d24274f861ed5fca77f153f9c54e6a0796d700251d894ac`。
+
+证据见 [最新固定基线](evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)
+和 [Claude settings 探测](evidence/desktop-sandbox/2026-09-20-claude-native-probe.json)。
+这些结果只证明 CLI 解析入口、Bridge 配置合同和 macOS 本地开发基线，不能证明
+已认证 Claude 命令的文件/网络/Provider 隔离、取消与后代清理，或 Windows/Linux、
+clean-host、签名包和生产发布；`releaseAccepted=false` 继续成立。
+
+### 历史 Claude --restricted 合同（已由原生 sandbox settings 取代）
+
+以下保留旧工具裁剪合同的验证记录；当前桌面接线使用 `RequireClaudeNativeSandbox`。
 Bridge 的合同和 Claude 自身的实际隔离必须分开记证据：
 
 已记录的 CLI `2.1.273` 将 `--restricted` 描述为移除代码执行工具并限制文件工作目录。
