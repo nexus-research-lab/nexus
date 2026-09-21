@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Detect half-open online Room connections with the existing browser heartbeat and native Relay WebSocket Ping/Pong; recover missed messages through durable cursors without replaying sends or Agent execution.
+- Reconnect shared chat sockets after heartbeat timeout without waiting for an unresponsive connection's close event.
+
+- Renew online Agent credentials on the existing Relay WebSocket instead of reconnecting every minute.
+
 - Restore full Execution command capability for exact DM Goal continuations while keeping ordinary internal rounds and Room session boundaries fail-closed.
 
 - Unify the conversation Goal, Task and activity Dock surfaces with the shared control material and keep their Composer stack spacing stable.

@@ -239,6 +239,16 @@ func TestNodeFailureLoggingIsCorrelatedThrottledAndRedacted(t *testing.T) {
 	if strings.Count(output.String(), "\n") != 3 {
 		t.Fatalf("限频窗口或取消过滤不正确: %s", &output)
 	}
+	for reason, failure := range map[string]error{"node_grant_inactive": ErrNodeInactive, "node_credential_rejected": ErrNodeCredentialRejected} {
+		output.Reset()
+		executor.logFailure(t.Context(), reason, grant, teamstore.NodeJob{}, failure)
+		if decodeErr := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &record); decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if record["reason"] != reason || !errors.Is(failure, ErrNodeLogin) {
+			t.Fatalf("授权失败原因丢失: %s", &output)
+		}
+	}
 }
 
 func TestDeliveryRoomContextUsesExactTriggerAndLocalAgent(t *testing.T) {

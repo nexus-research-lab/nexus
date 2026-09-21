@@ -248,13 +248,17 @@ func (stub *teamRelayStub) Difference(
 }
 
 func (stub *teamRelayStub) Watch(
-	_ context.Context,
+	ctx context.Context,
 	token string,
 	streamID string,
 	streamEpoch string,
 	handle func(relaycontract.StreamUpdated) error,
 ) error {
 	stub.watchCalls++
+	if stub.watchErr == context.Canceled {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	if stub.watchExpireOnce && stub.watchCalls == 1 {
 		time.Sleep(time.Second)
 		return websocket.CloseError{Code: websocket.StatusPolicyViolation, Reason: "principal expired"}
@@ -268,6 +272,37 @@ func (stub *teamRelayStub) Watch(
 		}
 	}
 	return stub.watchErr
+}
+
+func TestTeamStreamHeartbeatWithoutBusinessTraffic(t *testing.T) {
+	relay := &teamRelayStub{watchErr: context.Canceled}
+	server := httptest.NewServer(newTeamTestRouter(&teamTokenStub{token: "token"}, relay, teamTestPrincipal()))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-1", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {server.URL}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	for range 2 {
+		if err = wsjson.Write(ctx, conn, map[string]string{"type": "ping"}); err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			EventType string `json:"event_type"`
+		}
+		if err = wsjson.Read(ctx, conn, &response); err != nil || response.EventType != "pong" {
+			t.Fatalf("pong: %+v %v", response, err)
+		}
+	}
+	if err = wsjson.Write(ctx, conn, map[string]string{"type": "send_message"}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = conn.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+		t.Fatalf("unexpected close: %v", err)
+	}
 }
 
 func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {

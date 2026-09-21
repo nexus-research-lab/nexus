@@ -19,7 +19,8 @@ test.after(async () => {
   await server.close();
 });
 
-test("clean server close reconnects the shared WebSocket", async () => {
+for (const heartbeatTimeout of [false, true]) {
+test(heartbeatTimeout ? "heartbeat timeout reconnects without waiting for a close event" : "clean server close reconnects the shared WebSocket", async () => {
   const sockets = [];
   const originalWebSocket = globalThis.WebSocket;
   const originalWindow = globalThis.window;
@@ -58,7 +59,8 @@ test("clean server close reconnects the shared WebSocket", async () => {
     const states = [];
     const client = new WebSocketClient(
       {
-        heartbeatInterval: 0,
+        heartbeatInterval: heartbeatTimeout ? 10 : 0,
+        heartbeatTimeout: 10,
         reconnect: true,
         reconnectDelay: 1,
         url: "ws://127.0.0.1/test",
@@ -68,10 +70,11 @@ test("clean server close reconnects the shared WebSocket", async () => {
 
     client.connect();
     sockets[0].open();
-    sockets[0].serverClose();
-
-    assert.equal(states.at(-1), "reconnecting");
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    if (!heartbeatTimeout) {
+      sockets[0].serverClose();
+      assert.equal(states.at(-1), "reconnecting");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(sockets.length, 2);
     sockets[1].open();
     assert.equal(states.at(-1), "connected");
@@ -85,6 +88,7 @@ test("clean server close reconnects the shared WebSocket", async () => {
     }
   }
 });
+}
 
 test("owner reset disposes old channels and the same key creates a fresh handshake", async () => {
   const sockets = [];

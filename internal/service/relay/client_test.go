@@ -55,6 +55,88 @@ func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
 	}
 }
 
+func TestWatchHeartbeatDetectsSilentPeerAndKeepsHealthyConnection(t *testing.T) {
+	for _, responsive := range []bool{true, false} {
+		t.Run(map[bool]string{true: "pong", false: "silent"}[responsive], func(t *testing.T) {
+			release := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				if err != nil {
+					return
+				}
+				defer conn.CloseNow()
+				if responsive {
+					conn.CloseRead(r.Context())
+				}
+				<-release
+			}))
+			defer server.Close()
+			defer close(release)
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(nil)
+			conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.CloseNow()
+			conn.CloseRead(ctx)
+			go watchHeartbeat(ctx, conn, 10*time.Millisecond, 50*time.Millisecond, cancel)
+			select {
+			case <-ctx.Done():
+				if responsive || !strings.Contains(context.Cause(ctx).Error(), "heartbeat failed") {
+					t.Fatalf("unexpected failure: %v", context.Cause(ctx))
+				}
+			case <-time.After(250 * time.Millisecond):
+				if !responsive {
+					t.Fatal("silent peer was not detected")
+				}
+			}
+		})
+	}
+}
+
+func TestNodeWatchRefreshesOnTheSameConnection(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.CloseNow()
+		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "auth.refresh_required"}); err != nil {
+			t.Error(err)
+			return
+		}
+		var message struct {
+			Type  string `json:"type"`
+			Token string `json:"token"`
+		}
+		if err = wsjson.Read(r.Context(), conn, &message); err != nil || message.Type != "auth.refresh" || message.Token != "new-token" {
+			t.Errorf("refresh: %+v %v", message, err)
+			return
+		}
+		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "auth.refreshed"}); err != nil {
+			t.Error(err)
+			return
+		}
+		if err = wsjson.Write(r.Context(), conn, relaycontract.StreamUpdated{Type: "deliveries.updated"}); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	stop := errors.New("received delivery")
+	err = client.WatchDeliveries(ctx, "old-token", func(context.Context) (string, error) { return "new-token", nil }, func() error { return stop })
+	if !errors.Is(err, stop) {
+		t.Fatal(err)
+	}
+}
+
 func TestClientReturnsRelayErrorFromWebSocketUpgrade(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
