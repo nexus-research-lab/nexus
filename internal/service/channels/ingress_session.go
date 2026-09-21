@@ -54,7 +54,25 @@ func validateIngressSessionIdentity(request IngressRequest, parsed protocol.Sess
 			name:     "account_id",
 			provided: strings.TrimSpace(request.AccountID),
 			expected: parsed.AccountID,
-			enabled:  strings.TrimSpace(request.AccountID) != "" && parsed.AccountID != "",
+			enabled:  strings.TrimSpace(request.AccountID) != "",
+		},
+		{
+			name:     "chat_type",
+			provided: protocol.NormalizeSessionChatType(request.ChatType),
+			expected: protocol.NormalizeSessionChatType(parsed.ChatType),
+			enabled:  strings.TrimSpace(request.ChatType) != "",
+		},
+		{
+			name:     "ref",
+			provided: strings.TrimSpace(request.Ref),
+			expected: strings.TrimSpace(parsed.Ref),
+			enabled:  strings.TrimSpace(request.Ref) != "",
+		},
+		{
+			name:     "thread_id",
+			provided: strings.TrimSpace(request.ThreadID),
+			expected: strings.TrimSpace(parsed.ThreadID),
+			enabled:  strings.TrimSpace(request.ThreadID) != "",
 		},
 	}
 	for _, constraint := range constraints {
@@ -132,6 +150,15 @@ func (s *IngressService) resolveRememberedTarget(
 		if target.Channel == "" {
 			target.Channel = channelStored
 		}
+		if isExternalIngressChannel(channelStored) {
+			if target.SessionKey != "" && target.SessionKey != parsed.Raw {
+				return nil, errors.New("delivery target session_key 与入站 pairing 不一致")
+			}
+			// The reply target is a capability of the exact ingress Session. Do
+			// not let an adapter omit it or substitute another Session while the
+			// visible recipient happens to look the same.
+			target.SessionKey = parsed.Raw
+		}
 		if target.Channel == ChannelTypeInternal && target.SessionKey == "" {
 			target.SessionKey = parsed.Raw
 		}
@@ -154,7 +181,9 @@ func (s *IngressService) resolveRememberedTarget(
 		}
 		return &target, nil
 	case ChannelTypeTelegram, ChannelTypeDingTalk, ChannelTypeWeChat, ChannelTypeWeixinPersonal, ChannelTypeFeishu:
-		return deliveryTargetFromSessionRef(channelStored, parsed), nil
+		target := deliveryTargetFromSessionRef(channelStored, parsed)
+		target.SessionKey = parsed.Raw
+		return target, nil
 	case ChannelTypeDiscord:
 		if parsed.ChatType != "group" {
 			return nil, nil
@@ -173,6 +202,15 @@ func (s *IngressService) resolveRememberedTarget(
 		return &target, nil
 	default:
 		return nil, nil
+	}
+}
+
+func isExternalIngressChannel(channel string) bool {
+	switch normalizeIMChannelType(channel) {
+	case ChannelTypeDiscord, ChannelTypeTelegram, ChannelTypeDingTalk, ChannelTypeWeChat, ChannelTypeWeixinPersonal, ChannelTypeFeishu:
+		return true
+	default:
+		return false
 	}
 }
 

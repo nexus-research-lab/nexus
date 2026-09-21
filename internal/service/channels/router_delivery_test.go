@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -257,10 +259,12 @@ func TestRouterDeliverMessageUsesSessionRememberedRouteBeforeAgentRoute(t *testi
 
 	sessionA := protocol.BuildAgentSessionKey("agent-a", ChannelTypeTelegram, "dm", "user-a", "")
 	sessionB := protocol.BuildAgentSessionKey("agent-a", ChannelTypeTelegram, "dm", "user-b", "")
+	latestSession := protocol.BuildAgentSessionKey("agent-a", ChannelTypeTelegram, "dm", "agent-latest", "")
 	if _, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
-		Mode:    DeliveryModeExplicit,
-		Channel: ChannelTypeTelegram,
-		To:      "agent-latest",
+		Mode:       DeliveryModeExplicit,
+		Channel:    ChannelTypeTelegram,
+		To:         "agent-latest",
+		SessionKey: latestSession,
 	}); err != nil {
 		t.Fatalf("记录 agent 最近目标失败: %v", err)
 	}
@@ -366,6 +370,7 @@ func TestRememberWebSocketRouteDoesNotReplaceExternalIMSessionRoute(t *testing.T
 		Channel:      ChannelTypeWeixinPersonal,
 		To:           "user-a",
 		AccountID:    "account-a",
+		SessionKey:   sessionKey,
 		ContextToken: "context-a",
 	}
 	if _, err := router.RememberRoute(context.Background(), "agent-a", target); err != nil {
@@ -389,6 +394,71 @@ func TestRememberWebSocketRouteDoesNotReplaceExternalIMSessionRoute(t *testing.T
 	last, err := router.GetLastRoute(context.Background(), "agent-a")
 	if err != nil || last == nil || last.Channel != ChannelTypeWeixinPersonal || last.To != "user-a" {
 		t.Fatalf("浏览器订阅覆盖了 Agent 最近 IM route: route=%+v err=%v", last, err)
+	}
+}
+
+func TestRouterDoesNotReuseLegacyExternalAgentRouteWithoutSessionKey(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+
+	if _, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
+		Mode:    DeliveryModeExplicit,
+		Channel: ChannelTypeFeishu,
+		To:      "oc-legacy",
+	}); err != nil {
+		t.Fatalf("记录 legacy 外部 route 失败: %v", err)
+	}
+	last, err := router.GetLastRoute(context.Background(), "agent-a")
+	if err != nil {
+		t.Fatalf("读取 legacy 外部 route 失败: %v", err)
+	}
+	if last != nil {
+		t.Fatalf("缺少 exact Session key 的外部 route 必须 fail closed: %+v", last)
+	}
+}
+
+func TestRouterFailsClosedWhenIMGrantValidatorIsMissing(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	// Wiring the durable IM delivery store opts this Router into the full
+	// lifecycle contract. A missing pairing validator must not silently turn a
+	// structured external Session into a sendable target.
+	router.SetIMDeliverySupport(imdelivery.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db), nil)
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"agent-a", protocol.SessionChannelFeishu, protocol.RoomTypeDM, "account-a", "ou-a", "",
+	)
+	_, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
+		Mode:       DeliveryModeExplicit,
+		Channel:    ChannelTypeFeishu,
+		To:         "ou-a",
+		SessionKey: sessionKey,
+	})
+	if !errors.Is(err, ErrExternalSessionGrantUnavailable) {
+		t.Fatalf("缺少 IM grant validator 时必须 fail closed: %v", err)
+	}
+}
+
+func TestRouterAgentRoutePreservesExactExternalSessionCapability(t *testing.T) {
+	db := newChannelTestDB(t)
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"agent-a", protocol.SessionChannelFeishu, protocol.RoomTypeGroup,
+		"account-a", "oc-exact", "",
+	)
+	if _, err := router.RememberRoute(context.Background(), "agent-a", DeliveryTarget{
+		Mode:       DeliveryModeExplicit,
+		Channel:    ChannelTypeFeishu,
+		To:         "oc-exact",
+		SessionKey: sessionKey,
+	}); err != nil {
+		t.Fatalf("记录 exact 外部 route 失败: %v", err)
+	}
+	last, err := router.GetLastRoute(context.Background(), "agent-a")
+	if err != nil {
+		t.Fatalf("读取 exact 外部 route 失败: %v", err)
+	}
+	if last == nil || last.SessionKey != sessionKey {
+		t.Fatalf("Agent route 必须保留 exact Session capability: %+v", last)
 	}
 }
 

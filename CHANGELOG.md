@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Repair IM QR login cleanup and pairing/Session generation fencing so stale Feishu, DingTalk, WeCom and Weixin login or delivery state cannot survive rebinding, deletion or Agent changes.
+
 - Restore full Execution command capability for exact DM Goal continuations while keeping ordinary internal rounds and Room session boundaries fail-closed.
 
 - Unify the conversation Goal, Task and activity Dock surfaces with the shared control material and keep their Composer stack spacing stable.

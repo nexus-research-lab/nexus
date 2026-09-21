@@ -27,7 +27,8 @@ func (s *ControlService) IMDeliveryPairing(ctx context.Context, owner, agent, se
 	if err != nil {
 		return "", err
 	}
-	if stored == nil || stored.AgentID != agent {
+	if stored == nil || strings.TrimSpace(stored.SessionKey) != strings.TrimSpace(session) ||
+		strings.TrimSpace(stored.AgentID) != strings.TrimSpace(agent) {
 		return "", ErrExternalSessionGrantUnavailable
 	}
 	row, err := s.findPairingBySessionKey(ctx, owner, session, PairingStatusActive)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -244,11 +245,18 @@ func TestIngressServiceAcceptFeishuThreadUsesGroupPairing(t *testing.T) {
 		t.Fatalf("飞书话题消息应命中群级配对: %v", err)
 	}
 
-	expectedSessionKey := "agent:" + defaultAgent.AgentID + ":fs:group:acct:cli_a:oc_group_123:topic:omt_thread_1"
-	if result.SessionKey != expectedSessionKey {
-		t.Fatalf("飞书话题 session_key 不正确: %s", result.SessionKey)
+	parsedSession := protocol.ParseSessionKey(result.SessionKey)
+	if !parsedSession.IsStructured || parsedSession.Kind != protocol.SessionKeyKindAgent ||
+		parsedSession.AgentID != defaultAgent.AgentID ||
+		parsedSession.Channel != protocol.SessionChannelFeishuSegment ||
+		parsedSession.ChatType != "group" ||
+		parsedSession.AccountID != "cli_a" ||
+		parsedSession.Ref != "oc_group_123" ||
+		parsedSession.ThreadID != "omt_thread_1" ||
+		parsedSession.Generation == "" {
+		t.Fatalf("飞书话题 session_key 不正确: %s (parsed=%+v)", result.SessionKey, parsedSession)
 	}
-	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
+	if len(handler.requests) != 1 || handler.requests[0].SessionKey != result.SessionKey {
 		t.Fatalf("飞书话题消息未进入 DM 主链: %+v", handler.requests)
 	}
 	replyTarget := handler.requests[0].ExternalReplyTarget

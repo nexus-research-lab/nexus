@@ -58,6 +58,10 @@ func (s *ControlService) ResolveIngressSession(ctx context.Context, request Ingr
 		// still needs its own platform-scoped Session identity.
 		if active.AccountID != target.accountID || active.ThreadID != strings.TrimSpace(target.threadID) {
 			concreteTarget := pairingSessionTargetFromIngress(target.ownerUserID, target)
+			// The concrete projection is an authorization child of this exact
+			// wildcard pairing. Carry the parent identity into every read/write so
+			// a stale projection for the same external target cannot be reused.
+			concreteTarget.PairingID = active.PairingID
 			sessionKey, resolveErr := s.resolveConcretePairingSession(ctx, concreteTarget, *active)
 			return active.AgentID, sessionKey, resolveErr
 		}
@@ -197,7 +201,16 @@ func (s *ControlService) findIngressPairingByTarget(
 	}
 
 	// 旧版本配对没有 account_id；单账号型群聊通道允许用空 account_id 兜底。
-	item, err = s.findPairingByTarget(ctx, ownerUserID, channelType, "", chatType, externalRef, threadID, status)
+	item, err = s.findPairingByTarget(
+		ctx,
+		ownerUserID,
+		channelType,
+		"",
+		chatType,
+		externalRef,
+		ingressPairingThreadID(chatType, threadID),
+		status,
+	)
 	if err != nil || item != nil || !usesGroupScopedPairing(chatType, threadID) {
 		return item, err
 	}
@@ -212,7 +225,12 @@ func ingressPairingThreadID(chatType string, threadID string) string {
 }
 
 func usesGroupScopedPairing(chatType string, threadID string) bool {
-	return protocol.NormalizeSessionChatType(chatType) == "group" && strings.TrimSpace(threadID) != ""
+	normalized := protocol.NormalizeSessionChatType(chatType)
+	// External adapters historically used `group`, while the Room protocol
+	// calls the same multi-party shape `room`. Pairing scope must understand
+	// both spellings or a wildcard created through the Room constant will never
+	// match its account/topic ingress.
+	return (normalized == "group" || normalized == protocol.RoomTypeGroup) && strings.TrimSpace(threadID) != ""
 }
 
 func usesAccountlessPairingFallback(channelType string, accountID string) bool {
@@ -227,9 +245,22 @@ func (s *ControlService) touchPairing(ctx context.Context, ownerUserID string, p
 	unlock := s.lockPairingMutation(ownerUserID)
 	defer unlock()
 
-	query := "UPDATE im_pairings SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)
-	_, err := s.db.ExecContext(ctx, query, ownerUserID, strings.TrimSpace(pairingID))
-	return err
+	query := "UPDATE im_pairings SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2) + " AND status = " + s.bind(3)
+	result, err := s.db.ExecContext(ctx, query, ownerUserID, strings.TrimSpace(pairingID), PairingStatusActive)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		// The target was read before a concurrent revoke/delete committed. Do
+		// not let that stale read continue into Session creation or runtime
+		// dispatch as if the pairing were still active.
+		return ErrExternalSessionGrantUnavailable
+	}
+	return nil
 }
 
 func (s *ControlService) rotatePairingSessionKey(ctx context.Context, ownerUserID, pairingID, expectedSessionKey, sessionKey string) (string, error) {
@@ -280,9 +311,46 @@ func (s *ControlService) MarkIngressSessionMaterialized(ctx context.Context, own
 }
 
 func (s *ControlService) markIngressSessionMaterialized(ctx context.Context, ownerUserID, sessionKey string) error {
-	if _, err := s.db.ExecContext(ctx, "UPDATE im_pairings SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND session_key="+s.bind(2)+" AND status="+s.bind(3), ownerUserID, strings.TrimSpace(sessionKey), PairingStatusActive); err != nil {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return errors.New("session_key is required")
+	}
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent {
+		return errors.New("session_key is not a structured Agent session")
+	}
+	if channel := normalizeIMChannelType(parsed.Channel); channel == ChannelTypeInternal || channel == ChannelTypeWebSocket {
+		// Internal/WebSocket ingress has no IM pairing row to materialize.
+		return nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	_, err := s.db.ExecContext(ctx, "UPDATE im_pairing_sessions SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND session_key="+s.bind(2), ownerUserID, strings.TrimSpace(sessionKey))
-	return err
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.ExecContext(ctx, "UPDATE im_pairings SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND agent_id="+s.bind(2)+" AND session_key="+s.bind(3)+" AND status="+s.bind(4), ownerUserID, parsed.AgentID, sessionKey, PairingStatusActive)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		// Wildcard pairings keep their parent key in im_pairings; the concrete
+		// projection is the exact materialization record for this ingress.
+		result, err = tx.ExecContext(ctx, "UPDATE im_pairing_sessions SET session_materialized=1, updated_at=CURRENT_TIMESTAMP WHERE owner_user_id="+s.bind(1)+" AND session_key="+s.bind(2)+" AND EXISTS (SELECT 1 FROM im_pairings p WHERE p.owner_user_id=im_pairing_sessions.owner_user_id AND p.pairing_id=im_pairing_sessions.pairing_id AND p.agent_id="+s.bind(3)+" AND p.status="+s.bind(4)+")", ownerUserID, sessionKey, parsed.AgentID, PairingStatusActive)
+		if err != nil {
+			return err
+		}
+		affected, err = result.RowsAffected()
+		if err != nil {
+			return err
+		}
+	}
+	if affected != 1 {
+		return ErrExternalSessionGrantUnavailable
+	}
+	return tx.Commit()
 }

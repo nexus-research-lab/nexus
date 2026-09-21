@@ -185,6 +185,13 @@ func (s *ControlService) upsertPairingRowAndReloadAtVersion(
 	defer unlockControl()
 	unlockPairing := s.lockPairingMutation(row.OwnerUserID)
 	defer unlockPairing()
+	// buildPairingRow performs an early validation for useful error messages,
+	// but Agent deletion may race that read. Recheck after the authoritative
+	// owner locks are held so a new/pending pairing can never commit an Agent
+	// that has just been deleted.
+	if err := s.ensureAgent(ctx, row.AgentID); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
 
 	var created *pairingRow
 	_, err := s.withChannelControlMutation(ctx, row.OwnerUserID, expectedVersion, func(tx *sql.Tx) error {
@@ -196,7 +203,12 @@ func (s *ControlService) upsertPairingRowAndReloadAtVersion(
 		}
 		if existing != nil {
 			row.SessionMaterialized = existing.SessionMaterialized
-			if existing.AgentID != row.AgentID {
+			if existing.AgentID != row.AgentID || existing.Status != row.Status {
+				if err := s.deletePairingDeliveryRoutesTx(ctx, tx, row.OwnerUserID, existing.PairingID); err != nil {
+					return err
+				}
+			}
+			if existing.AgentID != row.AgentID || existing.Status != row.Status {
 				if _, deleteErr := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), row.OwnerUserID, existing.PairingID); deleteErr != nil {
 					return deleteErr
 				}
