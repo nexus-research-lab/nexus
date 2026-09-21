@@ -67,12 +67,22 @@ it("opens the shared header panels without inventing a remote Agent execution se
     expect(screen.queryByText("team.local_execution_empty")).toBeNull();
   }
 });
-it("uses the remote Control identity for the own-message surface on desktop", () => {
+it.each([false, true])("aligns humans by remote Control identity, including direct chats: %s", (direct) => {
+  if (direct) room.room!.room.direct_user_id = "other";
   room.messages = [{id: "mine", conversation_id: "conversation", message_seq: 1,
     author_type: "user", author_user_id: "owner", author_username: "owner", author_display_name: "My Remote Name",
     client_message_id: "mine", content: {version: 1, blocks: [{type: "markdown", text: "My message"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  room.messages.push({...room.messages[0], id: "other", message_seq: 2, author_user_id: "local-owner",
+    author_display_name: "Other person", client_message_id: "other",
+    content: {version: 1, blocks: [{type: "markdown", text: "Their message"}]}});
   render(page());
-  expect(screen.getByText("My message")).toBeTruthy();
+  const mine = screen.getByText("My message").closest("[data-message-alignment]");
+  const other = screen.getByText("Their message").closest("[data-message-alignment]");
+  expect(mine?.getAttribute("data-message-alignment")).toBe("right");
+  expect(other?.getAttribute("data-message-alignment")).toBe("left");
+  expect(other?.querySelector(".nexus-chat-message-header")?.classList.contains("justify-start")).toBe(true);
+  expect(other?.querySelector(".nexus-chat-user-content-shell")?.classList.contains("mr-auto")).toBe(true);
+  expect(other?.querySelector(".nexus-chat-user-actions")?.classList.contains("justify-start")).toBe(true);
   expect(screen.queryByText("My Remote Name")).toBeNull();
 });
 

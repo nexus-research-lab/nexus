@@ -652,6 +652,7 @@ function TeamMessageItem({
     return (
       <li>
         <MessageUserSection
+          alignment={currentUserId && message.author_user_id === currentUserId ? "right" : "left"}
           onOpenAttachment={download}
           compact={isCompact}
           author={message.author_user_id === currentUserId ? undefined : {name: author, avatar: person?.avatar}}

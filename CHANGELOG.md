@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- 修复在线私聊与群聊中其他真人消息错误靠右的问题，按当前远程账号区分本人右侧与他人左侧，复用共享消息布局。
+
 ## [0.2.1] - 2026-09-21
 
 ### Added

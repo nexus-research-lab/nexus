@@ -775,6 +775,19 @@ test("private timelines share metadata and message editing preserves keyboard an
   await page.keyboard.press("Control+Enter");
   await expect(input).toHaveCount(0);
   await expect(commands).toHaveText(JSON.stringify([{ round: "gallery-round", content: "Revised line one\nline two" }]));
+  const humans = fixture.locator("[data-gallery-human-messages]");
+  for (const direction of ["left", "right"]) {
+    const row = humans.locator(`[data-message-alignment="${direction}"]`);
+    const shell = row.locator(".nexus-chat-user-content-shell");
+    const rowBox = (await row.boundingBox())!;
+    const shellBox = (await shell.boundingBox())!;
+    const leftGap = shellBox.x - rowBox.x;
+    const rightGap = rowBox.x + rowBox.width - shellBox.x - shellBox.width;
+    expect(direction === "left" ? leftGap : rightGap).toBeLessThan(direction === "left" ? rightGap : leftGap);
+    const actions = row.locator(".nexus-chat-user-actions");
+    expect(await actions.evaluate((element) => getComputedStyle(element).justifyContent)).toBe(direction === "left" ? "flex-start" : "flex-end");
+  }
+  await capture(humans, info, "human-message-alignment");
   const reading = fixture.locator("[data-gallery-message-reading]");
   const openedFiles: string[] = [];
   for (const density of ["compact", "expanded"]) {

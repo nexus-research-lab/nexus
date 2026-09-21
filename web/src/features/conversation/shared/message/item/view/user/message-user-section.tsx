@@ -1,5 +1,5 @@
 /**
- * INPUT: 单条 durable user message 与编辑、复制、附件回调。
+ * INPUT: 单条 durable user message、发送方向与编辑、复制、附件回调。
  * OUTPUT: 可独立渲染的用户消息区块。
  * POS: DM / Room 共用的 user message 视图。
  */
@@ -24,6 +24,7 @@ import { useUserMessageEditor } from "./use-user-message-editor";
 interface MessageUserSectionProps {
   onOpenAttachment?: (attachment: import("@/types/conversation/message/attachment").MessageAttachment) => void;
   compact: boolean;
+  alignment?: "left" | "right";
   author?: { name: string; avatar?: string | null };
   agentMentionDirectory?: AgentMentionDirectory;
   message: UserMessage;
@@ -41,6 +42,7 @@ export function MessageUserSection(props: MessageUserSectionProps) {
 function MessageUserSectionContent({
   onOpenAttachment,
   compact,
+  alignment = "right",
   author,
   agentMentionDirectory,
   message,
@@ -82,14 +84,15 @@ function MessageUserSectionContent({
         layout.section,
       )}
       data-conversation-round-user-anchor="true"
+      data-message-alignment={alignment}
     >
       <div className="w-full">
-        <div className={cn("flex min-w-0 justify-end", layout.row)}>
+        <div className={cn("flex min-w-0", alignment === "left" ? "justify-start" : "justify-end", layout.row)}>
           <div
-            className="group relative ml-auto w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full"
+            className={cn("group relative w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full", alignment === "left" ? "mr-auto" : "ml-auto")}
             data-editing={String(editor.isEditing)}
           >
-            {author ? <div className="nexus-chat-message-header mb-2 flex min-w-0 items-center justify-end gap-2">
+            {author ? <div className={cn("nexus-chat-message-header mb-2 flex min-w-0 items-center gap-2", alignment === "left" ? "justify-start" : "justify-end")}>
               <UiAgentAvatar aria-hidden="true" avatar={author.avatar} name={author.name} size={compact ? "xs" : "sm"} />
               <span className="nexus-chat-author min-w-0 truncate text-sm font-medium text-(--text-strong)">{author.name}</span>
             </div> : null}
@@ -106,6 +109,7 @@ function MessageUserSectionContent({
             ) : (
               <>
                 <UserMessageContent
+                  alignment={alignment}
                   onOpenAttachment={onOpenAttachment}
                   contentClassName={layout.content}
                   agentMentions={message.agent_mentions}
@@ -118,7 +122,7 @@ function MessageUserSectionContent({
                   workspaceAgentId={workspaceAgentId}
                 />
                 <UserMessageHeader
-                  className={layout.header}
+                  className={cn(layout.header, alignment === "left" && "justify-start")}
                   copied={copied}
                   onCopy={handleCopy}
                   onEdit={projectAvailableUserMessageAction(
