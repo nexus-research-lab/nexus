@@ -5,15 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
 
 var (
-	ErrNodeLogin       = errors.New("节点授权需要有效远程登录")
-	ErrNodeInput       = errors.New("节点授权参数无效")
-	ErrNodeUnavailable = errors.New("节点授权服务暂时不可用")
+	ErrNodeLogin              = errors.New("节点授权需要有效远程登录")
+	ErrNodeInput              = errors.New("节点授权参数无效")
+	ErrNodeUnavailable        = errors.New("节点授权服务暂时不可用")
+	ErrNodeInactive           = fmt.Errorf("%w: 本机授权已被替换或停用", ErrNodeLogin)
+	ErrNodeCredentialRejected = fmt.Errorf("%w: Control 拒绝设备凭据", ErrNodeLogin)
 )
 
 type nodeRemoteError struct{ status int }
@@ -52,6 +55,9 @@ func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, met
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusUnauthorized {
+		if credential != "" {
+			return ErrNodeCredentialRejected
+		}
 		return ErrNodeLogin
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {

@@ -9,6 +9,7 @@
 //   - node.go：独立 /team-node 本机授权入口，要求远程 Cookie 与同源变更；不进入 Desktop 的 /team 代理。
 //
 // 暴露接口：Handlers、New，以及 Room 创建/列表/成员治理、message、snapshot、difference、stream handlers。
+// 浏览器 stream 仅接受共享聊天 ping 并返回 PongEvent，正文和写入仍走既有 HTTP 合同。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package team

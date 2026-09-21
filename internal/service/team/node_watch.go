@@ -5,6 +5,7 @@ package team
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -52,21 +53,30 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 	_ = retry.Run(ctx, func(ctx context.Context, _ time.Time) (duework.Result, error) {
 		current, err := e.activeGrant(ctx, grant)
 		if err != nil {
+			// 正常切换/停用等待外层移除订阅，不把旧 watcher 当认证故障反复重试。
+			if errors.Is(err, ErrNodeInactive) {
+				return duework.Result{}, nil
+			}
 			return duework.Result{}, err
 		}
 		token, err := e.machineToken(ctx, current)
 		if err != nil {
 			return duework.Result{}, err
 		}
-		// 到期前只更新连接凭据，不重启正在执行的任务。
-		watchCtx, cancel := context.WithDeadline(ctx, token.ExpiresAt.Add(-5*time.Second))
-		defer cancel()
-		err = e.relay.WatchDeliveries(watchCtx, token.Token, func() error {
+		// Relay 提前请求换票，保持原 WS 和任务不变；每次仍重验本机授权。
+		err = e.relay.WatchDeliveries(ctx, token.Token, func(ctx context.Context) (string, error) {
+			current, err := e.activeGrant(ctx, grant)
+			if err != nil {
+				return "", err
+			}
+			fresh, err := e.machineToken(ctx, current)
+			return fresh.Token, err
+		}, func() error {
 			e.loop.Notify()
 			return nil
 		})
-		if ctx.Err() == nil && watchCtx.Err() == context.DeadlineExceeded {
-			return duework.Result{HasMore: true}, nil
+		if errors.Is(err, ErrNodeInactive) {
+			return duework.Result{}, nil
 		}
 		return duework.Result{}, err
 	})

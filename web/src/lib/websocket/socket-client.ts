@@ -47,7 +47,10 @@ export class WebSocketClient {
       isConnected: () => this.isSocketOpen(),
       onTimeout: () => {
         console.warn("[WebSocketClient] Heartbeat timeout, reconnecting...");
-        this.socket?.close(4000, "Heartbeat timeout");
+        // 半开连接可能不再触发 close，先摘除旧回调，再沿既有退避恢复。
+        this.cleanupTimers();
+        this.closeCurrentSocket(4000, "Heartbeat timeout");
+        this.handleConnectionFailure();
       },
       sendPing: () => {
         this.send({ type: "ping" });

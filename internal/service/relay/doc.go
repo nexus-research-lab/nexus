@@ -10,6 +10,7 @@
 //   - wire 合同统一位于 internal/relay，本包只处理远端传输。
 //
 // 暴露接口：Client、NewClient；方法消费 internal/relay 的独立合同。
+// WS 复用原生 Ping/Pong 检测半开连接，失败交由调用方恢复；不在 transport 重放业务命令。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package relay

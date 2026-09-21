@@ -27,7 +27,7 @@ export function useTeamRefresh(scope: string | null, load: (signal: AbortSignal)
   // 多个资源沿共享 socket registry 复用同一条 owner-scoped 连接，重连初始提示同样补读。
   useWebSocket({
     autoConnect: Boolean(scope) && watchDirectory,
-    heartbeatInterval: 0, heartbeatTimeout: 0, reconnect: true,
+    reconnect: true,
     url: scope && watchDirectory ? buildTeamStreamUrl("directory", "directory") : "",
     onMessage: (message) => {
       const event = message as {type?: string; stream_id?: string};

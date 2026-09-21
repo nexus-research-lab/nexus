@@ -41,6 +41,42 @@ beforeEach(() => {
   api.socket.mockClear();
 });
 
+it("重连初始水位按旧游标分页补齐，重复提示不重发消息", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  const first = {id: "offline-1", message_seq: 1, author_type: "user", author_user_id: "other"};
+  const second = {...first, id: "offline-2", message_seq: 2};
+  api.difference.mockResolvedValueOnce({events: [{message: first}], next_seq: 1, high_water_seq: 2});
+  api.difference.mockResolvedValueOnce({events: [{message: second}], next_seq: 2, high_water_seq: 2});
+  const hint = {type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 2};
+  await act(async () => { api.socket.mock.lastCall![0].onMessage(hint); });
+  await waitFor(() => expect(result.current.messages).toEqual([first, second]));
+  expect(api.difference.mock.calls).toEqual([["stream", 0, "epoch"], ["stream", 1, "epoch"]]);
+  await act(async () => { api.socket.mock.lastCall![0].onMessage(hint); });
+  expect(api.difference).toHaveBeenCalledTimes(2);
+  expect(api.snapshot).toHaveBeenCalledTimes(1);
+  expect(api.post).not.toHaveBeenCalled();
+  // 不覆盖共享传输的心跳配置，在线 Room 与本地 Room 使用同一策略。
+  expect(api.socket.mock.lastCall![0].heartbeatInterval).toBeUndefined();
+});
+
+it("服务端换代后重建快照，不携带旧世代游标或重放写入", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+  const next = {...bootstrap, conversation: {...bootstrap.conversation, stream_epoch: "new-epoch"}};
+  const message = {id: "restored", message_seq: 1};
+  api.bootstrap.mockResolvedValue({rooms: [next]});
+  api.get.mockResolvedValue(next);
+  api.snapshot.mockResolvedValue({messages: [message], snapshot_seq: 1, has_more: false});
+  await act(async () => { api.socket.mock.lastCall![0].onMessage({type: "stream.reset_required", stream_id: "stream", reason: "full_snapshot_required"}); });
+  await waitFor(() => expect(result.current.messages).toEqual([message]));
+  expect(result.current.room?.conversation.stream_epoch).toBe("new-epoch");
+  expect(api.snapshot).toHaveBeenCalledTimes(2);
+  expect(api.post).not.toHaveBeenCalled();
+});
+
 it("coalesces delivery hints while a room detail read is pending", async () => {
   api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
   const {result} = renderHook(() => useTeamRoom("room"));

@@ -135,7 +135,30 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	}
 	defer connection.CloseNow()
 	connection.SetReadLimit(1024)
-	ctx := connection.CloseRead(request.Context())
+	ctx, cancel := context.WithCancel(request.Context())
+	defer cancel()
+	// 复用普通聊天的浏览器 ping/pong；不接受业务命令或客户端身份。
+	go func() {
+		defer cancel()
+		for {
+			var message struct {
+				Type string `json:"type"`
+			}
+			if err := wsjson.Read(ctx, connection, &message); err != nil {
+				return
+			}
+			if message.Type != "ping" {
+				_ = connection.Close(websocket.StatusPolicyViolation, "unsupported stream message")
+				return
+			}
+			writeCtx, stop := context.WithTimeout(ctx, 10*time.Second)
+			err := wsjson.Write(writeCtx, connection, protocol.NewPongEvent(""))
+			stop()
+			if err != nil {
+				return
+			}
+		}
+	}()
 	for {
 		started := time.Now()
 		err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {

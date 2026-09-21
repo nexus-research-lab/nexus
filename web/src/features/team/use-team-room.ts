@@ -343,8 +343,6 @@ export function useTeamRoom(roomId: string | null) {
   }, [handleReadFailure, recoverStream, synchronize, refreshRoom]);
   useWebSocket({
     autoConnect: canUseRelay && Boolean(room),
-    heartbeatInterval: 0,
-    heartbeatTimeout: 0,
     onMessage: handleStreamMessage,
     reconnect: true,
     url: room

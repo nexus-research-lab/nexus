@@ -102,7 +102,7 @@ func (c *Client) Watch(
 	if handle == nil {
 		return errors.New("Relay WSS 缺少处理函数")
 	}
-	return c.watch(ctx, token, "/ws/relay", url.Values{"stream_id": {streamID}, "stream_epoch": {streamEpoch}}, func(update relaycontract.StreamUpdated) error {
+	return c.watch(ctx, token, "/ws/relay", url.Values{"stream_id": {streamID}, "stream_epoch": {streamEpoch}}, nil, func(update relaycontract.StreamUpdated) error {
 		if update.Type != "stream.updated" || update.StreamID != streamID || update.StreamEpoch != streamEpoch || update.HighWaterSeq < 0 {
 			return errors.New("Nexus Relay WSS 返回无效水位提示")
 		}
@@ -111,11 +111,11 @@ func (c *Client) Watch(
 }
 
 // WatchDeliveries 只订阅签名节点范围的任务提示，领取仍走持久幂等 API。
-func (c *Client) WatchDeliveries(ctx context.Context, token string, handle func() error) error {
+func (c *Client) WatchDeliveries(ctx context.Context, token string, refresh func(context.Context) (string, error), handle func() error) error {
 	if handle == nil {
 		return errors.New("Relay WSS 缺少处理函数")
 	}
-	return c.watch(ctx, token, "/ws/relay/node", nil, func(update relaycontract.StreamUpdated) error {
+	return c.watch(ctx, token, "/ws/relay/node", nil, refresh, func(update relaycontract.StreamUpdated) error {
 		if update.Type != "deliveries.updated" {
 			return errors.New("Nexus Relay WSS 返回无效任务提示")
 		}
@@ -123,7 +123,7 @@ func (c *Client) WatchDeliveries(ctx context.Context, token string, handle func(
 	})
 }
 
-func (c *Client) watch(ctx context.Context, token, path string, query url.Values, handle func(relaycontract.StreamUpdated) error) error {
+func (c *Client) watch(ctx context.Context, token, path string, query url.Values, refresh func(context.Context) (string, error), handle func(relaycontract.StreamUpdated) error) error {
 	if c == nil || c.wsClient == nil || c.baseURL == "" {
 		return errors.New("Relay client 未配置")
 	}
@@ -154,17 +154,59 @@ func (c *Client) watch(ctx context.Context, token, path string, query url.Values
 		return fmt.Errorf("连接 Nexus Relay WSS: %w", err)
 	}
 	defer connection.CloseNow()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	go watchHeartbeat(ctx, connection, 30*time.Second, 10*time.Second, cancel)
 	connection.SetReadLimit(16 << 10)
 	for {
 		var update relaycontract.StreamUpdated
 		if err = wsjson.Read(ctx, connection, &update); err != nil {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return context.Cause(ctx)
 			}
 			return fmt.Errorf("读取 Nexus Relay WSS: %w", err)
 		}
+		if refresh != nil && update.Type == "auth.refreshed" {
+			continue
+		}
+		if refresh != nil && update.Type == "auth.refresh_required" {
+			fresh, refreshErr := refresh(ctx)
+			if refreshErr != nil {
+				return refreshErr
+			}
+			writeCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
+			err = wsjson.Write(writeCtx, connection, struct {
+				Type  string `json:"type"`
+				Token string `json:"token"`
+			}{"auth.refresh", fresh})
+			cancel()
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		if err = handle(update); err != nil {
 			return err
+		}
+	}
+}
+
+// 心跳只验证传输存活，不领取任务或推进游标；失败交给现有重连和持久恢复。
+func watchHeartbeat(ctx context.Context, connection *websocket.Conn, interval, timeout time.Duration, cancel context.CancelCauseFunc) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			pingCtx, stop := context.WithTimeout(ctx, timeout)
+			err := connection.Ping(pingCtx)
+			stop()
+			if err != nil {
+				cancel(fmt.Errorf("Relay WSS heartbeat failed: %w", err))
+				return
+			}
 		}
 	}
 }

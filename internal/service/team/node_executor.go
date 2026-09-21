@@ -252,7 +252,7 @@ func (e *NodeExecutor) activeGrant(ctx context.Context, original teamstore.NodeG
 		return teamstore.NodeGrant{}, err
 	}
 	if grant == nil || grant.NodeID != original.NodeID || grant.State != "authorized" || !grant.ExecutionEnabled || grant.RemoteURL != e.nodes.remoteURL {
-		return teamstore.NodeGrant{}, ErrNodeLogin
+		return teamstore.NodeGrant{}, ErrNodeInactive
 	}
 	return *grant, nil
 }
@@ -452,6 +452,10 @@ func (e *NodeExecutor) logFailure(ctx context.Context, stage string, grant teams
 		attrs = append(attrs, "http_status", remote.StatusCode, "remote_code", remote.Code, "remote_request_id", remote.RequestID)
 	case errors.As(err, &control):
 		attrs = append(attrs, "http_status", control.status)
+	case errors.Is(err, ErrNodeInactive):
+		attrs = append(attrs, "reason", "node_grant_inactive")
+	case errors.Is(err, ErrNodeCredentialRejected):
+		attrs = append(attrs, "reason", "node_credential_rejected", "http_status", http.StatusUnauthorized)
 	case errors.Is(err, ErrNodeLogin):
 		attrs = append(attrs, "reason", "node_login_required")
 	case errors.Is(err, ErrNodeUnavailable):
