@@ -4,9 +4,10 @@
  * POS: DM / Room 共用的 user message 视图。
  */
 import { useCallback } from "react";
+import { getInitials } from "@/lib/avatar";
 
 import { cn } from "@/shared/ui/class-name";
-import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { MessageAuthorAvatar } from "../../../ui/message-avatar";
 import { useCopyToClipboard } from "@/shared/lib/react/use-copy-to-clipboard";
 import type { UserMessage } from "@/types/conversation/message/entity";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
@@ -93,7 +94,7 @@ function MessageUserSectionContent({
             data-editing={String(editor.isEditing)}
           >
             {author ? <div className={cn("nexus-chat-message-header mb-2 flex min-w-0 items-center gap-2", alignment === "left" ? "justify-start" : "justify-end")}>
-              <UiAgentAvatar aria-hidden="true" avatar={author.avatar} name={author.name} size={compact ? "xs" : "sm"} />
+              <MessageAuthorAvatar avatarUrl={author.avatar} compact={compact}><span aria-hidden="true">{getInitials(author.name, "AG", 1)}</span></MessageAuthorAvatar>
               <span className="nexus-chat-author min-w-0 truncate text-sm font-medium text-(--text-strong)">{author.name}</span>
             </div> : null}
             {editor.isEditing ? (

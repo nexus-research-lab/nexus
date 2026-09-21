@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Aligned online human messages by the current remote account: own messages on the right and other members on the left.
 - Kept conversation delete actions aligned with the full sidebar row.
+- Unified human and Agent author avatar sizes and corner shapes in normal and compact message layouts.
 
 ### Changed
 
