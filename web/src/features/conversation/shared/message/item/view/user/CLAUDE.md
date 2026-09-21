@@ -1,5 +1,7 @@
 # User 消息视图
 
+- `alignment` 统一控制真人消息的身份、气泡与尾部动作方向，默认右侧保持本地行为；在线页面按已验证的远程账号 ID 指定本人右侧、其他真人左侧，不按 role 或昵称推断本人。
+
 - `message-user-section.tsx`: 选择阅读态或编辑态并装配子视图；在线其他真人可传入 `author` 显示头像与姓名，正文、气泡、时间、折叠与复制仍走同一组件，本人默认不重复身份。
 - `user-message-model.ts`: 只投影正文、Goal/引导标记、时间和可用动作；不返回样式。`message-user-section.tsx` 从上级 `message-reading-layout.ts` 选择布局，子视图仅接收自己的内容/头部 class。折叠阈值与测量规则也由阅读布局持有。
 - `user-message-header.tsx`: 使用 App Typography 渲染消息下方的时间/引导标记，并组合共享微型悬浮动作；复制成功只使用 Button 的短暂 `success` tone，不重复显示用户昵称或头像。
