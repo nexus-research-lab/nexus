@@ -2,6 +2,7 @@ import type { MessageSegment } from "../message-segment";
 import type { zhNavigationMessages } from "../zh/navigation";
 
 export const enNavigationMessages = {
+  "auth_guard.logout_failed": "Sign out failed. Please try again.",
   "team.artifact_delivery_failed": "File delivery failed. Existing replies and files are retained. Ask the owner to check and deliver again.",
   "team.recovery_notice": "Execution is unknown. Verify and end it without rerunning. External effects are not undone.",
   "team.recover_execution": "Verify and end execution",
@@ -11,6 +12,8 @@ export const enNavigationMessages = {
   "team.queue_expired": "Not executed: the 30-minute wait expired. Send a new request if needed.",
   "team.request_cancelled": "Cancelled before execution.",
   "auth_guard.connecting": "Connecting to Nexus",
+  "auth_guard.web_closed": "Web access is not available for this account",
+  "auth_guard.app_only": "Your organization account is ready. Sign in to the Nexus desktop app to use your organization and collaboration features. Organization invitations do not grant access to the web workspace.",
   "auth_guard.unavailable_impact": "Account content cannot load until sign-in status is confirmed. Your saved data is unchanged.",
   "auth_guard.retry_hint": "Check your connection and reload sign-in status.",
   "launcher.mention_agent": "Agent",

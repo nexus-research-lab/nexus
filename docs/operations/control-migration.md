@@ -46,7 +46,7 @@ docker compose --env-file .env \
   control import-control-sqlite --source /import/control.db
 ```
 
-目标 `control` schema 必须没有业务数据，重复导入会拒绝。迁移保留 Deployment ID、User ID、账号资料和状态、密码哈希、Membership、套餐与成员额度；旧 Session、密码修改回执和身份失效事件不迁移，因此所有用户需重新登录。随后查询 `control.deployments` 的唯一 `deployment_id`，将它写入 Relay `.env` 的 `RELAY_DEPLOYMENT_ID`，再按 Control、Relay、Nexus、Nginx 顺序启动并验收。原 Control 私钥、公钥和 service token 位于数据库外，必须继续挂载原目录。
+目标 `control` schema 必须没有业务数据，重复导入会拒绝。迁移保留 Deployment、Organization、User、账号资料和状态、密码哈希、平台与组织 Membership、组织邀请、Agent 公开身份、套餐、成员额度和身份失效事件原 ID，并推进目标事件序列。Session、Node 授权和密码修改回执不迁移，因此用户需重新登录并重新授权设备。随后查询 `control.deployments` 的唯一 `deployment_id`，将它写入 Relay `.env` 的 `RELAY_DEPLOYMENT_ID`，再按 Control、Relay、Nexus、Nginx 顺序启动并验收。原 Control 私钥、公钥和 service token 位于数据库外，必须继续挂载原目录。
 
 回滚时先再次停写，恢复切换前的 Nexus `.env`、完整 state root 和 SQLite 备份；上线后新增的账号、权限与 Relay 共享消息不会自动写回旧 SQLite，产生新写入后只能走对账迁移，不能用覆盖数据库冒充无损回滚。
 
