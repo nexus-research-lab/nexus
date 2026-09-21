@@ -34,7 +34,7 @@ it("shows named bootstrap loading", () => {
 });
 it("keeps restricted accounts outside the workspace and reports sign-out failure", async () => {
   const logout = vi.fn().mockRejectedValue(new Error("private diagnostic"));
-  render(view({ logout, status: {auth_required: true, authenticated: true, password_login_enabled: true, web_access_disabled: true} }));
+  render(view({ logout, status: {auth_required: true, authenticated: true, username: "", password_login_enabled: true, web_access_disabled: true} }));
   expect(screen.queryByText("Account content")).toBeNull();
   fireEvent.click(screen.getByRole("button", {name: "sidebar.logout"}));
   expect(await screen.findByText("auth_guard.logout_failed")).toBeTruthy();
