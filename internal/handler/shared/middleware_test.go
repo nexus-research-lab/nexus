@@ -2,6 +2,7 @@ package shared
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,7 +12,39 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
+
+type webAccessAuthority struct {
+	authsvc.Authority
+	local    bool
+	disabled bool
+}
+
+func (a webAccessAuthority) InspectRequest(context.Context, *http.Request) (*authsvc.Principal, authsvc.State, error) {
+	return &authsvc.Principal{UserID: "user", WebAccessDisabled: a.disabled}, authsvc.State{AuthRequired: !a.local}, nil
+}
+
+func TestWebAccessDoesNotGrantServerResourcesOrBlockDesktopRelay(t *testing.T) {
+	for _, path := range []string{"/nexus/v1/agents", "/nexus/v1/rooms", "/nexus/v1/ws", "/nexus/v1/team-node/room", "/nexus/v1/team/rooms", "/nexus/v1/team/rooms/r/events", "/nexus/v1/auth/status"} {
+		for _, local := range []bool{false, true} {
+			for _, disabled := range []bool{false, true} {
+				handler := AuthMiddleware(NewAPI(nil), webAccessAuthority{local: local, disabled: disabled})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+				r := httptest.NewRequest(http.MethodGet, path, nil)
+				r.Header.Set("User-Agent", "Nexus Desktop")
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, r)
+				want := http.StatusNoContent
+				if disabled && !local && !strings.HasPrefix(path, "/nexus/v1/team/") && path != "/nexus/v1/auth/status" {
+					want = http.StatusForbidden
+				}
+				if w.Code != want {
+					t.Fatalf("path=%s local=%v disabled=%v: status=%d want=%d", path, local, disabled, w.Code, want)
+				}
+			}
+		}
+	}
+}
 
 func TestMiddlewareWritesRequestIDAndAccessLog(t *testing.T) {
 	var buffer bytes.Buffer

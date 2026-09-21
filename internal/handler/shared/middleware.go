@@ -236,6 +236,16 @@ func AuthMiddleware(api *API, auth authsvc.Authority) func(http.Handler) http.Ha
 				})
 				return
 			}
+			// 组织账号可经同源 Gateway 使用 App 协作，但不获得服务器工作台资源。
+			if principal.WebAccessDisabled && !strings.HasPrefix(request.URL.Path, "/nexus/v1/team/") {
+				api.WriteError(writer, request, http.StatusForbidden, FailureSpec{
+					Code:     "auth.web_access_disabled",
+					Category: protocol.FailureCategoryAuthorization,
+					Effect:   failureEffectBeforeHandler(request),
+					Detail:   "此账号暂未开放 Nexus 网页版，请使用桌面 App",
+				})
+				return
+			}
 			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}

@@ -21,18 +21,19 @@ type controlState struct {
 }
 
 type controlPrincipal struct {
-	DeploymentID     string             `json:"deployment_id"`
-	OrganizationID   string             `json:"organization_id"`
-	OrganizationName string             `json:"organization_name"`
-	OrganizationRole string             `json:"organization_role"`
-	UserID           string             `json:"user_id"`
-	Username         string             `json:"username"`
-	DisplayName      string             `json:"display_name,omitempty"`
-	Role             string             `json:"role"`
-	Avatar           string             `json:"avatar,omitempty"`
-	AuthMethod       string             `json:"auth_method"`
-	SessionID        string             `json:"session_id"`
-	Entitlement      controlEntitlement `json:"entitlement"`
+	WebAccessDisabled bool               `json:"web_access_disabled"`
+	DeploymentID      string             `json:"deployment_id"`
+	OrganizationID    string             `json:"organization_id"`
+	OrganizationName  string             `json:"organization_name"`
+	OrganizationRole  string             `json:"organization_role"`
+	UserID            string             `json:"user_id"`
+	Username          string             `json:"username"`
+	DisplayName       string             `json:"display_name,omitempty"`
+	Role              string             `json:"role"`
+	Avatar            string             `json:"avatar,omitempty"`
+	AuthMethod        string             `json:"auth_method"`
+	SessionID         string             `json:"session_id"`
+	Entitlement       controlEntitlement `json:"entitlement"`
 }
 
 type controlEntitlement struct {
@@ -81,39 +82,41 @@ type controlInvalidationBatch struct {
 }
 
 type controlPrincipalClaims struct {
-	Version          int                `json:"v"`
-	Issuer           string             `json:"iss"`
-	Audience         string             `json:"aud"`
-	IssuedAt         int64              `json:"iat"`
-	ExpiresAt        int64              `json:"exp"`
-	DeploymentID     string             `json:"deployment_id"`
-	OrganizationID   string             `json:"organization_id"`
-	OrganizationName string             `json:"organization_name"`
-	OrganizationRole string             `json:"organization_role"`
-	UserID           string             `json:"user_id"`
-	Username         string             `json:"username"`
-	DisplayName      string             `json:"display_name,omitempty"`
-	Role             string             `json:"role"`
-	Avatar           string             `json:"avatar,omitempty"`
-	AuthMethod       string             `json:"auth_method"`
-	SessionID        string             `json:"session_id"`
-	Entitlement      controlEntitlement `json:"entitlement"`
+	WebAccessDisabled bool               `json:"web_access_disabled"`
+	Version           int                `json:"v"`
+	Issuer            string             `json:"iss"`
+	Audience          string             `json:"aud"`
+	IssuedAt          int64              `json:"iat"`
+	ExpiresAt         int64              `json:"exp"`
+	DeploymentID      string             `json:"deployment_id"`
+	OrganizationID    string             `json:"organization_id"`
+	OrganizationName  string             `json:"organization_name"`
+	OrganizationRole  string             `json:"organization_role"`
+	UserID            string             `json:"user_id"`
+	Username          string             `json:"username"`
+	DisplayName       string             `json:"display_name,omitempty"`
+	Role              string             `json:"role"`
+	Avatar            string             `json:"avatar,omitempty"`
+	AuthMethod        string             `json:"auth_method"`
+	SessionID         string             `json:"session_id"`
+	Entitlement       controlEntitlement `json:"entitlement"`
 }
 
 func (c controlPrincipalClaims) principal() controlPrincipal {
 	return controlPrincipal{
-		DeploymentID:     c.DeploymentID,
-		OrganizationID:   c.OrganizationID,
-		OrganizationName: c.OrganizationName,
-		OrganizationRole: c.OrganizationRole,
-		UserID:           c.UserID,
-		Username:         c.Username,
-		DisplayName:      c.DisplayName,
-		Role:             c.Role,
-		Avatar:           c.Avatar,
-		AuthMethod:       c.AuthMethod,
-		SessionID:        c.SessionID,
-		Entitlement:      c.Entitlement,
+		WebAccessDisabled: c.WebAccessDisabled,
+		DeploymentID:      c.DeploymentID,
+		OrganizationID:    c.OrganizationID,
+		OrganizationName:  c.OrganizationName,
+		OrganizationRole:  c.OrganizationRole,
+		UserID:            c.UserID,
+		Username:          c.Username,
+		DisplayName:       c.DisplayName,
+		Role:              c.Role,
+		Avatar:            c.Avatar,
+		AuthMethod:        c.AuthMethod,
+		SessionID:         c.SessionID,
+		Entitlement:       c.Entitlement,
 	}
 }
 

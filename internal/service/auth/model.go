@@ -51,6 +51,7 @@ func IsRelayUserPrincipal(principal *Principal) bool {
 
 // StatusPayload 表示前端依赖的登录状态响应。
 type StatusPayload struct {
+	WebAccessDisabled    bool    `json:"web_access_disabled"`
 	AuthRequired         bool    `json:"auth_required"`
 	PasswordLoginEnabled bool    `json:"password_login_enabled"`
 	Authenticated        bool    `json:"authenticated"`

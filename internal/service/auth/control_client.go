@@ -135,6 +135,7 @@ func (a *ControlAuthority) BuildStatusPayload(
 		return result, nil
 	}
 	result.Username = stringPointer(principal.Username)
+	result.WebAccessDisabled = principal.WebAccessDisabled
 	result.UserID = stringPointer(principal.ControlUserID)
 	result.ControlUserID = stringPointer(principal.ControlUserID)
 	result.DisplayName = stringPointer(principal.DisplayName)
@@ -364,18 +365,19 @@ func (a *ControlAuthority) call(
 func projectControlPrincipal(value controlPrincipal, localOwnerKey string) *Principal {
 	sessionID := strings.TrimSpace(value.SessionID)
 	return &Principal{
-		UserID:           strings.TrimSpace(localOwnerKey),
-		ControlUserID:    strings.TrimSpace(value.UserID),
-		DeploymentID:     strings.TrimSpace(value.DeploymentID),
-		OrganizationID:   strings.TrimSpace(value.OrganizationID),
-		OrganizationName: strings.TrimSpace(value.OrganizationName),
-		OrganizationRole: strings.TrimSpace(value.OrganizationRole),
-		Username:         strings.TrimSpace(value.Username),
-		DisplayName:      strings.TrimSpace(value.DisplayName),
-		Role:             strings.TrimSpace(value.Role),
-		Avatar:           strings.TrimSpace(value.Avatar),
-		AuthMethod:       strings.TrimSpace(value.AuthMethod),
-		SessionID:        &sessionID,
+		WebAccessDisabled: value.WebAccessDisabled,
+		UserID:            strings.TrimSpace(localOwnerKey),
+		ControlUserID:     strings.TrimSpace(value.UserID),
+		DeploymentID:      strings.TrimSpace(value.DeploymentID),
+		OrganizationID:    strings.TrimSpace(value.OrganizationID),
+		OrganizationName:  strings.TrimSpace(value.OrganizationName),
+		OrganizationRole:  strings.TrimSpace(value.OrganizationRole),
+		Username:          strings.TrimSpace(value.Username),
+		DisplayName:       strings.TrimSpace(value.DisplayName),
+		Role:              strings.TrimSpace(value.Role),
+		Avatar:            strings.TrimSpace(value.Avatar),
+		AuthMethod:        strings.TrimSpace(value.AuthMethod),
+		SessionID:         &sessionID,
 	}
 }
 

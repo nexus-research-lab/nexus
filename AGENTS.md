@@ -44,6 +44,8 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ## L1 — 文档地图
 
+公开 `docs/` 不收录一次性审计、对话授权或本机事故现场记录；此类资料归多仓工作区内部文档，不能作为当前开发指令。可复用的回归步骤和现行协议继续留在本仓。
+
 代码是机器相，注释是语义相，两相必须同构：任一相变化必须在另一相显现，否则视为未完成。
 本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、`nexus.command` MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
 

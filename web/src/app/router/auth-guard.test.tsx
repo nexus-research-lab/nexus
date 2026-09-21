@@ -32,7 +32,17 @@ it("shows named bootstrap loading", () => {
   expect(screen.getByRole("status").textContent).toContain("auth_guard.connecting");
   expect(screen.queryByText("Account content")).toBeNull();
 });
+it("keeps restricted accounts outside the workspace and reports sign-out failure", async () => {
+  const logout = vi.fn().mockRejectedValue(new Error("private diagnostic"));
+  render(view({ logout, status: {auth_required: true, authenticated: true, password_login_enabled: true, web_access_disabled: true} }));
+  expect(screen.queryByText("Account content")).toBeNull();
+  fireEvent.click(screen.getByRole("button", {name: "sidebar.logout"}));
+  expect(await screen.findByText("auth_guard.logout_failed")).toBeTruthy();
+  expect(screen.queryByText("private diagnostic")).toBeNull();
+});
 it.each([
+  [{auth_required: true, authenticated: true, password_login_enabled: true, web_access_disabled: true}, "auth_guard.web_closed"],
+  [{auth_required: false, authenticated: true, password_login_enabled: true, web_access_disabled: true}, "Account content"],
   [{auth_required: true, authenticated: false, password_login_enabled: true}, "/login?redirect=%2Fprotected%3Ftab%3Done%23end"],
   [{auth_required: true, authenticated: false, password_login_enabled: true, setup_required: true}, "/setup"],
   [{auth_required: true, authenticated: true, password_login_enabled: true}, "Account content"],
