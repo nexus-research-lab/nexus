@@ -7,11 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- 清理公开文档中的一次性审计记录，修正 Control 数据迁移保留范围说明。
+## [0.2.2] - 2026-09-21
 
-- 支持独立控制网页版工作台访问资格，不影响桌面 App 的组织协作。
+### Added
 
-- 修复在线私聊与群聊中其他真人消息错误靠右的问题，按当前远程账号区分本人右侧与他人左侧，复用共享消息布局。
+- Added independent hosted-web access checks and clear App-only account guidance while preserving desktop organization collaboration.
+
+### Fixed
+
+- Aligned online human messages by the current remote account: own messages on the right and other members on the left.
+- Kept conversation delete actions aligned with the full sidebar row.
+
+### Changed
+
+- Removed one-off audit records from public documentation and clarified which data Control migration preserves.
 
 ## [0.2.1] - 2026-09-21
 
