@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Repair IM QR login cleanup and pairing/Session generation fencing so stale Feishu, DingTalk, WeCom and Weixin login or delivery state cannot survive rebinding, deletion or Agent changes.
 - Detect half-open online Room connections with the existing browser heartbeat and native Relay WebSocket Ping/Pong; recover missed messages through durable cursors without replaying sends or Agent execution.
 - Reconnect shared chat sockets after heartbeat timeout without waiting for an unresponsive connection's close event.
 

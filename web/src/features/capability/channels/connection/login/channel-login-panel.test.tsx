@@ -32,11 +32,13 @@ describe("ChannelLoginPanel", () => {
         value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
       >
         <ChannelLoginPanel
+          canStartLogin
           channelTitle="Telegram"
           channelType="telegram"
           loading={false}
           loginView={LOGIN}
           mutationBlocked={false}
+          onStartLogin={vi.fn().mockResolvedValue(true)}
           onSubmitVerifyCode={onSubmitVerifyCode}
           recoveryNotice={null}
         />
@@ -54,6 +56,86 @@ describe("ChannelLoginPanel", () => {
     await user.click(screen.getByRole("button", { name: "提交" }));
     expect(onSubmitVerifyCode).toHaveBeenCalledWith("648201");
     expect((screen.getByPlaceholderText("验证码") as HTMLInputElement).value).toBe("");
+  });
+
+  it("keeps an explicit QR entry point when an app is already connected", async () => {
+    const user = userEvent.setup();
+    const onStartLogin = vi.fn().mockResolvedValue(true);
+    render(
+      <I18N_CONTEXT.Provider
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
+      >
+        <ChannelLoginPanel
+          canStartLogin
+          channelTitle="飞书"
+          channelType="feishu"
+          loading={false}
+          loginView={null}
+          mutationBlocked={false}
+          onStartLogin={onStartLogin}
+          onSubmitVerifyCode={vi.fn().mockResolvedValue(true)}
+          recoveryNotice={null}
+        />
+      </I18N_CONTEXT.Provider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: MESSAGES.zh["capability.channel_qr_start"] }));
+    expect(onStartLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not keep rendering a terminal login's expired QR", () => {
+    const onStartLogin = vi.fn().mockResolvedValue(true);
+    render(
+      <I18N_CONTEXT.Provider
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
+      >
+        <ChannelLoginPanel
+          canStartLogin
+          channelTitle="飞书"
+          channelType="feishu"
+          loading={false}
+          loginView={{ ...LOGIN, channel_type: "feishu", status: "expired" }}
+          mutationBlocked={false}
+          onStartLogin={onStartLogin}
+          onSubmitVerifyCode={vi.fn().mockResolvedValue(true)}
+          recoveryNotice={null}
+        />
+      </I18N_CONTEXT.Provider>,
+    );
+
+    expect(screen.queryByRole("img", {
+      name: MESSAGES.zh["capability.channel_login_qr_alt"],
+    })).toBeNull();
+    expect(screen.getByRole("button", {
+      name: MESSAGES.zh["capability.channel_login_resume_action"],
+    })).toBeTruthy();
+  });
+
+  it("can start a fresh QR session after a terminal login", async () => {
+    const user = userEvent.setup();
+    const onStartLogin = vi.fn().mockResolvedValue(true);
+    render(
+      <I18N_CONTEXT.Provider
+        value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] }}
+      >
+        <ChannelLoginPanel
+          canStartLogin
+          channelTitle="飞书"
+          channelType="feishu"
+          loading={false}
+          loginView={{ ...LOGIN, channel_type: "feishu", status: "cancelled" }}
+          mutationBlocked={false}
+          onStartLogin={onStartLogin}
+          onSubmitVerifyCode={vi.fn().mockResolvedValue(true)}
+          recoveryNotice={null}
+        />
+      </I18N_CONTEXT.Provider>,
+    );
+
+    await user.click(screen.getByRole("button", {
+      name: MESSAGES.zh["capability.channel_login_resume_action"],
+    }));
+    expect(onStartLogin).toHaveBeenCalledTimes(1);
   });
 });
 

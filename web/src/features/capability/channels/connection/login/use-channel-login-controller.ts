@@ -59,6 +59,29 @@ export function useChannelLoginController({
   const [recovery, setRecovery] = useState<LoginMutationRecovery | null>(null);
   const running = isChannelLoginRunning(view);
 
+  useEffect(() => {
+    if (!enabled || view || startPendingRef.current) {
+      return;
+    }
+    let disposed = false;
+    void Promise.resolve(getCurrentChannelLoginApi(channelType))
+      .then((currentLogin) => {
+        if (currentLogin && !disposed && !startPendingRef.current) {
+          setView(currentLogin);
+          setReadIssue(null);
+        }
+      })
+      .catch(() => {
+        // 404 means there is no resumable in-process login. A 409 means the
+        // only login is bound to another conversational authorization. Both
+        // are normal read-only outcomes; starting a fresh login remains an
+        // explicit user action.
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [channelType, enabled, view]);
+
   const refreshCompletedChannel = useCallback(async (): Promise<boolean> => {
     try {
       await onCompleted();

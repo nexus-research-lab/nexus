@@ -26,6 +26,11 @@ func WithIMDeliverySource(ctx context.Context, source imdelivery.Source) context
 	return context.WithValue(ctx, imSourceKey{}, source)
 }
 func (r *Router) SetIMDeliverySupport(store *imdelivery.Repository, grants imPairingResolver) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.imDeliveries = store
 	r.imGrants = grants
 }

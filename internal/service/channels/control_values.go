@@ -120,6 +120,12 @@ func normalizeStringMap(values map[string]string) map[string]string {
 
 func publicChannelConfigForView(channelType string, values map[string]string) map[string]string {
 	result := normalizeStringMap(values)
+	// QR payloads belong to one in-process login generation. They are not
+	// Channel configuration and must never survive into a later page snapshot.
+	// Older versions persisted this field in config_json, so filter it even for
+	// already-stored rows.
+	delete(result, "qr_payload")
+	delete(result, "qr_payload_type")
 	if catalog, ok := channelCatalogByType(channelType); ok {
 		for _, field := range catalog.CredentialFields {
 			if field.Secret {

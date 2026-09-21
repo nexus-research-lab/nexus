@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -61,6 +62,67 @@ func TestValidateExternalSessionGrantRequiresExactActivePairing(t *testing.T) {
 	}
 }
 
+func TestPairingReenableRotatesParentAndWildcardSessionKeys(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    protocol.RoomTypeGroup,
+		ExternalRef: "oc-reenable",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("创建通配 pairing 失败: %v", err)
+	}
+	_, oldConcreteKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		AccountID:   "cli-a",
+		ChatType:    protocol.RoomTypeGroup,
+		Ref:         "oc-reenable",
+		ThreadID:    "omt-a",
+	})
+	if err != nil {
+		t.Fatalf("创建通配 concrete Session 失败: %v", err)
+	}
+	oldParentKey := created.SessionKey
+
+	status := PairingStatusDisabled
+	if _, err = service.UpdatePairing(context.Background(), "owner-a", created.PairingID, UpdatePairingRequest{Status: &status}); err != nil {
+		t.Fatalf("停用 pairing 失败: %v", err)
+	}
+	status = PairingStatusActive
+	reenabled, err := service.UpdatePairing(context.Background(), "owner-a", created.PairingID, UpdatePairingRequest{Status: &status})
+	if err != nil {
+		t.Fatalf("重新启用 pairing 失败: %v", err)
+	}
+	if reenabled.SessionKey == oldParentKey || protocol.ParseSessionKey(reenabled.SessionKey).Generation == "" {
+		t.Fatalf("重新启用必须轮换 parent Session key: old=%q new=%q", oldParentKey, reenabled.SessionKey)
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", oldParentKey); err == nil {
+		t.Fatal("重新启用后旧 parent Session key 不得恢复授权")
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", oldConcreteKey); err == nil {
+		t.Fatal("重新启用后旧 wildcard concrete Session key 不得恢复授权")
+	}
+	_, newConcreteKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		AccountID:   "cli-a",
+		ChatType:    protocol.RoomTypeGroup,
+		Ref:         "oc-reenable",
+		ThreadID:    "omt-a",
+	})
+	if err != nil || newConcreteKey == oldConcreteKey {
+		t.Fatalf("重新启用应创建新的 concrete Session: old=%q new=%q err=%v", oldConcreteKey, newConcreteKey, err)
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", newConcreteKey); err != nil {
+		t.Fatalf("新 concrete Session 应恢复当前授权: %v", err)
+	}
+}
+
 func TestValidateExternalSessionGrantRejectsRotatedSessionKey(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -100,6 +162,61 @@ func TestValidateExternalSessionGrantRejectsRotatedSessionKey(t *testing.T) {
 	}
 }
 
+func TestValidateExternalSessionGrantAcceptsGeneratedWildcardProjection(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if _, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    protocol.RoomTypeGroup,
+		ExternalRef: "oc-wildcard",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	_, sessionKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
+		OwnerUserID: "owner-a",
+		Channel:     ChannelTypeFeishu,
+		AccountID:   "cli-a",
+		ChatType:    protocol.RoomTypeGroup,
+		Ref:         "oc-wildcard",
+		ThreadID:    "omt-a",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if protocol.ParseSessionKey(sessionKey).Generation == "" {
+		t.Fatalf("具体通配映射应带独立代次: %q", sessionKey)
+	}
+	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", sessionKey); err != nil {
+		t.Fatalf("生成的通配具体 Session 必须可通过当前 pairing 授权: %v", err)
+	}
+}
+
+func TestValidateExternalSessionGrantDoesNotUseExplicitPairingForAnotherThread(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	if _, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    protocol.RoomTypeGroup,
+		ExternalRef: "oc-explicit",
+		ThreadID:    "omt-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	foreign := protocol.BuildAgentAccountSessionKey(
+		"agent-a", protocol.SessionChannelFeishu, protocol.RoomTypeGroup,
+		"cli-a", "oc-explicit", "omt-b",
+	)
+	if err := service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", foreign); err == nil {
+		t.Fatal("显式 topic pairing 不得授权另一个 topic")
+	}
+}
+
 func TestSendAgentExternalSessionMessageRevalidatesAndProjects(t *testing.T) {
 	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-a")
 	db := newChannelTestDB(t)
@@ -119,6 +236,7 @@ func TestSendAgentExternalSessionMessageRevalidatesAndProjects(t *testing.T) {
 	}
 	defer router.Stop(context.Background())
 	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, agents, router)
+	router.SetIMDeliverySupport(imdelivery.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db), service)
 	pairing, err := service.CreatePairing(context.Background(), authctx.SystemUserID, CreatePairingRequest{
 		ChannelType: ChannelTypeWeixinPersonal,
 		AccountID:   "weixin-account",
@@ -177,6 +295,58 @@ func TestSendAgentExternalSessionMessageRevalidatesAndProjects(t *testing.T) {
 	if !errors.Is(err, ErrExternalSessionGrantUnavailable) ||
 		!strings.Contains(err.Error(), "pairing is not active") || external.sentCount() != 1 {
 		t.Fatalf("撤权后必须 fail closed: err=%v sent=%d", err, external.sentCount())
+	}
+	_, err = router.DeliverMessage(ingressTestOwnerContext(authctx.SystemUserID), "agent-a", "旧 round 回复不应发出", DeliveryTarget{
+		Mode: DeliveryModeExplicit, Channel: ChannelTypeWeixinPersonal, To: "weixin-user",
+		AccountID: "weixin-account", SessionKey: sessionKey,
+	})
+	if !errors.Is(err, ErrExternalSessionGrantUnavailable) || external.sentCount() != 1 {
+		t.Fatalf("普通 DM 回复在 pairing 撤权后也必须 fail closed: err=%v sent=%d", err, external.sentCount())
+	}
+	if err = router.SetTyping(ingressTestOwnerContext(authctx.SystemUserID), "agent-a", DeliveryTarget{
+		Mode: DeliveryModeExplicit, Channel: ChannelTypeWeixinPersonal, To: "weixin-user",
+		AccountID: "weixin-account", SessionKey: sessionKey,
+	}, true); !errors.Is(err, ErrExternalSessionGrantUnavailable) {
+		t.Fatalf("typing 在 pairing 撤权后必须 fail closed: %v", err)
+	}
+}
+
+func TestRouterExternalDeliveryRejectsMissingSessionProjection(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+	owner := authctx.SystemUserID
+	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	external := &recordingDeliveryChannel{channelType: ChannelTypeFeishu}
+	router.RegisterForOwner(owner, external)
+	if err := router.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer router.Stop(context.Background())
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, router)
+	paired, err := service.CreatePairing(context.Background(), owner, CreatePairingRequest{
+		ChannelType: ChannelTypeFeishu,
+		ChatType:    protocol.RoomTypeDM,
+		ExternalRef: "ou-projection-missing",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An active pairing alone is insufficient once the Router has a Session
+	// projection resolver. This simulates a deleted/missing Session before the
+	// next outbound send and proves the physical channel is never called.
+	router.SetSessionProjectionResolver(imTestSessions{})
+	router.SetIMDeliverySupport(imdelivery.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db), service)
+	_, err = router.DeliverMessage(ingressTestOwnerContext(owner), "agent-a", "不应发出", DeliveryTarget{
+		Mode:       DeliveryModeExplicit,
+		Channel:    ChannelTypeFeishu,
+		To:         "ou-projection-missing",
+		SessionKey: paired.SessionKey,
+	})
+	if !errors.Is(err, ErrExternalSessionGrantUnavailable) || external.sentCount() != 0 {
+		t.Fatalf("缺失 Session projection 必须阻止物理投递: err=%v sent=%d", err, external.sentCount())
 	}
 }
 

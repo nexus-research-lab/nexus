@@ -253,11 +253,21 @@ func (s *IngressService) rememberIngressRoutes(ctx context.Context, request norm
 	if request.rememberedTarget == nil || s.router == nil {
 		return nil, nil
 	}
-	remembered, err := s.router.RememberRoute(ctx, request.agentID, *request.rememberedTarget)
+	// Route persistence precedes DM dispatch so the exact return address is
+	// durable even if runtime startup later fails. The first ingress has not yet
+	// materialized its workspace Session at this point; defer only the projection
+	// read for these two bookkeeping writes. The actual reply goes through the
+	// normal send context after DM admission and remains fail-closed.
+	routeCtx := context.WithValue(
+		contextWithIngressOwner(ctx, request.ownerUserID),
+		unmaterializedExternalSessionKey{},
+		true,
+	)
+	remembered, err := s.router.RememberRoute(routeCtx, request.agentID, *request.rememberedTarget)
 	if err != nil {
 		return nil, err
 	}
-	_, err = s.router.RememberSessionRoute(ctx, request.agentID, request.sessionKey, *request.rememberedTarget)
+	_, err = s.router.RememberSessionRoute(routeCtx, request.agentID, request.sessionKey, *request.rememberedTarget)
 	return remembered, err
 }
 

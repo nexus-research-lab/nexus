@@ -190,7 +190,9 @@ export function buildChannelLoginPanelModel(
     identity: resolveLoginIdentity(view, t),
     kind: "session",
     progress: failure ? "" : resolveLoginProgress(view, t),
-    qrPayload: view.qr_payload ?? "",
+    qrPayload: view.status === "running" || view.status === "verify_code_required"
+      ? view.qr_payload ?? ""
+      : "",
     qrRequired: view.status === "running",
     status: resolveLoginStatus(view.status, t),
     verifyCodeHint: view.status === "verify_code_required"
