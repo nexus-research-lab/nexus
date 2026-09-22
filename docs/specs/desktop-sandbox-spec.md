@@ -41,11 +41,30 @@ The pinned Bridge also exposes host-only `SandboxSettings.Resources` and the
 independent `sandbox_resources_v1` contract for macOS command/file write scopes
 and a host-prepared private scratch directory. Nexus now prepares owner/runtime
 scoped leases for desktop nxs DM, Room and background memory maintenance and
-releases them only after a confirmed Bridge close; failed cleanup keeps the
-runtime fence and lease for recovery. Durable markers and explicit stale-sweep
-primitives exist, while automatic crash sweep, whole-SDK IO confinement and an
-effective-policy receipt remain separate acceptance work. The progress and
-acceptance boundaries remain in the development plan.
+releases them only after a confirmed Bridge close; each acquisition is an
+independent handle over the shared resource, so preparation failure or an old
+runtime generation cannot release a newer holder's scratch. Failed cleanup keeps
+the runtime fence and exact lease for recovery and blocks new acquisition in that
+scope. Durable markers and explicit stale-sweep primitives exist, while automatic
+crash sweep, whole-SDK IO confinement and an effective-policy receipt remain
+separate acceptance work. The progress and acceptance boundaries remain in the
+development plan.
+
+This resource contract belongs to nxs only. When a host resource lease is
+present, Nexus forces `allowUnsandboxedCommands=false` and rejects explicit
+write-directory grants under the read-only scope; the Bridge rejects the
+contradictory combination before transport startup. Claude's native sandbox
+settings never receive an nxs resource lease, and accidental cross-backend
+mixing fails closed. An active owner/session lease also keeps its write scope
+immutable; a later round cannot silently widen or narrow the policy by reusing
+the same scratch path.
+
+The host creates and removes the scratch parent and lease directory through
+`internal/infra/confinedfs` fixed directory handles. Marker reads and
+stale-resource scans reject replaced parents, symlinks, non-regular marker
+files, and (including on Windows through the opened file handle) hard-linked
+marker identities; a cleanup failure keeps the exact lease registered instead
+of treating a redirected path as success.
 
 The current mandatory macOS SDK applies explicit read/write and protected-path
 movement denials after ordinary directory, device and PTY grants. A read grant

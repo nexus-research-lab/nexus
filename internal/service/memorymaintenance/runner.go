@@ -62,7 +62,7 @@ func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentcli
 	return lease.Resources()
 }
 
-func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
+func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (result agentclient.AutoDreamResult, err error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
 	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
 		Agent:        &agentValue,
@@ -162,15 +162,25 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	}
 	scratchLeaseOwned = scratchLease != nil
 	var closeOnce sync.Once
-	closeSession := func() {
+	var closeErr error
+	closeSession := func() error {
 		closeOnce.Do(func() {
-			closeDreamSession(session)
+			closeErr = closeDreamSession(session)
 			if scratchLease != nil {
-				_ = scratchLease.Release()
+				if closeErr != nil {
+					scratchLease.MarkCleanupUncertain(closeErr)
+				} else {
+					closeErr = scratchLease.Release()
+				}
 			}
 		})
+		return closeErr
 	}
-	defer closeSession()
+	defer func() {
+		if cleanupErr := closeSession(); cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+	}()
 	stopForcedClose := closeDreamSessionOnCancellation(ownerContext, closeSession)
 	defer stopForcedClose()
 	stopDrain := drainDreamSession(ownerContext, session)
@@ -237,18 +247,18 @@ func ensureProjectSettingsSource(sources []string) []string {
 	return result
 }
 
-func closeDreamSession(session *agentclient.Session) {
+func closeDreamSession(session *agentclient.Session) error {
 	if session == nil {
-		return
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), internalRuntimeCloseTimeout)
 	defer cancel()
-	_ = session.Close(ctx)
+	return session.Close(ctx)
 }
 
 // closeDreamSessionOnCancellation 确保 admission 撤销不只依赖 control RPC
 // 主动观察 context；即使 RPC 未及时返回，也会并发关闭 bridge session。
-func closeDreamSessionOnCancellation(ctx context.Context, closeSession func()) func() {
+func closeDreamSessionOnCancellation(ctx context.Context, closeSession func() error) func() {
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	var stopOnce sync.Once
@@ -257,7 +267,7 @@ func closeDreamSessionOnCancellation(ctx context.Context, closeSession func()) f
 		select {
 		case <-ctx.Done():
 			if closeSession != nil {
-				closeSession()
+				_ = closeSession()
 			}
 		case <-stop:
 		}

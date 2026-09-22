@@ -265,8 +265,9 @@ func TestRuntimeDreamRunnerMaintainsClaudeAgentThroughNXS(t *testing.T) {
 func TestDreamSessionCancellationForcesClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	closed := make(chan struct{})
-	stop := closeDreamSessionOnCancellation(ctx, func() {
+	stop := closeDreamSessionOnCancellation(ctx, func() error {
 		close(closed)
+		return nil
 	})
 	cancel()
 	select {

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Give each desktop nxs scratch acquisition an independent lease handle over
+  the shared owner/session resource. DM and Room runtime generations transfer
+  the exact handle into Bridge cleanup, Room keys leases by each Agent runtime
+  session, and failed Bridge or AutoDream close fences the scope instead of
+  allowing a later preparation to reuse an uncertain resource.
+
+- Anchor desktop nxs scratch creation, marker access, scans, and cleanup to
+  confined directory handles. Replaced scratch parents and symlinked or
+  non-regular markers now fail closed and retain the lease for recovery instead
+  of being treated as a successful cleanup.
+
+- Serialize duplicate scratch-handle releases and keep Windows marker reads
+  behind a handle-backed hard-link check, so an unconsumed startup lease or a
+  marker redirected to another file cannot silently escape its owner scope.
+  Unclean-session discard also drains a bound lease when no Bridge session was
+  installed yet, and Claude clients reject Nexus leases before ownership moves.
+
+- Keep host-prepared nxs resource leases compatible with the Bridge contract:
+  resource-backed runtimes now force `allowUnsandboxedCommands=false`, reject
+  read-only leases with explicit write grants, and reject accidental nxs
+  resource injection into Claude's native sandbox. This closes a startup-time
+  contradiction that previously made real scratch-backed desktop sessions
+  fail before transport initialization; active owner/session leases also reject
+  write-scope changes instead of reusing a broader policy.
+
 - Pin the desktop sandbox Bridge to local commit `8e90ff5e35e3` and verify the
   generated Claude native sandbox settings through the exact CLI's
   `--settings <json> --help` parser path before a session starts. The fixed

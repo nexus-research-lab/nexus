@@ -1,6 +1,6 @@
 # 桌面沙箱验收矩阵
 
-状态：开发验收清单，non-normative，更新至 2026-09-20。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+状态：开发验收清单，non-normative，更新至 2026-09-22。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
 
 ## 证据记录要求
 
@@ -33,6 +33,48 @@
 | Windows 升级 | 签名失败、版本不兼容、更新中断、卸载、遗留 Job | 受保护文件和状态完整；撤销资源不影响其他实例 |
 | 包与兼容 | macOS、Windows 支持版本/架构、Linux owner、Claude 支持版本/环境、旧数据根 | nxs 全链路及 Claude 原生接入分别有真实证据；WSL2 通过不能表示原生 Windows 通过 |
 | 产品路径 | 设置、Composer、审批卡、DM/Room/自动化、重载 | 展示实际边界；一个清晰下一步；不泄漏内部标识，不自动重发 |
+
+### 2026-09-21：资源-backed nxs 启动合同与 lease 范围收口
+
+复审发现原 Nexus clientopts 在带有 host scratch resource lease 时仍投影
+`allowUnsandboxedCommands=true`。固定 Bridge 的资源合同会在 transport 前拒绝这一组合，
+因此只做普通能力握手不能证明 DM/Room 的真实 scratch-backed 启动可用。本批次让资源-backed
+nxs 强制 `allowUnsandboxedCommands=false`，拒绝 read-only scope 携带显式写目录，并拒绝
+Claude（包括 Full Access）接收 nxs resource contract；同一 owner/session 的活动 lease
+不能改变写入范围。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| clientopts 单测 | `GOWORK=off GOPROXY=off go test ./internal/runtime/clientopts -count=1` 通过；覆盖 nxs/Claude 分离、资源与 Full Access、只读写目录拒绝 |
+| lease 与竞态 | `GOWORK=off GOPROXY=off go test ./internal/runtime -run 'SandboxResource|AgentClientCleanup' -count=1` 与 `go test -race ./internal/runtime -count=1` 通过；覆盖独立持有句柄、旧 runtime 精确回收、cleanup fence、marker、显式 stale sweep |
+| 固定 nxs 真实握手 | `NEXUS_SANDBOX_TEST_BINARY=/private/tmp/nxs-desktop-9956-bridge374 GOWORK=off GOPROXY=off go test ./internal/runtime/clientopts -run 'TestDesktopSandboxRealRuntimeWithHostResources' -count=1` 通过；Bridge `37434c2d38b1`、无模型请求，确认资源合同被真实 nxs 能力确认 |
+| 桌面门禁、架构、增量 Go/vet | `make check-desktop-sandbox`、`make check-architecture`、`make check-go`、目标 `go vet` 均 exit 0；门禁报告为 `host-integration-only` |
+| scratch 路径竞态 | `internal/runtime` 回归覆盖固定目录句柄创建、marker/扫描的 no-symlink 读取，以及父目录替换为 symlink/普通文件后回收失败关闭并保留原 lease |
+| 当前边界 | 仍不证明 nxs/Claude 的真实命令与全 SDK IO、Provider/秘密文件/句柄/网络出口、完整后代清理、Windows/macOS clean-host、签名安装包或生产发布；`releaseAccepted=false` |
+
+本批次只证明 Nexus/Bridge/固定 nxs 的输入合同和 resource-backed 初始化闭合，证据目录见
+[2026-09-21 Bridge probe cleanup](./evidence/desktop-sandbox/2026-09-21-bridge-probe-cleanup/)。
+
+### 2026-09-22：lease 转移与跨平台 marker 边界加固
+
+本批次复审发现三个可在 Nexus 层闭合的生命周期问题：启动绑定失败时不能把
+未接管的 scratch 句柄报告为已转移；同一句柄的并发 `Release` 不能重复减少共享引用；
+尚未安装 Bridge session 的 unclean discard 也必须排空已绑定的 lease。现已让
+`ClientStartup.BindSandboxLease` 在失败时返回未消费，串行化每个 lease 句柄的释放，并让
+discard 路径启动同一 cleanup fence；Windows 的 marker 读取增加句柄级硬链接检查，无法
+取得文件身份时失败关闭；`agentClient` 还按 runtime kind 拒绝把 Nexus lease 交给 Claude。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 目标 race/vet | runtime、confinedfs、clientopts 与 DM、Room realtime、AutoDream race 通过；目标 `go vet` 通过 |
+| 跨平台编译 | Windows amd64 与 macOS arm64 的 runtime/confinedfs 测试二进制交叉编译通过；不等于原生运行验收 |
+| 架构与桌面门禁 | `GOWORK=off make check-architecture`、固定 nxs `make check-desktop-sandbox` 通过；报告为 `host-integration-only` |
+| 固定资源握手 | SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge `37434c2d38b1`、nxs SHA-256 `0f91b17f…014270`；无模型请求 |
+| 证据 | [2026-09-22 lease hardening](./evidence/desktop-sandbox/2026-09-22-lease-hardening/) |
+| 当前边界 | `releaseAccepted=false`；原生 Windows/macOS clean-host、签名安装包、真实 Claude 认证命令、完整 nxs IO/网络/秘密/句柄隔离、后代监督、跨重启恢复和有效策略回执仍未验收 |
+
+本批次完成的是 Nexus/Bridge 输入与本地 scratch 生命周期加固；它不能把 host
+integration 结果扩大为桌面发布承诺。
 
 ### 2026-09-20：配置 revision 跨重启恢复
 
@@ -758,7 +800,7 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 
 ## 2026-09-18：scratch durable marker 与显式 stale recovery
 
-`internal/runtime` 为每个 owner/runtime/session scratch 目录持久化版本化 `.nexus-sandbox-lease.json` marker。marker 通过独占创建和文件 `Sync` 写入，包含 lease、owner/session/round、canonical runtime root、创建 PID 与 UTC 时间；它只用于发现和人工恢复，不能让新进程采用旧 lease。正常 Bridge close 后 marker 随 scratch 删除；close 失败仍保留 scratch、marker 与 runtime close fence。
+`internal/runtime` 为每个 owner/runtime/session scratch 目录持久化版本化 `.nexus-sandbox-lease.json` marker。marker 通过独占创建和文件 `Sync` 写入，包含 lease、owner/session/round、canonical runtime root、创建 PID 与 UTC 时间；它只用于发现和人工恢复，不能让新进程采用旧 lease。每次 Acquire 都返回独立持有句柄，DM/Room runtime 将 exact handle 交给 Bridge cleanup；正常 Bridge close 后 marker 随 scratch 删除，close 失败仍保留 scratch、marker、runtime close fence，并拒绝同 scope 的新 Acquire。
 
 | 验证 | 结果与边界 |
 | --- | --- |

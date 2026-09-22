@@ -1,17 +1,17 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-20**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-22**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-20）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
+当前开发位置（2026-09-22）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
 当前固定基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
-`8e90ff5e35e3`，Nexus 使用精确模块
-`v0.1.34-0.20260920071621-8e90ff5e35e3`（checksum
-`h1:Craz/NDn5xxVYC9uTP29wm4FEUdPZiOHopbS7kY+qTM=`）。2026-09-20 固定 SDK
+`37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
+`v0.1.34-0.20260921030131-37434c2d38b1`（checksum
+`h1:XNPbPT5jcaMvs1sN5l4UmKZrL70Nre2BjmryNB4ffio=`）。2026-09-21 固定 SDK
 归档构建的 nxs SHA-256 为
-`9896f72b69797b180d24274f861ed5fca77f153f9c54e6a0796d700251d894ac`。
+`0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270`。
 Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并以精确 CLI 的
 `--settings <json> --help` 检查该参数入口；这不是实际 OS 隔离回执。最终进程环境
 过滤继承的常见 Provider、代理和秘密变量，typed `Options.Env` 保留宿主凭据投影。
@@ -173,7 +173,12 @@ Nexus 只在选择 Claude 且权限模式不是 Full Access 时设置这条 Brid
 
 只读 profile 不能靠空 `allowWrite`、审批模式或 `/plan` 表达。SDK/Bridge 的 `sandbox_resources_v1` 子批次已实现独立宿主对象，固定 `read-only`/`workspace-write` 和已准备的 scratch；命令、原生文件及默认 PDF/Git 执行器复用此配置，移除旧合同的隐式工作区、缓存与环境推导写根。原合同未提供 Resources 时仍保留旧行为。该版本只落实已覆盖执行器的写范围；限定读取、完整资源清单、实际生效回执和全部 SDK IO 仍待完成。
 
-下一步由 Nexus runtime 生命周期拥有者准备、占用及回收私有 scratch，固定策略版本与后端身份后传入 Bridge；纯 clientopts 装配不得顺便创建目录。先建立失败、取消、重启和后代存活的清理事实，再用于默认资源策略。当前未接入产品字段或 UI，不把“SDK 接受宿主给定目录”当作独占租约、清理或默认受限体验已经实现。
+资源合同只属于 nxs。Nexus 在带有 host resource lease 时强制 `allowUnsandboxedCommands=false`，并拒绝只读资源同时携带显式写目录；Claude 原生 sandbox 不接收 nxs lease，误混后在 clientopts 入口 fail closed。这样避免 Bridge 的资源合同准入在真实 DM/Room runtime 启动时被自身的 unsandboxed-command 选项阻断。
+同一 owner/session 的活动资源保持写入范围不变，后续 round 不能借复用 scratch 路径悄悄扩大或收紧策略；每次 Acquire 都返回独立持有句柄，准备失败只释放自己的引用，不能删除仍由 runtime 使用的资源。
+
+scratch 的创建、marker 读写、扫描和回收现以 `internal/infra/confinedfs` 固定目录句柄执行。父目录在检查后被替换为 symlink、lease 叶子被替换为链接或 marker 不是普通文件时，宿主保留租约并返回清理错误，不把路径缺失误判成已回收。
+
+Nexus runtime 生命周期拥有者现在在 DM、Room 和 AutoDream 启动前准备并占用私有 scratch，固定策略版本与后端身份后传入 Bridge；runtime client 绑定 exact lease handle，旧代关闭不会按路径误删新代资源。纯 clientopts 装配仍不得顺便创建目录。Bridge 关闭成功才回收，失败保留 runtime fence 和 lease，并阻止同一 scope 的新 Acquire。下一步仍需建立平台后代监督、取消/重启对账和有效策略回执，才能把该资源策略扩展为默认产品体验；当前 UI、崩溃后的自动恢复和跨平台发布验收仍未完成。
 
 清理前置修复已落地：Bridge 把后代清理失败保留到 Wait、主动终止和重复 Close；Nexus 的重连、旧配置启动重试、替换及批量关闭保留失败会话，文件能力和资源要求显式进入进程策略指纹。当前只是内存中的失败栅栏；原 Unix session 扫描无法证明另建 session 的后代已退出，宿主信号回调返回成功也不是独立终态回执。
 
@@ -538,3 +543,33 @@ Windows 使用不区分大小写的同一规则，普通 PATH、HOME、runtime i
 5. **验证**：原生拒绝、malformed managed/drop-in、项目/flag 链接、取消、来源禁用、并发更新、部分写入故障、符号链接物理别名和 Config 后续 provider 栅栏均须有正反例；确认默认模式、强制 deny、hook 限制和凭据边界保持。独立写能力不能扩张已发布读取能力的含义。
 
 该批次不替代 P3–P7，也不删除 hook 执行、后台 IO、网络、生效回执、完整后代监督、scratch 生命周期、默认产品策略、Windows/Linux/Claude 与安装包门禁。所有工作继续在独立 worktree，仅保留本地提交。
+
+### 2026-09-21：scratch 目录句柄收口
+
+复审资源租约时发现，原实现虽然在创建前检查了 canonical root 和 scratch
+parent，但实际创建、marker 读取和回收仍有路径重新解析窗口。现在由
+`internal/infra/confinedfs` 固定 runtime root 与 scratch parent 的目录句柄，
+以 no-symlink root 创建确定性或 stale replacement leaf，并通过同一类句柄写入、
+读取 marker 与扫描目录；回收时父目录被替换为 symlink 会返回错误并保留 lease。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 目标测试 | `GOWORK=off GOPROXY=off go test ./internal/runtime -run 'SandboxResource|Cleanup' -count=1` 通过；包含父目录替换竞态和 marker/扫描路径 |
+| 当前边界 | 该修复只收口 Nexus scratch 的本地路径竞态；不替代 nxs/Claude 的 OS 命令、网络、秘密文件、句柄、完整后代监督、Windows/macOS clean-host 或签名发布验收，`releaseAccepted=false` |
+
+### 2026-09-22：lease 失败转移与 Windows marker 身份加固
+
+复审资源句柄生命周期后补齐三个宿主层错误窗口：`ClientStartup.BindSandboxLease`
+在 binder 拒绝时现在明确返回未消费，调用方仍会释放原句柄；`Lease.Release` 在句柄锁
+内完成整段引用扣减，重复并发调用不会提前删除仍由其他 runtime 持有的资源；尚未安装
+Bridge session 的 unclean discard 也会启动 cleanup fence 排空已绑定 lease。`agentClient`
+按 runtime kind 拒绝把 Nexus lease 交给 Claude；`confinedfs` 在 Windows 通过打开文件句柄
+查询硬链接数量，marker 无法确认文件身份时拒绝读取。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 本地回归 | runtime、confinedfs、clientopts、DM、Room realtime、AutoDream race 与目标 vet 通过；新增未消费转移和并发重复释放回归 |
+| 跨平台编译 | Windows amd64 与 macOS arm64 runtime/confinedfs 通过；仍不是原生平台行为证据 |
+| 固定 nxs 门禁 | 固定 SDK/Bridge 与 nxs resource-backed handshake、架构检查、桌面 host gate exit 0；报告保持 `host-integration-only` |
+| 证据 | `docs/testing/evidence/desktop-sandbox/2026-09-22-lease-hardening/` |
+| 交付边界 | `releaseAccepted=false`；原生 Windows/macOS clean-host 与签名包、Claude 真实认证命令、完整 nxs SDK IO/网络/秘密/句柄、后代监督、跨重启恢复、有效策略回执仍是发布前工作 |

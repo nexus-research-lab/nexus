@@ -136,7 +136,7 @@ Node 执行另需显式开启，旧授权默认关闭。机器凭据固定原 Co
 
 当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
 
-- protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol。
+- protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol，并通过 `internal/infra/confinedfs` 使用固定目录句柄完成宿主沙箱资源的创建、标记和回收；除该明确文件边界外不得引入其他 infra/service 依赖。
 - service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。
 - orchestration 核心不依赖 MCP，协议转换进入 runtimehook；app 共享装配不反向依赖 app/server。
 - Session 跨表清理使用调用方持有的同一事务，SQL 归本领域仓储，不能由各服务分别提交。

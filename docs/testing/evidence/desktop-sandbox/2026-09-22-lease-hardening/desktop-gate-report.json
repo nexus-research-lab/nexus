@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-22T04:04:19.706Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "scope": "host-integration-only",
+  "releaseAccepted": false,
+  "passed": true,
+  "checks": [
+    {
+      "name": "nexus-revision",
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "nexus-changes",
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "go-version",
+      "command": "go",
+      "args": [
+        "env",
+        "GOVERSION"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "bridge-module",
+      "command": "go",
+      "args": [
+        "list",
+        "-mod=readonly",
+        "-m",
+        "-json",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "host-policy",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime/clientopts",
+        "./internal/runtime/permission",
+        "./internal/service/nxsruntime",
+        "-run",
+        "^(TestBuildAgentClientOptionsPreservesHostProviderOwnership|TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership|TestDesktopSandboxPolicySeparatesResourcesAndFullAccess|TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature|TestDesktopSandboxRealRuntimeNegotiation|TestDesktopSandboxRealRuntimeWithHostResources|TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules|TestUnknownApprovalBoundaryFailsBeforeCreatingPending|TestCancelledApprovalDoesNotCreateNewPending|TestSandboxNetworkApprovalUsesOneConnectionScope|TestSandboxDiagnosisDoesNotInventAvailability|TestSandboxDiagnosisRealNXS)$"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestBuildAgentClientOptionsPreservesHostProviderOwnership",
+        "TestBuildAgentClientOptionsPreservesHostProviderOwnership/extra",
+        "TestBuildAgentClientOptionsPreservesHostProviderOwnership/configuration",
+        "TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership",
+        "TestDesktopSandboxPolicySeparatesResourcesAndFullAccess",
+        "TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature",
+        "TestDesktopSandboxRealRuntimeNegotiation",
+        "TestDesktopSandboxRealRuntimeWithHostResources",
+        "TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules",
+        "TestUnknownApprovalBoundaryFailsBeforeCreatingPending",
+        "TestCancelledApprovalDoesNotCreateNewPending",
+        "TestSandboxNetworkApprovalUsesOneConnectionScope",
+        "TestSandboxDiagnosisDoesNotInventAvailability",
+        "TestSandboxDiagnosisRealNXS"
+      ]
+    },
+    {
+      "name": "host-lifecycle",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime",
+        "./internal/service/room/realtime",
+        "-run",
+        "^(TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate|TestManagerHandlesSandboxModeReplacementAsExpectedTransition|TestManagerReplacesRuntimeForSandboxTransitions|TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay|TestRoomSandboxTransitionDoesNotHideCleanupFailure|TestAgentClientCleanupFailureBlocksReconnect|TestAgentClientStaleStartupCleanupFailureStopsRetry|TestManagerCleanupFailureRetainsSessionFence|TestCleanupFailureIsNotAnOrdinaryClosedTransport|TestManagerBulkCleanupReportsAndRetainsFailure|TestProcessPolicyIncludesHostSandboxRequirements|TestProviderOwnershipChangeReplacesRuntime|TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange|TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent|TestAcquirePersistsDurableMarkerAndReleaseRemovesIt|TestAcquireReusesActiveSessionLease|TestSandboxResourceCleanupFailureFencesNewAcquisition|TestAcquireRejectsWriteScopeChangeForActiveSession|TestReleaseRetainsLeaseWhenScratchParentIsReplaced|TestSweepStaleSandboxResourcesRequiresExplicitApply|TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers|TestAgentClientCleanupUsesExactScratchHandle|TestClientStartupBindFailureDoesNotConsumeLease|TestClientStartupBindLeaseFailsClosedForUnsupportedClient|TestAgentClientBindSandboxLeaseRejectsClaudeRuntime|TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession)$"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate",
+        "TestManagerHandlesSandboxModeReplacementAsExpectedTransition",
+        "TestManagerReplacesRuntimeForSandboxTransitions",
+        "TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay",
+        "TestRoomSandboxTransitionDoesNotHideCleanupFailure",
+        "TestAgentClientCleanupFailureBlocksReconnect",
+        "TestAgentClientStaleStartupCleanupFailureStopsRetry",
+        "TestManagerCleanupFailureRetainsSessionFence",
+        "TestManagerCleanupFailureRetainsSessionFence/synchronous",
+        "TestManagerCleanupFailureRetainsSessionFence/after_timeout",
+        "TestCleanupFailureIsNotAnOrdinaryClosedTransport",
+        "TestManagerBulkCleanupReportsAndRetainsFailure",
+        "TestManagerBulkCleanupReportsAndRetainsFailure/owner",
+        "TestManagerBulkCleanupReportsAndRetainsFailure/idle",
+        "TestManagerBulkCleanupReportsAndRetainsFailure/agent_revocation",
+        "TestProcessPolicyIncludesHostSandboxRequirements",
+        "TestProviderOwnershipChangeReplacesRuntime",
+        "TestProviderOwnershipChangeReplacesRuntime/NEXUS_PROVIDER_MANAGED_BY_HOST",
+        "TestProviderOwnershipChangeReplacesRuntime/NEXUS_SUBPROCESS_ENV_SCRUB",
+        "TestProviderOwnershipChangeReplacesRuntime/CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+        "TestProviderOwnershipChangeReplacesRuntime/NEXUS_AUTO_DREAM_WAKE_MODE",
+        "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
+        "TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent",
+        "TestAcquirePersistsDurableMarkerAndReleaseRemovesIt",
+        "TestAcquireReusesActiveSessionLease",
+        "TestSandboxResourceCleanupFailureFencesNewAcquisition",
+        "TestAcquireRejectsWriteScopeChangeForActiveSession",
+        "TestReleaseRetainsLeaseWhenScratchParentIsReplaced",
+        "TestSweepStaleSandboxResourcesRequiresExplicitApply",
+        "TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers",
+        "TestAgentClientCleanupUsesExactScratchHandle",
+        "TestClientStartupBindFailureDoesNotConsumeLease",
+        "TestClientStartupBindLeaseFailsClosedForUnsupportedClient",
+        "TestAgentClientBindSandboxLeaseRejectsClaudeRuntime",
+        "TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession"
+      ]
+    },
+    {
+      "name": "host-settings-recovery",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/storage/configuration",
+        "./internal/service/configuration",
+        "-run",
+        "^(TestRevisionKeyConcurrentInitialization|TestRevisionKeyAcrossProcesses|TestRevisionKeyMigrationPreservesReceipts|TestRevisionKeyRejectsMissingOrCorruptState|TestConfigurationRevisionSurvivesDatabaseReopen|TestConfigurationRevisionBindsScopeAndSecrets|TestConfigurationRevisionLegacyReceiptIsIncomparable|TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay)$"
+      ],
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestRevisionKeyConcurrentInitialization",
+        "TestRevisionKeyAcrossProcesses",
+        "TestRevisionKeyMigrationPreservesReceipts",
+        "TestRevisionKeyRejectsMissingOrCorruptState",
+        "TestRevisionKeyRejectsMissingOrCorruptState/missing",
+        "TestRevisionKeyRejectsMissingOrCorruptState/malformed",
+        "TestRevisionKeyRejectsMissingOrCorruptState/empty",
+        "TestRevisionKeyRejectsMissingOrCorruptState/unknown_version",
+        "TestRevisionKeyRejectsMissingOrCorruptState/invalid_bootstrap",
+        "TestConfigurationRevisionSurvivesDatabaseReopen",
+        "TestConfigurationRevisionBindsScopeAndSecrets",
+        "TestConfigurationRevisionBindsScopeAndSecrets/scope",
+        "TestConfigurationRevisionBindsScopeAndSecrets/domain",
+        "TestConfigurationRevisionBindsScopeAndSecrets/target",
+        "TestConfigurationRevisionBindsScopeAndSecrets/version",
+        "TestConfigurationRevisionBindsScopeAndSecrets/secret",
+        "TestConfigurationRevisionLegacyReceiptIsIncomparable",
+        "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay"
+      ]
+    }
+  ],
+  "nexusRevision": "24a2d2d9475844624b5d48f3e68c434a075252a3",
+  "nexusChanges": [
+    "M AGENTS.md",
+    " M CHANGELOG.md",
+    " M docs/explorations/desktop-sandbox/development-plan.md",
+    " M docs/specs/desktop-sandbox-spec.md",
+    " M docs/testing/desktop-sandbox-acceptance.md",
+    " M go.mod",
+    " M go.sum",
+    " M internal/infra/confinedfs/hardlink_other.go",
+    " M internal/infra/confinedfs/hardlink_supported.go",
+    " M internal/infra/confinedfs/root.go",
+    " M internal/infra/confinedfs/root_test.go",
+    " M internal/runtime/client.go",
+    " M internal/runtime/client_cleanup_test.go",
+    " M internal/runtime/clientopts/desktop_sandbox.go",
+    " M internal/runtime/clientopts/desktop_sandbox_integration_test.go",
+    " M internal/runtime/clientopts/desktop_sandbox_test.go",
+    " M internal/runtime/doc.go",
+    " M internal/runtime/sandbox_resources.go",
+    " M internal/runtime/sandbox_resources_test.go",
+    " M internal/runtime/session.go",
+    " M internal/service/dm/runtime_client.go",
+    " M internal/service/memorymaintenance/coordinator_test.go",
+    " M internal/service/memorymaintenance/runner.go",
+    " M internal/service/room/realtime/execution_runtime.go",
+    " M scripts/check-architecture/main.go",
+    " M scripts/check-architecture/main_test.go",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/testing/evidence/desktop-sandbox/2026-09-21-bridge-probe-cleanup/",
+    "?? docs/testing/evidence/desktop-sandbox/2026-09-22-lease-hardening/",
+    "?? internal/infra/confinedfs/hardlink_windows.go"
+  ],
+  "goVersion": "go1.27.1",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260921030131-37434c2d38b1",
+    "sum": "h1:XNPbPT5jcaMvs1sN5l4UmKZrL70Nre2BjmryNB4ffio="
+  },
+  "runtime": {
+    "path": "/private/tmp/nxs-desktop-9956-bridge374",
+    "sha256": "0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270",
+    "source": "explicit-binary"
+  },
+  "finishedAt": "2026-09-22T04:04:26.417Z"
+}

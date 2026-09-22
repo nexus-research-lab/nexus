@@ -38,13 +38,14 @@ const (
 )
 
 type preparedSlotRuntime struct {
-	options                agentclient.Options
-	selection              runtimeselectionsvc.Selection
-	provider               string
-	toolSurfaceFingerprint string
-	toolSurfaceComplete    bool
-	forkLegacyToolSurface  bool
-	scratchLease           *runtimectx.SandboxResourceLease
+	options                 agentclient.Options
+	selection               runtimeselectionsvc.Selection
+	provider                string
+	toolSurfaceFingerprint  string
+	toolSurfaceComplete     bool
+	forkLegacyToolSurface   bool
+	scratchLease            *runtimectx.SandboxResourceLease
+	scratchLeaseTransferred bool
 }
 
 type roomRuntimePrompt struct {
@@ -138,7 +139,7 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
-		if runtimeValue.scratchLease != nil {
+		if runtimeValue.scratchLease != nil && !runtimeValue.scratchLeaseTransferred {
 			_ = runtimeValue.scratchLease.Release()
 		}
 		return nil, err
@@ -239,7 +240,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
 			OwnerUserID: e.agent.OwnerUserID,
-			SessionKey:  e.round.SessionKey,
+			SessionKey:  e.slot.RuntimeSessionKey,
 			RoundID:     e.round.RootRoundID,
 		})
 		if err != nil {
@@ -607,7 +608,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		)
 	}
 
-	client, err := e.connectRuntimeOnce(startup, *runtimeValue)
+	client, err := e.connectRuntimeOnce(startup, runtimeValue)
 	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
 		e.logger.Warn("Room SDK session resume 失效，清除后重试",
 			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
@@ -630,8 +631,19 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 			runtimeValue.options.Session.ResumeID = ""
 			runtimeValue.options.Session.ResumeAt = ""
 			runtimeValue.options.Session.Fork = false
+			if runtimeValue.scratchLease != nil {
+				runtimeValue.scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
+					OwnerUserID: e.agent.OwnerUserID,
+					SessionKey:  e.slot.RuntimeSessionKey,
+					RoundID:     e.round.RootRoundID,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("重新准备 Room desktop sandbox scratch: %w", err)
+				}
+				runtimeValue.scratchLeaseTransferred = false
+			}
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
-				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
+				client, err = e.connectRuntimeOnce(startup, runtimeValue)
 			}
 		}
 	}
@@ -697,7 +709,7 @@ func retireExistingRoomRuntimeClient(ctx context.Context, startup *runtimectx.Cl
 
 func (e *slotExecution) connectRuntimeOnce(
 	startup *runtimectx.ClientStartup,
-	runtimeValue preparedSlotRuntime,
+	runtimeValue *preparedSlotRuntime,
 ) (runtimectx.Client, error) {
 	e.logger.Info("准备启动 Room runtime",
 		roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...,
@@ -709,6 +721,11 @@ func (e *slotExecution) connectRuntimeOnce(
 		runtimeValue.options,
 		e.service.factory,
 	)
+	if err != nil {
+		return client, err
+	}
+	transferred, err := startup.BindSandboxLease(runtimeValue.scratchLease)
+	runtimeValue.scratchLeaseTransferred = transferred
 	if err != nil {
 		return client, err
 	}
