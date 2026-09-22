@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -107,10 +108,151 @@ func TestAcquireReusesActiveSessionLease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first != second || first.Path() != second.Path() {
-		t.Fatalf("active session lease was replaced: first=%p second=%p paths=%q/%q", first, second, first.Path(), second.Path())
+	if first == second || first.Path() != second.Path() {
+		t.Fatalf("active session did not return an independent handle: first=%p second=%p paths=%q/%q", first, second, first.Path(), second.Path())
 	}
 	if err := second.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(first.Path()); err != nil {
+		t.Fatalf("releasing one active-session handle removed the shared resource: %v", err)
+	}
+	if err := first.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(first.Path()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("shared resource remains after final handle release: %v", err)
+	}
+}
+
+func TestLeaseReleaseSerializesConcurrentCallsOnOneHandle(t *testing.T) {
+	root := t.TempDir()
+	first, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "concurrent-release", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "concurrent-release", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := first.Path()
+
+	var wg sync.WaitGroup
+	results := make(chan error, 32)
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- first.Release()
+		}()
+	}
+	wg.Wait()
+	close(results)
+	for releaseErr := range results {
+		if releaseErr != nil {
+			t.Fatalf("concurrent release failed: %v", releaseErr)
+		}
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("one independent lease was removed by duplicate release: %v", err)
+	}
+	if err := second.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("final independent lease did not remove resource: %v", err)
+	}
+}
+
+func TestSandboxResourceCleanupFailureFencesNewAcquisition(t *testing.T) {
+	root := t.TempDir()
+	first, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "fenced", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "fenced", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.MarkCleanupUncertain(errors.New("bridge descendants remain"))
+	if _, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "fenced", Root: root}); err == nil {
+		t.Fatal("poisoned sandbox resource accepted a new acquisition")
+	}
+	if err := second.Release(); err != nil {
+		t.Fatalf("independent preparation handle could not be released: %v", err)
+	}
+	if _, err := os.Stat(first.Path()); err != nil {
+		t.Fatalf("fenced resource disappeared while uncertain runtime was retained: %v", err)
+	}
+	if err := first.Release(); err != nil {
+		t.Fatalf("reconciled lease release = %v", err)
+	}
+}
+
+func TestAcquireRejectsWriteScopeChangeForActiveSession(t *testing.T) {
+	root := t.TempDir()
+	first, err := Acquire(t.Context(), Input{
+		OwnerUserID: "owner", SessionKey: "session", Root: root,
+		WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = first.Release() }()
+	if second, err := Acquire(t.Context(), Input{
+		OwnerUserID: "owner", SessionKey: "session", Root: root,
+		WriteScope: agentclient.SandboxWriteScopeReadOnly,
+	}); err == nil || second != nil {
+		t.Fatalf("active session changed resource scope: lease=%v err=%v", second, err)
+	}
+	if got := first.Resources(); got == nil || got.WriteScope != agentclient.SandboxWriteScopeWorkspaceWrite {
+		t.Fatalf("original lease scope changed after rejected acquire: %#v", got)
+	}
+}
+
+func TestReleaseRetainsLeaseWhenScratchParentIsReplaced(t *testing.T) {
+	root := t.TempDir()
+	lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "symlink-parent", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	base := filepath.Dir(path)
+	movedBase := base + "-moved"
+	if err := os.Rename(base, movedBase); err != nil {
+		t.Fatal(err)
+	}
+	redirect := t.TempDir()
+	replacedBySymlink := true
+	if err := os.Symlink(redirect, base); err != nil {
+		replacedBySymlink = false
+		if writeErr := os.WriteFile(base, []byte("replacement"), 0o600); writeErr != nil {
+			_ = os.Rename(movedBase, base)
+			t.Fatalf("replace scratch parent: symlink=%v file=%v", err, writeErr)
+		}
+	}
+	sentinel := filepath.Join(redirect, "sentinel")
+	if err := os.WriteFile(sentinel, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Release(); err == nil {
+		t.Fatal("release succeeded through a replaced scratch parent")
+	}
+	if replacedBySymlink {
+		if _, err := os.Stat(sentinel); err != nil {
+			t.Fatalf("release touched redirected parent: %v", err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(movedBase, filepath.Base(path))); err != nil {
+		t.Fatalf("original scratch disappeared after failed release: %v", err)
+	}
+	if err := os.Remove(base); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(movedBase, base); err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Release(); err != nil {
 		t.Fatal(err)
 	}
 }

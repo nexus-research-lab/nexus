@@ -10,7 +10,7 @@ func TestDependencyBoundaries(t *testing.T) {
 		from, to string
 		reject   bool
 	}{
-		{"protocol", "config", true}, {"relay", "service/relay", true}, {"runtime", "protocol", false}, {"runtime", "service/goal", true},
+		{"protocol", "config", true}, {"relay", "service/relay", true}, {"runtime", "protocol", false}, {"runtime", "infra/confinedfs", false}, {"runtime", "infra/authctx", true}, {"runtime", "service/goal", true},
 		{"service/team", "handler/team", true}, {"service/team", "app", true}, {"service/team", "relay", false},
 		{"storage/teamrelay", "service/relay", true}, {"storage/teamrelay", "relay", false},
 		{"service/orchestration", "mcp/command", true}, {"service/orchestration/runtimehook", "mcp/command", false},

@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -67,6 +68,7 @@ type agentClient struct {
 	connecting               *agentClientConnectFlight
 	configuring              *agentClientConfigFlight
 	cleanup                  *agentClientSessionCleanup
+	sandboxLease             *SandboxResourceLease
 	streamErr                error
 	retired                  bool
 	newSession               func(context.Context, bridge.Options) (*bridge.Session, error)
@@ -96,14 +98,49 @@ type agentClientConfigFlight struct {
 }
 
 type agentClientSessionCleanup struct {
-	done        chan struct{}
-	err         error
-	scratchRoot string
+	done         chan struct{}
+	err          error
+	scratchLease *SandboxResourceLease
+	startOnce    sync.Once
 }
 
 // NewAgentClient 创建负责并发连接、配置换代和进程回收的 Agent client。
 func NewAgentClient(options bridge.Options) Client {
 	return &agentClient{options: options}
+}
+
+// BindSandboxLease transfers one host-owned scratch handle to this runtime
+// generation. The handle is later moved into the exact bridge cleanup record;
+// path lookup is never used to decide which generation may delete a resource.
+func (c *agentClient) BindSandboxLease(lease *SandboxResourceLease) error {
+	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return bridge.ErrAborted
+	}
+	if lease != nil && normalizedManagedRuntimeKind(c.options.Runtime.Kind) != bridge.RuntimeNXS {
+		c.mu.Unlock()
+		return fmt.Errorf("desktop sandbox lease requires nxs runtime")
+	}
+	previous := c.sandboxLease
+	if previous == lease {
+		c.mu.Unlock()
+		return nil
+	}
+	c.sandboxLease = lease
+	c.mu.Unlock()
+	if previous == nil {
+		return nil
+	}
+	if err := previous.Release(); err != nil {
+		c.mu.Lock()
+		if c.sandboxLease == lease {
+			c.sandboxLease = previous
+		}
+		c.mu.Unlock()
+		return err
+	}
+	return nil
 }
 
 func (c *agentClient) Connect(ctx context.Context) error {
@@ -227,9 +264,10 @@ func (c *agentClient) runConnectFlight(
 			return nil
 		}
 		cleanup := &agentClientSessionCleanup{
-			done:        make(chan struct{}),
-			scratchRoot: sandboxScratchRoot(options),
+			done:         make(chan struct{}),
+			scratchLease: c.sandboxLease,
 		}
+		c.sandboxLease = nil
 		c.cleanup = cleanup
 		c.mu.Unlock()
 
@@ -573,7 +611,7 @@ func (c *agentClient) Disconnect(ctx context.Context) error {
 	if connecting != nil {
 		connecting.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	if session != nil || (cleanup != nil && cleanup.scratchLease != nil) {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 	if err := waitAgentClientCleanup(ctx, cleanup); err != nil {
@@ -620,7 +658,7 @@ func (c *agentClient) Retire() {
 	if configuring != nil {
 		configuring.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	if session != nil || (cleanup != nil && cleanup.scratchLease != nil) {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
@@ -634,15 +672,25 @@ func (c *agentClient) detachCurrentSessionLocked(
 		if err != nil {
 			c.streamErr = err
 		}
-		return nil, nil, c.cleanup
+		cleanup := c.cleanup
+		if cleanup == nil && c.sandboxLease != nil {
+			cleanup = &agentClientSessionCleanup{done: make(chan struct{})}
+			c.cleanup = cleanup
+		}
+		if cleanup != nil && cleanup.scratchLease == nil {
+			cleanup.scratchLease = c.sandboxLease
+			c.sandboxLease = nil
+		}
+		return nil, nil, cleanup
 	}
 	c.streamErr = err
 	session := c.session
 	cancel := c.cancel
 	cleanup := &agentClientSessionCleanup{
-		done:        make(chan struct{}),
-		scratchRoot: sandboxScratchRoot(c.options),
+		done:         make(chan struct{}),
+		scratchLease: c.sandboxLease,
 	}
+	c.sandboxLease = nil
 	c.session = nil
 	c.messages = nil
 	c.cancel = nil
@@ -662,7 +710,7 @@ func (c *agentClient) DiscardUncleanSession() {
 	if connecting != nil {
 		connecting.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	if session != nil || (cleanup != nil && cleanup.scratchLease != nil) {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
@@ -724,28 +772,36 @@ func (c *agentClient) startBridgeSessionCleanup(
 	cancel context.CancelFunc,
 	cleanup *agentClientSessionCleanup,
 ) {
+	if cleanup == nil {
+		return
+	}
 	if cancel != nil {
 		cancel()
 	}
-	go func() {
-		closeErr := c.closeBridgeSession(session)
-		// A scratch lease is released only after bridge close succeeds. If the
-		// process cannot be proven stopped, preserve the path for recovery and
-		// keep the runtime session close fence active.
-		var scratchErr error
-		if closeErr == nil && cleanup.scratchRoot != "" {
-			scratchErr = ReleaseSandboxPath(cleanup.scratchRoot)
-		}
-		cleanup.err = errors.Join(closeErr, scratchErr)
-		close(cleanup.done)
-	}()
-}
-
-func sandboxScratchRoot(options bridge.Options) string {
-	if options.Sandbox == nil || options.Sandbox.Resources == nil {
-		return ""
-	}
-	return strings.TrimSpace(options.Sandbox.Resources.ScratchRoot)
+	c.mu.Lock()
+	scratchLease := cleanup.scratchLease
+	c.mu.Unlock()
+	cleanup.startOnce.Do(func() {
+		go func() {
+			var closeErr error
+			if session != nil || c.closeSession != nil {
+				closeErr = c.closeBridgeSession(session)
+			}
+			// A scratch lease is released only after bridge close succeeds. If the
+			// process cannot be proven stopped, preserve the lease for recovery and
+			// keep the runtime session close fence active.
+			var scratchErr error
+			if scratchLease != nil {
+				if closeErr != nil {
+					scratchLease.MarkCleanupUncertain(closeErr)
+				} else {
+					scratchErr = scratchLease.Release()
+				}
+			}
+			cleanup.err = errors.Join(closeErr, scratchErr)
+			close(cleanup.done)
+		}()
+	})
 }
 
 func (c *agentClient) openSession(

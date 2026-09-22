@@ -172,7 +172,7 @@ func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T)
 	}
 	path := lease.Path()
 	client := &agentClient{closeSession: func(*bridge.Session) error { return nil }}
-	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchRoot: path}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: lease}
 	client.startBridgeSessionCleanup(nil, nil, cleanup)
 	select {
 	case <-cleanup.done:
@@ -199,7 +199,7 @@ func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
 	path := lease.Path()
 	want := errors.New("descendants remain")
 	client := &agentClient{closeSession: func(*bridge.Session) error { return want }}
-	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchRoot: path}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: lease}
 	client.startBridgeSessionCleanup(nil, nil, cleanup)
 	<-cleanup.done
 	if !errors.Is(cleanup.err, want) {
@@ -210,5 +210,142 @@ func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
 	}
 	if err := lease.Release(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAgentClientCleanupUsesExactScratchHandle(t *testing.T) {
+	root := t.TempDir()
+	first, err := Acquire(t.Context(), Input{OwnerUserID: "cleanup-owner", SessionKey: "session-shared", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := Acquire(t.Context(), Input{OwnerUserID: "cleanup-owner", SessionKey: "session-shared", Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := first.Path()
+	client := &agentClient{closeSession: func(*bridge.Session) error { return nil }}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: first}
+	client.startBridgeSessionCleanup(nil, nil, cleanup)
+	<-cleanup.done
+	if cleanup.err != nil {
+		t.Fatalf("cleanup error = %v", cleanup.err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("old runtime cleanup removed scratch still held by preparation: %v", err)
+	}
+	if err := second.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("last exact scratch handle did not remove resource: %v", err)
+	}
+}
+
+func TestClientStartupBindFailureDoesNotConsumeLease(t *testing.T) {
+	lease, err := Acquire(t.Context(), Input{
+		OwnerUserID: "bind-owner",
+		SessionKey:  "bind-failure",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	client := &agentClient{retired: true}
+	startup := &ClientStartup{
+		expectedClient: client,
+		release:        func() {},
+	}
+	consumed, bindErr := startup.BindSandboxLease(lease)
+	if consumed || !errors.Is(bindErr, bridge.ErrAborted) {
+		t.Fatalf("BindSandboxLease() = consumed=%v err=%v, want unconsumed aborted lease", consumed, bindErr)
+	}
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unconsumed lease was not released by caller: %v", err)
+	}
+}
+
+func TestClientStartupBindLeaseFailsClosedForUnsupportedClient(t *testing.T) {
+	lease, err := Acquire(t.Context(), Input{
+		OwnerUserID: "bind-owner",
+		SessionKey:  "unsupported-client",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	startup := &ClientStartup{
+		expectedClient: &fakeRuntimeClient{},
+		release:        func() {},
+	}
+	consumed, bindErr := startup.BindSandboxLease(lease)
+	if consumed || bindErr == nil {
+		t.Fatalf("BindSandboxLease() = consumed=%v err=%v, want an unconsumed fail-closed lease", consumed, bindErr)
+	}
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unconsumed lease was not released by caller: %v", err)
+	}
+}
+
+func TestAgentClientBindSandboxLeaseRejectsClaudeRuntime(t *testing.T) {
+	lease, err := Acquire(t.Context(), Input{
+		OwnerUserID: "bind-owner",
+		SessionKey:  "claude-client",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	client := &agentClient{options: bridge.Options{
+		Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeClaude},
+	}}
+	if err := client.BindSandboxLease(lease); err == nil {
+		t.Fatal("Claude runtime accepted a Nexus sandbox lease")
+	}
+	if err := lease.Release(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rejected lease was not released by caller: %v", err)
+	}
+}
+
+func TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession(t *testing.T) {
+	lease, err := Acquire(t.Context(), Input{
+		OwnerUserID: "discard-owner",
+		SessionKey:  "discard-without-session",
+		Root:        t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := lease.Path()
+	client := &agentClient{sandboxLease: lease}
+	client.DiscardUncleanSession()
+	client.mu.Lock()
+	cleanup := client.cleanup
+	client.mu.Unlock()
+	if cleanup == nil {
+		t.Fatal("discard did not create cleanup fence for the bound lease")
+	}
+	select {
+	case <-cleanup.done:
+	case <-time.After(time.Second):
+		t.Fatal("discard cleanup did not finish")
+	}
+	if cleanup.err != nil {
+		t.Fatalf("discard cleanup error = %v", cleanup.err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("bound lease remained after discard without session: %v", err)
 	}
 }

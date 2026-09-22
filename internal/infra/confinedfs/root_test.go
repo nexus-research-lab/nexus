@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -190,7 +191,7 @@ func TestOpenFileNoSymlinkRejectsHardlink(t *testing.T) {
 	defer root.Close()
 
 	file, openErr := root.OpenFileNoSymlink("ledger.jsonl", os.O_RDONLY, 0)
-	if hasMultipleHardLinks(mustLstat(t, root, "ledger.jsonl")) {
+	if runtime.GOOS == "windows" || hasMultipleHardLinks(mustLstat(t, root, "ledger.jsonl")) {
 		if !errors.Is(openErr, ErrHardlink) {
 			if file != nil {
 				file.Close()

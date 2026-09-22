@@ -37,6 +37,9 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		// Access is an explicit user exception; restricted Claude keeps Bash and
 		// build commands but fails closed when Claude cannot install its OS
 		// sandbox. Native Claude sandbox is not supported by the Windows CLI.
+		if input.SandboxResources != nil {
+			return agentclient.Options{}, fmt.Errorf("Claude 原生沙箱不能携带 nxs host resource contract")
+		}
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
@@ -60,13 +63,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		}
 		filesystem.AllowRead = appendDistinctStrings(filesystem.AllowRead, input.SkillDirectories...)
 		filesystem.AllowWrite = appendDistinctStrings(filesystem.AllowWrite, input.AdditionalDirectories...)
-		if input.SandboxResources != nil {
-			resources := *input.SandboxResources
-			if err := resources.Validate(); err != nil {
-				return agentclient.Options{}, fmt.Errorf("invalid Claude sandbox resources: %w", err)
-			}
-			filesystem.AllowWrite = appendDistinctStrings(filesystem.AllowWrite, resources.ScratchRoot)
-		}
 		settings.Filesystem = filesystem
 		options.Sandbox = settings
 		return options, nil
@@ -75,6 +71,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a supported runtime contract")
 	}
 	yes := true
+	no := false
 	options.Sandbox = &agentclient.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
@@ -98,6 +95,14 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		if err := resources.Validate(); err != nil {
 			return agentclient.Options{}, fmt.Errorf("invalid desktop sandbox resources: %w", err)
 		}
+		if resources.WriteScope == agentclient.SandboxWriteScopeReadOnly && len(input.AdditionalDirectories) > 0 {
+			return agentclient.Options{}, fmt.Errorf("read-only desktop sandbox resources cannot carry write directory grants")
+		}
+		// Bridge's resource contract deliberately forbids an unsandboxed
+		// command escape. Keep the strict resource policy authoritative; the
+		// ordinary no-resource path may still expose the separate approval
+		// boundary above.
+		options.Sandbox.AllowUnsandboxedCommands = &no
 		options.Sandbox.Resources = &resources
 	}
 	return options, nil
@@ -119,6 +124,27 @@ func cloneClaudeSandboxSettings(input *agentclient.SandboxSettings) (*agentclien
 	settings := *input
 	settings.EnabledPlatforms = slices.Clone(input.EnabledPlatforms)
 	settings.ExcludedCommands = slices.Clone(input.ExcludedCommands)
+	if input.Filesystem != nil {
+		filesystem := *input.Filesystem
+		filesystem.AllowWrite = slices.Clone(input.Filesystem.AllowWrite)
+		filesystem.DenyWrite = slices.Clone(input.Filesystem.DenyWrite)
+		filesystem.DenyRead = slices.Clone(input.Filesystem.DenyRead)
+		filesystem.AllowRead = slices.Clone(input.Filesystem.AllowRead)
+		settings.Filesystem = &filesystem
+	}
+	if input.Network != nil {
+		network := *input.Network
+		network.AllowedDomains = slices.Clone(input.Network.AllowedDomains)
+		network.DeniedDomains = slices.Clone(input.Network.DeniedDomains)
+		network.AllowUnixSockets = slices.Clone(input.Network.AllowUnixSockets)
+		network.AllowMachLookup = slices.Clone(input.Network.AllowMachLookup)
+		if input.Network.MITMProxy != nil {
+			mitm := *input.Network.MITMProxy
+			mitm.Domains = slices.Clone(input.Network.MITMProxy.Domains)
+			network.MITMProxy = &mitm
+		}
+		settings.Network = &network
+	}
 	if input.IgnoreViolations != nil {
 		settings.IgnoreViolations = make(map[string][]string, len(input.IgnoreViolations))
 		for key, values := range input.IgnoreViolations {

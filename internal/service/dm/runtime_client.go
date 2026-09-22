@@ -372,15 +372,17 @@ func (s *Service) ensureClient(
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
 	var scratchLease *runtimectx.SandboxResourceLease
+	var scratchInput runtimectx.SandboxResourceInput
 	scratchLeaseOwned := false
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
 		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
-		scratchLease, err = runtimectx.AcquireSandboxResource(ctx, runtimectx.SandboxResourceInput{
+		scratchInput = runtimectx.SandboxResourceInput{
 			OwnerUserID: agentValue.OwnerUserID,
 			SessionKey:  sessionKey,
 			RoundID:     request.RoundID,
-		})
+		}
+		scratchLease, err = runtimectx.AcquireSandboxResource(ctx, scratchInput)
 		if err != nil {
 			return dmClientPreparation{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
 		}
@@ -526,7 +528,8 @@ func (s *Service) ensureClient(
 			"runtime_provider", runtimeProvider,
 		)...,
 	)
-	client, err := s.acquireRuntimeClient(ctx, startup, options)
+	client, sandboxLeaseTransferred, err := s.acquireRuntimeClient(ctx, startup, options, scratchLease)
+	scratchLeaseOwned = sandboxLeaseTransferred
 	if err != nil {
 		retired, closeErr := retireDMRuntimeClient(ctx, startup)
 		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
@@ -567,7 +570,15 @@ func (s *Service) ensureClient(
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
 			return dmClientPreparation{}, err
 		}
-		client, err = s.acquireRuntimeClient(ctx, startup, options)
+		if scratchLease != nil {
+			scratchLease, err = runtimectx.AcquireSandboxResource(ctx, scratchInput)
+			if err != nil {
+				return dmClientPreparation{}, fmt.Errorf("重新准备 desktop sandbox scratch: %w", err)
+			}
+			scratchLeaseOwned = false
+		}
+		client, sandboxLeaseTransferred, err = s.acquireRuntimeClient(ctx, startup, options, scratchLease)
+		scratchLeaseOwned = sandboxLeaseTransferred
 		if err != nil {
 			if _, cleanupErr := retireDMRuntimeClient(ctx, startup); cleanupErr != nil &&
 				!runtimectx.IsRuntimeTransportClosedError(cleanupErr) {
@@ -581,7 +592,7 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	scratchLeaseOwned = scratchLease != nil && options.Sandbox != nil && options.Sandbox.Resources != nil
+	scratchLeaseOwned = sandboxLeaseTransferred
 	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())
@@ -1023,21 +1034,27 @@ func (s *Service) acquireRuntimeClient(
 	ctx context.Context,
 	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
-) (runtimectx.Client, error) {
+	scratchLease *runtimectx.SandboxResourceLease,
+) (runtimectx.Client, bool, error) {
 	client, err := startup.GetOrCreateWithFactory(ctx, options, nil)
 	if err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "get_or_create", options, err)
-		return client, err
+		return client, false, err
+	}
+	transferred, err := startup.BindSandboxLease(scratchLease)
+	if err != nil {
+		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "bind_sandbox_lease", options, err)
+		return client, false, err
 	}
 	if err := startup.Connect(ctx); err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "connect", options, err)
-		return client, err
+		return client, transferred, err
 	}
 	s.loggerFor(ctx).Info("runtime client connected",
 		"session_key", startup.SessionKey(),
 		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
-	return client, nil
+	return client, transferred, nil
 }
 
 func (s *Service) logRuntimeStartupFailure(

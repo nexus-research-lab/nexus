@@ -264,6 +264,35 @@ func (s *ClientStartup) GetOrCreateWithFactory(
 	return client, err
 }
 
+// BindSandboxLease transfers the exact scratch handle prepared for this
+// startup transaction to the selected runtime client. Clients that do not own
+// Nexus scratch resources return consumed=false so the caller keeps the handle
+// and releases it on its own failure path.
+func (s *ClientStartup) BindSandboxLease(lease *SandboxResourceLease) (consumed bool, err error) {
+	if err := s.active(); err != nil {
+		return false, err
+	}
+	if s.expectedClient == nil {
+		return false, agentclient.ErrNotConnected
+	}
+	binder, ok := s.expectedClient.(interface {
+		BindSandboxLease(*SandboxResourceLease) error
+	})
+	if !ok {
+		if lease != nil {
+			return false, errors.New("runtime client cannot own a desktop sandbox lease")
+		}
+		return false, nil
+	}
+	if err := binder.BindSandboxLease(lease); err != nil {
+		// BindSandboxLease reports an error before ownership is transferred.
+		// Keep the caller responsible for the original handle so a failed
+		// startup cannot leak a lease that the client never retained.
+		return false, err
+	}
+	return true, nil
+}
+
 func (m *Manager) getOrCreateWithFactory(
 	ctx context.Context,
 	startup *ClientStartup,
