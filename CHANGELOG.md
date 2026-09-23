@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 定时任务编辑标题与看板列标题使用相同高度并垂直居中对齐。
+
+- 定时任务卡片优先展示任务名与执行人，支持点击名称编辑，并收窄页内编辑栏以保留更多看板空间。
+
 - 补齐 `glm-5.3-flashx` 的视觉、推理、工具调用能力及 1M 上下文、128K 输出上限，支持添加模型时按名称识别。
 
 - 添加模型时按精确模型 ID 补齐无冲突的能力默认值，使自定义 Provider 中的已知视觉模型可被识别，同时保留 Provider 专属推荐和显式能力覆盖。
