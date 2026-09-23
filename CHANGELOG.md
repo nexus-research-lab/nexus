@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 修复 Claude 运行引擎下“运行诊断”开关未生效的问题，并在开启时记录运行时 stderr。
 
+- 对齐在线 Room 与本地 Room/DM 的消息流正文样式、字体和间距。
+
 - 视觉模型未配置或配置无效时继续对话；图片不可读时由 Agent 解释能力限制并引导配置，阻断旧路由回流，并在设置页显示失效的已保存视觉选择。
 
 ## [0.2.2] - 2026-09-21
