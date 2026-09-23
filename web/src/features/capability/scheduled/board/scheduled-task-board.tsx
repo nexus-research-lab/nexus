@@ -265,7 +265,7 @@ function ScheduledTaskBoardColumnView({
       className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0"
       aria-labelledby={`scheduled-column-${column.id}`}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-2.5">
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />

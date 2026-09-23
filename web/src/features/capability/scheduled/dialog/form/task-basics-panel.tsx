@@ -50,7 +50,7 @@ export function TaskBasicsPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex h-11 shrink-0 min-w-0 items-center gap-3">
       <UiInput
         ref={nameRef}
         aria-label={t("capability.scheduled_dialog_task_name")}
