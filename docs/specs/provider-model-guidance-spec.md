@@ -11,10 +11,16 @@ Capabilities are optional booleans: missing means unknown, false means explicitl
 unsupported. `text_output`, `vision`, `image_output`, `image_editing`,
 `tool_calling`, `reasoning` and `embedding` are independent.
 
-Capabilities come from exact preset/model catalog facts and versioned provider records;
-explicit user overrides win. Remote false vetoes a catalog positive, and a catalog
-false vetoes an automatic positive. `sources` identifies `user`, `provider_record`
-and `catalog`; there is no model-family or namespace-stripping capability fallback.
+Capabilities first match the exact provider preset and model ID. When that pair has
+no entry, an exact model ID can supply capability defaults if all catalog entries
+for that ID agree. Provider-specific recommendations and plan notices never follow
+this fallback. Versioned provider records then apply, and explicit user overrides
+win. Remote false vetoes a catalog positive; a catalog false vetoes an automatic
+positive only for the matching provider preset. `sources` identifies `user`,
+`provider_record` and `catalog`; there is no
+model-family or namespace-stripping capability fallback. A custom endpoint or Azure
+deployment may reuse a known ID for a different model, so its provider facts or user
+override must correct any name-based default.
 
 Automatic records carry `facts_version: 1` inside their stored JSON. Older records
 mixed discovered facts with name-derived vision/reasoning guesses: unversioned
@@ -31,8 +37,8 @@ missing vision alone never implies text-only. Recommendations are purpose-specif
 Nexus policy (`flagship`, `balanced`, `image_generation`, `image_editing`), not vendor
 performance measurements or account entitlement checks. Recommendations only apply
 to locally eligible, actually listed models; they never add or enable models or
-replace saved defaults. Azure arbitrary deployment names and custom endpoints have
-no implicit vendor-model mapping.
+replace saved defaults. Azure deployment names and custom endpoints receive no
+provider-specific recommendation from name matching.
 
 See [official evidence and provider coverage](../testing/provider-model-evidence.md)
 for the dated research snapshot, endpoints, exact plan distinctions and review gaps.

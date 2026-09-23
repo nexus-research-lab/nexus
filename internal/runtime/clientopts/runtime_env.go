@@ -255,8 +255,20 @@ func applyClaudeModelMetadataEnv(env map[string]string, runtimeConfig *RuntimeCo
 
 // visionRuntimeEnvFromConfig 为辅助视觉模型生成独立命名空间，避免覆盖主模型路由。
 func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+	// 显式空值阻断继承环境和 workspace settings 中的旧视觉路由。
+	env := map[string]string{
+		"NEXUS_VISION_PROVIDER_REF":            "",
+		"NEXUS_VISION_API_PROVIDER":            "",
+		"NEXUS_VISION_BASE_URL":                "",
+		"NEXUS_VISION_API_KEY":                 "",
+		"NEXUS_VISION_MODEL":                   "",
+		"NEXUS_VISION_MULTIMODAL_USER_CONTENT": "",
+		"NEXUS_VISION_MULTIMODAL_TOOL_RESULT":  "",
+		"NEXUS_VISION_REMOTE_IMAGE_URL":        "",
+		"NEXUS_VISION_CONFIG_ERROR":            "",
+	}
 	if runtimeConfig == nil {
-		return nil
+		return env
 	}
 	providerType := "anthropic-compatible"
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
@@ -265,14 +277,12 @@ func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string 
 	case apiFormatResponses:
 		providerType = "responses"
 	}
-	env := map[string]string{
-		"NEXUS_VISION_PROVIDER_REF":            runtimeConfig.Provider,
-		"NEXUS_VISION_API_PROVIDER":            providerType,
-		"NEXUS_VISION_BASE_URL":                runtimeConfig.BaseURL,
-		"NEXUS_VISION_API_KEY":                 runtimeConfig.AuthToken,
-		"NEXUS_VISION_MODEL":                   runtimeConfig.Model,
-		"NEXUS_VISION_MULTIMODAL_USER_CONTENT": "1",
-	}
+	env["NEXUS_VISION_PROVIDER_REF"] = runtimeConfig.Provider
+	env["NEXUS_VISION_API_PROVIDER"] = providerType
+	env["NEXUS_VISION_BASE_URL"] = runtimeConfig.BaseURL
+	env["NEXUS_VISION_API_KEY"] = runtimeConfig.AuthToken
+	env["NEXUS_VISION_MODEL"] = runtimeConfig.Model
+	env["NEXUS_VISION_MULTIMODAL_USER_CONTENT"] = "1"
 	return env
 }
 
@@ -377,9 +387,12 @@ func hostManagedScheduleRuntimeEnv(runtimeKind string) map[string]string {
 	return map[string]string{claudeDisableCronEnvName: "1"}
 }
 
-func nxsDiagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
-	if !enabled || !runtimeProfileForKind(runtimeKind).isNXS() {
+func diagnosticsRuntimeEnv(runtimeKind string, enabled bool) map[string]string {
+	if !enabled {
 		return nil
+	}
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return map[string]string{runtimectx.AgentSDKDiagnosticsEnvName: "1"}
 	}
 	env := map[string]string{
 		runtimectx.AgentSDKDiagnosticsJSONLEnvName:          "1",

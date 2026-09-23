@@ -1,11 +1,14 @@
-// INPUT: Exact provider preset and model ID; aliases are explicitly enumerated.
-// OUTPUT: Versioned, officially sourced capabilities and purpose-specific selection advice.
-// POS: Curated product policy. No pricing, performance or account-access guarantees.
+// INPUT: 精确模型 ID 与可选 Provider 预设，别名逐一列出。
+// OUTPUT: 带版本的模型能力与 Provider 专属选型建议。
+// POS: 人工核对的产品目录，不承诺价格、性能或账户权限。
 package provider
 
-import "strings"
+import (
+	"reflect"
+	"strings"
+)
 
-const modelAdviceVersion = "2026-09-17.2"
+const modelAdviceVersion = "2026-09-23.2"
 
 type modelAdvice struct {
 	Presets         []string
@@ -16,8 +19,7 @@ type modelAdvice struct {
 	TextOnly        bool
 }
 
-// Every fact is scoped to the documented service, never inferred from a model family.
-// Official references and review gaps are recorded in docs/testing/provider-model-evidence.md.
+// 能力只匹配精确模型 ID，不推断模型族；资料与核对边界见 docs/testing/provider-model-evidence.md。
 var modelAdviceCatalog = []modelAdvice{
 	chatAdvice(presetOpenAI, []string{"gpt-6-astra"}, true, "flagship", "", openAIModels),
 	chatAdvice(presetOpenAI, []string{"gpt-5.6-terra"}, true, "balanced", "", openAIModels),
@@ -30,6 +32,11 @@ var modelAdviceCatalog = []modelAdvice{
 	chatAdvice(presetDeepSeek, []string{"deepseek-v4-pro"}, false, "", "", deepSeekModels),
 	chatAdvice(presetGLMCodingPlan, []string{"glm-5.3"}, false, "flagship", "coding_plan", glmModels, glmOverview),
 	chatAdvice(presetGLMCodingPlan, []string{"glm-5.3-flash"}, true, "balanced", "coding_plan", glmModels, glmOverview),
+	// FlashX 仅补模型能力，官方尚未将其加入 Coding Plan。
+	{IDs: []string{"glm-5.3-flashx"}, Capabilities: ModelCapabilities{
+		TextOutput: adviceBool(true), Vision: adviceBool(true), ImageOutput: adviceBool(false),
+		ToolCalling: adviceBool(true), Reasoning: adviceBool(true),
+	}, Evidence: ModelAdviceEvidence{ReviewedAt: "2026-09-23", URLs: []string{"https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash"}}},
 	chatAdvice(presetGLMCodingPlan, []string{"glm-5.2", "glm-5.1"}, false, "", "glm_redirect", glmOverview),
 	chatAdvice(presetKimiCode, []string{"kimi-for-coding"}, true, "balanced", "kimi_standard", kimiModels),
 	chatAdvice(presetKimiCode, []string{"k3", "k3-256k"}, true, "flagship", "kimi_k3", kimiModels),
@@ -38,6 +45,9 @@ var modelAdviceCatalog = []modelAdvice{
 	chatAdvice(presetMiniMaxToken, []string{"MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"}, false, "", "minimax_plan", miniMaxModels, miniMaxPlan),
 	chatAdvice(presetDashScope, []string{"qwen3.8-max"}, true, "flagship", "region_access", dashScopeModels, "https://help.aliyun.com/zh/model-studio/text-generation-model"),
 	chatAdvice(presetDashScope, []string{"qwen3.7-plus"}, true, "balanced", "region_access", dashScopeModels, "https://help.aliyun.com/zh/model-studio/text-generation-model"),
+	{Presets: []string{presetDashScope}, IDs: []string{"qwen-vl-plus"}, Capabilities: ModelCapabilities{
+		TextOutput: adviceBool(true), Vision: adviceBool(true), ImageOutput: adviceBool(false), ToolCalling: adviceBool(false),
+	}, Evidence: ModelAdviceEvidence{ReviewedAt: "2026-09-23", URLs: []string{"https://help.aliyun.com/zh/model-studio/qwen-vl-plus"}}},
 	// The Token Plan team endpoint is NOT the older coding.dashscope endpoint.
 	chatAdvice(presetQwenTokenPlan, []string{"qwen3.8-max"}, true, "flagship", "qwen_team", qwenPlan),
 	chatAdvice(presetQwenTokenPlan, []string{"qwen3.8-flash"}, true, "balanced", "qwen_team", qwenPlan),
@@ -113,20 +123,39 @@ func imageAdvice(preset string, ids []string, editing bool, reason string, urls 
 }
 
 func lookupModelAdvice(preset, id string) *modelAdvice {
-	// Never strip a namespace or infer a vendor from an arbitrary custom endpoint.
 	for i := range modelAdviceCatalog {
 		entry := &modelAdviceCatalog[i]
 		for _, scope := range entry.Presets {
-			if scope == preset {
-				for _, alias := range entry.IDs {
-					if strings.EqualFold(strings.TrimSpace(id), alias) {
-						return entry
-					}
-				}
+			if scope == preset && adviceMatchesID(entry, id) {
+				return entry
 			}
 		}
 	}
 	return nil
+}
+
+func lookupModelAdviceByID(id string) *modelAdvice {
+	var match *modelAdvice
+	for i := range modelAdviceCatalog {
+		entry := &modelAdviceCatalog[i]
+		if !adviceMatchesID(entry, id) {
+			continue
+		}
+		if match != nil && !reflect.DeepEqual(match.Capabilities, entry.Capabilities) {
+			return nil
+		}
+		match = entry
+	}
+	return match
+}
+
+func adviceMatchesID(entry *modelAdvice, id string) bool {
+	for _, alias := range entry.IDs {
+		if strings.EqualFold(strings.TrimSpace(id), alias) {
+			return true
+		}
+	}
+	return false
 }
 
 func adviceBool(value bool) *bool { return &value }

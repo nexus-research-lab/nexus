@@ -3,6 +3,7 @@
 // POS: Default model settings owner; provider credentials remain in Provider settings.
 import { Image, MonitorCog, ScanEye, Sparkles } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
@@ -23,6 +24,7 @@ interface SettingsDefaultModelsViewProps {
   defaultImageModelValue: string;
   defaultVisionModelOptions: UiSelectMenuOption[];
   defaultVisionModelValue: string;
+  unavailableVisionSelection: string | null;
   defaultModelCatalogFailed: boolean;
   defaultModelOptions: UiSelectMenuOption[];
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
@@ -48,6 +50,7 @@ export function SettingsDefaultModelsSection() {
     defaultBackgroundModelOptions={models.options.background} defaultBackgroundModelValue={models.values.background}
     defaultImageModelOptions={models.options.image} defaultImageModelValue={models.values.image}
     defaultVisionModelOptions={models.options.vision} defaultVisionModelValue={models.values.vision}
+    unavailableVisionSelection={models.unavailableVisionSelection}
     defaultModelOptions={models.options.agent} defaultModelValue={models.values.agent}
     defaultModelCatalogFailed={models.catalogFailed} defaultModelSavingRole={models.savingRole}
     onDefaultModelChange={models.handleChange} onRetryDefaultModelCatalog={models.retryCatalog}
@@ -63,6 +66,7 @@ export function SettingsDefaultModelsView({
   defaultImageModelValue,
   defaultVisionModelOptions,
   defaultVisionModelValue,
+  unavailableVisionSelection,
   defaultModelCatalogFailed,
   defaultModelOptions,
   defaultModelSavingRole,
@@ -141,6 +145,11 @@ export function SettingsDefaultModelsView({
           titleKey="settings.general.default_vision_model_title"
           value={defaultVisionModelValue}
         />
+        {unavailableVisionSelection ? (
+          <p className={`px-4 pb-3 ${getUiTypographyClassName({ role: "caption", tone: "warning" })}`} role="status">
+            {t("settings.general.default_vision_model_unavailable")} {unavailableVisionSelection}
+          </p>
+        ) : null}
 
         <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 

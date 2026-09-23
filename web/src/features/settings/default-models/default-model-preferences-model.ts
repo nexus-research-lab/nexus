@@ -1,5 +1,5 @@
 // INPUT: Available provider options and saved model preferences.
-// OUTPUT: Eligible default choices; unavailable saved choices display as empty.
+// OUTPUT: Eligible default choices; unavailable saved vision choices have a visible warning.
 // POS: Default-model presentation; never silently rewrites saved selection intent.
 import { modelGuidanceLabel, recommendedModelsFirst } from "@/entities/provider/model-guidance";
 import type { ModelPurpose } from "@/types/capability/provider";
@@ -35,6 +35,8 @@ export interface DefaultModelCatalog {
 }
 
 export interface DefaultModelPreferencesView {
+  // 已保存选择不在可用目录中时单独提示，不把失效项放回选择器。
+  unavailableVisionSelection: string | null;
   options: {
     agent: ReturnType<typeof buildDefaultModelOptions>;
     background: ReturnType<typeof buildDefaultModelOptions>;
@@ -236,7 +238,12 @@ export function buildDefaultModelPreferencesView(
   subscriptionLabel: string,
   t?: ReturnType<typeof useI18n>["t"],
 ): DefaultModelPreferencesView {
+  const values = buildDefaultModelValues(catalog, preferences);
+  const savedVision = preferences.default_vision_model_selection;
+  const savedVisionLabel = [savedVision?.provider?.trim(), savedVision?.model?.trim()]
+    .filter(Boolean).join(" / ");
   return {
+    unavailableVisionSelection: savedVisionLabel && !values.vision ? savedVisionLabel : null,
     options: {
       agent: buildDefaultModelOptions(
         catalog.agentOptions,
@@ -259,6 +266,6 @@ export function buildDefaultModelPreferencesView(
         "vision", t,
       ),
     },
-    values: buildDefaultModelValues(catalog, preferences),
+    values,
   };
 }

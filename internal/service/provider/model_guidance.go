@@ -38,6 +38,10 @@ type ModelGuidance struct {
 
 func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEntity) ModelGuidance {
 	entry := lookupModelAdvice(item.PresetKey, model.ModelID)
+	providerMatched := entry != nil
+	if entry == nil {
+		entry = lookupModelAdviceByID(model.ModelID)
+	}
 	var c ModelCapabilities
 	sources := map[string]string{}
 	merge := func(value ModelCapabilities, source string, preserveDenials bool) {
@@ -66,9 +70,8 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 	if entry != nil {
 		merge(entry.Capabilities, "catalog", false)
 	}
-	// An automatic positive cannot undo an explicit catalog denial (including old
-	// materialized guesses). Explicit remote false remains a conservative veto.
-	merge(decodeModelAutoCapabilities(model.CapabilitiesAutoJSON), "provider_record", true)
+	// 精确 Provider 目录的否定优先于自动记录；跨 Provider 的同名默认值允许远端事实修正。
+	merge(decodeModelAutoCapabilities(model.CapabilitiesAutoJSON), "provider_record", providerMatched)
 	merge(decodeModelCapabilities(model.CapabilitiesOverrideJSON), "user", false)
 	yes := func(v *bool) bool { return v != nil && *v }
 	// Preserve unknown ordinary chat IDs. A model that explicitly produces text
@@ -106,11 +109,17 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 			PurposeEdit:   eligible(image && yes(c.ImageEditing) && imageRoute.APIFormat != APIFormatModelScopeImageGeneration && item.PresetKey != presetDoubao, "image_editing_not_confirmed"),
 		}, Recommendations: map[string]string{}}
 	if entry != nil {
-		g.Evidence = &entry.Evidence
+		evidence := entry.Evidence
+		if !providerMatched {
+			evidence.Notice = ""
+		}
+		g.Evidence = &evidence
 		g.TextOnly = entry.TextOnly && c.Vision != nil && !*c.Vision && !yes(c.ImageOutput)
-		for purpose, reason := range entry.Recommendations {
-			if g.Eligibility[purpose].Available {
-				g.Recommendations[purpose] = reason
+		if providerMatched {
+			for purpose, reason := range entry.Recommendations {
+				if g.Eligibility[purpose].Available {
+					g.Recommendations[purpose] = reason
+				}
 			}
 		}
 	}

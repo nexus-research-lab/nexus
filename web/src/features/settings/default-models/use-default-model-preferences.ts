@@ -163,6 +163,7 @@ export function useDefaultModelPreferences({
     options: view.options,
     retryCatalog: () => setCatalogReloadKey((current) => current + 1),
     savingRole,
+    unavailableVisionSelection: catalog.loading || catalog.failed ? null : view.unavailableVisionSelection,
     values: view.values,
   };
 }

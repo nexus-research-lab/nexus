@@ -1,6 +1,7 @@
 package dm
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -10,16 +11,36 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
 
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		var output bytes.Buffer
+		service := &Service{logger: logx.New(logx.Options{Output: &output, Format: "json"})}
+		value := "0"
+		if enabled {
+			value = "1"
+		}
+		options := service.withRuntimeDiagnosticsLogger(agentclient.Options{
+			Env: map[string]string{runtimectx.AgentSDKDiagnosticsEnvName: value},
+		}, "session", "agent")
+		options.Callbacks.Stderr("startup error")
+		if got := strings.Contains(output.String(), "startup error"); got != enabled {
+			t.Fatalf("enabled=%t, stderr logged=%t", enabled, got)
+		}
+	}
+}
 
 func TestServiceHandleChatStartupFailureDoesNotWaitForBackgroundDispatchInputGate(t *testing.T) {
 	cfg := newDMTestConfig(t)

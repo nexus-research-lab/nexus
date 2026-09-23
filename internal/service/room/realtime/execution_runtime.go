@@ -797,16 +797,20 @@ func roomRuntimeConnectFailureLogFields(
 }
 
 func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
+	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	previousStderr := options.Callbacks.Stderr
 	options.Callbacks.Stderr = func(line string) {
 		normalizedLine := runtimectx.NormalizeRuntimeStderrLine(line)
 		if previousStderr != nil {
 			previousStderr(normalizedLine)
 		}
-		logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		if diagnosticsEnabled {
+			logger.Info("Agent SDK stderr", "stderr", normalizedLine)
+		} else {
+			logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		}
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
-	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)

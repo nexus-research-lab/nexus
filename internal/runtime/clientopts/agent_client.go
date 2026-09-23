@@ -150,7 +150,7 @@ func BuildAgentClientOptionsWithConfig(
 	// provider/runtime 投影显式恢复当前会话允许使用的变量。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, diagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, backgroundModelRuntimeEnv(
@@ -162,12 +162,16 @@ func BuildAgentClientOptionsWithConfig(
 	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
 	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
-	if err != nil {
-		return agentclient.Options{}, nil, err
-	}
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
+		// 辅助视觉模型出错时保留诊断原因；nxs 将不可读图片转为能力说明，由 Agent 回复用户。
+		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
+		if err != nil {
+			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = err.Error()
+		}
+		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
+	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoMemoryRuntimeEnv(effectiveRuntimeKind, input.AutoMemoryDisabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoDreamRuntimeEnv(effectiveRuntimeKind, input.AutoDreamDisabled))
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。

@@ -134,6 +134,7 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "deepseek-reasoner", Tokens: 1_000_000},
 
 	// 智谱 GLM。Coding Plan 以接口精确 token 上限为准，而不是文档中的 200K 简写。
+	{Family: "glm-5.3-flashx", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.3-flash", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.3", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.2", Tokens: 1_000_000},
