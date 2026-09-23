@@ -512,7 +512,7 @@ function TeamMessageFeed({
     avatars: Object.fromEntries(agentDirectory.map((agent) => [agent.agent_id, agent.avatar ?? null])),
   };
   return (
-    <ol aria-busy={isLoading || undefined} className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col gap-5`}>
+    <ol aria-busy={isLoading || undefined} className={`nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`}>
       {messages.map((message) => message.content.blocks.some((block) => block.type === "room_invitation") ? (
         <li key={message.id} className="px-3 py-2 text-sm text-(--text-muted)">
           {message.content.blocks.filter((block) => block.type === "room_invitation").map((block, index) => {
