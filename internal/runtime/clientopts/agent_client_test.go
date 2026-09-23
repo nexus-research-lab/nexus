@@ -120,6 +120,59 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsIgnoresInvalidOptionalVisionModel(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{Model: "text-model", Vision: false},
+	}, AgentClientOptionsInput{
+		Provider:       "text-provider",
+		Model:          "text-model",
+		VisionProvider: "vision-provider",
+		VisionModel:    "vision-model",
+	})
+	if err != nil {
+		t.Fatalf("纯文本会话不应因视觉模型无效而失败: %v", err)
+	}
+	if options.Env["NEXUS_VISION_MODEL"] != "" {
+		t.Fatalf("无效视觉模型应覆盖旧路由: %+v", options.Env)
+	}
+	if !strings.Contains(options.Env["NEXUS_VISION_CONFIG_ERROR"], "未声明 vision 能力") {
+		t.Fatalf("视觉配置错误应保留供图片能力说明使用: %q", options.Env["NEXUS_VISION_CONFIG_ERROR"])
+	}
+}
+
+func TestBuildAgentClientOptionsClearsInheritedVisionRoute(t *testing.T) {
+	t.Setenv("NEXUS_VISION_MODEL", "stale-model")
+	t.Setenv("NEXUS_VISION_API_KEY", "stale-key")
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{Model: "text-model"},
+	}, AgentClientOptionsInput{Provider: "text-provider", Model: "text-model"})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions() error = %v", err)
+	}
+	for _, key := range []string{"NEXUS_VISION_MODEL", "NEXUS_VISION_API_KEY", "NEXUS_VISION_CONFIG_ERROR"} {
+		if options.Env[key] != "" {
+			t.Fatalf("继承视觉配置未清空 %s", key)
+		}
+	}
+}
+
+func TestBuildAgentClientOptionsKeepsValidVisionRoute(t *testing.T) {
+	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
+		config: &RuntimeConfig{Provider: "vision-provider", Model: "vision-model", AuthToken: "vision-key", Vision: true},
+	}, AgentClientOptionsInput{
+		Provider: "vision-provider", Model: "vision-model", VisionProvider: "vision-provider", VisionModel: "vision-model",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions() error = %v", err)
+	}
+	if options.Env["NEXUS_VISION_MODEL"] != "vision-model" ||
+		options.Env["NEXUS_VISION_API_KEY"] != "vision-key" ||
+		options.Env["NEXUS_VISION_MULTIMODAL_USER_CONTENT"] != "1" ||
+		options.Env["NEXUS_VISION_CONFIG_ERROR"] != "" {
+		t.Fatal("有效视觉路由未正确投影")
+	}
+}
+
 func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	tests := []struct {
 		name          string

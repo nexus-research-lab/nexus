@@ -32,6 +32,7 @@ function preferences(): Props {
     defaultBackgroundModelOptions: options, defaultBackgroundModelValue: "",
     defaultImageModelOptions: options, defaultImageModelValue: "",
     defaultVisionModelOptions: options, defaultVisionModelValue: "",
+    unavailableVisionSelection: null,
     defaultModelCatalogFailed: false, defaultModelOptions: options,
     defaultModelSavingRole: null, defaultModelValue: "",
     onDefaultModelChange: vi.fn(), onRetryDefaultModelCatalog: vi.fn(),
@@ -56,6 +57,7 @@ function catalogProps(catalog: DefaultModelCatalog, saved: UserPreferences) {
     defaultModelOptions: result.options.agent, defaultModelValue: result.values.agent,
     defaultImageModelOptions: result.options.image, defaultImageModelValue: result.values.image,
     defaultVisionModelOptions: result.options.vision, defaultVisionModelValue: result.values.vision,
+    unavailableVisionSelection: result.unavailableVisionSelection,
     defaultBackgroundModelOptions: result.options.background, defaultBackgroundModelValue: result.values.background,
   };
 }
@@ -131,6 +133,7 @@ describe("Default model settings", () => {
       expect(control.textContent).toBe(zhSettingsMessages[`settings.general.${name}_empty`]);
       expect((control as HTMLButtonElement).disabled).toBe(true);
     }
+    expect(screen.getByRole("status").textContent).toContain("provider / model");
     expect(saved).toEqual(original);
     expect(props.onDefaultModelChange).not.toHaveBeenCalled();
 
@@ -138,5 +141,6 @@ describe("Default model settings", () => {
     for (const [name] of modelRows) {
       expect(screen.getByRole("button", { name: zhSettingsMessages[`settings.general.${name}_title`] }).textContent).toBe("Provider / Model");
     }
+    expect(screen.queryByRole("status")).toBeNull();
   });
 });

@@ -454,6 +454,7 @@ export const enSettingsMessages = {
   "settings.general.default_vision_model_title": "Vision model",
   "settings.general.default_vision_model_description": "Called only when visual details are needed and the main model cannot inspect images.",
   "settings.general.default_vision_model_empty": "Enable a vision-capable model first",
+  "settings.general.default_vision_model_unavailable": "Saved vision model unavailable; check its status and vision capability in Provider settings:",
   "settings.general.default_background_model_title": "Background task model",
   "settings.general.default_background_model_description": "Title generation, summaries, and basic tasks prefer this model.",
   "settings.general.default_background_model_empty": "Enable a background model first",

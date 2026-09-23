@@ -451,6 +451,7 @@ export const zhSettingsMessages = {
   "settings.general.default_vision_model_title": "视觉理解模型",
   "settings.general.default_vision_model_description": "主模型无法查看图片时，需要视觉细节才调用这个模型。",
   "settings.general.default_vision_model_empty": "先启用一个支持视觉的模型",
+  "settings.general.default_vision_model_unavailable": "已保存的视觉模型当前不可用，请到供应商模型设置检查模型状态与视觉能力：",
   "settings.general.default_background_model_title": "后台任务模型",
   "settings.general.default_background_model_description": "标题生成、摘要等基础任务会优先使用这里配置的模型。",
   "settings.general.default_background_model_empty": "先启用一个后台模型",

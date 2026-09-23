@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
@@ -18,6 +19,8 @@ func TestOfficialModelAdvice(t *testing.T) {
 	}{
 		{presetGLMCodingPlan, "glm-5.3", true, false, true},
 		{presetGLMCodingPlan, "glm-5.3-flash", true, true, false},
+		{presetGLMCodingPlan, "glm-5.3-flashx", false, true, false},
+		{presetCustom, "glm-5.3-flashx", false, true, false},
 		{presetGLMCodingPlan, "glm-5.1", false, false, true},
 		{presetGLMCodingPlan, "glm-5.4", false, false, false},
 		{presetMiniMaxToken, "MiniMax-M3", true, true, false},
@@ -32,8 +35,11 @@ func TestOfficialModelAdvice(t *testing.T) {
 		{presetAnthropic, "claude-opus-5", true, true, false},
 		{presetVolcengine, "glm-5.3-flash", true, true, false},
 		{presetDoubao, "doubao-seed-2-1-pro-260915", true, true, false},
-		{presetAzure, "gpt-6-astra", false, false, false},
-		{presetCustom, "gpt-6-astra", false, false, false},
+		{presetDashScope, "qwen-vl-plus", false, true, false},
+		{presetAzure, "gpt-6-astra", false, true, false},
+		{presetCustom, "gpt-6-astra", false, true, false},
+		{presetCustom, "QWEN-VL-PLUS", false, true, false},
+		{presetCustom, "private-model-v1", false, false, false},
 		{presetOpenAI, "other/gpt-6-astra", false, false, false},
 	} {
 		t.Run(tc.preset+"/"+tc.id, func(t *testing.T) {
@@ -45,6 +51,42 @@ func TestOfficialModelAdvice(t *testing.T) {
 				t.Fatal("chat/image input must not grant image generation")
 			}
 		})
+	}
+}
+
+func TestModelNameFallbackKeepsProviderPolicyScoped(t *testing.T) {
+	item := providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}
+	model := providerstore.ModelEntity{ModelID: "qwen3.8-max"}
+	g := projectModelGuidance(item, model)
+	if !g.Eligibility[PurposeVision].Available || g.Recommendations[PurposeChat] != "" || g.Evidence == nil || g.Evidence.Notice != "" {
+		t.Fatalf("模型名能力与 Provider 专属建议未分离: %+v", g)
+	}
+	if lookupModelAdviceByID("wan2.7-image-pro") != nil {
+		t.Fatal("冲突的同名模型能力不应自动推断")
+	}
+	model.CapabilitiesAutoJSON = encodeModelAutoCapabilities(ModelCapabilities{Vision: adviceBool(false)})
+	if projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
+		t.Fatal("Provider 显式能力否定未覆盖模型名默认值")
+	}
+	model.CapabilitiesOverrideJSON = `{"vision":true}`
+	if !projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
+		t.Fatal("用户显式能力覆盖未生效")
+	}
+	model.ModelID = "glm-5.3"
+	model.CapabilitiesOverrideJSON = "{}"
+	model.CapabilitiesAutoJSON = encodeModelAutoCapabilities(ModelCapabilities{Vision: adviceBool(true)})
+	if !projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
+		t.Fatal("远端事实应能修正跨 Provider 的同名默认值")
+	}
+}
+
+func TestFlashXModelCard(t *testing.T) {
+	g := projectModelGuidance(providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}, providerstore.ModelEntity{ModelID: "glm-5.3-flashx"})
+	if g.Capabilities.Reasoning == nil || !*g.Capabilities.Reasoning || g.Capabilities.ToolCalling == nil || !*g.Capabilities.ToolCalling {
+		t.Fatalf("FlashX 缺少推理或工具调用能力: %+v", g.Capabilities)
+	}
+	if len(g.Recommendations) != 0 || g.Evidence == nil || g.Evidence.Notice != "" {
+		t.Fatalf("FlashX 不应继承套餐推荐: %+v", g)
 	}
 }
 
@@ -119,7 +161,7 @@ func TestDocumentedImageCapabilityStillRequiresTransport(t *testing.T) {
 func TestAdviceEvidenceAndIdentityCompleteness(t *testing.T) {
 	seen := map[string]bool{}
 	for _, entry := range modelAdviceCatalog {
-		if entry.Evidence.ReviewedAt != "2026-09-17" || len(entry.Evidence.URLs) == 0 {
+		if _, err := time.Parse("2006-01-02", entry.Evidence.ReviewedAt); err != nil || len(entry.Evidence.URLs) == 0 {
 			t.Fatalf("missing evidence: %+v", entry)
 		}
 		for _, raw := range entry.Evidence.URLs {

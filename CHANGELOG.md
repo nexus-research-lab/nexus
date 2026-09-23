@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 补齐 `glm-5.3-flashx` 的视觉、推理、工具调用能力及 1M 上下文、128K 输出上限，支持添加模型时按名称识别。
+
+- 添加模型时按精确模型 ID 补齐无冲突的能力默认值，使自定义 Provider 中的已知视觉模型可被识别，同时保留 Provider 专属推荐和显式能力覆盖。
+
+- 修复 Claude 运行引擎下“运行诊断”开关未生效的问题，并在开启时记录运行时 stderr。
+
+- 视觉模型未配置或配置无效时继续对话；图片不可读时由 Agent 解释能力限制并引导配置，阻断旧路由回流，并在设置页显示失效的已保存视觉选择。
+
 ## [0.2.2] - 2026-09-21
 
 ### Added
