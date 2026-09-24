@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -453,9 +454,17 @@ func (e *NodeExecutor) logFailure(ctx context.Context, stage string, grant teams
 	e.logTimes[key] = now
 	e.mu.Unlock()
 	attrs := append(nodeJobLogAttrs(grant, job), "stage", stage, "error_type", fmt.Sprintf("%T", err))
+	if stage == "decrypt_node_credential" {
+		// 本地解密错误仅含格式或密钥指纹；其他阶段可能携带远端正文，不能直接记录。
+		attrs = append(attrs, "error", err.Error(), "active_key_id", e.nodes.keys.ActiveKeyID())
+	}
 	var remote *relaycontract.RemoteError
 	var control *nodeRemoteError
 	switch {
+	case errors.Is(err, credentials.ErrKeyUnavailable):
+		attrs = append(attrs, "reason", "credential_key_unavailable")
+	case errors.Is(err, credentials.ErrNoMatchingKey):
+		attrs = append(attrs, "reason", "credential_no_matching_key")
 	case errors.As(err, &remote):
 		attrs = append(attrs, "http_status", remote.StatusCode, "remote_code", remote.Code, "remote_request_id", remote.RequestID)
 	case errors.As(err, &control):
