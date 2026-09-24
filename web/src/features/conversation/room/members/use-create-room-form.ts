@@ -172,9 +172,6 @@ function normalizeRoomForm(state: RoomDialogFormState): RoomDialogFormState {
     next.hostAgentId = "";
     next.hostAutoReplyEnabled = false;
   }
-  if (state.location === "online") {
-    next.hostAutoReplyEnabled = false;
-  }
   return next;
 }
 

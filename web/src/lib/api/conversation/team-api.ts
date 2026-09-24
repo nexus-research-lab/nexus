@@ -182,6 +182,7 @@ export function createTeamRoom(
 		agent_ids: string[];
 		avatar?: string;
 		coordinator_agent_id?: string;
+		host_auto_reply_enabled?: boolean;
     member_user_ids: string[];
     name: string;
     private_messages_enabled: boolean;
@@ -224,7 +225,7 @@ export function updateTeamRoomCoordinator(roomId: string, agentId: string, versi
   return updateTeamRoomSettings(roomId, { coordinator_agent_id: agentId }, version, commandId);
 }
 
-export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; coordinator_agent_id?: string; dissolve?: boolean; hide_direct?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
+export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; coordinator_agent_id?: string; host_auto_reply_enabled?: boolean; dissolve?: boolean; hide_direct?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
   return requestApi<TeamRoomConfigurationMutation>(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`, {
     body: { ...change, expected_configuration_version: version },
     headers: { "Idempotency-Key": commandId },

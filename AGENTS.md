@@ -98,7 +98,7 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 - Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`；所有交互 Agent 通过宿主签发的 round capability 调用 `nexuscfg`，权限仍由 configuration 角色矩阵收口。
 - 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 
-- 本地 Room 保存有效群主并开启 `host_auto_reply_enabled` 后，未指定目标的浏览器消息由该群主接管；显式目标优先，暂停参与仍受闸门限制。在线 Team/Relay 不复用此回退。
+- 本地或在线 Room 保存有效群主并开启 `host_auto_reply_enabled` 后，未指定目标的浏览器消息由该群主接管；显式目标优先，暂停参与仍受闸门限制。在线 Relay 在持久化消息时解析当前有效主持 Agent，不能由浏览器伪造目标。
 
 ## 后端依赖方向
 

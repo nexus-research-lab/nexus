@@ -64,15 +64,15 @@
   }
 
   .ui-type-section-title {
-    font-size: var(--text-base);
-    font-weight: 600;
+    font-size: var(--text-sm);
+    font-weight: 500;
     line-height: 1.25rem;
     letter-spacing: -0.01em;
   }
 
   .ui-type-body {
     font-size: var(--text-base);
-    font-weight: 400;
+    font-weight: 300;
     line-height: 1.5rem;
   }
 
@@ -578,7 +578,7 @@
   }
 
   :root[data-desktop-platform="macos"] .launcher-console-spotlights {
-    top: var(--workspace-header-height);
+    top: var(--desktop-window-close-button-center-y, 24px);
     transform: translateY(-50%);
   }
 
@@ -623,7 +623,11 @@
 
   /* 窄屏保留少量顶部呼吸；桌面管理页回收完整 20px 页面留白，让 60px 分隔线与侧栏贯通。 */
   .workspace-content-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     margin-block-start: -12px;
+    background: var(--background);
   }
 
   @media (width >= 40rem) {
@@ -988,6 +992,7 @@
     display: inline-flex;
     height: 1.75rem;
     align-items: center;
+    white-space: nowrap;
     padding: 0 0.875rem;
   }
 
@@ -1789,7 +1794,7 @@
   /* 中文正文字体只有常规字重；仅为语义加粗补齐 600，避免普通正文整体变厚。 */
   .nexus-chat-feed .nexus-chat-markdown strong .message-cjk-text {
     font-synthesis: weight style;
-    font-weight: 600;
+    font-weight: 500;
   }
 
   /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */

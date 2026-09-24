@@ -18,6 +18,7 @@ import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { cn } from "@/shared/ui/class-name";
 
 import { PersonalSettingsPanel } from "./personal/personal-settings-panel";
 import { canUseOperations } from "./operations/operations-access";
@@ -45,7 +46,13 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   const canViewOperations =
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
-    <div className="w-full min-w-0" ref={contentRef}>
+    <div
+      className={cn(
+        "w-full min-w-0",
+        activeSection === "providers" && "h-full min-h-0",
+      )}
+      ref={contentRef}
+    >
       <SettingsSectionContent
         canViewOperations={canViewOperations && (activeSection !== "operations-projects" || projectPermissionsEnabled)}
         section={activeSection}

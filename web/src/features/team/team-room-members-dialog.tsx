@@ -20,6 +20,7 @@ import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
+import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
 import {
@@ -139,6 +140,15 @@ export function TeamRoomMembersDialog({
                       options={[{ label: t("room.host_unset"), value: "" }, ...agentMembers.filter((member) => !member.agent_paused).map((member) => ({ label: onlineAgentNames.get(member.member_id) ?? member.member_id, value: member.member_id }))]}
                       onChange={(value) => { void resource.setCoordinator(value); }} size="sm" surface="dialog"
                       value={resource.details.room.coordinator_agent_id ?? ""} />
+                    <label className="flex items-center gap-2 text-xs font-medium text-(--text-default)">
+                      <UiCheckbox
+                        checked={resource.details.room.host_auto_reply_enabled}
+                        disabled={!canChangeRoles || resource.busy || !resource.details.room.coordinator_agent_id}
+                        checkboxSize="small"
+                        onChange={(event) => { void resource.setHostAutoReply(event.target.checked); }}
+                      />
+                      <span>{t("room.host_auto_reply_label")}</span>
+                    </label>
                   </div>
                 </> : null}
               </>}>

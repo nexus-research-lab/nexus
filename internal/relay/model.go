@@ -188,6 +188,7 @@ type CreateRoomInput struct {
 	MemberUserIDs          []string `json:"member_user_ids,omitempty"`
 	AgentIDs               []string `json:"agent_ids,omitempty"`
 	CoordinatorAgentID     string   `json:"coordinator_agent_id,omitempty"`
+	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
 }
 
 // AddRoomAgentInput 将当前真人拥有的 Control Agent 加入 Room。

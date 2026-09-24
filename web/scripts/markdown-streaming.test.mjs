@@ -529,7 +529,7 @@ test("公式分隔符兼容保留代码与链接，流式空行不拆公式", as
 test("阅读偏好持久化与损坏数据恢复", async () => {
   const { normalizeChatTypography, DEFAULT_CHAT_TYPOGRAPHY, useChatTypography } = await server.ssrLoadModule("/src/shared/theme/chat-typography.ts");
   assert.deepEqual(normalizeChatTypography(null), DEFAULT_CHAT_TYPOGRAPHY);
-  assert.deepEqual(normalizeChatTypography({ font: 123, fontSize: 99, lineHeight: 0 }), { font: "default", fontSize: 22, lineHeight: 1.4 });
+  assert.deepEqual(normalizeChatTypography({ font: 123, fontSize: 99, lineHeight: 0 }), { font: "default", fontSize: 26, lineHeight: 1.2 });
   assert.deepEqual(normalizeChatTypography({ fontSize: NaN, lineHeight: Infinity }), DEFAULT_CHAT_TYPOGRAPHY);
   assert.equal(normalizeChatTypography({ font: "Times New Roman" }).font, "Times New Roman");
   assert.equal(normalizeChatTypography({ font: "PT " }).font, "PT ");

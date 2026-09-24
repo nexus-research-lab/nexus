@@ -48,6 +48,7 @@ export function ProviderSettingsPanel({
     <div className={cn(
       layout === "page" ? WORKSPACE_CONTENT_PAGE_CLASS_NAME : undefined,
       "@container/provider flex min-h-0 min-w-0 flex-col sm:h-full",
+      layout === "page" && "h-full overflow-hidden",
     )}>
       {layout === "page" ? (
         <WorkspaceContentHeader

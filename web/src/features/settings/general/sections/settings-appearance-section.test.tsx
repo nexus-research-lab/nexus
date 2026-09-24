@@ -9,12 +9,12 @@ import { SettingsAppearanceSection } from "./settings-appearance-section";
 vi.mock("@/shared/theme/theme-context", () => ({ useTheme: () => ({ theme: "light", setTheme: vi.fn() }), defaultTheme: () => "light" }));
 vi.mock("../components/settings-font-picker", () => ({ SettingsFontPicker: () => null }));
 vi.mock("@/shared/ui/markdown/markdown-content", () => ({ UiMarkdownContent: () => null }));
-it.each([[10, 14], [30, 22]])("warns about %s before clamping to %s on blur", (entered, expected) => {
+it.each([[10, 12], [30, 26]])("warns about %s before clamping to %s on blur", (entered, expected) => {
  useChatTypography.setState({ typography: DEFAULT_CHAT_TYPOGRAPHY });
  render(<SettingsAppearanceSection />, { wrapper: I18nProvider });
  const input = screen.getAllByRole("spinbutton")[0] as HTMLInputElement;
  const hint = document.getElementById(input.getAttribute("aria-describedby")!)!;
- expect(hint.textContent).toContain("14"); expect(hint.textContent).toContain("22");
+ expect(hint.textContent).toContain("12"); expect(hint.textContent).toContain("26");
  fireEvent.change(input, { target: { value: String(entered) } });
  expect(input.value).toBe(String(entered));
  expect(input.getAttribute("aria-invalid")).toBe("true");
@@ -45,8 +45,8 @@ it("keeps the draft focused during IME confirmation and commits on ordinary Ente
  expect(useChatTypography.getState().typography.fontSize).toBe(16);
  fireEvent.keyDown(input, { key: "Enter" });
  expect(document.activeElement).not.toBe(input);
- expect(input.value).toBe("14");
- expect(useChatTypography.getState().typography.fontSize).toBe(14);
+ expect(input.value).toBe("12");
+ expect(useChatTypography.getState().typography.fontSize).toBe(12);
 });
 
 it("restores the current value after clearing and removes stale adjustment feedback after an external update", () => {

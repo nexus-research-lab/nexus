@@ -73,7 +73,7 @@ export function RoomSettingsForm({
         <RoomSettingCheckbox
           checked={state.hostAutoReplyEnabled}
           className="mt-1.5"
-          disabled={!state.hostAgentId || state.location === "online" || isCreating}
+          disabled={!state.hostAgentId || isCreating}
           label={t("room.host_auto_reply_label")}
           onChange={setters.setHostAutoReplyEnabled}
         />
