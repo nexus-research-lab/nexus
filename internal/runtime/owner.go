@@ -268,6 +268,7 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 
 	errs := make([]error, 0, len(targets)+len(waiting)+1)
 	for _, target := range targets {
+		sandboxPhaseErr := m.markSandboxReceiptRetiring(target)
 		var disconnectErr error
 		if target.client != nil {
 			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
@@ -277,14 +278,17 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
+		cleanupErr := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
+		sandboxTerminalPhaseErr := m.finalizeSandboxReceipt(target, cleanupErr)
+		cleanupErr = errors.Join(cleanupErr, sandboxPhaseErr, sandboxTerminalPhaseErr)
 		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 			errors.Is(disconnectErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending, disconnectErr)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, cleanupErr)
 		} else {
-			m.finishSessionClose(target, disconnectErr)
+			m.finishSessionClose(target, cleanupErr)
 		}
-		err := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
+		err := cleanupErr
 		if err != nil && !IsRuntimeTransportClosedError(err) {
 			errs = append(errs, fmt.Errorf(
 				"close owner runtime session %s: %w",
@@ -300,6 +304,11 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 	}
 	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {
 		errs = append(errs, fmt.Errorf("reap owner runtime processes: %w", reaperErr))
+		for _, target := range targets {
+			if receiptErr := m.markSandboxReceiptUnknownAfterReaper(target, reaperErr); receiptErr != nil {
+				errs = append(errs, fmt.Errorf("record owner sandbox reaper uncertainty: %w", receiptErr))
+			}
+		}
 	}
 	return len(targets), errors.Join(errs...)
 }

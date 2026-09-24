@@ -6,8 +6,11 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // ErrRuntimeSessionClosing 表示 session 正在退出，不能再注册新的运行任务。
@@ -22,12 +25,68 @@ type sessionCloseTarget struct {
 	state             *sessionState
 	ownerUserID       string
 	client            Client
+	sandboxReceipt    *SandboxEffectivePolicyReceipt
 	roundCancels      []context.CancelFunc
 	roundDone         []chan struct{}
 	idleMessageDrain  *idleMessageDrain
 	backgroundCancels []context.CancelFunc
 	backgroundDone    <-chan struct{}
 	closeDone         chan struct{}
+}
+
+func (m *Manager) markSandboxReceiptRetiring(target *sessionCloseTarget) error {
+	if target == nil || target.client == nil {
+		return nil
+	}
+	return m.updateSandboxReceiptPhase(
+		target.ownerUserID,
+		target.sessionKey,
+		target.state.StartupGeneration,
+		target.client,
+		target.sandboxReceipt,
+		protocol.SandboxPolicyReceiptRetiring,
+		"",
+	)
+}
+
+func (m *Manager) finalizeSandboxReceipt(target *sessionCloseTarget, cleanupErr error) error {
+	if target == nil || target.client == nil {
+		return nil
+	}
+	phase := protocol.SandboxPolicyReceiptRetired
+	reason := ""
+	if cleanupErr != nil {
+		phase = protocol.SandboxPolicyReceiptUnknown
+		reason = sandboxReceiptReason(cleanupErr)
+	}
+	return m.updateSandboxReceiptPhase(
+		target.ownerUserID,
+		target.sessionKey,
+		target.state.StartupGeneration,
+		target.client,
+		target.sandboxReceipt,
+		phase,
+		reason,
+	)
+}
+
+// markSandboxReceiptUnknownAfterReaper records a conservative cleanup result
+// when the owner-level process reaper fails after the bridge session itself has
+// already reported a clean close. A retired receipt must not hide descendants
+// that the host could not prove were collected.
+func (m *Manager) markSandboxReceiptUnknownAfterReaper(target *sessionCloseTarget, reaperErr error) error {
+	if target == nil || target.client == nil || reaperErr == nil {
+		return nil
+	}
+	return m.updateSandboxReceiptPhase(
+		target.ownerUserID,
+		target.sessionKey,
+		target.state.StartupGeneration,
+		target.client,
+		target.sandboxReceipt,
+		protocol.SandboxPolicyReceiptUnknown,
+		fmt.Sprintf("owner process reaper failed: %s", reaperErr),
+	)
 }
 
 // beginSessionCloseLocked 把 session 切换到不可再接收新任务的 closing 状态。
@@ -45,7 +104,9 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 
 	state.Closing = true
 	state.CloseDone = make(chan struct{})
+	var sandboxReceipt *SandboxEffectivePolicyReceipt
 	if state.Client != nil {
+		sandboxReceipt = EffectiveSandboxPolicyReceipt(state.Client)
 		state.Client.Retire()
 	}
 	return &sessionCloseTarget{
@@ -53,6 +114,7 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 		state:             state,
 		ownerUserID:       state.OwnerUserID,
 		client:            state.Client,
+		sandboxReceipt:    sandboxReceipt,
 		roundCancels:      state.Rounds.cancelFuncs(),
 		roundDone:         state.Rounds.doneSignals(),
 		idleMessageDrain:  state.IdleMessageDrain,
@@ -92,12 +154,15 @@ func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitCli
 		return
 	}
 	go func() {
+		var disconnectErr error
 		if waitClient && target.client != nil {
-			cleanupErr = target.client.Disconnect(context.Background())
+			disconnectErr = target.client.Disconnect(context.Background())
 		}
-		_ = waitIdleMessageDrain(context.Background(), target.idleMessageDrain)
-		_ = waitRoundDoneSignals(context.Background(), target.roundDone, nil)
-		_ = waitBackgroundTasks(context.Background(), target.backgroundDone)
+		idleErr := waitIdleMessageDrain(context.Background(), target.idleMessageDrain)
+		roundErr := waitRoundDoneSignals(context.Background(), target.roundDone, nil)
+		backgroundErr := waitBackgroundTasks(context.Background(), target.backgroundDone)
+		cleanupErr = errors.Join(disconnectErr, idleErr, roundErr, backgroundErr)
+		cleanupErr = errors.Join(cleanupErr, m.finalizeSandboxReceipt(target, errors.Join(disconnectErr, idleErr, roundErr, backgroundErr)))
 		m.finishSessionClose(target, cleanupErr)
 	}()
 }

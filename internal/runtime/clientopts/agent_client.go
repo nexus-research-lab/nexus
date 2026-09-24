@@ -154,6 +154,9 @@ func BuildAgentClientOptionsWithConfig(
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
+	if err := validateConfigurationEnvironment(input.ConfigurationEnv); err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	// Desktop execution always enters the selected backend's restricted
 	// contract. Keep the explicit field for server/test callers, but do not let
@@ -162,6 +165,16 @@ func BuildAgentClientOptionsWithConfig(
 		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
 	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		input.AgentMCPServers,
+		effectiveRuntimeKind,
+		input.AppMode,
+		input.DesktopSandboxEnabled,
+		input.PermissionMode,
+		input.DesktopSandboxNetworkAdmission,
+	); err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(
+		mcpServers,
 		effectiveRuntimeKind,
 		input.AppMode,
 		input.DesktopSandboxEnabled,

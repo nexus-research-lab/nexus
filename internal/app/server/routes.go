@@ -211,6 +211,18 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Get(s.prefixPath("/settings/echo"), s.handlers.echo.HandleGetEcho)
 	s.router.Put(s.prefixPath("/settings/echo"), s.handlers.echo.HandleUpdateEcho)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
+	s.router.Get(
+		s.prefixPath("/settings/runtime/sandbox/resources"),
+		s.handlers.core.HandleSandboxResourceInspection,
+	)
+	s.router.Get(
+		s.prefixPath("/settings/runtime/sandbox/receipt"),
+		s.handlers.core.HandleSandboxPolicyReceipt,
+	)
+	s.router.Post(
+		s.prefixPath("/settings/runtime/sandbox/reconcile"),
+		s.handlers.core.HandleSandboxResourceReconcile,
+	)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
 

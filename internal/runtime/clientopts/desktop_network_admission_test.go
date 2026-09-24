@@ -6,8 +6,15 @@ import (
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+type desktopNetworkTestSDKServer struct{}
+
+func (desktopNetworkTestSDKServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
+	return map[string]any{"ok": true}, nil
+}
 
 func TestDesktopSandboxNetworkAdmissionDefaultsToDenyAll(t *testing.T) {
 	var admission *DesktopSandboxNetworkAdmission
@@ -77,6 +84,40 @@ func TestDesktopSandboxRemoteMCPRequiresHostApprovedDomain(t *testing.T) {
 	}
 }
 
+func TestDesktopSandboxChecksHostOwnedTypedRemoteMCP(t *testing.T) {
+	servers := map[string]sdkmcp.ServerConfig{
+		"github": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer connector-secret"}},
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); err == nil || !strings.Contains(err.Error(), "域名准入") {
+		t.Fatalf("host-owned remote MCP bypassed deny-all admission: %v", err)
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); err == nil || !strings.Contains(err.Error(), "域名准入") {
+		t.Fatalf("unapproved host-owned remote MCP was admitted: %v", err)
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
+		t.Fatalf("approved host-owned remote MCP was rejected: %v", err)
+	}
+}
+
+func TestDesktopSandboxTypedMCPRejectsHeadersHelperEvenInFullAccess(t *testing.T) {
+	servers := map[string]sdkmcp.ServerConfig{
+		"remote": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", HeadersHelper: "/tmp/untrusted-helper"},
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); err == nil || !strings.Contains(err.Error(), "headers helper") {
+		t.Fatalf("typed headers helper was admitted in Full Access: %v", err)
+	}
+}
+
+func TestDesktopSandboxTypedMCPLeavesStdioAndSDKServersToTheirOwnContracts(t *testing.T) {
+	servers := map[string]sdkmcp.ServerConfig{
+		"stdio": sdkmcp.StdioServerConfig{Command: "connector-helper"},
+		"sdk":   sdkmcp.SDKServerConfig{Name: "managed", Instance: desktopNetworkTestSDKServer{}},
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); err != nil {
+		t.Fatalf("non-HTTP/SSE host-owned MCP should remain a separate contract: %v", err)
+	}
+}
+
 func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 	input := AgentClientOptionsInput{
 		AppMode:                        "desktop",
@@ -97,6 +138,36 @@ func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 	input.DesktopSandboxNetworkAdmission.AllowedDomains[0] = "changed.example.com"
 	if options.Sandbox.Network.AllowedDomains[0] != "api.example.com" {
 		t.Fatal("network settings aliased host admission")
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionDoesNotOverrideClaudeNativeSandbox(t *testing.T) {
+	original := &agentclient.SandboxNetworkConfig{AllowedDomains: []string{"api.example.com"}}
+	options := agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude},
+		Sandbox: &agentclient.SandboxSettings{Network: original},
+	}
+	updated, err := applyDesktopSandboxNetworkAdmission(options, AgentClientOptionsInput{
+		AppMode:                        "desktop",
+		DesktopSandboxEnabled:          true,
+		DesktopSandboxNetworkAdmission: nil,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Sandbox == nil || updated.Sandbox.Network != original || len(updated.Sandbox.Network.AllowedDomains) != 1 || updated.Sandbox.Network.AllowedDomains[0] != "api.example.com" {
+		t.Fatalf("Claude native network settings were overridden: %#v", updated.Sandbox)
+	}
+	granted, err := applyDesktopSandboxNetworkAdmission(options, AgentClientOptionsInput{
+		AppMode:                        "desktop",
+		DesktopSandboxEnabled:          true,
+		DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if granted.Sandbox == nil || granted.Sandbox.Network == original || len(granted.Sandbox.Network.AllowedDomains) != 1 || granted.Sandbox.Network.AllowedDomains[0] != "mcp.example.com" {
+		t.Fatalf("explicit Claude host grant was not applied: %#v", granted.Sandbox)
 	}
 }
 

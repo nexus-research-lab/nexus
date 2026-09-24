@@ -1,4 +1,4 @@
-//go:build windows || plan9 || wasip1 || js
+//go:build plan9 || wasip1 || js
 
 package runtime
 
@@ -8,4 +8,12 @@ package runtime
 // separate acceptance item.
 func sandboxProcessAlive(pid int) (alive, known bool) {
 	return false, false
+}
+
+func sandboxProcessIdentity(pid int) (startTimeUnixNano int64, alive, known bool) {
+	return 0, false, false
+}
+
+func currentProcessStartTimeUnixNano() (int64, error) {
+	return 0, nil
 }

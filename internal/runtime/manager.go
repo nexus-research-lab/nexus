@@ -5,6 +5,8 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +58,7 @@ type Manager struct {
 	factory               Factory
 	now                   func() time.Time
 	ownerProcessReaper    OwnerProcessReaper
+	sandboxReceiptStore   SandboxPolicyReceiptStore
 	roundFinishedObserver func(string, string)
 	owners                map[string]*ownerLifecycle
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
@@ -66,6 +69,21 @@ type Manager struct {
 // OwnerProcessReaper 在 owner 权限撤销时回收脱离父进程的 runtime 子树。
 type OwnerProcessReaper interface {
 	ReapOwnerProcesses(context.Context, string) error
+}
+
+// SandboxPolicyReceiptStore persists the effective desktop sandbox policy
+// after a runtime generation has connected. The record is audit evidence only
+// and never an authorization or OS-isolation proof.
+type SandboxPolicyReceiptStore interface {
+	Save(context.Context, protocol.SandboxPolicyReceiptSnapshot) error
+	UpdatePhase(context.Context, string, string, uint64, protocol.SandboxPolicyReceiptPhase, string) error
+}
+
+// SandboxPolicyReceiptReader is an optional read side of the durable audit
+// sink. Keeping it separate preserves lightweight test/store implementations
+// that only need to record lifecycle transitions.
+type SandboxPolicyReceiptReader interface {
+	Latest(context.Context, string, string) (protocol.SandboxPolicyReceiptSnapshot, bool, error)
 }
 
 // NewManager 创建运行时管理器。
@@ -93,6 +111,76 @@ func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
 	m.mu.Lock()
 	m.ownerProcessReaper = reaper
 	m.mu.Unlock()
+}
+
+// SetSandboxPolicyReceiptStore installs the durable audit sink. A nil sink
+// keeps the in-memory diagnostic behavior used by lightweight callers/tests.
+func (m *Manager) SetSandboxPolicyReceiptStore(store SandboxPolicyReceiptStore) {
+	m.mu.Lock()
+	m.sandboxReceiptStore = store
+	m.mu.Unlock()
+}
+
+func (m *Manager) updateSandboxReceiptPhase(
+	ownerUserID string,
+	sessionKey string,
+	generation uint64,
+	client Client,
+	receipt *SandboxEffectivePolicyReceipt,
+	phase protocol.SandboxPolicyReceiptPhase,
+	reason string,
+) error {
+	if client == nil || generation == 0 {
+		return nil
+	}
+	if receipt == nil {
+		return nil
+	}
+	m.mu.RLock()
+	store := m.sandboxReceiptStore
+	m.mu.RUnlock()
+	if store == nil {
+		return nil
+	}
+	return store.UpdatePhase(
+		context.Background(),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(sessionKey),
+		generation,
+		phase,
+		boundedSandboxReceiptReason(reason),
+	)
+}
+
+// PersistentSandboxPolicyReceipt reads the latest durable receipt after a
+// process restart. It deliberately returns no in-memory session and does not
+// make a persisted receipt look like a currently connected runtime.
+func (m *Manager) PersistentSandboxPolicyReceipt(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*SandboxEffectivePolicyReceipt, bool, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if ownerUserID == "" || sessionKey == "" {
+		return nil, false, errors.New("owner_user_id and session_key are required")
+	}
+	m.mu.RLock()
+	store := m.sandboxReceiptStore
+	m.mu.RUnlock()
+	reader, ok := store.(SandboxPolicyReceiptReader)
+	if !ok {
+		return nil, false, nil
+	}
+	snapshot, found, err := reader.Latest(ctx, ownerUserID, sessionKey)
+	if err != nil || !found {
+		return nil, found, err
+	}
+	receipt, err := sandboxPolicyReceiptFromSnapshot(snapshot)
+	if err != nil {
+		return nil, false, err
+	}
+	return receipt, true, nil
 }
 
 // SetRoundFinishedObserver 注入物理 round 完成后的业务清理入口。

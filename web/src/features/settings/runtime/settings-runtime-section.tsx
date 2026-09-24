@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  RotateCcw,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -201,6 +202,17 @@ export function SettingsRuntimeSection() {
               </div>
               <div className={SETTINGS_DIVIDER_CLASS_NAME} />
 
+              <SandboxRecoveryRow
+                applying={settings.sandboxRecoveryApplying}
+                checking={settings.sandboxRecoveryChecking}
+                disabled={settings.loading || settings.preferencesBusy}
+                error={settings.sandboxRecoveryError}
+                onInspect={() => void settings.onInspectSandboxResources()}
+                onReconcile={() => void settings.onReconcileSandboxResources()}
+                summary={settings.sandboxRecoverySummary}
+              />
+              <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+
               <ToolSearchRow
                 checked={settings.toolSearchEnabled}
                 disabled={settings.loading || settings.preferencesBusy}
@@ -227,6 +239,96 @@ export function SettingsRuntimeSection() {
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+function SandboxRecoveryRow({
+  applying,
+  checking,
+  disabled,
+  error,
+  onInspect,
+  onReconcile,
+  summary,
+}: {
+  applying: boolean;
+  checking: boolean;
+  disabled: boolean;
+  error: boolean;
+  onInspect: () => void;
+  onReconcile: () => void;
+  summary: {
+    candidateCount: number;
+    removedCount: number;
+    resourceCount: number;
+    unknownCount: number;
+  } | null;
+}) {
+  const { t } = useI18n();
+  const busy = checking || applying;
+  return (
+    <div className={SETTINGS_ROW_CLASS_NAME}>
+      <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+        <div className={SETTINGS_ICON_CLASS_NAME}>
+          <RotateCcw className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+            {t("settings.runtime.sandbox_recovery_title")}
+          </h3>
+          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+            {t("settings.runtime.sandbox_recovery_description")}
+          </p>
+          {summary ? (
+            <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} role="status">
+              {t("settings.runtime.sandbox_recovery_resources", { count: summary.resourceCount })}
+              {" · "}
+              {t("settings.runtime.sandbox_recovery_unknown", { count: summary.unknownCount })}
+              {summary.candidateCount > 0 ? (
+                <>
+                  {" · "}
+                  {t("settings.runtime.sandbox_recovery_candidates", { count: summary.candidateCount })}
+                </>
+              ) : null}
+              {summary.removedCount > 0 ? (
+                <>
+                  {" · "}
+                  {t("settings.runtime.sandbox_recovery_removed", { count: summary.removedCount })}
+                </>
+              ) : null}
+            </p>
+          ) : null}
+          {error ? (
+            <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME} role="alert">
+              {t("settings.runtime.sandbox_recovery_failed")}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <UiButton
+          disabled={disabled || busy}
+          onClick={onInspect}
+          variant="text"
+        >
+          {t(checking
+            ? "settings.runtime.sandbox_recovery_checking"
+            : "settings.runtime.sandbox_recovery_check")}
+        </UiButton>
+        {summary && summary.candidateCount > 0 ? (
+          <UiButton
+            disabled={disabled || busy}
+            onClick={onReconcile}
+            tone="danger"
+            variant="text"
+          >
+            {t(applying
+              ? "settings.runtime.sandbox_recovery_applying"
+              : "settings.runtime.sandbox_recovery_apply")}
+          </UiButton>
+        ) : null}
+      </div>
     </div>
   );
 }

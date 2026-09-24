@@ -30,6 +30,27 @@ export interface NXSRuntimeStatus {
   message?: string;
 }
 
+export interface SandboxResourceRecord {
+  marker: {
+    cleanup_state?: "active" | "cleanup_unknown" | string;
+  };
+  process_active: boolean;
+}
+
+export interface SandboxResourceInspection {
+  owner_user_id: string;
+  resources: SandboxResourceRecord[];
+}
+
+export interface SandboxResourceReconcileResult {
+  owner_user_id: string;
+  older_than_seconds: number;
+  apply: boolean;
+  candidates: SandboxResourceRecord[];
+  removed: SandboxResourceRecord[];
+  skipped: SandboxResourceRecord[];
+}
+
 export interface ModelSelectionPreference {
   provider?: string;
   model?: string;

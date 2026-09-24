@@ -168,7 +168,9 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			closeErr = closeDreamSession(session)
 			if scratchLease != nil {
 				if closeErr != nil {
-					scratchLease.MarkCleanupUncertain(closeErr)
+					if markerErr := scratchLease.MarkCleanupUncertain(closeErr); markerErr != nil {
+						closeErr = errors.Join(closeErr, markerErr)
+					}
 				} else {
 					closeErr = scratchLease.Release()
 				}

@@ -1,6 +1,6 @@
 // INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、工具面换代且 revision 绑定的 runtime options/client。
-// POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、精确 desktop sandbox lease 交接、工具面换代且 revision 绑定的 runtime options/client。
+// POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份、失败回收 sandbox lease 的 runtime 装配边界。
 package realtime
 
 import (
@@ -632,14 +632,26 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 			runtimeValue.options.Session.ResumeAt = ""
 			runtimeValue.options.Session.Fork = false
 			if runtimeValue.scratchLease != nil {
-				runtimeValue.scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
+				// GetOrCreate/Bind can fail before ownership reaches the
+				// runtime manager. Drop that exact unbound handle before a
+				// resume retry replaces the pointer, or the first scratch leaf
+				// remains registered forever.
+				if !runtimeValue.scratchLeaseTransferred {
+					if releaseErr := runtimeValue.scratchLease.Release(); releaseErr != nil {
+						return nil, fmt.Errorf("清理失效 resume 的 Room desktop sandbox scratch: %w", releaseErr)
+					}
+					runtimeValue.scratchLease = nil
+				}
+				nextLease, acquireErr := runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
 					OwnerUserID: e.agent.OwnerUserID,
 					SessionKey:  e.slot.RuntimeSessionKey,
 					RoundID:     e.round.RootRoundID,
 				})
-				if err != nil {
+				if acquireErr != nil {
+					err = acquireErr
 					return nil, fmt.Errorf("重新准备 Room desktop sandbox scratch: %w", err)
 				}
+				runtimeValue.scratchLease = nextLease
 				runtimeValue.scratchLeaseTransferred = false
 			}
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {

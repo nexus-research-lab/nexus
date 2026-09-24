@@ -5,6 +5,7 @@ package clientopts
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/url"
 	"os"
@@ -164,7 +165,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 	var env map[string]string
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
-		env = anthropicRuntimeEnvFromConfig(runtimeConfig)
+		env = anthropicRuntimeEnvFromConfig(runtimeConfig, runtimeKind)
 	case apiFormatChatCompletions, apiFormatResponses:
 		if profile.isNXS() {
 			env = openAIRuntimeEnvFromConfig(runtimeConfig)
@@ -276,7 +277,7 @@ func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string 
 	return env
 }
 
-func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	env := map[string]string{
 		anthropicBaseURLEnvName:          runtimeConfig.BaseURL,
 		anthropicModelEnvName:            runtimeConfig.Model,
@@ -287,19 +288,29 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
-	applyAnthropicCredentialsEnv(env, runtimeConfig)
+	applyAnthropicCredentialsEnv(env, runtimeConfig, runtimeKind)
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
 	return env
 }
 
-func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig, runtimeKind string) {
 	token := strings.TrimSpace(runtimeConfig.AuthToken)
 	if token == "" {
 		return
 	}
 	if isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
+		env[anthropicAPIKeyEnvName] = token
+		env[anthropicAuthTokenEnvName] = ""
+		return
+	}
+	// The nxs provider accepts ANTHROPIC_API_KEY for compatible gateways and
+	// adds x-api-key plus its compatibility Authorization header in the SDK
+	// request path. Claude Code keeps the separate auth-token projection so its
+	// native CLI semantics remain unchanged; its real provider authentication
+	// is a separate acceptance track.
+	if runtimeProfileForKind(runtimeKind).isNXS() {
 		env[anthropicAPIKeyEnvName] = token
 		env[anthropicAuthTokenEnvName] = ""
 		return
@@ -687,4 +698,22 @@ func mergeRuntimeEnv(
 	maps.Copy(result, base)
 	maps.Copy(result, extra)
 	return result
+}
+
+// validateConfigurationEnvironment keeps the round-scoped nexuscfg
+// capability as a two-variable typed contract.  ConfigurationEnv is supplied
+// by an internal host builder today, but accepting arbitrary keys here would
+// let a future caller smuggle PATH/HOME, provider credentials, or runtime
+// isolation switches into the child after managedUserRuntimeEnv has fixed the
+// owner boundary.  Unknown keys therefore fail closed before any process can
+// be started.
+func validateConfigurationEnvironment(environment map[string]string) error {
+	for key := range environment {
+		switch strings.TrimSpace(key) {
+		case protocol.NexusConfigBrokerURLEnvName, protocol.NexusConfigCapabilityTokenEnvName:
+		default:
+			return fmt.Errorf("nexuscfg runtime capability contains unsupported environment key %q", key)
+		}
+	}
+	return nil
 }

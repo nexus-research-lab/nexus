@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - handlers.go：Handlers、核心路由、无状态 nxs 本地可用性查询及 Preferences 条件回滚的 WebSearch 热同步。
+//   - sandbox_recovery.go / sandbox_receipt.go：owner-scoped sandbox marker inspect、显式 stale reconcile 与精确 runtime generation 生效回执诊断；默认 dry-run，不能绕过 runtime 的 cleanup_unknown/进程存活栅栏，回执不等同 OS 隔离证明。
 //   - preferences_version.go：Preferences ETag/If-Match CAS 和读写阶段 FailureCore 投影。
 //   - imagegen_defaults.go：在 Preferences owner 锁内完成的图片生成默认偏好投影。
 //
