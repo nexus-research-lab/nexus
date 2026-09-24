@@ -125,6 +125,7 @@ try {
     "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
     "TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent",
     "TestAcquirePersistsDurableMarkerAndReleaseRemovesIt",
+    "TestSandboxProcessMarkerUsesConservativeIdentityFallback",
     "TestAcquireReusesActiveSessionLease",
     "TestSandboxResourceCleanupFailureFencesNewAcquisition",
     "TestAcquireRejectsWriteScopeChangeForActiveSession",
