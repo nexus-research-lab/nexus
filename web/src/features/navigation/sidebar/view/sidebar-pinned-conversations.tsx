@@ -3,10 +3,11 @@
  * OUTPUT: 能力入口下方带分割线、拖放落点、边缘滚动与独立取消位的固定会话 Dock。
  * POS: 主侧栏导航轨的固定会话纯视图，不读取 Store、路由或业务 API。
  */
-import { MessageCircle, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 
 import { UiListActionButton } from "@/shared/ui/list/list-action";
+import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { cn } from "@/shared/ui/class-name";
 
 import { resolveSidebarPinnedConversationDropPlacement } from "./sidebar-pinned-conversations-model";
@@ -148,7 +149,7 @@ export function SidebarPinnedConversations({
         {items.map((item) => (
           <div
             className={cn(
-              "group/item relative h-14 w-12 shrink-0 transition-colors duration-(--motion-duration-fast)",
+              "group/item relative h-10 w-12 shrink-0 transition-colors duration-(--motion-duration-fast)",
               item.active
                 ? "text-(--text-strong)"
                 : "text-(--text-muted)",
@@ -177,14 +178,16 @@ export function SidebarPinnedConversations({
             <SidebarRailAction
               active={item.active}
               draggable
-              icon={MessageCircle}
+              iconContent={item.roomType === "room"
+                ? <UiRoomAvatar avatar={item.avatar} members={item.members ?? []} roomId={item.roomId} title={item.avatarName ?? item.title} size="sm" />
+                : <UiAgentAvatar avatar={item.avatar} name={item.avatarName ?? item.title} size="sm" />}
               label={item.title}
               layout="pinned"
               onDragEnd={resetDragState}
               onDragStart={(event) => handleDragStart(event, item)}
               onClick={() => onSelect(item)}
               supplementalLabel={reorderLabel}
-              title={`${item.title} · ${reorderLabel}`}
+              title={item.title}
             />
             <UiListActionButton
               aria-label={`${unpinLabel}：${item.title}`}
