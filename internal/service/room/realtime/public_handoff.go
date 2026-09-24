@@ -185,13 +185,22 @@ func (s *Service) annotatePublicAssistantMessageWithGoalBinding(
 	if messageID == "" {
 		return nil, nil
 	}
+	mentionContext := roundValue.Context
+	if roundValue.ExecutionOrigin == "relay" {
+		mentionContext = relayMentionContext(roundValue)
+	}
 	mentions := buildRoomMentionAnnotations(
-		roundValue.Context,
+		mentionContext,
 		slot.AgentID,
 		messageID,
 		blocks,
 	)
 	if len(mentions) == 0 {
+		return nil, nil
+	}
+	if roundValue.ExecutionOrigin == "relay" {
+		// 只复用标注；跨节点投递由 Relay 原子提交，本机不能创建远端 slot。
+		message["agent_mentions"] = mentions
 		return nil, nil
 	}
 	goalCollaborationBinding := goalCollaborationBindingForSlot(roundValue, slot)
@@ -207,6 +216,15 @@ func (s *Service) annotatePublicAssistantMessageWithGoalBinding(
 	}
 	message["agent_mentions"] = mentions
 	return storedGoalBinding, nil
+}
+
+func relayMentionContext(round *activeRoomRound) *protocol.ConversationContextAggregate {
+	result := &protocol.ConversationContextAggregate{Conversation: round.Context.Conversation}
+	for id, name := range round.PublicAgentDirectory {
+		result.MemberAgents = append(result.MemberAgents, protocol.Agent{AgentID: id, Name: name})
+		result.Members = append(result.Members, protocol.MemberRecord{MemberType: protocol.MemberTypeAgent, MemberAgentID: id})
+	}
+	return result
 }
 
 // publicHandoffReplyForSlot 仅为宿主创建的 public mention target

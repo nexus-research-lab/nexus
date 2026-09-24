@@ -19,6 +19,7 @@ type NodeJob struct {
 	Delivery                                                     *relaycontract.Delivery
 	CandidateID, CandidateText                                   string
 	CandidateExecution                                           *relaycontract.ExecutionMetadata
+	CandidateMentions                                            []relaycontract.MessageMention
 	Sequence, OutputBytes                                        int
 	Failed                                                       bool
 	CandidateSent                                                bool
@@ -96,6 +97,7 @@ func (r *Repository) saveNodeJob(ctx context.Context, item NodeJob, from string,
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
 		item.CandidateExecution = nil
+		item.CandidateMentions = nil
 	}
 	if output != nil {
 		item.Sequence++

@@ -26,6 +26,36 @@ type systemOnlyRoomContextStore struct {
 	startedID    string
 }
 
+func TestRelayMentionsReuseRoomParserWithoutLocalMembers(t *testing.T) {
+	round := &activeRoomRound{
+		ExecutionOrigin:      "relay",
+		Context:              &protocol.ConversationContextAggregate{Conversation: protocol.ConversationRecord{ID: "conversation"}},
+		PublicAgentDirectory: map[string]string{"self": "Self", "remote": "Lucy", "duplicate-a": "Sam", "duplicate-b": "Sam"},
+	}
+	mentions := buildRoomMentionAnnotations(relayMentionContext(round), "self", "message", []roomMentionTextBlock{{text: "@Lucy 请处理 `@Lucy` @Sam @Self @outsider"}})
+	if len(mentions) != 1 || mentions[0].AgentID != "remote" {
+		t.Fatalf("远端解析未复用代码块、歧义、自身过滤: %+v", mentions)
+	}
+	if len(round.Context.Members) != 0 || len(round.Context.MemberAgents) != 0 {
+		t.Fatal("远端目录污染本机执行成员")
+	}
+	message := protocol.Message{"message_id": "message", "role": "assistant", "is_complete": true,
+		"content":        []map[string]any{{"type": "text", "text": "@Lucy 请处理"}},
+		"agent_mentions": []protocol.AgentMention{{AgentID: "forged"}},
+	}
+	slot := &activeRoomSlot{AgentID: "self"}
+	if err := (&Service{}).annotatePublicAssistantMessage(round, slot, message); err != nil {
+		t.Fatal(err)
+	}
+	derived := protocolAgentMentions(message["agent_mentions"])
+	if len(derived) != 1 || derived[0].AgentID != "remote" {
+		t.Fatalf("在线消息未重新派生标注: %+v", derived)
+	}
+	if wakes := publicMentionWakesFromMessage(round, slot, message, "@Lucy 请处理", nil); len(wakes) != 0 {
+		t.Fatal("在线标注生成了本机唤醒")
+	}
+}
+
 func (s *systemOnlyRoomContextStore) GetConversationContext(
 	context.Context,
 	string,

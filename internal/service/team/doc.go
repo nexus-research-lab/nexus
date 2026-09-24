@@ -8,6 +8,8 @@
 // node.go 的 PrepareRoom 独立核验当前群成员与本人本机 Agent，复用确定性 Room 并自动登记执行；暂停成员只准备会话，加入群不直接启动 runtime。
 // 节点失效恢复使用当前有效真人登录，未知写入重放原意图；设备范围变更等已有任务收尾后再执行撤销与登记，不中断其他群任务。
 // node_executor.go / node_runtime.go 负责持久领取、Room 原生启动/审批/中断和完整输出 outbox，不另建 runtime。
+// 完整回复的结构化 @ 与候选正文一起持久化；切换候选先发布旧目标，无 @ 的新消息不能继承旧目标。
+// 领取的 active Agent 范围与 Control 公开目录取交集，通过 Room PublicAgentDirectory 复用提示和 mention 解析；远端成员不物化为本机执行成员。
 // node_files.go 仅消费当前轮次 deliverable 凭据，复用安全文件读取与 Relay 目录；冻结字节后重试，不扫描工作区。
 // PrepareRooms 从常驻目录批量准备入群 Agent；RecoverJob 仅在精确 round 已停止且远端回执确认后结束未知任务。
 // 消息附件凭精确投递租约下载并核验摘要，复用 Room.UploadConversationAttachment 与 ChatRequest.Attachments；Slash 原文进入同一原生展开入口。

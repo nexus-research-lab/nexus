@@ -546,7 +546,7 @@ function TeamMessageFeed({
             roundId={job.round_id!} messages={[]} isLastRound
             isLoading={job.state === "running" || job.state === "ready"}
             activityState={job.state === "ready" ? "sending" : job.state === "running" ? "thinking" : undefined}
-            assistantEmptyState={<span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>{t(job.failure_code === "artifact_delivery_failed" ? "team.artifact_delivery_failed" : `team.node_job_${job.state}`)}</span>}
+					assistantEmptyState={<span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>{t(job.failure_code === "artifact_delivery_failed" ? "team.artifact_delivery_failed" : job.failure_code === "execution_failed" ? "team.delivery_failed" : `team.node_job_${job.state}`)}</span>}
             canRespondToPermissions={false}
             assistantHeaderAction={<RoomAgentExecutionActions>{stopAction(job)}<ThreadActionButton active={selectedThreadID === job.id} agentName={agentsByID.get(job.agent_id)?.name ?? job.agent_id} onClick={() => onOpenThread(job)} /></RoomAgentExecutionActions>} />
         </li>)}
@@ -698,9 +698,11 @@ const TEAM_ERROR_KEYS = {
   sync: "team.error_sync",
 } as const;
 
-const DELIVERY_FAILURE_KEYS: Record<string, "team.artifact_delivery_failed" | "team.queue_expired" | "team.request_cancelled" | "team.delivery_expired"> = {
+const DELIVERY_FAILURE_KEYS: Record<string, "team.handoff_limit_exceeded" | "team.artifact_delivery_failed" | "team.queue_expired" | "team.request_cancelled" | "team.delivery_expired" | "team.delivery_failed"> = {
+  handoff_limit_exceeded: "team.handoff_limit_exceeded",
   artifact_delivery_failed: "team.artifact_delivery_failed",
   queue_expired: "team.queue_expired",
   request_cancelled: "team.request_cancelled",
-  lease_expired: "team.delivery_expired",
+	lease_expired: "team.delivery_expired",
+	execution_failed: "team.delivery_failed",
 };

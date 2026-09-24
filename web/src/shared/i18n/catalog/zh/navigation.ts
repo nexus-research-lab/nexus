@@ -7,6 +7,7 @@ export const zhNavigationMessages = {
   "team.cancel_waiting": "取消等待",
   "team.cancel_failed": "取消未确认，请刷新状态后重试。",
   "team.queue_expired": "等待超过 30 分钟，未执行。需要时请重新发送。",
+  "team.handoff_limit_exceeded": "已达到本轮 Agent 协作上限，停止继续唤醒。已有回复保留，需要继续时请发送新消息。",
   "team.request_cancelled": "已取消，未执行。",
   "auth_guard.connecting": "正在连接 Nexus",
   "auth_guard.web_closed": "此账号暂未开放网页版",

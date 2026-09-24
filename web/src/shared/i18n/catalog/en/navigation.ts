@@ -10,6 +10,7 @@ export const enNavigationMessages = {
   "team.cancel_waiting": "Cancel waiting",
   "team.cancel_failed": "Cancellation is unconfirmed. Refresh and retry.",
   "team.queue_expired": "Not executed: the 30-minute wait expired. Send a new request if needed.",
+  "team.handoff_limit_exceeded": "Agent collaboration limit reached. Existing replies are retained. Send a new message to continue.",
   "team.request_cancelled": "Cancelled before execution.",
   "auth_guard.connecting": "Connecting to Nexus",
   "auth_guard.web_closed": "Web access is not available for this account",

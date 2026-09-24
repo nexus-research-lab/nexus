@@ -147,7 +147,7 @@ func publicMentionWakesFromMessage(
 	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) []publicMentionWake {
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
-	if messageID == "" || roundValue == nil || slot == nil {
+	if messageID == "" || roundValue == nil || slot == nil || roundValue.ExecutionOrigin == "relay" {
 		return nil
 	}
 	seen := make(map[string]struct{})

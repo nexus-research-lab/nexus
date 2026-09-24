@@ -81,7 +81,9 @@ type ChatRequest struct {
 	AttachmentAgentID  string
 	Content            string
 	// PublicContext 仅由服务端在线适配提供，沿用 Room 公区游标与上下文预算。
-	PublicContext         []protocol.Message
+	PublicContext []protocol.Message
+	// PublicAgentDirectory 是服务端在线成员展示目录，不参与本机执行资格。
+	PublicAgentDirectory  map[string]string
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64

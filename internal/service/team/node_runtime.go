@@ -21,6 +21,15 @@ import (
 )
 
 func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token nodeToken) error {
+	// 领取时的群成员范围与 Control 当前公开身份取交集，绝不扩成本机可执行成员。
+	if len(job.Delivery.AgentIDs) > 0 {
+		fresh, err := e.machineTokenWithDirectory(ctx, grant, job.Delivery.AgentIDs)
+		if err != nil {
+			return err
+		}
+		token = fresh
+	}
+	directory := deliveryAgentDirectory(job.Delivery, token.Directory, job.LocalAgentID)
 	contextJSON, err := json.Marshal(job.Delivery.Messages)
 	if err != nil {
 		return err
@@ -78,7 +87,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	}
 	job.Delivery.Messages = nil
 	admitted := false
-	err = e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: content, Attachments: attachments, PublicContext: publicContext, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
+	err = e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: content, Attachments: attachments, PublicContext: publicContext, PublicAgentDirectory: directory, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
 		// Room 准备可能很慢；原生 round 注册后、任何 slot 启动前再次验证。
 		if err := admissionCtx.Err(); err != nil {
 			return err
@@ -173,6 +182,25 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	}
 }
 
+func deliveryAgentDirectory(delivery *relaycontract.Delivery, entries []nodeAgent, localAgentID string) map[string]string {
+	allowed := make(map[string]bool, len(delivery.AgentIDs))
+	for _, id := range delivery.AgentIDs {
+		allowed[id] = true
+	}
+	directory := make(map[string]string)
+	for _, entry := range entries {
+		if !allowed[entry.AgentID] {
+			continue
+		}
+		id := entry.AgentID
+		if id == delivery.AgentID {
+			id = localAgentID
+		}
+		directory[id] = entry.Name
+	}
+	return directory
+}
+
 func nodeOutputRejected(err error) bool {
 	var remote *relaycontract.RemoteError
 	return errors.As(err, &remote) && remote.StatusCode >= 400 && remote.StatusCode < 500 && remote.StatusCode != 401 && remote.StatusCode != 408 && remote.StatusCode != 429
@@ -239,6 +267,7 @@ func (o *nodeObserver) observe(ctx context.Context, event protocol.EventMessage)
 func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event protocol.EventMessage) error {
 	if event.EventType == protocol.EventTypeError {
 		job.Failed = true
+		job.FailureCode = "execution_failed"
 		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
 	}
 	if event.EventType == protocol.EventTypeRoundStatus {
@@ -257,7 +286,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		}
 		if status == "finished" && !job.Failed && !job.CandidateSent && job.CandidateText != "" {
 			job.State = "draining"
-			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution))
+			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution, job.CandidateMentions))
 		} else {
 			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
 		}
@@ -283,6 +312,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		subtype, _ := summary["subtype"].(string)
 		if (subtype != "" && subtype != "success") || summary["is_error"] == true {
 			job.Failed = true
+			job.FailureCode = "execution_failed"
 		}
 	}
 	text := strings.TrimSpace(message.ExtractAssistantDisplayText(protocol.Message(event.Data)))
@@ -303,7 +333,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
 	}
 	if job.CandidateID != "" && job.CandidateID != id && !job.CandidateSent {
-		if err := o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution)); err != nil {
+		if err := o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution, job.CandidateMentions)); err != nil {
 			return err
 		}
 		job.Sequence++
@@ -334,12 +364,39 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	if execution.Model != "" || execution.ResultSummary != nil {
 		job.CandidateExecution = &execution
 	}
+	// 先投递旧候选，再替换当前消息的目标；空目标也必须清掉旧值。
+	job.CandidateMentions = relayMentions(event.Data["agent_mentions"], job.LocalAgentID)
 	job.CandidateID, job.CandidateText = id, text
 	job.CandidateSent = event.Data["stop_reason"] == "tool_use"
 	if job.CandidateSent {
-		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution))
+		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution, job.CandidateMentions))
 	}
 	return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+}
+
+func relayMentions(value any, sourceAgentID string) []relaycontract.MessageMention {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var values []protocol.AgentMention
+	if err := json.Unmarshal(encoded, &values); err != nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]relaycontract.MessageMention, 0, len(values))
+	for _, value := range values {
+		id := strings.TrimSpace(value.AgentID)
+		if id == "" || id == sourceAgentID {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		result = append(result, relaycontract.MessageMention{MemberType: "agent", MemberID: id})
+	}
+	return result
 }
 
 // deliveryRoomContext 只转换消息事实；触发选择和公区增量仍由 Room 机制处理。

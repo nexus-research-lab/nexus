@@ -295,7 +295,11 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		return roomRuntimePrompt{}, "", err
 	}
 	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
-	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
+	directory := e.agentNameByID
+	if e.round.ExecutionOrigin == "relay" && len(e.round.PublicAgentDirectory) > 0 {
+		directory = e.round.PublicAgentDirectory
+	}
+	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(directory))
 
 	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
 		roomAgentSessionOptions(e.round, e.agent.AgentID),

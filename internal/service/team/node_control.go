@@ -78,6 +78,7 @@ func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, met
 }
 
 type nodeToken struct {
+	Directory []nodeAgent `json:"directory,omitempty"`
 	Token     string      `json:"token"`
 	ExpiresAt time.Time   `json:"expires_at"`
 	Agents    []nodeAgent `json:"agents"`
