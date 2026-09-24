@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -260,6 +262,46 @@ func TestNodeFailureLoggingIsCorrelatedThrottledAndRedacted(t *testing.T) {
 		if record["reason"] != reason || !errors.Is(failure, ErrNodeLogin) {
 			t.Fatalf("授权失败原因丢失: %s", &output)
 		}
+	}
+}
+
+func TestNodeCredentialFailureLogging(t *testing.T) {
+	activeRaw := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
+	oldRaw := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))
+	active, err := credentials.NewKeyring(activeRaw, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := credentials.NewKeyring(oldRaw, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelope, err := old.EncryptEnvelope([]byte("SECRET_NODE_CREDENTIAL"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, failure := active.DecryptEnvelope(envelope)
+	for _, stage := range []string{"decrypt_node_credential", "machine_token", "watch_deliveries"} {
+		t.Run(stage, func(t *testing.T) {
+			var output bytes.Buffer
+			executor := &NodeExecutor{nodes: &NodeService{keys: active}, logger: slog.New(slog.NewJSONHandler(&output, nil))}
+			executor.logFailure(t.Context(), stage, teamstore.NodeGrant{}, teamstore.NodeJob{}, failure)
+			var record map[string]any
+			if err := json.Unmarshal(bytes.TrimSpace(output.Bytes()), &record); err != nil {
+				t.Fatal(err)
+			}
+			if record["reason"] != "credential_key_unavailable" {
+				t.Fatalf("缺少密钥失败分类: %s", &output)
+			}
+			if stage == "decrypt_node_credential" && (record["active_key_id"] != active.ActiveKeyID() || !strings.Contains(fmt.Sprint(record["error"]), old.ActiveKeyID())) {
+				t.Fatalf("缺少当前或所需密钥指纹: %s", &output)
+			}
+			for _, secret := range []string{activeRaw, oldRaw, envelope, "SECRET_NODE_CREDENTIAL"} {
+				if strings.Contains(output.String(), secret) {
+					t.Fatal("日志泄露凭据或密钥")
+				}
+			}
+		})
 	}
 }
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
+
 ### Added
 
 - 用户与 Agent 的原头像选择器增加 Humation 随机头像（含背景配色），新建 Agent 和 Subagent 使用同套素材；附带 Nexus 徽章与终端配件，源码与素材随应用分发，无外部头像服务依赖。
