@@ -122,6 +122,10 @@ func (e *NodeExecutor) cachedToken(ctx context.Context, grant teamstore.NodeGran
 }
 
 func (e *NodeExecutor) machineToken(ctx context.Context, grant teamstore.NodeGrant) (nodeToken, error) {
+	return e.machineTokenWithDirectory(ctx, grant, nil)
+}
+
+func (e *NodeExecutor) machineTokenWithDirectory(ctx context.Context, grant teamstore.NodeGrant, agentIDs []string) (nodeToken, error) {
 	if grant.RemoteURL != e.nodes.remoteURL || !grant.ExecutionEnabled || grant.State != "authorized" || e.nodes.keys == nil {
 		return nodeToken{}, ErrNodeUnavailable
 	}
@@ -131,7 +135,7 @@ func (e *NodeExecutor) machineToken(ctx context.Context, grant teamstore.NodeGra
 		return nodeToken{}, err
 	}
 	var result nodeToken
-	err = e.nodes.controlRequest(ctx, "", string(credential), http.MethodPost, "/nodes/token", nil, &result)
+	err = e.nodes.controlRequest(ctx, "", string(credential), http.MethodPost, "/nodes/token", map[string]any{"agent_ids": agentIDs}, &result)
 	if err != nil {
 		return nodeToken{}, err
 	}
@@ -408,8 +412,12 @@ func (e *NodeExecutor) stopJob(ctx context.Context, job teamstore.NodeJob) error
 	return err
 }
 
-func outputText(lease, kind, text string, execution *relaycontract.ExecutionMetadata) *relaycontract.DeliveryOutput {
-	return &relaycontract.DeliveryOutput{LeaseID: lease, Kind: kind, Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: text}}, Execution: execution}}
+func outputText(lease, kind, text string, execution *relaycontract.ExecutionMetadata, mentions ...[]relaycontract.MessageMention) *relaycontract.DeliveryOutput {
+	var targets []relaycontract.MessageMention
+	if len(mentions) > 0 {
+		targets = mentions[0]
+	}
+	return &relaycontract.DeliveryOutput{LeaseID: lease, Kind: kind, Mentions: targets, Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: text}}, Execution: execution}}
 }
 
 func nodeJobLogAttrs(grant teamstore.NodeGrant, job teamstore.NodeJob) []any {

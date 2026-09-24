@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- 在线 Agent 复用本地 Room 成员目录提示与 @ 解析，通过 Relay 唤醒其他成员的 Agent；远端身份不加入本机执行列表，协作达到上限时显示明确失败原因。
+
+- 修复在线 Agent 连续输出时结构化 @ 目标串用，候选目标随正文持久化。
+
 ### Fixed
 
 - 定时任务编辑标题与看板列标题使用相同高度并垂直居中对齐。
