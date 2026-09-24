@@ -39,6 +39,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Checkout pinned sandbox SDK
+        uses: actions/checkout@v6
+        with:
+          repository: nexus-research-lab/nexus-agent-sdk-go
+          ref: 9956def130da33af47accf799a9c27c16a551104
+          path: .nexus-sandbox-sdk
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -49,9 +63,20 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Check Windows sandbox contracts
+      - name: Check Windows sandbox contracts and native components
         shell: pwsh
-        run: node scripts/desktop/check-windows-sandbox.mjs
+        run: node scripts/desktop/check-windows-sandbox.mjs --native
+        env:
+          NEXUS_SANDBOX_SDK_SOURCE: ${{ github.workspace }}/.nexus-sandbox-sdk
+          NEXUS_SANDBOX_REPORT_DIRECTORY: ${{ runner.temp }}/windows-sandbox-evidence
+
+      - name: Upload Windows sandbox evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-sandbox-native-evidence
+          if-no-files-found: error
+          path: ${{ runner.temp }}/windows-sandbox-evidence/nexus-windows-sandbox-*
 
       - name: Build Windows desktop shell
         shell: pwsh
