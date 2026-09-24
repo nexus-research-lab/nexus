@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add the built-in `caixun-work-hours` Skill for selecting, reviewing and submitting personal 彩讯 RichPMS work-hour reports.
+
 ## [0.2.2] - 2026-09-21
 
 ### Added
