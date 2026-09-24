@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
@@ -147,11 +148,84 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 	return nil
 }
 
+// RejectDesktopSandboxTypedMCPServersWithNetworkAdmission applies the same
+// desktop network boundary to the typed MCP configurations assembled by the
+// host.  Persisted Agent MCP servers arrive as untyped maps and are checked by
+// RejectDesktopSandboxRemoteMCPWithNetworkAdmission above; connector and other
+// host-owned MCP servers are already typed by the time they reach the builder.
+// Checking only the persisted map would let a host-owned HTTP/SSE server (and
+// its connector credential) bypass the exact-domain admission.
+//
+// Stdio and in-process SDK servers intentionally remain separate lifecycle
+// contracts. Their process/IO confinement is not established by this network
+// admission and must be covered by their own host contract.
+func RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(
+	servers map[string]sdkmcp.ServerConfig,
+	runtimeKind string,
+	appMode string,
+	desktopSandboxEnabled bool,
+	permissionMode sdkpermission.Mode,
+	admission *DesktopSandboxNetworkAdmission,
+) error {
+	if !desktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(appMode), "desktop") ||
+		runtimeKind != runtimeKindNXS {
+		return nil
+	}
+
+	names := make([]string, 0, len(servers))
+	for name := range servers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		server := servers[name]
+		switch value := server.(type) {
+		case sdkmcp.HTTPServerConfig:
+			if err := validateDesktopTypedRemoteMCP(name, value.URL, value.HeadersHelper, permissionMode, admission); err != nil {
+				return err
+			}
+		case sdkmcp.SSEServerConfig:
+			if err := validateDesktopTypedRemoteMCP(name, value.URL, value.HeadersHelper, permissionMode, admission); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateDesktopTypedRemoteMCP(
+	name string,
+	serverURL string,
+	headersHelper string,
+	permissionMode sdkpermission.Mode,
+	admission *DesktopSandboxNetworkAdmission,
+) error {
+	if strings.TrimSpace(headersHelper) != "" {
+		return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
+	}
+	if permissionMode == sdkpermission.ModeBypassPermissions {
+		// Full Access is an explicit user escape and retains the existing MCP
+		// behavior. The helper check above remains mandatory because a helper is
+		// an independent executable and is never covered by this escape.
+		return nil
+	}
+	if admission == nil || !admission.Allows(serverURL) {
+		return agentMCPServerError(name, "桌面沙箱拒绝未获宿主域名准入的外部 HTTP/SSE MCP")
+	}
+	return nil
+}
+
 // applyDesktopSandboxNetworkAdmission replaces the copied network object only
-// after applyDesktopSandbox has installed the mandatory nxs contract.
+// after applyDesktopSandbox has installed the mandatory nxs contract. Claude's
+// native sandbox owns its own network semantics when no host grant is present;
+// Nexus must not turn that missing grant into an empty allowlist and accidentally
+// block the provider API for an otherwise valid third-party Claude-compatible
+// endpoint. An explicit host grant still replaces the copied Network object for
+// callers that have completed the separate domain-approval flow.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
-		(options.Runtime.Kind != agentclient.RuntimeNXS && options.Runtime.Kind != agentclient.RuntimeClaude) {
+		(options.Runtime.Kind != agentclient.RuntimeNXS &&
+			(options.Runtime.Kind != agentclient.RuntimeClaude || input.DesktopSandboxNetworkAdmission == nil)) {
 		return options, nil
 	}
 	if options.Runtime.Kind == agentclient.RuntimeClaude && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {

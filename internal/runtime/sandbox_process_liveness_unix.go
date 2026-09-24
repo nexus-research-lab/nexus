@@ -26,3 +26,21 @@ func sandboxProcessAlive(pid int) (alive, known bool) {
 		return false, false
 	}
 }
+
+// Unix markers currently use the non-destructive PID probe. A portable
+// process creation-time query is not available across the supported Unix
+// targets, so a live PID is deliberately reported with unknown identity.
+func sandboxProcessIdentity(pid int) (startTimeUnixNano int64, alive, known bool) {
+	alive, known = sandboxProcessAlive(pid)
+	if !known {
+		return 0, false, false
+	}
+	if !alive {
+		return 0, false, true
+	}
+	return 0, true, false
+}
+
+func currentProcessStartTimeUnixNano() (int64, error) {
+	return 0, nil
+}

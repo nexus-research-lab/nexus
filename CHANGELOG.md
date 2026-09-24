@@ -9,6 +9,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Keep a durable cleanup fence usable when the exact lease handle that first
+  observed `cleanup_unknown` releases before its sibling handles. The fence is
+  transferred to one still-live handle over the same resource, so a later
+  reconciliation can still prove and remove the exact scratch lease. Make
+  sandbox policy receipt payloads and `confirmed_at` immutable within one
+  generation; duplicate observations may refresh only their observation time,
+  and late callbacks cannot overwrite a terminal receipt.
+
+- Record the owning process creation time in desktop nxs scratch markers when
+  the platform exposes it. Windows recovery now compares `GetProcessTimes`
+  before treating a marker as stale, so a reused PID cannot authorize cleanup;
+  older markers and platforms without a safe identity probe remain
+  fail-closed. Add a Windows sandbox gate that checks the installer contract,
+  Nexus runtime/clientopts/confinedfs test compilation, and nexus-server,
+  nexusctl, and nexuscfg builds for amd64 and arm64. On Windows the native
+  identity tests are pinned to the host Node architecture instead of inheriting
+  a caller's cross-build variables. The gate reports build evidence only
+  (`releaseAccepted=false`) until a real Windows host validates the native nxs
+  runner.
+
+- Route nxs Anthropic-compatible Provider credentials through the SDK API-key
+  path for both first-party and third-party endpoints. Compatible nxs requests
+  now support gateways that require `x-api-key` while retaining the SDK's
+  Bearer fallback; Claude keeps its native `ANTHROPIC_AUTH_TOKEN` projection.
+  Custom header authentication remains outside the declared Provider contract.
+
+- Downgrade an exact desktop sandbox receipt from `retired` to `unknown` when
+  the owner-level process reaper fails after Bridge close. The bounded reason
+  remains durable, so a clean Bridge acknowledgement cannot hide descendants
+  whose collection was not proven.
+
+- Apply the desktop nxs network admission check after typed MCP assembly, so
+  Connector-owned HTTP/SSE servers cannot bypass the host domain grant; reject
+  unmanaged `headersHelper` executables in every permission mode and keep the
+  round-scoped `ConfigurationEnv` capability to its two declared keys. Claude's
+  native restricted sandbox keeps its own network settings when no explicit
+  host grant is supplied, so third-party Anthropic-compatible endpoints are not
+  accidentally blocked by an empty Nexus allowlist.
+
+- Verify third-party Anthropic-compatible routing through the real nxs and
+  Claude request paths with a local mock SSE endpoint. Claude's custom BaseURL
+  plus AuthToken uses Bearer authorization; nxs now uses its API-key path for
+  compatible gateways. External provider and custom-header acceptance remain
+  separate evidence. The nxs `Sandbox.Network` setting still governs
+  command/tool execution rather than acting as a host-level Provider egress
+  firewall.
+
+- Add owner-scoped desktop sandbox recovery endpoints and a runtime settings
+  surface for marker inspection and explicit stale-resource reconcile. Inspection
+  is read-only; the page previews candidates before reconcile, which defaults to
+  dry-run and requires a positive age plus `apply=true` before any deletion,
+  while the runtime still retains `cleanup_unknown` and active or unverifiable
+  processes.
+
+- Keep the exact lease captured by an obsolete startup generation during
+  configuration or lifecycle races. Cleanup no longer releases the current
+  generation's lease, and an existing cleanup fence cannot receive the same
+  handle twice; startup retry and stale-session close now retain the host
+  resource boundary.
+
+- Persist `cleanup_unknown` and a bounded error summary in each desktop nxs
+  scratch marker when Bridge close or lease cleanup is not proven; fixed-handle
+  discovery exposes the state after restart, and even a dead recorded PID does
+  not delete that unknown resource. Connect now writes an owner/session/
+  generation-scoped effective-policy receipt to the host database and retains a
+  connected copy, including Bridge-negotiated capabilities, policy digest,
+  session and exact lease/round identity. Receipt lifecycle phases record
+  confirmed, retiring, retired or unknown cleanup facts; this is lifecycle
+  evidence only and does not change the native-platform release gates.
+
+- Expose the effective sandbox receipt through an owner-scoped, read-only
+  settings diagnostic. The endpoint prefers the connected generation and falls
+  back to the latest durable receipt after restart; missing, cross-owner or
+  unavailable sessions remain not found, and capability negotiation never
+  becomes an OS-isolation attestation.
+
+- Add a cross-process crash-recovery harness for scratch leases. A child host
+  can terminate without cleanup, a restarted host discovers the durable marker,
+  dry-run remains non-destructive, and only an explicit apply can remove a
+  confirmed stale Unix lease; `cleanup_unknown` remains protected even after a
+  recorded PID exits.
+
 - Give each desktop nxs scratch acquisition an independent lease handle over
   the shared owner/session resource. DM and Room runtime generations transfer
   the exact handle into Bridge cleanup, Room keys leases by each Agent runtime

@@ -4,6 +4,7 @@
 package clientopts
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -17,9 +18,10 @@ func TestBuildAgentClientOptionsPreservesHostProviderOwnership(t *testing.T) {
 			if source == "extra" {
 				input.ExtraEnv = override
 			} else {
-				override[protocol.NexusConfigBrokerURLEnvName] = "http://127.0.0.1:8010/configuration"
-				override[protocol.NexusConfigCapabilityTokenEnvName] = "test-capability"
-				input.ConfigurationEnv = override
+				input.ConfigurationEnv = map[string]string{
+					protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
+					protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
+				}
 			}
 			options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, input)
 			if err != nil {
@@ -47,12 +49,14 @@ func TestBuildAgentClientOptionsProtectsMemoryRootFromConfigurationEnv(t *testin
 	options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: workspace,
+		ExtraEnv: map[string]string{
+			nexusMemoryDirEnvName:          "/tmp/escaped-memory",
+			nexusEnableRemoteMemoryEnvName: "1",
+			nexusRemoteMemoryDirEnvName:    "/tmp/escaped-remote-memory",
+		},
 		ConfigurationEnv: map[string]string{
 			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
 			protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
-			nexusMemoryDirEnvName:                      "/tmp/escaped-memory",
-			nexusEnableRemoteMemoryEnvName:             "1",
-			nexusRemoteMemoryDirEnvName:                "/tmp/escaped-remote-memory",
 		},
 	})
 	if err != nil {
@@ -62,5 +66,20 @@ func TestBuildAgentClientOptionsProtectsMemoryRootFromConfigurationEnv(t *testin
 		options.Env[nexusEnableRemoteMemoryEnvName] != "" ||
 		options.Env[nexusRemoteMemoryDirEnvName] != "" {
 		t.Fatalf("configuration environment redirected managed memory: %#v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsRejectsUnknownConfigurationEnvironment(t *testing.T) {
+	_, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		RuntimeKind:   runtimeKindNXS,
+		WorkspacePath: t.TempDir(),
+		ConfigurationEnv: map[string]string{
+			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
+			protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
+			"HOME": "/tmp/escaped-home",
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "unsupported environment key") {
+		t.Fatalf("unknown nexuscfg environment key was accepted: %v", err)
 	}
 }

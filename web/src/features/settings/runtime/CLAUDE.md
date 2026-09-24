@@ -12,3 +12,4 @@
 - `settings-runtime-section.test.tsx` 使用实际页面和隔离控制器命令覆盖六种服务的标签/分组、失焦规范化保存、密钥替换/清除、禁用与多实例 JSON 错误；不替代 Preferences 事务或浏览器视觉验收。
 
 - 显式“检查沙箱支持”单独调用有界诊断，不复用引擎切换锁、不修改 Preferences。默认依赖齐全不展示为任务已启用沙箱；旧接口和读取失败保持未知。
+- nxs 的沙箱残留资源恢复先调用 owner-scoped inspect，再调用 dry-run reconcile；只有用户点击明确的回收动作才提交 `apply=true`。页面只投影资源数量、可回收数量和 `cleanup_unknown` 待核对数量，禁止显示 marker 路径或把 dead PID 解释为已安全收口。

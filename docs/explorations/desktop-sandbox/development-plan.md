@@ -1,10 +1,10 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-22**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-24**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-22）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
+当前开发位置（2026-09-24）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
 
 当前固定基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
 `37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
@@ -176,9 +176,11 @@ Nexus 只在选择 Claude 且权限模式不是 Full Access 时设置这条 Brid
 资源合同只属于 nxs。Nexus 在带有 host resource lease 时强制 `allowUnsandboxedCommands=false`，并拒绝只读资源同时携带显式写目录；Claude 原生 sandbox 不接收 nxs lease，误混后在 clientopts 入口 fail closed。这样避免 Bridge 的资源合同准入在真实 DM/Room runtime 启动时被自身的 unsandboxed-command 选项阻断。
 同一 owner/session 的活动资源保持写入范围不变，后续 round 不能借复用 scratch 路径悄悄扩大或收紧策略；每次 Acquire 都返回独立持有句柄，准备失败只释放自己的引用，不能删除仍由 runtime 使用的资源。
 
-scratch 的创建、marker 读写、扫描和回收现以 `internal/infra/confinedfs` 固定目录句柄执行。父目录在检查后被替换为 symlink、lease 叶子被替换为链接或 marker 不是普通文件时，宿主保留租约并返回清理错误，不把路径缺失误判成已回收。
+scratch 的创建、marker 读写、扫描和回收现以 `internal/infra/confinedfs` 固定目录句柄执行。父目录在检查后被替换为 symlink、lease 叶子被替换为链接或 marker 不是普通文件时，宿主保留租约并返回清理错误，不把路径缺失误判成已回收。Bridge close 或 scratch 删除失败会把 `cleanup_unknown`、有界错误摘要和更新时间原子写回 marker，重启后的 discovery 能看到这条状态；未知状态仍只能由明确的 inspect/reconcile/sweep 收口。
 
-Nexus runtime 生命周期拥有者现在在 DM、Room 和 AutoDream 启动前准备并占用私有 scratch，固定策略版本与后端身份后传入 Bridge；runtime client 绑定 exact lease handle，旧代关闭不会按路径误删新代资源。纯 clientopts 装配仍不得顺便创建目录。Bridge 关闭成功才回收，失败保留 runtime fence 和 lease，并阻止同一 scope 的新 Acquire。下一步仍需建立平台后代监督、取消/重启对账和有效策略回执，才能把该资源策略扩展为默认产品体验；当前 UI、崩溃后的自动恢复和跨平台发布验收仍未完成。
+Nexus runtime 生命周期拥有者现在在 DM、Room 和 AutoDream 启动前准备并占用私有 scratch，固定策略版本与后端身份后传入 Bridge；runtime client 绑定 exact lease handle，旧代关闭不会按路径误删新代资源。纯 clientopts 装配仍不得顺便创建目录。Bridge 关闭成功才回收，失败保留 runtime fence 和 lease，并阻止同一 scope 的新 Acquire。Connect 在安装 runtime generation 前再次核对 required/acknowledged capabilities，并生成带 session、策略摘要、lease/round identity 的 effective-policy receipt；该回执现按 owner/session/generation 持久保存，生命周期阶段明确记录 confirmed、retiring、retired 或 unknown，重启后可 owner-scoped 读取。启动配置或生命周期换代时，旧 generation 只回收其捕获的 exact lease，不能释放当前 generation 的 lease。该回执只证明当前 Bridge 合同已确认，不替代 OS/全 SDK 隔离证明。恢复 inspect/reconcile API、运行设置页和跨进程崩溃恢复 harness 已接入；崩溃后的自动 sweep、后代终态证明和跨平台发布验收仍未完成。
+
+Owner 级进程 reaper 也是关闭边界的一部分：即使 Bridge 已确认退出，只要 reaper 返回错误，宿主就把该 generation 从 `retired` 保守降级为 `unknown`，记录限长原因并保留审计事实，不能把单个 Bridge ACK 当作全部后代已收口。
 
 清理前置修复已落地：Bridge 把后代清理失败保留到 Wait、主动终止和重复 Close；Nexus 的重连、旧配置启动重试、替换及批量关闭保留失败会话，文件能力和资源要求显式进入进程策略指纹。当前只是内存中的失败栅栏；原 Unix session 扫描无法证明另建 session 的后代已退出，宿主信号回调返回成功也不是独立终态回执。
 
@@ -255,11 +257,44 @@ Windows 11 是首个完整验收平台；Windows 10 1809+ 的支持范围以真�
 | P0 基线与可重复验证 | 整理文档；固定三仓 SHA；建立 GOWORK=off + 真实 nxs 的验证入口；记录 Windows 失败 | 无 | 本次所有结论可定位到代码/原生记录，未执行项不会显示通过 | 已验收 |
 | P1 统一能力与资源合同 | 分项能力协商、有效策略投影、资源清单、读/写/网络和只读 profile；明确新旧 nxs 与 Claude 原生适配合同；Bridge 已完成原生 `sandbox` settings 的 typed 接线与失败关闭校验，仍须完成真实命令生效、网络/凭据边界和 Full Access 例外验收 | P0 | 旧/新/缺失/谎报能力均有真实握手测试；Claude 真实命令在受限边界内可用且越界被拒绝；模型输入不能扩大资源；两后端不混用能力声明 | 进行中 |
 | P2 macOS 全工具链 | 收口文件 helper、动态指令/Skill/设置、PDF/Git/附件与后台 IO；系统后端路径信任与完整资源策略 | P1；复用已有 SDK 文件实现 | 真实工具允许/拒绝、符号链接、特殊文件、大文件、取消、敏感元数据与网络测试 | 进行中 |
-| P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 待开始 |
+| P3 Windows 架构验证 | 固定参考启动组合、正常开发工具、host/runner 控制拒绝、原子 Job；形成最终 ADR；已增加 Nexus Windows amd64/arm64 构建门禁与 Windows marker 进程创建时间核验 | P0，可与 P1/P2 独立推进 | 同一候选同时通过兼容性和隔离；失败证据保留，决策有具体依据 | 进行中 |
 | P4 Windows 可部署后端 | 设置/修复/卸载、受保护发布、身份、文件/网络、IPC、Job、清理；接入 SDK/Bridge | P1、P3 | 原生全链路＋安装/升级故障注入；不支持时拒绝，没有静默弱化 | 待开始 |
 | P5 审批与执行恢复 | exact execution 回执、策略代次、取消与后代终态、unknown 对账、自动审核/人工覆盖边界 | P1；平台事实接入依赖 P2/P4 | 各崩溃窗口、重复/乱序/断连/晚到批准均不多执行一次，跨源状态不互相清除 | 进行中 |
 | P6 UI 与端到端 | 内建受控环境、后端与权限策略切换、设置/Composer/批准卡/诊断、目录/连接授权，DM/Room/后台完整路径；默认入口和部分设置交互已有实现，恢复 UI 与完整端到端仍未完成 | P1、P2、P4、P5 | 无独立沙箱开关；两后端实际边界与失败路径明确；浏览器与安装包交互验收 | 进行中 |
 | P7 版本与发布验收 | 发布可取得的 SDK/Bridge；固定 Nexus 与 Claude 支持版本；签名包/升级/回退、Linux owner 与各后端默认权限验收 | P2–P6 | 平台矩阵和发布清单全有证据，SDK 内建运行环境落实默认资源策略 | 待开始 |
+
+### 2026-09-24：Windows 进程身份与跨架构门禁推进
+
+Nexus scratch marker 在平台能提供安全查询时记录 `process_start_time_unix_nano`。
+Windows 恢复通过 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` 和
+`GetProcessTimes` 同时核验 PID 与创建时间：进程不存在可以作为已停止事实，PID 仍存活但
+创建时间不一致可以作为 PID 重用事实；访问被拒绝、时间不可读或 `cleanup_unknown` 仍保留
+为 active/unknown，不能因为 PID 数字变化而删除资源。旧 marker 没有该字段时继续使用原来的
+保守存活探测。
+
+新增 `make check-desktop-sandbox-windows` / `scripts/desktop/check-windows-sandbox.mjs`：
+固定检查 Windows installer 的单实例与 per-user 合同，交叉编译
+`internal/runtime`、`clientopts`、`confinedfs` 测试以及 `nexus-server`、`nexusctl`、
+`nexuscfg` 的 amd64 和 arm64 产物；在 Windows 主机上额外运行当前进程创建时间回归。CI
+在这些 runtime、协议、confinedfs 和脚本变更时触发该入口，并把报告固定标为
+`releaseAccepted=false`。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 本机门禁 | `make check-desktop-sandbox-windows` 通过；installer contract、Nexus 三个目标包和三个 Windows 命令的 amd64/arm64 构建均 exit 0；报告 `scope=windows-cross-build`、`releaseAccepted=false` |
+| Windows 原生身份 | Windows 专用测试已加入并通过交叉编译；当前环境不是 Windows，尚无 `GetProcessTimes` 实机日志，需在 Windows 11 amd64/arm64 主机运行 |
+| 原生 nxs runner | SDK 当前 `PrepareExecution`/`InspectBackend` 仍对原生 Windows fail closed；现有 token/Job/private desktop/pipe 组件测试属于 SDK 组件证据，尚未形成 Nexus→Bridge→nxs 的完整 Windows 产品执行后端 |
+| 仍未闭合 | Windows P3 组合实验（兼容 PowerShell/后代与 host/runner 控制拒绝）、ACL/网络/账号 provisioning、真实取消和后代终态、安装/升级/签名/clean-host 与发布验收 |
+
+本批次把 Windows 从“只有交叉编译”推进到“宿主身份安全基元 + 固定双架构门禁”，
+但不把它表述成原生沙箱已完成。下一步必须在真实 Windows 11 主机重放 SDK P3 组合矩阵，
+再决定是否接入原生执行后端；在此之前 Nexus 对 Windows 受限执行保持失败关闭。
+
+同一批次还收口了 Nexus 侧的两个恢复细节：共享 owner/session scratch resource
+保留每个活动 lease handle，`cleanup_unknown` 的首个观察者提前释放时把栅栏转移到仍存活
+的 sibling；同一 generation 的 effective-policy receipt 保留首次 payload 与
+`confirmed_at`，重复观察只更新 `updated_at`，终态拒绝迟到回写。这些事实加强了恢复边界，
+但不改变 Windows 原生 runner 仍需实机组合验收的结论。
 
 P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独立实现，不把平台缺口删出目标。实际并行安排不能让跨仓代码共享一份未冻结的 dirty 工作区。
 
@@ -345,7 +380,7 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 | 2026-09-18 | Nexus MCP 准入补齐未受信任 `headersHelper` 失败关闭：桌面 nxs 在受限与 Full Access 两种权限模式都拒绝任意持久 helper 路径，避免把外部认证进程误计入运行时边界；Claude、非桌面与 stdio 语义保持独立。新增 clientopts 回归通过，提交 `codex/desktop-sandbox-isolated` 本地 `aaf36cdc0` | 受信 helper 的宿主签发、OS 进程/文件/句柄边界和网络准入仍未实现；本批次只关闭未证明的外部 helper 入口，不宣称 MCP 完整隔离或发布验收 |
 | 2026-09-18 | 桌面默认策略收口：`NEXUS_APP_MODE=desktop` 自动启用沙箱合同，旧 `NEXUS_DESKTOP_SANDBOX_ENABLED` 环境变量不再提供关闭入口；builder 在生产路径从 AppMode 派生强制标记，平台/后端能力缺失继续失败关闭。配置、clientopts 目标测试及增量 Go 门禁通过，提交 `codex/desktop-sandbox-isolated` 本地 `dfe31b8a9` | 这只关闭了 rollout 开关偏差；Claude 原生合同、Windows/Linux/macOS 实机、有效策略回执、持久恢复、后代监督、scratch、安装包与 P3–P7 仍未闭合 |
 | 2026-09-18 | 宿主资源合同入口补齐：Nexus `5af222fbb` 复制并校验 host-prepared `SandboxResourcePolicy`，受限模式才可携带 read-only/workspace-write 与 scratch 根；Full Access 携带受限资源合同时失败关闭。Bridge `6bb7b495`、`162cc79` 在 Windows 为每个 runtime 绑定 Job Object，清理继续执行并合并 SignalProcess 错误 | 入口与 Windows Bridge 修复均已本地验证，但 Nexus 尚未把 scratch 创建、租约、后代监督和回收接入 DM/Room/后台 runtime；Bridge 最新提交尚未发布，Windows/macOS/Linux clean-host、持久回执、Claude、网络、安装包与 P3–P7 仍未闭合 |
-| 2026-09-18 | 资源与恢复接线继续完成：Nexus `3fb64260c`、`53a6be247`、`1e04e87ad`、`2c4c2ff61`、`ab2377744`、`a7be59f53` 在 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，注入独立资源合同；Bridge close 成功后才回收，失败保留会话栅栏与 scratch，并覆盖默认 nxs、释放竞态、旧状态根归一化、`~` 展开与 L2 文档。Nexus `46229c723` 将超过租约窗口的 settings `applying` receipt 持久收口为 `reconcile_required`/`applied: unknown`，跨数据库重启测试通过；Nexus `go.mod` 精确 pin Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，本地 file proxy checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=` | scratch 崩溃后 stale sweep、后台恢复调度、实际 inspect/reconcile 入口、跨进程 all-or-nothing/CAS/fsync、完整后代/句柄/秘密文件/网络隔离、Claude、原生平台和 P3–P7 发布证据仍未闭合；本地 Bridge 模块尚未发布 |
+| 2026-09-18 | 资源与恢复接线继续完成：Nexus `3fb64260c`、`53a6be247`、`1e04e87ad`、`2c4c2ff61`、`ab2377744`、`a7be59f53` 在 DM、Room 和 AutoDream 启动前创建 owner/runtime-scoped scratch lease，注入独立资源合同；Bridge close 成功后才回收，失败保留会话栅栏与 scratch，并覆盖默认 nxs、释放竞态、旧状态根归一化、`~` 展开与 L2 文档。Nexus `46229c723` 将超过租约窗口的 settings `applying` receipt 持久收口为 `reconcile_required`/`applied: unknown`，跨数据库重启测试通过；Nexus `go.mod` 精确 pin Bridge `v0.1.34-0.20260918033416-162cc7951ae1`，本地 file proxy checksum `h1:nmfmKMRBJKzpA+A8j0v8cYixnv9x+9ljUxrUcPTRtQI=` | scratch 崩溃后的 stale sweep、后台恢复调度、设置页恢复 UI、跨进程 all-or-nothing/CAS/fsync、完整后代/句柄/秘密文件/网络隔离、Claude、原生平台和 P3–P7 发布证据仍未闭合；owner-scoped inspect/reconcile HTTP API 已接入但不等于设置页交付，本地 Bridge 模块尚未发布 |
 | 2026-09-18 | 网络/Provider 准入子批次：`DesktopSandboxNetworkAdmission` 仅接受宿主准备的精确 HTTPS 域名，nil/空 grant 序列化为显式 deny-all；受限桌面 nxs 的 HTTP/SSE MCP 只有获宿主域名批准才可挂载，`headersHelper` 仍需独立受信 helper。Provider、视觉与 WebSearch 凭据在 ExtraEnv/ConfigurationEnv 合并后再次由解析配置覆盖，任务环境不能改写请求凭据；桌面 WebSearch 的 private-network 输入失败关闭。 | 仅完成 Nexus 输入准入和进程内环境所有权；没有把 env scrub 当作 OS 进程、秘密文件、句柄或网络出口隔离，也未证明域名 DNS/代理/IPv4/IPv6 与真实 Provider 可达性。Bridge/native Windows/macOS/Linux、辅助进程、持久批准/回执、Claude、安装包和 P3–P7 仍保留，`releaseAccepted=false`，提交只在本地 |
 | 2026-09-18 | 根据用户澄清补齐 Claude 接入的 Bridge 任务边界并完成 typed launch 批次：Bridge `35fbf72b` 增加 `RequireClaudeRestricted`、`CapabilityClaudeRestricted`、唯一 `--restricted` 参数注入/防伪造、快照/重启指纹、连接前失败关闭和 Full Access 例外；Nexus 已更新精确本地 pin，并在 Claude 受限模式只设置该合同、不再要求 nxs 能力。 | Bridge capability 只证明本次 argv 合同已安装，不是 Claude wire/OS 隔离回执；仍需固定 CLI 版本与 `--help`/真实受限行为、取消清理、macOS/Windows/Linux 与安装包证据。当前仍 `releaseAccepted=false` |
 | 2026-09-18 | 在 macOS 27.0/arm64 使用 `scripts/desktop/check-claude-restricted.mjs` 探测本机 `/Users/berhand/.local/bin/claude`：固定版本 `2.1.273`，`--help` 含 `--restricted`；`--restricted --dangerously-skip-permissions` 和 `--restricted --permission-mode bypassPermissions` 均在参数预检阶段 exit 1 并返回 `bypassPermissions not supported in restricted mode`。探测无 prompt、无 Provider 凭据且不发模型请求。 | 仅证明当前 CLI 的版本与原生参数语义；取消/清理、真实已认证会话、Provider/网络/文件/进程隔离、Windows/Linux/安装包仍未验收，不能移除 Claude P1/P6/P7 门禁，`releaseAccepted=false` |
@@ -356,11 +391,11 @@ P3 的原生 Windows 环境或签名条件不可用时，继续 P1/P2/P5 的独�
 
 ### 2026-09-18：scratch durable marker 与显式恢复 primitive
 
-`internal/runtime` 为每个 owner/runtime/session scratch 目录写入版本化 `.nexus-sandbox-lease.json` marker。marker 只记录 lease ID、owner/session/round、canonical runtime root、创建进程 PID 与 UTC 创建时间；文件以独占创建和 `Sync` 持久化，不能作为另一个进程的采用或授权凭据。宿主正常释放时连同 scratch 一起删除，Bridge/宿主关闭失败仍保留原目录和 marker。
+`internal/runtime` 为每个 owner/runtime/session scratch 目录写入版本化 `.nexus-sandbox-lease.json` marker。marker 记录 lease ID、owner/session/round、canonical runtime root、创建进程 PID、UTC 创建时间，以及 `active`/`cleanup_unknown` 状态、有限错误摘要和更新时间；文件以独占创建和 `Sync` 持久化，不能作为另一个进程的采用或授权凭据。宿主正常释放时连同 scratch 一起删除，Bridge/宿主关闭失败仍保留原目录和 marker。
 
-新增只读 `DiscoverSandboxResources` 与显式 `SweepStaleSandboxResources`。恢复请求必须指定 owner、正的 `OlderThan`，且 `Apply=false` 默认只返回 dry-run candidates；只有用户驱动的 `Apply=true` 才尝试删除。当前进程 registry、Unix 可证明存活的 PID、无法确定存活状态的平台、年龄不足、owner/root 不匹配和损坏 marker 均保留，不在启动或 scheduler 中自动 sweep。Windows/未知进程存活平台故意 fail closed，原生清理能力仍需平台验收。
+新增只读 `DiscoverSandboxResources` 与显式 `SweepStaleSandboxResources`。恢复请求必须指定 owner、正的 `OlderThan`，且 `Apply=false` 默认只返回 dry-run candidates；只有用户驱动的 `Apply=true` 才尝试删除。当前进程 registry、`cleanup_unknown` marker、Unix 可证明存活的 PID、无法确定存活状态的平台、年龄不足、owner/root 不匹配和损坏 marker 均保留；旧 PID 已退出不能单独收口未知清理，不在启动或 scheduler 中自动 sweep。Windows/未知进程存活平台故意 fail closed，原生清理能力仍需平台验收。
 
-目标包验证覆盖 marker 持久与正常释放、模拟崩溃后的过期 dead-PID dry-run/apply、活动 lease 与 malformed marker 保留；Windows/Linux 测试二进制交叉编译通过。该 primitive 解决了“可发现、可列举、用户明确批准后可回收”的本地恢复边界，不能证明任意后代已停止、句柄/秘密/网络已清理，也未连接设置页、启动调度或跨平台安装恢复；`releaseAccepted=false`。
+目标包验证覆盖 marker 持久与正常释放、cleanup_unknown 跨 marker 读取与 discovery、模拟崩溃后的过期 dead-PID dry-run/apply、活动 lease 与 malformed marker 保留；Windows/Linux 测试二进制交叉编译通过。该 primitive 解决了“可发现、可列举、用户明确批准后可回收”的本地恢复边界；当前已通过 owner-scoped settings HTTP API 和运行设置页提供 inspect/reconcile，但尚未接入启动调度或跨平台安装恢复，且不能证明任意后代已停止、句柄/秘密/网络已清理；`releaseAccepted=false`。
 
 ### 2026-09-18：settings unknown 启动与周期恢复接入
 
@@ -573,3 +608,61 @@ Bridge session 的 unclean discard 也会启动 cleanup fence 排空已绑定 le
 | 固定 nxs 门禁 | 固定 SDK/Bridge 与 nxs resource-backed handshake、架构检查、桌面 host gate exit 0；报告保持 `host-integration-only` |
 | 证据 | `docs/testing/evidence/desktop-sandbox/2026-09-22-lease-hardening/` |
 | 交付边界 | `releaseAccepted=false`；原生 Windows/macOS clean-host 与签名包、Claude 真实认证命令、完整 nxs SDK IO/网络/秘密/句柄、后代监督、跨重启恢复、有效策略回执仍是发布前工作 |
+
+### 2026-09-24：effective-policy receipt 持久化与崩溃恢复 harness
+
+Connect 成功后的 effective-policy receipt 现在写入 `sandbox_policy_receipts`，按
+owner、session key 和 runtime generation 绑定，保存策略摘要、Bridge 能力确认、资源
+策略、lease/round identity 与确认时间，不保存命令正文或秘密。关闭路径先写
+`retiring`，完成且可证明时写 `retired`；Bridge、round、后台任务或回收事实不明时写
+`unknown` 并保留原因。重启后的 owner-scoped receipt 读取只提供审计投影，不把已退出
+的 runtime 当成已连接或已授权；失败的数据库写入不会让 Connect 继续暴露 runtime。
+receipt 生命周期更新带单调栅栏，迟到的旧代关闭回调不能把 `retired` 或 `unknown`
+重新打开为 `retiring`。当前没有自动或浏览器触发的 receipt `reconciled` 入口；未知回执
+继续保留，直到未来控制面能够证明完整 runtime 边界。
+
+如果 owner 级 reaper 在 Bridge 已关闭后失败，关闭路径会把同一 generation 的 `retired`
+保守改回 `unknown`，不会因为 transport 已返回成功而隐藏未证明收口的后代。
+
+新增 `sandbox_crash_recovery_test.go` 跨进程 harness：子进程取得 lease 后直接退出，
+重启侧发现 marker，dry-run 不删除；Unix 只有显式 `apply=true` 才能回收已确认过期且
+PID 已退出的普通 marker，`cleanup_unknown` 即使 PID 已死亡仍保留。该 harness 证明
+marker 的可发现性和显式回收边界，不证明后代、句柄、秘密或网络已经收口，也不接入
+启动自动 sweep。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| receipt storage | `GOWORK=off go test ./internal/storage/sandbox ./internal/runtime -count=1` 通过；覆盖 SQLite migration、重开读取、owner/session/generation 栅栏、unknown reason 与连接失败收口 |
+| lifecycle race | `GOWORK=off go test -race ./internal/runtime ./internal/storage/sandbox -count=1` 通过；覆盖 retiring/retired/unknown、关闭竞态与跨重启 marker harness |
+| reaper failure | `GOWORK=off go test ./internal/runtime -run 'TestManagerOwnerReaperFailureDowngradesRetiredReceiptToUnknown' -count=1` 通过；覆盖 owner reaper 失败后的 exact generation 保守降级 |
+| durable HTTP read | receipt endpoint 优先返回 connected generation；重启后按认证 owner/session 读取最新 durable receipt，跨 owner 与损坏回执 fail closed |
+| 当前边界 | `releaseAccepted=false`；Windows 原生与 clean-host、macOS 签名/公证安装包、真实 Claude 认证和全 SDK IO/网络/句柄/后代隔离、生产发布仍未验收 |
+
+### 2026-09-24：nxs 第三方 Anthropic-compatible API-key 投影
+
+Nexus 的 nxs runtime 对第三方 Anthropic-compatible Provider 改用
+`ANTHROPIC_API_KEY` 投影。固定 SDK 会在兼容 endpoint 上发送 `x-api-key`，并在
+没有显式 Authorization 时保留 Bearer fallback；Claude runtime 仍使用
+`ANTHROPIC_AUTH_TOKEN`，不把 nxs 的兼容实现冒用成 Claude 原生认证证据。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Nexus 目标测试 | `GOWORK=off go test ./internal/runtime/clientopts -run TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL -count=1` 通过；覆盖两种 runtime 的第三方投影 |
+| SDK 对应语义 | 固定 SDK `9956def1` 的 Anthropic client 对 `ANTHROPIC_API_KEY` 发送 `x-api-key` 并生成兼容 endpoint 的 Bearer fallback |
+| 当前边界 | 自定义 header、真实外部 Provider、Provider 进程网络出口、Claude 账号/OAuth、原生安装包和生产发布仍未验收；`releaseAccepted=false` |
+
+### 2026-09-24：macOS arm64 App/DMG 本机交付基线
+
+本机 macOS 27.0 arm64 已把当前工作树构建成捆绑 nxs/rg 的 ad-hoc App，并完成
+DMG 打包、只读挂载和从挂载产物启动。App smoke 覆盖 Web/Swift/Go 装配、凭据文件
+存储、主窗口与 Launcher 路由、URL/通知回退、退出和 sidecar 清理；native UI
+harness 覆盖 12 个主题/语言/窗口尺寸组合、真实 WKWebView 输入、缩放、resize 和
+resume。证据目录为
+`docs/testing/evidence/desktop-sandbox/2026-09-24-macos-app-acceptance/`。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 捆绑 App | `GOWORK=off ... make app-check` exit 0；固定 nxs 输入 SHA-256 `0f91b17f…14270`，bundled nxs/rg 存在并通过启动 smoke |
+| DMG | ad-hoc arm64 DMG、metadata、SHA-256、`codesign --verify --deep --strict` 和 DMG 内直接 smoke 均 exit 0 |
+| native UI | `GOWORK=off make app-check-ui-app` exit 0；12/12 通过；fixture 同时覆盖 `/nexus/v1/auth/status` 与 `/auth/v1/status` 只读路径 |
+| 当前边界 | dirty-tree 的单机 arm64 开发证据；Developer ID/公证、clean-host/quarantine、Intel、升级回退、真实 Provider、完整 SDK IO/网络/秘密/句柄/后代隔离和生产发布仍未闭合，`releaseAccepted=false` |

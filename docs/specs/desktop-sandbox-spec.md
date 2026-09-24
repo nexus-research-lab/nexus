@@ -45,10 +45,69 @@ releases them only after a confirmed Bridge close; each acquisition is an
 independent handle over the shared resource, so preparation failure or an old
 runtime generation cannot release a newer holder's scratch. Failed cleanup keeps
 the runtime fence and exact lease for recovery and blocks new acquisition in that
-scope. Durable markers and explicit stale-sweep primitives exist, while automatic
-crash sweep, whole-SDK IO confinement and an effective-policy receipt remain
-separate acceptance work. The progress and acceptance boundaries remain in the
-development plan.
+scope. Durable markers and explicit stale-sweep primitives exist. A failed close
+persists `cleanup_unknown`, its bounded error summary and update time through the
+fixed lease directory handle; discovery exposes that state after a host restart,
+while deletion still requires an explicit owner-scoped sweep; a `cleanup_unknown`
+marker is retained even when its recorded PID is dead until a separate
+reconciliation can prove the full runtime boundary is closed. Connect writes an
+effective-policy receipt for each runtime generation to the host database and
+keeps a clone in memory for the connected session. The receipt records the
+required/acknowledged Bridge capabilities, policy digest, session identity and
+(when present) exact scratch lease/round identity, with durable `confirmed`,
+`retiring`, `retired` and `unknown` lifecycle phases. A process restart can read
+the latest owner-scoped receipt, but a persisted receipt never represents a
+currently connected runtime or grants permission. This receipt is host
+diagnostic evidence, not proof of whole-SDK IO, OS descendants, network, secrets
+or native platform isolation. Lifecycle updates are monotonic: a late callback
+cannot reopen `retired` or `unknown` as `retiring`. There is currently no
+automatic or browser-triggered receipt reconciliation to `reconciled`; an
+`unknown` receipt remains unknown until a future control surface can prove the
+complete runtime boundary. Within one owner/session/generation, the receipt
+payload and `confirmed_at` are immutable; a duplicate connect observation may
+refresh only `updated_at`, and a terminal row ignores late payload retries.
+Automatic crash sweep, whole-SDK IO confinement and native platform acceptance
+remain separate work.
+
+Where the platform exposes a safe process-identity query, the marker also
+records `process_start_time_unix_nano`. Windows recovery compares that value
+with `GetProcessTimes` before treating an ordinary marker as stale, so a reused
+PID cannot authorize cleanup. A permission or query failure remains unknown;
+`cleanup_unknown` always takes precedence. Older markers and platforms without
+this identity probe retain the conservative PID-liveness behavior.
+
+The owner process reaper is part of that same close boundary. If Bridge close
+has already reported `retired` but the owner-level reaper fails, the host
+conservatively downgrades the exact generation back to `unknown` and records a
+bounded reason. A clean Bridge close therefore never hides descendants that
+the host could not prove were collected.
+
+A fresh Claude connection may not publish its session identity until the first
+user turn; its receipt is marked provisional until that identity is available.
+During startup configuration changes, cleanup uses the exact captured lease
+handle and keeps the current client lease available for retry. Lifecycle
+invalidation reuses an existing cleanup owner for that handle rather than
+transferring it twice. If the handle that first records `cleanup_unknown` is
+released while sibling handles still reference the same resource, the cleanup
+fence transfers to one live sibling; it cannot become attached to an already
+released handle or be silently dropped.
+
+The desktop settings API exposes this recovery boundary through
+`GET /settings/runtime/sandbox/resources` and
+`POST /settings/runtime/sandbox/reconcile`. Both routes derive the owner from
+the authenticated request and never accept an owner or filesystem root from the
+caller. Inspection is read-only. Reconcile requires a positive
+`older_than_seconds`; it is a dry run unless the request body explicitly sets
+`apply=true`. Runtime checks still retain active, unknown, malformed and
+`cleanup_unknown` markers, so the endpoint does not turn a dead PID into proof
+that descendants and handles are gone. This is a local diagnostic/recovery
+surface, not a substitute for native platform acceptance. `GET
+/settings/runtime/sandbox/receipt?session_key=...` first exposes the current
+owner-scoped connected generation's receipt; after a restart it falls back to the
+latest durable receipt for that exact owner/session. A missing, closing,
+cross-owner or non-desktop generation with no durable row returns not found. The
+receipt's capability and lease fields remain admission evidence and never attest
+OS or whole-SDK IO isolation.
 
 This resource contract belongs to nxs only. When a host resource lease is
 present, Nexus forces `allowUnsandboxedCommands=false` and rejects explicit
@@ -285,6 +344,25 @@ proxy or certificate inputs. Explicit host Options/environment remain authoritat
 and ordinary task environment values remain available. Standalone SDK settings
 retain their existing routing semantics. Background-model settings updates that
 cannot take effect in host-managed mode return an error.
+
+For Anthropic-compatible third-party models, the host-owned `BaseURL` and
+`AuthToken` are projected as `ANTHROPIC_BASE_URL`. nxs uses the SDK's
+`ANTHROPIC_API_KEY` path for both first-party and compatible endpoints, which
+emits `x-api-key` and the SDK's compatible-endpoint Bearer fallback. Claude
+keeps `ANTHROPIC_AUTH_TOKEN` for its native CLI semantics; its real provider
+authentication remains a separate acceptance track. The existing local mock SSE
+check covers the earlier nxs and Claude request paths, while the current nxs
+API-key projection is covered by the fixed SDK header test. Provider-specific
+custom headers still have no declared Nexus field and are not accepted by this
+contract.
+
+The nxs `Sandbox.Network` object is currently consumed by command/tool
+execution (including shell network preflight) and is not a host-level egress
+firewall for the model Provider transport. Nexus therefore does not silently
+add the resolved Provider host to `DesktopSandboxNetworkAdmission`; Provider
+reachability is an input-ownership and host-integration guarantee only. A
+complete OS-level Provider egress boundary still requires platform/Bridge
+evidence and remains outside this receipt.
 
 Command and hook environment builders remove known SDK main/auxiliary credentials
 after applying runtime environment values. Task values cannot disable a Provider

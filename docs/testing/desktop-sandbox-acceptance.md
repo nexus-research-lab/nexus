@@ -1,6 +1,6 @@
 # 桌面沙箱验收矩阵
 
-状态：开发验收清单，non-normative，更新至 2026-09-22。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+状态：开发验收清单，non-normative，更新至 2026-09-24。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
 
 ## 证据记录要求
 
@@ -75,6 +75,44 @@ discard 路径启动同一 cleanup fence；Windows 的 marker 读取增加句柄
 
 本批次完成的是 Nexus/Bridge 输入与本地 scratch 生命周期加固；它不能把 host
 integration 结果扩大为桌面发布承诺。
+
+### 2026-09-23：启动换代的 exact lease 回收
+
+复审发现配置换代或 Disconnect 恰好落在 Bridge session 启动完成窗口时，旧代
+cleanup 不能拿当前代 lease；尚未安装 session 的 in-flight Connect 也不能由
+nil-session cleanup 提前释放 scratch。现已让 cleanup 按启动快照持有 exact handle，
+在 session close 完成前保持 fence；生命周期失效期间的延迟回收在 cleanup 完成前不
+释放资源，错误回执使用同步访问。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| lease race 回归 | `TestAgentClientReceiptRetryRetainsLeaseDuringReconfigure`、`TestAgentClientStartupReconfigureRetainsLeaseDuringStaleCleanup`、`TestAgentClientDiscardDuringConnectClosesLateSessionBeforeReleasingLease` 通过；新增场景 `go test -race ./internal/runtime -run 'TestAgentClient(DiscardDuringConnectClosesLateSessionBeforeReleasingLease|ReceiptRetryRetainsLeaseDuringReconfigure|StartupReconfigureRetainsLeaseDuringStaleCleanup)' -count=50` exit 0 |
+| 变更范围门禁 | 目标 runtime/clientopts/DM/Room/AutoDream/confinedfs 测试、runtime race、vet、`make check-go-fresh`、架构检查和固定 nxs `make check-desktop-sandbox` 均 exit 0 |
+| owner-scoped diagnostics | `GET /settings/runtime/sandbox/receipt?session_key=...` 优先返回当前 owner 的 connected generation receipt；重启后按 owner/session 回退到最新 durable receipt；缺失、跨 owner 或无 durable row 返回 404；receipt clone/owner 栅栏测试通过（本行属于 2026-09-23 历史基线） |
+| 固定真实 nxs | SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge `37434c2d38b1`、nxs SHA-256 `0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270`；macOS arm64，未发送模型请求 |
+| 当前边界 | 仍是 host integration 与 macOS 开发基线；原生 Windows/macOS clean-host、签名安装包、真实 Claude 认证命令、全 SDK IO/网络/秘密/句柄/后代隔离、跨重启自动恢复和生产发布仍未验收，`releaseAccepted=false` |
+
+本批次只收口 Nexus runtime 的启动换代资源生命周期；它不能把 macOS 开发基线扩大为发布验收。
+
+### 2026-09-24：cleanup fence 转移与 receipt 不可变
+
+本轮复审发现两个恢复边界需要继续收紧：如果首先标记 `cleanup_unknown` 的精确
+lease handle 在 sibling 仍存活时先释放，清理栅栏不能随已释放句柄丢失；同一
+generation 的重复 receipt 回调也不能改写已经确认的 payload 或 `confirmed_at`。
+现已让共享 resource 保留每个活动 handle，并在 uncertain owner 释放时把栅栏转移到
+仍存活的 sibling；同一 generation 的 receipt payload 与 `confirmed_at` 保持首次写入值，
+重复回调只刷新观察时间，终态 receipt 不接受迟到回调覆盖。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| lease transfer 回归 | `GOWORK=off go test ./internal/runtime -count=1` 通过；新增 uncertain owner 先释放、sibling 完成 reconcile 的场景 |
+| runtime race | `GOWORK=off go test -race ./internal/runtime -run 'Sandbox|Lease|Receipt|Close|Owner|Process' -count=1` 通过；覆盖精确 handle、cleanup fence、进程身份与 receipt 生命周期 |
+| receipt store | `GOWORK=off go test -race ./internal/storage/sandbox -count=1` 通过；同 generation 冲突 retry 不得修改 payload/`confirmed_at` |
+| Windows 交叉门禁 | `make check-desktop-sandbox-windows` 通过；installer contract、runtime/clientopts/confinedfs 测试编译以及 `nexus-server`/`nexusctl`/`nexuscfg` 的 amd64/arm64 构建均 exit 0；Windows 原生身份测试固定使用主机 Node 架构，报告 `releaseAccepted=false` |
+| 当前边界 | 仍无 Windows 11 amd64/arm64 实机的 `GetProcessTimes`、P3 兼容/隔离组合、ACL/网络/账号 provisioning、取消与后代终态、签名安装/升级/clean-host 证据；SDK 原生 Windows `PrepareExecution`/`InspectBackend` 继续 fail closed |
+
+本批次收口的是 Nexus 本地恢复语义与 Windows 双架构构建门禁；它不把共享
+resource 的生命周期证据扩大为原生 Windows 沙箱或发布验收。
 
 ### 2026-09-20：配置 revision 跨重启恢复
 
@@ -806,7 +844,7 @@ Nexus `3fb64260c`、`53a6be247`、`1e04e87ad` 在桌面 nxs 的 DM、Room 和 Au
 | --- | --- |
 | marker 生命周期 | `GOWORK=off go test ./internal/runtime -run 'Test(AcquirePersistsDurableMarker|SweepStaleSandboxResources)' -count=1` 通过；覆盖 durable marker、正常释放删除、模拟崩溃 dead-PID dry-run/apply、owner/root 身份和 malformed marker |
 | 显式恢复 API | 只读 `DiscoverSandboxResources` 列举有效 marker；`SweepStaleSandboxResources` 要求 owner 与正 `OlderThan`，默认 `Apply=false`，只有显式 `Apply=true` 才删除过期 dead-PID candidate |
-| fail-closed 条件 | 当前 registry lease、Unix 可证明存活的 PID、平台无法证明存活、年龄不足、损坏/不匹配 marker 均保留；不在启动或 scheduler 中自动 sweep，不自动采用未知 runtime |
+| fail-closed 条件 | 当前 registry lease、`cleanup_unknown` marker、Unix 可证明存活的 PID、平台无法证明存活、年龄不足、损坏/不匹配 marker 均保留；旧 PID 已退出不能单独证明后代/句柄已收口；不在启动或 scheduler 中自动 sweep，不自动采用未知 runtime |
 | 交叉编译 | `GOOS=windows GOARCH=amd64`、`GOOS=linux GOARCH=amd64` 的 `internal/runtime` 测试二进制构建通过；Windows 进程存活探测仍未知并故意保留 marker，这不是 Windows 原生清理验收 |
 | 当前边界 | 该 primitive 不证明任意后代、句柄、秘密文件或网络已停止/清理；未连接设置页、启动调度、native cleanup、Provider/辅助进程、Claude、原生平台和安装包验收，`releaseAccepted=false` |
 
@@ -906,3 +944,128 @@ SDK `9d60e166` 在同一物理根的跨进程锁窗口内记录每个已提交�
 | 当前边界 | 只闭合可证明的运行期失败；掉电跨文件 all-or-nothing、持久 SDK request/approval/revision receipt、设置页 inspect/reconcile、Provider/辅助进程/网络/后代隔离、Windows/Linux 原生、Claude 认证会话和安装包仍未验收，`releaseAccepted=false` |
 
 本批次仍只在本地 worktree 提交，未推送。
+
+## 2026-09-23：cleanup_unknown 持久状态与 runtime 生效回执
+
+scratch marker 现在在 Bridge close 或目录回收失败时通过固定 lease 目录句柄原子写回
+`cleanup_unknown`、限长错误摘要和更新时间；旧 marker 没有该字段时按 `active` 兼容读取。
+`DiscoverSandboxResources` 会保留并返回该状态，未知状态仍不会被启动流程自动删除。
+Connect 在安装桌面 runtime generation 前独立核对 Bridge 已确认的 required sandbox
+capabilities，并保存当前 generation 的 policy digest、session ID、精确 lease/round
+identity 和确认时间回执；它不替代平台或全 SDK 隔离证据。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| durable cleanup state | `GOWORK=off go test ./internal/runtime -run 'Test(CleanupUnknownStateIsPersistedAndDiscovered|SweepRetainsCleanupUnknownEvenWhenOwnerPIDIsDead|ReleaseRetainsLeaseWhenScratchParentIsReplaced)' -count=1` 通过；覆盖 marker 原子更新、父目录替换后仍用固定句柄写回、重启式 discovery 读取、死 PID 仍保留 unknown 和原有 lease fence |
+| runtime receipt | `GOWORK=off go test ./internal/runtime -count=1` 通过；Bridge required/acknowledged capability 校验、policy digest、资源/lease identity 进入连接代次回执，缺能力时连接失败关闭 |
+| recovery HTTP surface | `GET /settings/runtime/sandbox/resources` 仅列举当前认证 owner 的 marker；`POST /settings/runtime/sandbox/reconcile` 要求正 `older_than_seconds`，默认 dry-run，只有显式 `apply=true` 才请求回收；handler 测试覆盖 owner 隔离、首次空目录、活动 lease 保留和非法年龄 |
+| 当前边界 | marker 恢复与 receipt 已可跨进程读取，但不证明 OS 命令/网络/秘密/句柄/后代隔离；设置页已接入 inspect/预览/显式回收，但 Windows unknown 进程存活、自动恢复调度、原生 Windows/macOS clean-host、签名安装包、真实 Claude 认证会话和生产发布仍未验收，`releaseAccepted=false` |
+
+本批次增加可重启读取的 cleanup 状态、Connect 后的有效策略核对和设置页恢复入口；提交仍仅本地、未推送。
+
+## 2026-09-24：effective-policy receipt 持久化与崩溃恢复 harness
+
+每个桌面 runtime generation 的 effective-policy receipt 现在以
+`owner_user_id + session_key + generation` 持久化到 `sandbox_policy_receipts`。回执只
+保存 Bridge 能力、policy digest、资源策略、lease/round identity 和生命周期时间，关闭
+按 `confirmed → retiring → retired|unknown` 收口；未知阶段带有原因，不能因 PID 已退出
+或宿主重启被自动改猜为 reconciled。迟到的旧代关闭回调不能把 terminal 阶段重新打开。
+当前没有把 receipt unknown 自动改写为 reconciled 的入口；必须保留 unknown，等待未来能
+证明完整 runtime 边界的人工控制面。HTTP receipt 读取优先使用当前 connected generation，
+没有连接时按认证 owner/session 返回最新 durable 审计投影。
+
+跨进程 harness 由子进程取得 scratch lease 后直接退出模拟 host crash；重启侧可发现
+marker，dry-run 不删除，Unix 只有显式 apply 才能清理可证明过期的普通 marker，
+`cleanup_unknown` 即使记录 PID 已退出仍保留。这个 harness 只证明 marker 可发现和显式
+回收栅栏，不证明后代、句柄、秘密、网络或完整 SDK IO 已收口。
+
+Bridge 已报告干净关闭后，owner 级进程回收仍是独立的收口条件；如果 reaper 返回错误，
+宿主会把该 generation 的 `retired` 保守降级为 `unknown`，并保留限长原因，不把干净的
+Bridge ACK 当作后代已收口的证明。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| receipt persistence | `GOWORK=off go test ./internal/storage/sandbox ./internal/runtime ./internal/handler/core -count=1` 通过；覆盖 migration、重开读取、owner 栅栏、durable fallback 和关闭阶段 |
+| owner reaper failure | `GOWORK=off go test ./internal/runtime -run 'TestManagerOwnerReaperFailureDowngradesRetiredReceiptToUnknown' -count=1` 通过；覆盖 Bridge 已关闭但 owner reaper 失败时的 exact generation `retired → unknown` 保守修正 |
+| crash recovery | `GOWORK=off go test -race ./internal/runtime -run 'TestSandbox(Crash|CleanupUnknown)' -count=1` 通过；确认重启 discovery、dry-run、显式 apply 与 unknown 保留 |
+| 第三方 Anthropic-compatible Provider | 现有本地 mock SSE 证据覆盖 Claude CLI 的 `ANTHROPIC_AUTH_TOKEN` Bearer 路径；新增 nxs 路径投影到 `ANTHROPIC_API_KEY`，固定 SDK 对兼容 endpoint 发送 `x-api-key` 并保留 Bearer fallback。nxs `Sandbox.Network` 只约束命令/工具网络，不能当作 Provider 进程的 OS 出口防火墙；这是 host-integration-only 证据，不代表真实外部 Provider、任意自定义 header、签名安装包或生产验收 |
+| 当前边界 | `releaseAccepted=false`；Windows 原生/clean-host、macOS 签名/公证安装包、全 SDK IO/网络/秘密/句柄/后代监督与生产发布仍未验收。官方 Claude 账号/OAuth 不作为本阶段门禁；第三方非 Bearer header 仍未实现 |
+
+本批次只增加持久审计事实与可重复的崩溃恢复验证；没有接入启动自动 sweep，也没有扩大
+现有 host integration 证据的发布含义。
+
+## 2026-09-24：nxs 第三方 Anthropic-compatible API-key 投影
+
+Nexus 的 nxs runtime 现在把第三方 Anthropic-compatible Provider 的宿主
+`AuthToken` 投影到 `ANTHROPIC_API_KEY`，由固定 SDK 生成 `x-api-key`，并在兼容
+endpoint 上保留 SDK 的 Bearer fallback。Claude runtime 仍使用
+`ANTHROPIC_AUTH_TOKEN`，不把这项 nxs 兼容路径冒用成 Claude 原生认证证明。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| Nexus credential routing | `GOWORK=off go test ./internal/runtime/clientopts -run TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL -count=1` 通过；覆盖 Claude-compatible Bearer 与 nxs-compatible API-key 两条投影 |
+| 固定 nxs SDK 语义 | SDK `9956def1` 的 Provider 客户端对 `ANTHROPIC_API_KEY` 发送 `x-api-key`，兼容 endpoint 在无显式 Authorization 时生成 Bearer fallback；该事实来自固定源码/目标包测试 |
+| 当前边界 | 自定义 header、真实外部 Provider、Provider 进程网络出口、Claude 账号/OAuth、签名安装包和生产发布仍未验收；`releaseAccepted=false` |
+
+这项改动只扩大 nxs 的已声明第三方 token 兼容性，不改变沙箱 Network 的工具侧范围，也不把 Provider transport 当成已完成的 OS 网络隔离。
+
+## 2026-09-24：macOS arm64 App、捆绑 nxs 与 DMG 本机验收
+
+在 macOS 27.0 arm64 开发机上，使用固定 nxs 输入
+`0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270` 和本机
+arm64 `rg` 构建捆绑 runtime 的 App，并从 DMG 内的只读挂载路径再次启动。完整记录、
+metadata、SHA-256 和 UI harness report 见
+[2026-09-24 macOS App acceptance](./evidence/desktop-sandbox/2026-09-24-macos-app-acceptance/README.md)。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| App build + smoke | `GOWORK=off ... make app-check` exit 0；Web、Swift shell、Go sidecar、nexusctl/nexuscfg、bundled nxs/rg、主窗口/Launcher 路由、退出与 sidecar 清理通过 |
+| DMG | `scripts/desktop/package-macos-app.sh` exit 0；arm64、`bundled: true`、ad-hoc 签名、metadata 与 SHA-256 一致 |
+| DMG 内 App | 只读挂载后 `codesign --verify --deep --strict` exit 0，arm64 nxs/rg 存在；从挂载 DMG 直接 smoke exit 0 并正常卸载 |
+| Native UI | `GOWORK=off make app-check-ui-app` exit 0；12 个 app-shell 场景通过，fixture 无拒绝业务请求，原生输入/缩放/调整大小/恢复通过 |
+| 本机安装演练 | 捆绑 App 复制到临时 Applications、全新状态根启动、替换一次再回退一次，3 次 smoke 均 exit 0；仅证明脱离构建目录的本机可运行 |
+| 当前边界 | 这是 dirty-tree 的本机 arm64、ad-hoc 开发证据；Developer ID、公证、clean-host/quarantine、Intel、升级/回退、真实外部 Provider 和生产发布仍未验收，`releaseAccepted=false` |
+
+本批次同时修正了 UI harness 对 macOS 原生控件偏移的旧 64px 硬编码，并为
+`/auth/v1/status` 增加隔离只读 fixture；这两项只影响验收 harness，不改变产品运行时授权边界。
+
+## 2026-09-23：固定 SDK 的 macOS 原生基线
+
+使用 SDK `9956def130da33af47accf799a9c27c16a551104` 的干净归档构建 nxs，固定
+Bridge `37434c2d38b129b6bbde67ac81afee673f39816d`，执行完整 macOS arm64
+基线（host policy/lifecycle、资源与文件能力、搜索/媒体/Skill/context/project、managed
+policy、settings writes 与 native 入口）。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 完整基线 | `GOWORK=off GOPROXY=off node scripts/desktop/check-sandbox-baseline.mjs --sdk-source /Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox --sdk-ref 9956def130da33af47accf799a9c27c16a551104` 通过；报告 scope=`host-and-macos-native-baseline`、`passed=true`、`releaseAccepted=false` |
+| nxs provenance | 归档构建的 nxs SHA-256 为 `0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270`；无模型请求 |
+| 当前边界 | 这是当前开发机的 macOS arm64 基线，不是签名/公证安装包或 clean-host 验收；Windows 原生 ACL/UAC/Job Object、安装升级回退、Claude 真实认证/取消/清理、完整后代/句柄/秘密/网络隔离及生产发布仍未完成 |
+
+本批次把固定 SDK/Bridge 的 macOS 原生开发基线跑通，但 `releaseAccepted=false` 保持不变。
+
+### 2026-09-24：Windows 进程身份与双架构宿主门禁
+
+Nexus scratch marker 现在在可用的平台记录进程创建时间。Windows recovery 使用
+`OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` + `GetProcessTimes` 核验 PID 和创建时间；
+不匹配代表 PID 已重用，可以把普通 active marker 作为候选，权限错误或无法查询仍保持
+unknown，`cleanup_unknown` 永远优先保留。旧 marker 和无安全创建时间接口的平台不改变原有
+保守路径。
+
+固定入口为 `make check-desktop-sandbox-windows`，实现见
+[`check-windows-sandbox.mjs`](../../scripts/desktop/check-windows-sandbox.mjs)。它验证
+Windows installer 单实例/per-user 合同，交叉编译 `internal/runtime`、
+`internal/runtime/clientopts`、`internal/infra/confinedfs` 测试程序，以及
+`nexus-server`、`nexusctl`、`nexuscfg` 的 Windows amd64/arm64 产物；在 Windows 主机上
+追加两个进程身份回归。当前 macOS 本机结果已保存为
+[2026-09-24 Windows cross-build evidence](./evidence/desktop-sandbox/2026-09-24-windows-cross-build/README.md)。
+
+| 验证 | 结果与边界 |
+| --- | --- |
+| 本机 Windows gate | exit 0；installer contract、三个 runtime 目标包和三个命令均完成 amd64/arm64 构建；报告 `scope=windows-cross-build`、`releaseAccepted=false` |
+| Windows native marker | Windows 专用 `GetProcessTimes` 测试已编译；当前没有 Windows 主机运行日志，不能宣称 PID 重用/访问拒绝实机通过 |
+| 原生执行后端 | SDK 当前原生 Windows `PrepareExecution` 仍 fail closed；现有 token/Job/private desktop/pipe 组件 CI 只证明组件，不证明完整 Nexus→Bridge→nxs 受限命令链 |
+| 发布边界 | Windows 11 amd64/arm64 实机、P3 兼容/隔离组合矩阵、ACL/网络/账号设置、取消/后代收口、签名安装/升级/clean-host 和 `releaseAccepted` 仍待完成 |
+
+因此，这一批次只把 Windows 的身份判断和构建门禁收口；在真实 Windows 证据到齐前，
+Windows 受限 nxs 执行继续失败关闭，不能用交叉编译或组件 CI 代替原生验收。

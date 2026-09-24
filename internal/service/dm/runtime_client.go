@@ -1,6 +1,6 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
-// POS: DM 服务的 runtime client 装配与 owner-private command scope 签发边界。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy、精确 desktop sandbox lease 交接，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
+// POS: DM 服务的 runtime client 装配、sandbox lease 失败回收与 owner-private command scope 签发边界。
 package dm
 
 import (
@@ -571,10 +571,22 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 		if scratchLease != nil {
-			scratchLease, err = runtimectx.AcquireSandboxResource(ctx, scratchInput)
-			if err != nil {
+			// A failed GetOrCreate/Bind attempt never transferred ownership to
+			// the runtime manager. Release that exact handle before replacing it;
+			// otherwise the retry would strand the old scratch directory while
+			// the new lease becomes the only handle reachable by this function.
+			if !scratchLeaseOwned {
+				if releaseErr := scratchLease.Release(); releaseErr != nil {
+					return dmClientPreparation{}, fmt.Errorf("清理失效 resume 的 desktop sandbox scratch: %w", releaseErr)
+				}
+				scratchLease = nil
+			}
+			nextLease, acquireErr := runtimectx.AcquireSandboxResource(ctx, scratchInput)
+			if acquireErr != nil {
+				err = acquireErr
 				return dmClientPreparation{}, fmt.Errorf("重新准备 desktop sandbox scratch: %w", err)
 			}
+			scratchLease = nextLease
 			scratchLeaseOwned = false
 		}
 		client, sandboxLeaseTransferred, err = s.acquireRuntimeClient(ctx, startup, options, scratchLease)

@@ -147,6 +147,10 @@ class NativeClient:
         self.wait(f"document.activeElement === {element}", "fixture focus precondition")
 
     def click(self, element: str, count: int = 1):
+        # WKWebView route changes and the Finder/desktop can steal the key
+        # window between an assertion and the native gesture. Re-activate at
+        # the boundary where AppKit input is actually sent.
+        self.activate()
         point = self.evaluate(f"(() => {{ const e = {element}; e.scrollIntoView({{block:'center'}}); "
                               "const r=e.getBoundingClientRect(); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()")
         if count == 2:
@@ -336,7 +340,19 @@ def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int
     client.wait("(() => { const labels = [...document.querySelectorAll('.shell-navigation-rail button[aria-pressed] > span:nth-child(2)')]; return labels.length === 3 && labels.every(e => { const range = document.createRange(); range.selectNodeContents(e); const text = range.getBoundingClientRect(); const box = e.getBoundingClientRect(); const style = getComputedStyle(e); return text.left >= box.left + parseFloat(style.paddingLeft) - 0.01 && text.right <= box.right - parseFloat(style.paddingRight) + 0.01; }); })()",
                 "primary navigation labels remain readable")
     rail_width = client.evaluate("document.querySelector('.shell-navigation-rail').getBoundingClientRect().width")
-    require(rail_width == 64, "App navigation rail is not compact")
+    leading_padding = client.evaluate("""(() => {
+        const shell = document.querySelector('.sidebar-panel-shell')
+        const raw = getComputedStyle(shell).getPropertyValue('--sidebar-shell-leading-padding').trim() || '4px'
+        const probe = document.createElement('div')
+        probe.style.position = 'absolute'
+        probe.style.width = `calc(56px + ${raw})`
+        document.body.append(probe)
+        const width = probe.getBoundingClientRect().width
+        probe.remove()
+        return width - 56
+    })()""")
+    require(abs(rail_width - (56 + leading_padding)) <= 0.01,
+            f"App navigation rail width does not match its shell padding: {rail_width} != {56 + leading_padding}")
     require(client.evaluate("document.querySelector('.desktop-app-stage') !== null") == (width > 559),
             "workbench narrow directory handoff changed")
     client.snapshot(name + "-workbench")
@@ -368,6 +384,7 @@ def run_app_shell_case(client: NativeClient, theme: str, locale: str, width: int
     require(all(event["trusted"] for event in events), "App received synthetic DOM input")
     require({event["type"] for event in events} >= {"click", "input", "keydown"}, "Missing App native input evidence")
     return {"case": name, "status": status, "navigation_width": rail_width,
+            "navigation_leading_padding": leading_padding,
             "zoom_sizes": [before_zoom, zoomed, restored], "native_events": events, "passed": True}
 
 

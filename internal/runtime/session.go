@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 var errRuntimeClientChanged = errors.New("runtime client changed")
@@ -481,9 +482,9 @@ func (m *Manager) getOrCreateWithFactory(
 
 func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.RuntimeKind {
 	switch strings.ToLower(strings.TrimSpace(string(kind))) {
-	case "claude", "cc":
+	case "claude", "claude-code", "claudecode", "cc":
 		return agentclient.RuntimeClaude
-	case "", "nxs":
+	case "", "nxs", "go", "go-native", "gonative":
 		return agentclient.RuntimeNXS
 	default:
 		// 未知 runtime 不能继承 nxs 的管理能力，否则前端会开放无法兑现的续聊入口。
@@ -622,6 +623,9 @@ func (m *Manager) replaceRuntimeClient(
 		retireUnusedRuntimeClient(next)
 		return nil, ownershipErr
 	}
+	sandboxReceipt := EffectiveSandboxPolicyReceipt(stale)
+	staleOwnerUserID := state.OwnerUserID
+	staleGeneration := state.StartupGeneration
 	stale.Retire()
 	drain := state.IdleMessageDrain
 	if drain != nil {
@@ -634,17 +638,32 @@ func (m *Manager) replaceRuntimeClient(
 	// have exited successfully while this outer deadline reports a failed
 	// replacement. The durable startup context still cancels deletion/shutdown,
 	// while a normal replacement waits for the old process to be fully reaped.
+	sandboxPhaseErr := m.updateSandboxReceiptPhase(
+		staleOwnerUserID, sessionKey, staleGeneration, stale, sandboxReceipt,
+		protocol.SandboxPolicyReceiptRetiring, "",
+	)
 	disconnectErr := stale.Disconnect(ctx)
 	idleDrainErr := waitIdleMessageDrain(ctx, drain)
+	staleCleanupErr := errors.Join(disconnectErr, idleDrainErr)
+	sandboxTerminalPhase := protocol.SandboxPolicyReceiptRetired
+	sandboxTerminalReason := ""
+	if staleCleanupErr != nil {
+		sandboxTerminalPhase = protocol.SandboxPolicyReceiptUnknown
+		sandboxTerminalReason = staleCleanupErr.Error()
+	}
+	sandboxTerminalErr := m.updateSandboxReceiptPhase(
+		staleOwnerUserID, sessionKey, staleGeneration, stale, sandboxReceipt,
+		sandboxTerminalPhase, sandboxTerminalReason,
+	)
 	if disconnectErr != nil || idleDrainErr != nil {
 		retireUnusedRuntimeClient(next)
 		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
-		return nil, errors.Join(disconnectErr, idleDrainErr)
+		return nil, errors.Join(sandboxPhaseErr, sandboxTerminalErr, disconnectErr, idleDrainErr)
 	}
 	if err := ctx.Err(); err != nil {
 		retireUnusedRuntimeClient(next)
 		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
-		return nil, err
+		return nil, errors.Join(sandboxPhaseErr, sandboxTerminalErr, err)
 	}
 
 	// 旧进程真正退出后才发布 next；启动事务 gate 会阻止同 key 的观察者
@@ -668,7 +687,7 @@ func (m *Manager) replaceRuntimeClient(
 	if ownershipErr != nil {
 		m.mu.Unlock()
 		retireUnusedRuntimeClient(next)
-		return nil, ownershipErr
+		return nil, errors.Join(sandboxPhaseErr, sandboxTerminalErr, ownershipErr)
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
@@ -756,6 +775,35 @@ func (m *Manager) SessionClient(sessionKey string) Client {
 	return nil
 }
 
+// SandboxPolicyReceipt returns a copy of the current connected generation's
+// effective desktop sandbox receipt for an owner-scoped session.  The owner
+// check is part of this helper so diagnostics cannot turn an internal session
+// key into a cross-owner data lookup.  A nil result means that the session is
+// absent, closing, not owned by ownerUserID, or does not expose a receipt.
+// The receipt remains diagnostic evidence only; callers must not treat it as
+// proof of OS or full SDK IO isolation.
+func (m *Manager) SandboxPolicyReceipt(ownerUserID, sessionKey string) *SandboxEffectivePolicyReceipt {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	sessionKey = strings.TrimSpace(sessionKey)
+	if ownerUserID == "" || sessionKey == "" {
+		return nil
+	}
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	if state == nil || state.Closing || state.OwnerUserID != ownerUserID || state.Client == nil {
+		m.mu.RUnlock()
+		return nil
+	}
+	client := state.Client
+	generation := state.StartupGeneration
+	m.mu.RUnlock()
+	receipt := EffectiveSandboxPolicyReceipt(client)
+	if receipt != nil {
+		receipt.Generation = generation
+	}
+	return receipt
+}
+
 // Connect 连接事务内最近一次 GetOrCreate 返回的 client，并提交新的连接代次。
 func (s *ClientStartup) Connect(ctx context.Context) error {
 	if err := s.active(); err != nil {
@@ -833,8 +881,63 @@ func (m *Manager) connectClient(
 		m.mu.Unlock()
 		return connectErr
 	}
+	ownerUserID := state.OwnerUserID
+	generation := state.StartupGeneration
+	receiptStore := m.sandboxReceiptStore
+	effectiveReceipt := EffectiveSandboxPolicyReceipt(expected)
+	if effectiveReceipt != nil {
+		effectiveReceipt.Generation = generation
+	}
 	m.touchStateLocked(state)
 	m.mu.Unlock()
+	if generationBinder, ok := expected.(interface{ setSandboxReceiptGeneration(uint64) }); ok {
+		generationBinder.setSandboxReceiptGeneration(generation)
+	}
+	if receiptStore != nil {
+		if effectiveReceipt != nil {
+			snapshot, snapshotErr := sandboxPolicyReceiptSnapshot(
+				ownerUserID,
+				sessionKey,
+				generation,
+				effectiveReceipt,
+				protocol.SandboxPolicyReceiptConfirmed,
+				"",
+			)
+			if snapshotErr != nil {
+				expected.Retire()
+				cleanupErr := expected.Disconnect(context.Background())
+				if cleanupErr == nil {
+					m.clearRetiredClient(sessionKey, state, expected, generation)
+				} else {
+					m.finishRetiredSessionCloseWhenDone(sessionKey, state, expected)
+				}
+				return errors.Join(snapshotErr, cleanupErr)
+			}
+			if saveErr := receiptStore.Save(context.Background(), snapshot); saveErr != nil {
+				expected.Retire()
+				cleanupErr := expected.Disconnect(context.Background())
+				if cleanupErr == nil {
+					// Preserve a durable failure fact when the confirmed write
+					// itself failed after producing a valid snapshot. This is best
+					// effort: a broken database cannot be used to prove cleanup.
+					unknown := snapshot
+					unknown.Phase = protocol.SandboxPolicyReceiptUnknown
+					unknown.UnknownReason = sandboxReceiptReason(errors.Join(saveErr, cleanupErr))
+					_ = receiptStore.Save(context.Background(), unknown)
+					_ = receiptStore.UpdatePhase(context.Background(), ownerUserID, sessionKey, generation, protocol.SandboxPolicyReceiptUnknown, unknown.UnknownReason)
+					m.clearRetiredClient(sessionKey, state, expected, generation)
+				} else {
+					unknown := snapshot
+					unknown.Phase = protocol.SandboxPolicyReceiptUnknown
+					unknown.UnknownReason = sandboxReceiptReason(errors.Join(saveErr, cleanupErr))
+					_ = receiptStore.Save(context.Background(), unknown)
+					_ = receiptStore.UpdatePhase(context.Background(), ownerUserID, sessionKey, generation, protocol.SandboxPolicyReceiptUnknown, unknown.UnknownReason)
+					m.finishRetiredSessionCloseWhenDone(sessionKey, state, expected)
+				}
+				return errors.Join(saveErr, cleanupErr)
+			}
+		}
+	}
 	return nil
 }
 
@@ -1055,7 +1158,9 @@ func (m *Manager) retireCurrentClient(
 		m.mu.Unlock()
 		return false, ownershipErr
 	}
+	sandboxReceipt := EffectiveSandboxPolicyReceipt(expected)
 	expected.Retire()
+	ownerUserID := expectedState.OwnerUserID
 	drain := expectedState.IdleMessageDrain
 	if drain != nil {
 		// idle drain 只读取旧 client；先取消，但由 drain defer 清字段，确保
@@ -1064,14 +1169,30 @@ func (m *Manager) retireCurrentClient(
 	}
 	m.mu.Unlock()
 
+	phaseErr := m.updateSandboxReceiptPhase(
+		ownerUserID, sessionKey, expectedGeneration, expected,
+		sandboxReceipt,
+		protocol.SandboxPolicyReceiptRetiring, "",
+	)
 	disconnectErr := expected.Disconnect(ctx)
 	idleDrainErr := waitIdleMessageDrain(ctx, drain)
+	terminalPhase := protocol.SandboxPolicyReceiptRetired
+	terminalReason := ""
+	if disconnectErr != nil || idleDrainErr != nil {
+		terminalPhase = protocol.SandboxPolicyReceiptUnknown
+		terminalReason = sandboxReceiptReason(errors.Join(disconnectErr, idleDrainErr))
+	}
+	terminalPhaseErr := m.updateSandboxReceiptPhase(
+		ownerUserID, sessionKey, expectedGeneration, expected,
+		sandboxReceipt,
+		terminalPhase, terminalReason,
+	)
 	if disconnectErr != nil || idleDrainErr != nil {
 		m.finishRetiredClientResetWhenDone(sessionKey, expectedState, expected, expectedGeneration, drain)
-		return true, errors.Join(disconnectErr, idleDrainErr)
+		return true, errors.Join(phaseErr, terminalPhaseErr, disconnectErr, idleDrainErr)
 	}
 	m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
-	return true, errors.Join(disconnectErr, idleDrainErr)
+	return true, errors.Join(phaseErr, terminalPhaseErr, disconnectErr, idleDrainErr)
 }
 
 func (m *Manager) finishRetiredClientResetWhenDone(
@@ -1165,12 +1286,56 @@ func (m *Manager) closeSession(
 	m.startOwnerReap(reapPlan)
 
 	var disconnectErr error
+	var sandboxPhaseErr error
+	var sandboxTerminalPhaseErr error
 	if target.client != nil {
+		sandboxPhaseErr = m.updateSandboxReceiptPhase(
+			target.ownerUserID,
+			target.sessionKey,
+			target.state.StartupGeneration,
+			target.client,
+			target.sandboxReceipt,
+			protocol.SandboxPolicyReceiptRetiring,
+			"",
+		)
 		disconnectErr = target.client.Disconnect(ctx)
+		terminalPhase := protocol.SandboxPolicyReceiptRetired
+		terminalReason := ""
+		if disconnectErr != nil {
+			terminalPhase = protocol.SandboxPolicyReceiptUnknown
+			terminalReason = sandboxReceiptReason(disconnectErr)
+		}
+		sandboxTerminalPhaseErr = m.updateSandboxReceiptPhase(
+			target.ownerUserID,
+			target.sessionKey,
+			target.state.StartupGeneration,
+			target.client,
+			target.sandboxReceipt,
+			terminalPhase,
+			terminalReason,
+		)
 	}
 	idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
+	closeErr := errors.Join(disconnectErr, idleDrainErr, waitBackgroundErr, waitRoundErr)
+	if target.client != nil && closeErr != nil {
+		// A transport close can succeed while a round, idle drain, or
+		// background cleanup remains unknown. Keep the durable receipt unknown
+		// until every lifecycle component has reached a known terminal state.
+		sandboxTerminalPhaseErr = errors.Join(
+			sandboxTerminalPhaseErr,
+			m.updateSandboxReceiptPhase(
+				target.ownerUserID,
+				target.sessionKey,
+				target.state.StartupGeneration,
+				target.client,
+				target.sandboxReceipt,
+				protocol.SandboxPolicyReceiptUnknown,
+				sandboxReceiptReason(closeErr),
+			),
+		)
+	}
 	clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 		errors.Is(disconnectErr, context.DeadlineExceeded)
 	if clientCleanupPending || idleDrainErr != nil || waitRoundErr != nil || waitBackgroundErr != nil {
@@ -1181,7 +1346,13 @@ func (m *Manager) closeSession(
 		m.finishSessionClose(target, disconnectErr)
 	}
 	reaperErr := waitOwnerReap(ctx, reapFlight)
-	return true, errors.Join(reaperErr, disconnectErr, idleDrainErr, waitBackgroundErr, waitRoundErr)
+	if reaperErr != nil {
+		sandboxTerminalPhaseErr = errors.Join(
+			sandboxTerminalPhaseErr,
+			m.markSandboxReceiptUnknownAfterReaper(target, reaperErr),
+		)
+	}
+	return true, errors.Join(sandboxPhaseErr, sandboxTerminalPhaseErr, reaperErr, closeErr)
 }
 
 func cancelSessionCloseTarget(target *sessionCloseTarget) {

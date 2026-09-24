@@ -26,10 +26,12 @@ import (
 )
 
 const (
-	policyVersion      = 1
-	scratchDirName     = "sandbox"
-	leaseMarkerName    = ".nexus-sandbox-lease.json"
-	leaseMarkerVersion = 1
+	policyVersion       = 1
+	scratchDirName      = "sandbox"
+	leaseMarkerName     = ".nexus-sandbox-lease.json"
+	leaseMarkerVersion  = 1
+	cleanupStateActive  = "active"
+	cleanupStateUnknown = "cleanup_unknown"
 )
 
 var (
@@ -63,6 +65,7 @@ type sandboxResource struct {
 	baseIdentity   os.FileInfo
 	leafIdentity   os.FileInfo
 	refs           int
+	handles        map[*Lease]struct{}
 	closed         bool
 	cleanupErr     error
 	uncertainLease *Lease
@@ -74,21 +77,61 @@ type sandboxResource struct {
 type Lease struct {
 	mu       sync.Mutex
 	resource *sandboxResource
+	// roundID belongs to this exact handle. A resource is shared by all rounds
+	// of one owner/session, so the durable marker's RoundID is only the first
+	// creation round and must not be reused as the current runtime identity.
+	roundID  string
 	released bool
+}
+
+// active reports whether this exact handle still owns an unreleased reference.
+// A released handle intentionally retains its immutable resource metadata for
+// diagnostics, but it must never be rebound to a new runtime generation.
+func (l *Lease) active() bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return !l.released && l.resource != nil
+}
+
+func leasesShareResource(left, right *Lease) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	left.mu.Lock()
+	leftResource := left.resource
+	left.mu.Unlock()
+	right.mu.Lock()
+	rightResource := right.resource
+	right.mu.Unlock()
+	return leftResource != nil && leftResource == rightResource
 }
 
 // SandboxLeaseMarker is the durable identity left beside a scratch lease.
 // It intentionally records only scope and process metadata; it is not an
 // execution receipt and does not authorize another process to adopt the lease.
 type SandboxLeaseMarker struct {
-	Version     int       `json:"version"`
-	LeaseID     string    `json:"lease_id"`
-	OwnerUserID string    `json:"owner_user_id"`
-	SessionKey  string    `json:"session_key"`
-	RoundID     string    `json:"round_id,omitempty"`
-	RuntimeRoot string    `json:"runtime_root"`
-	ProcessID   int       `json:"process_id"`
-	CreatedAt   time.Time `json:"created_at"`
+	Version     int    `json:"version"`
+	LeaseID     string `json:"lease_id"`
+	OwnerUserID string `json:"owner_user_id"`
+	SessionKey  string `json:"session_key"`
+	RoundID     string `json:"round_id,omitempty"`
+	RuntimeRoot string `json:"runtime_root"`
+	ProcessID   int    `json:"process_id"`
+	// ProcessStartTimeUnixNano disambiguates a reused PID on platforms that
+	// can query the native process creation time (currently Windows). Zero is
+	// retained for older markers and platforms without a safe identity probe;
+	// those markers continue through the conservative liveness path below.
+	ProcessStartTimeUnixNano int64     `json:"process_start_time_unix_nano,omitempty"`
+	CreatedAt                time.Time `json:"created_at"`
+	// CleanupState is durable so a host restart can distinguish an ordinary
+	// active marker from a runtime whose close/cleanup was not proven. Empty is
+	// treated as active for markers written by older versions.
+	CleanupState     string    `json:"cleanup_state,omitempty"`
+	CleanupError     string    `json:"cleanup_error,omitempty"`
+	CleanupUpdatedAt time.Time `json:"cleanup_updated_at,omitempty"`
 }
 
 // SandboxResourceSweepInput is an explicit, owner-scoped recovery request.
@@ -186,7 +229,7 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	}
 	owner := strings.TrimSpace(input.OwnerUserID)
 	session := strings.TrimSpace(input.SessionKey)
-	_ = strings.TrimSpace(input.RoundID) // retained in Input for round-scoped audit callers
+	roundID := strings.TrimSpace(input.RoundID)
 	if owner == "" || session == "" {
 		return nil, errors.New("sandbox scratch requires owner and session")
 	}
@@ -274,8 +317,12 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 			return nil, fmt.Errorf("sandbox session cleanup is pending: %w", cleanupErr)
 		}
 		if active && sameWriteScope {
+			handle := &Lease{resource: existing, roundID: roundID}
 			existing.refs++
-			handle := &Lease{resource: existing}
+			if existing.handles == nil {
+				existing.handles = make(map[*Lease]struct{})
+			}
+			existing.handles[handle] = struct{}{}
 			existing.mu.Unlock()
 			return handle, nil
 		}
@@ -352,7 +399,10 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 		baseIdentity: baseIdentity,
 		leafIdentity: info,
 		refs:         1,
+		handles:      make(map[*Lease]struct{}),
 	}
+	handle := &Lease{resource: resource, roundID: roundID}
+	resource.handles[handle] = struct{}{}
 	retainConfinedBase = true
 	registryMu.Lock()
 	if existing := byScope[scopeKey]; existing != nil {
@@ -367,8 +417,12 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 		existingScope := existing.policy.WriteScope
 		sameWriteScope := existingScope == input.WriteScope
 		if sameWriteScope && !existing.closed {
+			handle := &Lease{resource: existing, roundID: roundID}
 			existing.refs++
-			handle := &Lease{resource: existing}
+			if existing.handles == nil {
+				existing.handles = make(map[*Lease]struct{})
+			}
+			existing.handles[handle] = struct{}{}
 			existing.mu.Unlock()
 			return handle, nil
 		}
@@ -381,7 +435,7 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	registry[path] = resource
 	byScope[scopeKey] = resource
 	registryMu.Unlock()
-	return &Lease{resource: resource}, nil
+	return handle, nil
 }
 
 func absoluteCleanDirectory(value string) (string, error) {
@@ -444,6 +498,10 @@ func (l *Lease) Resources() *agentclient.SandboxResourcePolicy {
 		return nil
 	}
 	l.mu.Lock()
+	if l.released {
+		l.mu.Unlock()
+		return nil
+	}
 	resource := l.resource
 	l.mu.Unlock()
 	if resource == nil {
@@ -455,12 +513,53 @@ func (l *Lease) Resources() *agentclient.SandboxResourcePolicy {
 	return &policy
 }
 
+// Marker returns a copy of the durable lease identity for runtime diagnostics.
+// It never grants another caller ownership of the lease.
+func (l *Lease) Marker() *SandboxLeaseMarker {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	if l.released {
+		l.mu.Unlock()
+		return nil
+	}
+	resource := l.resource
+	l.mu.Unlock()
+	if resource == nil {
+		return nil
+	}
+	resource.mu.Lock()
+	defer resource.mu.Unlock()
+	marker := resource.marker
+	return &marker
+}
+
+// RoundID returns the round identity carried by this exact handle. A shared
+// owner/session resource retains one durable marker, while each Acquire call
+// may represent a different active round.
+func (l *Lease) RoundID() string {
+	if l == nil {
+		return ""
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.released {
+		return ""
+	}
+	return l.roundID
+}
+
 // Path returns the host-owned scratch path.
 func (l *Lease) Path() string {
 	if l == nil {
 		return ""
 	}
 	l.mu.Lock()
+	if l.released {
+		l.mu.Unlock()
+		return ""
+	}
 	resource := l.resource
 	l.mu.Unlock()
 	if resource == nil {
@@ -473,23 +572,34 @@ func (l *Lease) Path() string {
 
 // MarkCleanupUncertain fences a resource whose owning process did not close
 // cleanly. New acquisitions for the scope are rejected until the exact handle
-// can be reconciled and released successfully.
-func (l *Lease) MarkCleanupUncertain(err error) {
+// can be reconciled and released successfully. A non-nil return means the
+// durable marker state could not be updated; the in-memory fence remains set.
+func (l *Lease) MarkCleanupUncertain(err error) error {
 	if l == nil || err == nil {
-		return
+		return nil
 	}
 	l.mu.Lock()
+	if l.released {
+		l.mu.Unlock()
+		return nil
+	}
 	resource := l.resource
 	l.mu.Unlock()
 	if resource == nil {
-		return
+		return nil
 	}
+	var persistErr error
 	resource.mu.Lock()
 	if !resource.closed {
 		resource.cleanupErr = err
 		resource.uncertainLease = l
+		resource.marker.CleanupState = cleanupStateUnknown
+		resource.marker.CleanupError = sandboxCleanupErrorSummary(err)
+		resource.marker.CleanupUpdatedAt = time.Now().UTC()
+		persistErr = persistSandboxLeaseMarkerStateLocked(resource)
 	}
 	resource.mu.Unlock()
+	return persistErr
 }
 
 // Release removes the scratch directory only after the caller's runtime has
@@ -526,24 +636,58 @@ func releaseSandboxResource(resource *sandboxResource, handle *Lease) error {
 	if resource.refs <= 0 {
 		return errors.New("sandbox resource reference count is invalid")
 	}
+	if resource.handles != nil {
+		if _, ok := resource.handles[handle]; !ok {
+			return errors.New("sandbox lease handle is not registered")
+		}
+	}
 	if resource.uncertainLease != nil && handle != resource.uncertainLease {
 		if resource.refs > 1 {
+			if resource.handles != nil {
+				delete(resource.handles, handle)
+			}
 			resource.refs--
 			return nil
 		}
 		return resource.cleanupErr
 	}
 	if resource.refs > 1 {
+		if resource.handles != nil {
+			delete(resource.handles, handle)
+			if handle == resource.uncertainLease {
+				// The uncertain owner may release its own reference before sibling
+				// handles. Transfer the cleanup fence to one still-live exact handle;
+				// otherwise the final sibling would be unable to reconcile the resource
+				// after the original owner handle became permanently idempotent.
+				resource.uncertainLease = nil
+				for remaining := range resource.handles {
+					resource.uncertainLease = remaining
+					break
+				}
+			}
+		}
 		resource.refs--
 		return nil
 	}
 	if err := removeSandboxResource(resource); err != nil {
 		resource.cleanupErr = err
-		return err
+		resource.marker.CleanupState = cleanupStateUnknown
+		resource.marker.CleanupError = sandboxCleanupErrorSummary(err)
+		resource.marker.CleanupUpdatedAt = time.Now().UTC()
+		if markerErr := persistSandboxLeaseMarkerStateLocked(resource); markerErr != nil {
+			resource.cleanupErr = errors.Join(err, markerErr)
+		}
+		return resource.cleanupErr
 	}
 	resource.refs = 0
+	if resource.handles != nil {
+		delete(resource.handles, handle)
+	}
 	resource.closed = true
 	resource.cleanupErr = nil
+	resource.marker.CleanupState = cleanupStateActive
+	resource.marker.CleanupError = ""
+	resource.marker.CleanupUpdatedAt = time.Time{}
 	resource.uncertainLease = nil
 	if resource.base != nil {
 		_ = resource.base.Close()
@@ -610,15 +754,24 @@ func newSandboxLeaseMarker(owner, session, roundID, runtimeRoot string) (Sandbox
 	if _, err := rand.Read(rawID[:]); err != nil {
 		return SandboxLeaseMarker{}, err
 	}
+	processStartTime, err := currentProcessStartTimeUnixNano()
+	if err != nil {
+		// Marker creation must remain available when a platform cannot expose
+		// process creation time. The zero value deliberately makes recovery
+		// conservative rather than weakening it.
+		processStartTime = 0
+	}
 	return SandboxLeaseMarker{
-		Version:     leaseMarkerVersion,
-		LeaseID:     hex.EncodeToString(rawID[:]),
-		OwnerUserID: owner,
-		SessionKey:  session,
-		RoundID:     roundID,
-		RuntimeRoot: filepath.Clean(runtimeRoot),
-		ProcessID:   os.Getpid(),
-		CreatedAt:   time.Now().UTC(),
+		Version:                  leaseMarkerVersion,
+		LeaseID:                  hex.EncodeToString(rawID[:]),
+		OwnerUserID:              owner,
+		SessionKey:               session,
+		RoundID:                  roundID,
+		RuntimeRoot:              filepath.Clean(runtimeRoot),
+		ProcessID:                os.Getpid(),
+		ProcessStartTimeUnixNano: processStartTime,
+		CreatedAt:                time.Now().UTC(),
+		CleanupState:             cleanupStateActive,
 	}, nil
 }
 
@@ -655,6 +808,49 @@ func writeSandboxLeaseMarkerInRoot(root *confinedfs.Root, marker SandboxLeaseMar
 	return nil
 }
 
+// persistSandboxLeaseMarkerStateLocked replaces the marker through the fixed
+// parent/leaf directory handles retained by the active lease. It is used only
+// while resource.mu is held; an inability to persist the state never clears
+// the in-memory cleanup fence.
+func persistSandboxLeaseMarkerStateLocked(resource *sandboxResource) error {
+	if resource == nil || resource.base == nil {
+		return errors.New("sandbox lease marker root is unavailable")
+	}
+	name := filepath.Base(resource.path)
+	if name == "" || name == "." || filepath.Dir(resource.path) != filepath.Clean(resource.root) || !strings.HasPrefix(name, ".scratch-") {
+		return errors.New("sandbox lease marker path is outside host lease")
+	}
+	observed, err := resource.base.Lstat(name)
+	if err != nil {
+		return err
+	}
+	if observed.Mode()&os.ModeSymlink != 0 || !observed.IsDir() ||
+		resource.leafIdentity == nil || !os.SameFile(resource.leafIdentity, observed) {
+		return errors.New("sandbox lease marker leaf changed while persisting")
+	}
+	leaf, err := resource.base.OpenRootNoSymlink(name)
+	if err != nil {
+		return err
+	}
+	defer leaf.Close()
+	payload, err := json.Marshal(resource.marker)
+	if err != nil {
+		return err
+	}
+	return leaf.WriteFileAtomic(leaseMarkerName, payload, 0o600)
+}
+
+func sandboxCleanupErrorSummary(err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.TrimSpace(err.Error())
+	if len(message) > 512 {
+		message = message[:512]
+	}
+	return message
+}
+
 func readSandboxLeaseMarker(path, runtimeRoot, owner string) (SandboxLeaseMarker, error) {
 	leaseRoot, err := openSandboxDirectory(path)
 	if err != nil {
@@ -668,8 +864,21 @@ func readSandboxLeaseMarker(path, runtimeRoot, owner string) (SandboxLeaseMarker
 	if marker.Version != leaseMarkerVersion || strings.TrimSpace(marker.LeaseID) == "" ||
 		strings.TrimSpace(marker.OwnerUserID) == "" || marker.OwnerUserID != owner ||
 		marker.SessionKey == "" || marker.RuntimeRoot != runtimeRoot ||
-		marker.ProcessID <= 0 || marker.CreatedAt.IsZero() {
+		marker.ProcessID <= 0 || marker.ProcessStartTimeUnixNano < 0 || marker.CreatedAt.IsZero() {
 		return SandboxLeaseMarker{}, errors.New("sandbox lease marker identity is invalid")
+	}
+	if marker.CleanupState == "" {
+		marker.CleanupState = cleanupStateActive
+	}
+	if marker.CleanupState != cleanupStateActive && marker.CleanupState != cleanupStateUnknown {
+		return SandboxLeaseMarker{}, errors.New("sandbox lease marker cleanup state is invalid")
+	}
+	if marker.CleanupState == cleanupStateUnknown {
+		if marker.CleanupUpdatedAt.IsZero() || strings.TrimSpace(marker.CleanupError) == "" {
+			return SandboxLeaseMarker{}, errors.New("sandbox lease marker cleanup state is incomplete")
+		}
+	} else if strings.TrimSpace(marker.CleanupError) != "" || !marker.CleanupUpdatedAt.IsZero() {
+		return SandboxLeaseMarker{}, errors.New("sandbox lease marker active state has cleanup details")
 	}
 	return marker, nil
 }
@@ -839,8 +1048,14 @@ func scanSandboxResources(ctx context.Context, owner, runtimeRoot, base string, 
 		}
 		active := sandboxResourceIsActive(path)
 		if !active {
-			alive, known := sandboxProcessAlive(marker.ProcessID)
-			active = alive || !known
+			// A cleanup_unknown marker is a durable statement that the previous
+			// generation could not prove its close. A dead PID is insufficient
+			// evidence because descendants, handles or helper processes may have
+			// escaped the parent lifecycle. Keep it for explicit reconciliation.
+			active = marker.CleanupState == cleanupStateUnknown
+		}
+		if !active {
+			active = sandboxProcessMarkerIsActive(marker)
 		}
 		age := now.Sub(marker.CreatedAt)
 		if age < 0 {

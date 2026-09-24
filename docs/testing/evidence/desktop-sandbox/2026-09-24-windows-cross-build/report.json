@@ -1,0 +1,189 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-24T09:26:22.988Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "scope": "windows-cross-build",
+  "releaseAccepted": false,
+  "passed": true,
+  "checks": [
+    {
+      "name": "installer-contract",
+      "command": "node",
+      "args": [
+        "scripts/desktop/verify-windows-installer-contract.mjs"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-runtime",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-runtime-amd64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-runtime-clientopts",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime/clientopts",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-runtime-clientopts-amd64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-infra-confinedfs",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/infra/confinedfs",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-infra-confinedfs-amd64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexus-server",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexus-server-amd64.exe",
+        "./cmd/nexus-server"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexusctl",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexusctl-amd64.exe",
+        "./cmd/nexusctl"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexuscfg",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexuscfg-amd64.exe",
+        "./cmd/nexuscfg"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-runtime",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-runtime-arm64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-runtime-clientopts",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime/clientopts",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-runtime-clientopts-arm64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-infra-confinedfs",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/infra/confinedfs",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-internal-infra-confinedfs-arm64.test.exe"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexus-server",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexus-server-arm64.exe",
+        "./cmd/nexus-server"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexusctl",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexusctl-arm64.exe",
+        "./cmd/nexusctl"
+      ],
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexuscfg",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-windows-sandbox-GPV0az/nexus-.-cmd-nexuscfg-arm64.exe",
+        "./cmd/nexuscfg"
+      ],
+      "exitCode": 0,
+      "signal": null
+    }
+  ],
+  "finishedAt": "2026-09-24T09:26:35.123Z"
+}

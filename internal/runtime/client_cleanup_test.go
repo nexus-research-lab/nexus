@@ -179,8 +179,8 @@ func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T)
 	case <-time.After(time.Second):
 		t.Fatal("scratch cleanup did not finish")
 	}
-	if cleanup.err != nil {
-		t.Fatalf("cleanup error = %v", cleanup.err)
+	if err := cleanup.getErr(); err != nil {
+		t.Fatalf("cleanup error = %v", err)
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("scratch remains after successful bridge close: %v", err)
@@ -202,8 +202,8 @@ func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
 	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: lease}
 	client.startBridgeSessionCleanup(nil, nil, cleanup)
 	<-cleanup.done
-	if !errors.Is(cleanup.err, want) {
-		t.Fatalf("cleanup error = %v", cleanup.err)
+	if err := cleanup.getErr(); !errors.Is(err, want) {
+		t.Fatalf("cleanup error = %v", err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("scratch removed after failed bridge close: %v", err)
@@ -228,8 +228,8 @@ func TestAgentClientCleanupUsesExactScratchHandle(t *testing.T) {
 	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: first}
 	client.startBridgeSessionCleanup(nil, nil, cleanup)
 	<-cleanup.done
-	if cleanup.err != nil {
-		t.Fatalf("cleanup error = %v", cleanup.err)
+	if err := cleanup.getErr(); err != nil {
+		t.Fatalf("cleanup error = %v", err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("old runtime cleanup removed scratch still held by preparation: %v", err)
@@ -342,8 +342,8 @@ func TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("discard cleanup did not finish")
 	}
-	if cleanup.err != nil {
-		t.Fatalf("discard cleanup error = %v", cleanup.err)
+	if err := cleanup.getErr(); err != nil {
+		t.Fatalf("discard cleanup error = %v", err)
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("bound lease remained after discard without session: %v", err)

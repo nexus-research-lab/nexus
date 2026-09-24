@@ -15,9 +15,10 @@
 //     包括加密临时凭据、轮询领取和事务终态。
 //   - skills/：保存 owner Skill catalog、持久单调版本及跨进程 mutation transaction。
 //   - teamrelay/：按 deployment 幂等保存一份 Relay Message 与 room_seq，并为各 owner 保存独立恢复游标。
+//   - sandbox/：保存 owner/session/generation 绑定的桌面沙箱 effective-policy 回执与未知阶段。
 //
 // 暴露接口：OpenDB、OpenMigrationDB、MigrationDirName、GooseDialect、
-// NullableTime、LockRoomForMutation。
+// NullableTime、LockRoomForMutation，以及各领域 Repository 构造器（含 sandbox.NewRepository）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package storage

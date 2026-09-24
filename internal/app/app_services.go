@@ -54,6 +54,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	sandboxstore "github.com/nexus-research-lab/nexus/internal/storage/sandbox"
 	teamrelaystore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 	workgraphworkflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
 )
@@ -212,6 +213,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	runtimeManager.SetSandboxPolicyReceiptStore(sandboxstore.NewRepository(cfg, db))
 	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
 		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
 		LauncherPath: cfg.RuntimeLauncherPath,
