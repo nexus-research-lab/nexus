@@ -1,5 +1,5 @@
 // INPUT: Skill 目录/社区的搜索、分类、来源及用户命令。
-// OUTPUT: 统一目录标签、文字搜索动作和无额外图标的标签筛选器。
+// OUTPUT: 统一目录标签、回车搜索和无额外图标的标签筛选器。
 // POS: Skill 工具区纯视图；筛选结构由 UiFilterSelect 唯一拥有。
 
 import { UiFilterSelect } from "@/shared/ui/menu/filter-select";
@@ -9,7 +9,6 @@ import { useRef, type KeyboardEvent } from "react";
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { UiButton } from "@/shared/ui/button/button";
 import { UiDirectoryTabs } from "@/shared/ui/navigation/directory-tabs";
 import {
   CapabilityFilterBar,
@@ -60,7 +59,6 @@ export function SkillsSearchBar({
 }: SkillsSearchBarProps) {
   const { t } = useI18n();
   const composingRef = useRef(false);
-  const searchLabel = t("capability.skills_tour_search_title");
 
   const searchDisabled = externalQuery.trim().length < 2 || externalLoading;
 
@@ -71,24 +69,6 @@ export function SkillsSearchBar({
     event.preventDefault();
     if (!searchDisabled) onSubmitExternalSearch();
   };
-
-  const externalSearchAction = discoveryMode === "external" ? (
-    <UiButton
-      aria-label={searchLabel}
-      className="shrink-0"
-      disabled={searchDisabled}
-      onClick={(event) => {
-        event.preventDefault();
-        onSubmitExternalSearch();
-      }}
-      onMouseDown={(event) => event.preventDefault()}
-      size="sm"
-      title={searchLabel}
-      variant="surface"
-    >
-      {searchLabel}
-    </UiButton>
-  ) : null;
 
   return (
     <CapabilityFilterBar className="sm:justify-between">
@@ -105,7 +85,6 @@ export function SkillsSearchBar({
 
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:ml-auto sm:max-w-[520px] sm:flex-row sm:items-center">
         <CapabilityFilterSearchInput
-          action={externalSearchAction}
           onChange={(value) => {
             if (discoveryMode === "catalog") {
               onChangeCatalogQuery(value);
