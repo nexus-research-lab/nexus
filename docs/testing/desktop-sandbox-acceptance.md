@@ -1052,7 +1052,7 @@ Nexus scratch marker 现在在可用的平台记录进程创建时间。Windows 
 unknown，`cleanup_unknown` 永远优先保留。旧 marker 和无安全创建时间接口的平台不改变原有
 保守路径。
 
-固定入口为 `make check-desktop-sandbox-windows`，实现见
+交叉构建入口为 `make check-desktop-sandbox-windows`，实现见
 [`check-windows-sandbox.mjs`](../../scripts/desktop/check-windows-sandbox.mjs)。它验证
 Windows installer 单实例/per-user 合同，交叉编译 `internal/runtime`、
 `internal/runtime/clientopts`、`internal/infra/confinedfs` 测试程序，以及
@@ -1060,9 +1060,19 @@ Windows installer 单实例/per-user 合同，交叉编译 `internal/runtime`、
 追加两个进程身份回归。当前 macOS 本机结果已保存为
 [2026-09-24 Windows cross-build evidence](./evidence/desktop-sandbox/2026-09-24-windows-cross-build/README.md)。
 
+新增原生组件入口 `make check-desktop-sandbox-windows-native`。它只能在 Windows 主机
+运行，要求 `NEXUS_SANDBOX_SDK_SOURCE` 指向干净的 SDK checkout，并精确匹配
+`9956def130da33af47accf799a9c27c16a551104`；随后执行 SDK
+`internal/tool/builtin/bash/sandboxexec` 的进程参数、private desktop、token、pipe、Job、
+runner 生命周期、临时目录和 fail-closed 必测项。门禁会解析 Go JSON 事件，任何必测项
+skip、缺失或失败都会失败关闭。Windows workflow 使用该入口；本机 macOS 只验证它在
+非 Windows 主机上拒绝执行，不能伪造原生结果。workflow 同时上传门禁生成的 report
+和原始 stdout/stderr，便于复核失败原因。
+
 | 验证 | 结果与边界 |
 | --- | --- |
 | 本机 Windows gate | exit 0；installer contract、三个 runtime 目标包和三个命令均完成 amd64/arm64 构建；报告 `scope=windows-cross-build`、`releaseAccepted=false` |
+| Windows native component gate | 已接入独立入口和 Windows workflow；要求固定 SDK checkout 与 25 个指定原生组件测试全通过；当前工作机没有 Windows 运行结果，报告仍不构成完整后端或发布验收 |
 | Windows native marker | Windows 专用 `GetProcessTimes` 测试已编译；当前没有 Windows 主机运行日志，不能宣称 PID 重用/访问拒绝实机通过 |
 | 原生执行后端 | SDK 当前原生 Windows `PrepareExecution` 仍 fail closed；现有 token/Job/private desktop/pipe 组件 CI 只证明组件，不证明完整 Nexus→Bridge→nxs 受限命令链 |
 | 发布边界 | Windows 11 amd64/arm64 实机、P3 兼容/隔离组合矩阵、ACL/网络/账号设置、取消/后代收口、签名安装/升级/clean-host 和 `releaseAccepted` 仍待完成 |

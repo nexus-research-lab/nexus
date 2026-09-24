@@ -279,9 +279,20 @@ Windows 恢复通过 `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` 和
 在这些 runtime、协议、confinedfs 和脚本变更时触发该入口，并把报告固定标为
 `releaseAccepted=false`。
 
+本批次补充 `make check-desktop-sandbox-windows-native`。该入口只接受 Windows 主机，
+通过 `NEXUS_SANDBOX_SDK_SOURCE` 接入干净的 SDK checkout，并校验固定提交
+`9956def130da33af47accf799a9c27c16a551104`；它在同一门禁中保留 Nexus 双架构交叉构建，
+再运行 SDK `internal/tool/builtin/bash/sandboxexec` 的 25 个指定原生组件测试。测试事件
+按名字逐项核对，skip、缺失或失败均失败关闭。Windows workflow 已切换到该原生入口，
+并上传 report 与原始命令日志，
+但它只增加 token/Job/private desktop/pipe/runner 等组件证据，不改变 SDK 当前
+`PrepareExecution`/`InspectBackend` 在 Windows 上 fail closed 的产品策略，也不把组件
+通过升级为 Nexus→Bridge→nxs 完整命令链或发布验收。
+
 | 验证 | 结果与边界 |
 | --- | --- |
 | 本机门禁 | `make check-desktop-sandbox-windows` 通过；installer contract、Nexus 三个目标包和三个 Windows 命令的 amd64/arm64 构建均 exit 0；报告 `scope=windows-cross-build`、`releaseAccepted=false` |
+| 原生组件入口 | 已新增 `make check-desktop-sandbox-windows-native` 与固定 SDK/Windows workflow；当前开发机不是 Windows，未生成原生运行报告，`releaseAccepted=false` 仍保持 |
 | Windows 原生身份 | Windows 专用测试已加入并通过交叉编译；当前环境不是 Windows，尚无 `GetProcessTimes` 实机日志，需在 Windows 11 amd64/arm64 主机运行 |
 | 原生 nxs runner | SDK 当前 `PrepareExecution`/`InspectBackend` 仍对原生 Windows fail closed；现有 token/Job/private desktop/pipe 组件测试属于 SDK 组件证据，尚未形成 Nexus→Bridge→nxs 的完整 Windows 产品执行后端 |
 | 仍未闭合 | Windows P3 组合实验（兼容 PowerShell/后代与 host/runner 控制拒绝）、ACL/网络/账号 provisioning、真实取消和后代终态、安装/升级/签名/clean-host 与发布验收 |

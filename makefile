@@ -53,7 +53,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .PHONY: check-architecture help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser check-web typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
-	check-backend check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check test run-web run-backend run-backend-go \
+	check-backend check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check-desktop-sandbox-windows-native check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
@@ -195,6 +195,9 @@ check-desktop-sandbox: ## Check pinned Bridge and explicit nxs sandbox integrati
 
 check-desktop-sandbox-windows: ## Check Windows sandbox contracts and amd64/arm64 build evidence
 	node scripts/desktop/check-windows-sandbox.mjs
+
+check-desktop-sandbox-windows-native: ## Check Windows sandbox components on a real Windows host (set NEXUS_SANDBOX_SDK_SOURCE)
+	node scripts/desktop/check-windows-sandbox.mjs --native
 
 check-go-full: check-go-vet ## Run explicit full Go checks without result cache
 	go test -vet=off -p=$(GO_TEST_PACKAGE_PARALLELISM) -count=1 ./...

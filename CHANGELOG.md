@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add a fail-closed Windows native component gate alongside the existing
+  amd64/arm64 cross-build gate. `check-desktop-sandbox-windows-native` only runs
+  on Windows, requires a clean SDK checkout at
+  `9956def130da33af47accf799a9c27c16a551104`, and verifies 25 named
+  token/Job/private-desktop/pipe/runner lifecycle tests from the SDK with JSON
+  event evidence. The workflow now checks out that SDK revision and runs the
+  native gate and uploads its report/log directory; the report remains
+  `releaseAccepted=false` because this is still component evidence, not a
+  complete Nexus→Bridge→nxs backend or release acceptance.
+
 - Keep a durable cleanup fence usable when the exact lease handle that first
   observed `cleanup_unknown` releases before its sibling handles. The fence is
   transferred to one still-live handle over the same resource, so a later
