@@ -11,7 +11,7 @@
 - `subagent-task-thread-view.tsx` 只消费窄视图模型，不解释请求或能力协议。
 - `subagent-task-thread.tsx` 复用 controller 的 canonical sessionKey 绑定本地确认/输入弹窗，使用共享同步 reset 状态；返回旧任务不恢复已清空的确认或草稿。
 
-任务标题复用任务名称投影和当前语言的 Agent/Subagent 通称，不能展示内部任务 ID。详情 Header 直接使用公共 `UiSeededAvatar size="xs"`（32px），不从列表视图导入头像并覆盖其尺寸。底部操作区使用实体 panel token、单条分隔与公共 metadata 排版，说明和按钮组可按可用宽度换行；只有当前命令设置 aria-busy，pending 期间保持原有防重规则。
+任务标题复用任务名称投影和当前语言的 Agent/Subagent 通称，不能展示内部任务 ID。详情 Header 直接使用公共 `UiSeededAvatar variant="humation" size="xs"`（32px），不从列表视图导入头像并覆盖其尺寸。底部操作区使用实体 panel token、单条分隔与公共 metadata 排版，说明和按钮组可按可用宽度换行；只有当前命令设置 aria-busy，pending 期间保持原有防重规则。
 
 runtime 的 task.agent_id 只是任务/接收者身份。文件工作区来自 task.host_agent_id、消息已有的宿主 Agent 或 Artifact 明确来源；传给 Thread 的空工作区必须保持为空，不回退 task ID，也不在预览回调覆盖文件已经解析的 owner。完整链路继续服从共享 Thread 与 Artifact 适配器的来源合同。
 

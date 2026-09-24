@@ -1,4 +1,5 @@
 export const zhCoreMessages = {
+  "common.avatar_randomize": "随机头像",
   "common.selection_numbered": "{number} · {name}",
   "markdown.math_summary": "[公式]",
   "language.switch_title": "切换语言",
