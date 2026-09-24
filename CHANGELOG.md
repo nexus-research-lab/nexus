@@ -7,45 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Add the built-in `caixun-work-hours` Skill for selecting, reviewing and submitting personal 彩讯 RichPMS work-hour reports.
+## [0.2.3] - 2026-09-24
 
-- 在线 Agent 复用本地 Room 成员目录提示与 @ 解析，通过 Relay 唤醒其他成员的 Agent；远端身份不加入本机执行列表，协作达到上限时显示明确失败原因。
+### Added
 
-- 修复在线 Agent 连续输出时结构化 @ 目标串用，候选目标随正文持久化。
+- Added online Agent-to-Agent mentions and configurable host Agent auto-replies, reusing native Room member hints and parsing without executing remote members locally.
+- Added the built-in `caixun-work-hours` Skill for reviewing and submitting personal RichPMS work-hour reports.
+- Added `glm-5.3-flashx` capabilities and exact-model capability defaults for custom Providers while preserving explicit overrides.
+
+### Changed
+
+- Refined scheduled-task cards and inline editing, settings headers and scrolling, community Skill search, and connector menus.
+- Aligned online Room typography and spacing with local conversations.
+- Updated the bundled nxs runtime to v0.1.34.
 
 ### Fixed
 
-- 移除社区技能搜索框内重复的搜索按钮，保留回车搜索、清空和中文输入法保护。
-
-- 修复切换会话或刷新历史后，自动化变更等待确认请求被误清除，导致侧栏显示“待确认”但会话中没有确认入口的问题。
-
-- 定时任务编辑标题与看板列标题使用相同高度并垂直居中对齐。
-
-- 定时任务卡片优先展示任务名与执行人，支持点击名称编辑，并收窄页内编辑栏以保留更多看板空间。
-
-- 补齐 `glm-5.3-flashx` 的视觉、推理、工具调用能力及 1M 上下文、128K 输出上限，支持添加模型时按名称识别。
-
-- 添加模型时按精确模型 ID 补齐无冲突的能力默认值，使自定义 Provider 中的已知视觉模型可被识别，同时保留 Provider 专属推荐和显式能力覆盖。
-
-- 修复 Claude 运行引擎下“运行诊断”开关未生效的问题，并在开启时记录运行时 stderr。
-
-- Provider 设置页左侧 Provider 目录在固定工作面内贴近分隔线独立滚动，并继续复用全站管理页 Header。
-
-- 管理页吸顶 Header 使用不透明页面底色，避免滚动内容透出或与画布产生色差。
-
-- 设置页和能力页的内容滚动时固定管理页 Header，只滚动正文区域。
-
-- 移除 Composer 操作菜单中连接器条目多余的 Session 状态说明，只保留服务名称。
-
-- 修复流式代码块的“输出中”状态被挤成竖排的问题。
-
-- 对齐在线 Agent 执行失败状态，并支持在线 Room 群主自动接管配置。
-
-- 修复在线 Agent 输出中的结构化 @ 丢失，支持在线 Room 内 Agent 互相唤醒。
-
-- 对齐在线 Room 与本地 Room/DM 的消息流正文样式、字体和间距。
-
-- 视觉模型未配置或配置无效时继续对话；图片不可读时由 Agent 解释能力限制并引导配置，阻断旧路由回流，并在设置页显示失效的已保存视觉选择。
+- Preserved structured mention targets per Agent output and surfaced online execution and collaboration-limit failures.
+- Kept pending automation confirmations accessible after conversation switches and history refreshes.
+- Continued conversations when image input has no usable vision route, with Agent guidance and visible invalid saved selections instead of stale routing.
+- Enabled Claude runtime diagnostic capture and prevented streamed code status labels from wrapping vertically.
 
 ## [0.2.2] - 2026-09-21
 
