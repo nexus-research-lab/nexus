@@ -206,6 +206,7 @@ export function useChatSidebarController({
 				coordinator_agent_id: submission.hostAgentId
 					? onlineIDBySourceID.get(submission.hostAgentId)
 					: undefined,
+				host_auto_reply_enabled: submission.hostAutoReplyEnabled,
           member_user_ids: submission.userIds,
           name: submission.name,
           private_messages_enabled: submission.privateMessagesEnabled,

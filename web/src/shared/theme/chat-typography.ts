@@ -6,7 +6,7 @@ import { readThemePreference, writeThemePreference, removeThemePreference } from
 
 const STORAGE_KEY = "nexus-chat-typography";
 export const DEFAULT_CHAT_TYPOGRAPHY = { font: "default", fontSize: 16, lineHeight: 1.65 } as const;
-export const CHAT_TYPOGRAPHY_LIMITS = { fontSize: { min: 14, max: 22 }, lineHeight: { min: 1.4, max: 2 } } as const;
+export const CHAT_TYPOGRAPHY_LIMITS = { fontSize: { min: 12, max: 26 }, lineHeight: { min: 1.2, max: 2.4 } } as const;
 type ChatTypography = { font: string; fontSize: number; lineHeight: number };
 
 const CHAT_TYPOGRAPHY_STORAGE: StateStorage = {

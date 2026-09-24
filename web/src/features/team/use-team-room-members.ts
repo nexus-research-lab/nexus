@@ -117,6 +117,8 @@ export function useTeamRoomMembers(roomId: string | null, open: boolean, onChang
 	  removeTeamRoomAgent(roomId ?? "", agentId, version, commandId)),
 	setCoordinator: (agentId: string) => mutate("coordinator", agentId, (version, commandId) =>
 	  updateTeamRoomCoordinator(roomId ?? "", agentId, version, commandId), details?.room.configuration_version),
+	setHostAutoReply: (enabled: boolean) => mutate("host-auto-reply", String(enabled), (version, commandId) =>
+	  updateTeamRoomSettings(roomId ?? "", { host_auto_reply_enabled: enabled }, version, commandId), details?.room.configuration_version),
 	setAgentPaused: (agentId: string, paused: boolean) => mutate(paused ? "pause-agent" : "resume-agent", agentId, (version, commandId) =>
 	  updateTeamRoomAgent(roomId ?? "", agentId, paused, version, commandId)),
     revoke: (userId: string) => mutate("revoke", userId, (version, commandId) =>

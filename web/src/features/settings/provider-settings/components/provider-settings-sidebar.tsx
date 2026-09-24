@@ -66,9 +66,9 @@ export function ProviderSettingsSidebar({
 
   return (
     <aside
-      className="w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[240px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-3"
+      className="min-h-0 w-full max-w-full shrink-0 border-b border-(--divider-subtle-color) pb-2 @min-[720px]/provider:w-[240px] @min-[720px]/provider:border-b-0 @min-[720px]/provider:border-r @min-[720px]/provider:pb-0 @min-[720px]/provider:pr-3"
     >
-      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none">
+      <div className="soft-scrollbar max-h-[180px] min-h-0 overflow-y-auto @min-[720px]/provider:mr-[-12px] @min-[720px]/provider:h-full @min-[720px]/provider:max-h-none">
         {loading ? (
           <div role="status" aria-label={t("common.loading")} className="flex min-h-[180px] items-center justify-center text-(--text-soft)">
             <Loader2

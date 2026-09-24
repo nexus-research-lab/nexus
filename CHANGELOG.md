@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 修复 Claude 运行引擎下“运行诊断”开关未生效的问题，并在开启时记录运行时 stderr。
 
+- Provider 设置页左侧 Provider 目录在固定工作面内贴近分隔线独立滚动，并继续复用全站管理页 Header。
+
+- 管理页吸顶 Header 使用不透明页面底色，避免滚动内容透出或与画布产生色差。
+
+- 设置页和能力页的内容滚动时固定管理页 Header，只滚动正文区域。
+
+- 移除 Composer 操作菜单中连接器条目多余的 Session 状态说明，只保留服务名称。
+
+- 修复流式代码块的“输出中”状态被挤成竖排的问题。
+
+- 对齐在线 Agent 执行失败状态，并支持在线 Room 群主自动接管配置。
+
+- 修复在线 Agent 输出中的结构化 @ 丢失，支持在线 Room 内 Agent 互相唤醒。
+
 - 对齐在线 Room 与本地 Room/DM 的消息流正文样式、字体和间距。
 
 - 视觉模型未配置或配置无效时继续对话；图片不可读时由 Agent 解释能力限制并引导配置，阻断旧路由回流，并在设置页显示失效的已保存视觉选择。
@@ -34,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added independent hosted-web access checks and clear App-only account guidance while preserving desktop organization collaboration.
 
 ### Fixed
+
+- 恢复 macOS Launcher 装饰到交通灯中心位置，保持 Web 与其他桌面端的独立定位规则。
 
 - Aligned online human messages by the current remote account: own messages on the right and other members on the left.
 - Kept conversation delete actions aligned with the full sidebar row.
