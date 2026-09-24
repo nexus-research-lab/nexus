@@ -49,6 +49,16 @@ describe("SidebarRailAction", () => {
     expect(screen.getByText("拖动排序").className).toContain("sr-only");
   });
 
+  it("shows a pinned avatar and keeps its title available without a visible caption", async () => {
+    render(<SidebarRailAction active={false} layout="pinned" label="每周工作回顾"
+      iconContent={<img alt="" src="/avatar.png" />} />);
+    const button = screen.getByRole("button", { name: "每周工作回顾" });
+    expect(button.querySelector("img")?.getAttribute("src")).toBe("/avatar.png");
+    expect(screen.getByText("每周工作回顾").className).toBe("sr-only");
+    await userEvent.setup().hover(button);
+    expect(await screen.findByRole("tooltip")).toBeTruthy();
+  });
+
   it("forwards its native button action", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();

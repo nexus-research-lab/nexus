@@ -12,6 +12,10 @@ export interface SidebarPrimaryTabItem {
 
 export interface SidebarPinnedConversationItem {
   active: boolean;
+  avatar?: string;
+  avatarName?: string;
+  roomType?: "dm" | "room";
+  members?: { id: string; name: string; avatar?: string }[];
   conversationId: string;
   key: string;
   roomId: string;

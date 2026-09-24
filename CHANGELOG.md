@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 侧栏固定会话改用对应 Agent 或群聊头像，移除下方标题并在悬浮时显示完整标题。
+
 - Preserved structured mention targets per Agent output and surfaced online execution and collaboration-limit failures.
 - Kept pending automation confirmations accessible after conversation switches and history refreshes.
 - Continued conversations when image input has no usable vision route, with Agent guidance and visible invalid saved selections instead of stale routing.

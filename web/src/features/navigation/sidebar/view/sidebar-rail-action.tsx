@@ -4,7 +4,7 @@
 
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import type { LucideIcon } from "lucide-react";
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { UiCounterBadge } from "@/shared/ui/display/badge";
 import { cn } from "@/shared/ui/class-name";
@@ -19,7 +19,8 @@ interface SidebarRailActionProps extends Omit<
 > {
   active: boolean;
   badgeCount?: number;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  iconContent?: ReactNode;
   label: string;
   layout: SidebarRailActionLayout;
   supplementalLabel?: string;
@@ -34,13 +35,12 @@ const BUTTON_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
 
 const ICON_FRAME_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
   primary: "relative shrink-0",
-  pinned: "absolute left-1/2 top-0 -translate-x-1/2",
+  pinned: "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
 };
 
 const LABEL_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
   primary: "max-w-full truncate px-1 leading-tight",
-  pinned:
-    "absolute inset-x-0 bottom-2 block truncate px-1 text-center leading-tight",
+  pinned: "sr-only",
 };
 
 export function SidebarRailAction({
@@ -48,6 +48,7 @@ export function SidebarRailAction({
   badgeCount = 0,
   className,
   icon: Icon,
+  iconContent,
   label,
   layout,
   supplementalLabel,
@@ -81,7 +82,7 @@ export function SidebarRailAction({
             : "group-hover/sidebar-rail-action:bg-(--surface-interactive-hover-background)",
         )}
       >
-        <Icon className="h-[18px] w-[18px]" />
+        {iconContent ?? (Icon ? <Icon className="h-[18px] w-[18px]" /> : null)}
         <UiCounterBadge
           aria-hidden="true"
           className="absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-2xs"
