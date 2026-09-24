@@ -5,7 +5,7 @@ import type {
   AgentOptions as AgentConfigOptions,
 } from "@/types/agent/agent";
 import { pickAgentEditableOptions } from "@/lib/agent-options";
-import { getRandomAgentAvatarIconId } from "@/lib/avatar";
+import { getRandomHumationAvatar } from "@/shared/lib/humation/avatar";
 
 export type AgentOptionsTabKey = "identity" | "skills" | "advanced";
 export type AgentOptionsSaveMode = "automatic" | "explicit";
@@ -54,7 +54,7 @@ export function buildAgentOptionsCreateSource(
 ): AgentOptionsCreateSource {
   return {
     initial: {
-      avatar: getRandomAgentAvatarIconId(),
+      avatar: getRandomHumationAvatar(),
       businessTags: [],
       description: "",
       options,

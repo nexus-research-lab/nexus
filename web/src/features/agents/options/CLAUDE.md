@@ -18,3 +18,5 @@
 - Agent Options 业务组件不得放入 `shared/ui/dialog/`。
 权限选择统一为 default/auto/bypassPermissions；auto 是 SDK 动态审核，历史 acceptEdits 只读保留，不把旧值伪装成已启用审核。
 - 高级页的 Connector 授权条目复用 `UiListRow variant="outlined"` 和共享图标/排版；行本身只展示信息，唯一切换命中区是 `GlassSwitch`。断开连接且未选中的 Connector 不可启用，断开但已选中的仍允许关闭，UI 重构不得改变此权限边界。
+
+- 新建 Agent 草稿通过 getRandomHumationAvatar 生成并保存 Humation 头像，编辑名称不重置已选择头像。

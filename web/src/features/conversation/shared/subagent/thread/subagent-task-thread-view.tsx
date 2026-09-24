@@ -9,7 +9,7 @@ import { Loader2, MessageSquareMore, Square } from "lucide-react";
 
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
-import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
+import { getSeededHumationAvatarSrc } from "@/shared/lib/humation/avatar";
 import type { WorkspaceFileOpenHandler } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -69,7 +69,7 @@ export function SubagentTaskThreadView({
 
   return (
     <ConversationThreadPanel
-      agentAvatar={getSeededAvatarDataUrl(subagentTaskAvatarSeed(model.task))}
+      agentAvatar={getSeededHumationAvatarSrc(subagentTaskAvatarSeed(model.task))}
       agentId={model.task.agent_id ?? model.task.task_id}
       agentName={taskTitle}
       emptyContent={(
@@ -91,6 +91,7 @@ export function SubagentTaskThreadView({
 			)}
       headerAvatar={(
         <UiSeededAvatar
+          variant="humation"
           seed={subagentTaskAvatarSeed(model.task)}
           size="xs"
           state={isSubagentTaskActive(model.task) ? "running" : "default"}

@@ -2,6 +2,7 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCoreMessages } from "../zh/core";
 
 export const enCoreMessages = {
+  "common.avatar_randomize": "Random avatar",
   "common.selection_numbered": "{number} · {name}",
   "markdown.math_summary": "[Formula]",
   "language.switch_title": "Switch language",

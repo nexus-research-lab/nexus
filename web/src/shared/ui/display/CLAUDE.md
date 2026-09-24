@@ -12,7 +12,7 @@
 - `spinner-styles.ts` 是圆形加载指示器尺寸、颜色、旋转与 reduced-motion 行为的唯一 recipe；业务容器负责 `role/status`、`aria-busy` 和可见文案，不得把装饰性 Spinner 自己暴露成第二个播报节点。生产 `web/src` 的页面、Feature、App 壳与共享组件均由合同测试禁止直接使用 `animate-spin` 或边框 Spinner；启动猫与 Composer 字符动效是明确的品牌/交互例外。
 - `UiAgentAvatar` 与 `UiRoomAvatar` 的 `md` 是列表、工作区 Header 与完整消息共同使用的 40px 主身份基线；所有尺寸统一采用随尺寸缩放的 rounded-square 外轮廓，头像 API 不提供圆形变体。紧凑消息、成员堆叠、正文内联和导航图标可保留更小的语境尺寸，展示型 Profile 可保留更大尺寸。
 - `UiSeededAvatar` 的尺寸只映射到共享 `radius-control-*` 档位，瞬时执行状态只通过 `state="running"` 使用主题级 running 外环；不得在业务层用 `rounded-[Npx]`、品牌色 ring 或 shadow 重建头像状态。目录与详情传同一稳定资源标识，保证视觉身份连续。
-- `UiSeededAvatar` 是全部数学曲线资源头像的唯一渲染入口；外轮廓与 `UiAgentAvatar` 一样按尺寸使用 rounded-square，不提供圆形变体。静态 SVG 曲线由稳定标识散列出的居中曲线族、旋转阶数、细节强度和整体朝向共同决定，消费者必须传入稳定 ID，不得直接读取生成器、内联同类 SVG、使用运行时随机数或随语言变化的标题作为种子。正文内联身份使用 24px，能力目录卡使用 40px，弹窗标题使用 32px，详情身份使用 48px；只能接收图片地址的消息头像通过同一生成器导出静态 Data URL。
+- `UiSeededAvatar` 是稳定种子头像的唯一渲染入口，默认曲线用于 Skill 等资源，`variant="humation"` 用于子智能体；外轮廓与 `UiAgentAvatar` 一样按尺寸使用 rounded-square，不提供圆形变体。静态 SVG 曲线由稳定标识散列出的居中曲线族、旋转阶数、细节强度和整体朝向共同决定，消费者必须传入稳定 ID，不得直接读取生成器、内联同类 SVG、使用运行时随机数或随语言变化的标题作为种子。正文内联身份使用 24px，能力目录卡使用 40px，弹窗标题使用 32px，详情身份使用 48px；子智能体消息与工作图通过 `getSeededHumationAvatarSrc` 使用同一套素材。
 - `UiRoomAvatar` 的双成员组合使用两枚自然比例的 rounded-square 错位轻叠；不得把成员裁成半幅，也不得退化成圆形。
 - `avatar.tsx` 内部 `AvatarContent` 共用图片加载失败回退；只有地址变化才重试，成员拼图直接使用内容层，不套普通头像再强制重写尺寸。Agent/Room 根节点各提供唯一可访问名称，Room 内部成员图片作为装饰。拼图限制、微字号与形状合同归 `design.md`。
 - 紧凑成员选择器使用 `UiAgentAvatar size="xxs"`，不复制小头像或用 class 覆盖常规尺寸。这个档位沿用同一加载失败、完整字符和装饰身份协议，不改变其他尺寸消费者。

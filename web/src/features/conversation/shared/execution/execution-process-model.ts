@@ -4,7 +4,7 @@
  * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
 import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
-import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
+import { getSeededHumationAvatarSrc } from "@/shared/lib/humation/avatar";
 import { getAgentDisplayName } from "@/lib/agent-display-name";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
@@ -434,7 +434,7 @@ export function resolveExecutionGraphNodeAgent(
       || node.agent_id?.trim()
       || node.id;
     return {
-      avatar: getSeededAvatarDataUrl(identity),
+      avatar: getSeededHumationAvatarSrc(identity),
       id: `subagent:${identity}`,
       name: getAgentDisplayName(node.name, t, "subagent"),
       nameIsFallback: !node.name?.trim(),

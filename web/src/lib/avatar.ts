@@ -1,8 +1,9 @@
 /**
  * INPUT: 头像标识、名称与稳定 Room identity。
- * OUTPUT: 图片路径、完整 Unicode 姓名缩写与默认图标编号。
+ * OUTPUT: 图片路径、内置组合头像 SVG、完整 Unicode 姓名缩写与默认图标编号。
  * POS: 跨目录、聊天和 Launcher 的身份投影；尺寸与图片失败回退由公共 Avatar 持有。
  */
+import { getHumationAvatarSrc } from "@/shared/lib/humation/avatar";
 import { splitTextGraphemes } from "./text-graphemes";
 
 const AVATAR_PASSTHROUGH_PREFIXES = [
@@ -51,6 +52,7 @@ export function getIconAvatarSrc(
   if (!normalizedAvatar) {
     return null;
   }
+  if (normalizedAvatar.startsWith("h1:")) return getHumationAvatarSrc(normalizedAvatar);
   if (
     AVATAR_PASSTHROUGH_PREFIXES.some(
       (prefix) => normalizedAvatar.startsWith(prefix),
@@ -74,12 +76,6 @@ function getStableIconId(
     hash = (hash * 31 + normalizedSeed.charCodeAt(index)) >>> 0;
   }
   return String(startInclusive + (hash % range));
-}
-
-/** 为 Agent 创建草稿生成头像编号，避免草稿内使用空头像。 */
-export function getRandomAgentAvatarIconId(): string {
-  const range = AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1;
-  return String(AGENT_ICON_ID_START + Math.floor(Math.random() * range));
 }
 
 /** 未配置头像的 Room 使用稳定编号，避免重渲染时改变视觉身份。 */

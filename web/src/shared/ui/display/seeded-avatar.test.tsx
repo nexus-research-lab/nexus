@@ -16,3 +16,12 @@ describe("UiSeededAvatar", () => {
       .toBe(second.container.querySelector("path")?.getAttribute("d"));
   });
 });
+
+it("renders the same Humation image across subagent surfaces and status changes", () => {
+  const { container, rerender } = render(<UiSeededAvatar seed="tool-123" variant="humation" />);
+  const src = container.querySelector("img")?.getAttribute("src");
+  expect(decodeURIComponent(src!)).toContain("data-hm-part-id");
+  rerender(<UiSeededAvatar seed="tool-123" variant="humation" state="running" size="xs" />);
+  expect(container.querySelector("img")?.getAttribute("src")).toBe(src);
+  expect(container.querySelector("svg")).toBeNull();
+});

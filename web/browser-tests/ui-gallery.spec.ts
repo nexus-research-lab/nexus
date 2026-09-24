@@ -2071,3 +2071,31 @@ test("glass wordmark animates on hover and settles on leave", async ({ page }, i
   await cover.hover();
   await expect.poll(runningLoops).toBe(0);
 });
+
+test("Humation random avatar uses the original picker and keeps the chosen identity", async ({ page }, info) => {
+  const { errors } = await openGallery(page, info, "interaction");
+  const trigger = page.getByRole("button", { name: copy(info, "选择 Agent 图标", "Choose Agent icon"), exact: true });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: copy(info, "选择 Agent 图标", "Choose Agent icon"), exact: true });
+  await expect(dialog.getByRole("combobox")).toHaveCount(0);
+  await expectInsideViewport(page, dialog);
+  await dialog.screenshot({ path: info.outputPath("humation-picker.png"), animations: "disabled" });
+  const random = dialog.getByRole("button", { name: copy(info, "随机头像", "Random avatar"), exact: true });
+  await random.click();
+  const preview = dialog.locator("img").first();
+  const first = await preview.getAttribute("src");
+  await random.click();
+  await expect(dialog).toBeVisible();
+  await expect(random).toBeFocused();
+  await expect.poll(() => preview.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  const src = await preview.getAttribute("src");
+  expect(src).not.toBe(first);
+  expect(decodeURIComponent(src!)).toContain("data-hm-part-id");
+  await page.getByRole("heading", { name: "Nexus UI Contract Gallery", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("[data-gallery-selected-avatar] img")).toHaveAttribute("src", src!);
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+  expect(errors).toEqual([]);
+});
