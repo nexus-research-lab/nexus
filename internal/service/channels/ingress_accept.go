@@ -66,6 +66,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	)
 
 	claimed, duplicate, err := s.claimIngress(ctx, normalized)
+	defer s.recovery.Notify()
 	if duplicate != nil && (claimed || errors.Is(err, ErrIngressOutcomeUnknown)) {
 		// 重投不能生成新轮次或把未确认输入迁到另一个 Session。
 		normalized.roundID, normalized.sessionKey, normalized.agentID = duplicate.RoundID, duplicate.SessionKey, duplicate.AgentID

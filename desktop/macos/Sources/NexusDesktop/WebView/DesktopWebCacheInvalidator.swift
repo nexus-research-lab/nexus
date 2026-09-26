@@ -9,6 +9,8 @@ enum DesktopWebCacheInvalidator {
     runtime: SidecarRuntimeConfig,
     startupTimeline: DesktopStartupTimeline
   ) async {
+    // 临时存储每次启动都是全新的，无需读写正式环境的缓存版本标记。
+    guard WebViewConfigurationFactory.websiteDataStore.isPersistent else { return }
     let currentVersion = "\(runtime.platform):\(runtime.appVersion)-\(runtime.buildNumber)"
     let defaults = UserDefaults.standard
     let previousVersion = defaults.string(forKey: lastRuntimeVersionKey)
@@ -46,7 +48,7 @@ enum DesktopWebCacheInvalidator {
     }
 
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-      WKWebsiteDataStore.default().removeData(
+      WebViewConfigurationFactory.websiteDataStore.removeData(
         ofTypes: dataTypes,
         modifiedSince: .distantPast
       ) {

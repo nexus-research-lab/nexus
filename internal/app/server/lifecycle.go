@@ -473,7 +473,21 @@ func (s *Server) startChannels(ctx context.Context) (func(), error) {
 		s.api.BaseLogger().Error("启动通道适配器失败", "err", err)
 		return nil, err
 	}
-	return func() { s.services.Channels.Stop(context.Background()) }, nil
+	recoveryCtx, cancelRecovery := context.WithCancel(ctx)
+	recoveryDone := make(chan struct{})
+	go func() {
+		defer close(recoveryDone)
+		if s.services.Ingress != nil {
+			if err := s.services.Ingress.RunRecovery(recoveryCtx); err != nil {
+				s.api.BaseLogger().Error("入站恢复器退出", "err", err)
+			}
+		}
+	}()
+	return func() {
+		cancelRecovery()
+		<-recoveryDone
+		s.services.Channels.Stop(context.Background())
+	}, nil
 }
 
 func (s *Server) startAutomation(ctx context.Context) (func(), error) {

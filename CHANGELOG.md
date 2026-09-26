@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Telegram 单条入站失败不再阻塞整个 Bot：仅派发前错误最多尝试三次，未知执行不自动重跑；失败提示保留原聊天/话题，通知失败不回退消费游标。
 
+- IM 已受理但回执未落盘的消息可由宿主后台核验恢复，无需等待平台重投；未知执行保持待核验。
 - 在线群成员与投递详情按 100 条分页读取；成员续页校验原版本，加载历史时同步补齐该页投递进度。
 
 - 在线群首次只读取最近 100 条消息，按需加载更早历史并保持阅读位置。
@@ -19,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Telegram 入站以 update_id 隔离聊天内消息编号，重试期间保持原轮询游标和执行轮次。
 - Telegram / Discord 分段回复逐段保存已确认回执，后续发送失败不丢失部分结果；未知发送不自动重放。明确 HTTP 429 按平台等待时间有限重试。
 
+- `app-run-onboarding` 隔离 WebView Cookie 与网站存储，首次初始化测试不再继承日常 App 的远程登录态。
 - 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
 
 ### Added
