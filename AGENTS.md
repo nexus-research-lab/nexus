@@ -168,3 +168,7 @@ cmd -> app -> handler -> service -> domain/storage
 - service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。
 - orchestration 核心不依赖 MCP，协议转换进入 runtimehook；app 共享装配不反向依赖 app/server。
 - Session 跨表清理使用调用方持有的同一事务，SQL 归本领域仓储，不能由各服务分别提交。
+
+- 在线 Room 首屏取固定水位最近 100 条，历史前插不推进差量游标；本人已读水位由 Relay 单调保存。Node 仅共享 running/waiting_input，原生审批内容保持本机。IM 入站 00147 migration 区分 prepared 与 dispatching；未知受理只核验精确轮次，不自动重跑。
+
+- 在线 Room 详情首批至多 100 名成员；Browser 和本机 Node 映射通过 membership_version + stream_epoch 补齐成员续页。历史投递只查询已加载消息，每批最多 100 个 ID。

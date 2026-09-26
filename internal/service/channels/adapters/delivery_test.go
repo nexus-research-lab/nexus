@@ -3,11 +3,14 @@ package adapters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmanagement "github.com/nexus-research-lab/nexus/internal/service/channels/management"
@@ -483,5 +486,132 @@ func TestFeishuChannelSendDeliveryMessage(t *testing.T) {
 	}
 	if content["text"] != "今日新闻摘要" {
 		t.Fatalf("飞书消息正文不正确: %+v", content)
+	}
+}
+
+func TestTelegramMessageIdentityUsesUpdateScope(t *testing.T) {
+	c := NewTelegramChannel("test", nil)
+	ingress := &recordingIngressAcceptor{}
+	c.SetIngress(ingress)
+	for _, event := range []struct{ update, chat int }{{100, 1}, {101, 2}, {100, 1}} {
+		err := c.handleUpdate(t.Context(), telegramUpdate{UpdateID: event.update, Message: &telegramMessage{MessageID: 42, Text: "hello", From: &telegramUser{ID: 7}, Chat: telegramChat{ID: int64(event.chat), Type: "private"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	a, b, retry := ingress.requests[0], ingress.requests[1], ingress.requests[2]
+	if a.ReqID == b.ReqID || a.ReqID != retry.ReqID || a.RoundID != retry.RoundID || a.Message.PlatformMessageID != "42" {
+		t.Fatalf("消息身份或重试轮次错误: %+v", ingress.requests)
+	}
+}
+
+func TestTelegramPollingRetriesUnacceptedUpdate(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ingress := &recordingIngressAcceptor{err: &channelcontract.RetryableIngressError{Err: errors.New("数据库暂时不可用")}}
+	offsets := []int{}
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		offsets = append(offsets, int(body["offset"].(float64)))
+		if len(offsets) == 2 {
+			ingress.err = nil
+		}
+		if len(offsets) == 3 {
+			cancel()
+			return nil, context.Canceled
+		}
+		return jsonResponse(`{"ok":true,"result":[{"update_id":100,"message":{"message_id":42,"text":"hello","from":{"id":7},"chat":{"id":8,"type":"private"}}}]}`), nil
+	})}
+	c := NewTelegramChannel("test", client)
+	c.SetIngress(ingress)
+	c.wg.Add(1)
+	c.pollUpdates(ctx)
+	if fmt.Sprint(offsets) != "[0 0 101]" {
+		t.Fatalf("失败事件被确认: %v", offsets)
+	}
+	if len(ingress.requests) != 2 || ingress.requests[0].RoundID != ingress.requests[1].RoundID {
+		t.Fatalf("重试改变轮次: %+v", ingress.requests)
+	}
+}
+
+func TestChunkedDeliveryPreservesPartialReceipt(t *testing.T) {
+	for _, platform := range []string{"telegram", "discord"} {
+		t.Run(platform, func(t *testing.T) {
+			calls := 0
+			client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if calls > 1 {
+					return nil, errors.New("第二段网络中断")
+				}
+				if platform == "telegram" {
+					return jsonResponse(`{"ok":true,"result":{"message_id":42}}`), nil
+				}
+				return jsonResponse(`{"id":"42"}`), nil
+			})}
+			var result channelcontract.DeliveryResult
+			var err error
+			target := channelcontract.DeliveryTarget{Mode: "explicit", Channel: platform, To: "chat"}
+			if platform == "telegram" {
+				result, err = NewTelegramChannel("test", client).SendDeliveryMessage(t.Context(), target, strings.Repeat("a", 4500))
+			} else {
+				result, err = NewDiscordChannel("test", client).SendDeliveryMessage(t.Context(), target, strings.Repeat("a", 2400))
+			}
+			if err == nil || calls != 2 || result.Receipt == nil || result.Receipt.PrimaryPlatformMessageID != "42" {
+				t.Fatalf("部分成功回执丢失: %+v, %v", result, err)
+			}
+		})
+	}
+}
+
+func TestDeliveryRetriesOnlyExplicitRateLimit(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusInternalServerError, 0} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			calls := 0
+			client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				calls++
+				if calls > 1 {
+					return jsonResponse(`{"id":"42"}`), nil
+				}
+				if status == 0 {
+					return nil, errors.New("连接中断")
+				}
+				response := jsonResponse(`{"retry_after":0.001}`)
+				response.StatusCode = status
+				return response, nil
+			})}
+			_, err := NewDiscordChannel("test", client).SendDeliveryMessage(t.Context(), channelcontract.DeliveryTarget{Mode: "explicit", Channel: "discord", To: "chat"}, "hello")
+			if status == http.StatusTooManyRequests {
+				if err != nil || calls != 2 {
+					t.Fatalf("限流未按平台延迟恢复: %v %d", err, calls)
+				}
+			} else if err == nil || calls != 1 {
+				t.Fatalf("未知结果被重试: %v %d", err, calls)
+			}
+		})
+	}
+	response := jsonResponse(`{"parameters":{"retry_after":60}}`)
+	response.StatusCode = 429
+	err := channeltransport.ExpectSuccess(response)
+	var rejected *channeltransport.HTTPError
+	if !errors.As(err, &rejected) || rejected.RetryAfter != time.Minute {
+		t.Fatalf("Telegram 限流信息丢失: %v", err)
+	}
+}
+
+func TestChunkProgressFailureStopsRemainingChunks(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) { calls++; return jsonResponse(`{"id":"42"}`), nil })}
+	ctx := channelcontract.WithDeliveryProgress(t.Context(), func(result channelcontract.DeliveryResult) error {
+		if result.Receipt == nil || result.Receipt.PrimaryPlatformMessageID != "42" {
+			t.Fatal("持久化回调未收到分段回执")
+		}
+		return errors.New("回执落盘失败")
+	})
+	result, err := NewDiscordChannel("test", client).SendDeliveryMessage(ctx, channelcontract.DeliveryTarget{Mode: "explicit", Channel: "discord", To: "chat"}, strings.Repeat("a", 2400))
+	if err == nil || calls != 1 || result.Receipt == nil || result.Receipt.PrimaryPlatformMessageID != "42" {
+		t.Fatalf("落盘失败后继续发送或丢失回执: %+v %v %d", result, err, calls)
 	}
 }

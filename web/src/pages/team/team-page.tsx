@@ -184,8 +184,26 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
 	}, [canUseRelay, room.room?.room.membership_version]);
   const scroll = useFollowScroll({
     messageCount: room.messages.length,
+    historyPrependToken: room.historyPrependToken,
     sessionKey: room.room?.conversation.id ?? null,
   });
+  const latestMessageSeq = room.messages.at(-1)?.message_seq ?? 0;
+  const markRead = room.markRead;
+  const isFollowingLatest = scroll.isFollowingLatest;
+  useEffect(() => {
+    const acknowledgeVisible = () => {
+      if (document.visibilityState === "visible" && document.hasFocus() && isFollowingLatest()) {
+        void markRead(latestMessageSeq);
+      }
+    };
+    acknowledgeVisible();
+    window.addEventListener("focus", acknowledgeVisible);
+    document.addEventListener("visibilitychange", acknowledgeVisible);
+    return () => {
+      window.removeEventListener("focus", acknowledgeVisible);
+      document.removeEventListener("visibilitychange", acknowledgeVisible);
+    };
+  }, [isFollowingLatest, latestMessageSeq, markRead, room.room?.last_read_message_seq, scroll.showScrollToBottom]);
   const isCompact = useMediaQuery(APP_NARROW_VIEWPORT_MEDIA_QUERY);
   const directUserId = room.room?.room.direct_user_id;
   const peer = memberDirectory.find((member) => member.user_id === directUserId);
@@ -317,9 +335,18 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
             <ConversationPanelViewport
               floatingDockOccupied={scroll.showScrollToBottom}
               isMobileLayout={isCompact}
-              viewport={{ ...scroll, isHistoryLoading: false, ariaLabel: t("team.shared_room") }}
+              viewport={{ ...scroll, isHistoryLoading: room.isHistoryLoading, ariaLabel: t("team.shared_room") }}
             >
               <div ref={scroll.feedRef} className="min-h-full">
+              {room.hasEarlier && (
+                <div className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex justify-center py-2`}>
+                  <UiButton variant="ghost" disabled={room.isHistoryLoading} onClick={async () => {
+                    if (!await room.loadEarlier(scroll.prepareHistoryPrependRestore)) scroll.cancelHistoryPrependRestore();
+                  }}>
+                    {t(room.historyError ? "team.history_retry" : "team.load_earlier")}
+                  </UiButton>
+                </div>
+              )}
               <TeamMessageFeed
                 roomId={room.room?.room.id ?? ""}
                 stopAction={stopAction}
@@ -563,8 +590,8 @@ function TeamMessageFeed({
               assistantHeaderAction={delivery.state === "pending" && message.author_user_id === currentUserId ? <DeliveryCancelButton roomId={roomId} deliveryId={delivery.id} /> : undefined}
               assistantEmptyState={<div role="status">
                 {delivery.state === "pending" || delivery.state === "leased" ? (
-                  <MessageActivityStatus className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME} stableSlot state={delivery.state === "pending" ? "sending" : "replying"}
-                    label={t(`team.delivery_${delivery.state}`)} />
+                  <MessageActivityStatus className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME} stableSlot state={delivery.state === "pending" ? "sending" : delivery.execution_state === "waiting_input" ? "waiting_input" : "replying"}
+                    label={t(delivery.state === "leased" && delivery.execution_state ? `team.delivery_${delivery.execution_state}` : `team.delivery_${delivery.state}`)} />
                 ) : (
                   <span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
                     {t(DELIVERY_FAILURE_KEYS[delivery.failure_code ?? ""] ?? (delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`))}

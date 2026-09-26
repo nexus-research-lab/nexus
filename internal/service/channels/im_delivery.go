@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 )
 
@@ -101,10 +102,12 @@ func (r *Router) deliverTrackedIM(ctx context.Context, source imdelivery.Source,
 		return DeliveryResult{}, err
 	}
 	result := DeliveryResult{DeliveryID: d.ID, Target: DeliveryTarget{Mode: DeliveryModeLast, SessionKey: session}}
-	if d.State == "sent" {
+	if d.ReceiptJSON != "" {
 		if err = json.Unmarshal([]byte(d.ReceiptJSON), &result); err != nil {
 			return result, err
 		}
+	}
+	if d.State == "sent" {
 		return result, nil
 	}
 	claimed, err := r.imDeliveries.ClaimSend(ctx, d.OwnerUserID, d.ID, false)
@@ -124,12 +127,16 @@ func (r *Router) deliverTrackedIM(ctx context.Context, source imdelivery.Source,
 		finishErr := r.imDeliveries.FinishSend(ctx, d.OwnerUserID, d.ID, "not_sent", "")
 		return result, errors.Join(err, finishErr)
 	}
-	result, err = r.DeliverMessage(ctx, agent, text, result.Target)
+	result, err = r.DeliverMessage(r.withIMDeliveryProgress(ctx, d), agent, text, result.Target)
 	result.DeliveryID = d.ID
-	if err != nil {
-		return result, fmt.Errorf("投递 %s 结果待核对: %w", d.ID, err)
-	}
 	raw, _ := json.Marshal(result)
+	if err != nil {
+		// 保留部分成功的回执，未知分段仍禁止自动重发。
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		persistErr := r.imDeliveries.FinishSend(persistCtx, d.OwnerUserID, d.ID, "unknown", string(raw))
+		return result, fmt.Errorf("投递 %s 结果待核对: %w", d.ID, errors.Join(err, persistErr))
+	}
 	if err = r.imDeliveries.FinishSend(ctx, d.OwnerUserID, d.ID, "sent", string(raw)); err != nil {
 		return result, err
 	}
@@ -150,4 +157,18 @@ func (r *Router) resolveIMSourceSession(ctx context.Context, key string) (*proto
 		return resolver.GetSession(ctx, key)
 	}
 	return r.resolveDeliverySession(ctx, key)
+}
+
+// withIMDeliveryProgress 复用现有回执列保存每段进度；持久化失败就停止后续发送。
+func (r *Router) withIMDeliveryProgress(ctx context.Context, d imdelivery.Delivery) context.Context {
+	return channelcontract.WithDeliveryProgress(ctx, func(result DeliveryResult) error {
+		result.DeliveryID = d.ID
+		raw, err := json.Marshal(result)
+		if err != nil {
+			return err
+		}
+		persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		return r.imDeliveries.FinishSend(persistCtx, d.OwnerUserID, d.ID, "unknown", string(raw))
+	})
 }

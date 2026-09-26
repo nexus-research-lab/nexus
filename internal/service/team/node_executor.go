@@ -30,21 +30,22 @@ import (
 )
 
 type NodeExecutor struct {
-	nodes    *NodeService
-	relay    *relaysvc.Client
-	logger   *slog.Logger
-	prepare  func(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
-	start    func(context.Context, roomrealtime.ChatRequest, func(context.Context) error) error
-	upload   func(context.Context, string, string, string, string, io.Reader) (*workspacesvc.UploadResult, error)
-	stop     func(context.Context, roomrealtime.InterruptRequest) error
-	openFile func(context.Context, string, string) (*os.File, string, error)
-	ready    atomic.Bool
-	mu       sync.Mutex
-	active   map[string]string
-	logTimes map[string]time.Time
-	tokens   map[string]cachedNodeToken
-	loop     *duework.Loop
-	workErr  error
+	pendingInteraction func(string, string) (bool, <-chan struct{})
+	nodes              *NodeService
+	relay              *relaysvc.Client
+	logger             *slog.Logger
+	prepare            func(context.Context, string, string) (*protocol.ConversationContextAggregate, error)
+	start              func(context.Context, roomrealtime.ChatRequest, func(context.Context) error) error
+	upload             func(context.Context, string, string, string, string, io.Reader) (*workspacesvc.UploadResult, error)
+	stop               func(context.Context, roomrealtime.InterruptRequest) error
+	openFile           func(context.Context, string, string) (*os.File, string, error)
+	ready              atomic.Bool
+	mu                 sync.Mutex
+	active             map[string]string
+	logTimes           map[string]time.Time
+	tokens             map[string]cachedNodeToken
+	loop               *duework.Loop
+	workErr            error
 }
 
 type cachedNodeToken struct {
@@ -54,6 +55,7 @@ type cachedNodeToken struct {
 
 func NewNodeExecutor(nodes *NodeService, relay *relaysvc.Client, rooms *roomsvc.Service, runtime *roomrealtime.Service, workspace *workspacesvc.Service, logger *slog.Logger) *NodeExecutor {
 	e := &NodeExecutor{nodes: nodes, relay: relay, logger: logger, prepare: rooms.EnsureRelayExecutionRoom, start: runtime.HandleAdmittedChat, stop: runtime.HandleInterrupt, active: map[string]string{}}
+	e.pendingInteraction = runtime.PendingAgentInteraction
 	e.loop = duework.New(duework.Options{})
 	nodes.executor = e
 	e.upload = rooms.UploadConversationAttachment

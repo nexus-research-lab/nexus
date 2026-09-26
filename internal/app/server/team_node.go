@@ -30,7 +30,7 @@ func (s *Server) mountTeamNodeRoutes() {
 			if err != nil {
 				return relaycontract.RoomDetails{}, err
 			}
-			return s.services.Relay.GetRoom(ctx, token, roomID)
+			return s.services.Relay.GetRoomWithMembers(ctx, token, roomID)
 		}
 	}
 	service, err := teamsvc.NewNodeService(s.config, teamstore.NewRepository(s.config, s.services.DB), s.services.Core.Agent.ListAgents, readRoom)

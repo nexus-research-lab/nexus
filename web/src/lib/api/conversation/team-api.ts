@@ -41,6 +41,8 @@ export interface TeamMessage {
 }
 
 export interface TeamRoomView {
+  last_read_message_seq?: number;
+  unread_count?: number;
   room: {
     id: string;
     organization_id: string;
@@ -90,11 +92,13 @@ export interface TeamRoomMember {
 }
 
 export interface TeamRoomDetails extends TeamRoomView {
+  next_member_cursor?: string;
   members: TeamRoomMember[];
   deliveries?: TeamDeliveryStatus[];
 }
 
 export interface TeamDeliveryStatus {
+  execution_state?: "running" | "waiting_input";
   id: string;
   message_id: string;
   agent_id: string;
@@ -197,8 +201,21 @@ export function createTeamRoom(
   });
 }
 
-export function getTeamRoom(roomId: string, signal?: AbortSignal): Promise<TeamRoomDetails> {
-  return requestApi<TeamRoomDetails>(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`, { method: "GET", signal });
+export async function getTeamRoom(roomId: string, signal?: AbortSignal): Promise<TeamRoomDetails> {
+  const base = `${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`;
+  const result = await requestApi<TeamRoomDetails>(base, {method: "GET", signal});
+  // ponytail: 当前管理与 mention 界面需要完整名单；大群按需检索时再取消客户端汇总。
+  while (result.next_member_cursor) {
+    const query = new URLSearchParams({after: result.next_member_cursor, membership_version: String(result.room.membership_version), stream_epoch: result.conversation.stream_epoch});
+    const page = await requestApi<{members: TeamRoomMember[]; next_cursor?: string}>(`${base}/members?${query}`, {signal});
+    if (page.next_cursor === result.next_member_cursor) throw new Error("成员分页游标未推进");
+    result.members.push(...page.members);
+    result.next_member_cursor = page.next_cursor;
+  }
+  const roles = {owner: 0, admin: 1, member: 2};
+  const states = {active: 0, invited: 1, left: 2, removed: 2};
+  result.members.sort((a, b) => roles[a.role] - roles[b.role] || states[a.state] - states[b.state] || a.member_type.localeCompare(b.member_type) || a.member_id.localeCompare(b.member_id));
+  return result;
 }
 
 export function listTeamInvitations(signal?: AbortSignal): Promise<TeamRoomInvitationList> {
@@ -318,4 +335,23 @@ export function buildTeamStreamUrl(streamId: string, streamEpoch: string): strin
   url.searchParams.set("stream_id", streamId);
   url.searchParams.set("stream_epoch", streamEpoch);
   return url.toString();
+}
+
+// 阅读确认仅携带消息水位，真人身份由同源 Gateway 提供。
+export function markTeamRoomRead(roomId: string, messageSeq: number, streamEpoch: string, signal?: AbortSignal): Promise<{last_read_message_seq: number}> {
+  return requestApi(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/read-state`, {
+    method: "PUT", signal, body: JSON.stringify({message_seq: messageSeq, stream_epoch: streamEpoch}),
+  });
+}
+
+/** 每批只查询至多 100 条已加载消息，避免 Room 刷新随全部历史增长。 */
+export async function getTeamDeliveryStatuses(roomId: string, messageIds: string[], signal?: AbortSignal): Promise<TeamDeliveryStatus[]> {
+  const result: TeamDeliveryStatus[] = [];
+  const ids = [...new Set(messageIds)];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const query = new URLSearchParams();
+    for (const id of ids.slice(offset, offset + 100)) query.append("message_id", id);
+    result.push(...await requestApi<TeamDeliveryStatus[]>(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}/deliveries?${query}`, {signal}));
+  }
+  return result;
 }

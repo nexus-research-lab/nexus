@@ -692,3 +692,34 @@ func validIdempotencyKey(value string) bool {
 	}
 	return true
 }
+
+// HandleMarkRead 的身份只来自当前账号；请求不能替其他成员推进阅读状态。
+func (h *Handlers) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if !h.requireMutationOrigin(w, r) {
+		return
+	}
+	roomID := chi.URLParam(r, "room_id")
+	var input relaycontract.MarkReadInput
+	if !validResourceID(roomID) || decodeStrictJSON(w, r, &input) != nil || input.MessageSeq < 0 || input.StreamEpoch == "" {
+		h.writeRequestError(w, r, "team.read_state_invalid", "阅读水位无效", true)
+		return
+	}
+	token, ok := h.exchangeToken(w, r, true)
+	if !ok {
+		return
+	}
+	client, ok := h.relay.(interface {
+		MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error)
+	})
+	if !ok {
+		h.api.WriteFailure(w, http.StatusServiceUnavailable, "阅读状态服务不可用")
+		return
+	}
+	result, err := client.MarkRead(r.Context(), token, roomID, input)
+	if err != nil {
+		h.writeRelayError(w, r, err, true)
+		return
+	}
+	h.api.WriteSuccess(w, result)
+}

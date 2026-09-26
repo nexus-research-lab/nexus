@@ -104,6 +104,21 @@ type DeliveryResult struct {
 	Receipt    *channelmessage.Receipt `json:"receipt,omitempty"`
 }
 
+// deliveryProgressKey 只承载宿主注入的持久回执回调，不接受平台或模型输入。
+type deliveryProgressKey struct{}
+
+func WithDeliveryProgress(ctx context.Context, save func(DeliveryResult) error) context.Context {
+	return context.WithValue(ctx, deliveryProgressKey{}, save)
+}
+
+// RecordDeliveryProgress 在下一段发送前持久化已确认的前缀。
+func RecordDeliveryProgress(ctx context.Context, result DeliveryResult) error {
+	if save, ok := ctx.Value(deliveryProgressKey{}).(func(DeliveryResult) error); ok {
+		return save(result)
+	}
+	return nil
+}
+
 // AutomationDeliveryContext 是调度器签发的一次任务结果投递身份。
 //
 // Channel adapter 不消费这些字段；Router 用它把同一结果稳定投影到 Nexus

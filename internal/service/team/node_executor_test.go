@@ -736,3 +736,24 @@ func TestNodeTerminalStatusDistinguishesInterruption(t *testing.T) {
 		})
 	}
 }
+
+func TestPublicExecutionStateUsesExactLocalSession(t *testing.T) {
+	changed := make(chan struct{})
+	waiting := true
+	executor := &NodeExecutor{pendingInteraction: func(conversation, agent string) (bool, <-chan struct{}) {
+		if conversation != "conversation" || agent != "local" {
+			t.Fatalf("查询越过本机执行绑定: %s %s", conversation, agent)
+		}
+		return waiting, changed
+	}}
+	job := teamstore.NodeJob{ConversationID: "conversation", LocalAgentID: "local", AgentID: "remote"}
+	phase, signal := executor.deliveryExecutionState(job)
+	if phase != "waiting_input" || signal != changed {
+		t.Fatalf("等待信号丢失: %s", phase)
+	}
+	waiting = false
+	phase, signal = executor.deliveryExecutionState(job)
+	if phase != "running" || signal != changed {
+		t.Fatalf("解除等待未恢复运行: %s", phase)
+	}
+}

@@ -6,6 +6,7 @@
 //   - dingtalk*.go：钉钉（回调 / 投递 / stream）。
 //   - feishu_*.go：飞书（API / 回调安全 / 入站 / token / 模型）。
 //   - telegram*.go：Telegram（投递 / 入站 / polling / 模型）；以 update_id 去重，派发前可重试错误最多尝试三次；失败提示后继续后续事件，未知执行不自动重跑。
+//   - Telegram / Discord 分段回执在下一次物理发送前交给宿主持久化，后续失败仍返回成功前缀。
 //   - wecom_bot_*.go：企业微信机器人（callback stream 即时回复 / aibot_send_msg 延迟主动投递 /
 //     有界 socket 写入 / 连续缺失 pong 的半开连接重连 / 入站）。
 //   - personal_weixin_*.go：个人微信（client / multi / 模型 / 启停通知 / 持久轮询游标 /

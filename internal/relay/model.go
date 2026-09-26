@@ -100,11 +100,24 @@ type Conversation struct {
 	HighWaterSyncEventSeq int64      `json:"high_water_sync_event_seq"`
 }
 
-// RoomView 是当前成员可见的 Room、主 Conversation 和自身角色。
+// ReadState 是 Relay 持有的当前真人阅读水位。
+type ReadState struct {
+	LastReadMessageSeq int64 `json:"last_read_message_seq"`
+}
+
+// MarkReadInput 绑定当前同步世代的本人阅读确认。
+type MarkReadInput struct {
+	MessageSeq  int64  `json:"message_seq"`
+	StreamEpoch string `json:"stream_epoch"`
+}
+
+// RoomView 是当前成员可见的 Room、主 Conversation、自身角色与未读状态。
 type RoomView struct {
-	Room            Room         `json:"room"`
-	Conversation    Conversation `json:"conversation"`
-	CurrentUserRole string       `json:"current_user_role"`
+	LastReadMessageSeq int64        `json:"last_read_message_seq"`
+	UnreadCount        int64        `json:"unread_count"`
+	Room               Room         `json:"room"`
+	Conversation       Conversation `json:"conversation"`
+	CurrentUserRole    string       `json:"current_user_role"`
 }
 
 // RoomList 是当前真人的在线 Room 目录。
@@ -130,17 +143,19 @@ type RoomMember struct {
 // RoomDetails 是在线 Room 管理使用的成员快照。
 type RoomDetails struct {
 	RoomView
-	Members    []RoomMember     `json:"members"`
-	Deliveries []DeliveryStatus `json:"deliveries"`
+	NextMemberCursor string           `json:"next_member_cursor,omitempty"`
+	Members          []RoomMember     `json:"members"`
+	Deliveries       []DeliveryStatus `json:"deliveries"`
 }
 
 // DeliveryStatus 是所有群成员可见的最小进度，不包含本机执行信息。
 type DeliveryStatus struct {
-	ID          string `json:"id"`
-	MessageID   string `json:"message_id"`
-	AgentID     string `json:"agent_id"`
-	State       string `json:"state"`
-	FailureCode string `json:"failure_code,omitempty"`
+	ExecutionState string `json:"execution_state,omitempty"`
+	ID             string `json:"id"`
+	MessageID      string `json:"message_id"`
+	AgentID        string `json:"agent_id"`
+	State          string `json:"state"`
+	FailureCode    string `json:"failure_code,omitempty"`
 }
 
 // RoomInvitation 是当前真人尚未处理的在线 Room 邀请。
@@ -347,4 +362,10 @@ func (e *RemoteError) Error() string {
 		return "Relay 请求失败"
 	}
 	return fmt.Sprintf("Relay 请求失败: %s (%s)", e.Message, e.Code)
+}
+
+// RoomMemberPage 是同一成员版本下的有界续页。
+type RoomMemberPage struct {
+	Members    []RoomMember `json:"members"`
+	NextCursor string       `json:"next_cursor,omitempty"`
 }
