@@ -500,6 +500,15 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	handler := e.round.PermissionHandler
 	if handler == nil {
 		handler = func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+			if e.service.externalPermission != nil {
+				external, err := e.service.externalPermission(ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey)
+				if err != nil {
+					return sdkpermission.Deny("外部会话权限路由不可用", false), err
+				}
+				if external != nil {
+					return external(ctx, request)
+				}
+			}
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}

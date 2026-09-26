@@ -264,6 +264,22 @@ func (r *Router) sendDelivery(
 		r.loggerFor(ctx).Error("投递通道未配置", "agent_id", agentID, "channel", target.Channel, "err", err)
 		return DeliveryResult{Target: target}, err
 	}
+	if target.PairingID != "" {
+		r.mu.RLock()
+		grants := r.imGrants
+		r.mu.RUnlock()
+		guard, ok := grants.(interface {
+			AcquireBindingDelivery(context.Context, string, string, DeliveryTarget) (func(), error)
+		})
+		if !ok {
+			return DeliveryResult{}, ErrExternalSessionGrantUnavailable
+		}
+		unlock, err := guard.AcquireBindingDelivery(ctx, authctx.OwnerUserID(ctx), agentID, target)
+		if err != nil {
+			return DeliveryResult{}, err
+		}
+		defer unlock()
+	}
 	result, err := sendDeliveryMessage(ctx, channel, agentID, target, text)
 	if err != nil {
 		r.loggerFor(ctx).Error("文本投递失败",
@@ -300,6 +316,9 @@ func normalizeDeliveryResult(result DeliveryResult, fallback DeliveryTarget) Del
 		result.Target = fallback
 	} else {
 		result.Target = result.Target.Normalized()
+		// 平台回执不能替换宿主冻结的绑定版本。
+		result.Target.PairingID = fallback.PairingID
+		result.Target.BindingVersion = fallback.BindingVersion
 	}
 	return result
 }
@@ -435,6 +454,22 @@ func (r *Router) validateExternalDeliveryTarget(
 	}
 	if err := validator.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, parsed.Raw); err != nil {
 		return err
+	}
+	if target.PairingID != "" {
+		binding, ok := grants.(interface {
+			ValidateBindingDelivery(context.Context, string, string, DeliveryTarget) (bool, error)
+		})
+		if !ok {
+			return ErrExternalSessionGrantUnavailable
+		}
+		roomBound, err := binding.ValidateBindingDelivery(ctx, ownerUserID, agentID, target)
+		if err != nil {
+			return err
+		}
+		// Room 绑定使用已授权传输地址，不需要启动或物化第二个 IM runtime。
+		if roomBound {
+			return nil
+		}
 	}
 	// The first inbound human message is deliberately remembered before DM
 	// dispatch so retries and concurrent windows have an exact return address.

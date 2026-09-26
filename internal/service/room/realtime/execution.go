@@ -658,6 +658,16 @@ func (e *slotExecution) persistInterruptedAssistant() error {
 }
 
 func (e *slotExecution) emitEvent(event protocol.EventMessage) error {
+	// runtime 先落 durable 消息，再生成完成态 assistant 投影；私域不广播公区，但仍可精确回信。
+	if event.EventType == protocol.EventTypeMessage && e.service.externalReply != nil {
+		if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+			return err
+		}
+		if err := e.service.externalReply(e.ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey, protocol.Message(event.Data)); err != nil {
+			e.logger.Warn("外部会话回信失败，保留 Room 原消息", "err", err)
+		}
+	}
+
 	if roomSlotShouldDropPublicOutputEvent(e.slot, event) {
 		return nil
 	}

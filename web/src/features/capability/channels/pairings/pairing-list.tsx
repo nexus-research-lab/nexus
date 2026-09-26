@@ -5,6 +5,7 @@
  */
 "use client";
 
+import { PairingSessionTarget } from "./pairing-session-target";
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import {
   Check,
@@ -308,6 +309,8 @@ function PairingRow({
           </UiIconButton>
         </div>
       </div>
+
+      <PairingSessionTarget key={`${item.pairing_id}:${item.binding_version}:${item.agent_id}`} item={item} busy={busy} onUpdate={onUpdatePairing} />
 
       <UiDisclosure
         contentClassName="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]"

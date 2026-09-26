@@ -111,7 +111,7 @@ func (s *IngressService) buildPairedDMPermissionHandler(
 		if s.permission == nil {
 			return sdkpermission.Deny("当前 IM 权限确认通道不可用", false), nil
 		}
-		return s.permission.RequestPermission(ctx, request.sessionKey, permissionRequest)
+		return s.permission.RequestPermission(ctx, request.permissionSessionKey(), permissionRequest)
 	}
 }
 

@@ -46,7 +46,7 @@ func TestIngressServiceDeduplicatesReqID(t *testing.T) {
 	}
 }
 
-func TestIngressServiceRetriesFailedReqID(t *testing.T) {
+func TestIngressServiceDoesNotReplayUnknownDMAdmission(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -64,8 +64,8 @@ func TestIngressServiceRetriesFailedReqID(t *testing.T) {
 	}
 	handler.err = nil
 	result, err := service.Accept(context.Background(), request)
-	if err != nil || result == nil || result.Duplicate {
-		t.Fatalf("失败后的同 req_id 应允许重试: result=%+v err=%v", result, err)
+	if !errors.Is(err, ErrIngressOutcomeUnknown) || result != nil || len(handler.requests) != 1 {
+		t.Fatalf("未知 DM 受理不能确认或重跑: result=%+v err=%v calls=%d", result, err, len(handler.requests))
 	}
 }
 
@@ -302,5 +302,97 @@ func TestIngressServiceAcceptPassesChannelOwnerToDM(t *testing.T) {
 	expectedSessionKey := "agent:" + ownerAgent.AgentID + ":fs:group:oc_group_owner"
 	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
 		t.Fatalf("DM 请求不正确: %+v", handler.requests)
+	}
+}
+
+func TestIngressDoesNotRepeatUncertainControlCommand(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	service := NewIngressService(cfg, agents, &fakeIngressDMHandler{}, router)
+	service.SetControlService(NewControlService(cfg, db, agents, router))
+	commands := &recordingIngressCommandHandler{err: errors.New("命令执行结果未知")}
+	service.SetCommandHandler(commands)
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "/stop", ReqID: "same-command"}
+	if _, err := service.Accept(t.Context(), request); err == nil {
+		t.Fatal("预期命令失败")
+	}
+	_, _ = service.Accept(t.Context(), request)
+	if len(commands.requests) != 1 {
+		t.Fatalf("未知控制命令被重复执行: %d", len(commands.requests))
+	}
+}
+
+func TestIngressCrashRecoveryUsesOriginalRoundAndDurableEvidence(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, handler, router)
+	service.SetControlService(control)
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "prepared", RoundID: "original"}
+	normalized, err := service.normalizeRequest(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed, _, err := service.claimIngress(t.Context(), normalized); err != nil || !claimed {
+		t.Fatalf("claim: %v %v", claimed, err)
+	}
+	// 模拟在路由准备阶段退出；重投必须沿原轮次继续。
+	request.RoundID = "new-round"
+	result, err := service.Accept(t.Context(), request)
+	if err != nil || result.RoundID != "original" || len(handler.requests) != 1 || handler.requests[0].RoundID != "original" {
+		t.Fatalf("prepared recovery: %+v %v", result, err)
+	}
+	if _, err = db.Exec(`UPDATE im_ingress_messages SET status='processing' WHERE req_id='prepared'`); err != nil {
+		t.Fatal(err)
+	}
+	service.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
+		if session != normalized.sessionKey {
+			t.Fatalf("wrong session: %s", session)
+		}
+		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{{RoundID: "original", HasUserMessage: true}}}, nil
+	})
+	result, err = service.Accept(t.Context(), request)
+	if err != nil || !result.Duplicate || len(handler.requests) != 1 {
+		t.Fatalf("accepted recovery reran: %+v %v", result, err)
+	}
+	request.Content = "different command"
+	if _, err = service.Accept(t.Context(), request); err == nil {
+		t.Fatal("同身份不能替换正文")
+	}
+}
+
+func TestIngressDispatchBarrierHasOneWinner(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, &fakeIngressDMHandler{}, router)
+	service.SetControlService(control)
+	request, err := service.normalizeRequest(t.Context(), IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "same"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if claimed, _, err := service.claimIngress(t.Context(), request); err != nil || !claimed {
+			t.Fatalf("prepare: %v %v", claimed, err)
+		}
+	}
+	if err = control.beginIngressDispatch(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	if err = control.beginIngressDispatch(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
+		t.Fatalf("second dispatcher: %v", err)
+	}
+	if _, _, err = service.claimIngress(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
+		t.Fatalf("unknown accepted: %v", err)
 	}
 }

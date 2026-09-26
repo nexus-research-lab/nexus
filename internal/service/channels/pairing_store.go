@@ -15,7 +15,7 @@ import (
 func (s *ControlService) listPairingRows(ctx context.Context, ownerUserID string, query PairingQuery) ([]pairingRow, error) {
 	sqlText := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1)
 	args := []any{strings.TrimSpace(ownerUserID)}
@@ -62,7 +62,7 @@ func (s *ControlService) getPairingRowFrom(
 ) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + " AND pairing_id = " + s.bind(2)
 	item, err := scanPairingScanner(store.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID)))
@@ -108,7 +108,7 @@ func (s *ControlService) findPairingByTargetFrom(
 ) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + `
 	  AND channel_type = ` + s.bind(2) + `
@@ -147,7 +147,7 @@ func (s *ControlService) findPairingByTargetAnyStatusFrom(
 ) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + `
 	  AND channel_type = ` + s.bind(2) + `
@@ -319,6 +319,9 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 	ON CONFLICT (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = EXCLUDED.external_name,
+    binding_version = im_pairings.binding_version + CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id OR im_pairings.status <> EXCLUDED.status THEN 1 ELSE 0 END,
+    target_room_id = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN '' ELSE im_pairings.target_room_id END,
+    target_conversation_id = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN '' ELSE im_pairings.target_conversation_id END,
     agent_id = EXCLUDED.agent_id,
     status = EXCLUDED.status,
     source = EXCLUDED.source,
@@ -353,6 +356,9 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = excluded.external_name,
+    binding_version = im_pairings.binding_version + CASE WHEN im_pairings.agent_id <> excluded.agent_id OR im_pairings.status <> excluded.status THEN 1 ELSE 0 END,
+    target_room_id = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN '' ELSE im_pairings.target_room_id END,
+    target_conversation_id = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN '' ELSE im_pairings.target_conversation_id END,
     agent_id = excluded.agent_id,
     status = excluded.status,
     source = excluded.source,
@@ -400,6 +406,7 @@ func scanPairingScanner(row sqlScanner) (*pairingRow, error) {
 		&item.LastMessageAt,
 		&item.CreatedAt,
 		&item.UpdatedAt,
+		&item.TargetRoomID, &item.TargetConversationID, &item.BindingVersion,
 	)
 	if err != nil {
 		return nil, err

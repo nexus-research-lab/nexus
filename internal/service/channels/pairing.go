@@ -114,6 +114,9 @@ func (s *ControlService) updatePairing(
 		}
 	}
 
+	if err := s.validatePairingTargetPatch(ctx, ownerUserID, pairingID, request); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
 	var updatedRow *pairingRow
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
 		existing, loadErr := s.getPairingRowFrom(ctx, tx, ownerUserID, pairingID)
@@ -129,6 +132,9 @@ func (s *ControlService) updatePairing(
 				return invalidChannelControl(errors.New("status is invalid"))
 			}
 			request.Status = &status
+		}
+		if err := s.patchPairingTarget(ctx, tx, existing, request); err != nil {
+			return err
 		}
 		identityChanged := (request.AgentID != nil && *request.AgentID != existing.AgentID) ||
 			(request.Status != nil && *request.Status != existing.Status)

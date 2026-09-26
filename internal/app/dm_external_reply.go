@@ -23,6 +23,7 @@ func (d dmExternalReplyDispatcher) DeliverExternalReply(
 		return dmsvc.ExternalReplyResult{}, errors.New("channel router is not configured")
 	}
 	result, err := d.router.DeliverMessage(ctx, agentID, text, channels.DeliveryTarget{
+		PairingID: target.PairingID, BindingVersion: target.BindingVersion,
 		Mode:           target.Mode,
 		Channel:        target.Channel,
 		To:             target.To,
@@ -58,6 +59,7 @@ func (d dmExternalReplyDispatcher) SetExternalTyping(
 		return errors.New("channel router is not configured")
 	}
 	return d.router.SetTyping(ctx, agentID, channels.DeliveryTarget{
+		PairingID: target.PairingID, BindingVersion: target.BindingVersion,
 		Mode:           target.Mode,
 		Channel:        target.Channel,
 		To:             target.To,

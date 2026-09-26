@@ -87,7 +87,7 @@ func (s *ControlService) findPairingSessionBySessionKey(ctx context.Context, own
 	query := `
 SELECT p.pairing_id, p.owner_user_id, p.channel_type, p.account_id, p.chat_type, p.external_ref, p.thread_id,
        p.external_name, p.agent_id, p.status, p.source, ps.session_key, ps.session_materialized,
-       p.last_message_at, p.created_at, p.updated_at
+       p.last_message_at, p.created_at, p.updated_at, p.target_room_id, p.target_conversation_id, p.binding_version
 FROM im_pairing_sessions ps
 JOIN im_pairings p ON p.owner_user_id = ps.owner_user_id AND p.pairing_id = ps.pairing_id
 

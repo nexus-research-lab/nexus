@@ -292,6 +292,8 @@ type ConnectorRuntimeStateLoader func(context.Context, string) ([]ConnectorRunti
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
 type ExternalReplyTarget struct {
+	PairingID      string
+	BindingVersion int64
 	Mode           string
 	Channel        string
 	To             string

@@ -1,4 +1,15 @@
 export const zhCapabilityMessages = {
+  "capability.pairing_target": "会话目标",
+  "capability.pairing_target_independent": "独立 IM 会话",
+  "capability.pairing_target_room": "Room 成员会话",
+  "capability.pairing_target_unavailable": "原 Room 当前不可用",
+  "capability.pairing_target_topic": "话题",
+  "capability.pairing_target_choose_topic": "请选择话题",
+  "capability.pairing_target_untitled": "未命名话题",
+  "capability.pairing_target_hint": "只列出当前处理 Agent 所属且开启私域消息的 Room。切换仅影响后续输入，原任务保留，旧回复不再自动发回 IM。更换 Agent 后需重新选择 Room。",
+  "capability.pairing_target_retry": "读取失败，点击重试",
+  "capability.pairing_target_save": "保存会话目标",
+
   "capability.scheduled_board_effect_read": "只读",
   "capability.scheduled_board_run_cancelled": "已取消",
   "capability.scheduled_board_run_failed": "失败",

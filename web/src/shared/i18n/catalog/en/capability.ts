@@ -2,6 +2,17 @@ import type { MessageSegment } from "../message-segment";
 import type { zhCapabilityMessages } from "../zh/capability";
 
 export const enCapabilityMessages = {
+  "capability.pairing_target": "Conversation target",
+  "capability.pairing_target_independent": "Independent IM conversation",
+  "capability.pairing_target_room": "Room member conversation",
+  "capability.pairing_target_unavailable": "Original Room unavailable",
+  "capability.pairing_target_topic": "Topic",
+  "capability.pairing_target_choose_topic": "Choose a topic",
+  "capability.pairing_target_untitled": "Untitled topic",
+  "capability.pairing_target_hint": "Only Rooms with this agent and private messages enabled are listed. Switching affects new input; existing tasks remain, and old replies stop forwarding. Choose a Room again after changing the agent.",
+  "capability.pairing_target_retry": "Could not load. Retry",
+  "capability.pairing_target_save": "Save conversation target",
+
   "capability.scheduled_board_effect_read": "Read only",
   "capability.scheduled_board_run_cancelled": "Cancelled",
   "capability.scheduled_board_run_failed": "Failed",

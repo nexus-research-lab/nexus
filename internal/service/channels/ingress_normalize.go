@@ -58,11 +58,23 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	if err != nil {
 		return normalizedIngressRequest{}, err
 	}
+	var pairing *pairingRow
+	if s.control != nil && isExternalIngressChannel(channelStored) {
+		pairing, err = s.control.ingressPairing(ownerCtx, ownerUserID, agentID, sessionKey)
+		if err != nil {
+			return normalizedIngressRequest{}, err
+		}
+		if rememberedTarget != nil {
+			rememberedTarget.PairingID = pairing.PairingID
+			rememberedTarget.BindingVersion = pairing.BindingVersion
+		}
+	}
 	roundID := firstNonEmptyIngress(request.RoundID, s.idFactory("ingress_round"))
 	reqID := firstNonEmptyIngress(request.ReqID, request.RoundID, roundID)
 	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
+		pairing:                    pairing,
 		ownerUserID:                ownerUserID,
 		channelStored:              channelStored,
 		accountID:                  accountID,

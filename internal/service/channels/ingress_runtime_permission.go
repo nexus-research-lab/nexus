@@ -5,6 +5,7 @@ package channels
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -16,11 +17,14 @@ import (
 const runtimePermissionRequestIDPrefix = "perm_"
 
 type runtimePermissionIMSender struct {
-	ownerUserID string
-	agentID     string
-	sessionKey  string
-	router      *Router
-	control     *ControlService
+	roomID         string
+	conversationID string
+	target         *DeliveryTarget
+	ownerUserID    string
+	agentID        string
+	sessionKey     string
+	router         *Router
+	control        *ControlService
 }
 
 type runtimePermissionIMCommand struct {
@@ -64,16 +68,23 @@ func (s *IngressService) bindRuntimePermissionSession(request normalizedIngressR
 		return
 	}
 	sender := &runtimePermissionIMSender{
+		target:      request.rememberedTarget,
 		ownerUserID: request.ownerUserID,
 		agentID:     request.agentID,
 		sessionKey:  request.sessionKey,
 		router:      s.router,
 		control:     s.control,
 	}
-	if s.permission.IsBound(request.sessionKey, sender) {
+	bindingSession := request.permissionSessionKey()
+	if request.pairing != nil && request.pairing.TargetRoomID != "" {
+		sender.roomID = request.pairing.TargetRoomID
+		sender.conversationID = request.pairing.TargetConversationID
+		bindingSession = protocol.BuildRoomSharedSessionKey(sender.conversationID)
+	}
+	if s.permission.IsBound(bindingSession, sender) {
 		return
 	}
-	s.permission.BindSession(request.sessionKey, sender)
+	s.permission.BindSession(bindingSession, sender)
 }
 
 func (s *IngressService) handleRuntimePermissionCommand(
@@ -100,7 +111,7 @@ func (s *IngressService) handleRuntimePermissionCommand(
 	}
 	resolution := s.permission.ResolveSessionPermissionRequest(
 		contextWithIngressOwner(ctx, request.ownerUserID),
-		request.sessionKey,
+		request.permissionSessionKey(),
 		command.requestID,
 		decision,
 		persist,
@@ -183,7 +194,11 @@ func runtimePermissionStaleReply() string {
 }
 
 func (s *runtimePermissionIMSender) Key() string {
-	return "runtime-permission-im:" + strings.TrimSpace(s.sessionKey)
+	key := "runtime-permission-im:" + strings.TrimSpace(s.sessionKey)
+	if s.target != nil {
+		key += fmt.Sprintf(":%d", s.target.BindingVersion)
+	}
+	return key
 }
 
 func (s *runtimePermissionIMSender) IsClosed() bool {
@@ -195,6 +210,9 @@ func (s *runtimePermissionIMSender) SendEvent(
 	event protocol.EventMessage,
 ) error {
 	if s.IsClosed() || event.EventType != protocol.EventTypePermissionRequest {
+		return nil
+	}
+	if s.roomID != "" && (event.RoomID != s.roomID || event.ConversationID != s.conversationID || event.AgentID != s.agentID) {
 		return nil
 	}
 	ownerCtx := contextWithIngressOwner(ctx, s.ownerUserID)
@@ -210,10 +228,11 @@ func (s *runtimePermissionIMSender) SendEvent(
 	if !ok {
 		return nil
 	}
-	_, err := s.router.DeliverMessage(ownerCtx, s.agentID, text, DeliveryTarget{
-		Mode:       DeliveryModeLast,
-		SessionKey: s.sessionKey,
-	})
+	target := DeliveryTarget{Mode: DeliveryModeLast, SessionKey: s.sessionKey}
+	if s.target != nil {
+		target = *s.target
+	}
+	_, err := s.router.DeliverMessage(ownerCtx, s.agentID, text, target)
 	return err
 }
 
