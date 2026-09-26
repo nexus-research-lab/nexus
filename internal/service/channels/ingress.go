@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -99,6 +101,7 @@ func (r normalizedIngressRequest) messageID() string {
 // IngressService 负责把外部通道消息归一到 DM 入口。
 type IngressService struct {
 	rooms          *roomrealtime.Service
+	recovery       *duework.Loop
 	readRoundIndex func(context.Context, string) (*protocol.SessionRoundIndex, error)
 	config         config.Config
 	agents         agentWorkspaceResolver
@@ -120,6 +123,7 @@ func NewIngressService(
 	router *Router,
 ) *IngressService {
 	return &IngressService{
+		recovery:  duework.New(duework.Options{AuditInterval: 5 * time.Minute}),
 		config:    cfg,
 		agents:    agents,
 		dm:        dm,

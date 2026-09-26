@@ -1,6 +1,16 @@
 import WebKit
 
 enum WebViewConfigurationFactory {
+  // 隔离测试的所有窗口共用本次进程的临时存储，不读取或清除正式登录 Cookie。
+  static let websiteDataStore = makeWebsiteDataStore(
+    preferencesSuite: ProcessInfo.processInfo.environment["NEXUS_DESKTOP_PREFERENCES_SUITE"]
+  )
+
+  static func makeWebsiteDataStore(preferencesSuite: String?) -> WKWebsiteDataStore {
+    let isolated = !(preferencesSuite?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+    return isolated ? .nonPersistent() : .default()
+  }
+
   static func make(
     runtime: SidecarRuntimeConfig,
     windowCloseButtonCenter: CGPoint,
@@ -10,6 +20,7 @@ enum WebViewConfigurationFactory {
     windowInteractionHandler: DesktopWindowInteractionHandler
   ) throws -> WKWebViewConfiguration {
     let configuration = WKWebViewConfiguration()
+    configuration.websiteDataStore = websiteDataStore
     configuration.defaultWebpagePreferences.allowsContentJavaScript = true
     configuration.preferences.javaScriptCanOpenWindowsAutomatically = true
 

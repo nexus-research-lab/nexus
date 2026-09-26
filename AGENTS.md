@@ -2,6 +2,10 @@
 
 - Telegram 只对入口明确标记的派发前错误重试，最多三次；单条失败或未知结果提示后继续接收，通知失败不回退消费游标，宿主取消不确认未处理事件。
 
+- IM 入站恢复随通道启停，复用 duework 按 100 条键集分页核验原轮次的持久用户消息；启动、入站通知与五分钟审计驱动，不依赖平台重投，不重跑未知输入。00149 部分索引隔离已完成账本。
+
+- macOS 设置 `NEXUS_DESKTOP_PREFERENCES_SUITE` 的隔离测试使用进程内共享的临时 WebView 存储，窗口间共享本次登录态，重启不继承 Cookie；缓存清理使用同一存储，不触碰正式环境。`WebViewDataStoreTests.swift` 验证存储选择与 Cookie 隔离。
+
 - 在线执行的 `PublicAgentDirectory` 仅供成员提示与原生 mention 标注；跨节点唤醒归 Relay，远端成员不得进入本机 Room 成员或 slot。目录由领取的群成员 ID 与 Control 当前组织公开身份相交，不使用浏览器 Cookie。
 
 - 在线 Room 与目录连接复用浏览器默认 30 秒 ping / 10 秒 pong 超时；Gateway 只接收心跳，不接收业务命令。Relay transport 使用原生 Ping/Pong 检测半开连接，断线沿既有退避重连；初始水位触发原 cursor 的 difference，换代重建 snapshot，不重放用户消息或未知运行。

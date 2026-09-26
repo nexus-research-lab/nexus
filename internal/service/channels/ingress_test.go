@@ -3,6 +3,7 @@ package channels
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -394,5 +395,59 @@ func TestIngressDispatchBarrierHasOneWinner(t *testing.T) {
 	}
 	if _, _, err = service.claimIngress(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
 		t.Fatalf("unknown accepted: %v", err)
+	}
+}
+
+func TestIngressRecoveryScansPastUnknownWithoutPlatformRedelivery(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, handler, router)
+	service.SetControlService(control)
+	request, err := service.normalizeRequest(t.Context(), IngressRequest{Channel: "internal", Ref: "chat", Content: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i <= ingressRecoveryBatchSize; i++ {
+		request.reqID, request.roundID = fmt.Sprintf("message-%03d", i), fmt.Sprintf("round-%03d", i)
+		if _, _, err := service.claimIngress(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if err := control.beginIngressDispatch(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
+		if session != request.sessionKey {
+			t.Fatalf("wrong session: %s", session)
+		}
+		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{
+			{RoundID: "round-100", HasUserMessage: true}, {RoundID: "round-099", HasUserMessage: false},
+		}}, nil
+	})
+	cursor := ingressMessageRow{}
+	first, err := service.recoverIngressBatch(t.Context(), &cursor)
+	if err != nil || !first.HasMore {
+		t.Fatalf("first batch: %+v %v", first, err)
+	}
+	second, err := service.recoverIngressBatch(t.Context(), &cursor)
+	if err != nil || second.HasMore || cursor.ReqID != "" {
+		t.Fatalf("second batch: %+v %v", second, err)
+	}
+	var accepted int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM im_ingress_messages WHERE status='accepted'`).Scan(&accepted); err != nil {
+		t.Fatal(err)
+	}
+	if accepted != 1 || len(handler.requests) != 0 {
+		t.Fatalf("accepted=%d reruns=%d", accepted, len(handler.requests))
+	}
+	// 无证据的旧消息留在待核验状态，不能伪造受理或重跑。
+	unknown, err := control.getIngressMessage(t.Context(), request.ownerUserID, request.channelStored, request.accountID, "message-099")
+	if err != nil || unknown.Status != "processing" {
+		t.Fatalf("unknown: %+v %v", unknown, err)
 	}
 }
