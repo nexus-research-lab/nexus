@@ -1,5 +1,7 @@
 # AGENTS.md
 
+- Telegram 只对入口明确标记的派发前错误重试，最多三次；单条失败或未知结果提示后继续接收，通知失败不回退消费游标，宿主取消不确认未处理事件。
+
 - 在线执行的 `PublicAgentDirectory` 仅供成员提示与原生 mention 标注；跨节点唤醒归 Relay，远端成员不得进入本机 Room 成员或 slot。目录由领取的群成员 ID 与 Control 当前组织公开身份相交，不使用浏览器 Cookie。
 
 - 在线 Room 与目录连接复用浏览器默认 30 秒 ping / 10 秒 pong 超时；Gateway 只接收心跳，不接收业务命令。Relay transport 使用原生 Ping/Pong 检测半开连接，断线沿既有退避重连；初始水位触发原 cursor 的 difference，换代重建 snapshot，不重放用户消息或未知运行。

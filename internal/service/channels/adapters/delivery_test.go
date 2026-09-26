@@ -374,7 +374,7 @@ func TestTelegramChannelHandleEditedUpdateUsesDistinctReqID(t *testing.T) {
 	if ingress.requests[0].ReqID == ingress.requests[1].ReqID {
 		t.Fatalf("Telegram 编辑事件不应复用原消息 req_id: %+v", ingress.requests)
 	}
-	if ingress.requests[1].ReqID != "9:edited:11" {
+	if ingress.requests[1].ReqID != "update:11" {
 		t.Fatalf("Telegram 编辑事件 req_id 不正确: %q", ingress.requests[1].ReqID)
 	}
 	if ingress.requests[1].Content != "edited" || !ingress.requests[1].Message.Edited {
