@@ -18,7 +18,7 @@ func (c *TelegramChannel) SendDeliveryMessage(
 	ctx context.Context,
 	target channelcontract.DeliveryTarget,
 	text string,
-) (channelcontract.DeliveryResult, error) {
+) (result channelcontract.DeliveryResult, err error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
@@ -28,6 +28,15 @@ func (c *TelegramChannel) SendDeliveryMessage(
 	}
 
 	parts := make([]channelmessage.ReceiptPart, 0)
+	// 即使后续分段失败，也保留此前平台已确认的消息回执。
+	defer func() {
+		result = channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+			Channel:  channelcontract.ChannelTypeTelegram,
+			Target:   normalized.To,
+			ThreadID: normalized.ThreadID,
+			Parts:    parts,
+		}))
+	}()
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 4000) {
 		payload := map[string]any{
 			"chat_id":                  normalized.To,
@@ -58,14 +67,15 @@ func (c *TelegramChannel) SendDeliveryMessage(
 		}
 		if response.Result.MessageID != 0 {
 			parts = append(parts, channelmessage.TextPart(strconv.FormatInt(response.Result.MessageID, 10)))
+			if err := channelcontract.RecordDeliveryProgress(ctx, channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+				Channel: channelcontract.ChannelTypeTelegram, Target: normalized.To, ThreadID: normalized.ThreadID, Parts: parts,
+			}))); err != nil {
+				return result, err
+			}
+
 		}
 	}
-	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
-		Channel:  channelcontract.ChannelTypeTelegram,
-		Target:   normalized.To,
-		ThreadID: normalized.ThreadID,
-		Parts:    parts,
-	})), nil
+	return result, nil
 }
 
 func (c *TelegramChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {

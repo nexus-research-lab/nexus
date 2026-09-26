@@ -506,3 +506,8 @@ func eventRoundID(event protocol.EventMessage) string {
 func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
 	s.roomHistory.SetReplyPreviewRepository(repository)
 }
+
+// PendingAgentInteraction 只暴露成员执行会话的等待事实与变化信号，不暴露审批内容。
+func (s *Service) PendingAgentInteraction(conversationID, agentID string) (bool, <-chan struct{}) {
+	return s.permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
+}

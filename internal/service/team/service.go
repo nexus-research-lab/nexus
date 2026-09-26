@@ -25,6 +25,8 @@ type Access struct {
 
 // RelayClient 是同步流程所需的远端操作端口。
 type RelayClient interface {
+	RoomMembers(context.Context, string, string, string, string, int64) (relaycontract.RoomMemberPage, error)
+	RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error)
 	ListRooms(context.Context, string) (relaycontract.RoomList, error)
 	CreateRoom(context.Context, string, string, relaycontract.CreateRoomInput) (relaycontract.RoomView, error)
 	GetRoom(context.Context, string, string) (relaycontract.RoomDetails, error)

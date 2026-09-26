@@ -73,3 +73,6 @@
 - 远程 Agent 状态来自 RoomDetails.deliveries；本机执行才显示 Thread。中间 assistant 消息不清除远程状态，final 或 completed 才清除。来源消息由 delivery.message_id 关联，不按姓名或顺序猜测。
 
 - 回复来源为本人时，头像从当前登录身份补齐；可邀请成员目录排除了本人，不可作为本人头像的唯一来源。Agent 来源不会继承其拥有者的真人头像。
+
+- 更早消息按钮复用 UiButton 与 follow-scroll 历史前插锚点；分页失败取消锚定，成功由 historyPrependToken 恢复阅读位置。
+- 公共 execution_state 只展示 running/waiting_input，等待拥有者处理复用原生等待样式，不包含审批详情；leased 无状态时仍显示仅领取。

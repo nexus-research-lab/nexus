@@ -52,7 +52,7 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 	}
 	result = normalizeDeliveryResult(result, normalized)
 	if err = r.rememberDeliveryTarget(ctx, agentID, routeSessionKey, result.Target); err != nil {
-		return DeliveryResult{}, err
+		return result, err
 	}
 	r.logDeliverySuccess(ctx, agentID, text, result)
 	return result, nil
@@ -158,7 +158,11 @@ func (r *Router) DeliverAutomationResult(
 			return DeliveryResult{Target: resolved}, errors.New("IM delivery grant was revoked before send")
 		}
 	}
-	result, sendErr := r.sendDelivery(ctx, routeAgentID, text, resolved)
+	sendCtx := ctx
+	if tracked != nil {
+		sendCtx = r.withIMDeliveryProgress(ctx, *tracked)
+	}
+	result, sendErr := r.sendDelivery(sendCtx, routeAgentID, text, resolved)
 	result = normalizeDeliveryResult(result, resolved)
 	if tracked != nil {
 		result.DeliveryID = tracked.ID

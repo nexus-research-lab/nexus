@@ -5,6 +5,7 @@
 // 成员清单：
 //   - pairing_target.go / ingress_room.go：版本化的本地 Room 话题与单成员绑定、冻结返回地址、私域持久受理与完成回复去重；改绑和物理发送共用配对锁，旧任务不会向新绑定回信。
 //   - router.go：宿主内部投递历史注入独立摘要仓储，完成消息落盘后同步更新 DM/公区预览。
+//   - 已确认分段复用 im_deliveries.receipt_json 逐段持久化；取消后的落盘使用有界独立上下文，未知分段不重发。
 //   - im_delivery*.go：发送前持久来源、发送结果去重及精确 ingress 人类消息证据；pairing writer 同事务撤销旧回传资格。
 //   - ingress*.go：入站接收、消息归一化、投递目标解析、权限与会话映射；active-paired 私聊签发同 Agent 交互能力，把普通 runtime permission 投递为不暴露内部 ID 的 session-scoped `/y`、`/a`、`/d` 确认，可信控制命令在 Agent runtime 前跨 runtime/Automation 统一消歧、消费并回投当前 IM；配对持久化当前 Session 代次，删除后只轮换新 key，不复活旧 tombstone。
 //   - router.go / router_*.go：generation 防护的通道路由、候选先启动后替换、

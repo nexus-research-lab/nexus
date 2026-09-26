@@ -11,6 +11,7 @@ type PendingDeliveries struct {
 }
 
 type Delivery struct {
+	ExecutionState string     `json:"execution_state,omitempty"`
 	AgentIDs       []string   `json:"agent_ids,omitempty"`
 	ID             string     `json:"id"`
 	RoomID         string     `json:"room_id"`

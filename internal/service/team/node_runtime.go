@@ -119,7 +119,9 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	defer ticker.Stop()
 	renewAt := time.Now().Add(5 * time.Second)
 	retryOutput := false
+	publishedState := ""
 	for {
+		_, interactionChanged := e.deliveryExecutionState(job)
 		outputReady := false
 		select {
 		case <-ctx.Done():
@@ -142,6 +144,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			}
 			return errors.New("在线 Agent 本机执行失败")
 		case <-ticker.C:
+		case <-interactionChanged:
 		case <-observer.output:
 			outputReady = true
 			// 终态已落盘时由上面的终态分支统一 drain，不能继续按 running 处理。
@@ -161,11 +164,17 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 				return err
 			}
 		}
-		if time.Now().After(renewAt) {
-			if _, err = e.relay.SettleDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, false); err != nil {
+		executionState, _ := e.deliveryExecutionState(job)
+		if time.Now().After(renewAt) || executionState != publishedState {
+			changedState := ""
+			if executionState != publishedState {
+				changedState = executionState
+			}
+			if _, err = e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, changedState); err != nil {
 				e.logFailure(ctx, "renew_execution_lease", grant, job, err)
 				return err
 			}
+			publishedState = executionState
 			renewAt = time.Now().Add(5 * time.Second)
 		}
 		if !outputReady && !retryOutput {
@@ -472,4 +481,16 @@ func (e *NodeExecutor) prepareDeliveryAttachments(ctx context.Context, job teams
 		}
 	}
 	return attachments, nil
+}
+
+// 等待状态取自原生权限会话；消息流和工具内容不参与公开投影。
+func (e *NodeExecutor) deliveryExecutionState(job teamstore.NodeJob) (string, <-chan struct{}) {
+	if e.pendingInteraction == nil {
+		return "running", nil
+	}
+	pending, changed := e.pendingInteraction(job.ConversationID, job.LocalAgentID)
+	if pending {
+		return "waiting_input", changed
+	}
+	return "running", changed
 }

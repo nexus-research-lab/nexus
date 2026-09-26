@@ -170,5 +170,11 @@ func (c *TelegramChannel) redactError(err error) error {
 	if text == "" {
 		text = "telegram request failed"
 	}
+	var rejected *channeltransport.HTTPError
+	if errors.As(err, &rejected) {
+		copy := *rejected
+		copy.Body = strings.ReplaceAll(rejected.Body, c.token, "<redacted>")
+		return &copy
+	}
 	return errors.New(text)
 }

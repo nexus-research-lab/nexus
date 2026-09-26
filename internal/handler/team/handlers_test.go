@@ -1033,3 +1033,11 @@ func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
 		}
 	}
 }
+
+func (stub *teamRelayStub) RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error) {
+	return []relaycontract.DeliveryStatus{}, nil
+}
+
+func (stub *teamRelayStub) RoomMembers(context.Context, string, string, string, string, int64) (relaycontract.RoomMemberPage, error) {
+	return relaycontract.RoomMemberPage{}, nil
+}

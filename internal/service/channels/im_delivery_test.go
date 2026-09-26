@@ -9,6 +9,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
+	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 )
 
@@ -80,6 +82,17 @@ func TestTrackedIMDeliveryKeepsExactOriginAndNeverReplaysUnknown(t *testing.T) {
 	}
 	if _, err = store.ClaimSend(ctx, authctx.SystemUserID, pending.ID, false); err != nil {
 		t.Fatal(err)
+	}
+	// 请求取消后仍记录已确认分段，重试只返回回执而不重发。
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	progress := channelcontract.NewDeliveryResult(DeliveryTarget{Mode: DeliveryModeLast, SessionKey: target}, channelmessage.NewReceipt(channelmessage.ReceiptParams{Channel: ChannelTypeWeixinPersonal, Target: "person", Parts: []channelmessage.ReceiptPart{channelmessage.TextPart("part-1")}}))
+	if err = channelcontract.RecordDeliveryProgress(router.withIMDeliveryProgress(cancelled, pending), progress); err != nil {
+		t.Fatal(err)
+	}
+	uncertain, retryErr := send(sourceA, "uncertain")
+	if retryErr == nil || uncertain.Receipt == nil || uncertain.Receipt.PrimaryPlatformMessageID != "part-1" {
+		t.Fatalf("未知结果未保留已确认分段: %+v %v", uncertain, retryErr)
 	}
 	if _, err = send(sourceA, "uncertain"); err == nil || external.sentCount() != 2 {
 		t.Fatal("unknown delivery replayed")

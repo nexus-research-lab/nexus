@@ -15,3 +15,7 @@
 - API 客户端不得读取 Store；缺失 Agent 的恢复由 Navigation Feature 负责。
 
 - 保存确认携带用户可见 head/selected revision；save-state 是只读核对入口，返回当前草稿和实际生效命令。Apply 同时传入 head/selected revision，不能只校验 head。
+
+- team-api.ts 的 PUT read-state 仅携带 message_seq 与 stream_epoch，身份由 Gateway 派生；不创建客户端读取真相或幂等发件箱。
+
+- team-api 的成员读取使用 next_member_cursor 和原版本/世代续页；team-api.test.ts 验证续页栅栏与投递查询 100 条分批。历史投递按 message_id 请求，空列表不发请求。

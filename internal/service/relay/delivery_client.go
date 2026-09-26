@@ -46,3 +46,14 @@ func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string,
 	var result relaycontract.MessageCommit
 	return c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/outputs", nil, token, outputID, input, &result)
 }
+
+// RenewDelivery 仅共享白名单运行状态，省略状态时保留原状态。
+func (c *Client) RenewDelivery(ctx context.Context, token, id, leaseID, executionState string) (relaycontract.Delivery, error) {
+	var result relaycontract.Delivery
+	input := map[string]string{"lease_id": leaseID}
+	if executionState != "" {
+		input["execution_state"] = executionState
+	}
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/renew", nil, token, "", input, &result)
+	return result, err
+}

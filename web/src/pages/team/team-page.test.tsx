@@ -41,7 +41,7 @@ beforeEach(() => {
     conversation: {id: "conversation", room_id: "room", type: "main", high_water_message_seq: 0, last_activity_at: null, sync_stream_id: "stream", stream_epoch: "epoch", high_water_sync_event_seq: 0},
     current_user_role: "owner",
 	members: [],
-  }, error: null, isLoading: false, isSending: false, hasUnconfirmedSend: false, updateDetails: vi.fn(), messages: [], retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
+  }, markRead: vi.fn(), historyPrependToken: 0, hasEarlier: false, isHistoryLoading: false, historyError: false, loadEarlier: vi.fn(), error: null, isLoading: false, isSending: false, hasUnconfirmedSend: false, updateDetails: vi.fn(), messages: [], retryLoad: vi.fn(), send: vi.fn().mockResolvedValue(true)};
   model.read.mockImplementation(() => room);
 });
 function SwitchRoom() {
@@ -478,4 +478,32 @@ it("uses my signed-in avatar for reply sources absent from the invitation direct
   room.messages = [{...trigger, author_type: "agent", author_agent_id: "other-agent"}, room.messages[1]];
   view.rerender(page("organization", "/icon/agent/3.png"));
   expect(view.container.querySelector('[data-reply-chip] img')?.getAttribute("src")).not.toBe("/icon/agent/3.png");
+});
+
+it("只在页面可见且获得焦点时确认最新消息已读", async () => {
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+  const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  room.messages = [{id: "read", conversation_id: "conversation", message_seq: 12, author_type: "user", author_user_id: "owner", author_username: "Owner", author_display_name: "Owner", client_message_id: "read", content: {version: 1, blocks: [{type: "markdown", text: "Message"}]}, created_at: "2026-09-09T01:00:00Z"}];
+  try {
+    render(page());
+    expect(room.markRead).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    focus.mockReturnValue(false);
+    fireEvent(document, new Event("visibilitychange"));
+    expect(room.markRead).not.toHaveBeenCalled();
+    focus.mockReturnValue(true);
+    fireEvent(window, new Event("focus"));
+    expect(room.markRead).toHaveBeenCalledWith(12);
+  } finally {
+    visibility.mockRestore(); focus.mockRestore();
+  }
+});
+
+it("历史失败保留明确的重试入口", async () => {
+  room = {...room, hasEarlier: true, historyError: true, loadEarlier: vi.fn().mockResolvedValue(false)};
+  render(page());
+  await userEvent.click(screen.getByRole("button", {name: "team.history_retry"}));
+  expect(room.loadEarlier).toHaveBeenCalledOnce();
+  expect(room.retryLoad).not.toHaveBeenCalled();
+  expect(room.send).not.toHaveBeenCalled();
 });

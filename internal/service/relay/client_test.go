@@ -518,3 +518,27 @@ func writeRelayTestData(t *testing.T, writer http.ResponseWriter, status int, da
 		t.Errorf("encode response: %v", err)
 	}
 }
+
+func TestGetRoomWithMembersFollowsVersionFencedPages(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if strings.HasSuffix(r.URL.Path, "/members") {
+			if r.URL.Query().Get("after") != "user:first" || r.URL.Query().Get("membership_version") != "7" || r.URL.Query().Get("stream_epoch") != "epoch" {
+				t.Errorf("unfenced query: %s", r.URL)
+			}
+			writeRelayTestData(t, w, http.StatusOK, relaycontract.RoomMemberPage{Members: []relaycontract.RoomMember{{ID: "last"}}})
+			return
+		}
+		writeRelayTestData(t, w, http.StatusOK, relaycontract.RoomDetails{RoomView: relaycontract.RoomView{Room: relaycontract.Room{MembershipVersion: 7}, Conversation: relaycontract.Conversation{StreamEpoch: "epoch"}}, Members: []relaycontract.RoomMember{{ID: "first"}}, NextMemberCursor: "user:first"})
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := client.GetRoomWithMembers(t.Context(), "token", "room")
+	if err != nil || calls != 2 || len(result.Members) != 2 || result.Members[1].ID != "last" || result.NextMemberCursor != "" {
+		t.Fatalf("partial members: %+v %v calls=%d", result, err, calls)
+	}
+}

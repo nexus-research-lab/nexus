@@ -116,6 +116,7 @@ export function buildTeamConversationItem({
     id: `team:${team.conversation.id}`,
     isPinned: false,
     kind: "team",
+    unreadCount: team.unread_count ?? 0,
     directUserId: team.room.direct_user_id,
     lastActivityAt,
     members: [],

@@ -57,3 +57,8 @@
 - Room WS 与目录 WS 的详情提示共用单飞刷新；连续提示合并补读，不并发拉群详情。详情错误受请求代次约束；切群释放同步占用，旧差量的成功、失败与 finally 均不得覆盖新群状态。
 
 - `human-contacts-directory.tsx` 展示当前组织真人，排除自己并通过 `direct_user_id` 打开唯一双人 Relay Room；不创建本地 Agent 会话。私聊复用发送、outbox、snapshot/difference 和邀请处理，隐藏群治理与本机 Agent 执行入口。
+
+- 首屏按 Room 一致水位读取最近 100 条；loadEarlier 每次前插至多 100 条，复用同一快照锚点，独立取消且不改变实时差量游标。历史失败保留窗口与重试入口。
+- markRead 单飞提交当前世代的本人消息阅读水位，旧响应受账号/Room 代次栅栏约束；只有页面可见、获得焦点且跟随最新时调用，不根据后台同步清除未读。
+
+- 成员续页由 team-api 在原 membership_version/epoch 下拼装；详情只带最近 100 条消息的投递状态，use-team-room 为已加载历史分批补读并按 delivery ID 合并。

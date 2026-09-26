@@ -114,7 +114,7 @@ func (c *DiscordChannel) Stop(context.Context) error {
 	return session.Close()
 }
 
-func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
+func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (result channelcontract.DeliveryResult, err error) {
 	normalized := target.Normalized()
 	if strings.TrimSpace(c.token) == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("discord channel is not configured")
@@ -125,6 +125,15 @@ func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channel
 	}
 
 	parts := make([]channelmessage.ReceiptPart, 0)
+	// 即使后续分段失败，也保留此前平台已确认的消息回执。
+	defer func() {
+		result = channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+			Channel:  channelcontract.ChannelTypeDiscord,
+			Target:   targetID,
+			ThreadID: target.ThreadID,
+			Parts:    parts,
+		}))
+	}()
 	for _, chunk := range channeltransport.SplitText(strings.TrimSpace(text), 1900) {
 		payload := map[string]any{
 			"content": chunk,
@@ -146,14 +155,15 @@ func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channel
 		}
 		if strings.TrimSpace(response.ID) != "" {
 			parts = append(parts, channelmessage.TextPart(response.ID))
+			if err := channelcontract.RecordDeliveryProgress(ctx, channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
+				Channel: channelcontract.ChannelTypeDiscord, Target: targetID, ThreadID: normalized.ThreadID, Parts: parts,
+			}))); err != nil {
+				return result, err
+			}
+
 		}
 	}
-	return channelcontract.NewDeliveryResult(normalized, channelmessage.NewReceipt(channelmessage.ReceiptParams{
-		Channel:  channelcontract.ChannelTypeDiscord,
-		Target:   targetID,
-		ThreadID: target.ThreadID,
-		Parts:    parts,
-	})), nil
+	return result, nil
 }
 
 func (c *DiscordChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {

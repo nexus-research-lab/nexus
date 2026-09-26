@@ -5,9 +5,9 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useTeamRoom } from "./use-team-room";
 import { ApiRequestError } from "@/lib/api/core/http-error";
-const api = vi.hoisted(() => ({bootstrap: vi.fn(), get: vi.fn(), snapshot: vi.fn(), post: vi.fn(), difference: vi.fn(), socket: vi.fn()}));
+const api = vi.hoisted(() => ({bootstrap: vi.fn(), get: vi.fn(), snapshot: vi.fn(), post: vi.fn(), difference: vi.fn(), socket: vi.fn(), markRead: vi.fn(), deliveries: vi.fn()}));
 vi.mock("@/lib/api/conversation/team-api", () => ({
-  listTeamRooms: api.bootstrap, getTeamRoom: api.get, getTeamSnapshot: api.snapshot, postTeamMessage: api.post,
+  getTeamDeliveryStatuses: api.deliveries, markTeamRoomRead: api.markRead, listTeamRooms: api.bootstrap, getTeamRoom: api.get, getTeamSnapshot: api.snapshot, postTeamMessage: api.post,
   buildTeamStreamUrl: () => "", getTeamDifference: api.difference,
 }));
 vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: api.socket}));
@@ -16,6 +16,7 @@ vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   useAuth: () => ({status: {authenticated: true, auth_method: "password", control_user_id: "user", organization_id: "org"}}),
 }));
 const bootstrap = {
+  last_read_message_seq: 0,
   team: {id: "team", deployment_id: "deployment", name: "Team"},
   room: {id: "room", team_id: "team", name: "General", membership_version: 7, configuration_version: 1},
   conversation: {id: "conversation", room_id: "room", type: "team", high_water_message_seq: 0,
@@ -37,6 +38,8 @@ beforeEach(() => {
   api.snapshot.mockReset().mockResolvedValue({messages: [], snapshot_seq: 0, has_more: false});
 	api.get.mockReset().mockResolvedValue(bootstrap);
   api.post.mockReset();
+  api.deliveries.mockReset().mockResolvedValue([]);
+  api.markRead.mockReset().mockResolvedValue({last_read_message_seq: 0});
   api.difference.mockReset();
   api.socket.mockClear();
 });
@@ -275,4 +278,87 @@ it("fails closed before sending if persistence is unavailable and drops a revoke
   expect(result.current.room).toBeNull();
   await act(async () => { expect(await result.current.send("revoked")).toBe(false); });
   expect(api.post).not.toHaveBeenCalled();
+});
+
+it("只读最近一页，历史前插保留并发新消息和实时游标", async () => {
+  const value = {...bootstrap, conversation: {...bootstrap.conversation, high_water_message_seq: 250, high_water_sync_event_seq: 250}};
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [value]});
+  api.get.mockResolvedValue(value);
+  const message = (seq: number) => ({id: `m${seq}`, message_seq: seq, author_type: "user", author_user_id: "other"});
+  api.snapshot.mockResolvedValueOnce({messages: Array.from({length: 100}, (_, i) => message(151 + i)), snapshot_seq: 250, through_message_seq: 250, has_more: false});
+  const {result} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(result.current.messages).toHaveLength(100));
+  expect(Object.fromEntries(api.snapshot.mock.calls[0][1])).toEqual({after_message_seq: "150", through_message_seq: "250", snapshot_seq: "250", stream_epoch: "epoch", limit: "100"});
+  let finish!: (value: unknown) => void;
+  api.snapshot.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const preparePrepend = vi.fn();
+  const historyStatus = {id: "old-delivery", message_id: "m51", agent_id: "remote", state: "completed"};
+  api.deliveries.mockImplementation(async (_room, ids) => ids.includes("m51") ? [historyStatus] : []);
+  let loading!: Promise<boolean>;
+  act(() => { loading = result.current.loadEarlier(preparePrepend); });
+  await act(async () => { expect(await result.current.loadEarlier()).toBe(false); });
+  expect(preparePrepend).not.toHaveBeenCalled();
+  api.difference.mockResolvedValueOnce({events: [{message: message(251)}], next_seq: 251, high_water_seq: 251});
+  await act(async () => { api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 251}); });
+  await act(async () => { finish({messages: Array.from({length: 100}, (_, i) => message(51 + i)), snapshot_seq: 250}); await loading; });
+  expect(preparePrepend).toHaveBeenCalledOnce();
+  expect(result.current.messages).toHaveLength(201);
+  expect(result.current.messages.at(-1)?.message_seq).toBe(251);
+  expect(result.current.historyPrependToken).toBe(1);
+  expect(result.current.room?.deliveries).toContainEqual(historyStatus);
+  expect(Object.fromEntries(api.snapshot.mock.calls[1][1])).toEqual({after_message_seq: "50", through_message_seq: "250", snapshot_seq: "250", stream_epoch: "epoch", limit: "100"});
+  api.snapshot.mockResolvedValueOnce({messages: Array.from({length: 50}, (_, i) => message(1 + i)), snapshot_seq: 250});
+  await act(async () => { await result.current.loadEarlier(); });
+  expect(result.current.hasEarlier).toBe(false);
+  expect(result.current.messages).toHaveLength(251);
+  expect(api.snapshot.mock.calls[2][1].get("limit")).toBe("50");
+  api.difference.mockResolvedValueOnce({events: [], next_seq: 252, high_water_seq: 252});
+  await act(async () => { api.socket.mock.lastCall![0].onMessage({type: "stream.updated", stream_id: "stream", stream_epoch: "epoch", high_water_seq: 252}); });
+  expect(api.difference.mock.lastCall?.[1]).toBe(251);
+});
+
+it("历史读取失败可以重试，卸载取消读取且迟到结果不生效", async () => {
+  const value = {...bootstrap, conversation: {...bootstrap.conversation, high_water_message_seq: 101, high_water_sync_event_seq: 101}};
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [value]});
+  api.get.mockResolvedValue(value);
+  api.snapshot.mockResolvedValueOnce({messages: [{id: "m101", message_seq: 101}], snapshot_seq: 101});
+  const {result, unmount} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(result.current.hasEarlier).toBe(true));
+  api.snapshot.mockRejectedValueOnce(new Error("offline"));
+  await act(async () => { expect(await result.current.loadEarlier()).toBe(false); });
+  expect(result.current.historyError).toBe(true);
+  expect(result.current.messages).toHaveLength(1);
+  let finish!: (value: unknown) => void;
+  api.snapshot.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  let loading!: Promise<boolean>;
+  act(() => { loading = result.current.loadEarlier(); });
+  const signal = api.snapshot.mock.lastCall![2] as AbortSignal;
+  unmount();
+  expect(signal.aborted).toBe(true);
+  await act(async () => { finish({messages: []}); expect(await loading).toBe(false); });
+});
+
+it("阅读确认使用当前会话世代、单飞且不回退水位", async () => {
+  api.bootstrap.mockReset().mockResolvedValue({rooms: [bootstrap]});
+  const {result, unmount} = renderHook(() => useTeamRoom("room"));
+  await waitFor(() => expect(result.current.room?.room.id).toBe("room"));
+  let finish!: (value: unknown) => void;
+  api.markRead.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  let reading!: Promise<void>;
+  act(() => { reading = result.current.markRead(10); });
+  await act(async () => { await result.current.markRead(12); });
+  expect(api.markRead).toHaveBeenCalledOnce();
+  expect(api.markRead.mock.calls[0].slice(0, 3)).toEqual(["room", 10, "epoch"]);
+  api.markRead.mockResolvedValueOnce({last_read_message_seq: 12});
+  await act(async () => { finish({last_read_message_seq: 10}); await reading; });
+  await act(async () => { await result.current.markRead(9); });
+  expect(api.markRead).toHaveBeenCalledTimes(2);
+  expect(api.markRead.mock.lastCall?.[1]).toBe(12);
+  expect(result.current.room?.last_read_message_seq).toBe(12);
+  api.markRead.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  act(() => { reading = result.current.markRead(13); });
+  const signal = api.markRead.mock.lastCall![3] as AbortSignal;
+  unmount();
+  expect(signal.aborted).toBe(true);
+  await act(async () => { finish({last_read_message_seq: 13}); await reading; });
 });
