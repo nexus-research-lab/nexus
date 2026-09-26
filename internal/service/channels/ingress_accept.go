@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 
@@ -45,10 +46,10 @@ func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {
 func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*IngressResult, error) {
 	normalized, err := s.normalizeRequest(ctx, request)
 	if err != nil {
-		return nil, err
+		return nil, &channelcontract.RetryableIngressError{Err: err}
 	}
 	if err := s.validateIngressDependencies(); err != nil {
-		return nil, err
+		return nil, &channelcontract.RetryableIngressError{Err: err}
 	}
 
 	logger := s.loggerFor(ctx).With(
@@ -76,6 +77,9 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	}
 	if err != nil {
 		logger.Error("领取通道消息幂等处理权失败", "err", err)
+		if duplicate == nil {
+			return nil, &channelcontract.RetryableIngressError{Err: err}
+		}
 		return nil, err
 	}
 	if duplicate != nil && !claimed {
@@ -85,7 +89,7 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	remembered, err := s.rememberIngressRoutes(ctx, normalized)
 	if err != nil {
 		logger.Error("记录通道回投目标失败", "err", err)
-		return nil, err
+		return nil, &channelcontract.RetryableIngressError{Err: err}
 	}
 	if claimed {
 		if err = s.control.beginIngressDispatch(ctx, normalized); err != nil {
