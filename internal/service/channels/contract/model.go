@@ -37,6 +37,8 @@ const (
 
 // DeliveryTarget 表示通道无关的投递目标。
 type DeliveryTarget struct {
+	PairingID      string `json:"pairing_id,omitempty"`
+	BindingVersion int64  `json:"binding_version,omitempty"`
 	Mode           string `json:"mode"`
 	Channel        string `json:"channel,omitempty"`
 	To             string `json:"to,omitempty"`

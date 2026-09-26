@@ -22,7 +22,7 @@ type SessionPermissionResolution struct {
 }
 
 // CountSessionPermissionRequests 返回当前 dispatch session 与可选请求 ID
-// 精确匹配的 pending runtime 权限请求数，不执行任何决定。
+// 精确匹配的 pending runtime 权限请求数，不执行任何决定。传入成员 runtime key 时只匹配该成员。
 func (c *Context) CountSessionPermissionRequests(sessionKey string, requestID string) int {
 	if c == nil {
 		return 0
@@ -37,14 +37,14 @@ func (c *Context) CountSessionPermissionRequests(sessionKey string, requestID st
 	defer c.mu.RUnlock()
 	if requestID != "" {
 		pending := c.pendingRequests[requestID]
-		if pending != nil && pending.DispatchSessionKey == sessionKey {
+		if pending != nil && (pending.DispatchSessionKey == sessionKey || pending.SessionKey == sessionKey) {
 			return 1
 		}
 		return 0
 	}
 	matchingRequests := 0
 	for _, pending := range c.pendingRequests {
-		if pending.DispatchSessionKey == sessionKey {
+		if pending.DispatchSessionKey == sessionKey || pending.SessionKey == sessionKey {
 			matchingRequests++
 		}
 	}
@@ -74,14 +74,14 @@ func (c *Context) ResolveSessionPermissionRequest(
 	matchingRequests := 0
 	if requestID != "" {
 		pending = c.pendingRequests[requestID]
-		if pending != nil && pending.DispatchSessionKey == sessionKey {
+		if pending != nil && (pending.DispatchSessionKey == sessionKey || pending.SessionKey == sessionKey) {
 			matchingRequests = 1
 		} else {
 			pending = nil
 		}
 	} else {
 		for _, candidate := range c.pendingRequests {
-			if candidate.DispatchSessionKey != sessionKey {
+			if candidate.DispatchSessionKey != sessionKey && candidate.SessionKey != sessionKey {
 				continue
 			}
 			matchingRequests++
@@ -121,7 +121,7 @@ func (c *Context) ResolveSessionPermissionRequest(
 	default:
 		return result
 	}
-	result.Resolved = c.HandlePermissionResponse(ctx, sessionKey, message)
+	result.Resolved = c.HandlePermissionResponse(ctx, pending.DispatchSessionKey, message)
 	result.Persisted = result.Resolved && persist
 	return result
 }

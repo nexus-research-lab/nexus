@@ -210,7 +210,7 @@ func (s *ControlService) ValidateExternalSessionGrant(
 func (s *ControlService) findPairingBySessionKey(ctx context.Context, ownerUserID, sessionKey, status string) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + ` AND session_key = ` + s.bind(2) + ` AND status = ` + s.bind(3) + `
 	LIMIT 1`

@@ -28,6 +28,7 @@ func dmExternalReplyTarget(target *DeliveryTarget) *dmsvc.ExternalReplyTarget {
 		return nil
 	}
 	return &dmsvc.ExternalReplyTarget{
+		PairingID: normalized.PairingID, BindingVersion: normalized.BindingVersion,
 		Mode:           normalized.Mode,
 		Channel:        normalized.Channel,
 		To:             normalized.To,
@@ -64,36 +65,49 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 	)
 
 	claimed, duplicate, err := s.claimIngress(ctx, normalized)
+	if duplicate != nil && (claimed || errors.Is(err, ErrIngressOutcomeUnknown)) {
+		// 重投不能生成新轮次或把未确认输入迁到另一个 Session。
+		normalized.roundID, normalized.sessionKey, normalized.agentID = duplicate.RoundID, duplicate.SessionKey, duplicate.AgentID
+	}
+	if errors.Is(err, ErrIngressOutcomeUnknown) && duplicate != nil {
+		if recovered, recoverErr := s.recoverIngress(ctx, normalized); recoverErr == nil && recovered {
+			return duplicate, nil
+		}
+	}
 	if err != nil {
 		logger.Error("领取通道消息幂等处理权失败", "err", err)
 		return nil, err
 	}
-	if duplicate != nil {
+	if duplicate != nil && !claimed {
 		logger.Info("忽略重复外部通道消息")
 		return duplicate, nil
 	}
 	remembered, err := s.rememberIngressRoutes(ctx, normalized)
 	if err != nil {
 		logger.Error("记录通道回投目标失败", "err", err)
-		s.markIngressMessageFailed(ctx, claimed, normalized, err)
 		return nil, err
+	}
+	if claimed {
+		if err = s.control.beginIngressDispatch(ctx, normalized); err != nil {
+			return nil, err
+		}
 	}
 	s.bindRuntimePermissionSession(normalized)
 
 	command, err := s.handleIngressCommand(ctx, normalized)
 	if err != nil {
 		logger.Error("处理通道控制命令失败", "err", err)
-		s.markIngressMessageFailed(ctx, claimed, normalized, err)
+		// 控制命令可能已产生副作用，未知结果不能释放为可重试。
 		return nil, err
 	}
 	if command != nil {
-		if err = s.replyToIngressCommand(ctx, normalized, command.Reply); err != nil {
-			logger.Error("回投通道控制命令结果失败", "err", err)
-			s.markIngressMessageFailed(ctx, claimed, normalized, err)
-			return nil, err
-		}
+		// 先保存命令已执行的事实；通知失败不能重复审批或执行下一条命令。
 		if err = s.finishAcceptedIngress(ctx, claimed, normalized); err != nil {
 			logger.Error("标记通道控制命令幂等状态失败", "err", err)
+			return nil, err
+		}
+		if err = s.replyToIngressCommand(ctx, normalized, command.Reply); err != nil {
+			logger.Error("回投通道控制命令结果失败", "err", err)
 			return nil, err
 		}
 		s.notifyExternalSessionUpdated(ctx, normalized)
@@ -102,13 +116,13 @@ func (s *IngressService) Accept(ctx context.Context, request IngressRequest) (*I
 
 	if err = s.dispatchIngress(ctx, normalized); err != nil {
 		logger.Error("下发通道消息失败", "err", err)
-		s.markIngressMessageFailed(ctx, claimed, normalized, err)
+		// DM 返回失败不证明没有部分受理；重投仅核验原轮次。
 		return nil, err
 	}
-	if s.control != nil {
+	if s.control != nil && (normalized.pairing == nil || normalized.pairing.TargetRoomID == "") {
 		if err = s.control.MarkIngressSessionMaterialized(ctx, normalized.ownerUserID, normalized.sessionKey); err != nil {
 			logger.Error("记录通道 Session 物化状态失败", "err", err)
-			s.markIngressMessageFailed(ctx, claimed, normalized, err)
+			// DM 已受理，不能因投影失败释放领取权并再次执行。
 			return nil, err
 		}
 	}
@@ -144,7 +158,7 @@ func (s *IngressService) handleIngressCommand(
 	ingress := IngressCommandRequest{
 		OwnerUserID: request.ownerUserID,
 		AgentID:     request.agentID,
-		SessionKey:  request.sessionKey,
+		SessionKey:  request.permissionSessionKey(),
 		Content:     request.content,
 	}
 	if ambiguity, err := s.permissionCommandAmbiguity(
@@ -194,21 +208,23 @@ func (s *IngressService) claimIngress(ctx context.Context, request normalizedIng
 		return false, nil, nil
 	}
 	claimed, duplicate, err := s.control.claimIngressMessage(ctx, ingressMessageClaimInput{
-		OwnerUserID: request.ownerUserID,
-		Channel:     request.channelStored,
-		AccountID:   request.accountID,
-		ReqID:       request.reqID,
-		AgentID:     request.agentID,
-		SessionKey:  request.sessionKey,
-		RoundID:     request.roundID,
+		BindingVersion: request.bindingVersion(),
+		Content:        request.content,
+		OwnerUserID:    request.ownerUserID,
+		Channel:        request.channelStored,
+		AccountID:      request.accountID,
+		ReqID:          request.reqID,
+		AgentID:        request.agentID,
+		SessionKey:     request.sessionKey,
+		RoundID:        request.roundID,
 	})
-	if err != nil || claimed {
-		return claimed, nil, err
-	}
-	return false, duplicate, nil
+	return claimed, duplicate, err
 }
 
 func (s *IngressService) dispatchIngress(ctx context.Context, request normalizedIngressRequest) error {
+	if request.pairing != nil && request.pairing.TargetRoomID != "" {
+		return s.dispatchRoomIngress(contextWithIngressOwner(ctx, request.ownerUserID), request)
+	}
 	if request.trustedExternalInteractive && s.control != nil {
 		if err := s.control.recordDeliveryInput(ctx, request); err != nil {
 			return err
@@ -283,23 +299,41 @@ func shouldNotifyExternalSessionUpdate(channel string) bool {
 	return normalized != "" && normalized != ChannelTypeInternal && normalized != ChannelTypeWebSocket
 }
 
-func (s *IngressService) markIngressMessageFailed(ctx context.Context, claimed bool, request normalizedIngressRequest, err error) {
-	if !claimed || s.control == nil || err == nil {
-		return
+// recoverIngress 为 DM 核验持久输入；Room 复用已冻结命令完成幂等受理，不生成新输入。
+func (s *IngressService) recoverIngress(ctx context.Context, request normalizedIngressRequest) (bool, error) {
+	if s.rooms != nil {
+		ownerCtx := contextWithIngressOwner(ctx, request.ownerUserID)
+		route, err := s.roomIngressRoute(ownerCtx, request.roundID, request.agentID)
+		if err != nil {
+			return false, err
+		}
+		if route != nil {
+			request.rememberedTarget = &route.target
+			request.content = route.content
+			request.pairing = &pairingRow{PairingID: route.target.PairingID, BindingVersion: route.target.BindingVersion, TargetRoomID: route.roomID, TargetConversationID: route.conversationID}
+			if err := s.dispatchRoomIngress(ownerCtx, request); err != nil {
+				return false, err
+			}
+			return true, s.finishAcceptedIngress(ownerCtx, true, request)
+		}
 	}
-	message := err.Error()
-	if finishErr := s.control.finishIngressMessage(ctx, ingressMessageFinishInput{
-		OwnerUserID:  request.ownerUserID,
-		Channel:      request.channelStored,
-		AccountID:    request.accountID,
-		ReqID:        request.reqID,
-		Status:       ingressMessageStatusFailed,
-		ErrorMessage: &message,
-	}); finishErr != nil {
-		s.loggerFor(ctx).Warn("标记通道消息失败幂等状态失败",
-			"channel", request.channelStored,
-			"req_id", request.reqID,
-			"err", finishErr,
-		)
+
+	if s.readRoundIndex == nil {
+		return false, nil
 	}
+	ownerCtx := contextWithIngressOwner(ctx, request.ownerUserID)
+	index, err := s.readRoundIndex(ownerCtx, request.sessionKey)
+	if err != nil || index == nil {
+		return false, err
+	}
+	for _, round := range index.Items {
+		if round.RoundID != request.roundID || !round.HasUserMessage {
+			continue
+		}
+		if err := s.control.MarkIngressSessionMaterialized(ownerCtx, request.ownerUserID, request.sessionKey); err != nil {
+			return false, err
+		}
+		return true, s.finishAcceptedIngress(ownerCtx, true, request)
+	}
+	return false, nil
 }

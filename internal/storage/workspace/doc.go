@@ -14,6 +14,7 @@
 //   - transcript_*.go：基于文件身份/大小/mtime/首尾指纹且由普通、分段、显式读取共用的 JSONL 解析缓存、重复 UUID/自指链修复、reader、path、session、project、
 //     可见性安全的 marker 对齐（含 reminder 提取后的空白 Goal 续跑）、guidance 与 root/source round 投影；
 //     投影与 rewrite/fork 共用边界，派生读模型升级时清除旧轮次归属。
+//   - 有界定向消息队列用 client_message_id 读取完整入队账本，已消费输入在恢复时不会重复派发。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、携带非授权 Goal collaboration attribution、完整 Execution WorkBinding 或独立 ReviewBinding 的跨派发持久幂等入队、责任项禁止 guide/合并的 capability envelope fence、可返回规范化提交的原子批量登记、预检版本一致的整批 conversation guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / session_lifecycle.go / artifact_probe.go / jsonl.go：
 //     Session runtime 回写可按 configuration version 强制拒绝过期的后台 Connector 预备；

@@ -13,11 +13,14 @@ import (
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 var (
+	// ErrIngressOutcomeUnknown 表示旧领取没有可靠受理回执，平台不得确认或重新执行。
+	ErrIngressOutcomeUnknown = errors.New("通道消息受理结果待核验")
 	// ErrIngressChannelRequired 表示入口缺少 channel。
 	ErrIngressChannelRequired = errors.New("channel is required")
 	// ErrIngressRefRequired 表示结构化入口缺少 ref。
@@ -68,6 +71,7 @@ func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.C
 }
 
 type normalizedIngressRequest struct {
+	pairing                    *pairingRow
 	ownerUserID                string
 	channelStored              string
 	accountID                  string
@@ -94,16 +98,18 @@ func (r normalizedIngressRequest) messageID() string {
 
 // IngressService 负责把外部通道消息归一到 DM 入口。
 type IngressService struct {
-	config     config.Config
-	agents     agentWorkspaceResolver
-	dm         DMHandler
-	router     *Router
-	control    *ControlService
-	notifier   ExternalSessionNotifier
-	commands   IngressCommandHandler
-	permission *permissionctx.Context
-	idFactory  func(string) string
-	logger     *slog.Logger
+	rooms          *roomrealtime.Service
+	readRoundIndex func(context.Context, string) (*protocol.SessionRoundIndex, error)
+	config         config.Config
+	agents         agentWorkspaceResolver
+	dm             DMHandler
+	router         *Router
+	control        *ControlService
+	notifier       ExternalSessionNotifier
+	commands       IngressCommandHandler
+	permission     *permissionctx.Context
+	idFactory      func(string) string
+	logger         *slog.Logger
 }
 
 // NewIngressService 创建通道入口服务。
@@ -126,6 +132,11 @@ func NewIngressService(
 // SetControlService 注入频道配置与配对授权服务。
 func (s *IngressService) SetControlService(control *ControlService) {
 	s.control = control
+	if s.router != nil {
+		s.router.mu.Lock()
+		s.router.imGrants = control
+		s.router.mu.Unlock()
+	}
 }
 
 // SetExternalSessionNotifier 注入外部 session 更新通知器。
@@ -154,4 +165,9 @@ func (s *IngressService) SetLogger(logger *slog.Logger) {
 
 func (s *IngressService) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+// SetRoundIndexReader 注入原生会话持久证据读取；不根据在途内存状态猜测受理成功。
+func (s *IngressService) SetRoundIndexReader(reader func(context.Context, string) (*protocol.SessionRoundIndex, error)) {
+	s.readRoundIndex = reader
 }

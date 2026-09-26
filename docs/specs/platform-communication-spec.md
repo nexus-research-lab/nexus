@@ -134,3 +134,13 @@ Contacts 的 Agent 详情在“联络”栏目直接呈现好友私聊客户端�
 反馈是外部输入，只进入新的执行轮次。它不携带来源旧 round 的 Goal、Execution、WorkBinding、ReviewBinding、configuration 或 Automation command authority。
 
 `contact` 和 `current_room/private` 的参数、final reply、唤醒与 ledger 不变；无参 `list_targets` 仍是原通讯录。IM 会话与 App 会话仍有独立 transcript，新增的只是可追溯投递和明确回传。
+
+## 9. IM 私聊绑定本地 Room 成员
+
+配对保留既有 IM 传输身份，执行目标可选独立 IM 会话，或同 owner 的本地 Group Room、精确 Conversation 和当前配对 Agent。Room 必须开启私域消息，Agent 必须仍是有效且未暂停的成员。第一版不绑定在线 Team Room，也不将 IM 群聊开放给成员私域。
+
+能力页的配对行提供「会话目标」入口。Room 输入作为带外部来源标记的成员私域定向消息，忙碌时排入原成员队列，复用原成员上下文和协作能力。仅同一 root、成员、Session 的完整 assistant 回复发回 IM，其他成员输出与公区消息不会自动镜像。原有 delivery_id 反馈回传继续独立工作。
+
+切换携带当前 binding_version；目标变化递增版本，不重新登录、不迁移历史、不取消已提交任务。返回地址在受理前持久冻结，发送前持锁校验版本，因此切回旧目标也不会恢复旧回复资格。未知物理发送不自动重发。Room 命令和私域队列按持久输入 ID 幂等，恢复沿用原始目标及正文，禁止改投当前新目标。
+
+权限通知只呈现绑定话题及成员，`/y`、`/a`、`/d` 只解析该成员 runtime key 的请求；多个请求要求在 Nexus 逐项处理。改绑后旧任务的后续权限请求仍可在原 Room 处理。

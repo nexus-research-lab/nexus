@@ -5,7 +5,7 @@
 // 成员清单：
 //   - capabilities.go：通道能力描述。
 //   - catalog.go：通道目录。
-//   - model.go：管理视图模型。
+//   - model.go：管理视图模型，含 Room 会话目标与切换使用的 binding_version。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package management

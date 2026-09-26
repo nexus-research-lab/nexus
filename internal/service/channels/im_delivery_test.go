@@ -108,19 +108,13 @@ func TestTrackedIMDeliveryKeepsExactOriginAndNeverReplaysUnknown(t *testing.T) {
 		t.Fatal("failed input accepted")
 	}
 
-	reclaimed, err := control.reclaimFailedIngressMessage(ctx, ingressMessageClaimInput{OwnerUserID: authctx.SystemUserID, Channel: ChannelTypeWeixinPersonal, AccountID: "account", ReqID: "human-message", AgentID: "agent-a", SessionKey: target, RoundID: "retry-round"})
-	if err != nil || !reclaimed {
-		t.Fatalf("retry claim %v %v", reclaimed, err)
+	// 历史 failed 也没有证明副作用未发生，不能重领并换掉人类输入证据。
+	claimed, duplicate, err := control.claimIngressMessage(ctx, ingressMessageClaimInput{OwnerUserID: authctx.SystemUserID, Channel: ChannelTypeWeixinPersonal, AccountID: "account", ReqID: "human-message", AgentID: "agent-a", SessionKey: target, RoundID: "retry-round"})
+	if claimed || !errors.Is(err, ErrIngressOutcomeUnknown) || duplicate == nil || duplicate.RoundID != "human-round" {
+		t.Fatalf("legacy failed claim changed evidence: %v %+v %v", claimed, duplicate, err)
 	}
-	request.roundID = "retry-round"
-	if err = control.recordDeliveryInput(ctx, request); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = control.IMDeliveryInput(ctx, authctx.SystemUserID, "agent-a", target, "retry-round", "确认第一份"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = control.IMDeliveryInput(ctx, authctx.SystemUserID, "agent-a", target, "human-round", "确认第一份"); err == nil {
-		t.Fatal("old round retained ingress authority")
+	if _, err = control.IMDeliveryInput(ctx, authctx.SystemUserID, "agent-a", target, "retry-round", "确认第一份"); err == nil {
+		t.Fatal("unknown input became a new approval")
 	}
 	status := PairingStatusDisabled
 	if _, err = control.UpdatePairing(ctx, authctx.SystemUserID, paired.PairingID, UpdatePairingRequest{Status: &status}); err != nil {

@@ -123,22 +123,32 @@ type UpsertChannelConfigRequest struct {
 	Credentials map[string]string `json:"credentials"`
 }
 
+// PairingSessionTarget 固定当前 IM 会话的执行位置，空 Room 表示独立 IM 会话。
+type PairingSessionTarget struct {
+	RoomName          string `json:"room_name,omitempty"`
+	ConversationTitle string `json:"conversation_title,omitempty"`
+	RoomID            string `json:"room_id,omitempty"`
+	ConversationID    string `json:"conversation_id,omitempty"`
+}
+
 type PairingView struct {
-	PairingID     string     `json:"pairing_id"`
-	ChannelType   string     `json:"channel_type"`
-	AccountID     string     `json:"account_id,omitempty"`
-	ChatType      string     `json:"chat_type"`
-	ExternalRef   string     `json:"external_ref"`
-	ThreadID      string     `json:"thread_id,omitempty"`
-	SessionKey    string     `json:"session_key"`
-	ExternalName  string     `json:"external_name,omitempty"`
-	AgentID       string     `json:"agent_id"`
-	AgentName     string     `json:"agent_name,omitempty"`
-	Status        string     `json:"status"`
-	Source        string     `json:"source"`
-	LastMessageAt *time.Time `json:"last_message_at,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	SessionTarget  PairingSessionTarget `json:"session_target"`
+	BindingVersion int64                `json:"binding_version"`
+	PairingID      string               `json:"pairing_id"`
+	ChannelType    string               `json:"channel_type"`
+	AccountID      string               `json:"account_id,omitempty"`
+	ChatType       string               `json:"chat_type"`
+	ExternalRef    string               `json:"external_ref"`
+	ThreadID       string               `json:"thread_id,omitempty"`
+	SessionKey     string               `json:"session_key"`
+	ExternalName   string               `json:"external_name,omitempty"`
+	AgentID        string               `json:"agent_id"`
+	AgentName      string               `json:"agent_name,omitempty"`
+	Status         string               `json:"status"`
+	Source         string               `json:"source"`
+	LastMessageAt  *time.Time           `json:"last_message_at,omitempty"`
+	CreatedAt      time.Time            `json:"created_at"`
+	UpdatedAt      time.Time            `json:"updated_at"`
 }
 
 type PairingQuery struct {
@@ -160,7 +170,9 @@ type CreatePairingRequest struct {
 }
 
 type UpdatePairingRequest struct {
-	AgentID      *string `json:"agent_id,omitempty"`
-	Status       *string `json:"status,omitempty"`
-	ExternalName *string `json:"external_name,omitempty"`
+	SessionTarget  *PairingSessionTarget `json:"session_target,omitempty"`
+	BindingVersion *int64                `json:"binding_version,omitempty"`
+	AgentID        *string               `json:"agent_id,omitempty"`
+	Status         *string               `json:"status,omitempty"`
+	ExternalName   *string               `json:"external_name,omitempty"`
 }

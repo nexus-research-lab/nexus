@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -12,17 +13,18 @@ import (
 const (
 	ingressMessageStatusProcessing = "processing"
 	ingressMessageStatusAccepted   = "accepted"
-	ingressMessageStatusFailed     = "failed"
 )
 
 type ingressMessageClaimInput struct {
-	OwnerUserID string
-	Channel     string
-	AccountID   string
-	ReqID       string
-	AgentID     string
-	SessionKey  string
-	RoundID     string
+	BindingVersion int64
+	Content        string
+	OwnerUserID    string
+	Channel        string
+	AccountID      string
+	ReqID          string
+	AgentID        string
+	SessionKey     string
+	RoundID        string
 }
 
 type ingressMessageFinishInput struct {
@@ -35,15 +37,18 @@ type ingressMessageFinishInput struct {
 }
 
 type ingressMessageRow struct {
-	OwnerUserID  string
-	Channel      string
-	AccountID    string
-	ReqID        string
-	AgentID      string
-	SessionKey   string
-	RoundID      string
-	Status       string
-	ErrorMessage sql.NullString
+	BindingVersion int64
+	PayloadHash    string
+	DispatchPhase  string
+	OwnerUserID    string
+	Channel        string
+	AccountID      string
+	ReqID          string
+	AgentID        string
+	SessionKey     string
+	RoundID        string
+	Status         string
+	ErrorMessage   sql.NullString
 }
 
 func (s *ControlService) claimIngressMessage(ctx context.Context, input ingressMessageClaimInput) (bool, *IngressResult, error) {
@@ -58,13 +63,6 @@ func (s *ControlService) claimIngressMessage(ctx context.Context, input ingressM
 	if inserted {
 		return true, nil, nil
 	}
-	reclaimed, err := s.reclaimFailedIngressMessage(ctx, normalized)
-	if err != nil {
-		return false, nil, err
-	}
-	if reclaimed {
-		return true, nil, nil
-	}
 	row, err := s.getIngressMessage(ctx, normalized.OwnerUserID, normalized.Channel, normalized.AccountID, normalized.ReqID)
 	if err != nil {
 		return false, nil, err
@@ -72,7 +70,20 @@ func (s *ControlService) claimIngressMessage(ctx context.Context, input ingressM
 	if row == nil {
 		return true, nil, nil
 	}
-	return false, ingressResultFromMessageRow(*row), nil
+	if row.PayloadHash != "" && row.PayloadHash != fmt.Sprintf("%x", sha256.Sum256([]byte(normalized.Content))) {
+		return false, nil, fmt.Errorf("通道消息身份对应不同正文")
+	}
+	result := ingressResultFromMessageRow(*row)
+	if row.Status == ingressMessageStatusAccepted {
+		return false, result, nil
+	}
+	if row.Status == ingressMessageStatusProcessing && row.DispatchPhase == "prepared" {
+		if row.AgentID != normalized.AgentID || row.SessionKey != normalized.SessionKey || row.BindingVersion != normalized.BindingVersion {
+			return false, result, ErrIngressOutcomeUnknown
+		}
+		return true, result, nil
+	}
+	return false, result, ErrIngressOutcomeUnknown
 }
 
 func (s *ControlService) finishIngressMessage(ctx context.Context, input ingressMessageFinishInput) error {
@@ -128,11 +139,14 @@ func (s *ControlService) insertIngressMessageClaim(ctx context.Context, input in
     session_key,
     round_id,
     status,
+    payload_hash,
+    binding_version,
+    dispatch_phase,
     created_at,
     updated_at
-	) VALUES (%s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	) VALUES (%s, 'prepared', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	ON CONFLICT(owner_user_id, channel_type, account_id, req_id) DO NOTHING`,
-		s.bindList(8),
+		s.bindList(10),
 	)
 	result, err := s.db.ExecContext(
 		ctx,
@@ -145,55 +159,8 @@ func (s *ControlService) insertIngressMessageClaim(ctx context.Context, input in
 		input.SessionKey,
 		input.RoundID,
 		ingressMessageStatusProcessing,
-	)
-	if err != nil {
-		return false, err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-	return affected > 0, nil
-}
-
-func (s *ControlService) reclaimFailedIngressMessage(ctx context.Context, input ingressMessageClaimInput) (bool, error) {
-	query := fmt.Sprintf(
-		`UPDATE im_ingress_messages
-SET agent_id = %s,
-    session_key = %s,
-    round_id = %s,
-    status = %s,
-    error_message = NULL,
-    completed_at = NULL,
-    delivery_input_json = '',
-    updated_at = CURRENT_TIMESTAMP
-	WHERE owner_user_id = %s
-	  AND channel_type = %s
-	  AND account_id = %s
-	  AND req_id = %s
-	  AND status = %s`,
-		s.bind(1),
-		s.bind(2),
-		s.bind(3),
-		s.bind(4),
-		s.bind(5),
-		s.bind(6),
-		s.bind(7),
-		s.bind(8),
-		s.bind(9),
-	)
-	result, err := s.db.ExecContext(
-		ctx,
-		query,
-		input.AgentID,
-		input.SessionKey,
-		input.RoundID,
-		ingressMessageStatusProcessing,
-		input.OwnerUserID,
-		input.Channel,
-		input.AccountID,
-		input.ReqID,
-		ingressMessageStatusFailed,
+		fmt.Sprintf("%x", sha256.Sum256([]byte(input.Content))),
+		input.BindingVersion,
 	)
 	if err != nil {
 		return false, err
@@ -207,7 +174,7 @@ SET agent_id = %s,
 
 func (s *ControlService) getIngressMessage(ctx context.Context, ownerUserID string, channel string, accountID string, reqID string) (*ingressMessageRow, error) {
 	query := fmt.Sprintf(
-		`SELECT owner_user_id, channel_type, account_id, req_id, agent_id, session_key, round_id, status, error_message
+		`SELECT owner_user_id, channel_type, account_id, req_id, agent_id, session_key, round_id, status, error_message, dispatch_phase, payload_hash, binding_version
 	FROM im_ingress_messages
 	WHERE owner_user_id = %s AND channel_type = %s AND account_id = %s AND req_id = %s`,
 		s.bind(1),
@@ -226,6 +193,9 @@ func (s *ControlService) getIngressMessage(ctx context.Context, ownerUserID stri
 		&row.RoundID,
 		&row.Status,
 		&row.ErrorMessage,
+		&row.DispatchPhase,
+		&row.PayloadHash,
+		&row.BindingVersion,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -268,4 +238,22 @@ func (input ingressMessageFinishInput) normalized() ingressMessageFinishInput {
 		input.ErrorMessage = &value
 	}
 	return input
+}
+
+// beginIngressDispatch 是副作用前的唯一 CAS；准备阶段可重复，越过此处只能核验。
+func (s *ControlService) beginIngressDispatch(ctx context.Context, request normalizedIngressRequest) error {
+	query := fmt.Sprintf(`UPDATE im_ingress_messages SET dispatch_phase='dispatching', updated_at=CURRENT_TIMESTAMP
+ WHERE owner_user_id=%s AND channel_type=%s AND account_id=%s AND req_id=%s AND status='processing' AND dispatch_phase='prepared'`, s.bind(1), s.bind(2), s.bind(3), s.bind(4))
+	result, err := s.db.ExecContext(ctx, query, request.ownerUserID, request.channelStored, request.accountID, request.reqID)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return ErrIngressOutcomeUnknown
+	}
+	return nil
 }

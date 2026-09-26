@@ -112,6 +112,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
 - `service/configuration` 按领域聚合操作输入、校验、执行与核对，共用授权、批准、CAS 和审计；`service/orchestration` 命令在同包内按业务归组，`runtimehook.Observer` 统一 DM/Room 运行观察，可信会话身份仍由各宿主提供。
 - Goal 持有目标状态、续跑租约与用量结算规则，Execution 持有责任图及 binding 真相，DM/Room 持有输入优先级、运行身份和输出权限；Goal 用量转换共用 `goal/runtimeusage`，子任务 pending 的合并与确认共用 Goal 观察值，禁止把宿主锁或 Room 公私输出策略下沉为通用流程。
+- IM 私聊配对的执行目标可为独立会话或本地 Room 的精确话题与成员；`channels/pairing_target.go` 持有版本化绑定，`ingress_room.go` 适配私域持久输入与完成回复，Room 保持调度权。目标切换保留传输身份和历史，物理发送校验绑定版本；权限命令只匹配所绑定成员。
 - `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
 - `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
 - 内置 Loops 模板目录已移除；能力入口保留 Skills、Connectors、Channels、定时任务与工作图，Composer 通过普通 Goal 或已保存工作图发起任务。

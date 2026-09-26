@@ -173,6 +173,8 @@ type roomContextStore interface {
 }
 
 type Service struct {
+	externalReply           func(context.Context, string, string, string, protocol.Message) error
+	externalPermission      func(context.Context, string, string, string) (sdkpermission.Handler, error)
 	config                  config.Config
 	rooms                   roomContextStore
 	agents                  *agentsvc.Service

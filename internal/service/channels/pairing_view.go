@@ -80,21 +80,23 @@ func (s *ControlService) pairingView(ctx context.Context, row pairingRow) Pairin
 		lastMessageAt = &value
 	}
 	return PairingView{
-		PairingID:     row.PairingID,
-		ChannelType:   row.ChannelType,
-		AccountID:     row.AccountID,
-		ChatType:      row.ChatType,
-		ExternalRef:   row.ExternalRef,
-		ThreadID:      row.ThreadID,
-		SessionKey:    pairingSessionKey(row),
-		ExternalName:  nullStringValue(row.ExternalName),
-		AgentID:       row.AgentID,
-		AgentName:     s.agentName(ctx, row.AgentID),
-		Status:        row.Status,
-		Source:        row.Source,
-		LastMessageAt: lastMessageAt,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		SessionTarget:  s.pairingTargetView(ctx, row),
+		BindingVersion: row.BindingVersion,
+		PairingID:      row.PairingID,
+		ChannelType:    row.ChannelType,
+		AccountID:      row.AccountID,
+		ChatType:       row.ChatType,
+		ExternalRef:    row.ExternalRef,
+		ThreadID:       row.ThreadID,
+		SessionKey:     pairingSessionKey(row),
+		ExternalName:   nullStringValue(row.ExternalName),
+		AgentID:        row.AgentID,
+		AgentName:      s.agentName(ctx, row.AgentID),
+		Status:         row.Status,
+		Source:         row.Source,
+		LastMessageAt:  lastMessageAt,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
 	}
 }
 

@@ -48,7 +48,14 @@ function pairingPatchReached(
   item: PairingView,
   patch: UpdatePairingPayload,
 ): boolean {
-  return (patch.agent_id === undefined || item.agent_id === patch.agent_id)
+  return (patch.session_target === undefined || (
+      (item.session_target?.room_id ?? "") === (patch.session_target.room_id ?? "")
+      && (item.session_target?.conversation_id ?? "") === (patch.session_target.conversation_id ?? "")
+      && item.binding_version !== undefined
+      && patch.binding_version !== undefined
+      && item.binding_version >= patch.binding_version
+    ))
+    && (patch.agent_id === undefined || item.agent_id === patch.agent_id)
     && (patch.status === undefined || item.status === patch.status)
     && (
       patch.external_name === undefined

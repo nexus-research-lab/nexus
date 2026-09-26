@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	"net/http"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 )
 
 type ControlService struct {
+	rooms                     *roomsvc.Service
 	config                    config.Config
 	db                        *sql.DB
 	driver                    string

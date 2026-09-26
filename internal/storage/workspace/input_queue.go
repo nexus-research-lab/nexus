@@ -426,9 +426,19 @@ func (s *InputQueueStore) EnqueueBounded(
 	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
 		return nil, false, err
 	}
-	items, err := s.snapshotLocked(location)
+	rows, err := s.inputQueueRowsLocked(location)
 	if err != nil {
 		return nil, false, err
+	}
+	items := replayInputQueueRows(location, rows)
+	// 有稳定来源的定向输入在出队后仍保持幂等，宕机恢复不能再次执行。
+	if item.ClientMessageID != "" {
+		if previous, ok := findAcceptedInputQueueEnqueue(location, rows, item.ClientMessageID); ok {
+			if !MatchesInputQueueEnqueueIntent(previous, item) {
+				return nil, false, ErrInputQueueIdempotencyConflict
+			}
+			return items, false, nil
+		}
 	}
 	for _, existing := range items {
 		if existing.Source == item.Source &&
@@ -446,7 +456,7 @@ func (s *InputQueueStore) EnqueueBounded(
 	item.CreatedAt = now
 	item.UpdatedAt = now
 	if err = s.appendActionLocked(location, map[string]any{
-		"action": inputQueueActionEnqueue, "item": item, "timestamp": now,
+		"action": inputQueueActionEnqueue, "item": item, "timestamp": now, "client_message_id": item.ClientMessageID,
 	}); err != nil {
 		return nil, false, err
 	}

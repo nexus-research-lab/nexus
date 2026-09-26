@@ -9,9 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- IM 入站重投区分准备中断和未知受理；保留原轮次，只凭已持久化用户输入恢复回执，避免静默丢失和重复执行。
+
 - 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
 
 ### Added
+
+- IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 
 - 用户与 Agent 的原头像选择器增加 Humation 随机头像（含背景配色），新建 Agent 和 Subagent 使用同套素材；附带 Nexus 徽章与终端配件，源码与素材随应用分发，无外部头像服务依赖。
 

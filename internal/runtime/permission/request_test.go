@@ -775,3 +775,38 @@ func TestAutoReviewReasonInPermissionCard(t *testing.T) {
 		t.Fatalf("summary = %v", payload["summary"])
 	}
 }
+
+// 同一个 Room 公区承载多个成员，手机审批只能解析绑定成员的请求。
+func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
+	c := NewContext()
+	shared := protocol.BuildRoomSharedSessionKey("topic")
+	first := protocol.BuildRoomAgentSessionKey("topic", "first", protocol.RoomTypeGroup)
+	second := protocol.BuildRoomAgentSessionKey("topic", "second", protocol.RoomTypeGroup)
+	sender := newPermissionTestSender("room-members")
+	c.BindSession(shared, sender)
+	requestCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ids := make(map[string]string)
+	for _, session := range []string{first, second} {
+		lease := c.BindSessionRoute(session, RouteContext{DispatchSessionKey: shared})
+		defer c.UnbindSessionRoute(lease)
+		go func() { _, _ = c.RequestPermission(requestCtx, session, sdkpermission.Request{ToolName: "Write"}) }()
+		event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+		ids[session], _ = event.Data["request_id"].(string)
+	}
+	if c.CountSessionPermissionRequests(shared, "") != 2 || c.CountSessionPermissionRequests(first, "") != 1 {
+		t.Fatal("成员权限计数必须与公区聚合隔离")
+	}
+	if c.CountSessionPermissionRequests(first, ids[second]) != 0 {
+		t.Fatal("不能查询另一个成员的请求")
+	}
+	if got := c.ResolveSessionPermissionRequest(t.Context(), first, ids[second], sdkpermission.BehaviorAllow, false); got.Found || got.Resolved {
+		t.Fatalf("跨成员批准: %+v", got)
+	}
+	if got := c.ResolveSessionPermissionRequest(t.Context(), first, "", sdkpermission.BehaviorAllow, false); !got.Resolved || got.RequestID != ids[first] {
+		t.Fatalf("未批准唯一绑定成员请求: %+v", got)
+	}
+	if c.CountSessionPermissionRequests(second, ids[second]) != 1 {
+		t.Fatal("另一个成员的请求必须保持待确认")
+	}
+}
