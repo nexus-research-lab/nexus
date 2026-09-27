@@ -143,6 +143,14 @@ equivalent Linux/Windows behavior or confinement of all SDK IO. Capability
 acknowledgement also does not establish that an older binary includes later
 policy fixes; fixed-version acceptance remains separate.
 
+macOS nxs file approval recognizes both the configured workspace root and its
+canonical spelling. Read, search and ordinary file edits keep their existing
+local approval behavior when a resumed or switched backend supplies the canonical
+path (for example `/private/var` for a `/var` workspace). Explicit ask/deny rules
+match both spellings; descendant symlinks, hidden writes and protected write globs
+retain their checks. This preflight does not rewrite the tool input or replace
+the execution-time file sandbox, and it makes no additional Windows claim.
+
 Network approval carries the command input, tool-use identity, captured working
 directory and exact host/port, bound to the command's permission epoch. Nexus shows
 one pending connection and offers no persistent grant. Input changes or permission

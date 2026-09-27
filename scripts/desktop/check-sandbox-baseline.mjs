@@ -216,6 +216,16 @@ try {
       "TestDarwinSandboxResourceScopes/read-only",
       "TestDarwinSandboxResourceScopes/workspace-write",
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-workspace-aliases", ["./internal/tool/executor"], [
+      "TestDarwinWorkspaceCanonicalAliases",
+      ...["default", "auto"].flatMap((mode) =>
+        ["Read", "Glob", "Grep", "Write", "Edit"].map((tool) => `TestDarwinWorkspaceCanonicalAliases/${mode}/${tool}`)),
+      "TestDarwinWorkspaceAliasesPreserveRules",
+      ...["ask", "deny"].flatMap((policy) =>
+        ["relative", "logical", "physical"].flatMap((rule) =>
+          ["logical", "physical"].map((path) => `TestDarwinWorkspaceAliasesPreserveRules/${policy}/${rule}/${path}`))),
+      "TestDarwinWorkspaceAliasesKeepDescendantLinksUnapproved",
+    ], sdkSource);
     testGroup("macos-search-contract", ["./cmd/nxs"], [
       "TestSandboxSearchToolsNegotiation",
       "TestSandboxSearchToolsRequirement",
