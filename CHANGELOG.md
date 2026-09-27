@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Include macOS workspace-root alias regressions in the mandatory sandbox gate and pin signing acceptance to the matching SDK fix. Returning from Claude to nxs no longer adds a file approval solely because the same workspace path uses `/private/var` instead of `/var`; explicit rules and descendant-link restrictions remain enforced.
+
 - Close all managed runtimes before closing the App database. Normal macOS App exit now persists sandbox cleanup results so the same conversation can continue after restart. Shutdown rejects new starts, rounds and background work, waits for pending receipt writes and late factories, and retains the database if the caller stops waiting before cleanup finishes.
 
 - Preserve desktop sandbox recovery fences across App restarts. Fresh runtime creation checks the exact session's persisted receipt before starting a process, continues generation numbers after confirmed cleanup, and blocks unresolved or unreadable history even when switching backends. New scratch allocation also rejects existing cleanup-unknown markers for that session, including older replacement directories; concurrent local preparation shares the same lease.
