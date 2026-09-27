@@ -353,6 +353,22 @@ try {
       ...["inline_enabled", "absolute_enabled", "relative_enabled", "relative_disabled"].map(
         (scenario) => `TestDarwinSandboxSkillMemorySettings/${scenario}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-file-readers", ["./internal/environment/filesystem/worker", "./internal/memory/memdir", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestReadPrefixKeepsFullReadLimit", "TestReadPrefixRejectsInvalidRequests",
+      ...["0", "-1", "33554433", "null", "1.5", '"10"', "stat", "lstat", "read_dir", "write", "mkdir_all"].map(
+        (input) => `TestReadPrefixRejectsInvalidRequests/${input}`),
+      "TestLstatPreservesDirectoryLinkKind", "TestStreamReadPrefix",
+      ...["large", "short", "empty"].map((size) => `TestStreamReadPrefix/${size}`),
+      "TestStreamPrefixRejectsExcessResponse", "TestStreamLargeFileAndTruncatedRequest", "TestStreamRejectsShortWriter",
+      "TestMemoryScanKeepsNestedFilesWithoutFollowingDirectoryLinks", "TestContextMemoryReaderDoesNotFallback",
+      "TestMemoryRecallCanceledSelectionDoesNotPublish", "TestReadRelevantMemoryContentEnforcesLineAndByteLimits",
+    ], sdkSource);
+    testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryRecall",
+      ...["file", "symlink", "directory"].flatMap((source) =>
+        ["denied", "allowed"].map((access) => `TestDarwinSandboxMemoryRecall/${source}/${access}`)),
+      "TestDarwinSandboxMemoryRecallReplacement", "TestDarwinSandboxMemoryManifest", "TestDarwinSandboxMemoryRecallLargeFile",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-context-contract", ["./cmd/nxs"], [
       "TestSandboxContextFilesNegotiation",
       "TestSandboxContextFilesRequirement",

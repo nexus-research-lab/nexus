@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin macOS acceptance to the memory-read sandbox fix and require native recall regressions in the baseline. Memory candidates, extraction manifests and selected contents now use the active file sandbox; denied files and replaced links cannot enter model context. Preserve bounded recall of large files and existing memory paths and budgets.
+
 - Keep a healthy WebSocket usable when an older request is canceled during reconnection or approval interruption. Drop already-canceled sends before touching the connection, and finish admitted frames under a bounded connection deadline so subsequent replies remain deliverable.
 
 - Include macOS workspace-root alias regressions in the mandatory sandbox gate and pin signing acceptance to the matching SDK fix. Returning from Claude to nxs no longer adds a file approval solely because the same workspace path uses `/private/var` instead of `/var`; explicit rules and descendant-link restrictions remain enforced.

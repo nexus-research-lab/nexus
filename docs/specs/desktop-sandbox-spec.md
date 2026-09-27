@@ -284,6 +284,21 @@ This requirement participates in process identity. Global permission/provider
 settings, project definitions, hooks, persistence, background IO, effective-policy
 receipts and other runtime/platform acceptance remain separate work.
 
+The paired nxs build also routes memory recall and extraction manifests through
+the current file executor. Directory discovery, link metadata, frontmatter and
+selected content use that boundary; preparation or missing ports never fall back
+to host IO. It preserves non-following directory traversal and re-reads selected
+content after the selector, so replacement with a denied symlink is rejected.
+Header and body reads use bounded prefixes enforced by both the helper and its
+caller; ordinary full-file streaming retains its existing large-file behavior.
+The existing 200-line/4096-byte per-memory and 60KB per-session injection budgets,
+workspace paths and selection semantics remain unchanged. Recall and manifest
+reads each have a 30-second total deadline, and canceled recall cannot publish a
+partial attachment. This is an internal fix in the jointly released Nexus/nxs
+pair, not a new capability or a broader `sandbox_context_files_v1` guarantee.
+Memory initialization, Summary persistence and AutoDream lock/completion writes
+remain separate work.
+
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
 assembly, project discovery uses the file boundary for user/project Agent and
