@@ -3,11 +3,7 @@ ENV_FILE ?= .env
 ifneq (,$(wildcard $(ENV_FILE)))
 include $(ENV_FILE)
 ifeq ($(OS),Windows_NT)
-export APP_WIN_BUNDLE_NXS_RUNTIME
-export NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME
-export NEXUS_DESKTOP_NXS_RUNTIME_PATH
-export NEXUS_STATE_ROOT
-export NEXUS_USE_POWERSHELL_TOOL
+export $(shell pwsh -NoLogo -NoProfile -Command "Get-Content '$(ENV_FILE)' | ForEach-Object { if ($$_ -match '^([A-Za-z_][A-Za-z0-9_]*)=') { $$Matches[1] } }")
 else
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
@@ -18,7 +14,11 @@ BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
 NEXUS_CONTROL_ROOT ?= $(abspath ../nexus-control)
+ifeq ($(OS),Windows_NT)
+NEXUS_DEV_STATE_ROOT ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT),$(USERPROFILE)/.nexus)
+else
 NEXUS_DEV_STATE_ROOT ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT),$(HOME)/.nexus)
+endif
 CONTROL_DATA_DIR := $(if $(strip $(CONTROL_DATA_DIR)),$(CONTROL_DATA_DIR),$(NEXUS_DEV_STATE_ROOT)/control)
 AGENT_UID ?= 1001
 AGENT_GID ?= 1001
@@ -68,6 +68,21 @@ else
 endif
 
 # Development commands
+ifeq ($(OS),Windows_NT)
+WINDOWS_DEV = pwsh -NoLogo -NoProfile -File scripts/dev-windows.ps1 -BackendPort $(BACKEND_PORT) -WebPort $(WEB_PORT) -ControlPort $(CONTROL_PORT) -ControlRoot "$(NEXUS_CONTROL_ROOT)" -ControlDataDir "$(CONTROL_DATA_DIR)" -CliBinDir "$(DEV_RUNTIME_CLI_BIN_DIR)" -RuntimePath "$(NXS_DEV_RUNTIME_PATH)" -Pnpm "$(PNPM)"
+dev: ## Run Control, backend, and frontend in development mode
+dev-nxs: ## Run dev servers with local Go SDK nxs runtime
+run-control: ## Run the sibling nexus-control service
+run-backend: ## Run Go backend in development mode
+run-web: ## Run frontend in development mode
+prepare-dev-runtime-cli: ## Build runtime CLI binaries for development
+install: ## Install all dependencies
+dev dev-nxs run-control run-backend run-web prepare-dev-runtime-cli install:
+	@$(WINDOWS_DEV) -Action $@
+run-backend-go: run-backend
+gen-protocol-types:
+	go generate ./internal/protocol
+else
 run-web: ## Run frontend in development mode
 	cd web && VITE_BACKEND_PORT=$(BACKEND_PORT) VITE_CONTROL_PORT=$(CONTROL_PORT) $(PNPM) exec vite --host 0.0.0.0 --port $(WEB_PORT)
 
@@ -161,6 +176,8 @@ install: ## Install all dependencies
 	fi
 	@echo "Installing frontend dependencies..."
 	cd web && $(PNPM) install
+
+endif
 
 lint-web: ## Run frontend lint
 	cd web && $(PNPM) run lint
