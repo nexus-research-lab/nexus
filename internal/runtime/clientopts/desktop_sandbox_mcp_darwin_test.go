@@ -26,6 +26,15 @@ import (
 )
 
 func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
+	testDesktopSandboxMCPRoundTrip(t, []string{"http", "sse", "http_helper", "sse_helper"})
+}
+
+func TestDesktopSandboxStdioMCPRoundTrip(t *testing.T) {
+	testDesktopSandboxMCPRoundTrip(t, []string{"stdio_persisted", "stdio_connector"})
+}
+
+// testDesktopSandboxMCPRoundTrip 共用真实 nxs 的模型/工具轮次，并分别走持久配置与 Connector 入口。
+func testDesktopSandboxMCPRoundTrip(t *testing.T, scenarios []string) {
 	binary := os.Getenv("NEXUS_SANDBOX_TEST_BINARY")
 	if binary == "" {
 		t.Skip("requires an explicit nxs binary")
@@ -33,7 +42,7 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 	if !filepath.IsAbs(binary) {
 		t.Fatal("requires an absolute nxs path")
 	}
-	for _, scenario := range []string{"http", "sse", "http_helper", "sse_helper"} {
+	for _, scenario := range scenarios {
 		t.Run(scenario, func(t *testing.T) {
 			transport := strings.TrimSuffix(scenario, "_helper")
 			root := t.TempDir()
@@ -46,7 +55,12 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			mcpServer, calls := desktopMCPFixture(t, transport)
+			var endpoint string
+			var calls func() int32
+			if !strings.HasPrefix(transport, "stdio_") {
+				mcpServer, count := desktopMCPFixture(t, transport)
+				endpoint, calls = mcpServer.URL, count.Load
+			}
 			var observed atomic.Bool
 			provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				body, _ := io.ReadAll(r.Body)
@@ -62,10 +76,30 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 				PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true, SettingSources: []string{},
 				SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: filepath.Join(root, "scratch")},
 			}
-			if transport == "http" {
-				input.AgentMCPServers = map[string]any{"fixture_remote": map[string]any{"type": "http", "url": mcpServer.URL, "headers": map[string]any{"Authorization": "Bearer fixture-only"}}}
+			if strings.HasPrefix(transport, "stdio_") {
+				command, err := os.Executable()
+				if err != nil {
+					t.Fatal(err)
+				}
+				countFile := filepath.Join(root, "scratch", "stdio-calls")
+				calls = func() int32 {
+					data, err := os.ReadFile(countFile)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return int32(strings.Count(string(data), "call\n"))
+				}
+				args := []string{"-test.run=^TestDesktopSandboxStdioFixtureProcess$"}
+				environment := map[string]string{"MCP_STDIO_FIXTURE": "1", "MCP_STDIO_COUNT_FILE": countFile, "MCP_SERVICE_TOKEN": "fixture-only"}
+				if transport == "stdio_persisted" {
+					input.AgentMCPServers = map[string]any{"fixture_remote": map[string]any{"command": command, "args": args, "env": environment}}
+				} else {
+					input.MCPServers = map[string]sdkmcp.ServerConfig{"fixture_remote": sdkmcp.StdioServerConfig{Command: command, Args: args, Env: environment}}
+				}
+			} else if transport == "http" {
+				input.AgentMCPServers = map[string]any{"fixture_remote": map[string]any{"type": "http", "url": endpoint, "headers": map[string]any{"Authorization": "Bearer fixture-only"}}}
 			} else {
-				input.MCPServers = map[string]sdkmcp.ServerConfig{"fixture_remote": sdkmcp.SSEServerConfig{URL: mcpServer.URL, Headers: map[string]string{"Authorization": "Bearer fixture-only"}}}
+				input.MCPServers = map[string]sdkmcp.ServerConfig{"fixture_remote": sdkmcp.SSEServerConfig{URL: endpoint, Headers: map[string]string{"Authorization": "Bearer fixture-only"}}}
 			}
 			if strings.HasSuffix(scenario, "_helper") {
 				helper := `printf '{"Authorization":"Bearer fixture-only"}'`
@@ -74,7 +108,7 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 					configured["headersHelper"] = helper
 					configured["headers"] = map[string]any{"Authorization": "must-be-replaced"}
 				} else {
-					input.MCPServers["fixture_remote"] = sdkmcp.SSEServerConfig{URL: mcpServer.URL, HeadersHelper: helper, Headers: map[string]string{"Authorization": "must-be-replaced"}}
+					input.MCPServers["fixture_remote"] = sdkmcp.SSEServerConfig{URL: endpoint, HeadersHelper: helper, Headers: map[string]string{"Authorization": "must-be-replaced"}}
 				}
 			}
 			options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{config: &RuntimeConfig{Provider: "mcp-fixture", APIFormat: "anthropic_messages", BaseURL: provider.URL, AuthToken: "local-only", Model: "test-model"}}, input)
@@ -110,6 +144,9 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 			if !session.Supports(agentclient.CapabilitySandboxMCPHelpers) {
 				t.Fatal("missing MCP helper confirmation")
 			}
+			if !session.Supports(agentclient.CapabilitySandboxMCPStdio) {
+				t.Fatal("missing MCP stdio confirmation")
+			}
 			stream, err := session.Send(ctx, "Call the configured echo MCP tool once.")
 			if err != nil {
 				t.Fatal(err)
@@ -126,8 +163,8 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 					break
 				}
 			}
-			if calls.Load() != 1 || !observed.Load() {
-				t.Fatalf("MCP calls=%d result returned to Provider=%v", calls.Load(), observed.Load())
+			if calls() != 1 || !observed.Load() {
+				t.Fatalf("MCP calls=%d result returned to Provider=%v", calls(), observed.Load())
 			}
 		})
 	}
@@ -203,5 +240,48 @@ func desktopMCPToolResponse(w http.ResponseWriter) {
 	} {
 		data, _ := json.Marshal(event)
 		_, _ = fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event["type"], data)
+	}
+}
+
+// TestDesktopSandboxStdioFixtureProcess 是子进程专用入口；退出前不打印 Go test 正文。
+func TestDesktopSandboxStdioFixtureProcess(t *testing.T) {
+	if os.Getenv("MCP_STDIO_FIXTURE") != "1" {
+		return
+	}
+	if os.Getenv("MCP_SERVICE_TOKEN") != "fixture-only" || os.Getenv("ANTHROPIC_AUTH_TOKEN") != "" || os.Getenv("OPENAI_API_KEY") != "" {
+		os.Exit(2)
+	}
+	decoder, encoder := json.NewDecoder(os.Stdin), json.NewEncoder(os.Stdout)
+	for {
+		var request map[string]any
+		if err := decoder.Decode(&request); err != nil {
+			os.Exit(0)
+		}
+		if _, hasID := request["id"]; !hasID {
+			continue
+		}
+		result := map[string]any{}
+		switch request["method"] {
+		case "initialize":
+			result = map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{}, "serverInfo": map[string]any{"name": "fixture", "version": "1"}}
+		case "tools/list":
+			result["tools"] = []any{map[string]any{"name": "echo", "description": "Return fixture proof", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}}}
+		case "resources/list":
+			result["resources"] = []any{}
+		case "tools/call":
+			f, err := os.OpenFile(os.Getenv("MCP_STDIO_COUNT_FILE"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+			if err != nil {
+				os.Exit(3)
+			}
+			_, err = f.WriteString("call\n")
+			f.Close()
+			if err != nil {
+				os.Exit(4)
+			}
+			result["content"] = []any{map[string]any{"type": "text", "text": "mcp-roundtrip-proof"}}
+		}
+		if err := encoder.Encode(map[string]any{"jsonrpc": "2.0", "id": request["id"], "result": result}); err != nil {
+			os.Exit(5)
+		}
 	}
 }

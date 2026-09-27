@@ -107,6 +107,9 @@ func requiredSandboxCapabilities(options bridge.Options) []bridge.Capability {
 		if options.Sandbox.RequireMCPHelpers {
 			result = append(result, bridge.CapabilitySandboxMCPHelpers)
 		}
+		if options.Sandbox.RequireMCPStdio {
+			result = append(result, bridge.CapabilitySandboxMCPStdio)
+		}
 		if options.Sandbox.RequireMediaNetwork {
 			result = append(result, bridge.CapabilitySandboxMediaNetwork)
 		}
@@ -151,6 +154,7 @@ type sandboxRequirementDigest struct {
 	RequireMediaFiles       bool `json:"require_media_files,omitempty"`
 	RequireMCPNetwork       bool `json:"require_mcp_network,omitempty"`
 	RequireMCPHelpers       bool `json:"require_mcp_helpers,omitempty"`
+	RequireMCPStdio         bool `json:"require_mcp_stdio,omitempty"`
 	RequireMediaNetwork     bool `json:"require_media_network,omitempty"`
 	RequireNotebookFiles    bool `json:"require_notebook_files,omitempty"`
 	RequireSkillFiles       bool `json:"require_skill_files,omitempty"`
@@ -174,6 +178,7 @@ func sandboxRequirementsForDigest(settings *bridge.SandboxSettings) *sandboxRequ
 		RequireMediaFiles:       settings.RequireMediaFiles,
 		RequireMCPNetwork:       settings.RequireMCPNetwork,
 		RequireMCPHelpers:       settings.RequireMCPHelpers,
+		RequireMCPStdio:         settings.RequireMCPStdio,
 		RequireMediaNetwork:     settings.RequireMediaNetwork,
 		RequireNotebookFiles:    settings.RequireNotebookFiles,
 		RequireSkillFiles:       settings.RequireSkillFiles,
@@ -321,6 +326,9 @@ func validateDesktopSandboxReceiptOptions(options bridge.Options) error {
 	}
 	if runtime.GOOS == "darwin" && (!settings.RequireMCPHelpers || !options.MCP.StrictConfig) {
 		missing = append(missing, "mcp_helpers")
+	}
+	if runtime.GOOS == "darwin" && (!settings.RequireMCPStdio || !options.MCP.StrictConfig) {
+		missing = append(missing, "mcp_stdio")
 	}
 	if !settings.RequireMediaNetwork {
 		missing = append(missing, "media_network")
