@@ -13,6 +13,7 @@
 //   - log_runtime.go：runtime 日志选项。
 //   - desktop_sandbox.go：实验桌面执行策略装配，分别要求命令、原生 Read/Write/Edit、Glob/Grep、本地图片、Notebook、Skill、指令/compact 文件读取与受控设置写入能力，区分 Skill 读取根与显式写入挂载，保留 Full Access 路径。
 //   - runtime_admission.go：认证转场到 Agent runtime admission 与强隔离要求的动态依赖边界。
+//   - desktop_sandbox_live_test.go：显式 opt-in 的 macOS 真实第三方 Provider 验收；经当前装配分别验证 nxs 文件边界与 Claude Read/Edit + Bash 沙箱，不属于普通测试或发布验收。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // auto 原样传给两种运行时；bridge 协商 nxs 能力并确认 Claude 原生模式。

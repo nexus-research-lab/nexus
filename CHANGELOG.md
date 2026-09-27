@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add an explicit macOS live-provider sandbox acceptance entry for nxs and Claude.
+  It reads only model credentials from a local `.env`, uses fresh fixture state,
+  and verifies real file/command execution, backend-specific file denials,
+  command network rejection, interruption and fixture-process termination.
+  Normal test runs do not make external model requests.
+
 - Consolidate Nexus, SDK, and Bridge sandbox work on
   `codex/desktop-sandbox-approvals`, with Windows continuation instructions and
   replay-verified archives of older uncommitted SDK/Bridge drafts. Update the

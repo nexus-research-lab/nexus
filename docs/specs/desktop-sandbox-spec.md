@@ -345,16 +345,17 @@ and ordinary task environment values remain available. Standalone SDK settings
 retain their existing routing semantics. Background-model settings updates that
 cannot take effect in host-managed mode return an error.
 
-For Anthropic-compatible third-party models, the host-owned `BaseURL` and
-`AuthToken` are projected as `ANTHROPIC_BASE_URL`. nxs uses the SDK's
-`ANTHROPIC_API_KEY` path for both first-party and compatible endpoints, which
+For Anthropic-compatible third-party models, the host-owned `BaseURL` is
+projected as `ANTHROPIC_BASE_URL`. nxs projects the host-owned `AuthToken` through
+the SDK's `ANTHROPIC_API_KEY` path for both first-party and compatible endpoints, which
 emits `x-api-key` and the SDK's compatible-endpoint Bearer fallback. Claude
-keeps `ANTHROPIC_AUTH_TOKEN` for its native CLI semantics; its real provider
-authentication remains a separate acceptance track. The existing local mock SSE
-check covers the earlier nxs and Claude request paths, while the current nxs
-API-key projection is covered by the fixed SDK header test. Provider-specific
-custom headers still have no declared Nexus field and are not accepted by this
-contract.
+keeps `ANTHROPIC_AUTH_TOKEN` for its native CLI semantics. In addition to the
+earlier local mock SSE and fixed SDK header checks, the 2026-09-27 live-provider
+acceptance exercises both projections against one real third-party gateway,
+including file/command execution, explicit denials and ordinary interruption.
+This does not establish arbitrary gateway or official account/OAuth compatibility.
+Provider-specific custom headers still have no declared Nexus field and are not
+accepted by this contract.
 
 The nxs `Sandbox.Network` object is currently consumed by command/tool
 execution (including shell network preflight) and is not a host-level egress
