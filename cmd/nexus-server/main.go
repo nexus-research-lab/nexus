@@ -1,5 +1,5 @@
-// INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
-// OUTPUT: 完成 schema/宿主修复后启动并完整收口的 HTTP/WebSocket 服务。
+// INPUT: Nexus server 环境配置、数据库 migration、进程生命周期信号或显式 runtime 检查参数。
+// OUTPUT: 完成 schema/宿主修复的 HTTP/WebSocket 服务，或不启动服务的随包 runtime 兼容性报告。
 // POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
@@ -215,6 +215,7 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
+	root.AddCommand(buildRuntimeCheckCommand())
 	return root
 }
 

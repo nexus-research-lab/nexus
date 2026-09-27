@@ -222,7 +222,22 @@ fall back; local access is checked before auxiliary analysis cache lookup.
 Old command/file/search acknowledgements cannot substitute for this capability.
 It participates in process-policy identity and requires runtime replacement when
 changed. It does not cover HTTP image downloads, remote URL forwarding policy,
-Claude or whole-SDK IO; those remain separate implementation and acceptance work.
+Claude or whole-SDK IO; those remain separate contracts.
+
+Desktop nxs also requires `RequireMediaNetwork`, initialize
+`required_sandbox_media_network` and `sandbox_media_network_v1`. This separate
+contract requires command, file and local media capabilities. All remote image
+sources are downloaded before dispatch to the main/auxiliary Provider, including
+deferred references and nested tool images; Provider URL support cannot bypass
+the captured policy. Every HTTP request and redirect is admitted against the
+network policy. Deny and managed-only rules remain authoritative. Explicit
+ViewImage network approvals bind the exact input, tool-use, cwd, destination
+and permission epoch, reject input changes and persistent grants, and cannot
+survive cancellation or a policy change. Preprocessing without a tool identity
+uses existing network grants or an explicit host callback. Environment proxies
+and Provider credentials are not inherited; configured host proxies remain
+supported. Cleanup cancels pending approvals and body reads. This contract does
+not extend to model Provider transport, WebFetch, external MCP or Claude.
 
 The host separately requires `SandboxSettings.RequireNotebookFiles`, initialize
 `required_sandbox_notebook_files` and the separate `sandbox_notebook_files_v1`
@@ -500,5 +515,35 @@ and [acceptance matrix](../testing/desktop-sandbox-acceptance.md). Dependency
 availability must not be inferred from a successful local workspace build.
 
 ## Main integration compatibility
+
+### macOS App/runtime pairing and existing data
+
+Nexus and nxs ship together in the macOS App. Normal App upgrades replace the
+matched pair; there is no separate runtime upgrade step for existing users.
+The existing development/environment override precedence remains unchanged.
+The compatibility requirement is that the new pair preserves existing settings,
+sessions, memory, workspaces and previously supported product behavior.
+
+Bundled builds and packages run `nexus-server check-desktop-runtime --nxs <bundled path>`
+from the actual assembled App. The diagnostic bypasses server startup, `.env`, database
+migration and model requests; the packaging runner supplies an empty environment and
+fresh temporary HOME. The product options builder and sidecar's linked Bridge must
+complete initialize and close for workspace-write, read-only and Full Access. There is
+no skip flag for this check when nxs is bundled, including skip-build/skip-smoke packaging.
+The report stays outside the signed bundle; package metadata includes the binary SHA-256,
+Bridge version and confirmed profiles. An incompatible rolling-channel download stops
+the build before distribution. This is a package compatibility gate, not an automatic
+runtime download or permission downgrade at user startup.
+
+`scripts/desktop/check-runtime-upgrade.mjs` accepts explicit previous-release and
+candidate binaries and requires all three phases: create with the old runtime, resume
+under current desktop policy, then resume with the old runtime. A local Provider fixture
+verifies the actual model history, stable session ID and append-only transcript; settings,
+memory and workspace fixtures must remain unchanged. The old phase uses its supported
+pre-upgrade policy, rather than asking the old runtime to advertise newly added security
+capabilities. This does not prove database downgrade, signed App installation, every
+historical release or an external Provider; those remain separate acceptance evidence.
+
+### Historical main integration
 
 The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished. [Acceptance evidence](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容) records this integration separately from default sandbox rollout and platform acceptance.

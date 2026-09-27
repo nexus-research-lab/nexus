@@ -100,6 +100,9 @@ func requiredSandboxCapabilities(options bridge.Options) []bridge.Capability {
 		if options.Sandbox.RequireMediaFiles {
 			result = append(result, bridge.CapabilitySandboxMediaFiles)
 		}
+		if options.Sandbox.RequireMediaNetwork {
+			result = append(result, bridge.CapabilitySandboxMediaNetwork)
+		}
 		if options.Sandbox.RequireNotebookFiles {
 			result = append(result, bridge.CapabilitySandboxNotebookFiles)
 		}
@@ -139,6 +142,7 @@ type sandboxRequirementDigest struct {
 	RequireFileTools        bool `json:"require_file_tools,omitempty"`
 	RequireSearchTools      bool `json:"require_search_tools,omitempty"`
 	RequireMediaFiles       bool `json:"require_media_files,omitempty"`
+	RequireMediaNetwork     bool `json:"require_media_network,omitempty"`
 	RequireNotebookFiles    bool `json:"require_notebook_files,omitempty"`
 	RequireSkillFiles       bool `json:"require_skill_files,omitempty"`
 	RequireContextFiles     bool `json:"require_context_files,omitempty"`
@@ -159,6 +163,7 @@ func sandboxRequirementsForDigest(settings *bridge.SandboxSettings) *sandboxRequ
 		RequireFileTools:        settings.RequireFileTools,
 		RequireSearchTools:      settings.RequireSearchTools,
 		RequireMediaFiles:       settings.RequireMediaFiles,
+		RequireMediaNetwork:     settings.RequireMediaNetwork,
 		RequireNotebookFiles:    settings.RequireNotebookFiles,
 		RequireSkillFiles:       settings.RequireSkillFiles,
 		RequireContextFiles:     settings.RequireContextFiles,
@@ -299,6 +304,9 @@ func validateDesktopSandboxReceiptOptions(options bridge.Options) error {
 	}
 	if !settings.RequireMediaFiles {
 		missing = append(missing, "media_files")
+	}
+	if !settings.RequireMediaNetwork {
+		missing = append(missing, "media_network")
 	}
 	if !settings.RequireNotebookFiles {
 		missing = append(missing, "notebook_files")

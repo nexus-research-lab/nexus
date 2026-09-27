@@ -49,6 +49,9 @@ func TestDesktopSandboxRealRuntimeNegotiation(t *testing.T) {
 	if !session.Supports(agentclient.CapabilityRequiredSandbox) || !session.Supports(agentclient.CapabilitySandboxFileTools) || !session.Supports(agentclient.CapabilitySandboxSearchTools) || !session.Supports(agentclient.CapabilitySandboxMediaFiles) || !session.Supports(agentclient.CapabilitySandboxSkillFiles) || !session.Supports(agentclient.CapabilitySandboxContextFiles) || !session.Supports(agentclient.CapabilitySandboxProjectFiles) || !session.Supports(agentclient.CapabilitySandboxManagedPolicy) || !session.Supports(agentclient.CapabilitySandboxSettingsFiles) || !session.Supports(agentclient.CapabilitySandboxSettingsWrites) {
 		t.Fatal("host-required command, file, search and local-media contracts were not all acknowledged")
 	}
+	if !session.Supports(agentclient.CapabilitySandboxMediaNetwork) {
+		t.Fatal("host-required remote-media network contract was not acknowledged")
+	}
 }
 
 // TestDesktopSandboxRealRuntimeWithHostResources exercises the combination

@@ -1110,3 +1110,11 @@ skip、缺失或失败都会失败关闭。Windows workflow 使用该入口；�
 
 因此，这一批次只把 Windows 的身份判断和构建门禁收口；在真实 Windows 证据到齐前，
 Windows 受限 nxs 执行继续失败关闭，不能用交叉编译或组件 CI 代替原生验收。
+
+
+## 2026-09-28：图片网络与 macOS 升级配套检查
+
+固定 SDK `593b1fa6`、规范远程 Bridge `b0402649d44b` 的 40 项原生基线、527 个必测名称通过。
+新增随包 sidecar/nxs 三种权限配置的发布自检；Nexus/nxs 配套发布，原有 runtime 选择逻辑保持。
+旧开发会话升级/回退与原配置保留通过；已发布版本升级和正式包仍待单列证据；新固定依赖的真实第三方 Provider 10 项基础检查通过。
+详见 [证据](evidence/desktop-sandbox/2026-09-28-media-network-compatibility/README.md)。
