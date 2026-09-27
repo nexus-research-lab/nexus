@@ -1,5 +1,5 @@
 // INPUT: Host-owned runtime identity and a session/round scope.
-// OUTPUT: A private, versioned scratch directory and an idempotent release lease.
+// OUTPUT: A private, versioned scratch lease, refusing persisted cleanup failure.
 // POS: The desktop host owns scratch creation and cleanup; the SDK/Bridge only
 // receives the resulting SandboxResourcePolicy.
 package runtime
@@ -35,9 +35,12 @@ const (
 )
 
 var (
-	registryMu sync.Mutex
-	registry   = map[string]*sandboxResource{}
-	byScope    = map[string]*sandboxResource{}
+	// Serialize marker inspection/publication within this host. An overlapping
+	// Acquire must not mistake a not-yet-published marker for crashed state.
+	acquisitionGate = make(chan struct{}, 1)
+	registryMu      sync.Mutex
+	registry        = map[string]*sandboxResource{}
+	byScope         = map[string]*sandboxResource{}
 )
 
 // Input identifies the host-owned scope for one runtime process.
@@ -227,6 +230,12 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	select {
+	case acquisitionGate <- struct{}{}:
+		defer func() { <-acquisitionGate }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	owner := strings.TrimSpace(input.OwnerUserID)
 	session := strings.TrimSpace(input.SessionKey)
 	roundID := strings.TrimSpace(input.RoundID)
@@ -336,6 +345,9 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 
 	digest := sha256.Sum256([]byte(scopeKey))
 	name := ".scratch-" + hex.EncodeToString(digest[:])[:16]
+	if err := checkSandboxScratchAdmission(ctx, confinedBase, root, owner, session, name); err != nil {
+		return nil, err
+	}
 	if err := baseFS.Mkdir(name, 0o700); err != nil {
 		if !errors.Is(err, os.ErrExist) {
 			return nil, fmt.Errorf("create sandbox scratch: %w", err)
@@ -403,7 +415,6 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	}
 	handle := &Lease{resource: resource, roundID: roundID}
 	resource.handles[handle] = struct{}{}
-	retainConfinedBase = true
 	registryMu.Lock()
 	if existing := byScope[scopeKey]; existing != nil {
 		registryMu.Unlock()
@@ -434,6 +445,7 @@ func Acquire(ctx context.Context, input Input) (*Lease, error) {
 	}
 	registry[path] = resource
 	byScope[scopeKey] = resource
+	retainConfinedBase = true
 	registryMu.Unlock()
 	return handle, nil
 }
@@ -861,6 +873,11 @@ func readSandboxLeaseMarker(path, runtimeRoot, owner string) (SandboxLeaseMarker
 	if err != nil {
 		return SandboxLeaseMarker{}, err
 	}
+	return validateSandboxLeaseMarker(marker, runtimeRoot, owner)
+}
+
+// validateSandboxLeaseMarker 同时服务恢复扫描与启动准入，避免两条路径对旧 marker 的解释分叉。
+func validateSandboxLeaseMarker(marker SandboxLeaseMarker, runtimeRoot, owner string) (SandboxLeaseMarker, error) {
 	if marker.Version != leaseMarkerVersion || strings.TrimSpace(marker.LeaseID) == "" ||
 		strings.TrimSpace(marker.OwnerUserID) == "" || marker.OwnerUserID != owner ||
 		marker.SessionKey == "" || marker.RuntimeRoot != runtimeRoot ||

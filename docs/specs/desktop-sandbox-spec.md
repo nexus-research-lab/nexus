@@ -496,12 +496,23 @@ owner/Agent close callers can read the retained result. Sandbox file requirement
 and resource scopes participate explicitly in the process-policy fingerprint,
 even though ordinary settings serialization excludes those host-only fields.
 
-The current failed-close fence exists in memory. It does not survive a host restart
-or prove that detached descendants have terminated. The Bridge Unix sweep observes
-only visible members of the original session; another session, PID namespace or
-host signal callback needs its own supervision and exit proof. This change does
-not create, lease or reclaim scratch, and must not be used as a complete cleanup
-receipt for the future default resource policy.
+Fresh Manager client creation reads the latest receipt for the exact owner/session
+before invoking the factory. A retired or explicitly reconciled receipt provides
+the generation lower bound, so clean App restart or idle-session recreation cannot
+reuse an old durable identity. Confirmed, retiring or unknown history without the
+original live client blocks recreation; read/identity failures also stop startup.
+This check applies before choosing the new runtime, so a backend or Full Access
+change cannot bypass unresolved previous execution. It does not infer an exit
+from an absent in-memory client or automatically replay a request.
+
+Scratch allocation independently checks persisted markers through its fixed parent
+directory handle. The same owner/session's cleanup-unknown marker, including one
+under an older replacement path, blocks a new lease after restart. Invalid markers
+at that scope's expected path also block allocation. Unrelated sessions remain
+independent; concurrent preparation in one host cannot misread a half-written marker.
+These are durable startup fences, not proof that detached descendants terminated.
+The Bridge Unix sweep still observes only visible members of the original session;
+complete supervision and safe reconciliation of uncertain execution remain separate.
 
 ## Explicit local diagnostics
 

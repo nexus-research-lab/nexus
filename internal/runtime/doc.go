@@ -30,6 +30,7 @@
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；经 internal/infra/confinedfs 固定目录句柄完成创建、marker 读写、扫描与回收，Bridge 关闭成功后才回收，失败保留会话栅栏并把 cleanup_unknown 状态持久化；Windows marker 核验进程创建时间与内核存活信号，避免 PID 重用误回收或残留句柄把已退出进程误判为存活，查询失败保持未知。
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
+//   - sandbox_startup.go：创建新 client 前读取 exact owner/session 的最新持久回执并延续代次；confirmed/retiring/unknown 阻断重建。scratch 新建前以固定父目录句柄检查同 scope 的 cleanup_unknown，包括旧 stale 目录，防止重启换目录绕过失败栅栏。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。

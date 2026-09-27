@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 const (
@@ -168,6 +170,31 @@ func TestSandboxCleanupUnknownSurvivesRestart(t *testing.T) {
 	}
 	if _, err := os.Stat(record.Path); err != nil {
 		t.Fatalf("cleanup_unknown reconcile removed scratch: %v", err)
+	}
+	// A new scratch path must not bypass the durable close failure after a
+	// restart. The background-memory runner also enters through Acquire.
+	for _, pathVariant := range []string{"original", "legacy_replacement"} {
+		t.Run(pathVariant, func(t *testing.T) {
+			if pathVariant == "legacy_replacement" {
+				if err := os.Rename(record.Path, record.Path+"-stale-legacy"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, scope := range []agentclient.SandboxWriteScope{agentclient.SandboxWriteScopeWorkspaceWrite, agentclient.SandboxWriteScopeReadOnly} {
+				lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "crashed-session", RoundID: "later-round", Root: root, WriteScope: scope})
+				if err == nil {
+					_ = lease.Release()
+					t.Fatalf("restart bypassed cleanup_unknown with write scope %s", scope)
+				}
+			}
+		})
+	}
+	other, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "independent-session", Root: root})
+	if err != nil {
+		t.Fatalf("unrelated session was blocked: %v", err)
+	}
+	if err := other.Release(); err != nil {
+		t.Fatal(err)
 	}
 }
 

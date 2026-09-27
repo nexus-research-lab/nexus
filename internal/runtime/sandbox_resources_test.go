@@ -128,6 +128,42 @@ func TestAcquireReusesActiveSessionLease(t *testing.T) {
 	}
 }
 
+func TestConcurrentAcquireDoesNotTreatPublishingMarkerAsCrash(t *testing.T) {
+	root := t.TempDir()
+	var wg sync.WaitGroup
+	results := make(chan *Lease, 16)
+	errorsCh := make(chan error, 16)
+	start := make(chan struct{})
+	for range 16 {
+		wg.Go(func() {
+			<-start
+			lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "concurrent-acquire", Root: root})
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			results <- lease
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	close(errorsCh)
+	var path string
+	for lease := range results {
+		if path != "" && path != lease.Path() {
+			t.Errorf("concurrent startup published a second scratch: %q != %q", path, lease.Path())
+		}
+		path = lease.Path()
+		if err := lease.Release(); err != nil {
+			t.Error(err)
+		}
+	}
+	for err := range errorsCh {
+		t.Errorf("concurrent scratch acquisition: %v", err)
+	}
+}
+
 func TestSharedLeaseHandleRetainsExactRoundIdentity(t *testing.T) {
 	root := t.TempDir()
 	first, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "round-scope", RoundID: "round-one", Root: root})

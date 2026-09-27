@@ -79,9 +79,9 @@ type SandboxPolicyReceiptStore interface {
 	UpdatePhase(context.Context, string, string, uint64, protocol.SandboxPolicyReceiptPhase, string) error
 }
 
-// SandboxPolicyReceiptReader is an optional read side of the durable audit
-// sink. Keeping it separate preserves lightweight test/store implementations
-// that only need to record lifecycle transitions.
+// SandboxPolicyReceiptReader is the recovery read side of a configured store.
+// Stores used for owner-bound startup must provide it; a write-only sink can
+// still record lifecycle transitions but cannot admit a fresh runtime.
 type SandboxPolicyReceiptReader interface {
 	Latest(context.Context, string, string) (protocol.SandboxPolicyReceiptSnapshot, bool, error)
 }
@@ -113,8 +113,8 @@ func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
 	m.mu.Unlock()
 }
 
-// SetSandboxPolicyReceiptStore installs the durable audit sink. A nil sink
-// keeps the in-memory diagnostic behavior used by lightweight callers/tests.
+// SetSandboxPolicyReceiptStore installs the durable audit/recovery sink. A nil
+// sink keeps the in-memory diagnostic behavior used by lightweight callers/tests.
 func (m *Manager) SetSandboxPolicyReceiptStore(store SandboxPolicyReceiptStore) {
 	m.mu.Lock()
 	m.sandboxReceiptStore = store
