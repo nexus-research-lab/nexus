@@ -11,6 +11,7 @@
 | 当前实际生效的产品行为 | [当前规范](../../specs/desktop-sandbox-spec.md) | 只随已实现合同更新 |
 | 怎么验证、哪些测试真正通过 | [验收矩阵](../../testing/desktop-sandbox-acceptance.md) | 记录命令、退出码和证据范围 |
 | Codex 参考路径与 Windows 实验差异 | [固定源码审计](codex-source-audit.md) | 保留固定提交及原生证据，新的执行状态进入开发计划 |
+| Windows 本机十项组合与 CLR 拒绝根因 | [P3 本机决策](windows-p3-native-decision.md) | 固定原生失败证据与下一轮单一假设 |
 | 原 Windows broker 候选及部署约束 | [Windows 部署候选](windows-broker-plan.md) | 候选，不能当作已选架构 |
 | 过去做过哪些尝试 | [原始计划与实施历史](implementation-history.md) | 冻结归档，保留失败证据 |
 

@@ -15,6 +15,11 @@
 P3 兼容与控制隔离的完整组合矩阵仍在进行；P4 原生执行/文件/网络后端未完成。
 原生 Windows `PrepareExecution` 及文件能力继续 fail closed，`releaseAccepted=false`。
 
+2026-09-28 本机 P3 已跑固定十项 LogonW 比较：reference 为 9 通过/1 越界写入失败，
+capability-only 为 8 通过/2 兼容失败，capability＋logon 为 9 通过/1 CLR 失败。定向
+跟踪定位到 CLR 自建全局 IPC section 的显式 DACL。结果、证据边界及下一轮唯一假设
+见 [Windows P3 本机决策](windows-p3-native-decision.md)；没有一组已获完整验收。
+
 此前 macOS 已验证的运行时代码基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
 `37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
 `v0.1.34-0.20260921030131-37434c2d38b1`（checksum
