@@ -74,6 +74,9 @@ func TestLiveConfiguredModelCapabilities(t *testing.T) {
 			if probe == nil {
 				t.Fatal("configuration-bound live evidence missing")
 			}
+			for key, attempt := range probe.Attempts {
+				t.Logf("%s: %s (%s)", key, attempt.State, attempt.Reason)
+			}
 			caps := probe.Capabilities
 			state := func(value *bool) string {
 				if value == nil {

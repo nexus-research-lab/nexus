@@ -433,10 +433,7 @@ func (u *modelUpdate) loadRecord() (*ModelRecord, error) {
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", u.modelID)
 	}
-	record := toModelRecord(*updated)
-	guidance := projectModelGuidance(u.item, *updated)
-	record.Guidance = &guidance
-	record.CapabilitiesAuto = guidance.AutomaticCapabilities
+	record := projectModelRecord(u.item, *updated)
 	return &record, nil
 }
 
@@ -523,9 +520,6 @@ func (s *Service) setDefaultModelForItem(
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
-	record := toModelRecord(*updated)
-	guidance := projectModelGuidance(item, *updated)
-	record.Guidance = &guidance
-	record.CapabilitiesAuto = guidance.AutomaticCapabilities
+	record := projectModelRecord(item, *updated)
 	return &record, nil
 }

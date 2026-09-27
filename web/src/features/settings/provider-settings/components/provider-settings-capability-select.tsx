@@ -1,5 +1,5 @@
 // INPUT: 单项模型能力、当前开关值、禁用状态与更新动作。
-// OUTPUT: 显示实际自动识别结果的三态覆盖；未知不写入 false。
+// OUTPUT: 自动识别/支持/不支持三态覆盖；自动项不展开探测结果。
 // POS: Provider 模型能力设置的最小行组件。
 import { cn } from "@/shared/ui/class-name";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -8,13 +8,11 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 
 export function CapabilitySelect({
   checked,
-  automatic,
   disabled = false,
   label,
   onChange,
 }: {
   checked: boolean | undefined;
-  automatic?: boolean;
   disabled?: boolean;
   label: string;
   onChange: (checked: boolean | undefined) => void;
@@ -30,9 +28,7 @@ export function CapabilitySelect({
         surface="dialog"
         size="sm"
         options={[
-          { value: "auto", label: t(automatic === undefined
-            ? "settings.providers.capability_auto_unknown"
-            : automatic ? "settings.providers.capability_auto_yes" : "settings.providers.capability_auto_no") },
+          { value: "auto", label: t("settings.providers.capability_auto") },
           { value: "true", label: t("settings.providers.capability_yes") },
           { value: "false", label: t("settings.providers.capability_no") },
         ]}

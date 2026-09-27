@@ -1,6 +1,6 @@
 // INPUT: Exact supported chat protocol and synthetic text/image/tool challenges.
 // OUTPUT: Protocol-specific requests and strictly parsed capability observations.
-// POS: Provider capability probe wire formats; tool calls are inspected, never executed.
+// POS: Provider capability probe wire formats; tool results preserve protocol identity and signed assistant blocks.
 package provider
 
 import (
@@ -15,8 +15,7 @@ const modelProbeToolName = "report_capability_probe"
 const visionProbePrompt = "Read the 3 by 3 color grid in the image, left to right, top to bottom. Encode red as 1, green as 2, blue as 3, yellow as 4. Reply with exactly nine digits and nothing else. If you cannot see the image, reply UNKNOWN."
 
 func capabilityProbePayload(item providerstore.Entity, modelID, prompt, imageData, toolCode string) ([]byte, error) {
-	properties := map[string]any{"code": map[string]any{"type": "string"}}
-	schema := map[string]any{"type": "object", "properties": properties, "required": []string{"code"}, "additionalProperties": false}
+	schema := probeToolSchema()
 	payload := map[string]any{"model": modelID, "stream": false}
 	switch item.APIFormat {
 	case APIFormatAnthropicMessages:
@@ -27,7 +26,7 @@ func capabilityProbePayload(item providerstore.Entity, modelID, prompt, imageDat
 		payload["messages"] = []any{map[string]any{"role": "user", "content": content}}
 		payload["max_tokens"] = modelProbeMaxTokens
 		if toolCode != "" {
-			payload["tools"] = []any{map[string]any{"name": modelProbeToolName, "description": "Return the provided probe code. No action is executed.", "input_schema": schema}}
+			payload["tools"] = []any{map[string]any{"name": modelProbeToolName, "description": "Validate the provided code and return an ephemeral receipt. No business action is executed.", "input_schema": schema}}
 		}
 	case APIFormatResponses:
 		content := []any{map[string]any{"type": "input_text", "text": prompt}}
@@ -38,7 +37,7 @@ func capabilityProbePayload(item providerstore.Entity, modelID, prompt, imageDat
 		payload["max_output_tokens"] = modelProbeMaxTokens
 		payload["store"] = false
 		if toolCode != "" {
-			payload["tools"] = []any{map[string]any{"type": "function", "name": modelProbeToolName, "description": "Return the provided probe code. No action is executed.", "parameters": schema}}
+			payload["tools"] = []any{map[string]any{"type": "function", "name": modelProbeToolName, "description": "Validate the provided code and return an ephemeral receipt. No business action is executed.", "parameters": schema}}
 		}
 	default:
 		content := []any{map[string]any{"type": "text", "text": prompt}}
@@ -52,15 +51,17 @@ func capabilityProbePayload(item providerstore.Entity, modelID, prompt, imageDat
 			payload["max_tokens"] = modelProbeMaxTokens
 		}
 		if toolCode != "" {
-			payload["tools"] = []any{map[string]any{"type": "function", "function": map[string]any{"name": modelProbeToolName, "description": "Return the provided probe code. No action is executed.", "parameters": schema}}}
+			payload["tools"] = []any{map[string]any{"type": "function", "function": map[string]any{"name": modelProbeToolName, "description": "Validate the provided code and return an ephemeral receipt. No business action is executed.", "parameters": schema}}}
 		}
 	}
 	return json.Marshal(payload)
 }
 
 type probeToolCall struct {
-	Name string
-	Code string
+	ValidArguments bool
+	ID             string
+	Name           string
+	Code           string
 }
 
 type probeResponse struct {
@@ -85,6 +86,7 @@ func parseProbeResponse(body []byte, format string) probeResponse {
 				Reasoning        string          `json:"reasoning"`
 				ReasoningContent string          `json:"reasoning_content"`
 				ToolCalls        []struct {
+					ID       string `json:"id"`
 					Type     string `json:"type"`
 					Function struct {
 						Name      string `json:"name"`
@@ -98,17 +100,16 @@ func parseProbeResponse(body []byte, format string) probeResponse {
 		return probeResponse{}
 	}
 	result := probeResponse{}
-	addTool := func(name string, input any) {
-		var arguments struct {
-			Code string `json:"code"`
-		}
+	addTool := func(id, name string, input any) {
+		var arguments map[string]any
 		if text, ok := input.(string); ok {
 			_ = json.Unmarshal([]byte(text), &arguments)
 		} else {
 			raw, _ := json.Marshal(input)
 			_ = json.Unmarshal(raw, &arguments)
 		}
-		result.Tools = append(result.Tools, probeToolCall{Name: name, Code: arguments.Code})
+		code, valid := arguments["code"].(string)
+		result.Tools = append(result.Tools, probeToolCall{ID: id, Name: name, Code: code, ValidArguments: valid && len(arguments) == 1})
 	}
 	readBlocks := func(blocks []map[string]any) {
 		for _, block := range blocks {
@@ -121,7 +122,8 @@ func parseProbeResponse(body []byte, format string) probeResponse {
 				result.Reasoning = result.Reasoning || strings.TrimSpace(value) != ""
 			case "tool_use":
 				name, _ := block["name"].(string)
-				addTool(name, block["input"])
+				id, _ := block["id"].(string)
+				addTool(id, name, block["input"])
 			}
 		}
 	}
@@ -145,10 +147,18 @@ func parseProbeResponse(body []byte, format string) probeResponse {
 				_ = json.Unmarshal(raw, &blocks)
 				readBlocks(blocks)
 			case "reasoning":
-				result.Reasoning = true
+				encrypted, _ := output["encrypted_content"].(string)
+				result.Reasoning = result.Reasoning || strings.TrimSpace(encrypted) != ""
+				summary, _ := output["summary"].([]any)
+				for _, entry := range summary {
+					block, _ := entry.(map[string]any)
+					text, _ := block["text"].(string)
+					result.Reasoning = result.Reasoning || strings.TrimSpace(text) != ""
+				}
 			case "function_call":
 				name, _ := output["name"].(string)
-				addTool(name, output["arguments"])
+				id, _ := output["call_id"].(string)
+				addTool(id, name, output["arguments"])
 			}
 		}
 	default:
@@ -165,10 +175,22 @@ func parseProbeResponse(body []byte, format string) probeResponse {
 		result.Reasoning = strings.TrimSpace(message.ReasoningContent) != "" || strings.TrimSpace(message.Reasoning) != ""
 		for _, tool := range message.ToolCalls {
 			if tool.Type == "function" {
-				addTool(tool.Function.Name, tool.Function.Arguments)
+				addTool(tool.ID, tool.Function.Name, tool.Function.Arguments)
 			}
 		}
 	}
+	var usage struct {
+		Usage struct {
+			Completion struct {
+				Reasoning int `json:"reasoning_tokens"`
+			} `json:"completion_tokens_details"`
+			Output struct {
+				Reasoning int `json:"reasoning_tokens"`
+			} `json:"output_tokens_details"`
+		} `json:"usage"`
+	}
+	_ = json.Unmarshal(body, &usage)
+	result.Reasoning = result.Reasoning || usage.Usage.Completion.Reasoning > 0 || usage.Usage.Output.Reasoning > 0
 	result.Text = strings.TrimSpace(result.Text)
 	return result
 }

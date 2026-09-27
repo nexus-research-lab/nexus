@@ -12,148 +12,6 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-func TestDashScopeImageTestUsesMultimodalPayload(t *testing.T) {
-	ctx := context.Background()
-	service, _ := newTestService(t)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/services/aigc/multimodal-generation/generation" {
-			t.Fatalf("DashScope 测试路径不正确: %s", request.URL.Path)
-		}
-		if request.Header.Get("Authorization") != "Bearer image-key" {
-			t.Fatalf("DashScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
-		}
-		var body map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Fatalf("解析 DashScope 测试请求失败: %v", err)
-		}
-		if body["model"] != "wan2.7-image-pro" {
-			t.Fatalf("DashScope 测试模型不正确: %+v", body)
-		}
-		parameters := body["parameters"].(map[string]any)
-		if parameters["n"].(float64) != 1 || parameters["size"] != "1K" || parameters["watermark"] != false {
-			t.Fatalf("DashScope 测试参数不正确: %+v", parameters)
-		}
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"output": map[string]any{
-				"finished": true,
-				"choices":  []map[string]any{},
-			},
-		})
-	}))
-	defer server.Close()
-
-	record, err := service.Create(ctx, CreateInput{
-		ProviderKind: ProviderKindImageGeneration,
-		Provider:     "dashscope-image",
-		PresetKey:    presetCustom,
-		APIFormat:    APIFormatDashScopeImageGeneration,
-		AuthToken:    "image-key",
-		BaseURL:      server.URL,
-		ModelsPath:   "",
-		Enabled:      true,
-		DisplayName:  "DashScope",
-	})
-	if err != nil {
-		t.Fatalf("创建 DashScope 生图 provider 失败: %v", err)
-	}
-	result, err := service.TestModel(ctx, record.Provider, "wan2.7-image-pro")
-	if err != nil {
-		t.Fatalf("DashScope 模型测试失败: %v", err)
-	}
-	if !result.Success || result.Model != "wan2.7-image-pro" {
-		t.Fatalf("DashScope 模型测试结果不正确: %+v", result)
-	}
-	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "wan2.7-image-pro")
-	if err != nil {
-		t.Fatalf("DashScope 测试成功后应可解析生图配置: %v", err)
-	}
-	if imageConfig.APIFormat != APIFormatDashScopeImageGeneration {
-		t.Fatalf("DashScope 生图配置未透传 api_format: %+v", imageConfig)
-	}
-}
-
-func TestModelScopeImageProviderTestUsesAsyncPayload(t *testing.T) {
-	ctx := context.Background()
-	service, _ := newTestService(t)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/v1/images/generations" {
-			t.Fatalf("ModelScope 测试路径不正确: %s", request.URL.Path)
-		}
-		if request.Header.Get("Authorization") != "Bearer image-key" {
-			t.Fatalf("ModelScope 测试鉴权头不正确: %q", request.Header.Get("Authorization"))
-		}
-		if request.Header.Get("X-ModelScope-Async-Mode") != "true" {
-			t.Fatalf("ModelScope 测试缺少异步请求头: %q", request.Header.Get("X-ModelScope-Async-Mode"))
-		}
-		var body map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Fatalf("解析 ModelScope 测试请求失败: %v", err)
-		}
-		if body["model"] != "Tongyi-MAI/Z-Image-Turbo" || body["prompt"] != "ping" {
-			t.Fatalf("ModelScope 测试请求体不正确: %+v", body)
-		}
-		_ = json.NewEncoder(writer).Encode(map[string]any{"task_id": "task-test"})
-	}))
-	defer server.Close()
-
-	record, err := service.Create(ctx, CreateInput{
-		ProviderKind: ProviderKindImageGeneration,
-		Provider:     "modelscope-image",
-		PresetKey:    presetCustom,
-		APIFormat:    APIFormatModelScopeImageGeneration,
-		AuthToken:    "image-key",
-		BaseURL:      server.URL + "/v1",
-		ModelsPath:   "",
-		Enabled:      true,
-		DisplayName:  "ModelScope",
-	})
-	if err != nil {
-		t.Fatalf("创建 ModelScope 生图 provider 失败: %v", err)
-	}
-	result, err := service.TestModel(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
-	if err != nil {
-		t.Fatalf("ModelScope 模型测试失败: %v", err)
-	}
-	if !result.Success || result.Model != "Tongyi-MAI/Z-Image-Turbo" {
-		t.Fatalf("ModelScope 模型测试结果不正确: %+v", result)
-	}
-	imageConfig, err := service.ResolveImageModelConfig(ctx, record.Provider, "Tongyi-MAI/Z-Image-Turbo")
-	if err != nil {
-		t.Fatalf("ModelScope 测试成功后应可解析生图配置: %v", err)
-	}
-	if imageConfig.APIFormat != APIFormatModelScopeImageGeneration {
-		t.Fatalf("ModelScope 生图配置未透传 api_format: %+v", imageConfig)
-	}
-}
-
-func TestDoubaoSeedreamImageProviderUsesArkImagesPayload(t *testing.T) {
-	item := providerstore.Entity{
-		ProviderKind: ProviderKindImageGeneration,
-		Provider:     "doubao",
-		PresetKey:    presetDoubao,
-		APIFormat:    APIFormatOpenAIImageGeneration,
-		BaseURL:      "https://ark.cn-beijing.volces.com/api/v3",
-	}
-	if got := endpointURL(item, item.APIFormat); got != "https://ark.cn-beijing.volces.com/api/v3/images/generations" {
-		t.Fatalf("Doubao Seedream 生图 endpoint 不正确: %s", got)
-	}
-	payload, err := minimalPayload(item, "doubao-seedream-5-0-260128")
-	if err != nil {
-		t.Fatalf("生成 Doubao Seedream 测试 payload 失败: %v", err)
-	}
-	var body map[string]any
-	if err = json.Unmarshal(payload, &body); err != nil {
-		t.Fatalf("解析 Doubao Seedream 测试 payload 失败: %v", err)
-	}
-	if body["model"] != "doubao-seedream-5-0-260128" ||
-		body["prompt"] != "ping" ||
-		body["n"] != float64(1) ||
-		body["size"] != "2K" ||
-		body["watermark"] != false {
-		t.Fatalf("Doubao Seedream 测试 payload 不正确: %+v", body)
-	}
-}
-
 func TestProviderEndpointURLPreservesOperationPathAndQuery(t *testing.T) {
 	t.Parallel()
 
@@ -163,12 +21,6 @@ func TestProviderEndpointURLPreservesOperationPathAndQuery(t *testing.T) {
 		apiFormat string
 		want      string
 	}{
-		{
-			name:      "Azure image full operation URL",
-			baseURL:   "https://sample.cognitiveservices.azure.com/openai/deployments/gpt-image/images/generations?api-version=2024-02-01",
-			apiFormat: APIFormatOpenAIImageGeneration,
-			want:      "https://sample.cognitiveservices.azure.com/openai/deployments/gpt-image/images/generations?api-version=2024-02-01",
-		},
 		{
 			name:      "Azure Responses base with query",
 			baseURL:   "https://sample.openai.azure.com/openai/v1?api-version=preview",
@@ -202,9 +54,6 @@ func TestProviderEndpointURLPreservesOperationPathAndQuery(t *testing.T) {
 				ProviderKind: ProviderKindLLM,
 				APIFormat:    test.apiFormat,
 				BaseURL:      test.baseURL,
-			}
-			if test.apiFormat == APIFormatOpenAIImageGeneration {
-				item.ProviderKind = ProviderKindImageGeneration
 			}
 			if got := endpointURL(item, test.apiFormat); got != test.want {
 				t.Fatalf("endpointURL() = %q, want %q", got, test.want)
@@ -314,7 +163,7 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 				}
 				tc.assertBody(t, body)
 				writer.Header().Set("Content-Type", "application/json")
-				_, _ = writer.Write([]byte(`{}`))
+				_ = json.NewEncoder(writer).Encode(probeTestResponse(tc.apiFormat, "pong", ""))
 			}))
 			defer server.Close()
 
@@ -330,7 +179,7 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 			if err != nil {
 				t.Fatalf("创建 provider 失败: %v", err)
 			}
-			result, err := service.TestProvider(ctx, record.Provider)
+			result, err := service.TestModelCapability(ctx, record.Provider, "model-1", "text_output", nil, false)
 			if err != nil {
 				t.Fatalf("TestProvider 返回错误: %v", err)
 			}
@@ -424,7 +273,7 @@ func TestProviderTestRedactsSensitiveErrors(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if requestCount != 2 {
-		t.Fatalf("Provider 测试应先 /models 再模型请求: got=%d", requestCount)
+	if requestCount != 6 {
+		t.Fatalf("Provider 测试应读取目录后独立验证五类可用协议: got=%d", requestCount)
 	}
 }

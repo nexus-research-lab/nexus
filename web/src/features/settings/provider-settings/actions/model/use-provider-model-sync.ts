@@ -1,3 +1,6 @@
+// INPUT: Explicit sync command and saved Provider scope.
+// OUTPUT: Fast catalog/declaration refresh, independent of live capability tests.
+// POS: Provider sync orchestration; no automatic replay of uncertain checks.
 import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 

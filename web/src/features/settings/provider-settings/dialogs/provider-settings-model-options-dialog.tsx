@@ -88,7 +88,6 @@ export function ProviderModelOptionsDialog({
               <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
                 {CAPABILITY_FIELDS.map(({ key, label }) => (
                   <CapabilitySelect
-                    automatic={modelOptions.model.capabilities_auto[key]}
                     checked={modelOptions.capabilities[key]}
                     disabled={controlsDisabled}
                     key={key}

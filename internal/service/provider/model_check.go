@@ -208,6 +208,25 @@ func (s *Service) persistTestResult(
 	expectedVersion int64,
 	probe *modelProbeEvidence,
 ) (*TestResult, error) {
+	if probe != nil && probe.PreserveSelection {
+		// Serialize only the short write phase. Other models may advance the
+		// aggregate revision; exact route/options/model evidence must remain intact.
+		s.probeCommitMu.Lock()
+		defer s.probeCommitMu.Unlock()
+		lookup := s.requireProvider
+		if item.Visibility == providerstore.VisibilityPublic {
+			lookup = s.requirePublicProvider
+		}
+		fresh, err := lookup(ctx, item.Provider)
+		if err != nil {
+			return nil, err
+		}
+		if fresh.ID != item.ID {
+			return nil, ErrConfigurationVersionConflict
+		}
+		item = *fresh
+		expectedVersion = item.ConfigurationVersion
+	}
 	now := s.now()
 	item.LastTestAt = &now
 	item.LastTestError = ""
@@ -220,7 +239,7 @@ func (s *Service) persistTestResult(
 	}
 	shouldAutoDefault := false
 	var err error
-	if testErr == nil {
+	if testErr == nil && (probe == nil || !probe.PreserveSelection) {
 		shouldAutoDefault, err = s.shouldAutoDefaultDiscoveredModel(ctx, item)
 		if err != nil {
 			return nil, err
@@ -231,7 +250,7 @@ func (s *Service) persistTestResult(
 		item.ID,
 		expectedVersion,
 		func(mutation *providerstore.Mutation) error {
-			if testErr == nil {
+			if testErr == nil && (probe == nil || !probe.PreserveSelection) {
 				if readyErr := s.ensureTestedModelReadyInMutation(
 					ctx,
 					item,
@@ -241,14 +260,16 @@ func (s *Service) persistTestResult(
 				); readyErr != nil {
 					return readyErr
 				}
-				if probe != nil {
-					model, readErr := mutation.GetModel(ctx, modelID)
-					if readErr != nil {
-						return readErr
-					}
-					if model == nil {
-						return ErrModelNotFound
-					}
+			}
+			if probe != nil {
+				model, readErr := mutation.GetModel(ctx, modelID)
+				if readErr != nil {
+					return readErr
+				}
+				if probe.PreserveSelection && (model == nil || model.ID != probe.BaselineModelID || model.CapabilitiesAutoJSON != probe.BaselineAutoJSON) {
+					return ErrConfigurationVersionConflict
+				}
+				if model != nil {
 					if probe.Fingerprint != modelProbeFingerprint(item, *model) {
 						return ErrConfigurationVersionConflict
 					}

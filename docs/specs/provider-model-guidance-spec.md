@@ -105,19 +105,46 @@ separately.
 
 ## Capability verification
 
-The existing Test action verifies the selected route, without relying on model names.
-After a valid chat response it sends at most two additional requests: a random
-nine-cell color image and a synthetic tool call whose arguments must match a nonce.
-No tool is executed. These requests share a 12-second deadline and may consume API
-credits. Text and reasoning require actual response content/structured reasoning.
-HTTP success alone never confirms vision or tool calling.
+The existing Test action independently verifies all seven capabilities for the selected
+model or all listed models, without guessing from model families. Ordinary checks have
+a 25-second deadline; image checks have a 120-second deadline and may incur charges.
+Routes unsupported by Nexus return unknown without submitting a request. Sync only
+refreshes the directory and declarations; it never starts capability requests. Saving
+configuration does not currently auto-start probes.
 
-Only explicit supported-protocol rejection codes establish unsupported capabilities.
-Timeouts, authentication/quota failures, generic errors and wrong answers leave
-capabilities unconfirmed; they do not erase previous evidence for the same route.
-Image generation is observed only on its configured image endpoint. Image editing
-and embedding rely on independent model-card/catalog declarations or manual
-overrides; a chat probe does not claim to test those protocols.
+All-model testing runs at most three models concurrently and displays completed/total
+progress. Stop prevents queued requests, waits for in-flight checks, and preserves their
+results. A transport error stops new work without automatic replay. Closing the page
+does not guarantee cancellation of already accepted probes. Tests use saved options.
+
+The `capability=all` observation command preserves enabled/default selections. Its
+short commit phase is serialized, rereads the exact Provider and verifies model identity,
+route/options fingerprint and unchanged prior model facts under CAS. Other models'
+observations may advance the aggregate revision; changed credentials/options, replaced
+models and competing evidence for the same model cannot be overwritten. Ordinary
+single-model commands retain their existing version contract.
+
+| Capability | Required live evidence |
+| --- | --- |
+| Text | Parsed, nonempty response text |
+| Vision | Correct random nine-cell color challenge sent directly to the main model, without auxiliary vision |
+| Tools | Exact nonce arguments and call identity, actual synthetic SDK MCP tool execution, then a second response containing its newly generated receipt |
+| Reasoning | Structured reasoning content or positive reasoning-token usage, never prose claiming to reason |
+| Image generation | Actual decodable image bytes returned through the production imagegen adapter |
+| Image editing | A changed center cell with the other eight random input cells preserved; unchanged or unrelated images do not pass |
+| Embedding | Two indexed, finite, nonzero, dimension-consistent and distinct vectors from the embeddings endpoint |
+
+Probes use short in-memory history, not persisted Agent Sessions. The synthetic tool
+uses Nexus's SDK MCP handler mechanism but has no business authority. Image checks
+reuse production adapters and synthetic in-memory source bytes, persist no artifacts,
+and do not automatically retry submissions. Unsupported Nexus routes stay unknown.
+
+Only exact supported-protocol rejection codes establish unsupported capabilities.
+Timeouts, authentication/quota failures, generic errors and wrong answers never become
+negative capability evidence. Evidence version 2 stores the latest attempt separately
+from the latest verified result for each capability, so a failed recheck does not erase
+previous valid evidence for the same configuration. Semantic challenges may remain
+unconfirmed even when a model supports the underlying protocol.
 
 Probe evidence is stored with a private configuration fingerprint and timestamp,
 under the existing Provider version transaction. Changing credentials, endpoint,
@@ -126,8 +153,9 @@ declarations are route-bound too. Late results cannot overwrite changed configur
 A catalog refresh preserves still-valid probe evidence. Manual overrides stay separate.
 
 Model records expose the resolved automatic result through capabilities_auto.
-The existing seven capability controls show Automatic: supported, unsupported or
-unconfirmed; icons indicate effective positive capabilities only.
+The existing seven capability controls retain Automatic / Supported / Unsupported.
+Automatic does not display a probe verdict; it means no manual override. Model-row
+icons indicate effective positive capabilities only.
 
 An unavailable or unconfirmed auxiliary vision binding is omitted when starting an
 Agent, without invalidating the main chat model or replacing saved preferences.

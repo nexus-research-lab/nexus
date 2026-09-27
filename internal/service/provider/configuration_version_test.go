@@ -287,6 +287,7 @@ func TestProviderFetchModelsAdvancesVersionExactlyOnce(t *testing.T) {
 func TestProviderTestStateAndModelAdvanceVersionExactlyOnce(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(`{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"pong"}]}]}`))
 	}))
 	t.Cleanup(server.Close)
 
