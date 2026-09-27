@@ -387,6 +387,21 @@ try {
       ...["summary", "template", "prompt", "write", "symlink", "allowed", "new", "custom"].map(
         (source) => `TestDarwinSandboxSummaryPreparation/${source}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("autodream-scan", ["./internal/memory/autodream"], [
+      "TestAutoDreamScanPreservesSelection", "TestAutoDreamScanRejectsPartialResults",
+      ...["nil", "directory_denied", "entry_denied", "cancelled", "disappeared"].map(
+        (source) => `TestAutoDreamScanRejectsPartialResults/${source}`),
+      "TestAutoDreamCompletionRejectsUnreadableState",
+      ...["nil", "denied", "directory", "cancelled"].map(
+        (source) => `TestAutoDreamCompletionRejectsUnreadableState/${source}`),
+      "TestTryAcquireConsolidationLockIsAtomic", "TestRecordConsolidationSeparatesCompletionFromActiveLock",
+      "TestReleaseConsolidationLockPreservesLastSuccess",
+    ], sdkSource);
+    testGroup("macos-autodream-scan", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxAutoDreamScan",
+      ...["completion", "completion_symlink", "directory", "transcript", "transcript_symlink", "allowed", "missing"].map(
+        (source) => `TestDarwinSandboxAutoDreamScan/${source}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
       "TestDarwinSandboxMemoryRecall",
       ...["file", "symlink", "directory"].flatMap((source) =>

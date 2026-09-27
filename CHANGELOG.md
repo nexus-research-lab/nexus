@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin macOS acceptance to confined AutoDream scheduling reads. Completion timestamps and historical transcript metadata use the current file sandbox; denied or canceled scans do not start maintenance or advance its scan interval.
+
 - Require sandboxed memory initialization and session-summary regressions in macOS acceptance. Initial files preserve existing and concurrent content, uncertain writes are not replayed, and read-only sessions start without creating memory files or scheduling persistent updates. Summary files, custom templates/prompts and compact input share the file sandbox.
 
 - Pin macOS acceptance to the memory-read sandbox fix and require native recall regressions in the baseline. Memory candidates, extraction manifests and selected contents now use the active file sandbox; denied files and replaced links cannot enter model context. Preserve bounded recall of large files and existing memory paths and budgets.

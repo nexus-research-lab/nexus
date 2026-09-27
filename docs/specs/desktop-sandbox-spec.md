@@ -306,8 +306,14 @@ continue through the existing exact-file Edit permission and sandbox. Exclusive
 creation does not promise atomic content publication or power-loss transactions.
 Read-only resource sessions remain usable and can read existing memories, but do
 not initialize the layout or schedule AutoMemory, Summary or AutoDream persistent
-updates. AutoDream locks/completion markers, historical transcript scans and other
-auxiliary IO remain separate work; these internal fixes add no capability claim.
+updates. AutoDream scheduling also uses the current file executor for completion
+timestamps, transcript directory discovery and each candidate's target metadata,
+with a shared 30-second deadline. Only missing histories are empty; denied reads,
+other IO errors or cancellation return no partial candidates, start no maintenance
+and do not advance the successful scan interval. Files removed during a scan are
+skipped, and non-regular targets are not accepted as markers or transcripts.
+AutoDream lock/completion writes, other transcript auxiliary reads and remaining
+IO stay separate work; these internal fixes add no capability claim.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
