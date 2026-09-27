@@ -101,7 +101,7 @@ func TestSandboxCrashRestartRequiresExplicitReconcile(t *testing.T) {
 		t.Fatalf("restart dry run removed crashed scratch: %v", err)
 	}
 
-	if runtime.GOOS == "windows" || runtime.GOOS == "plan9" || runtime.GOOS == "wasip1" || runtime.GOOS == "js" {
+	if runtime.GOOS == "plan9" || runtime.GOOS == "wasip1" || runtime.GOOS == "js" {
 		if len(dryRun.Candidates) != 0 || len(dryRun.Skipped) != 1 || !dryRun.Skipped[0].ProcessActive {
 			t.Fatalf("unknown-liveness restart result = %#v", dryRun)
 		}
