@@ -438,6 +438,30 @@ try {
       "TestDarwinSandboxMemoryExtractionWriter",
       ...["denied", "allowed", "cancelled"].map((scenario) => `TestDarwinSandboxMemoryExtractionWriter/${scenario}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-transcript-stream", ["./internal/session", "./internal/environment/filesystem/worker", "./internal/tool/executor"], [
+      "TestTranscriptStreamPreservesCompaction",
+      ...["small", "large", "preserved", "disabled"].map((scenario) => `TestTranscriptStreamPreservesCompaction/${scenario}`),
+      "TestTranscriptStreamRejectsPartialResult",
+      ...["late_error", "cancelled", "missing_reader"].map((scenario) => `TestTranscriptStreamRejectsPartialResult/${scenario}`),
+      "TestTranscriptFileLoadPreservesBoundedContentReplacements",
+      "TestStreamSinkValidatesTerminal",
+      ...["allowed", "truncated", "length", "trailing", "short_writer"].map((scenario) => `TestStreamSinkValidatesTerminal/${scenario}`),
+      "TestStreamSinkRejectsOversizedFrame", "TestContextStreamDoesNotFallback",
+    ], sdkSource);
+    testGroup("macos-memory-transcript-transport", ["./internal/tool/builtin/file/sandboxfs"], [
+      "TestSandboxTranscriptRejectsLateFailure",
+      ...["allowed", "nonzero_exit", "truncated"].map((scenario) => `TestSandboxTranscriptRejectsLateFailure/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-memory-transcript-runtime", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryTranscriptReplacements",
+      ...["direct_denied", "symlink_denied", "allowed"].map((scenario) => `TestDarwinSandboxMemoryTranscriptReplacements/${scenario}`),
+      "TestDarwinSandboxMemoryTranscriptAdmission",
+      ...["summary", "extraction", "dream"].flatMap((entry) => [
+        `TestDarwinSandboxMemoryTranscriptAdmission/${entry}`,
+        ...["denied", "allowed", "cancelled"].map((access) => `TestDarwinSandboxMemoryTranscriptAdmission/${entry}/${access}`),
+      ]),
+      "TestDarwinSandboxMemoryTranscriptMissing",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
       "TestDarwinSandboxMemoryRecall",
       ...["file", "symlink", "directory"].flatMap((source) =>
