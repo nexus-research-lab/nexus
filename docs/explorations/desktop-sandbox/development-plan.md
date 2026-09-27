@@ -1,15 +1,15 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-24**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-27**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-24）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`（`codex/desktop-sandbox-isolated`）；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`（均为 `codex/desktop-sandbox-file-capability`）。原临时 SDK/Bridge 工作目录已不存在，已从完整本地提交恢复到上述固定目录。原 Nexus/SDK/Bridge checkout 由其他任务管理，本任务不修改其现场；所有提交仅本地。
+当前开发位置（2026-09-27）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`。三个仓库的沙箱工作统一到本地与 origin 的 `codex/desktop-sandbox-approvals`；原 `desktop-sandbox-isolated`、`desktop-sandbox-file-capability` 分支均被完整包含，随后移除。旧 SDK/Bridge 目录的未提交草稿已在各自仓库归档，原文件仍保留在原提交的 detached checkout 中；Nexus main 和其他非沙箱分支不属于本次整合范围。
 
-当前固定基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
+已验证的运行时代码基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
 `37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
 `v0.1.34-0.20260921030131-37434c2d38b1`（checksum
-`h1:XNPbPT5jcaMvs1sN5l4UmKZrL70Nre2BjmryNB4ffio=`）。2026-09-21 固定 SDK
+`h1:fsWKV+3leBriS6RiQ2U1Nks4R0UzBY5HiCVIN4uCLqM=`）。2026-09-21 固定 SDK
 归档构建的 nxs SHA-256 为
 `0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270`。
 Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并以精确 CLI 的
@@ -17,7 +17,45 @@ Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并�
 过滤继承的常见 Provider、代理和秘密变量，typed `Options.Env` 保留宿主凭据投影。
 38 项 macOS 开发基线通过；已认证 Claude 命令/网络/凭据/清理、原生其他平台与
 安装包验收仍未闭合。版本和证据见[最新固定基线](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)。
-所有提交仅本地，未推送。
+历史记录中的“仅本地/未推送”描述当时状态；当前远程续开发入口如下。源码同步不改变
+`releaseAccepted=false`，也不代表已有 Windows 原生运行或正式发布证据。
+
+## Windows 续开发交接（2026-09-27）
+
+三个仓库统一使用 `codex/desktop-sandbox-approvals`，不要继续使用已替换的临时分支。
+SDK 交接提交为 `ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9`，Bridge 为
+`6febf1b18a635edb383ff3f98bdab1d1ee5596fe`；它们只在上述运行时代码基线之上补充
+历史草稿归档与说明。Nexus Windows 原生组件门禁与 workflow 精确固定到 SDK 交接提交。
+Bridge 的 Go 模块仍固定 `37434c2d38b1`，不因归档文档而变更运行时依赖。
+
+原 SDK checkout 的 12 个修改/未跟踪文件及原 Bridge checkout 的 2 个未跟踪文件分别
+保存在各自仓库的 `docs/history/desktop-sandbox-drafts-2026-09-27/`，包含压缩 patch、
+原始 base commit 和逐文件 SHA-256；已从原基线回放并逐字节核对。SDK 草稿由后续正式
+Skill 边界实现取代；Bridge settings receipt store 是未接入且未完成的实验，不编译为
+公开 API。完整保留草稿不代表把未验证实现重新加入生产路径。
+
+换机验证发现：旧本地 Bridge ZIP 多含 19 个目录条目，导致其校验和与 Go 从远程生成的
+ZIP 不同。两包的 145 个文件和固定 Git 提交逐字节一致。本次修正 `go.sum` 的当前
+Bridge 条目，保持模块版本与源码不变；历史证据仍保留当时本地归档的校验和。
+
+Windows 11 使用有权访问三个仓库的 GitHub 账号，在本机 NTFS 开发目录打开 PowerShell，
+先安装 Git、Node.js 22 和 Go 1.26.2；构建桌面外壳时还需要 .NET 8。初次接续可执行：
+
+```powershell
+git clone --branch codex/desktop-sandbox-approvals https://github.com/nexus-research-lab/nexus.git
+git clone --branch codex/desktop-sandbox-approvals https://github.com/nexus-research-lab/nexus-agent-sdk-go.git
+git clone --branch codex/desktop-sandbox-approvals https://github.com/nexus-research-lab/nexus-agent-sdk-bridge.git
+
+Set-Location nexus
+$env:NEXUS_SANDBOX_SDK_SOURCE = (Resolve-Path ..\nexus-agent-sdk-go).Path
+$env:NEXUS_SANDBOX_REPORT_DIRECTORY = Join-Path $env:TEMP 'nexus-windows-sandbox-evidence'
+node scripts/desktop/check-windows-sandbox.mjs --native
+```
+
+该门禁自行使用 `GOWORK=off`，要求 SDK 精确提交与干净工作树。先保留这次原生基线报告，
+再开始 SDK 修改；后续推进 SDK 版本时同步更新门禁与 workflow 的固定提交，并重新验证。
+下一开发阶段仍是 Windows P3 兼容性/隔离组合矩阵，再接入 SDK → Bridge → Nexus 的
+原生受限执行链；必测失败或 skip 不能通过放宽能力声明或切换 Full Access 掩盖。
 
 ## 1. 最终交付目标
 
