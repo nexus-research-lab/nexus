@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require the independent nxs remote-image network capability in desktop sessions. Image URLs are materialized through the task network policy, redirects are checked again, and ViewImage approvals expire on permission changes. Incompatible App/runtime combinations are rejected by the package gate before distribution.
 
+- Add a repeatable local Windows LogonW matrix with an isolated ordinary test account, exact inner-test verification and binary/log digests. Preserve the observed reference-token write escape and narrowed-token CLR IPC failure as failed P3 evidence; Windows execution remains unavailable. The fixture helper is test infrastructure, not the product installer.
+
 - Add an explicit macOS live-provider sandbox acceptance entry for nxs and Claude.
   It reads only model credentials from a local `.env`, uses fresh fixture state,
   and verifies real file/command execution, backend-specific file denials,
