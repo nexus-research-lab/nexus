@@ -14,10 +14,10 @@ unsupported. `text_output`, `vision`, `image_output`, `image_editing`,
 Capabilities first match the exact provider preset and model ID. When that pair has
 no entry, an exact model ID can supply capability defaults if all catalog entries
 for that ID agree. Provider-specific recommendations and plan notices never follow
-this fallback. Versioned provider records then apply, and explicit user overrides
-win. Remote false vetoes a catalog positive; a catalog false vetoes an automatic
+this fallback. Versioned provider records then apply, configuration-bound verified
+probes override declarations, and explicit user overrides win. Remote false vetoes a catalog positive; a catalog false vetoes an automatic
 positive only for the matching provider preset. `sources` identifies `user`,
-`provider_record` and `catalog`; there is no
+`provider_record`, `probe` and `catalog`; there is no
 model-family or namespace-stripping capability fallback. A custom endpoint or Azure
 deployment may reuse a known ID for a different model, so its provider facts or user
 override must correct any name-based default.
@@ -102,3 +102,43 @@ The Models page groups chat, image generation, vision and background defaults
 beside the Providers settings entry. Model management retains the existing
 capability icons with accessible names/tooltips and shows recommendation badges
 separately.
+
+## Capability verification
+
+The existing Test action verifies the selected route, without relying on model names.
+After a valid chat response it sends at most two additional requests: a random
+nine-cell color image and a synthetic tool call whose arguments must match a nonce.
+No tool is executed. These requests share a 12-second deadline and may consume API
+credits. Text and reasoning require actual response content/structured reasoning.
+HTTP success alone never confirms vision or tool calling.
+
+Only explicit supported-protocol rejection codes establish unsupported capabilities.
+Timeouts, authentication/quota failures, generic errors and wrong answers leave
+capabilities unconfirmed; they do not erase previous evidence for the same route.
+Image generation is observed only on its configured image endpoint. Image editing
+and embedding rely on independent model-card/catalog declarations or manual
+overrides; a chat probe does not claim to test those protocols.
+
+Probe evidence is stored with a private configuration fingerprint and timestamp,
+under the existing Provider version transaction. Changing credentials, endpoint,
+protocol, model or model options invalidates probe evidence. Fresh discovery/import
+declarations are route-bound too. Late results cannot overwrite changed configuration.
+A catalog refresh preserves still-valid probe evidence. Manual overrides stay separate.
+
+Model records expose the resolved automatic result through capabilities_auto.
+The existing seven capability controls show Automatic: supported, unsupported or
+unconfirmed; icons indicate effective positive capabilities only.
+
+An unavailable or unconfirmed auxiliary vision binding is omitted when starting an
+Agent, without invalidating the main chat model or replacing saved preferences.
+The main model's native vision remains independent. Actual image handling must use
+an available vision route or report image unavailability; this does not assert that
+text-only models can see images.
+
+When neither native image input nor auxiliary vision is available, nxs replaces
+only the unreadable image block in the outgoing request with an image-unavailable
+marker. The marker explains the limitation, asks the model to suggest configuring
+a vision-capable model or providing a text description, and directs it to continue
+independently answerable parts without waiting or retrying unavailable tools.
+No missing-vision guidance is added to the system prompt. Ordinary text and readable
+images are unaffected, and original messages are not rewritten.

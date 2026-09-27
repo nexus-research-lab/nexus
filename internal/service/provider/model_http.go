@@ -16,7 +16,9 @@ const (
 	providerEndpointChatCompletions   = APIFormatChatCompletions
 	providerEndpointResponses         = APIFormatResponses
 	providerEndpointAnthropicMessages = APIFormatAnthropicMessages
-	providerTestResponsesMaxTokens    = 16
+	providerTestResponsesMaxTokens    = 256
+	// One output token can produce an empty/incomplete compatible response.
+	providerTestTextMaxTokens = 256
 	// 新版 Azure 模型可能在产生响应前拒绝只有一个 token 的探针。
 	azureModelCheckMaxCompletionTokens = 64
 )
@@ -251,7 +253,7 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 	case APIFormatAnthropicMessages:
 		return json.Marshal(map[string]any{
 			"model":      modelID,
-			"max_tokens": 1,
+			"max_tokens": providerTestTextMaxTokens,
 			"stream":     false,
 			"messages": []map[string]string{
 				{"role": "user", "content": "ping"},
@@ -268,7 +270,7 @@ func minimalPayload(item providerstore.Entity, modelID string) ([]byte, error) {
 		if usesMaxCompletionTokens(item) {
 			payload["max_completion_tokens"] = azureModelCheckMaxCompletionTokens
 		} else {
-			payload["max_tokens"] = 1
+			payload["max_tokens"] = providerTestTextMaxTokens
 		}
 		return json.Marshal(payload)
 	}

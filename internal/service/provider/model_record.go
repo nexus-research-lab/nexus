@@ -22,6 +22,7 @@ func (s *Service) modelsForRecord(ctx context.Context, provider providerstore.En
 		record := toModelRecord(item)
 		guidance := projectModelGuidance(provider, item)
 		record.Guidance = &guidance
+		record.CapabilitiesAuto = guidance.AutomaticCapabilities
 		result = append(result, record)
 	}
 	return result, nil

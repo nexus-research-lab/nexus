@@ -55,3 +55,14 @@
 维护时同时核对：精确 preset/endpoint、精确 model ID、同名条目能力冲突、输入/输出模态、独立工具、套餐档位、
 生命周期与 alias、Nexus 已实现 transport。修改数据必须更新来源、核对日期和 catalog version，
 并运行作用域、用户覆盖、旧记录来源、未知版本、图片协议资格与默认选择回归。
+
+## Optional live capability regression
+
+Run the opt-in Go test with NEXUS_PROVIDER_LIVE_DB set to a local SQLite database
+and NEXUS_PROVIDER_LIVE_TARGETS set to comma-separated exact provider/model pairs.
+NEXUS_PROVIDER_LIVE_OWNER defaults to __system__. The test reads configuration
+read-only and copies it to an isolated test database; it does not modify live data.
+It issues real, billable requests to the selected configured endpoints. Default
+test runs skip it. The output distinguishes unsupported from unconfirmed and does
+not print credentials or raw responses. The test reads configuration-bound probe evidence directly, so exact-ID catalog
+defaults cannot masquerade as live observations.

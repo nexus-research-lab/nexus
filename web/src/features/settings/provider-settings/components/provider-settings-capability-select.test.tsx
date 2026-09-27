@@ -11,6 +11,17 @@ it("preserves explicit false and permits resetting to automatic", async () => {
   const onChange = vi.fn();
   render(<CapabilitySelect label="Vision" checked={false} onChange={onChange} />);
   await user.click(screen.getByRole("button", { name: "Vision" }));
-  await user.click(screen.getByRole("option", { name: "settings.providers.capability_auto" }));
+  await user.click(screen.getByRole("option", { name: "settings.providers.capability_auto_unknown" }));
   expect(onChange).toHaveBeenCalledWith(undefined);
+});
+
+it.each([
+  [true, "settings.providers.capability_auto_yes"],
+  [false, "settings.providers.capability_auto_no"],
+  [undefined, "settings.providers.capability_auto_unknown"],
+] as const)("shows the actual automatic result %s without creating an override", (automatic, label) => {
+  const onChange = vi.fn();
+  render(<CapabilitySelect label="Vision" checked={undefined} automatic={automatic} onChange={onChange} />);
+  expect(screen.getByRole("button", { name: "Vision" }).textContent).toContain(label);
+  expect(onChange).not.toHaveBeenCalled();
 });

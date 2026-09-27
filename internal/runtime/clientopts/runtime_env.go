@@ -1,5 +1,5 @@
 // INPUT: 宿主环境、owner 身份、Provider 配置与 runtime 选项。
-// OUTPUT: 按 owner/runtime 隔离且清除 Control/Relay 宿主配置的子进程环境。
+// OUTPUT: 按 owner/runtime 隔离、清除旧辅助视觉路由及 Control/Relay 宿主配置的子进程环境。
 // POS: Nexus 宿主到 Agent runtime 环境投影的唯一边界。
 package clientopts
 

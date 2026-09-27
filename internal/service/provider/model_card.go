@@ -126,10 +126,7 @@ func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
 		),
 	}
 	// Some model APIs declare modalities instead of boolean capability fields.
-	sources := []map[string]any{card}
-	if architecture, ok := mapFromAny(card["architecture"]); ok {
-		sources = append(sources, architecture)
-	}
+	sources := modelCardSources(card)
 	for _, source := range sources {
 		for _, spec := range []struct {
 			key, modality string
@@ -138,6 +135,7 @@ func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
 			{"input_modalities", "image", &result.Vision},
 			{"output_modalities", "text", &result.TextOutput},
 			{"output_modalities", "image", &result.ImageOutput},
+			{"output_modalities", "embedding", &result.Embedding},
 		} {
 			if *spec.target != nil {
 				continue
@@ -150,6 +148,21 @@ func modelCapabilitiesFromCard(card map[string]any) ModelCapabilities {
 					}
 				}
 				*spec.target = boolPointer(found)
+			}
+		}
+	}
+	// A service's accepted parameter list is a declaration, not a model-name guess.
+	if parameters, ok := stringSliceFromAny(card["supported_parameters"]); ok {
+		for _, parameter := range parameters {
+			switch parameter {
+			case "tools", "tool_choice":
+				if result.ToolCalling == nil {
+					result.ToolCalling = boolPointer(true)
+				}
+			case "reasoning", "reasoning_effort", "thinking":
+				if result.Reasoning == nil {
+					result.Reasoning = boolPointer(true)
+				}
 			}
 		}
 	}
@@ -223,7 +236,7 @@ func capabilityPointerFromCard(card map[string]any, keys ...string) *bool {
 
 func modelCardSources(card map[string]any) []map[string]any {
 	result := []map[string]any{card}
-	for _, key := range []string{"capabilities", "features", "limits"} {
+	for _, key := range []string{"capabilities", "features", "limits", "architecture"} {
 		if nested, ok := mapFromAny(card[key]); ok {
 			result = append(result, nested)
 		}

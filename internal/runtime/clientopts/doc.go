@@ -8,6 +8,7 @@
 //     按 owner 锁定的 workspace/长期记忆环境、Control/Relay 与宿主秘密清理、nexuscfg / Agent-facing nexus
 //     网页检索默认预授权（保留显式范围与 deny）、physical-round capability、按 runtime 隔离的模型上限环境、Provider 结果与 profile。
 //   - nxs 子智能体定义固定注入，宿主控制路径隐藏原生 Agent schema，不随派生改变工具面。
+//   - 辅助视觉配置不可用时省略并清理旧环境，不阻断主模型启动；有效图片路径由 runtime 判定。
 //   - mcp_servers.go：严格解析 Agent 持久化 stdio/http/sse MCP 配置并在禁止覆盖内建及 GitHub 等 Connector 托管名称的前提下合并。
 //   - web_search.go：runtime 自有的 WebSearch 配置与环境投影。
 //   - log_runtime.go：runtime 日志选项。

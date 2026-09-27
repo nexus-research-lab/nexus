@@ -240,6 +240,7 @@ export async function testProviderConfigApi(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
+      timeout_ms: 90_000, // Model discovery, connectivity and bounded capability probes.
       headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
@@ -252,6 +253,7 @@ export async function testSubscriptionProviderConfigApi(
     `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
+      timeout_ms: 90_000, // Model discovery, connectivity and bounded capability probes.
     },
   );
 }
@@ -265,6 +267,7 @@ export async function testProviderModelApi(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
     {
       method: "POST",
+      timeout_ms: 90_000, // Model discovery, connectivity and bounded capability probes.
       headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
@@ -278,6 +281,7 @@ export async function testSubscriptionProviderModelApi(
     `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
     {
       method: "POST",
+      timeout_ms: 90_000, // Model discovery, connectivity and bounded capability probes.
     },
   );
 }
