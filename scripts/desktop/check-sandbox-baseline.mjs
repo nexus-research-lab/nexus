@@ -363,6 +363,30 @@ try {
       "TestMemoryScanKeepsNestedFilesWithoutFollowingDirectoryLinks", "TestContextMemoryReaderDoesNotFallback",
       "TestMemoryRecallCanceledSelectionDoesNotPublish", "TestReadRelevantMemoryContentEnforcesLineAndByteLimits",
     ], sdkSource);
+    testGroup("memory-initialization", ["./internal/environment/filesystem/worker", "./internal/memory", "./internal/memory/summary", "./internal/tool/builtin/file/sandboxfs", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestCreateIfAbsentPreservesExisting", "TestCreateIfAbsentPreservesExisting/symlink", "TestCreateIfAbsentConcurrent",
+      "TestCreateIfAbsentRejectsInvalidRequests",
+      ...["missing_data", "null_data", "null_mode", "invalid_mode", "read_limit"].map(
+        (input) => `TestCreateIfAbsentRejectsInvalidRequests/${input}`),
+      "TestCreateIfAbsentLostReplyIsUnknown", "TestMemoryInitializerDoesNotFallback",
+      "TestSummaryInitializationPreservesConcurrentFile", "TestSummaryInitializationRejectsUnknownCreate",
+      "TestSummaryReadDenialDoesNotInitialize",
+      ...["summary", "template", "prompt"].map((source) => `TestSummaryReadDenialDoesNotInitialize/${source}`),
+      "TestInitializeStoreCreatesLayoutAndPreservesEntrypoint", "TestInitializeStoreKeepsManagedWorkspacePermissions",
+      "TestEnsureFileCreatesSessionSummaryTemplate", "TestEnsureFilePreservesManagedRuntimeACLMask",
+      ...["standalone", "managed"].map((mode) => `TestEnsureFilePreservesManagedRuntimeACLMask/${mode}`),
+      "TestNewLeavesMemoryIndexForAutoDream", "TestNewReturnsMemoryStoreInitializationError",
+    ], sdkSource);
+    testGroup("macos-memory-persistence", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryInitialization",
+      ...["directory", "index", "root_symlink"].map((source) => `TestDarwinSandboxMemoryInitialization/${source}`),
+      "TestDarwinSandboxMemoryInitializationAllowed", "TestDarwinSandboxReadOnlyMemory",
+      "TestDarwinSandboxSummaryCompaction",
+      ...["denied", "allowed"].map((access) => `TestDarwinSandboxSummaryCompaction/${access}`),
+      "TestDarwinSandboxSummaryPreparation",
+      ...["summary", "template", "prompt", "write", "symlink", "allowed", "new", "custom"].map(
+        (source) => `TestDarwinSandboxSummaryPreparation/${source}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
       "TestDarwinSandboxMemoryRecall",
       ...["file", "symlink", "directory"].flatMap((source) =>

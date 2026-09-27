@@ -296,8 +296,18 @@ workspace paths and selection semantics remain unchanged. Recall and manifest
 reads each have a 30-second total deadline, and canceled recall cannot publish a
 partial attachment. This is an internal fix in the jointly released Nexus/nxs
 pair, not a new capability or a broader `sandbox_context_files_v1` guarantee.
-Memory initialization, Summary persistence and AutoDream lock/completion writes
-remain separate work.
+The paired build additionally routes memory-store initialization and Summary file,
+template, prompt and compact input through the current file executor. Initial files
+use exclusive creation: existing or concurrently created content is preserved,
+unknown results stop the current operation without replay or path-based deletion.
+Only confirmed absence permits initialization or built-in template fallback; denied
+reads are errors. Summary preparation has a 30-second IO deadline, and model edits
+continue through the existing exact-file Edit permission and sandbox. Exclusive
+creation does not promise atomic content publication or power-loss transactions.
+Read-only resource sessions remain usable and can read existing memories, but do
+not initialize the layout or schedule AutoMemory, Summary or AutoDream persistent
+updates. AutoDream locks/completion markers, historical transcript scans and other
+auxiliary IO remain separate work; these internal fixes add no capability claim.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
