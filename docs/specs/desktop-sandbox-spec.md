@@ -312,8 +312,13 @@ with a shared 30-second deadline. Only missing histories are empty; denied reads
 other IO errors or cancellation return no partial candidates, start no maintenance
 and do not advance the successful scan interval. Files removed during a scan are
 skipped, and non-regular targets are not accepted as markers or transcripts.
-AutoDream lock/completion writes, other transcript auxiliary reads and remaining
-IO stay separate work; these internal fixes add no capability claim.
+Memory writer locks are not reclaimed solely because their file is over an hour
+old. A known holder must be confirmed exited; a live/current holder, missing probe
+or malformed/partial record retains the lock. Permission and unsupported probe
+errors are not exit evidence, and process-observation handles are released.
+Controlled AutoDream lock/completion writes, replacement-safe lock ownership,
+other transcript auxiliary reads and remaining IO stay separate work; these
+internal fixes add no capability claim.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
