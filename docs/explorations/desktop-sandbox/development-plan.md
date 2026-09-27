@@ -76,7 +76,7 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 ## macOS 当前剩余工作（2026-09-28）
 
-当前最新固定 macOS 基线：Nexus `d05a18b53`、SDK `5281d803`、远程 Bridge `4b2972f`，50 项检查/724 个必测名称全部通过。记忆候选、元数据、frontmatter、抽取 manifest 和选中正文已使用当前文件执行器；禁止内容及选择后换链不会进入模型，前缀读取保留大文件兼容和既有预算。见[记忆读取证据](../../testing/evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)。该批仅闭合这条读取链，未扩大能力协商范围。
+当前最新固定 macOS 基线：Nexus `50db89fa1`、SDK `0392af36`、远程 Bridge `4b2972f`，52 项检查/767 个必测名称全部通过。记忆召回与 manifest 读取继续受控；store 初始化、Summary 正文/模板/提示词和 compact 摘要输入也已接入当前文件执行器。独占初始创建保留已有及竞争者内容，未知结果不重放；只读资源会话保留读取且不调度持久写入。见[初始化与摘要证据](../../testing/evidence/desktop-sandbox/2026-09-28-memory-persistence/README.md)，此前[记忆读取证据](../../testing/evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)保留。以上是配套发布的内部修复，未扩大能力协商范围。
 
 最近一次实际 App 基线仍为 Nexus `259ccda2d`、SDK `5a937a18`，48 项检查/689 个必测名称全部通过。其 HTTP/WebSocket 已验证双向后端切换、两种后端的 Full Access 边界恢复、Room/后台审批、网络本次批准、取消后立即重连和正常退出，见[App 审批与切换](../../testing/evidence/desktop-sandbox/2026-09-28-app-contracts/README.md)。该批修复 macOS workspace 根的 `/var`/`/private/var` 别名误审批，以及旧请求取消导致健康新连接失效；UI 点击证据仍按各次实际来源区分。此前[App 同会话重启](../../testing/evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)、[重启准入](../../testing/evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)、[stdio 往返](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)与[helper](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)证据继续保留。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
 
@@ -101,7 +101,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 | --- | --- |
 | 完整取消与异常恢复 | 仍需实现可部署的脱离 session 后代监督与终态证明；基于该事实收口 `cleanup_unknown` 与 unknown 回执，再决定自动回收。普通 sleep 进程中断通过不能代替这一项；SDK 多文件掉电事务/持久执行回执也未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；可信 MCP 代理、其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
-| 后台记忆 IO | recall/抽取 manifest 读取已收口；下一批接入 `memory.InitializeStore` 的独占创建、Summary 文件及自定义模板/提示词读取和压缩入口、AutoDream 锁/完成标记与 transcript 目录扫描。拒绝读取不能被当成缺失再覆盖旧数据；写入需保留独占创建和结果不明语义，锁清理不能删除替换后的其他持有者文件，read-only 会话兼容需单独验证 |
+| 后台记忆 IO | recall/manifest、独占初始化、Summary 文件和 compact 输入已收口，只读会话兼容已验证。继续接入 AutoDream 锁/完成标记与 transcript 目录扫描及其余历史会话辅助读取；锁清理不能删除替换后的其他持有者文件，未知写入不能重放 |
 | 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 HTTP/WebSocket DM 重启、Room 写读/审批、独立后台审批、动态网络批准/取消、双向后端及 nxs/Claude Full Access 切换、共同退出已通过。继续补完整 UI 复验及未覆盖的 Room 绑定后台/AutoDream 等路径，不用后端结果替代窗口操作 |
 | 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
 | 正式 macOS 分发 | 从干净固定提交构建 Developer ID 签名/公证包，在启用正常 Gatekeeper 的干净机器验证 quarantine、安装、版本升级与回退；若支持 Intel，另补 Intel 证据 |

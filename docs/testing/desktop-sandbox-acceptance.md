@@ -4,7 +4,7 @@
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
 
-最新 macOS 固定基线见 [2026-09-28 记忆读取](evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)：Nexus `d05a18b53`、SDK `5281d803`、Bridge `4b2972f`，50 项检查及 724 个必测名称全部通过。记忆候选、manifest 与选中正文已接入文件沙箱，明确拒绝及选择后换链的反例均被拦截；大文件前缀与原有注入预算保持。初始化、Summary、AutoDream 锁/完成写入仍独立待验收。
+最新 macOS 固定基线见 [2026-09-28 记忆初始化与摘要](evidence/desktop-sandbox/2026-09-28-memory-persistence/README.md)：Nexus `50db89fa1`、SDK `0392af36`、Bridge `4b2972f`，52 项检查及 767 个必测名称全部通过。记忆初始化、Summary 文件/模板/提示词及 compact 摘要输入均使用当前文件执行器；已有内容和创建竞争得到保留，未知写入不重放，只读会话不初始化或调度持久维护。此前[记忆读取](evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)证据保留；AutoDream 锁/完成标记与历史会话辅助 IO 仍单独收口。
 
 最近一次实际 App 的 [审批与切换证据](evidence/desktop-sandbox/2026-09-28-app-contracts/README.md)使用 Nexus `259ccda2d`、SDK `5a937a18`，其 48 项/689 个必测名称基线保留原来源。HTTP/WebSocket 验收覆盖双向后端切换、nxs/Claude 的 Full Access 边界恢复、Room 与后台审批、网络本次批准、取消审批后立即重连和正常退出。该批修复了 macOS workspace 别名误审批及旧请求取消误关闭新连接；完整 UI 复验因锁屏尚未完成。此前[App 正常退出与同会话重启](evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)及[重启准入](evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)证据继续保留；这些不等于任意后代监督、一般 unknown 恢复或发布验收。
 
