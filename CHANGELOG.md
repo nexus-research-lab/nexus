@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Close all managed runtimes before closing the App database. Normal macOS App exit now persists sandbox cleanup results so the same conversation can continue after restart. Shutdown rejects new starts, rounds and background work, waits for pending receipt writes and late factories, and retains the database if the caller stops waiting before cleanup finishes.
+
 - Preserve desktop sandbox recovery fences across App restarts. Fresh runtime creation checks the exact session's persisted receipt before starting a process, continues generation numbers after confirmed cleanup, and blocks unresolved or unreadable history even when switching backends. New scratch allocation also rejects existing cleanup-unknown markers for that session, including older replacement directories; concurrent local preparation shares the same lease.
 
 - Add an artifact-only macOS sandbox acceptance workflow for Apple Silicon and Intel. Build the pinned SDK with the matching Nexus source, sign and notarize the test DMG, then verify a quarantined copy and its bundled runtime on a fresh runner. This workflow has read-only repository permissions and creates no release.
