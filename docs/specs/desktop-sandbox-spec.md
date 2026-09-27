@@ -330,6 +330,17 @@ are preserved: only confirmed dead holders permit continuation. A busy result ma
 still follow creation of the stable guard. Memory layout and data are unchanged.
 This does not prove arbitrary detached-descendant supervision, general unknown
 cleanup recovery, or resistance to arbitrary unconfined same-UID tampering.
+Background Summary/AutoMemory/AutoDream content-replacement reads now use the
+current recorder transcript and explicit file-executor streaming port. Missing
+ports fail closed; only a confirmed missing current transcript is empty. Denied,
+canceled or incomplete reads stop the background model, without falling back to a
+host catalog or Git worktree scan. Preparation and IO share a 30-second deadline.
+The transport does not buffer the whole file; the session layer retains its
+5 MiB threshold, last non-preserved compact suffix, metadata and explicit skip
+opt-out semantics. The valid suffix itself has no new hard size cap. Records are
+published only after complete length/result/EOF verification and successful
+worker exit; late errors discard already-delivered data. This does not change
+session recording/resume, the transcript format or stored user data.
 Other transcript auxiliary reads and remaining IO stay separate work; these
 internal fixes add no capability claim, and other platforms retain their existing
 local coordination path.
