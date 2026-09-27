@@ -132,7 +132,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		if !ok {
 			continue
 		}
-		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" {
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 		}
 		serverType, _ := object["type"].(string)
@@ -191,13 +191,11 @@ func validateDesktopTypedRemoteMCP(
 	permissionMode sdkpermission.Mode,
 	admission *DesktopSandboxNetworkAdmission,
 ) error {
-	if strings.TrimSpace(headersHelper) != "" {
+	if strings.TrimSpace(headersHelper) != "" && runtime.GOOS != "darwin" {
 		return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 	}
 	if runtime.GOOS == "darwin" || permissionMode == sdkpermission.ModeBypassPermissions {
-		// Full Access is an explicit user escape and retains the existing MCP
-		// behavior. The helper check above remains mandatory because a helper is
-		// an independent executable and is never covered by this escape.
+		// macOS helper 仍须经过独立命令合同；端点允许与 Full Access 都不替代它。
 		return nil
 	}
 	if admission == nil || !admission.Allows(serverURL) {

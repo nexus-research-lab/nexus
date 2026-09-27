@@ -33,8 +33,9 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 	if !filepath.IsAbs(binary) {
 		t.Fatal("requires an absolute nxs path")
 	}
-	for _, transport := range []string{"http", "sse"} {
-		t.Run(transport, func(t *testing.T) {
+	for _, scenario := range []string{"http", "sse", "http_helper", "sse_helper"} {
+		t.Run(scenario, func(t *testing.T) {
+			transport := strings.TrimSuffix(scenario, "_helper")
 			root := t.TempDir()
 			t.Setenv(appfs.NexusStateRootEnvName, filepath.Join(root, "state"))
 			if err := appfs.EnsureUserRuntimeLayoutAt(filepath.Join(root, "state"), "__system__"); err != nil {
@@ -66,6 +67,16 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 			} else {
 				input.MCPServers = map[string]sdkmcp.ServerConfig{"fixture_remote": sdkmcp.SSEServerConfig{URL: mcpServer.URL, Headers: map[string]string{"Authorization": "Bearer fixture-only"}}}
 			}
+			if strings.HasSuffix(scenario, "_helper") {
+				helper := `printf '{"Authorization":"Bearer fixture-only"}'`
+				if transport == "http" {
+					configured := input.AgentMCPServers["fixture_remote"].(map[string]any)
+					configured["headersHelper"] = helper
+					configured["headers"] = map[string]any{"Authorization": "must-be-replaced"}
+				} else {
+					input.MCPServers["fixture_remote"] = sdkmcp.SSEServerConfig{URL: mcpServer.URL, HeadersHelper: helper, Headers: map[string]string{"Authorization": "must-be-replaced"}}
+				}
+			}
 			options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{config: &RuntimeConfig{Provider: "mcp-fixture", APIFormat: "anthropic_messages", BaseURL: provider.URL, AuthToken: "local-only", Model: "test-model"}}, input)
 			if err != nil {
 				t.Fatal(err)
@@ -95,6 +106,9 @@ func TestDesktopSandboxRemoteMCPRoundTrip(t *testing.T) {
 			defer upgradeClose(t, session)
 			if !session.Supports(agentclient.CapabilitySandboxMCPNetwork) {
 				t.Fatal("missing MCP network confirmation")
+			}
+			if !session.Supports(agentclient.CapabilitySandboxMCPHelpers) {
+				t.Fatal("missing MCP helper confirmation")
 			}
 			stream, err := session.Send(ctx, "Call the configured echo MCP tool once.")
 			if err != nil {

@@ -262,8 +262,8 @@ func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
 				"headersHelper": "/tmp/unattested-helper",
 			},
 		}, runtimeKindNXS, "desktop", true, mode)
-		if err == nil || !strings.Contains(err.Error(), "headers helper") {
-			t.Fatalf("mode %v admitted unattested headers helper: %v", mode, err)
+		if (err == nil) != (runtime.GOOS == "darwin") {
+			t.Fatalf("mode %v helper platform contract: %v", mode, err)
 		}
 	}
 }

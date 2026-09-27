@@ -83,8 +83,8 @@ func MergeAgentMCPServers(
 	return merged, nil
 }
 
-// RejectDesktopSandboxRemoteMCP 保留未受控 helper 的拒绝；macOS 远端服务由
-// nxs 独立端点网络合同约束，不占用普通工具域名授权。其他平台保留原准入。
+// RejectDesktopSandboxRemoteMCP 让 macOS MCP/helper 分别进入独立的网络与命令合同。
+// 其他平台仍在能力未实现时拒绝，端点授权不扩张普通工具网络。
 func RejectDesktopSandboxRemoteMCP(
 	configured map[string]any,
 	runtimeKind string,
@@ -101,11 +101,7 @@ func RejectDesktopSandboxRemoteMCP(
 		if !ok {
 			continue
 		}
-		// An arbitrary headers helper is an external executable and may read
-		// credentials or create network connections outside the nxs-owned
-		// runtime boundary. Until the host supplies a separately attested
-		// helper capability, fail closed for every desktop permission mode.
-		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" {
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && runtime.GOOS != "darwin" {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 		}
 		serverType, _ := object["type"].(string)

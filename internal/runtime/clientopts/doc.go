@@ -22,4 +22,5 @@
 // RequireSettingsFiles 确认普通配置的受限读取和完整快照，凭据隔离与原子持久化仍独立验收。
 // RequireSettingsWrites 确认 Config 更新复用同一受检来源并在写后强制替换 runtime；跨进程事务和持久回执仍独立验收。
 // nxs Provider 与 AutoDream 唤醒的宿主所有权在所有环境合并后固定；ExtraEnv/ConfigurationEnv 不能撤销。
+// macOS 的持久化与 Connector MCP 认证 helper 由独立必需执行能力接纳，端点授权不扩张 helper 网络。
 package clientopts

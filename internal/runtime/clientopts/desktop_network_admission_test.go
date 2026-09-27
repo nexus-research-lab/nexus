@@ -100,12 +100,12 @@ func TestDesktopSandboxChecksHostOwnedTypedRemoteMCP(t *testing.T) {
 	}
 }
 
-func TestDesktopSandboxTypedMCPRejectsHeadersHelperEvenInFullAccess(t *testing.T) {
+func TestDesktopSandboxTypedMCPHelpersRequirePlatformContract(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"remote": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", HeadersHelper: "/tmp/untrusted-helper"},
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); err == nil || !strings.Contains(err.Error(), "headers helper") {
-		t.Fatalf("typed headers helper was admitted in Full Access: %v", err)
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != (runtime.GOOS == "darwin") {
+		t.Fatalf("typed helper platform contract: %v", err)
 	}
 }
 

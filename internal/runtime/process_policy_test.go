@@ -19,6 +19,7 @@ func TestProcessPolicyIncludesHostSandboxRequirements(t *testing.T) {
 		func() { base.Sandbox.RequireMediaFiles = true },
 		func() { base.Sandbox.RequireMediaNetwork = true },
 		func() { base.Sandbox.RequireMCPNetwork = true },
+		func() { base.Sandbox.RequireMCPHelpers = true },
 		func() { base.MCP.StrictConfig = true },
 		func() { base.Sandbox.RequireNotebookFiles = true },
 		func() { base.Sandbox.RequireSkillFiles = true },
