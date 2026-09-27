@@ -1169,3 +1169,11 @@ gh workflow run macos-desktop-build.yml \
 原始日志、安装自检与三仓 provenance 随包归档。构建 smoke 允许 runner 的无图形界面回退，
 故本入口不声明完整 App UI、用户数据库升级/回退或真实用户干净机器验收；工作流文件通过
 静态检查也不代表远程运行已经通过。
+
+## 2026-09-28：当前 stdio 内核的 App、DMG 与真实第三方模型
+
+Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG；独立状态根下 App smoke、
+只读 DMG 内 App smoke、三种资源配置的实际内核握手，以及包内 nxs 的五项真实第三方模型检查通过。
+临时验证器首次卸载收尾错误保留，修正后整条挂载/启动/自检/卸载流程通过，详见
+[本批证据](evidence/desktop-sandbox/2026-09-28-stdio-app/README.md)。不代表完整 DM/Room/后台 UI、
+正式签名、公证或用户数据库升级；签名 CI 仍等待私有 SDK 只读授权。

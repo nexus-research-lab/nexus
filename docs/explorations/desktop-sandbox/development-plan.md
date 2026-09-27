@@ -78,6 +78,11 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 当前最新固定 macOS 基线：Nexus `1b1bb88ca`、SDK `b84b7b6c`、远程 Bridge `4b2972f`，45 项检查/640 个必测名称全部通过。stdio MCP 已接入独立受控进程合同，持久配置及 Connector 经真实 nxs 完整往返；HTTP/SSE 聚合消息限额同步收口，见[本批报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。此前 helper 与辅助进程限额证据见[上一批报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
 
+2026-09-28 当前 App 补充：Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 的干净 arm64 开发签名 App/DMG、
+两次独立状态根下的真实 App smoke、包内内核配套检查及五项真实第三方模型检查通过，见
+[固定来源证据](../../testing/evidence/desktop-sandbox/2026-09-28-stdio-app/README.md)。正式签名专用 CI
+已准备；SDK 私有仓库禁止 Deploy Key，待 CI 只读授权后执行，不把该依赖描述成缺少签名证书。
+
 2026-09-28 补充基线：SDK `593b1fa6`、远程规范 Bridge `b0402649d44b`，40 项原生检查/527 个必测名称及 nxs/Claude 真实第三方 Provider 10 项基础检查通过。当前 Nexus 已包含 Windows 机器的 `bc74365dd`；Windows 的独立固定测试版本和证据保持。
 
 已完成的本机基线包括 nxs 原生文件/命令与配置能力、持久资源状态和策略回执、
