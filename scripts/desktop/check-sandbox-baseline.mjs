@@ -397,6 +397,15 @@ try {
       "TestTryAcquireConsolidationLockIsAtomic", "TestRecordConsolidationSeparatesCompletionFromActiveLock",
       "TestReleaseConsolidationLockPreservesLastSuccess",
     ], sdkSource);
+    testGroup("autodream-writer-locks", ["./internal/memory/autodream", "./internal/agent/runtime"], [
+      "TestConsolidationLockPreservesLiveOrUnknownHolder",
+      ...["live", "same_process", "unknown_probe", "invalid", "partial"].map(
+        (holder) => `TestConsolidationLockPreservesLiveOrUnknownHolder/${holder}`),
+      "TestConsolidationLockReclaimsConfirmedDeadHolder", "TestAutoDreamProcessExitRequiresEvidence",
+      ...["alive", "denied", "unknown", "done", "missing"].map(
+        (state) => `TestAutoDreamProcessExitRequiresEvidence/${state}`),
+      "TestAutoDreamProcessProbeKeepsCurrentProcess",
+    ], sdkSource);
     testGroup("macos-autodream-scan", ["./internal/agent/runtime"], [
       "TestDarwinSandboxAutoDreamScan",
       ...["completion", "completion_symlink", "directory", "transcript", "transcript_symlink", "allowed", "missing"].map(
