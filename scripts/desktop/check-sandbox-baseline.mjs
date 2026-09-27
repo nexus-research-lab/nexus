@@ -43,9 +43,9 @@ const report = {
 console.log(`Sandbox evidence: ${reportDirectory}`);
 
 // Commands never pass through a shell; output stays in an isolated evidence directory.
-function run(name, command, args, cwd = root, env = environment) {
+function run(name, command, args, cwd = root, env = environment, timeout = 180_000) {
   console.log(`Checking ${name}`);
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout: 180_000, maxBuffer: 64 << 20 });
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 64 << 20 });
   fs.writeFileSync(path.join(reportDirectory, `${name}.stdout.log`), result.stdout ?? "");
   fs.writeFileSync(path.join(reportDirectory, `${name}.stderr.log`), result.stderr ?? "");
   report.checks.push({ name, command, args, cwd, exitCode: result.status, signal: result.signal });
@@ -57,7 +57,10 @@ function testGroup(name, packages, requiredTests, cwd = root, env = environment)
   // Go splits -run at slashes; run each parent, then require exact child evidence.
   const parents = [...new Set(requiredTests.map((test) => test.split("/")[0]))];
   const pattern = `^(${parents.join("|")})$`;
-  const output = run(name, "go", ["test", "-mod=readonly", "-json", "-count=1", "-timeout=2m", ...packages, "-run", pattern], cwd, env);
+  // Native cases launch many confined workers. Budget the whole group by case
+  // count; operation deadlines and exact required pass/skip checks stay fixed.
+  const timeoutSeconds = Math.max(120, requiredTests.length * 15);
+  const output = run(name, "go", ["test", "-mod=readonly", "-json", "-count=1", `-timeout=${timeoutSeconds}s`, ...packages, "-run", pattern], cwd, env, (timeoutSeconds + 60) * 1000);
   report.checks.at(-1).passedTests = requirePassedTests(output, 0, requiredTests);
 }
 
@@ -229,6 +232,7 @@ try {
       "TestDarwinSandboxMCPRuntimeNetwork",
       "TestDarwinSandboxMCPRuntimeNetwork/ambient", "TestDarwinSandboxMCPRuntimeNetwork/explicit",
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("file-output-limit", ["./internal/tool/builtin/file/sandboxfs"], ["TestBoundedOutputLimitsExecCopy"], sdkSource);
     testGroup("macos-mcp-helpers", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
       "TestSandboxMCPHelpersRequirement",
       ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPHelpersRequirement/${name}`),
