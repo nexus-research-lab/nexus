@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Windows 原生开发入口支持 make dev、dev-nxs 和独立服务启动，自动等待 Control 就绪，检查端口并在退出时清理本次启动的进程。
+
 ### Changed
 
 - 沙箱相关设置集中到新的“设置 › 沙箱”（仅桌面端）：桌面沙箱开关从“权限”移入，“检查沙箱支持”与“沙箱残留资源”从“运行时”移入，且不再要求先选择 nxs 引擎；依赖齐全的提示改为“可以开启桌面沙箱”，不再暗示新任务已在沙箱中运行。
