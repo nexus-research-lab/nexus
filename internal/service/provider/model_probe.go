@@ -1,30 +1,34 @@
-// INPUT: Explicit existing Provider/model test command and the exact configuration snapshot.
-// OUTPUT: Connectivity result plus independently verified text, vision, tools and reasoning facts.
-// POS: Bounded capability discovery during user-requested testing, never during chat startup.
+// INPUT: Explicit model test, exact configuration version and optional single capability.
+// OUTPUT: Independent, configuration-bound observations; failed checks never become denials.
+// POS: Probe orchestration and shared bounded HTTP transport, not an Agent Session.
 package provider
 
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-const capabilityProbeTimeout = 12 * time.Second
+const capabilityProbeTimeout = 25 * time.Second
 
 func (s *Service) runModelTest(ctx context.Context, item providerstore.Entity, modelID string, expectedVersion int64) (*TestResult, error) {
-	if expectedVersion != item.ConfigurationVersion {
+	return s.runCapabilityTests(ctx, item, modelID, expectedVersion, "")
+}
+
+func (s *Service) runCapabilityTests(ctx context.Context, item providerstore.Entity, modelID string, version int64, capability string) (*TestResult, error) {
+	if version != item.ConfigurationVersion {
 		return nil, ErrConfigurationVersionConflict
+	}
+	modelID = normalizeModelID(modelID)
+	if modelID == "" || (capability != "" && capability != "all" && !validProbeCapability(capability)) {
+		return nil, fmt.Errorf("%w: invalid model or capability", ErrInvalidInput)
 	}
 	model, err := s.getModelByID(ctx, item.ID, modelID)
 	if err != nil {
@@ -33,154 +37,196 @@ func (s *Service) runModelTest(ctx context.Context, item providerstore.Entity, m
 	if model == nil {
 		model = &providerstore.ModelEntity{ProviderID: item.ID, ModelID: modelID, ProviderOptionsJSON: "{}"}
 	}
-	if err = validateModelEndpoint(item); err != nil {
-		return s.persistTestResult(ctx, item, modelID, err, expectedVersion, nil)
-	}
-	payload, err := minimalPayload(item, modelID)
-	if err != nil {
-		return s.persistTestResult(ctx, item, modelID, err, expectedVersion, nil)
-	}
-	status, body, err := s.sendProbeRequest(ctx, item, payload)
-	if err == nil && (status < 200 || status >= 300) {
-		err = fmt.Errorf("模型请求失败: status=%d body=%s", status, sanitizeHTTPBody(body, item.AuthToken))
-	}
-	if err == nil {
-		var envelope struct {
-			Error  json.RawMessage `json:"error"`
-			Status string          `json:"status"`
-		}
-		if json.Unmarshal(body, &envelope) == nil && ((len(envelope.Error) > 0 && string(envelope.Error) != "null") || envelope.Status == "failed") {
-			err = fmt.Errorf("模型请求失败: %s", sanitizeHTTPBody(body, item.AuthToken))
-		}
-	}
-	if err != nil {
-		return s.persistTestResult(ctx, item, modelID, err, expectedVersion, nil)
-	}
-	evidence := modelProbeEvidence{Version: modelProbeVersion, Fingerprint: modelProbeFingerprint(item, *model), TestedAt: s.now()}
+	evidence := modelProbeEvidence{Version: modelProbeVersion, Fingerprint: modelProbeFingerprint(item, *model), TestedAt: s.now(), Attempts: map[string]CapabilityProbeResult{}, Verified: map[string]CapabilityProbeResult{}}
 	if previous := currentModelProbe(item, *model); previous != nil {
-		evidence.Capabilities = previous.Capabilities
+		evidence = *previous
+		evidence.TestedAt = s.now()
 	}
-	if item.ProviderKind == ProviderKindLLM {
-		response := parseProbeResponse(body, item.APIFormat)
-		observed := observedResponseCapabilities(response)
-		// An invalid/empty HTTP envelope is not capability evidence. Retain the
-		// existing connectivity-test contract, without painting any capability icon.
-		if response.Valid {
-			observed = mergeObservedCapabilities(observed, s.probeChatCapabilities(ctx, item, modelID))
+	if evidence.Attempts == nil {
+		evidence.Attempts = map[string]CapabilityProbeResult{}
+	}
+	if evidence.Verified == nil {
+		evidence.Verified = map[string]CapabilityProbeResult{}
+	}
+	results := map[string]CapabilityProbeResult{}
+	record := func(key string, result CapabilityProbeResult) {
+		result.TestedAt = s.now()
+		results[key] = result
+		evidence.Attempts[key] = result
+		evidence.Capabilities = mergeObservedCapabilities(evidence.Capabilities, probeCapabilities(key, result))
+		if result.State == "supported" || result.State == "unsupported" {
+			evidence.Verified[key] = result
 		}
-		evidence.Capabilities = mergeObservedCapabilities(evidence.Capabilities, observed)
-	} else if imageGenerationResponsePresent(body) {
-		evidence.Capabilities.ImageOutput = adviceBool(true)
 	}
-	return s.persistTestResult(ctx, item, modelID, nil, expectedVersion, &evidence)
+	// Explicit all is used by list synchronization and preserves saved selection.
+	evidence.PreserveSelection = capability == "all"
+	evidence.BaselineAutoJSON = model.CapabilitiesAutoJSON
+	evidence.BaselineModelID = model.ID
+	keys := []string{capability}
+	if capability == "" || capability == "all" {
+		keys = probeCapabilityKeys
+	}
+	type check struct {
+		key    string
+		result CapabilityProbeResult
+	}
+	checks := make(chan check, len(keys))
+	for _, key := range keys {
+		go func(key string) {
+			checks <- check{key, s.probeCapability(ctx, item, *model, key)}
+		}(key)
+	}
+	for range keys {
+		result := <-checks
+		record(result.key, result.result)
+	}
+	var testErr error
+	primary := capability
+	if primary == "" || primary == "all" {
+		primary = "text_output"
+		if item.ProviderKind == ProviderKindImageGeneration {
+			primary = "image_output"
+		}
+		if model.Category == "embedding" {
+			primary = "embedding"
+		}
+	}
+	if result := results[primary]; result.State != "supported" {
+		testErr = fmt.Errorf("能力测试未完成: %s", result.Reason)
+	}
+	result, err := s.persistTestResult(ctx, item, modelID, testErr, version, &evidence)
+	if result != nil {
+		result.CapabilityResults = results
+	}
+	return result, err
 }
 
-func (s *Service) probeChatCapabilities(ctx context.Context, item providerstore.Entity, modelID string) ModelCapabilities {
-	ctx, cancel := context.WithTimeout(ctx, capabilityProbeTimeout)
+func (s *Service) probeCapability(ctx context.Context, item providerstore.Entity, model providerstore.ModelEntity, capability string) CapabilityProbeResult {
+	limit := capabilityProbeTimeout
+	if capability == "image_output" || capability == "image_editing" {
+		limit = 120 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	results := make(chan ModelCapabilities, 2)
-	go func() { results <- s.probeVision(ctx, item, modelID) }()
-	go func() { results <- s.probeTools(ctx, item, modelID) }()
-	return mergeObservedCapabilities(<-results, <-results)
+	switch capability {
+	case "text_output":
+		result, _ := s.probeText(ctx, item, model)
+		return result
+	case "vision":
+		return s.checkVision(ctx, item, model)
+	case "tool_calling":
+		return s.checkTools(ctx, item, model)
+	case "reasoning":
+		return s.checkReasoning(ctx, item, model)
+	case "embedding":
+		return s.checkEmbedding(ctx, item, model)
+	case "image_output", "image_editing":
+		return s.checkImage(ctx, item, model, capability)
+	}
+	return probeResult("unknown", "route_unavailable")
 }
 
-func (s *Service) probeVision(ctx context.Context, item providerstore.Entity, modelID string) ModelCapabilities {
-	data, answer, err := newVisionProbeImage()
-	if err != nil {
-		return ModelCapabilities{}
+func (s *Service) probeText(ctx context.Context, item providerstore.Entity, model providerstore.ModelEntity) (CapabilityProbeResult, probeResponse) {
+	if item.ProviderKind != ProviderKindLLM {
+		return probeResult("unknown", "route_unavailable"), probeResponse{}
 	}
-	payload, err := capabilityProbePayload(item, modelID, visionProbePrompt, data, "")
+	payload, err := minimalPayload(item, model.ModelID)
 	if err != nil {
-		return ModelCapabilities{}
+		return probeResult("error", "invalid_configuration"), probeResponse{}
 	}
+	payload = applyProbeOptions(payload, model)
 	status, body, err := s.sendProbeRequest(ctx, item, payload)
-	if err != nil {
-		return ModelCapabilities{}
-	}
-	if probeExplicitlyUnsupported(status, body, "vision") {
-		return ModelCapabilities{Vision: adviceBool(false)}
-	}
-	if status < 200 || status >= 300 {
-		return ModelCapabilities{}
+	if failure := probeFailure(status, body, err, "text_output"); failure != nil {
+		return *failure, probeResponse{}
 	}
 	response := parseProbeResponse(body, item.APIFormat)
-	observed := observedResponseCapabilities(response)
-	if !response.Valid || strings.Join(strings.Fields(response.Text), "") != answer {
-		return observed
-	}
-	observed.Vision = adviceBool(true)
-	return observed
-}
-
-func (s *Service) probeTools(ctx context.Context, item providerstore.Entity, modelID string) ModelCapabilities {
-	var nonce [12]byte
-	if _, err := rand.Read(nonce[:]); err != nil {
-		return ModelCapabilities{}
-	}
-	code := hex.EncodeToString(nonce[:])
-	payload, err := capabilityProbePayload(item, modelID, "Call "+modelProbeToolName+" exactly once with code "+code+". Do not answer with text.", "", code)
-	if err != nil {
-		return ModelCapabilities{}
-	}
-	status, body, err := s.sendProbeRequest(ctx, item, payload)
-	if err != nil {
-		return ModelCapabilities{}
-	}
-	if probeExplicitlyUnsupported(status, body, "tool_calling") {
-		return ModelCapabilities{ToolCalling: adviceBool(false)}
-	}
-	if status < 200 || status >= 300 {
-		return ModelCapabilities{}
-	}
-	response := parseProbeResponse(body, item.APIFormat)
-	observed := observedResponseCapabilities(response)
-	if response.Valid && len(response.Tools) == 1 && response.Tools[0].Name == modelProbeToolName && response.Tools[0].Code == code {
-		observed.ToolCalling = adviceBool(true)
-	}
-	return observed
-}
-
-func observedResponseCapabilities(response probeResponse) ModelCapabilities {
-	result := ModelCapabilities{}
 	if response.Valid && response.Text != "" {
-		result.TextOutput = adviceBool(true)
+		return probeResult("supported", "text_response"), response
 	}
-	if response.Valid && response.Reasoning {
-		result.Reasoning = adviceBool(true)
+	return probeResult("unknown", "no_text_evidence"), response
+}
+
+func applyProbeOptions(payload []byte, model providerstore.ModelEntity) []byte {
+	var fields map[string]any
+	if json.Unmarshal(payload, &fields) != nil {
+		return payload
 	}
-	return result
+	// Model options cannot replace probe identity, challenge content, tools or budgets.
+	options := decodeProviderOptions(model.ProviderOptionsJSON)
+	for key, value := range fields {
+		options[key] = value
+	}
+	encoded, err := json.Marshal(options)
+	if err != nil {
+		return payload
+	}
+	return encoded
 }
 
 func (s *Service) sendProbeRequest(ctx context.Context, item providerstore.Entity, payload []byte) (int, []byte, error) {
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL(item, item.APIFormat), bytes.NewReader(payload))
+	if err := validateModelEndpoint(item); err != nil {
+		return 0, nil, err
+	}
+	return s.sendProbeRequestTo(ctx, item, endpointURL(item, item.APIFormat), payload)
+}
+
+func (s *Service) sendProbeRequestTo(ctx context.Context, item providerstore.Entity, endpoint string, payload []byte) (int, []byte, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
 	if err != nil {
-		return 0, nil, sanitizeHTTPError(err)
+		return 0, nil, err
 	}
 	applyProviderHeaders(request, item)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := s.client.Do(request)
 	if err != nil {
-		return 0, nil, fmt.Errorf("%s", sanitizeErrorMessage(err.Error(), item.AuthToken))
+		return 0, nil, err
 	}
 	defer response.Body.Close()
-	limit := int64(1 << 20)
-	if item.ProviderKind == ProviderKindImageGeneration {
-		limit = 16 << 20
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
+	body, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 	if err != nil {
-		return 0, nil, sanitizeHTTPError(err)
+		return 0, nil, err
 	}
-	if int64(len(body)) > limit {
-		return 0, nil, fmt.Errorf("模型测试响应过大")
+	if len(body) > 1<<20 {
+		return 0, nil, fmt.Errorf("probe response too large")
 	}
 	return response.StatusCode, body, nil
 }
 
-// Only exact machine error codes on a syntactically valid probe are negative
-// evidence. Auth, quota, timeouts, generic 400s and wrong answers stay unknown.
+// Only protocol-specific machine rejections are capability denials.
+func probeFailure(status int, body []byte, err error, capability string) *CapabilityProbeResult {
+	result := probeResult("error", "request_failed")
+	if err != nil {
+		result.Reason = "network_or_timeout"
+		return &result
+	}
+	if probeExplicitlyUnsupported(status, body, capability) {
+		result = probeResult("unsupported", "explicit_protocol_denial")
+		return &result
+	}
+	switch status {
+	case 401, 403:
+		result.Reason = "authentication_or_permission"
+		return &result
+	case 429:
+		result.Reason = "quota_or_rate_limit"
+		return &result
+	}
+	if status < 200 || status >= 300 {
+		return &result
+	}
+	var envelope struct {
+		Error  json.RawMessage `json:"error"`
+		Status string          `json:"status"`
+	}
+	if json.Unmarshal(body, &envelope) == nil && ((len(envelope.Error) > 0 && string(envelope.Error) != "null") || envelope.Status == "failed") {
+		result.Reason = "provider_error"
+		return &result
+	}
+	return nil
+}
+
 func probeExplicitlyUnsupported(status int, body []byte, capability string) bool {
-	if status != http.StatusBadRequest && status != http.StatusUnprocessableEntity {
+	if status != 400 && status != 422 {
 		return false
 	}
 	var wire struct {
@@ -191,30 +237,15 @@ func probeExplicitlyUnsupported(status int, body []byte, capability string) bool
 	if json.Unmarshal(body, &wire) != nil {
 		return false
 	}
-	switch capability {
-	case "vision":
-		return wire.Error.Code == "image_input_not_supported" || wire.Error.Code == "vision_not_supported"
-	case "tool_calling":
-		return wire.Error.Code == "tool_calling_not_supported" || wire.Error.Code == "tools_not_supported"
+	codes := map[string][]string{
+		"vision":       {"image_input_not_supported", "vision_not_supported"},
+		"tool_calling": {"tool_calling_not_supported", "tools_not_supported"},
+		"reasoning":    {"reasoning_not_supported"},
+		"embedding":    {"embeddings_not_supported", "embedding_not_supported"},
+		"text_output":  {"text_output_not_supported"},
 	}
-	return false
-}
-
-func imageGenerationResponsePresent(body []byte) bool {
-	var wire struct {
-		Data []struct {
-			URL    string `json:"url"`
-			Base64 string `json:"b64_json"`
-		} `json:"data"`
-	}
-	if json.Unmarshal(body, &wire) != nil {
-		return false
-	}
-	for _, item := range wire.Data {
-		if parsed, err := url.Parse(item.URL); err == nil && (parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != "" {
-			return true
-		}
-		if decoded, err := base64.StdEncoding.DecodeString(item.Base64); err == nil && len(decoded) > 0 {
+	for _, code := range codes[capability] {
+		if strings.EqualFold(wire.Error.Code, code) {
 			return true
 		}
 	}

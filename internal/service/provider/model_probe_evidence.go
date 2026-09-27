@@ -12,13 +12,18 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-const modelProbeVersion = 1
+const modelProbeVersion = 2
 
 type modelProbeEvidence struct {
-	Version      int               `json:"version"`
-	Fingerprint  string            `json:"fingerprint"`
-	TestedAt     time.Time         `json:"tested_at"`
-	Capabilities ModelCapabilities `json:"capabilities"`
+	BaselineAutoJSON  string                           `json:"-"`
+	BaselineModelID   string                           `json:"-"`
+	PreserveSelection bool                             `json:"-"`
+	Attempts          map[string]CapabilityProbeResult `json:"attempts,omitempty"`
+	Verified          map[string]CapabilityProbeResult `json:"verified,omitempty"`
+	Version           int                              `json:"version"`
+	Fingerprint       string                           `json:"fingerprint"`
+	TestedAt          time.Time                        `json:"tested_at"`
+	Capabilities      ModelCapabilities                `json:"capabilities"`
 }
 
 // The aggregate revision guards the write; this identity keeps evidence valid

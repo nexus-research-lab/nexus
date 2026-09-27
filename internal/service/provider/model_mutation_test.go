@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -107,7 +108,8 @@ func TestTestProviderAutoSelectsTestedModel(t *testing.T) {
 			_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
 		case "/v1/messages":
 			writer.WriteHeader(http.StatusOK)
-			_, _ = writer.Write([]byte(`{}`))
+			payload, _ := json.Marshal(probeTestResponse(APIFormatAnthropicMessages, "pong", ""))
+			_, _ = writer.Write(payload)
 		default:
 			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
 		}
@@ -147,11 +149,12 @@ func TestTestModelAutoSelectsNXSDefaultModel(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/chat/completions" {
+		if request.URL.Path != "/chat/completions" && request.URL.Path != "/embeddings" {
 			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
 		}
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(`{}`))
+		payload, _ := json.Marshal(probeTestResponse(APIFormatChatCompletions, "pong", ""))
+		_, _ = writer.Write(payload)
 	}))
 	defer server.Close()
 

@@ -1,3 +1,6 @@
+// INPUT: DashScope image configuration and file or in-memory source.
+// OUTPUT: Generated/edited image bytes using the configured image API.
+// POS: DashScope adapter shared with capability probes.
 package imagegen
 
 import (
@@ -89,9 +92,14 @@ func (s *Service) callDashScopeEditProvider(
 	if err != nil {
 		return nil, "", "", err
 	}
-	imageReference, err := s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.ImagePath)
-	if err != nil {
-		return nil, "", "", err
+	imageReference := ""
+	if input.imageData != nil {
+		imageReference = "data:image/png;base64," + base64.StdEncoding.EncodeToString(input.imageData)
+	} else {
+		imageReference, err = s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.ImagePath)
+		if err != nil {
+			return nil, "", "", err
+		}
 	}
 	content := []dashScopeContent{{Image: imageReference}}
 	if strings.TrimSpace(input.MaskPath) != "" {

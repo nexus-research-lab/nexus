@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestCapabilityProbeRoundTripAcrossProtocols(t *testing.T) {
 					return
 				}
 				expected := map[string]string{APIFormatChatCompletions: "/chat/completions", APIFormatResponses: "/responses", APIFormatAnthropicMessages: "/v1/messages"}[format]
-				if r.URL.Path != expected {
+				if r.URL.Path != expected && r.URL.Path != "/embeddings" {
 					t.Errorf("path = %s", r.URL.Path)
 				}
 				var payload map[string]any
@@ -46,7 +47,9 @@ func TestCapabilityProbeRoundTripAcrossProtocols(t *testing.T) {
 				}
 				prompt, imageData := probeTestInput(payload, format)
 				text, code := "pong", ""
-				if imageData != "" {
+				if receipt := probeTestToolReceipt(payload); receipt != "" {
+					text = receipt
+				} else if imageData != "" {
 					visionCalls.Add(1)
 					text = probeTestReadImage(t, imageData)
 					if strings.Contains(prompt, text) {
@@ -200,9 +203,9 @@ func probeTestResponse(format, text, code string) any {
 		}
 		return map[string]any{"type": "message", "role": "assistant", "content": blocks}
 	case APIFormatResponses:
-		output := []any{map[string]any{"type": "reasoning", "summary": []any{}}}
+		output := []any{map[string]any{"type": "reasoning", "summary": []any{map[string]any{"type": "summary_text", "text": "test reasoning"}}}}
 		if code != "" {
-			output = append(output, map[string]any{"type": "function_call", "name": modelProbeToolName, "arguments": fmt.Sprintf(`{"code":%q}`, code)})
+			output = append(output, map[string]any{"type": "function_call", "call_id": "call-1", "name": modelProbeToolName, "arguments": fmt.Sprintf(`{"code":%q}`, code)})
 		} else {
 			output = append(output, map[string]any{"type": "message", "role": "assistant", "content": []any{map[string]any{"type": "output_text", "text": text}}})
 		}
@@ -210,7 +213,7 @@ func probeTestResponse(format, text, code string) any {
 	default:
 		message := map[string]any{"role": "assistant", "content": text, "reasoning_content": "test reasoning"}
 		if code != "" {
-			message["tool_calls"] = []any{map[string]any{"type": "function", "function": map[string]any{"name": modelProbeToolName, "arguments": fmt.Sprintf(`{"code":%q}`, code)}}}
+			message["tool_calls"] = []any{map[string]any{"id": "call-1", "type": "function", "function": map[string]any{"name": modelProbeToolName, "arguments": fmt.Sprintf(`{"code":%q}`, code)}}}
 		}
 		return map[string]any{"choices": []any{map[string]any{"message": message}}}
 	}
@@ -238,12 +241,12 @@ func TestProbeFailuresNeverInventUnsupportedCapabilities(t *testing.T) {
 			}))
 			defer server.Close()
 			service := &Service{client: server.Client()}
-			result := service.probeVision(context.Background(), providerstore.Entity{BaseURL: server.URL, APIFormat: APIFormatChatCompletions}, "kimi-k2.6")
+			result := service.checkVision(context.Background(), providerstore.Entity{ProviderKind: ProviderKindLLM, BaseURL: server.URL, APIFormat: APIFormatChatCompletions}, providerstore.ModelEntity{ModelID: "kimi-k2.6", ProviderOptionsJSON: "{}"})
 			if tc.denied {
-				if result.Vision == nil || *result.Vision {
+				if result.State != "unsupported" {
 					t.Fatalf("missing explicit denial: %+v", result)
 				}
-			} else if result.Vision != nil {
+			} else if result.State == "supported" || result.State == "unsupported" {
 				t.Fatalf("unknown became a verdict: %+v", result)
 			}
 		})
@@ -252,7 +255,12 @@ func TestProbeFailuresNeverInventUnsupportedCapabilities(t *testing.T) {
 
 func TestProbeConfigurationFenceRejectsLateResults(t *testing.T) {
 	started, release := make(chan struct{}), make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { close(started); <-release; _, _ = w.Write([]byte(`{}`)) }))
+	var once sync.Once
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		once.Do(func() { close(started) })
+		<-release
+		_, _ = w.Write([]byte(`{}`))
+	}))
 	defer server.Close()
 	service, _ := newTestService(t)
 	ctx := context.Background()
@@ -313,4 +321,42 @@ func TestCapabilityEvidenceIdentityAndUnknownMerge(t *testing.T) {
 	if merged.Vision == nil || !*merged.Vision {
 		t.Fatal("unknown erased success")
 	}
+}
+
+// probeTestToolReceipt reads only a tool-result block, never the original prompt.
+func probeTestToolReceipt(payload map[string]any) string {
+	var visit func(any) string
+	visit = func(value any) string {
+		switch item := value.(type) {
+		case []any:
+			for _, child := range item {
+				if result := visit(child); result != "" {
+					return result
+				}
+			}
+		case map[string]any:
+			if item["role"] == "tool" || item["type"] == "tool_result" || item["type"] == "function_call_output" {
+				raw, _ := item["content"].(string)
+				if item["type"] == "function_call_output" {
+					raw, _ = item["output"].(string)
+				}
+				var result struct {
+					Content []struct {
+						Text string `json:"text"`
+					} `json:"content"`
+				}
+				_ = json.Unmarshal([]byte(raw), &result)
+				if len(result.Content) > 0 {
+					return result.Content[0].Text
+				}
+			}
+			for _, key := range []string{"messages", "input", "content"} {
+				if result := visit(item[key]); result != "" {
+					return result
+				}
+			}
+		}
+		return ""
+	}
+	return visit(payload)
 }

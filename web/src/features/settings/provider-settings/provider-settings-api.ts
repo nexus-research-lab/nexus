@@ -11,9 +11,7 @@ import {
   listSubscriptionProviderConfigsApi,
   setDefaultProviderModelApi,
   setSubscriptionDefaultProviderModelApi,
-  testProviderConfigApi,
   testProviderModelApi,
-  testSubscriptionProviderConfigApi,
   testSubscriptionProviderModelApi,
   updateProviderConfigApi,
   updateProviderModelApi,
@@ -44,8 +42,7 @@ export interface ProviderModelApi {
     provider: string,
     modelId: string,
   ) => Promise<ProviderModelRecord>;
-  testProvider: (provider: string) => Promise<ProviderTestResult>;
-  testModel: (provider: string, modelId: string) => Promise<ProviderTestResult>;
+  testModel: (provider: string, modelId: string, options?: { capability?: string; expectedVersion?: number }) => Promise<ProviderTestResult>;
 }
 
 export interface ProviderSettingsApi {
@@ -70,7 +67,6 @@ const PROVIDER_SETTINGS_APIS: Record<
       fetchModels: fetchProviderModelsApi,
       setDefaultModel: setDefaultProviderModelApi,
       updateModel: updateProviderModelApi,
-      testProvider: testProviderConfigApi,
       testModel: testProviderModelApi,
     },
   },
@@ -84,7 +80,6 @@ const PROVIDER_SETTINGS_APIS: Record<
       fetchModels: fetchSubscriptionProviderModelsApi,
       setDefaultModel: setSubscriptionDefaultProviderModelApi,
       updateModel: updateSubscriptionProviderModelApi,
-      testProvider: testSubscriptionProviderConfigApi,
       testModel: testSubscriptionProviderModelApi,
     },
   },

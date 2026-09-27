@@ -19,10 +19,7 @@ func (s *Service) modelsForRecord(ctx context.Context, provider providerstore.En
 	}
 	result := make([]ModelRecord, 0, len(items))
 	for _, item := range items {
-		record := toModelRecord(item)
-		guidance := projectModelGuidance(provider, item)
-		record.Guidance = &guidance
-		record.CapabilitiesAuto = guidance.AutomaticCapabilities
+		record := projectModelRecord(provider, item)
 		result = append(result, record)
 	}
 	return result, nil
@@ -156,4 +153,16 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 		CreatedAt:            &createdAt,
 		UpdatedAt:            &updatedAt,
 	}
+}
+
+// projectModelRecord 统一自动能力、有效覆盖与最近探测结果的读取投影。
+func projectModelRecord(provider providerstore.Entity, model providerstore.ModelEntity) ModelRecord {
+	record := toModelRecord(model)
+	guidance := projectModelGuidance(provider, model)
+	record.Guidance = &guidance
+	record.CapabilitiesAuto = guidance.AutomaticCapabilities
+	if probe := currentModelProbe(provider, model); probe != nil {
+		record.CapabilityTests = probe.Attempts
+	}
+	return record
 }

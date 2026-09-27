@@ -194,6 +194,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		}, nil
 	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
+	providerService.SetImageProbeAdapter(imagegenService.ProbeImage)
 	var browserService *browsersvc.Service
 	if cfg.BrowserEnabled {
 		browserService = browsersvc.NewService()

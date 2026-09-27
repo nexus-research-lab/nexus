@@ -4,7 +4,7 @@
 import { expect, test } from "@playwright/test";
 import { appShellRead, APP_SHELL_INIT_SCRIPT } from "./native-ui-app-fixtures.mjs";
 
-test("Provider test refreshes automatic capabilities without manual overrides", async ({ page, context }, info) => {
+test("Provider testing preserves Automatic labels and remains separate from sync", async ({ page, context }, info) => {
   const text = (zh: string, en: string) => info.project.metadata.locale === "zh" ? zh : en;
   const model = { id: "model", provider_id: "provider", model_id: "qa-model", display_name: "QA Model",
     category: "chat", enabled: true, is_default: true, capabilities_auto: {} as Record<string, boolean>, capabilities_override: {}, provider_options: {} };
@@ -12,6 +12,7 @@ test("Provider test refreshes automatic capabilities without manual overrides", 
     api_format: "responses", display_name: "QA Provider", base_url: "https://example.test/v1", models_path: "/models",
     enabled: true, can_manage: true, configuration_version: 1, auth_token_masked: "test-****",
     usage_count: 0, used_by_agents: [], last_test_status: "", last_test_error: "", agent_runtime_supported: true, models: [model] };
+  const testedCapabilities: (string | null)[] = [];
   const commands: Record<string, unknown>[] = [];
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -23,9 +24,14 @@ test("Provider test refreshes automatic capabilities without manual overrides", 
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path.endsWith("/qa-model/test") && request.method() === "POST") {
+      testedCapabilities.push(new URL(request.url()).searchParams.get("capability"));
       model.capabilities_auto = { text_output: true, vision: true, tool_calling: true, reasoning: true, image_output: false };
       record = { ...record, configuration_version: record.configuration_version + 1, models: [{ ...model }] };
       return route.fulfill({ json: { data: { provider: record.provider, model: model.model_id, success: true, status: "success", configuration_version: record.configuration_version } } });
+    }
+    if (path.endsWith("/models/fetch") && request.method() === "POST") {
+      record = { ...record, configuration_version: record.configuration_version + 1 };
+      return route.fulfill({ json: { data: { provider: record.provider, models: [model], count: 1, configuration_version: record.configuration_version } } });
     }
     if (path === "/nexus/v1/settings/providers/qa-provider" && request.method() === "PUT") {
       const payload = request.postDataJSON();
@@ -70,16 +76,24 @@ test("Provider test refreshes automatic capabilities without manual overrides", 
   const options = () => page.getByRole("button", { name: text("模型配置", "Model options"), exact: true });
   await options().click();
   const vision = () => page.getByRole("dialog").getByRole("button", { name: text("视觉理解", "Vision"), exact: true });
-  await expect(vision()).toContainText(text("自动 · 未确认", "Auto · Unknown"));
+  await expect(vision()).toContainText(text("自动识别", "Automatic"));
   await page.getByRole("dialog").getByRole("button", { name: text("取消", "Cancel"), exact: true }).click();
   await page.getByRole("button", { name: text("测试服务", "Test provider"), exact: true }).click();
   await page.getByRole("menuitem", { name: /QA Model/ }).click();
   await expect(page.getByRole("button", { name: text("测试服务", "Test provider"), exact: true })).toBeEnabled();
   await options().click();
-  await expect(vision()).toContainText(text("自动 · 支持", "Auto · Supported"));
-  await expect(page.getByRole("dialog").getByText(text("自动 · 不支持", "Auto · Unsupported"), { exact: true })).toBeVisible();
-  await expect(page.getByRole("dialog").getByText(text("自动 · 未确认", "Auto · Unknown"), { exact: true })).toHaveCount(2);
+  await expect(vision()).toContainText(text("自动识别", "Automatic"));
+  await expect(page.getByRole("dialog").getByText(text("自动识别", "Automatic"), { exact: true })).toHaveCount(7);
   expect(model.capabilities_override).toEqual({});
   await info.attach("automatic-capabilities", { body: await page.screenshot({ path: `/tmp/nexus-provider-capabilities-${info.project.name}.png` }), contentType: "image/png" });
+  await page.getByRole("dialog").getByRole("button", { name: text("取消", "Cancel"), exact: true }).click();
+  await page.getByRole("button", { name: text("同步模型列表", "Sync model list"), exact: true }).click();
+  await expect(page.getByRole("button", { name: text("同步模型列表", "Sync model list"), exact: true })).toBeEnabled();
+  expect(testedCapabilities).toEqual([null]);
+  await page.getByRole("button", { name: text("测试服务", "Test provider"), exact: true }).click();
+  await page.getByRole("menuitem", { name: text("全部模型", "All models"), exact: true }).click();
+  await expect(page.getByRole("button", { name: text("测试服务", "Test provider"), exact: true })).toBeEnabled();
+  expect(testedCapabilities).toEqual([null, "all"]);
+  expect(model.capabilities_override).toEqual({});
   expect(errors).toEqual([]);
 });

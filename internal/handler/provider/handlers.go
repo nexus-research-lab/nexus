@@ -240,7 +240,9 @@ func (h *Handlers) HandleTestProviderModel(writer http.ResponseWriter, request *
 		return
 	}
 	var item *providercfg.TestResult
-	if expectedVersion == nil {
+	if capability := request.URL.Query().Get("capability"); capability != "" {
+		item, err = h.providers.TestModelCapability(request.Context(), chi.URLParam(request, "provider"), chi.URLParam(request, "model_id"), capability, expectedVersion, false)
+	} else if expectedVersion == nil {
 		item, err = h.providers.TestModel(
 			request.Context(),
 			chi.URLParam(request, "provider"),

@@ -19,6 +19,8 @@ import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styl
 import type { ProviderPendingAction } from "../actions/use-provider-command";
 
 interface ProviderSettingsDetailHeaderProps {
+  testProgress?: { done: number; total: number } | null;
+  onStopTests?: () => void;
   detailTitle: string;
   enabled: boolean;
   hasSelectedRecord: boolean;
@@ -90,7 +92,7 @@ function ProviderTestMenu({
         disabled={unavailable}
         onClick={() => setIsOpen((open) => !open)}
         size="xs"
-        title={t("settings.providers.test_provider")}
+        title={t("settings.providers.auto_probe_description")}
         variant="surface"
       >
         {isTesting ? <Loader2 aria-hidden="true" className={getUiSpinnerClassName({ size: "sm" })} />
@@ -114,6 +116,8 @@ function ProviderTestMenu({
 }
 
 export function ProviderSettingsDetailHeader({
+  testProgress,
+  onStopTests,
   detailTitle,
   enabled,
   hasSelectedRecord,
@@ -147,7 +151,11 @@ export function ProviderSettingsDetailHeader({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 pt-0.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 pt-0.5">
+        {testProgress ? <>
+          <span role="status" className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{t("settings.providers.capability_sync_progress", { current: testProgress.done, total: testProgress.total })}</span>
+          <UiButton size="xs" variant="surface" onClick={onStopTests}>{t("settings.providers.stop_tests")}</UiButton>
+        </> : null}
         <ProviderTestMenu
           disabled={controlsDisabled}
           isEditing={isEditing}
