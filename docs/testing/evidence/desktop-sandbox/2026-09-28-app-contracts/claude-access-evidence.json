@@ -1,0 +1,199 @@
+[
+  {
+    "name": "claude-boundary-default",
+    "mode": "default",
+    "settings": {
+      "provider": "",
+      "model": "",
+      "permission_mode": "default",
+      "connector_ids": null
+    },
+    "before": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "nxs",
+        "generation": 29,
+        "phase": "confirmed",
+        "session_id": "901d4c43-6a74-4cc3-ad8a-9c69dd450041",
+        "policy_digest": "sha256:46eea75e93fa14924487244e9f4e557031cc282c731d1783ff6a42cdd52b0c0d",
+        "required_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "acknowledged_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "resource_policy": {
+          "version": 1,
+          "write_scope": "workspace-write",
+          "scratch_root": ""
+        },
+        "lease_id": "1acac3ad4f2710f7a40944d0d16f81c9",
+        "round_id": "round_cb7b6323f905cc7b21131058",
+        "confirmed_at": "2026-09-27T21:00:11.202882Z"
+      }
+    },
+    "after": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "claude",
+        "generation": 31,
+        "phase": "confirmed",
+        "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+        "policy_digest": "sha256:537409d5bb526510577fa3a6eef29d7f4bf2a586e7df3c4a964e34cd80f21dc5",
+        "required_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "acknowledged_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "confirmed_at": "2026-09-27T21:02:06.108808Z"
+      }
+    },
+    "command": "/usr/bin/ruby -e 'File.write(ARGV[0], ARGV[1])' '/Users/berhand/nexus-sandbox-claude-boundary-qa-C7uoXP/claude-boundary-default.txt' 'CLAUDE_ACCESS_ce00cdbf-7291-4b98-8f47-cd81cbd9d9eb'",
+    "fileExists": false,
+    "round": {
+      "requestID": "3430bf02-ed8a-463e-bd49-30d2d9241f40",
+      "roundID": "round_97d6968b0cf302879cdfa58d",
+      "approvals": 0
+    }
+  },
+  {
+    "name": "claude-boundary-full",
+    "mode": "bypassPermissions",
+    "settings": {
+      "provider": "",
+      "model": "",
+      "permission_mode": "bypassPermissions",
+      "connector_ids": null
+    },
+    "before": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "claude",
+        "generation": 31,
+        "phase": "confirmed",
+        "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+        "policy_digest": "sha256:537409d5bb526510577fa3a6eef29d7f4bf2a586e7df3c4a964e34cd80f21dc5",
+        "required_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "acknowledged_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "confirmed_at": "2026-09-27T21:02:06.108808Z"
+      }
+    },
+    "after": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "claude",
+        "generation": 32,
+        "phase": "confirmed",
+        "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+        "policy_digest": "sha256:0408d3d517a33779ee9be23736bfa321676c75b40ce7cc6cff80d347e4b60d8f",
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "confirmed_at": "2026-09-27T21:02:16.47873Z"
+      }
+    },
+    "command": "/usr/bin/ruby -e 'File.write(ARGV[0], ARGV[1])' '/Users/berhand/nexus-sandbox-claude-boundary-qa-C7uoXP/claude-boundary-full.txt' 'CLAUDE_ACCESS_8ac6a025-aa2f-4e08-ba58-6fcc528919e5'",
+    "fileExists": true,
+    "marker": "CLAUDE_ACCESS_8ac6a025-aa2f-4e08-ba58-6fcc528919e5",
+    "round": {
+      "requestID": "0a42f776-9d03-4b40-9435-70e88f83e2b5",
+      "roundID": "round_5339e4017f5d7d6a8f8aa2bd",
+      "approvals": 0
+    }
+  },
+  {
+    "name": "claude-boundary-return",
+    "mode": "default",
+    "settings": {
+      "provider": "",
+      "model": "",
+      "permission_mode": "default",
+      "connector_ids": null
+    },
+    "before": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "claude",
+        "generation": 32,
+        "phase": "confirmed",
+        "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+        "policy_digest": "sha256:0408d3d517a33779ee9be23736bfa321676c75b40ce7cc6cff80d347e4b60d8f",
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "confirmed_at": "2026-09-27T21:02:16.47873Z"
+      }
+    },
+    "after": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "claude",
+        "generation": 33,
+        "phase": "confirmed",
+        "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+        "policy_digest": "sha256:537409d5bb526510577fa3a6eef29d7f4bf2a586e7df3c4a964e34cd80f21dc5",
+        "required_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "acknowledged_capabilities": [
+          "claude_native_sandbox"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "confirmed_at": "2026-09-27T21:02:23.574611Z"
+      }
+    },
+    "command": "/usr/bin/ruby -e 'File.write(ARGV[0], ARGV[1])' '/Users/berhand/nexus-sandbox-claude-boundary-qa-C7uoXP/claude-boundary-return.txt' 'CLAUDE_ACCESS_3505500a-7acc-419f-8592-1f1f219b9fad'",
+    "fileExists": false,
+    "round": {
+      "requestID": "28cd6653-846e-4c33-9706-f229af0e0028",
+      "roundID": "round_c54eed0934a71e4aa8795b9d",
+      "approvals": 0
+    }
+  }
+]

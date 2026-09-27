@@ -1,0 +1,128 @@
+[
+  {
+    "decision": "deny",
+    "requestID": "e39ad08f-f393-4540-a039-2cee81ab8de1",
+    "roundID": "round_406ad92b78e2619cce3ce934",
+    "approvals": 1,
+    "receipt": {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "nxs",
+        "generation": 4,
+        "phase": "confirmed",
+        "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+        "policy_digest": "sha256:af12c3193df2f5189560e9a97beca5ee685ce01a6d78649ceb14db40052e8db2",
+        "required_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "acknowledged_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "resource_policy": {
+          "version": 1,
+          "write_scope": "workspace-write",
+          "scratch_root": ""
+        },
+        "lease_id": "c1082c0af5f377d7f1a5b1b472d3c0ca",
+        "round_id": "round_406ad92b78e2619cce3ce934",
+        "confirmed_at": "2026-09-27T20:38:28.864139Z"
+      }
+    }
+  },
+  {
+    "decision": "allow",
+    "requestID": "b1d823cc-9a9c-4538-8aed-bf8e6414e72e",
+    "roundID": "round_9af1635f3b0c50077807ed4c",
+    "approvals": 1,
+    "receipt": {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "nxs",
+        "generation": 5,
+        "phase": "confirmed",
+        "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+        "policy_digest": "sha256:af12c3193df2f5189560e9a97beca5ee685ce01a6d78649ceb14db40052e8db2",
+        "required_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "acknowledged_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "resource_policy": {
+          "version": 1,
+          "write_scope": "workspace-write",
+          "scratch_root": ""
+        },
+        "lease_id": "c1082c0af5f377d7f1a5b1b472d3c0ca",
+        "round_id": "round_9af1635f3b0c50077807ed4c",
+        "confirmed_at": "2026-09-27T20:38:28.864139Z"
+      }
+    }
+  }
+]

@@ -1,0 +1,160 @@
+[
+  {
+    "source": "259ccda2de7c93777628377f70f05229157ef81f",
+    "iteration": 1,
+    "requestID": "0202a9c6-838f-463c-bf15-e844c01021fd",
+    "interruptID": "41feeef3-00d8-4dbe-92d8-1ee28dc0e2e0",
+    "roundID": "round_21274daed588dfb72e657d71",
+    "permissionID": "perm_1790542826855355000",
+    "terminal": {
+      "is_terminal": true,
+      "result_subtype": "interrupted",
+      "round_id": "round_21274daed588dfb72e657d71",
+      "status": "interrupted"
+    },
+    "lateRejected": true,
+    "sentinelExists": false,
+    "interruptACKObservedBeforeClose": false,
+    "nextRound": {
+      "requestID": "4d27301d-eebd-4dd7-92f1-d788a3f6b683",
+      "roundID": "round_f2a4aab2243385bef061d170",
+      "expectedMarker": "MACOS_CANCEL_RECONNECT_010e669e-1998-4039-a659-edf203c662fd"
+    },
+    "receipt": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "nxs",
+        "generation": 27,
+        "phase": "confirmed",
+        "session_id": "901d4c43-6a74-4cc3-ad8a-9c69dd450041",
+        "policy_digest": "sha256:46eea75e93fa14924487244e9f4e557031cc282c731d1783ff6a42cdd52b0c0d",
+        "required_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "acknowledged_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "resource_policy": {
+          "version": 1,
+          "write_scope": "workspace-write",
+          "scratch_root": ""
+        },
+        "lease_id": "1acac3ad4f2710f7a40944d0d16f81c9",
+        "round_id": "round_f2a4aab2243385bef061d170",
+        "confirmed_at": "2026-09-27T21:00:11.202882Z"
+      }
+    }
+  },
+  {
+    "source": "259ccda2de7c93777628377f70f05229157ef81f",
+    "iteration": 2,
+    "requestID": "664d792b-17df-4fca-a32d-bc1b15ff5c64",
+    "interruptID": "42a3f272-833d-4c64-a7ca-17a8f52f6f91",
+    "roundID": "round_1b1efe52fc87e8253780f0a9",
+    "permissionID": "perm_1790542862029752000",
+    "terminal": {
+      "is_terminal": true,
+      "result_subtype": "interrupted",
+      "round_id": "round_1b1efe52fc87e8253780f0a9",
+      "status": "interrupted"
+    },
+    "lateRejected": true,
+    "sentinelExists": false,
+    "interruptACKObservedBeforeClose": false,
+    "nextRound": {
+      "requestID": "e2419d91-4062-478f-b7f5-01b219916e5e",
+      "roundID": "round_cb7b6323f905cc7b21131058",
+      "expectedMarker": "MACOS_CANCEL_RECONNECT_e711bee6-57ba-442d-99cd-8b0c032da9c0"
+    },
+    "receipt": {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "receipt": {
+        "version": 1,
+        "runtime_kind": "nxs",
+        "generation": 29,
+        "phase": "confirmed",
+        "session_id": "901d4c43-6a74-4cc3-ad8a-9c69dd450041",
+        "policy_digest": "sha256:46eea75e93fa14924487244e9f4e557031cc282c731d1783ff6a42cdd52b0c0d",
+        "required_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "acknowledged_capabilities": [
+          "required_sandbox",
+          "sandbox_file_tools",
+          "sandbox_search_tools",
+          "sandbox_media_files",
+          "sandbox_mcp_network",
+          "sandbox_mcp_helpers",
+          "sandbox_mcp_stdio",
+          "sandbox_media_network",
+          "sandbox_notebook_files",
+          "sandbox_skill_files",
+          "sandbox_context_files",
+          "sandbox_project_files",
+          "sandbox_managed_policy",
+          "sandbox_settings_files",
+          "sandbox_settings_writes",
+          "sandbox_resources"
+        ],
+        "capability_evidence": "bridge_negotiated",
+        "isolation_evidence": "not_attested",
+        "resource_policy": {
+          "version": 1,
+          "write_scope": "workspace-write",
+          "scratch_root": ""
+        },
+        "lease_id": "1acac3ad4f2710f7a40944d0d16f81c9",
+        "round_id": "round_cb7b6323f905cc7b21131058",
+        "confirmed_at": "2026-09-27T21:00:11.202882Z"
+      }
+    }
+  }
+]

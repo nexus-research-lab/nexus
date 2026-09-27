@@ -1,0 +1,41 @@
+[
+  {
+    "name": "deny",
+    "decision": "deny",
+    "requestID": "3d0961ae-5441-4d84-8cd5-d2e7d1e99c80",
+    "roundID": "round_0d01974b2a48e2ae9d1aab10",
+    "approvals": 1,
+    "networkTargets": [
+      {
+        "host": "example.com",
+        "port": 443
+      }
+    ]
+  },
+  {
+    "name": "allow-once",
+    "decision": "allow",
+    "requestID": "5567931d-9262-4d47-8c01-8405c6c6b068",
+    "roundID": "round_0cca5d607476e9fc57f114e1",
+    "approvals": 1,
+    "networkTargets": [
+      {
+        "host": "example.com",
+        "port": 443
+      }
+    ]
+  },
+  {
+    "name": "deny-again",
+    "decision": "deny",
+    "requestID": "28628f1c-3410-4877-9fe2-b929534b356d",
+    "roundID": "round_083d9f2701aea2b564fe1ebd",
+    "approvals": 1,
+    "networkTargets": [
+      {
+        "host": "example.com",
+        "port": 443
+      }
+    ]
+  }
+]

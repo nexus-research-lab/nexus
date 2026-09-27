@@ -4,7 +4,7 @@
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
 
-最新 macOS 固定基线见 [2026-09-28 App 退出](evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)：Nexus `132b5ad69`、SDK `b84b7b6c`、Bridge `4b2972f`，46 项检查及 661 个必测名称全部通过。真实 App UI 的文件写读、审批拒绝/本次批准、停止通过；正常退出未收口的缺陷已修复，实际 App 的 WebSocket DM 重启与 Room 写读、共同退出通过。修复后的完整 UI 复验因锁屏尚未完成。此前[重启准入](evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)继续保留异常回执及 scratch 栅栏；本项不等于任意后代监督或发布验收。
+最新 macOS 固定基线见 [2026-09-28 App 审批与切换](evidence/desktop-sandbox/2026-09-28-app-contracts/README.md)：Nexus `259ccda2d`、SDK `5a937a18`、Bridge `4b2972f`，48 项检查及 689 个必测名称全部通过。实际 App 的 HTTP/WebSocket 验收覆盖双向后端切换、nxs/Claude 的 Full Access 边界恢复、Room 与后台审批、网络本次批准、取消审批后立即重连和正常退出。此次修复了 macOS workspace 别名误审批及旧请求取消误关闭新连接；完整 UI 复验因锁屏尚未完成。此前[App 正常退出与同会话重启](evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)及[重启准入](evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)证据继续保留；这些不等于任意后代监督、一般 unknown 恢复或发布验收。
 
 ## 2026-09-27：真实第三方模型与两种 macOS 后端
 
