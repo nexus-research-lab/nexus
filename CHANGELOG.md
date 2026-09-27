@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidate Nexus, SDK, and Bridge sandbox work on
+  `codex/desktop-sandbox-approvals`, with Windows continuation instructions and
+  replay-verified archives of older uncommitted SDK/Bridge drafts. Update the
+  Windows gate's exact SDK revision for this documentation-only handoff. Correct
+  the pinned Bridge module checksum to the remote Go module archive: all 145
+  files match the pinned Git commit byte for byte; the former local ZIP included
+  19 directory entries that changed its checksum and prevented clean downloads.
+
 - Add a fail-closed Windows native component gate alongside the existing
   amd64/arm64 cross-build gate. `check-desktop-sandbox-windows-native` only runs
   on Windows, requires a clean SDK checkout at

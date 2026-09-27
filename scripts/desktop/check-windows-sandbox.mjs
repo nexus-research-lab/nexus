@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const WINDOWS_NATIVE_SDK_COMMIT = "9956def130da33af47accf799a9c27c16a551104";
+// Source handoff includes the archived draft; runtime code is unchanged from 9956def1.
+const WINDOWS_NATIVE_SDK_COMMIT = "ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestWindowsPrivateDesktopLifecycle",
