@@ -8,7 +8,7 @@
 //   - failure.go / request_context.go：可选 FailureCore 写出与仅供诊断的 HTTP request ID 上下文。
 //   - middleware.go：请求中间件与不破坏流式响应的状态/字节记录。
 //   - path_param.go：与前端路径段编码对称的单次 URL 参数解码。
-//   - sender_websocket.go：WebSocket 发送器。
+//   - sender_websocket.go：WebSocket 发送器；发送前已取消则不发送，已接纳的帧以独立超时完成，调用方取消不标记健康连接失效。
 //   - desktop_session.go：桌面会话辅助。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
