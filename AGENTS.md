@@ -12,6 +12,7 @@
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
 - `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败；原生 macOS 完整入口见 docs/testing/desktop-sandbox-acceptance.md
 - macOS 捆绑构建/打包由实际 sidecar 的 `check-desktop-runtime` 检查随包 nxs，作为配套发布的构建自检。升级数据兼容性入口为 `scripts/desktop/check-runtime-upgrade.mjs`，必须显式提供已发布和候选二进制。
+- Windows 本机组件入口为 `node scripts/desktop/check-windows-sandbox.mjs --native`，指定本地 SDK 后要求每个必测项真实通过；进程退出必须看内核信号，残留句柄、可查询 PID/创建时间或退出码 259 均不能单独证明存活。组件门禁不授予 Windows 后端发布验收。
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
 - `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
