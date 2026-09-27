@@ -23,8 +23,18 @@ install_root="$(mktemp -d "${TMPDIR:-/tmp}/nexus-signed-install.XXXXXX")"
 mount_path="${install_root}/volume"
 mkdir -p "${mount_path}"
 # Only the disk attached by this invocation is detached; retain its copied App for runner diagnostics.
-trap 'hdiutil detach "${mount_path}" >/dev/null 2>&1 || true' EXIT
+mounted=0
+cleanup() {
+  local status=$?
+  if [[ "${mounted}" == "1" ]] && ! hdiutil detach "${mount_path}" >> "${output_dir}/mount.log" 2>&1; then
+    echo "Acceptance DMG cleanup failed: ${mount_path}" >&2
+    exit 1
+  fi
+  exit "${status}"
+}
+trap cleanup EXIT
 hdiutil attach -readonly -nobrowse -mountpoint "${mount_path}" "${package_path}" > "${output_dir}/mount.log"
+mounted=1
 [[ -d "${mount_path}/Nexus.app" ]]
 ditto "${mount_path}/Nexus.app" "${install_root}/Nexus.app"
 app_path="${install_root}/Nexus.app"
