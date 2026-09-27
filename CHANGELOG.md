@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Preserve desktop sandbox recovery fences across App restarts. Fresh runtime creation checks the exact session's persisted receipt before starting a process, continues generation numbers after confirmed cleanup, and blocks unresolved or unreadable history even when switching backends. New scratch allocation also rejects existing cleanup-unknown markers for that session, including older replacement directories; concurrent local preparation shares the same lease.
+
 - Add an artifact-only macOS sandbox acceptance workflow for Apple Silicon and Intel. Build the pinned SDK with the matching Nexus source, sign and notarize the test DMG, then verify a quarantined copy and its bundled runtime on a fresh runner. This workflow has read-only repository permissions and creates no release.
 
 - Restore persisted and Connector stdio MCP services on macOS through a separately negotiated nxs process contract. Include the requirement in process replacement and effective-policy receipts; verify actual nxs discovery, tool execution, explicit service credentials and results returning to the model. Native gates cover confinement, cancellation, replacement and bounded protocol output.

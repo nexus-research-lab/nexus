@@ -1,3 +1,6 @@
+// INPUT: owner/session 启动事务、runtime options、当前 client 与持久恢复回执。
+// OUTPUT: 串行化的连接/替换、跨重建递增代次及 exact client 生命周期。
+// POS: DM/Room 共用的宿主 runtime 准入，不把旧回执或新目录当作清理证明。
 package runtime
 
 import (
@@ -358,6 +361,10 @@ func (m *Manager) getOrCreateWithFactory(
 			// Keep that work outside Manager.mu so revocation can publish its tombstone
 			// before this startup performs the second ownership check.
 			m.mu.Unlock()
+			generationFloor, err := m.sandboxStartupGeneration(ctx, ownerUserID, sessionKey)
+			if err != nil {
+				return nil, expectedState, err
+			}
 			client := factory.New(options)
 			if client == nil {
 				return nil, expectedState, agentclient.ErrNotConnected
@@ -398,6 +405,9 @@ func (m *Manager) getOrCreateWithFactory(
 			}
 			if current == nil {
 				current = m.ensureStateLocked(sessionKey)
+			}
+			if current.StartupGeneration < generationFloor {
+				current.StartupGeneration = generationFloor
 			}
 			current.Client = client
 			current.RuntimeKind = runtimeKind
