@@ -41,3 +41,7 @@ Nexus 和内置 nxs 作为同一产品整包发布；历史 nxs 仅用于生成�
 这是本机原生和 Nexus→Bridge→真实 nxs 的协议集成验证，模型与 MCP 均使用本机确定性服务，未访问生产账号或真实第三方 MCP。
 `releaseAccepted=false`：不代表完整 App UI 的 DM/Room/后台审批、签名公证、干净机器安装或 App 数据库升级验收。
 认证 helper/stdio 进程、OAuth 发现/令牌、Provider 出口、秘密文件/句柄及脱离 session 后代监督仍需独立完成；保持 macOS Goal active。
+
+## 合并另一台机器的后续提交
+
+归档后远程新增 Windows `eb1af51b0`、`8b17601fd`，已保留双方历史合入同一分支，不改写上述已验收提交。传入的运行代码只涉及 Windows 进程存活判断；合并后使用同一固定 nxs 重跑 macOS runtime/clientopts 竞态门禁（包含真实 MCP 往返）通过，见 `postmerge-macos-race.log`。没有在本机执行 Windows 验证。
