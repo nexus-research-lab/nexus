@@ -267,7 +267,7 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 			expectedPath: "/chat/completions",
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
-				if body["model"] != "model-1" || body["max_tokens"] != float64(1) || body["messages"] == nil {
+				if body["model"] != "model-1" || body["max_tokens"] != float64(providerTestTextMaxTokens) || body["messages"] == nil {
 					t.Fatalf("chat payload 不正确: %+v", body)
 				}
 			},
@@ -289,7 +289,7 @@ func TestProviderTestPayloadsForSupportedAPIFormats(t *testing.T) {
 			expectedPath: "/v1/messages",
 			assertBody: func(t *testing.T, body map[string]any) {
 				t.Helper()
-				if body["model"] != "model-1" || body["max_tokens"] != float64(1) || body["messages"] == nil {
+				if body["model"] != "model-1" || body["max_tokens"] != float64(providerTestTextMaxTokens) || body["messages"] == nil {
 					t.Fatalf("anthropic payload 不正确: %+v", body)
 				}
 			},

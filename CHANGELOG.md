@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Verify Provider capabilities through bounded real requests and display automatic results in existing controls without blocking chat on optional vision.
+
 - Telegram 单条入站失败不再阻塞整个 Bot：仅派发前错误最多尝试三次，未知执行不自动重跑；失败提示保留原聊天/话题，通知失败不回退消费游标。
 
 - IM 已受理但回执未落盘的消息可由宿主后台核验恢复，无需等待平台重投；未知执行保持待核验。
