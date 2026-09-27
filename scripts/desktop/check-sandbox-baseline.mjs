@@ -227,6 +227,25 @@ try {
       "TestDarwinSandboxMediaPreparationFailsClosed",
       ...["view_image", "preprocess"].map((scenario) => `TestDarwinSandboxMediaPreparationFailsClosed/${scenario}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-media-network-contract", ["./cmd/nxs"], [
+      "TestSandboxMediaNetworkNegotiation",
+      "TestSandboxMediaNetworkRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxMediaNetworkRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-media-network", ["./internal/tool/executor", "./internal/environment/media/vision", "./internal/tool/builtin/bash/sandboxexec"], [
+      "TestDarwinSandboxMediaNetwork",
+      ...["main", "tool_result", "view_image", "reference"].map((scenario) => `TestDarwinSandboxMediaNetwork/${scenario}`),
+      "TestDarwinSandboxMediaNetworkApprovalAndEpoch",
+      ...["allow", "deny", "changed_input", "persist", "epoch"].map((scenario) => `TestDarwinSandboxMediaNetworkApprovalAndEpoch/${scenario}`),
+      "TestImageSourceAccessMaterializesProviderURLs",
+      ...["main", "tool", "auxiliary", "reference"].map((scenario) => `TestImageSourceAccessMaterializesProviderURLs/${scenario}`),
+      "TestSandboxHTTPRedirectRechecksDestination",
+      "TestSandboxHTTPApprovalIsPerRequest",
+      "TestSandboxHTTPCleanupCancelsLateApproval",
+      "TestSandboxHTTPCleanupCancelsResponseBody",
+      "TestSandboxHTTPManagedPolicyCannotAsk",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-skill-contract", ["./cmd/nxs"], [
       "TestSandboxSkillFilesNegotiation",
       "TestSandboxSkillFilesRequirement",

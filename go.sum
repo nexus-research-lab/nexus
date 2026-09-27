@@ -113,6 +113,8 @@ github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260921030131-37
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260921030131-37434c2d38b1/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260927154842-c018b4973dc3 h1:7pow+GjKN+I/c517IR/atBuDT9B5sQIvvio2rFN8mp8=
 github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260927154842-c018b4973dc3/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260927155900-b0402649d44b h1:E3JGaj2x4m7+AaK0VCaVWriTrKFj45Jv+VjL9x4VSBs=
+github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260927155900-b0402649d44b/go.mod h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1 h1:5WwR5TV6A12taXMH7SggT8yCMMJMF9jWE7Wj+4AuHck=
 github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1/go.mod h1:ln3IqPYYocZbYvl9TAOrG/cxGR9xcn4pnZRLdCTEGEU=
 github.com/pelletier/go-toml/v2 v2.4.3 h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=

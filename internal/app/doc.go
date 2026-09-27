@@ -10,6 +10,7 @@
 //   - goal/：会话所有权、命令路由、引导、中断与续跑的 DM/Room 适配。
 //   - execution/ / workgraph/：执行取消、命令上下文、历史投影与隐藏编辑会话适配。
 //   - runtime/：round-scoped MCP、配置 broker、授权与内建工具装配。
+//   - runtimecheck/：安装包实际 sidecar 与捆绑 nxs 的无模型兼容性检查。
 //   - server/：HTTP/WebSocket 路由、实时通知及后台协调器的启停。
 //
 // Goal/Execution 跨域业务协调归 service/goalexecution，身份失效规则归 service/auth。

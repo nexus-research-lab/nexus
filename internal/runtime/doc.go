@@ -26,7 +26,7 @@
 //     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - lifecycle.go：session 关闭栅栏、保留失败结果与跨 core/exec 共用的 round 中断宽限。
-//   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/媒体/Skill/设置写入能力与资源要求。
+//   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/本地媒体/远程图片网络/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；经 internal/infra/confinedfs 固定目录句柄完成创建、marker 读写、扫描与回收，Bridge 关闭成功后才回收，失败保留会话栅栏并把 cleanup_unknown 状态持久化；Windows marker 额外记录并核验进程创建时间，避免 PID 重用误回收。
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。

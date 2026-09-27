@@ -272,6 +272,11 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   codesign_target "${APP_BUNDLE}"
 fi
 
+if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
+  bash "${ROOT_DIR}/scripts/desktop/check-macos-runtime.sh" \
+    "${APP_BUNDLE}" "${APP_BUILD_DIR}/${APP_NAME}.runtime-compatibility.json"
+fi
+
 rm -rf "${SIDECAR_BUILD_DIR}"
 rm -f "${APP_BUILD_DIR}/.DS_Store"
 

@@ -11,6 +11,7 @@
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
 - `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败；原生 macOS 完整入口见 docs/testing/desktop-sandbox-acceptance.md
+- macOS 捆绑构建/打包由实际 sidecar 的 `check-desktop-runtime` 检查随包 nxs，作为配套发布的构建自检。升级数据兼容性入口为 `scripts/desktop/check-runtime-upgrade.mjs`，必须显式提供已发布和候选二进制。
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
 - `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
@@ -37,7 +38,7 @@ desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-ex
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
-  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、媒体、Skill、指令上下文及项目定义文件能力，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
+  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、本地媒体与远程图片网络、Skill、指令上下文及项目定义文件能力，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
   service/    - 业务服务（auth 的 Desktop Local 与服务端 Control adapter / relay 的可选 typed HTTP client / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
@@ -48,7 +49,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
   cli/        - nexusctl / nexuscfg 本地命令行装配（按领域文件组织）；模型侧命令不经过 CLI
-  app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；server 只负责 HTTP/WS 与后台启停，goal / execution / workgraph / runtime 承载宿主适配；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
+  app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；server 只负责 HTTP/WS 与后台启停，goal / execution / workgraph / runtime 承载宿主适配，runtimecheck 负责安装包内核配套检查；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
   mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，IM 场景用宿主数据库保存投递来源并把人类反馈交回原 Session，好友私聊保持独立语义，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；mcp/artifact 通过 deliver_files 登记 Skill/脚本等最终文件交付，由 workspace 服务校验后随产出 Agent 的精确轮次消息持久化；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
   config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单与证据，specs/ 保存当前维护者合同，explorations/ 保存明确标记 non-normative 的在研专题及历史证据，architecture-html/ 保存可独立打开的图解页面

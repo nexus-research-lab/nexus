@@ -44,6 +44,7 @@ type runtimeProcessPolicy struct {
 	SandboxFileToolsRequired      bool                               `json:"sandbox_file_tools_required,omitempty"`
 	SandboxSearchToolsRequired    bool                               `json:"sandbox_search_tools_required,omitempty"`
 	SandboxMediaFilesRequired     bool                               `json:"sandbox_media_files_required,omitempty"`
+	SandboxMediaNetworkRequired   bool                               `json:"sandbox_media_network_required,omitempty"`
 	SandboxNotebookFilesRequired  bool                               `json:"sandbox_notebook_files_required,omitempty"`
 	SandboxSkillFilesRequired     bool                               `json:"sandbox_skill_files_required,omitempty"`
 	SandboxContextFilesRequired   bool                               `json:"sandbox_context_files_required,omitempty"`
@@ -89,6 +90,7 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 		policy.ClaudeNativeSandboxRequired = options.Sandbox.RequireClaudeNativeSandbox
 		policy.SandboxSearchToolsRequired = options.Sandbox.RequireSearchTools
 		policy.SandboxMediaFilesRequired = options.Sandbox.RequireMediaFiles
+		policy.SandboxMediaNetworkRequired = options.Sandbox.RequireMediaNetwork
 		policy.SandboxNotebookFilesRequired = options.Sandbox.RequireNotebookFiles
 		policy.SandboxSkillFilesRequired = options.Sandbox.RequireSkillFiles
 		policy.SandboxContextFilesRequired = options.Sandbox.RequireContextFiles
