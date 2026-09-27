@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restore configured HTTP and legacy SSE MCP servers in macOS nxs sandbox sessions. Require the independent endpoint-network capability and explicit service configuration, keep command/image network permissions separate, preserve configured headers, and include the requirement in process replacement and effective-policy receipts. Add actual nxs tool round-trip acceptance for persisted HTTP and Connector SSE configuration.
+
 - Add an existing-session upgrade and rollback acceptance gate for the jointly released Nexus/nxs pair, preserving settings, memory and workspace files. Bundled macOS builds and packages run the actual sidecar/runtime handshake for workspace-write, read-only and Full Access as release self-checks and record the runtime hash and pinned Bridge version in package metadata. Runtime selection and user startup behavior stay unchanged.
 
 - Require the independent nxs remote-image network capability in desktop sessions. Image URLs are materialized through the task network policy, redirects are checked again, and ViewImage approvals expire on permission changes. Incompatible App/runtime combinations are rejected by the package gate before distribution.

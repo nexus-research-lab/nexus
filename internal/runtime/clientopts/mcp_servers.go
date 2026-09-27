@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net/url"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -82,12 +83,8 @@ func MergeAgentMCPServers(
 	return merged, nil
 }
 
-// RejectDesktopSandboxRemoteMCP rejects persisted Agent HTTP/SSE servers when
-// the desktop sandbox is enforced. The current desktop contract sends an
-// explicit empty network allowlist to Bridge, which means external network
-// MCP cannot be admitted until the host supplies a reviewed domain grant.
-// In-process SDK servers and stdio servers remain separate concerns: this
-// check does not claim an OS boundary for their child processes.
+// RejectDesktopSandboxRemoteMCP 保留未受控 helper 的拒绝；macOS 远端服务由
+// nxs 独立端点网络合同约束，不占用普通工具域名授权。其他平台保留原准入。
 func RejectDesktopSandboxRemoteMCP(
 	configured map[string]any,
 	runtimeKind string,
@@ -113,7 +110,7 @@ func RejectDesktopSandboxRemoteMCP(
 		}
 		serverType, _ := object["type"].(string)
 		serverType = strings.ToLower(strings.TrimSpace(serverType))
-		if permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
+		if runtime.GOOS != "darwin" && permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝外部 HTTP/SSE MCP；需要宿主显式网络域名准入")
 		}
 	}

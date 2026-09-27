@@ -270,13 +270,13 @@ func TestDesktopNxsReceiptRejectsWeakSandboxContract(t *testing.T) {
 	enabled := true
 	complete := &bridge.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true,
-		RequireMediaFiles: true, RequireMediaNetwork: true, RequireNotebookFiles: true, RequireSkillFiles: true,
+		RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireNotebookFiles: true, RequireSkillFiles: true,
 		RequireContextFiles: true, RequireProjectFiles: true,
 		RequireManagedPolicy: true, RequireSettingsFiles: true,
 		RequireSettingsWrites: true, Enabled: &enabled, FailIfUnavailable: &enabled,
 	}
 	if err := validateDesktopSandboxReceiptOptions(bridge.Options{
-		Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS}, Sandbox: complete,
+		Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS}, Sandbox: complete, MCP: bridge.MCPOptions{StrictConfig: true},
 	}); err != nil {
 		t.Fatalf("complete desktop nxs sandbox contract rejected: %v", err)
 	}

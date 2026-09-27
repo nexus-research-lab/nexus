@@ -1,5 +1,5 @@
 // INPUT: 宿主准备的桌面 nxs 网络域名准入和已解析的 Agent MCP 配置。
-// OUTPUT: 仅允许已核准 HTTPS 域名的 sandbox 网络配置与远程 MCP。
+// OUTPUT: 普通工具的域名授权；macOS MCP 使用独立端点网络合同。
 // POS: 桌面 runtime 的网络准入边界；环境变量清理不能替代这里的 OS/Bridge 策略。
 package clientopts
 
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -106,9 +107,8 @@ func (a *DesktopSandboxNetworkAdmission) DesktopSandboxNetworkConfig() (*agentcl
 	return &agentclient.SandboxNetworkConfig{AllowedDomains: domains}, nil
 }
 
-// RejectDesktopSandboxRemoteMCPWithNetworkAdmission is the host-approved
-// variant of RejectDesktopSandboxRemoteMCP. Without a grant, all persisted
-// HTTP/SSE MCP remains rejected in restricted desktop nxs sessions.
+// RejectDesktopSandboxRemoteMCPWithNetworkAdmission 为非 macOS 路径保留既有域名准入。
+// macOS nxs 的显式 MCP 通过独立端点合同连接，不把地址授予命令或图片工具。
 func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 	configured map[string]any,
 	runtimeKind string,
@@ -141,24 +141,15 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 			continue
 		}
 		serverURL, _ := object["url"].(string)
-		if !admission.Allows(serverURL) {
+		if !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) && !admission.Allows(serverURL) {
 			return agentMCPServerError(name, "桌面沙箱拒绝未获宿主域名准入的外部 HTTP/SSE MCP")
 		}
 	}
 	return nil
 }
 
-// RejectDesktopSandboxTypedMCPServersWithNetworkAdmission applies the same
-// desktop network boundary to the typed MCP configurations assembled by the
-// host.  Persisted Agent MCP servers arrive as untyped maps and are checked by
-// RejectDesktopSandboxRemoteMCPWithNetworkAdmission above; connector and other
-// host-owned MCP servers are already typed by the time they reach the builder.
-// Checking only the persisted map would let a host-owned HTTP/SSE server (and
-// its connector credential) bypass the exact-domain admission.
-//
-// Stdio and in-process SDK servers intentionally remain separate lifecycle
-// contracts. Their process/IO confinement is not established by this network
-// admission and must be covered by their own host contract.
+// RejectDesktopSandboxTypedMCPServersWithNetworkAdmission 同样检查 Connector 等
+// 宿主 typed 配置；端点授权不包含认证 helper 或 stdio 进程权限。
 func RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(
 	servers map[string]sdkmcp.ServerConfig,
 	runtimeKind string,
@@ -203,7 +194,7 @@ func validateDesktopTypedRemoteMCP(
 	if strings.TrimSpace(headersHelper) != "" {
 		return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 	}
-	if permissionMode == sdkpermission.ModeBypassPermissions {
+	if runtime.GOOS == "darwin" || permissionMode == sdkpermission.ModeBypassPermissions {
 		// Full Access is an explicit user escape and retains the existing MCP
 		// behavior. The helper check above remains mandatory because a helper is
 		// an independent executable and is never covered by this escape.

@@ -2,6 +2,7 @@ package clientopts
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -239,8 +240,8 @@ func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
 			"url":  "https://mcp.example.com/mcp",
 		},
 	}
-	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); err == nil || !strings.Contains(err.Error(), "remote") {
-		t.Fatalf("remote MCP was admitted in desktop sandbox: %v", err)
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); (err == nil) != (runtime.GOOS == "darwin") {
+		t.Fatalf("remote MCP platform contract: %v", err)
 	}
 	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions); err != nil {
 		t.Fatalf("explicit bypass should retain existing MCP behavior: %v", err)
