@@ -1118,3 +1118,11 @@ Windows 受限 nxs 执行继续失败关闭，不能用交叉编译或组件 CI 
 新增随包 sidecar/nxs 三种权限配置的发布自检；Nexus/nxs 配套发布，原有 runtime 选择逻辑保持。
 旧开发会话升级/回退与原配置保留通过；已发布版本升级和正式包仍待单列证据；新固定依赖的真实第三方 Provider 10 项基础检查通过。
 详见 [证据](evidence/desktop-sandbox/2026-09-28-media-network-compatibility/README.md)。
+
+
+## 2026-09-28：已发布内核的历史数据与干净整包验证
+
+已发布 nxs `v0.1.34` 创建的持久会话，在当前内核及当前 App 捆绑内核上均完成升级续用和回退续用；
+配置、历史、记忆与工作文件保留。Nexus 干净提交 `223849cb8` 的 arm64 ad-hoc App/DMG 通过本机 smoke。
+这是配套版本的数据兼容证据；原 runtime 选择逻辑保持，没有新增用户升级步骤。
+见 [报告](evidence/desktop-sandbox/2026-09-28-released-upgrade/README.md)，完整 App 数据库升级和正式分发仍独立验收。
