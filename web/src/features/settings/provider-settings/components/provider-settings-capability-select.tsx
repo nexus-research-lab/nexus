@@ -20,9 +20,10 @@ export function CapabilitySelect({
   const { t } = useI18n();
   return (
     <label className="flex min-h-11 items-center justify-between gap-3 px-1 py-2">
-      <span className={cn("min-w-0 [overflow-wrap:anywhere]", getUiTypographyClassName({ role: "control", tone: "strong" }))}>{label}</span>
+      <span className={cn("min-w-[4em] shrink-0 whitespace-nowrap", getUiTypographyClassName({ role: "control", tone: "strong" }))}>{label}</span>
       <UiSelectMenu
         ariaLabel={label}
+        className="min-w-0 flex-1"
         value={checked === undefined ? "auto" : String(checked)}
         disabled={disabled}
         surface="dialog"

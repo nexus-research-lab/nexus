@@ -803,7 +803,7 @@ export const zhSettingsMessages = {
   "settings.providers.default_model_disable_message": "{model} 是当前默认模型。请先选择其他默认模型，再关闭它。",
   "settings.providers.default_model_disable_tooltip": "默认模型需要保持启用。请先切换默认模型。",
   "settings.providers.model_capabilities": "模型能力",
-  "settings.providers.model_capabilities_description": "显示自动识别结果；仅在不准确时调整。",
+  "settings.providers.model_capabilities_description": "默认自动识别模型能力，仅在需要时手动调整。",
   "settings.providers.capability_vision": "视觉理解",
   "settings.providers.model_recommended_hint": "Nexus 建议的起步选择；不代表最低价格，实际可用性以当前服务商为准。",
   "settings.providers.model_text_only": "纯文本",
