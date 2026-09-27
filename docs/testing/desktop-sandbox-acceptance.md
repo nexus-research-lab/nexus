@@ -1144,3 +1144,28 @@ Nexus `2a0fdb895`、SDK `5dc1eb8b` 与远程 Bridge `32d41b7` 的固定来源基
 ## 2026-09-28：macOS stdio MCP
 
 Nexus `1b1bb88ca`、SDK `b84b7b6c` 与规范 Bridge `4b2972f` 的固定基线通过 45 项检查、640 个必测名称。持久配置和 Connector 两条 stdio 入口通过真实 nxs 完成工具往返；原生文件、网络、环境、取消/替换/关闭、并发 wire ID 与聚合输出限额见[证据](evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。本项不代替脱离后代、实际外部 MCP、App UI 或签名安装验收；未运行 Windows，`releaseAccepted=false`。
+
+## 签名包专用验收入口
+
+`.github/workflows/macos-sandbox-acceptance.yml` 是仅用于统一沙箱分支的可复用工作流。
+通过现有 `macos-desktop-build.yml` 的手动输入 `sandbox_acceptance=true` 调用；普通
+PR/main 构建保持原行为。固定 SDK 提交与当次 Nexus SHA，在 Apple Silicon/Intel 两种
+原生 macOS runner 构建，使用既有 Developer ID 与公证配置，仅上传验收产物；不建 tag、
+不发布 Release，也不运行 Windows。
+
+SDK 是私有仓库且明确禁止 Deploy Key（GitHub API 422）。临时 key 配置失败，未向 CI 写入
+新密钥，生成的本地私钥已清理。执行前需要 `NEXUS_SANDBOX_SDK_READ_TOKEN`：仅授权该 SDK
+仓库 Contents read 的短期 CI token，或用户确认的同等既有授权；不得借用个人全权限账号 token。
+此凭据不能写入源码、产物或聊天。入口及脚本已通过 actionlint v1.7.12、bash 语法检查，以及
+脏来源/未签名/未公证三项拒绝夹具；远程签名运行尚未开始。
+
+```sh
+gh workflow run macos-desktop-build.yml \
+  --ref codex/desktop-sandbox-approvals -f sandbox_acceptance=true
+```
+
+`check-macos-signed-install.sh` 先校验包摘要及签名元数据，再从只读 DMG 复制到新的临时目录、
+写入 quarantine，验证 codesign/stapler/Gatekeeper 并执行实际 bundled-runtime 自检。
+原始日志、安装自检与三仓 provenance 随包归档。构建 smoke 允许 runner 的无图形界面回退，
+故本入口不声明完整 App UI、用户数据库升级/回退或真实用户干净机器验收；工作流文件通过
+静态检查也不代表远程运行已经通过。

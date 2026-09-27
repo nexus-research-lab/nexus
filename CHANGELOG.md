@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add an artifact-only macOS sandbox acceptance workflow for Apple Silicon and Intel. Build the pinned SDK with the matching Nexus source, sign and notarize the test DMG, then verify a quarantined copy and its bundled runtime on a fresh runner. This workflow has read-only repository permissions and creates no release.
+
 - Restore persisted and Connector stdio MCP services on macOS through a separately negotiated nxs process contract. Include the requirement in process replacement and effective-policy receipts; verify actual nxs discovery, tool execution, explicit service credentials and results returning to the model. Native gates cover confinement, cancellation, replacement and bounded protocol output.
 
 - Restore configured MCP authentication helpers on macOS through a separately negotiated nxs execution contract. Helpers use the current command sandbox and filtered task environment, refresh authentication per request, stop on failure without stale-header fallback, and are canceled and awaited at session shutdown. Require the capability in runtime policy and test persisted HTTP and Connector SSE helper round trips.
