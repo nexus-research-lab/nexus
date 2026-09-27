@@ -748,3 +748,7 @@ resume。证据目录为
 | DMG | ad-hoc arm64 DMG、metadata、SHA-256、`codesign --verify --deep --strict` 和 DMG 内直接 smoke 均 exit 0 |
 | native UI | `GOWORK=off make app-check-ui-app` exit 0；12/12 通过；fixture 同时覆盖 `/nexus/v1/auth/status` 与 `/auth/v1/status` 只读路径 |
 | 当前边界 | dirty-tree 的单机 arm64 开发证据；Developer ID/公证、clean-host/quarantine、Intel、升级回退、真实 Provider、完整 SDK IO/网络/秘密/句柄/后代隔离和生产发布仍未闭合，`releaseAccepted=false` |
+
+### 2026-09-28：配套发布口径与远端 MCP
+
+Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/旧内核为前提。包内自检用于确认组装内容；兼容性重点为历史数据、配置、会话及原有功能延续。macOS 远端 HTTP/SSE MCP 改走独立端点网络合同，修复默认 deny-all 让整台 Agent 启动失败的问题；普通工具网络范围不扩张。连接生命周期、权限撤销、迟到发现及真实工具 round-trip 有独立门禁。正式包、App UI、helper/stdio、Provider 和完整后代监督继续按各自范围验收。

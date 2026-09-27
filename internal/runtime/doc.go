@@ -43,4 +43,5 @@
 // 受控配置写入通过 RequireSettingsWrites 独立要求；成功更新后旧 runtime 不再发起 provider 请求。
 // clientopts 在最终环境中固定 nxs Provider/后台唤醒的宿主所有权，任务覆盖不能撤销。
 // Provider 所有权、凭据清理和后台唤醒标记参与进程指纹；变化先替换进程，不伪装成环境热更新。
+// macOS nxs 的 MCP 专用网络要求与显式配置参与进程指纹和有效策略回执；不授予命令网络。
 package runtime

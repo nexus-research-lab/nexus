@@ -25,6 +25,9 @@ func TestBuildAgentClientOptionsInstallsDesktopPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if runtime.GOOS == "darwin" && (options.Sandbox == nil || !options.MCP.StrictConfig || !options.Sandbox.RequireMCPNetwork) {
+		t.Fatal("macOS MCP endpoint contract missing")
+	}
 	if options.Sandbox == nil || !options.Sandbox.RequireSandbox || !options.Sandbox.RequireFileTools || !options.Sandbox.RequireSearchTools || !options.Sandbox.RequireMediaFiles || !options.Sandbox.RequireMediaNetwork || !options.Sandbox.RequireNotebookFiles || !options.Sandbox.RequireSkillFiles || !options.Sandbox.RequireContextFiles || !options.Sandbox.RequireProjectFiles || !options.Sandbox.RequireManagedPolicy || !options.Sandbox.RequireSettingsFiles || !options.Sandbox.RequireSettingsWrites {
 		t.Fatal("common builder dropped desktop sandbox policy")
 	}

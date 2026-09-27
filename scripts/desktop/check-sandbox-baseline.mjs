@@ -150,6 +150,9 @@ try {
     "TestConfigurationRevisionLegacyReceiptIsIncomparable",
     "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
   ]);
+  if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
+    "TestDesktopSandboxRemoteMCPRoundTrip", "TestDesktopSandboxRemoteMCPRoundTrip/http", "TestDesktopSandboxRemoteMCPRoundTrip/sse",
+  ]);
   if (sdkSource) {
     testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
       "TestHostManagedSettingsCannotRedirectProvider",
@@ -208,6 +211,22 @@ try {
       "TestDarwinSandboxSearchPreparationFailsClosed",
       ...["Glob", "Grep"].map((tool) => `TestDarwinSandboxSearchPreparationFailsClosed/${tool}`),
     ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-mcp-network", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/builtin/bash/sandboxexec", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestSandboxMCPNetworkRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPNetworkRequirement/${name}`),
+      "TestSandboxMCPEndpointDoesNotGrantToolNetwork",
+      "TestSandboxMCPEndpointRejectsCrossOriginRedirects",
+      "TestSandboxMCPEndpointRespectsManagedAndDeniedDomains",
+      ...["untrusted_configuration", "explicit_deny", "managed_domains_only"].map((name) => `TestSandboxMCPEndpointRespectsManagedAndDeniedDomains/${name}`),
+      "TestRemoteMCPNetworkLifecycle",
+      ...["http", "sse"].flatMap((transport) => [transport, ...["cancel", "disable", "remove", "replace", "close"].map((name) => `${transport}/${name}`)].map((name) => `TestRemoteMCPNetworkLifecycle/${name}`)),
+      "TestRemoteMCPRejectsStaleDiscovery",
+      ...["disable", "remove", "replace", "close"].map((name) => `TestRemoteMCPRejectsStaleDiscovery/${name}`),
+      "TestRemoteMCPSSERejectsForeignPostEndpoint",
+      "TestDarwinSandboxMCPNetworkPermissionEpoch",
+      "TestDarwinSandboxMCPRuntimeNetwork",
+      "TestDarwinSandboxMCPRuntimeNetwork/ambient", "TestDarwinSandboxMCPRuntimeNetwork/explicit",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-media-contract", ["./cmd/nxs"], [
       "TestSandboxMediaFilesNegotiation",
       "TestSandboxMediaFilesRequirement",
