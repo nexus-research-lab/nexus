@@ -31,12 +31,15 @@ func TestBuildAgentClientOptionsInstallsDesktopPolicy(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
-	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
-		t.Skip("desktop native contract is only assembled on supported desktop platforms")
-	}
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: t.TempDir(), RuntimeKind: "claude", AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
 	})
+	if runtime.GOOS != "darwin" {
+		if err == nil {
+			t.Fatal("unsupported Claude native sandbox was accepted")
+		}
+		return
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,13 +172,14 @@ func TestDesktopSandboxClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSCon
 }
 
 func TestDesktopSandboxCopiesHostPreparedResources(t *testing.T) {
+	scratchRoot := t.TempDir()
 	input := AgentClientOptionsInput{
 		AppMode:               "desktop",
 		DesktopSandboxEnabled: true,
 		SandboxResources: &agentclient.SandboxResourcePolicy{
 			Version:     1,
 			WriteScope:  agentclient.SandboxWriteScopeWorkspaceWrite,
-			ScratchRoot: "/tmp/nexus-sandbox/session-a",
+			ScratchRoot: scratchRoot,
 		},
 	}
 	for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto} {
@@ -197,7 +201,7 @@ func TestDesktopSandboxCopiesHostPreparedResources(t *testing.T) {
 			t.Fatalf("mode %s: resource policy left unsandboxed commands enabled", mode)
 		}
 		got.Sandbox.Resources.ScratchRoot = "/tmp/changed"
-		if input.SandboxResources.ScratchRoot != "/tmp/nexus-sandbox/session-a" {
+		if input.SandboxResources.ScratchRoot != scratchRoot {
 			t.Fatalf("mode %s: caller resource policy mutated", mode)
 		}
 	}

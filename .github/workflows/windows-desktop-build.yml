@@ -43,7 +43,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
-          ref: ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9
+          ref: 2148b4b1833b2324a4f41f6e42235aa9a73424e5
           path: .nexus-sandbox-sdk
           fetch-depth: 1
           persist-credentials: false

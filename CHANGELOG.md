@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command network rejection, interruption and fixture-process termination.
   Normal test runs do not make external model requests.
 
+- Pin the Bridge Windows suspended-start/Job cleanup fix and the SDK native settings writer fix. Extend the local Windows gate to require 53 native checks across process identity, host recovery/junction confinement, Bridge lifecycle, SDK components and settings crash recovery, alongside amd64/arm64 builds. Native Windows required execution and release acceptance remain disabled pending the complete isolation matrix and deployable backend.
+
 - Consolidate Nexus, SDK, and Bridge sandbox work on
   `codex/desktop-sandbox-approvals`, with Windows continuation instructions and
   replay-verified archives of older uncommitted SDK/Bridge drafts. Update the

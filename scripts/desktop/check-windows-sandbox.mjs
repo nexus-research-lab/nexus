@@ -12,8 +12,8 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// Source handoff includes the archived draft; runtime code is unchanged from 9956def1.
-const WINDOWS_NATIVE_SDK_COMMIT = "ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9";
+// Includes native Windows settings writer and process-crash recovery fixes.
+const WINDOWS_NATIVE_SDK_COMMIT = "2148b4b1833b2324a4f41f6e42235aa9a73424e5";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestWindowsPrivateDesktopLifecycle",
@@ -41,6 +41,30 @@ const WINDOWS_NATIVE_TESTS = [
   "TestWindowsHostDenialMergeIsIdempotent",
   "TestWindowsTemporaryDirectoryRejectsHostIdentity",
   "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+];
+const WINDOWS_NATIVE_SETTINGS_TESTS = [
+  "TestSettingsBindingConcurrentUpdates",
+  "TestDocumentStoreWritesTwoDocuments",
+  "TestDocumentStoreRollsBackProvenlyAppliedDocuments",
+  "TestDocumentStoreBreaksHardlinkOnWrite",
+  "TestSettingsJournalIsClearedAfterSuccessfulUpdate",
+  "TestSettingsJournalCrossRootMixedStateFailsClosed",
+  "TestSettingsJournalDoesNotStoreDocumentPlaintext",
+  "TestSettingsJournalProcessExitRecovery/committed-0",
+  "TestSettingsJournalProcessExitRecovery/committed-1",
+  "TestSettingsJournalProcessExitRecovery/committed-2",
+  "TestWindowsSettingsJournalLongPath",
+  "TestWindowsSettingsJournalPublishPreservesExisting",
+];
+const WINDOWS_NATIVE_BRIDGE_TESTS = [
+  "TestWindowsJobAdmissionAndCleanup",
+  "TestWindowsProbeCancellationClosesJob",
+  "TestWindowsProbeRejectsLingeringOutput",
+  "TestWindowsHostCrashClosesRuntimeJob",
+  "TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets",
+  "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
+  "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
+  "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing",
 ];
 
 const argumentsList = process.argv.slice(2);
@@ -74,6 +98,8 @@ const report = {
     ? {
         sdkPackage: WINDOWS_NATIVE_SDK_PACKAGE,
         requiredNativeTests: WINDOWS_NATIVE_TESTS,
+        requiredSettingsTests: WINDOWS_NATIVE_SETTINGS_TESTS,
+        requiredBridgeTests: WINDOWS_NATIVE_BRIDGE_TESTS,
       }
     : {}),
 };
@@ -120,6 +146,12 @@ try {
   if (nativeMode && process.platform !== "win32") {
     throw new Error("--native requires a Windows host; cross-build evidence cannot stand in for native execution");
   }
+  report.nexusCommit = run("nexus-revision", "git", ["rev-parse", "HEAD"]).trim();
+  report.nexusWorktreeStatus = run("nexus-status", "git", ["status", "--porcelain"]).trim();
+  const bridgeModule = JSON.parse(run("bridge-module", "go", ["list", "-mod=readonly", "-m", "-json", "github.com/nexus-research-lab/nexus-agent-sdk-bridge"]));
+  if (bridgeModule.Replace) throw new Error("Windows evidence requires the pinned remote Bridge module without replacement");
+  report.bridgeVersion = bridgeModule.Version;
+  report.bridgeSum = bridgeModule.Sum;
   if (nativeMode) {
     if (!path.isAbsolute(sdkSource)) {
       throw new Error("--native requires NEXUS_SANDBOX_SDK_SOURCE to be an absolute SDK checkout path");
@@ -171,6 +203,25 @@ try {
       ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess"],
       { GOOS: "windows", GOARCH: nativeGoarch },
     );
+    runGoTest(
+      "native-host-resources",
+      ["./internal/runtime", "./internal/runtime/clientopts", "./internal/infra/confinedfs"],
+      [
+        "TestSandboxCrashRestartRequiresExplicitReconcile",
+        "TestSandboxCleanupUnknownSurvivesRestart",
+        "TestDesktopSandboxCopiesHostPreparedResources",
+        "TestBuildAgentClientOptionsInstallsClaudeNativeContract",
+        "TestReadFileSurvivesAtomicReplacement",
+        "TestWindowsConfinedFSRejectsJunction",
+      ],
+      { GOOS: "windows", GOARCH: nativeGoarch },
+    );
+    runGoTest(
+      "native-bridge-lifecycle",
+      ["github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport"],
+      WINDOWS_NATIVE_BRIDGE_TESTS,
+      { GOOS: "windows", GOARCH: nativeGoarch },
+    );
   }
 
   if (nativeMode) {
@@ -182,6 +233,13 @@ try {
       "native-sdk-components",
       [WINDOWS_NATIVE_SDK_PACKAGE],
       WINDOWS_NATIVE_TESTS,
+      { GOOS: "windows", GOARCH: nativeGoarch },
+      sdkSource,
+    );
+    runGoTest(
+      "native-sdk-settings",
+      ["./internal/config/settings"],
+      WINDOWS_NATIVE_SETTINGS_TESTS,
       { GOOS: "windows", GOARCH: nativeGoarch },
       sdkSource,
     );

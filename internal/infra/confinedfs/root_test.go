@@ -1,6 +1,7 @@
 package confinedfs
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -290,13 +291,9 @@ func TestReadFileSurvivesAtomicReplacement(t *testing.T) {
 	writerDone := make(chan error, 1)
 	go func() {
 		for i := 0; i < 128; i++ {
-			temporary := filepath.Join(rootPath, "value.tmp")
-			if writeErr := os.WriteFile(temporary, []byte(`{"version":1}`), 0o600); writeErr != nil {
+			// 使用生产 writer 的句柄替换；Windows os.Rename 不能代替其 POSIX rename 语义。
+			if writeErr := root.WriteFileAtomic("value.json", []byte(`{"version":1}`), 0o600); writeErr != nil {
 				writerDone <- writeErr
-				return
-			}
-			if renameErr := os.Rename(temporary, target); renameErr != nil {
-				writerDone <- renameErr
 				return
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -304,18 +301,35 @@ func TestReadFileSurvivesAtomicReplacement(t *testing.T) {
 		writerDone <- nil
 	}()
 
+	successfulReads := 0
 	for {
 		select {
 		case writerErr := <-writerDone:
 			if writerErr != nil {
 				t.Fatal(writerErr)
 			}
+			if successfulReads == 0 {
+				t.Fatal("no read completed while the writer was running")
+			}
+			if body, err := root.ReadFile("value.json"); err != nil || !bytes.Equal(body, []byte(`{"version":1}`)) {
+				t.Fatalf("ReadFile() after atomic replacement: body=%q, err=%v", body, err)
+			}
 			return
 		default:
-			if _, readErr := root.ReadFile("value.json"); readErr != nil {
+			body, readErr := root.ReadFile("value.json")
+			// 持续替换可能耗尽有界身份重试；保守拒绝属于合同，不能要求 reader 放宽校验。
+			if errors.Is(readErr, ErrChanged) {
+				continue
+			}
+			if readErr != nil {
 				<-writerDone
 				t.Fatalf("ReadFile() during atomic replacement: %v", readErr)
 			}
+			if !bytes.Equal(body, []byte(`{"version":0}`)) && !bytes.Equal(body, []byte(`{"version":1}`)) {
+				<-writerDone
+				t.Fatalf("ReadFile() returned a partial document: %q", body)
+			}
+			successfulReads++
 		}
 	}
 }

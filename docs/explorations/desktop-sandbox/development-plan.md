@@ -1,12 +1,21 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-27**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-28**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-27）：Nexus 使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox`；SDK 与 Bridge 分别使用 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox` 和 `/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox`。三个仓库的沙箱工作统一到本地与 origin 的 `codex/desktop-sandbox-approvals`；原 `desktop-sandbox-isolated`、`desktop-sandbox-file-capability` 分支均被完整包含，随后移除。旧 SDK/Bridge 目录的未提交草稿已在各自仓库归档，原文件仍保留在原提交的 detached checkout 中；Nexus main 和其他非沙箱分支不属于本次整合范围。
+当前开发位置（2026-09-28）：三个独立 worktree 位于 Windows 本机 `E:\Code\nexus\worktrees\desktop-sandbox\` 下的 `nexus`、`nexus-agent-sdk-go`、`nexus-agent-sdk-bridge`，都使用本地与 origin 的 `codex/desktop-sandbox-approvals`。用户已要求 Windows 全面检查、补全并阶段性本地提交和推送；历史“仅本地”限制不适用于本轮。原 macOS checkout 和归档草稿保持历史用途，Nexus main 未参与本轮修改。
 
-已验证的运行时代码基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
+当前 Windows 固定基线：SDK `2148b4b1833b2324a4f41f6e42235aa9a73424e5`，Bridge
+`c018b4973dc3`（Go 模块 `v0.1.34-0.20260927154842-c018b4973dc3`）。Windows 11 amd64
+本机已通过 53 个指定原生检查和 Windows amd64/arm64 构建。SDK 修复普通 settings
+写入与进程崩溃恢复；Bridge 挂起创建后绑定 Job 再恢复，修复入口立即派生的清理窗口，
+预检取消和输出管道等待有界。原生 junction 拒绝及宿主崩溃/unknown 对账也有实测。
+详见[本机证据](../../testing/evidence/desktop-sandbox/2026-09-28-windows-native/README.md)。
+P3 兼容与控制隔离的完整组合矩阵仍在进行；P4 原生执行/文件/网络后端未完成。
+原生 Windows `PrepareExecution` 及文件能力继续 fail closed，`releaseAccepted=false`。
+
+此前 macOS 已验证的运行时代码基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
 `37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
 `v0.1.34-0.20260921030131-37434c2d38b1`（checksum
 `h1:fsWKV+3leBriS6RiQ2U1Nks4R0UzBY5HiCVIN4uCLqM=`）。2026-09-21 固定 SDK
@@ -21,15 +30,15 @@ Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并�
 历史基线见[固定记录](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)，
 当前外部 Provider 证据见[真实模型验收](../../testing/evidence/desktop-sandbox/2026-09-27-live-provider/README.md)。
 历史记录中的“仅本地/未推送”描述当时状态；当前远程续开发入口如下。源码同步不改变
-`releaseAccepted=false`，也不代表已有 Windows 原生运行或正式发布证据。
+`releaseAccepted=false`；Windows 当前原生证据以上述新基线为准，不代表正式发布验收。
 
-## Windows 续开发交接（2026-09-27）
+## Windows 续开发交接历史（2026-09-27）
 
 三个仓库统一使用 `codex/desktop-sandbox-approvals`，不要继续使用已替换的临时分支。
 SDK 交接提交为 `ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9`，Bridge 为
 `6febf1b18a635edb383ff3f98bdab1d1ee5596fe`；它们只在上述运行时代码基线之上补充
-历史草稿归档与说明。Nexus Windows 原生组件门禁与 workflow 精确固定到 SDK 交接提交。
-Bridge 的 Go 模块仍固定 `37434c2d38b1`，不因归档文档而变更运行时依赖。
+历史草稿归档与说明。交接时门禁固定 SDK 交接提交，Bridge 模块固定 `37434c2d38b1`；
+本轮 Windows 修复后的固定版本见本文顶部。
 
 原 SDK checkout 的 12 个修改/未跟踪文件及原 Bridge checkout 的 2 个未跟踪文件分别
 保存在各自仓库的 `docs/history/desktop-sandbox-drafts-2026-09-27/`，包含压缩 patch、

@@ -27,6 +27,14 @@ Windows native execution is still incomplete and these desktop sessions fail
 closed before receiving a task. A desktop session therefore never silently
 falls back to an unrestricted backend when the selected contract is unavailable.
 
+The Windows Bridge lifecycle is implemented independently of SDK sandbox capability:
+runtime and CLI probe processes start suspended, join a kill-on-close Job, then resume
+their validated initial thread. Probe cancellation collects descendants before waiting
+for output pipes. Native tests cover immediate descendants and host termination after
+admission. Creation and Job assignment are still separate operations; a crash between
+them can leave a suspended process. This lifecycle boundary does not authorize Windows
+SDK file/network execution or establish an atomic creation/resource-recovery receipt.
+
 The host passes Skill directories as read resources and user-mounted directories
 as explicit sandbox write grants. The SDK additionally grants its stable workspace
 and compatibility paths under its mandatory execution policy. Project settings
