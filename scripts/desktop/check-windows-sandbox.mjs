@@ -203,7 +203,7 @@ try {
     runGoTest(
       "native-process-identity",
       ["./internal/runtime"],
-      ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess"],
+      ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess", "TestWindowsSandboxProcessIdentityRejectsRetainedExitedProcess"],
       { GOOS: "windows", GOARCH: nativeGoarch },
     );
     runGoTest(

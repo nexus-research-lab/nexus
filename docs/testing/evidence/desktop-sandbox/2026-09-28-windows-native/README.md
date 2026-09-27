@@ -45,3 +45,22 @@ stdout/stderr，任何必测项失败、skip 或缺失都拒绝通过。
 Bridge 创建进程与绑定 Job 仍是两步，宿主在绑定前崩溃可能留下尚未执行入口的挂起
 进程；不声称原子创建回执。Windows settings 验证进程退出恢复，不声称目录项的掉电
 持久性。完整 Windows nxs 沙箱能力继续关闭，不能用上述组件通过取代 P3/P4 验收。
+
+## Junction 与进程退出回归
+
+同日本机后续门禁通过 **57** 个必测项：进程身份 3、宿主资源 6、Bridge 8、SDK
+组件 28、settings 12。新增 workspace 内、外和失效 junction 的真实原生拒绝检查，
+以及保留已退出进程句柄、退出码为 259 的回归；其他构建与 installer contract 仍通过。
+
+- Nexus 基线 `eb1af51b05183f43bb7f95de9829bd39a24b3b5d`，加本提交的 Windows
+  liveness 修复与测试、门禁和 CHANGELOG 工作树变更；完整 dirty 范围在报告中。
+- SDK `38221838946f17f87be9da4af5f10ddc95671edf`，干净 checkout。
+- Bridge `v0.1.34-0.20260927155900-b0402649d44b`，无 replace；checksum
+  `h1:E3JGaj2x4m7+AaK0VCaVWriTrKFj45Jv+VjL9x4VSBs=`。
+- [原始报告](junction-process-report.json) 记录命令、退出码、指定测试及版本；
+  同目录 `native-*.stdout.log.gz` 保存对应 Go JSON 流。
+
+修复前，宿主崩溃恢复用例实际失败；保留句柄的定向回归也稳定重现同一错误。
+修复后使用零超时 `WaitForSingleObject` 核验内核进程对象，已终止进程不再阻挡
+显式 stale-resource 对账；权限或查询失败保持 unknown，既有 cleanup_unknown
+回执仍不能自动清除。该结果不表示 AppContainer 候选已通过或完整 Windows 后端可用。

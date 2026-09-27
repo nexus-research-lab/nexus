@@ -1,0 +1,476 @@
+{
+  "version": 1,
+  "startedAt": "2026-09-27T16:55:09.774Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "mode": "native",
+  "scope": "windows-native-components-and-cross-build",
+  "releaseAccepted": false,
+  "passed": true,
+  "checks": [
+    {
+      "name": "nexus-revision",
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "nexus-status",
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "bridge-module",
+      "command": "go",
+      "args": [
+        "list",
+        "-mod=readonly",
+        "-m",
+        "-json",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-revision",
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus-agent-sdk-go",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "sdk-status",
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus-agent-sdk-go",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "installer-contract",
+      "command": "node",
+      "args": [
+        "scripts/desktop/verify-windows-installer-contract.mjs"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-runtime",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-runtime-amd64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-runtime-clientopts",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime/clientopts",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-runtime-clientopts-amd64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-amd64-.-internal-infra-confinedfs",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/infra/confinedfs",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-infra-confinedfs-amd64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexus-server",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexus-server-amd64.exe",
+        "./cmd/nexus-server"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexusctl",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexusctl-amd64.exe",
+        "./cmd/nexusctl"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-amd64-.-cmd-nexuscfg",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexuscfg-amd64.exe",
+        "./cmd/nexuscfg"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-runtime",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-runtime-arm64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-runtime-clientopts",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/runtime/clientopts",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-runtime-clientopts-arm64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "test-compile-arm64-.-internal-infra-confinedfs",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-c",
+        "./internal/infra/confinedfs",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-internal-infra-confinedfs-arm64.test.exe"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexus-server",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexus-server-arm64.exe",
+        "./cmd/nexus-server"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexusctl",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexusctl-arm64.exe",
+        "./cmd/nexusctl"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "build-arm64-.-cmd-nexuscfg",
+      "command": "go",
+      "args": [
+        "build",
+        "-trimpath",
+        "-mod=readonly",
+        "-o",
+        "C:\\Users\\zigen\\Documents\\Codex\\2026-09-27\\worktree-codex-desktopsandox\\work\\sandbox-evidence\\nexus-windows-sandbox-iDMBey\\nexus-.-cmd-nexuscfg-arm64.exe",
+        "./cmd/nexuscfg"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null
+    },
+    {
+      "name": "native-process-identity",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime",
+        "-run",
+        "^(TestSandboxProcessMarkerUsesConservativeIdentityFallback|TestWindowsSandboxProcessIdentityMatchesCurrentProcess|TestWindowsSandboxProcessIdentityRejectsRetainedExitedProcess)$"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestSandboxProcessMarkerUsesConservativeIdentityFallback",
+        "TestWindowsSandboxProcessIdentityMatchesCurrentProcess",
+        "TestWindowsSandboxProcessIdentityRejectsRetainedExitedProcess"
+      ]
+    },
+    {
+      "name": "native-host-resources",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/runtime",
+        "./internal/runtime/clientopts",
+        "./internal/infra/confinedfs",
+        "-run",
+        "^(TestSandboxCrashRestartRequiresExplicitReconcile|TestSandboxCleanupUnknownSurvivesRestart|TestDesktopSandboxCopiesHostPreparedResources|TestBuildAgentClientOptionsInstallsClaudeNativeContract|TestReadFileSurvivesAtomicReplacement|TestWindowsConfinedFSRejectsJunction)$"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestSandboxCrashRestartRequiresExplicitReconcile",
+        "TestSandboxCleanupUnknownSurvivesRestart",
+        "TestDesktopSandboxCopiesHostPreparedResources",
+        "TestBuildAgentClientOptionsInstallsClaudeNativeContract",
+        "TestReadFileSurvivesAtomicReplacement",
+        "TestWindowsConfinedFSRejectsJunction"
+      ]
+    },
+    {
+      "name": "native-bridge-lifecycle",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport",
+        "-run",
+        "^(TestWindowsJobAdmissionAndCleanup|TestWindowsProbeCancellationClosesJob|TestWindowsProbeRejectsLingeringOutput|TestWindowsHostCrashClosesRuntimeJob|TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets|TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing|TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets|TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing)$"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestWindowsJobAdmissionAndCleanup",
+        "TestWindowsProbeCancellationClosesJob",
+        "TestWindowsProbeRejectsLingeringOutput",
+        "TestWindowsHostCrashClosesRuntimeJob",
+        "TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets",
+        "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
+        "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
+        "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing"
+      ]
+    },
+    {
+      "name": "native-sdk-components",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/tool/builtin/bash/sandboxexec",
+        "-run",
+        "^(TestWindowsPrivateDesktopLifecycle|TestWindowsCommandPreservesArguments|TestWindowsCommandRejectsAmbiguousInputs|TestWindowsCommandEnvironmentIsExplicit|TestWindowsCommandCloseCanRetryWithoutReviving|TestWindowsCommandOwnerRejectsHost|TestWindowsCommandConcurrentCloseHonorsCancellation|TestWindowsCommandClosePreservesBorrowedHandles|TestWindowsCommandCloseCollectsUnassignedRoot|TestWindowsProcessCreationRejectsRetiredJob|TestWindowsProcessCreationRejectsCanceledAdmission|TestWindowsProcessCanceledStartCannotBeRevived|TestWindowsSandboxJobTerminatesAssignedSuspendedProcess|TestWindowsSandboxJobTerminatesRunningDescendants|TestWindowsRunnerHostExitTerminatesRunningDescendants|TestWindowsRunnerExecutionLifecycle|TestWindowsRunnerHostLifetime|TestWindowsRunnerPipePeerMatchesKernelIdentity|TestWindowsRunnerPipeRejectsHostExecutionIdentity|TestWindowsRunnerThreadProtectionRejectsHost|TestWindowsSandboxIdentityRejectsHostToken|TestWindowsBrokerIdentityRejectsCurrentAccount|TestWindowsHostDenialMergeIsIdempotent|TestWindowsTemporaryDirectoryRejectsHostIdentity|TestWindowsUnsupportedExecutionDoesNotPrepareResources|TestWindowsJunctionCannotAuthorizeWorkspaceIO)$"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus-agent-sdk-go",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestWindowsPrivateDesktopLifecycle",
+        "TestWindowsCommandPreservesArguments",
+        "TestWindowsCommandRejectsAmbiguousInputs",
+        "TestWindowsCommandEnvironmentIsExplicit",
+        "TestWindowsCommandCloseCanRetryWithoutReviving",
+        "TestWindowsCommandOwnerRejectsHost",
+        "TestWindowsCommandConcurrentCloseHonorsCancellation",
+        "TestWindowsCommandClosePreservesBorrowedHandles",
+        "TestWindowsCommandCloseCollectsUnassignedRoot",
+        "TestWindowsProcessCreationRejectsRetiredJob",
+        "TestWindowsProcessCreationRejectsCanceledAdmission",
+        "TestWindowsProcessCanceledStartCannotBeRevived",
+        "TestWindowsSandboxJobTerminatesAssignedSuspendedProcess",
+        "TestWindowsSandboxJobTerminatesRunningDescendants",
+        "TestWindowsRunnerHostExitTerminatesRunningDescendants",
+        "TestWindowsRunnerExecutionLifecycle",
+        "TestWindowsRunnerHostLifetime",
+        "TestWindowsRunnerPipePeerMatchesKernelIdentity",
+        "TestWindowsRunnerPipeRejectsHostExecutionIdentity",
+        "TestWindowsRunnerThreadProtectionRejectsHost",
+        "TestWindowsSandboxIdentityRejectsHostToken",
+        "TestWindowsBrokerIdentityRejectsCurrentAccount",
+        "TestWindowsHostDenialMergeIsIdempotent",
+        "TestWindowsTemporaryDirectoryRejectsHostIdentity",
+        "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+        "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
+        "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
+        "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken"
+      ]
+    },
+    {
+      "name": "native-sdk-settings",
+      "command": "go",
+      "args": [
+        "test",
+        "-mod=readonly",
+        "-json",
+        "-count=1",
+        "-timeout=2m",
+        "./internal/config/settings",
+        "-run",
+        "^(TestSettingsBindingConcurrentUpdates|TestDocumentStoreWritesTwoDocuments|TestDocumentStoreRollsBackProvenlyAppliedDocuments|TestDocumentStoreBreaksHardlinkOnWrite|TestSettingsJournalIsClearedAfterSuccessfulUpdate|TestSettingsJournalCrossRootMixedStateFailsClosed|TestSettingsJournalDoesNotStoreDocumentPlaintext|TestSettingsJournalProcessExitRecovery|TestWindowsSettingsJournalLongPath|TestWindowsSettingsJournalPublishPreservesExisting)$"
+      ],
+      "cwd": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus-agent-sdk-go",
+      "exitCode": 0,
+      "signal": null,
+      "passedTests": [
+        "TestSettingsBindingConcurrentUpdates",
+        "TestDocumentStoreWritesTwoDocuments",
+        "TestDocumentStoreRollsBackProvenlyAppliedDocuments",
+        "TestDocumentStoreBreaksHardlinkOnWrite",
+        "TestSettingsJournalIsClearedAfterSuccessfulUpdate",
+        "TestSettingsJournalCrossRootMixedStateFailsClosed",
+        "TestSettingsJournalDoesNotStoreDocumentPlaintext",
+        "TestSettingsJournalProcessExitRecovery/committed-0",
+        "TestSettingsJournalProcessExitRecovery/committed-1",
+        "TestSettingsJournalProcessExitRecovery/committed-2",
+        "TestWindowsSettingsJournalLongPath",
+        "TestWindowsSettingsJournalPublishPreservesExisting"
+      ]
+    }
+  ],
+  "sdkPackage": "./internal/tool/builtin/bash/sandboxexec",
+  "requiredNativeTests": [
+    "TestWindowsPrivateDesktopLifecycle",
+    "TestWindowsCommandPreservesArguments",
+    "TestWindowsCommandRejectsAmbiguousInputs",
+    "TestWindowsCommandEnvironmentIsExplicit",
+    "TestWindowsCommandCloseCanRetryWithoutReviving",
+    "TestWindowsCommandOwnerRejectsHost",
+    "TestWindowsCommandConcurrentCloseHonorsCancellation",
+    "TestWindowsCommandClosePreservesBorrowedHandles",
+    "TestWindowsCommandCloseCollectsUnassignedRoot",
+    "TestWindowsProcessCreationRejectsRetiredJob",
+    "TestWindowsProcessCreationRejectsCanceledAdmission",
+    "TestWindowsProcessCanceledStartCannotBeRevived",
+    "TestWindowsSandboxJobTerminatesAssignedSuspendedProcess",
+    "TestWindowsSandboxJobTerminatesRunningDescendants",
+    "TestWindowsRunnerHostExitTerminatesRunningDescendants",
+    "TestWindowsRunnerExecutionLifecycle",
+    "TestWindowsRunnerHostLifetime",
+    "TestWindowsRunnerPipePeerMatchesKernelIdentity",
+    "TestWindowsRunnerPipeRejectsHostExecutionIdentity",
+    "TestWindowsRunnerThreadProtectionRejectsHost",
+    "TestWindowsSandboxIdentityRejectsHostToken",
+    "TestWindowsBrokerIdentityRejectsCurrentAccount",
+    "TestWindowsHostDenialMergeIsIdempotent",
+    "TestWindowsTemporaryDirectoryRejectsHostIdentity",
+    "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+    "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
+    "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
+    "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken"
+  ],
+  "requiredSettingsTests": [
+    "TestSettingsBindingConcurrentUpdates",
+    "TestDocumentStoreWritesTwoDocuments",
+    "TestDocumentStoreRollsBackProvenlyAppliedDocuments",
+    "TestDocumentStoreBreaksHardlinkOnWrite",
+    "TestSettingsJournalIsClearedAfterSuccessfulUpdate",
+    "TestSettingsJournalCrossRootMixedStateFailsClosed",
+    "TestSettingsJournalDoesNotStoreDocumentPlaintext",
+    "TestSettingsJournalProcessExitRecovery/committed-0",
+    "TestSettingsJournalProcessExitRecovery/committed-1",
+    "TestSettingsJournalProcessExitRecovery/committed-2",
+    "TestWindowsSettingsJournalLongPath",
+    "TestWindowsSettingsJournalPublishPreservesExisting"
+  ],
+  "requiredBridgeTests": [
+    "TestWindowsJobAdmissionAndCleanup",
+    "TestWindowsProbeCancellationClosesJob",
+    "TestWindowsProbeRejectsLingeringOutput",
+    "TestWindowsHostCrashClosesRuntimeJob",
+    "TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets",
+    "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
+    "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
+    "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing"
+  ],
+  "nexusCommit": "eb1af51b05183f43bb7f95de9829bd39a24b3b5d",
+  "nexusWorktreeStatus": "M CHANGELOG.md\n M internal/runtime/sandbox_process_liveness_windows.go\n M internal/runtime/sandbox_process_liveness_windows_test.go\n M scripts/desktop/check-windows-sandbox.mjs",
+  "bridgeVersion": "v0.1.34-0.20260927155900-b0402649d44b",
+  "bridgeSum": "h1:E3JGaj2x4m7+AaK0VCaVWriTrKFj45Jv+VjL9x4VSBs=",
+  "sdkSource": "E:\\Code\\nexus\\worktrees\\desktop-sandbox\\nexus-agent-sdk-go",
+  "sdkCommit": "38221838946f17f87be9da4af5f10ddc95671edf",
+  "finishedAt": "2026-09-27T16:56:24.114Z"
+}
