@@ -156,6 +156,11 @@ try {
     "TestAgentClientBindSandboxLeaseRejectsClaudeRuntime",
     "TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession",
   ]);
+  testGroup("host-websocket-cancellation", ["./internal/handler/shared"], [
+    "TestWebSocketSenderCanceledBroadcastKeepsConnection",
+    "TestWebSocketSenderAdmittedWriteSurvivesCallerCancellation",
+    "TestWebSocketSenderTransportFailureRetiresConnection",
+  ]);
   testGroup("host-settings-recovery", ["./internal/storage/configuration", "./internal/service/configuration"], [
     "TestRevisionKeyConcurrentInitialization",
     "TestRevisionKeyAcrossProcesses",
