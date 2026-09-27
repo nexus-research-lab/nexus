@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin macOS sandbox acceptance to controlled AutoMemory/AutoDream writer leases. Lock acquisition, completion markers and release run within the active file policy; cancellation and worker loss stop maintenance, unknown completion is not replayed, and replacement files and legacy data are preserved. Require native lifecycle and runtime regressions in the fixed baseline.
+
 - Preserve active or uncertain background-memory writer locks regardless of file age. A denied or unavailable process probe no longer implies that the holder exited; macOS acceptance requires these rejection and recovery regressions.
 
 - Pin macOS acceptance to confined AutoDream scheduling reads. Completion timestamps and historical transcript metadata use the current file sandbox; denied or canceled scans do not start maintenance or advance its scan interval.

@@ -411,6 +411,33 @@ try {
       ...["completion", "completion_symlink", "directory", "transcript", "transcript_symlink", "allowed", "missing"].map(
         (source) => `TestDarwinSandboxAutoDreamScan/${source}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-writer-ownership", ["./internal/memory/autodream", "./internal/memory/autodream/writerworker", "./internal/tool/executor"], [
+      "TestMemoryWriterOwnership", "TestMemoryWriterDoesNotFallback",
+      "TestMemoryWriterLegacyCompatibility",
+      ...["live", "dead", "unknown", "empty"].map((state) => `TestMemoryWriterLegacyCompatibility/${state}`),
+      "TestMemoryWriterReplacement",
+      ...["guard", "directory"].map((entry) => `TestMemoryWriterReplacement/${entry}`),
+      "TestMemoryWriterRejectsSpecialGuard",
+      ...["symlink", "hardlink", "fifo"].map((kind) => `TestMemoryWriterRejectsSpecialGuard/${kind}`),
+      "TestMemoryWriterProtocolRejectsInvalidFrames",
+      ...["unknown_field", "truncated", "multiple", "oversized"].map((kind) => `TestMemoryWriterProtocolRejectsInvalidFrames/${kind}`),
+    ], sdkSource);
+    testGroup("macos-memory-writer-process", ["./internal/tool/builtin/file/sandboxfs"], [
+      "TestSandboxMemoryWriterLifecycle",
+      ...["complete", "release", "cancel", "parent_eof"].map((action) => `TestSandboxMemoryWriterLifecycle/${action}`),
+      "TestSandboxMemoryWriterLostCompletion",
+      ...["nonzero_exit", "no_reply", "extra_reply"].map((failure) => `TestSandboxMemoryWriterLostCompletion/${failure}`),
+      "TestSandboxMemoryWriterUnexpectedExit", "TestSandboxMemoryWriterAcquireCancellation",
+      "TestSandboxMemoryWriterLegacyProbe",
+      ...[true, false].map((live) => `TestSandboxMemoryWriterLegacyProbe/live_${live}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-memory-writer-runtime", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryWriter",
+      ...["acquire_denied", "legacy_read_denied", "completion_denied", "allowed", "lock_replaced", "directory_replaced"].map(
+        (scenario) => `TestDarwinSandboxMemoryWriter/${scenario}`),
+      "TestDarwinSandboxMemoryExtractionWriter",
+      ...["denied", "allowed", "cancelled"].map((scenario) => `TestDarwinSandboxMemoryExtractionWriter/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
       "TestDarwinSandboxMemoryRecall",
       ...["file", "symlink", "directory"].flatMap((source) =>

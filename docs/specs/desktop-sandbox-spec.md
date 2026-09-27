@@ -316,9 +316,23 @@ Memory writer locks are not reclaimed solely because their file is over an hour
 old. A known holder must be confirmed exited; a live/current holder, missing probe
 or malformed/partial record retains the lock. Permission and unsupported probe
 errors are not exit evidence, and process-observation handles are released.
-Controlled AutoDream lock/completion writes, replacement-safe lock ownership,
-other transcript auxiliary reads and remaining IO stay separate work; these
-internal fixes add no capability claim.
+macOS AutoMemory/AutoDream now acquire a maintenance writer through the current
+file executor. A dedicated sandboxed worker holds a pinned directory descriptor
+and a kernel lock; release closes owned descriptors without deleting the guard
+path. Completion checks directory/guard identity, uses exclusive temporary files
+and a rename within the pinned directory, and requires a valid terminal reply
+plus confirmed successful worker exit. Lost replies remain unknown without replay
+or path-based compensation. Acquisition and terminal operations each have a
+30-second deadline; the lease follows the task lifetime, and cancellation, parent
+EOF or worker failure cancels maintenance. Failed completion/release cannot
+publish a saved event or advance an extraction cursor. Existing active PID records
+are preserved: only confirmed dead holders permit continuation. A busy result may
+still follow creation of the stable guard. Memory layout and data are unchanged.
+This does not prove arbitrary detached-descendant supervision, general unknown
+cleanup recovery, or resistance to arbitrary unconfined same-UID tampering.
+Other transcript auxiliary reads and remaining IO stay separate work; these
+internal fixes add no capability claim, and other platforms retain their existing
+local coordination path.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
