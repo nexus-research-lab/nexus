@@ -86,9 +86,9 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 | 剩余项 | 性质与具体出口 |
 | --- | --- |
 | 完整取消与异常恢复 | 仍需实现可部署的脱离 session 后代监督与终态证明；基于该事实收口 `cleanup_unknown` 与 unknown 回执，再决定自动回收。普通 sleep 进程中断通过不能代替这一项；SDK 多文件掉电事务/持久执行回执也未完成 |
-| 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；其余 SDK 辅助 IO、外部 MCP/helper、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
+| 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP 与认证 helper 已接入独立受控执行；其余 SDK 辅助 IO、stdio MCP、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
 | 产品端到端 | 在真实 App 的 DM、Room、后台任务中串起批准/拒绝、允许域名、取消、重启与两个方向的 Full Access/后端切换；本轮调用产品 options builder，但没有经过聊天 UI、宿主 Session manager 或持久审批界面 |
-| 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。另需收口既有远程 MCP 配置的产品准入，不能仅拒绝启动整个 Agent |
+| 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE 和认证 helper 已接入各自受限执行合同；stdio 及完整功能迁移仍待验收 |
 | 正式 macOS 分发 | 从干净固定提交构建 Developer ID 签名/公证包，在启用正常 Gatekeeper 的干净机器验证 quarantine、安装、版本升级与回退；若支持 Intel，另补 Intel 证据 |
 
 Windows 由另一台 Windows 机器继续核验，不作为本机重复执行项。官方 Claude 账号/OAuth

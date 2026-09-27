@@ -270,7 +270,7 @@ func TestDesktopNxsReceiptRejectsWeakSandboxContract(t *testing.T) {
 	enabled := true
 	complete := &bridge.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true,
-		RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireNotebookFiles: true, RequireSkillFiles: true,
+		RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireMCPHelpers: true, RequireNotebookFiles: true, RequireSkillFiles: true,
 		RequireContextFiles: true, RequireProjectFiles: true,
 		RequireManagedPolicy: true, RequireSettingsFiles: true,
 		RequireSettingsWrites: true, Enabled: &enabled, FailIfUnavailable: &enabled,

@@ -151,7 +151,7 @@ try {
     "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
   ]);
   if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
-    "TestDesktopSandboxRemoteMCPRoundTrip", "TestDesktopSandboxRemoteMCPRoundTrip/http", "TestDesktopSandboxRemoteMCPRoundTrip/sse",
+    "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),
   ]);
   if (sdkSource) {
     testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
@@ -228,6 +228,15 @@ try {
       "TestDarwinSandboxMCPNetworkPermissionEpoch",
       "TestDarwinSandboxMCPRuntimeNetwork",
       "TestDarwinSandboxMCPRuntimeNetwork/ambient", "TestDarwinSandboxMCPRuntimeNetwork/explicit",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-mcp-helpers", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
+      "TestSandboxMCPHelpersRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPHelpersRequirement/${name}`),
+      "TestMCPHelperFailurePreventsNetwork", "TestMCPHelperRefreshesOncePerRequest",
+      "TestDarwinSandboxMCPHelperFilesAndEnvironment",
+      ...["workspace_read", "denied_read", "readonly_write", "scratch_write"].map((name) => `TestDarwinSandboxMCPHelperFilesAndEnvironment/${name}`),
+      "TestDarwinSandboxMCPHelperNetwork", "TestDarwinSandboxMCPHelperLifecycle",
+      ...["cancel", "permission", "close", "stdout_limit", "stderr_limit", "ordinary_descendant"].map((name) => `TestDarwinSandboxMCPHelperLifecycle/${name}`),
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-media-contract", ["./cmd/nxs"], [
       "TestSandboxMediaFilesNegotiation",

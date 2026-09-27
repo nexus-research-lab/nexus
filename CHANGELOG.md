@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restore configured MCP authentication helpers on macOS through a separately negotiated nxs execution contract. Helpers use the current command sandbox and filtered task environment, refresh authentication per request, stop on failure without stale-header fallback, and are canceled and awaited at session shutdown. Require the capability in runtime policy and test persisted HTTP and Connector SSE helper round trips.
+
 - Restore configured HTTP and legacy SSE MCP servers in macOS nxs sandbox sessions. Require the independent endpoint-network capability and explicit service configuration, keep command/image network permissions separate, preserve configured headers, and include the requirement in process replacement and effective-policy receipts. Add actual nxs tool round-trip acceptance for persisted HTTP and Connector SSE configuration.
 
 - Detect terminated Windows hosts through the process object's signaled state. A retained handle keeps a dead PID and creation timestamp queryable, and exit code 259 is a valid completed result; neither now prevents explicit stale-resource reconciliation. Permission/query failures and cleanup-unknown receipts remain protected.
