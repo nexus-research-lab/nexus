@@ -1,6 +1,35 @@
 # 桌面沙箱验收矩阵
 
-状态：开发验收清单，non-normative，更新至 2026-09-24。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+状态：开发验收清单，non-normative，更新至 2026-09-27。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+
+## 2026-09-27：真实第三方模型与两种 macOS 后端
+
+使用主工作目录 `.env` 的第三方 Anthropic-compatible Provider，分别通过当前
+Nexus clientopts、Bridge、固定 nxs 与 Claude CLI 2.1.273 发起真实模型请求。
+只提取 token/base URL/model，不加载原数据库、owner、Connector 或状态目录配置。
+每个后端使用新建状态根、workspace 和无敏感数据的禁止目录。
+
+| 检查 | nxs | Claude |
+| --- | --- | --- |
+| 模型调用原生 Write，再由 Bash 读取并核对唯一内容 | 通过 | 通过 |
+| 原生文件工具拒绝写入禁止目录，目标未创建 | 通过，受限文件执行器 | 通过，独立 Read/Edit deny 权限 |
+| Ruby 子进程写入另一禁止目录，权限错误且目标未创建 | 通过，命令沙箱 | 通过，原生命令沙箱 |
+| curl 请求显式禁止的 example.com，被代理/策略拒绝 | 通过 | 通过 |
+| 启动真实 sleep，宿主 Interrupt + Close 后确认该测试进程退出 | 通过 | 通过 |
+
+可重复入口为 `scripts/desktop/check-live-sandbox.mjs`；原始结果、版本、临时模块
+替换的源码一致性说明与重放命令见[归档](evidence/desktop-sandbox/2026-09-27-live-provider/README.md)。
+该入口必须显式执行，普通 Go 测试会跳过外部调用。脚本不把 `.env` 全量注入 runtime，
+测试在启动 runtime 前清空自身临时 token 变量，并对输出脱敏。
+
+Claude 的 `sandbox.filesystem` 不能代替原生工具的 Read/Edit 权限；首次夹具混用
+两者的失败记录保留为测试修正证据。最终原生命令拒绝使用单独目录和 Ruby 文件 IO，
+避免用文件工具权限或 shell 重定向前置拦截冒充 OS 命令隔离。
+
+本轮是当前第三方网关与两种 runtime 的宿主集成冒烟结果，不是任意网关/Header、
+App DM/Room/后台全链路、动态网络批准、Full Access 切换、任意脱离后代、完整凭据
+隔离或签名安装包验收。`releaseAccepted=false`；官方 Claude 账号/OAuth 暂缓，Windows
+另机核验。历史条目中的“真实第三方未验证”按其记录日期理解。
 
 ## 证据记录要求
 

@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "date": "2026-09-27",
+  "scope": "macos-live-provider-host-integration",
+  "passed": true,
+  "releaseAccepted": false,
+  "platform": {
+    "os": "macOS",
+    "version": "27.0",
+    "architecture": "arm64",
+    "go": "go1.27.1"
+  },
+  "nexus": {
+    "baseCommit": "f7b56fa22a197a285df7432a5132e68b10c7a15d",
+    "productionBehaviorChanged": false,
+    "probeSources": [
+      {
+        "path": "internal/runtime/clientopts/desktop_sandbox_live_test.go",
+        "sha256": "5ea2ffb3a95131e4ab0ce748dae3579daf8801ef8aae62f3e95a1562c9f2f831"
+      },
+      {
+        "path": "scripts/desktop/check-live-sandbox.mjs",
+        "sha256": "57f5fa47d1f8732bae1c8da6e7b4ebea2da9a841fb0c2177aef9ab27fd22996f"
+      }
+    ]
+  },
+  "sdk": {
+    "runtimeSourceCommit": "9956def130da33af47accf799a9c27c16a551104",
+    "branchHead": "ad1ad9f5fd5a8e34c7d1537ca61fc9bd216160c9",
+    "binarySHA256": "0f91b17fc0ed6976e01a76363f466640a1cddfa63bc32338cb7647153e014270"
+  },
+  "bridge": {
+    "module": "v0.1.34-0.20260921030131-37434c2d38b1",
+    "testedCheckout": "6febf1b18a635edb383ff3f98bdab1d1ee5596fe",
+    "localModuleReplacement": true,
+    "goSourcesAndModuleFilesEqualPinnedCommit": true
+  },
+  "provider": {
+    "protocol": "anthropic_messages",
+    "model": "K2.6-code-preview",
+    "externalRequests": true,
+    "credentialsArchived": false,
+    "officialClaudeAccountUsed": false
+  },
+  "claude": {
+    "version": "2.1.273",
+    "nativeFilePermissionRules": [
+      "Read(absolute fixture scope)",
+      "Edit(absolute fixture scope)"
+    ]
+  },
+  "cases": [
+    {
+      "name": "live Write and Bash read",
+      "nxs": "passed",
+      "claude": "passed"
+    },
+    {
+      "name": "native file permission denial",
+      "nxs": "passed",
+      "claude": "passed"
+    },
+    {
+      "name": "Ruby child filesystem denial",
+      "nxs": "passed",
+      "claude": "passed"
+    },
+    {
+      "name": "explicit command network denial",
+      "nxs": "passed",
+      "claude": "passed"
+    },
+    {
+      "name": "Interrupt plus Close and observed fixture process exit",
+      "nxs": "passed",
+      "claude": "passed"
+    }
+  ],
+  "result": {
+    "exitCode": 0,
+    "testSeconds": 57.08,
+    "requiredBackends": 2,
+    "passedBackends": 2,
+    "skippedBackends": 0
+  },
+  "exclusions": [
+    "App chat UI and DM/Room/automation Session manager",
+    "permission UI and persisted approval workflow",
+    "dynamic network approval and Full Access switching",
+    "arbitrary detached descendants and crash recovery",
+    "whole-SDK IO, secrets, handles, external MCP/helper and Provider OS egress",
+    "signed or clean-host packages",
+    "other gateways and custom authentication headers",
+    "native Windows"
+  ]
+}

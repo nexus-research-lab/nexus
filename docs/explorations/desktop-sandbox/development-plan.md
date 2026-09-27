@@ -15,8 +15,11 @@
 Bridge 在正式 Claude 进程前校验生成的原生 `sandbox` settings，并以精确 CLI 的
 `--settings <json> --help` 检查该参数入口；这不是实际 OS 隔离回执。最终进程环境
 过滤继承的常见 Provider、代理和秘密变量，typed `Options.Env` 保留宿主凭据投影。
-38 项 macOS 开发基线通过；已认证 Claude 命令/网络/凭据/清理、原生其他平台与
-安装包验收仍未闭合。版本和证据见[最新固定基线](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)。
+38 项 macOS 开发基线通过；2026-09-27 又补齐 nxs/Claude 的真实第三方模型命令、
+文件、显式拒绝与普通取消清理冒烟验证。完整凭据/辅助 IO/后代隔离、产品端到端及
+正式安装包验收仍未闭合；官方 Claude 账号/OAuth 按用户要求暂不纳入本阶段。
+历史基线见[固定记录](../../testing/evidence/desktop-sandbox/2026-09-20-macos-baseline-latest/)，
+当前外部 Provider 证据见[真实模型验收](../../testing/evidence/desktop-sandbox/2026-09-27-live-provider/README.md)。
 历史记录中的“仅本地/未推送”描述当时状态；当前远程续开发入口如下。源码同步不改变
 `releaseAccepted=false`，也不代表已有 Windows 原生运行或正式发布证据。
 
@@ -56,6 +59,24 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 再开始 SDK 修改；后续推进 SDK 版本时同步更新门禁与 workflow 的固定提交，并重新验证。
 下一开发阶段仍是 Windows P3 兼容性/隔离组合矩阵，再接入 SDK → Bridge → Nexus 的
 原生受限执行链；必测失败或 skip 不能通过放宽能力声明或切换 Full Access 掩盖。
+
+## macOS 当前剩余工作（2026-09-27）
+
+已完成的本机基线包括 nxs 原生文件/命令与配置能力、持久资源状态和策略回执、
+arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 通过真实
+第三方 Anthropic-compatible Provider 的 10 项基础检查。后者经过 Nexus clientopts
+→ Bridge → runtime，使用新建测试状态与宿主明确设置的禁止目录/域名；不借用真人会话。
+
+| 剩余项 | 性质与具体出口 |
+| --- | --- |
+| 完整取消与异常恢复 | 仍需实现可部署的脱离 session 后代监督与终态证明；基于该事实收口 `cleanup_unknown` 与 unknown 回执，再决定自动回收。普通 sleep 进程中断通过不能代替这一项；SDK 多文件掉电事务/持久执行回执也未完成 |
+| 其余执行边界 | 全 SDK 辅助 IO、HTTP 图片/远程 URL、外部 MCP/helper、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
+| 产品端到端 | 在真实 App 的 DM、Room、后台任务中串起批准/拒绝、允许域名、取消、重启与两个方向的 Full Access/后端切换；本轮调用产品 options builder，但没有经过聊天 UI、宿主 Session manager 或持久审批界面 |
+| 正式 macOS 分发 | 从干净固定提交构建 Developer ID 签名/公证包，在启用正常 Gatekeeper 的干净机器验证 quarantine、安装、版本升级与回退；若支持 Intel，另补 Intel 证据 |
+
+Windows 由另一台 Windows 机器继续核验，不作为本机重复执行项。官方 Claude 账号/OAuth
+继续暂缓。真实第三方基础调用已通过；只有目标网关要求额外自定义认证 Header 时，才需要
+再补当前产品尚未声明的 Header 配置能力，不能把所有第三方调用继续记为未验证。
 
 ## 1. 最终交付目标
 
