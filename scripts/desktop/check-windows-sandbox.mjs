@@ -12,8 +12,8 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// Includes native Windows settings writer and process-crash recovery fixes.
-const WINDOWS_NATIVE_SDK_COMMIT = "2148b4b1833b2324a4f41f6e42235aa9a73424e5";
+// Includes native settings recovery, junction rejection and explicit P3 probes.
+const WINDOWS_NATIVE_SDK_COMMIT = "38221838946f17f87be9da4af5f10ddc95671edf";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestWindowsPrivateDesktopLifecycle",
@@ -41,6 +41,9 @@ const WINDOWS_NATIVE_TESTS = [
   "TestWindowsHostDenialMergeIsIdempotent",
   "TestWindowsTemporaryDirectoryRejectsHostIdentity",
   "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken",
 ];
 const WINDOWS_NATIVE_SETTINGS_TESTS = [
   "TestSettingsBindingConcurrentUpdates",
@@ -200,7 +203,7 @@ try {
     runGoTest(
       "native-process-identity",
       ["./internal/runtime"],
-      ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess"],
+      ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess", "TestWindowsSandboxProcessIdentityRejectsRetainedExitedProcess"],
       { GOOS: "windows", GOARCH: nativeGoarch },
     );
     runGoTest(
