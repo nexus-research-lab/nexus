@@ -4,7 +4,7 @@
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
 
-最新 macOS 固定基线见 [2026-09-28 AutoDream 读取与写入锁](evidence/desktop-sandbox/2026-09-28-autodream/README.md)：Nexus `7eca0facd`、SDK `608f1b3b`、Bridge `4b2972f`，55 项检查及 804 个必测名称全部通过。AutoDream 完成时间和历史会话目录/元数据经当前文件执行器读取，拒绝或取消不启动整理、不推进扫描节流；记忆写入锁不再按年龄抢占存活或未知持有者。此前[初始化与摘要](evidence/desktop-sandbox/2026-09-28-memory-persistence/README.md)和[记忆召回](evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)的修复及证据保留；锁/完成标记的受控写入、替换竞态和其余 transcript 辅助读取仍未闭合。
+最新 macOS 固定基线见 [2026-09-28 记忆写入租约](evidence/desktop-sandbox/2026-09-28-memory-writer/README.md)：Nexus `5cbdec84a`、SDK `aa140386`、Bridge `4b2972f`，58 项检查及 848 个必测名称全部通过。macOS AutoMemory/AutoDream 的取锁、完成标记与释放复用当前文件策略的内部 worker；固定目录句柄和内核锁使释放不删除替换路径，取消/进程丢失不报保存成功，未知完成不重放，旧记忆与锁记录保留。原生 runtime 普通构建、独立 worker race 和相关包 race 通过；额外 runtime race 构建在初始化阶段超时的失败单独保留。此前 [AutoDream 读取](evidence/desktop-sandbox/2026-09-28-autodream/README.md)、[初始化与摘要](evidence/desktop-sandbox/2026-09-28-memory-persistence/README.md)和[记忆召回](evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)的证据保留；其余 transcript 辅助读取、任意后代监督与一般 unknown 恢复仍未闭合。
 
 最近一次实际 App 的 [审批与切换证据](evidence/desktop-sandbox/2026-09-28-app-contracts/README.md)使用 Nexus `259ccda2d`、SDK `5a937a18`，其 48 项/689 个必测名称基线保留原来源。HTTP/WebSocket 验收覆盖双向后端切换、nxs/Claude 的 Full Access 边界恢复、Room 与后台审批、网络本次批准、取消审批后立即重连和正常退出。该批修复了 macOS workspace 别名误审批及旧请求取消误关闭新连接；完整 UI 复验因锁屏尚未完成。此前[App 正常退出与同会话重启](evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)及[重启准入](evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)证据继续保留；这些不等于任意后代监督、一般 unknown 恢复或发布验收。
 
