@@ -76,6 +76,8 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 ## macOS 当前剩余工作（2026-09-28）
 
+当前最新固定 macOS 基线：Nexus `2a0fdb895`、SDK `5dc1eb8b`、远程 Bridge `32d41b7`，44 项检查/595 个必测名称全部通过。HTTP/SSE 认证 helper 已恢复受限执行，辅助进程输出限额的 io.Copy 绕过已修复；失败记录和证据范围见[本批报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下原生第三方 Provider 与 App/DMG 历史证据继续按各自固定来源使用。
+
 2026-09-28 补充基线：SDK `593b1fa6`、远程规范 Bridge `b0402649d44b`，40 项原生检查/527 个必测名称及 nxs/Claude 真实第三方 Provider 10 项基础检查通过。当前 Nexus 已包含 Windows 机器的 `bc74365dd`；Windows 的独立固定测试版本和证据保持。
 
 已完成的本机基线包括 nxs 原生文件/命令与配置能力、持久资源状态和策略回执、

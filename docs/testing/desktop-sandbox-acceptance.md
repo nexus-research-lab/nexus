@@ -1134,3 +1134,9 @@ Windows 受限 nxs 执行继续失败关闭，不能用交叉编译或组件 CI 
 固定 SDK `b487ef24`、canonical Bridge `c2b5eaf` 与 Nexus `626f11d5c` 的基线 42 项检查、569 个指定测试名全部通过；真实 nxs 的持久 HTTP/Connector SSE 工具往返及三种权限模式自检通过。
 扩展回归中另有两项已在改动前复现的记忆测试失败，原生 worker 的 race 插桩尝试也未通过，未计入通过声明。
 见[完整证据与边界](evidence/desktop-sandbox/2026-09-28-mcp-network/README.md)。App UI、正式签名/公证、clean-host、helper/stdio/Provider 与完整后代监督仍独立验收，`releaseAccepted=false`。
+
+## 2026-09-28：macOS MCP 认证 helper 与辅助输出限额
+
+Nexus `2a0fdb895`、SDK `5dc1eb8b` 与远程 Bridge `32d41b7` 的固定来源基线通过 44 项检查、595 个必测名称；完整四条 HTTP/SSE 与 helper 工具往返、原生受限执行/取消/关闭、文件辅助输出限额及配套自检见[证据](evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。首次启动指令组累计超时的失败报告和对照结果保留；整组预算按用例数分配，生产操作时限、断言和必测 skip/缺失拒绝规则不变。
+
+认证 helper 由 `sandbox_mcp_helpers_v1` 独立协商，失败不回退静态或旧凭据；端点网络授权不授予 helper 网络。stdio、独立脱离后代、完整 App UI 和正式安装升级仍未闭合；本批未运行 Windows，`releaseAccepted=false`。
