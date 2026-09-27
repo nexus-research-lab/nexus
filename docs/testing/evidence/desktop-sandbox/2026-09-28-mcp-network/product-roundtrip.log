@@ -1,0 +1,8 @@
+=== RUN   TestDesktopSandboxRemoteMCPRoundTrip
+=== RUN   TestDesktopSandboxRemoteMCPRoundTrip/http
+=== RUN   TestDesktopSandboxRemoteMCPRoundTrip/sse
+--- PASS: TestDesktopSandboxRemoteMCPRoundTrip (5.91s)
+    --- PASS: TestDesktopSandboxRemoteMCPRoundTrip/http (3.26s)
+    --- PASS: TestDesktopSandboxRemoteMCPRoundTrip/sse (2.65s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/runtime/clientopts	7.873s

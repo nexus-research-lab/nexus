@@ -1126,3 +1126,11 @@ Windows 受限 nxs 执行继续失败关闭，不能用交叉编译或组件 CI 
 配置、历史、记忆与工作文件保留。Nexus 干净提交 `223849cb8` 的 arm64 ad-hoc App/DMG 通过本机 smoke。
 这是配套版本的数据兼容证据；原 runtime 选择逻辑保持，没有新增用户升级步骤。
 见 [报告](evidence/desktop-sandbox/2026-09-28-released-upgrade/README.md)，完整 App 数据库升级和正式分发仍独立验收。
+
+## 2026-09-28：macOS 远端 MCP 配置兼容与独立网络
+
+正常发布按 Nexus/nxs 整包验收，旧用户兼容聚焦数据、配置和会话。
+已修复默认沙箱下已有 HTTP/SSE MCP 的整 Agent 启动拒绝；独立端点授权、跨 origin/代理拒绝、权限取消和配置撤销已接通。
+固定 SDK `b487ef24`、canonical Bridge `c2b5eaf` 与 Nexus `626f11d5c` 的基线 42 项检查、569 个指定测试名全部通过；真实 nxs 的持久 HTTP/Connector SSE 工具往返及三种权限模式自检通过。
+扩展回归中另有两项已在改动前复现的记忆测试失败，原生 worker 的 race 插桩尝试也未通过，未计入通过声明。
+见[完整证据与边界](evidence/desktop-sandbox/2026-09-28-mcp-network/README.md)。App UI、正式签名/公证、clean-host、helper/stdio/Provider 与完整后代监督仍独立验收，`releaseAccepted=false`。
