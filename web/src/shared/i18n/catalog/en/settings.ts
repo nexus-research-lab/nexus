@@ -806,7 +806,7 @@ export const enSettingsMessages = {
   "settings.providers.default_model_disable_message": "{model} is the current default model. Set another model as default before disabling it.",
   "settings.providers.default_model_disable_tooltip": "The default model must stay enabled. Switch the default model first.",
   "settings.providers.model_capabilities": "Model capabilities",
-  "settings.providers.model_capabilities_description": "Shows automatic results. Override only when inaccurate.",
+  "settings.providers.model_capabilities_description": "Detect model capabilities automatically. Override only when needed.",
   "settings.providers.capability_vision": "Vision",
   "settings.providers.model_recommended_hint": "A Nexus starting-point recommendation; pricing and availability depend on your provider.",
   "settings.providers.model_text_only": "Text only",
