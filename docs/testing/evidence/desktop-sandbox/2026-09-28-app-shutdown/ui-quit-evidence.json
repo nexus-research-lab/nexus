@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-27T19:39:23.624051+00:00",
+  "remainingProcesses": "",
+  "receipts": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:e6a86831da0e",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": ""
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:e6a86831da0e",
+      "generation": 2,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": ""
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:e6a86831da0e",
+      "generation": 3,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": ""
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "source": "132b5ad69826ecde11cab769fdeda03b7436c257",
+  "scope": "native-app-through-websocket",
+  "trigger": "SIGTERM handled by NSApp.terminate",
+  "sessionKey": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+  "before": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "e6cfeaa7776a3444d0392a019ec92034",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    }
+  ],
+  "after": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "e6cfeaa7776a3444d0392a019ec92034",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    }
+  ],
+  "oldProcessIDs": [
+    68420,
+    68428,
+    70894,
+    70896
+  ],
+  "remainingOldProcesses": "",
+  "shutdownSeconds": 0.5679222080070758,
+  "time": "2026-09-27T20:03:24.806780+00:00"
+}

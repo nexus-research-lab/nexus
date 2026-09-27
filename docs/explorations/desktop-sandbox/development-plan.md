@@ -76,7 +76,7 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 ## macOS 当前剩余工作（2026-09-28）
 
-当前最新固定 macOS 基线：Nexus `278ce0bc2`、SDK `b84b7b6c`、远程 Bridge `4b2972f`，45 项检查/655 个必测名称全部通过。新增重启前持久回执准入、代次延续和 scratch 清理失败栅栏，见[重启准入证据](../../testing/evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)。stdio MCP 已接入独立受控进程合同，持久配置及 Connector 经真实 nxs 完整往返；HTTP/SSE 聚合消息限额同步收口，见[stdio 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。此前 helper 与辅助进程限额证据见[helper 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
+当前最新固定 macOS 基线：Nexus `132b5ad69`、SDK `b84b7b6c`、远程 Bridge `4b2972f`，46 项检查/661 个必测名称全部通过。实际 App 的正常退出和同会话重启已有真实 Provider 证据，见[App 退出证据](../../testing/evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)。此前新增的持久回执准入、代次延续和 scratch 清理失败栅栏见[重启准入证据](../../testing/evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)。stdio MCP 已接入独立受控进程合同，持久配置及 Connector 经真实 nxs 完整往返；HTTP/SSE 聚合消息限额同步收口，见[stdio 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。此前 helper 与辅助进程限额证据见[helper 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
 
 2026-09-28 当前 App 补充：Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 的干净 arm64 开发签名 App/DMG、
 两次独立状态根下的真实 App smoke、包内内核配套检查及五项真实第三方模型检查通过，见
@@ -86,7 +86,7 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 本轮真实 App DM 已验证原生 Write、Bash 读取、文件交付审批拒绝/本次批准及 UI 停止命令。
 正常退出后重开暴露了 AppServices 未关闭 Manager、持久回执仍为 confirmed 的缺陷；现补齐
 先关闭 runtime、后关闭数据库的顺序，并把真实 nxs 的两次完整关闭/数据库重开纳入必测门禁。
-修复后的完整 App 窗口重启复验仍待执行，不能用服务集成测试替代 UI 结论。
+修复后真实原生 App 经 WebSocket 完成同 DM 重启前后 Read、generation 递增、Room Write/Bash 读取及全部 runtime 正常退出；完整窗口交互复验因 Mac 锁屏待完成，不能用后端入口替代 UI 结论。
 
 2026-09-28 补充基线：SDK `593b1fa6`、远程规范 Bridge `b0402649d44b`，40 项原生检查/527 个必测名称及 nxs/Claude 真实第三方 Provider 10 项基础检查通过。当前 Nexus 已包含 Windows 机器的 `bc74365dd`；Windows 的独立固定测试版本和证据保持。
 
@@ -99,7 +99,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 | --- | --- |
 | 完整取消与异常恢复 | 仍需实现可部署的脱离 session 后代监督与终态证明；基于该事实收口 `cleanup_unknown` 与 unknown 回执，再决定自动回收。普通 sleep 进程中断通过不能代替这一项；SDK 多文件掉电事务/持久执行回执也未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；可信 MCP 代理、其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
-| 产品端到端 | 在真实 App 的 DM、Room、后台任务中串起批准/拒绝、允许域名、取消、重启与两个方向的 Full Access/后端切换；本轮调用产品 options builder，但没有经过聊天 UI、宿主 Session manager 或持久审批界面 |
+| 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 WebSocket DM 重启、Room 写读和共同退出已通过。继续补 Room/后台审批、允许域名、完整 UI 复验及两个方向的 Full Access/后端切换 |
 | 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
 | 正式 macOS 分发 | 从干净固定提交构建 Developer ID 签名/公证包，在启用正常 Gatekeeper 的干净机器验证 quarantine、安装、版本升级与回退；若支持 Intel，另补 Intel 证据 |
 
