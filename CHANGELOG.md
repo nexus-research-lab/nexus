@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restore persisted and Connector stdio MCP services on macOS through a separately negotiated nxs process contract. Include the requirement in process replacement and effective-policy receipts; verify actual nxs discovery, tool execution, explicit service credentials and results returning to the model. Native gates cover confinement, cancellation, replacement and bounded protocol output.
+
 - Restore configured MCP authentication helpers on macOS through a separately negotiated nxs execution contract. Helpers use the current command sandbox and filtered task environment, refresh authentication per request, stop on failure without stale-header fallback, and are canceled and awaited at session shutdown. Require the capability in runtime policy and test persisted HTTP and Connector SSE helper round trips.
 
 - Restore configured HTTP and legacy SSE MCP servers in macOS nxs sandbox sessions. Require the independent endpoint-network capability and explicit service configuration, keep command/image network permissions separate, preserve configured headers, and include the requirement in process replacement and effective-policy receipts. Add actual nxs tool round-trip acceptance for persisted HTTP and Connector SSE configuration.

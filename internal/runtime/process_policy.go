@@ -47,6 +47,7 @@ type runtimeProcessPolicy struct {
 	MCPStrictConfig               bool                               `json:"mcp_strict_config"`
 	SandboxMCPNetworkRequired     bool                               `json:"sandbox_mcp_network_required,omitempty"`
 	SandboxMCPHelpersRequired     bool                               `json:"sandbox_mcp_helpers_required,omitempty"`
+	SandboxMCPStdioRequired       bool                               `json:"sandbox_mcp_stdio_required,omitempty"`
 	SandboxMediaNetworkRequired   bool                               `json:"sandbox_media_network_required,omitempty"`
 	SandboxNotebookFilesRequired  bool                               `json:"sandbox_notebook_files_required,omitempty"`
 	SandboxSkillFilesRequired     bool                               `json:"sandbox_skill_files_required,omitempty"`
@@ -96,6 +97,7 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 		policy.SandboxMediaNetworkRequired = options.Sandbox.RequireMediaNetwork
 		policy.SandboxMCPNetworkRequired = options.Sandbox.RequireMCPNetwork
 		policy.SandboxMCPHelpersRequired = options.Sandbox.RequireMCPHelpers
+		policy.SandboxMCPStdioRequired = options.Sandbox.RequireMCPStdio
 		policy.MCPStrictConfig = options.MCP.StrictConfig
 		policy.SandboxNotebookFilesRequired = options.Sandbox.RequireNotebookFiles
 		policy.SandboxSkillFilesRequired = options.Sandbox.RequireSkillFiles

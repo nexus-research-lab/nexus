@@ -45,4 +45,5 @@
 // Provider 所有权、凭据清理和后台唤醒标记参与进程指纹；变化先替换进程，不伪装成环境热更新。
 // macOS nxs 的 MCP 专用网络要求与显式配置参与进程指纹和有效策略回执；不授予命令网络。
 // MCP helper 要求进入进程策略和有效回执，不能用远端网络能力代替命令执行合同。
+// macOS stdio MCP 通过 RequireMCPStdio 独立要求受限进程，纳入替换指纹与有效策略回执。
 package runtime

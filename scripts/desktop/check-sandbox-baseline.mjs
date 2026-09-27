@@ -155,6 +155,7 @@ try {
   ]);
   if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
     "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),
+    "TestDesktopSandboxStdioMCPRoundTrip", ...["stdio_persisted", "stdio_connector"].map((name) => `TestDesktopSandboxStdioMCPRoundTrip/${name}`),
   ]);
   if (sdkSource) {
     testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
@@ -233,6 +234,21 @@ try {
       "TestDarwinSandboxMCPRuntimeNetwork/ambient", "TestDarwinSandboxMCPRuntimeNetwork/explicit",
     ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("file-output-limit", ["./internal/tool/builtin/file/sandboxfs"], ["TestBoundedOutputLimitsExecCopy"], sdkSource);
+    testGroup("macos-mcp-stdio", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
+      "TestSandboxMCPStdioRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPStdioRequirement/${name}`),
+      "TestStdioMCPConcurrentResponses", "TestStdioMCPProtocolFailure",
+      ...["malformed", "oversized", "closed"].map((name) => `TestStdioMCPProtocolFailure/${name}`),
+      "TestStdioMCPCancellationAndRegistry",
+      ...["cancel", "blocked_write", "disable", "remove", "replace", "close"].map((name) => `TestStdioMCPCancellationAndRegistry/${name}`),
+      "TestStdioMCPDiscoveryCancellation", "TestStdioMCPClientRequests", "TestMCPResponseBounds",
+      ...["json", "json_whitespace", "http_sse", "legacy_sse"].map((name) => `TestMCPResponseBounds/${name}`),
+      "TestDarwinSandboxMCPStdioFilesAndEnvironment",
+      ...["workspace_read", "denied_read", "readonly_write", "scratch_write"].map((name) => `TestDarwinSandboxMCPStdioFilesAndEnvironment/${name}`),
+      "TestDarwinSandboxMCPStdioArgv", "TestDarwinSandboxMCPStdioNetwork", "TestDarwinSandboxMCPStdioLifecycle",
+      ...["cancel", "permission", "close", "replace", "ordinary_descendant"].map((name) => `TestDarwinSandboxMCPStdioLifecycle/${name}`),
+      "TestMCPProcessCleanupFailureIsSticky", "TestMCPStdioExecutableUsesWorkingDirectory",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
     testGroup("macos-mcp-helpers", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
       "TestSandboxMCPHelpersRequirement",
       ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPHelpersRequirement/${name}`),
