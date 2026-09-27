@@ -1,4 +1,4 @@
-// INPUT: owner/Agent 身份、Manager 中已绑定的 DM/Room runtime session。
+// INPUT: owner/Agent 身份、Manager 退出栅栏与已绑定的 DM/Room runtime session。
 // OUTPUT: 持久 Agent 墓碑、全部匹配 session 的取消/断连，以及后续创建的 fail-closed 拒绝。
 // POS: Agent 数据库身份删除提交后的 runtime 生命周期撤销边界。
 package runtime
@@ -40,6 +40,9 @@ func (m *Manager) runtimeAgentAdmissionErrorLocked(
 	ownerUserID string,
 	agentID string,
 ) error {
+	if m.shutdownDone != nil {
+		return ErrRuntimeManagerClosed
+	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	agentID = strings.TrimSpace(agentID)

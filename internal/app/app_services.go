@@ -1,5 +1,5 @@
 // INPUT: 应用配置、数据库与基础服务依赖。
-// OUTPUT: 完整 AppServices 依赖图、可选 Team Relay client、跨域 runtime 装配及自有数据库生命周期。
+// OUTPUT: 完整 AppServices 依赖图、可选 Team Relay client、跨域 runtime 装配及先运行时后数据库的退出顺序。
 // POS: HTTP 与 CLI 共用的服务装配根；不持有 HTTP server。
 package app
 
@@ -101,12 +101,19 @@ type AppServices struct {
 	ownsDB                 bool
 }
 
-// Close 等待仍可能写入 workspace 的标题任务结束，并释放容器自行打开的数据库。
+// Close 先停止 runtime 准入并等待终态持久化，再释放宿主任务和自有数据库。
+// 等待超时保留数据库，供共享 runtime 清理继续写入；调用者可再次等待同一次关闭。
 func (s *AppServices) Close(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
 	var closeErrors []error
+	if s.Runtime != nil {
+		closeErrors = append(closeErrors, s.Runtime.Close(ctx))
+		if ctx.Err() != nil {
+			return errors.Join(closeErrors...)
+		}
+	}
 	if s.ChannelAuthorization != nil {
 		closeErrors = append(closeErrors, s.ChannelAuthorization.Close(ctx))
 	}

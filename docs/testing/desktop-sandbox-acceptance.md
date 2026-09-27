@@ -4,6 +4,8 @@
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
 
+最新 macOS 固定基线见 [2026-09-28 重启准入](evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)：Nexus `278ce0bc2`、SDK `b84b7b6c`、Bridge `4b2972f`，45 项检查及 655 个必测名称全部通过。新 Manager 延续持久代次，未收口回执和 scratch marker 在进程创建前阻止重启绕过；该证据不等于任意后代监督或发布验收。
+
 ## 2026-09-27：真实第三方模型与两种 macOS 后端
 
 使用主工作目录 `.env` 的第三方 Anthropic-compatible Provider，分别通过当前

@@ -62,6 +62,10 @@ func (m *Manager) beginClientStartup(
 	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	m.mu.Lock()
+	if m.shutdownDone != nil {
+		m.mu.Unlock()
+		return nil, ErrRuntimeManagerClosed
+	}
 	ownerLease, err := m.beginOwnerStartupLocked(ownerUserID, sessionKey)
 	if err != nil {
 		m.mu.Unlock()
@@ -79,6 +83,10 @@ func (m *Manager) beginClientStartup(
 		return nil, ErrRuntimeSessionClosing
 	}
 	gate.refs++
+	if m.activeStartups == 0 {
+		m.startupsDrained = make(chan struct{})
+	}
+	m.activeStartups++
 	closeEpoch := gate.closeEpoch
 	m.mu.Unlock()
 
@@ -96,7 +104,7 @@ func (m *Manager) beginClientStartup(
 		closeEpoch: closeEpoch,
 	}
 	m.mu.RLock()
-	valid := m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch &&
+	valid := m.shutdownDone == nil && m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch &&
 		m.validateOwnerStartupLocked(ownerLease) == nil
 	m.mu.RUnlock()
 	if !valid {
@@ -123,6 +131,10 @@ func (m *Manager) releaseClientStartup(
 		m.removeClientlessSessionIfIdleLocked(sessionKey, nil, gate)
 	}
 	m.releaseOwnerStartupLocked(ownerLease)
+	m.activeStartups--
+	if m.activeStartups == 0 {
+		close(m.startupsDrained)
+	}
 	gate.refs--
 	if gate.refs == 0 && m.startupGates[sessionKey] == gate {
 		delete(m.startupGates, sessionKey)
@@ -181,6 +193,9 @@ func (s *ClientStartup) active() error {
 func (s *ClientStartup) validateCloseEpochLocked() error {
 	if s == nil {
 		return nil
+	}
+	if s.manager != nil && s.manager.shutdownDone != nil {
+		return ErrRuntimeManagerClosed
 	}
 	if s.manager == nil || s.release == nil ||
 		s.manager.startupGates[s.sessionKey] != s.gate ||

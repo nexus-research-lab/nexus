@@ -4,7 +4,7 @@
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-当前开发位置（2026-09-28）：三个独立 worktree 位于 Windows 本机 `E:\Code\nexus\worktrees\desktop-sandbox\` 下的 `nexus`、`nexus-agent-sdk-go`、`nexus-agent-sdk-bridge`，都使用本地与 origin 的 `codex/desktop-sandbox-approvals`。用户已要求 Windows 全面检查、补全并阶段性本地提交和推送；历史“仅本地”限制不适用于本轮。原 macOS checkout 和归档草稿保持历史用途，Nexus main 未参与本轮修改。
+当前开发位置（2026-09-28）：Windows 机器的三个 worktree 位于 `E:\Code\nexus\worktrees\desktop-sandbox\`；macOS 机器继续使用 `/Users/berhand/program/Work/Nexus/worktrees/` 下三个仓库各自的 `desktop-sandbox` worktree。两台机器都使用本地与 origin 的 `codex/desktop-sandbox-approvals`，分平台验证并在推送前合并远端进展。历史“仅本地”限制不适用于本轮；Nexus main 未参与本轮修改。
 
 当前 Windows 固定基线：SDK `2148b4b1833b2324a4f41f6e42235aa9a73424e5`，Bridge
 `c018b4973dc3`（Go 模块 `v0.1.34-0.20260927154842-c018b4973dc3`）。Windows 11 amd64
@@ -76,12 +76,17 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 ## macOS 当前剩余工作（2026-09-28）
 
-当前最新固定 macOS 基线：Nexus `1b1bb88ca`、SDK `b84b7b6c`、远程 Bridge `4b2972f`，45 项检查/640 个必测名称全部通过。stdio MCP 已接入独立受控进程合同，持久配置及 Connector 经真实 nxs 完整往返；HTTP/SSE 聚合消息限额同步收口，见[本批报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。此前 helper 与辅助进程限额证据见[上一批报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
+当前最新固定 macOS 基线：Nexus `278ce0bc2`、SDK `b84b7b6c`、远程 Bridge `4b2972f`，45 项检查/655 个必测名称全部通过。新增重启前持久回执准入、代次延续和 scratch 清理失败栅栏，见[重启准入证据](../../testing/evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)。stdio MCP 已接入独立受控进程合同，持久配置及 Connector 经真实 nxs 完整往返；HTTP/SSE 聚合消息限额同步收口，见[stdio 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)。此前 helper 与辅助进程限额证据见[helper 报告](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
 
 2026-09-28 当前 App 补充：Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 的干净 arm64 开发签名 App/DMG、
 两次独立状态根下的真实 App smoke、包内内核配套检查及五项真实第三方模型检查通过，见
 [固定来源证据](../../testing/evidence/desktop-sandbox/2026-09-28-stdio-app/README.md)。正式签名专用 CI
 已准备；SDK 私有仓库禁止 Deploy Key，待 CI 只读授权后执行，不把该依赖描述成缺少签名证书。
+
+本轮真实 App DM 已验证原生 Write、Bash 读取、文件交付审批拒绝/本次批准及 UI 停止命令。
+正常退出后重开暴露了 AppServices 未关闭 Manager、持久回执仍为 confirmed 的缺陷；现补齐
+先关闭 runtime、后关闭数据库的顺序，并把真实 nxs 的两次完整关闭/数据库重开纳入必测门禁。
+修复后的完整 App 窗口重启复验仍待执行，不能用服务集成测试替代 UI 结论。
 
 2026-09-28 补充基线：SDK `593b1fa6`、远程规范 Bridge `b0402649d44b`，40 项原生检查/527 个必测名称及 nxs/Claude 真实第三方 Provider 10 项基础检查通过。当前 Nexus 已包含 Windows 机器的 `bc74365dd`；Windows 的独立固定测试版本和证据保持。
 

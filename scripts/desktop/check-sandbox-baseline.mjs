@@ -108,7 +108,12 @@ try {
     "TestSandboxDiagnosisDoesNotInventAvailability",
     "TestSandboxDiagnosisRealNXS",
   ]);
-  testGroup("host-lifecycle", ["./internal/runtime", "./internal/service/room/realtime"], [
+  testGroup("host-lifecycle", ["./internal/runtime", "./internal/app", "./internal/service/room/realtime"], [
+    "TestAppServicesClosePersistsSandboxRetirementBeforeDatabaseClose",
+    "TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites",
+    "TestManagerShutdownRejectsNewWorkAndPreservesFailure",
+    "TestManagerShutdownWaitsForLateFactory",
+    "TestManagerShutdownDrainsReceiptInsertionBeforeRetirement",
     "TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate",
     "TestManagerHandlesSandboxModeReplacementAsExpectedTransition",
     "TestManagerReplacesRuntimeForSandboxTransitions",
@@ -162,6 +167,9 @@ try {
     ...["scope", "domain", "target", "version", "secret"].map((entry) => `TestConfigurationRevisionBindsScopeAndSecrets/${entry}`),
     "TestConfigurationRevisionLegacyReceiptIsIncomparable",
     "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
+  ]);
+  if (process.platform === "darwin") testGroup("host-app-shutdown", ["./internal/app"], [
+    "TestAppServicesCloseRealSandboxRuntimeAfterRestart",
   ]);
   if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
     "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),

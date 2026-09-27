@@ -505,6 +505,14 @@ This check applies before choosing the new runtime, so a backend or Full Access
 change cannot bypass unresolved previous execution. It does not infer an exit
 from an absent in-memory client or automatically replay a request.
 
+Normal host shutdown closes Manager admission for clients, rounds and background
+tasks before releasing the App database. It cancels existing round/background
+work, drains in-flight startup and receipt insertion, then closes sessions in
+parallel through the existing cleanup and receipt lifecycle. Repeated close calls
+wait for the same result. A caller timeout does not cancel shared cleanup or close
+the database while runtime writes remain possible. This orderly exit path does
+not clear receipts left unresolved by a crash or failed descendant cleanup.
+
 Scratch allocation independently checks persisted markers through its fixed parent
 directory handle. The same owner/session's cleanup-unknown marker, including one
 under an older replacement path, blocks a new lease after restart. Invalid markers
