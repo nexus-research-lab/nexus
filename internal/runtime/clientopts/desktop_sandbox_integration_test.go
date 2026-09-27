@@ -1,3 +1,6 @@
+// INPUT: 隔离宿主目录、固定 Bridge 与真实 nxs。
+// OUTPUT: 按正式启动前提准备用户 runtime 布局后验证桌面沙箱握手。
+// POS: 无模型调用的宿主集成回归，不代替工具隔离或发布验收。
 package clientopts
 
 import (
@@ -10,6 +13,7 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 // This opt-in test checks host option assembly through the pinned Bridge and a
@@ -22,6 +26,7 @@ func TestDesktopSandboxRealRuntimeNegotiation(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		t.Skip("desktop host platform required")
 	}
+	prepareDesktopSandboxRuntimeLayout(t)
 	root := t.TempDir()
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: root, RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true, PermissionMode: sdkpermission.ModeDefault,
@@ -66,6 +71,7 @@ func TestDesktopSandboxRealRuntimeWithHostResources(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		t.Skip("desktop host platform required")
 	}
+	prepareDesktopSandboxRuntimeLayout(t)
 	workspace := t.TempDir()
 	scratch := t.TempDir()
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
@@ -102,5 +108,15 @@ func TestDesktopSandboxRealRuntimeWithHostResources(t *testing.T) {
 	}()
 	if !session.Supports(agentclient.CapabilitySandboxResources) {
 		t.Fatal("host resource capability was not acknowledged")
+	}
+}
+
+// prepareDesktopSandboxRuntimeLayout 复用正式 Agent ready 阶段的目录准备，夹具不借用用户状态。
+func prepareDesktopSandboxRuntimeLayout(t *testing.T) {
+	t.Helper()
+	root := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, root)
+	if err := appfs.EnsureUserRuntimeLayoutAt(root, "__system__"); err != nil {
+		t.Fatal(err)
 	}
 }
