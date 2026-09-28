@@ -42,3 +42,7 @@ Bridge 已新增 `cmd/nexus-runtime-bootstrap` 和内部启动协议：按固定
 ## 根进程退出观察进展
 
 内部 `Scope.WatchRoot` 在 helper 放行前核验连接身份并注册 kqueue `NOTE_EXIT | NOTE_EXITSTATUS`，已实测跨 exec 保留退出码，取消等待或停止观察不会构造退出事实。另一原生场景证明主进程退出后脱离后代仍然存活，必须独立 Reap。见[退出观察证据](../../testing/evidence/desktop-sandbox/2026-09-28-root-exit-observer/README.md)。此组件不恢复历史退出码；生产 launcher、持久放行、默认 transport 和 unknown 恢复仍待接入。
+
+## 宿主持久登记进展
+
+Nexus 已新增可信数据库启动事实和产品 factory 前读栅栏，绑定现有 owner/session/generation；原集合登记后仅允许一次放行领取，未收口记录阻断跨后端重建。真实 SQLite 并发领取、重开及迟到/跨 scope/错误证据拒绝通过，runtime 包与架构检查通过。见[登记证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-registry/README.md)。生产 launcher 还未调用写入链；下一步连接 job 核验、持久放行、退出观察与撤销/回收，不将此数据库批次当作实际崩溃窗口已经关闭。

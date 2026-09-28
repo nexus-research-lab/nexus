@@ -1,0 +1,11 @@
+{
+  "nexusSourceCommit": "2f24c12e5565154536fe2a12ba974c80e859459b",
+  "productionBootstrapIntegrated": false,
+  "releaseAccepted": false,
+  "sha256": {
+    "README.md": "9600670f39868ff6a03bf296a3ff4e877b8ed683438eea6381c6c67ac0e632f8",
+    "registry-race.txt": "cb6d4c9879066342e7083c2b2a7ea140fba298d51019bc9fba95ff4ea3737f0f",
+    "runtime-package.txt": "e749a93868fe8be76c6cd8643b16141419b6258767cacdd59076872b7ee65712",
+    "startup-targeted.txt": "1bbe926a33b4c9cefea4ac5505b6f9b455e916b918e346ad543e06602e873848"
+  }
+}

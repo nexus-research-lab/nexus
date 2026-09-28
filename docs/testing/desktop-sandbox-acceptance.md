@@ -1197,3 +1197,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ## 2026-09-28：内核根退出观察
 
 [原生退出观察证据](evidence/desktop-sandbox/2026-09-28-root-exit-observer/README.md)确认 helper 放行前注册后可跨 exec 获取真实退出码，取消等待/停止观察不伪造退出，主进程退出后的脱离后代仍须独立回收。默认 transport、持久宿主绑定、unknown 恢复和正式发布仍未接通，`releaseAccepted=false`。
+
+## 2026-09-28：宿主持久启动事实
+
+[登记与准入证据](evidence/desktop-sandbox/2026-09-28-process-registry/README.md)覆盖 SQLite 重开、并发一次性放行、迟到及跨 scope 拒绝、原集合证据绑定和无策略回执时阻断新 factory。runtime 包、仓储竞态与架构门禁通过；生产 launcher 尚未调用写入链，不能据此声称实际启动/崩溃恢复已完成，`releaseAccepted=false`。

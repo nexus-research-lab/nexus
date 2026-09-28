@@ -783,3 +783,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 引导接收端：真实 helper 已能认证宿主、接收标准管道和显式输入并原地 exec，原生/竞态/无 cgo 检查通过，[证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-bootstrap/README.md)。下一步是宿主生产 launcher、持久放行、退出观察和 transport/恢复接入，不把 fixture 登记文件当作宿主回执。
 
 2026-09-28 退出观察：已在真实 helper 放行前注册 kqueue 根退出事件，跨 exec 的退出码和脱离后代独立清理通过原生用例；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-root-exit-observer/README.md)。当前仍是内部组件，未接产品持久启动/退出回执或默认 transport。
+
+2026-09-28 宿主持久登记：可信数据库进程记录、一次性放行 CAS 和 factory 前读栅栏已落地，SQLite 并发/重开、runtime 包和架构检查通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-registry/README.md)。生产 launcher 写入及真实 transport/恢复尚未接通；原策略回执与进程记录共用 owner/session/generation，保留既有 unknown，不自动解锁。
