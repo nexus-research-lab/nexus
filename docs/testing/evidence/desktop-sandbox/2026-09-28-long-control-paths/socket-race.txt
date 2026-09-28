@@ -1,0 +1,6 @@
+=== RUN   TestControlSocketLongPathPreservesWorkingDirectory
+--- PASS: TestControlSocketLongPathPreservesWorkingDirectory (0.01s)
+=== RUN   TestControlSocketRejectsInvalidPaths
+--- PASS: TestControlSocketRejectsInvalidPaths (0.00s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap	1.946s

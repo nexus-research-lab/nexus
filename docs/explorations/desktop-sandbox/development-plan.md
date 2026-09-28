@@ -804,3 +804,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 本批真实 helper/SQLite exact LeaseID 与反例、DM/Room 回归证据见[进程资源绑定](../../testing/evidence/desktop-sandbox/2026-09-28-supervisor-lease/README.md)。
 
 2026-09-28 AutoDream 接入：宿主维护 runner 已移除独立 Bridge NewSession，改走共享 Manager 的 owner/Agent 后台登记、启动事务、监督/lease 绑定和退休回执。取消、停机、Agent 撤销、连接失败、清理失败栅栏测试通过；固定 nxs + helper 的两次真实控制往返验证进程/策略终态、代次递增和 scratch 删除（整理 gate 关闭，不调用模型）。默认 App supervisor 装配与崩溃自动恢复仍待接通。证据见[托管 AutoDream](../../testing/evidence/desktop-sandbox/2026-09-28-managed-autodream/README.md)。
+
+2026-09-28 长状态根：Bridge `c994b19` 在原目录句柄内绑定/连接 socket，专用原生线程局部 cwd 不影响宿主线程，移除完整路径 103 字节拒绝且不创建别名/共享临时控制根。真实 helper 与固定 nxs 的长目录 AutoDream 双代次/双回执/资源回收通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-long-control-paths/README.md)。macOS 14.0 精确信号、默认 App 装配和自动恢复仍未完成。

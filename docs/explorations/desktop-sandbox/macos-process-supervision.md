@@ -66,3 +66,7 @@ Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动
 ### 2026-09-28：原登记恢复入口
 
 Bridge `Recover` 先验证原意图、登记和当前观察者，再撤销同 boot 原 job 并回收原集合；boot 改变不动新 boot 同名 job。真实测试宿主在任务仍存活时直接退出而不 Close，新宿主仅凭持久登记回收成功，重复恢复未重放任务。Nexus `RecoverSandboxProcess` 在宿主已持有跨进程独占实例锁的前提下，通过会话 gate 读取 exact 记录并调用该入口；活动 client 拒绝，失败保留状态。该入口不自动清除 policy/scratch 栅栏，也尚未由 App 启动自动调用。
+
+### 2026-09-28：原宿主目录中的长 socket 路径
+
+上述历史记录中的 103 字节完整路径缺口已在 Bridge `c994b19` 解决：专用原生线程使用父目录句柄及 basename 绑定/连接，退出时销毁线程 cwd，不修改进程 cwd。真实长路径启动/回收和 Nexus 固定 nxs 双次 AutoDream 生命周期通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-long-control-paths/README.md)。宿主仍须提供任务不可写的目录；当前只在本机 arm64 验证，不声明 macOS 14.0 或 Intel 支持已验收。

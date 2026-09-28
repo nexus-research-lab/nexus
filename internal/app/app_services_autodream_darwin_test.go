@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,11 +43,13 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	jobs, err := os.MkdirTemp("/tmp", "nx-dream-") // Short fixture only; production long paths remain open.
-	if err != nil {
+	jobs := filepath.Join(root, "app", strings.Repeat("long-private-state-", 8))
+	if err := os.MkdirAll(jobs, 0700); err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(jobs)
+	if len(jobs) <= 103 {
+		t.Fatal("fixture must exceed Unix socket address length")
+	}
 	jobRoot, err := confinedfs.Open(jobs)
 	if err != nil {
 		t.Fatal(err)

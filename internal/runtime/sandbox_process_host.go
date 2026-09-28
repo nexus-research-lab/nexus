@@ -65,12 +65,9 @@ func (h *sandboxProcessHost) Reserve(ctx context.Context, i supervision.Intent) 
 	if h.intent != nil && *h.intent != intent {
 		return supervision.Paths{}, errors.New("supervised host cannot be rebound")
 	}
-	// 在持久预留之前拒绝超长路径；不转移到任务可写的共享临时目录。
+	// Bridge 在原父目录句柄内绑定 socket；完整状态根长度不再受 sockaddr_un 限制。
 	dir := filepath.Join(h.root.Name(), "p", i.ID)
 	paths := supervision.Paths{JobFile: filepath.Join(dir, "job.plist"), Socket: filepath.Join(dir, "s")}
-	if len(paths.Socket) > 103 {
-		return supervision.Paths{}, errors.New("protected supervision socket path exceeds macOS limit")
-	}
 	// Prepare 响应可能丢失；先保留精确意图供 Finish 对账，不能生成第二个启动。
 	h.intent = &intent
 	if err := h.store.PrepareProcess(ctx, intent); err != nil {
