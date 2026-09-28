@@ -795,3 +795,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 Manager 接线：显式 `SandboxProcessSupervisor` 配置在 factory 前绑定 owner/session/generation，普通热更新保留原 client 监督身份。同代次探测/runtime 通过迁移 145 的顺序槽持久登记，唯一 active 范围不变；未知 probe 也阻断下一次 factory。旧无 purpose 登记保留正文并解释为 runtime，多 launch 代次拒绝有损回退。App 可信根/固定 helper 摘要的默认装配、scratch lease 绑定、崩溃恢复、长路径和发布验收仍待完成。
 
 2026-09-28 显式恢复：Bridge `5e6db3d` 已验证旧宿主未清理直接退出后，新宿主按原登记回收仍存活任务；boot 改变不撤销新 boot 同名 job。Nexus 增加 exact key、会话 gate 内的恢复适配，拒绝活动 client，保留 policy/scratch 的独立栅栏。App 跨进程独占启动装配、自动扫描与 exact lease/policy 对账仍待实现，不能宣称完整崩溃自动恢复。
+
+2026-09-28 sidecar 实例边界：macOS 桌面服务入口已在迁移前持有独立状态根 flock，完整关闭后释放；原生第二实例、退出自动释放、CLOEXEC、链接/替换反例和旧布局迁移验证通过。仅协调采用新协议的 sidecar；旧版 orphan 核验、将 Guard 绑定恢复调用、helper 打包和自动恢复仍待完成。

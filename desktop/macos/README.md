@@ -15,6 +15,7 @@
 - Shell 会在 `~/.nexus/NexusSidecar.pid.json` 记录当前 sidecar；下次启动前会清理同 bundle 路径下的崩溃遗留进程。
 - Shell 会把本地 session token 同步进 WKWebView cookie store，保证 WebSocket 握手也能通过本地 API 校验。
 - Shell 在正式签名包中优先使用 macOS Keychain 持久化 connector credentials encryption key；开发模式和 ad-hoc 本地包默认直接使用 `~/.nexus/app/config/connector-credentials.key` 的 0600 本地密钥，避免反复重签后 Keychain ACL 弹密码或阻塞启动。sidecar 通过 `CONNECTOR_CREDENTIALS_KEY` 使用现有 Go 加密存储。
+- Go sidecar 在任何布局/数据库迁移前独立持有状态根 `app/sidecar.lock` 的内核独占锁，直到所有服务关闭；第二个采用同协议的 sidecar 拒绝启动。锁文件不按 PID/年龄清除，不向执行的子进程继承。此锁不能单独证明旧版未持锁的遗留宿主退出，完整监督自动恢复仍需单独接线。
 - Shell 负责单实例、Dock 重新打开、标准菜单、外链拦截和 `nexus://` URL scheme；冷启动和重复启动已有实例默认显示 launcher，Dock 重新打开只恢复现有主窗口，不主动改写当前路由。
 - Shell 使用 `NSVisualEffectView` material 承载 WKWebView：主窗口使用 `windowBackground` material，WKWebView under-page 背景保持透明。
 - 主窗口使用 titlebar-only 原生框保留 16pt 系统圆角，标准 traffic lights 在每次原生布局后对齐 24pt 中线，让 full-size Web Header 获得 48pt 高度；宿主把窗口按钮尾部安全区和红色按钮双轴中心注入 Web，使 NEXUS、Launcher 灯组、折叠动作和红灯共用水平中线且上下等距，导航轨的横向几何仍由 Web 设计规范持有。Web 只同步窗口手势面与编辑控件矩形，`NSWindow` 用 AppKit 事件跟踪仲裁完整鼠标序列：4pt 内松手仍向 WKWebView 分发原始点击，越过阈值则把原始 mouse-down 交给系统窗口拖动，双击执行缩放。标签、按钮和菜单因此同时支持点击与按住拖窗，输入控件不被接管。

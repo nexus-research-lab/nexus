@@ -678,3 +678,5 @@ Manager 的 `SetSandboxProcessSupervisor` 只允许启动前由宿主配置可�
 迁移 145 保留旧 intent JSON；旧 purpose 空值固定解释为 runtime。同代次存在多个启动记录时，回退到旧唯一键会事务失败，不删除部分证据凑成可回退状态。当前 App 尚未默认装配此监督器，生产可信路径、scratch lease 绑定、崩溃自动对账及发布验收仍未完成。
 
 `Manager.RecoverSandboxProcess` 是宿主内部显式入口：调用方先取得跨进程独占实例锁并确认旧宿主退出，Manager 再取得会话启动 gate 并拒绝活动 client；按 exact key 读取原记录并调用 Bridge 恢复，既不重新 Reserve/ClaimRelease，也不重放命令。终态重复调用只读原结果。失败保留原记录；成功只代表原进程记录收口，不清除 policy unknown 或 scratch 栅栏。App 尚未自动调用此入口。
+
+macOS 桌面 `nexus-server` 在布局迁移前获取 canonical `app/sidecar.lock` 的非阻塞内核独占锁，保持到服务关闭后。锁文件不保存 PID，不按年龄删除，不 unlink；描述符 CLOEXEC，第二个采用同协议的 sidecar 拒绝启动。恢复使用前可通过 Guard.Verify 校验目录和锁 inode 未被替换。该锁不覆盖旧版未持锁宿主，也不替代原生窗口锁、原任务集合退出证据或 App 自动恢复装配。

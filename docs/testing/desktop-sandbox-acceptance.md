@@ -1221,3 +1221,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：原进程登记恢复
 
 [恢复证据](evidence/desktop-sandbox/2026-09-28-process-recovery/README.md)包含真实宿主未 Close 即退出、原任务仍存活后按原登记回收的 Bridge race 测试，以及 Nexus 真实 SQLite/注入原生结果的 exact scope 回归。进程收口不清除 policy unknown；活动 client、跨 owner 和原生失败不会成功收口。App 独占实例锁装配、自动扫描、lease/policy 对账和实际重启验收仍未完成。
+
+### 2026-09-28：macOS sidecar 状态根锁
+
+[实例锁证据](evidence/desktop-sandbox/2026-09-28-sidecar-instance/README.md)验证迁移前独占、真实持有者退出释放、CLOEXEC、链接/替换拒绝及旧数据库/会话迁移保留。此锁已进入 macOS 桌面服务入口；仅协调采用协议的 sidecar，旧版未持锁宿主与完整 App 自动恢复仍须单独接线验收。
