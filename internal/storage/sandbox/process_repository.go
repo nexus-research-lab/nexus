@@ -33,8 +33,8 @@ func (r *Repository) PrepareProcess(ctx context.Context, intent protocol.Sandbox
 	order, _ := intent.Purpose.Order()
 	query := `INSERT INTO sandbox_process_launches(owner_user_id,session_key,generation,launch_id,phase,intent_json,created_at,updated_at,launch_order)
  SELECT ` + b(1) + `,` + b(2) + `,` + b(3) + `,` + b(4) + `,'prepared',` + b(5) + `,` + b(6) + `,` + b(7) + `,` + b(8) + `
- WHERE NOT EXISTS(SELECT 1 FROM sandbox_process_launches WHERE owner_user_id=` + b(9) + ` AND session_key=` + b(10) + ` AND (generation>` + b(11) + ` OR (generation=` + b(12) + ` AND launch_order>=` + b(13) + `))) ON CONFLICT DO NOTHING`
-	if _, err := r.db.ExecContext(ctx, query, k.OwnerUserID, k.SessionKey, k.Generation, k.LaunchID, string(data), now, now, order, k.OwnerUserID, k.SessionKey, k.Generation, k.Generation, order); err != nil {
+ WHERE NOT EXISTS(SELECT 1 FROM sandbox_process_launches WHERE owner_user_id=` + b(9) + ` AND session_key=` + b(10) + ` AND (generation>` + b(11) + ` OR (generation=` + b(12) + ` AND launch_order>=` + b(13) + `))) AND NOT EXISTS(SELECT 1 FROM sandbox_scratch_recoveries WHERE owner_user_id=` + b(14) + ` AND session_key=` + b(15) + ` AND phase<>'complete') ON CONFLICT DO NOTHING`
+	if _, err := r.db.ExecContext(ctx, query, k.OwnerUserID, k.SessionKey, k.Generation, k.LaunchID, string(data), now, now, order, k.OwnerUserID, k.SessionKey, k.Generation, k.Generation, order, k.OwnerUserID, k.SessionKey); err != nil {
 		return err
 	}
 

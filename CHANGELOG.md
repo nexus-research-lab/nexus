@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add explicit macOS scratch and policy recovery under exclusive host ownership. Quarantine the original directory without replacing another entry, persist deletion stages, resume interrupted cleanup, and reconcile only receipts bound to the retired process. Pending recovery blocks new launches; historical unbound unknown receipts remain fenced. Native host-exit recovery passed, while default App startup integration remains pending.
+
 - Persist macOS scratch parent/leaf filesystem identities from the original host lease before supervised launch. Recheck them before every probe/runtime launch, reject replaced directories, and preserve the proof during process recovery. Writable lease markers cannot supply this proof; automatic scratch reconciliation remains pending.
 
 - Persist each supervised sandbox policy receipt against its original runtime launch, including warm client reuse across policy generations. Reject probe, scope, lease and immutable-binding mismatches; preserve historical unbound receipts and refuse rollback that would erase binding evidence. This provides recovery identity only; automatic policy/scratch reconciliation and default App supervision remain pending.

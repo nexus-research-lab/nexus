@@ -12,7 +12,20 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+type sandboxScratchRecoveryPendingReader interface {
+	PendingScratchRecovery(context.Context, string, string) (bool, error)
+}
+
 func sandboxProcessStartupGeneration(ctx context.Context, store SandboxPolicyReceiptStore, owner, session string) (uint64, error) {
+	if pendingReader, ok := store.(sandboxScratchRecoveryPendingReader); ok {
+		pending, err := pendingReader.PendingScratchRecovery(ctx, owner, session)
+		if err != nil {
+			return 0, err
+		}
+		if pending {
+			return 0, ErrSandboxCleanupPending
+		}
+	}
 	reader, ok := store.(SandboxProcessReceiptReader)
 	// 非数据库 sink 沿用原合同；监督启动接入必须单独要求写入接口。
 	if !ok {
