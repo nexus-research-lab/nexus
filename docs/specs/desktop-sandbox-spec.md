@@ -570,6 +570,15 @@ These share the existing owner/session/generation identity, with a unique launch
 boot/user identity, job label, helper digest and optional lease binding. They contain
 no task arguments, environment or Provider credentials. This is distinct from the
 policy receipt written after connection and from user-writable scratch markers.
+For explicitly supervised DM/Room startup, `GetOrCreateWithLease` supplies the
+already acquired host scratch handle before client creation. Required resources
+without a live matching owner/session/policy handle fail before the factory;
+launch intents persist its exact lease ID. Each supervised launch revalidates the
+original handle, and a different handle cannot replace it at ownership transfer.
+Reading this identity does not transfer cleanup responsibility: the caller retains
+it until `BindSandboxLease` succeeds. No resource is discovered by path. App default
+supervision and the separate AutoDream session path remain unconnected.
+
 One active launch per owner/session is enforced by a unique index. `prepared` may
 be canceled as `aborted` before registration; registration writes the exact original
 coalition and changes the phase to `registered`. `ClaimProcessRelease` changes it

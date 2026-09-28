@@ -48,7 +48,7 @@ func (m *Manager) SetSandboxProcessSupervisor(config SandboxProcessSupervisor) e
 	return nil
 }
 
-func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, session string, floor uint64) (bridge.Options, error) {
+func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, session string, floor uint64, lease *SandboxResourceLease) (bridge.Options, error) {
 	m.mu.RLock()
 	config := m.sandboxSupervisor
 	store, ok := m.sandboxReceiptStore.(SandboxProcessStore)
@@ -62,7 +62,11 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 	if options.ProcessSupervision != nil {
 		return bridge.Options{}, errors.New("request cannot replace host process supervisor")
 	}
-	binding := sandboxProcessBinding{Owner: owner, Session: session, RuntimeKind: string(normalizedManagedRuntimeKind(options.Runtime.Kind)), Generation: floor + 1}
+	leaseID, err := supervisedLeaseIdentity(options, owner, session, lease)
+	if err != nil {
+		return bridge.Options{}, err
+	}
+	binding := sandboxProcessBinding{Owner: owner, Session: session, RuntimeKind: string(normalizedManagedRuntimeKind(options.Runtime.Kind)), Generation: floor + 1, LeaseID: leaseID}
 	if _, err := newSandboxProcessHost(store, config.Root, binding); err != nil {
 		return bridge.Options{}, err
 	}
@@ -70,6 +74,13 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 	options.ProcessSupervision = func(ctx context.Context, purpose supervision.Purpose) (supervision.Config, error) {
 		if err := ctx.Err(); err != nil {
 			return supervision.Config{}, err
+		}
+		currentLeaseID, err := supervisedLeaseIdentity(options, owner, session, lease)
+		if err != nil {
+			return supervision.Config{}, err
+		}
+		if currentLeaseID != binding.LeaseID {
+			return supervision.Config{}, errors.New("supervised scratch identity changed before launch")
 		}
 		next := binding
 		switch purpose {
@@ -91,4 +102,27 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 		return supervision.Config{HelperPath: config.HelperPath, HelperSHA256: config.HelperSHA256, Host: host}, nil
 	}
 	return options, nil
+}
+
+// supervisedLeaseIdentity reads the supplied host handle, never a task-provided path.
+func supervisedLeaseIdentity(options bridge.Options, owner, session string, lease *SandboxResourceLease) (string, error) {
+	var resources *bridge.SandboxResourcePolicy
+	if options.Sandbox != nil {
+		resources = options.Sandbox.Resources
+	}
+	if resources == nil && lease == nil {
+		return "", nil
+	}
+	if resources == nil || lease == nil || !lease.active() {
+		return "", errors.New("supervised resource policy requires an active host lease")
+	}
+	if normalizedManagedRuntimeKind(options.Runtime.Kind) != bridge.RuntimeNXS {
+		return "", errors.New("supervised scratch lease requires nxs runtime")
+	}
+	actual := lease.Resources()
+	marker := lease.Marker()
+	if actual == nil || *actual != *resources || marker == nil || marker.OwnerUserID != owner || marker.SessionKey != session || strings.TrimSpace(marker.LeaseID) == "" || marker.CleanupState == cleanupStateUnknown {
+		return "", errors.New("supervised scratch lease identity or policy mismatch")
+	}
+	return marker.LeaseID, nil
 }

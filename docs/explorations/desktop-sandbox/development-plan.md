@@ -799,3 +799,6 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 sidecar 实例边界：macOS 桌面服务入口已在迁移前持有独立状态根 flock，完整关闭后释放；原生第二实例、退出自动释放、CLOEXEC、链接/替换反例和旧布局迁移验证通过。仅协调采用新协议的 sidecar；旧版 orphan 核验、将 Guard 绑定恢复调用、helper 打包和自动恢复仍待完成。
 
 2026-09-28 helper 随包交付：构建脚本从固定 Bridge 依赖生成 native cgo helper，先签 helper，再生成摘要/构建身份清单，最后封签 App；打包复验清单。新增 confined bundle loader，以 sidecar 自身编译依赖为可信版本。本机 arm64 实际 App 装配及 ad-hoc 签名验证通过，未启动 App、未捆绑 nxs；不是完整运行或正式签名验收。证据见[随包 helper](../../testing/evidence/desktop-sandbox/2026-09-28-bootstrap-package/README.md)。默认 supervisor、恢复及 lease 装配仍待完成。
+
+2026-09-28 进程/资源绑定：DM/Room 先把已取得的 scratch 句柄交给启动事务，显式监督在 factory 前核验 owner/session/policy，probe/runtime 意图持久保存 exact LeaseID；所有权仍在创建后的 Bind 成功时交接。缺失、错 scope、不同 policy、释放或 cleanup_unknown 均拒绝。App 默认装配、AutoDream 的独立 NewSession 路径及恢复后的 lease/policy 收口仍未接入。
+本批真实 helper/SQLite exact LeaseID 与反例、DM/Room 回归证据见[进程资源绑定](../../testing/evidence/desktop-sandbox/2026-09-28-supervisor-lease/README.md)。

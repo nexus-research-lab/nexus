@@ -1,5 +1,5 @@
 // INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、精确 desktop sandbox lease 交接、工具面换代且 revision 绑定的 runtime options/client。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、factory 前 desktop sandbox lease 身份绑定与创建后所有权交接、工具面换代且 revision 绑定的 runtime options/client。
 // POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份、失败回收 sandbox lease 的 runtime 装配边界。
 package realtime
 
@@ -728,10 +728,11 @@ func (e *slotExecution) connectRuntimeOnce(
 	)
 	previousClient := e.service.runtime.SessionClient(e.slot.RuntimeSessionKey)
 	hadWarmSession := e.service.runtime.HasSession(e.slot.RuntimeSessionKey)
-	client, err := startup.GetOrCreateWithFactory(
+	client, err := startup.GetOrCreateWithLease(
 		e.ctx,
 		runtimeValue.options,
 		e.service.factory,
+		runtimeValue.scratchLease,
 	)
 	if err != nil {
 		return client, err

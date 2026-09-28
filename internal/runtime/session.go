@@ -1,4 +1,4 @@
-// INPUT: owner/session 启动事务、runtime options、当前 client 与持久恢复回执。
+// INPUT: owner/session 启动事务、runtime options、预先取得的 scratch 句柄、当前 client 与持久恢复回执。
 // OUTPUT: 串行化的连接/替换、跨重建递增代次及 exact client 生命周期。
 // POS: DM/Room 共用的宿主 runtime 准入，不把旧回执或新目录当作清理证明。
 package runtime
@@ -28,6 +28,7 @@ type ClientStartup struct {
 	expectedState      *sessionState
 	expectedClient     Client
 	expectedGeneration uint64
+	launchLease        *SandboxResourceLease
 }
 
 // ClientLease 标识一次已经成功取得 client 的启动代次。
@@ -247,9 +248,25 @@ func (s *ClientStartup) GetOrCreateWithFactory(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
+	return s.GetOrCreateWithLease(ctx, options, factory, nil)
+}
+
+// GetOrCreateWithLease supplies the already acquired scratch identity before a
+// factory can launch a process. Ownership remains with the caller until
+// BindSandboxLease succeeds; this method never releases or discovers a lease.
+func (s *ClientStartup) GetOrCreateWithLease(ctx context.Context, options agentclient.Options, factory Factory, lease *SandboxResourceLease) (Client, error) {
 	if err := s.active(); err != nil {
 		return nil, err
 	}
+	s.manager.mu.RLock()
+	supervised := s.manager.sandboxSupervisor != nil
+	s.manager.mu.RUnlock()
+	if supervised {
+		if _, err := supervisedLeaseIdentity(options, runtimeOwnerUserID(options), s.sessionKey, lease); err != nil {
+			return nil, err
+		}
+	}
+	s.launchLease = lease
 	client, state, err := s.manager.getOrCreateWithFactory(
 		ctx,
 		s,
@@ -293,6 +310,9 @@ func (s *ClientStartup) BindSandboxLease(lease *SandboxResourceLease) (consumed 
 	}
 	if s.expectedClient == nil {
 		return false, agentclient.ErrNotConnected
+	}
+	if s.launchLease != nil && s.launchLease != lease {
+		return false, errors.New("scratch handle differs from the prepared launch lease")
 	}
 	binder, ok := s.expectedClient.(interface {
 		BindSandboxLease(*SandboxResourceLease) error
@@ -384,7 +404,7 @@ func (m *Manager) getOrCreateWithFactory(
 			if err != nil {
 				return nil, expectedState, err
 			}
-			launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, max(generationFloor, memoryGeneration))
+			launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, max(generationFloor, memoryGeneration), startup.launchLease)
 			if err != nil {
 				return nil, expectedState, err
 			}
@@ -630,7 +650,7 @@ func (m *Manager) replaceRuntimeClient(
 	if admissionErr != nil {
 		return nil, admissionErr
 	}
-	launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, generationFloor)
+	launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, generationFloor, startup.launchLease)
 	if err != nil {
 		return nil, err
 	}
