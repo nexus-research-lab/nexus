@@ -1,3 +1,6 @@
+// INPUT: Image requests, workspace file references or synthetic probe bytes.
+// OUTPUT: Bounded HTTP responses and typed failures; probe submissions do not retry.
+// POS: Production image transport shared by normal requests and verification.
 package imagegen
 
 import (
@@ -66,6 +69,7 @@ func (s *Service) postMultipartWithRetries(
 }
 
 type multipartFileRef struct {
+	Data          []byte
 	WorkspacePath string
 	RelativePath  string
 }
@@ -76,6 +80,14 @@ func (s *Service) appendMultipartFile(
 	name string,
 	fileRef multipartFileRef,
 ) error {
+	if fileRef.Data != nil {
+		part, err := writer.CreateFormFile(name, "capability-probe.png")
+		if err != nil {
+			return err
+		}
+		_, err = part.Write(fileRef.Data)
+		return err
+	}
 	root, err := s.openWorkspace(ctx, fileRef.WorkspacePath, false)
 	if err != nil {
 		return err
@@ -108,6 +120,9 @@ func (e retryableError) Unwrap() error {
 }
 
 func (s *Service) doWithRetries(run func() error) error {
+	if s.singleAttempt {
+		return run()
+	}
 	var lastErr error
 	for attempt := 1; attempt <= defaultMaxAttempts; attempt++ {
 		err := run()
@@ -141,7 +156,7 @@ func (s *Service) readJSONResponse(request *http.Request, output any) error {
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		message := strings.TrimSpace(string(payload))
 		return retryableError{
-			err:       fmt.Errorf("图片接口返回 %d: %s", response.StatusCode, message),
+			err:       newImageResponseError(response.StatusCode, payload, message),
 			retryable: response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= http.StatusInternalServerError,
 		}
 	}
@@ -149,4 +164,28 @@ func (s *Service) readJSONResponse(request *http.Request, output any) error {
 		return fmt.Errorf("解析图片接口响应失败: %w", err)
 	}
 	return nil
+}
+
+// imageResponseError 保留协议状态和机器错误码，能力探测不按错误正文猜测不支持。
+type imageResponseError struct {
+	status        int
+	code, message string
+}
+
+func (e *imageResponseError) Error() string {
+	return fmt.Sprintf("图片接口返回 %d: %s", e.status, e.message)
+}
+func newImageResponseError(status int, payload []byte, message string) error {
+	var envelope struct {
+		Code  string `json:"code"`
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(payload, &envelope)
+	code := envelope.Error.Code
+	if code == "" {
+		code = envelope.Code
+	}
+	return &imageResponseError{status: status, code: code, message: message}
 }

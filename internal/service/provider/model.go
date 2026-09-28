@@ -214,22 +214,23 @@ type PresetFormat struct {
 
 // ModelRecord 表示单个 Provider 下的模型卡。
 type ModelRecord struct {
-	Guidance             *ModelGuidance    `json:"guidance,omitempty"`
-	ID                   string            `json:"id"`
-	ProviderID           string            `json:"provider_id"`
-	ModelID              string            `json:"model_id"`
-	DisplayName          string            `json:"display_name"`
-	Category             string            `json:"category"`
-	Enabled              bool              `json:"enabled"`
-	IsDefault            bool              `json:"is_default"`
-	CapabilitiesAuto     ModelCapabilities `json:"capabilities_auto"`
-	CapabilitiesOverride ModelCapabilities `json:"capabilities_override"`
-	ContextWindow        *int              `json:"context_window,omitempty"`
-	MaxOutputTokens      *int              `json:"max_output_tokens,omitempty"`
-	ProviderOptions      map[string]any    `json:"provider_options"`
-	LastSeenAt           *time.Time        `json:"last_seen_at,omitempty"`
-	CreatedAt            *time.Time        `json:"created_at,omitempty"`
-	UpdatedAt            *time.Time        `json:"updated_at,omitempty"`
+	CapabilityTests      map[string]CapabilityProbeResult `json:"capability_tests,omitempty"`
+	Guidance             *ModelGuidance                   `json:"guidance,omitempty"`
+	ID                   string                           `json:"id"`
+	ProviderID           string                           `json:"provider_id"`
+	ModelID              string                           `json:"model_id"`
+	DisplayName          string                           `json:"display_name"`
+	Category             string                           `json:"category"`
+	Enabled              bool                             `json:"enabled"`
+	IsDefault            bool                             `json:"is_default"`
+	CapabilitiesAuto     ModelCapabilities                `json:"capabilities_auto"`
+	CapabilitiesOverride ModelCapabilities                `json:"capabilities_override"`
+	ContextWindow        *int                             `json:"context_window,omitempty"`
+	MaxOutputTokens      *int                             `json:"max_output_tokens,omitempty"`
+	ProviderOptions      map[string]any                   `json:"provider_options"`
+	LastSeenAt           *time.Time                       `json:"last_seen_at,omitempty"`
+	CreatedAt            *time.Time                       `json:"created_at,omitempty"`
+	UpdatedAt            *time.Time                       `json:"updated_at,omitempty"`
 }
 
 // ModelCapabilities 描述模型能力。
@@ -268,12 +269,13 @@ type FetchModelsResult struct {
 
 // TestResult 表示 Provider 或模型连通性测试结果。
 type TestResult struct {
-	Provider string     `json:"provider"`
-	Model    string     `json:"model,omitempty"`
-	Success  bool       `json:"success"`
-	Status   string     `json:"status"`
-	Error    string     `json:"error,omitempty"`
-	TestedAt *time.Time `json:"tested_at,omitempty"`
+	CapabilityResults map[string]CapabilityProbeResult `json:"capability_results,omitempty"`
+	Provider          string                           `json:"provider"`
+	Model             string                           `json:"model,omitempty"`
+	Success           bool                             `json:"success"`
+	Status            string                           `json:"status"`
+	Error             string                           `json:"error,omitempty"`
+	TestedAt          *time.Time                       `json:"tested_at,omitempty"`
 	// ConfigurationVersion is the exact target Provider aggregate version committed with this test result.
 	ConfigurationVersion int64 `json:"configuration_version"`
 }

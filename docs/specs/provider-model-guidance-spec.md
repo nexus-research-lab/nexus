@@ -14,10 +14,10 @@ unsupported. `text_output`, `vision`, `image_output`, `image_editing`,
 Capabilities first match the exact provider preset and model ID. When that pair has
 no entry, an exact model ID can supply capability defaults if all catalog entries
 for that ID agree. Provider-specific recommendations and plan notices never follow
-this fallback. Versioned provider records then apply, and explicit user overrides
-win. Remote false vetoes a catalog positive; a catalog false vetoes an automatic
+this fallback. Versioned provider records then apply, configuration-bound verified
+probes override declarations, and explicit user overrides win. Remote false vetoes a catalog positive; a catalog false vetoes an automatic
 positive only for the matching provider preset. `sources` identifies `user`,
-`provider_record` and `catalog`; there is no
+`provider_record`, `probe` and `catalog`; there is no
 model-family or namespace-stripping capability fallback. A custom endpoint or Azure
 deployment may reuse a known ID for a different model, so its provider facts or user
 override must correct any name-based default.
@@ -102,3 +102,71 @@ The Models page groups chat, image generation, vision and background defaults
 beside the Providers settings entry. Model management retains the existing
 capability icons with accessible names/tooltips and shows recommendation badges
 separately.
+
+## Capability verification
+
+The existing Test action independently verifies all seven capabilities for the selected
+model or all listed models, without guessing from model families. Ordinary checks have
+a 25-second deadline; image checks have a 120-second deadline and may incur charges.
+Routes unsupported by Nexus return unknown without submitting a request. Sync only
+refreshes the directory and declarations; it never starts capability requests. Saving
+configuration does not currently auto-start probes.
+
+All-model testing runs at most three models concurrently and displays completed/total
+progress. Stop prevents queued requests, waits for in-flight checks, and preserves their
+results. A transport error stops new work without automatic replay. Closing the page
+does not guarantee cancellation of already accepted probes. Tests use saved options.
+
+The `capability=all` observation command preserves enabled/default selections. Its
+short commit phase is serialized, rereads the exact Provider and verifies model identity,
+route/options fingerprint and unchanged prior model facts under CAS. Other models'
+observations may advance the aggregate revision; changed credentials/options, replaced
+models and competing evidence for the same model cannot be overwritten. Ordinary
+single-model commands retain their existing version contract.
+
+| Capability | Required live evidence |
+| --- | --- |
+| Text | Parsed, nonempty response text |
+| Vision | Correct random nine-cell color challenge sent directly to the main model, without auxiliary vision |
+| Tools | Exact nonce arguments and call identity, actual synthetic SDK MCP tool execution, then a second response containing its newly generated receipt |
+| Reasoning | Structured reasoning content or positive reasoning-token usage, never prose claiming to reason |
+| Image generation | Actual decodable image bytes returned through the production imagegen adapter |
+| Image editing | A changed center cell with the other eight random input cells preserved; unchanged or unrelated images do not pass |
+| Embedding | Two indexed, finite, nonzero, dimension-consistent and distinct vectors from the embeddings endpoint |
+
+Probes use short in-memory history, not persisted Agent Sessions. The synthetic tool
+uses Nexus's SDK MCP handler mechanism but has no business authority. Image checks
+reuse production adapters and synthetic in-memory source bytes, persist no artifacts,
+and do not automatically retry submissions. Unsupported Nexus routes stay unknown.
+
+Only exact supported-protocol rejection codes establish unsupported capabilities.
+Timeouts, authentication/quota failures, generic errors and wrong answers never become
+negative capability evidence. Evidence version 2 stores the latest attempt separately
+from the latest verified result for each capability, so a failed recheck does not erase
+previous valid evidence for the same configuration. Semantic challenges may remain
+unconfirmed even when a model supports the underlying protocol.
+
+Probe evidence is stored with a private configuration fingerprint and timestamp,
+under the existing Provider version transaction. Changing credentials, endpoint,
+protocol, model or model options invalidates probe evidence. Fresh discovery/import
+declarations are route-bound too. Late results cannot overwrite changed configuration.
+A catalog refresh preserves still-valid probe evidence. Manual overrides stay separate.
+
+Model records expose the resolved automatic result through capabilities_auto.
+The existing seven capability controls retain Automatic / Supported / Unsupported.
+Automatic does not display a probe verdict; it means no manual override. Model-row
+icons indicate effective positive capabilities only.
+
+An unavailable or unconfirmed auxiliary vision binding is omitted when starting an
+Agent, without invalidating the main chat model or replacing saved preferences.
+The main model's native vision remains independent. Actual image handling must use
+an available vision route or report image unavailability; this does not assert that
+text-only models can see images.
+
+When neither native image input nor auxiliary vision is available, nxs replaces
+only the unreadable image block in the outgoing request with an image-unavailable
+marker. The marker explains the limitation, asks the model to suggest configuring
+a vision-capable model or providing a text description, and directs it to continue
+independently answerable parts without waiting or retrying unavailable tools.
+No missing-vision guidance is added to the system prompt. Ordinary text and readable
+images are unaffected, and original messages are not rewritten.

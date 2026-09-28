@@ -225,7 +225,9 @@ test(`operations subpages keep clear hierarchy and aligned responsive controls (
   await expect(memberRemove).toBeVisible();
   const historyButton = surface.getByRole("button", { name: text("邀请记录", "Invitation history"), exact: true });
   await expect(surface.getByRole("button", { name: text("刷新", "Refresh"), exact: true })).toHaveCount(0);
-  await historyButton.click();
+  // Verify the keyboard return target; WebKit pointer clicks retain native focus behavior.
+  await historyButton.focus();
+  await historyButton.press("Enter");
   const invitations = page.getByRole("dialog", { name: text("邀请记录", "Invitation history") });
   await expect(invitations).toContainText(text("共 2 条 · 1 条待接受", "2 total · 1 pending"));
   await expect(invitations.getByRole("button", { name: text("删除记录", "Delete record"), exact: true })).toBeVisible();

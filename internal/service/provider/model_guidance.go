@@ -1,4 +1,4 @@
-// INPUT: Provider route, remote model facts, officially sourced catalog and user overrides.
+// INPUT: Provider route, remote model facts, officially sourced catalog, verified probes and user overrides.
 // OUTPUT: Read-only effective capabilities, provenance, purpose eligibility and recommendations.
 // POS: Shared model projection for settings, onboarding, selectors and execution admission.
 package provider
@@ -27,13 +27,15 @@ type ModelAdviceEvidence struct {
 }
 
 type ModelGuidance struct {
-	Evidence        *ModelAdviceEvidence        `json:"evidence,omitempty"`
-	TextOnly        bool                        `json:"text_only,omitempty"`
-	CatalogVersion  string                      `json:"catalog_version"`
-	Capabilities    ModelCapabilities           `json:"capabilities"`
-	Sources         map[string]string           `json:"sources"`
-	Eligibility     map[string]ModelEligibility `json:"eligibility"`
-	Recommendations map[string]string           `json:"recommendations"`
+	// Kept separately for the existing model configuration's automatic option.
+	AutomaticCapabilities ModelCapabilities           `json:"-"`
+	Evidence              *ModelAdviceEvidence        `json:"evidence,omitempty"`
+	TextOnly              bool                        `json:"text_only,omitempty"`
+	CatalogVersion        string                      `json:"catalog_version"`
+	Capabilities          ModelCapabilities           `json:"capabilities"`
+	Sources               map[string]string           `json:"sources"`
+	Eligibility           map[string]ModelEligibility `json:"eligibility"`
+	Recommendations       map[string]string           `json:"recommendations"`
 }
 
 func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEntity) ModelGuidance {
@@ -70,8 +72,12 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 	if entry != nil {
 		merge(entry.Capabilities, "catalog", false)
 	}
-	// 精确 Provider 目录的否定优先于自动记录；跨 Provider 的同名默认值允许远端事实修正。
-	merge(decodeModelAutoCapabilities(model.CapabilitiesAutoJSON), "provider_record", providerMatched)
+	// 精确 Provider 目录的否定优先于自动记录；实际探测优先于声明，用户覆盖最终生效。
+	merge(scopedModelFacts(item, model), "provider_record", providerMatched)
+	if probe := currentModelProbe(item, model); probe != nil {
+		merge(probe.Capabilities, "probe", false)
+	}
+	automatic := c
 	merge(decodeModelCapabilities(model.CapabilitiesOverrideJSON), "user", false)
 	yes := func(v *bool) bool { return v != nil && *v }
 	// Preserve unknown ordinary chat IDs. A model that explicitly produces text
@@ -101,7 +107,7 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 		}
 		return ModelEligibility{ok, reason}
 	}
-	g := ModelGuidance{CatalogVersion: modelAdviceVersion, Capabilities: c, Sources: sources,
+	g := ModelGuidance{AutomaticCapabilities: automatic, CatalogVersion: modelAdviceVersion, Capabilities: c, Sources: sources,
 		Eligibility: map[string]ModelEligibility{
 			PurposeChat:   eligible(chat, "not_chat_model"),
 			PurposeVision: eligible(chat && yes(c.Vision), "vision_not_confirmed"),

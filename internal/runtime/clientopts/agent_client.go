@@ -1,5 +1,5 @@
-// INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 经统一校验、后台进度模型环境投影、固定宿主子智能体定义与 MCP 名称隔离后的 SDK client options。
+// INPUT: Agent runtime、主/后台模型与可选辅助视觉、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
+// OUTPUT: 主模型校验与可用辅助视觉投影、后台进度模型环境投影、固定宿主子智能体定义与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -162,6 +162,9 @@ func BuildAgentClientOptionsWithConfig(
 	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
 	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
+	if err != nil && ctx.Err() != nil {
+		return agentclient.Options{}, nil, ctx.Err()
+	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {

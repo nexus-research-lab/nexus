@@ -86,6 +86,7 @@ export function buildTestModelOptions(
   models: ProviderModelRecord[],
   autoLabel: string,
 ): { value: string; label: string }[] {
+  if (models.length === 0) return [];
   return [
     { value: AUTO_TEST_MODEL_VALUE, label: autoLabel },
     ...sortModelsEnabledFirst(models).map((model) => {

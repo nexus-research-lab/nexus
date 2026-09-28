@@ -41,6 +41,7 @@ export interface ModelGuidance {
 }
 
 export interface ProviderModelRecord {
+ capability_tests?: Partial<Record<keyof ProviderModelCapabilities, ProviderCapabilityTest>>;
   guidance?: ModelGuidance;
   id: string;
   provider_id: string;
@@ -191,7 +192,14 @@ export interface DeleteProviderModelResponse {
   model: string;
 }
 
+export interface ProviderCapabilityTest {
+ state: "supported" | "unsupported" | "unknown" | "error";
+ reason?: string;
+ tested_at: string;
+}
+
 export interface ProviderTestResult {
+ capability_results?: Partial<Record<keyof ProviderModelCapabilities, ProviderCapabilityTest>>;
   provider: string;
   model?: string;
   success: boolean;

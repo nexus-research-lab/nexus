@@ -40,7 +40,7 @@ export function useProviderModelControls({
   ), [modelQuery, selectedRecord]);
   const testModelOptions = useMemo(() => buildTestModelOptions(
     selectedRecord?.models ?? [],
-    t("settings.providers.auto_select_model"),
+    t("settings.providers.test_all_models"),
   ), [selectedRecord, t]);
   const manualModelPlaceholder = selectedRecord?.models[0]?.model_id
     || (apiFormat === "anthropic_messages" ? "opus-4.7" : "model-id");
