@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Enable the macOS desktop process supervisor by default using the bundled, verified helper and sidecar ownership lock. Recover original process and resource records before serving requests; failed recovery preserves records and blocks startup. Keep supervision resources until runtime shutdown completes. Development builds now use a matching sidecar/helper bundle instead of `go run`.
+
 - Protect the host app state in restricted macOS runtime options: deny app-tree writes and private-store reads while retaining read-only Skill projections. nxs receives filesystem denies; Claude receives native sandbox denies and Read/Edit rules. Resolve lexical and physical roots from host state, ignoring task environment overrides. Keep Full Access outside this guarantee and state that exception explicitly in both UI languages.
 
 - Persist normal supervised macOS scratch cleanup through the same quarantine ledger as crash recovery. Add a separate bounded scan for terminal processes with unfinished resources or bound policies; failed items remain pending even when pagination ends. App startup invocation remains pending.

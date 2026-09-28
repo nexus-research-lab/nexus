@@ -1229,3 +1229,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：command hook 沙箱与关闭
 
 [Hook 证据](evidence/desktop-sandbox/2026-09-28-command-hooks/README.md)覆盖原生 shell/argv 文件边界、两种异步形式在权限变化/关闭时撤销、输出限制、准备/清理失败和 SessionEnd 关闭顺序。新版 nxs/Claude 第三方模型联调通过。原生 MCP race 初始化超时未算通过；App 默认监督恢复及发布验收仍未完成，`releaseAccepted=false`。
+
+### 2026-09-28：默认监督装配
+
+[默认 sidecar 证据](evidence/desktop-sandbox/2026-09-28-default-supervisor/README.md)包含默认启动校验、两阶段恢复分页、关闭资源顺序、真实 nxs AutoDream、随包 sidecar 健康和重复/篡改拒绝。开发 sidecar 与 Swift 壳构建通过；本机 XCTest 框架缺失，独立 Swift 断言通过不能替代 XCTest。图形 App、带活动后代的默认崩溃重启、旧 sidecar、macOS 14.0 和正式发布仍未验收。

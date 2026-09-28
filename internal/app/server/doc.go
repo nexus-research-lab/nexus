@@ -1,5 +1,6 @@
 // Package server 装配 HTTP/WebSocket 路由、实时通知与进程生命周期。
 //
+// macOS 桌面构造显式接收入口实例锁，经 App 两阶段沙箱恢复后才挂载路由。
 // 启动时修复 IM 回传的本地持久入队意图，不重发结果未知的外部消息。
 //
 // L2 | 父级: internal/app（L1 见 AGENTS.md）

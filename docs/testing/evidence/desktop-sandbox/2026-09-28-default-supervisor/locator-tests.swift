@@ -1,9 +1,9 @@
 import Foundation
-import XCTest
 
-@testable import NexusDesktop
 
-final class SidecarBundleLocatorTests: XCTestCase {
+
+
+final class SidecarBundleLocatorTests {
   func testDevelopmentLocatorRejectsDistOlderThanNestedSource() throws {
     let fixture = try makeFixture()
     defer { try? FileManager.default.removeItem(at: fixture.root) }

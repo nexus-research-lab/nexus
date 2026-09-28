@@ -1,7 +1,7 @@
 import Foundation
 
 // INPUT: macOS bundle resources, or a development checkout with Web build inputs and web/dist.
-// OUTPUT: A sidecar launch configuration whose Web assets exist and, in development, are current.
+// OUTPUT: A bundled sidecar/helper launch configuration with current development Web assets.
 // POS: The single boundary that distinguishes immutable release resources from mutable checkout assets.
 struct SidecarBundleLocator {
   private static let developmentWebInputDirectories = ["src", "public"]
@@ -78,12 +78,20 @@ struct SidecarBundleLocator {
       distIndexURL: distIndexURL,
       fileManager: fileManager
     )
+    let sidecarRoot = root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents")
+    let serverURL = sidecarRoot.appendingPathComponent("MacOS/nexus-server")
+    let helperURL = sidecarRoot.appendingPathComponent("Resources/bin/nexus-runtime-bootstrap")
+    guard fileManager.isExecutableFile(atPath: serverURL.path),
+          fileManager.isExecutableFile(atPath: helperURL.path),
+          fileManager.fileExists(atPath: sidecarRoot.appendingPathComponent("Resources/runtime-bootstrap.json").path) else {
+      throw DesktopShellError.sidecarExecutableNotFound
+    }
     return SidecarBundleLocator(
       projectRoot: root,
       webDistURL: webDistURL,
       appRootURL: root,
-      command: "/usr/bin/env",
-      arguments: ["go", "run", "./cmd/nexus-server"],
+      command: serverURL.resolvingSymlinksInPath().path,
+      arguments: [],
       workingDirectory: root
     )
   }

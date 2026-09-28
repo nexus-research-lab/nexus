@@ -1,0 +1,3 @@
+ok  	github.com/nexus-research-lab/nexus/internal/app	1.317s
+ok  	github.com/nexus-research-lab/nexus/internal/app/server	2.334s
+ok  	github.com/nexus-research-lab/nexus/cmd/nexus-server	2.688s

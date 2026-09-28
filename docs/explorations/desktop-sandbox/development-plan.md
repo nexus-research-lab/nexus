@@ -822,3 +822,7 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 ### 2026-09-28：command hook 执行收口
 
 SDK `db867f87` 将 shell/argv 与两种异步 command hook 纳入当前命令沙箱、权限代次和辅助进程关闭栅栏；限制输出并保留清理错误，SessionEnd 先执行再关闭准入。原生 Hook race、公开客户端退出回归及新版 nxs/Claude 真实第三方模型联调通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-command-hooks/README.md)。MCP 原生无 race 通过，但启用 race 的 runtime 指令初始化超时仍保留为失败。下一步仍为 App 默认监督/两阶段恢复接线及剩余 IO、HTTP hook/网络、真实 App 和发布验收。
+
+### 2026-09-28：默认 App 监督与恢复装配
+
+默认 macOS sidecar 已将迁移前实例锁交给 App，使用随包校验 helper 与固定 `app/processes`，先原生后资源/策略分页恢复，失败不开放服务。关闭等待后才释放监督句柄和数据库。开发模式生成相同 sidecar/helper 布局，不回退 go run。受影响 Go 包、原生 AutoDream App 装配、真实 sidecar 健康/重复实例/篡改拒绝和 Swift 构建通过；XCTest 缺失保留失败，四个 locator 测试主体以独立断言验证。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-default-supervisor/README.md)。下一步继续真实默认宿主崩溃恢复、旧 sidecar 身份与 macOS 14.0、剩余 SDK 边界及图形 App/发布验收。
