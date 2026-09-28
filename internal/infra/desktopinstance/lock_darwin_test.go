@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,4 +177,61 @@ func TestDesktopInstanceHolder(t *testing.T) {
 	os.Stdin.Read(b[:])
 	// 不调用 Close；由真实进程退出释放锁，不通过 PID 或时间推断。
 	os.Exit(0)
+}
+
+func TestDesktopRecoveryOwnershipPinsLockThroughCallback(t *testing.T) {
+	root := t.TempDir()
+	guard, err := Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
+	entered, release := make(chan string, 1), make(chan struct{})
+	releaseCallback := sync.OnceFunc(func() { close(release) })
+	defer releaseCallback()
+	finished := make(chan error, 1)
+	go func() {
+		finished <- guard.WithOwnership(func(appRoot string) error { entered <- appRoot; <-release; return nil })
+	}()
+	appRoot := <-entered
+	expected, err := os.Stat(filepath.Join(root, "app"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := os.Stat(appRoot)
+	if err != nil || !os.SameFile(expected, actual) {
+		t.Fatalf("owned root=%q err=%v", appRoot, err)
+	}
+	closeStarted, closed := make(chan struct{}), make(chan error, 1)
+	go func() { close(closeStarted); closed <- guard.Close() }()
+	<-closeStarted
+	select {
+	case err := <-closed:
+		releaseCallback()
+		t.Fatalf("lock closed during recovery: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if other, err := Acquire(root); !errors.Is(err, ErrInUse) {
+		if other != nil {
+			other.Close()
+		}
+		releaseCallback()
+		t.Fatalf("recovery lost exclusive lock: %v", err)
+	}
+	releaseCallback()
+	if err := <-finished; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-closed; err != nil {
+		t.Fatal(err)
+	}
+	invoked := false
+	if err := guard.WithOwnership(func(string) error { invoked = true; return nil }); err == nil || invoked {
+		t.Fatal("closed guard admitted recovery")
+	}
+	next, err := Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next.Close()
 }

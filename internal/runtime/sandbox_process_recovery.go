@@ -6,22 +6,48 @@ package runtime
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// SandboxProcessRecoveryOwnership 必须持有真实宿主实例锁并在整个回调期间保持所有权。
+// callback 获得经 inode 核验的 app 根；只读快照或 PID 不能实现此证明。
+type SandboxProcessRecoveryOwnership interface {
+	WithOwnership(func(appRoot string) error) error
+}
 
 type sandboxProcessRecoveryFunc func(context.Context, supervision.Recovery, supervision.RecoveryHost) error
 
 // RecoverSandboxProcess 仅用于宿主已取得跨进程独占实例锁、确认旧宿主退出后的恢复。
 // Manager 再以会话 gate 排除本实例活动 client。调用方仍须独立核对 policy 与 lease；
 // 进程回收成功不授权重放工具，不会清除其他代次或声明整个会话恢复完成。
-func (m *Manager) RecoverSandboxProcess(ctx context.Context, key protocol.SandboxProcessKey) (protocol.SandboxProcessSnapshot, error) {
-	return m.recoverSandboxProcess(ctx, key, supervision.Recover)
+func (m *Manager) RecoverSandboxProcess(ctx context.Context, key protocol.SandboxProcessKey, ownership SandboxProcessRecoveryOwnership) (protocol.SandboxProcessSnapshot, error) {
+	return m.recoverSandboxProcess(ctx, key, ownership, supervision.Recover)
 }
 
-func (m *Manager) recoverSandboxProcess(ctx context.Context, key protocol.SandboxProcessKey, recoverNative sandboxProcessRecoveryFunc) (protocol.SandboxProcessSnapshot, error) {
+func (m *Manager) recoverSandboxProcess(ctx context.Context, key protocol.SandboxProcessKey, ownership SandboxProcessRecoveryOwnership, recoverNative sandboxProcessRecoveryFunc) (protocol.SandboxProcessSnapshot, error) {
+	if ownership == nil {
+		return protocol.SandboxProcessSnapshot{}, errors.New("process recovery requires exclusive host ownership")
+	}
+	var result protocol.SandboxProcessSnapshot
+	err := ownership.WithOwnership(func(appRoot string) error {
+		var err error
+		result, err = m.recoverSandboxProcessOwned(ctx, key, appRoot, recoverNative)
+		return err
+	})
+	return result, err
+}
+
+func (m *Manager) recoverSandboxProcessOwned(ctx context.Context, key protocol.SandboxProcessKey, appRoot string, recoverNative sandboxProcessRecoveryFunc) (protocol.SandboxProcessSnapshot, error) {
 	empty := protocol.SandboxProcessSnapshot{}
+	if err := ctx.Err(); err != nil {
+		return empty, err
+	}
 	startup, err := m.BeginClientStartup(ctx, key.SessionKey, key.OwnerUserID)
 	if err != nil {
 		return empty, err
@@ -38,6 +64,9 @@ func (m *Manager) recoverSandboxProcess(ctx context.Context, key protocol.Sandbo
 	}
 	if config == nil || !ok {
 		return empty, errors.New("process recovery requires configured trusted supervisor")
+	}
+	if err := verifyRecoveryRoot(appRoot, config.Root); err != nil {
+		return empty, err
 	}
 	snapshot, found, err := store.Process(ctx, key)
 	if err != nil {
@@ -83,4 +112,37 @@ func (m *Manager) recoverSandboxProcess(ctx context.Context, key protocol.Sandbo
 		return empty, errors.New("process recovery did not persist exact terminal record")
 	}
 	return result, nil
+}
+
+// verifyRecoveryRoot 防止把另一状态根的实例锁借给当前进程记录。
+func verifyRecoveryRoot(appRoot string, root *confinedfs.Root) error {
+	if root == nil || !filepath.IsAbs(appRoot) {
+		return errors.New("invalid recovery ownership root")
+	}
+	relative, err := filepath.Rel(appRoot, root.Name())
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
+		return errors.New("process root is outside the owned app root")
+	}
+	app, err := confinedfs.Open(appRoot)
+	if err != nil {
+		return err
+	}
+	defer app.Close()
+	current, err := app.OpenRootNoSymlink(relative)
+	if err != nil {
+		return err
+	}
+	defer current.Close()
+	expectedInfo, err := root.Stat(".")
+	if err != nil {
+		return err
+	}
+	actualInfo, err := current.Stat(".")
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(expectedInfo, actualInfo) {
+		return errors.New("process root identity changed")
+	}
+	return nil
 }

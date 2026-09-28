@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Require verified host ownership for explicit process recovery. Keep the macOS sidecar lock alive throughout recovery, reject another state root or replaced lock/process-directory identity, and retain unresolved process records on rejection. This is a recovery prerequisite; automatic startup reconciliation remains pending.
+
 - Pin Bridge `c994b19` and keep supervised sockets in the original protected state directory even when the absolute path exceeds the Unix socket address limit. Native directory-relative binding/connection leaves process cwd unchanged; long-root real nxs AutoDream lifecycle tests pass. This does not resolve the macOS 14.0 process-signal compatibility gap or enable default App supervision.
 
 - Route host AutoDream through the shared runtime Manager instead of opening an independent Bridge session. Bind maintenance to owner/Agent cancellation, supervised startup, scratch ownership and durable policy/process retirement; retain cleanup failures as startup fences. Native fixed-nxs control round trips pass with memory consolidation disabled; default App supervisor setup remains pending.

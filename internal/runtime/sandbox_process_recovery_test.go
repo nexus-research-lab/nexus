@@ -68,7 +68,7 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 				return host.Finish(ctx, i, evidence)
 			}
 			key := h.intent.Key
-			result, err := m.recoverSandboxProcess(ctx, key, native)
+			result, err := m.recoverSandboxProcess(ctx, key, recoveryOwnershipFunc(func(fn func(string) error) error { return fn(h.root.Name()) }), native)
 			if mode == "active_client" {
 				if err == nil || calls != 0 {
 					t.Fatalf("active recovery=%v calls=%d", err, calls)
@@ -95,7 +95,7 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 			if result.Phase != want {
 				t.Fatal(result.Phase)
 			}
-			if _, err := m.recoverSandboxProcess(ctx, key, native); err != nil || calls != 1 {
+			if _, err := m.recoverSandboxProcess(ctx, key, recoveryOwnershipFunc(func(fn func(string) error) error { return fn(h.root.Name()) }), native); err != nil || calls != 1 {
 				t.Fatalf("terminal recovery replayed: %v calls=%d", err, calls)
 			}
 			got, found, err := store.Latest(ctx, "owner", "session")
@@ -104,9 +104,14 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 			}
 			other := key
 			other.OwnerUserID = "other"
-			if _, err := m.recoverSandboxProcess(ctx, other, native); err == nil || calls != 1 {
+			if _, err := m.recoverSandboxProcess(ctx, other, recoveryOwnershipFunc(func(fn func(string) error) error { return fn(h.root.Name()) }), native); err == nil || calls != 1 {
 				t.Fatal("cross owner recovery reached native")
 			}
 		})
 	}
 }
+
+// 仅用于仓储/控制流夹具；真实内核锁由 Darwin 集成测试覆盖。
+type recoveryOwnershipFunc func(func(string) error) error
+
+func (f recoveryOwnershipFunc) WithOwnership(operation func(string) error) error { return f(operation) }
