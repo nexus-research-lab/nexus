@@ -120,11 +120,29 @@ func TestRecoveryScanNativeHostFixture(t *testing.T) {
 	if root == "" {
 		return
 	}
-	manager, _, _ := recoveryScanNativeFixture(t, root, os.Getenv("NEXUS_SUPERVISION_TEST_HELPER"))
+	manager, store, _ := recoveryScanNativeFixture(t, root, os.Getenv("NEXUS_SUPERVISION_TEST_HELPER"))
 	var captured bridge.Options
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
-	_, err := manager.GetOrCreateWithFactory(ctx, "crashed-session", bridge.Options{Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}, runtimeFactoryFunc(func(options bridge.Options) Client { captured = options; return &fakeRuntimeClient{} }))
+	options := bridge.Options{Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}
+	var lease *SandboxResourceLease
+	if os.Getenv("NEXUS_SCAN_RECOVERY_SCRATCH") == "1" {
+		if err := os.MkdirAll(filepath.Join(root, "users", "owner", "runtime"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		var err error
+		lease, err = Acquire(ctx, Input{OwnerUserID: "owner", SessionKey: "crashed-session", Root: filepath.Join(root, "users", "owner", "runtime")})
+		if err != nil {
+			t.Fatal(err)
+		}
+		options.Sandbox = &bridge.SandboxSettings{Resources: lease.Resources()}
+	}
+	startup, err := manager.BeginClientStartup(ctx, "crashed-session", "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = startup.GetOrCreateWithLease(ctx, options, runtimeFactoryFunc(func(options bridge.Options) Client { captured = options; return &fakeRuntimeClient{} }), lease)
+	startup.Close()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,6 +163,100 @@ func TestRecoveryScanNativeHostFixture(t *testing.T) {
 	if _, err := io.ReadFull(stdout, marker); err != nil || string(marker) != "ready" {
 		t.Fatalf("readiness=%q err=%v", marker, err)
 	}
+	if lease != nil {
+		record, found, err := store.LatestProcess(ctx, "owner", "crashed-session")
+		if err != nil || !found {
+			t.Fatal(err)
+		}
+		for generation := uint64(1); generation <= 2; generation++ {
+			receipt := testSandboxReceiptSnapshotForManager()
+			receipt.OwnerUserID = "owner"
+			receipt.SessionKey = "crashed-session"
+			receipt.Generation = generation
+			receipt.RuntimeKind = "nxs"
+			receipt.LeaseID = lease.Marker().LeaseID
+			receipt.ProcessKey = &record.Intent.Key
+			receipt.Phase = protocol.SandboxPolicyReceiptUnknown
+			receipt.UnknownReason = "native test host exiting without cleanup"
+			if err := store.Save(ctx, receipt); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := lease.MarkCleanupUncertain(fmt.Errorf("native test host exits")); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// 不运行 defer、Manager.Close 或任何回收回调；任务留给下一个持锁宿主恢复。
 	os.Exit(0)
+}
+
+func TestRecoveryNativeHostExitWithScratchAndPolicies(t *testing.T) {
+	helper := os.Getenv("NEXUS_SUPERVISION_TEST_HELPER")
+	if helper == "" {
+		t.Skip("explicit native helper required")
+	}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+	defer cancel()
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.CommandContext(ctx, executable, "-test.run=^TestRecoveryScanNativeHostFixture$")
+	child.Env = append(os.Environ(), "NEXUS_SCAN_RECOVERY_FIXTURE="+root, "NEXUS_SCAN_RECOVERY_SCRATCH=1")
+	if output, err := child.CombinedOutput(); err != nil {
+		t.Fatalf("original host: %v\n%s", err, output)
+	}
+	manager, store, guard := recoveryScanNativeFixture(t, root, helper)
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		_, _ = manager.RecoverPendingSandboxProcesses(cleanup, guard, "", 16)
+		_ = manager.Close(cleanup)
+	})
+	before, found, err := store.LatestProcess(ctx, "owner", "crashed-session")
+	if err != nil || !found || before.Phase != protocol.SandboxProcessReleased || before.Intent.Scratch.LeafIdentity == "" {
+		t.Fatalf("original=%+v %v", before, err)
+	}
+	inspection, err := exec.CommandContext(ctx, "/bin/launchctl", "print", fmt.Sprintf("gui/%d/%s", before.Intent.OwnerUID, before.Intent.JobLabel)).CombinedOutput()
+	if err != nil || !strings.Contains(string(inspection), "state = running") {
+		t.Fatalf("original task not live after host exited: %v", err)
+	}
+	if _, err := manager.RecoverSandboxScratch(ctx, before.Intent.Key, guard); err == nil {
+		t.Fatal("scratch removed before native retirement")
+	}
+	if _, err := manager.ReconcileSandboxPolicy(ctx, before.Intent.Key, guard); err == nil {
+		t.Fatal("policy recovered before native retirement")
+	}
+	batch, err := manager.RecoverPendingSandboxProcesses(ctx, guard, "", 16)
+	if err != nil || len(batch.Items) != 1 {
+		t.Fatalf("native recovery=%+v %v", batch, err)
+	}
+	after := batch.Items[0].Snapshot
+	if after.Evidence == nil || after.Evidence.Reason != "coalition_reaped" {
+		t.Fatalf("missing original kernel retirement: %+v", after)
+	}
+	result, err := manager.RecoverSandboxScratch(ctx, before.Intent.Key, guard)
+	if err != nil || result.Phase != protocol.SandboxScratchRecoveryComplete {
+		t.Fatalf("scratch=%+v %v", result, err)
+	}
+	count, err := manager.ReconcileSandboxPolicy(ctx, before.Intent.Key, guard)
+	if err != nil || count != 2 {
+		t.Fatalf("policy count=%d %v", count, err)
+	}
+	if _, err := os.Stat(filepath.Join(before.Intent.Scratch.BasePath, before.Intent.Scratch.LeafName)); !os.IsNotExist(err) {
+		t.Fatal("scratch remains", err)
+	}
+	for generation := uint64(1); generation <= 2; generation++ {
+		receipt, found, err := store.Get(ctx, "owner", "crashed-session", generation)
+		if err != nil || !found || receipt.Phase != protocol.SandboxPolicyReceiptReconciled {
+			t.Fatalf("receipt=%+v %v", receipt, err)
+		}
+	}
+	if _, err := manager.sandboxStartupGeneration(ctx, "owner", "crashed-session"); err != nil {
+		t.Fatalf("recovered scope still fenced: %v", err)
+	}
 }

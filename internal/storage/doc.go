@@ -23,6 +23,7 @@
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package storage
 
+// sandbox 资源恢复记录固定原目录并单调推进 prepared/quarantined/deleting/complete；pending 阻断新进程，策略只接受原进程与资源双重收口。
 // sandbox 启动意图保留可选原 scratch parent/leaf 身份；只有宿主创建句柄可提供，任务可写 marker 不构成该事实。
 // sandbox 策略回执另存不可变原 runtime launch key；warm 策略代次不等同于原进程代次，旧记录不补猜关联。
 // sandbox 进程登记在同 owner/session/generation 内按探测到 runtime 的固定顺序保存独立启动，唯一活跃栅栏不变；旧登记用途为空时视为 runtime。

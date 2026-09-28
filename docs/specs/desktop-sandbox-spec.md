@@ -754,10 +754,20 @@ macOS 桌面 `nexus-server` 在布局迁移前获取 canonical `app/sidecar.lock
 
 显式启用进程监督时，Manager 在创建 client 前冻结原进程代次；同一 client 的 warm 请求继续增加策略回执代次，但不改写原进程代次。Connect 持久化策略前按 owner/session/原进程代次精确读取 runtime 用途记录，将唯一 launch ID 与原进程代次一同保存。探测、未放行进程、跨 owner/session、runtime 或 lease 不匹配均拒绝。进程可已经有精确回收终态；关联本身不宣称其当前存活。
 
-既有策略记录的进程关联不可改绑，也不能从无关联升级为推测关联。迁移 147 保留历史无关联记录及 unknown 状态；已有绑定事实时拒绝丢失该事实的数据库回退。这一关联只提供恢复身份，当前不自动清除策略/资源 unknown，不证明业务动作结果，App 默认监督与启动恢复仍待接入。
+既有策略记录的进程关联不可改绑，也不能从无关联升级为推测关联。迁移 147 保留历史无关联记录及 unknown 状态；已有绑定事实时拒绝丢失该事实的数据库回退。这一关联用于显式进程/资源恢复后的策略收口，不证明业务动作结果，App 默认监督与启动恢复仍待接入。
 
 ### macOS scratch 的可信目录身份
 
 监督启动在 Host Reserve 写入启动意图前，从 Acquire 保存的原 parent/leaf 文件信息生成身份（device、inode、generation、birth time），与固定父路径和 leaf name 一同保存。每次 probe/runtime 启动工厂调用均重新打开当前目录核对原身份；已经释放、cleanup unknown 或目录替换时拒绝。身份不从任务可写的 `.nexus-sandbox-lease.json` 读取。原进程恢复保留完整身份，不重新采样替代原值。
 
-旧记录以及非 macOS 路径保留空身份；不能据此自动删除资源。此字段是后续恢复的必要输入，不是目录删除已经完成的证据。自动资源清理还需要持锁宿主、精确进程回收证据、其他使用者排除，以及抗路径替换的清理提交/重试流程，当前尚未接入。
+旧记录以及非 macOS 路径保留空身份；不能据此自动删除资源。此字段是后续恢复的必要输入，不是目录删除已经完成的证据。显式 RecoverSandboxScratch 已实现持锁宿主、原进程终态、其他使用者排除和回收区清理提交/重试流程；App 启动自动调用与完整恢复扫描仍待接入。
+
+### 显式资源与策略恢复
+
+macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 和资源 Acquire gate 内运行。原进程必须已回收或从未放行的启动意图已撤销；同会话其他活跃启动、本实例 client 或 lease 存活时拒绝清理。宿主数据库先保存不可改绑的资源回收记录；pending 记录同时阻断 Manager factory 与新进程登记。回收源只接受实例所属 canonical owner runtime/sandbox，任务不能指定删除目标。
+
+清理阶段固定为 `prepared → quarantined → deleting → complete`。以固定 parent 句柄将原目录不覆盖地移入任务不可访问的宿主回收区，核对移动后身份并同步目录，才提交 quarantined；删除前先提交 deleting，删除并同步后才提交 complete。prepared 时源路径缺失不构成成功；只有 durable deleting 阶段下的回收区目标缺失才能作为删除完成对账。任何身份不符、占用、移动或同步失败保留记录和栅栏。完成后重复调用不访问或删除后来同名的新目录。该流程依赖 Supervisor Root 已实现任务不可访问的配置合同；默认 App 根保护仍需装配与验收。
+
+`ReconcileSandboxPolicy` 独立核对原进程 reaped 和（存在 lease 时）同资源 complete，再将明确绑定该 process key 的 confirmed/retiring/unknown 策略改为 reconciled。原 unknown reason 保留用于审计；没有进程关联的历史 unknown 不改变。策略恢复不修改消息、工具、任务或外部副作用结果，不授权重放。资源删除后、策略提交前崩溃可重复调用；启动自动扫描必须覆盖这些已回收进程的未完成后续步骤，目前尚未接入 App 默认启动。
+
+迁移 148 保存资源恢复阶段，已有记录时拒绝丢失恢复事实的降级。当前本机测试覆盖 SQLite；PostgreSQL 迁移仅有 SQL 审查证据。

@@ -42,6 +42,7 @@
 // ExecutionReviewBinding、EventMessage 及 New*Event 构造器；精确字段以对应 Go
 // 类型为准，前端事件类型由 typescript_event.go 生成。
 //
+// SandboxScratchRecovery 保留原进程/目录及资源回收阶段，不表示业务结果已知。
 // SandboxProcessIntent 在 macOS 另存宿主创建时的 scratch 目录身份；历史空值不构造恢复证明。
 // SandboxPolicyReceiptSnapshot 保留可选原进程 exact key；warm 策略代次独立，旧记录不得补猜身份。
 //

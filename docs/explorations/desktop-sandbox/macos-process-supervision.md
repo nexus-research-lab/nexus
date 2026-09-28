@@ -78,3 +78,7 @@ Bridge `Recover` 先验证原意图、登记和当前观察者，再撤销同 bo
 ### scratch 原目录身份登记（2026-09-28）
 
 macOS 监督启动现在把原 lease 创建时的 parent/leaf 文件系统身份随启动意图持久化，并在每次 probe/runtime 启动前重查目录。任务可写 marker 不参与身份生成，目录替换拒绝，恢复原进程时保留该证明。见[验证证据](../../testing/evidence/desktop-sandbox/2026-09-28-scratch-identity/README.md)。自动资源清理及其提交/重试仍待实现，不能由原进程已回收直接推断资源已清理。
+
+### 显式资源/策略恢复（2026-09-28）
+
+新增持锁的 RecoverSandboxScratch 和 ReconcileSandboxPolicy：原目录进入专用回收区，经单调持久阶段删除，最后只收口原进程关联策略。故障注入覆盖阶段提交前后响应丢失；独立原宿主 os.Exit 后，新持锁宿主确认原任务仍运行，再真实回收原集合、删除 scratch、收口两份绑定回执并解除新启动栅栏。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-scratch-policy-recovery/README.md)。测试任务为受控 shell/sleep，策略回执为测试注入，不是模型或 App UI 验收。自动扫描后续阶段、正常退出清理事实与 App 默认装配仍需收口。

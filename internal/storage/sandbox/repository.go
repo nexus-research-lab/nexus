@@ -231,9 +231,9 @@ func (r *Repository) UpdatePhase(
 			allowed = append(allowed, protocol.SandboxPolicyReceiptRetired)
 		}
 	case protocol.SandboxPolicyReceiptReconciled:
-		// Reconciliation is intentionally not exposed by the runtime lifecycle;
-		// keep the phase terminal until a future explicit human-only control
-		// surface supplies evidence.
+		// Ordinary lifecycle callbacks cannot manufacture recovery evidence.
+		// ReconcileProcessPolicies separately verifies exact native retirement
+		// and completed resource cleanup before entering this terminal phase.
 		allowed = append(allowed, protocol.SandboxPolicyReceiptReconciled)
 	}
 	allowedPlaceholders := make([]string, 0, len(allowed))

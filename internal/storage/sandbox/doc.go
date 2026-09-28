@@ -6,6 +6,7 @@ package sandbox
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - scratch_recovery.go / policy_recovery.go：资源清理意图、单调阶段及 pending 栅栏；原进程和 scratch 完成后只 reconcile exact 关联策略。
 //   - receipt_process.go：策略代次绑定原 runtime exact key，按原进程代次读取，拒绝猜测旧回执或改绑。
 //   - repository.go：策略回执的幂等写入、阶段收口与 owner-scoped 读取。
 //   - process_recovery_scan.go：按唯一 launch ID 有界读取跨 owner 未收口 key；只供持锁宿主恢复，不暴露用户端点。
@@ -14,6 +15,6 @@ package sandbox
 //
 // 暴露接口：Repository、NewRepository；Repository 提供 Save、UpdatePhase、
 // Get 与 Latest 的 owner-scoped 读写；进程事实提供 PrepareProcess、RegisterProcess、
-// ClaimProcessRelease、AbortPreparedProcess、ReapProcess、Process、LatestProcess、RuntimeProcess 与 PendingProcessKeys。
+// ClaimProcessRelease、AbortPreparedProcess、ReapProcess、Process、LatestProcess、RuntimeProcess 与 PendingProcessKeys；资源/策略恢复由 PrepareScratchRecovery、ScratchRecovery、AdvanceScratchRecovery、PendingScratchRecovery、ReconcileProcessPolicies 提供。
 //
 // [PROTOCOL]: 变更时更新父级入口 internal/storage/doc.go。
