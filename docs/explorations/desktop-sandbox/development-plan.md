@@ -787,3 +787,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 宿主持久登记：可信数据库进程记录、一次性放行 CAS 和 factory 前读栅栏已落地，SQLite 并发/重开、runtime 包和架构检查通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-registry/README.md)。生产 launcher 写入及真实 transport/恢复尚未接通；原策略回执与进程记录共用 owner/session/generation，保留既有 unknown，不自动解锁。
 
 2026-09-28 显式启动器：Bridge supervision 已连接启动/持久回调/一次放行/根退出/集合回收，真实原生竞态用例通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)。下步将 Host 回调适配到 Nexus 数据库和 confinedfs，再接默认传输及恢复。尚无生产写入链、App 打包或超长状态根支持证据。
+
+2026-09-28 Host 适配：Bridge 已固定到 `95b9616`；Nexus 通过进程仓储和 `confinedfs` 连接显式启动回调，真实 helper/launchd/SQLite 回收链通过。本批仍未改变 App 默认启动链；继续接 client transport、启动前 generation、生产受保护根与崩溃恢复。

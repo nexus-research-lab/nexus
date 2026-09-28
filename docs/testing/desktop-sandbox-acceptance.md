@@ -1205,3 +1205,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ## 2026-09-28：显式监督启动器
 
 [原生竞态证据](evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)验证持久阶段顺序、脱离输出后代、共享关闭、丢失放行响应不重放及回收写入失败保留。Host 仍为独立文件夹具，不等同 Nexus 数据库/默认 transport 接入；`releaseAccepted=false`，真实产品接线和恢复继续待办。
+
+### 2026-09-28：监督启动 Host 数据库适配
+
+[真实 helper/launchd/SQLite 证据](evidence/desktop-sandbox/2026-09-28-process-host/README.md)已通过，目标竞态、runtime 包回归、无 cgo 与架构检查通过。固定 Bridge `95b9616`；实际默认 transport、App 受保护目录装配、崩溃恢复及完整发布验收仍未完成。

@@ -50,3 +50,7 @@ Nexus 已新增可信数据库启动事实和产品 factory 前读栅栏，绑�
 ## 显式启动器进展
 
 Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动、原生登记/退出观察、一次性放行和回收结果连接起来。真实 launchd 竞态测试覆盖脱离后代输出、取消关闭等待者、各持久阶段失败及丢失放行响应；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)。生产 Host 数据库适配、默认 client transport、重启恢复和打包仍待接线；Unix socket 的 103 字节路径限制需要在受保护宿主目录内解决，不能借用任务可写路径规避。
+
+### 2026-09-28：Nexus Host 数据库适配
+
+`internal/runtime/sandbox_process_host.go` 已把 Bridge 持久回调连接到现有进程仓储，并经 `confinedfs` 发布及回收专属 job 目录。真实 helper + launchd + SQLite 集成验证了执行后 exact 回收终态；提交后丢失响应、错误集合、重复放行和符号链接反例由目标竞态测试覆盖。目录仅由宿主装配提供，短临时路径只属于测试夹具，不能作为生产任务隔离证明。默认 transport、生产受保护根装配、崩溃恢复、长路径和 App 打包仍未接入。
