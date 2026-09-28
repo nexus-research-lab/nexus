@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Persist macOS scratch parent/leaf filesystem identities from the original host lease before supervised launch. Recheck them before every probe/runtime launch, reject replaced directories, and preserve the proof during process recovery. Writable lease markers cannot supply this proof; automatic scratch reconciliation remains pending.
+
 - Persist each supervised sandbox policy receipt against its original runtime launch, including warm client reuse across policy generations. Reject probe, scope, lease and immutable-binding mismatches; preserve historical unbound receipts and refuse rollback that would erase binding evidence. This provides recovery identity only; automatic policy/scratch reconciliation and default App supervision remain pending.
 
 - Add bounded pending-process recovery batches under verified host ownership, with stable launch-ID pagination and an indexed pending scan. Failed records remain fenced while later records can progress; cancellation preserves the continuation cursor. A real helper task is recovered from SQLite after its original host exits without cleanup. Automatic App invocation and policy/scratch reconciliation remain pending.

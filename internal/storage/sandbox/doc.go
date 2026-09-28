@@ -10,7 +10,7 @@ package sandbox
 //   - repository.go：策略回执的幂等写入、阶段收口与 owner-scoped 读取。
 //   - process_recovery_scan.go：按唯一 launch ID 有界读取跨 owner 未收口 key；只供持锁宿主恢复，不暴露用户端点。
 //   - process_repository.go / process_validation.go：宿主启动意图、原生集合登记、一次性放行领取
-//     与 exact 回收事实；同代次探测到 runtime 按用途顺序保存独立 launch，仍保持唯一活跃范围，旧单进程登记视为 runtime；独立于连接后策略回执，但共享 owner/session/generation。
+//     与 exact 回收事实、可选可信 scratch parent/leaf 身份；同代次探测到 runtime 按用途顺序保存独立 launch，仍保持唯一活跃范围，旧单进程登记视为 runtime；独立于连接后策略回执，但共享 owner/session/generation。
 //
 // 暴露接口：Repository、NewRepository；Repository 提供 Save、UpdatePhase、
 // Get 与 Latest 的 owner-scoped 读写；进程事实提供 PrepareProcess、RegisterProcess、

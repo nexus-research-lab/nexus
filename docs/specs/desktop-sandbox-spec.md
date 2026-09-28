@@ -755,3 +755,9 @@ macOS 桌面 `nexus-server` 在布局迁移前获取 canonical `app/sidecar.lock
 显式启用进程监督时，Manager 在创建 client 前冻结原进程代次；同一 client 的 warm 请求继续增加策略回执代次，但不改写原进程代次。Connect 持久化策略前按 owner/session/原进程代次精确读取 runtime 用途记录，将唯一 launch ID 与原进程代次一同保存。探测、未放行进程、跨 owner/session、runtime 或 lease 不匹配均拒绝。进程可已经有精确回收终态；关联本身不宣称其当前存活。
 
 既有策略记录的进程关联不可改绑，也不能从无关联升级为推测关联。迁移 147 保留历史无关联记录及 unknown 状态；已有绑定事实时拒绝丢失该事实的数据库回退。这一关联只提供恢复身份，当前不自动清除策略/资源 unknown，不证明业务动作结果，App 默认监督与启动恢复仍待接入。
+
+### macOS scratch 的可信目录身份
+
+监督启动在 Host Reserve 写入启动意图前，从 Acquire 保存的原 parent/leaf 文件信息生成身份（device、inode、generation、birth time），与固定父路径和 leaf name 一同保存。每次 probe/runtime 启动工厂调用均重新打开当前目录核对原身份；已经释放、cleanup unknown 或目录替换时拒绝。身份不从任务可写的 `.nexus-sandbox-lease.json` 读取。原进程恢复保留完整身份，不重新采样替代原值。
+
+旧记录以及非 macOS 路径保留空身份；不能据此自动删除资源。此字段是后续恢复的必要输入，不是目录删除已经完成的证据。自动资源清理还需要持锁宿主、精确进程回收证据、其他使用者排除，以及抗路径替换的清理提交/重试流程，当前尚未接入。

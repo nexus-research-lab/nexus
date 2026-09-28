@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -35,7 +36,30 @@ func validateProcessIntent(i protocol.SandboxProcessIntent) error {
 	if !validProcessKey(i.Key) || i.Version != 1 || (i.RuntimeKind != "nxs" && i.RuntimeKind != "claude") || !validProcessBoot(i.BootID) || i.JobLabel != "cn.nexus.runtime."+i.Key.LaunchID || !validLowerHex(i.HelperSHA256, 64) || len(i.LeaseID) > 512 {
 		return ErrInvalidProcess
 	}
+	scratch := i.Scratch
+	if scratch != (protocol.SandboxProcessScratch{}) {
+		if i.LeaseID == "" || !filepath.IsAbs(scratch.BasePath) || filepath.Clean(scratch.BasePath) != scratch.BasePath || len(scratch.BasePath) > 4096 || filepath.Base(scratch.BasePath) != "sandbox" || !strings.HasPrefix(scratch.LeafName, ".scratch-") || filepath.Base(scratch.LeafName) != scratch.LeafName || strings.ContainsAny(scratch.LeafName, `/\\`+"\x00") || len(scratch.LeafName) > 255 || !validScratchIdentity(scratch.BaseIdentity) || !validScratchIdentity(scratch.LeafIdentity) {
+			return ErrInvalidProcess
+		}
+	}
 	return nil
+}
+func validScratchIdentity(value string) bool {
+	fields := strings.Split(value, ":")
+	if len(fields) != 6 || fields[0] != "darwin-v1" {
+		return false
+	}
+	for _, field := range fields[1:] {
+		if len(field) == 0 || len(field) > 16 {
+			return false
+		}
+		for _, c := range field {
+			if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+				return false
+			}
+		}
+	}
+	return true
 }
 func validateProcessRegistration(i protocol.SandboxProcessIntent, r protocol.SandboxProcessRegistration) error {
 	if r.Version != 1 || r.CoalitionID == 0 || r.BootID != i.BootID || r.OwnerUID != i.OwnerUID {

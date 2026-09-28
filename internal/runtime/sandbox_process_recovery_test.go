@@ -6,6 +6,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -17,6 +18,8 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 	for _, mode := range []string{"prepared", "released", "native_failure", "active_client"} {
 		t.Run(mode, func(t *testing.T) {
 			h, store, i := newProcessHostFixture(t)
+			h.binding.LeaseID = "original-lease"
+			h.binding.Scratch = protocol.SandboxProcessScratch{BasePath: filepath.Join(t.TempDir(), "sandbox"), LeafName: ".scratch-original", BaseIdentity: "darwin-v1:1:2:0:3:4", LeafIdentity: "darwin-v1:1:5:0:3:4"}
 			ctx := t.Context()
 			m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
 			m.SetSandboxPolicyReceiptStore(store)
@@ -91,6 +94,9 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 			want := protocol.SandboxProcessReaped
 			if mode == "prepared" {
 				want = protocol.SandboxProcessAborted
+			}
+			if result.Intent.Scratch != h.binding.Scratch {
+				t.Fatal("recovery lost original scratch identity")
 			}
 			if result.Phase != want {
 				t.Fatal(result.Phase)

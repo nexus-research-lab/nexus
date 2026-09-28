@@ -90,7 +90,7 @@ func (m *Manager) recoverSandboxProcessOwned(ctx context.Context, key protocol.S
 		return empty, errors.New("unknown process recovery phase")
 	}
 	i := snapshot.Intent
-	host, err := newSandboxProcessHost(store, config.Root, sandboxProcessBinding{Owner: key.OwnerUserID, Session: key.SessionKey, Generation: key.Generation, RuntimeKind: i.RuntimeKind, LeaseID: i.LeaseID, Purpose: i.Purpose})
+	host, err := newSandboxProcessHost(store, config.Root, sandboxProcessBinding{Owner: key.OwnerUserID, Session: key.SessionKey, Generation: key.Generation, RuntimeKind: i.RuntimeKind, LeaseID: i.LeaseID, Purpose: i.Purpose, Scratch: i.Scratch})
 	if err != nil {
 		return empty, err
 	}

@@ -107,7 +107,7 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 			t.Fatal(err)
 		}
 		process, found, err := store.LatestProcess(ctx, "owner", key)
-		if err != nil || !found || process.Intent.Key.Generation != generation || process.Intent.LeaseID != leaseID || process.Phase != protocol.SandboxProcessReaped {
+		if err != nil || !found || process.Intent.Key.Generation != generation || process.Intent.LeaseID != leaseID || process.Phase != protocol.SandboxProcessReaped || process.Intent.Scratch.BaseIdentity == "" || process.Intent.Scratch.LeafIdentity == "" || filepath.Join(process.Intent.Scratch.BasePath, process.Intent.Scratch.LeafName) != scratchPath {
 			t.Fatalf("process=%+v found=%v err=%v", process, found, err)
 		}
 		policy, found, err := store.Latest(ctx, "owner", key)

@@ -1,4 +1,4 @@
-// INPUT: 宿主签发的 exact owner/session/generation 与原生进程集合登记。
+// INPUT: 宿主签发的 exact owner/session/generation、原 scratch 目录身份与原生进程集合登记。
 // OUTPUT: 执行前持久意图、一次性放行状态及 exact 集合回收事实。
 // POS: 宿主内部启动合同，不是模型 API、权限凭据或业务结果回执。
 package protocol
@@ -22,12 +22,23 @@ type SandboxProcessKey struct {
 	LaunchID    string `json:"launch_id"`
 }
 
+// SandboxProcessScratch is host-captured filesystem identity, persisted before
+// launch. Zero means no trusted scratch proof, including historical records.
+// Marker contents are never a source for these filesystem identities.
+type SandboxProcessScratch struct {
+	BasePath     string `json:"base_path,omitempty"`
+	LeafName     string `json:"leaf_name,omitempty"`
+	BaseIdentity string `json:"base_identity,omitempty"`
+	LeafIdentity string `json:"leaf_identity,omitempty"`
+}
+
 // SandboxProcessIntent 不含命令参数、环境、Provider 凭据或任务正文。
 type SandboxProcessIntent struct {
 	Key          SandboxProcessKey     `json:"key"`
 	Version      int                   `json:"version"`
 	RuntimeKind  string                `json:"runtime_kind"`
 	Purpose      SandboxProcessPurpose `json:"purpose,omitempty"`
+	Scratch      SandboxProcessScratch `json:"scratch,omitempty"`
 	LeaseID      string                `json:"lease_id,omitempty"`
 	BootID       string                `json:"boot_id"`
 	OwnerUID     uint32                `json:"owner_uid"`
