@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Persist normal supervised macOS scratch cleanup through the same quarantine ledger as crash recovery. Add a separate bounded scan for terminal processes with unfinished resources or bound policies; failed items remain pending even when pagination ends. App startup invocation remains pending.
+
 - Add explicit macOS scratch and policy recovery under exclusive host ownership. Quarantine the original directory without replacing another entry, persist deletion stages, resume interrupted cleanup, and reconcile only receipts bound to the retired process. Pending recovery blocks new launches; historical unbound unknown receipts remain fenced. Native host-exit recovery passed, while default App startup integration remains pending.
 
 - Persist macOS scratch parent/leaf filesystem identities from the original host lease before supervised launch. Recheck them before every probe/runtime launch, reject replaced directories, and preserve the proof during process recovery. Writable lease markers cannot supply this proof; automatic scratch reconciliation remains pending.

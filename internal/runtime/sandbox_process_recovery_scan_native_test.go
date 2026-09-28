@@ -239,13 +239,15 @@ func TestRecoveryNativeHostExitWithScratchAndPolicies(t *testing.T) {
 	if after.Evidence == nil || after.Evidence.Reason != "coalition_reaped" {
 		t.Fatalf("missing original kernel retirement: %+v", after)
 	}
-	result, err := manager.RecoverSandboxScratch(ctx, before.Intent.Key, guard)
-	if err != nil || result.Phase != protocol.SandboxScratchRecoveryComplete {
-		t.Fatalf("scratch=%+v %v", result, err)
+	// Native pending is now empty, but the separate lifecycle scan must still
+	// discover the resource and two bound policy receipts.
+	lifecycle, err := manager.RecoverPendingSandboxLifecycles(ctx, guard, "", 16)
+	if err != nil || len(lifecycle.Items) != 1 || !lifecycle.Items[0].ResourcesComplete || lifecycle.Items[0].PoliciesReconciled != 2 {
+		t.Fatalf("lifecycle=%+v %v", lifecycle, err)
 	}
-	count, err := manager.ReconcileSandboxPolicy(ctx, before.Intent.Key, guard)
-	if err != nil || count != 2 {
-		t.Fatalf("policy count=%d %v", count, err)
+	repeated, err := manager.RecoverPendingSandboxLifecycles(ctx, guard, "", 16)
+	if err != nil || len(repeated.Items) != 0 || repeated.HasMore {
+		t.Fatalf("repeated lifecycle=%+v %v", repeated, err)
 	}
 	if _, err := os.Stat(filepath.Join(before.Intent.Scratch.BasePath, before.Intent.Scratch.LeafName)); !os.IsNotExist(err) {
 		t.Fatal("scratch remains", err)

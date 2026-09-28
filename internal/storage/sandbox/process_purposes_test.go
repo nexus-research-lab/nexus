@@ -62,12 +62,13 @@ func TestProcessPurposesShareGenerationWithoutReplay(t *testing.T) {
 			t.Fatalf("replayed %s: %v", purpose, err)
 		}
 	}
-	// 迁移回退不得选择性丢弃同代次的探测证据。
+	// 迁移回退不得选择性丢弃同代次的探测证据。149 的生命周期扫描
+	// 进度保护会先拒绝有原进程记录的降级，必须保留当前完整 schema。
 	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 144); err == nil {
 		t.Fatal("lossy rollback succeeded")
 	}
 	version, err := goose.GetDBVersion(r.db)
-	if err != nil || version != 145 {
+	if err != nil || version != 149 {
 		t.Fatalf("failed rollback changed schema: %d %v", version, err)
 	}
 	latest, _, err := r.LatestProcess(ctx, previous.Key.OwnerUserID, previous.Key.SessionKey)

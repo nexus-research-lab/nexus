@@ -58,20 +58,22 @@ type Input struct {
 // Every Acquire call returns a separate Lease handle, even when the resource is
 // reused. A resource is removed only after its last handle is released.
 type sandboxResource struct {
-	mu             sync.Mutex
-	path           string
-	root           string
-	scopeKey       string
-	policy         agentclient.SandboxResourcePolicy
-	marker         SandboxLeaseMarker
-	base           *confinedfs.Root
-	baseIdentity   os.FileInfo
-	leafIdentity   os.FileInfo
-	refs           int
-	handles        map[*Lease]struct{}
-	closed         bool
-	cleanupErr     error
-	uncertainLease *Lease
+	mu                sync.Mutex
+	path              string
+	root              string
+	scopeKey          string
+	policy            agentclient.SandboxResourcePolicy
+	marker            SandboxLeaseMarker
+	base              *confinedfs.Root
+	baseIdentity      os.FileInfo
+	leafIdentity      os.FileInfo
+	refs              int
+	handles           map[*Lease]struct{}
+	closed            bool
+	cleanupErr        error
+	uncertainLease    *Lease
+	cleanupSupervisor *SandboxProcessSupervisor
+	supervisedCleanup func(*sandboxResource) error
 }
 
 // Lease owns one reference to a shared scratch directory. Release is safe to
@@ -681,7 +683,11 @@ func releaseSandboxResource(resource *sandboxResource, handle *Lease) error {
 		resource.refs--
 		return nil
 	}
-	if err := removeSandboxResource(resource); err != nil {
+	cleanup := removeSandboxResource
+	if resource.supervisedCleanup != nil {
+		cleanup = resource.supervisedCleanup
+	}
+	if err := cleanup(resource); err != nil {
 		resource.cleanupErr = err
 		resource.marker.CleanupState = cleanupStateUnknown
 		resource.marker.CleanupError = sandboxCleanupErrorSummary(err)

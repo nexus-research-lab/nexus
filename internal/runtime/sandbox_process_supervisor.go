@@ -74,6 +74,9 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 		return bridge.Options{}, err
 	}
 	binding := sandboxProcessBinding{Owner: owner, Session: session, RuntimeKind: string(normalizedManagedRuntimeKind(options.Runtime.Kind)), Generation: floor + 1, LeaseID: leaseID, Scratch: scratch}
+	if err := configureSupervisedLeaseCleanup(lease, config, store, binding); err != nil {
+		return bridge.Options{}, err
+	}
 	if _, err := newSandboxProcessHost(store, config.Root, binding); err != nil {
 		return bridge.Options{}, err
 	}

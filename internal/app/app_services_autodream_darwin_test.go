@@ -20,6 +20,7 @@ import (
 	permission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/desktopinstance"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtime "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -37,6 +38,11 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := t.TempDir()
+	guard, err := desktopinstance.Acquire(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
 	t.Setenv("NEXUS_STATE_ROOT", root)
 	for _, directory := range []string{"workspace", "home", "config", "runtime"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0700); err != nil {
@@ -116,6 +122,18 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 		}
 		if _, err := os.Stat(scratchPath); !os.IsNotExist(err) {
 			t.Fatalf("scratch remains: %v", err)
+		}
+		recovery, found, err := store.ScratchRecovery(ctx, "owner", key, leaseID)
+		if err != nil || !found || recovery.Phase != protocol.SandboxScratchRecoveryComplete {
+			t.Fatalf("normal cleanup lacks durable completion: %+v %v", recovery, err)
+		}
+		batch, err := manager.RecoverPendingSandboxLifecycles(ctx, guard, "", 16)
+		if err != nil || batch.HasMore {
+			t.Fatalf("clean lifecycle scan=%+v %v", batch, err)
+		}
+		empty, err := manager.RecoverPendingSandboxLifecycles(ctx, guard, "", 16)
+		if err != nil || len(empty.Items) != 0 {
+			t.Fatalf("clean lifecycle remained pending: %+v %v", empty, err)
 		}
 	}
 }

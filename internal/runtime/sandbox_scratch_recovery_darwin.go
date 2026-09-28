@@ -30,6 +30,16 @@ func (m *Manager) RecoverSandboxScratch(ctx context.Context, key protocol.Sandbo
 		return result, errors.New("scratch recovery requires exclusive host ownership")
 	}
 	err := ownership.WithOwnership(func(appRoot string) error {
+		var err error
+		result, err = m.recoverSandboxScratchOwned(ctx, key, appRoot)
+		return err
+	})
+	return result, err
+}
+
+func (m *Manager) recoverSandboxScratchOwned(ctx context.Context, key protocol.SandboxProcessKey, appRoot string) (protocol.SandboxScratchRecovery, error) {
+	result := protocol.SandboxScratchRecovery{}
+	err := func() error {
 		startup, err := m.BeginClientStartup(ctx, key.SessionKey, key.OwnerUserID)
 		if err != nil {
 			return err
@@ -74,7 +84,7 @@ func (m *Manager) RecoverSandboxScratch(ctx context.Context, key protocol.Sandbo
 			return errors.New("scratch recovery cannot retire an in-process lease")
 		}
 		return recoverScratchFiles(ctx, appRoot, config.Root, store, &result)
-	})
+	}()
 	return result, err
 }
 
@@ -89,6 +99,20 @@ func recoverScratchFiles(ctx context.Context, appRoot string, processRoot *confi
 	expectedBase := filepath.Join(statePath, "users", safeOwnerPathSegment(record.ProcessKey.OwnerUserID), "runtime", scratchDirName)
 	if record.Scratch.BasePath != expectedBase {
 		return errors.New("scratch recovery path is outside owned canonical runtime")
+	}
+	return resumeSandboxScratchDeletion(ctx, processRoot, store, record, func() (*confinedfs.Root, error) {
+		state, err := confinedfs.Open(statePath)
+		if err != nil {
+			return nil, err
+		}
+		defer state.Close()
+		return state.OpenRootNoSymlink(filepath.Join("users", safeOwnerPathSegment(record.ProcessKey.OwnerUserID), "runtime", scratchDirName))
+	})
+}
+
+func resumeSandboxScratchDeletion(ctx context.Context, processRoot *confinedfs.Root, store sandboxScratchRecoveryStore, record *protocol.SandboxScratchRecovery, openBase func() (*confinedfs.Root, error)) error {
+	if record.Phase == protocol.SandboxScratchRecoveryComplete {
+		return nil
 	}
 	quarantine, err := processRoot.OpenOrCreateRootNoSymlink("scratch-recovery", 0700)
 	if err != nil {
@@ -107,12 +131,7 @@ func recoverScratchFiles(ctx context.Context, appRoot string, processRoot *confi
 		return nil
 	}
 	if record.Phase == protocol.SandboxScratchRecoveryPrepared {
-		state, err := confinedfs.Open(statePath)
-		if err != nil {
-			return err
-		}
-		defer state.Close()
-		base, err := state.OpenRootNoSymlink(filepath.Join("users", safeOwnerPathSegment(record.ProcessKey.OwnerUserID), "runtime", scratchDirName))
+		base, err := openBase()
 		if err != nil {
 			return err
 		}
