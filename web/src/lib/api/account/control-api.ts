@@ -1,4 +1,4 @@
-/** Nexus Web Shell 消费的 Control owner setup 与 deployment member API。 */
+/** Nexus Web Shell 的平台用户与组织成员使用独立端点，角色互不授予。 */
 
 import { getControlAuthBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
@@ -17,6 +17,7 @@ export interface ControlDeploymentMember {
   display_name: string;
   role: ControlMemberRole;
   membership_status: ControlMembershipStatus;
+  web_access_disabled?: boolean;
   avatar?: string;
   last_login_at?: string | null;
   created_at: string;
@@ -104,6 +105,12 @@ export async function setupControlOwnerApi(
   });
 }
 
+export async function listControlDeploymentMembersApi(): Promise<ControlDeploymentMember[]> {
+  return requestApi<ControlDeploymentMember[]>(`${CONTROL_AUTH_BASE_URL}/deployment-members`, {
+    method: "GET",
+  });
+}
+
 export async function listControlMembersApi(): Promise<ControlDeploymentMember[]> {
   return requestApi<ControlDeploymentMember[]>(`${CONTROL_AUTH_BASE_URL}/members`, {
     method: "GET",
@@ -134,10 +141,10 @@ export async function listControlAgentDirectoryApi(): Promise<ControlAgentDirect
 	return requestApi<ControlAgentDirectoryEntry[]>(`${CONTROL_AUTH_BASE_URL}/directory/agents`, { method: "GET" });
 }
 
-export async function createControlMemberApi(
+export async function createControlDeploymentMemberApi(
   params: CreateControlMemberParams,
 ): Promise<ControlDeploymentMember> {
-  return requestApi<ControlDeploymentMember>(`${CONTROL_AUTH_BASE_URL}/members`, {
+  return requestApi<ControlDeploymentMember>(`${CONTROL_AUTH_BASE_URL}/deployment-members`, {
     method: "POST",
     body: {
       username: params.username,

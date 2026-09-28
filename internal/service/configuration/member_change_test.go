@@ -130,8 +130,8 @@ func TestMemberConfigurationRequiresHumanSecretAndLiveAdmin(t *testing.T) {
 		t.Fatal("replay duplicated write")
 	}
 	control.role = authctx.RoleMember
-	if _, err = fixture.services.Configuration.Inspect(ctx, actor, []string{configurationsvc.DomainMembers}, false); err != nil {
-		t.Fatalf("平台 member 不应被阻止读取 Control 授权的组织目录: %v", err)
+	if _, err = fixture.services.Configuration.Inspect(ctx, actor, []string{configurationsvc.DomainMembers}, false); err == nil {
+		t.Fatalf("平台 member 不得读取部署用户目录: %v", err)
 	}
 }
 

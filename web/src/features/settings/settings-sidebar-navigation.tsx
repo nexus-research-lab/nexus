@@ -50,6 +50,7 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   general: Settings2,
   runtime: Cpu,
   "operations-organization": Building2,
+  "operations-members": UserRound,
   "operations-subscriptions": CreditCard,
   "operations-plans": ListChecks,
   "operations-providers": Cable,

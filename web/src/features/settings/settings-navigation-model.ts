@@ -4,6 +4,7 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 export const OPERATIONS_SECTIONS = [
+  { key: "operations-members", labelKey: "operations.tabs.deployment_members" },
   { key: "operations-subscriptions", labelKey: "operations.tabs.user_subscriptions" },
   { key: "operations-plans", labelKey: "operations.tabs.subscription_plans" },
   { key: "operations-providers", labelKey: "operations.tabs.subscription_providers" },
