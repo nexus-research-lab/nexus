@@ -144,3 +144,5 @@ Node 执行另需显式开启，旧授权默认关闭。机器凭据固定原 Co
 - service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。
 - orchestration 核心不依赖 MCP，协议转换进入 runtimehook；app 共享装配不反向依赖 app/server。
 - Session 跨表清理使用调用方持有的同一事务，SQL 归本领域仓储，不能由各服务分别提交。
+
+- macOS 显式监督的 socket 保留在原宿主状态目录；Bridge 用专用原生线程的父目录句柄与文件名绑定/连接，不改进程 cwd，不创建短路径别名或共享临时控制目录。

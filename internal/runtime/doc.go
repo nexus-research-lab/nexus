@@ -34,7 +34,7 @@
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
 //   - sandbox_process_recovery.go：在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
 //   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，App 默认装配仍待接入。
-//   - sandbox_process_host.go：Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 经 Manager 配置接入，生产路径装配仍待接入。
+//   - sandbox_process_host.go：原宿主目录内的长路径 socket、Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 经 Manager 配置接入，生产路径装配仍待接入。
 //   - sandbox_process_startup.go：消费宿主数据库启动事实；prepared/registered/released 即使没有策略回执也阻断新 factory，终态与策略回执共用代次下界，不读取用户可写的进程登记。
 //   - sandbox_startup.go：创建新 client 前读取 exact owner/session 的最新持久回执并延续代次；confirmed/retiring/unknown 阻断重建。scratch 新建前以固定父目录句柄检查同 scope 的 cleanup_unknown，包括旧 stale 目录，防止重启换目录绕过失败栅栏。
 //

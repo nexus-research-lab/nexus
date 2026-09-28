@@ -212,7 +212,7 @@ func TestSandboxProcessHostRejectsUnsafePaths(t *testing.T) {
 	}
 }
 
-func TestSandboxProcessHostRejectsLongSocketBeforeReservation(t *testing.T) {
+func TestSandboxProcessHostRetainsLongSocketInProtectedRoot(t *testing.T) {
 	h, store, i := newProcessHostFixture(t)
 	child, err := h.root.OpenOrCreateRootNoSymlink(strings.Repeat("x", 100), 0700)
 	if err != nil {
@@ -220,11 +220,15 @@ func TestSandboxProcessHostRejectsLongSocketBeforeReservation(t *testing.T) {
 	}
 	defer child.Close()
 	h.root = child
-	if _, err := h.Reserve(t.Context(), i); err == nil {
-		t.Fatal("long socket accepted")
+	paths, err := h.Reserve(t.Context(), i)
+	if err != nil || len(paths.Socket) <= 103 || !strings.HasPrefix(paths.Socket, child.Name()+string(os.PathSeparator)) {
+		t.Fatalf("protected long path=%+v err=%v", paths, err)
 	}
-	_, found, err := store.LatestProcess(t.Context(), "owner", "session")
-	if err != nil || found {
-		t.Fatalf("failed local validation left a reservation: %v %v", found, err)
+	snapshot, found, err := store.LatestProcess(t.Context(), "owner", "session")
+	if err != nil || !found || snapshot.Phase != protocol.SandboxProcessPrepared {
+		t.Fatalf("reservation=%+v found=%v err=%v", snapshot, found, err)
+	}
+	if err := h.Finish(t.Context(), i, nil); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -592,6 +592,14 @@ remains in the host maintenance runner. Scheduling and memory consolidation rule
 continue to belong to nxs; native disabled-gate control tests establish lifecycle,
 not real model consolidation or complete App UI acceptance.
 
+Supervised macOS sockets remain under the original protected host job directory.
+The Bridge binds/connects by parent directory descriptor and basename on a dedicated
+native thread, so the absolute state path is not limited by `sockaddr_un.sun_path`.
+It does not change process cwd, create a short alias, or move control sockets into
+shared temporary directories. Host cleanup retains unlink ownership; missing
+thread-local cwd support fails closed. Ordinary filesystem limits and supported-OS
+acceptance still apply; this does not solve the separate macOS 14.0 signal gap.
+
 One active launch per owner/session is enforced by a unique index. `prepared` may
 be canceled as `aborted` before registration; registration writes the exact original
 coalition and changes the phase to `registered`. `ClaimProcessRelease` changes it
