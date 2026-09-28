@@ -31,6 +31,7 @@
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；经 internal/infra/confinedfs 固定目录句柄完成创建、marker 读写、扫描与回收，Bridge 关闭成功后才回收，失败保留会话栅栏并把 cleanup_unknown 状态持久化；Windows marker 核验进程创建时间与内核存活信号，避免 PID 重用误回收或残留句柄把已退出进程误判为存活，查询失败保持未知。
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
+//   - sandbox_process_recovery.go：在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
 //   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，App 默认装配仍待接入。
 //   - sandbox_process_host.go：Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 经 Manager 配置接入，生产路径装配仍待接入。
 //   - sandbox_process_startup.go：消费宿主数据库启动事实；prepared/registered/released 即使没有策略回执也阻断新 factory，终态与策略回执共用代次下界，不读取用户可写的进程登记。
