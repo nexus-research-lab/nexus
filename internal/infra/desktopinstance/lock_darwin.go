@@ -66,8 +66,29 @@ func Acquire(stateRoot string) (*Guard, error) {
 
 // Verify 在使用实例所有权进行恢复前核对原 inode 仍是固定目录里的锁文件。
 func (g *Guard) Verify() error {
+	if g == nil {
+		return errors.New("desktop instance lock is unavailable")
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	return g.verifyLocked()
+}
+
+// WithOwnership 核验同一 app 根，并在整个恢复操作期间禁止本句柄关闭。
+// operation 不得重入 Guard；返回的根只标识本次已核验的宿主目录。
+func (g *Guard) WithOwnership(operation func(string) error) error {
+	if g == nil || operation == nil {
+		return errors.New("desktop recovery ownership is unavailable")
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if err := g.verifyLocked(); err != nil {
+		return err
+	}
+	return operation(g.root.Name())
+}
+
+func (g *Guard) verifyLocked() error {
 	if g.file == nil {
 		return errors.New("desktop instance lock is closed")
 	}

@@ -620,6 +620,16 @@ not yet write these records or launch the bootstrap helper. The storage and read
 gate alone therefore do not close the actual pre-execution crash window or enable
 automatic reconciliation of old unknown receipts.
 
+Explicit process recovery requires `SandboxProcessRecoveryOwnership`, implemented
+by the macOS sidecar instance Guard. `WithOwnership` verifies the original lock and
+app-directory inodes, holds the lock handle through the entire recovery callback,
+and blocks concurrent Guard closure. The Manager rejects a process directory outside
+that app root, linked traversal or a different directory inode before reading the
+original process for recovery. Missing, closed or replaced ownership cannot reach
+native job revocation or clear a durable fence. This only coordinates participating
+sidecars; older uncoordinated hosts and automatic startup recovery remain separate
+integration requirements. Policy and scratch reconciliation remain independent.
+
 Fresh Manager client creation reads the latest receipt for the exact owner/session
 before invoking the factory. A retired or explicitly reconciled receipt provides
 the generation lower bound, so clean App restart or idle-session recreation cannot
