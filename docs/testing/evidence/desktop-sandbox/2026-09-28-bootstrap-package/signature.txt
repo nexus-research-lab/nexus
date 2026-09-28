@@ -1,0 +1,4 @@
+--prepared:/private/tmp/nexus-bootstrap-app-20260928/NexusBootstrapQA.app/Contents/MacOS/nexus-server
+--validated:/private/tmp/nexus-bootstrap-app-20260928/NexusBootstrapQA.app/Contents/MacOS/nexus-server
+/tmp/nexus-bootstrap-app-20260928/NexusBootstrapQA.app: valid on disk
+/tmp/nexus-bootstrap-app-20260928/NexusBootstrapQA.app: satisfies its Designated Requirement

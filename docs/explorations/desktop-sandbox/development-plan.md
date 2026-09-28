@@ -797,3 +797,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 显式恢复：Bridge `5e6db3d` 已验证旧宿主未清理直接退出后，新宿主按原登记回收仍存活任务；boot 改变不撤销新 boot 同名 job。Nexus 增加 exact key、会话 gate 内的恢复适配，拒绝活动 client，保留 policy/scratch 的独立栅栏。App 跨进程独占启动装配、自动扫描与 exact lease/policy 对账仍待实现，不能宣称完整崩溃自动恢复。
 
 2026-09-28 sidecar 实例边界：macOS 桌面服务入口已在迁移前持有独立状态根 flock，完整关闭后释放；原生第二实例、退出自动释放、CLOEXEC、链接/替换反例和旧布局迁移验证通过。仅协调采用新协议的 sidecar；旧版 orphan 核验、将 Guard 绑定恢复调用、helper 打包和自动恢复仍待完成。
+
+2026-09-28 helper 随包交付：构建脚本从固定 Bridge 依赖生成 native cgo helper，先签 helper，再生成摘要/构建身份清单，最后封签 App；打包复验清单。新增 confined bundle loader，以 sidecar 自身编译依赖为可信版本。本机 arm64 实际 App 装配及 ad-hoc 签名验证通过，未启动 App、未捆绑 nxs；不是完整运行或正式签名验收。证据见[随包 helper](../../testing/evidence/desktop-sandbox/2026-09-28-bootstrap-package/README.md)。默认 supervisor、恢复及 lease 装配仍待完成。

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Package the macOS runtime bootstrap from the pinned Bridge dependency, sign it before recording its build identity and digest, and verify the manifest during assembly and packaging. Add a confined bundle loader anchored to the sidecar dependency identity. This does not yet enable default process supervision.
+
 - Acquire a macOS desktop sidecar state-root lock before layout/database migrations and keep it until all services close. Reject a second participating sidecar without signaling a stored PID; retain the lock inode and let kernel process exit release ownership. This adds a recovery prerequisite, not automatic sandbox recovery or proof that older uncoordinated hosts have exited.
 
 - Add explicit recovery of an original supervised process under the Manager session gate. Reject active clients, retain failed recovery records and leave policy/scratch reconciliation independent. Pin Bridge `5e6db3d`, whose native recovery test retires a still-running task after its original host exits without cleanup. Automatic App recovery still requires exclusive-instance wiring and exact lease/policy reconciliation.

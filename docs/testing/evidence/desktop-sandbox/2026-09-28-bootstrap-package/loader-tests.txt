@@ -1,0 +1,16 @@
+=== RUN   TestNativeBundleBootstrap
+--- PASS: TestNativeBundleBootstrap (0.02s)
+=== RUN   TestPinnedBridgeVersion
+=== RUN   TestPinnedBridgeVersion/missing
+=== RUN   TestPinnedBridgeVersion/unversioned
+=== RUN   TestPinnedBridgeVersion/development
+=== RUN   TestPinnedBridgeVersion/replacement
+=== RUN   TestPinnedBridgeVersion/pinned
+--- PASS: TestPinnedBridgeVersion (0.00s)
+    --- PASS: TestPinnedBridgeVersion/missing (0.00s)
+    --- PASS: TestPinnedBridgeVersion/unversioned (0.00s)
+    --- PASS: TestPinnedBridgeVersion/development (0.00s)
+    --- PASS: TestPinnedBridgeVersion/replacement (0.00s)
+    --- PASS: TestPinnedBridgeVersion/pinned (0.00s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/infra/runtimebootstrap	1.986s

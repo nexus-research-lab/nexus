@@ -647,6 +647,23 @@ The existing development/environment override precedence remains unchanged.
 The compatibility requirement is that the new pair preserves existing settings,
 sessions, memory, workspaces and previously supported product behavior.
 
+The macOS build includes `Contents/Resources/bin/nexus-runtime-bootstrap` built
+from the sidecar's pinned Bridge module with native cgo. After signing that helper,
+the build records its SHA-256, exact module version, command entrypoint-derived
+architecture and fixed relative path in `Resources/runtime-bootstrap.json`, then
+signs the App. Assembly and packaging (including skip-build) verify this manifest
+against the actual helper build identity and bytes. A replacement Bridge module is
+not a distributable helper source. Manifest authenticity relies on the App signing
+boundary; it is not an independent trust root.
+
+`infra/runtimebootstrap.LoadCurrent` derives the expected Bridge version from the
+running sidecar's own build information, never from task settings or the manifest.
+The loader uses confined file access and verifies path, version, architecture,
+native cgo build identity and digest before returning the helper. This loader and
+packaging are implemented; default App supervisor setup and startup recovery are
+still unconnected. Local ad-hoc assembly does not establish Developer ID,
+notarization, clean-host or supported-version acceptance.
+
 Bundled builds and packages run `nexus-server check-desktop-runtime --nxs <bundled path>`
 from the actual assembled App. The diagnostic bypasses server startup, `.env`, database
 migration and model requests; the packaging runner supplies an empty environment and

@@ -216,6 +216,9 @@ require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/nexus-server"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexuscfg"
+require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexus-runtime-bootstrap"
+BRIDGE_VERSION="$(cd "${ROOT_DIR}" && GOWORK=off go list -m -f '{{if .Replace}}replacement{{else}}{{.Version}}{{end}}' github.com/nexus-research-lab/nexus-agent-sdk-bridge)"
+node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" verify "${APP_BUNDLE}" "${BRIDGE_VERSION}"
 
 NXS_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nxs"
 if is_enabled "${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}" && [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
