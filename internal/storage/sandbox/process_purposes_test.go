@@ -63,7 +63,7 @@ func TestProcessPurposesShareGenerationWithoutReplay(t *testing.T) {
 		}
 	}
 	// 迁移回退不得选择性丢弃同代次的探测证据。
-	if err := goose.Down(r.db, "../../../db/migrations/sqlite"); err == nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 144); err == nil {
 		t.Fatal("lossy rollback succeeded")
 	}
 	version, err := goose.GetDBVersion(r.db)
@@ -83,7 +83,7 @@ func TestProcessPurposesShareGenerationWithoutReplay(t *testing.T) {
 func TestProcessPurposeMigrationPreservesLegacyIntent(t *testing.T) {
 	r := newSandboxReceiptRepository(t)
 	ctx := t.Context()
-	if err := goose.Down(r.db, "../../../db/migrations/sqlite"); err != nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 144); err != nil {
 		t.Fatal(err)
 	}
 	i := processIntent()

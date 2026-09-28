@@ -630,6 +630,18 @@ native job revocation or clear a durable fence. This only coordinates participat
 sidecars; older uncoordinated hosts and automatic startup recovery remain separate
 integration requirements. Policy and scratch reconciliation remain independent.
 
+`RecoverPendingSandboxProcesses` processes one ownership-protected batch of at most
+256 pending records. The storage scan uses immutable unique launch IDs as keyset
+cursors and an index limited to prepared/registered/released rows; retiring earlier
+rows does not shift later pages. It lists original exact keys, then each recovery
+re-reads and validates the original intent/registration. An item failure leaves its
+record pending, is returned both on the item and as an aggregate error, and does not
+starve later items in the batch. Cancellation stops before the next item and retains
+the last attempted cursor. A caller must inspect errors independently of `HasMore`;
+failed records can be revisited from their original keys or a new scan. This internal
+cross-owner query has no user API. It does not replay tasks, reconcile tool outcomes,
+or clear policy/scratch unknown records. Startup invocation remains unconnected.
+
 Fresh Manager client creation reads the latest receipt for the exact owner/session
 before invoking the factory. A retired or explicitly reconciled receipt provides
 the generation lower bound, so clean App restart or idle-session recreation cannot

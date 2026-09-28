@@ -808,3 +808,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 长状态根：Bridge `c994b19` 在原目录句柄内绑定/连接 socket，专用原生线程局部 cwd 不影响宿主线程，移除完整路径 103 字节拒绝且不创建别名/共享临时控制根。真实 helper 与固定 nxs 的长目录 AutoDream 双代次/双回执/资源回收通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-long-control-paths/README.md)。macOS 14.0 精确信号、默认 App 装配和自动恢复仍未完成。
 
 2026-09-28 恢复所有权：Manager 恢复入口已强制要求实例所有权回调；真实 sidecar Guard 在核验 app/锁 inode 后覆盖整个回收操作，阻止并发 Close。跨状态根、已关闭锁、锁文件或进程目录替换均拒绝且保留持久栅栏。真实 flock 与 SQLite 适配 race 通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-recovery-ownership/README.md)。本批不代替旧无锁宿主核验、自动扫描及 policy/lease 收口。
+
+2026-09-28 恢复批次：仓储按唯一 launch ID 对 prepared/registered/released 做有界 keyset 扫描，迁移 146 增加 pending 部分索引；Manager 在持锁回调内逐条重读/校验/回收，失败保留记录且不饿死后续项，取消保留续页位置。真实宿主子进程直接退出后，新宿主持锁从 SQLite 找到仍活动任务并回收到原登记终态，重复扫描不重放。证据见[恢复扫描](../../testing/evidence/desktop-sandbox/2026-09-28-recovery-scan/README.md)。App 默认调用、policy/lease 收口与旧无锁宿主处理仍待完成。
