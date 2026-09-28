@@ -14,7 +14,7 @@ job 缺失、根进程退出和资源计数相等都不是终态。只有已经�
 
 ## 内部组件进展
 
-Bridge 已落地尚未接线的 `internal/processscope`：严格登记/恢复、audit-token 精确终止、有界重扫及内核回收证明；缺原生 API 明确返回 unavailable。本机原生、竞态与无 cgo 用例通过，见[组件证据](../../testing/evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)。补充实验也确认 `bootout` 返回成功仍可能保留脱离后代。生产可信登记、helper/IPC、transport 和恢复接入仍按下列步骤推进。
+Bridge 已落地尚未接线的 `internal/processscope`：严格登记/恢复、audit-token 精确终止、有界重扫及内核回收证明；缺原生 API 明确返回 unavailable。本机原生、竞态与无 cgo 用例通过，见[组件证据](../../testing/evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)。补充实验也确认 `bootout` 返回成功仍可能保留脱离后代。后续 `CapturePeer` 已把连接的内核 audit token 与可信 launcher 指定进程核对，原生夹具通过“登记后才经连接放行”。但生产 job/可执行文件认证、双向认证、宿主持久登记、任务与 fd 传输、transport 和恢复接入仍按下列步骤推进。
 
 ## 完整接入顺序
 

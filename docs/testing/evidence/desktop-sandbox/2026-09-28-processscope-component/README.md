@@ -17,3 +17,9 @@ NEXUS_NATIVE_SCOPE_TEST=1 GOWORK=off go test -json -count=1 -timeout=45s ./inter
 ```
 
 这只验收独立内部组件。测试登记文件不是生产认证持久层；尚无正式 helper/IPC、执行前宿主登记、transport 接线、崩溃恢复或 scratch 回收。初始 macOS 14.0 缺少精确信号 API，Intel/签名包/干净机器也未验证。Nexus 固定 Bridge 依赖未改，因为该组件尚未进入运行路径。
+
+## 控制连接身份登记
+
+Bridge `af3031b5850f96dd3433ed690fbb0427884739e7` 补充 `CapturePeer`：由 Unix 连接的 `LOCAL_PEERTOKEN` 获取内核 audit identity，与可信 launcher 指定 PID 的当前完整 audit token 比较，拒绝 PID 复用、身份变化、错误预期 PID 和已关闭连接。[原生测试](peer-native.jsonl)把文件放行改为 Unix 控制连接：登记前引导进程等待，登记写入后才放行测试后代，随后继续通过精确清理、恢复及对照存活断言。[竞态结果](peer-race.log)与[无 cgo 结果](peer-no-cgo.log)通过，目标包 vet 通过。
+
+`expectedPID` 的可信来源仍由调用方负责；测试使用独立夹具自报 PID 作断言，不等于生产 job/可执行文件认证。该方法只验证控制连接与观察进程身份一致；正式 launcher、双向认证、持久执行登记、任务/凭据及文件描述符传输和产品接入仍未完成。
