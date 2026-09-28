@@ -76,7 +76,7 @@ func (s *IngressService) bindRuntimePermissionSession(request normalizedIngressR
 		control:     s.control,
 	}
 	bindingSession := request.permissionSessionKey()
-	if request.pairing != nil && request.pairing.TargetRoomID != "" {
+	if request.pairing != nil && request.pairing.TargetRoomID != "" && request.targetRoomType != protocol.RoomTypeDM {
 		sender.roomID = request.pairing.TargetRoomID
 		sender.conversationID = request.pairing.TargetConversationID
 		bindingSession = protocol.BuildRoomSharedSessionKey(sender.conversationID)

@@ -74,6 +74,7 @@ func (fn ExternalSessionNotifierFunc) NotifyExternalSessionUpdated(ctx context.C
 
 type normalizedIngressRequest struct {
 	pairing                    *pairingRow
+	targetRoomType             string
 	ownerUserID                string
 	channelStored              string
 	accountID                  string

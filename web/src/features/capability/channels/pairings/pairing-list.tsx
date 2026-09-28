@@ -215,11 +215,10 @@ function PairingRow({
   const agentFieldId = useId();
   const bindingKey = pairingBindingKey(item, labels);
   const sessionKey = pairingSessionKey(item);
-  const activityAt = item.last_message_at || item.updated_at;
   return (
     <UiPanel className="overflow-hidden" padding="none" radius="sm">
-      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-3 pt-3 pb-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <ChannelIcon type={item.channel_type} />
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -255,28 +254,13 @@ function PairingRow({
               )}>
                 {pairingTarget(item)}
               </span>
-              <span aria-hidden="true">·</span>
-              <span className="shrink-0 text-(--text-soft)">
-                {t(item.last_message_at ? "capability.pairing_last_message" : "capability.pairing_updated")}{" "}
-                {formatPairingTime(activityAt, locale)}
-              </span>
+
             </div>
           </div>
         </div>
 
-        <UiField className="min-w-0" htmlFor={agentFieldId} label={t("capability.pairing_agent")}>
-          <UiSelectMenu
-            ariaLabel={t("capability.pairing_select_row_agent")}
-            disabled={busy}
-            id={agentFieldId}
-            onChange={(value) => void onUpdatePairing(item, { agent_id: value })}
-            options={includeUnavailableAgentSelection(agentOptions, item.agent_id, t)}
-            size="sm"
-            value={item.agent_id}
-          />
-        </UiField>
 
-        <div className="flex items-center justify-end gap-2 max-lg:justify-start">
+        <div className="flex items-center justify-end gap-2">
           {PAIRING_TRANSITIONS[item.status].map((transition) => {
             const Icon = transition.icon;
             return (
@@ -299,7 +283,7 @@ function PairingRow({
           <UiIconButton
             disabled={busy}
             onClick={() => onDeletePairing(item)}
-            size="lg"
+            size="sm"
             title={t("common.delete")}
             tone="danger"
             type="button"
@@ -310,7 +294,21 @@ function PairingRow({
         </div>
       </div>
 
-      <PairingSessionTarget key={`${item.pairing_id}:${item.binding_version}:${item.agent_id}`} item={item} busy={busy} onUpdate={onUpdatePairing} />
+      <div className="grid max-w-[720px] items-start gap-3 px-3 pb-3 sm:grid-cols-2">
+        <UiField className="min-w-0" htmlFor={agentFieldId} label={t("capability.pairing_agent")}>
+          <UiSelectMenu
+            ariaLabel={t("capability.pairing_select_row_agent")}
+            disabled={busy}
+            id={agentFieldId}
+            onChange={(value) => void onUpdatePairing(item, { agent_id: value })}
+            options={includeUnavailableAgentSelection(agentOptions, item.agent_id, t)}
+            size="sm"
+            value={item.agent_id}
+          />
+        </UiField>
+
+        <PairingSessionTarget key={`${item.pairing_id}:${item.binding_version}:${item.agent_id}`} item={item} busy={busy} onUpdate={onUpdatePairing} />
+      </div>
 
       <UiDisclosure
         contentClassName="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]"
@@ -358,6 +356,7 @@ function PairingRow({
             getUiTypographyClassName({ role: "metadata", tone: "muted" }),
           )}>
             <div>{t("capability.pairing_source")}: {item.source === "ingress" ? t("capability.pairing_first_message") : item.source}</div>
+            {item.last_message_at ? <div>{t("capability.pairing_last_message")}: {formatPairingTime(item.last_message_at, locale)}</div> : null}
             <div>{t("capability.pairing_updated")}: {formatPairingTime(item.updated_at, locale)}</div>
           </div>
       </UiDisclosure>

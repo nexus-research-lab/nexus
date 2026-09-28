@@ -451,3 +451,30 @@ func TestIngressRecoveryScansPastUnknownWithoutPlatformRedelivery(t *testing.T) 
 		t.Fatalf("unknown: %+v %v", unknown, err)
 	}
 }
+
+func TestRoomExternalReplyPromptRequiresPersistedOriginalSession(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	service := NewIngressService(cfg, nil, nil, nil)
+	service.SetControlService(NewControlService(cfg, db, nil, nil))
+	ctx := ingressTestOwnerContext("owner")
+	_, err := db.Exec(`INSERT INTO im_room_inputs (owner_user_id,root_round_id,pairing_id,binding_version,agent_id,room_id,conversation_id,target_json,content) VALUES ('owner','root','pair',1,'amy','room','topic','{}','hello')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := protocol.BuildRoomAgentSessionKey("topic", "amy", protocol.RoomTypeGroup)
+	for _, session := range []string{original, "agent:amy:ws:dm:other"} {
+		prompt, err := service.roomExternalReplyPrompt(ctx, "root", "amy", session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (prompt != "") != (session == original) {
+			t.Fatalf("prompt for %s: %q", session, prompt)
+		}
+	}
+	prompt, err := service.roomExternalReplyPrompt(ctx, "unrelated", "amy", original)
+	if err != nil || prompt != "" {
+		t.Fatalf("unrelated input: %q %v", prompt, err)
+	}
+}

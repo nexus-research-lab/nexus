@@ -34,7 +34,12 @@ func (s *Service) SetIMDeliveryAdapter(store *imdelivery.Repository, sessions im
 }
 
 func imOrigin(actor Actor) imdelivery.Source {
-	return imdelivery.Source{Kind: "tool", AgentID: actor.AgentID, SessionKey: actor.SessionKey, RoundID: actor.RoundID, CallID: actor.CallID, RoomID: actor.RoomID, ConversationID: actor.ConversationID}
+	sessionKey := actor.SessionKey
+	// 公区 key 不是可持久查询的成员 Session；保留原话题的精确执行会话。
+	if protocol.ParseSessionKey(sessionKey).Kind == protocol.SessionKeyKindRoom && actor.ConversationID != "" {
+		sessionKey = protocol.BuildRoomAgentSessionKey(actor.ConversationID, actor.AgentID, protocol.RoomTypeGroup)
+	}
+	return imdelivery.Source{Kind: "tool", AgentID: actor.AgentID, SessionKey: sessionKey, RoundID: actor.RoundID, CallID: actor.CallID, RoomID: actor.RoomID, ConversationID: actor.ConversationID}
 }
 func withIMOrigin(ctx context.Context, actor Actor) context.Context {
 	return channels.WithIMDeliverySource(ctx, imOrigin(actor))
