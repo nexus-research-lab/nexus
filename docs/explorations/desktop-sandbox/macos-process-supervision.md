@@ -86,3 +86,7 @@ macOS 监督启动现在把原 lease 创建时的 parent/leaf 文件系统身份
 ### 正常退出与终态后续扫描（2026-09-28）
 
 显式监督的正常最终 Release 已复用持久资源清理；新增独立 terminal 资源/策略扫描，不依赖 native pending 仍存在。失败项保留、分页结束不掩盖错误、正常完成资源不会因源目录缺失而被误判。真实 nxs AutoDream 正常退出和独立宿主崩溃链路通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-lifecycle-followup/README.md)。App 默认装配、宿主根保护与发布验收仍待完成。
+
+### 外层 Seatbelt 兼容性反例（2026-09-28）
+
+可信 helper 在整个 runtime exec 前安装固定宿主保护的候选已撤回。本机原生目录/继承测试有效，但不同的内层 Seatbelt profile（包括额外加限制）返回 sandbox_apply EPERM；相同 profile 成功。直接套外层会破坏后端独立命令沙箱，不能作为默认 App 装配方案，见[最小复现与候选失败证据](../../testing/evidence/desktop-sandbox/2026-09-28-host-profile-compatibility/README.md)。宿主不可写要求保留；下一路线需同时满足两后端原生执行、Full Access 下宿主证据保护及全部任务入口，不能通过关闭内层沙箱或失败回退来规避。

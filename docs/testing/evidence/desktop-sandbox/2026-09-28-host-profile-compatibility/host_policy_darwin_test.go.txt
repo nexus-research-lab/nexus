@@ -1,0 +1,86 @@
+//go:build darwin && cgo
+
+// INPUT: 独立测试子进程和临时宿主/任务目录。
+// OUTPUT: 原生 profile 的文件拒绝、父目录保护和后代继承证据。
+// POS: 组件原生测试，不替代真实后端或 App 端到端验收。
+package processbootstrap
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"testing"
+)
+
+func TestHostPolicyNativeWorker(t *testing.T) {
+	if os.Getenv("NEXUS_HOST_POLICY_WORKER") != "1" {
+		return
+	}
+	policy := &HostPolicy{DenyRoots: []string{os.Getenv("NEXUS_TEST_PRIVATE")}, ReadOnlyRoots: []string{os.Getenv("NEXUS_TEST_BUNDLE")}}
+	if err := applyHostPolicy(policy); err != nil {
+		fmt.Fprintln(os.Stderr, "apply:", err)
+		os.Exit(21)
+	}
+	if err := syscall.Exec("/bin/sh", []string{"sh", "-c", os.Getenv("NEXUS_TEST_SCRIPT")}, os.Environ()); err != nil {
+		fmt.Fprintln(os.Stderr, "exec:", err)
+		os.Exit(22)
+	}
+}
+
+func TestHostPolicyNativeFilesystemAndInheritance(t *testing.T) {
+	if os.Getenv("NEXUS_NATIVE_SCOPE_TEST") != "1" {
+		t.Skip("explicit native host protection acceptance")
+	}
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	private := filepath.Join(root, "state", "app")
+	bundle := filepath.Join(root, "bundle")
+	for _, path := range []string{private, bundle} {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(path, "sentinel"), []byte("unchanged"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	alias := filepath.Join(root, "alias")
+	if err := os.Symlink(private, alias); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]string{
+		"task_write":                  `printf permitted > "$NEXUS_TEST_ROOT/task-output"; test "$(cat "$NEXUS_TEST_ROOT/task-output")" = permitted`,
+		"host_read_denied":            `if cat "$NEXUS_TEST_PRIVATE/sentinel"; then exit 31; fi`,
+		"host_write_denied":           `if (printf changed > "$NEXUS_TEST_PRIVATE/sentinel"); then exit 32; fi`,
+		"alias_read_denied":           `if cat "$NEXUS_TEST_ROOT/alias/sentinel"; then exit 33; fi`,
+		"ancestor_rename_denied":      `if mv "$NEXUS_TEST_ROOT/state" "$NEXUS_TEST_ROOT/replaced"; then exit 34; fi`,
+		"child_inherits":              `/bin/sh -c 'if (printf changed > "$NEXUS_TEST_PRIVATE/sentinel"); then exit 35; fi'`,
+		"bundle_read_only":            `test "$(cat "$NEXUS_TEST_BUNDLE/sentinel")" = unchanged; if (printf changed > "$NEXUS_TEST_BUNDLE/sentinel"); then exit 36; fi`,
+		"nested_profile_cannot_relax": `/usr/bin/sandbox-exec -p '(version 1)(allow default)' /bin/sh -c 'if cat "$NEXUS_TEST_PRIVATE/sentinel"; then exit 37; fi'`,
+		"host_signal_denied":          `if kill -0 "$NEXUS_TEST_PARENT"; then exit 38; fi`,
+	}
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, script := range cases {
+		t.Run(name, func(t *testing.T) {
+			command := exec.Command(binary, "-test.run=^TestHostPolicyNativeWorker$")
+			command.Env = []string{"PATH=/usr/bin:/bin", "NEXUS_HOST_POLICY_WORKER=1", "NEXUS_TEST_ROOT=" + root, "NEXUS_TEST_PRIVATE=" + private, "NEXUS_TEST_BUNDLE=" + bundle, "NEXUS_TEST_SCRIPT=" + script, fmt.Sprintf("NEXUS_TEST_PARENT=%d", os.Getpid())}
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("worker: %v %s", err, output)
+			}
+			for _, path := range []string{private, bundle} {
+				data, err := os.ReadFile(filepath.Join(path, "sentinel"))
+				if err != nil || strings.TrimSpace(string(data)) != "unchanged" {
+					t.Fatalf("protected data altered: %v", err)
+				}
+			}
+		})
+	}
+}

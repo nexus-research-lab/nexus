@@ -1,0 +1,82 @@
+// INPUT: 可信宿主在执行前提供的 canonical 私有目录。
+// OUTPUT: 有界宿主文件/进程保护规则，不从任务环境或后端 settings 读取。
+// POS: runtime 外层保护；不替代后端自己的命令、文件和网络授权。
+package processbootstrap
+
+import (
+	"errors"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+)
+
+// HostPolicy 是宿主拥有的不可撤销外层边界。DenyRoots 禁止读取和改写；
+// ReadOnlyRoots 用于固定 App/helper 包，允许加载但不能更改。
+// 规则同时限制跨沙箱信号/任务端口和任意 Mach 服务委托。
+// 网络仍由后端策略管理；此规则不证明网络、外部服务或宿主 API 授权。
+type HostPolicy struct {
+	DenyRoots     []string `json:"deny_roots"`
+	ReadOnlyRoots []string `json:"read_only_roots"`
+}
+
+func (p *HostPolicy) validate() error {
+	if p == nil {
+		return nil
+	}
+	if len(p.DenyRoots) == 0 || len(p.DenyRoots)+len(p.ReadOnlyRoots) > 32 {
+		return errors.New("invalid bootstrap host roots")
+	}
+	for _, root := range append(append([]string{}, p.DenyRoots...), p.ReadOnlyRoots...) {
+		if !filepath.IsAbs(root) || filepath.Clean(root) != root || root == "/" || strings.ContainsAny(root, "\x00\n\r") {
+			return errors.New("invalid bootstrap host root")
+		}
+	}
+	return nil
+}
+
+// CloneHostPolicy 冻结宿主切片，避免发送期间被调用方原位修改。
+func CloneHostPolicy(p *HostPolicy) *HostPolicy {
+	if p == nil {
+		return nil
+	}
+	return &HostPolicy{DenyRoots: append([]string{}, p.DenyRoots...), ReadOnlyRoots: append([]string{}, p.ReadOnlyRoots...)}
+}
+
+func hostPolicyProfile(p *HostPolicy) (string, error) {
+	if err := p.validate(); err != nil {
+		return "", err
+	}
+	if p == nil {
+		return "", errors.New("missing bootstrap host policy")
+	}
+	lines := []string{
+		"(version 1)", "(deny default)",
+		"(allow process-exec)", "(allow process-fork)",
+		"(allow process-info* (target same-sandbox))", "(allow signal (target same-sandbox))",
+		"(allow mach-priv-task-port (target same-sandbox))",
+		"(allow file-read*)", "(allow file-write*)", "(allow file-map-executable)",
+		"(allow sysctl-read)", "(allow network*)", "(allow ipc-posix*)",
+		"(allow user-preference-read)",
+		`(allow mach-lookup (global-name "com.apple.system.logger") (global-name "com.apple.logd") (global-name "com.apple.system.opendirectoryd.libinfo") (global-name "com.apple.system.opendirectoryd.membership") (global-name "com.apple.bsd.dirhelper") (global-name "com.apple.trustd.agent") (global-name "com.apple.securityd.xpc"))`,
+	}
+	ancestors := make(map[string]bool)
+	for _, root := range p.DenyRoots {
+		lines = append(lines, "(deny file-read* (subpath "+strconv.Quote(root)+"))")
+	}
+	for _, root := range append(append([]string{}, p.DenyRoots...), p.ReadOnlyRoots...) {
+		lines = append(lines, "(deny file-write* (subpath "+strconv.Quote(root)+"))")
+		for dir := root; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+			ancestors[dir] = true
+		}
+	}
+	paths := make([]string, 0, len(ancestors))
+	for path := range ancestors {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		lines = append(lines, "(deny file-write-unlink (literal "+strconv.Quote(path)+"))")
+	}
+	return strings.Join(lines, "\n") + "\n", nil
+}
