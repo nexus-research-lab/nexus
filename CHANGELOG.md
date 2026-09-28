@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add bounded pending-process recovery batches under verified host ownership, with stable launch-ID pagination and an indexed pending scan. Failed records remain fenced while later records can progress; cancellation preserves the continuation cursor. A real helper task is recovered from SQLite after its original host exits without cleanup. Automatic App invocation and policy/scratch reconciliation remain pending.
+
 - Require verified host ownership for explicit process recovery. Keep the macOS sidecar lock alive throughout recovery, reject another state root or replaced lock/process-directory identity, and retain unresolved process records on rejection. This is a recovery prerequisite; automatic startup reconciliation remains pending.
 
 - Pin Bridge `c994b19` and keep supervised sockets in the original protected state directory even when the absolute path exceeds the Unix socket address limit. Native directory-relative binding/connection leaves process cwd unchanged; long-root real nxs AutoDream lifecycle tests pass. This does not resolve the macOS 14.0 process-signal compatibility gap or enable default App supervision.
