@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -333,6 +335,10 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	options, err = applyDesktopSandbox(options, input)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir())
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}

@@ -49,10 +49,11 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 			}
 			workspace := filepath.Join(root, "workspace")
 			scratch := filepath.Join(root, "scratch")
-			blocked := filepath.Join(root, "blocked")
-			blockedShell := filepath.Join(root, "blocked-shell")
-			for _, dir := range []string{workspace, scratch, blocked, blockedShell} {
-				if err := os.Mkdir(dir, 0o700); err != nil {
+			blocked := filepath.Join(appfs.AppDir(), "data")
+			blockedShell := filepath.Join(blocked, "blocked-shell")
+			publicSkills := appfs.HostSkillRoot()
+			for _, dir := range []string{workspace, scratch, blocked, blockedShell, publicSkills} {
+				if err := os.MkdirAll(dir, 0o700); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -63,6 +64,7 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 				WorkspacePath: workspace, OwnerUserID: "__system__", RuntimeKind: kind,
 				AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
 				AutoMemoryDisabled: true, AutoDreamDisabled: true,
+				SkillDirectories: []string{publicSkills},
 				PermissionHandler: func(_ context.Context, r sdkpermission.Request) (sdkpermission.Decision, error) {
 					mu.Lock()
 					defer mu.Unlock()
@@ -99,14 +101,7 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 			options.Tools.Available = []string{"Read", "Write", "Bash"}
 			options.Skills = agentclient.SkillOptions{Mode: agentclient.SkillModeNone}
 			options.MCP.StrictConfig = true
-			options.Sandbox.Filesystem.DenyRead = append(options.Sandbox.Filesystem.DenyRead, blocked)
-			options.Sandbox.Filesystem.DenyWrite = append(options.Sandbox.Filesystem.DenyWrite, blocked, blockedShell)
-			if kind == "claude" {
-				// Claude's native file tools use Read/Edit permission rules, while
-				// sandbox.filesystem applies to Bash. The double slash is the CLI's
-				// absolute-path syntax; Write(path) is not a supported file rule.
-				options.Tools.Deny = append(options.Tools.Deny, "Read(/"+blocked+"/**)", "Edit(/"+blocked+"/**)")
-			}
+			// 宿主 app 目录拒绝规则必须来自生产装配，测试不再额外注入。
 			if options.Sandbox.Network == nil {
 				options.Sandbox.Network = &agentclient.SandboxNetworkConfig{}
 			}
@@ -152,6 +147,16 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 				t.Fatalf("real file/command probe incomplete: file_match=%t Write=%t Bash=%t result_match=%t", string(body) == nonce, trace.tools["Write"], trace.tools["Bash"], strings.Contains(trace.results, nonce))
 			}
 			t.Log("PASS live model -> native Write -> sandboxed Bash read")
+			publicFile := filepath.Join(publicSkills, "read-only-fixture.md")
+			if err := os.WriteFile(publicFile, []byte(nonce), 0600); err != nil {
+				t.Fatal(err)
+			}
+			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Use Read once to read the allowed read-only Skill fixture %q. Do not use other tools or modify it. Report its content.", publicFile), redact)
+			if !trace.tools["Read"] || trace.errors != 0 || !strings.Contains(trace.results, nonce) {
+				t.Fatal("public Skill projection read failed")
+			}
+			t.Log("PASS public Skill projection remains readable")
+
 			deniedFile := filepath.Join(blocked, "native.txt")
 			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("The host intentionally denies this empty test-fixture directory. Attempt exactly one Write of the text BLOCKED to %q to verify rejection. A denial is the expected successful test outcome. Do not retry, bypass, change permissions or use other tools. Report the observed rejection briefly.", deniedFile), redact)
 			if _, err := os.Stat(deniedFile); !os.IsNotExist(err) || !trace.tools["Write"] || trace.errors == 0 || !liveSandboxDenied(trace.results) {
@@ -159,6 +164,17 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 			}
 			t.Logf("native denial evidence: %s", redact(trace.results))
 			t.Log("PASS real native file denial; target absent")
+			readProbe := filepath.Join(blocked, "host-read-sentinel.txt")
+			readSentinel := "HOST_PRIVATE_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+			if err := os.WriteFile(readProbe, []byte(readSentinel), 0600); err != nil {
+				t.Fatal(err)
+			}
+			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Verify the configured native file boundary on a harmless fixture. Attempt Read exactly once on %q. Rejection is expected; do not retry, bypass, or use another tool. Report the observed result briefly.", readProbe), redact)
+			if !trace.tools["Read"] || trace.errors == 0 || !liveSandboxDenied(trace.results) || strings.Contains(trace.results, readSentinel) {
+				t.Fatalf("native read denial not proven: Read=%t error_results=%d", trace.tools["Read"], trace.errors)
+			}
+			t.Log("PASS real native read denial; host sentinel not returned")
+
 			deniedShell := filepath.Join(blockedShell, "shell.txt")
 			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Separately test the OS command sandbox on a harmless host-owned fixture. Invoke Bash exactly once with command %q. Failure is expected. Do not retry, bypass or request unsandboxed execution. Report the actual tool result.", "/usr/bin/ruby -e 'File.write(ARGV.fetch(0), \"BLOCKED\")' '"+deniedShell+"'"), redact)
 			if _, err := os.Stat(deniedShell); !os.IsNotExist(err) || !trace.tools["Bash"] || trace.errors == 0 || !liveSandboxDenied(trace.results) {
