@@ -170,7 +170,7 @@ func TestSandboxProcessSupervisorReplacementUsesNextLiveGeneration(t *testing.T)
 		t.Fatal(err)
 	}
 	got, _, err := store.LatestProcess(t.Context(), "owner", "session")
-	if err != nil || got.Intent.Key.Generation != 3 || m.sessions["session"].StartupGeneration != 3 {
+	if err != nil || got.Intent.Key.Generation != 3 || m.sessions["session"].StartupGeneration != 3 || m.sessions["session"].ProcessGeneration != 3 {
 		t.Fatalf("replacement=%+v err=%v", got, err)
 	}
 	if err := cfg.Host.Finish(t.Context(), intent, nil); err != nil {

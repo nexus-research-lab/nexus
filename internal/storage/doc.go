@@ -23,4 +23,5 @@
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package storage
 
+// sandbox 策略回执另存不可变原 runtime launch key；warm 策略代次不等同于原进程代次，旧记录不补猜关联。
 // sandbox 进程登记在同 owner/session/generation 内按探测到 runtime 的固定顺序保存独立启动，唯一活跃栅栏不变；旧登记用途为空时视为 runtime。

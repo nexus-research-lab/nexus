@@ -17,6 +17,7 @@ import (
 type sessionState struct {
 	Client                   Client
 	StartupGeneration        uint64
+	ProcessGeneration        uint64 // Immutable while Client is reused; zero means unsupervised.
 	ContextUsageByAgent      map[string]protocol.ContextUsageData
 	AgentID                  string
 	Rounds                   roundRegistry

@@ -1,5 +1,5 @@
-// INPUT: Host-selected desktop execution policy.
-// OUTPUT: Stable environment marker retained in the runtime process-policy fingerprint.
+// INPUT: Host-selected desktop execution policy and original supervised runtime identity.
+// OUTPUT: Stable policy marker and durable policy receipt with optional exact process binding.
 // POS: Host-only policy metadata; this marker is not a tool or sandbox escape grant.
 package protocol
 
@@ -27,12 +27,15 @@ const (
 // opaque here so protocol does not depend on an SDK or a concrete storage
 // package.
 type SandboxPolicyReceiptSnapshot struct {
-	Version                  int
-	OwnerUserID              string
-	SessionKey               string
-	SessionID                string
-	SessionIDProvisional     bool
-	RuntimeKind              string
+	Version              int
+	OwnerUserID          string
+	SessionKey           string
+	SessionID            string
+	SessionIDProvisional bool
+	RuntimeKind          string
+	// ProcessKey binds this policy generation to its original supervised runtime.
+	// Nil preserves historical unsupervised receipts without inventing evidence.
+	ProcessKey               *SandboxProcessKey
 	Generation               uint64
 	RoundID                  string
 	PolicyDigest             string

@@ -111,7 +111,7 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 			t.Fatalf("process=%+v found=%v err=%v", process, found, err)
 		}
 		policy, found, err := store.Latest(ctx, "owner", key)
-		if err != nil || !found || policy.Generation != generation || policy.Phase != protocol.SandboxPolicyReceiptRetired {
+		if err != nil || !found || policy.Generation != generation || policy.Phase != protocol.SandboxPolicyReceiptRetired || policy.ProcessKey == nil || *policy.ProcessKey != process.Intent.Key {
 			t.Fatalf("policy=%+v found=%v err=%v", policy, found, err)
 		}
 		if _, err := os.Stat(scratchPath); !os.IsNotExist(err) {

@@ -452,6 +452,10 @@ func (m *Manager) getOrCreateWithFactory(
 			if current.StartupGeneration < generationFloor {
 				current.StartupGeneration = generationFloor
 			}
+			current.ProcessGeneration = 0
+			if m.sandboxSupervisor != nil {
+				current.ProcessGeneration = max(generationFloor, memoryGeneration) + 1
+			}
 			current.Client = client
 			current.RuntimeKind = runtimeKind
 			current.OwnerUserID = ownerUserID
@@ -747,6 +751,10 @@ func (m *Manager) replaceRuntimeClient(
 		retireUnusedRuntimeClient(next)
 		return nil, errors.Join(sandboxPhaseErr, sandboxTerminalErr, ownershipErr)
 	}
+	state.ProcessGeneration = 0
+	if m.sandboxSupervisor != nil {
+		state.ProcessGeneration = generationFloor + 1
+	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
 	state.OwnerUserID = ownerUserID
@@ -941,6 +949,7 @@ func (m *Manager) connectClient(
 	}
 	ownerUserID := state.OwnerUserID
 	generation := state.StartupGeneration
+	processGeneration := state.ProcessGeneration
 	receiptStore := m.sandboxReceiptStore
 	effectiveReceipt := EffectiveSandboxPolicyReceipt(expected)
 	if effectiveReceipt != nil {
@@ -961,6 +970,9 @@ func (m *Manager) connectClient(
 				protocol.SandboxPolicyReceiptConfirmed,
 				"",
 			)
+			if snapshotErr == nil {
+				snapshotErr = bindSandboxReceiptProcess(context.Background(), receiptStore, &snapshot, processGeneration)
+			}
 			if snapshotErr != nil {
 				expected.Retire()
 				cleanupErr := expected.Disconnect(context.Background())
