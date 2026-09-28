@@ -23,6 +23,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/migration"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
@@ -226,6 +227,7 @@ func runServer() error {
 		return fmt.Errorf("加载环境配置失败: %w", err)
 	}
 	stateRoot := appfs.StateRoot()
+	var desktopOwnership runtimectx.SandboxProcessRecoveryOwnership
 	// 窗口进程的锁不能证明旧 sidecar 已退出。先由本进程持有 app 根锁，
 	// 再执行布局/数据库迁移；defer 晚于下面的服务 Close 执行。
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEXUS_APP_MODE")), "desktop") {
@@ -235,6 +237,7 @@ func runServer() error {
 		}
 		if instance != nil {
 			defer instance.Close()
+			desktopOwnership, _ = instance.(runtimectx.SandboxProcessRecoveryOwnership)
 		}
 	}
 	if err := migration.RunStateLayout(stateRoot, slog.Default()); err != nil {
@@ -367,7 +370,7 @@ func runServer() error {
 		return err
 	}
 
-	server, err := serverapp.NewWithLogger(cfg, logger)
+	server, err := serverapp.NewWithDesktopOwnership(cfg, logger, desktopOwnership)
 	if err != nil {
 		logger.Error("初始化 HTTP 服务失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)

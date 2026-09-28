@@ -1,8 +1,8 @@
 //go:build darwin
 
-// INPUT: 固定真实 nxs/helper、独立 SQLite/owner/scratch 与显式监督配置。
+// INPUT: 固定真实 nxs/helper、独立 SQLite/owner/scratch 与App 默认监督装配。
 // OUTPUT: AutoDream control 往返、跨次 generation/LeaseID 和进程/策略双终态。
-// POS: 原生生命周期集成；AutoDream gate 关闭，不发模型请求或证明记忆整理。
+// POS: App 装配后的原生生命周期集成；AutoDream gate 关闭，不发模型请求或证明记忆整理。
 package app
 
 import (
@@ -19,8 +19,8 @@ import (
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	permission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/desktopinstance"
+	"github.com/nexus-research-lab/nexus/internal/infra/runtimebootstrap"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtime "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -37,7 +37,10 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), strings.Repeat("long-private-state-", 8))
+	if err := os.MkdirAll(root, 0700); err != nil {
+		t.Fatal(err)
+	}
 	guard, err := desktopinstance.Acquire(root)
 	if err != nil {
 		t.Fatal(err)
@@ -49,18 +52,9 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	jobs := filepath.Join(root, "app", strings.Repeat("long-private-state-", 8))
-	if err := os.MkdirAll(jobs, 0700); err != nil {
-		t.Fatal(err)
-	}
-	if len(jobs) <= 103 {
+	if len(filepath.Join(root, "app", "processes")) <= 103 {
 		t.Fatal("fixture must exceed Unix socket address length")
 	}
-	jobRoot, err := confinedfs.Open(jobs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer jobRoot.Close()
 	db, err := sql.Open("sqlite", filepath.Join(root, "app.db")+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
@@ -75,10 +69,12 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 	store := sandboxstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	manager := runtime.NewManager()
 	manager.SetSandboxPolicyReceiptStore(store)
-	if err := manager.SetSandboxProcessSupervisor(runtime.SandboxProcessSupervisor{Root: jobRoot, HelperPath: helper, HelperSHA256: fmt.Sprintf("%x", sha256.Sum256(data))}); err != nil {
+	services := &AppServices{Runtime: manager}
+	defer services.Close(context.Background())
+	artifact := runtimebootstrap.Artifact{Path: helper, Manifest: runtimebootstrap.Manifest{SHA256: fmt.Sprintf("%x", sha256.Sum256(data))}}
+	if err := services.installDesktopSandbox(t.Context(), guard, artifact); err != nil {
 		t.Fatal(err)
 	}
-	defer manager.Close(context.Background())
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	const key = "memory-maintenance:agent"

@@ -99,6 +99,7 @@ type AppServices struct {
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
+	closeSandboxResources  func() error
 }
 
 // Close 先停止 runtime 准入并等待终态持久化，再释放宿主任务和自有数据库。
@@ -113,6 +114,9 @@ func (s *AppServices) Close(ctx context.Context) error {
 		if ctx.Err() != nil {
 			return errors.Join(closeErrors...)
 		}
+	}
+	if s.closeSandboxResources != nil {
+		closeErrors = append(closeErrors, s.closeSandboxResources())
 	}
 	if s.ChannelAuthorization != nil {
 		closeErrors = append(closeErrors, s.ChannelAuthorization.Close(ctx))
@@ -131,6 +135,11 @@ func (s *AppServices) Close(ctx context.Context) error {
 
 // NewAppServices 创建完整应用依赖容器。
 func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error) {
+	return NewAppServicesWithDesktopOwnership(cfg, logger, nil)
+}
+
+// NewAppServicesWithDesktopOwnership 在服务暴露前完成桌面监督与原记录恢复。
+func NewAppServicesWithDesktopOwnership(cfg config.Config, logger *slog.Logger, ownership runtimectx.SandboxProcessRecoveryOwnership) (*AppServices, error) {
 	relayClient, err := newOptionalRelayClient(cfg)
 	if err != nil {
 		return nil, err
@@ -142,6 +151,11 @@ func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error
 	services := NewAppServicesWithDB(cfg, db, logger)
 	services.Relay = relayClient
 	services.ownsDB = true
+	if err := services.prepareDesktopSandbox(cfg, ownership); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return nil, errors.Join(err, services.Close(ctx))
+	}
 	return services, nil
 }
 

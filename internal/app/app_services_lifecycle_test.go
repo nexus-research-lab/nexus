@@ -104,13 +104,17 @@ func TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites(t *testing.
 	}) {
 		t.Fatal("background task was not started")
 	}
-	services := &AppServices{DB: db, Runtime: manager, ownsDB: true}
+	resourcesClosed := false
+	services := &AppServices{DB: db, Runtime: manager, ownsDB: true, closeSandboxResources: func() error { resourcesClosed = true; return nil }}
 	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	if err := services.Close(short); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Close=%v, want deadline", err)
 	}
 	<-canceled
+	if resourcesClosed {
+		t.Fatal("supervisor resources closed before runtime finished")
+	}
 	if err := db.Ping(); err != nil {
 		t.Fatalf("database closed while runtime still had writes: %v", err)
 	}
@@ -120,5 +124,8 @@ func TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites(t *testing.
 	}
 	if err := db.Ping(); err == nil {
 		t.Fatal("database remained open after runtime finished")
+	}
+	if !resourcesClosed {
+		t.Fatal("supervisor resources leaked after runtime close")
 	}
 }
