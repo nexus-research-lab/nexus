@@ -40,7 +40,7 @@ desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-ex
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
-  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、本地媒体与远程图片网络、macOS 显式 MCP 端点网络、Skill、指令上下文及项目定义文件能力，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏；重建前读取持久回执及宿主数据库启动登记，prepared/registered/released 在 factory 前阻断重建，终态沿用 owner/session/generation 的代次，同 scope 的 cleanup_unknown scratch 不得被重启绕过；显式 MCP 的端点网络、认证 helper 与 stdio 进程分别协商，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
+  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、本地媒体与远程图片网络、macOS 显式 MCP 端点网络、Skill、指令上下文及项目定义文件能力，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏；重建前读取持久回执及宿主数据库启动登记，prepared/registered/released 在 factory 前阻断重建；显式监督 Host 已适配数据库和受保护目录句柄，默认 transport/恢复仍待接入，终态沿用 owner/session/generation 的代次，同 scope 的 cleanup_unknown scratch 不得被重启绕过；显式 MCP 的端点网络、认证 helper 与 stdio 进程分别协商，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
   service/    - 业务服务（auth 的 Desktop Local 与服务端 Control adapter / relay 的可选 typed HTTP client / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
   service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
