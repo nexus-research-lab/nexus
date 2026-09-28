@@ -1209,3 +1209,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：监督启动 Host 数据库适配
 
 [真实 helper/launchd/SQLite 证据](evidence/desktop-sandbox/2026-09-28-process-host/README.md)已通过，目标竞态、runtime 包回归、无 cgo 与架构检查通过。固定 Bridge `95b9616`；实际默认 transport、App 受保护目录装配、崩溃恢复及完整发布验收仍未完成。
+
+### 2026-09-28：显式监督 transport
+
+[Bridge 原生传输证据](evidence/desktop-sandbox/2026-09-28-supervised-transport/README.md)八个必测名称全部通过；JSON、退出码、脱离后代、强制关闭、保留清理错误、全部 probe 及取消已覆盖。Nexus 固定 Bridge `e8787a4`，但 Manager 默认启用及完整崩溃恢复仍未完成，不能按模块更新宣称 App 已启用。

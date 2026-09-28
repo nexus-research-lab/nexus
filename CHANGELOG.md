@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin Bridge `e8787a4` with an explicit supervised stdio transport for runtime and admission probes. JSON/exit/cleanup contracts are covered by native race tests; Nexus Manager activation and crash recovery remain pending.
+
 - Bind the explicit macOS supervisor to the host process registry and confined job files. Lost registration/release responses reconcile against the original record; invalid retirement evidence and unsafe file cleanup retain the startup fence. Pin Bridge `95b9616`; the default transport and crash recovery are not yet connected.
 
 - Add host-database process launch records bound to the existing owner/session/generation. Reserve one active launch, persist native registration before a once-only release claim, reject stale/cross-scope updates, and require exact collection-retirement evidence. Fresh runtime creation now rejects unresolved records even without a policy receipt. Production bootstrap writes and automatic recovery remain unconnected.

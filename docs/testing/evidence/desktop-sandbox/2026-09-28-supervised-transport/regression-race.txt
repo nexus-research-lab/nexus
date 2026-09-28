@@ -1,0 +1,3 @@
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport	14.162s
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/client	2.345s
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision	2.114s

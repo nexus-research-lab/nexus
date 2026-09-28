@@ -54,3 +54,7 @@ Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动
 ### 2026-09-28：Nexus Host 数据库适配
 
 `internal/runtime/sandbox_process_host.go` 已把 Bridge 持久回调连接到现有进程仓储，并经 `confinedfs` 发布及回收专属 job 目录。真实 helper + launchd + SQLite 集成验证了执行后 exact 回收终态；提交后丢失响应、错误集合、重复放行和符号链接反例由目标竞态测试覆盖。目录仅由宿主装配提供，短临时路径只属于测试夹具，不能作为生产任务隔离证明。默认 transport、生产受保护根装配、崩溃恢复、长路径和 App 打包仍未接入。
+
+### 2026-09-28：Bridge 显式监督传输
+
+`Options.ProcessSupervision` 已接入普通 process transport，每个 runtime、版本探测及 Claude 两种准入探测向宿主工厂请求独立 Host；失败不回退普通 exec。中断使用既有 runtime control，强制关闭使用原集合身份；JSON、退出码、脱离后代 EOF、关闭、清理错误、全部探测和探测取消的八个原生必测名称通过。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-transport/README.md)。Nexus 已固定此模块，但 Manager 启动前绑定 generation、生产可信目录、独立 probe 身份、崩溃恢复与 App helper 打包仍待接入。
