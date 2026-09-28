@@ -830,3 +830,7 @@ SDK `db867f87` 将 shell/argv 与两种异步 command hook 纳入当前命令沙
 ### 2026-09-28：默认 sidecar 真实崩溃链路
 
 通过真实 HTTP/WebSocket DM 和第三方模型启动 nxs setsid 后代，两次 SIGKILL 原 sidecar 后确认后代存活，默认重启回收同一原 launch、scratch 及策略，不重放命令。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-sidecar-crash/README.md)。旧健康脚本误用 Web 回退路径的证据已明确纠正。下一步优先收口旧 sidecar 的身份/未知状态处理，再继续平台兼容与其他 SDK/App/发布缺口。
+
+### 2026-09-28：sidecar 身份核验
+
+原生壳使用 boot-bound audit identity 替代 PID/path 发信号，冷恢复与正常退出不再使用裸 PID kill。旧记录继续读取：存活且无法证明身份时保留并阻止并发启动，明确死亡才清理。受限两后端保护既有 sidecar 身份文件；真实模型读写拒绝、原生过期 token 与孤儿清理通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-sidecar-identity/README.md)。最低 macOS 14.0 的精确信号缺口仍未解决，不能将此批次当作该平台支持或图形 App/发布已通过。

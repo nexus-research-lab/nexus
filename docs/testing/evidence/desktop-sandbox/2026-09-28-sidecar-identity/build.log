@@ -1,0 +1,10 @@
+Building for debugging...
+[Planning deferred tasks]
+[2 / 5] NexusDesktop-product
+[17 / 20] NexusDesktop-product
+[18 / 20] NexusDesktop-product
+[19 / 20] NexusDesktop-product
+/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox/desktop/macos/Package.swift: NexusDesktop-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
+/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox/desktop/macos/Package.swift: NexusDesktop-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
+[20 / 22] NexusDesktop-product
+Build complete! (1.80秒)

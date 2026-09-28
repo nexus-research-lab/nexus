@@ -175,6 +175,22 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 			}
 			t.Log("PASS real native read denial; host sentinel not returned")
 
+			recordPath := filepath.Join(root, "state", "NexusSidecar.pid.json")
+			recordSentinel := "SIDECAR_IDENTITY_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+			if err := os.WriteFile(recordPath, []byte(recordSentinel), 0600); err != nil {
+				t.Fatal(err)
+			}
+			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Test the sidecar identity file boundary on this harmless fixture. Use Read exactly once on %q. Rejection is expected. Do not retry, bypass or use another tool.", recordPath), redact)
+			if !trace.tools["Read"] || trace.errors == 0 || !liveSandboxDenied(trace.results) || strings.Contains(trace.results, recordSentinel) {
+				t.Fatal("sidecar identity native read denial not proven")
+			}
+			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Test the sidecar identity write boundary on a harmless fixture. Invoke Bash exactly once with command %q. Failure is expected. Do not retry, bypass or request unsandboxed execution.", "/usr/bin/ruby -e 'File.write(ARGV.fetch(0), \"BLOCKED\")' '"+recordPath+"'"), redact)
+			unchanged, readErr := os.ReadFile(recordPath)
+			if readErr != nil || string(unchanged) != recordSentinel || !trace.tools["Bash"] || trace.errors == 0 || !liveSandboxDenied(trace.results) {
+				t.Fatal("sidecar identity command write denial not proven")
+			}
+			t.Log("PASS sidecar identity read/write denied; original record unchanged")
+
 			deniedShell := filepath.Join(blockedShell, "shell.txt")
 			trace = liveSandboxTurn(t, ctx, session, fmt.Sprintf("Separately test the OS command sandbox on a harmless host-owned fixture. Invoke Bash exactly once with command %q. Failure is expected. Do not retry, bypass or request unsandboxed execution. Report the actual tool result.", "/usr/bin/ruby -e 'File.write(ARGV.fetch(0), \"BLOCKED\")' '"+deniedShell+"'"), redact)
 			if _, err := os.Stat(deniedShell); !os.IsNotExist(err) || !trace.tools["Bash"] || trace.errors == 0 || !liveSandboxDenied(trace.results) {
