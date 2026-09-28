@@ -1,0 +1,8 @@
+{"Time":"2026-09-28T11:20:10.454029+08:00","Action":"start","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision"}
+{"Time":"2026-09-28T11:20:11.378397+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Test":"TestRecoveryNativeHostExit"}
+{"Time":"2026-09-28T11:20:11.378553+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Test":"TestRecoveryNativeHostExit","Output":"=== RUN   TestRecoveryNativeHostExit\n","OutputType":"frame"}
+{"Time":"2026-09-28T11:20:12.597486+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Test":"TestRecoveryNativeHostExit","Output":"--- PASS: TestRecoveryNativeHostExit (1.22s)\n","OutputType":"frame"}
+{"Time":"2026-09-28T11:20:12.59752+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Test":"TestRecoveryNativeHostExit","Elapsed":1.22}
+{"Time":"2026-09-28T11:20:12.597543+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-09-28T11:20:13.600668+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Output":"ok  \tgithub.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision\t3.146s\n"}
+{"Time":"2026-09-28T11:20:13.600803+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision","Elapsed":3.147}

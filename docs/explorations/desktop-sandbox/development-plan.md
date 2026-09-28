@@ -793,3 +793,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 transport：Bridge `e8787a4` 的显式监督传输覆盖主进程及全部 CLI probe，并通过原生竞态回归。Nexus 已固定依赖；下一步在 Manager factory 前绑定精确启动身份，为 probe 建立独立持久 scope，再接生产可信目录、恢复和打包。
 
 2026-09-28 Manager 接线：显式 `SandboxProcessSupervisor` 配置在 factory 前绑定 owner/session/generation，普通热更新保留原 client 监督身份。同代次探测/runtime 通过迁移 145 的顺序槽持久登记，唯一 active 范围不变；未知 probe 也阻断下一次 factory。旧无 purpose 登记保留正文并解释为 runtime，多 launch 代次拒绝有损回退。App 可信根/固定 helper 摘要的默认装配、scratch lease 绑定、崩溃恢复、长路径和发布验收仍待完成。
+
+2026-09-28 显式恢复：Bridge `5e6db3d` 已验证旧宿主未清理直接退出后，新宿主按原登记回收仍存活任务；boot 改变不撤销新 boot 同名 job。Nexus 增加 exact key、会话 gate 内的恢复适配，拒绝活动 client，保留 policy/scratch 的独立栅栏。App 跨进程独占启动装配、自动扫描与 exact lease/policy 对账仍待实现，不能宣称完整崩溃自动恢复。

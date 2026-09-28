@@ -1217,3 +1217,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：Manager 监督身份与探测代次
 
 [绑定与迁移证据](evidence/desktop-sandbox/2026-09-28-supervisor-binding/README.md)覆盖 factory 前身份、同代次四种进程目的、重启阻断、热更新和替换代次；真实 helper/launchd/SQLite 四阶段回收通过。迁移 145 原样保留旧意图，存在多个启动的代次拒绝有损回退。当前仍是显式 Manager 装配，App 默认启用、scratch lease 关联和崩溃恢复未完成；PostgreSQL 仅静态审查，无运行验收。
+
+### 2026-09-28：原进程登记恢复
+
+[恢复证据](evidence/desktop-sandbox/2026-09-28-process-recovery/README.md)包含真实宿主未 Close 即退出、原任务仍存活后按原登记回收的 Bridge race 测试，以及 Nexus 真实 SQLite/注入原生结果的 exact scope 回归。进程收口不清除 policy unknown；活动 client、跨 owner 和原生失败不会成功收口。App 独占实例锁装配、自动扫描、lease/policy 对账和实际重启验收仍未完成。

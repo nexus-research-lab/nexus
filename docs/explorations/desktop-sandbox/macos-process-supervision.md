@@ -62,3 +62,7 @@ Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动
 ### 2026-09-28：Manager 启动代次与 probe 登记
 
 `SetSandboxProcessSupervisor` 只在 Manager 使用前接受宿主配置，调用方必须提供受保护根和可信 helper 摘要；不读取任务环境。factory 收到的工厂冻结 exact owner/session/generation，warm reconfigure 不能换掉它。仓储在同代次增加固定 launch_order（Claude sandbox、restricted、version、runtime），允许跳过不适用的探测，不允许倒退、重放或越过未清理的前项。迁移保留旧 intent JSON，并将旧无用途记录定位到 runtime；回退若会丢失多启动证据则事务失败。该批次没有自动启用 App，也尚未把 scratch lease 绑定到进程登记。
+
+### 2026-09-28：原登记恢复入口
+
+Bridge `Recover` 先验证原意图、登记和当前观察者，再撤销同 boot 原 job 并回收原集合；boot 改变不动新 boot 同名 job。真实测试宿主在任务仍存活时直接退出而不 Close，新宿主仅凭持久登记回收成功，重复恢复未重放任务。Nexus `RecoverSandboxProcess` 在宿主已持有跨进程独占实例锁的前提下，通过会话 gate 读取 exact 记录并调用该入口；活动 client 拒绝，失败保留状态。该入口不自动清除 policy/scratch 栅栏，也尚未由 App 启动自动调用。
