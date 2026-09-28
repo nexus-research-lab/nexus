@@ -1,5 +1,5 @@
 // INPUT: 宿主 canonical 状态根、已装配的桌面后端与权限模式。
-// OUTPUT: 受限 macOS 会话对 app 整树写入及私有目录读取的后端拒绝规则。
+// OUTPUT: 受限 macOS 会话对 app 整树写入、私有目录及既有 sidecar 身份记录读写的拒绝规则。
 // POS: 统一 DM/Room/后台 options 装配；Full Access 是明确的无隔离例外。
 package clientopts
 
@@ -32,6 +32,12 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 	var privateRoots []string
 	// 与 canonical app 布局对应；Skill 投影仍须可读，但整个 app 树不可写。
 	for _, root := range roots {
+		// 原生宿主既有 sidecar 登记仍位于状态根；禁止任务读取或改写其信号身份。
+		recordAliases, err := desktopHostRootAliases(filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json"))
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+		privateRoots = appendHostPaths(privateRoots, recordAliases...)
 		for _, name := range []string{"data", "config", "cache", "logs", "rooms", "processes", ".migrations", ".agents", "sidecar.lock"} {
 			aliases, err := desktopHostRootAliases(filepath.Join(root, name))
 			if err != nil {

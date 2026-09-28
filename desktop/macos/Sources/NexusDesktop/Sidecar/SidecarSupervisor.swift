@@ -1,5 +1,5 @@
 // INPUT: 桌面路径、sidecar bundle、宿主配置与 active/legacy Connector credentials keys。
-// OUTPUT: 受控启动、监测并停止的本机 nexus-server 进程与运行时地址。
+// OUTPUT: 受控启动、监测并通过 boot-bound audit identity 停止的本机 nexus-server 与运行时地址。
 // POS: macOS 宿主 sidecar 生命周期及显式环境注入边界；不承载业务规则。
 import Darwin
 import Foundation
@@ -26,7 +26,11 @@ final class SidecarSupervisor {
       expectedExecutablePath: locator.command
     )
     startupTimeline?.mark("sidecar.reap_begin")
-    orphanReaper.reapIfNeeded()
+    do { try orphanReaper.reapIfNeeded() }
+    catch {
+      NSLog("[Nexus Sidecar] recovery refused: \(error)")
+      throw error
+    }
     port = try SidecarPortAllocator.allocate(startupTimeline: startupTimeline)
     runtimeConfig = SidecarRuntimeConfig(
       port: port,
@@ -55,8 +59,8 @@ final class SidecarSupervisor {
     startupTimeline?.mark("sidecar.process_started", metadata: [
       "pid": "\(sidecarProcess.processIdentifier)",
     ])
-    orphanReaper.write(pid: sidecarProcess.processIdentifier)
     do {
+      try orphanReaper.write(pid: sidecarProcess.processIdentifier)
       try await waitUntilHealthy()
     } catch {
       stop()
@@ -89,7 +93,12 @@ final class SidecarSupervisor {
     startupTimeline?.mark("sidecar.stop_begin", metadata: [
       "pid": "\(pid)",
     ])
-    sidecarProcess.terminate()
+    do { try orphanReaper.signalOwned(pid: pid, signal: SIGTERM) }
+    catch {
+      shouldRemoveRecord = false
+      NSLog("[Nexus Sidecar] stop identity failure: \(error)")
+      return
+    }
     if waitUntilExited(sidecarProcess, timeout: Self.stopTimeoutSeconds) {
       startupTimeline?.mark("sidecar.stop_finished", metadata: [
         "pid": "\(pid)",
@@ -101,7 +110,12 @@ final class SidecarSupervisor {
     startupTimeline?.mark("sidecar.stop_timeout", metadata: [
       "pid": "\(pid)",
     ])
-    _ = kill(pid, SIGKILL)
+    do { try orphanReaper.signalOwned(pid: pid, signal: SIGKILL) }
+    catch {
+      shouldRemoveRecord = false
+      NSLog("[Nexus Sidecar] forced stop identity failure: \(error)")
+      return
+    }
     if waitUntilExited(sidecarProcess, timeout: Self.killTimeoutSeconds) {
       startupTimeline?.mark("sidecar.stop_killed", metadata: [
         "pid": "\(pid)",

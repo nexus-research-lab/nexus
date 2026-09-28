@@ -35,6 +35,13 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, path := range []string{filepath.Join(alias, "app"), filepath.Join(state, "app")} {
+			record := filepath.Join(filepath.Dir(path), "NexusSidecar.pid.json")
+			if !slices.Contains(got.Sandbox.Filesystem.DenyRead, record) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, record) {
+				t.Fatal("sidecar identity record unprotected")
+			}
+			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Edit(/"+record+")") {
+				t.Fatal("Claude record write rule missing")
+			}
 			if !slices.Contains(got.Sandbox.Filesystem.DenyRead, filepath.Join(path, "data")) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, path) {
 				t.Fatalf("missing root %s", path)
 			}
