@@ -779,3 +779,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 组件进展：Bridge `internal/processscope` 已完成独立原生观察和精确回收，本机原生/竞态/无 cgo 检查通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)。尚未进入产品路径，可信启动登记与 IPC、transport、取消和崩溃恢复继续待实现；macOS 14.0 支持缺口不变。
 
 同日控制连接进展：`CapturePeer` 已核对内核 peer audit token 与可信 launcher 指定进程，原生夹具登记后经连接放行通过；仍缺生产 job/可执行文件认证、双向认证与持久宿主绑定，不能视为正式启动链已接通。证据追加在上述组件目录。
+
+2026-09-28 引导接收端：真实 helper 已能认证宿主、接收标准管道和显式输入并原地 exec，原生/竞态/无 cgo 检查通过，[证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-bootstrap/README.md)。下一步是宿主生产 launcher、持久放行、退出观察和 transport/恢复接入，不把 fixture 登记文件当作宿主回执。

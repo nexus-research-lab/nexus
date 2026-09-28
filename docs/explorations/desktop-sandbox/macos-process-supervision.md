@@ -32,3 +32,9 @@ Bridge 已落地尚未接线的 `internal/processscope`：严格登记/恢复、
 coalition 观察结构及 usage wrapper 涉及私有 ABI，必须明确验证及失败关闭策略；进程自行委托其他系统服务产生的副作用不等于直接 fork 后代，仍属于各服务/网络/IPC 的独立权限边界。原型不提供抵御任意未受限同 UID 程序伪造本地控制状态的保证。正式登记与 IPC 鉴权完成前，不将实验函数接入现有自动回收入口。
 
 本候选不缩减完整交付目标。其他 SDK IO、凭据、MCP、产品 UI、老用户升级与正式分发继续按统一开发计划验收。
+
+## 引导接收端进展
+
+Bridge 已新增 `cmd/nexus-runtime-bootstrap` 和内部启动协议：按固定内核身份认证宿主，接收限长启动输入与三条方向固定的标准管道，然后原地 exec。真实 launchd fixture 验证了身份拒绝、放行前断连、登记后执行、PID/标准流/显式环境/控制 fd 与退出码；异常 fd 传输泄漏也已复现并修复。见[引导组件证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-bootstrap/README.md)。
+
+该批次只完成接收端。生产 launcher 的 job/可执行文件认证、持久放行、退出观察、默认 transport、unknown 恢复和正式打包继续待实现；没有宣称 macOS 14.0 或产品全链路已通过。
