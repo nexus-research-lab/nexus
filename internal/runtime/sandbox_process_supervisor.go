@@ -69,7 +69,11 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 	if err != nil {
 		return bridge.Options{}, err
 	}
-	binding := sandboxProcessBinding{Owner: owner, Session: session, RuntimeKind: string(normalizedManagedRuntimeKind(options.Runtime.Kind)), Generation: floor + 1, LeaseID: leaseID}
+	scratch, err := supervisedScratchBinding(lease)
+	if err != nil {
+		return bridge.Options{}, err
+	}
+	binding := sandboxProcessBinding{Owner: owner, Session: session, RuntimeKind: string(normalizedManagedRuntimeKind(options.Runtime.Kind)), Generation: floor + 1, LeaseID: leaseID, Scratch: scratch}
 	if _, err := newSandboxProcessHost(store, config.Root, binding); err != nil {
 		return bridge.Options{}, err
 	}
@@ -82,7 +86,11 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 		if err != nil {
 			return supervision.Config{}, err
 		}
-		if currentLeaseID != binding.LeaseID {
+		currentScratch, err := supervisedScratchBinding(lease)
+		if err != nil {
+			return supervision.Config{}, err
+		}
+		if currentLeaseID != binding.LeaseID || currentScratch != binding.Scratch {
 			return supervision.Config{}, errors.New("supervised scratch identity changed before launch")
 		}
 		next := binding

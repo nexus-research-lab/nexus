@@ -74,3 +74,7 @@ Bridge `Recover` 先验证原意图、登记和当前观察者，再撤销同 bo
 ### 原进程与 warm 策略绑定（2026-09-28）
 
 策略回执新增不可变原 runtime launch 身份。Manager 保留原 client 进程代次，warm 策略增加代次时仍精确读取原记录；迁移 147 不为旧记录补猜身份，有绑定时拒绝丢失证据的回退。见[关联验证](../../testing/evidence/desktop-sandbox/2026-09-28-policy-process-binding/README.md)。此批只补齐身份，自动策略/资源收口与 App 默认接入仍未完成。
+
+### scratch 原目录身份登记（2026-09-28）
+
+macOS 监督启动现在把原 lease 创建时的 parent/leaf 文件系统身份随启动意图持久化，并在每次 probe/runtime 启动前重查目录。任务可写 marker 不参与身份生成，目录替换拒绝，恢复原进程时保留该证明。见[验证证据](../../testing/evidence/desktop-sandbox/2026-09-28-scratch-identity/README.md)。自动资源清理及其提交/重试仍待实现，不能由原进程已回收直接推断资源已清理。

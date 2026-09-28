@@ -31,6 +31,7 @@ type sandboxProcessBinding struct {
 	Owner, Session, RuntimeKind, LeaseID string
 	Generation                           uint64
 	Purpose                              protocol.SandboxProcessPurpose
+	Scratch                              protocol.SandboxProcessScratch
 }
 
 type sandboxProcessHost struct {
@@ -84,7 +85,7 @@ func (h *sandboxProcessHost) Reserve(ctx context.Context, i supervision.Intent) 
 }
 
 func (h *sandboxProcessHost) boundIntent(i supervision.Intent) protocol.SandboxProcessIntent {
-	return protocol.SandboxProcessIntent{Key: protocol.SandboxProcessKey{OwnerUserID: h.binding.Owner, SessionKey: h.binding.Session, Generation: h.binding.Generation, LaunchID: i.ID}, Version: i.Version, RuntimeKind: h.binding.RuntimeKind, Purpose: h.binding.Purpose, LeaseID: h.binding.LeaseID, BootID: i.BootID, OwnerUID: i.OwnerUID, JobLabel: i.JobLabel, HelperSHA256: i.HelperSHA256}
+	return protocol.SandboxProcessIntent{Key: protocol.SandboxProcessKey{OwnerUserID: h.binding.Owner, SessionKey: h.binding.Session, Generation: h.binding.Generation, LaunchID: i.ID}, Version: i.Version, RuntimeKind: h.binding.RuntimeKind, Purpose: h.binding.Purpose, LeaseID: h.binding.LeaseID, Scratch: h.binding.Scratch, BootID: i.BootID, OwnerUID: i.OwnerUID, JobLabel: i.JobLabel, HelperSHA256: i.HelperSHA256}
 }
 
 func validSandboxLaunchID(id string) bool {

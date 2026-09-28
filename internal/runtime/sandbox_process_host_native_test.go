@@ -126,6 +126,9 @@ func TestSandboxProcessSupervisorNativeStartup(t *testing.T) {
 					t.Fatal(err)
 				}
 				got, found, err := store.LatestProcess(ctx, "owner", "session")
+				if kind == bridge.RuntimeNXS && (got.Intent.Scratch.BaseIdentity == "" || got.Intent.Scratch.LeafIdentity == "" || filepath.Join(got.Intent.Scratch.BasePath, got.Intent.Scratch.LeafName) != lease.Path()) {
+					t.Fatalf("missing trusted scratch binding: %+v", got.Intent.Scratch)
+				}
 				if err != nil || !found || got.Intent.Key.Generation != 1 || got.Intent.Purpose != protocol.SandboxProcessPurpose(purpose) || got.Phase != protocol.SandboxProcessReaped || got.Intent.LeaseID != expectedLeaseID {
 					t.Fatalf("%s snapshot=%+v found=%v err=%v", purpose, got, found, err)
 				}
