@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy、精确 desktop sandbox lease 交接，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy、factory 前 desktop sandbox lease 身份绑定与创建后所有权交接，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
 // POS: DM 服务的 runtime client 装配、sandbox lease 失败回收与 owner-private command scope 签发边界。
 package dm
 
@@ -1048,7 +1048,7 @@ func (s *Service) acquireRuntimeClient(
 	options agentclient.Options,
 	scratchLease *runtimectx.SandboxResourceLease,
 ) (runtimectx.Client, bool, error) {
-	client, err := startup.GetOrCreateWithFactory(ctx, options, nil)
+	client, err := startup.GetOrCreateWithLease(ctx, options, nil, scratchLease)
 	if err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "get_or_create", options, err)
 		return client, false, err

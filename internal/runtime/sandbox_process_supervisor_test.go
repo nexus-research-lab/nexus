@@ -129,10 +129,10 @@ func TestSandboxProcessSupervisorRejectsRequestedFactory(t *testing.T) {
 		t.Fatal("untrusted factory called")
 		return supervision.Config{}, nil
 	}}
-	if _, err := m.supervisedProcessOptions(injected, "owner", "session", 0); err == nil {
+	if _, err := m.supervisedProcessOptions(injected, "owner", "session", 0, nil); err == nil {
 		t.Fatal("request replaced supervisor")
 	}
-	options, err := m.supervisedProcessOptions(bridge.Options{}, "owner", "session", 0)
+	options, err := m.supervisedProcessOptions(bridge.Options{}, "owner", "session", 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
