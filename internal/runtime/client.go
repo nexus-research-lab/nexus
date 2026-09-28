@@ -1128,6 +1128,11 @@ func (c *agentClient) Reconfigure(ctx context.Context, options bridge.Options) e
 		c.mu.Unlock()
 		return bridge.ErrAborted
 	}
+	// 监督工厂绑定 client 首次创建的宿主身份，普通配置热更新不得撤销或换代它。
+	if currentOptions.ProcessSupervision != nil {
+		options.ProcessSupervision = currentOptions.ProcessSupervision
+	}
+
 	session := c.session
 	c.options = options
 	c.configVersion++

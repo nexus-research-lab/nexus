@@ -24,14 +24,15 @@ type SandboxProcessKey struct {
 
 // SandboxProcessIntent 不含命令参数、环境、Provider 凭据或任务正文。
 type SandboxProcessIntent struct {
-	Key          SandboxProcessKey `json:"key"`
-	Version      int               `json:"version"`
-	RuntimeKind  string            `json:"runtime_kind"`
-	LeaseID      string            `json:"lease_id,omitempty"`
-	BootID       string            `json:"boot_id"`
-	OwnerUID     uint32            `json:"owner_uid"`
-	JobLabel     string            `json:"job_label"`
-	HelperSHA256 string            `json:"helper_sha256"`
+	Key          SandboxProcessKey     `json:"key"`
+	Version      int                   `json:"version"`
+	RuntimeKind  string                `json:"runtime_kind"`
+	Purpose      SandboxProcessPurpose `json:"purpose,omitempty"`
+	LeaseID      string                `json:"lease_id,omitempty"`
+	BootID       string                `json:"boot_id"`
+	OwnerUID     uint32                `json:"owner_uid"`
+	JobLabel     string                `json:"job_label"`
+	HelperSHA256 string                `json:"helper_sha256"`
 }
 
 // SandboxProcessRegistration 来自已认证 helper 的内核观察，必须在放行前存储。
@@ -57,4 +58,31 @@ type SandboxProcessSnapshot struct {
 	Evidence     *SandboxProcessEvidence
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+// SandboxProcessPurpose 在同一宿主启动代次内区分探测与正式 runtime。
+// 空值只兼容已保存的单进程登记，语义固定为 runtime，不是未知或任意用途。
+type SandboxProcessPurpose string
+
+const (
+	SandboxProcessRuntime               SandboxProcessPurpose = "runtime"
+	SandboxProcessClaudeSandboxProbe    SandboxProcessPurpose = "claude_sandbox_probe"
+	SandboxProcessClaudeRestrictedProbe SandboxProcessPurpose = "claude_restricted_probe"
+	SandboxProcessVersionProbe          SandboxProcessPurpose = "version_probe"
+)
+
+// Order 固定启动顺序；可以跳过不适用的探测，但不能倒退或重放。
+func (p SandboxProcessPurpose) Order() (int, bool) {
+	switch p {
+	case SandboxProcessClaudeSandboxProbe:
+		return 1, true
+	case SandboxProcessClaudeRestrictedProbe:
+		return 2, true
+	case SandboxProcessVersionProbe:
+		return 3, true
+	case "", SandboxProcessRuntime:
+		return 4, true
+	default:
+		return 0, false
+	}
 }

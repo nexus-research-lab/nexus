@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bind explicitly configured process supervision before runtime factory creation and preserve its identity across warm configuration updates. Record ordered admission probes and the runtime separately within one startup generation, retaining the single-active-launch fence. Migration 145 preserves existing records and rejects lossy rollback when a generation contains multiple launches. App default setup and crash reconciliation remain pending.
+
 - Pin Bridge `e8787a4` with an explicit supervised stdio transport for runtime and admission probes. JSON/exit/cleanup contracts are covered by native race tests; Nexus Manager activation and crash recovery remain pending.
 
 - Bind the explicit macOS supervisor to the host process registry and confined job files. Lost registration/release responses reconcile against the original record; invalid retirement evidence and unsafe file cleanup retain the startup fence. Pin Bridge `95b9616`; the default transport and crash recovery are not yet connected.

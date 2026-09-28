@@ -29,12 +29,15 @@ func (r *Repository) PrepareProcess(ctx context.Context, intent protocol.Sandbox
 	b := r.dialect.Bind
 	now := time.Now().UTC()
 	k := intent.Key
-	query := `INSERT INTO sandbox_process_launches(owner_user_id,session_key,generation,launch_id,phase,intent_json,created_at,updated_at)
- SELECT ` + b(1) + `,` + b(2) + `,` + b(3) + `,` + b(4) + `,'prepared',` + b(5) + `,` + b(6) + `,` + b(7) + `
- WHERE NOT EXISTS(SELECT 1 FROM sandbox_process_launches WHERE owner_user_id=` + b(8) + ` AND session_key=` + b(9) + ` AND generation>=` + b(10) + `) ON CONFLICT DO NOTHING`
-	if _, err := r.db.ExecContext(ctx, query, k.OwnerUserID, k.SessionKey, k.Generation, k.LaunchID, string(data), now, now, k.OwnerUserID, k.SessionKey, k.Generation); err != nil {
+
+	order, _ := intent.Purpose.Order()
+	query := `INSERT INTO sandbox_process_launches(owner_user_id,session_key,generation,launch_id,phase,intent_json,created_at,updated_at,launch_order)
+ SELECT ` + b(1) + `,` + b(2) + `,` + b(3) + `,` + b(4) + `,'prepared',` + b(5) + `,` + b(6) + `,` + b(7) + `,` + b(8) + `
+ WHERE NOT EXISTS(SELECT 1 FROM sandbox_process_launches WHERE owner_user_id=` + b(9) + ` AND session_key=` + b(10) + ` AND (generation>` + b(11) + ` OR (generation=` + b(12) + ` AND launch_order>=` + b(13) + `))) ON CONFLICT DO NOTHING`
+	if _, err := r.db.ExecContext(ctx, query, k.OwnerUserID, k.SessionKey, k.Generation, k.LaunchID, string(data), now, now, order, k.OwnerUserID, k.SessionKey, k.Generation, k.Generation, order); err != nil {
 		return err
 	}
+
 	got, found, err := r.Process(ctx, k)
 	if err != nil {
 		return err
@@ -162,7 +165,7 @@ func (r *Repository) LatestProcess(ctx context.Context, owner, session string) (
 		return protocol.SandboxProcessSnapshot{}, false, ErrInvalidProcess
 	}
 	b := r.dialect.Bind
-	return r.readProcess(ctx, `WHERE owner_user_id=`+b(1)+` AND session_key=`+b(2)+` ORDER BY generation DESC LIMIT 1`, owner, session)
+	return r.readProcess(ctx, `WHERE owner_user_id=`+b(1)+` AND session_key=`+b(2)+` ORDER BY generation DESC,launch_order DESC LIMIT 1`, owner, session)
 }
 func (r *Repository) readProcess(ctx context.Context, where string, args ...any) (protocol.SandboxProcessSnapshot, bool, error) {
 	var s protocol.SandboxProcessSnapshot
@@ -171,8 +174,9 @@ func (r *Repository) readProcess(ctx context.Context, where string, args ...any)
 	}
 	var owner, session, launch, intent, registration, evidence string
 	var generation int64
+	var order int
 	var created, updated any
-	err := r.db.QueryRowContext(ctx, `SELECT owner_user_id,session_key,generation,launch_id,phase,intent_json,registration_json,evidence_json,created_at,updated_at FROM sandbox_process_launches `+where, args...).Scan(&owner, &session, &generation, &launch, &s.Phase, &intent, &registration, &evidence, &created, &updated)
+	err := r.db.QueryRowContext(ctx, `SELECT owner_user_id,session_key,generation,launch_id,phase,intent_json,registration_json,evidence_json,created_at,updated_at,launch_order FROM sandbox_process_launches `+where, args...).Scan(&owner, &session, &generation, &launch, &s.Phase, &intent, &registration, &evidence, &created, &updated, &order)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, false, nil
 	}
@@ -180,6 +184,9 @@ func (r *Repository) readProcess(ctx context.Context, where string, args ...any)
 		return s, false, err
 	}
 	if json.Unmarshal([]byte(intent), &s.Intent) != nil || generation <= 0 || s.Intent.Key != (protocol.SandboxProcessKey{OwnerUserID: owner, SessionKey: session, Generation: uint64(generation), LaunchID: launch}) {
+		return protocol.SandboxProcessSnapshot{}, false, ErrInvalidProcess
+	}
+	if expected, ok := s.Intent.Purpose.Order(); !ok || expected != order {
 		return protocol.SandboxProcessSnapshot{}, false, ErrInvalidProcess
 	}
 	if registration != "" {
