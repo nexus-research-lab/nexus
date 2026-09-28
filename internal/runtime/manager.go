@@ -90,6 +90,12 @@ type SandboxPolicyReceiptReader interface {
 	Latest(context.Context, string, string) (protocol.SandboxPolicyReceiptSnapshot, bool, error)
 }
 
+// SandboxProcessReceiptReader 读取执行前的宿主持久启动事实。
+// 当前数据库仓储同时实现本接口；不以策略回执或用户 scratch 文件代替它。
+type SandboxProcessReceiptReader interface {
+	LatestProcess(context.Context, string, string) (protocol.SandboxProcessSnapshot, bool, error)
+}
+
 // NewManager 创建运行时管理器。
 func NewManager() *Manager {
 	return NewManagerWithFactory(defaultFactory{})

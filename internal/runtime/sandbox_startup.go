@@ -31,12 +31,16 @@ func (m *Manager) sandboxStartupGeneration(ctx context.Context, owner, session s
 	if !ok {
 		return 0, errors.New("sandbox receipt store cannot verify previous runtime cleanup")
 	}
+	processFloor, err := sandboxProcessStartupGeneration(ctx, store, owner, session)
+	if err != nil {
+		return 0, err
+	}
 	snapshot, found, err := reader.Latest(ctx, owner, session)
 	if err != nil {
 		return 0, fmt.Errorf("read previous sandbox runtime receipt: %w", err)
 	}
 	if !found {
-		return 0, nil
+		return processFloor, nil
 	}
 	if snapshot.OwnerUserID != owner || snapshot.SessionKey != session {
 		return 0, errors.New("previous sandbox runtime receipt scope mismatch")
@@ -49,7 +53,7 @@ func (m *Manager) sandboxStartupGeneration(ctx context.Context, owner, session s
 	}
 	switch snapshot.Phase {
 	case protocol.SandboxPolicyReceiptRetired, protocol.SandboxPolicyReceiptReconciled:
-		return snapshot.Generation, nil
+		return max(snapshot.Generation, processFloor), nil
 	default:
 		return 0, ErrSandboxCleanupPending
 	}

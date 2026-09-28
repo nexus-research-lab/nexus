@@ -565,6 +565,31 @@ owner/Agent close callers can read the retained result. Sandbox file requirement
 and resource scopes participate explicitly in the process-policy fingerprint,
 even though ordinary settings serialization excludes those host-only fields.
 
+The host database now also stores process-launch facts in `sandbox_process_launches`.
+These share the existing owner/session/generation identity, with a unique launch ID,
+boot/user identity, job label, helper digest and optional lease binding. They contain
+no task arguments, environment or Provider credentials. This is distinct from the
+policy receipt written after connection and from user-writable scratch markers.
+One active launch per owner/session is enforced by a unique index. `prepared` may
+be canceled as `aborted` before registration; registration writes the exact original
+coalition and changes the phase to `registered`. `ClaimProcessRelease` changes it
+to `released` exactly once. A lost response or restarted host must not repeat that
+claim or resend execution. `registered`/`released` can become `reaped` only with
+an exact original registration plus kernel-coalition retirement or changed-boot
+observation; the repository validates the binding, not the kernel itself. Root
+exit, empty enumeration and missing launchd job are not accepted proof reasons.
+
+Fresh Manager creation checks these records when the configured database repository
+provides them. `prepared`, `registered` and `released` block the factory even if no
+policy receipt exists or the caller selects another runtime backend. `aborted` and
+properly evidenced `reaped` records contribute to the same generation lower bound;
+read errors and malformed identity/evidence fail closed. Aborting an unregistered
+intent revokes any late registration/release CAS, but does not prove the trusted
+helper has exited; its job still needs cleanup. Current production startup does
+not yet write these records or launch the bootstrap helper. The storage and read
+gate alone therefore do not close the actual pre-execution crash window or enable
+automatic reconciliation of old unknown receipts.
+
 Fresh Manager client creation reads the latest receipt for the exact owner/session
 before invoking the factory. A retired or explicitly reconciled receipt provides
 the generation lower bound, so clean App restart or idle-session recreation cannot

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Add host-database process launch records bound to the existing owner/session/generation. Reserve one active launch, persist native registration before a once-only release claim, reject stale/cross-scope updates, and require exact collection-retirement evidence. Fresh runtime creation now rejects unresolved records even without a policy receipt. Production bootstrap writes and automatic recovery remain unconnected.
+
 - Pin macOS acceptance to sandboxed background transcript reads for Summary, AutoMemory and AutoDream. Keep large-log compact semantics while streaming, stop denied/canceled/incomplete reads before model execution, and remove host catalog fallback. Require native admission and late helper-failure regressions.
 
 - Pin macOS sandbox acceptance to controlled AutoMemory/AutoDream writer leases. Lock acquisition, completion markers and release run within the active file policy; cancellation and worker loss stop maintenance, unknown completion is not replayed, and replacement files and legacy data are preserved. Require native lifecycle and runtime regressions in the fixed baseline.
