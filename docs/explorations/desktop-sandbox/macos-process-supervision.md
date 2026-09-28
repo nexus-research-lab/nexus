@@ -58,3 +58,7 @@ Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动
 ### 2026-09-28：Bridge 显式监督传输
 
 `Options.ProcessSupervision` 已接入普通 process transport，每个 runtime、版本探测及 Claude 两种准入探测向宿主工厂请求独立 Host；失败不回退普通 exec。中断使用既有 runtime control，强制关闭使用原集合身份；JSON、退出码、脱离后代 EOF、关闭、清理错误、全部探测和探测取消的八个原生必测名称通过。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-transport/README.md)。Nexus 已固定此模块，但 Manager 启动前绑定 generation、生产可信目录、独立 probe 身份、崩溃恢复与 App helper 打包仍待接入。
+
+### 2026-09-28：Manager 启动代次与 probe 登记
+
+`SetSandboxProcessSupervisor` 只在 Manager 使用前接受宿主配置，调用方必须提供受保护根和可信 helper 摘要；不读取任务环境。factory 收到的工厂冻结 exact owner/session/generation，warm reconfigure 不能换掉它。仓储在同代次增加固定 launch_order（Claude sandbox、restricted、version、runtime），允许跳过不适用的探测，不允许倒退、重放或越过未清理的前项。迁移保留旧 intent JSON，并将旧无用途记录定位到 runtime；回退若会丢失多启动证据则事务失败。该批次没有自动启用 App，也尚未把 scratch lease 绑定到进程登记。

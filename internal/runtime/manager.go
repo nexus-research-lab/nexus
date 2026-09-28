@@ -59,6 +59,7 @@ type Manager struct {
 	now                   func() time.Time
 	ownerProcessReaper    OwnerProcessReaper
 	sandboxReceiptStore   SandboxPolicyReceiptStore
+	sandboxSupervisor     *SandboxProcessSupervisor
 	roundFinishedObserver func(string, string)
 	owners                map[string]*ownerLifecycle
 	shutdownDone          chan struct{}

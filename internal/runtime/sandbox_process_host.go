@@ -1,6 +1,6 @@
 // INPUT: 宿主固定的 owner/session/generation、数据库接口及任务不可写的 app 目录句柄。
 // OUTPUT: Bridge 启动回调到宿主持久阶段的精确绑定；文件清理失败保留启动栅栏。
-// POS: 监督启动的数据库/文件适配；尚未接入默认 transport，不授予任务任何资源权限。
+// POS: 监督启动的数据库/文件适配；由 Manager 的显式监督配置接入 transport，不授予任务任何资源权限。
 package runtime
 
 import (
@@ -30,6 +30,7 @@ type SandboxProcessStore interface {
 type sandboxProcessBinding struct {
 	Owner, Session, RuntimeKind, LeaseID string
 	Generation                           uint64
+	Purpose                              protocol.SandboxProcessPurpose
 }
 
 type sandboxProcessHost struct {
@@ -45,6 +46,9 @@ var _ supervision.Host = (*sandboxProcessHost)(nil)
 // root 必须由宿主从受保护 app 根打开，并保持到回收完成；不能传用户根或 /tmp。
 // 目录权限本身不隔离同 UID 任务，生产装配仍必须落实其文件沙箱拒绝规则。
 func newSandboxProcessHost(store SandboxProcessStore, root *confinedfs.Root, binding sandboxProcessBinding) (*sandboxProcessHost, error) {
+	if _, ok := binding.Purpose.Order(); !ok {
+		return nil, errors.New("invalid supervised process purpose")
+	}
 	if store == nil || root == nil || !filepath.IsAbs(root.Name()) || binding.Owner == "" || binding.Session == "" || binding.Generation == 0 || binding.Generation >= math.MaxInt64 || (binding.RuntimeKind != "nxs" && binding.RuntimeKind != "claude") {
 		return nil, errors.New("supervision requires a protected host root and exact runtime binding")
 	}
@@ -83,7 +87,7 @@ func (h *sandboxProcessHost) Reserve(ctx context.Context, i supervision.Intent) 
 }
 
 func (h *sandboxProcessHost) boundIntent(i supervision.Intent) protocol.SandboxProcessIntent {
-	return protocol.SandboxProcessIntent{Key: protocol.SandboxProcessKey{OwnerUserID: h.binding.Owner, SessionKey: h.binding.Session, Generation: h.binding.Generation, LaunchID: i.ID}, Version: i.Version, RuntimeKind: h.binding.RuntimeKind, LeaseID: h.binding.LeaseID, BootID: i.BootID, OwnerUID: i.OwnerUID, JobLabel: i.JobLabel, HelperSHA256: i.HelperSHA256}
+	return protocol.SandboxProcessIntent{Key: protocol.SandboxProcessKey{OwnerUserID: h.binding.Owner, SessionKey: h.binding.Session, Generation: h.binding.Generation, LaunchID: i.ID}, Version: i.Version, RuntimeKind: h.binding.RuntimeKind, Purpose: h.binding.Purpose, LeaseID: h.binding.LeaseID, BootID: i.BootID, OwnerUID: i.OwnerUID, JobLabel: i.JobLabel, HelperSHA256: i.HelperSHA256}
 }
 
 func validSandboxLaunchID(id string) bool {

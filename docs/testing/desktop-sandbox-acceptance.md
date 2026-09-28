@@ -1213,3 +1213,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：显式监督 transport
 
 [Bridge 原生传输证据](evidence/desktop-sandbox/2026-09-28-supervised-transport/README.md)八个必测名称全部通过；JSON、退出码、脱离后代、强制关闭、保留清理错误、全部 probe 及取消已覆盖。Nexus 固定 Bridge `e8787a4`，但 Manager 默认启用及完整崩溃恢复仍未完成，不能按模块更新宣称 App 已启用。
+
+### 2026-09-28：Manager 监督身份与探测代次
+
+[绑定与迁移证据](evidence/desktop-sandbox/2026-09-28-supervisor-binding/README.md)覆盖 factory 前身份、同代次四种进程目的、重启阻断、热更新和替换代次；真实 helper/launchd/SQLite 四阶段回收通过。迁移 145 原样保留旧意图，存在多个启动的代次拒绝有损回退。当前仍是显式 Manager 装配，App 默认启用、scratch lease 关联和崩溃恢复未完成；PostgreSQL 仅静态审查，无运行验收。

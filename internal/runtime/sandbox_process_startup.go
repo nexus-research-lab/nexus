@@ -25,6 +25,9 @@ func sandboxProcessStartupGeneration(ctx context.Context, store SandboxPolicyRec
 	if !found {
 		return 0, nil
 	}
+	if _, ok := snapshot.Intent.Purpose.Order(); !ok {
+		return 0, errors.New("unknown previous sandbox process purpose")
+	}
 	key := snapshot.Intent.Key
 	if snapshot.Intent.Version != 1 || key.OwnerUserID != owner || key.SessionKey != session || key.Generation == 0 || key.Generation >= math.MaxInt64 {
 		return 0, errors.New("invalid previous sandbox process binding")

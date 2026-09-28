@@ -29,6 +29,9 @@ func validProcessBoot(value string) bool {
 	return len(value) == 36 && value[8] == '-' && value[13] == '-' && value[18] == '-' && value[23] == '-' && validLowerHex(strings.ReplaceAll(value, "-", ""), 32)
 }
 func validateProcessIntent(i protocol.SandboxProcessIntent) error {
+	if _, ok := i.Purpose.Order(); !ok {
+		return ErrInvalidProcess
+	}
 	if !validProcessKey(i.Key) || i.Version != 1 || (i.RuntimeKind != "nxs" && i.RuntimeKind != "claude") || !validProcessBoot(i.BootID) || i.JobLabel != "cn.nexus.runtime."+i.Key.LaunchID || !validLowerHex(i.HelperSHA256, 64) || len(i.LeaseID) > 512 {
 		return ErrInvalidProcess
 	}

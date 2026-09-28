@@ -1,0 +1,27 @@
+{
+  "bridgeCommit": "e8787a420df14cd7725f0744ef5b674ea433f3ba",
+  "managerBindingIntegrated": true,
+  "nexusDefaultIntegrated": false,
+  "releaseAccepted": false,
+  "mandatoryNativeTests": [
+    "TestSandboxProcessSupervisorNativeStartup"
+  ],
+  "sha256": {
+    "README.md": "1ec11d87b3532f4e91acd5702a312cbf155c5b196b405cfd614344a6e606de61",
+    "binding-race.txt": "fe53467ea4484ae0d4ffa9176b3c2d4236a669c0f95a62e979a0b7c031fbf81e",
+    "migration-race.txt": "230acb6ba65372cf1bd41759759e5f15b1e05cc58323e3d44b46e4c46d13d0ea",
+    "native-race.jsonl": "3b085c20af5bc09f57ceda5158f00bea841d19f93601616885a03ea30469ceac",
+    "no-cgo.txt": "be54bf156fb5390ea2c22000a8473b188918bb8fe8261606bd3b6aac0c696be4",
+    "regression.txt": "d8800364ad65b360e96cda3047cf95c0d4f41be47cfa8fb48b41195268e9d3ac",
+    "replacement-race.txt": "d93432243afcbe330079a939d5daa0c301ae769f1c37a8ab97ebb64ab110f131"
+  },
+  "sourceSHA256": {
+    "internal/runtime/sandbox_process_supervisor.go": "ab08365cf8bc65d5073a3cff39f94556a8dd887662bc3abce3cea407de8a521b",
+    "internal/runtime/sandbox_process_supervisor_test.go": "18fe0d773941a0b9b9983ade381522a7f568dc135dce1e238e938572e556ef4a",
+    "internal/runtime/sandbox_process_host_native_test.go": "ec1714f2767a1d450f5bcfe239fdfa234e3161a02233ecdb46ee202ca3a8bd4b",
+    "internal/storage/sandbox/process_repository.go": "81abef15274e9aaa8741217186995b8995dfffb012a1e5dbb7a4ad9a6f7d18d2",
+    "internal/storage/sandbox/process_purposes_test.go": "727c33e0fa97c80fa598f1a834504b4a43e4a9fd69d496de0567c716d8f270d8",
+    "db/migrations/sqlite/00145_sandbox_process_purposes.sql": "0940cee2b957911c6fde9c16110f930d5e9ac88f70762b29f227f2347f2b2c25",
+    "db/migrations/postgres/00145_sandbox_process_purposes.sql": "bdb1e3fdfbc6247ff34df13e6665f7d6ddcf3a1c2f01006ca8aabe17b7650491"
+  }
+}

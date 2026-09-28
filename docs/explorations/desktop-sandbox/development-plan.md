@@ -791,3 +791,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 Host 适配：Bridge 已固定到 `95b9616`；Nexus 通过进程仓储和 `confinedfs` 连接显式启动回调，真实 helper/launchd/SQLite 回收链通过。本批仍未改变 App 默认启动链；继续接 client transport、启动前 generation、生产受保护根与崩溃恢复。
 
 2026-09-28 transport：Bridge `e8787a4` 的显式监督传输覆盖主进程及全部 CLI probe，并通过原生竞态回归。Nexus 已固定依赖；下一步在 Manager factory 前绑定精确启动身份，为 probe 建立独立持久 scope，再接生产可信目录、恢复和打包。
+
+2026-09-28 Manager 接线：显式 `SandboxProcessSupervisor` 配置在 factory 前绑定 owner/session/generation，普通热更新保留原 client 监督身份。同代次探测/runtime 通过迁移 145 的顺序槽持久登记，唯一 active 范围不变；未知 probe 也阻断下一次 factory。旧无 purpose 登记保留正文并解释为 runtime，多 launch 代次拒绝有损回退。App 可信根/固定 helper 摘要的默认装配、scratch lease 绑定、崩溃恢复、长路径和发布验收仍待完成。

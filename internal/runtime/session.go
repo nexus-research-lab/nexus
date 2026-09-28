@@ -372,6 +372,10 @@ func (m *Manager) getOrCreateWithFactory(
 		}
 		if state == nil || state.Client == nil {
 			expectedState := state
+			memoryGeneration := uint64(0)
+			if state != nil {
+				memoryGeneration = state.StartupGeneration
+			}
 			// Factory implementations may start processes or wait on external state.
 			// Keep that work outside Manager.mu so revocation can publish its tombstone
 			// before this startup performs the second ownership check.
@@ -380,7 +384,11 @@ func (m *Manager) getOrCreateWithFactory(
 			if err != nil {
 				return nil, expectedState, err
 			}
-			client := factory.New(options)
+			launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, max(generationFloor, memoryGeneration))
+			if err != nil {
+				return nil, expectedState, err
+			}
+			client := factory.New(launchOptions)
 			if client == nil {
 				return nil, expectedState, agentclient.ErrNotConnected
 			}
@@ -617,11 +625,16 @@ func (m *Manager) replaceRuntimeClient(
 	agentID := runtimeSessionAgentID(sessionKey)
 	m.mu.RLock()
 	admissionErr := m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID)
+	generationFloor := expectedState.StartupGeneration
 	m.mu.RUnlock()
 	if admissionErr != nil {
 		return nil, admissionErr
 	}
-	next := factory.New(options)
+	launchOptions, err := m.supervisedProcessOptions(options, ownerUserID, sessionKey, generationFloor)
+	if err != nil {
+		return nil, err
+	}
+	next := factory.New(launchOptions)
 	if next == nil {
 		return nil, agentclient.ErrNotConnected
 	}

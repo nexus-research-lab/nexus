@@ -670,3 +670,9 @@ historical release or an external Provider; those remain separate acceptance evi
 ### Historical main integration
 
 The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished. [Acceptance evidence](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容) records this integration separately from default sandbox rollout and platform acceptance.
+
+### 宿主监督启动登记（显式装配）
+
+Manager 的 `SetSandboxProcessSupervisor` 只允许启动前由宿主配置可信 helper 摘要和受保护目录句柄。在 client factory 前冻结 owner/session/generation，普通配置热更新保留该 client 的监督工厂。Bridge 为 runtime 与各 CLI probe 分别创建 Host；同代次固定顺序为 Claude sandbox probe、restricted probe、version probe、runtime，可以跳过不适用的探测但不能倒退或重放。数据库仍只允许一个 owner/session 存在一个 prepared/registered/released 启动，未清理 probe 与主进程一样阻断新 factory。
+
+迁移 145 保留旧 intent JSON；旧 purpose 空值固定解释为 runtime。同代次存在多个启动记录时，回退到旧唯一键会事务失败，不删除部分证据凑成可回退状态。当前 App 尚未默认装配此监督器，生产可信路径、scratch lease 绑定、崩溃自动对账及发布验收仍未完成。

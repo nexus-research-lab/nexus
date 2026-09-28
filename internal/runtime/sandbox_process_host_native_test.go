@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -57,5 +58,55 @@ func TestSandboxProcessHostNativeLaunch(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(h.root.Name(), "p", p.Intent().ID)); !os.IsNotExist(err) {
 		t.Fatal("launch files remain", err)
+	}
+}
+
+func TestSandboxProcessSupervisorNativeStartup(t *testing.T) {
+	helper := os.Getenv("NEXUS_SUPERVISION_TEST_HELPER")
+	if helper == "" {
+		t.Skip("explicit native helper required")
+	}
+	data, err := os.ReadFile(helper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, store, _ := newProcessHostFixture(t)
+	var captured bridge.Options
+	manager := NewManagerWithFactory(runtimeFactoryFunc(func(o bridge.Options) Client { captured = o; return &fakeRuntimeClient{} }))
+	manager.SetSandboxPolicyReceiptStore(store)
+	if err := manager.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: helper, HelperSHA256: fmt.Sprintf("%x", sha256.Sum256(data))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.GetOrCreate(t.Context(), "session", bridge.Options{Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeClaude}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	for _, purpose := range []supervision.Purpose{supervision.ClaudeSandboxProbe, supervision.ClaudeRestrictedProbe, supervision.VersionProbe, supervision.Runtime} {
+		cfg, err := captured.ProcessSupervision(ctx, purpose)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p, err := supervision.Start(ctx, cfg, supervision.Command{Version: 1, Command: "/bin/sh", Args: []string{"-c", "printf supervisor-bound"}, Directory: "/", Env: []string{"PATH=/usr/bin:/bin"}})
+		if p != nil {
+			defer p.Close(context.Background())
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		streams := p.Streams()
+		output, err := io.ReadAll(streams.Stdout)
+		streams.Stdout.Close()
+		streams.Stderr.Close()
+		if err != nil || string(output) != "supervisor-bound" {
+			t.Fatalf("%s output=%q err=%v", purpose, output, err)
+		}
+		if _, err := p.Wait(ctx); err != nil {
+			t.Fatal(err)
+		}
+		got, found, err := store.LatestProcess(ctx, "owner", "session")
+		if err != nil || !found || got.Intent.Key.Generation != 1 || got.Intent.Purpose != protocol.SandboxProcessPurpose(purpose) || got.Phase != protocol.SandboxProcessReaped {
+			t.Fatalf("%s snapshot=%+v found=%v err=%v", purpose, got, found, err)
+		}
 	}
 }
