@@ -2,7 +2,7 @@
 // OUTPUT: 共享 Field、filled Panel、Typography 与恢复提示组成的登录表单，实例级关联字段/标题，提交期间锁定凭证输入并播报 busy。
 // POS: 登录页展示边界；控件视觉归 shared/ui，不推断提交结果或自行重放登录请求。
 import { ArrowRight } from "lucide-react";
-import { useId, type FormEvent } from "react";
+import { useId, type FormEvent, type ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -17,6 +17,7 @@ import type { LoginFormMode } from "./login-page-model";
 import type { LoginRecoveryNotice } from "./login-page-model";
 
 interface LoginAuthPanelProps {
+  backAction?: ReactNode;
   registering?: boolean;
   authFailure: LoginRecoveryNotice | null;
   formMode: LoginFormMode;
@@ -62,7 +63,7 @@ function LoginErrorBanner({
   );
 }
 
-function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
+function DisabledLoginForm({ onRefresh, backAction }: Pick<LoginAuthPanelProps, "onRefresh" | "backAction">) {
   const { t } = useI18n();
   return (
     <div className="mt-7 space-y-4">
@@ -74,19 +75,23 @@ function DisabledLoginForm({ onRefresh }: { onRefresh: () => void }) {
           {t("login.disabled_description")}
         </p>
       </div>
-      <UiButton
-        className="w-full"
-        onClick={onRefresh}
-        size="lg"
-        variant="solid"
-      >
-        {t("login.refresh")}
-      </UiButton>
+      <div className={cn("grid gap-3", backAction && "grid-cols-2")}>
+        {backAction}
+        <UiButton
+          className="w-full"
+          onClick={onRefresh}
+          size="lg"
+          variant="solid"
+        >
+          {t("login.refresh")}
+        </UiButton>
+      </div>
     </div>
   );
 }
 
 function PasswordLoginForm({
+  backAction,
   registering,
   authFailure,
   isSubmitting,
@@ -129,27 +134,31 @@ function PasswordLoginForm({
         />
       </UiField>
       <LoginErrorBanner notice={submitFailure} onCheckStatus={onRefresh} />
-      <UiButton
-        aria-busy={isSubmitting || undefined}
-        className="w-full"
-        disabled={
-          isSubmitting
-          || Boolean(authFailure?.blocksSubmit)
-          || Boolean(submitFailure?.blocksSubmit)
-        }
-        size="lg"
-        tone="primary"
-        type="submit"
-        variant="solid"
-      >
-        <span>{isSubmitting ? t("login.submitting") : t(registering ? "organization.register" : "login.submit")}</span>
-        <ArrowRight className="h-4 w-4" />
-      </UiButton>
+      <div className={cn("grid gap-3", backAction && "grid-cols-2")}>
+        {backAction}
+        <UiButton
+          aria-busy={isSubmitting || undefined}
+          className="w-full"
+          disabled={
+            isSubmitting
+            || Boolean(authFailure?.blocksSubmit)
+            || Boolean(submitFailure?.blocksSubmit)
+          }
+          size="lg"
+          tone="primary"
+          type="submit"
+          variant="solid"
+        >
+          <span>{isSubmitting ? t("login.submitting") : t(registering ? "organization.register" : "login.submit")}</span>
+          <ArrowRight className="h-4 w-4" />
+        </UiButton>
+      </div>
     </form>
   );
 }
 
 export function LoginAuthPanel({
+  backAction,
   registering,
   authFailure,
   formMode,
@@ -172,9 +181,10 @@ export function LoginAuthPanel({
 
       <LoginErrorBanner notice={authFailure} onCheckStatus={onRefresh} />
       {formMode === "disabled" ? (
-        <DisabledLoginForm onRefresh={onRefresh} />
+        <DisabledLoginForm onRefresh={onRefresh} backAction={backAction} />
       ) : (
         <PasswordLoginForm
+          backAction={backAction}
           registering={registering}
           authFailure={authFailure}
           isSubmitting={isSubmitting}

@@ -96,7 +96,7 @@ test("login keeps credentials, keyboard order and exact submission blocking", as
   });
   const username = panel.getByRole("textbox", { name: copy(info, "用户名", "Username"), exact: true });
   const password = panel.getByLabel(copy(info, "密码", "Password"), { exact: true });
-  const submit = panel.getByRole("button", { name: copy(info, "进入工作台", "Enter workspace"), exact: true });
+  const submit = panel.getByRole("button", { name: copy(info, "登录", "Sign in"), exact: true });
 
   await expect.poll(() => panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
   const bounds = await panel.boundingBox();

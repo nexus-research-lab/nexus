@@ -2,10 +2,12 @@
 // OUTPUT: Accessible bootstrap loading and current-language introduction with the shared authentication panel.
 // POS: Login route assembly; authentication decisions stay in the controller and common presentation in features/access.
 
-import { Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Compass, PanelRightOpen, ShieldCheck } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { APP_ROUTE_PATHS } from "@/shared/navigation/route-paths";
 
 import { AccessPageFrame, AccessPageIntroduction } from "@/features/access/access-page-frame";
 import { cn } from "@/shared/ui/class-name";
@@ -79,6 +81,7 @@ function LoginIntroduction() {
 export function LoginPage() {
   const { t } = useI18n();
   const controller = useLoginPageController();
+  const navigate = useNavigate();
   if (controller.pageState.kind === "bootstrapping") {
     return <AppLoadingScreen />;
   }
@@ -88,6 +91,15 @@ export function LoginPage() {
   return (
     <AccessPageFrame introduction={<LoginIntroduction />}>
       <LoginAuthPanel
+        backAction={isDesktopRuntime() ? <UiButton
+          variant="surface"
+          size="lg"
+          disabled={controller.isSubmitting}
+          onClick={() => navigate(APP_ROUTE_PATHS.launcher, { replace: true })}
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          {t("login.skip")}
+        </UiButton> : undefined}
         registering={controller.registering}
         authFailure={controller.authFailure}
         formMode={controller.pageState.formMode}
