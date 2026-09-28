@@ -775,3 +775,5 @@ resume。证据目录为
 ### 2026-09-28：配套发布口径与远端 MCP
 
 Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/旧内核为前提。包内自检用于确认组装内容；兼容性重点为历史数据、配置、会话及原有功能延续。macOS 远端 HTTP/SSE MCP 改走独立端点网络合同，修复默认 deny-all 让整台 Agent 启动失败的问题；普通工具网络范围不扩张。连接生命周期、权限撤销、迟到发现及真实工具 round-trip 有独立门禁。正式包、App UI、helper/stdio、Provider 和完整后代监督继续按各自范围验收。
+
+2026-09-28 组件进展：Bridge `internal/processscope` 已完成独立原生观察和精确回收，本机原生/竞态/无 cgo 检查通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)。尚未进入产品路径，可信启动登记与 IPC、transport、取消和崩溃恢复继续待实现；macOS 14.0 支持缺口不变。

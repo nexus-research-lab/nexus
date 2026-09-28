@@ -1185,3 +1185,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 临时验证器首次卸载收尾错误保留，修正后整条挂载/启动/自检/卸载流程通过，详见
 [本批证据](evidence/desktop-sandbox/2026-09-28-stdio-app/README.md)。不代表完整 DM/Room/后台 UI、
 正式签名、公证或用户数据库升级；签名 CI 仍等待私有 SDK 只读授权。
+
+## 2026-09-28：独立 macOS processscope 组件
+
+[组件证据](evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)记录原生脱离后代清理、错误身份拒绝、登记恢复、对照保留、竞态与无 cgo 拒绝路径。组件未接入默认 transport 或产品恢复，原生通过不改变 `releaseAccepted=false`，完整进程监督仍未闭合。

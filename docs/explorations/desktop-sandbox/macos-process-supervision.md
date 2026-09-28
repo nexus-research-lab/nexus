@@ -12,6 +12,10 @@ Apple 的[固定 XNU 文档](https://github.com/apple-oss-distributions/xnu/blob
 
 job 缺失、根进程退出和资源计数相等都不是终态。只有已经登记、同一 boot identity 下的原 coalition 经受支持的内核接口确认被回收，才能候选为该执行范围退出的证明。无权读取、接口缺失、结构不符、截断、未知错误及超时都保留 unknown；任意外部输入的不存在 ID 不能构造“已退出”。跨 boot 恢复必须先核对持久登记的真实启动身份，不能依赖墙钟或 PID 消失。
 
+## 内部组件进展
+
+Bridge 已落地尚未接线的 `internal/processscope`：严格登记/恢复、audit-token 精确终止、有界重扫及内核回收证明；缺原生 API 明确返回 unavailable。本机原生、竞态与无 cgo 用例通过，见[组件证据](../../testing/evidence/desktop-sandbox/2026-09-28-processscope-component/README.md)。补充实验也确认 `bootout` 返回成功仍可能保留脱离后代。生产可信登记、helper/IPC、transport 和恢复接入仍按下列步骤推进。
+
 ## 完整接入顺序
 
 1. **固定平台能力与支持范围**：提供独立、限界的原生观察/信号接口，确认内核布局、错误分类与可用符号；验证支持系统版本和 arm64/Intel。当前 14.0 的精确信号接口缺口尚未解决，不提高产品最低版本，不把静态源码存在当成动态兼容证明。
