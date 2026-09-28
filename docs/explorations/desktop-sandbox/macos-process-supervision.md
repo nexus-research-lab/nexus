@@ -82,3 +82,7 @@ macOS 监督启动现在把原 lease 创建时的 parent/leaf 文件系统身份
 ### 显式资源/策略恢复（2026-09-28）
 
 新增持锁的 RecoverSandboxScratch 和 ReconcileSandboxPolicy：原目录进入专用回收区，经单调持久阶段删除，最后只收口原进程关联策略。故障注入覆盖阶段提交前后响应丢失；独立原宿主 os.Exit 后，新持锁宿主确认原任务仍运行，再真实回收原集合、删除 scratch、收口两份绑定回执并解除新启动栅栏。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-scratch-policy-recovery/README.md)。测试任务为受控 shell/sleep，策略回执为测试注入，不是模型或 App UI 验收。自动扫描后续阶段、正常退出清理事实与 App 默认装配仍需收口。
+
+### 正常退出与终态后续扫描（2026-09-28）
+
+显式监督的正常最终 Release 已复用持久资源清理；新增独立 terminal 资源/策略扫描，不依赖 native pending 仍存在。失败项保留、分页结束不掩盖错误、正常完成资源不会因源目录缺失而被误判。真实 nxs AutoDream 正常退出和独立宿主崩溃链路通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-lifecycle-followup/README.md)。App 默认装配、宿主根保护与发布验收仍待完成。

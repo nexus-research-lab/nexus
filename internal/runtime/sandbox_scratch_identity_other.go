@@ -10,3 +10,8 @@ import "github.com/nexus-research-lab/nexus/internal/protocol"
 func supervisedScratchBinding(*SandboxResourceLease) (protocol.SandboxProcessScratch, error) {
 	return protocol.SandboxProcessScratch{}, nil
 }
+
+// Other platforms retain their existing cleanup; this does not claim macOS recovery evidence.
+func configureSupervisedLeaseCleanup(*SandboxResourceLease, *SandboxProcessSupervisor, SandboxProcessStore, sandboxProcessBinding) error {
+	return nil
+}

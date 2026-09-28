@@ -35,6 +35,8 @@
 //   - sandbox_receipt_process.go：Connect 策略按 client 原始进程代次绑定 exact runtime launch；warm 复用保持原进程身份，缺失或不匹配拒绝连接。
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
 //   - sandbox_process_recovery.go：显式持锁回调覆盖整个恢复、核对同 app 根及目录 inode，在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
+//   - sandbox_lifecycle_recovery_darwin.go：原生扫描后的独立有界资源/策略扫描，发现已终止进程的未完成后续步骤；失败保留并报告，不把分页结束当成恢复成功。
+//   - sandbox_scratch_cleanup_darwin.go：监督 lease 最后一次正常 Release 复用持久隔离删除流程，绑定原 supervisor 与资源身份，提交响应丢失可重试。
 //   - sandbox_scratch_recovery_darwin.go / sandbox_policy_recovery.go：持锁且无活动 client 时隔离原资源、持久删除阶段、仅收口 exact process 关联策略；pending 资源记录阻断新启动，App 默认扫描装配仍待完成。
 //   - sandbox_scratch_identity_darwin.go / sandbox_scratch_identity_other.go：macOS 从 lease 创建时的 parent/leaf 身份生成持久资源证明，每次监督启动重新核验；其他平台不伪造证明。
 //   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，App 默认装配仍待接入。

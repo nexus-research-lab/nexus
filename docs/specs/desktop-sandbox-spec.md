@@ -771,3 +771,12 @@ macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 
 `ReconcileSandboxPolicy` 独立核对原进程 reaped 和（存在 lease 时）同资源 complete，再将明确绑定该 process key 的 confirmed/retiring/unknown 策略改为 reconciled。原 unknown reason 保留用于审计；没有进程关联的历史 unknown 不改变。策略恢复不修改消息、工具、任务或外部副作用结果，不授权重放。资源删除后、策略提交前崩溃可重复调用；启动自动扫描必须覆盖这些已回收进程的未完成后续步骤，目前尚未接入 App 默认启动。
 
 迁移 148 保存资源恢复阶段，已有记录时拒绝丢失恢复事实的降级。当前本机测试覆盖 SQLite；PostgreSQL 迁移仅有 SQL 审查证据。
+
+
+### 正常退出与终态后续扫描
+
+显式 macOS 监督在 client factory 前把正常最终 lease Release 绑定到原 supervisor、store、owner/session、资源身份及启动代次下界。只有确认该资源从未登记启动时才沿用原句柄删除；存在启动记录时必须匹配原资源，并复用持久隔离删除阶段。阶段提交响应丢失时保留 owning handle，按原记录重试；不会因目录已经删除而重新猜测结果。此回调在资源锁内运行，不反向取得 Acquire gate。
+
+迁移 149 为原进程增加独立 resource_phase，并索引资源待办及明确绑定的策略待办。`RecoverPendingSandboxLifecycles` 是原生 pending 进程扫描完成后的第二阶段：持同实例所有权，按稳定 launch ID 有界发现 terminal 进程，完成原 scratch 后确认资源阶段，再收口 reaped 进程的 exact 关联策略。正常清理已经 complete 的记录无需重新访问已删除源目录。历史无资源身份证明的记录不能推测删除或宣称成功。
+
+单项失败保留待办，返回聚合错误且允许后续项推进；游标只代表处理进度，HasMore=false 不代表全部恢复成功。取消保留未处理游标。调用方须在任务准入前跑完原生和生命周期两阶段并处理失败；App 默认装配仍未接入。迁移回退在已有进程记录时拒绝丢失扫描进度。当前真实 nxs AutoDream 正常退出及独立宿主崩溃恢复测试只证明组件链路，不证明 App UI、签名安装包或干净机器验收。

@@ -23,6 +23,16 @@ func (m *Manager) ReconcileSandboxPolicy(ctx context.Context, key protocol.Sandb
 		return 0, errors.New("policy recovery requires exclusive host ownership")
 	}
 	err := ownership.WithOwnership(func(appRoot string) error {
+		var err error
+		count, err = m.reconcileSandboxPolicyOwned(ctx, key, appRoot)
+		return err
+	})
+	return count, err
+}
+
+func (m *Manager) reconcileSandboxPolicyOwned(ctx context.Context, key protocol.SandboxProcessKey, appRoot string) (int64, error) {
+	var count int64
+	err := func() error {
 		startup, err := m.BeginClientStartup(ctx, key.SessionKey, key.OwnerUserID)
 		if err != nil {
 			return err
@@ -42,6 +52,6 @@ func (m *Manager) ReconcileSandboxPolicy(ctx context.Context, key protocol.Sandb
 		}
 		count, err = store.ReconcileProcessPolicies(ctx, key)
 		return err
-	})
+	}()
 	return count, err
 }

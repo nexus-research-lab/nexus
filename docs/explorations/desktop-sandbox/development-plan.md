@@ -810,3 +810,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 恢复所有权：Manager 恢复入口已强制要求实例所有权回调；真实 sidecar Guard 在核验 app/锁 inode 后覆盖整个回收操作，阻止并发 Close。跨状态根、已关闭锁、锁文件或进程目录替换均拒绝且保留持久栅栏。真实 flock 与 SQLite 适配 race 通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-recovery-ownership/README.md)。本批不代替旧无锁宿主核验、自动扫描及 policy/lease 收口。
 
 2026-09-28 恢复批次：仓储按唯一 launch ID 对 prepared/registered/released 做有界 keyset 扫描，迁移 146 增加 pending 部分索引；Manager 在持锁回调内逐条重读/校验/回收，失败保留记录且不饿死后续项，取消保留续页位置。真实宿主子进程直接退出后，新宿主持锁从 SQLite 找到仍活动任务并回收到原登记终态，重复扫描不重放。证据见[恢复扫描](../../testing/evidence/desktop-sandbox/2026-09-28-recovery-scan/README.md)。App 默认调用、policy/lease 收口与旧无锁宿主处理仍待完成。
+
+2026-09-28 正常清理与生命周期扫描：显式监督的最终 lease Release 保存持久隔离删除阶段；迁移 149 为已终止进程维护资源阶段并独立索引绑定策略待办，原生扫描为空也不会遗漏后续恢复。真实 nxs AutoDream 正常退出、独立宿主崩溃两阶段恢复和失败分页保留通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-lifecycle-followup/README.md)。App 默认装配与启动调用、宿主根保护、旧 sidecar 核验及 macOS 14.0 仍是实际交付缺口。
