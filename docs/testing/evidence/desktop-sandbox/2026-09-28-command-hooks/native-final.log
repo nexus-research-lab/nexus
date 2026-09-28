@@ -1,0 +1,18 @@
+=== RUN   TestDarwinSandboxCommandHookFiles
+=== RUN   TestDarwinSandboxCommandHookFiles/shell
+=== RUN   TestDarwinSandboxCommandHookFiles/exec
+--- PASS: TestDarwinSandboxCommandHookFiles (0.32s)
+    --- PASS: TestDarwinSandboxCommandHookFiles/shell (0.15s)
+    --- PASS: TestDarwinSandboxCommandHookFiles/exec (0.14s)
+=== RUN   TestDarwinSandboxAsyncHooksRetire
+=== RUN   TestDarwinSandboxAsyncHooksRetire/declared_close
+=== RUN   TestDarwinSandboxAsyncHooksRetire/declared_permission
+=== RUN   TestDarwinSandboxAsyncHooksRetire/first_line_close
+=== RUN   TestDarwinSandboxAsyncHooksRetire/first_line_permission
+--- PASS: TestDarwinSandboxAsyncHooksRetire (0.30s)
+    --- PASS: TestDarwinSandboxAsyncHooksRetire/declared_close (0.08s)
+    --- PASS: TestDarwinSandboxAsyncHooksRetire/declared_permission (0.08s)
+    --- PASS: TestDarwinSandboxAsyncHooksRetire/first_line_close (0.07s)
+    --- PASS: TestDarwinSandboxAsyncHooksRetire/first_line_permission (0.07s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor	2.162s

@@ -818,3 +818,7 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 ### 2026-09-28：Full Access 语义确认
 
 用户明确选择沿用 Codex/Claude 的 Full Access 语义：允许当前用户本机文件访问，不提供沙箱隔离保证，优先完成受限模式。之前“Full Access 也必须隔离宿主目录”的候选前提不再属于交付要求；不继续为此引入额外 OS 身份或整进程外层 sandbox。受限模式的 app 私有目录规则已进入统一 options 装配，两个后端仍使用各自的执行沙箱。此变更不取消受限模式 SDK IO、hook/MCP、网络、恢复与真实 App/发布验收，也不把 Full Access 的生命周期测试当作隔离证明。
+
+### 2026-09-28：command hook 执行收口
+
+SDK `db867f87` 将 shell/argv 与两种异步 command hook 纳入当前命令沙箱、权限代次和辅助进程关闭栅栏；限制输出并保留清理错误，SessionEnd 先执行再关闭准入。原生 Hook race、公开客户端退出回归及新版 nxs/Claude 真实第三方模型联调通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-command-hooks/README.md)。MCP 原生无 race 通过，但启用 race 的 runtime 指令初始化超时仍保留为失败。下一步仍为 App 默认监督/两阶段恢复接线及剩余 IO、HTTP hook/网络、真实 App 和发布验收。

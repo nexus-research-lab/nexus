@@ -1225,3 +1225,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：macOS sidecar 状态根锁
 
 [实例锁证据](evidence/desktop-sandbox/2026-09-28-sidecar-instance/README.md)验证迁移前独占、真实持有者退出释放、CLOEXEC、链接/替换拒绝及旧数据库/会话迁移保留。此锁已进入 macOS 桌面服务入口；仅协调采用协议的 sidecar，旧版未持锁宿主与完整 App 自动恢复仍须单独接线验收。
+
+### 2026-09-28：command hook 沙箱与关闭
+
+[Hook 证据](evidence/desktop-sandbox/2026-09-28-command-hooks/README.md)覆盖原生 shell/argv 文件边界、两种异步形式在权限变化/关闭时撤销、输出限制、准备/清理失败和 SessionEnd 关闭顺序。新版 nxs/Claude 第三方模型联调通过。原生 MCP race 初始化超时未算通过；App 默认监督恢复及发布验收仍未完成，`releaseAccepted=false`。
