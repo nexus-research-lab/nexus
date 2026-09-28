@@ -826,3 +826,7 @@ SDK `db867f87` 将 shell/argv 与两种异步 command hook 纳入当前命令沙
 ### 2026-09-28：默认 App 监督与恢复装配
 
 默认 macOS sidecar 已将迁移前实例锁交给 App，使用随包校验 helper 与固定 `app/processes`，先原生后资源/策略分页恢复，失败不开放服务。关闭等待后才释放监督句柄和数据库。开发模式生成相同 sidecar/helper 布局，不回退 go run。受影响 Go 包、原生 AutoDream App 装配、真实 sidecar 健康/重复实例/篡改拒绝和 Swift 构建通过；XCTest 缺失保留失败，四个 locator 测试主体以独立断言验证。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-default-supervisor/README.md)。下一步继续真实默认宿主崩溃恢复、旧 sidecar 身份与 macOS 14.0、剩余 SDK 边界及图形 App/发布验收。
+
+### 2026-09-28：默认 sidecar 真实崩溃链路
+
+通过真实 HTTP/WebSocket DM 和第三方模型启动 nxs setsid 后代，两次 SIGKILL 原 sidecar 后确认后代存活，默认重启回收同一原 launch、scratch 及策略，不重放命令。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-sidecar-crash/README.md)。旧健康脚本误用 Web 回退路径的证据已明确纠正。下一步优先收口旧 sidecar 的身份/未知状态处理，再继续平台兼容与其他 SDK/App/发布缺口。

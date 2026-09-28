@@ -1233,3 +1233,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ### 2026-09-28：默认监督装配
 
 [默认 sidecar 证据](evidence/desktop-sandbox/2026-09-28-default-supervisor/README.md)包含默认启动校验、两阶段恢复分页、关闭资源顺序、真实 nxs AutoDream、随包 sidecar 健康和重复/篡改拒绝。开发 sidecar 与 Swift 壳构建通过；本机 XCTest 框架缺失，独立 Swift 断言通过不能替代 XCTest。图形 App、带活动后代的默认崩溃重启、旧 sidecar、macOS 14.0 和正式发布仍未验收。
+
+### 2026-09-28：真实默认 sidecar 崩溃恢复
+
+[真实入口证据](evidence/desktop-sandbox/2026-09-28-sidecar-crash/README.md)两次通过：HTTP 配置、WebSocket DM、第三方模型、真实 nxs Bash 启动 setsid 后代，SIGKILL sidecar 后确认后代仍活；默认重启自动回收原记录、scratch 和策略，无新 launch、无命令重放。此前 smoke 的 `/health` 被纠正为 `/nexus/v1/health` 加 JSON 状态断言，原 200 不作为健康证据。此结果不替代图形 App、Claude crash、旧 sidecar、macOS 14/Intel 和发布验收。

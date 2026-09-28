@@ -23,3 +23,7 @@ Development `make app-run-dev` builds a fixed-Bridge sidecar/helper bundle, then
 ## Still unverified
 
 Full graphical App DM/Room/background approval/cancel/permission/backend-switch acceptance, real default sidecar crash/restart with live task descendants, old unguarded sidecars, macOS 14.0 exact process termination support, full SDK auxiliary IO/HTTP hooks and egress, signed/notarized package, clean host/Intel and complete upgrade/rollback. Full Access provides no isolation guarantee. `releaseAccepted=false`.
+
+## Follow-up correction
+
+The original `/health` 200 could come from Web fallback content and is not valid JSON health evidence. The corrected script checks `/nexus/v1/health` and its JSON status; the corrected run is recorded in [sidecar crash evidence](../2026-09-28-sidecar-crash/README.md). That follow-up also verifies real default-sidecar crash/restart with a surviving setsid child.

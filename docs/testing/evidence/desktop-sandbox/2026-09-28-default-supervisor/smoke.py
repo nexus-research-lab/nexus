@@ -13,13 +13,13 @@ try:
  while time.monotonic()<deadline:
   if p.poll() is not None:raise RuntimeError('sidecar exited '+str(p.returncode))
   try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{port}/health',timeout=.5) as r:
-    if r.status==200:break
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}/nexus/v1/health',timeout=.5) as r:
+    if r.status==200 and json.load(r)['data']['status']=='ok':break
   except Exception:time.sleep(.15)
  else:raise RuntimeError('health timeout')
  duplicate=subprocess.run([str(exe)],cwd=run,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=15)
  assert duplicate.returncode != 0 and p.poll() is None, (duplicate.returncode, duplicate.stdout[-2000:])
- with urllib.request.urlopen(f'http://127.0.0.1:{port}/health',timeout=1) as r: assert r.status==200
+ with urllib.request.urlopen(f'http://127.0.0.1:{port}/nexus/v1/health',timeout=1) as r: assert r.status==200 and json.load(r)['data']['status']=='ok'
  print(json.dumps({'result':'PASS','phase':'duplicate-sidecar-denied'}),flush=True)
  assert (run/'state/app/processes').is_dir()
  print(json.dumps({'result':'PASS','phase':'default-sidecar-start','health':200,'process_registry':True,'run':str(run)},ensure_ascii=False),flush=True)

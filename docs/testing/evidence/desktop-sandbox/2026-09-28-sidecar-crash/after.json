@@ -1,0 +1,54 @@
+{
+  "sandbox_process_launches": [
+    {
+      "owner_user_id": "__system__",
+      "session_key": "agent:b99f1b1fbd99:ws:dm:38bde0426abc",
+      "generation": 1,
+      "launch_order": 4,
+      "launch_id": "5148d235d46ee295e89e1525adea9d5f",
+      "phase": "reaped",
+      "intent_json": "{\"key\":{\"owner_user_id\":\"__system__\",\"session_key\":\"agent:b99f1b1fbd99:ws:dm:38bde0426abc\",\"generation\":1,\"launch_id\":\"5148d235d46ee295e89e1525adea9d5f\"},\"version\":1,\"runtime_kind\":\"nxs\",\"purpose\":\"runtime\",\"scratch\":{\"base_path\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r/state/users/__system__/runtime/sandbox\",\"leaf_name\":\".scratch-a05d860874d380c9\",\"base_identity\":\"darwin-v1:100000f:acdefff:0:6aba10e1:3792d9d5\",\"leaf_identity\":\"darwin-v1:100000f:acdf000:0:6aba10e1:3795e88c\"},\"lease_id\":\"112f6c15f3c9b203529c826f89198a7e\",\"boot_id\":\"06a094b3-e6bf-48dd-a737-91252f3d7034\",\"owner_uid\":501,\"job_label\":\"cn.nexus.runtime.5148d235d46ee295e89e1525adea9d5f\",\"helper_sha256\":\"7e21e16effd3c00c0d2805d8c09cc850470cdf6b11d37eb5677c5f1dc31735a8\"}",
+      "registration_json": "{\"version\":1,\"boot_id\":\"06a094b3-e6bf-48dd-a737-91252f3d7034\",\"coalition_id\":25063,\"owner_uid\":501}",
+      "evidence_json": "{\"registration\":{\"version\":1,\"boot_id\":\"06a094b3-e6bf-48dd-a737-91252f3d7034\",\"coalition_id\":25063,\"owner_uid\":501},\"reason\":\"coalition_reaped\",\"observed_boot_id\":\"06a094b3-e6bf-48dd-a737-91252f3d7034\"}",
+      "created_at": "2026-09-28 07:01:53.939901 +0000 UTC",
+      "updated_at": "2026-09-28 07:02:18.606347 +0000 UTC",
+      "resource_phase": "complete"
+    }
+  ],
+  "sandbox_policy_receipts": [
+    {
+      "owner_user_id": "__system__",
+      "session_key": "agent:b99f1b1fbd99:ws:dm:38bde0426abc",
+      "generation": 1,
+      "version": 1,
+      "session_id": "3c4dcbfd-9067-40a1-b4fb-2caa36a1c4ae",
+      "session_id_provisional": 0,
+      "runtime_kind": "nxs",
+      "round_id": "round_b02855e7b82947cd1bf2688b",
+      "policy_digest": "sha256:2a45fe03860e81dd9bf092daba4c1bf457600a244c5b16fd23f0ef2b2b372578",
+      "required_capabilities_json": "[\"required_sandbox\",\"sandbox_file_tools\",\"sandbox_search_tools\",\"sandbox_media_files\",\"sandbox_mcp_network\",\"sandbox_mcp_helpers\",\"sandbox_mcp_stdio\",\"sandbox_media_network\",\"sandbox_notebook_files\",\"sandbox_skill_files\",\"sandbox_context_files\",\"sandbox_project_files\",\"sandbox_managed_policy\",\"sandbox_settings_files\",\"sandbox_settings_writes\",\"sandbox_resources\"]",
+      "acknowledged_capabilities_json": "[\"required_sandbox\",\"sandbox_file_tools\",\"sandbox_search_tools\",\"sandbox_media_files\",\"sandbox_mcp_network\",\"sandbox_mcp_helpers\",\"sandbox_mcp_stdio\",\"sandbox_media_network\",\"sandbox_notebook_files\",\"sandbox_skill_files\",\"sandbox_context_files\",\"sandbox_project_files\",\"sandbox_managed_policy\",\"sandbox_settings_files\",\"sandbox_settings_writes\",\"sandbox_resources\"]",
+      "capability_evidence": "bridge_negotiated",
+      "isolation_evidence": "not_attested",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r/state/users/__system__/runtime/sandbox/.scratch-a05d860874d380c9\"}",
+      "lease_id": "112f6c15f3c9b203529c826f89198a7e",
+      "phase": "reconciled",
+      "unknown_reason": "",
+      "confirmed_at": "2026-09-28 07:01:56.310261",
+      "updated_at": "2026-09-28 07:02:18.626451",
+      "process_generation": 1,
+      "process_launch_id": "5148d235d46ee295e89e1525adea9d5f"
+    }
+  ],
+  "sandbox_scratch_recoveries": [
+    {
+      "owner_user_id": "__system__",
+      "session_key": "agent:b99f1b1fbd99:ws:dm:38bde0426abc",
+      "lease_id": "112f6c15f3c9b203529c826f89198a7e",
+      "source_generation": 1,
+      "source_launch_id": "5148d235d46ee295e89e1525adea9d5f",
+      "scratch_json": "{\"base_path\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r/state/users/__system__/runtime/sandbox\",\"leaf_name\":\".scratch-a05d860874d380c9\",\"base_identity\":\"darwin-v1:100000f:acdefff:0:6aba10e1:3792d9d5\",\"leaf_identity\":\"darwin-v1:100000f:acdf000:0:6aba10e1:3795e88c\"}",
+      "phase": "complete"
+    }
+  ]
+}
