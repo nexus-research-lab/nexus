@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Acquire a macOS desktop sidecar state-root lock before layout/database migrations and keep it until all services close. Reject a second participating sidecar without signaling a stored PID; retain the lock inode and let kernel process exit release ownership. This adds a recovery prerequisite, not automatic sandbox recovery or proof that older uncoordinated hosts have exited.
+
 - Add explicit recovery of an original supervised process under the Manager session gate. Reject active clients, retain failed recovery records and leave policy/scratch reconciliation independent. Pin Bridge `5e6db3d`, whose native recovery test retires a still-running task after its original host exits without cleanup. Automatic App recovery still requires exclusive-instance wiring and exact lease/policy reconciliation.
 
 - Bind explicitly configured process supervision before runtime factory creation and preserve its identity across warm configuration updates. Record ordered admission probes and the runtime separately within one startup generation, retaining the single-active-launch fence. Migration 145 preserves existing records and rejects lossy rollback when a generation contains multiple launches. App default setup and crash reconciliation remain pending.
