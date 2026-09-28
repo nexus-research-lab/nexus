@@ -10,6 +10,8 @@ import {
   Brain,
   Eye,
   Image,
+  ImagePlus,
+  Network,
   Loader2,
   Plus,
   RefreshCw,
@@ -62,20 +64,20 @@ interface ProviderSettingsModelListProps {
   selectedRecord: ProviderConfigRecord | null;
 }
 
-type ProviderCapabilityKey = keyof Pick<
-  ProviderModelCapabilities,
-  "image_output" | "reasoning" | "tool_calling" | "vision"
->;
+type ProviderCapabilityKey = keyof ProviderModelCapabilities;
 
 const PROVIDER_CAPABILITY_ICONS: Array<{
   Icon: LucideIcon;
   key: ProviderCapabilityKey;
   label: TranslationKey;
 }> = [
+  { Icon: Type, key: "text_output", label: "settings.providers.capability_text_output" },
   { Icon: Wrench, key: "tool_calling", label: "settings.providers.capability_tool_calling" },
   { Icon: Brain, key: "reasoning", label: "settings.providers.capability_reasoning" },
   { Icon: Eye, key: "vision", label: "settings.providers.model_multimodal" },
   { Icon: Image, key: "image_output", label: "settings.providers.capability_image_output" },
+  { Icon: ImagePlus, key: "image_editing", label: "settings.providers.capability_image_editing" },
+  { Icon: Network, key: "embedding", label: "settings.providers.capability_embedding" },
 ];
 
 function ProviderModelListHeader({
@@ -161,9 +163,6 @@ function ProviderModelCapabilities({ model }: { model: ProviderModelRecord }) {
           <span role="img" aria-label={t(label)}><Icon aria-hidden="true" className="h-3 w-3" /></span>
         </UiTooltip> : null
       ))}
-      {model.guidance?.text_only ? <UiTooltip label={t("settings.providers.model_text_only")}>
-        <span role="img" aria-label={t("settings.providers.model_text_only")}><Type aria-hidden="true" className="h-3 w-3" /></span>
-      </UiTooltip> : null}
       <span>{formatCount(model.context_window)}</span>
     </span>
   );

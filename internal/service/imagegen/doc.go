@@ -5,6 +5,7 @@
 // 成员清单：
 //   - service.go / input.go / output.go：Service、模型及输入/输出/配置。
 //   - provider_openai.go / provider_dashscope.go / provider_modelscope.go / provider_options.go：各 provider 适配与选项。
+//   - probe.go：复用生产适配器的单次能力验证，合成图片只在内存传递，不登记产物。
 //   - http.go / image_extract.go：HTTP 调用与图片提取。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

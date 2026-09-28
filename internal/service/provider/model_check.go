@@ -1,15 +1,12 @@
 // INPUT: Provider/model 测试目标、网络响应与期望 configuration_version。
-// OUTPUT: 脱敏测试结果，以及与模型启用/默认选择同事务的测试状态。
+// OUTPUT: 脱敏测试结果，以及与模型启用/默认选择同事务的测试状态和配置绑定能力证据。
 // POS: Provider 连通性测试到持久化配置聚合的提交边界。
 package provider
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
@@ -62,15 +59,14 @@ func (s *Service) testProviderForItem(
 		var err error
 		models, err = s.fetchRemoteModels(ctx, item)
 		if err != nil {
-			return s.persistTestResult(ctx, item, "", err, expectedVersion)
+			return s.persistTestResult(ctx, item, "", err, expectedVersion, nil)
 		}
 	}
 	modelID := s.pickTestModel(ctx, item, models)
 	if modelID == "" {
-		return s.persistTestResult(ctx, item, "", errors.New("未找到可测试模型"), expectedVersion)
+		return s.persistTestResult(ctx, item, "", errors.New("未找到可测试模型"), expectedVersion, nil)
 	}
-	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
-	return s.persistTestResult(ctx, item, modelID, testErr, expectedVersion)
+	return s.runModelTest(ctx, item, modelID, expectedVersion)
 }
 
 // TestModel 测试指定模型的最小生成请求。
@@ -121,8 +117,7 @@ func (s *Service) testModelForItem(
 	if modelID == "" {
 		return nil, fmt.Errorf("%w: model_id 不能为空", ErrInvalidInput)
 	}
-	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
-	return s.persistTestResult(ctx, item, modelID, testErr, expectedVersion)
+	return s.runModelTest(ctx, item, modelID, expectedVersion)
 }
 
 func (s *Service) ensureTestedModelReadyInMutation(
@@ -186,36 +181,6 @@ func (s *Service) ensureTestedModelReadyInMutation(
 	return mutation.UpdateDefaultModel(ctx, modelID, s.now())
 }
 
-func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
-	if err := validateModelEndpoint(item); err != nil {
-		return err
-	}
-	endpoint := endpointURL(item, item.APIFormat)
-	payload, err := minimalPayload(item, modelID)
-	if err != nil {
-		return err
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	applyProviderHeaders(request, item)
-	request.Header.Set("Content-Type", "application/json")
-	response, err := s.client.Do(request)
-	if err != nil {
-		return sanitizeHTTPError(err)
-	}
-	defer response.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-	if err != nil {
-		return sanitizeHTTPError(err)
-	}
-	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("模型请求失败: status=%d body=%s", response.StatusCode, sanitizeHTTPBody(body, item.AuthToken))
-	}
-	return nil
-}
-
 func (s *Service) pickTestModel(ctx context.Context, item providerstore.Entity, remoteModels []remoteModel) string {
 	localModels, err := s.repository.ListModelsByProviderID(ctx, item.ID)
 	if err == nil {
@@ -241,7 +206,27 @@ func (s *Service) persistTestResult(
 	modelID string,
 	testErr error,
 	expectedVersion int64,
+	probe *modelProbeEvidence,
 ) (*TestResult, error) {
+	if probe != nil && probe.PreserveSelection {
+		// Serialize only the short write phase. Other models may advance the
+		// aggregate revision; exact route/options/model evidence must remain intact.
+		s.probeCommitMu.Lock()
+		defer s.probeCommitMu.Unlock()
+		lookup := s.requireProvider
+		if item.Visibility == providerstore.VisibilityPublic {
+			lookup = s.requirePublicProvider
+		}
+		fresh, err := lookup(ctx, item.Provider)
+		if err != nil {
+			return nil, err
+		}
+		if fresh.ID != item.ID {
+			return nil, ErrConfigurationVersionConflict
+		}
+		item = *fresh
+		expectedVersion = item.ConfigurationVersion
+	}
 	now := s.now()
 	item.LastTestAt = &now
 	item.LastTestError = ""
@@ -254,7 +239,7 @@ func (s *Service) persistTestResult(
 	}
 	shouldAutoDefault := false
 	var err error
-	if testErr == nil {
+	if testErr == nil && (probe == nil || !probe.PreserveSelection) {
 		shouldAutoDefault, err = s.shouldAutoDefaultDiscoveredModel(ctx, item)
 		if err != nil {
 			return nil, err
@@ -265,7 +250,7 @@ func (s *Service) persistTestResult(
 		item.ID,
 		expectedVersion,
 		func(mutation *providerstore.Mutation) error {
-			if testErr == nil {
+			if testErr == nil && (probe == nil || !probe.PreserveSelection) {
 				if readyErr := s.ensureTestedModelReadyInMutation(
 					ctx,
 					item,
@@ -274,6 +259,25 @@ func (s *Service) persistTestResult(
 					shouldAutoDefault,
 				); readyErr != nil {
 					return readyErr
+				}
+			}
+			if probe != nil {
+				model, readErr := mutation.GetModel(ctx, modelID)
+				if readErr != nil {
+					return readErr
+				}
+				if probe.PreserveSelection && (model == nil || model.ID != probe.BaselineModelID || model.CapabilitiesAutoJSON != probe.BaselineAutoJSON) {
+					return ErrConfigurationVersionConflict
+				}
+				if model != nil {
+					if probe.Fingerprint != modelProbeFingerprint(item, *model) {
+						return ErrConfigurationVersionConflict
+					}
+					model.CapabilitiesAutoJSON = withModelProbe(model.CapabilitiesAutoJSON, *probe)
+					model.UpdatedAt = now
+					if writeErr := mutation.UpdateModelFacts(ctx, *model); writeErr != nil {
+						return writeErr
+					}
 				}
 			}
 			return mutation.UpdateTestState(ctx, item)

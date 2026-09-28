@@ -67,7 +67,7 @@ export function ProviderModelOptionsDialog({
         labelledBy={`${dialogId}-title`}
         onClose={onClose}
       >
-        <UiDialogShell size="md" viewport="adaptiveMax">
+        <UiDialogShell size="lg" viewport="adaptiveMax">
           <UiDialogHeader
             appearance="plain"
             onClose={onClose}

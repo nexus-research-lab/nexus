@@ -1,3 +1,6 @@
+// INPUT: Image generation/edit requests and configured production adapters.
+// OUTPUT: Generated image artifacts, with a separate memory-only probe path.
+// POS: Image service dependencies and input contracts.
 package imagegen
 
 import (
@@ -39,6 +42,8 @@ type GenerateInput struct {
 
 // EditInput 表示图片编辑请求。
 type EditInput struct {
+	// imageData is reserved for synthetic in-memory capability probes.
+	imageData         []byte
 	Provider          string
 	Model             string
 	Prompt            string
@@ -83,6 +88,7 @@ type Service struct {
 	workspaceRoot string
 	now           func() time.Time
 	client        *http.Client
+	singleAttempt bool
 }
 
 // NewService 创建图片生成服务。

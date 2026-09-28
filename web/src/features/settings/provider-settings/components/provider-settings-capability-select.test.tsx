@@ -14,3 +14,10 @@ it("preserves explicit false and permits resetting to automatic", async () => {
   await user.click(screen.getByRole("option", { name: "settings.providers.capability_auto" }));
   expect(onChange).toHaveBeenCalledWith(undefined);
 });
+
+it("shows Automatic without an inferred result or a manual override", () => {
+ const onChange=vi.fn();
+ render(<CapabilitySelect label="Vision" checked={undefined} onChange={onChange} />);
+ expect(screen.getByRole("button",{name:"Vision"}).textContent).toContain("settings.providers.capability_auto");
+ expect(onChange).not.toHaveBeenCalled();
+});

@@ -55,3 +55,22 @@
 维护时同时核对：精确 preset/endpoint、精确 model ID、同名条目能力冲突、输入/输出模态、独立工具、套餐档位、
 生命周期与 alias、Nexus 已实现 transport。修改数据必须更新来源、核对日期和 catalog version，
 并运行作用域、用户覆盖、旧记录来源、未知版本、图片协议资格与默认选择回归。
+
+## Optional live capability regression
+
+Run the opt-in Go test with NEXUS_PROVIDER_LIVE_DB set to a local SQLite database
+and NEXUS_PROVIDER_LIVE_TARGETS set to comma-separated exact provider/model pairs.
+NEXUS_PROVIDER_LIVE_OWNER defaults to __system__. The test reads configuration
+read-only and copies it to an isolated test database; it does not modify live data.
+It issues real, billable requests to the selected configured endpoints. Default
+test runs skip it. The output distinguishes unsupported from unconfirmed and does
+not print credentials or raw responses. The test reads configuration-bound probe evidence directly, so exact-ID catalog
+defaults cannot masquerade as live observations.
+
+## 七类探测回归
+
+- `model_probe_checks_test.go` 覆盖工具第二轮未使用回执、推理结构、占位向量、损坏图片、未编辑原图及限流后的既有证据保留。
+- `imagegen/probe_test.go` 通过本地 HTTP 夹具覆盖 OpenAI、DashScope 和 ModelScope 的生产请求/下载链、编辑原图传递及提交不自动重试。
+- `model_probe_test.go` 覆盖三类聊天协议、配置变更失效与 CAS 拒绝迟到结果。
+- `web/browser-tests/provider-capabilities.spec.ts` 覆盖自动值刷新、同步不触发验证及显式全模型测试，不写入手动覆盖。
+- 本机可选真实回归验证配置模型的文字、视觉、工具完整往返与推理；图片生成、编辑和 embedding 的本地夹具不代表真实供应商账号验收，也不代表完整 Agent Session 测试。

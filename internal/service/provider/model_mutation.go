@@ -74,7 +74,7 @@ func (s *Service) fetchModelsForItem(
 			Category:                 category,
 			Enabled:                  false,
 			IsDefault:                false,
-			CapabilitiesAutoJSON:     encodeModelAutoCapabilities(capabilities),
+			CapabilitiesAutoJSON:     encodeScopedModelFacts(item, modelID, capabilities),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindow,
 			MaxOutputTokens:          maxOutput,
@@ -96,6 +96,18 @@ func (s *Service) fetchModelsForItem(
 		item.ID,
 		expectedVersion,
 		func(mutation *providerstore.Mutation) error {
+			// Discovery refreshes declarations, not independently verified facts.
+			for index := range entities {
+				previous, readErr := mutation.GetModel(ctx, entities[index].ModelID)
+				if readErr != nil {
+					return readErr
+				}
+				if previous != nil {
+					if probe := currentModelProbe(item, *previous); probe != nil {
+						entities[index].CapabilitiesAutoJSON = withModelProbe(entities[index].CapabilitiesAutoJSON, *probe)
+					}
+				}
+			}
 			if upsertErr := mutation.UpsertModels(ctx, entities); upsertErr != nil {
 				return upsertErr
 			}
@@ -421,9 +433,7 @@ func (u *modelUpdate) loadRecord() (*ModelRecord, error) {
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", u.modelID)
 	}
-	record := toModelRecord(*updated)
-	guidance := projectModelGuidance(u.item, *updated)
-	record.Guidance = &guidance
+	record := projectModelRecord(u.item, *updated)
 	return &record, nil
 }
 
@@ -510,8 +520,6 @@ func (s *Service) setDefaultModelForItem(
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
-	record := toModelRecord(*updated)
-	guidance := projectModelGuidance(item, *updated)
-	record.Guidance = &guidance
+	record := projectModelRecord(item, *updated)
 	return &record, nil
 }
