@@ -749,3 +749,9 @@ Manager 的 `SetSandboxProcessSupervisor` 只允许启动前由宿主配置可�
 `Manager.RecoverSandboxProcess` 是宿主内部显式入口：调用方先取得跨进程独占实例锁并确认旧宿主退出，Manager 再取得会话启动 gate 并拒绝活动 client；按 exact key 读取原记录并调用 Bridge 恢复，既不重新 Reserve/ClaimRelease，也不重放命令。终态重复调用只读原结果。失败保留原记录；成功只代表原进程记录收口，不清除 policy unknown 或 scratch 栅栏。App 尚未自动调用此入口。
 
 macOS 桌面 `nexus-server` 在布局迁移前获取 canonical `app/sidecar.lock` 的非阻塞内核独占锁，保持到服务关闭后。锁文件不保存 PID，不按年龄删除，不 unlink；描述符 CLOEXEC，第二个采用同协议的 sidecar 拒绝启动。恢复使用前可通过 Guard.Verify 校验目录和锁 inode 未被替换。该锁不覆盖旧版未持锁宿主，也不替代原生窗口锁、原任务集合退出证据或 App 自动恢复装配。
+
+### 策略回执与监督进程的身份关联
+
+显式启用进程监督时，Manager 在创建 client 前冻结原进程代次；同一 client 的 warm 请求继续增加策略回执代次，但不改写原进程代次。Connect 持久化策略前按 owner/session/原进程代次精确读取 runtime 用途记录，将唯一 launch ID 与原进程代次一同保存。探测、未放行进程、跨 owner/session、runtime 或 lease 不匹配均拒绝。进程可已经有精确回收终态；关联本身不宣称其当前存活。
+
+既有策略记录的进程关联不可改绑，也不能从无关联升级为推测关联。迁移 147 保留历史无关联记录及 unknown 状态；已有绑定事实时拒绝丢失该事实的数据库回退。这一关联只提供恢复身份，当前不自动清除策略/资源 unknown，不证明业务动作结果，App 默认监督与启动恢复仍待接入。

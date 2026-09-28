@@ -70,3 +70,7 @@ Bridge `Recover` 先验证原意图、登记和当前观察者，再撤销同 bo
 ### 2026-09-28：原宿主目录中的长 socket 路径
 
 上述历史记录中的 103 字节完整路径缺口已在 Bridge `c994b19` 解决：专用原生线程使用父目录句柄及 basename 绑定/连接，退出时销毁线程 cwd，不修改进程 cwd。真实长路径启动/回收和 Nexus 固定 nxs 双次 AutoDream 生命周期通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-long-control-paths/README.md)。宿主仍须提供任务不可写的目录；当前只在本机 arm64 验证，不声明 macOS 14.0 或 Intel 支持已验收。
+
+### 原进程与 warm 策略绑定（2026-09-28）
+
+策略回执新增不可变原 runtime launch 身份。Manager 保留原 client 进程代次，warm 策略增加代次时仍精确读取原记录；迁移 147 不为旧记录补猜身份，有绑定时拒绝丢失证据的回退。见[关联验证](../../testing/evidence/desktop-sandbox/2026-09-28-policy-process-binding/README.md)。此批只补齐身份，自动策略/资源收口与 App 默认接入仍未完成。

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Persist each supervised sandbox policy receipt against its original runtime launch, including warm client reuse across policy generations. Reject probe, scope, lease and immutable-binding mismatches; preserve historical unbound receipts and refuse rollback that would erase binding evidence. This provides recovery identity only; automatic policy/scratch reconciliation and default App supervision remain pending.
+
 - Add bounded pending-process recovery batches under verified host ownership, with stable launch-ID pagination and an indexed pending scan. Failed records remain fenced while later records can progress; cancellation preserves the continuation cursor. A real helper task is recovered from SQLite after its original host exits without cleanup. Automatic App invocation and policy/scratch reconciliation remain pending.
 
 - Require verified host ownership for explicit process recovery. Keep the macOS sidecar lock alive throughout recovery, reject another state root or replaced lock/process-directory identity, and retain unresolved process records on rejection. This is a recovery prerequisite; automatic startup reconciliation remains pending.

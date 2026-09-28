@@ -32,6 +32,7 @@
 //   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/本地媒体/远程图片网络/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；经 internal/infra/confinedfs 固定目录句柄完成创建、marker 读写、扫描与回收，Bridge 关闭成功后才回收，失败保留会话栅栏并把 cleanup_unknown 状态持久化；Windows marker 核验进程创建时间与内核存活信号，避免 PID 重用误回收或残留句柄把已退出进程误判为存活，查询失败保持未知。
+//   - sandbox_receipt_process.go：Connect 策略按 client 原始进程代次绑定 exact runtime launch；warm 复用保持原进程身份，缺失或不匹配拒绝连接。
 //   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
 //   - sandbox_process_recovery.go：显式持锁回调覆盖整个恢复、核对同 app 根及目录 inode，在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
 //   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，App 默认装配仍待接入。

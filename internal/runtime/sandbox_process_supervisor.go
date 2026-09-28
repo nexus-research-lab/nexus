@@ -44,6 +44,9 @@ func (m *Manager) SetSandboxProcessSupervisor(config SandboxProcessSupervisor) e
 	if _, ok := m.sandboxReceiptStore.(SandboxProcessReceiptReader); !ok {
 		return errors.New("process supervisor requires durable startup reader")
 	}
+	if _, ok := m.sandboxReceiptStore.(sandboxRuntimeProcessReader); !ok {
+		return errors.New("process supervisor requires exact runtime policy binding reader")
+	}
 	m.sandboxSupervisor = &config
 	return nil
 }
