@@ -814,3 +814,7 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 正常清理与生命周期扫描：显式监督的最终 lease Release 保存持久隔离删除阶段；迁移 149 为已终止进程维护资源阶段并独立索引绑定策略待办，原生扫描为空也不会遗漏后续恢复。真实 nxs AutoDream 正常退出、独立宿主崩溃两阶段恢复和失败分页保留通过，见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-lifecycle-followup/README.md)。App 默认装配与启动调用、宿主根保护、旧 sidecar 核验及 macOS 14.0 仍是实际交付缺口。
 
 2026-09-28 App 装配前置反例：固定外层 Seatbelt 可阻断宿主目录操作，但当前 macOS 不接受从该进程安装不同的内层 profile，会破坏 nxs/Claude 原生命令沙箱；候选生产修改已撤回。[失败证据与最小复现](../../testing/evidence/desktop-sandbox/2026-09-28-host-profile-compatibility/README.md)已保存。默认监督必须等待可同时满足宿主保护与后端原生执行的方案；原交付范围未缩减。
+
+### 2026-09-28：Full Access 语义确认
+
+用户明确选择沿用 Codex/Claude 的 Full Access 语义：允许当前用户本机文件访问，不提供沙箱隔离保证，优先完成受限模式。之前“Full Access 也必须隔离宿主目录”的候选前提不再属于交付要求；不继续为此引入额外 OS 身份或整进程外层 sandbox。受限模式的 app 私有目录规则已进入统一 options 装配，两个后端仍使用各自的执行沙箱。此变更不取消受限模式 SDK IO、hook/MCP、网络、恢复与真实 App/发布验收，也不把 Full Access 的生命周期测试当作隔离证明。

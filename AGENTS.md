@@ -96,6 +96,7 @@ cmd -> app -> handler -> service -> domain/storage
 - `service/configuration` 测试按身份授权、输入与风险、脱敏、审批、审计及业务集成归组；共享装配与审批辅助集中在现有集成测试文件，重复成功路径复用完整场景，独立保留越权、CAS、凭据和删除恢复边界。
 - `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
+- macOS 受限模式在统一 clientopts 装配中拒绝写入整个 app 树及读取其私有目录，保留 Skill 投影读取及词法/物理路径；新私有文件必须位于 desktop_host_paths 的已保护目录或先扩展该表；nxs 复用自身文件沙箱，Claude 复用命令沙箱和 Read/Edit 规则。Full Access 按用户明确选择访问当前用户本机文件，不提供沙箱隔离保证，不要求额外隔离身份；不得把残留能力握手或生命周期回执当作隔离证据。
 - `runtime/clientopts` 在所有环境合并后固定 nxs Provider 与 AutoDream 唤醒的宿主所有权；任务 settings 和附加环境不能撤销该声明。Provider 环境隔离不代表整个 SDK 的文件、网络、MCP 或进程秘密隔离，当前范围见 `docs/specs/desktop-sandbox-spec.md`。
 - Nexus 只生产按 priority/name/content/metadata 确定性排序的内部上下文块；bridge 将它们绑定到下一条 user 消息，nxs 在 user 落盘前提取为当前 live model history 的隐藏 reminder，Claude Code 通过 `UserPromptSubmit` hook 生成同语义 attachment；两者后续请求继续携带但不进入 transcript。workspace `AGENTS.md` 只由 SDK 启动加载器读取，产品 prompt builder 不再重复拼接。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。

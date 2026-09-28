@@ -502,6 +502,10 @@ Nexus also requires `sandbox_mcp_stdio_v1` / `RequireMCPStdio` on macOS. Persist
 
 ## Approval modes and runtime replacement
 
+Full Access is an explicit user choice to access local files available to the current OS account, with **no sandbox isolation guarantee**, including the host app directory. It does not grant administrator rights or bypass Nexus domain authorization. Existing nxs safety checks may remain, but are not a promise of isolation. The product does not require a separate OS identity solely to isolate Full Access tasks. Restricted-mode protection and Full Access lifecycle tests must be reported separately.
+
+Restricted macOS client options derive `appfs.AppDir()` from the host process, never task `ExtraEnv`. They resolve relative state roots against the host working directory and preserve both lexical and canonical paths, including existing private-directory symlink targets (resolving the existing parent for a new state directory), then deny writes to the entire app tree and reads to its private `data`, `config`, `cache`, `logs`, `rooms`, `processes`, `.migrations`, `.agents` and `sidecar.lock` paths. Read-only `platform-skills` and `host-skills` projections remain available. Claude additionally receives absolute Read/Edit rules for the same private read and whole-tree write scopes. New host secrets must remain in these private directories, or the policy registry must be extended before introducing a new private path. This protects those execution paths, not arbitrary SDK IO, hooks, IPC or delegated external services; those remain separately validated boundaries.
+
 The host does not change the selected approval mode to enable sandboxing: the
 restricted runtime is already part of every desktop task contract. A fresh nxs
 Full Access (`bypassPermissions`) runtime still installs the nxs capability and

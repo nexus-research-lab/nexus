@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Protect the host app state in restricted macOS runtime options: deny app-tree writes and private-store reads while retaining read-only Skill projections. nxs receives filesystem denies; Claude receives native sandbox denies and Read/Edit rules. Resolve lexical and physical roots from host state, ignoring task environment overrides. Keep Full Access outside this guarantee and state that exception explicitly in both UI languages.
+
 - Persist normal supervised macOS scratch cleanup through the same quarantine ledger as crash recovery. Add a separate bounded scan for terminal processes with unfinished resources or bound policies; failed items remain pending even when pagination ends. App startup invocation remains pending.
 
 - Add explicit macOS scratch and policy recovery under exclusive host ownership. Quarantine the original directory without replacing another entry, persist deletion stages, resume interrupted cleanup, and reconcile only receipts bound to the retired process. Pending recovery blocks new launches; historical unbound unknown receipts remain fenced. Native host-exit recovery passed, while default App startup integration remains pending.

@@ -90,3 +90,7 @@ macOS 监督启动现在把原 lease 创建时的 parent/leaf 文件系统身份
 ### 外层 Seatbelt 兼容性反例（2026-09-28）
 
 可信 helper 在整个 runtime exec 前安装固定宿主保护的候选已撤回。本机原生目录/继承测试有效，但不同的内层 Seatbelt profile（包括额外加限制）返回 sandbox_apply EPERM；相同 profile 成功。直接套外层会破坏后端独立命令沙箱，不能作为默认 App 装配方案，见[最小复现与候选失败证据](../../testing/evidence/desktop-sandbox/2026-09-28-host-profile-compatibility/README.md)。宿主不可写要求保留；下一路线需同时满足两后端原生执行、Full Access 下宿主证据保护及全部任务入口，不能通过关闭内层沙箱或失败回退来规避。
+
+### 2026-09-28：Full Access 语义确认
+
+用户明确选择沿用 Codex/Claude 的 Full Access 语义：允许当前用户本机文件访问，不提供沙箱隔离保证，优先完成受限模式。之前“Full Access 也必须隔离宿主目录”的候选前提不再属于交付要求；不继续为此引入额外 OS 身份或整进程外层 sandbox。受限模式的 app 私有目录规则已进入统一 options 装配，两个后端仍使用各自的执行沙箱。此变更不取消受限模式 SDK IO、hook/MCP、网络、恢复与真实 App/发布验收，也不把 Full Access 的生命周期测试当作隔离证明。
