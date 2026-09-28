@@ -577,7 +577,20 @@ launch intents persist its exact lease ID. Each supervised launch revalidates th
 original handle, and a different handle cannot replace it at ownership transfer.
 Reading this identity does not transfer cleanup responsibility: the caller retains
 it until `BindSandboxLease` succeeds. No resource is discovered by path. App default
-supervision and the separate AutoDream session path remain unconnected.
+supervisor setup remains unconnected.
+
+Host AutoDream uses the same Manager through an isolated `memory-maintenance:<agent>`
+key. Its owner-scoped background registration starts before the startup transaction,
+so host shutdown, owner cancellation and Agent revocation cancel maintenance as well.
+The acquired scratch handle follows the same pre-factory supervision binding and
+explicit ownership transfer as DM/Room. AutoDream is a control request rather than
+a chat round; a bounded cancellation watcher retires/disconnects the exact client
+without concurrently manipulating the startup transaction. The transaction retires
+the client after control completion or failure, persisting policy/process terminal
+facts and keeping failed cleanup fences. No independent raw Bridge session bypass
+remains in the host maintenance runner. Scheduling and memory consolidation rules
+continue to belong to nxs; native disabled-gate control tests establish lifecycle,
+not real model consolidation or complete App UI acceptance.
 
 One active launch per owner/session is enforced by a unique index. `prepared` may
 be canceled as `aborted` before registration; registration writes the exact original

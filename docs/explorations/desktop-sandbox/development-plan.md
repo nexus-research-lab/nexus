@@ -802,3 +802,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 
 2026-09-28 进程/资源绑定：DM/Room 先把已取得的 scratch 句柄交给启动事务，显式监督在 factory 前核验 owner/session/policy，probe/runtime 意图持久保存 exact LeaseID；所有权仍在创建后的 Bind 成功时交接。缺失、错 scope、不同 policy、释放或 cleanup_unknown 均拒绝。App 默认装配、AutoDream 的独立 NewSession 路径及恢复后的 lease/policy 收口仍未接入。
 本批真实 helper/SQLite exact LeaseID 与反例、DM/Room 回归证据见[进程资源绑定](../../testing/evidence/desktop-sandbox/2026-09-28-supervisor-lease/README.md)。
+
+2026-09-28 AutoDream 接入：宿主维护 runner 已移除独立 Bridge NewSession，改走共享 Manager 的 owner/Agent 后台登记、启动事务、监督/lease 绑定和退休回执。取消、停机、Agent 撤销、连接失败、清理失败栅栏测试通过；固定 nxs + helper 的两次真实控制往返验证进程/策略终态、代次递增和 scratch 删除（整理 gate 关闭，不调用模型）。默认 App supervisor 装配与崩溃自动恢复仍待接通。证据见[托管 AutoDream](../../testing/evidence/desktop-sandbox/2026-09-28-managed-autodream/README.md)。

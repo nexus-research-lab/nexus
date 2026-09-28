@@ -7,7 +7,7 @@
 //
 // 成员清单：
 //   - coordinator.go：启动、扫描、用户总开关与 Agent 开关预检、并发去重和下一次检查时间。
-//   - runner.go：解析 Agent/provider/background model，持有认证转场 admission 并同步调用 nxs。
+//   - runner.go：解析 Agent/provider/background model，持有认证转场 admission，经共享 Manager 的后台任务/启动事务调用 nxs AutoDream；不另建裸 Bridge session。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package memorymaintenance

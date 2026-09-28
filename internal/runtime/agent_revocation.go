@@ -1,4 +1,4 @@
-// INPUT: owner/Agent 身份、Manager 退出栅栏与已绑定的 DM/Room runtime session。
+// INPUT: owner/Agent 身份、Manager 退出栅栏与已绑定的 DM/Room/后台记忆维护 runtime session。
 // OUTPUT: 持久 Agent 墓碑、全部匹配 session 的取消/断连，以及后续创建的 fail-closed 拒绝。
 // POS: Agent 数据库身份删除提交后的 runtime 生命周期撤销边界。
 package runtime
@@ -28,6 +28,9 @@ func newAgentRuntimeIdentity(ownerUserID string, agentID string) agentRuntimeIde
 }
 
 func runtimeSessionAgentID(sessionKey string) string {
+	if strings.HasPrefix(strings.TrimSpace(sessionKey), "memory-maintenance:") {
+		return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(sessionKey), "memory-maintenance:"))
+	}
 	parsed := protocol.ParseSessionKey(strings.TrimSpace(sessionKey))
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return ""

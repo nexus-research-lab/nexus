@@ -3,6 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消、精确 scratch 交接及终态退休；不拥有记忆领域规则。
 //   - client.go：Client 接口、Factory 与 agentClient（宿主管理 Agent runtime 的能力边界），
 //     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、取消换代中的
 //     connect/config RPC、识别关闭态控制错误及隔离未收口的 SDK 会话；清理失败不被

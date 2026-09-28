@@ -362,7 +362,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetTaskReferenceResolver(automationService)
 	ingressService.SetCommandHandler(automationService)
 	automationService.SetLogger(logger.With("component", "automation"))
-	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)
+	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService, runtimeManager)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	configurationService := configurationsvc.NewService(
 		cfg,
