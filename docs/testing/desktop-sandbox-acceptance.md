@@ -1193,3 +1193,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ## 2026-09-28：macOS 引导接收端
 
 [真实 helper 证据](evidence/desktop-sandbox/2026-09-28-process-bootstrap/README.md)覆盖启动身份、放行前断连、登记后原地 exec、标准流、显式环境及任务存活时控制 fd 关闭。异常输入/fd 传输与无 cgo 检查通过，描述符截断泄漏的复现和修复证据一并保留。产品宿主持久登记、默认传输、恢复和发布包尚未接通，`productionIntegrated=false`、`releaseAccepted=false`。
+
+## 2026-09-28：内核根退出观察
+
+[原生退出观察证据](evidence/desktop-sandbox/2026-09-28-root-exit-observer/README.md)确认 helper 放行前注册后可跨 exec 获取真实退出码，取消等待/停止观察不伪造退出，主进程退出后的脱离后代仍须独立回收。默认 transport、持久宿主绑定、unknown 恢复和正式发布仍未接通，`releaseAccepted=false`。
