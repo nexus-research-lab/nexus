@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Route host AutoDream through the shared runtime Manager instead of opening an independent Bridge session. Bind maintenance to owner/Agent cancellation, supervised startup, scratch ownership and durable policy/process retirement; retain cleanup failures as startup fences. Native fixed-nxs control round trips pass with memory consolidation disabled; default App supervisor setup remains pending.
+
 - Bind supervised DM/Room process launches to the acquired scratch lease before client factory creation. Persist the exact lease ID on probe/runtime intents and reject missing, foreign, mismatched, released or cleanup-unknown resources before launch. Keep resource ownership transfer explicit; App default supervision and AutoDream wiring remain pending.
 
 - Package the macOS runtime bootstrap from the pinned Bridge dependency, sign it before recording its build identity and digest, and verify the manifest during assembly and packaging. Add a confined bundle loader anchored to the sidecar dependency identity. This does not yet enable default process supervision.
