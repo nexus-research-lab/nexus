@@ -577,6 +577,10 @@ SDK `19c80fb21bb6a00d1132fdea3e63251dac4c015d`、Bridge `f6e456da2ecbfd3c6b9edfb
 
 Codex 对照仍固定 `4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd`，此次读取 [spawn.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/spawn.rs) 和 [exec.rs](https://github.com/openai/codex/blob/4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd/codex-rs/core/src/exec.rs) 的进程启动/退出片段；局部进程组清理代码不能证明任意脱离后代已被监督。完整后代清理、持久失败回执、scratch 租约和自动回收仍未实现。
 
+2026-09-28 补充：[用户级 launchd coalition 原型](evidence/desktop-sandbox/2026-09-28-process-coalition/README.md)的三个本机场景通过：单次脱离、双 fork/exec、Seatbelt 内双 fork/exec。父进程退出后集合仍跟踪后代，外部观察取得精确 audit identity；错误 PID version 的信号被拒绝，正确身份终止后原集合被内核回收，独立对照仍存活。测试 job 最终均不存在，对照子进程均已回收。`LaunchOnlyOnce` 的 job 先消失而后代仍存活的反例明确保留，因此 job 缺失和资源计数不能代替终态证明。
+
+本次只验证候选机制，没有修改生产启动/取消/恢复链、最低系统版本或旧 unknown 回执。XNU `xnu-10002.1.13` 缺少精确 audit-token 信号入口，较新的 `xnu-10002.61.3` 有；产品最低 macOS 14.0、私有观察 ABI、Intel、持久登记及真实崩溃恢复仍待验证或实现。后续合同见[非规范接入方案](../explorations/desktop-sandbox/macos-process-supervision.md)，`releaseAccepted=false`。
+
 ## 媒体文件入口子批次（2026-09-16）
 
 SDK `143e987c2e45adece435bda1621aef81bcac4040`、Bridge `eeaff7df69f324bf5d1e346692e30f39235ce0c5`；Nexus 在 `86ec36fca` 上验证本批次工作树，准确变更列表保存在报告。Bridge 固定为 `v0.1.34-0.20260916013218-eeaff7df69f3`，本机 exact-commit module archive 的 checksum 为 `h1:txRuwSPedbxkbZEPNilyj5BxoT2/de6t6ADnhxNI0X4=`。全部只保留本地提交，模块未发布，新机器取得依赖尚未验收。

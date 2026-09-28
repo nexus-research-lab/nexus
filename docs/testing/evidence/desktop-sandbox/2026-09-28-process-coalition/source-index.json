@@ -1,0 +1,55 @@
+{
+  "currentReference": "f6217f891ac0bb64f3d375211650a4c1ff8ca1ea",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/doc/observability/coalitions.md",
+      "sha256": "4f2b293f0fa0b2a3fafbe80eb404c5ca0f9f41d7f4c2fb93802f67d811aaadc1"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/sys_coalition.c",
+      "sha256": "1f252b9329751286f670a8d6824117c2712b4bf20bbf82376fe12c3d39835545"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/sys/proc_info_private.h",
+      "sha256": "ccc01e88d5bf47bc9c3f5ba3a25c3e6202bbcd7b86aa967af31d714657571c3b"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/osfmk/mach/coalition.h",
+      "sha256": "d0bf59956b735fb239b26f4a9aabc2640951259564dba9b0dd0eb0d329bca754"
+    }
+  ],
+  "historical": [
+    {
+      "ref": "xnu-8792.61.2",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-8792.61.2/bsd/kern/proc_info.c",
+      "sha256": "c8b0587a4dea37ba1f1052954b8ae2c0ce1f297b0c5eed40e0085e7c4a2a07e3",
+      "auditSignal": false,
+      "extendedIdentity": true,
+      "coalitionQuery": true
+    },
+    {
+      "ref": "xnu-10002.61.3",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-10002.61.3/bsd/kern/proc_info.c",
+      "sha256": "b9eb8b1bfac9ea1040f91ca80eaa9bed98a03882f55dcf8113e2159daeeaf29f",
+      "auditSignal": true,
+      "extendedIdentity": true,
+      "coalitionQuery": true
+    },
+    {
+      "ref": "xnu-11215.61.5",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-11215.61.5/bsd/kern/proc_info.c",
+      "sha256": "7f7560c80832bf106f369a15de4878a9e328c0eb45d0abfa717b32fcf6a27441",
+      "auditSignal": true,
+      "extendedIdentity": true,
+      "coalitionQuery": true
+    },
+    {
+      "ref": "xnu-10002.1.13",
+      "url": "https://raw.githubusercontent.com/apple-oss-distributions/xnu/xnu-10002.1.13/bsd/kern/proc_info.c",
+      "sha256": "e1107fe498330ec917199015d3ea375c87f6309defe212ecbe38178ca98ea093",
+      "auditSignal": false,
+      "extendedIdentity": true,
+      "coalitionQuery": true
+    }
+  ]
+}

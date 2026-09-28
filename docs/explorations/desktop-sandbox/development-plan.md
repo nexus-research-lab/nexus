@@ -99,7 +99,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 
 | 剩余项 | 性质与具体出口 |
 | --- | --- |
-| 完整取消与异常恢复 | 仍需实现可部署的脱离 session 后代监督与终态证明；基于该事实收口 `cleanup_unknown` 与 unknown 回执，再决定自动回收。普通 sleep 进程中断通过不能代替这一项；SDK 多文件掉电事务/持久执行回执也未完成 |
+| 完整取消与异常恢复 | 用户级 launchd coalition 的本机原型已覆盖脱离、两次 fork/exec、Seatbelt、错误身份拒绝和独立对照保留，见[接入候选](macos-process-supervision.md)；尚未接入产品，且 macOS 14.0 缺精确 audit-token 信号接口的问题仍需解决。继续实现可部署的后代监督与终态证明，再收口 `cleanup_unknown`、unknown 回执和资源回收。普通 sleep 中断或原型通过都不能代替完整验收；SDK 多文件掉电事务/持久执行回执也未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；后台内容替换记录读取及前序记忆 IO 已按上方证据收口。可信 MCP 代理、普通会话录制/恢复与其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
 | 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 HTTP/WebSocket DM 重启、Room 写读/审批、独立后台审批、动态网络批准/取消、双向后端及 nxs/Claude Full Access 切换、共同退出已通过。继续补完整 UI 复验及未覆盖的 Room 绑定后台/AutoDream 等路径，不用后端结果替代窗口操作 |
 | 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
@@ -279,6 +279,8 @@ Owner 级进程 reaper 也是关闭边界的一部分：即使 Bridge 已确认�
 因此 scratch 接入继续按以下顺序验收：先固定平台后代监督与精确进程身份，覆盖另建 session、父进程先退出、观察失败和宿主崩溃；再实现持久资源租约、取消/重启对账和隔离保留状态；只有该执行及其后代终态已被证明，才能回收对应 scratch。最后传入默认资源策略并返回实际生效回执。未证明清理的资源保留待处理，不能通过重新启动或删除目录消除不确定性。
 
 原生实验已确认后代监督缺口：父进程退出后，另建 session 的测试子进程仍存活，向原进程组发信号不能清理它；macOS 的 kqueue `NOTE_TRACK` 返回 `ENOTSUP`。本机 macOS 27 SDK 提供的 `es_new_descendants_client` 要求 Endpoint Security entitlement，本次无 entitlement 探测被拒绝，未订阅事件或改变系统授权。这条新 API 仅作为平台候选，不能据此提高产品最低系统版本或宣称已实现监督。固定 Codex 源码中看到的进程组清理也不是任意脱离后代的终态证明。完整过程和来源见[验收矩阵](../../testing/desktop-sandbox-acceptance.md#macos-后代监督实验)。
+
+2026-09-28 新候选：普通用户通过 launchd 创建独立 resource coalition，本机三个原型场景均证明 `setsid`、两次 fork/exec 与父进程退出后归属仍保留；外部观察可读取精确 audit identity，错误 PID version 的信号被拒绝，正确身份终止后内核回收原集合，对照进程保持。job 已消失但后代仍活着的反例也保留，不能用 launchctl 未找到当成清理成功。当前没有产品接线或持久启动登记；macOS 14.0 的精确信号 API 缺口和私有观察 ABI 的支持范围仍待解决，不提高 `.macOS(.v14)`。实施顺序、终态判断与证据见[macOS 进程监督接入候选](macos-process-supervision.md)。
 
 后代监督继续要求可部署的系统版本/授权路径、精确后代身份、事件缺失时拒绝确认、宿主崩溃后的事实恢复和真实清理验证。当前不接入依赖此证明的 scratch 自动回收；独立 IO 工作继续推进。搜索子批次已将 Glob/Grep 的前置路径、rg 和结果元数据纳入文件执行边界，并以独立搜索能力拒绝旧 SDK。
 

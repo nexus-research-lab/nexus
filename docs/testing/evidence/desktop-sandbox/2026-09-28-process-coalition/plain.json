@@ -1,0 +1,166 @@
+{
+  "scenario": "plain",
+  "label": "cn.nexus.sandbox-probe.de95459043754688b6a76debcf351d01",
+  "domain": "gui/501",
+  "uid": 501,
+  "directory": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-launchd-coalition-96e_soz3",
+  "events": [
+    {
+      "stage": "root_exited_detached_alive",
+      "exitCode": 0,
+      "stdout": "{\"available\":true,\"result\":0,\"errno\":0,\"started\":3,\"exited\":2}\n",
+      "stderr": ""
+    },
+    {
+      "stage": "after_rejected_stale_identity",
+      "exitCode": 0,
+      "stdout": "{\"available\":true,\"result\":0,\"errno\":0,\"started\":3,\"exited\":2}\n",
+      "stderr": ""
+    },
+    {
+      "stage": "after_bootout",
+      "exitCode": 0,
+      "stdout": "{\"available\":true,\"result\":0,\"errno\":0,\"started\":3,\"exited\":2}\n",
+      "stderr": ""
+    },
+    {
+      "stage": "after_exact_child_signal",
+      "exitCode": 0,
+      "stdout": "{\"available\":true,\"result\":-1,\"errno\":3,\"started\":0,\"exited\":0}\n",
+      "stderr": ""
+    }
+  ],
+  "passed": true,
+  "macOS": "27.0",
+  "architecture": "arm64",
+  "kernel": "27.0.0",
+  "sourceSHA256": "bb7f73ac9b6d575572b0ee0727a012f42bba4686585750cf561bad69d30c813f",
+  "driverSHA256": "f6f8a3ffff4269c8a1a48c007d817ebb68df1419a33df59564411691318328fe",
+  "controlBefore": {
+    "exitCode": 0,
+    "stdout": "{\"pid\":19085,\"taskNameResult\":0,\"auditResult\":0,\"coalitionBytes\":40,\"resource\":8546,\"audit\":[501,501,20,501,20,19085,100020,1231376]}\n",
+    "stderr": ""
+  },
+  "observer": {
+    "kind": "observer",
+    "pid": 19094,
+    "sid": 19080,
+    "coalitionBytes": 40,
+    "coalitionErrno": 0,
+    "resource": 8546,
+    "jetsam": 8547,
+    "auditResult": 0,
+    "audit": [
+      501,
+      501,
+      20,
+      501,
+      20,
+      19094,
+      100020,
+      1231393
+    ]
+  },
+  "bootstrap": {
+    "exitCode": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "worker": [
+    {
+      "kind": "root",
+      "pid": 19096,
+      "sid": 1,
+      "coalitionBytes": 40,
+      "coalitionErrno": 0,
+      "resource": 19581,
+      "jetsam": 19582,
+      "auditResult": 0,
+      "audit": [
+        501,
+        501,
+        20,
+        501,
+        20,
+        19096,
+        100020,
+        1231400
+      ]
+    },
+    {
+      "kind": "setsid",
+      "result": 19099,
+      "errno": 0
+    },
+    {
+      "kind": "detached",
+      "pid": 19099,
+      "sid": 19099,
+      "coalitionBytes": 40,
+      "coalitionErrno": 0,
+      "resource": 19581,
+      "jetsam": 19582,
+      "auditResult": 0,
+      "audit": [
+        501,
+        501,
+        20,
+        501,
+        20,
+        19099,
+        100020,
+        1231403
+      ]
+    }
+  ],
+  "inspectDetached": {
+    "exitCode": 0,
+    "stdout": "{\"pid\":19099,\"taskNameResult\":0,\"auditResult\":0,\"coalitionBytes\":40,\"resource\":19581,\"audit\":[501,501,20,501,20,19099,100020,1231403]}\n",
+    "stderr": ""
+  },
+  "members": {
+    "exitCode": 0,
+    "stdout": "{\"members\":[{\"pid\":19099,\"resource\":19581,\"audit\":[501,501,20,501,20,19099,100020,1231403]}]}\n",
+    "stderr": ""
+  },
+  "staleIdentitySignal": {
+    "exitCode": 0,
+    "stdout": "{\"available\":true,\"result\":3,\"errno\":3}\n",
+    "stderr": ""
+  },
+  "jobState": {
+    "exitCode": 113,
+    "selected": []
+  },
+  "bootout": {
+    "exitCode": 3,
+    "stdout": "",
+    "stderr": "Boot-out failed: 3: No such process\n"
+  },
+  "signal": {
+    "exitCode": 0,
+    "stdout": "{\"available\":true,\"result\":0,\"errno\":0}\n",
+    "stderr": ""
+  },
+  "controlAfter": {
+    "exitCode": 0,
+    "stdout": "{\"pid\":19085,\"taskNameResult\":0,\"auditResult\":0,\"coalitionBytes\":40,\"resource\":8546,\"audit\":[501,501,20,501,20,19085,100020,1231376]}\n",
+    "stderr": ""
+  },
+  "cleanupSignal": {
+    "exitCode": 0,
+    "stdout": "{\"available\":true,\"result\":3,\"errno\":3}\n",
+    "stderr": ""
+  },
+  "cleanupBootout": {
+    "exitCode": 3,
+    "stdout": "",
+    "stderr": "Boot-out failed: 3: No such process\n"
+  },
+  "controlExitCode": -15,
+  "finalJobLookup": {
+    "exitCode": 113,
+    "stdout": "",
+    "stderr": "Bad request.\nCould not find service \"cn.nexus.sandbox-probe.de95459043754688b6a76debcf351d01\" in domain for user gui: 501\n"
+  }
+}
