@@ -785,3 +785,5 @@ Nexus 和内置 nxs 作为整包正式发布，普通升级不以混用新 App/�
 2026-09-28 退出观察：已在真实 helper 放行前注册 kqueue 根退出事件，跨 exec 的退出码和脱离后代独立清理通过原生用例；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-root-exit-observer/README.md)。当前仍是内部组件，未接产品持久启动/退出回执或默认 transport。
 
 2026-09-28 宿主持久登记：可信数据库进程记录、一次性放行 CAS 和 factory 前读栅栏已落地，SQLite 并发/重开、runtime 包和架构检查通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-registry/README.md)。生产 launcher 写入及真实 transport/恢复尚未接通；原策略回执与进程记录共用 owner/session/generation，保留既有 unknown，不自动解锁。
+
+2026-09-28 显式启动器：Bridge supervision 已连接启动/持久回调/一次放行/根退出/集合回收，真实原生竞态用例通过；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)。下步将 Host 回调适配到 Nexus 数据库和 confinedfs，再接默认传输及恢复。尚无生产写入链、App 打包或超长状态根支持证据。

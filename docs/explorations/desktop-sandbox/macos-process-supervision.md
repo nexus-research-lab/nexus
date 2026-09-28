@@ -46,3 +46,7 @@ Bridge 已新增 `cmd/nexus-runtime-bootstrap` 和内部启动协议：按固定
 ## 宿主持久登记进展
 
 Nexus 已新增可信数据库启动事实和产品 factory 前读栅栏，绑定现有 owner/session/generation；原集合登记后仅允许一次放行领取，未收口记录阻断跨后端重建。真实 SQLite 并发领取、重开及迟到/跨 scope/错误证据拒绝通过，runtime 包与架构检查通过。见[登记证据](../../testing/evidence/desktop-sandbox/2026-09-28-process-registry/README.md)。生产 launcher 还未调用写入链；下一步连接 job 核验、持久放行、退出观察与撤销/回收，不将此数据库批次当作实际崩溃窗口已经关闭。
+
+## 显式启动器进展
+
+Bridge `supervision` 已把固定 helper 校验、Host 持久阶段、job 启动、原生登记/退出观察、一次性放行和回收结果连接起来。真实 launchd 竞态测试覆盖脱离后代输出、取消关闭等待者、各持久阶段失败及丢失放行响应；[证据](../../testing/evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)。生产 Host 数据库适配、默认 client transport、重启恢复和打包仍待接线；Unix socket 的 103 字节路径限制需要在受保护宿主目录内解决，不能借用任务可写路径规避。

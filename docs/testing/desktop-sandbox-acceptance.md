@@ -1201,3 +1201,7 @@ Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 从干净来源生成 arm64 ad-hoc App/DMG�
 ## 2026-09-28：宿主持久启动事实
 
 [登记与准入证据](evidence/desktop-sandbox/2026-09-28-process-registry/README.md)覆盖 SQLite 重开、并发一次性放行、迟到及跨 scope 拒绝、原集合证据绑定和无策略回执时阻断新 factory。runtime 包、仓储竞态与架构门禁通过；生产 launcher 尚未调用写入链，不能据此声称实际启动/崩溃恢复已完成，`releaseAccepted=false`。
+
+## 2026-09-28：显式监督启动器
+
+[原生竞态证据](evidence/desktop-sandbox/2026-09-28-supervised-launch/README.md)验证持久阶段顺序、脱离输出后代、共享关闭、丢失放行响应不重放及回收写入失败保留。Host 仍为独立文件夹具，不等同 Nexus 数据库/默认 transport 接入；`releaseAccepted=false`，真实产品接线和恢复继续待办。
