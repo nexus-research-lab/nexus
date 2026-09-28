@@ -3,7 +3,7 @@
 // POS: Login composition regression; no requests reach a real account.
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import type { FormEvent, ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
@@ -11,6 +11,12 @@ import { enNavigationMessages } from "@/shared/i18n/catalog/en/navigation";
 import { zhNavigationMessages } from "@/shared/i18n/catalog/zh/navigation";
 import { LoginPage } from "./login-page";
 import { useLoginPageController } from "./use-login-page-controller";
+
+const desktop = vi.hoisted(() => ({ enabled: false }));
+vi.mock("@/config/desktop-runtime", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/config/desktop-runtime")>(),
+  isDesktopRuntime: () => desktop.enabled,
+}));
 
 const auth = vi.hoisted(() => ({
   error: null, isBootstrapped: false, loading: false, login: vi.fn(), refreshStatus: vi.fn(),
@@ -25,9 +31,32 @@ function Wrapper({ children, locale = "zh" }: { children: ReactNode; locale?: "z
   }}>{children}</I18N_CONTEXT.Provider></MemoryRouter>;
 }
 
-beforeEach(() => { auth.isBootstrapped = false; auth.login.mockReset(); });
+beforeEach(() => { desktop.enabled = false; auth.isBootstrapped = false; auth.login.mockReset(); });
 
 describe("Login page", () => {
+  it("lets desktop users return to the workspace without logging in", () => {
+    desktop.enabled = true;
+    auth.isBootstrapped = true;
+    render(<Wrapper><Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/launcher" element={<div>Workspace</div>} />
+    </Routes></Wrapper>);
+    const back = screen.getByRole("button", { name: zhNavigationMessages["login.skip"] });
+    const submit = screen.getByRole("button", { name: zhNavigationMessages["login.submit"] });
+    expect(back.closest("form")).toBe(submit.closest("form"));
+    expect(back.parentElement).toBe(submit.parentElement);
+    expect(back.parentElement?.className).toContain("grid-cols-2");
+    fireEvent.click(back);
+    expect(screen.getByText("Workspace")).toBeTruthy();
+    expect(auth.login).not.toHaveBeenCalled();
+  });
+
+  it("does not add a desktop return action to web login", () => {
+    auth.isBootstrapped = true;
+    render(<Wrapper><LoginPage /></Wrapper>);
+    expect(screen.queryByRole("button", { name: zhNavigationMessages["login.skip"] })).toBeNull();
+  });
+
   it("replaces bootstrap loading with the current-language introduction and keeps credentials across locale changes", () => {
     const { rerender } = render(<Wrapper><LoginPage /></Wrapper>);
     expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
