@@ -34,9 +34,9 @@ var (
 
 func accessFor(actor *resolvedActor, definition DomainDefinition) Access {
 	access := Access{Authority: actor.Authority}
-	// 组织权限由 Control 用实时 Session 校验，平台角色不能替代组织角色。
-	if definition.Name == DomainMembers && (actor.AuthMethod != authctx.AuthMethodPassword || actor.AuthSessionID == "") {
-		access.Reason = "组织成员管理需要有效远程登录，写入由 Control 校验当前组织管理权限"
+	// 部署用户只由平台管理员管理；组织角色不能授予此能力。
+	if definition.Name == DomainMembers && (actor.AuthMethod != authctx.AuthMethodPassword || actor.AuthSessionID == "" || !actor.canManageHostConfiguration()) {
+		access.Reason = "部署用户管理需要有效平台 owner/admin 登录，写入由 Control 实时复核"
 		return access
 	}
 	switch actor.Authority {

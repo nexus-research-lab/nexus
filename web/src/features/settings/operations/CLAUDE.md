@@ -5,7 +5,7 @@ L3 | 父级: web/src/features/settings
 ## 职责
 
 - `operations-access.ts` 定义运营分区的角色准入规则。
-- `operations-panel.tsx` 只装配平台订阅、套餐、公共 Provider 和项目页面；组织页由账户设置直接装配，不经过运营权限门禁。
+- `operations-panel.tsx` 只装配部署用户、平台订阅、套餐、公共 Provider 和项目页面；组织页由账户设置直接装配，不经过运营权限门禁。
 - `organization-actions.tsx` 负责创建、改名、退出、移交、解散的确认弹窗；未加入组织可创建，已有组织按 organization_role 管理，失败先刷新身份、不自动重放。无远程登录只引导到账户登录，不请求组织/Relay 数据。
 - 组织页的未登录、未加入与已加入状态共用全宽页面外壳和标准 Header；1200px 居中限制只用于正文，空态不得将页头包入正文容器或省略页面留白。
 - 普通成员读取目录并退出；owner/admin 邀请，owner 可移交或解散；移出组织不能通过“恢复”按钮绕过本人接受邀请。
@@ -31,3 +31,5 @@ L3 | 父级: web/src/features/settings
 - 成员角色选择使用 plain 表面并左对齐，与只读角色、列标题保持同一文字基线；邀请记录打开时读取最新数据；成员列表移除常驻刷新，只在读取失败或未知写结果需要核对时显示恢复入口。
 
 项目目录使用连续分组和成员权限行，不套多层卡片；新建项目为紧凑折叠入口，权限说明保留。公共模型服务复用 Provider 目录/详情，删除通过直接图标按钮进入原确认流程。
+
+- `deployment-members-panel.tsx` 是平台 owner/admin 的独立 Web 用户创建和目录页（`section=operations-members`），只消费 `/auth/v1/deployment-members`，不要求组织身份、不自动加入组织。密码仅在提交表单中使用，完成或失败即清除；未知写入禁写，刷新按原唯一用户名核对，未找到不推断失败或自动重试。

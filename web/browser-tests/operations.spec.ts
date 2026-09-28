@@ -8,6 +8,7 @@ const plan = { plan_key: "team", display_name: "Team Research · 团队研究套
 const member = { user_id: "qa-member", deployment_id: "qa", username: "research-team", display_name: "Research and Operations · 研究与运营团队", role: "member", membership_status: "active", created_at: "2026-09-01", updated_at: "2026-09-01" };
 const provider = { id: "qa-provider", provider: "qa-provider", preset_key: "custom", visibility: "public", provider_kind: "llm", api_format: "responses", display_name: "Research Provider · 公共研究模型服务", base_url: "https://api.example.test/v1", models_path: "/models", enabled: true, can_manage: true, configuration_version: 1, auth_token_masked: "sk-***demo", usage_count: 0, used_by_agents: [], last_test_status: "", last_test_error: "", agent_runtime_supported: true, models: [] };
 const reads = new Map<string, unknown>([
+  ["/auth/v1/deployment-members", [member]],
   ["/auth/v1/members", [member, { ...member, user_id: "qa-suspended", username: "suspended", display_name: "Suspended member", membership_status: "revoked" }]],
   ["/auth/v1/organization/invitations", [
     { invitation_id: "qa-pending", role: "member", created_at: "2026-09-01", expires_at: "2099-01-01" },
@@ -20,6 +21,55 @@ const reads = new Map<string, unknown>([
   ["/nexus/v1/settings/provider-presets", [{ preset_key: "custom", provider_kind: "llm", endpoint_mode: "custom", display_name: "Custom", description: "", key_url: "", default_api_format: "responses", formats: [{ api_format: "responses", base_url: "", models_path: "/models" }] }]],
   ["/nexus/v1/settings/preferences", {}],
 ]);
+
+test("deployment owner creates an independent Web user without an organization", async ({ page, context }, info) => {
+  const text = (cn: string, en: string) => info.project.metadata.locale === "zh" ? cn : en;
+  const errors: string[] = [];
+  const writes: Record<string, unknown>[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await context.addInitScript(APP_SHELL_INIT_SCRIPT);
+  await context.routeWebSocket("**/nexus/v1/chat/ws", (socket) => socket.onMessage((raw) => {
+    if (JSON.parse(raw.toString()).type === "ping") socket.send(JSON.stringify({ event_type: "pong" }));
+  }));
+  await context.route("**/*", async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === "/nexus/v1/auth/status") return route.fulfill({ json: { data: {
+      ...(appShellRead("GET", path)!.data as Record<string, unknown>),
+      role: "owner", auth_method: "password", organization_id: "", organization_role: "",
+    } } });
+    if (path === "/auth/v1/deployment-members") {
+      if (request.method() === "GET") return route.fulfill({ json: { data: [] } });
+      const input = request.postDataJSON();
+      writes.push(input);
+      expect(input).toEqual({ username: "lijie", display_name: "Lijie", password: "test-password-123", role: "member" });
+      return route.fulfill({ json: { data: { ...member, ...input, password: undefined, web_access_disabled: false } } });
+    }
+    const value = appShellRead(request.method(), path);
+    if (value) return route.fulfill({ json: value });
+    if (["fetch", "xhr"].includes(request.resourceType()) || request.method() !== "GET") return route.abort();
+    return route.continue();
+  });
+  const params = new URLSearchParams({ section: "operations-members", theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale) });
+  await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/settings?${params}`)}`);
+  const surface = page.locator('[data-operations-page="operations-members"]');
+  await expect(surface).toBeVisible();
+  await surface.locator("summary").click();
+  await surface.getByLabel(new RegExp(`^${text("用户名", "Username")}`)).fill("lijie");
+  await surface.getByLabel(text("显示名称", "Display name"), { exact: true }).fill("Lijie");
+  await surface.getByLabel(new RegExp(`^${text("初始密码", "Initial password")}`)).fill("test-password-123");
+  await surface.getByLabel(new RegExp(`^${text("确认密码", "Confirm password")}`)).fill("test-password-123");
+  await expectContained(surface);
+  await info.attach("deployment-user-create", { body: await page.screenshot({ path: info.outputPath("deployment-user-create.png") }), contentType: "image/png" });
+  const submit = surface.getByRole("button", { name: text("创建用户", "Create user"), exact: true });
+  await submit.focus();
+  await page.keyboard.press("Enter");
+  await expect(surface.getByText("@lijie", { exact: true })).toBeVisible();
+  await expect(surface.getByText(text("可访问 Web", "Web enabled"), { exact: true })).toBeVisible();
+  await expect(surface.getByLabel(new RegExp(`^${text("初始密码", "Initial password")}`))).toHaveValue("");
+  expect(writes).toHaveLength(1);
+  expect(errors).toEqual([]);
+});
 
 async function expectContained(surface: Locator) {
   expect(await surface.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);

@@ -13,7 +13,10 @@ import { getSettingsSectionLabelKey, type OperationsSectionKey } from "../settin
 import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
 
+import { DeploymentMembersPanel } from "./deployment-members-panel";
+
 const CONTENT: Record<OperationsSectionKey, () => ReactNode> = {
+  "operations-members": () => <DeploymentMembersPanel />,
   "operations-subscriptions": () => <SubscriptionAdminPanel view="users" />,
   "operations-plans": () => <SubscriptionAdminPanel view="plans" />,
   "operations-providers": () => <ProviderSettingsPanel layout="section" visibilityScope="public" />,

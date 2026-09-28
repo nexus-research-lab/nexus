@@ -154,7 +154,7 @@ cmd -> app -> handler -> service -> domain/storage
 
 自动审核产品预设为 `permission_mode=auto`，实现边界见 `docs/auto-review.md`。SDK 负责独立模型审核，bridge 协商 auto_review_v1，产品保留人工审批与任务持久恢复。
 
-用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效管理员的主智能体 DM 开放；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。
+用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效平台 owner/admin 的主智能体 DM 开放，无需组织；新账号具有 Web 访问资格且不自动加入任何组织。运营部署用户页与账户组织邀请页分别消费独立端点；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。
 
 个人设置用量由 usage ledger 提供累计汇总与最近 365 个 UTC 自然日的 daily 聚合；前端图表和明细表共用该数据，不增加另一套记账来源。
 
