@@ -22,12 +22,12 @@ import (
 // SetRoomRealtime 在宿主启动时装配 Room 私域收发与权限入口。
 func (s *IngressService) SetRoomRealtime(rooms *roomrealtime.Service) {
 	s.rooms = rooms
-	rooms.SetExternalInputHooks(s.deliverRoomReply, s.roomPermissionHandler)
+	rooms.SetExternalInputHooks(s.deliverRoomReply, s.roomPermissionHandler, s.roomExternalReplyPrompt)
 }
 
 func (r normalizedIngressRequest) permissionSessionKey() string {
 	if r.pairing != nil && r.pairing.TargetRoomID != "" {
-		return protocol.BuildRoomAgentSessionKey(r.pairing.TargetConversationID, r.agentID, protocol.RoomTypeGroup)
+		return protocol.BuildRoomAgentSessionKey(r.pairing.TargetConversationID, r.agentID, r.targetRoomType)
 	}
 	return r.sessionKey
 }
@@ -47,6 +47,9 @@ func (s *IngressService) dispatchRoomIngress(ctx context.Context, r normalizedIn
 	_, err = s.control.db.ExecContext(ctx, "INSERT INTO im_room_inputs (owner_user_id,root_round_id,pairing_id,binding_version,agent_id,room_id,conversation_id,target_json,content) VALUES ("+s.control.bindList(9)+") ON CONFLICT (owner_user_id,root_round_id) DO NOTHING", r.ownerUserID, r.roundID, r.pairing.PairingID, r.pairing.BindingVersion, r.agentID, r.pairing.TargetRoomID, r.pairing.TargetConversationID, string(raw), r.content)
 	if err != nil {
 		return err
+	}
+	if r.targetRoomType == protocol.RoomTypeDM {
+		return s.dispatchDMIngress(ctx, r, r.permissionSessionKey())
 	}
 	_, err = s.rooms.HandleDirectedMessage(ctx, r.pairing.TargetRoomID, r.pairing.TargetConversationID, protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID: r.agentID, CommandID: r.roundID, RootRoundID: r.roundID,
@@ -150,4 +153,16 @@ func (r normalizedIngressRequest) bindingVersion() int64 {
 		return 0
 	}
 	return r.pairing.BindingVersion
+}
+
+// roomExternalReplyPrompt 依据宿主持久来源声明回信责任，不让外部正文决定路由。
+func (s *IngressService) roomExternalReplyPrompt(ctx context.Context, root, agent, session string) (string, error) {
+	route, err := s.roomIngressRoute(ctx, root, agent)
+	if err != nil || route == nil {
+		return "", err
+	}
+	if session != protocol.BuildRoomAgentSessionKey(route.conversationID, agent, protocol.RoomTypeGroup) {
+		return "", nil
+	}
+	return "本轮输入来自已配对的外部用户，正在复用当前群聊话题中你的原有成员会话与上下文。reply_route=none 仅表示不自动发布到群聊公区；宿主会把你本轮的最终回答回传给原外部用户。请直接回答用户，不要为本轮回复调用 list_targets 或 send_message 寻找、重试或替换回传通道，不要使用 <nexus_room_no_reply/> 代替回答。除非用户明确要求公开发布，否则不要把这条私聊或回答发到公区。过程说明与工具输出不会回传。", nil
 }

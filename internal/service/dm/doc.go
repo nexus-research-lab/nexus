@@ -1,4 +1,5 @@
 // Package dm 编排 DM（单 Agent 私聊）会话的写入、运行时轮次与队列/中断/续跑。
+// 持有宿主版本化配对回信目标的本地 DM 可以回传外部渠道，普通本地会话不自动外发。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //

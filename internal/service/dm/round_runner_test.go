@@ -527,3 +527,18 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 		t.Fatalf("应 fallback 记录 assistant usage，实际=%+v", recorder.inputs[0])
 	}
 }
+
+func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
+	dispatcher := &fakeExternalReplyDispatcher{}
+	runner := &roundRunner{service: &Service{replies: dispatcher}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
+	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "原会话的回答"}}})
+	calls := dispatcher.callsSnapshot()
+	if len(calls) != 1 || calls[0].target.PairingID != "pair" || calls[0].target.BindingVersion != 2 {
+		t.Fatalf("reply=%+v", calls)
+	}
+	runner.externalReplyTarget.PairingID = ""
+	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "未绑定"}}})
+	if len(dispatcher.callsSnapshot()) != 1 {
+		t.Fatal("unbound local session forwarded")
+	}
+}

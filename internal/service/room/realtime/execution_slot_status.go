@@ -163,6 +163,9 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 		return err
 	}
 	e.service.broadcastAgentRoundStatus(e.ctx, e.round, e.slot, e.slot.getStatus())
+	if err := e.deliverExternalCompletion(result, lastAssistant); err != nil {
+		e.logger.Warn("外部会话回信失败，保留 Room 原消息", "err", err)
+	}
 	if err := e.persistCompletionOutput(lastAssistant); err != nil {
 		return err
 	}

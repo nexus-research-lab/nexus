@@ -374,6 +374,13 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.setGoalContext(override)
 	}
+	if e.service.externalPrompt != nil {
+		prompt, err := e.service.externalPrompt(e.ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey)
+		if err != nil {
+			return roomRuntimePrompt{}, "", err
+		}
+		dynamicPrompt = appendPromptSection(dynamicPrompt, prompt)
+	}
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
 

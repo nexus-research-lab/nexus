@@ -28,7 +28,7 @@ func (s *ControlService) validatePairingRoom(ctx context.Context, agentID string
 	if err != nil {
 		return err
 	}
-	if value.Room.ID != target.RoomID || value.Room.RoomType != protocol.RoomTypeGroup || !value.Room.PrivateMessagesEnabled {
+	if value.Room.IsContactChannel || value.Room.ID != target.RoomID || (value.Room.RoomType != protocol.RoomTypeDM && (value.Room.RoomType != protocol.RoomTypeGroup || !value.Room.PrivateMessagesEnabled)) {
 		return errors.New("Room 不存在或未开启成员私域消息")
 	}
 	for _, member := range value.Members {

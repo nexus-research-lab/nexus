@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -235,13 +236,18 @@ func (s *IngressService) dispatchIngress(ctx context.Context, request normalized
 			return err
 		}
 	}
+	return s.dispatchDMIngress(ctx, request, request.sessionKey)
+}
+
+// dispatchDMIngress 分离执行会话与外部回信地址；绑定 DM 直接复用原会话。
+func (s *IngressService) dispatchDMIngress(ctx context.Context, request normalizedIngressRequest, sessionKey string) error {
 	ownerCtx := contextWithIngressOwner(ctx, request.ownerUserID)
 	agentValue, err := s.agents.GetAgent(ownerCtx, request.agentID)
 	if err != nil {
 		return err
 	}
 	return s.dm.HandleChat(ownerCtx, dmsvc.Request{
-		SessionKey:                        request.sessionKey,
+		SessionKey:                        sessionKey,
 		AgentID:                           request.agentID,
 		Content:                           request.content,
 		RoundID:                           request.roundID,
@@ -316,10 +322,20 @@ func (s *IngressService) recoverIngress(ctx context.Context, request normalizedI
 			request.rememberedTarget = &route.target
 			request.content = route.content
 			request.pairing = &pairingRow{PairingID: route.target.PairingID, BindingVersion: route.target.BindingVersion, TargetRoomID: route.roomID, TargetConversationID: route.conversationID}
-			if err := s.dispatchRoomIngress(ownerCtx, request); err != nil {
+			target, err := s.control.rooms.GetConversationContext(ownerCtx, route.conversationID)
+			if err != nil {
 				return false, err
 			}
-			return true, s.finishAcceptedIngress(ownerCtx, true, request)
+			request.targetRoomType = target.Room.RoomType
+			if request.targetRoomType == protocol.RoomTypeDM {
+				// DM 未知受理只核验原执行会话，不能再次派发。
+				request.sessionKey = request.permissionSessionKey()
+			} else {
+				if err := s.dispatchRoomIngress(ownerCtx, request); err != nil {
+					return false, err
+				}
+				return true, s.finishAcceptedIngress(ownerCtx, true, request)
+			}
 		}
 	}
 
@@ -335,8 +351,10 @@ func (s *IngressService) recoverIngress(ctx context.Context, request normalizedI
 		if round.RoundID != request.roundID || !round.HasUserMessage {
 			continue
 		}
-		if err := s.control.MarkIngressSessionMaterialized(ownerCtx, request.ownerUserID, request.sessionKey); err != nil {
-			return false, err
+		if request.targetRoomType != protocol.RoomTypeDM {
+			if err := s.control.MarkIngressSessionMaterialized(ownerCtx, request.ownerUserID, request.sessionKey); err != nil {
+				return false, err
+			}
 		}
 		return true, s.finishAcceptedIngress(ownerCtx, true, request)
 	}
