@@ -82,6 +82,8 @@ node scripts/desktop/check-windows-sandbox.mjs --native
 
 2026-09-29 增量基线：SDK `ab02b0f4` 的 nxs（SHA-256 `4cebb059ae34fc70a7b269f32ac17331701daaa0d2560d0be7ded4a0c97448da`）重新通过同一 61 项/888 个必测名称的 host-and-macos-native-baseline。普通桌面 resume 的 transcript metadata/消息恢复现在通过受限 ContextFiles 读取；拒绝或部分读取不回退宿主 IO。
 
+2026-09-29 追加：SDK 原子 transcript/artifact replacement 经 runtime-owned config root 写入范围修正后，重新构建 arm64 nxs（SHA-256 `d8c61795156790200ec5f14b0df76cd4bace259efd1e41df4dea3827c233a374`）。Remote/stdio MCP roundtrip 全部通过，`NEXUS_SANDBOX_TEST_BINARY=<candidate> make check-desktop-sandbox` 通过 host-integration-only 门禁；该证据仍不覆盖 App UI、签名、公证、clean-host 或 release acceptance。
+
 最近一次实际 App 基线仍为 Nexus `259ccda2d`、SDK `5a937a18`，48 项检查/689 个必测名称全部通过。其 HTTP/WebSocket 已验证双向后端切换、两种后端的 Full Access 边界恢复、Room/后台审批、网络本次批准、取消后立即重连和正常退出，见[App 审批与切换](../../testing/evidence/desktop-sandbox/2026-09-28-app-contracts/README.md)。该批修复 macOS workspace 根的 `/var`/`/private/var` 别名误审批，以及旧请求取消导致健康新连接失效；UI 点击证据仍按各次实际来源区分。此前[App 同会话重启](../../testing/evidence/desktop-sandbox/2026-09-28-app-shutdown/README.md)、[重启准入](../../testing/evidence/desktop-sandbox/2026-09-28-restart-admission/README.md)、[stdio 往返](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-stdio/README.md)与[helper](../../testing/evidence/desktop-sandbox/2026-09-28-mcp-helpers/README.md)证据继续保留。以下第三方 Provider 与 App/DMG 历史证据按各自固定来源使用。
 
 2026-09-28 当前 App 补充：Nexus `d92fdb7e9` 与 SDK `b84b7b6c` 的干净 arm64 开发签名 App/DMG、
