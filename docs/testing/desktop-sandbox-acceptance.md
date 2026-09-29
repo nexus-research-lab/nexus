@@ -8,6 +8,12 @@
 
 随后 [已读文件变更检测收口](evidence/desktop-sandbox/2026-09-29-changed-file-sandbox/README.md) 的 SDK `062d93d7` 将 turn 收口时的 mtime/content 检查也接入该执行器；同一基线通过。
 
+2026-09-29 当前复核：Nexus `77c7e2340` 已把随包校验 helper、固定 `app/processes` 宿主根、
+原生进程恢复和资源/策略后续恢复接入默认 macOS App 启动链；SDK `169e5c31` 的 runtime-owned
+原子替换与 Nexus/Bridge 目标测试均通过，三仓统一分支且工作树干净。该复核确认默认装配已
+进入产品路径，但不替代 macOS 14.0 精确终止兼容、完整图形 App 验收、签名/公证、clean-host、
+Intel 或正式发布门禁，`releaseAccepted=false` 继续成立。
+
 计划恢复的 [fail-closed 回归](evidence/desktop-sandbox/2026-09-29-plan-recovery-fail-closed/README.md) 由 SDK `867e788c` 收口：仅明确确认不存在时才独占创建，权限、取消、未知结果和已有文件均不写入；基线仍通过且 `releaseAccepted=false`。
 
 SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-29-rewind-fail-closed/README.md) 明确拒绝受限模式下尚未接入原子 file-executor 的 legacy 多文件回滚，避免绕过策略；Full Access 兼容路径保持不变。

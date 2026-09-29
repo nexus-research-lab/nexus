@@ -105,7 +105,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 
 | 剩余项 | 性质与具体出口 |
 | --- | --- |
-| 完整取消与异常恢复 | 用户级 launchd coalition 的本机原型已覆盖脱离、两次 fork/exec、Seatbelt、错误身份拒绝和独立对照保留，见[接入候选](macos-process-supervision.md)；尚未接入产品，且 macOS 14.0 缺精确 audit-token 信号接口的问题仍需解决。继续实现可部署的后代监督与终态证明，再收口 `cleanup_unknown`、unknown 回执和资源回收。普通 sleep 中断或原型通过都不能代替完整验收；SDK 多文件掉电事务/持久执行回执也未完成 |
+| 完整取消与异常恢复 | 默认 macOS App 已接入随包校验 helper、固定 `app/processes` 根、原生进程恢复及资源/策略后续恢复；原生回收、取消和崩溃后的 durable unknown 栅栏已进入真实启动链。仍需解决 macOS 14.0 缺精确 audit-token 信号接口、旧 sidecar 身份核验和完整图形端到端故障证据；SDK 多文件掉电事务/持久执行回执仍未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；后台内容替换记录读取及前序记忆 IO 已按上方证据收口。可信 MCP 代理、其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
 | 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 HTTP/WebSocket DM 重启、Room 写读/审批、独立后台审批、动态网络批准/取消、双向后端及 nxs/Claude Full Access 切换、共同退出已通过。继续补完整 UI 复验及未覆盖的 Room 绑定后台/AutoDream 等路径，不用后端结果替代窗口操作 |
 | 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
@@ -832,6 +832,15 @@ SDK `db867f87` 将 shell/argv 与两种异步 command hook 纳入当前命令沙
 ### 2026-09-28：默认 App 监督与恢复装配
 
 默认 macOS sidecar 已将迁移前实例锁交给 App，使用随包校验 helper 与固定 `app/processes`，先原生后资源/策略分页恢复，失败不开放服务。关闭等待后才释放监督句柄和数据库。开发模式生成相同 sidecar/helper 布局，不回退 go run。受影响 Go 包、原生 AutoDream App 装配、真实 sidecar 健康/重复实例/篡改拒绝和 Swift 构建通过；XCTest 缺失保留失败，四个 locator 测试主体以独立断言验证。见[证据](../../testing/evidence/desktop-sandbox/2026-09-28-default-supervisor/README.md)。下一步继续真实默认宿主崩溃恢复、旧 sidecar 身份与 macOS 14.0、剩余 SDK 边界及图形 App/发布验收。
+
+### 2026-09-29：默认监督链当前复核
+
+Nexus `77c7e2340`、SDK `169e5c31`、Bridge `c251a8d` 均已推送到统一
+`codex/desktop-sandbox-approvals` 分支，三仓工作树干净。Nexus `internal/runtime` 与
+`internal/app` 目标测试、SDK `internal/session`、`internal/agent/context`、
+`internal/agent/runtime`、`client` 目标测试，以及 Bridge `supervision` 测试全部通过。
+当前链路已经是 App 默认装配和启动前两阶段恢复；本次复核不扩大证据范围，macOS 14.0
+精确终止兼容、完整窗口交互、签名/公证、clean-host、Intel 和正式发布仍保持未验收。
 
 ### 2026-09-28：默认 sidecar 真实崩溃链路
 
