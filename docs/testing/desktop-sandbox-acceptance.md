@@ -18,6 +18,11 @@ Intel 或正式发布门禁，`releaseAccepted=false` 继续成立。
 上述三仓提交重建 arm64 nxs（SHA-256 `d88e520f…190ac`）并通过 host policy、生命周期、
 取消、设置恢复、App 关闭和 MCP round-trip；范围仍为 `host-integration-only`。
 
+同日 [当前真实第三方探针](evidence/desktop-sandbox/2026-09-29-live-provider-current/README.md)
+使用主工作目录 `.env` 的第三方 Anthropic-compatible Provider，nxs 与 Claude 两个后端均
+通过真实 Write/Read/Bash、受保护文件与网络拒绝、sidecar 身份保护及 Interrupt/Close 清理。
+该证据仍不替代图形 App、签名、公证、clean-host、Intel 或正式发布验收。
+
 计划恢复的 [fail-closed 回归](evidence/desktop-sandbox/2026-09-29-plan-recovery-fail-closed/README.md) 由 SDK `867e788c` 收口：仅明确确认不存在时才独占创建，权限、取消、未知结果和已有文件均不写入；基线仍通过且 `releaseAccepted=false`。
 
 SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-29-rewind-fail-closed/README.md) 明确拒绝受限模式下尚未接入原子 file-executor 的 legacy 多文件回滚，避免绕过策略；Full Access 兼容路径保持不变。
