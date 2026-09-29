@@ -6,6 +6,8 @@
 
 2026-09-29 当前收口状态：默认 macOS App 的真实 sidecar 崩溃/重启恢复已通过，脱离宿主的后代进程被回收，持久 process/policy/scratch 记录均完成对账且 `noReplay=true`；见[崩溃恢复证据](../../testing/evidence/desktop-sandbox/2026-09-29-sidecar-crash-recovery/README.md)。受限 fork、read-only resource 和随包 runtime compatibility 也已完成对应门禁。以下历史段落中的“尚未接入”仅保留为当时记录，不覆盖上述当前状态。当前主要未完成项是：其余 SDK 辅助 IO/MCP、秘密/句柄及 Provider 出口边界，macOS 14.0 精确终止兼容，完整图形 App 窗口级 DM/Room/后台验收，以及 Developer ID/公证/clean-host/Intel（如支持）正式发布门禁。
 
+同日 SDK `3891dbdc` 收紧 MCP `headersHelper` 的 checked 与兼容入口：输出大小、条目数、RFC token header 名称及控制字符统一 fail closed；该修复只涉及认证 header 解析，不扩大图形 App 或发布验收范围。
+
 当前开发位置（2026-09-28）：Windows 机器的三个 worktree 位于 `E:\Code\nexus\worktrees\desktop-sandbox\`；macOS 机器继续使用 `/Users/berhand/program/Work/Nexus/worktrees/` 下三个仓库各自的 `desktop-sandbox` worktree。两台机器都使用本地与 origin 的 `codex/desktop-sandbox-approvals`，分平台验证并在推送前合并远端进展。历史“仅本地”限制不适用于本轮；Nexus main 未参与本轮修改。
 
 2026-09-29 追加的 macOS 回归已修正精确 sidecar 信号接口正值错误码处理；同日 task-port 兼容探针返回 `KERN_PROTECTION_FAILURE`，因此不能作为 macOS 14.0 的替代终止路径；固定 sidecar/helper 构建、随包 nxs `check-desktop-runtime`、显式 released/candidate runtime upgrade 四阶段和真实宿主崩溃恢复均有归档证据。该项不改变 macOS 14.0 精确信号 API、图形 App 全链路及签名发布验收仍未完成的状态。
