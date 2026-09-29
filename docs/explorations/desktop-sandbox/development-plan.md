@@ -4,6 +4,8 @@
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
+2026-09-29 当前收口状态：默认 macOS App 的真实 sidecar 崩溃/重启恢复已通过，脱离宿主的后代进程被回收，持久 process/policy/scratch 记录均完成对账且 `noReplay=true`；见[崩溃恢复证据](../../testing/evidence/desktop-sandbox/2026-09-29-sidecar-crash-recovery/README.md)。受限 fork、read-only resource 和随包 runtime compatibility 也已完成对应门禁。以下历史段落中的“尚未接入”仅保留为当时记录，不覆盖上述当前状态。当前主要未完成项是：其余 SDK 辅助 IO/MCP、秘密/句柄及 Provider 出口边界，macOS 14.0 精确终止兼容，完整图形 App 窗口级 DM/Room/后台验收，以及 Developer ID/公证/clean-host/Intel（如支持）正式发布门禁。
+
 当前开发位置（2026-09-28）：Windows 机器的三个 worktree 位于 `E:\Code\nexus\worktrees\desktop-sandbox\`；macOS 机器继续使用 `/Users/berhand/program/Work/Nexus/worktrees/` 下三个仓库各自的 `desktop-sandbox` worktree。两台机器都使用本地与 origin 的 `codex/desktop-sandbox-approvals`，分平台验证并在推送前合并远端进展。历史“仅本地”限制不适用于本轮；Nexus main 未参与本轮修改。
 
 2026-09-29 追加的 macOS 回归已修正精确 sidecar 信号接口正值错误码处理；同日 task-port 兼容探针返回 `KERN_PROTECTION_FAILURE`，因此不能作为 macOS 14.0 的替代终止路径；固定 sidecar/helper 构建、随包 nxs `check-desktop-runtime`、显式 released/candidate runtime upgrade 四阶段和真实宿主崩溃恢复均有归档证据。该项不改变 macOS 14.0 精确信号 API、图形 App 全链路及签名发布验收仍未完成的状态。
@@ -115,7 +117,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 
 | 剩余项 | 性质与具体出口 |
 | --- | --- |
-| 完整取消与异常恢复 | 默认 macOS App 已接入随包校验 helper、固定 `app/processes` 根、原生进程恢复及资源/策略后续恢复；原生回收、取消和崩溃后的 durable unknown 栅栏已进入真实启动链。仍需解决 macOS 14.0 缺精确 audit-token 信号接口、旧 sidecar 身份核验和完整图形端到端故障证据；SDK 多文件掉电事务/持久执行回执仍未完成 |
+| 完整取消与异常恢复 | 默认 macOS App 已接入随包校验 helper、固定 `app/processes` 根、原生进程恢复及资源/策略后续恢复；真实 sidecar 崩溃/重启已验证脱离宿主后代回收、process/policy/scratch 对账和 no-replay。仍需解决 macOS 14.0 缺精确 audit-token 信号接口、完整图形端到端故障证据；SDK 多文件掉电事务/持久执行回执仍未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；后台内容替换记录读取及前序记忆 IO 已按上方证据收口。可信 MCP 代理、其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
 | 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 HTTP/WebSocket DM 重启、Room 写读/审批、独立后台审批、动态网络批准/取消、双向后端及 nxs/Claude Full Access 切换、共同退出已通过。继续补完整 UI 复验及未覆盖的 Room 绑定后台/AutoDream 等路径，不用后端结果替代窗口操作 |
 | 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
