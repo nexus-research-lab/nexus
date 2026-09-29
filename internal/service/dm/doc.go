@@ -1,10 +1,11 @@
 // Package dm 编排 DM（单 Agent 私聊）会话的写入、运行时轮次与队列/中断/续跑。
+// 持有宿主版本化配对回信目标的本地 DM 可以回传外部渠道，普通本地会话不自动外发。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
 //   - im_delivery_reply.go：IM 反馈持久幂等入队、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。
-//   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；/plan 在 runtime 准备阶段覆盖本轮权限。
+//   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；完整回复落盘后写入独立摘要，编辑重发先失效旧摘要；/plan 在 runtime 准备阶段覆盖本轮权限。
 //   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：durable 幂等受理、admission 暂时失败时保留并允许原请求重试恢复、先 ACK 后异步启动与下一轮队列、hook applied ACK 后消费引导、错过 hook 的接力与中断。
 //   - goal_command.go：UI set_goal 与 `/goal` 共用的 Goal 写入、完成态控制 marker、会话 started/title 基础事实；不创建普通模型 round。
 //   - goal_continuation.go / goal_runtime.go / goal_completion_receipt.go：含旧显式 Goal 确定性 reservation 恢复的 exact Goal/revision/Execution 续跑启动 claim、上下文、消费后 revision adoption、live scope create guard、parent terminal ledger、child lifecycle evidence、fenced 结算与最终回复完成收据。
@@ -13,6 +14,7 @@
 //   - quota.go / subagent_task.go / runtime_client.go / runtime_settings_preparation.go：账号额度门禁与 Goal 限制投影、子任务、带 Execution-aware Agent hook 装配，以及 exact 临时 Session 的受限 system prompt / tool policy，
 //     Connector 选择提交后按 Session latest-wins 预备工具面 fork，真实输入仍同步兜底；工具面变化时从旧 transcript 幂等 fork 新物理 Session，并签发 nexuscfg 与 Agent-facing nexus command 的 physical-round capability；active-paired
 //     外部私聊复用同 Agent Skill，provider init/fork 后的 SDK Session identity 动态写回同轮 command context，受控 Automation 执行可覆盖创建时工具快照且 CLI 只读绑定当前 job/run。
+//     Goal continuation 只有在 durable claim 后携带 host-only exact continuation authority，普通 internal round 不得借用该能力。
 //
 // 运行开始、消息、命令回执、附件、结束及 compact 证据共用 orchestration/runtimehook.Observer；Goal 快照转换共用 goal/runtimeusage，子任务证据合并与确认由 Goal 观察值负责。本包保留可信身份、锁、结算屏障和会话编排。
 //

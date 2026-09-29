@@ -12,14 +12,15 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-func (s *Service) modelsForRecord(ctx context.Context, providerID string) ([]ModelRecord, error) {
-	items, err := s.repository.ListModelsByProviderID(ctx, providerID)
+func (s *Service) modelsForRecord(ctx context.Context, provider providerstore.Entity) ([]ModelRecord, error) {
+	items, err := s.repository.ListModelsByProviderID(ctx, provider.ID)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]ModelRecord, 0, len(items))
 	for _, item := range items {
-		result = append(result, toModelRecord(item))
+		record := projectModelRecord(provider, item)
+		result = append(result, record)
 	}
 	return result, nil
 }
@@ -143,7 +144,7 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 		Category:             item.Category,
 		Enabled:              item.Enabled,
 		IsDefault:            item.IsDefault,
-		CapabilitiesAuto:     modelCapabilitiesWithDefaults(modelID, decodeModelCapabilities(item.CapabilitiesAutoJSON)),
+		CapabilitiesAuto:     decodeModelAutoCapabilities(item.CapabilitiesAutoJSON),
 		CapabilitiesOverride: decodeModelCapabilities(item.CapabilitiesOverrideJSON),
 		ContextWindow:        contextWindowOrKnown(modelID, item.ContextWindow),
 		MaxOutputTokens:      maxOutputTokensOrKnown(modelID, item.MaxOutputTokens),
@@ -152,4 +153,16 @@ func toModelRecord(item providerstore.ModelEntity) ModelRecord {
 		CreatedAt:            &createdAt,
 		UpdatedAt:            &updatedAt,
 	}
+}
+
+// projectModelRecord 统一自动能力、有效覆盖与最近探测结果的读取投影。
+func projectModelRecord(provider providerstore.Entity, model providerstore.ModelEntity) ModelRecord {
+	record := toModelRecord(model)
+	guidance := projectModelGuidance(provider, model)
+	record.Guidance = &guidance
+	record.CapabilitiesAuto = guidance.AutomaticCapabilities
+	if probe := currentModelProbe(provider, model); probe != nil {
+		record.CapabilityTests = probe.Attempts
+	}
+	return record
 }

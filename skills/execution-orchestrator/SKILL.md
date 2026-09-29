@@ -32,7 +32,7 @@ Execution 管理当前责任交付；Goal 管理跨轮目标。按需独立选�
 
 `get_execution` 只用 `action=inspect`，省略 `operation/request_id`，不走 invoke。Room 当前负责人自行 inspect 恢复协调权限，成员只获得观察。lane/background 不是界面模式；不要让用户切模式或再发“开始”。
 
-`context_status=refresh_required` 时在本轮重新 inspect；`round_refresh_required` 表示旧 round authority 已失效，立即结束本轮，不再 inspect、改 Plan 或重试 mutation，等待宿主 successor round。
+`context_status=refresh_required` 时 inspect；`round_refresh_required` 结束旧轮。DM/Room 共用 Execution 但 session 独立；DM continuation 仅宿主 claim 后有 exact authority。
 
 ## 按当前动作读取参考
 

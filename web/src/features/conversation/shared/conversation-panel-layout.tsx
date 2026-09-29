@@ -1,14 +1,28 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、可靠性快照、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及承载可靠性状态和活动组件的 Composer 底部工作栈；Goal 复用现有节点锚在 Composer 上缘，正文只按浮层真实高度增加滚动尾部避让。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
-import type { ComponentProps, ReactNode, RefObject } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import type { SessionRoundIndexResource } from "@/hooks/conversation/use-session-round-index";
 import { hasConversationReliabilityNotice } from "@/hooks/agent/reliability/conversation-reliability-model";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME,
+  CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME,
+  CONVERSATION_ACTIVITY_STACK_GAP_PX,
+  CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX,
+  CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME,
+} from "@/shared/ui/workspace/surface/conversation-activity-chip-styles";
 
 import { ConversationReliabilityNotice } from "./conversation-reliability-notice";
 import {
@@ -32,6 +46,9 @@ type ScrollViewportEvents = Pick<
 export type ConversationViewportModel = ScrollViewportEvents & {
   ariaLabel?: string;
   isHistoryLoading: boolean;
+  /** FOLLOW 的唯一状态所有者；浮层占位变化需要在绘制前重新贴底。 */
+  isFollowingLatest?: () => boolean;
+  reconcileFollowLatest?: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -43,7 +60,10 @@ export interface ConversationScrollToLatestModel {
 
 export function ConversationPanelLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent">
+    <div
+      className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-transparent"
+      data-conversation-panel-layout
+    >
       {children}
     </div>
   );
@@ -78,6 +98,102 @@ export function ConversationPanelViewport({
   viewport: ConversationViewportModel;
 }) {
   const { t } = useI18n();
+  const { isFollowingLatest, reconcileFollowLatest, scrollRef } = viewport;
+  const [floatingDockClearance, setFloatingDockClearance] = useState(0);
+  const previousDockClearanceRef = useRef(floatingDockClearance);
+
+  useLayoutEffect(() => {
+    const container = scrollRef.current;
+    const layout = container?.closest<HTMLElement>("[data-conversation-panel-layout]");
+    if (!layout) {
+      setFloatingDockClearance(
+        floatingDockOccupied ? CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX : 0,
+      );
+      return;
+    }
+    const bottomArea = layout.querySelector<HTMLElement>("[data-conversation-bottom-area]");
+
+    let observedGoal: HTMLElement | null = null;
+    let observedDock: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const updateObservedElements = () => {
+      const goal = layout.querySelector<HTMLElement>("[data-conversation-goal-float]");
+      const dock = layout.querySelector<HTMLElement>("[data-conversation-activity-dock]");
+      if (goal === observedGoal && dock === observedDock) {
+        return { goal, dock };
+      }
+      observedGoal = goal;
+      observedDock = dock;
+      resizeObserver?.disconnect();
+      if (goal) {
+        resizeObserver?.observe(goal);
+      }
+      if (dock) {
+        resizeObserver?.observe(dock);
+      }
+      return { goal, dock };
+    };
+
+    const updateClearance = () => {
+      const { goal, dock } = updateObservedElements();
+      const goalHeight = goal
+        ? Math.ceil(goal.getBoundingClientRect().height)
+        : 0;
+      const dockHeight = dock
+        ? Math.ceil(dock.getBoundingClientRect().height)
+        : 0;
+      const goalClearance = goalHeight > 0
+        ? goalHeight + (dockHeight > 0 ? dockHeight + CONVERSATION_ACTIVITY_STACK_GAP_PX : 0)
+        : 0;
+      const nextClearance = goalClearance > 0
+        ? goalClearance
+        : floatingDockOccupied || dockHeight > 0
+          ? Math.max(
+              CONVERSATION_ACTIVITY_STACK_MIN_CLEARANCE_PX,
+              dockHeight + CONVERSATION_ACTIVITY_STACK_GAP_PX,
+            )
+          : 0;
+      setFloatingDockClearance((current) => current === nextClearance ? current : nextClearance);
+    };
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateClearance);
+    }
+    updateClearance();
+
+    const mutationObserver = bottomArea && typeof MutationObserver !== "undefined"
+      ? new MutationObserver(updateClearance)
+      : null;
+    if (mutationObserver && bottomArea) {
+      mutationObserver.observe(bottomArea, { childList: true, subtree: true });
+    }
+
+    if (!resizeObserver && !mutationObserver) {
+      return;
+    }
+
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [floatingDockOccupied, scrollRef]);
+
+  useLayoutEffect(() => {
+    const previousDockClearance = previousDockClearanceRef.current;
+    previousDockClearanceRef.current = floatingDockClearance;
+    if (previousDockClearance === floatingDockClearance) {
+      return;
+    }
+    if (!isFollowingLatest?.()) {
+      return;
+    }
+    // Floating clearance is a sibling of the Feed, so the Feed ResizeObserver
+    // cannot see this change. Keep FOLLOW at the new real bottom before paint;
+    // READING is intentionally left untouched.
+    reconcileFollowLatest?.();
+  }, [floatingDockClearance, isFollowingLatest, reconcileFollowLatest]);
+
   return (
     <div
       data-tour-anchor={tourAnchor}
@@ -109,11 +225,12 @@ export function ConversationPanelViewport({
         </div>
       ) : null}
       {children}
-      {floatingDockOccupied ? (
+      {floatingDockClearance > 0 ? (
         <div
           aria-hidden="true"
           className="h-14"
           data-conversation-dock-clearance
+          style={{ height: `${floatingDockClearance}px` }}
         />
       ) : null}
     </div>
@@ -122,19 +239,29 @@ export function ConversationPanelViewport({
 
 export function ConversationPanelFloatingControls({
   activity,
+  anchor = "stack",
   isMobileLayout,
   scrollToLatest,
 }: {
+  anchor?: "goal" | "stack";
   activity?: ReactNode;
   isMobileLayout: boolean;
   scrollToLatest: ConversationScrollToLatestModel;
 }) {
+  if (!activity && !scrollToLatest.visible) {
+    return null;
+  }
+  const anchoredToGoal = anchor === "goal";
   return (
     <div
       className={
-        isMobileLayout
-          ? "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-4"
-          : "pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] -translate-y-[calc(100%+0.5rem)] items-center justify-center px-3 sm:px-5 xl:px-6"
+        anchoredToGoal
+          ? isMobileLayout
+            ? `pointer-events-none absolute inset-x-0 bottom-full z-30 mx-auto ${CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME} flex min-h-11 w-full max-w-[720px] items-center justify-center px-4`
+            : `pointer-events-none absolute inset-x-0 bottom-full z-30 mx-auto ${CONVERSATION_ACTIVITY_STACK_GAP_CLASS_NAME} flex min-h-11 w-full max-w-[880px] items-center justify-center px-3 sm:px-5 xl:px-6`
+          : isMobileLayout
+            ? `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[720px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-4`
+            : `pointer-events-none absolute inset-x-0 top-0 z-30 mx-auto flex min-h-11 w-full max-w-[880px] ${CONVERSATION_ACTIVITY_STACK_OFFSET_CLASS_NAME} items-center justify-center px-3 sm:px-5 xl:px-6`
       }
       data-conversation-activity-dock
     >
@@ -197,6 +324,11 @@ export function ConversationPanelBottomArea({
   const providerStatusVisible = !conversationStatusVisible
     && !roundIndexStatusVisible
     && providerWarningVisible;
+  const visibleGoal = !conversationStatusVisible
+    && !roundIndexStatusVisible
+    && !providerStatusVisible
+    ? goal
+    : null;
   return (
     <div
       className="relative z-10 shrink-0"
@@ -206,11 +338,13 @@ export function ConversationPanelBottomArea({
         className="relative"
         data-conversation-bottom-stack
       >
-        <ConversationPanelFloatingControls
-          activity={activity}
-          isMobileLayout={isMobileLayout}
-          scrollToLatest={scrollToLatest}
-        />
+        {visibleGoal ? null : (
+          <ConversationPanelFloatingControls
+            activity={activity}
+            isMobileLayout={isMobileLayout}
+            scrollToLatest={scrollToLatest}
+          />
+        )}
         <div data-conversation-status-stack>
           {conversationStatusVisible ? (
             <ConversationReliabilityNotice
@@ -241,9 +375,30 @@ export function ConversationPanelBottomArea({
             </div>
           ) : providerStatusVisible ? (
             <ProviderUnavailableBanner compact={isMobileLayout} />
-          ) : goal}
+          ) : null}
         </div>
-        <div data-conversation-composer-anchor>
+        <div
+          className="relative"
+          data-conversation-composer-anchor
+        >
+          {visibleGoal ? (
+            <div
+              className={`pointer-events-none absolute inset-x-0 bottom-full z-20 ${CONVERSATION_ACTIVITY_STACK_CLEARANCE_CLASS_NAME}`}
+              data-conversation-goal-float
+            >
+              <div className="relative">
+                <div className="pointer-events-auto">
+                  {visibleGoal}
+                </div>
+                <ConversationPanelFloatingControls
+                  activity={activity}
+                  anchor="goal"
+                  isMobileLayout={isMobileLayout}
+                  scrollToLatest={scrollToLatest}
+                />
+              </div>
+            </div>
+          ) : null}
           {children}
         </div>
       </div>

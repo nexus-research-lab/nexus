@@ -45,7 +45,6 @@ type roomChatExecution struct {
 	targetAgentIDs     []string
 	targetResolution   string
 	deliveryPolicy     protocol.ChatDeliveryPolicy
-	history            []protocol.Message
 	userMessage        protocol.Message
 }
 
@@ -231,7 +230,8 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	if err != nil {
 		return nil, err
 	}
-	request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(request.Content, request.Internal, request.PermissionMode)
+	// Relay 是显式用户输入；/plan 同样只能收紧本轮权限，不继承远端的宿主设置。
+	request.PermissionMode = slashcommandsvc.PlanRequestPermissionMode(request.Content, request.Internal && request.ExecutionOrigin != "relay", request.PermissionMode)
 	ensureRoomChatIDs(&request)
 	recordStage := s.roomChatStageRecorder(ctx, request, "context")
 	defer func() { recordStage("", err) }()
@@ -339,11 +339,6 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 		targetAgentIDs,
 		targetResolution,
 	)
-	recordStage("history", nil)
-	history, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
-	if err != nil {
-		return nil, err
-	}
 
 	userMessage := newRoomUserMessage(request, sessionKey, roomID, conversationID, attachments, targetAgentIDs, deliveryPolicy)
 	annotateRoomUserMessage(contextValue, userMessage)
@@ -363,7 +358,6 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 		targetAgentIDs:     targetAgentIDs,
 		targetResolution:   targetResolution,
 		deliveryPolicy:     deliveryPolicy,
-		history:            history,
 		userMessage:        userMessage,
 	}, nil
 }
@@ -516,7 +510,6 @@ func (e *roomChatExecution) persistInput() error {
 				return err
 			}
 		}
-		e.history = append(e.history, e.userMessage)
 		realtimeUserMessage := protocol.Clone(e.userMessage)
 		if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
 			// client_message_id 只用于当前连接把 durable 广播原子替换到 optimistic
@@ -759,6 +752,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		Content:     strings.TrimSpace(e.runtimeTriggerText),
 		MessageID:   e.request.UserMessageID,
 	}
+	initialTrigger = initialTrigger.WithPublicSource(e.request.PublicContext)
 	activeRound := &activeRoomRound{
 		SessionKey:                        e.sessionKey,
 		RoomID:                            e.roomID,
@@ -773,6 +767,8 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		AuthorityEpoch:                    e.contextValue.Room.AuthorityEpoch,
 		TrustedConfigurationContext:       e.request.TrustedConfigurationContext,
 		ExecutionOrigin:                   strings.TrimSpace(e.request.ExecutionOrigin),
+		PublicContext:                     e.request.PublicContext,
+		PublicAgentDirectory:              e.request.PublicAgentDirectory,
 		trustedQueuedConfigurationContext: e.request.trustedQueuedConfigurationContext,
 		InputOptions:                      e.request.InputOptions,
 		PermissionMode:                    e.request.PermissionMode,
@@ -926,7 +922,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 		e.broadcastAck(pending, true)
 	}
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
-	go e.service.runRound(roundCtx, activeRound, e.history, e.agentNameByID, e.agentByID)
+	go e.service.runRound(roundCtx, activeRound, nil, e.agentNameByID, e.agentByID)
 	return nil
 }
 

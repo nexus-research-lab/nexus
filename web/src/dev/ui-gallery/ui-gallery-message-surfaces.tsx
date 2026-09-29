@@ -50,6 +50,11 @@ export function MessageSurfacesGallery() {
       </div>
       <output className={getUiTypographyClassName({ role: "caption", tone: "soft" })} data-gallery-message-commands>{JSON.stringify(commands)}</output>
       <MessageReadingGallery />
+      <div data-gallery-human-messages className="min-w-0 space-y-4">
+        <MessageUserSection compact={false} message={{...MESSAGE, content: "My message"}} />
+        <MessageUserSection compact={false} alignment="left" author={{name: "Other person"}}
+          message={{...MESSAGE, message_id: "other", content: "Their message"}} />
+      </div>
     </section>
   );
 }

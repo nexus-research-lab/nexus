@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
@@ -127,4 +128,68 @@ func (c *Client) membershipMutation(
 	var result relaycontract.RoomMembershipMutation
 	err = c.do(ctx, method, "/rooms/"+url.PathEscape(roomID)+suffix, nil, token, key, input, &result)
 	return result, err
+}
+
+// MarkRead 推进当前真人的阅读水位，幂等性由 Relay 的单调更新保证。
+func (c *Client) MarkRead(ctx context.Context, token, roomID string, input relaycontract.MarkReadInput) (relaycontract.ReadState, error) {
+	roomID, err := requireResourceID(roomID, "room_id")
+	if err != nil {
+		return relaycontract.ReadState{}, err
+	}
+	var result relaycontract.ReadState
+	err = c.do(ctx, http.MethodPut, "/rooms/"+url.PathEscape(roomID)+"/read-state", nil, token, "", input, &result)
+	return result, err
+}
+
+// RoomDeliveryStatuses 仅查询调用方已加载消息的公开投递状态。
+func (c *Client) RoomDeliveryStatuses(ctx context.Context, token, roomID string, messageIDs []string) ([]relaycontract.DeliveryStatus, error) {
+	roomID, err := requireResourceID(roomID, "room_id")
+	if err != nil {
+		return nil, err
+	}
+	if len(messageIDs) == 0 || len(messageIDs) > 100 {
+		return nil, errors.New("投递查询需提供 1 至 100 条消息")
+	}
+	query := url.Values{}
+	for _, id := range messageIDs {
+		id, err := requireResourceID(id, "message_id")
+		if err != nil {
+			return nil, err
+		}
+		query.Add("message_id", id)
+	}
+	var result []relaycontract.DeliveryStatus
+	err = c.do(ctx, http.MethodGet, "/rooms/"+url.PathEscape(roomID)+"/deliveries", query, token, "", nil, &result)
+	return result, err
+}
+
+func (c *Client) RoomMembers(ctx context.Context, token, roomID, cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error) {
+	roomID, err := requireResourceID(roomID, "room_id")
+	if err != nil {
+		return relaycontract.RoomMemberPage{}, err
+	}
+	query := url.Values{"after": {cursor}, "stream_epoch": {epoch}, "membership_version": {strconv.FormatInt(version, 10)}}
+	var result relaycontract.RoomMemberPage
+	err = c.do(ctx, http.MethodGet, "/rooms/"+url.PathEscape(roomID)+"/members", query, token, "", nil, &result)
+	return result, err
+}
+
+// GetRoomWithMembers 为本机执行映射读取完整成员集合，每页仍携带版本与世代栅栏。
+func (c *Client) GetRoomWithMembers(ctx context.Context, token, roomID string) (relaycontract.RoomDetails, error) {
+	result, err := c.GetRoom(ctx, token, roomID)
+	if err != nil {
+		return result, err
+	}
+	for result.NextMemberCursor != "" {
+		page, err := c.RoomMembers(ctx, token, roomID, result.NextMemberCursor, result.Conversation.StreamEpoch, result.Room.MembershipVersion)
+		if err != nil {
+			return relaycontract.RoomDetails{}, err
+		}
+		if page.NextCursor == result.NextMemberCursor {
+			return relaycontract.RoomDetails{}, errors.New("成员分页游标未推进")
+		}
+		result.Members = append(result.Members, page.Members...)
+		result.NextMemberCursor = page.NextCursor
+	}
+	return result, nil
 }

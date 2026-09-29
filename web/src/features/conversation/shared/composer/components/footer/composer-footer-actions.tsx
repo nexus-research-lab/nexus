@@ -112,8 +112,6 @@ export function ComposerFooterActions({
     controller: sessionSettingsController,
     disabled: sessionSettingsDisabled,
     labels: {
-      enable: t("composer.connector_enable"),
-      enabled: t("composer.connector_enabled"),
       loading: t("composer.connectors_loading"),
     },
   });
@@ -154,7 +152,7 @@ function buildConnectorItems({
 }: {
   controller: ComposerSessionSettingsController;
   disabled: boolean;
-  labels: Record<"enable" | "enabled" | "loading", string>;
+  labels: Pick<Record<"enable" | "enabled" | "loading", string>, "loading">;
 }): UiActionMenuItem[] {
   if (controller.connectorsLoading && controller.connectors.length === 0) {
     return [{
@@ -174,7 +172,6 @@ function buildConnectorItems({
     );
     return {
       active,
-      description: active ? labels.enabled : labels.enable,
       disabled: disabled
         || controller.busy
         || controller.connectorsLoading

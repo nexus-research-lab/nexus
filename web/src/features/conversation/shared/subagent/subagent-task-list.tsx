@@ -353,6 +353,7 @@ export function SubagentTaskAvatar({
 }) {
   return (
     <UiSeededAvatar
+      variant="humation"
       className={cn(
         "mt-0.5",
         className,

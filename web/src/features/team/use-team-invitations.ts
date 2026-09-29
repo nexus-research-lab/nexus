@@ -20,9 +20,9 @@ import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
 import { useTeamRefresh } from "./use-team-refresh";
 import { isTeamCommandUnapplied } from "./team-command-outcome";
 
-export function useTeamInvitations(onAccepted: () => void) {
+export function useTeamInvitations(onAccepted: () => void, available = true) {
   const { status } = useAuth();
-  const enabled = hasOrganizationAccess(status);
+  const enabled = available && hasOrganizationAccess(status);
   const generation = useSyncExternalStore(
     subscribeAuthOwnerScopeGeneration,
     captureAuthOwnerScopeGeneration,

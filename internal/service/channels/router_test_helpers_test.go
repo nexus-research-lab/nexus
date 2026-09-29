@@ -213,6 +213,7 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    route_id VARCHAR(64) NOT NULL PRIMARY KEY,
 	    agent_id VARCHAR(64) NOT NULL,
 	    session_key VARCHAR(512) NOT NULL DEFAULT '',
+	    target_session_key VARCHAR(512) NOT NULL DEFAULT '',
 	    mode VARCHAR(32) NOT NULL,
 	    channel VARCHAR(64),
 	    "to" VARCHAR(255),
@@ -250,6 +251,9 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    PRIMARY KEY (owner_user_id, channel_type, account_id)
 	);
 	CREATE TABLE im_pairings (
+ target_room_id TEXT NOT NULL DEFAULT '',
+ target_conversation_id TEXT NOT NULL DEFAULT '',
+ binding_version BIGINT NOT NULL DEFAULT 1,
 	    pairing_id VARCHAR(64) NOT NULL PRIMARY KEY,
 		    owner_user_id VARCHAR(64) NOT NULL,
 		    channel_type VARCHAR(32) NOT NULL,
@@ -261,15 +265,34 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 	    agent_id VARCHAR(64) NOT NULL,
 	    status VARCHAR(32) NOT NULL DEFAULT 'pending',
 	    source VARCHAR(32) NOT NULL DEFAULT 'manual',
+	    session_key VARCHAR(512) NOT NULL DEFAULT '',
+	    session_materialized BOOLEAN NOT NULL DEFAULT FALSE,
 	    last_message_at DATETIME,
 	    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
 		    UNIQUE (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id)
-		);`
+	);`
 	if _, err = db.Exec(schema); err != nil {
 		t.Fatalf("初始化 delivery schema 失败: %v", err)
 	}
-	if _, err = db.Exec(`CREATE TABLE im_ingress_messages(owner_user_id TEXT NOT NULL,channel_type TEXT NOT NULL,account_id TEXT NOT NULL DEFAULT '',req_id TEXT NOT NULL,agent_id TEXT NOT NULL,session_key TEXT NOT NULL,round_id TEXT NOT NULL,status TEXT NOT NULL,error_message TEXT,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,completed_at DATETIME,PRIMARY KEY(owner_user_id,channel_type,account_id,req_id))`); err != nil {
+	if _, err = db.Exec(`CREATE TABLE im_pairing_sessions (
+    owner_user_id TEXT NOT NULL,
+    pairing_id TEXT NOT NULL,
+    channel_type TEXT NOT NULL,
+    account_id TEXT NOT NULL DEFAULT '',
+    chat_type TEXT NOT NULL,
+    external_ref TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
+    session_key TEXT NOT NULL,
+    session_materialized BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id),
+    UNIQUE (owner_user_id, session_key)
+)`); err != nil {
+		t.Fatalf("初始化 pairing session schema 失败: %v", err)
+	}
+	if _, err = db.Exec(`CREATE TABLE im_ingress_messages(owner_user_id TEXT NOT NULL,channel_type TEXT NOT NULL,account_id TEXT NOT NULL DEFAULT '',req_id TEXT NOT NULL,agent_id TEXT NOT NULL,session_key TEXT NOT NULL,round_id TEXT NOT NULL,dispatch_phase TEXT NOT NULL DEFAULT 'dispatching',payload_hash TEXT NOT NULL DEFAULT '',binding_version BIGINT NOT NULL DEFAULT 0,status TEXT NOT NULL,error_message TEXT,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,completed_at DATETIME,PRIMARY KEY(owner_user_id,channel_type,account_id,req_id))`); err != nil {
 		t.Fatal(err)
 	}
 	migration, readErr := os.ReadFile("../../../db/migrations/sqlite/00141_im_delivery_replies.sql")

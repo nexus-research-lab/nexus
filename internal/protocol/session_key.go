@@ -57,6 +57,7 @@ const (
 	roomSharedChatType = "group"
 	topicSegment       = "topic"
 	accountSegment     = "acct"
+	generationSegment  = "gen"
 )
 
 // SessionKey 表示结构化会话键。
@@ -71,6 +72,7 @@ type SessionKey struct {
 	AccountID      string         `json:"account_id,omitempty"`
 	Ref            string         `json:"ref,omitempty"`
 	ThreadID       string         `json:"thread_id,omitempty"`
+	Generation     string         `json:"generation,omitempty"`
 	ConversationID string         `json:"conversation_id,omitempty"`
 	RoomRef        string         `json:"room_ref,omitempty"`
 }
@@ -87,19 +89,27 @@ func (e StructuredSessionKeyError) Error() string {
 	return e.Message
 }
 
-func findTopicIndex(parts []string, minIndex int) int {
+func findSegmentIndex(parts []string, segment string, minIndex int) int {
 	for index, value := range parts {
-		if value == topicSegment && index >= minIndex {
+		if value == segment && index >= minIndex {
 			return index
 		}
 	}
 	return -1
 }
 
+func findTopicIndex(parts []string, minIndex int) int {
+	return findSegmentIndex(parts, topicSegment, minIndex)
+}
+
+func findGenerationIndex(parts []string, minIndex int) int {
+	return findSegmentIndex(parts, generationSegment, minIndex)
+}
+
 func splitAgentRefParts(parts []string) (string, int, string) {
 	if len(parts) > 4 && parts[4] == accountSegment {
 		if len(parts) < 7 {
-			return "", 0, "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]"
+			return "", 0, "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>][:gen:<generation>]"
 		}
 		accountID := strings.TrimSpace(parts[5])
 		if accountID == "" {
@@ -111,7 +121,7 @@ func splitAgentRefParts(parts []string) (string, int, string) {
 }
 
 func agentSessionKeyShapeError() string {
-	return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]"
+	return "session_key must match agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>][:gen:<generation>]"
 }
 
 // GetSessionKeyValidationError 返回结构化 session_key 校验错误。
@@ -142,15 +152,31 @@ func validateAgentSessionKey(sessionKey string) string {
 		return splitErr
 	}
 	topicIndex := findTopicIndex(parts, refStart)
+	generationIndex := findGenerationIndex(parts, refStart)
+	if topicIndex >= 0 && generationIndex >= 0 && generationIndex < topicIndex {
+		return agentSessionKeyShapeError()
+	}
+	refEnd := len(parts)
+	if topicIndex >= 0 {
+		refEnd = topicIndex
+	}
+	if generationIndex >= 0 && generationIndex < refEnd {
+		refEnd = generationIndex
+	}
+	if strings.TrimSpace(strings.Join(parts[refStart:refEnd], ":")) == "" {
+		return agentSessionKeyShapeError()
+	}
+	if generationIndex >= 0 && strings.TrimSpace(strings.Join(parts[generationIndex+1:], ":")) == "" {
+		return agentSessionKeyShapeError()
+	}
 	if topicIndex < 0 {
-		if strings.TrimSpace(strings.Join(parts[refStart:], ":")) == "" {
-			return agentSessionKeyShapeError()
-		}
 		return ""
 	}
-	ref := strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
-	threadID := strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
-	if ref == "" || threadID == "" {
+	threadEnd := len(parts)
+	if generationIndex > topicIndex {
+		threadEnd = generationIndex
+	}
+	if strings.TrimSpace(strings.Join(parts[topicIndex+1:threadEnd], ":")) == "" {
 		return agentSessionKeyShapeError()
 	}
 	return ""
@@ -205,14 +231,26 @@ func ParseSessionKey(raw string) SessionKey {
 		}
 		result.AccountID = accountID
 		topicIndex := findTopicIndex(parts, refStart)
+		generationIndex := findGenerationIndex(parts, refStart)
+		refEnd := len(parts)
 		if topicIndex >= 0 {
-			result.Ref = strings.TrimSpace(strings.Join(parts[refStart:topicIndex], ":"))
-			result.ThreadID = strings.TrimSpace(strings.Join(parts[topicIndex+1:], ":"))
-			return result
+			refEnd = topicIndex
 		}
-
+		if generationIndex >= 0 && generationIndex < refEnd {
+			refEnd = generationIndex
+		}
 		if len(parts) > refStart {
-			result.Ref = strings.TrimSpace(strings.Join(parts[refStart:], ":"))
+			result.Ref = strings.TrimSpace(strings.Join(parts[refStart:refEnd], ":"))
+		}
+		if topicIndex >= 0 {
+			threadEnd := len(parts)
+			if generationIndex > topicIndex {
+				threadEnd = generationIndex
+			}
+			result.ThreadID = strings.TrimSpace(strings.Join(parts[topicIndex+1:threadEnd], ":"))
+		}
+		if generationIndex >= 0 {
+			result.Generation = strings.TrimSpace(strings.Join(parts[generationIndex+1:], ":"))
 		}
 		return result
 	}
@@ -247,9 +285,16 @@ func BuildAgentSessionKey(agentID string, channel string, chatType string, ref s
 
 // BuildAgentAccountSessionKey 构建带外部通道账号作用域的 agent key。
 func BuildAgentAccountSessionKey(agentID string, channel string, chatType string, accountID string, ref string, threadID string) string {
+	return BuildAgentAccountSessionKeyWithGeneration(agentID, channel, chatType, accountID, ref, threadID, "")
+}
+
+// BuildAgentAccountSessionKeyWithGeneration 构建带持久化会话代次的外部 Agent key。
+// generation 不参与外部平台路由，只用于在旧 Session 删除后隔离新的运行时身份。
+func BuildAgentAccountSessionKeyWithGeneration(agentID string, channel string, chatType string, accountID string, ref string, threadID string, generation string) string {
 	accountID = strings.TrimSpace(accountID)
 	ref = strings.TrimSpace(ref)
 	threadID = strings.TrimSpace(threadID)
+	generation = strings.TrimSpace(generation)
 	base := fmt.Sprintf(
 		"agent:%s:%s:%s:%s",
 		strings.TrimSpace(agentID),
@@ -268,10 +313,13 @@ func BuildAgentAccountSessionKey(agentID string, channel string, chatType string
 			ref,
 		)
 	}
-	if threadID == "" {
-		return base
+	if threadID != "" {
+		base += ":" + topicSegment + ":" + threadID
 	}
-	return base + ":" + topicSegment + ":" + threadID
+	if generation != "" {
+		base += ":" + generationSegment + ":" + generation
+	}
+	return base
 }
 
 // BuildRoomSharedSessionKey 构建共享 Room 流 key。

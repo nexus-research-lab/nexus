@@ -310,9 +310,56 @@ func trustedCommandActor(ctx context.Context, agent *protocol.Agent, actor comma
 			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
 			protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelWebSocket &&
 			protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelInternalSegment
+	case runtimectx.SourceContextGoalContinuation:
+		return trustedGoalContinuationCommandActor(actor)
 	default:
 		return false
 	}
+}
+
+func trustedGoalContinuationCommandActor(actor command.Actor) bool {
+	authority := actor.Round.CommandContext.GoalContinuationAuthority
+	if authority == nil || !authority.Valid() {
+		return false
+	}
+	normalized := cloneGoalContinuationAuthorityForActor(authority)
+	parsed := protocol.ParseSessionKey(actor.SessionKey)
+	if actor.SessionKey != actor.LeaseSessionKey ||
+		actor.SourceContextID != actor.AgentID ||
+		!parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent ||
+		parsed.Channel != protocol.SessionChannelWebSocketSegment ||
+		parsed.ChatType != protocol.RoomTypeDM ||
+		strings.TrimSpace(parsed.AgentID) != actor.AgentID {
+		return false
+	}
+	if normalized.OwnerUserID != strings.TrimSpace(actor.OwnerUserID) ||
+		normalized.AgentID != strings.TrimSpace(actor.AgentID) ||
+		normalized.ScopeSessionKey != strings.TrimSpace(actor.SessionKey) ||
+		normalized.RootRoundID != strings.TrimSpace(actor.RoundID) ||
+		normalized.RootRoundID != strings.TrimSpace(actor.LeaseRoundID) {
+		return false
+	}
+	goal, goalOK := actor.Round.CommandContext.GoalAuthority.Load()
+	responsibility := actor.Round.CommandContext.ResponsibilityAuthority
+	if !goalOK || responsibility == nil {
+		return false
+	}
+	current, responsibilityOK := responsibility.Load()
+	return responsibilityOK && goal.GoalID == normalized.GoalID &&
+		goal.ObjectiveRevision == normalized.ObjectiveRevision &&
+		goal.ExecutionID == normalized.ExecutionID &&
+		current.GoalID == normalized.GoalID &&
+		current.ObjectiveRevision == normalized.ObjectiveRevision &&
+		current.ExecutionID == normalized.ExecutionID
+}
+
+func cloneGoalContinuationAuthorityForActor(
+	authority *runtimectx.GoalContinuationAuthority,
+) runtimectx.GoalContinuationAuthority {
+	if authority == nil {
+		return runtimectx.GoalContinuationAuthority{}
+	}
+	return authority.Normalized()
 }
 
 func trustedMainCommandActor(actor command.Actor) bool {
@@ -536,6 +583,10 @@ func HandleExecutionCommand(
 		}
 	}
 	if svc == nil {
+		if roundContext.SourceContextType == runtimectx.SourceContextGoalContinuation ||
+			roundContext.GoalContinuationAuthority != nil {
+			return nil, errors.New("DM Goal continuation requires the Execution command service")
+		}
 		if len(authoringOperations) > 0 {
 			return command.HandleSemantic(
 				ctx, actor, command.DomainExecution, "", authoringOperations, request,
@@ -550,6 +601,10 @@ func HandleExecutionCommand(
 	roundContext.ResponsibilityAuthority = actor.GoalResponsibilityState
 	sctx, ok := appexecution.ResolveCommandContext(ctx, svc, roundContext)
 	if !ok {
+		if roundContext.SourceContextType == runtimectx.SourceContextGoalContinuation ||
+			roundContext.GoalContinuationAuthority != nil {
+			return nil, errors.New("DM Goal continuation has no valid exact Execution command identity")
+		}
 		if len(authoringOperations) > 0 {
 			return command.HandleSemantic(
 				ctx, actor, command.DomainExecution, "", authoringOperations, request,

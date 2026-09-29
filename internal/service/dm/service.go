@@ -6,14 +6,17 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -25,11 +28,8 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
 var (
@@ -142,6 +142,10 @@ type Request struct {
 	// continuation receipt after exact runtime registration and before the
 	// provider receives a query.
 	continuationStartAdmission func(context.Context) error
+	// goalContinuationAuthority is host-only. It is populated only after the
+	// Goal service has validated and claimed the exact continuation plan; an
+	// ordinary Internal request must remain agent_internal and fail closed.
+	goalContinuationAuthority *runtimectx.GoalContinuationAuthority
 }
 
 // DeferredAssistantCandidate 是后台 round 提交前的最终 assistant 快照。
@@ -288,6 +292,8 @@ type ConnectorRuntimeStateLoader func(context.Context, string) ([]ConnectorRunti
 
 // ExternalReplyTarget 是 DM 完成后回送外部 IM 通道的最小目标描述。
 type ExternalReplyTarget struct {
+	PairingID      string
+	BindingVersion int64
 	Mode           string
 	Channel        string
 	To             string
@@ -496,4 +502,9 @@ func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string)
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
 	return logx.Resolve(ctx, s.logger)
+}
+
+// SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
+func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.history.SetReplyPreviewRepository(repository)
 }

@@ -22,8 +22,51 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
+
+// HandleCancelDelivery 由 Relay 核验发起人与领取状态，不在浏览器推断写权限。
+func (h *Handlers) HandleCancelDelivery(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if !h.requireMutationOrigin(w, r) {
+		return
+	}
+	roomID, id := chi.URLParam(r, "room_id"), chi.URLParam(r, "delivery_id")
+	if !validResourceID(roomID) || !validResourceID(id) {
+		h.api.WriteFailure(w, http.StatusBadRequest, "投递身份无效")
+		return
+	}
+	token, ok := h.exchangeToken(w, r, false)
+	if !ok {
+		return
+	}
+	client, ok := h.relay.(interface {
+		CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error)
+	})
+	if !ok {
+		h.api.WriteFailure(w, http.StatusServiceUnavailable, "投递服务不可用")
+		return
+	}
+	result, err := client.CancelPendingDelivery(r.Context(), token, roomID, id)
+	if err != nil {
+		h.api.WriteFailure(w, http.StatusConflict, "取消未确认，请刷新状态后重试")
+		return
+	}
+	h.api.WriteSuccess(w, result)
+}
+
+// HandleCommands 只发布跨节点可分发的产品提示命令，不暴露宿主管理与私人 Skill 目录。
+func (h *Handlers) HandleCommands(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if _, ok := h.exchangeToken(w, r, false); !ok {
+		return
+	}
+	h.api.WriteSuccess(w, protocol.CommandCatalogData{Status: protocol.CommandCatalogStatusReady, Commands: []protocol.CommandDescriptor{
+		slashcommandsvc.PlanCommandDescriptor(), slashcommandsvc.BrowserCommandDescriptor(),
+		slashcommandsvc.VisualizeCommandDescriptor(), slashcommandsvc.WorkGraphCommandDescriptor(),
+	}})
+}
 
 const (
 	// 64 KiB 正文在 JSON Unicode 转义的最坏情况下约为 384 KiB。
@@ -92,12 +135,51 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	}
 	defer connection.CloseNow()
 	connection.SetReadLimit(1024)
-	ctx := connection.CloseRead(request.Context())
-	err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {
-		writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithCancel(request.Context())
+	defer cancel()
+	// 复用普通聊天的浏览器 ping/pong；不接受业务命令或客户端身份。
+	go func() {
 		defer cancel()
-		return wsjson.Write(writeCtx, connection, update)
-	})
+		for {
+			var message struct {
+				Type string `json:"type"`
+			}
+			if err := wsjson.Read(ctx, connection, &message); err != nil {
+				return
+			}
+			if message.Type != "ping" {
+				_ = connection.Close(websocket.StatusPolicyViolation, "unsupported stream message")
+				return
+			}
+			writeCtx, stop := context.WithTimeout(ctx, 10*time.Second)
+			err := wsjson.Write(writeCtx, connection, protocol.NewPongEvent(""))
+			stop()
+			if err != nil {
+				return
+			}
+		}
+	}()
+	for {
+		started := time.Now()
+		err = h.relay.Watch(ctx, token, streamID, streamEpoch, func(update relaycontract.StreamUpdated) error {
+			writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			return wsjson.Write(writeCtx, connection, update)
+		})
+		var closed websocket.CloseError
+		if ctx.Err() != nil || !errors.As(err, &closed) || closed.Code != websocket.StatusPolicyViolation || closed.Reason != "principal expired" {
+			break
+		}
+		// 仅正常到期可重新换取短令牌；撤销、越权与身份服务异常仍关闭连接。
+		if time.Since(started) < time.Second {
+			break
+		}
+		token, err = h.tokens.ExchangeRelayUserToken(ctx, authsvc.PrincipalFromContext(request.Context()))
+		if err != nil {
+			break
+		}
+		h.api.BaseLogger().Debug("Team WSS 凭证已刷新，重新订阅", "stream_id", streamID)
+	}
 	if ctx.Err() != nil {
 		return
 	}
@@ -153,8 +235,12 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
+	memberIDs := append([]string(nil), input.MemberUserIDs...)
+	if input.DirectUserID != "" {
+		memberIDs = append(memberIDs, input.DirectUserID)
+	}
 	if err := h.tokens.VerifyOrganizationMembers(
-		request.Context(), authsvc.PrincipalFromContext(request.Context()), input.MemberUserIDs,
+		request.Context(), authsvc.PrincipalFromContext(request.Context()), memberIDs,
 	); err != nil {
 		if errors.Is(err, authsvc.ErrOrganizationMemberInvalid) {
 			h.api.WriteError(writer, request, http.StatusForbidden, handlershared.FailureSpec{
@@ -605,4 +691,35 @@ func validIdempotencyKey(value string) bool {
 		}
 	}
 	return true
+}
+
+// HandleMarkRead 的身份只来自当前账号；请求不能替其他成员推进阅读状态。
+func (h *Handlers) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	if !h.requireMutationOrigin(w, r) {
+		return
+	}
+	roomID := chi.URLParam(r, "room_id")
+	var input relaycontract.MarkReadInput
+	if !validResourceID(roomID) || decodeStrictJSON(w, r, &input) != nil || input.MessageSeq < 0 || input.StreamEpoch == "" {
+		h.writeRequestError(w, r, "team.read_state_invalid", "阅读水位无效", true)
+		return
+	}
+	token, ok := h.exchangeToken(w, r, true)
+	if !ok {
+		return
+	}
+	client, ok := h.relay.(interface {
+		MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error)
+	})
+	if !ok {
+		h.api.WriteFailure(w, http.StatusServiceUnavailable, "阅读状态服务不可用")
+		return
+	}
+	result, err := client.MarkRead(r.Context(), token, roomID, input)
+	if err != nil {
+		h.writeRelayError(w, r, err, true)
+		return
+	}
+	h.api.WriteSuccess(w, result)
 }

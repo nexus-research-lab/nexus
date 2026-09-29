@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -47,6 +48,8 @@ type Service struct {
 	logger                        *slog.Logger
 	defaultAgentSelectionResolver DefaultAgentSelectionResolver
 	desktopMode                   bool
+	imageProbe                    ImageProbeAdapter
+	probeCommitMu                 sync.Mutex
 }
 
 // DefaultAgentSelection 表示用户为 Agent runtime 选择的全局默认模型。

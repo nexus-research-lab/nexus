@@ -252,3 +252,35 @@ func TestValidateInputAcceptsBridgeJSONNumberIntegers(t *testing.T) {
 		t.Fatalf("ValidateInput() error = %v, want fractional revision rejection", err)
 	}
 }
+
+func TestCommandResultJSONShapes(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		value      any
+		text       string
+		structured string
+	}{
+		{"list", []map[string]any{{"id": "job-1"}}, `[{"id":"job-1"}]`, `{"result":[{"id":"job-1"}]}`},
+		{"empty_list", []string{}, `[]`, `{"result":[]}`},
+		{"nil_list", []string(nil), `null`, `{"result":null}`},
+		{"object", struct {
+			Total int `json:"total"`
+		}{1}, `{"total":1}`, `{"total":1}`},
+		{"scalar", true, `true`, `{"result":true}`},
+		{"nil", nil, `null`, `{"result":null}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tool := NewTool(func(context.Context, Request) (any, error) { return tc.value, nil })
+			result, err := tool.Handler(context.Background(), map[string]any{
+				"domain": "automation", "action": "inspect", "operation": "list",
+			})
+			if err != nil || result.IsError {
+				t.Fatalf("result = %+v, err = %v", result, err)
+			}
+			encoded, err := json.Marshal(result.StructuredContent)
+			if err != nil || string(encoded) != tc.structured || len(result.Content) != 1 || result.Content[0]["text"] != tc.text {
+				t.Fatalf("result = %+v, structured = %s, err = %v", result, encoded, err)
+			}
+		})
+	}
+}

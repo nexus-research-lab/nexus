@@ -127,19 +127,26 @@ export function OrganizationPanel() {
         : "settings.personal.role_member",
   );
 
-  if (!isRemoteAccountAuthenticated(status)) return <div className={SETTINGS_CONTENT_BODY_CLASS_NAME}><UiInlineNotice message={t("organization.login_required")} tone="neutral" /><Link to="/settings?section=personal">{t("settings.tabs.personal")}</Link></div>;
+  const authenticated = isRemoteAccountAuthenticated(status);
   const canManage = status?.organization_role === "owner" || status?.organization_role === "admin";
-  if (!status?.organization_id) return <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-4`}><WorkspaceContentHeader title={t("operations.tabs.organization")} /><p>{t("organization.no_organization")}</p><OrganizationActions /></div>;
   return (
     <div className={`${WORKSPACE_CONTENT_PAGE_CLASS_NAME} grid min-w-0 gap-6 pb-8`} data-organization-page>
       <WorkspaceContentHeader
         className="mb-0"
-        title={status?.organization_name || t("organization.name_unavailable")}
+        title={authenticated && status?.organization_id
+          ? status.organization_name || t("organization.name_unavailable")
+          : t("operations.tabs.organization")}
 
       />
 
       <div className={`${SETTINGS_CONTENT_BODY_CLASS_NAME} grid gap-3`}>
-        <OrganizationMembersPanel key={status.organization_id} toolbarActions={(
+        {!authenticated ? <>
+          <UiInlineNotice message={t("organization.login_required")} tone="neutral" />
+          <Link to="/settings?section=personal">{t("settings.tabs.personal")}</Link>
+        </> : !status?.organization_id ? <>
+          <p className={getUiTypographyClassName({ role: "body", tone: "muted" })}>{t("organization.no_organization")}</p>
+          <OrganizationActions />
+        </> : <OrganizationMembersPanel key={status.organization_id} toolbarActions={(
           <div className="flex flex-wrap items-center gap-1">
             <OrganizationActions key={status.organization_id + status.organization_role} />
             {canManage ? <>
@@ -151,7 +158,7 @@ export function OrganizationPanel() {
             </UiButton>
             </> : null}
           </div>
-        )} />
+        )} />}
       </div>
 
       {historyOpen ? (

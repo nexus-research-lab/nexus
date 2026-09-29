@@ -127,7 +127,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   onCompositionEnd: actions.handleCompositionEnd,
                   onCompositionStart: actions.handleCompositionStart,
                   onKeyDown: actions.handleKeyDown,
-                  onPaste: props.showActionMenu === false
+                  onPaste: props.showActionMenu === false && !props.attachmentsDisabledReason
                     ? ignoreComposerPaste
                     : attachments.handlePaste,
                   placeholder: state.resolvedPlaceholder,
@@ -145,6 +145,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   active: mention.mentionActive,
                   filter: mention.mentionFilter,
                   items: mention.mentionTargetItems,
+                  segments: mention.mentionSegments,
                   onClose: mention.closeMention,
                   onSelect: mention.selectMentionItem,
                 }}

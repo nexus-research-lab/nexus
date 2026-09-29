@@ -120,12 +120,14 @@ export function useSidebarWidePanelController({
   );
   const pinnedConversationItems = useMemo(
     () => buildSidebarPinnedConversations({
+      agents: directory.agents,
+      rooms: directory.rooms,
       conversations: directory.conversations,
       pathname,
       pinnedConversations,
       untitledLabel: t("room.new_conversation"),
     }),
-    [directory.conversations, pathname, pinnedConversations, t],
+    [directory.agents, directory.rooms, directory.conversations, pathname, pinnedConversations, t],
   );
   const utilityLabels = useMemo(() => buildSidebarUtilityLabels(t), [t]);
   const selectPinnedConversation = useCallback((item: SidebarPinnedConversationItem) => {

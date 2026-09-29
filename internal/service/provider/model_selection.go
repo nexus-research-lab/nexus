@@ -1,3 +1,6 @@
+// INPUT: Provider/model snapshots and requested purpose.
+// OUTPUT: Eligible options carrying unified model guidance, without changing defaults.
+// POS: Provider selection and default resolution policy.
 package provider
 
 import (
@@ -18,7 +21,7 @@ func (s *Service) defaultRuntimeSelectionForRuntime(ctx context.Context, runtime
 	}
 	runtimeKind = normalizeRuntimeKind(runtimeKind)
 	for _, item := range items {
-		if !item.Enabled || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
+		if !providerHasCredentials(item) || !isAgentRuntimeProviderForRuntime(item, runtimeKind) {
 			continue
 		}
 		models, modelErr := s.repository.ListModelsByProviderID(ctx, item.ID)
@@ -67,10 +70,12 @@ func modelOptionsForKind(
 			continue
 		}
 		modelID := normalizeModelID(model.ModelID)
+		guidance := projectModelGuidance(item, model)
 		result = append(result, ModelOption{
 			ModelID:     modelID,
 			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
 			IsDefault:   model.IsDefault,
+			Guidance:    &guidance,
 		})
 	}
 	return result
@@ -81,72 +86,11 @@ func modelUsableForProviderKind(
 	model providerstore.ModelEntity,
 	providerKind string,
 ) bool {
-	switch normalizeProviderKind(providerKind) {
-	case ProviderKindImageGeneration:
-		if item.ProviderKind != ProviderKindImageGeneration && !providerSupportsImageGeneration(item) {
-			return false
-		}
-		if item.ProviderKind == ProviderKindImageGeneration && !imageProviderRequiresModelFilter(item) {
-			return true
-		}
-		return modelHasImageOutputCapability(model)
-	case ProviderKindLLM:
-		return !modelHasImageOutputCapability(model)
-	default:
-		return true
+	purpose := PurposeChat
+	if normalizeProviderKind(providerKind) == ProviderKindImageGeneration {
+		purpose = PurposeImage
 	}
-}
-
-func modelHasImageOutputCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.ImageOutput != nil {
-		return *overrideCapabilities.ImageOutput
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	return autoCapabilities.ImageOutput != nil && *autoCapabilities.ImageOutput
-}
-
-func modelHasReasoningCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.Reasoning != nil {
-		return *overrideCapabilities.Reasoning
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	if autoCapabilities.Reasoning != nil {
-		return *autoCapabilities.Reasoning
-	}
-	known := knownReasoningCapability(model.ModelID)
-	return known != nil && *known
-}
-
-// modelHasVisionCapability 以用户覆盖优先，判断模型是否能接收图片输入。
-func modelHasVisionCapability(model providerstore.ModelEntity) bool {
-	overrideCapabilities := decodeModelCapabilities(model.CapabilitiesOverrideJSON)
-	if overrideCapabilities.Vision != nil {
-		return *overrideCapabilities.Vision
-	}
-	autoCapabilities := decodeModelCapabilities(model.CapabilitiesAutoJSON)
-	if autoCapabilities.Vision != nil {
-		return *autoCapabilities.Vision
-	}
-	known := knownVisionCapability(model.ModelID)
-	return known != nil && *known
-}
-
-// visionModelOptions 只暴露已经明确支持视觉的模型，未知能力不乐观放行。
-func visionModelOptions(models []providerstore.ModelEntity) []ModelOption {
-	result := make([]ModelOption, 0, len(models))
-	for _, model := range models {
-		if !model.Enabled || strings.TrimSpace(model.ModelID) == "" || !modelHasVisionCapability(model) {
-			continue
-		}
-		result = append(result, ModelOption{
-			ModelID:     normalizeModelID(model.ModelID),
-			DisplayName: modelDisplayName(model.ModelID, model.DisplayName),
-			IsDefault:   model.IsDefault,
-		})
-	}
-	return result
+	return projectModelGuidance(item, model).Eligibility[purpose].Available
 }
 
 func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
@@ -168,7 +112,7 @@ func imageProviderRequiresModelFilter(item providerstore.Entity) bool {
 }
 
 func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEntity) bool {
-	if !item.Enabled {
+	if !providerHasCredentials(item) {
 		return false
 	}
 	switch item.ProviderKind {
@@ -181,7 +125,7 @@ func canSetDefaultModel(item providerstore.Entity, model providerstore.ModelEnti
 		}
 		return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
 	case ProviderKindImageGeneration:
-		return true
+		return modelUsableForProviderKind(item, model, ProviderKindImageGeneration)
 	default:
 		return false
 	}
@@ -241,4 +185,9 @@ func (s *Service) resolveMissingExplicitModel(ctx context.Context, providerID st
 		return "", nil
 	}
 	return normalizeModelID(model.ModelID), nil
+}
+
+// providerHasCredentials is readiness, not a remote credential validity check.
+func providerHasCredentials(item providerstore.Entity) bool {
+	return item.Enabled && strings.TrimSpace(item.AuthToken) != "" && strings.TrimSpace(item.BaseURL) != ""
 }

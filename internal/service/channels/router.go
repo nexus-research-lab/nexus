@@ -18,6 +18,7 @@ import (
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 	deliveryroute "github.com/nexus-research-lab/nexus/internal/service/channels/deliveryroute"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 // Router 负责管理通道生命周期与统一投递。
@@ -59,6 +60,10 @@ type sessionProjectionResolver interface {
 	ResolveDeliverySession(context.Context, string) (*protocol.Session, error)
 }
 
+type sessionDeletionResolver interface {
+	IsSessionDeleted(context.Context, string) (bool, error)
+}
+
 func (r *Router) resolveDeliverySession(
 	ctx context.Context,
 	sessionKey string,
@@ -75,6 +80,29 @@ func (r *Router) resolveDeliverySession(
 	return resolver.ResolveDeliverySession(ctx, strings.TrimSpace(sessionKey))
 }
 
+func (r *Router) sessionProjectionConfigured() bool {
+	if r == nil {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessions != nil
+}
+
+func (r *Router) sessionDeleted(ctx context.Context, sessionKey string) (bool, error) {
+	if r == nil {
+		return false, nil
+	}
+	r.mu.RLock()
+	resolver := r.sessions
+	r.mu.RUnlock()
+	deletion, ok := resolver.(sessionDeletionResolver)
+	if !ok {
+		return false, nil
+	}
+	return deletion.IsSessionDeleted(ctx, strings.TrimSpace(sessionKey))
+}
+
 // NewRouter 创建通道路由器。
 func NewRouter(
 	cfg config.Config,
@@ -88,8 +116,13 @@ func NewRouter(
 		channels:       make(map[string]*registeredChannel),
 		logger:         logx.NewDiscardLogger(),
 	}
-	router.RegisterForOwner("", newSessionDeliveryChannel(ChannelTypeWebSocket, agents, permission, cfg.WorkspacePath))
-	router.RegisterForOwner("", newSessionDeliveryChannel(ChannelTypeInternal, agents, permission, cfg.WorkspacePath))
+	for _, channelType := range []string{ChannelTypeWebSocket, ChannelTypeInternal} {
+		channel := newSessionDeliveryChannel(channelType, agents, permission, cfg.WorkspacePath)
+		repository := roomrepo.NewSQLRepository(cfg.DatabaseDriver, db)
+		channel.history.SetReplyPreviewRepository(repository)
+		channel.roomHistory.SetReplyPreviewRepository(repository)
+		router.RegisterForOwner("", channel)
+	}
 	if cfg.DiscordEnabled && strings.TrimSpace(cfg.DiscordBotToken) != "" {
 		router.RegisterForOwner("", channeladapters.NewDiscordChannel(cfg.DiscordBotToken, nil))
 	}

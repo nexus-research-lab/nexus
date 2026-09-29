@@ -142,11 +142,13 @@ export async function updateSubscriptionProviderConfigApi(
 
 export async function fetchProviderModelsApi(
   provider: string,
+  options?: { expectedVersion?: number },
 ): Promise<FetchProviderModelsResponse> {
   return requestApi<FetchProviderModelsResponse>(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/fetch`,
     {
       method: "POST",
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }
@@ -238,6 +240,7 @@ export async function testProviderConfigApi(
     `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
+      timeout_ms: 180_000, // Model discovery, connectivity and bounded capability probes.
       headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
@@ -250,6 +253,7 @@ export async function testSubscriptionProviderConfigApi(
     `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
     {
       method: "POST",
+      timeout_ms: 180_000, // Model discovery, connectivity and bounded capability probes.
     },
   );
 }
@@ -257,12 +261,13 @@ export async function testSubscriptionProviderConfigApi(
 export async function testProviderModelApi(
   provider: string,
   modelId: string,
-  options?: { expectedVersion?: number },
+  options?: { expectedVersion?: number; capability?: string },
 ): Promise<ProviderTestResult> {
   return requestApi<ProviderTestResult>(
-    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
+    `${PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test${options?.capability ? `?capability=${encodeURIComponent(options.capability)}` : ""}`,
     {
       method: "POST",
+      timeout_ms: 150_000, // Model discovery, connectivity and bounded capability probes.
       headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
@@ -271,11 +276,14 @@ export async function testProviderModelApi(
 export async function testSubscriptionProviderModelApi(
   provider: string,
   modelId: string,
+  options?: { capability?: string; expectedVersion?: number },
 ): Promise<ProviderTestResult> {
   return requestApi<ProviderTestResult>(
-    `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test`,
+    `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/models/${encodeURIComponent(modelId)}/test${options?.capability ? `?capability=${encodeURIComponent(options.capability)}` : ""}`,
     {
       method: "POST",
+      timeout_ms: 150_000, // Seven independent bounded capability probes.
+      headers: providerIfMatchHeaders(options?.expectedVersion),
     },
   );
 }

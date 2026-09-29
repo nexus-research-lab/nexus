@@ -4,6 +4,7 @@
 import type { TranslationKey } from "@/shared/i18n/messages";
 
 export const OPERATIONS_SECTIONS = [
+  { key: "operations-members", labelKey: "operations.tabs.deployment_members" },
   { key: "operations-subscriptions", labelKey: "operations.tabs.user_subscriptions" },
   { key: "operations-plans", labelKey: "operations.tabs.subscription_plans" },
   { key: "operations-providers", labelKey: "operations.tabs.subscription_providers" },
@@ -25,6 +26,7 @@ export type SettingsSectionKey =
 	| "browser"
   | "personal"
   | "operations-organization"
+  | "default-models"
   | "providers"
   | OperationsSectionKey;
 
@@ -66,6 +68,7 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
     key: "models",
     labelKey: "settings.navigation.models",
     items: [
+      { key: "default-models", labelKey: "settings.tabs.default_models" },
       { key: "providers", labelKey: "settings.tabs.providers" },
     ],
   },

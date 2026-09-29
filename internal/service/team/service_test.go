@@ -139,3 +139,11 @@ func TestSyncProjectionFailurePreservesRemoteCommitAndReadFence(t *testing.T) {
 		t.Fatal("远端失败不得开始投影")
 	}
 }
+
+func (f *syncRemote) RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error) {
+	return []relaycontract.DeliveryStatus{}, nil
+}
+
+func (f *syncRemote) RoomMembers(context.Context, string, string, string, string, int64) (relaycontract.RoomMemberPage, error) {
+	return relaycontract.RoomMemberPage{}, nil
+}

@@ -138,9 +138,17 @@ func (s *Server) mountTeamRoutes() {
 		return
 	}
 	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/deliveries/{delivery_id}/cancel"), s.handlers.team.HandleCancelDelivery)
+	s.router.Get(s.prefixPath("/team/commands"), s.handlers.team.HandleCommands)
 	s.router.Post(s.prefixPath("/team/rooms"), s.handlers.team.HandleCreateRoom)
 	s.router.Get(s.prefixPath("/team/invitations"), s.handlers.team.HandleListInvitations)
+	s.router.Put(s.prefixPath("/team/rooms/{room_id}/read-state"), s.handlers.team.HandleMarkRead)
+	s.router.Get(s.prefixPath("/team/rooms/{room_id}/members"), s.handlers.team.HandleRoomMembers)
+	s.router.Get(s.prefixPath("/team/rooms/{room_id}/deliveries"), s.handlers.team.HandleRoomDeliveryStatuses)
 	s.router.Get(s.prefixPath("/team/rooms/{room_id}"), s.handlers.team.HandleGetRoom)
+	s.router.Get(s.prefixPath("/team/rooms/{room_id}/files"), s.handlers.team.HandleRoomFiles)
+	s.router.Post(s.prefixPath("/team/rooms/{room_id}/files"), s.handlers.team.HandleRoomFiles)
+	s.router.Get(s.prefixPath("/team/rooms/{room_id}/files/{file_id}"), s.handlers.team.HandleRoomFiles)
 	s.router.Post(s.prefixPath("/team/rooms/{room_id}/invitations"), s.handlers.team.HandleInviteMember)
 	s.router.Post(s.prefixPath("/team/rooms/{room_id}/agents"), s.handlers.team.HandleAddAgent)
 	s.router.Delete(s.prefixPath("/team/rooms/{room_id}/agents/{agent_id}"), s.handlers.team.HandleRemoveAgent)

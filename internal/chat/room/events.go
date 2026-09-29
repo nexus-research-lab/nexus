@@ -150,6 +150,9 @@ func NewErrorEvent(sessionKey string, roomID string, conversationID string, erro
 	if errorType == "room_error" {
 		failureCode = protocol.ConversationFailureRoundFailed
 	}
+	if protocol.IsProviderTokenLimitError(message) {
+		failureCode = protocol.ConversationFailureUsageLimited
+	}
 	event := protocol.NewEvent(protocol.EventTypeError, map[string]any{
 		"error_type":   errorType,
 		"failure_code": failureCode,

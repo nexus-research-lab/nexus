@@ -98,11 +98,16 @@ export function useChannelConnectionController({
     );
     if (updated) {
       setCurrentItem(updated);
+      // A completed QR registration may replace the public App ID/Bot ID while
+      // secret fields stay write-only. Reset the editable draft to the
+      // canonical server snapshot so the old identifier cannot remain visible
+      // and be submitted on the next save.
+      setDraft(createChannelDraft(updated, agents[0]?.agent_id || ""));
       onSaved(updated, false);
       return;
     }
     throw new Error("channel snapshot is unavailable");
-  }, [currentItem.channel_type, onSaved]);
+  }, [agents, currentItem.channel_type, onSaved]);
 
   const {
     loading: loginLoading,
@@ -128,7 +133,11 @@ export function useChannelConnectionController({
     currentItem,
     hasManualCredentials,
   );
-  const showsQRCode = offersQRCode || loginView !== null;
+  // Keep an explicit QR entry point available even when credentials already
+  // exist. Replacing a Feishu/DingTalk/WeCom app must not require saving a
+  // half-cleared credential draft first; that used to leave a stale App ID in
+  // the form and fail before the provider QR flow could start.
+  const showsQRCode = supportsQRCode || loginView !== null;
 
   const saveChannel = useCallback(async () => {
     if (!draft.agentId || planned || recovery || loginMutationBlocked || loginRunning) {
@@ -394,6 +403,7 @@ export function useChannelConnectionController({
     })),
     setPendingDelete,
     showsQRCode,
+    startLogin,
     submitVerifyCode,
     personalWeixin,
     offersQRCode,

@@ -3,7 +3,6 @@
 // POS: Provider 配置表单视图；不拥有保存事务或凭证保留规则。
 "use client";
 
-import { ExternalLink } from "lucide-react";
 import { useId } from "react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -23,10 +22,10 @@ import type {
 import {
   API_FORMAT_LABELS,
   API_FORMAT_SHORT_LABELS,
-  formatTokenPreview,
 } from "../model/provider-settings-presentation";
 import type { ProviderDraft } from "../model/provider-settings-types";
 
+import { ProviderSettingsKeyField } from "./provider-settings-key-field";
 import "./provider-settings-config-form.css";
 
 interface ProviderSettingsConfigFormProps {
@@ -41,6 +40,8 @@ interface ProviderSettingsConfigFormProps {
   onAuthTokenChange: (value: string) => void;
   onBaseUrlChange: (value: string) => void;
   onFieldBlur: () => void;
+  onClearAuthToken: () => void;
+  pending: boolean;
   onProviderDisplayNameChange: (value: string) => void;
   onProviderKindChange: (value: string) => void;
   providerKindOptions: UiSelectMenuOption[];
@@ -155,76 +156,6 @@ function ProviderShapeControls({
   );
 }
 
-function ProviderApiKeyField({
-  currentPreset,
-  detailTitle,
-  draft,
-  isEditing,
-  onAuthTokenChange,
-  onFieldBlur,
-  selectedCanManage,
-  selectedRecord,
-}: Pick<
-  ProviderSettingsConfigFormProps,
-  | "currentPreset"
-  | "detailTitle"
-  | "draft"
-  | "isEditing"
-  | "onAuthTokenChange"
-  | "onFieldBlur"
-  | "selectedCanManage"
-  | "selectedRecord"
->) {
-  const { t } = useI18n();
-  const placeholder = isEditing
-    ? formatTokenPreview(
-        selectedRecord?.auth_token_masked,
-        t("settings.providers.api_key_empty"),
-      )
-    : t("settings.providers.api_key_placeholder");
-  const fieldId = useId();
-  return (
-    <UiField
-      htmlFor={fieldId}
-      label={t("settings.providers.api_key")}
-      required={!isEditing}
-    >
-      <UiInput
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        controlSize="md"
-        data-form-type="other"
-        data-lpignore="true"
-        disabled={!selectedCanManage}
-        id={fieldId}
-        name="provider-auth-token"
-        onChange={(event) => onAuthTokenChange(event.target.value)}
-        onBlur={onFieldBlur}
-        placeholder={placeholder}
-        required={!isEditing}
-        spellCheck={false}
-        type="password"
-        value={draft.auth_token}
-      />
-      {currentPreset?.key_url ? (
-        <a
-          className={cn(
-            "inline-flex items-center gap-1 hover:underline",
-            getUiTypographyClassName({ role: "supporting", tone: "brand", weight: "medium" }),
-          )}
-          href={currentPreset.key_url}
-          rel="noreferrer"
-          target="_blank"
-        >
-          {t("settings.providers.get_api_key_from", { name: detailTitle })}
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-      ) : null}
-    </UiField>
-  );
-}
-
 function ProviderEndpointField({
   builtinEndpointFormats,
   currentFormat,
@@ -302,7 +233,12 @@ export function ProviderSettingsConfigForm(
   return (
     <>
       <ProviderShapeControls {...props} />
-      <ProviderApiKeyField {...props} />
+      <ProviderSettingsKeyField
+        record={props.selectedRecord} value={props.draft.auth_token}
+        disabled={!props.selectedCanManage} pending={props.pending} isEditing={props.isEditing}
+        keyURL={props.currentPreset?.key_url} providerTitle={props.detailTitle}
+        onChange={props.onAuthTokenChange} onSave={props.onFieldBlur} onClear={props.onClearAuthToken}
+      />
       <ProviderEndpointField {...props} />
     </>
   );

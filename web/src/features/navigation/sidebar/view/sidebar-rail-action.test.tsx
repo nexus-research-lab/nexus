@@ -2,7 +2,7 @@
 // OUTPUT: 证明两类入口共享图标几何、排版和无障碍状态。
 // POS: SidebarRailAction DOM 行为合同；业务路由与拖放排序另行测试。
 
-import { MessageCircle, MessageSquareText } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -33,7 +33,7 @@ describe("SidebarRailAction", () => {
     rerender(
       <SidebarRailAction
         active={false}
-        icon={MessageSquareText}
+        icon={MessageCircle}
         label="项目讨论"
         layout="pinned"
         supplementalLabel="拖动排序"
@@ -47,6 +47,16 @@ describe("SidebarRailAction", () => {
     expect(pinned.className).toContain("ui-type-caption");
     expect(pinned.querySelector("svg")?.parentElement?.className).toContain("h-8 w-8");
     expect(screen.getByText("拖动排序").className).toContain("sr-only");
+  });
+
+  it("shows a pinned avatar and keeps its title available without a visible caption", async () => {
+    render(<SidebarRailAction active={false} layout="pinned" label="每周工作回顾"
+      iconContent={<img alt="" src="/avatar.png" />} />);
+    const button = screen.getByRole("button", { name: "每周工作回顾" });
+    expect(button.querySelector("img")?.getAttribute("src")).toBe("/avatar.png");
+    expect(screen.getByText("每周工作回顾").className).toBe("sr-only");
+    await userEvent.setup().hover(button);
+    expect(await screen.findByRole("tooltip")).toBeTruthy();
   });
 
   it("forwards its native button action", async () => {

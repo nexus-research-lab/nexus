@@ -45,3 +45,11 @@ func (s *Service) UpdateMember(ctx context.Context, access Access, roomID, userI
 func (s *Service) TransferOwnership(ctx context.Context, access Access, roomID, key string, input relaycontract.TransferRoomOwnershipInput) (relaycontract.RoomMembershipMutation, error) {
 	return s.relay.TransferOwnership(ctx, access.Token, roomID, key, input)
 }
+
+func (s *Service) RoomDeliveryStatuses(ctx context.Context, access Access, roomID string, messageIDs []string) ([]relaycontract.DeliveryStatus, error) {
+	return s.relay.RoomDeliveryStatuses(ctx, access.Token, roomID, messageIDs)
+}
+
+func (s *Service) RoomMembers(ctx context.Context, access Access, roomID, cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error) {
+	return s.relay.RoomMembers(ctx, access.Token, roomID, cursor, epoch, version)
+}

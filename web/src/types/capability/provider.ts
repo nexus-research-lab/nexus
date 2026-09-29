@@ -20,14 +20,29 @@ export type ProviderKind = "llm" | "image_generation";
 export type ProviderEndpointMode = "fixed" | "resource" | "custom";
 
 export interface ProviderModelCapabilities {
+  text_output?: boolean;
   vision?: boolean;
   image_output?: boolean;
   tool_calling?: boolean;
   reasoning?: boolean;
   embedding?: boolean;
+  image_editing?: boolean;
+}
+
+export type ModelPurpose = "chat" | "vision" | "image_generation" | "image_editing";
+export interface ModelGuidance {
+  evidence?: { reviewed_at: string; urls: string[]; notice?: string };
+  text_only?: boolean;
+  catalog_version: string;
+  capabilities: ProviderModelCapabilities;
+  sources: Record<string, string>;
+  eligibility: Record<ModelPurpose, { available: boolean; reason?: string }>;
+  recommendations: Partial<Record<ModelPurpose, string>>;
 }
 
 export interface ProviderModelRecord {
+ capability_tests?: Partial<Record<keyof ProviderModelCapabilities, ProviderCapabilityTest>>;
+  guidance?: ModelGuidance;
   id: string;
   provider_id: string;
   model_id: string;
@@ -110,6 +125,7 @@ export interface ProviderModelOption {
   model_id: string;
   display_name: string;
   is_default: boolean;
+  guidance?: ModelGuidance;
 }
 
 export interface ProviderModelSelection {
@@ -176,7 +192,14 @@ export interface DeleteProviderModelResponse {
   model: string;
 }
 
+export interface ProviderCapabilityTest {
+ state: "supported" | "unsupported" | "unknown" | "error";
+ reason?: string;
+ tested_at: string;
+}
+
 export interface ProviderTestResult {
+ capability_results?: Partial<Record<keyof ProviderModelCapabilities, ProviderCapabilityTest>>;
   provider: string;
   model?: string;
   success: boolean;

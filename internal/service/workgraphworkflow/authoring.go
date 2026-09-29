@@ -68,6 +68,7 @@ func (s *Service) PreviewSavedWorkflow(
 		Title: workflow.Title, Description: workflow.Description,
 		SourceExecutionID: workflow.SourceExecutionID, SourceSessionKey: workflow.SourceSessionKey,
 		Objective: workflow.Objective, CompletionCriteria: append([]string(nil), workflow.CompletionCriteria...),
+		ArtifactContract: cloneArtifactContract(workflow.ArtifactContract),
 		Nodes: cloneWorkflowNodes(workflow.Nodes), Dependencies: append([]protocol.WorkGraphWorkflowDependency(nil), workflow.Dependencies...),
 		ExpiresAt: now.Add(workflowPreviewTTL),
 	}

@@ -1,7 +1,653 @@
 // INPUT: Production FOLLOW hook and real browser layout across the shared browser matrix.
-// OUTPUT: Live process shrink/growth, terminal and reading-position geometry regressions.
+// OUTPUT: Live process shrink/growth, terminal/reading geometry and bottom-control visibility regressions.
 // POS: Isolated conversation scroll harness; no model or backend requests.
 import { expect, test } from "@playwright/test";
+
+test("generation scroll control stays out of the bottom layout until the reader leaves bottom", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const layoutPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
+    const modelPath = "/src/features/conversation/shared/conversation-panel-model.ts";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { I18nProvider } = await import(i18nPath);
+    const {
+      ConversationPanelBottomArea,
+      ConversationPanelLayout,
+      ConversationPanelViewport,
+      ConversationPanelViewportArea,
+    } = await import(layoutPath);
+    const { buildConversationPanelFrameModel } = await import(modelPath);
+    const h = React.createElement;
+    const healthyReliability = {
+      failure: null,
+      provider_retry: null,
+      transport_phase: "healthy",
+    };
+    function Harness() {
+      const [isLoading, setIsLoading] = React.useState(true);
+      const [readingEarlier, setReadingEarlier] = React.useState(false);
+      const scrollRef = React.useRef(null);
+      const frame = buildConversationPanelFrameModel({
+        conversation: {
+          is_history_loading: false,
+          is_loading: isLoading,
+          is_session_loading: false,
+          load_round_window: () => undefined,
+          load_session: () => undefined,
+          reliability: healthyReliability,
+        },
+        history: { handleScroll: () => undefined },
+        roundIndexResource: {
+          access: false,
+          error: null,
+          isLoading: false,
+          isStale: false,
+          retry: () => undefined,
+        },
+        roundScrollRef: { current: null },
+        scroll: {
+          isFollowingLatest: () => !readingEarlier,
+          onPointerDown: () => undefined,
+          onScroll: () => undefined,
+          onTouchEnd: () => undefined,
+          onTouchMove: () => undefined,
+          onTouchStart: () => undefined,
+          onWheel: () => undefined,
+          reconcileFollowLatest: () => undefined,
+          scrollRef,
+          scrollToBottom: () => undefined,
+          showScrollToBottom: readingEarlier,
+        },
+        sessionKey: "scroll-control-test",
+        timeline: {},
+      }, { isMobileLayout: false, providerWarningVisible: false }, {});
+      return h(I18nProvider, null,
+        h(ConversationPanelLayout, null,
+          h(ConversationPanelViewportArea, null,
+            h(ConversationPanelViewport, {
+              floatingDockOccupied: frame.scrollToLatest.visible,
+              isMobileLayout: false,
+              viewport: frame.viewport,
+            }, h("div", { style: { height: 1000 } }, "feed")),
+          ),
+          h(ConversationPanelBottomArea, {
+            children: h("div", { style: { height: 80 } }),
+            goal: null,
+            isMobileLayout: false,
+            isReconciling: false,
+            onReconcile: () => undefined,
+            providerWarningVisible: false,
+            reliability: healthyReliability,
+            scrollToLatest: frame.scrollToLatest,
+          }),
+          h("button", {
+            onClick: () => setReadingEarlier((value: boolean) => !value),
+          }, "Read earlier"),
+          h("button", {
+            onClick: () => setIsLoading((value: boolean) => !value),
+          }, "Toggle generation"),
+        ),
+      );
+    }
+    const host = document.createElement("div");
+    host.dataset.scrollControlHarness = "true";
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+
+  const harness = page.locator("[data-scroll-control-harness]");
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(1);
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveAttribute("data-generating", "true");
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Toggle generation" }).click();
+  await expect(harness.locator("[data-scroll-to-latest]")).not.toHaveAttribute("data-generating", "true");
+
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect(harness.locator("[data-scroll-to-latest]")).toHaveCount(0);
+  await expect(harness.locator("[data-conversation-dock-clearance]")).toHaveCount(0);
+});
+
+test("activity Dock clearance keeps FOLLOW pinned at the real bottom", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+    const viewportPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { I18nProvider } = await import(i18nPath);
+    const { useFollowScroll } = await import(hookPath);
+    const { ConversationPanelViewport } = await import(viewportPath);
+    const h = React.createElement;
+    function Harness() {
+      const [occupied, setOccupied] = React.useState(false);
+      const scroll = useFollowScroll({
+        contentKey: "fixed",
+        messageCount: 1,
+        sessionKey: "dock-test",
+        topologyKey: "fixed",
+      });
+      return h(I18nProvider, null,
+        h("div", { style: { position: "fixed", inset: 0, display: "flex", flexDirection: "column", background: "white" } },
+          h("button", { "data-dock-toggle": true, onClick: () => setOccupied((value: boolean) => !value) }, "Toggle activity"),
+          h("div", { style: { minHeight: 0, flex: 1, display: "flex" } },
+            h(ConversationPanelViewport, {
+              floatingDockOccupied: occupied,
+              isMobileLayout: false,
+              viewport: {
+                isFollowingLatest: scroll.isFollowingLatest,
+                isHistoryLoading: false,
+                onPointerDown: scroll.onPointerDown,
+                onScroll: scroll.onScroll,
+                onTouchEnd: scroll.onTouchEnd,
+                onTouchMove: scroll.onTouchMove,
+                onTouchStart: scroll.onTouchStart,
+                onWheel: scroll.onWheel,
+                reconcileFollowLatest: scroll.reconcileFollowLatest,
+                scrollRef: scroll.scrollRef,
+              },
+            },
+              h("div", { ref: scroll.feedRef, style: { height: 1000, flexShrink: 0 } }, "feed"),
+            ),
+          ),
+        ),
+      );
+    }
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+  const viewport = page.locator(".overflow-y-auto").last();
+  const geometry = () => viewport.evaluate((element) => ({
+    bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+    scrollHeight: element.scrollHeight,
+  }));
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  const before = await geometry();
+  await page.getByRole("button", { name: "Toggle activity" }).click();
+  await expect.poll(async () => (await geometry()).scrollHeight).toBe(before.scrollHeight + 56);
+  expect((await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Toggle activity" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+
+  await viewport.hover();
+  await page.mouse.wheel(0, -100);
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(100);
+  const readingTop = await viewport.evaluate((element) => element.scrollTop);
+  await page.getByRole("button", { name: "Toggle activity" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(156);
+  expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
+  await page.getByRole("button", { name: "Toggle activity" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(100);
+  expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
+});
+
+test("wrapped activity Dock clearance tracks its measured height without moving READING", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+    const layoutPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { I18nProvider } = await import(i18nPath);
+    const {
+      ConversationPanelBottomArea,
+      ConversationPanelLayout,
+      ConversationPanelViewport,
+      ConversationPanelViewportArea,
+    } = await import(layoutPath);
+    const { useFollowScroll } = await import(hookPath);
+    const h = React.createElement;
+    function Harness() {
+      const [activityHeight, setActivityHeight] = React.useState(46);
+      const scroll = useFollowScroll({
+        contentKey: String(activityHeight),
+        messageCount: 1,
+        sessionKey: "wrapped-dock-test",
+        topologyKey: String(activityHeight),
+      });
+      return h(I18nProvider, null,
+        h(ConversationPanelLayout, null,
+          h(ConversationPanelViewportArea, null,
+            h(ConversationPanelViewport, {
+              floatingDockOccupied: true,
+              isMobileLayout: true,
+              viewport: {
+                isFollowingLatest: scroll.isFollowingLatest,
+                isHistoryLoading: false,
+                onPointerDown: scroll.onPointerDown,
+                onScroll: scroll.onScroll,
+                onTouchEnd: scroll.onTouchEnd,
+                onTouchMove: scroll.onTouchMove,
+                onTouchStart: scroll.onTouchStart,
+                onWheel: scroll.onWheel,
+                reconcileFollowLatest: scroll.reconcileFollowLatest,
+                scrollRef: scroll.scrollRef,
+              },
+            },
+              h("div", { ref: scroll.feedRef, style: { height: 1000, flexShrink: 0 } }, "feed"),
+            ),
+          ),
+          h(ConversationPanelBottomArea, {
+            activity: h("div", {
+              "data-test-activity": true,
+              style: { height: activityHeight, width: "100%" },
+            }),
+            children: h("div", { style: { height: 80 } }),
+            goal: null,
+            isMobileLayout: true,
+            isReconciling: false,
+            onReconcile: () => undefined,
+            providerWarningVisible: false,
+            reliability: {
+              failure: null,
+              provider_retry: null,
+              transport_phase: "healthy",
+            },
+            scrollToLatest: {
+              isGenerating: false,
+              onClick: () => undefined,
+              visible: true,
+            },
+          }),
+          h("button", {
+            onClick: () => setActivityHeight((current: number) => current === 46 ? 190 : 46),
+          }, "Toggle wrapped activity"),
+          h("button", {
+            onClick: () => {
+              const element = scroll.scrollRef.current;
+              if (element) {
+                element.scrollTop -= 300;
+                scroll.pauseFollowLatest();
+              }
+            },
+          }, "Read earlier"),
+        ),
+      );
+    }
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+  const viewport = page.locator(".overflow-y-auto").last();
+  const geometry = () => viewport.evaluate((element) => ({
+    bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+    clearance: element.querySelector("[data-conversation-dock-clearance]")?.getBoundingClientRect().height ?? 0,
+    scrollTop: element.scrollTop,
+  }));
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Toggle wrapped activity" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBe(198);
+  expect((await geometry()).bottomGap).toBe(0);
+
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(300);
+  const readingTop = await viewport.evaluate((element) => element.scrollTop);
+  await page.getByRole("button", { name: "Toggle wrapped activity" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBe(56);
+  expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
+  expect((await geometry()).bottomGap).toBe(158);
+});
+
+test("Goal clearance keeps the latest message above the floating Goal while FOLLOW reaches the real bottom", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+    const layoutPath = "/src/features/conversation/shared/conversation-panel-layout.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { I18nProvider } = await import(i18nPath);
+    const { useFollowScroll } = await import(hookPath);
+    const {
+      ConversationPanelBottomArea,
+      ConversationPanelLayout,
+      ConversationPanelViewport,
+      ConversationPanelViewportArea,
+    } = await import(layoutPath);
+    const h = React.createElement;
+    const healthyReliability = {
+      failure: null,
+      provider_retry: null,
+      transport_phase: "healthy",
+    };
+
+    function Harness() {
+      const [showGoal, setShowGoal] = React.useState(false);
+      const [goalHeight, setGoalHeight] = React.useState(96);
+      const scroll = useFollowScroll({
+        contentKey: "goal-clearance",
+        messageCount: 1,
+        sessionKey: "goal-clearance-test",
+        topologyKey: "goal-clearance",
+      });
+      return h(I18nProvider, null,
+        h(ConversationPanelLayout, null,
+          h(ConversationPanelViewportArea, null,
+            h(ConversationPanelViewport, {
+              floatingDockOccupied: false,
+              isMobileLayout: false,
+              viewport: {
+                isFollowingLatest: scroll.isFollowingLatest,
+                isHistoryLoading: false,
+                onPointerDown: scroll.onPointerDown,
+                onScroll: scroll.onScroll,
+                onTouchEnd: scroll.onTouchEnd,
+                onTouchMove: scroll.onTouchMove,
+                onTouchStart: scroll.onTouchStart,
+                onWheel: scroll.onWheel,
+                reconcileFollowLatest: scroll.reconcileFollowLatest,
+                scrollRef: scroll.scrollRef,
+              },
+            },
+              h("div", { ref: scroll.feedRef, style: { height: 1800, flexShrink: 0 } }, "feed"),
+            ),
+          ),
+          h(ConversationPanelBottomArea, {
+            children: h("div", { style: { height: 80 } }),
+            goal: showGoal
+              ? h("div", {
+                  "data-test-goal": true,
+                  style: { height: goalHeight, width: "100%" },
+                }, "Goal")
+              : null,
+            isMobileLayout: false,
+            isReconciling: false,
+            onReconcile: () => undefined,
+            providerWarningVisible: false,
+            reliability: healthyReliability,
+            scrollToLatest: { isGenerating: false, onClick: () => undefined, visible: false },
+          }),
+          h("button", { onClick: () => setShowGoal((value: boolean) => !value) }, "Toggle Goal"),
+          h("button", { onClick: () => setGoalHeight(180) }, "Grow Goal"),
+          h("button", {
+            onClick: () => {
+              const element = scroll.scrollRef.current;
+              if (element) {
+                element.scrollTop -= 240;
+                scroll.pauseFollowLatest();
+              }
+            },
+          }, "Read earlier"),
+          h("button", { onClick: () => scroll.scrollToBottom("auto") }, "Go latest"),
+        ),
+      );
+    }
+
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+
+  const viewport = page.locator(".overflow-y-auto").last();
+  const geometry = () => viewport.evaluate((element) => ({
+    bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+    clearance: element.querySelector("[data-conversation-dock-clearance]")?.getBoundingClientRect().height ?? 0,
+    scrollTop: element.scrollTop,
+  }));
+
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Toggle Goal" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
+  expect((await geometry()).bottomGap).toBe(0);
+
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(240);
+  const readingTop = await viewport.evaluate((element) => element.scrollTop);
+  await page.getByRole("button", { name: "Grow Goal" }).click();
+  await expect.poll(async () => (await geometry()).clearance).toBeGreaterThan(0);
+  expect(await viewport.evaluate((element) => element.scrollTop)).toBe(readingTop);
+
+  await page.getByRole("button", { name: "Go latest" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+});
+
+test("conversation width reflow keeps the same reading anchor while a right panel is resized", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { useFollowScroll } = await import(hookPath);
+    const h = React.createElement;
+    function Harness() {
+      const [width, setWidth] = React.useState(700);
+      const scroll = useFollowScroll({
+        contentKey: "fixed-width-content",
+        messageCount: 30,
+        sessionKey: "width-resize-test",
+        topologyKey: "fixed-width-topology",
+      });
+      return h("div", { style: { height: "100%", width: "100%" } },
+        h("button", {
+          onClick: () => setWidth((current: number) => current === 700 ? 320 : 700),
+        }, "Toggle conversation width"),
+        h("button", {
+          onClick: () => {
+            const element = scroll.scrollRef.current;
+            if (element) {
+              element.scrollTop -= 4000;
+              scroll.pauseFollowLatest();
+            }
+          },
+        }, "Read earlier"),
+        h("div", {
+          "data-width-scroll": true,
+          ref: scroll.scrollRef,
+          onScroll: scroll.onScroll,
+          onWheel: scroll.onWheel,
+          style: {
+            height: 500,
+            overflowAnchor: "none",
+            overflowY: "auto",
+            width,
+          },
+        },
+          h("div", {
+            ref: scroll.feedRef,
+            style: { display: "flex", flexDirection: "column", width: "100%" },
+          },
+            Array.from({ length: 30 }, (_, index) => h("div", {
+              "data-conversation-round-id": String(index),
+              key: index,
+              style: {
+                fontSize: 16,
+                lineHeight: "24px",
+                overflowWrap: "anywhere",
+                padding: "10px 0",
+              },
+            }, `Round ${index} ${"long content that reflows when the conversation width changes ".repeat(10)}`)),
+          ),
+        ),
+      );
+    }
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:0;z-index:99999;background:white";
+    document.body.append(host);
+    createRoot(host).render(h(Harness));
+  });
+  const viewport = page.locator("[data-width-scroll]");
+  const geometry = (targetId?: string | null) => viewport.evaluate((element, targetRoundId) => {
+    const viewportRect = element.getBoundingClientRect();
+    const anchor = Array.from(element.querySelectorAll<HTMLElement>("[data-conversation-round-id]"))
+      .find((round) => {
+        const rect = round.getBoundingClientRect();
+        return rect.bottom > viewportRect.top && rect.top < viewportRect.bottom;
+      });
+    const target = targetRoundId
+      ? element.querySelector<HTMLElement>(`[data-conversation-round-id="${targetRoundId}"]`)
+      : null;
+    return {
+      anchorId: anchor?.dataset.conversationRoundId ?? null,
+      anchorTop: anchor ? anchor.getBoundingClientRect().top - viewportRect.top : null,
+      bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+      targetTop: target ? target.getBoundingClientRect().top - viewportRect.top : null,
+    };
+  }, targetId);
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Toggle conversation width" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+  await page.getByRole("button", { name: "Read earlier" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBeGreaterThan(2000);
+  const beforeResize = await geometry();
+  await page.getByRole("button", { name: "Toggle conversation width" }).click();
+  await expect.poll(async () => (await geometry()).bottomGap).toBeGreaterThan(0);
+  const afterResize = await geometry(beforeResize.anchorId);
+  expect(afterResize.targetTop).not.toBeNull();
+  expect(Math.abs(afterResize.targetTop! - beforeResize.anchorTop!)).toBeLessThan(1);
+});
+
+for (const reading of [false, true]) {
+  test(`${reading ? "READING" : "FOLLOW"} survives the static to virtual Feed handoff`, async ({ page }) => {
+    await page.goto("/ui-gallery.html");
+    await page.evaluate(async () => {
+      const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+      const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+      const virtualPath = "/node_modules/.vite-browser-test/deps/@tanstack_react-virtual.js";
+      const hookPath = "/src/features/conversation/shared/timeline/scroll/use-follow-scroll.ts";
+      const policyPath = "/src/features/conversation/shared/feed/use-conversation-virtualization-policy.ts";
+      const { default: React } = await import(reactPath);
+      const { default: { createRoot } } = await import(domPath);
+      const { useVirtualizer } = await import(virtualPath);
+      const { useFollowScroll } = await import(hookPath);
+      const { useConversationVirtualizationPolicy } = await import(policyPath);
+      const h = React.createElement;
+      function Harness() {
+        const [count, setCount] = React.useState(19);
+        const [active, setActive] = React.useState(true);
+        const scroll = useFollowScroll({
+          contentKey: String(count),
+          liveLayoutActive: active,
+          messageCount: count,
+          sessionKey: "static-virtual-handoff",
+          topologyKey: String(count),
+        });
+        const virtualEnabled = useConversationVirtualizationPolicy({
+          active,
+          count,
+          scopeKey: "static-virtual-handoff",
+          threshold: 20,
+        });
+        const virtualizer = useVirtualizer({
+          count,
+          estimateSize: () => 120,
+          getScrollElement: () => scroll.scrollRef.current,
+          measureElement: (element: HTMLElement) => element.getBoundingClientRect().height,
+          overscan: 2,
+        });
+        const finish = () => {
+          setCount(20);
+          setActive(false);
+        };
+        const rows = (indices: number[]) => indices.map((index) => h("div", {
+          "data-conversation-round-id": String(index),
+          key: index,
+          ref: virtualEnabled ? virtualizer.measureElement : undefined,
+          style: { height: 120, flexShrink: 0 },
+        }, `Round ${index}`));
+        return h("div", { style: { position: "fixed", inset: 0, zIndex: 99999, background: "white" } },
+          h("button", { onClick: finish }, "Finish response"),
+          h("button", {
+            onClick: () => {
+              const element = scroll.scrollRef.current;
+              if (element) {
+                element.scrollTop -= 240;
+                scroll.pauseFollowLatest();
+              }
+            },
+          }, "Read earlier"),
+          h("div", {
+            "data-handoff-mode": virtualEnabled ? "virtual" : "static",
+            "data-handoff-scroll": true,
+            ref: scroll.scrollRef,
+            onScroll: scroll.onScroll,
+            onWheel: scroll.onWheel,
+            style: { height: 500, overflowY: "auto", overflowAnchor: "none" },
+          },
+            virtualEnabled
+              ? h("div", {
+                ref: scroll.feedRef,
+                "data-conversation-virtual-feed": "true",
+                style: { position: "relative", height: virtualizer.getTotalSize() },
+              }, virtualizer.getVirtualItems().map((item: { index: number; key: string | number; start: number }) => h("div", {
+                key: item.key,
+                "data-conversation-round-id": String(item.index),
+                ref: virtualizer.measureElement,
+                style: {
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${item.start}px)`,
+                  height: 120,
+                },
+              }, `Round ${item.index}`)))
+              : h("div", {
+                ref: scroll.feedRef,
+                style: { display: "flex", flexDirection: "column" },
+              }, rows(Array.from({ length: count }, (_, index) => index))),
+          ),
+        );
+      }
+      const host = document.createElement("div");
+      document.body.append(host);
+      createRoot(host).render(h(Harness));
+    });
+    const viewport = page.locator("[data-handoff-scroll]");
+    const mode = () => page.locator("[data-handoff-mode]").getAttribute("data-handoff-mode");
+    const geometry = (roundId?: string | null) => viewport.evaluate((element, targetId) => {
+      const viewportRect = element.getBoundingClientRect();
+      const target = targetId
+        ? element.querySelector<HTMLElement>(`[data-conversation-round-id="${targetId}"]`)
+        : null;
+      return {
+        bottomGap: element.scrollHeight - element.clientHeight - element.scrollTop,
+        scrollTop: element.scrollTop,
+        targetTop: target ? target.getBoundingClientRect().top - viewportRect.top : null,
+      };
+    }, roundId);
+    await expect.poll(mode).toBe("static");
+    await expect.poll(async () => (await geometry()).bottomGap).toBe(0);
+    if (reading) {
+      await page.getByRole("button", { name: "Read earlier" }).click();
+      await expect.poll(async () => (await geometry()).bottomGap).toBe(240);
+    }
+    const before = await geometry(reading ? "16" : null);
+    await page.getByRole("button", { name: "Finish response" }).click();
+    await expect.poll(mode).toBe("virtual");
+    await expect.poll(async () => (await geometry()).bottomGap).toBe(reading ? 360 : 0);
+    const after = await geometry("16");
+    if (reading) {
+      expect(after.targetTop).not.toBeNull();
+      expect(Math.abs(after.targetTop! - before.targetTop!)).toBeLessThan(1);
+      expect(after.scrollTop).toBe(before.scrollTop);
+    } else {
+      expect(after.scrollTop).toBeGreaterThan(0);
+    }
+  });
+}
 
 test("live process collapse leaves no leading blank and continued generation follows real height", async ({ page }) => {
   await page.goto("/ui-gallery.html");
@@ -138,3 +784,124 @@ for (const virtual of [false, true]) {
     expect(samples.filter((sample) => Math.abs(sample.gap) > 1)).toEqual([]);
   });
 }
+
+test("expanded thought headers cover scrolling detail text", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const thoughtPath = "/src/features/conversation/shared/message/blocks/thinking-block.tsx";
+    const railPath = "/src/features/conversation/shared/message/ui/message-rail.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { ThinkingBlock } = await import(thoughtPath);
+    const { MessageDetailScroll } = await import(railPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:30px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      React.createElement(MessageDetailScroll, null, React.createElement(ThinkingBlock, {
+        defaultExpanded: true, thinking: "Long thought content that must not show through the sticky title.\n\n".repeat(60),
+      }))));
+  });
+  const header = page.locator('[data-message-detail-sticky-header="true"]');
+  const scroll = page.locator('[data-message-detail-scroll]').last();
+  await expect(header).toBeVisible();
+  await scroll.evaluate((element) => { element.scrollTop = 120; });
+  const headerTop = (await header.boundingBox())!.y;
+  expect(Math.abs(headerTop - (await scroll.boundingBox())!.y)).toBeLessThan(1);
+  // 展开、悬浮和按下态都必须遮住已经滚过标题的正文。
+  const background = () => header.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await header.hover();
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await page.mouse.down();
+  expect(await background()).not.toBe("rgba(0, 0, 0, 0)");
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+});
+
+test("process icons stay aligned when collapsed and expanded", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const runsPath = "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { AssistantToolRuns } = await import(runsPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.style.cssText = "position:fixed;inset:20px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      React.createElement(AssistantToolRuns, {
+        activity: { emptyStreamStatus: null, label: null, showCursor: true, standalone: false, state: "thinking", toolUseSummary: null },
+        environment: { mode: "dm_live", hiddenToolNames: [], canRespondToPermissions: false },
+        permissions: { all: [], matchedByToolUseId: new Map(), owner: "composer", unmatched: [] },
+        projection: { content: [
+          { type: "text", text: "Alignment paragraph" },
+          { type: "thinking", thinking: "Inspect source" },
+          { type: "tool_use", id: "align-read", name: "Read", input: { file_path: "a.md" } },
+        ], streamingIndexes: new Set() },
+        responseResumed: false,
+      })));
+  });
+  const group = page.locator('[data-tool-run-id]').last();
+  const toggle = group.locator('button[aria-expanded]').first();
+  const stackIcon = group.locator('[data-process-activity-icon] svg').first();
+  await expect(stackIcon).toBeVisible();
+  const stack = (await group.locator("[data-process-activity-icon-stack]").boundingBox())!;
+  const paragraph = (await page.getByText("Alignment paragraph", { exact: true }).boundingBox())!;
+  expect(Math.abs(stack.x - paragraph.x)).toBeLessThan(1);
+  const collapsed = (await stackIcon.boundingBox())!;
+  const thinking = (await group.locator('[data-message-activity-icon] svg').boundingBox())!;
+  expect(Math.abs(collapsed.x - thinking.x)).toBeLessThan(1);
+  expect(collapsed.width).toBe(thinking.width);
+  await toggle.click();
+  const expanded = (await toggle.locator('svg').first().boundingBox())!;
+  expect(Math.abs(collapsed.x - expanded.x)).toBeLessThan(1);
+  expect(collapsed.width).toBe(expanded.width);
+  await toggle.click();
+  expect(Math.abs((await stackIcon.boundingBox())!.x - collapsed.x)).toBeLessThan(1);
+});
+
+test("conversation delete actions align with the whole row", async ({ page }) => {
+  await page.goto("/ui-gallery.html");
+  await page.evaluate(async () => {
+    const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
+    const domPath = "/node_modules/.vite-browser-test/deps/react-dom_client.js";
+    const rowPath = "/src/features/home/sidebar/sidebar-list-rows.tsx";
+    const i18nPath = "/src/shared/i18n/i18n-provider.tsx";
+    const { default: React } = await import(reactPath);
+    const { default: { createRoot } } = await import(domPath);
+    const { ConversationRow } = await import(rowPath);
+    const { I18nProvider } = await import(i18nPath);
+    const host = document.createElement("div");
+    host.dataset.deleteAlignment = "true";
+    host.style.cssText = "position:fixed;inset:20px;max-width:300px;z-index:99999;background:var(--background)";
+    document.body.append(host);
+    createRoot(host).render(React.createElement(I18nProvider, null,
+      ...["person", "dm", "room"].map((kind) => React.createElement(ConversationRow, {
+        key: kind, isActive: false, onClick: () => {}, onDelete: () => {},
+        item: { id: kind, kind: kind === "person" ? "dm" : kind, directUserId: kind === "person" ? "user" : undefined,
+          title: kind, summary: "Conversation preview", timeLabel: "12:30", members: [],
+          isPinned: false, lastActivityAt: 0, messageCount: 1, activityStatus: null, canDelete: true },
+      }))));
+  });
+  const rows = page.locator('[data-delete-alignment] .group\\/item');
+  await expect(rows).toHaveCount(3);
+  for (const row of await rows.all()) {
+    await row.hover();
+    const action = row.locator("button");
+    await expect(action).toBeVisible();
+    const bounds = (await row.boundingBox())!;
+    const button = (await action.boundingBox())!;
+    expect(Math.abs(button.y + button.height / 2 - bounds.y - bounds.height / 2)).toBeLessThan(1);
+    expect(button.x).toBeGreaterThan(bounds.x + bounds.width / 2);
+    expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+  }
+});

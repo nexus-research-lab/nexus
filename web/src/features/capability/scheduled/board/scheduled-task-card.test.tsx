@@ -33,7 +33,7 @@ const TASK: ScheduledTaskItem = {
   source: { kind: "user_page" },
 };
 
-function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" = "zh") {
+function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" = "zh", onEdit = vi.fn()) {
   const t: I18nContextValue["t"] = (key, params) => Object.entries(params ?? {}).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), MESSAGES[locale][key]);
   return (
     <I18N_CONTEXT.Provider
@@ -52,7 +52,7 @@ function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" =
         isToggling={false}
         onConfirmDeletionStopped={vi.fn()}
         onDelete={vi.fn()}
-        onEdit={vi.fn()}
+        onEdit={onEdit}
         onOpenConnector={vi.fn()}
         onOpenHistory={vi.fn()}
         onPermissionDecision={vi.fn()}
@@ -67,6 +67,13 @@ function view(task: ScheduledTaskItem, onRunNow = vi.fn(), locale: "zh" | "en" =
 }
 
 describe("ScheduledTaskCard", () => {
+  it("opens the task editor from its title", async () => {
+    const onEdit = vi.fn();
+    render(view(TASK, vi.fn(), "zh", onEdit));
+    await userEvent.setup().click(screen.getByRole("button", { name: TASK.name }));
+    expect(onEdit).toHaveBeenCalledWith(TASK);
+  });
+
   it("keeps internal error text out of the card and retains it in explicit diagnostics", async () => {
     const error = "private-agent-id: /private/workspace\nprovider details";
     const task = { ...TASK, last_error: error, failure_streak: 1 };
@@ -97,7 +104,7 @@ describe("ScheduledTaskCard", () => {
     const { container } = render(view(TASK, onRunNow));
 
     expect(container.querySelector("article.surface-radius-md")).toBeTruthy();
-    expect(screen.getByText(TASK.name).className).toContain("ui-type-section-title");
+    expect(screen.getByRole("heading", { name: TASK.name }).className).toContain("ui-type-section-title");
     expect(screen.getByText(TASK.instruction).className).toContain("ui-type-metadata");
 
     await user.click(screen.getByRole("button", { name: "立即运行" }));

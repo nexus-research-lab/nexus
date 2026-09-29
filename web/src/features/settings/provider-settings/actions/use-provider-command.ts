@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 export type ProviderPendingAction =
   | { kind: "save-provider" }
   | { kind: "toggle-provider" }
+  | { kind: "clear-provider-key" }
   | { kind: "delete-provider" }
   | { kind: "fetch-models" }
   | { kind: "add-model"; modelId: string }

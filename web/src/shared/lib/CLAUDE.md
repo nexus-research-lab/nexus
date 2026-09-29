@@ -15,3 +15,5 @@
 - `react/page-header-actions-context.ts`：跨层共享无 DOM 的页头动作插槽；App 持有挂载点和响应式生命周期，页面只读取目标。
 
 直接导入职责文件；不恢复 `hooks/ui` 转发入口或聚合导出。
+
+- `humation/` 内置 MIT 上游组合头像源码与素材，Nexus 扩展素材、短标识校验及 SVG 渲染由该目录统一维护。

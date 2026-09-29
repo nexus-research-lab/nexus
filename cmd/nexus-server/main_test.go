@@ -271,6 +271,15 @@ WHERE deployment_id = 'deployment-legacy'
 	}
 }
 
+// 两种方言都校验完整迁移集合，防止并行合并的重复编号直到部署才暴露。
+func TestMigrationVersionsAreUniqueAcrossDialects(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			latestServerMigrationVersion(t, filepath.Join("..", "..", "db", "migrations", dialect))
+		})
+	}
+}
+
 func latestServerMigrationVersion(t *testing.T, migrationDir string) int64 {
 	t.Helper()
 	migrations, err := goose.CollectMigrations(migrationDir, 0, math.MaxInt64)

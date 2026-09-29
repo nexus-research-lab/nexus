@@ -7,6 +7,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	channelmanagement "github.com/nexus-research-lab/nexus/internal/service/channels/management"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -58,11 +59,35 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 	if err != nil {
 		return normalizedIngressRequest{}, err
 	}
+	var pairing *pairingRow
+	if s.control != nil && isExternalIngressChannel(channelStored) {
+		pairing, err = s.control.ingressPairing(ownerCtx, ownerUserID, agentID, sessionKey)
+		if err != nil {
+			return normalizedIngressRequest{}, err
+		}
+		if rememberedTarget != nil {
+			rememberedTarget.PairingID = pairing.PairingID
+			rememberedTarget.BindingVersion = pairing.BindingVersion
+		}
+	}
+	targetRoomType := ""
+	if pairing != nil && pairing.TargetRoomID != "" {
+		if err := s.control.validatePairingRoom(ownerCtx, agentID, channelmanagement.PairingSessionTarget{RoomID: pairing.TargetRoomID, ConversationID: pairing.TargetConversationID}); err != nil {
+			return normalizedIngressRequest{}, err
+		}
+		target, err := s.control.rooms.GetConversationContext(ownerCtx, pairing.TargetConversationID)
+		if err != nil {
+			return normalizedIngressRequest{}, err
+		}
+		targetRoomType = target.Room.RoomType
+	}
 	roundID := firstNonEmptyIngress(request.RoundID, s.idFactory("ingress_round"))
 	reqID := firstNonEmptyIngress(request.ReqID, request.RoundID, roundID)
 	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
+		pairing:                    pairing,
+		targetRoomType:             targetRoomType,
 		ownerUserID:                ownerUserID,
 		channelStored:              channelStored,
 		accountID:                  accountID,

@@ -1,10 +1,14 @@
 /**
  * INPUT: 图标族、当前值、锚点触发器与选择命令。
- * OUTPUT: 按视口限高、定位后聚焦当前选择并在 Tab 边界返回表单的具名图标浮层。
+ * OUTPUT: 原图标网格与连续随机预览，关闭时提交最后选择并归还焦点。
  * POS: 共享图标选择浮层；不显示无语义的图标数量标题。
  */
 "use client";
 
+import { getRandomHumationAvatar } from "@/shared/lib/humation/avatar";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { ChevronDown } from "lucide-react";
 import {
   useCallback,
@@ -76,9 +80,19 @@ export function IconPickerPopover({
   triggerRadius = "control",
   value,
 }: IconPickerPopoverProps) {
+  const { t } = useI18n();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useResettableState(false, JSON.stringify([disabled, iconFamily, startIconId, maxIcons, value]));
-  const closePicker = useCallback(() => setIsOpen(false), [setIsOpen]);
+  // 连续随机只更新草稿，避免个人资料保存期间的禁用状态关闭浮层。
+  const pendingAvatarRef = useRef<string | null>(null);
+  const [randomAvatar, setRandomAvatar] = useResettableState<string | null>(null, isOpen);
+  const closePicker = useCallback(() => {
+    const selected = pendingAvatarRef.current;
+    pendingAvatarRef.current = null;
+    setIsOpen(false);
+    if (selected && !disabled) onSelect(selected);
+  }, [disabled, onSelect, setIsOpen]);
+
   const estimatePosition = useCallback((anchor: HTMLButtonElement) => (
     resolveAnchoredOverlayPosition({
       anchor,
@@ -129,6 +143,7 @@ export function IconPickerPopover({
   }, [closePicker, disabled, isOpen, overlayRef, positioned]);
 
   const selectIcon = useCallback((iconId: string) => {
+    pendingAvatarRef.current = null;
     onSelect(iconId);
     closePicker();
     triggerRef.current?.focus();
@@ -149,7 +164,13 @@ export function IconPickerPopover({
           triggerRadius === "surface" ? "surface-radius-lg" : "radius-control-lg",
         )}
         disabled={disabled}
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={() => {
+          if (isOpen) closePicker();
+          else {
+            pendingAvatarRef.current = null;
+            setIsOpen(true);
+          }
+        }}
         type="button"
       >
         {renderTrigger(isOpen)}
@@ -178,6 +199,17 @@ export function IconPickerPopover({
               {ariaLabel}
             </span>
           </div>
+          {iconFamily === "agent" && <div className="mb-3 flex items-center gap-3">
+            <UiAgentAvatar avatar={randomAvatar ?? value} name="" size="lg" />
+            <UiButton className="flex-1" size="sm" variant="surface" onClick={(event) => {
+              event.currentTarget.focus({ preventScroll: true });
+              const next = getRandomHumationAvatar();
+              pendingAvatarRef.current = next;
+              setRandomAvatar(next);
+            }}>
+              {t("common.avatar_randomize")}
+            </UiButton>
+          </div>}
           <IconPicker
             columns={columns}
             disabled={disabled}

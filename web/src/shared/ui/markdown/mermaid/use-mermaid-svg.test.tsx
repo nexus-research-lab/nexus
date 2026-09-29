@@ -46,3 +46,19 @@ it("ignores a pending render that completes after the source was cleared", async
   await act(async () => { finish({ svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Old</text></svg>' }); });
   expect(result.current).toEqual({ svg: "", error: null, is_rendering: false });
 });
+
+it("keeps the last valid diagram visible while streaming becomes final", async () => {
+  const { result, rerender } = renderHook(
+    ({ streaming }) => useMermaidSvg("graph TD; A-->B", streaming, "final"),
+    { initialProps: { streaming: true } },
+  );
+  await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+  expect(result.current.svg).toContain("Current");
+
+  rerender({ streaming: false });
+  expect(result.current.svg).toContain("Current");
+  expect(result.current.is_rendering).toBe(true);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(result.current.is_rendering).toBe(false);
+  expect(result.current.svg).toContain("Current");
+});

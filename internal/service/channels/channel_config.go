@@ -62,7 +62,6 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 				publicConfig["account_count"] = fmt.Sprintf("%d", len(view.Accounts))
 			}
 			view.LastError = nullStringValue(row.LastError)
-			view.QRPayload = publicConfig["qr_payload"]
 			view.UpdatedAt = &row.UpdatedAt
 		}
 		result = append(result, view)
@@ -167,14 +166,28 @@ func (s *ControlService) upsertChannelConfig(
 	if agentID == "" {
 		return nil, invalidChannelControl(errors.New("agent_id is required"))
 	}
-	if err := s.ensureAgent(ctx, agentID); err != nil {
-		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	// A Channel configuration write is also an authorization/runtime
+	// generation change. Fence every in-process QR login before taking the
+	// database locks so a scan that started under the previous Agent or
+	// credentials cannot finish later and publish stale credentials/runtime.
+	// This must use the same per-owner+channel login lock as start/delete/account
+	// mutations; otherwise a concurrent start could recreate the orphaned QR
+	// session after this write has committed.
+	unlockLogin := s.lockChannelLogin(ownerUserID, channelType)
+	defer unlockLogin()
+	if err := s.cancelActiveChannelLoginsLocked(ctx, ownerUserID, channelType); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationUnknown, err)
 	}
-
 	unlockControl := s.lockControlMutation(ownerUserID)
 	defer unlockControl()
 	unlockChannel := s.lockChannelMutation(ownerUserID, channelType)
 	defer unlockChannel()
+	// Resolve the Agent only after the same mutation locks are held. Agent
+	// deletion coordinates through these locks; checking it before acquiring
+	// them could validate an Agent that is deleted before this config commits.
+	if err := s.ensureAgent(ctx, agentID); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
 
 	publicConfig := normalizeStringMap(request.Config)
 	secrets := normalizeStringMap(request.Credentials)
@@ -271,12 +284,34 @@ func (s *ControlService) deleteChannelConfig(
 ) error {
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
 	channelType = normalizeIMChannelType(channelType)
+	unlockLogin := s.lockChannelLogin(ownerUserID, channelType)
+	defer unlockLogin()
+	if err := s.cancelActiveChannelLoginsLocked(ctx, ownerUserID, channelType); err != nil {
+		return channelControlMutationFailure(ControlMutationUnknown, err)
+	}
 	unlockControl := s.lockControlMutation(ownerUserID)
 	defer unlockControl()
 	unlockChannel := s.lockChannelMutation(ownerUserID, channelType)
 	defer unlockChannel()
 
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		// Channel removal is a hard authorization boundary. Revoke both grants
+		// attached to surviving pairing rows and grants whose pairing row was
+		// already lost, then remove every concrete target projection for the
+		// channel in the same transaction.
+		revokeQuery := "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id = " + s.bind(1) +
+			" AND (pairing_id IN (SELECT pairing_id FROM im_pairings WHERE owner_user_id = " + s.bind(2) + " AND channel_type = " + s.bind(3) + ")" +
+			" OR target_session_key IN (SELECT session_key FROM im_pairing_sessions WHERE owner_user_id = " + s.bind(4) + " AND channel_type = " + s.bind(5) + "))"
+		if _, revokeErr := tx.ExecContext(ctx, revokeQuery, ownerUserID, ownerUserID, channelType, ownerUserID, channelType); revokeErr != nil {
+			return revokeErr
+		}
+		if routeErr := s.deleteChannelDeliveryRoutesTx(ctx, tx, ownerUserID, channelType); routeErr != nil {
+			return routeErr
+		}
+		mappingQuery := "DELETE FROM im_pairing_sessions WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
+		if _, deleteErr := tx.ExecContext(ctx, mappingQuery, ownerUserID, channelType); deleteErr != nil {
+			return deleteErr
+		}
 		pairingQuery := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
 		if _, deleteErr := tx.ExecContext(ctx, pairingQuery, ownerUserID, channelType); deleteErr != nil {
 			return deleteErr
@@ -335,6 +370,11 @@ func (s *ControlService) deleteChannelAccount(
 	if accountID == "" {
 		return nil, ErrChannelAccountNotFound
 	}
+	unlockLogin := s.lockChannelLogin(ownerUserID, channelType)
+	defer unlockLogin()
+	if err := s.cancelActiveChannelLoginsLocked(ctx, ownerUserID, channelType); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationUnknown, err)
+	}
 	unlockControl := s.lockControlMutation(ownerUserID)
 	defer unlockControl()
 	unlockChannel := s.lockChannelMutation(ownerUserID, channelType)
@@ -346,6 +386,22 @@ func (s *ControlService) deleteChannelAccount(
 	}
 	var row *channelConfigRow
 	committedVersion, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		// An account may be the concrete target of a wildcard pairing. Revoke
+		// grants by the displaced Session key as well as grants for explicit
+		// account-scoped pairings before deleting either projection.
+		revokeQuery := "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id = " + s.bind(1) +
+			" AND (pairing_id IN (SELECT pairing_id FROM im_pairings WHERE owner_user_id = " + s.bind(2) + " AND channel_type = " + s.bind(3) + " AND account_id = " + s.bind(4) + ")" +
+			" OR target_session_key IN (SELECT session_key FROM im_pairing_sessions WHERE owner_user_id = " + s.bind(5) + " AND channel_type = " + s.bind(6) + " AND account_id = " + s.bind(7) + "))"
+		if _, revokeErr := tx.ExecContext(ctx, revokeQuery, ownerUserID, ownerUserID, channelType, accountID, ownerUserID, channelType, accountID); revokeErr != nil {
+			return revokeErr
+		}
+		if routeErr := s.deleteChannelAccountDeliveryRoutesTx(ctx, tx, ownerUserID, channelType, accountID); routeErr != nil {
+			return routeErr
+		}
+		mappingQuery := "DELETE FROM im_pairing_sessions WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2) + " AND account_id = " + s.bind(3)
+		if _, deleteErr := tx.ExecContext(ctx, mappingQuery, ownerUserID, channelType, accountID); deleteErr != nil {
+			return deleteErr
+		}
 		pairingQuery := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) +
 			" AND channel_type = " + s.bind(2) + " AND account_id = " + s.bind(3)
 		if _, deleteErr := tx.ExecContext(ctx, pairingQuery, ownerUserID, channelType, accountID); deleteErr != nil {

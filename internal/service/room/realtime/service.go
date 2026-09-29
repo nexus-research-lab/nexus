@@ -6,6 +6,11 @@ package realtime
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -25,11 +30,8 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"log/slog"
-	"strings"
-	"sync/atomic"
-	"time"
 )
 
 const (
@@ -72,12 +74,16 @@ func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Cl
 // RoundID / UserMessageID 由后端 mint：WS 入口不填，HandleChat 内部生成；
 // 后端内部调用方（automation / mention / queue）可预置 RoundID。
 type ChatRequest struct {
-	SessionKey            string
-	RoomID                string
-	ConversationID        string
-	CoordinatorAgentID    string
-	AttachmentAgentID     string
-	Content               string
+	SessionKey         string
+	RoomID             string
+	ConversationID     string
+	CoordinatorAgentID string
+	AttachmentAgentID  string
+	Content            string
+	// PublicContext 仅由服务端在线适配提供，沿用 Room 公区游标与上下文预算。
+	PublicContext []protocol.Message
+	// PublicAgentDirectory 是服务端在线成员展示目录，不参与本机执行资格。
+	PublicAgentDirectory  map[string]string
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64
@@ -167,6 +173,9 @@ type roomContextStore interface {
 }
 
 type Service struct {
+	externalReply           func(context.Context, string, string, string, protocol.Message) error
+	externalPrompt          func(context.Context, string, string, string) (string, error)
+	externalPermission      func(context.Context, string, string, string) (sdkpermission.Handler, error)
 	config                  config.Config
 	rooms                   roomContextStore
 	agents                  *agentsvc.Service
@@ -492,4 +501,14 @@ func eventRoundID(event protocol.EventMessage) string {
 		return roundID
 	}
 	return strings.TrimSpace(event.RoundID)
+}
+
+// SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
+func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
+	s.roomHistory.SetReplyPreviewRepository(repository)
+}
+
+// PendingAgentInteraction 只暴露成员执行会话的等待事实与变化信号，不暴露审批内容。
+func (s *Service) PendingAgentInteraction(conversationID, agentID string) (bool, <-chan struct{}) {
+	return s.permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
 }

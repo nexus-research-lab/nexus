@@ -85,11 +85,11 @@ WHERE a.id IN (%s)`, r.dialect.BindList(len(agentIDs)))
 	return result, rows.Err()
 }
 
-// ListRecentRooms 列出最近房间。
+// ListRecentRooms 列出用户房间；relay_ 是服务端确定性执行容器，由在线群 Thread 访问。
 func (r *SQLRepository) ListRecentRooms(ctx context.Context, ownerUserID string, limit int) ([]protocol.RoomAggregate, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
-		`SELECT id FROM rooms WHERE owner_user_id = `+r.dialect.Bind(1)+` AND is_contact_channel = `+r.dialect.FalseValue()+` ORDER BY updated_at DESC, created_at DESC LIMIT `+r.dialect.Bind(2),
+		`SELECT id FROM rooms WHERE owner_user_id = `+r.dialect.Bind(1)+` AND is_contact_channel = `+r.dialect.FalseValue()+` AND substr(id, 1, 6) <> 'relay_' ORDER BY updated_at DESC, created_at DESC LIMIT `+r.dialect.Bind(2),
 		ownerUserID,
 		limit,
 	)

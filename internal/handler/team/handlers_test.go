@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -93,6 +94,7 @@ type teamRelayStub struct {
 	watchStreamEpoch  string
 	watchUpdate       relaycontract.StreamUpdated
 	watchErr          error
+	watchExpireOnce   bool
 }
 
 type teamProjectorStub struct {
@@ -246,13 +248,21 @@ func (stub *teamRelayStub) Difference(
 }
 
 func (stub *teamRelayStub) Watch(
-	_ context.Context,
+	ctx context.Context,
 	token string,
 	streamID string,
 	streamEpoch string,
 	handle func(relaycontract.StreamUpdated) error,
 ) error {
 	stub.watchCalls++
+	if stub.watchErr == context.Canceled {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	if stub.watchExpireOnce && stub.watchCalls == 1 {
+		time.Sleep(time.Second)
+		return websocket.CloseError{Code: websocket.StatusPolicyViolation, Reason: "principal expired"}
+	}
 	stub.tokens = append(stub.tokens, token)
 	stub.streamID = streamID
 	stub.watchStreamEpoch = streamEpoch
@@ -262,6 +272,37 @@ func (stub *teamRelayStub) Watch(
 		}
 	}
 	return stub.watchErr
+}
+
+func TestTeamStreamHeartbeatWithoutBusinessTraffic(t *testing.T) {
+	relay := &teamRelayStub{watchErr: context.Canceled}
+	server := httptest.NewServer(newTeamTestRouter(&teamTokenStub{token: "token"}, relay, teamTestPrincipal()))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-1", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {server.URL}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.CloseNow()
+	for range 2 {
+		if err = wsjson.Write(ctx, conn, map[string]string{"type": "ping"}); err != nil {
+			t.Fatal(err)
+		}
+		var response struct {
+			EventType string `json:"event_type"`
+		}
+		if err = wsjson.Read(ctx, conn, &response); err != nil || response.EventType != "pong" {
+			t.Fatalf("pong: %+v %v", response, err)
+		}
+	}
+	if err = wsjson.Write(ctx, conn, map[string]string{"type": "send_message"}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = conn.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+		t.Fatalf("unexpected close: %v", err)
+	}
 }
 
 func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
@@ -291,6 +332,39 @@ func TestTeamStreamForwardsAuthenticatedRelayHints(t *testing.T) {
 		relay.streamID != "stream-1" || relay.watchStreamEpoch != "epoch-1" ||
 		tokens.principal == nil || tokens.principal.UserID != "local-owner" {
 		t.Fatalf("update=%+v relay=%+v principal=%+v", got, relay, tokens.principal)
+	}
+}
+
+func TestTeamStreamRenewsOnlyExpiredPrincipal(t *testing.T) {
+	for _, expired := range []bool{true, false} {
+		t.Run(fmt.Sprint(expired), func(t *testing.T) {
+			tokens := &teamTokenStub{token: "renewed"}
+			relay := &teamRelayStub{watchExpireOnce: expired, watchErr: websocket.CloseError{Code: websocket.StatusPolicyViolation, Reason: "principal invalidated"}}
+			done := make(chan struct{})
+			router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { defer close(done); router.ServeHTTP(w, r) }))
+			defer server.Close()
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			connection, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http")+"/nexus/v1/team/stream?stream_id=stream-1&stream_epoch=epoch-1", &websocket.DialOptions{HTTPHeader: http.Header{"Origin": {server.URL}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer connection.CloseNow()
+			_, _, _ = connection.Read(ctx)
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			want := 1
+			if expired {
+				want = 2
+			}
+			if tokens.calls != want || relay.watchCalls != want {
+				t.Fatalf("renewal calls: %d watches: %d", tokens.calls, relay.watchCalls)
+			}
+		})
 	}
 }
 
@@ -937,4 +1011,33 @@ func decodeTeamFailure(t *testing.T, recorder *httptest.ResponseRecorder) protoc
 type relayClient interface {
 	teamsvc.RelayClient
 	relayStream
+}
+
+func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		tokens := &teamTokenStub{token: "relay-token"}
+		if denied {
+			tokens.verifyErr = authsvc.ErrOrganizationMemberInvalid
+		}
+		relay := &teamRelayStub{}
+		response := teamRequest(t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost, "/nexus/v1/team/rooms", `{"direct_user_id":"peer"}`, true)
+		if !reflect.DeepEqual(tokens.verifiedUserIDs, []string{"peer"}) {
+			t.Fatalf("peer not verified: %+v", tokens)
+		}
+		if denied {
+			if response.Code != http.StatusForbidden || relay.createRoomCalls != 0 {
+				t.Fatalf("unverified DM created: %d", response.Code)
+			}
+		} else if response.Code != http.StatusOK || relay.roomInput.DirectUserID != "peer" {
+			t.Fatalf("DM not forwarded: %d %+v", response.Code, relay.roomInput)
+		}
+	}
+}
+
+func (stub *teamRelayStub) RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error) {
+	return []relaycontract.DeliveryStatus{}, nil
+}
+
+func (stub *teamRelayStub) RoomMembers(context.Context, string, string, string, string, int64) (relaycontract.RoomMemberPage, error) {
+	return relaycontract.RoomMemberPage{}, nil
 }

@@ -510,7 +510,7 @@ export function ScheduledTasksDirectory() {
           />
           </div>
           <aside aria-label={t("capability.scheduled_editor")}
-            className={dialog.kind === "closed" ? "hidden" : "relative min-h-0 w-full shrink-0 bg-(--background) border-l border-(--divider-subtle-color) lg:ml-4 lg:w-[55%] lg:min-w-[420px] lg:max-w-[760px]"}>
+            className={dialog.kind === "closed" ? "hidden" : "relative min-h-0 w-full shrink-0 bg-(--background) border-l border-(--divider-subtle-color) lg:ml-4 lg:w-[44%] lg:min-w-[360px] lg:max-w-[560px]"}>
       <ScheduledTaskDialog
         onBusyChange={setEditorBusy}
         agentId={resource.agentId}

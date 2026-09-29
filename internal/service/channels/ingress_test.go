@@ -3,8 +3,10 @@ package channels
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -45,7 +47,7 @@ func TestIngressServiceDeduplicatesReqID(t *testing.T) {
 	}
 }
 
-func TestIngressServiceRetriesFailedReqID(t *testing.T) {
+func TestIngressServiceDoesNotReplayUnknownDMAdmission(t *testing.T) {
 	cfg := newIngressTestConfig(t)
 	db := migrateIngressSQLite(t, cfg.DatabaseURL)
 	defer func() { _ = db.Close() }()
@@ -63,8 +65,8 @@ func TestIngressServiceRetriesFailedReqID(t *testing.T) {
 	}
 	handler.err = nil
 	result, err := service.Accept(context.Background(), request)
-	if err != nil || result == nil || result.Duplicate {
-		t.Fatalf("失败后的同 req_id 应允许重试: result=%+v err=%v", result, err)
+	if !errors.Is(err, ErrIngressOutcomeUnknown) || result != nil || len(handler.requests) != 1 {
+		t.Fatalf("未知 DM 受理不能确认或重跑: result=%+v err=%v calls=%d", result, err, len(handler.requests))
 	}
 }
 
@@ -244,11 +246,18 @@ func TestIngressServiceAcceptFeishuThreadUsesGroupPairing(t *testing.T) {
 		t.Fatalf("飞书话题消息应命中群级配对: %v", err)
 	}
 
-	expectedSessionKey := "agent:" + defaultAgent.AgentID + ":fs:group:acct:cli_a:oc_group_123:topic:omt_thread_1"
-	if result.SessionKey != expectedSessionKey {
-		t.Fatalf("飞书话题 session_key 不正确: %s", result.SessionKey)
+	parsedSession := protocol.ParseSessionKey(result.SessionKey)
+	if !parsedSession.IsStructured || parsedSession.Kind != protocol.SessionKeyKindAgent ||
+		parsedSession.AgentID != defaultAgent.AgentID ||
+		parsedSession.Channel != protocol.SessionChannelFeishuSegment ||
+		parsedSession.ChatType != "group" ||
+		parsedSession.AccountID != "cli_a" ||
+		parsedSession.Ref != "oc_group_123" ||
+		parsedSession.ThreadID != "omt_thread_1" ||
+		parsedSession.Generation == "" {
+		t.Fatalf("飞书话题 session_key 不正确: %s (parsed=%+v)", result.SessionKey, parsedSession)
 	}
-	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
+	if len(handler.requests) != 1 || handler.requests[0].SessionKey != result.SessionKey {
 		t.Fatalf("飞书话题消息未进入 DM 主链: %+v", handler.requests)
 	}
 	replyTarget := handler.requests[0].ExternalReplyTarget
@@ -294,5 +303,178 @@ func TestIngressServiceAcceptPassesChannelOwnerToDM(t *testing.T) {
 	expectedSessionKey := "agent:" + ownerAgent.AgentID + ":fs:group:oc_group_owner"
 	if len(handler.requests) != 1 || handler.requests[0].SessionKey != expectedSessionKey {
 		t.Fatalf("DM 请求不正确: %+v", handler.requests)
+	}
+}
+
+func TestIngressDoesNotRepeatUncertainControlCommand(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	service := NewIngressService(cfg, agents, &fakeIngressDMHandler{}, router)
+	service.SetControlService(NewControlService(cfg, db, agents, router))
+	commands := &recordingIngressCommandHandler{err: errors.New("命令执行结果未知")}
+	service.SetCommandHandler(commands)
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "/stop", ReqID: "same-command"}
+	if _, err := service.Accept(t.Context(), request); err == nil {
+		t.Fatal("预期命令失败")
+	}
+	_, _ = service.Accept(t.Context(), request)
+	if len(commands.requests) != 1 {
+		t.Fatalf("未知控制命令被重复执行: %d", len(commands.requests))
+	}
+}
+
+func TestIngressCrashRecoveryUsesOriginalRoundAndDurableEvidence(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, handler, router)
+	service.SetControlService(control)
+	request := IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "prepared", RoundID: "original"}
+	normalized, err := service.normalizeRequest(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claimed, _, err := service.claimIngress(t.Context(), normalized); err != nil || !claimed {
+		t.Fatalf("claim: %v %v", claimed, err)
+	}
+	// 模拟在路由准备阶段退出；重投必须沿原轮次继续。
+	request.RoundID = "new-round"
+	result, err := service.Accept(t.Context(), request)
+	if err != nil || result.RoundID != "original" || len(handler.requests) != 1 || handler.requests[0].RoundID != "original" {
+		t.Fatalf("prepared recovery: %+v %v", result, err)
+	}
+	if _, err = db.Exec(`UPDATE im_ingress_messages SET status='processing' WHERE req_id='prepared'`); err != nil {
+		t.Fatal(err)
+	}
+	service.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
+		if session != normalized.sessionKey {
+			t.Fatalf("wrong session: %s", session)
+		}
+		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{{RoundID: "original", HasUserMessage: true}}}, nil
+	})
+	result, err = service.Accept(t.Context(), request)
+	if err != nil || !result.Duplicate || len(handler.requests) != 1 {
+		t.Fatalf("accepted recovery reran: %+v %v", result, err)
+	}
+	request.Content = "different command"
+	if _, err = service.Accept(t.Context(), request); err == nil {
+		t.Fatal("同身份不能替换正文")
+	}
+}
+
+func TestIngressDispatchBarrierHasOneWinner(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, &fakeIngressDMHandler{}, router)
+	service.SetControlService(control)
+	request, err := service.normalizeRequest(t.Context(), IngressRequest{Channel: "internal", Ref: "chat", Content: "hello", ReqID: "same"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if claimed, _, err := service.claimIngress(t.Context(), request); err != nil || !claimed {
+			t.Fatalf("prepare: %v %v", claimed, err)
+		}
+	}
+	if err = control.beginIngressDispatch(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	if err = control.beginIngressDispatch(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
+		t.Fatalf("second dispatcher: %v", err)
+	}
+	if _, _, err = service.claimIngress(t.Context(), request); !errors.Is(err, ErrIngressOutcomeUnknown) {
+		t.Fatalf("unknown accepted: %v", err)
+	}
+}
+
+func TestIngressRecoveryScansPastUnknownWithoutPlatformRedelivery(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	agents := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	handler := &fakeIngressDMHandler{}
+	router := NewRouter(cfg, db, agents, permissionctx.NewContext())
+	control := NewControlService(cfg, db, agents, router)
+	service := NewIngressService(cfg, agents, handler, router)
+	service.SetControlService(control)
+	request, err := service.normalizeRequest(t.Context(), IngressRequest{Channel: "internal", Ref: "chat", Content: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i <= ingressRecoveryBatchSize; i++ {
+		request.reqID, request.roundID = fmt.Sprintf("message-%03d", i), fmt.Sprintf("round-%03d", i)
+		if _, _, err := service.claimIngress(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+		if err := control.beginIngressDispatch(t.Context(), request); err != nil {
+			t.Fatal(err)
+		}
+	}
+	service.SetRoundIndexReader(func(_ context.Context, session string) (*protocol.SessionRoundIndex, error) {
+		if session != request.sessionKey {
+			t.Fatalf("wrong session: %s", session)
+		}
+		return &protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{
+			{RoundID: "round-100", HasUserMessage: true}, {RoundID: "round-099", HasUserMessage: false},
+		}}, nil
+	})
+	cursor := ingressMessageRow{}
+	first, err := service.recoverIngressBatch(t.Context(), &cursor)
+	if err != nil || !first.HasMore {
+		t.Fatalf("first batch: %+v %v", first, err)
+	}
+	second, err := service.recoverIngressBatch(t.Context(), &cursor)
+	if err != nil || second.HasMore || cursor.ReqID != "" {
+		t.Fatalf("second batch: %+v %v", second, err)
+	}
+	var accepted int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM im_ingress_messages WHERE status='accepted'`).Scan(&accepted); err != nil {
+		t.Fatal(err)
+	}
+	if accepted != 1 || len(handler.requests) != 0 {
+		t.Fatalf("accepted=%d reruns=%d", accepted, len(handler.requests))
+	}
+	// 无证据的旧消息留在待核验状态，不能伪造受理或重跑。
+	unknown, err := control.getIngressMessage(t.Context(), request.ownerUserID, request.channelStored, request.accountID, "message-099")
+	if err != nil || unknown.Status != "processing" {
+		t.Fatalf("unknown: %+v %v", unknown, err)
+	}
+}
+
+func TestRoomExternalReplyPromptRequiresPersistedOriginalSession(t *testing.T) {
+	cfg := newIngressTestConfig(t)
+	db := migrateIngressSQLite(t, cfg.DatabaseURL)
+	defer db.Close()
+	service := NewIngressService(cfg, nil, nil, nil)
+	service.SetControlService(NewControlService(cfg, db, nil, nil))
+	ctx := ingressTestOwnerContext("owner")
+	_, err := db.Exec(`INSERT INTO im_room_inputs (owner_user_id,root_round_id,pairing_id,binding_version,agent_id,room_id,conversation_id,target_json,content) VALUES ('owner','root','pair',1,'amy','room','topic','{}','hello')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := protocol.BuildRoomAgentSessionKey("topic", "amy", protocol.RoomTypeGroup)
+	for _, session := range []string{original, "agent:amy:ws:dm:other"} {
+		prompt, err := service.roomExternalReplyPrompt(ctx, "root", "amy", session)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if (prompt != "") != (session == original) {
+			t.Fatalf("prompt for %s: %q", session, prompt)
+		}
+	}
+	prompt, err := service.roomExternalReplyPrompt(ctx, "unrelated", "amy", original)
+	if err != nil || prompt != "" {
+		t.Fatalf("unrelated input: %q %v", prompt, err)
 	}
 }

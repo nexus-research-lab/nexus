@@ -86,9 +86,9 @@ export function ProcessActivityIconStack({
           key={activity.key}
         >
           {activity.kind === "thinking" ? (
-            <Brain aria-hidden className="h-3 w-3" strokeWidth={1.8} />
+            <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
           ) : (
-            <ToolActivityIcon className="h-3 w-3" kind={activity.kind} />
+            <ToolActivityIcon className="h-3.5 w-3.5" kind={activity.kind} />
           )}
         </span>
       ))}

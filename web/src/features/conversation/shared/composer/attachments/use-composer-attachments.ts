@@ -31,6 +31,7 @@ import {
 } from "./composer-local-attachment-model";
 
 interface UseComposerAttachmentsOptions {
+  disabledReason?: string;
   attachments: ComposerLocalAttachment[];
   isGoalMode: boolean;
   onGoalAttachmentRejected: (message: string) => void;
@@ -106,6 +107,7 @@ function formatFirstAttachmentRejection(
 }
 
 export function useComposerAttachments({
+  disabledReason,
   attachments,
   isGoalMode,
   onGoalAttachmentRejected,
@@ -124,13 +126,17 @@ export function useComposerAttachments({
     if (files.length === 0) {
       return;
     }
+    if (disabledReason) {
+      setAttachmentError(disabledReason);
+      return;
+    }
     const batch = buildLocalAttachmentBatch(files);
     setAttachmentError(formatFirstAttachmentRejection(batch.rejections[0], t));
     setAttachments((current) => appendLocalAttachments(
       current,
       batch.attachments,
     ));
-  }, [setAttachments, t]);
+  }, [disabledReason, setAttachments, t]);
 
   const handleFileSelect = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -163,6 +169,10 @@ export function useComposerAttachments({
     if (attachments.length === 0) {
       return [] as MessageAttachment[];
     }
+    if (disabledReason) {
+      setAttachmentError(disabledReason);
+      return null;
+    }
     setIsPreparingAttachments(true);
     setAttachmentError(null);
     try {
@@ -175,6 +185,7 @@ export function useComposerAttachments({
     }
   }, [
     attachments,
+    disabledReason,
     onPrepareAttachments,
     t,
   ]);

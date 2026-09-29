@@ -48,6 +48,7 @@ export function ProviderSettingsPanel({
     <div className={cn(
       layout === "page" ? WORKSPACE_CONTENT_PAGE_CLASS_NAME : undefined,
       "@container/provider flex min-h-0 min-w-0 flex-col sm:h-full",
+      layout === "page" && "sm:h-full sm:overflow-hidden",
     )}>
       {layout === "page" ? (
         <WorkspaceContentHeader
@@ -86,6 +87,8 @@ export function ProviderSettingsPanel({
                 isEditing={state.isEditing}
                 onEnabledChange={actions.handleEnabledChange}
                 onTestSelection={modelActions.handleTestSelection}
+                testProgress={modelActions.testProgress}
+                onStopTests={modelActions.handleStopTests}
                 pendingAction={state.pendingAction}
                 providerId={state.selectedRecord?.id ?? null}
                 selectedCanManage={state.selectedCanManage}
@@ -109,6 +112,8 @@ export function ProviderSettingsPanel({
                     base_url: value,
                   })}
                   onFieldBlur={actions.handleProviderFieldBlur}
+                  onClearAuthToken={actions.handleClearAuthToken}
+                  pending={state.pendingAction !== null}
                   onProviderDisplayNameChange={
                     actions.handleProviderDisplayNameChange
                   }

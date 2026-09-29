@@ -1,6 +1,6 @@
 // INPUT: 宿主绑定的本地 owner、真人 Session 与已批准的成员操作。
-// OUTPUT: Control 成员目录与变更结果；不读取 Control 数据库。
-// POS: Agent 用户管理到 Control 的服务间适配。
+// OUTPUT: Control 部署用户目录与变更结果；不读取 Control 数据库。
+// POS: Agent 独立 Web 用户管理到 Control 的服务间适配。
 package auth
 
 import (
@@ -42,7 +42,7 @@ func (a *ControlAuthority) ManageMembers(ctx context.Context, owner, sessionID, 
 		return nil, err
 	}
 	var result json.RawMessage
-	err = a.call(ctx, http.MethodPost, "/internal/members/manage", struct {
+	err = a.call(ctx, http.MethodPost, "/internal/deployment-members/manage", struct {
 		ActorUserID     string          `json:"actor_user_id"`
 		SessionID       string          `json:"session_id"`
 		Operation       string          `json:"operation"`

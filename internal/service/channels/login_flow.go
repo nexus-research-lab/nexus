@@ -116,6 +116,27 @@ func (s *ControlService) startChannelLoginAtVersion(
 	if !catalog.SupportsQRCode {
 		return nil, ErrChannelLoginUnsupported
 	}
+	// Serialize the whole start sequence with Channel deletion/rebinding. The
+	// provider call is intentionally inside this lock so a successful start
+	// cannot publish an in-memory QR session after a mutation has fenced it.
+	unlockLogin := s.lockChannelLogin(ownerUserID, channelType)
+	defer unlockLogin()
+	// The first version read above only fences callers that are already
+	// serialized. A configuration write may have committed while this start
+	// request was waiting for the QR lock. Re-read under that lock; otherwise we
+	// could show a QR backed by the new credentials but tagged with the old
+	// control version, which can never complete successfully and leaves a stale
+	// provider login behind.
+	currentVersion, err = s.GetChannelControlVersion(ctx, ownerUserID)
+	if err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
+	if currentVersion != expectedVersion {
+		return nil, channelControlVersionError(
+			expectedVersion,
+			ErrChannelControlVersionConflict,
+		)
+	}
 
 	row, err := s.getChannelConfigRow(ctx, ownerUserID, channelType)
 	if err != nil {
@@ -130,6 +151,7 @@ func (s *ControlService) startChannelLoginAtVersion(
 	store := s.effectiveChannelLoginStore()
 	activeKey := channelLoginActiveKey(ownerUserID, channelType)
 	now := time.Now()
+	var replacedSession *channelLoginSession
 	store.mu.Lock()
 	store.pruneLocked(now)
 	if activeID := store.active[activeKey]; activeID != "" {
@@ -151,11 +173,17 @@ func (s *ControlService) startChannelLoginAtVersion(
 					)
 				}
 				_, _ = session.cancelLogin()
+				replacedSession = session
 			}
 		}
 		delete(store.active, activeKey)
 	}
 	store.mu.Unlock()
+	if replacedSession != nil {
+		if waitErr := replacedSession.waitDone(ctx); waitErr != nil {
+			return nil, channelControlMutationFailure(ControlMutationUnknown, waitErr)
+		}
+	}
 
 	if channelType != ChannelTypeWeixinPersonal {
 		return s.startRegisteredChannelLogin(

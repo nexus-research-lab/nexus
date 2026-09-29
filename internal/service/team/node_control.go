@@ -5,15 +5,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
 
 var (
-	ErrNodeLogin       = errors.New("节点授权需要有效远程登录")
-	ErrNodeInput       = errors.New("节点授权参数无效")
-	ErrNodeUnavailable = errors.New("节点授权服务暂时不可用")
+	ErrNodeLogin              = errors.New("节点授权需要有效远程登录")
+	ErrNodeInput              = errors.New("节点授权参数无效")
+	ErrNodeUnavailable        = errors.New("节点授权服务暂时不可用")
+	ErrNodeInactive           = fmt.Errorf("%w: 本机授权已被替换或停用", ErrNodeLogin)
+	ErrNodeCredentialRejected = fmt.Errorf("%w: Control 拒绝设备凭据", ErrNodeLogin)
 )
 
 type nodeRemoteError struct{ status int }
@@ -26,11 +29,15 @@ func (s *NodeService) callControl(ctx context.Context, cookie, method, path stri
 }
 
 func (s *NodeService) controlRequest(ctx context.Context, cookie, credential, method, path string, input, output any) error {
+	return s.remoteRequest(ctx, cookie, credential, method, "/auth/v1"+path, input, output)
+}
+
+func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, method, path string, input, output any) error {
 	data, err := json.Marshal(input)
 	if err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+"/auth/v1"+path, bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+path, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -48,6 +55,9 @@ func (s *NodeService) controlRequest(ctx context.Context, cookie, credential, me
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusUnauthorized {
+		if credential != "" {
+			return ErrNodeCredentialRejected
+		}
 		return ErrNodeLogin
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -68,6 +78,7 @@ func (s *NodeService) controlRequest(ctx context.Context, cookie, credential, me
 }
 
 type nodeToken struct {
+	Directory []nodeAgent `json:"directory,omitempty"`
 	Token     string      `json:"token"`
 	ExpiresAt time.Time   `json:"expires_at"`
 	Agents    []nodeAgent `json:"agents"`

@@ -3,6 +3,8 @@
  * OUTPUT: 可在目录、Agent 详情和创建/删除决策之间往返的页面装配。
  * POS: Contacts 路由页面；业务状态和导航动作分别下沉到 controller 与 orchestration。
  */
+import { useSearchParams } from "react-router-dom";
+import { HumanContactsDirectory } from "@/features/team/human-contacts-directory";
 import type { ComponentProps } from "react";
 
 import { AgentOptionsDialog } from "@/features/agents/options/dialog/agent-options-dialog";
@@ -39,6 +41,11 @@ interface ContactsPageActions extends
   ContactsDirectoryActions {}
 
 export function ContactsPage() {
+  const [params] = useSearchParams();
+  return params.get("view") === "members" ? <WorkspacePageFrame contentPaddingClassName="p-0"><HumanContactsDirectory key={params.get("member") ?? "directory"} /></WorkspacePageFrame> : <AgentContactsPage />;
+}
+
+function AgentContactsPage() {
   const { t } = useI18n();
   const controller = useContactsPageController();
   const navigation = useContactsPageNavigation({

@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { MessageCirclePlus, MessageSquareText } from "lucide-react";
+import { MessageCirclePlus, MessageCircle } from "lucide-react";
 
 import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -173,7 +173,7 @@ function ContactsAgentMetadata({ provider, allowedToolsCount, skillsCount, permi
 function ContactsAgentActions({ agent, chatLabel, createTeamLabel, onOpenRoom, onCreateTeam, compact = false }:
   Pick<ContactsAgentCardViewProps, "agent" | "chatLabel" | "createTeamLabel" | "onOpenRoom" | "onCreateTeam"> & { compact?: boolean }) {
   const actions = [
-    { label: chatLabel, command: onOpenRoom, Icon: MessageSquareText, tone: "primary" as const },
+    { label: chatLabel, command: onOpenRoom, Icon: MessageCircle, tone: "default" as const },
     { label: createTeamLabel, command: onCreateTeam, Icon: MessageCirclePlus, tone: "default" as const },
   ];
   return <div className={cn("flex flex-wrap items-center", compact ? "gap-1" : "gap-x-3 gap-y-1")}>

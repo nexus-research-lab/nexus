@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState, useRef, useId } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
-  MessageSquareText,
+  MessageCircle,
   SquareTerminal,
   Workflow,
 } from "lucide-react";
@@ -390,7 +390,7 @@ function WorkGraphDistillationContent({
                   size="sm"
                   variant="surface"
                 >
-                  <MessageSquareText className="h-3.5 w-3.5" />
+                  <MessageCircle className="h-3.5 w-3.5" />
                   {t("execution.workflow_edit_with_chat")}
                 </UiButton>
               </header>

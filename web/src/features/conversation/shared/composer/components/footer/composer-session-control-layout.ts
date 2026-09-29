@@ -10,6 +10,9 @@ import {
 } from "@/shared/ui/overlay/anchored-overlay-layout";
 
 export const SESSION_MODEL_MENU_WIDTH = 256;
+// The direct DM picker gives model identity enough room after the recommendation
+// badges were removed; Room's two-panel geometry keeps its original width.
+export const SESSION_DIRECT_MODEL_MENU_WIDTH = 368;
 export const ROOM_MODEL_AGENT_MENU_WIDTH = getUiAnchoredOverlayMinimumWidth("cascade-menu");
 export const ROOM_MODEL_MENU_GAP = getUiAnchoredOverlayGap("cascade-menu");
 export const ROOM_MODEL_CASCADE_QUERY = `(min-width: ${

@@ -599,6 +599,68 @@ func (r *SQLRepository) deleteAgentDependents(
 		query string
 		args  []any
 	}{
+		// Pairing sessions and delivery grants are not foreign-key cascades.
+		// Revoke them before removing the pairing rows, including concrete
+		// wildcard projections whose pairing belongs to a Channel config that is
+		// being removed with this Agent.
+		{query: `
+UPDATE im_deliveries
+SET return_revoked = 1
+WHERE owner_user_id = ` + r.dialect.Bind(1) + `
+  AND pairing_id IN (
+      SELECT pairing_id
+      FROM im_pairings
+      WHERE owner_user_id = ` + r.dialect.Bind(2) + `
+        AND (
+            agent_id = ` + r.dialect.Bind(3) + `
+            OR channel_type IN (
+                SELECT channel_type
+                FROM im_channel_configs
+                WHERE owner_user_id = ` + r.dialect.Bind(4) + `
+                  AND agent_id = ` + r.dialect.Bind(5) + `
+            )
+        )
+  )`, args: []any{ownerUserID, ownerUserID, agentID, ownerUserID, agentID}},
+		{query: `
+UPDATE im_deliveries
+SET return_revoked = 1
+WHERE owner_user_id = ` + r.dialect.Bind(1) + `
+  AND target_session_key IN (
+      SELECT ps.session_key
+      FROM im_pairing_sessions ps
+      WHERE ps.owner_user_id = ` + r.dialect.Bind(2) + `
+        AND (
+            ps.pairing_id IN (
+                SELECT pairing_id
+                FROM im_pairings
+                WHERE owner_user_id = ` + r.dialect.Bind(3) + `
+                  AND agent_id = ` + r.dialect.Bind(4) + `
+            )
+            OR ps.channel_type IN (
+                SELECT channel_type
+                FROM im_channel_configs
+                WHERE owner_user_id = ` + r.dialect.Bind(5) + `
+                  AND agent_id = ` + r.dialect.Bind(6) + `
+            )
+        )
+  )`, args: []any{ownerUserID, ownerUserID, ownerUserID, agentID, ownerUserID, agentID}},
+		{query: `
+DELETE FROM im_pairing_sessions
+WHERE owner_user_id = ` + r.dialect.Bind(1) + `
+  AND (
+      pairing_id IN (
+          SELECT pairing_id
+          FROM im_pairings
+          WHERE owner_user_id = ` + r.dialect.Bind(2) + `
+            AND agent_id = ` + r.dialect.Bind(3) + `
+      )
+      OR channel_type IN (
+          SELECT channel_type
+          FROM im_channel_configs
+          WHERE owner_user_id = ` + r.dialect.Bind(4) + `
+            AND agent_id = ` + r.dialect.Bind(5) + `
+      )
+  )`, args: []any{ownerUserID, ownerUserID, agentID, ownerUserID, agentID}},
 		{query: `
 DELETE FROM automation_task_events
 WHERE agent_id = ` + r.dialect.Bind(1) + `
@@ -614,8 +676,16 @@ WHERE job_id IN (SELECT job_id FROM automation_scheduled_tasks WHERE agent_id = 
 		{query: `DELETE FROM im_ingress_messages WHERE agent_id = ` + r.dialect.Bind(1), args: []any{agentID}},
 		{query: `
 DELETE FROM im_pairings
-WHERE agent_id = ` + r.dialect.Bind(1) + `
-  AND owner_user_id = ` + r.dialect.Bind(2), args: []any{agentID, ownerUserID}},
+WHERE owner_user_id = ` + r.dialect.Bind(1) + `
+  AND (
+      agent_id = ` + r.dialect.Bind(2) + `
+      OR channel_type IN (
+          SELECT channel_type
+          FROM im_channel_configs
+          WHERE owner_user_id = ` + r.dialect.Bind(3) + `
+            AND agent_id = ` + r.dialect.Bind(4) + `
+      )
+  )`, args: []any{ownerUserID, agentID, ownerUserID, agentID}},
 		{query: `
 DELETE FROM im_channel_accounts
 WHERE owner_user_id = ` + r.dialect.Bind(1) + `

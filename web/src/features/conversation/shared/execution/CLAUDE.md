@@ -44,3 +44,5 @@
 - 保存核对读取失败保留原未知锁和表单，明确显示核对失败，不静默吞错或转为可重放保存。编辑器 mutation 进行中不接受新的快照读取覆盖，访问失效隐藏聊天与草图，恢复成功前只提供读取动作。
 
 - Canvas 选择有效性与布局共用 `orderedExecutionGraphNodes`，旧 Work Item 回退图也保留检查器。历史节点局部 Task 必须按显式 Attempt 精确关联，缺失该 Attempt 不回退最新运行；文件打开只消费节点或结构化父节点的真实 Agent ID，不能使用 Subagent 头像派生 identity。原生非 passive wheel/touch 监听只取消图缩放/横向操作的浏览器默认行为，普通滚动仍保留。
+
+- Subagent 工作图头像按节点稳定身份复用 getSeededHumationAvatarSrc，不使用 Skill 数学曲线。

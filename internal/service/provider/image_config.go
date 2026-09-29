@@ -1,3 +1,6 @@
+// INPUT: Exact Provider/model selection and persisted configuration.
+// OUTPUT: Image route and operation eligibility validated before transport.
+// POS: Shared generation/editing runtime configuration resolver.
 package provider
 
 import (
@@ -139,7 +142,10 @@ func (r *imageConfigResolver) validateModelAndCredentials() error {
 }
 
 func (r *imageConfigResolver) config() *ImageConfig {
+	guidance := projectModelGuidance(*r.provider, *r.model)
+	editing := guidance.Eligibility[PurposeEdit].Available
 	return &ImageConfig{
+		ImageEditing:    &editing,
 		Provider:        r.provider.Provider,
 		DisplayName:     r.provider.DisplayName,
 		APIFormat:       r.provider.APIFormat,
@@ -186,7 +192,7 @@ func (s *Service) selectImageTarget(
 	var fallback *providerModelTarget
 	for _, item := range items {
 		imageItem, ok := imageRuntimeProvider(item)
-		if !item.Enabled || !ok {
+		if !providerHasCredentials(item) || !ok {
 			continue
 		}
 		model, err := s.defaultOrFirstEnabledModelForKind(ctx, item, ProviderKindImageGeneration)

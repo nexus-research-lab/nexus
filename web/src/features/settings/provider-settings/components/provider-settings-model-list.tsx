@@ -5,10 +5,13 @@
  */
 "use client";
 
+import { ModelGuidanceBadges } from "@/entities/provider/model-guidance-badges";
 import {
   Brain,
   Eye,
   Image,
+  ImagePlus,
+  Network,
   Loader2,
   Plus,
   RefreshCw,
@@ -16,6 +19,7 @@ import {
   Star,
   Trash2,
   Wrench,
+  Type,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +27,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiTooltip } from "@/shared/ui/overlay/tooltip";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
@@ -58,19 +64,20 @@ interface ProviderSettingsModelListProps {
   selectedRecord: ProviderConfigRecord | null;
 }
 
-type ProviderCapabilityKey = keyof Pick<
-  ProviderModelCapabilities,
-  "image_output" | "reasoning" | "tool_calling" | "vision"
->;
+type ProviderCapabilityKey = keyof ProviderModelCapabilities;
 
 const PROVIDER_CAPABILITY_ICONS: Array<{
   Icon: LucideIcon;
   key: ProviderCapabilityKey;
+  label: TranslationKey;
 }> = [
-  { Icon: Wrench, key: "tool_calling" },
-  { Icon: Brain, key: "reasoning" },
-  { Icon: Eye, key: "vision" },
-  { Icon: Image, key: "image_output" },
+  { Icon: Type, key: "text_output", label: "settings.providers.capability_text_output" },
+  { Icon: Wrench, key: "tool_calling", label: "settings.providers.capability_tool_calling" },
+  { Icon: Brain, key: "reasoning", label: "settings.providers.capability_reasoning" },
+  { Icon: Eye, key: "vision", label: "settings.providers.model_multimodal" },
+  { Icon: Image, key: "image_output", label: "settings.providers.capability_image_output" },
+  { Icon: ImagePlus, key: "image_editing", label: "settings.providers.capability_image_editing" },
+  { Icon: Network, key: "embedding", label: "settings.providers.capability_embedding" },
 ];
 
 function ProviderModelListHeader({
@@ -147,11 +154,14 @@ function ProviderModelListHeader({
 }
 
 function ProviderModelCapabilities({ model }: { model: ProviderModelRecord }) {
+  const { t } = useI18n();
   const capabilities = getEffectiveCapabilities(model);
   return (
     <span className={cn("flex shrink-0 items-center gap-1.5", getUiTypographyClassName({ role: "caption", tone: "muted" }))}>
-      {PROVIDER_CAPABILITY_ICONS.map(({ Icon, key }) => (
-        capabilities[key] ? <Icon className="h-3 w-3" key={key} /> : null
+      {PROVIDER_CAPABILITY_ICONS.map(({ Icon, key, label }) => (
+        capabilities[key] ? <UiTooltip key={key} label={t(label)}>
+          <span role="img" aria-label={t(label)}><Icon aria-hidden="true" className="h-3 w-3" /></span>
+        </UiTooltip> : null
       ))}
       <span>{formatCount(model.context_window)}</span>
     </span>
@@ -254,7 +264,7 @@ function ProviderModelRow({
   const showSubscriptionDefault = selectedRecord?.visibility === "public"
     && selectedRecord.provider_kind === "llm"
     && selectedRecord.agent_runtime_supported
-    && !getEffectiveCapabilities(model).image_output;
+    && (model.guidance?.eligibility.chat.available ?? !getEffectiveCapabilities(model).image_output);
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -262,6 +272,7 @@ function ProviderModelRow({
           {displayName}
         </span>
         <ProviderModelCapabilities model={model} />
+        <ModelGuidanceBadges recommendationOnly guidance={model.guidance} purpose={selectedRecord?.provider_kind === "image_generation" ? "image_generation" : "chat"} />
       </div>
       <div className="flex min-w-0 items-center gap-2">
         {showSubscriptionDefault ? (

@@ -385,6 +385,9 @@ func roomOrchestrationActor(
 }
 
 func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecutionResult, error) {
+	if err := e.loadPublicHistory(); err != nil {
+		return exec.RoundExecutionResult{}, err
+	}
 	payload, err := e.prepareDispatchPayload()
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
@@ -655,6 +658,7 @@ func (e *slotExecution) persistInterruptedAssistant() error {
 }
 
 func (e *slotExecution) emitEvent(event protocol.EventMessage) error {
+
 	if roomSlotShouldDropPublicOutputEvent(e.slot, event) {
 		return nil
 	}

@@ -106,7 +106,16 @@ export interface ChannelLoginView {
   finished_at?: string;
 }
 
+export interface PairingSessionTarget {
+  room_id?: string;
+  conversation_id?: string;
+  room_name?: string;
+  conversation_title?: string;
+}
+
 export interface PairingView {
+  session_target?: PairingSessionTarget;
+  binding_version?: number;
   pairing_id: string;
   channel_type: ImChannelType;
   account_id?: string;
@@ -143,6 +152,8 @@ export interface CreatePairingPayload {
 }
 
 export interface UpdatePairingPayload {
+  session_target?: PairingSessionTarget;
+  binding_version?: number;
   status?: ImPairingStatus;
   agent_id?: string;
   external_name?: string;

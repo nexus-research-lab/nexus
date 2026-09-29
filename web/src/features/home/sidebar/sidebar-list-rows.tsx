@@ -59,7 +59,7 @@ function ConversationRowLeading({
   isActive: boolean;
   item: SidebarConversationItem;
 }) {
-  if (item.kind !== "dm") {
+  if (item.kind !== "dm" && !item.directUserId) {
     return (
       <UiRoomAvatar
         avatar={item.avatar}
@@ -94,7 +94,7 @@ function ConversationRowMeta({
     return null;
   }
   return (
-    <span className="relative flex h-5 w-10 shrink-0 items-center justify-end">
+    <span className="flex h-5 w-10 shrink-0 items-center justify-end">
       {timeLabel ? (
         <span
           className={cn(
@@ -107,7 +107,7 @@ function ConversationRowMeta({
       ) : null}
       {onDelete ? (
         <UiListActionButton
-          className="absolute right-0 top-1/2 -translate-y-1/2"
+          className="absolute top-1/2 -translate-y-1/2"
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
@@ -181,7 +181,7 @@ export function ConversationRow({
       leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
-          deleteLabel={t("common.delete")}
+          deleteLabel={t(item.directUserId ? "home.direct_remove" : "common.delete")}
           onDelete={onDelete}
           timeLabel={item.timeLabel}
         />
