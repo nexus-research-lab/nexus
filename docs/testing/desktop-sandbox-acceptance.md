@@ -14,6 +14,10 @@
 进入产品路径，但不替代 macOS 14.0 精确终止兼容、完整图形 App 验收、签名/公证、clean-host、
 Intel 或正式发布门禁，`releaseAccepted=false` 继续成立。
 
+同日 [当前固定 host gate](evidence/desktop-sandbox/2026-09-29-current-gate/README.md) 使用
+上述三仓提交重建 arm64 nxs（SHA-256 `d88e520f…190ac`）并通过 host policy、生命周期、
+取消、设置恢复、App 关闭和 MCP round-trip；范围仍为 `host-integration-only`。
+
 计划恢复的 [fail-closed 回归](evidence/desktop-sandbox/2026-09-29-plan-recovery-fail-closed/README.md) 由 SDK `867e788c` 收口：仅明确确认不存在时才独占创建，权限、取消、未知结果和已有文件均不写入；基线仍通过且 `releaseAccepted=false`。
 
 SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-29-rewind-fail-closed/README.md) 明确拒绝受限模式下尚未接入原子 file-executor 的 legacy 多文件回滚，避免绕过策略；Full Access 兼容路径保持不变。
