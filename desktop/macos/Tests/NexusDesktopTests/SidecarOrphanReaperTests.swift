@@ -4,6 +4,17 @@ import XCTest
 @testable import NexusDesktop
 
 final class SidecarOrphanReaperTests: XCTestCase {
+  func testNativeSignalResultUsesReturnedErrorBeforeErrno() throws {
+    try NativeSidecarProcessControl.validateSignalResult(0, errorNumber: EPERM)
+    try NativeSidecarProcessControl.validateSignalResult(ESRCH, errorNumber: 0)
+    try NativeSidecarProcessControl.validateSignalResult(ESRCH, errorNumber: EPERM)
+    try NativeSidecarProcessControl.validateSignalResult(-1, errorNumber: ESRCH)
+    XCTAssertThrowsError(try NativeSidecarProcessControl.validateSignalResult(EPERM, errorNumber: ESRCH))
+    XCTAssertThrowsError(try NativeSidecarProcessControl.validateSignalResult(EPERM, errorNumber: 0))
+    XCTAssertThrowsError(try NativeSidecarProcessControl.validateSignalResult(-1, errorNumber: EPERM))
+    XCTAssertThrowsError(try NativeSidecarProcessControl.validateSignalResult(-1, errorNumber: 0))
+  }
+
   private final class Control: SidecarProcessControlling {
     var current: SidecarProcessIdentity?
     var denied = false
