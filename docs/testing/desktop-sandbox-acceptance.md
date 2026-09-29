@@ -53,6 +53,8 @@ Nexus 持久化 MCP 配置也已在 `ad62e8d73` 收紧静态 header：非法 tok
 
 提交 `dc4ef2bf4` 进一步拒绝 MCP endpoint 与 OAuth metadata URL 中的 userinfo 和 fragment；同一 `clientopts` 目标测试通过。
 
+[随包 runtime compatibility check](evidence/desktop-sandbox/2026-09-29-bundled-runtime-check/README.md) 使用现有 arm64 开发 App 通过，确认包内 sidecar 可识别 workspace-write、read-only、full-access 三种 nxs profile；该结果仍不等于签名、公证、clean-host 或发布验收。
+
 最新 macOS sidecar 身份回归见 [2026-09-28 信号结果与随包自检](evidence/desktop-sandbox/2026-09-28-sidecar-signal-result/README.md)：Nexus 当前工作树修正 libproc 正值错误码解释，10 个独立 Swift 回归体、固定 nxs 宿主集成基线、真实 sidecar 崩溃恢复、随包 arm64 nxs 兼容性检查和显式已发布/候选 runtime 升级四阶段均通过。该批次仍不证明 macOS 14.0 缺失的精确信号 API、图形 App 全链路、Developer ID/公证、Intel、clean-host 或发布验收。
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
