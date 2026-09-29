@@ -346,7 +346,9 @@ legacy multi-file fork writer is not allowed to run before the file executor is
 installed. Full Access keeps its existing fork behavior. An atomic fork port
 must be added before restricted fork is enabled; this guard adds no capability
 claim and prevents a pre-runtime transcript/plan write from bypassing the host
-boundary. Other transcript auxiliary reads and remaining IO stay separate work,
+boundary. The same guard applies to tombstone and UUID-based transcript rewrites
+from the live context state; they fail closed until an atomic mutation port is
+available. Other transcript auxiliary reads and remaining IO stay separate work,
 and other platforms retain their existing local coordination path.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
