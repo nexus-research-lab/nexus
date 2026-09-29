@@ -341,9 +341,13 @@ opt-out semantics. The valid suffix itself has no new hard size cap. Records are
 published only after complete length/result/EOF verification and successful
 worker exit; late errors discard already-delivered data. This does not change
 session recording/resume, the transcript format or stored user data.
-Other transcript auxiliary reads and remaining IO stay separate work; these
-internal fixes add no capability claim, and other platforms retain their existing
-local coordination path.
+Session fork materialization is also fail-closed while restricted: the SDK's
+legacy multi-file fork writer is not allowed to run before the file executor is
+installed. Full Access keeps its existing fork behavior. An atomic fork port
+must be added before restricted fork is enabled; this guard adds no capability
+claim and prevents a pre-runtime transcript/plan write from bypassing the host
+boundary. Other transcript auxiliary reads and remaining IO stay separate work,
+and other platforms retain their existing local coordination path.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
 `required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
