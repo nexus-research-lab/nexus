@@ -37,10 +37,10 @@
 //   - sandbox_process_recovery.go：显式持锁回调覆盖整个恢复、核对同 app 根及目录 inode，在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
 //   - sandbox_lifecycle_recovery_darwin.go：原生扫描后的独立有界资源/策略扫描，发现已终止进程的未完成后续步骤；失败保留并报告，不把分页结束当成恢复成功。
 //   - sandbox_scratch_cleanup_darwin.go：监督 lease 最后一次正常 Release 复用持久隔离删除流程，绑定原 supervisor 与资源身份，提交响应丢失可重试。
-//   - sandbox_scratch_recovery_darwin.go / sandbox_policy_recovery.go：持锁且无活动 client 时隔离原资源、持久删除阶段、仅收口 exact process 关联策略；pending 资源记录阻断新启动，App 默认扫描装配仍待完成。
+//   - sandbox_scratch_recovery_darwin.go / sandbox_policy_recovery.go：持锁且无活动 client 时隔离原资源、持久删除阶段、仅收口 exact process 关联策略；pending 资源记录阻断新启动，macOS App 启动扫描已装配。
 //   - sandbox_scratch_identity_darwin.go / sandbox_scratch_identity_other.go：macOS 从 lease 创建时的 parent/leaf 身份生成持久资源证明，每次监督启动重新核验；其他平台不伪造证明。
-//   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，App 默认装配仍待接入。
-//   - sandbox_process_host.go：原宿主目录内的长路径 socket、Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 经 Manager 配置接入，生产路径装配仍待接入。
+//   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，macOS App 默认装配已接入。
+//   - sandbox_process_host.go：原宿主目录内的长路径 socket、Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 已经由 Manager 配置接入。
 //   - sandbox_process_startup.go：消费宿主数据库启动事实；prepared/registered/released 即使没有策略回执也阻断新 factory，终态与策略回执共用代次下界，不读取用户可写的进程登记。
 //   - sandbox_startup.go：创建新 client 前读取 exact owner/session 的最新持久回执并延续代次；confirmed/retiring/unknown 阻断重建。scratch 新建前以固定父目录句柄检查同 scope 的 cleanup_unknown，包括旧 stale 目录，防止重启换目录绕过失败栅栏。
 //
