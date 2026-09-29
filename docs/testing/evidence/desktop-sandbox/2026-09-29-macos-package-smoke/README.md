@@ -9,3 +9,5 @@
 - Result: `scripts/desktop/smoke-macos-app.sh` passed, including sidecar startup, migration to schema 149, launcher ready, route navigation and clean exit.
 
 This is a local arm64 ad-hoc smoke result. It does not prove Developer ID signing, notarization, clean-host installation, Intel packaging, upgrade/rollback, or release acceptance.
+
+- Runtime upgrade gate: `scripts/desktop/check-runtime-upgrade.mjs` passed with the existing `nexus-agent-sdk-go-rewrite-fix` arm64 binary as previous and the current SDK worktree candidate. All required `before_upgrade`, `after_upgrade`, and `after_rollback` cases passed. The gate remains scoped to runtime data compatibility and keeps `releaseAccepted=false`.
