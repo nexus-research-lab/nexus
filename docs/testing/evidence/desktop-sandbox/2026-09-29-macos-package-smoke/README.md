@@ -11,3 +11,4 @@
 This is a local arm64 ad-hoc smoke result. It does not prove Developer ID signing, notarization, clean-host installation, Intel packaging, upgrade/rollback, or release acceptance.
 
 - Runtime upgrade gate: `scripts/desktop/check-runtime-upgrade.mjs` passed with the existing `nexus-agent-sdk-go-rewrite-fix` arm64 binary as previous and the current SDK worktree candidate. All required `before_upgrade`, `after_upgrade`, and `after_rollback` cases passed. The gate remains scoped to runtime data compatibility and keeps `releaseAccepted=false`.
+- Host baseline rerun: `NEXUS_SANDBOX_TEST_BINARY=<current arm64 nxs> make check-desktop-sandbox` passed the configured host integration checks, including stdio MCP roundtrip, lifecycle, shutdown, policy, settings recovery and cancellation. The command reports host integration scope only; native release acceptance remains separate.
