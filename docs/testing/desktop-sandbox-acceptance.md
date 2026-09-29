@@ -1,6 +1,8 @@
 # 桌面沙箱验收矩阵
 
-状态：开发验收清单，non-normative，更新至 2026-09-28。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+状态：开发验收清单，non-normative，更新至 2026-09-29。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
+
+2026-09-29 [受限 prompt IO 收口](evidence/desktop-sandbox/2026-09-29-prompt-boundary-gate/README.md)：SDK `b3064c83` 在受限模式停止由宿主直接启动 `git`/`uname`，Git 快照改为省略并要求通过受限 Bash 获取；使用新 nxs（SHA-256 `71940cdc…f19db7`）的 Nexus host-integration gate 通过。该证据不扩大图形 App、后代监督、macOS 14.0、签名/公证或发布范围，`releaseAccepted=false` 继续成立。
 
 2026-09-29 增量基线见 [计划文件沙箱收口](evidence/desktop-sandbox/2026-09-29-plan-file-sandbox/README.md)：SDK `65a028ce` 将 Enter/ExitPlanMode、恢复的 Read 状态和 compact 计划附件统一接入当前文件执行器；Nexus `2c34b0546`、Bridge `c251a8d` 的 host-and-macos-native-baseline 61 项检查、888 个必测名称通过。该证据仍是开发基线，`releaseAccepted=false`。
 
