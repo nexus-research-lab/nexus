@@ -193,7 +193,7 @@ func BuildAgentClientOptionsWithConfig(
 	// bridge 会继承宿主进程环境；先清掉全局路径和密钥，再由后续
 	// provider/runtime 投影显式恢复当前会话允许使用的变量。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, diagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, backgroundModelRuntimeEnv(
