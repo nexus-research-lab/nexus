@@ -23,6 +23,8 @@ import type { ConversationTimeline } from "./timeline/timeline-model";
 import type { ConversationRoundScrollHandle } from "./timeline/scroll/round-scroll";
 
 interface ConversationPanelScrollSource {
+  isFollowingLatest: () => boolean;
+  reconcileFollowLatest: () => void;
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onTouchEnd: () => void;
   onTouchMove: (event: TouchEvent<HTMLDivElement>) => void;
@@ -84,6 +86,8 @@ interface ConversationViewportSessionSource {
     | "onTouchMove"
     | "onTouchStart"
     | "onWheel"
+    | "isFollowingLatest"
+    | "reconcileFollowLatest"
     | "scrollRef"
   >;
 }
@@ -163,7 +167,9 @@ function buildConversationScrollToLatestModel(
   return {
     isGenerating: session.conversation.is_loading,
     onClick: () => session.scroll.scrollToBottom("smooth"),
-    visible: session.conversation.is_loading || session.scroll.showScrollToBottom,
+    // Generation only changes the indicator style. The control itself is a
+    // reading-state affordance and must stay out of the real bottom layout.
+    visible: session.scroll.showScrollToBottom,
   };
 }
 
@@ -173,6 +179,8 @@ function buildConversationViewportModel(
   const { conversation, history, scroll } = session;
   return {
     isHistoryLoading: conversation.is_history_loading,
+    isFollowingLatest: scroll.isFollowingLatest,
+    reconcileFollowLatest: scroll.reconcileFollowLatest,
     onPointerDown: scroll.onPointerDown,
     onScroll: history.handleScroll,
     onTouchEnd: scroll.onTouchEnd,

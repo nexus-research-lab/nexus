@@ -6,6 +6,7 @@
 //
 // 成员清单：
 //   - model.go：投递目标与 Automation run 投影契约；区分稳定 context_token 与即时 callback req/stream。
+//   - ingress.go：派发前可安全重试的错误标记；未知命令和运行时结果不得使用。
 //   - util.go：契约辅助。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

@@ -1,6 +1,16 @@
 const COMPACT_MAX_HEIGHT_CLASS_NAME = "max-h-[320px]";
 const MARKDOWN_MAX_HEIGHT_CLASS_NAME = "max-h-[420px]";
 
+export function getMermaidMinimumHeightClassName(
+  compact: boolean,
+  constrainHeight: boolean,
+): string {
+  if (compact) {
+    return "min-h-24";
+  }
+  return constrainHeight ? "min-h-56" : "min-h-[240px]";
+}
+
 export function getMermaidContainerClassName(
   compact: boolean,
   constrainHeight: boolean,

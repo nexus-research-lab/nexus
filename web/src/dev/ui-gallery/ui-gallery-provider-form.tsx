@@ -48,6 +48,7 @@ export function ProviderFormGallery() {
       style={{ maxWidth: Number(width), width: "100%" }}>
       <ProviderSettingsConfigForm builtinEndpointFormats={FORMATS} currentFormat={FORMATS[0]} currentPreset={null}
         detailTitle="Gallery Provider" draft={draft}
+        pending={false} onClearAuthToken={() => update("auth_token", "")}
         formatOptions={[{ value: "responses", label: "Responses" }, { value: "chat_completions", label: "Chat Completions" }]}
         isEditing={false} onApiFormatChange={(value) => update("api_format", value as ProviderDraft["api_format"])}
         onAuthTokenChange={(value) => update("auth_token", value)} onBaseUrlChange={(value) => update("base_url", value)}

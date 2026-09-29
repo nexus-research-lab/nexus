@@ -3,26 +3,39 @@ package adapters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
+
+const telegramIngressMaxAttempts = 3
+
+type telegramPollCursor struct {
+	offset         int
+	failedUpdateID int
+	attempts       int
+}
 
 func (c *TelegramChannel) pollUpdates(ctx context.Context) {
 	defer c.wg.Done()
 
-	offset := 0
+	cursor := telegramPollCursor{}
 	lastErrText := ""
 	lastErrLoggedAt := time.Time{}
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		updates, nextOffset, err := c.fetchUpdates(ctx, offset)
+		updates, _, err := c.fetchUpdates(ctx, cursor.offset)
+		if err == nil {
+			err = c.handlePolledUpdates(ctx, updates, &cursor)
+		}
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -30,7 +43,7 @@ func (c *TelegramChannel) pollUpdates(ctx context.Context) {
 			errText := strings.TrimSpace(err.Error())
 			now := time.Now()
 			if errText != lastErrText || now.Sub(lastErrLoggedAt) >= 30*time.Second {
-				c.loggerFor(ctx).Warn("Telegram getUpdates 失败",
+				c.loggerFor(ctx).Warn("Telegram 接收消息失败",
 					"owner_user_id", c.ownerUserID,
 					"err", c.redactError(err),
 				)
@@ -47,17 +60,45 @@ func (c *TelegramChannel) pollUpdates(ctx context.Context) {
 			continue
 		}
 		if lastErrText != "" {
-			c.loggerFor(ctx).Info("Telegram getUpdates 已恢复",
+			c.loggerFor(ctx).Info("Telegram 接收消息已恢复",
 				"owner_user_id", c.ownerUserID,
 			)
 			lastErrText = ""
 			lastErrLoggedAt = time.Time{}
 		}
-		offset = nextOffset
-		for _, update := range updates {
-			c.handleUpdate(ctx, update)
-		}
 	}
+}
+
+// handlePolledUpdates 逐条推进游标；安全重试有上限，未知结果只提示、不重跑。
+func (c *TelegramChannel) handlePolledUpdates(ctx context.Context, updates []telegramUpdate, cursor *telegramPollCursor) error {
+	for _, update := range updates {
+		err := c.handleUpdate(ctx, update)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil && cursor.retry(update.UpdateID, err) {
+			return err
+		}
+		if err != nil {
+			c.reportIngressFailure(ctx, update, err)
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		cursor.offset = max(cursor.offset, update.UpdateID+1)
+		cursor.attempts = 0
+	}
+	return nil
+}
+
+func (cursor *telegramPollCursor) retry(updateID int, err error) bool {
+	if cursor.failedUpdateID != updateID {
+		cursor.attempts = 0
+	}
+	cursor.failedUpdateID = updateID
+	cursor.attempts++
+	var retryable *channelcontract.RetryableIngressError
+	return errors.As(err, &retryable) && cursor.attempts < telegramIngressMaxAttempts
 }
 
 func (c *TelegramChannel) fetchUpdates(ctx context.Context, offset int) ([]telegramUpdate, int, error) {

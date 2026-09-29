@@ -24,18 +24,19 @@ const (
 
 // Principal 表示一次已解析的请求身份。
 type Principal struct {
-	UserID           string  `json:"user_id"`
-	ControlUserID    string  `json:"control_user_id,omitempty"`
-	DeploymentID     string  `json:"deployment_id,omitempty"`
-	OrganizationID   string  `json:"organization_id,omitempty"`
-	OrganizationName string  `json:"organization_name,omitempty"`
-	OrganizationRole string  `json:"organization_role,omitempty"`
-	Username         string  `json:"username"`
-	DisplayName      string  `json:"display_name,omitempty"`
-	Role             string  `json:"role"`
-	Avatar           string  `json:"avatar,omitempty"`
-	AuthMethod       string  `json:"auth_method"`
-	SessionID        *string `json:"session_id,omitempty"`
+	WebAccessDisabled bool    `json:"web_access_disabled"`
+	UserID            string  `json:"user_id"`
+	ControlUserID     string  `json:"control_user_id,omitempty"`
+	DeploymentID      string  `json:"deployment_id,omitempty"`
+	OrganizationID    string  `json:"organization_id,omitempty"`
+	OrganizationName  string  `json:"organization_name,omitempty"`
+	OrganizationRole  string  `json:"organization_role,omitempty"`
+	Username          string  `json:"username"`
+	DisplayName       string  `json:"display_name,omitempty"`
+	Role              string  `json:"role"`
+	Avatar            string  `json:"avatar,omitempty"`
+	AuthMethod        string  `json:"auth_method"`
+	SessionID         *string `json:"session_id,omitempty"`
 }
 
 // State 表示认证域的全局状态摘要。

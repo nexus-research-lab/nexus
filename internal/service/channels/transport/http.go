@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 )
 
 func DoJSON(
@@ -50,11 +53,7 @@ func DoJSONExpectSuccess(
 	body any,
 	headers map[string]string,
 ) error {
-	response, err := DoJSON(ctx, client, method, endpoint, body, headers)
-	if err != nil {
-		return err
-	}
-	return ExpectSuccess(response)
+	return DoJSONExpectSuccessDecode(ctx, client, method, endpoint, body, headers, nil)
 }
 
 func DoJSONExpectSuccessDecode(
@@ -66,11 +65,26 @@ func DoJSONExpectSuccessDecode(
 	headers map[string]string,
 	output any,
 ) error {
-	response, err := DoJSON(ctx, client, method, endpoint, body, headers)
-	if err != nil {
-		return err
+	for attempt := 0; ; attempt++ {
+		response, err := DoJSON(ctx, client, method, endpoint, body, headers)
+		if err != nil {
+			return err
+		}
+		err = ExpectSuccessDecode(response, output)
+		var rejected *HTTPError
+		// 只重试平台明确拒绝的限流请求，网络错误与 5xx 均保留未知结果。
+		if !errors.As(err, &rejected) || rejected.StatusCode != http.StatusTooManyRequests ||
+			attempt >= 2 || rejected.RetryAfter <= 0 || rejected.RetryAfter > 30*time.Second {
+			return err
+		}
+		timer := time.NewTimer(rejected.RetryAfter)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return errors.Join(ctx.Err(), err)
+		case <-timer.C:
+		}
 	}
-	return ExpectSuccessDecode(response, output)
 }
 
 func ExpectSuccess(response *http.Response) error {
@@ -90,5 +104,37 @@ func ExpectSuccessDecode(response *http.Response, output any) error {
 		return nil
 	}
 	body, _ := io.ReadAll(io.LimitReader(response.Body, 4096))
-	return fmt.Errorf("delivery request failed: status=%d body=%s", response.StatusCode, strings.TrimSpace(string(body)))
+	return &HTTPError{StatusCode: response.StatusCode, Body: strings.TrimSpace(string(body)), RetryAfter: retryAfter(response.Header.Get("Retry-After"), body)}
+}
+
+// HTTPError 保留平台拒绝语义，避免把限流和传输结果未知混为一谈。
+type HTTPError struct {
+	StatusCode int
+	Body       string
+	RetryAfter time.Duration
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("delivery request failed: status=%d body=%s", e.StatusCode, e.Body)
+}
+
+func retryAfter(header string, body []byte) time.Duration {
+	var payload struct {
+		RetryAfter float64 `json:"retry_after"`
+		Parameters struct {
+			RetryAfter float64 `json:"retry_after"`
+		} `json:"parameters"`
+	}
+	_ = json.Unmarshal(body, &payload)
+	seconds := max(payload.RetryAfter, payload.Parameters.RetryAfter)
+	if value, err := strconv.ParseFloat(header, 64); err == nil {
+		seconds = max(seconds, value)
+	}
+	if deadline, err := http.ParseTime(header); err == nil {
+		seconds = max(seconds, time.Until(deadline).Seconds())
+	}
+	if seconds > 0 && seconds <= 86400 {
+		return time.Duration(seconds * float64(time.Second))
+	}
+	return 0
 }

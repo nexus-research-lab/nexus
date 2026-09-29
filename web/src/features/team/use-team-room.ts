@@ -13,11 +13,12 @@ import {
   buildTeamStreamUrl,
   getTeamDifference,
 	getTeamRoom,
+ getTeamDeliveryStatuses,
   getTeamSnapshot,
+  markTeamRoomRead,
   postTeamMessage,
   listTeamRooms,
   type TeamMessage,
-  type TeamRoomView,
 	type TeamRoomDetails,
 } from "@/lib/api/conversation/team-api";
 import { ApiRequestError } from "@/lib/api/core/http-error";
@@ -42,13 +43,21 @@ export function useTeamRoom(roomId: string | null) {
   const [error, setError] = useState<"load" | "send" | "sync" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [historyBefore, setHistoryBefore] = useState(0);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
+  const [historyPrependToken, setHistoryPrependToken] = useState(0);
+  const historyRef = useRef<{ through: number; snapshot: number } | null>(null);
+  const pendingReadRef = useRef(0);
+  const readControllerRef = useRef<AbortController | null>(null);
+  const historyControllerRef = useRef<AbortController | null>(null);
   const [hasUnconfirmedSend, setHasUnconfirmedSend] = useState(false);
   const [pendingText, setPendingText] = useState<string | null>(null);
   const retryControllerRef = useRef<AbortController | null>(null);
   const roomRef = useRef<TeamRoomDetails | null>(null);
   const cursorRef = useRef(0);
   const messagesRef = useRef<TeamMessage[]>([]);
-  const syncingRef = useRef(false);
+  const syncingRef = useRef<object | null>(null);
   const recoveringRef = useRef(false);
   const reloadRequestRef = useRef(0);
   const sendingRef = useRef(false);
@@ -99,59 +108,49 @@ export function useTeamRoom(roomId: string | null) {
     if (!current || current.room.id !== next.room.id ||
       current.room.membership_version > next.room.membership_version ||
       current.room.configuration_version > next.room.configuration_version) return;
-    roomRef.current = next;
-    setRoom(next);
+    const deliveries = new Map((current.deliveries ?? []).map((item) => [item.id, item]));
+    for (const item of next.deliveries ?? []) deliveries.set(item.id, item);
+    const updated = {...next, deliveries: [...deliveries.values()], last_read_message_seq: Math.max(current.last_read_message_seq ?? 0, next.last_read_message_seq ?? 0)};
+    roomRef.current = updated;
+    setRoom(updated);
   }, []);
 
+  const detailsRequestRef = useRef(0);
   const refreshDetails = useCallback(async (signal?: AbortSignal) => {
+    const requestID = ++detailsRequestRef.current;
+    const reloadID = reloadRequestRef.current;
     const generation = captureAuthOwnerScopeGeneration();
     const current = roomRef.current;
     if (!current) return;
     try {
       const next = await getTeamRoom(current.room.id, signal);
-      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) {
+      if (signal?.aborted || reloadID !== reloadRequestRef.current) return;
+      const olderIds = messagesRef.current.filter((item) => item.message_seq <= next.conversation.high_water_message_seq - 100).map((item) => item.id);
+      const olderStatuses = await getTeamDeliveryStatuses(current.room.id, olderIds, signal);
+      next.deliveries = [...olderStatuses, ...(next.deliveries ?? [])];
+      if (!signal?.aborted && requestID === detailsRequestRef.current && reloadID === reloadRequestRef.current && isAuthOwnerScopeGenerationCurrent(generation)) {
         updateDetails(next);
         return next;
       }
     } catch (cause) {
-      if (!signal?.aborted && isAuthOwnerScopeGenerationCurrent(generation)) handleReadFailure(cause);
+      if (!signal?.aborted && requestID === detailsRequestRef.current && reloadID === reloadRequestRef.current && isAuthOwnerScopeGenerationCurrent(generation)) handleReadFailure(cause);
     }
   }, [handleReadFailure, updateDetails]);
-
-  const loadSnapshot = useCallback(async (
-    value: TeamRoomView,
-    signal?: AbortSignal,
-  ): Promise<{ messages: TeamMessage[]; snapshotSeq: number }> => {
-    let afterMessageSeq = 0;
-    let throughMessageSeq: number | null = null;
-    let snapshotSeq: number | null = null;
-    const loaded: TeamMessage[] = [];
-    for (;;) {
-      const query = new URLSearchParams({
-        after_message_seq: String(afterMessageSeq),
-        limit: "100",
-      });
-      if (throughMessageSeq !== null && snapshotSeq !== null) {
-        query.set("through_message_seq", String(throughMessageSeq));
-        query.set("snapshot_seq", String(snapshotSeq));
-        query.set("stream_epoch", value.conversation.stream_epoch);
-      }
-      const page = await getTeamSnapshot(value.conversation.id, query, signal);
-      loaded.push(...page.messages);
-      throughMessageSeq = page.through_message_seq;
-      snapshotSeq = page.snapshot_seq;
-      if (!page.has_more) {
-        return { messages: loaded, snapshotSeq: page.snapshot_seq };
-      }
-      afterMessageSeq = page.next_message_seq;
-    }
-  }, []);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
     if (!canUseRelay) {
       return false;
     }
     const requestID = ++reloadRequestRef.current;
+    readControllerRef.current?.abort();
+    readControllerRef.current = null;
+    pendingReadRef.current = 0;
+    historyControllerRef.current?.abort();
+    historyControllerRef.current = null;
+    historyRef.current = null;
+    setIsHistoryLoading(false);
+    setHistoryError(false);
+    setHistoryBefore(0);
     const directory = await listTeamRooms(signal);
     const listed = roomId
       ? directory.rooms.find((candidate) => candidate.room.id === roomId)
@@ -160,7 +159,14 @@ export function useTeamRoom(roomId: string | null) {
       throw new ApiRequestError("Team Room 不存在", 404);
     }
 	const value = await getTeamRoom(listed.room.id, signal);
-    const snapshot = await loadSnapshot(value, signal);
+    const through = value.conversation.high_water_message_seq;
+    const after = Math.max(0, through - 100);
+    const snapshot = await getTeamSnapshot(value.conversation.id, new URLSearchParams({
+      after_message_seq: String(after), limit: "100",
+      through_message_seq: String(through),
+      snapshot_seq: String(value.conversation.high_water_sync_event_seq),
+      stream_epoch: value.conversation.stream_epoch,
+    }), signal);
     if (signal?.aborted || requestID !== reloadRequestRef.current) {
       return false;
     }
@@ -168,13 +174,79 @@ export function useTeamRoom(roomId: string | null) {
     outboxRef.current = controlUserId && organizationId
       ? new TeamMessageOutbox(JSON.stringify([organizationId, controlUserId, value.conversation.id]))
       : null;
-    cursorRef.current = snapshot.snapshotSeq;
-    pendingHighWaterRef.current = snapshot.snapshotSeq;
+    cursorRef.current = snapshot.snapshot_seq;
+    pendingHighWaterRef.current = snapshot.snapshot_seq;
+    historyRef.current = { through, snapshot: snapshot.snapshot_seq };
+    setHistoryBefore(after);
     replaceMessages(snapshot.messages);
     setRoom(value);
     setError(null);
     return true;
-  }, [canUseRelay, controlUserId, organizationId, loadSnapshot, replaceMessages, roomId]);
+  }, [canUseRelay, controlUserId, organizationId, replaceMessages, roomId]);
+
+  const markRead = useCallback(async (messageSeq: number) => {
+    const value = roomRef.current;
+    if (!value || messageSeq <= (value.last_read_message_seq ?? 0)) return;
+    pendingReadRef.current = Math.max(pendingReadRef.current, messageSeq);
+    if (readControllerRef.current) return;
+    const controller = new AbortController();
+    const requestID = reloadRequestRef.current;
+    readControllerRef.current = controller;
+    try {
+      while (pendingReadRef.current > (roomRef.current?.last_read_message_seq ?? 0)) {
+        const through = pendingReadRef.current;
+        const result = await markTeamRoomRead(value.room.id, through, value.conversation.stream_epoch, controller.signal);
+        const current = roomRef.current;
+        if (controller.signal.aborted || requestID !== reloadRequestRef.current || !current) return;
+        if (result.last_read_message_seq < through) throw new Error("阅读水位未确认");
+        updateDetails({...current, last_read_message_seq: result.last_read_message_seq});
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted && requestID === reloadRequestRef.current) handleReadFailure(cause);
+    } finally {
+      if (readControllerRef.current === controller) readControllerRef.current = null;
+    }
+  }, [handleReadFailure, updateDetails]);
+
+  const loadEarlier = useCallback(async (preparePrepend?: () => void) => {
+    const value = roomRef.current;
+    const anchor = historyRef.current;
+    if (!value || !anchor || !historyBefore || historyControllerRef.current) return false;
+    const controller = new AbortController();
+    const requestID = reloadRequestRef.current;
+    historyControllerRef.current = controller;
+    setIsHistoryLoading(true);
+    setHistoryError(false);
+    const after = Math.max(0, historyBefore - 100);
+    try {
+      const page = await getTeamSnapshot(value.conversation.id, new URLSearchParams({
+        after_message_seq: String(after), limit: String(historyBefore - after),
+        through_message_seq: String(anchor.through), snapshot_seq: String(anchor.snapshot),
+        stream_epoch: value.conversation.stream_epoch,
+      }), controller.signal);
+      const deliveries = await getTeamDeliveryStatuses(value.room.id, page.messages.map((item) => item.id), controller.signal);
+      if (controller.signal.aborted || requestID !== reloadRequestRef.current) return false;
+      if (roomRef.current) updateDetails({...roomRef.current, deliveries});
+      // 提交前才记录高度；网络等待期间的新消息增长不属于本次前插。
+      preparePrepend?.();
+      // 历史前插不改变实时差量游标，也不能覆盖加载期间到达的新消息。
+      replaceMessages([...page.messages, ...messagesRef.current]);
+      setHistoryBefore(after);
+      setHistoryPrependToken((token) => token + 1);
+      return true;
+    } catch (cause) {
+      if (!controller.signal.aborted && requestID === reloadRequestRef.current) {
+        setHistoryError(true);
+        handleReadFailure(cause);
+      }
+      return false;
+    } finally {
+      if (historyControllerRef.current === controller) {
+        historyControllerRef.current = null;
+        setIsHistoryLoading(false);
+      }
+    }
+  }, [handleReadFailure, historyBefore, replaceMessages, updateDetails]);
 
   const retryLoad = useCallback(async () => {
     if (retryControllerRef.current) return;
@@ -198,7 +270,8 @@ export function useTeamRoom(roomId: string | null) {
     if (syncingRef.current) {
       return;
     }
-    syncingRef.current = true;
+    const sync = {};
+    syncingRef.current = sync;
     try {
       while (cursorRef.current < pendingHighWaterRef.current) {
         const value = roomRef.current;
@@ -211,7 +284,7 @@ export function useTeamRoom(roomId: string | null) {
             cursorRef.current,
             value.conversation.stream_epoch,
           );
-          if (roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
+          if (syncingRef.current !== sync || roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
             return;
           }
           replaceMessages([
@@ -227,6 +300,10 @@ export function useTeamRoom(roomId: string | null) {
             difference.high_water_seq,
           );
         } catch (cause) {
+          // 切群或换代后的旧请求失败不能撤销当前会话，也不能触发旧快照恢复。
+          if (syncingRef.current !== sync || roomRef.current?.conversation.id !== value.conversation.id || roomRef.current.conversation.stream_epoch !== value.conversation.stream_epoch) {
+            return;
+          }
           if (cause instanceof ApiRequestError && cause.failure?.code === "team.full_snapshot_required") {
             if (!await reload()) {
               return;
@@ -238,7 +315,7 @@ export function useTeamRoom(roomId: string | null) {
       }
       setError((current) => current === "sync" ? null : current);
     } finally {
-      syncingRef.current = false;
+      if (syncingRef.current === sync) syncingRef.current = null;
     }
   }, [reload, replaceMessages]);
 
@@ -277,6 +354,11 @@ export function useTeamRoom(roomId: string | null) {
       });
     return () => {
       controller.abort();
+      readControllerRef.current?.abort();
+      readControllerRef.current = null;
+      historyControllerRef.current?.abort();
+      historyControllerRef.current = null;
+      syncingRef.current = null;
       retryControllerRef.current?.abort();
       retryControllerRef.current = null;
       reloadRequestRef.current += 1;
@@ -304,11 +386,11 @@ export function useTeamRoom(roomId: string | null) {
     }
   }, [reload, replaceMessages]);
 
-  useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
+  const refreshRoom = useTeamRefresh(canUseRelay && room ? `${ownerGeneration}:${room.room.id}` : null, async (signal) => {
     const next = await refreshDetails(signal);
     if (!next || signal.aborted || roomRef.current?.room.id !== next.room.id) return;
     try {
-      // 推送只是提示；定期读取的持久水位也必须驱动差量恢复。
+      // 目录变更或恢复连接后，按持久水位补读，推送本身不作为消息事实。
       if (next.conversation.stream_epoch !== room?.conversation.stream_epoch) {
         await recoverStream();
       } else {
@@ -330,11 +412,11 @@ export function useTeamRoom(roomId: string | null) {
       return;
     }
     void synchronize(event.high_water_seq).catch(handleReadFailure);
-  }, [handleReadFailure, recoverStream, synchronize]);
+    // 同水位也可能是投递领取或失败提示；共享进度独立于消息序列。
+    refreshRoom();
+  }, [handleReadFailure, recoverStream, synchronize, refreshRoom]);
   useWebSocket({
     autoConnect: canUseRelay && Boolean(room),
-    heartbeatInterval: 0,
-    heartbeatTimeout: 0,
     onMessage: handleStreamMessage,
     reconnect: true,
     url: room
@@ -345,11 +427,11 @@ export function useTeamRoom(roomId: string | null) {
       : "",
   });
 
-  const send = useCallback(async (text: string, agentIds: string[] = []) => {
+  const send = useCallback(async (text: string, agentIds: string[] = [], attachments: NonNullable<import("@/lib/api/conversation/team-api").TeamMessageContent["attachments"]> = []) => {
     const generation = captureAuthOwnerScopeGeneration();
     const value = roomRef.current;
     const normalized = (pendingSendRef.current?.text ?? text).trim();
-    if (!canUseRelay || !value || !normalized || sendingRef.current) {
+    if (!canUseRelay || !value || (!normalized && !(pendingSendRef.current?.attachments ?? attachments).length) || sendingRef.current) {
       return false;
     }
     sendingRef.current = true;
@@ -358,7 +440,7 @@ export function useTeamRoom(roomId: string | null) {
 	const normalizedAgentIDs = [...new Set(agentIds)];
     // 未确认的写入必须重放原始意图，不能在刷新成员后替换版本或静默丢弃目标。
     const previous = pendingSendRef.current;
-    const command = previous ?? { agentIds: normalizedAgentIDs, id: crypto.randomUUID(), text: normalized, membershipVersion: value.room.membership_version };
+    const command = previous ?? { agentIds: normalizedAgentIDs, id: crypto.randomUUID(), text: normalized, membershipVersion: value.room.membership_version, ...(attachments.length ? {attachments} : {}) };
     try {
       if (!outboxRef.current) throw new Error("缺少在线账号的持久化作用域");
       outboxRef.current.save(command);
@@ -370,6 +452,7 @@ export function useTeamRoom(roomId: string | null) {
         command.text,
         command.id,
 		command.agentIds.length > 0 ? { agentIds: command.agentIds, expectedMembershipVersion: command.membershipVersion } : undefined,
+        command.attachments,
       );
       if (!isAuthOwnerScopeGenerationCurrent(generation)) return false;
       outboxRef.current.confirm(command.id);
@@ -403,8 +486,15 @@ export function useTeamRoom(roomId: string | null) {
     isSending: canUseRelay && isSending,
     hasUnconfirmedSend: canUseRelay && hasUnconfirmedSend,
     pendingText: canUseRelay ? pendingText : null,
+    pendingAttachmentNames: canUseRelay ? (pendingSendRef.current?.attachments ?? []).map((file) => file.name) : [],
     messages: canUseRelay ? messages : [],
     retryLoad,
+    loadEarlier,
+    markRead,
+    hasEarlier: canUseRelay && historyBefore > 0,
+    isHistoryLoading: canUseRelay && isHistoryLoading,
+    historyError: canUseRelay && historyError,
+    historyPrependToken,
     room: canUseRelay ? room : null,
     send,
     updateDetails,

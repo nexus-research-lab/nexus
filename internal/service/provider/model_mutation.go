@@ -74,7 +74,7 @@ func (s *Service) fetchModelsForItem(
 			Category:                 category,
 			Enabled:                  false,
 			IsDefault:                false,
-			CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+			CapabilitiesAutoJSON:     encodeScopedModelFacts(item, modelID, capabilities),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindow,
 			MaxOutputTokens:          maxOutput,
@@ -96,6 +96,18 @@ func (s *Service) fetchModelsForItem(
 		item.ID,
 		expectedVersion,
 		func(mutation *providerstore.Mutation) error {
+			// Discovery refreshes declarations, not independently verified facts.
+			for index := range entities {
+				previous, readErr := mutation.GetModel(ctx, entities[index].ModelID)
+				if readErr != nil {
+					return readErr
+				}
+				if previous != nil {
+					if probe := currentModelProbe(item, *previous); probe != nil {
+						entities[index].CapabilitiesAutoJSON = withModelProbe(entities[index].CapabilitiesAutoJSON, *probe)
+					}
+				}
+			}
 			if upsertErr := mutation.UpsertModels(ctx, entities); upsertErr != nil {
 				return upsertErr
 			}
@@ -131,7 +143,7 @@ func (s *Service) fetchModelsForItem(
 	if err != nil {
 		return nil, err
 	}
-	saved, err := s.modelsForRecord(ctx, item.ID)
+	saved, err := s.modelsForRecord(ctx, item)
 	if err != nil {
 		return nil, err
 	}
@@ -344,7 +356,7 @@ func (u *modelUpdate) defaultCandidate() providerstore.ModelEntity {
 	return providerstore.ModelEntity{
 		ModelID:                  u.modelID,
 		DisplayName:              u.modelID,
-		CapabilitiesAutoJSON:     encodeModelCapabilities(ModelCapabilities{}),
+		CapabilitiesAutoJSON:     encodeModelAutoCapabilities(ModelCapabilities{}),
 		CapabilitiesOverrideJSON: encodeModelCapabilities(u.input.CapabilitiesOverride),
 	}
 }
@@ -373,7 +385,7 @@ func (u *modelUpdate) newModel() *providerstore.ModelEntity {
 		Category:                 category,
 		Enabled:                  u.input.Enabled || u.input.IsDefault,
 		IsDefault:                u.input.IsDefault,
-		CapabilitiesAutoJSON:     encodeModelCapabilities(capabilities),
+		CapabilitiesAutoJSON:     encodeModelAutoCapabilities(capabilities),
 		CapabilitiesOverrideJSON: encodeModelCapabilities(u.input.CapabilitiesOverride),
 		ContextWindow:            contextWindow,
 		MaxOutputTokens:          maxOutput,
@@ -421,7 +433,7 @@ func (u *modelUpdate) loadRecord() (*ModelRecord, error) {
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", u.modelID)
 	}
-	record := toModelRecord(*updated)
+	record := projectModelRecord(u.item, *updated)
 	return &record, nil
 }
 
@@ -508,6 +520,6 @@ func (s *Service) setDefaultModelForItem(
 	if updated == nil {
 		return nil, fmt.Errorf("模型不存在: %s", modelID)
 	}
-	record := toModelRecord(*updated)
+	record := projectModelRecord(item, *updated)
 	return &record, nil
 }

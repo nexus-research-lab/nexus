@@ -10,8 +10,8 @@ import (
 )
 
 var domainCatalog = []DomainDefinition{
-	{Name: DomainMembers, Description: "当前组织的成员目录和组织角色；写入由 Control 实时校验组织管理权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
-		Operations: []OperationDefinition{op("create", "创建普通平台账号并加入当前组织；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、admin/member 组织角色或移出组织；不授予平台权限", true, "immediate"), op("remove", "移出当前组织并撤销组织协作权限；保留账号、登录与本地数据", true, "immediate")}},
+	{Name: DomainMembers, Description: "当前部署的 Web 用户和平台角色；无需组织，写入由 Control 实时校验平台管理权限", Source: "Nexus Control", ManagedBy: "nexuscfg", Mutable: true,
+		Operations: []OperationDefinition{op("create", "创建可登录 Web 的独立平台账号，不加入组织；密码由真人在确认卡片输入", true, "immediate"), op("update", "修改显示名称、admin/member 平台角色或部署访问状态；不修改组织关系", true, "immediate"), op("remove", "撤销当前部署访问与现有登录；保留账号、组织关系与本地数据", true, "immediate")}},
 	{
 		Name: DomainPreferences, Description: "用户级聊天、runtime、WebSearch 与默认 Agent 偏好",
 		Source: "user preferences JSON + encrypted/isolated credential file", ManagedBy: "nexuscfg", Mutable: true,
@@ -232,7 +232,7 @@ func operationContract(domain, operation string) (string, any, []string) {
 			"model_id": "string",
 			"input": map[string]any{
 				"enabled": "boolean", "is_default": "boolean",
-				"capabilities_override": "object with optional vision/image_output/tool_calling/reasoning/embedding booleans",
+				"capabilities_override": "object with optional text_output/vision/image_output/image_editing/tool_calling/reasoning/embedding booleans",
 				"context_window":        "optional integer", "max_output_tokens": "optional integer",
 				"provider_options": "mixed JSON object; keep structural string/number/boolean/array/object values literal; token/client_secret/api_key/password leaves and every headers/env/credentials value use {$secret: opaque_slot_id}",
 			},

@@ -13,10 +13,11 @@ import { cn } from "@/shared/ui/class-name";
 
 import {
   AgentHandoffReplyChip,
+  MessageReplyChip,
   type AgentMentionDirectory,
 } from "../../../agent-mention-chip";
 import { formatMessageTime } from "../../../message-time";
-import { MessageAvatar } from "../../../ui/message-avatar";
+import { MessageAuthorAvatar } from "../../../ui/message-avatar";
 
 interface AssistantMessageHeaderProps {
   avatarUrl?: string | null;
@@ -26,6 +27,7 @@ interface AssistantMessageHeaderProps {
   echo: boolean;
   agentMentionDirectory?: AgentMentionDirectory;
   headerAction?: ReactNode;
+  replyTarget?: {name: string; avatar?: string | null; message?: string};
   handoffReplySourceAgentId?: string | null;
   model?: string;
   name?: string | null;
@@ -48,6 +50,7 @@ export function AssistantMessageHeader({
   echo,
   agentMentionDirectory,
   headerAction,
+  replyTarget,
   handoffReplySourceAgentId,
   model,
   name,
@@ -77,7 +80,7 @@ export function AssistantMessageHeader({
       </span>
       <AssistantAutomationBadge taskName={automationTaskName} />
       <AssistantEchoBadge visible={echo} />
-      {handoffReplySourceAgentId ? (
+      {replyTarget ? <MessageReplyChip {...replyTarget} /> : handoffReplySourceAgentId ? (
         <AgentHandoffReplyChip
           agentId={handoffReplySourceAgentId}
           directory={agentMentionDirectory}
@@ -204,13 +207,9 @@ function AssistantStopAction({
 const AVATAR_PRESENTATION = {
   compact: {
     bot: "h-3 w-3",
-    className: "nexus-chat-avatar shrink-0",
-    size: "compact",
   },
   full: {
     bot: "h-4 w-4",
-    className: "nexus-chat-avatar h-8 w-8 shrink-0",
-    size: "full",
   },
 } as const;
 
@@ -228,16 +227,14 @@ function AssistantMessageAvatar({
   const { t } = useI18n();
   const presentation = AVATAR_PRESENTATION[compact ? "compact" : "full"];
   return (
-    <MessageAvatar
+    <MessageAuthorAvatar
       ariaLabel={t("room.agent_contact_open", { name: displayName })}
       avatarUrl={avatarUrl}
-      className={presentation.className}
+      compact={compact}
       onClick={onOpenContact}
-      radius="control"
-      size={presentation.size}
       title={t("room.agent_contact_open", { name: displayName })}
     >
       <Bot className={presentation.bot} />
-    </MessageAvatar>
+    </MessageAuthorAvatar>
   );
 }

@@ -119,7 +119,7 @@ export function ScheduledTaskDialog({
           /> : null}
 
           <UiDialogBody
-            className="flex flex-col gap-6"
+            className={cn("flex flex-col gap-6", !isLegacyScriptTask && "pt-0")}
             scrollable
           >
             {isLegacyScriptTask ? (

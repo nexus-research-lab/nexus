@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func (s *ControlService) ListPairings(ctx context.Context, ownerUserID string, query PairingQuery) ([]PairingView, error) {
@@ -96,9 +98,6 @@ func (s *ControlService) updatePairing(
 		if agentID == "" {
 			return nil, invalidChannelControl(errors.New("agent_id cannot be empty"))
 		}
-		if err := s.ensureAgent(ctx, agentID); err != nil {
-			return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
-		}
 		request.AgentID = &agentID
 	}
 
@@ -106,7 +105,18 @@ func (s *ControlService) updatePairing(
 	defer unlockControl()
 	unlockPairing := s.lockPairingMutation(ownerUserID)
 	defer unlockPairing()
+	// Agent deletion coordinates through the same owner/control/pairing locks.
+	// Validate the replacement only after those locks are held; checking before
+	// them could observe an Agent that is deleted before this pairing commit.
+	if request.AgentID != nil {
+		if err := s.ensureAgent(ctx, *request.AgentID); err != nil {
+			return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+		}
+	}
 
+	if err := s.validatePairingTargetPatch(ctx, ownerUserID, pairingID, request); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
 	var updatedRow *pairingRow
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
 		existing, loadErr := s.getPairingRowFrom(ctx, tx, ownerUserID, pairingID)
@@ -123,8 +133,41 @@ func (s *ControlService) updatePairing(
 			}
 			request.Status = &status
 		}
-		if (request.AgentID != nil && *request.AgentID != existing.AgentID) || (request.Status != nil && *request.Status != existing.Status) {
+		if err := s.patchPairingTarget(ctx, tx, existing, request); err != nil {
+			return err
+		}
+		identityChanged := (request.AgentID != nil && *request.AgentID != existing.AgentID) ||
+			(request.Status != nil && *request.Status != existing.Status)
+		if identityChanged {
 			if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+				return err
+			}
+			if err := s.deletePairingDeliveryRoutesTx(ctx, tx, ownerUserID, pairingID); err != nil {
+				return err
+			}
+			// A pairing disable/re-enable is also an authorization identity
+			// change. Fence every concrete session derived from the old row and
+			// start a fresh generation, so re-enabling cannot restore an old
+			// round or delivery route. Rebinding uses the new Agent; a status
+			// change keeps the current Agent while still rotating the key.
+			if _, err := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+				return err
+			}
+			nextAgentID := existing.AgentID
+			if request.AgentID != nil {
+				nextAgentID = *request.AgentID
+			}
+			existing.SessionKey = protocol.BuildAgentAccountSessionKeyWithGeneration(
+				nextAgentID,
+				protocol.NormalizeSessionKeyChannelSegment(existing.ChannelType),
+				existing.ChatType,
+				existing.AccountID,
+				existing.ExternalRef,
+				existing.ThreadID,
+				s.idFactory("session"),
+			)
+			existing.SessionMaterialized = false
+			if _, err := tx.ExecContext(ctx, "UPDATE im_pairings SET session_key="+s.bind(1)+", session_materialized="+s.bind(2)+" WHERE owner_user_id="+s.bind(3)+" AND pairing_id="+s.bind(4), existing.SessionKey, false, ownerUserID, pairingID); err != nil {
 				return err
 			}
 		}
@@ -175,6 +218,12 @@ func (s *ControlService) deletePairing(
 
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx, "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
+			return err
+		}
+		if err := s.deletePairingDeliveryRoutesTx(ctx, tx, ownerUserID, pairingID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), ownerUserID, pairingID); err != nil {
 			return err
 		}
 		query := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)

@@ -32,7 +32,8 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	claims := controlPrincipalClaims{
-		Version: 1, Issuer: "nexus-control", Audience: "nexus-runtime",
+		WebAccessDisabled: true,
+		Version:           1, Issuer: "nexus-control", Audience: "nexus-runtime",
 		IssuedAt: now.Unix(), ExpiresAt: now.Add(time.Minute).Unix(),
 		DeploymentID: "dep-a", UserID: "user-control-a",
 		Username: "admin", DisplayName: "Admin", Role: RoleOwner,
@@ -81,6 +82,7 @@ func TestControlAuthorityVerifiesPrincipalAndBindsLocalOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	if principal == nil ||
+		!principal.WebAccessDisabled ||
 		principal.UserID == "user-control-a" ||
 		!strings.HasPrefix(principal.UserID, "owner_") ||
 		principal.ControlUserID != "user-control-a" ||

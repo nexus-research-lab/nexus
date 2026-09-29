@@ -1,12 +1,13 @@
 // INPUT: 稳定资源种子、共享尺寸、瞬时运行状态与标准 span 属性。
-// OUTPUT: 确定性数学曲线头像，并统一投影视觉尺寸、圆角和运行态外环。
-// POS: 数学曲线资源头像的唯一 DOM/视觉 owner；业务层只传身份和语义状态。
+// OUTPUT: 确定性数学曲线或 Humation 头像，并统一投影视觉尺寸、圆角和运行态外环。
+// POS: 稳定种子头像的唯一 DOM/视觉 owner；业务层只传身份和语义状态。
 
 "use client";
 
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 import { type HTMLAttributes, useMemo } from "react";
 
+import { getSeededHumationAvatarSrc } from "@/shared/lib/humation/avatar";
 import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
 import { cn } from "@/shared/ui/class-name";
 
@@ -15,6 +16,7 @@ type UiSeededAvatarState = "default" | "running";
 
 interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   seed: string;
+  variant?: "curve" | "humation";
   size?: UiSeededAvatarSize;
   state?: UiSeededAvatarState;
 }
@@ -50,6 +52,7 @@ const SEEDED_AVATAR_STATE_CLASS_NAME: Readonly<
 export function UiSeededAvatar({
   className,
   seed,
+  variant = "curve",
   size = "md",
   state = "default",
   style,
@@ -57,8 +60,13 @@ export function UiSeededAvatar({
   ...props
 }: UiSeededAvatarProps) {
   const appearance = useMemo(
-    () => getSeededAvatarAppearance(seed),
-    [seed],
+    () => variant === "curve" ? getSeededAvatarAppearance(seed) : null,
+    [seed, variant],
+  );
+
+  const imageSrc = useMemo(
+    () => variant === "humation" ? getSeededHumationAvatarSrc(seed) : undefined,
+    [seed, variant],
   );
 
   const content = (
@@ -73,25 +81,24 @@ export function UiSeededAvatar({
         className,
       )}
       style={{
-        backgroundColor: appearance.backgroundColor,
-        color: appearance.foregroundColor,
+        backgroundColor: appearance?.backgroundColor,
+        color: appearance?.foregroundColor,
         ...style,
       }}
     >
-      <svg
-        aria-hidden="true"
-        className="block h-full w-full"
-        fill="none"
-        viewBox="0 0 100 100"
-      >
-        <path
-          d={appearance.pathData}
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="3.75"
-        />
-      </svg>
+      {imageSrc ? (
+        <img alt="" className="block h-full w-full" src={imageSrc} />
+      ) : (
+        <svg aria-hidden="true" className="block h-full w-full" fill="none" viewBox="0 0 100 100">
+          <path
+            d={appearance?.pathData}
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="3.75"
+          />
+        </svg>
+      )}
     </span>
   );
   return title ? <UiTooltip label={title}>{content}</UiTooltip> : content;

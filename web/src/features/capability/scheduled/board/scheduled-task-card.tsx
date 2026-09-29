@@ -240,16 +240,19 @@ export function ScheduledTaskCard({
           </CapabilityItemIcon>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-start justify-between gap-2">
-              <span className={cn(
-                "min-w-0 truncate",
-                getUiTypographyClassName({
-                  role: "caption",
-                  tone: "soft",
-                  weight: "medium",
-                }),
+              <h3 className={cn(
+                "min-w-0 flex-1",
+                getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
               )}>
-                {presentation.contextLabel}
-              </span>
+                <UiButton
+                  className="h-auto min-h-0 w-full justify-start whitespace-normal p-0 text-left [font:inherit]"
+                  disabled={isMutationBlocked || presentation.deletion !== null}
+                  onClick={() => onEdit(task)}
+                  variant="ghost"
+                >
+                  <span className="line-clamp-2">{task.name}</span>
+                </UiButton>
+              </h3>
               <UiIconButton
                 ref={menuAnchorRef}
                 aria-expanded={isMenuOpen}
@@ -273,16 +276,16 @@ export function ScheduledTaskCard({
                 onSelect={(value) => actionHandlers[value as TaskMenuAction]()}
               />
             </div>
-            <h3 className={cn(
-              "mt-1 truncate",
-              getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
+            <p className={cn(
+              "mt-0.5 truncate",
+              getUiTypographyClassName({ role: "caption", tone: "muted" }),
             )}>
-              {task.name}
-            </h3>
+              {presentation.contextLabel}
+            </p>
           </div>
         </div>
         <p className={cn(
-          "mt-1 truncate",
+          "mt-3 line-clamp-2",
           getUiTypographyClassName({ role: "metadata", tone: "muted" }),
         )}>
           {task.instruction}

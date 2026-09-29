@@ -5,7 +5,14 @@ package relay
 
 import "time"
 
+type PendingDeliveries struct {
+	AgentIDs  []string   `json:"agent_ids"`
+	NextDueAt *time.Time `json:"next_due_at,omitempty"`
+}
+
 type Delivery struct {
+	ExecutionState string     `json:"execution_state,omitempty"`
+	AgentIDs       []string   `json:"agent_ids,omitempty"`
 	ID             string     `json:"id"`
 	RoomID         string     `json:"room_id"`
 	ConversationID string     `json:"conversation_id"`
@@ -20,7 +27,8 @@ type Delivery struct {
 }
 
 type DeliveryOutput struct {
-	LeaseID string         `json:"lease_id"`
-	Kind    string         `json:"kind"`
-	Content MessageContent `json:"content"`
+	LeaseID  string           `json:"lease_id"`
+	Kind     string           `json:"kind"`
+	Content  MessageContent   `json:"content"`
+	Mentions []MessageMention `json:"mentions,omitempty"`
 }

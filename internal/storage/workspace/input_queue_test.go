@@ -953,3 +953,22 @@ func TestInputQueueStoreRoomScopeUsesAgentSessionPath(t *testing.T) {
 		t.Fatalf("Room 队列应归属 agent session: %#v", items[0])
 	}
 }
+
+func TestBoundedDirectedInputRemainsAcceptedAfterDispatch(t *testing.T) {
+	root := t.TempDir()
+	location := InputQueueLocation{Scope: protocol.InputQueueScopeRoom, WorkspacePath: filepath.Join(root, "agent"), SessionKey: "room:conversation:agent"}
+	item := protocol.InputQueueItem{AgentID: "agent", Source: protocol.InputQueueSourceAgentRoomMessage, SourceMessageID: "message", ClientMessageID: "message", Content: "手机输入", DeliveryPolicy: protocol.ChatDeliveryPolicyQueue}
+	store := NewInputQueueStore(root)
+	items, inserted, err := store.EnqueueBounded(location, item, 1)
+	if err != nil || !inserted {
+		t.Fatalf("首次受理: %v %v", inserted, err)
+	}
+	if _, err := store.DispatchMany(location, []string{items[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	// 新实例模拟重启；已经出队的输入不能因 wake 回执缺失再次执行。
+	items, inserted, err = NewInputQueueStore(root).EnqueueBounded(location, item, 1)
+	if err != nil || inserted || len(items) != 0 {
+		t.Fatalf("恢复重放了已派发输入: %+v %v %v", items, inserted, err)
+	}
+}

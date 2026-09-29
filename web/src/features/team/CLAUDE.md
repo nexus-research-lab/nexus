@@ -1,13 +1,38 @@
 # Team
 
+- 在线 Room 和目录 WS 不关闭共享 transport 心跳；复用本地聊天的 ping/pong、退避和 focus/online 恢复。重连初始水位从旧 cursor 分页补读并按消息 ID 去重，epoch 改变重建快照，绝不自动重发未知消息。
+
+- 常驻 Room 目录按登录作用域及成员版本批量准备本人 Agent，不依赖打开群；失败仅退避重试原准备操作，不增加固定任务轮询。
+- 未知执行的核验按钮只请求后端核对精确 round 与 Relay 回执；停止请求成功不等于停止完成，不直接解锁或重跑。
+
+- 原生会话绑定必须同时携带本机 `local_agent_id`、Room 和 Conversation；观察器、Thread、辅助面板均不得用 Control Agent ID 替代本机身份，或省略命令目录所需的 Agent 成员校验。
+
+- 消息附件复用共享文件上传与有界下载；发送前把 id/name/size/sha256 冻结到原有持久发件箱，未知结果重放原引用，支持附件单独发送。UI 的 relayRoom 作用域不含本机路径，接收节点才物化为原生 Room 附件。消息下载与工作区共用 saveTeamFile。
+
+- 执行观察器直接提供原生 Room 停止、stopping 与权限响应能力，按 conversation 绑定并在卸载时清理。主 Composer 复用人工介入队列，桌面 Thread 不重复审批面；窄屏 Thread 覆盖时保留其可达入口，不向其他群成员公开本机权限。
+
+- 群设置本人头像来自匹配 Control 用户 ID 的当前远程登录身份；可邀请目录排除自己，不能用该目录推断本人头像为空。
+
+- 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
+
+
+- `team-workspace.tsx` 默认显示 Relay 群共享文件，复用公共 WorkspaceFileTree；本机 Agent 文件另列页签。上传按文件名和内容摘要生成稳定命令，不随失败重试变化；读错误不冒充空目录，上传未确认不被例行刷新清除，离开页面中止传输。当前支持有界上传/下载，不提供共享文件重命名、删除或编辑。
+- `POST /team-node/room` 为当前已加入的本人 Agent 准备确定性执行 Room；不需要 Node 授权或历史任务，不启动 runtime。工作图和子智能体沿原生会话空态展示，模型权限设置在第一轮前可用。成员与本机目录交集由服务端重新核验。
+
+- `team-execution-surface.tsx` 按已验证成员绑定复用 Room 工作图、子智能体、Agent 工作区与简介；只允许当前群 active Agent 与本机目录的交集，文件导航回到同一 Agent。本机工作区不冒充 Relay 共享目录。简介保存沿用 Agent Options 命令，工作图消费原生 execution_invalidated。
+
+- `team-execution-thread.tsx` 在 Thread 打开前通过 TeamExecutionObserver 按绑定的 Conversation 去重订阅原生 useAgentConversation；连接和执行状态变化触发任务关联对账，流式 delta 不触发 HTTP，任务读取不设定时轮询。本机终态复用 Room Agent round 投影，避免任务持久化稍晚导致 UI 持续思考。Thread 按精确 round/Agent 读取过程与权限；窄屏复用 Room 模态外壳。远程成员不订阅本机执行流。
+- Thread 活动态复用 Room Agent round 投影，不以 session/history fetching 充当执行中。精确 delivery 的 final 或本机任务终态关闭活动提示，并补读当前轮持久历史；普通中间 assistant 回复不代表执行完成。
+
 - Relay 资源同时要求远程登录和非空 organization_id；目录刷新作用域包含组织和组织角色。组织切换废弃旧在线目录与在途读取，不切换本地 owner 数据目录。
 
-- `team-node-dialog.tsx` 在在线群 Header 提供本机授权，复用共享弹窗与 Checkbox；待确认时锁定服务端原意图，读取失败禁用新授权。它只使用 `/team-node`，不获取机器凭据，也不把登记成功表示为执行器在线。
-- 已授权宿主必须另行显式开启执行；本机任务列表链接原生执行 Room 处理权限与问答。旧授权不自动开启，运行状态未知明确阻止重跑，不提供无证据解锁。
+- 入群就是本人 Agent 的群内执行授权；页面通过 `/team-node/room` 校验成员、准备本机会话并自动登记执行，不再提供独立设备授权弹窗或两步开关。凭据仅由后端持有，准备失败保留明确重试反馈。
+- 本机任务链接在线群的精确 Thread，处理权限与问答；运行状态未知仍阻止重跑，不提供无证据解锁。暂停/移除/组织撤权继续由 Relay 校验，不通过自动登记绕过。
+- `team-execution-thread.test.tsx` 验证精确本机轮次隔离、停止命令与历史读取重试。聊天按消息/Delivery ID 分批查询本机历史，深链额外查询精确 job；不依赖授权面板最近 100 条窗口。
 
 - `use-team-rooms.ts` 读取已加入的在线 Room；`use-team-invitations.ts` 独立读取和处理待加入邀请，不创建默认 General。
 - `use-team-room.ts` 负责快照、差量游标、WSS 水位/换代提示和真人消息提交；显式选择的 active Agent 以结构化 mention 和当前 `membership_version` 提交，WSS 不承载消息正文，提交成功后仍从旧游标走 difference 再前进。
-- `use-team-refresh.ts` 统一可见页面的单飞元数据刷新（15 秒、focus、online 与手动刷新）；Room 成员更新不重载消息历史，管理弹窗新快照即时回传聊天页，旧版本不能覆盖新版本。M1 暂无成员变更推送，扩容时替换为版本通知。
+- `use-team-refresh.ts` 统一单飞元数据读取，复用共享 directory WS，无固定轮询；读取期间的失效合并为一次后续对账。本机任务传 false，不订阅目录，沿原生 Room 事件刷新。focus、online、重连初始提示和手动重试仍可对账。Room 成员更新不重载消息历史，管理弹窗新快照即时回传聊天页，旧版本不能覆盖新版本。
 - 未确认消息冻结正文、目标、成员版本与命令 ID，期间锁定草稿；再次发送只重放原意图。服务端明确 `not_applied` 才允许新命令和新版本；成员变化不能静默丢弃用户选中的 Agent。
 - `team-message-outbox.ts` 发送前写浏览器持久存储，按组织/Control 用户/会话隔离，每条命令独立 key 防止窗口覆盖；保存失败不发送。重新打开只恢复未确认意图，本人 snapshot/difference 的精确 `client_message_id` 才可清除；不自动发送、不自动丢弃损坏记录。
 - `team-command-outcome.ts` 区分本次未执行与先前未知提交：网关/身份拒绝不能释放先前未知命令，只有精确回执查询后的领域拒绝才能解除重试锁。
@@ -26,3 +51,14 @@
 - 在线 Agent 暂停保留成员身份，只阻断后续投递资格；仅 Agent 所有者可暂停或恢复，暂停主持 Agent 时 Relay 同时清空主持职责。
 - Agent 发布和入群由成员资源的同一个同步单飞锁持有，发布错误进入可见失败状态；删除弹窗的独立异步发布路径。读取失败保留已有快照并可手动刷新。
 - `use-team-invitations.ts` 持有当前真人的 pending 邀请与幂等接受/拒绝；`team-invitation-list.tsx` 只在聊天目录展示待处理项。
+
+- 邀请列表在无邀请、无群主接管待办且读取成功时不渲染，首次加载也不显示空标题；只在读取失败时显示重试。真人 DM 邀请卡片与目录待办复用接受、拒绝入口，群主接管仍由目录待办提供。
+
+- Room WS 与目录 WS 的详情提示共用单飞刷新；连续提示合并补读，不并发拉群详情。详情错误受请求代次约束；切群释放同步占用，旧差量的成功、失败与 finally 均不得覆盖新群状态。
+
+- `human-contacts-directory.tsx` 展示当前组织真人，排除自己并通过 `direct_user_id` 打开唯一双人 Relay Room；不创建本地 Agent 会话。私聊复用发送、outbox、snapshot/difference 和邀请处理，隐藏群治理与本机 Agent 执行入口。
+
+- 首屏按 Room 一致水位读取最近 100 条；loadEarlier 每次前插至多 100 条，复用同一快照锚点，独立取消且不改变实时差量游标。历史失败保留窗口与重试入口。
+- markRead 单飞提交当前世代的本人消息阅读水位，旧响应受账号/Room 代次栅栏约束；只有页面可见、获得焦点且跟随最新时调用，不根据后台同步清除未读。
+
+- 成员续页由 team-api 在原 membership_version/epoch 下拼装；详情只带最近 100 条消息的投递状态，use-team-room 为已加载历史分批补读并按 delivery ID 合并。

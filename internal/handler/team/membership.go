@@ -3,6 +3,7 @@ package team
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -280,4 +281,49 @@ func (h *Handlers) writeMembershipResult(writer http.ResponseWriter, request *ht
 		return
 	}
 	h.api.WriteSuccess(writer, result)
+}
+
+// HandleRoomDeliveryStatuses 限定消息批量大小；成员和组织权限由 Relay 重验。
+func (h *Handlers) HandleRoomDeliveryStatuses(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	roomID, ids := chi.URLParam(r, "room_id"), r.URL.Query()["message_id"]
+	valid := validResourceID(roomID) && len(ids) > 0 && len(ids) <= 100
+	for _, id := range ids {
+		valid = valid && validResourceID(id)
+	}
+	if !valid {
+		h.writeRequestError(w, r, "team.delivery_query_invalid", "投递查询需提供 1 至 100 条有效消息", false)
+		return
+	}
+	token, ok := h.exchangeToken(w, r, false)
+	if !ok {
+		return
+	}
+	result, err := h.team.RoomDeliveryStatuses(r.Context(), teamAccess(r, token), roomID, ids)
+	if err != nil {
+		h.writeRelayError(w, r, err, false)
+		return
+	}
+	h.api.WriteSuccess(w, result)
+}
+
+func (h *Handlers) HandleRoomMembers(w http.ResponseWriter, r *http.Request) {
+	h.noStore(w)
+	roomID := chi.URLParam(r, "room_id")
+	cursor, epoch := r.URL.Query().Get("after"), r.URL.Query().Get("stream_epoch")
+	version, err := strconv.ParseInt(r.URL.Query().Get("membership_version"), 10, 64)
+	if !validResourceID(roomID) || cursor == "" || len(cursor) > 256 || epoch == "" || len(epoch) > 128 || err != nil || version <= 0 {
+		h.writeRequestError(w, r, "team.member_query_invalid", "成员分页参数无效", false)
+		return
+	}
+	token, ok := h.exchangeToken(w, r, false)
+	if !ok {
+		return
+	}
+	result, err := h.team.RoomMembers(r.Context(), teamAccess(r, token), roomID, cursor, epoch, version)
+	if err != nil {
+		h.writeRelayError(w, r, err, false)
+		return
+	}
+	h.api.WriteSuccess(w, result)
 }

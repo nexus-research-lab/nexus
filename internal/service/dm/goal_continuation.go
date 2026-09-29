@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
@@ -203,6 +204,15 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				Purpose:        validated.Purpose,
 				Priority:       "internal",
 				Metadata:       validated.Metadata,
+			},
+			goalContinuationAuthority: &runtimectx.GoalContinuationAuthority{
+				OwnerUserID:       strings.TrimSpace(agentValue.OwnerUserID),
+				AgentID:           agentID,
+				ScopeSessionKey:   sessionKey,
+				GoalID:            strings.TrimSpace(validated.Goal.ID),
+				ObjectiveRevision: validated.Goal.ObjectiveRevision(),
+				ExecutionID:       strings.TrimSpace(validated.ExecutionID),
+				RootRoundID:       strings.TrimSpace(validated.RoundID),
 			},
 			continuationStartAdmission: func(admissionCtx context.Context) error {
 				return markGoalContinuationStarted(admissionCtx, s.goals, *validated)

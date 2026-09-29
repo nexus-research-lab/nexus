@@ -15,7 +15,7 @@ import (
 func (s *ControlService) listPairingRows(ctx context.Context, ownerUserID string, query PairingQuery) ([]pairingRow, error) {
 	sqlText := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1)
 	args := []any{strings.TrimSpace(ownerUserID)}
@@ -62,7 +62,7 @@ func (s *ControlService) getPairingRowFrom(
 ) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + " AND pairing_id = " + s.bind(2)
 	item, err := scanPairingScanner(store.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID)))
@@ -108,7 +108,7 @@ func (s *ControlService) findPairingByTargetFrom(
 ) (*pairingRow, error) {
 	query := `
 	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	       agent_id, status, source, last_message_at, created_at, updated_at
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
 FROM im_pairings
 WHERE owner_user_id = ` + s.bind(1) + `
 	  AND channel_type = ` + s.bind(2) + `
@@ -135,6 +135,43 @@ WHERE owner_user_id = ` + s.bind(1) + `
 	return item, err
 }
 
+func (s *ControlService) findPairingByTargetAnyStatusFrom(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	channelType string,
+	accountID string,
+	chatType string,
+	externalRef string,
+	threadID string,
+) (*pairingRow, error) {
+	query := `
+	SELECT pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
+	       agent_id, status, source, session_key, session_materialized, last_message_at, created_at, updated_at, target_room_id, target_conversation_id, binding_version
+FROM im_pairings
+WHERE owner_user_id = ` + s.bind(1) + `
+	  AND channel_type = ` + s.bind(2) + `
+	  AND account_id = ` + s.bind(3) + `
+	  AND chat_type = ` + s.bind(4) + `
+	  AND external_ref = ` + s.bind(5) + `
+	  AND thread_id = ` + s.bind(6) + `
+	LIMIT 1`
+	item, err := scanPairingScanner(store.QueryRowContext(
+		ctx,
+		query,
+		strings.TrimSpace(ownerUserID),
+		normalizeIMChannelType(channelType),
+		strings.TrimSpace(accountID),
+		protocol.NormalizeSessionChatType(chatType),
+		strings.TrimSpace(externalRef),
+		strings.TrimSpace(threadID),
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return item, err
+}
+
 func (s *ControlService) upsertPairingRowAndReload(ctx context.Context, row pairingRow) (*pairingRow, error) {
 	return s.upsertPairingRowAndReloadAtVersion(ctx, row, 0)
 }
@@ -148,9 +185,47 @@ func (s *ControlService) upsertPairingRowAndReloadAtVersion(
 	defer unlockControl()
 	unlockPairing := s.lockPairingMutation(row.OwnerUserID)
 	defer unlockPairing()
+	// buildPairingRow performs an early validation for useful error messages,
+	// but Agent deletion may race that read. Recheck after the authoritative
+	// owner locks are held so a new/pending pairing can never commit an Agent
+	// that has just been deleted.
+	if err := s.ensureAgent(ctx, row.AgentID); err != nil {
+		return nil, channelControlMutationFailure(ControlMutationNotApplied, err)
+	}
 
 	var created *pairingRow
 	_, err := s.withChannelControlMutation(ctx, row.OwnerUserID, expectedVersion, func(tx *sql.Tx) error {
+		existing, loadErr := s.findPairingByTargetAnyStatusFrom(
+			ctx, tx, row.OwnerUserID, row.ChannelType, row.AccountID, row.ChatType, row.ExternalRef, row.ThreadID,
+		)
+		if loadErr != nil {
+			return loadErr
+		}
+		if existing != nil {
+			row.SessionMaterialized = existing.SessionMaterialized
+			if existing.AgentID != row.AgentID || existing.Status != row.Status {
+				if err := s.deletePairingDeliveryRoutesTx(ctx, tx, row.OwnerUserID, existing.PairingID); err != nil {
+					return err
+				}
+			}
+			if existing.AgentID != row.AgentID || existing.Status != row.Status {
+				if _, deleteErr := tx.ExecContext(ctx, "DELETE FROM im_pairing_sessions WHERE owner_user_id="+s.bind(1)+" AND pairing_id="+s.bind(2), row.OwnerUserID, existing.PairingID); deleteErr != nil {
+					return deleteErr
+				}
+				row.SessionKey = protocol.BuildAgentAccountSessionKeyWithGeneration(
+					row.AgentID,
+					protocol.NormalizeSessionKeyChannelSegment(row.ChannelType),
+					row.ChatType,
+					row.AccountID,
+					row.ExternalRef,
+					row.ThreadID,
+					s.idFactory("session"),
+				)
+				row.SessionMaterialized = false
+			} else if strings.TrimSpace(existing.SessionKey) != "" {
+				row.SessionKey = existing.SessionKey
+			}
+		}
 		// Any rebinding invalidates old return addresses in the same transaction.
 		query := "UPDATE im_deliveries SET return_revoked=1 WHERE owner_user_id=" + s.bind(1) + " AND pairing_id IN (SELECT pairing_id FROM im_pairings WHERE owner_user_id=" + s.bind(2) + " AND channel_type=" + s.bind(3) + " AND account_id=" + s.bind(4) + " AND chat_type=" + s.bind(5) + " AND external_ref=" + s.bind(6) + " AND thread_id=" + s.bind(7) + " AND (agent_id<>" + s.bind(8) + " OR status<>" + s.bind(9) + "))"
 		if _, invalidateErr := tx.ExecContext(ctx, query, row.OwnerUserID, row.OwnerUserID, row.ChannelType, row.AccountID, row.ChatType, row.ExternalRef, row.ThreadID, row.AgentID, row.Status); invalidateErr != nil {
@@ -159,7 +234,6 @@ func (s *ControlService) upsertPairingRowAndReloadAtVersion(
 		if writeErr := s.upsertPairingRowWith(ctx, tx, row); writeErr != nil {
 			return writeErr
 		}
-		var loadErr error
 		created, loadErr = s.findPairingByTargetFrom(
 			ctx,
 			tx,
@@ -241,13 +315,18 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 		query := `
 	INSERT INTO im_pairings (
 	    pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	    agent_id, status, source, last_message_at
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+	    agent_id, status, source, session_key, session_materialized, last_message_at
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
 	ON CONFLICT (owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = EXCLUDED.external_name,
+    binding_version = im_pairings.binding_version + CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id OR im_pairings.status <> EXCLUDED.status THEN 1 ELSE 0 END,
+    target_room_id = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN '' ELSE im_pairings.target_room_id END,
+    target_conversation_id = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN '' ELSE im_pairings.target_conversation_id END,
     agent_id = EXCLUDED.agent_id,
     status = EXCLUDED.status,
     source = EXCLUDED.source,
+	session_key = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN EXCLUDED.session_key ELSE COALESCE(NULLIF(im_pairings.session_key, ''), EXCLUDED.session_key) END,
+	session_materialized = CASE WHEN im_pairings.agent_id <> EXCLUDED.agent_id THEN FALSE ELSE im_pairings.session_materialized END,
     last_message_at = COALESCE(EXCLUDED.last_message_at, im_pairings.last_message_at),
     updated_at = CURRENT_TIMESTAMP`
 		_, err := store.ExecContext(
@@ -264,6 +343,8 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 			row.AgentID,
 			row.Status,
 			row.Source,
+			row.SessionKey,
+			row.SessionMaterialized,
 			nullTimeValueOrNil(row.LastMessageAt),
 		)
 		return err
@@ -271,13 +352,18 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 	query := `
 	INSERT INTO im_pairings (
 	    pairing_id, owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id, external_name,
-	    agent_id, status, source, last_message_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	    agent_id, status, source, session_key, session_materialized, last_message_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(owner_user_id, channel_type, account_id, chat_type, external_ref, thread_id) DO UPDATE SET
     external_name = excluded.external_name,
+    binding_version = im_pairings.binding_version + CASE WHEN im_pairings.agent_id <> excluded.agent_id OR im_pairings.status <> excluded.status THEN 1 ELSE 0 END,
+    target_room_id = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN '' ELSE im_pairings.target_room_id END,
+    target_conversation_id = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN '' ELSE im_pairings.target_conversation_id END,
     agent_id = excluded.agent_id,
     status = excluded.status,
     source = excluded.source,
+	session_key = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN excluded.session_key ELSE CASE WHEN im_pairings.session_key = '' THEN excluded.session_key ELSE im_pairings.session_key END END,
+	session_materialized = CASE WHEN im_pairings.agent_id <> excluded.agent_id THEN 0 ELSE im_pairings.session_materialized END,
     last_message_at = COALESCE(excluded.last_message_at, im_pairings.last_message_at),
     updated_at = CURRENT_TIMESTAMP`
 	_, err := store.ExecContext(
@@ -294,6 +380,8 @@ func (s *ControlService) upsertPairingRowWith(ctx context.Context, store channel
 		row.AgentID,
 		row.Status,
 		row.Source,
+		row.SessionKey,
+		row.SessionMaterialized,
 		nullTimeValueOrNil(row.LastMessageAt),
 	)
 	return err
@@ -313,9 +401,12 @@ func scanPairingScanner(row sqlScanner) (*pairingRow, error) {
 		&item.AgentID,
 		&item.Status,
 		&item.Source,
+		&item.SessionKey,
+		&item.SessionMaterialized,
 		&item.LastMessageAt,
 		&item.CreatedAt,
 		&item.UpdatedAt,
+		&item.TargetRoomID, &item.TargetConversationID, &item.BindingVersion,
 	)
 	if err != nil {
 		return nil, err
@@ -323,5 +414,6 @@ func scanPairingScanner(row sqlScanner) (*pairingRow, error) {
 	item.ChannelType = normalizeIMChannelType(item.ChannelType)
 	item.AccountID = strings.TrimSpace(item.AccountID)
 	item.ChatType = protocol.NormalizeSessionChatType(item.ChatType)
+	item.SessionKey = strings.TrimSpace(item.SessionKey)
 	return &item, nil
 }

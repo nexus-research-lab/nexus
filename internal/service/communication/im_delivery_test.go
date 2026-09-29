@@ -232,3 +232,15 @@ func TestIMScenarioRoutesFeedbackWithoutEnteringPrivateMessaging(t *testing.T) {
 		t.Fatal("rebound pairing accepted old source")
 	}
 }
+
+func TestIMOriginUsesOriginalRoomMemberSession(t *testing.T) {
+	actor := Actor{AgentID: "amy", SessionKey: "room:group:topic", RoomID: "room", ConversationID: "topic", RoundID: "round", CallID: "call"}
+	source := imOrigin(actor)
+	if source.SessionKey != protocol.BuildRoomAgentSessionKey("topic", "amy", protocol.RoomTypeGroup) || source.RoomID != "room" || source.ConversationID != "topic" || source.CallID != "call" {
+		t.Fatalf("origin = %+v", source)
+	}
+	actor.SessionKey = "agent:amy:ws:dm:direct"
+	if imOrigin(actor).SessionKey != actor.SessionKey {
+		t.Fatal("changed direct session")
+	}
+}

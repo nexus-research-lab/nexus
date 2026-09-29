@@ -196,7 +196,7 @@ func (s *Service) syncCCSwitchCandidate(
 			Category:                 "chat",
 			Enabled:                  true,
 			IsDefault:                false,
-			CapabilitiesAutoJSON:     encodeModelCapabilities(ccSwitchModelCapabilities(model.Capabilities)),
+			CapabilitiesAutoJSON:     encodeScopedModelFacts(item, model.ModelID, ccSwitchModelCapabilities(model.Capabilities)),
 			CapabilitiesOverrideJSON: "{}",
 			ContextWindow:            contextWindowOrKnown(model.ModelID, model.ContextWindow),
 			ProviderOptionsJSON:      "{}",

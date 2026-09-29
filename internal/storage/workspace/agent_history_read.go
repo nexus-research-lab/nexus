@@ -324,18 +324,13 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 	if err != nil {
 		return nil, err
 	}
-	root, relative, fileInfo, err := s.openTranscriptPath(workspacePath, transcriptPath)
+	root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
 
 	throughMessageID = strings.TrimSpace(throughMessageID)
-	roundMarkerFingerprint := throughMessageID + "\n" + fingerprintTranscriptRoundMarkers(roundMarkers)
-	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
-		return cachedRows, nil
-	}
-
 	entries, err := s.readTranscriptEntriesAtContext(ctx, root, relative)
 	if err != nil {
 		return nil, err
@@ -349,7 +344,6 @@ func (s *AgentHistoryStore) readTranscriptMessagesContext(
 		}
 	}
 	projectedRows := projectTranscriptChain(workspacePath, sessionKey, agentID, chain, roundMarkers)
-	s.writeTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint, projectedRows)
 	return projectedRows, nil
 }
 
@@ -460,8 +454,6 @@ func (s *AgentHistoryStore) readTranscriptPathMessagesAt(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	const explicitTranscriptCacheKey = "explicit-transcript"
-
 	transcriptPath = strings.TrimSpace(transcriptPath)
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
@@ -469,21 +461,17 @@ func (s *AgentHistoryStore) readTranscriptPathMessagesAt(
 	var (
 		root     *confinedfs.Root
 		relative string
-		fileInfo os.FileInfo
 		err      error
 	)
 	if candidates == nil {
-		root, relative, fileInfo, err = s.openTranscriptPath(workspacePath, transcriptPath)
+		root, relative, _, err = s.openTranscriptPath(workspacePath, transcriptPath)
 	} else {
-		root, relative, fileInfo, err = openTranscriptPathAt(candidates, transcriptPath)
+		root, relative, _, err = openTranscriptPathAt(candidates, transcriptPath)
 	}
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey); ok {
-		return cachedRows, nil
-	}
 	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
@@ -491,7 +479,6 @@ func (s *AgentHistoryStore) readTranscriptPathMessagesAt(
 	chain := buildExplicitTranscriptChain(entries)
 	projectedRows := projectExplicitTranscriptChain(workspacePath, sessionKey, agentID, chain)
 	projectedRows = normalizeHistoryRows(projectedRows, nil)
-	s.writeTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey, projectedRows)
 	return projectedRows, nil
 }
 

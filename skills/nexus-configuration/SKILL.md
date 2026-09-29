@@ -49,7 +49,7 @@ tags: [nexus, configuration, settings, agent, room]
 
 ## 管理用户
 
-管理员需要新增、修改或移除用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。
+平台管理员需要新增、修改或停用独立 Web 用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。
 
 ## Skill 内容与长期记忆
 

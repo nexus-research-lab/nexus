@@ -1,5 +1,5 @@
 /**
- * INPUT: Launcher bootstrap API、Room/Agent 目录失效事件、owner 切换与 React 订阅生命周期。
+ * INPUT: Launcher bootstrap API、消息增量、Room/Agent 目录失效事件、owner 切换与 React 订阅生命周期。
  * OUTPUT: 全局共享、同 owner 可保留 stale、跨 owner 立即清空的 Home 目录快照。
  * POS: Home/Launcher/通知共用的目录资源装配层；请求状态机归 home-directory-store。
  */
@@ -16,6 +16,7 @@ import { AGENT_LIST_UPDATED_EVENT_NAME } from "@/store/agent";
 import {
   createHomeDirectoryStore,
   type HomeDirectorySnapshot,
+  type DirectoryRoomUpdate,
 } from "./home-directory-store";
 
 const DIRECTORY_PASSIVE_REFRESH_STALE_MS = 120_000;
@@ -41,6 +42,10 @@ export function useHomeDirectory(): HomeDirectorySnapshot {
   );
 }
 
+export function applyHomeDirectoryRoomUpdate(update: DirectoryRoomUpdate): boolean {
+  return directoryStore.applyRoomUpdate(update);
+}
+
 export function refreshHomeDirectory(): void {
   directoryStore.refresh();
 }
@@ -56,11 +61,12 @@ export function resetHomeDirectoryOwnerScope(reload: boolean): void {
 /** 强制读取并提交一份权威目录，供结果未知的修改按 exact Room 对账。 */
 export async function reconcileHomeDirectory(): Promise<HomeDirectorySnapshot> {
   const ownerScopeGeneration = captureAuthOwnerScopeGeneration();
+  const revision = directoryStore.getRevision();
   const payload = await getLauncherBootstrapApi();
   if (!isAuthOwnerScopeGenerationCurrent(ownerScopeGeneration)) {
     throw new Error("Owner scope changed while reconciling the home directory");
   }
-  return directoryStore.acceptAuthoritativePayload(payload);
+  return directoryStore.acceptAuthoritativePayload(payload, revision);
 }
 
 function refreshHomeDirectoryIfStale(): void {

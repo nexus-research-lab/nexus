@@ -11,12 +11,16 @@ import (
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
-func (c *Client) PendingAgents(ctx context.Context, token string) ([]string, error) {
-	var result struct {
-		AgentIDs []string `json:"agent_ids"`
-	}
+func (c *Client) PendingAgents(ctx context.Context, token string) (relaycontract.PendingDeliveries, error) {
+	var result relaycontract.PendingDeliveries
 	err := c.do(ctx, http.MethodGet, "/node/deliveries/pending", nil, token, "", nil, &result)
-	return result.AgentIDs, err
+	return result, err
+}
+
+func (c *Client) CancelPendingDelivery(ctx context.Context, token, roomID, id string) (relaycontract.Delivery, error) {
+	var result relaycontract.Delivery
+	err := c.do(ctx, http.MethodPost, "/rooms/"+url.PathEscape(roomID)+"/deliveries/"+url.PathEscape(id)+"/cancel", nil, token, "", nil, &result)
+	return result, err
 }
 func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID string) (*relaycontract.Delivery, error) {
 	var result struct {
@@ -25,16 +29,31 @@ func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID stri
 	err := c.do(ctx, http.MethodPost, "/node/deliveries/claim", nil, token, claimID, map[string]string{"agent_id": agentID}, &result)
 	return result.Delivery, err
 }
-func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool) (relaycontract.Delivery, error) {
+func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool, failureCodes ...string) (relaycontract.Delivery, error) {
 	action := "renew"
 	if failed {
 		action = "fail"
 	}
 	var result relaycontract.Delivery
-	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", map[string]string{"lease_id": leaseID}, &result)
+	input := map[string]string{"lease_id": leaseID}
+	if failed && len(failureCodes) == 1 && failureCodes[0] != "" {
+		input["failure_code"] = failureCodes[0]
+	}
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", input, &result)
 	return result, err
 }
 func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string, input relaycontract.DeliveryOutput) error {
 	var result relaycontract.MessageCommit
 	return c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/outputs", nil, token, outputID, input, &result)
+}
+
+// RenewDelivery 仅共享白名单运行状态，省略状态时保留原状态。
+func (c *Client) RenewDelivery(ctx context.Context, token, id, leaseID, executionState string) (relaycontract.Delivery, error) {
+	var result relaycontract.Delivery
+	input := map[string]string{"lease_id": leaseID}
+	if executionState != "" {
+		input["execution_state"] = executionState
+	}
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/renew", nil, token, "", input, &result)
+	return result, err
 }

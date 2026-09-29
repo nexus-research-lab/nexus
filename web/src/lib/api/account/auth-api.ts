@@ -8,6 +8,7 @@ const AUTH_API_BASE_URL = getAgentApiBaseUrl();
 const CONTROL_AUTH_BASE_URL = getControlAuthBaseUrl();
 
 export interface AuthStatus {
+  web_access_disabled?: boolean;
   auth_required: boolean;
   password_login_enabled: boolean;
   authenticated: boolean;

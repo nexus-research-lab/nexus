@@ -14,6 +14,8 @@
 ## 不变量
 
 - 通知与侧栏必须消费 `home-directory-resource.ts` 的同一目录快照，不得各自加载 bootstrap。
+- 已知 DM 的持久用户消息更新目录活动时间，完整 assistant 回复同步更新摘要；Room 只接受公区消息，成员私有消息不得进入摘要。轮次状态与 token delta 不刷新目录。
+- 冷加载、未知会话、目录结构变化、历史重写和重连仍走共享目录对账；请求期间到达的本地更新必须覆盖晚到快照，删除事件立即移除列表项。
 - Room 订阅只由排序后的 Room ID 内容键驱动，目录对象换引用不得触发重订阅。
 - WebSocket 重放依靠消息 ID 在 Store 中去重；活动窗口内的当前目标只清除未读，不弹系统通知。
 - 共享 WebSocket 层在每次挂载捕获 auth owner generation；scope reset 后旧订阅即使尚未 cleanup，也不得更新 Room 活动态、未读、目录失效或浏览器通知。owner reset 同步清空全部瞬时 Room 活动态。

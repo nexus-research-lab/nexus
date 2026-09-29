@@ -145,7 +145,7 @@ func (s *Service) llmConfigFromTarget(
 	var modelRecord *providerstore.ModelEntity
 	var err error
 	if targetModel == "" {
-		modelRecord, err = s.defaultOrFirstEnabledModel(ctx, target.ID)
+		modelRecord, err = s.defaultOrFirstEnabledModelForKind(ctx, *target, ProviderKindLLM)
 	} else {
 		modelRecord, err = s.getModelByID(ctx, target.ID, targetModel)
 	}
@@ -162,6 +162,10 @@ func (s *Service) llmConfigFromTarget(
 		return nil, fmt.Errorf("provider=%s model=%s 已禁用", target.Provider, modelRecord.ModelID)
 	}
 
+	if !modelUsableForProviderKind(*target, *modelRecord, ProviderKindLLM) {
+		return nil, fmt.Errorf("provider=%s model=%s 不支持文本对话", target.Provider, modelRecord.ModelID)
+	}
+
 	missing := make([]string, 0, 3)
 	if target.AuthToken == "" {
 		missing = append(missing, "auth_token")
@@ -172,6 +176,7 @@ func (s *Service) llmConfigFromTarget(
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("provider=%s 配置不完整: %s", target.Provider, strings.Join(missing, ", "))
 	}
+	guidance := projectModelGuidance(*target, *modelRecord)
 	return &clientopts.RuntimeConfig{
 		Provider:               target.Provider,
 		DisplayName:            target.DisplayName,
@@ -180,8 +185,8 @@ func (s *Service) llmConfigFromTarget(
 		Model:                  normalizeModelID(modelRecord.ModelID),
 		APIFormat:              target.APIFormat,
 		UseMaxCompletionTokens: usesMaxCompletionTokens(*target),
-		Reasoning:              modelHasReasoningCapability(*modelRecord),
-		Vision:                 modelHasVisionCapability(*modelRecord),
+		Reasoning:              guidance.Capabilities.Reasoning != nil && *guidance.Capabilities.Reasoning,
+		Vision:                 guidance.Eligibility[PurposeVision].Available,
 		ContextWindow:          modelContextWindow(modelRecord),
 		MaxOutputTokens:        modelMaxOutputTokens(modelRecord),
 	}, nil

@@ -331,7 +331,11 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		return roomRuntimePrompt{}, "", err
 	}
 	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
-	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
+	directory := e.agentNameByID
+	if e.round.ExecutionOrigin == "relay" && len(e.round.PublicAgentDirectory) > 0 {
+		directory = e.round.PublicAgentDirectory
+	}
+	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(directory))
 
 	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
 		roomAgentSessionOptions(e.round, e.agent.AgentID),
@@ -340,6 +344,10 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	permissionMode := runtimepermission.NormalizeMode(
 		sdkpermission.Mode(e.agent.Options.PermissionMode),
 	)
+	// 在线输入不继承 Agent 全局放行；仅允许主人显式设置该执行 Session 的权限。
+	if e.round.ExecutionOrigin == "relay" {
+		permissionMode = sdkpermission.ModeDefault
+	}
 	if sessionSettings.PermissionMode != "" {
 		permissionMode = runtimepermission.NormalizeMode(
 			sdkpermission.Mode(sessionSettings.PermissionMode),
@@ -401,6 +409,13 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.setGoalContext(override)
+	}
+	if e.service.externalPrompt != nil {
+		prompt, err := e.service.externalPrompt(e.ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey)
+		if err != nil {
+			return roomRuntimePrompt{}, "", err
+		}
+		dynamicPrompt = appendPromptSection(dynamicPrompt, prompt)
 	}
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
@@ -528,6 +543,15 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	handler := e.round.PermissionHandler
 	if handler == nil {
 		handler = func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+			if e.service.externalPermission != nil {
+				external, err := e.service.externalPermission(ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey)
+				if err != nil {
+					return sdkpermission.Deny("外部会话权限路由不可用", false), err
+				}
+				if external != nil {
+					return external(ctx, request)
+				}
+			}
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}
@@ -858,16 +882,20 @@ func roomRuntimeConnectFailureLogFields(
 }
 
 func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
+	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	previousStderr := options.Callbacks.Stderr
 	options.Callbacks.Stderr = func(line string) {
 		normalizedLine := runtimectx.NormalizeRuntimeStderrLine(line)
 		if previousStderr != nil {
 			previousStderr(normalizedLine)
 		}
-		logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		if diagnosticsEnabled {
+			logger.Info("Agent SDK stderr", "stderr", normalizedLine)
+		} else {
+			logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		}
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
-	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)

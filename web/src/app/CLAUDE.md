@@ -13,3 +13,5 @@ L2 | 父级: web/src
 - `styles/theme-tokens.css` 持有主题、语义别名与跨组件几何尺度，`theme-recipes.css` 消费这些定义；静态缺失引用、主题循环与局部重复声明由 `frontend-token-contract.test.mjs` 拦截，浏览器负责实际解析和布局。完整规则只在 `docs/specs/frontend-engineering-spec.md` 与 `design.md` 维护。
 
 应用级副作用不得下沉到 `shared/`；Bootstrap 只调用这里的完整启动命令，不解释资源协议。
+
+AuthGuard 对服务器认证状态中的 `web_access_disabled` 显示 App 使用提示，不挂载受保护工作台；Desktop 的本地 Authority 不受此门禁影响。实际权限由后端校验，前端判断不能替代 API/WebSocket 门禁。

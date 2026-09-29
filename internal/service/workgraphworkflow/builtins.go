@@ -46,11 +46,12 @@ type builtinWorkflowDefinition struct {
 	description        localizedWorkflowText
 	objective          localizedWorkflowText
 	completionCriteria []localizedWorkflowText
+	artifactContract   *protocol.WorkGraphArtifactContract
 	nodes              []builtinWorkflowNodeDefinition
 	dependencies       []protocol.WorkGraphWorkflowDependency
 }
 
-var builtinWorkflowDefinitions = []builtinWorkflowDefinition{
+var builtinWorkflowDefinitions = append([]builtinWorkflowDefinition{
 	{
 		slashName: "deep-research",
 		title:     localizedWorkflowText{english: "Deep Research", chinese: "深度研究"},
@@ -222,7 +223,7 @@ var builtinWorkflowDefinitions = []builtinWorkflowDefinition{
 			{LogicalKey: "deliver", DependsOnLogicalKey: "verify", Kind: protocol.WorkDependencyHard},
 		},
 	},
-}
+}, methodologyBuiltinWorkflowDefinitions...)
 
 func builtinWorkflows(locale string) []protocol.WorkGraphWorkflow {
 	result := make([]protocol.WorkGraphWorkflow, 0, len(builtinWorkflowDefinitions))
@@ -279,12 +280,27 @@ func (definition builtinWorkflowDefinition) workflow(locale string) protocol.Wor
 	for _, criterion := range definition.completionCriteria {
 		completionCriteria = append(completionCriteria, criterion.localized(locale))
 	}
+	artifactContract := definition.artifactContract
+	if artifactContract == nil {
+		artifactContract = defaultArtifactContract(definition.slashName)
+	}
 	return protocol.WorkGraphWorkflow{
 		ID: builtinWorkflowIDPrefix + definition.slashName, BuiltIn: true,
 		SlashName: definition.slashName, Title: definition.title.localized(locale),
 		Description: definition.description.localized(locale), Objective: definition.objective.localized(locale),
 		CompletionCriteria: completionCriteria, Nodes: nodes,
-		Dependencies: slices.Clone(definition.dependencies), Version: 1,
+		ArtifactContract: cloneArtifactContract(artifactContract),
+		Dependencies:     slices.Clone(definition.dependencies), Version: 1,
 		CreatedAt: builtinWorkflowPublishedAt, UpdatedAt: builtinWorkflowPublishedAt,
 	}
+}
+
+func defaultArtifactContract(slashName string) *protocol.WorkGraphArtifactContract {
+	return ac(
+		slashName,
+		"the structured evidence ledger is canonical; Markdown explains the conclusion",
+		"show the responsibility path with evidence and acceptance gates",
+		artifact(slashName+".md", "delivery brief", "Markdown", "Human-readable result, evidence, limitations, and next steps", "context", "work", "evidence", "acceptance", "next steps"),
+		artifact("evidence-ledger.csv", "evidence ledger", "CSV", "Auditable claims, sources, checks, and status", "claim", "source", "check", "status"),
+	)
 }

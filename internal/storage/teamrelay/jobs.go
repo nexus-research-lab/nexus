@@ -18,15 +18,27 @@ type NodeJob struct {
 	RoomID, ConversationID, RoundID                              string
 	Delivery                                                     *relaycontract.Delivery
 	CandidateID, CandidateText                                   string
+	CandidateExecution                                           *relaycontract.ExecutionMetadata
+	CandidateMentions                                            []relaycontract.MessageMention
 	Sequence, OutputBytes                                        int
 	Failed                                                       bool
 	CandidateSent                                                bool
+	ArtifactIDs                                                  []string
+	ArtifactBytes                                                int64
+	FailureCode                                                  string
 }
 
 type NodeOutput struct {
 	Sequence int
 	ID       string
 	Input    relaycontract.DeliveryOutput
+	Files    []NodeFile
+}
+
+// NodeFile 是明确交付时冻结的有界文件；重试不重新读取可能变化的工作区。
+type NodeFile struct {
+	Name string
+	Data []byte
 }
 
 func (r *Repository) NodeJob(ctx context.Context, owner, id string) (*NodeJob, error) {
@@ -73,8 +85,19 @@ func (r *Repository) PrepareNodeJob(ctx context.Context, item NodeJob) (*NodeJob
 
 // SaveNodeJob 和可选输出同事务提交。旧状态不能覆盖新终态或接管另一台机器的执行。
 func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput) error {
+	return r.saveNodeJob(ctx, item, from, output, nil)
+}
+
+func (r *Repository) SaveNodeFiles(ctx context.Context, item NodeJob, files []NodeFile) error {
+	output := relaycontract.DeliveryOutput{LeaseID: item.Delivery.LeaseID, Kind: "assistant", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: ""}}}}
+	return r.saveNodeJob(ctx, item, "running", &output, files)
+}
+
+func (r *Repository) saveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput, files []NodeFile) error {
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
+		item.CandidateExecution = nil
+		item.CandidateMentions = nil
 	}
 	if output != nil {
 		item.Sequence++
@@ -129,8 +152,16 @@ func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string,
 	if count != 1 {
 		return ErrNodeConflict
 	}
+	if item.Delivery != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE team_node_jobs SET source_room_id=`+r.dialect.Bind(1)+`,source_message_id=`+r.dialect.Bind(2)+`,delivery_id=`+r.dialect.Bind(3)+` WHERE id=`+r.dialect.Bind(4), item.Delivery.RoomID, item.Delivery.MessageID, item.Delivery.ID, item.ID); err != nil {
+			return err
+		}
+	}
 	if output != nil {
-		encoded, err := json.Marshal(output)
+		encoded, err := json.Marshal(struct {
+			*relaycontract.DeliveryOutput
+			Files []NodeFile `json:"local_files,omitempty"`
+		}{output, files})
 		if err != nil {
 			return err
 		}
@@ -155,7 +186,24 @@ func (r *Repository) NextNodeOutput(ctx context.Context, jobID string) (*NodeOut
 	if err = json.Unmarshal([]byte(data), &item.Input); err != nil {
 		return nil, err
 	}
+	var local struct {
+		Files []NodeFile `json:"local_files"`
+	}
+	if err = json.Unmarshal([]byte(data), &local); err != nil {
+		return nil, err
+	}
+	item.Files = local.Files
 	return &item, nil
+}
+
+// 保存远端不可变引用后再提交消息，最终回执重放不需要重新上传文件。
+func (r *Repository) PrepareNodeOutput(ctx context.Context, jobID string, output NodeOutput) error {
+	data, err := json.Marshal(output.Input)
+	if err != nil {
+		return err
+	}
+	_, err = r.db.ExecContext(ctx, `UPDATE team_node_outputs SET data_json=`+r.dialect.Bind(1)+` WHERE job_id=`+r.dialect.Bind(2)+` AND sequence=`+r.dialect.Bind(3)+` AND sent=FALSE`, string(data), jobID, output.Sequence)
+	return err
 }
 
 func (r *Repository) AckNodeOutput(ctx context.Context, jobID string, sequence int) error {
@@ -164,7 +212,24 @@ func (r *Repository) AckNodeOutput(ctx context.Context, jobID string, sequence i
 }
 
 func (r *Repository) NodeJobs(ctx context.Context, owner, scope string) ([]NodeJob, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, owner, scope)
+	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` ORDER BY CASE WHEN state IN ('completed','failed','cancelled') THEN 1 ELSE 0 END,created_at DESC,id DESC LIMIT 100`, scope, owner, scope)
+}
+
+// NodeMessageJobs 通过精确消息索引读取旧执行，不扩大常规授权面板的任务窗口。
+func (r *Repository) NodeMessageJobs(ctx context.Context, owner, scope, room string, messages []string, jobID string) ([]NodeJob, error) {
+	args := []any{owner, scope, room, jobID}
+	match := `id=` + r.dialect.Bind(4)
+	for _, id := range messages {
+		args = append(args, id)
+		match += ` OR source_message_id=` + r.dialect.Bind(len(args))
+		args = append(args, id)
+		match += ` OR delivery_id=` + r.dialect.Bind(len(args))
+	}
+	return r.readNodeJobs(ctx, `SELECT state,data_json FROM team_node_jobs WHERE owner_user_id=`+r.dialect.Bind(1)+` AND scope=`+r.dialect.Bind(2)+` AND source_room_id=`+r.dialect.Bind(3)+` AND (`+match+`) ORDER BY created_at,id`, scope, args...)
+}
+
+func (r *Repository) readNodeJobs(ctx context.Context, query, scope string, args ...any) ([]NodeJob, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

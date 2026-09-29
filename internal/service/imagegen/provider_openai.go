@@ -1,3 +1,6 @@
+// INPUT: OpenAI-compatible image configuration and file or in-memory source.
+// OUTPUT: Image generation/edit request results through the production protocol.
+// POS: OpenAI image adapter; workspace reads remain confined.
 package imagegen
 
 import (
@@ -16,6 +19,9 @@ func (s *Service) callGenerateProvider(
 	config *providercfg.ImageConfig,
 	input GenerateInput,
 ) ([]byte, string, string, error) {
+	if config != nil && config.APIFormat != "" && config.APIFormat != providercfg.APIFormatOpenAIImageGeneration && config.APIFormat != providercfg.APIFormatDashScopeImageGeneration && config.APIFormat != providercfg.APIFormatModelScopeImageGeneration {
+		return nil, "", "", errors.New("unsupported image API format")
+	}
 	if config != nil {
 		switch strings.TrimSpace(config.APIFormat) {
 		case providercfg.APIFormatDashScopeImageGeneration:
@@ -80,6 +86,12 @@ func (s *Service) callEditProvider(
 	config *providercfg.ImageConfig,
 	input EditInput,
 ) ([]byte, string, string, error) {
+	if config != nil && config.ImageEditing != nil && !*config.ImageEditing {
+		return nil, "", "", errors.New("model image editing capability is not confirmed")
+	}
+	if config != nil && config.APIFormat != "" && config.APIFormat != providercfg.APIFormatOpenAIImageGeneration && config.APIFormat != providercfg.APIFormatDashScopeImageGeneration && config.APIFormat != providercfg.APIFormatModelScopeImageGeneration {
+		return nil, "", "", errors.New("unsupported image API format")
+	}
 	if config != nil {
 		switch strings.TrimSpace(config.APIFormat) {
 		case providercfg.APIFormatDashScopeImageGeneration:
@@ -89,10 +101,6 @@ func (s *Service) callEditProvider(
 		}
 	}
 	endpoint, err := endpointURL(config.BaseURL, "edits")
-	if err != nil {
-		return nil, "", "", err
-	}
-	imagePath, err := resolveWorkspaceFile(input.WorkspacePath, input.ImagePath)
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -113,15 +121,19 @@ func (s *Service) callEditProvider(
 	if input.OutputCompression != nil {
 		fields["output_compression"] = strconv.Itoa(*input.OutputCompression)
 	}
-	imageRelativePath, err := filepath.Rel(filepath.Clean(input.WorkspacePath), imagePath)
-	if err != nil {
-		return nil, "", "", err
-	}
-	files := map[string]multipartFileRef{
-		"image": {
-			WorkspacePath: input.WorkspacePath,
-			RelativePath:  filepath.ToSlash(imageRelativePath),
-		},
+	files := map[string]multipartFileRef{}
+	if input.imageData != nil {
+		files["image"] = multipartFileRef{Data: input.imageData}
+	} else {
+		imagePath, pathErr := resolveWorkspaceFile(input.WorkspacePath, input.ImagePath)
+		if pathErr != nil {
+			return nil, "", "", pathErr
+		}
+		imageRelativePath, relErr := filepath.Rel(filepath.Clean(input.WorkspacePath), imagePath)
+		if relErr != nil {
+			return nil, "", "", relErr
+		}
+		files["image"] = multipartFileRef{WorkspacePath: input.WorkspacePath, RelativePath: filepath.ToSlash(imageRelativePath)}
 	}
 	if input.MaskPath != "" {
 		maskPath, pathErr := resolveWorkspaceFile(input.WorkspacePath, input.MaskPath)

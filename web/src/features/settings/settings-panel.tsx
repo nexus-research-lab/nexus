@@ -18,11 +18,13 @@ import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
+import { cn } from "@/shared/ui/class-name";
 
 import { PersonalSettingsPanel } from "./personal/personal-settings-panel";
 import { canUseOperations } from "./operations/operations-access";
 import { OperationsPanel } from "./operations/operations-panel";
 import { ProviderSettingsPanel } from "./provider-settings/provider-settings-panel";
+import { SettingsDefaultModelsSection } from "./default-models/settings-default-models-section";
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
@@ -44,7 +46,13 @@ export function SettingsPanel({ standalone = false }: { standalone?: boolean }) 
   const canViewOperations =
     !isDesktopRuntime() && canUseOperations(status?.role);
   const content = (
-    <div className="w-full min-w-0" ref={contentRef}>
+    <div
+      className={cn(
+        "w-full min-w-0",
+        activeSection === "providers" && "h-full min-h-0",
+      )}
+      ref={contentRef}
+    >
       <SettingsSectionContent
         canViewOperations={canViewOperations && (activeSection !== "operations-projects" || projectPermissionsEnabled)}
         section={activeSection}
@@ -116,6 +124,7 @@ function SettingsSectionContent({
   if (section === "personal") {
     return <PersonalSettingsPanel />;
   }
+  if (section === "default-models") return <SettingsDefaultModelsSection />;
   if (section === "providers") {
     return <ProviderSettingsPanel />;
   }

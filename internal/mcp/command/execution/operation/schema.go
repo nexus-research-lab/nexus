@@ -177,7 +177,7 @@ func nonEmptyStringProperty(description string) map[string]any {
 
 func executionReferenceProperties() map[string]any {
 	return map[string]any{
-		"execution_id": stringProperty("Optional opaque Execution id. Omit to use the current Execution in this scope."),
+		"execution_id": stringProperty("Optional opaque Execution id from the latest inspect/receipt. Omit to use the host-bound current Execution in this scope. DM Goal continuation authority is host-issued and checked against owner, Agent, DM session, Goal, objective revision, Execution, and physical round; do not put those authority fields in input."),
 	}
 }
 
@@ -190,8 +190,8 @@ func workReferenceProperties() map[string]any {
 
 func trustedWorkReferenceProperties() map[string]any {
 	properties := workReferenceProperties()
-	properties["work_item_id"] = stringProperty("Conditional Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In an unbound DM call, provide work_item_id or logical_key. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted WorkBinding.")
-	properties["logical_key"] = stringProperty("Conditional stable Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In an unbound DM call, provide logical_key when work_item_id is absent. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted WorkBinding.")
+	properties["work_item_id"] = stringProperty("Conditional Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In an unbound DM call, provide work_item_id or logical_key. A DM Goal continuation still relies on host-verified Goal/Execution authority; model input cannot create or widen that authority. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted WorkBinding.")
+	properties["logical_key"] = stringProperty("Conditional stable Work Item locator. Only an exact trusted WorkBinding permits omission and supplies its Work Item; assigned_work/current_actor projections do not establish that binding. An explicit value must match. In an unbound DM call, provide logical_key when work_item_id is absent. A DM Goal continuation still relies on host-verified Goal/Execution authority; model input cannot create or widen that authority. In an unbound Room conversational round, explicit locators do not grant mutation authority; the verified coordinator must call execution action=inspect (get_execution) first, while another Room actor requires an exact trusted WorkBinding.")
 	return properties
 }
 

@@ -120,7 +120,8 @@ func (r *roundRunner) externalReplyTypingTarget() (string, ExternalReplyTarget, 
 	if r == nil || r.service == nil || r.service.replies == nil || r.externalReplyTarget == nil {
 		return "", ExternalReplyTarget{}, false
 	}
-	if r.internal || !isExternalReplySessionKey(r.sessionKey) {
+	// 宿主持有版本化绑定的本地 DM 也可沿原外部地址回信。
+	if r.internal || (!isExternalReplySessionKey(r.sessionKey) && r.externalReplyTarget.PairingID == "") {
 		return "", ExternalReplyTarget{}, false
 	}
 	agentID := ""

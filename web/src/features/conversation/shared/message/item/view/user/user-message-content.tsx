@@ -1,5 +1,5 @@
 /**
- * INPUT: 用户消息正文、附件、mention 目录与折叠状态。
+ * INPUT: 用户消息正文、发送方向、附件、mention 目录与折叠状态。
  * OUTPUT: 可测量、可展开并能打开关联资源的用户消息内容面。
  * POS: User Message 视图组合层；展开动作复用共享 Button，不拥有控件状态样式。
  */
@@ -28,6 +28,8 @@ import type { UserMessagePresentation } from "./user-message-model";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 
 interface UserMessageContentProps {
+  alignment?: "left" | "right";
+  onOpenAttachment?: (attachment: MessageAttachment) => void;
   attachments: MessageAttachment[];
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;
@@ -40,6 +42,8 @@ interface UserMessageContentProps {
 }
 
 export function UserMessageContent({
+  alignment = "right",
+  onOpenAttachment,
   attachments,
   agentMentions,
   agentMentionDirectory,
@@ -74,7 +78,7 @@ export function UserMessageContent({
 
   return (
     <div
-      className="nexus-chat-user-content-shell ml-auto flex w-fit max-w-full flex-col items-end surface-radius-md bg-(--surface-message-user-background) px-3.5 py-2.5"
+      className={cn("nexus-chat-user-content-shell flex w-fit max-w-full flex-col surface-radius-md bg-(--surface-message-user-background) px-3.5 py-2.5", alignment === "left" ? "mr-auto items-start" : "ml-auto items-end")}
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       data-goal-control={String(presentation.goal)}
     >
@@ -88,7 +92,7 @@ export function UserMessageContent({
         <>
           <div
             className={cn(
-              "relative w-fit max-w-full self-end",
+              "relative w-fit max-w-full",
               collapsible && !expansion.isOpen && "overflow-hidden",
             )}
             style={collapsible && !expansion.isOpen
@@ -136,6 +140,7 @@ export function UserMessageContent({
         </>
       ) : null}
       <MessageUserAttachments
+        onOpenAttachment={onOpenAttachment}
         attachments={attachments}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         workspaceAgentId={workspaceAgentId}

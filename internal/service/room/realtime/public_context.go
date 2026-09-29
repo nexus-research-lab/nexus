@@ -17,6 +17,17 @@ func (s *Service) buildSlotVisibleContext(
 	publicHistory []protocol.Message,
 	agentNameByID map[string]string,
 ) (string, error) {
+	if roundValue.PublicContext != nil {
+		publicHistory = roundValue.PublicContext
+		agentNameByID = make(map[string]string, len(publicHistory))
+		for _, item := range publicHistory {
+			id, _ := item["agent_id"].(string)
+			name, _ := item["agent_name"].(string)
+			if id != "" && name != "" {
+				agentNameByID[id] = name
+			}
+		}
+	}
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, roomdomain.PublicCursor{}, false)
 	if err != nil {
 		return "", err
@@ -98,6 +109,27 @@ func (s *Service) publicInputBatchForSlot(
 	overrideCursor roomdomain.PublicCursor,
 	overrideKnown bool,
 ) (roomdomain.PublicInputBatch, error) {
+	cursor, cursorKnown, err := s.publicCursorForSlot(roundValue, slot, overrideCursor, overrideKnown)
+	if err != nil {
+		return roomdomain.PublicInputBatch{}, err
+	}
+	if publicHistory == nil && roundValue.PublicContext != nil {
+		publicHistory = roundValue.PublicContext
+	}
+	if publicHistory == nil {
+		publicHistory, err = s.roomHistory.ReadRuntimeHistoryContext(ctx, roundValue.OwnerUserID, roundValue.ConversationID, cursor.LastMessageID, "", "", []string{roundValue.RoundID, slot.AgentRoundID})
+		if err != nil {
+			return roomdomain.PublicInputBatch{}, err
+		}
+	}
+	return roomdomain.BuildPublicInputBatch(roomdomain.PublicInputBatchInput{
+		PublicHistory: publicHistory,
+		Cursor:        cursor,
+		CursorKnown:   cursorKnown,
+	}), nil
+}
+
+func (s *Service) publicCursorForSlot(roundValue *activeRoomRound, slot *activeRoomSlot, overrideCursor roomdomain.PublicCursor, overrideKnown bool) (roomdomain.PublicCursor, bool, error) {
 	cursor := overrideCursor
 	coldStart := slot.contextColdStart()
 	cursorKnown := overrideKnown || (!coldStart &&
@@ -110,7 +142,7 @@ func (s *Service) publicInputBatchForSlot(
 			slot.AgentID,
 		)
 		if err != nil {
-			return roomdomain.PublicInputBatch{}, err
+			return roomdomain.PublicCursor{}, false, err
 		}
 		if ok {
 			cursor = roomdomain.PublicCursor{
@@ -120,11 +152,24 @@ func (s *Service) publicInputBatchForSlot(
 			cursorKnown = true
 		}
 	}
-	return roomdomain.BuildPublicInputBatch(roomdomain.PublicInputBatchInput{
-		PublicHistory: publicHistory,
-		Cursor:        cursor,
-		CursorKnown:   cursorKnown,
-	}), nil
+	return cursor, cursorKnown, nil
+}
+
+func (e *slotExecution) loadPublicHistory() error {
+	if e.history != nil || e.round.PublicContext != nil {
+		return nil
+	}
+	cursor, _, err := e.service.publicCursorForSlot(e.round, e.slot, roomdomain.PublicCursor{}, false)
+	if err != nil {
+		return err
+	}
+	throughID := ""
+	switch e.slot.Trigger.TriggerType {
+	case "public_chat", "room_host_default":
+		throughID = e.slot.Trigger.MessageID
+	}
+	e.history, err = e.service.roomHistory.ReadRuntimeHistoryContext(e.ctx, e.round.OwnerUserID, e.round.ConversationID, cursor.LastMessageID, e.slot.AgentID, throughID, []string{e.round.RoundID, e.slot.AgentRoundID})
+	return err
 }
 
 func roomPublicAnchorMetadata(roundValue *activeRoomRound) roomdomain.PublicAnchorMetadata {

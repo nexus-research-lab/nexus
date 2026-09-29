@@ -236,7 +236,21 @@ func (s *Service) ensureClient(
 	commandReceipts := nexusmcp.NewCommandReceiptState()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
 	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
+	if request.goalContinuationAuthority != nil {
+		if !trustedDMGoalContinuationAuthority(
+			request.goalContinuationAuthority,
+			agentValue,
+			sessionKey,
+			request,
+		) {
+			return dmClientPreparation{}, errors.New("DM Goal continuation authority does not match the exact owner, Agent, session, Goal, revision, Execution, or round")
+		}
+		sourceContextType = runtimectx.SourceContextGoalContinuation
+	}
 	if scopedPolicyActive {
+		if request.goalContinuationAuthority != nil {
+			return dmClientPreparation{}, errors.New("DM Goal continuation cannot use a scoped WorkGraph policy session")
+		}
 		sourceContextType = protocol.SessionPurpose(sessionItem)
 	}
 	commandScopeSessionKey := sessionKey
@@ -257,9 +271,10 @@ func (s *Service) ensureClient(
 		SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 		SourceContextLabel: agentValue.Name, PermissionMode: permissionMode,
 		GoalAuthority: goalAuthority, ResponsibilityAuthority: responsibilityState,
-		SDKSessionIdentity: sdkSessionIdentity,
-		AutomationRun:      cloneAutomationRunContext(request.AutomationRun),
-		WorkGraphPreviewID: workGraphPreviewID,
+		GoalContinuationAuthority: request.goalContinuationAuthority,
+		SDKSessionIdentity:        sdkSessionIdentity,
+		AutomationRun:             cloneAutomationRunContext(request.AutomationRun),
+		WorkGraphPreviewID:        workGraphPreviewID,
 	}
 	configurationRuntimeEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly && !scopedPolicyActive && s.configurationRuntimeEnv != nil {
@@ -679,6 +694,44 @@ func (s *Service) ensureClient(
 	return preparation, nil
 }
 
+// trustedDMGoalContinuationAuthority verifies the host-only capability before
+// it reaches the shared MCP builder. Request fields are checked as well: a
+// continuation plan must not be able to bind a different Goal or round after
+// the durable claim has succeeded.
+func trustedDMGoalContinuationAuthority(
+	authority *runtimectx.GoalContinuationAuthority,
+	agentValue *protocol.Agent,
+	sessionKey string,
+	request Request,
+) bool {
+	if authority == nil || agentValue == nil || !authority.Valid() || !request.Internal ||
+		!isDMGoalContinuationPurpose(request.InputOptions.Purpose) {
+		return false
+	}
+	normalized := authority.Normalized()
+	parsed := protocol.ParseSessionKey(sessionKey)
+	return normalized.OwnerUserID == strings.TrimSpace(agentValue.OwnerUserID) &&
+		normalized.AgentID == strings.TrimSpace(agentValue.AgentID) &&
+		normalized.ScopeSessionKey == strings.TrimSpace(sessionKey) &&
+		normalized.GoalID == strings.TrimSpace(request.GoalID) &&
+		normalized.ObjectiveRevision == request.GoalObjectiveRevision &&
+		normalized.ExecutionID == strings.TrimSpace(request.ExecutionID) &&
+		normalized.RootRoundID == strings.TrimSpace(request.RoundID) &&
+		parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindAgent &&
+		parsed.ChatType == protocol.RoomTypeDM &&
+		parsed.Channel == protocol.SessionChannelWebSocketSegment &&
+		strings.TrimSpace(parsed.AgentID) == normalized.AgentID
+}
+
+func isDMGoalContinuationPurpose(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "goal_continuation", "goal_objective_transition_planning":
+		return true
+	default:
+		return false
+	}
+}
+
 func workGraphDistillationRuntimePolicy() protocol.ScopedSessionRuntimePolicy {
 	return protocol.ScopedSessionRuntimePolicy{
 		SystemPrompt: "当前是隔离的内部 WorkGraph 保存 Session。只按用户确认的 exact preview_id 调用 distill_workgraph，不读取 workspace、不执行草图任务，也不处理其他请求。",
@@ -1096,16 +1149,20 @@ func (s *Service) withRuntimeDiagnosticsLogger(
 		"session_key", sessionKey,
 		"agent_id", agentID,
 	)
+	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	previousStderr := options.Callbacks.Stderr
 	options.Callbacks.Stderr = func(line string) {
 		normalizedLine := runtimectx.NormalizeRuntimeStderrLine(line)
 		if previousStderr != nil {
 			previousStderr(normalizedLine)
 		}
-		logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		if diagnosticsEnabled {
+			logger.Info("Agent SDK stderr", "stderr", normalizedLine)
+		} else {
+			logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
+		}
 	}
 	previousDiagnostics := options.Callbacks.Diagnostics
-	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
 	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
 		if previousDiagnostics != nil {
 			previousDiagnostics(event)

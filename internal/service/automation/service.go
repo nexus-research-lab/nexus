@@ -147,7 +147,7 @@ type Service struct {
 	// taskExecutionFences serialize start/delete/recovery/delivery side effects for
 	// one task without making runtime or external dispatch block unrelated tasks.
 	taskControlMu           sync.Mutex
-	taskExecutionFences     [64]sync.Mutex
+	taskExecutionFences     sync.Map
 	heartbeatControlMu      sync.Mutex
 	mu                      sync.Mutex
 	jobStates               map[string]*automationexec.JobRuntimeState

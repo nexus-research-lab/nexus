@@ -16,6 +16,7 @@ export interface ComposerDraftContent {
   input: string;
   inputMode: ComposerInputMode;
   selectedTargetIDs: string[];
+  selectedTargetNames?: Record<string, string>;
 }
 
 export interface ComposerDraftSnapshot extends ComposerDraftContent {
@@ -114,7 +115,8 @@ function hasSameDraftContent(
     && current.input === next.input
     && current.inputMode === next.inputMode
     && hasSameItems(current.attachments, next.attachments)
-    && hasSameItems(current.selectedTargetIDs, next.selectedTargetIDs);
+    && hasSameItems(current.selectedTargetIDs, next.selectedTargetIDs)
+    && current.selectedTargetNames === next.selectedTargetNames;
 }
 
 function normalizeDraftScopeKey(scopeKey: string): string {
@@ -226,6 +228,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
               inputMode: submittedDraft.inputMode,
               revision,
               selectedTargetIDs: [...submittedDraft.selectedTargetIDs],
+              selectedTargetNames: submittedDraft.selectedTargetNames,
             },
           },
         };
@@ -406,6 +409,7 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
             inputMode: next.inputMode,
             revision,
             selectedTargetIDs: [...next.selectedTargetIDs],
+            selectedTargetNames: next.selectedTargetNames,
           },
         },
       };
@@ -445,5 +449,6 @@ function cloneDraftSnapshot(
     inputMode: draft.inputMode,
     revision: draft.revision,
     selectedTargetIDs: [...draft.selectedTargetIDs],
+    selectedTargetNames: draft.selectedTargetNames,
   };
 }

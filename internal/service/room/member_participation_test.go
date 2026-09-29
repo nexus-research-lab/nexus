@@ -6,6 +6,7 @@ package room_test
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -125,7 +126,7 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	}
 }
 
-func TestRoomServiceHydratesConversationMessageCountFromCanonicalHistory(t *testing.T) {
+func TestRoomContextQueriesDoNotReadHistory(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -144,40 +145,21 @@ func TestRoomServiceHydratesConversationMessageCountFromCanonicalHistory(t *test
 	if err != nil {
 		t.Fatalf("创建 Room 失败: %v", err)
 	}
-	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	for _, message := range []protocol.Message{
-		{
-			"message_id": "count-user",
-			"round_id":   "count-round",
-			"role":       "user",
-			"content":    "/goal 校正消息计数",
-			"timestamp":  int64(1000),
-		},
-		{
-			"message_id":  "count-assistant",
-			"round_id":    "count-round",
-			"role":        "assistant",
-			"content":     "开始处理",
-			"is_complete": true,
-			"stop_reason": "end_turn",
-			"timestamp":   int64(1100),
-		},
-	} {
-		if err = history.AppendInlineMessage(
-			roomContext.Room.OwnerUserID,
-			roomContext.Conversation.ID,
-			message,
-		); err != nil {
-			t.Fatalf("写入 canonical Room 历史失败: %v", err)
-		}
+	// 用目录占据 ledger 路径：任何历史扫描都会失败，元数据查询仍应成功。
+	path := workspacestore.New(cfg.WorkspacePath).RoomConversationOverlayPath(
+		roomContext.Room.OwnerUserID, roomContext.Conversation.ID,
+	)
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		t.Fatal(err)
 	}
-
-	loaded, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID)
-	if err != nil {
-		t.Fatalf("读取 Room conversation 失败: %v", err)
+	if _, err := roomService.GetRoomContexts(ctx, roomContext.Room.ID); err != nil {
+		t.Fatalf("查询 Room 上下文不应读取历史: %v", err)
 	}
-	if loaded.Conversation.MessageCount != 2 {
-		t.Fatalf("conversation message_count = %d, want 2", loaded.Conversation.MessageCount)
+	if _, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID); err != nil {
+		t.Fatalf("查询 conversation 不应读取历史: %v", err)
+	}
+	if _, err := roomService.GetConversationContextForSystem(ctx, roomContext.Conversation.ID); err != nil {
+		t.Fatalf("系统查询 conversation 不应读取历史: %v", err)
 	}
 }
 

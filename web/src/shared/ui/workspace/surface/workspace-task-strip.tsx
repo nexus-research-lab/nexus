@@ -185,7 +185,7 @@ export function WorkspaceTaskPanel({
         type="button"
       >
         <span
-          className={getConversationActivityChipClassName("inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--ring)]", "plain")}
+          className={getConversationActivityChipClassName("inline-flex min-w-0 max-w-full items-center gap-1.5 px-2 py-1 transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-control-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--ring)]")}
           data-workspace-task-visual
           id={summaryId}
         >

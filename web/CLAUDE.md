@@ -7,9 +7,9 @@
 - 公共 UI 按 `token -> recipe -> primitive -> pattern -> domain widget` 分层。业务组件不得复制 raw color、任意阴影、任意高 z-index、公共圆角、产品断点或 dialog/overlay 视口公式。
 - 修改业务入口、状态机、协议 mapper、复杂 Hook 或跨文件基础组件时，同步维护顶部 `INPUT / OUTPUT / POS` 契约；注释解释所有权和失败边界，不复述 JSX。
 - 公共视觉修改必须检查全部消费者，并覆盖窄屏、三主题、键盘焦点和叠层关系；源码正则只能作为架构门禁，不能替代真实交互测试。
-- React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑 DOM 行为，`npm run test:contracts` 跑 Node 合同，`npm test` 必须覆盖两者。
+- React primitive/pattern 的行为测试与源码共置为 `*.test.tsx`，使用 Vitest + jsdom + Testing Library；`npm run test:components` 跑日常 DOM 行为（默认排除开发期 UI Gallery 陈列测试），`npm run test:ui-gallery` 跑 Gallery DOM 合同，`npm run test:contracts` 跑 Node 合同，`npm run test` 必须覆盖日常两类。
 - 共享组件的真实浏览器验收使用开发专用 `ui-gallery.html`；它直接消费 `shared/ui`，用 `theme` 与 `locale` 查询参数固定检查条件，不得加入生产构建入口或演变成第二套组件实现。
-- `npm run check` 运行 lint、类型、合同/组件测试及生产构建；公共 UI、布局和浮层变更还必须运行 `npm run test:browser`，或由 `make check-web` 一次执行。浏览器矩阵和验收证据规则只在工程规范中维护。
+- `npm run check` / `make check-web` 运行日常 lint、类型、合同/组件测试及生产构建，不启动 Playwright；公共 UI、布局和浮层变更还必须显式运行 `npm run test:browser:full`，或由 `make check-web-ui` 一次执行。日常快速浏览器复核使用 `npm run test:browser:smoke`，完整矩阵和验收证据规则只在工程规范中维护。
 - 前端治理固定按三阶段执行：先将可归并的私有控件、样式和交互收口到唯一共享所有者；再基于真实 Web/macOS/Windows 页面复核规范本身的尺寸、密度、字体、命中区、交互状态、频闪与近似模块一致性；最后反向扫描原生控件、重复常量、过渡适配层、无引用导出、不可达分支、失效状态和过期文档，逐项合并、删除或登记为有测试的边界例外。详细退出条件见 `docs/specs/frontend-engineering-spec.md`。
 
 React 19 + Vite 7 + React Router 7 + Tailwind 4 + Zustand + TypeScript
@@ -127,7 +127,7 @@ src/
 - 会话底部工作区由 `conversation/shared/conversation-panel-layout.tsx` 统一组合为一个以 Composer 为底座的向上工作栈：Goal/告警紧贴 Composer 形成第一层，权威 Execution 存在时由 WorkGraph 胶囊占据工作栈顶边并替代 legacy Task，Task 仅在 `executor_agent_id + agent_round_id` 精确命中 WorkAttempt 时展开于对应节点内部；否则当前会话 Task 继续以“当前步骤/总步数 · 当前摘要”显示，缺失关联键不得猜挂。普通聊天和裸 `@` 不得因参与人数被推断成 Plan。回到底部在同一行相邻显示且进程缺席时单独居中。透明 Dock 与中间包装不接收指针，只有真实按钮拥有局部热区；禁止再用透明 runway 拉开 Goal 与 Composer。只有进程或回到底部控件真实可见时才在消息尾部保留避让，隐藏时不制造空白；控件显隐和展开不得改变阅读 viewport 高度。进程数据沿 Room/DM 面板模型进入共享视图，不在 Room Surface 顶部另设状态条。Composer Footer 使用输入壳容器宽度收敛动作：宽壳居中显示 随当前内核切换的 `Powered by Nexus` / `Powered by Claude`，窄壳隐藏品牌标注并把空间还给功能控件；窄壳 Goal 模式必须重排为两行并保留负责人、取消和提交动作，不以全窗口断点推导壳内密度
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
 - 停止动作按执行所有权归属：DM 可由 Composer 提供当前会话 `onStop`；Room Agent execution 常驻控制条通过自身 `agent_round_id` 定向中断，Composer 的“全部停止”只聚合点击瞬间仍 active 且尚未 stopping 的精确目标并逐个发送同一命令，禁止退化为无目标 session interrupt
-- General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
+- General 设置由 `features/settings/general/` 统一编排；独立模型设置由 `features/settings/default-models/` 拥有，默认模型值直接派生自用户偏好和可用 Provider 目录，不维护镜像选择状态
 - Browser 设置归 `features/settings/browser/`；安装引导只打开宿主打包的固定扩展目录，连接状态来自 Browser 服务，完整 CDP 权限默认关闭并持久化到用户偏好
 - 设置目录由 `features/settings/settings-navigation-model.ts` 定义，主应用侧栏与独立设置窗口必须复用 `settings-sidebar-navigation.tsx`；当前分区只由 URL 查询参数派生，不维护第二份选中状态；运营分区只对非桌面端 owner/admin 暴露，旧 `/operations` 入口必须收敛到设置目录
 - 运营能力归 `features/settings/operations/`，可以组合设置域内的 Provider 与共享视图；不得恢复与 `settings` 双向依赖的顶层 `features/operations/`

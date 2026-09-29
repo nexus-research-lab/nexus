@@ -26,3 +26,5 @@
 权限选项通过 getAgentPermissionChoices 统一投影；nxs 和 Claude 均展示 auto，未知运行时保守展示 default。后端分别协商能力与确认原生模式。
 
 `desktop-bridge` 的 `app.set_attention` 聚合各会话待确认状态；原生宿主根据窗口前后台状态控制 Dock/任务栏提醒，不改变窗口焦点。
+
+- `avatar.ts` 同时将版本化 `h1:` 组合头像通过 `shared/lib/humation/avatar.ts` 投影为本地 SVG，非法标识回退为空。

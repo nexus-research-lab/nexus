@@ -12,12 +12,15 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
@@ -29,6 +32,8 @@ type NodeService struct {
 	keys                          *credentials.Keyring
 	listAgents                    func(context.Context) ([]protocol.Agent, error)
 	executor                      *NodeExecutor
+	readRoom                      func(context.Context, string, string) (relaycontract.RoomDetails, error)
+	provisionMu                   sync.Mutex
 }
 
 type NodeView struct {
@@ -51,7 +56,7 @@ type NodeConnectInput struct {
 	EnableExecution bool     `json:"enable_execution"`
 }
 
-func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents func(context.Context) ([]protocol.Agent, error)) (*NodeService, error) {
+func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents func(context.Context) ([]protocol.Agent, error), readRoom func(context.Context, string, string) (relaycontract.RoomDetails, error)) (*NodeService, error) {
 	remote := strings.TrimRight(strings.TrimSpace(cfg.RemoteURL), "/")
 	if !strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
 		remote = strings.TrimRight(strings.TrimSpace(cfg.ControlURL), "/")
@@ -65,13 +70,259 @@ func NewNodeService(cfg config.Config, store *teamstore.Repository, listAgents f
 	keys, _ := credentials.NewKeyring(cfg.ConnectorCredentialsKey, cfg.ConnectorCredentialsLegacyKeys)
 	return &NodeService{remoteURL: remote, origin: parsed.Scheme + "://" + parsed.Host, cookieName: cfg.AuthSessionCookieName,
 		httpClient: &http.Client{Timeout: 5 * time.Second, Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
-		store:      store, keys: keys, listAgents: listAgents}, nil
+		store:      store, keys: keys, listAgents: listAgents, readRoom: readRoom}, nil
+}
+
+// NodeRoomBinding 与任务历史无关；本人入群同时授权执行，仍只由显式投递启动 Agent。
+type NodeRoomBinding struct {
+	AgentID        string `json:"agent_id"`
+	LocalAgentID   string `json:"local_agent_id"`
+	RoomID         string `json:"room_id"`
+	ConversationID string `json:"conversation_id"`
+}
+
+func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([]NodeRoomBinding, error) {
+	return s.PrepareRooms(ctx, cookie, []string{roomID})
+}
+
+// PrepareRooms 汇总所有已加入群的执行资格，一次登记，避免逐群轮换节点。
+func (s *NodeService) PrepareRooms(ctx context.Context, cookie string, roomIDs []string) ([]NodeRoomBinding, error) {
+	if len(roomIDs) == 0 || len(roomIDs) > 256 {
+		return nil, ErrNodeInput
+	}
+	if s.executor == nil {
+		return nil, ErrNodeUnavailable
+	}
+	scope, _, err := s.scope(ctx, cookie)
+	if err != nil {
+		return nil, err
+	}
+	var online []nodeAgent
+	if err = s.callControl(ctx, cookie, http.MethodGet, "/agents", nil, &online); err != nil {
+		return nil, err
+	}
+	local, err := s.listAgents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bindings := make([]NodeRoomBinding, 0)
+	var executable []string
+	for _, roomID := range slices.Compact(slices.Sorted(slices.Values(roomIDs))) {
+		items, agents, err := s.prepareRoom(ctx, cookie, scope, roomID, online, local)
+		if err != nil {
+			return nil, err
+		}
+		bindings = append(bindings, items...)
+		executable = append(executable, agents...)
+	}
+	if len(executable) > 0 {
+		slices.Sort(executable)
+		executable = slices.Compact(executable)
+		if err := s.ensureRoomExecution(ctx, cookie, executable); err != nil {
+			return nil, err
+		}
+	}
+	return bindings, nil
+}
+
+func (s *NodeService) prepareRoom(ctx context.Context, cookie, scope, roomID string, online []nodeAgent, local []protocol.Agent) ([]NodeRoomBinding, []string, error) {
+	if roomID == "" || len(roomID) > 128 || strings.ContainsAny(roomID, "/?#") {
+		return nil, nil, ErrNodeInput
+	}
+	var err error
+	var details relaycontract.RoomDetails
+	if s.readRoom != nil {
+		details, err = s.readRoom(ctx, cookie, roomID)
+	} else {
+		// Desktop 只向固定远程 Gateway 发送 Cookie，不从请求体接收服务地址。
+		err = s.remoteRequest(ctx, cookie, "", http.MethodGet, "/nexus/v1/team/rooms/"+url.PathEscape(roomID), nil, &details)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	bindings := make([]NodeRoomBinding, 0)
+	var executable []string
+	for _, agent := range online {
+		if !slices.ContainsFunc(local, func(value protocol.Agent) bool {
+			return value.AgentID == agent.SourceAgentID && value.Status == "active" && !value.IsMain
+		}) {
+			continue
+		}
+		if !slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
+			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active"
+		}) {
+			continue
+		}
+		room, err := s.executor.prepare(ctx, scope+":"+roomID, agent.SourceAgentID)
+		if err != nil {
+			return nil, nil, err
+		}
+		bindings = append(bindings, NodeRoomBinding{AgentID: agent.AgentID, LocalAgentID: agent.SourceAgentID, RoomID: room.Room.ID, ConversationID: room.Conversation.ID})
+		if slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
+			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active" && !member.AgentPaused
+		}) {
+			executable = append(executable, agent.AgentID)
+		}
+	}
+	return bindings, executable, nil
+}
+
+// 只消费已由 PrepareRoom 校验的本人入群成员；凭据未知写入复用原意图，失效恢复仍须有效真人登录。
+func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, agentIDs []string) error {
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	scope, owner, err := s.scope(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	record, err := s.store.NodeGrant(ctx, scope, owner)
+	if err != nil {
+		return err
+	}
+	if record == nil || record.State == "revoked" {
+		return s.Connect(ctx, cookie, NodeConnectInput{Name: "Nexus", AgentIDs: agentIDs, EnableExecution: true})
+	}
+	// 未确认登记先重放原请求，不换凭据、不以 404 推断未提交。
+	if record.State == "pending" && record.CookieHash == nodeDigest(cookie) {
+		if err = s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: record.AgentIDs, EnableExecution: true}); err != nil {
+			return err
+		}
+		record, err = s.store.NodeGrant(ctx, scope, owner)
+		if err != nil {
+			return err
+		}
+		if record == nil {
+			return ErrNodeUnavailable
+		}
+	}
+	ids := slices.Clone(agentIDs)
+	candidates, err := s.candidates(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	for _, id := range record.AgentIDs {
+		if slices.ContainsFunc(candidates, func(candidate NodeCandidate) bool { return candidate.ID == id }) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	if record.State == "authorized" && record.CookieHash == nodeDigest(cookie) && slices.Equal(record.AgentIDs, ids) {
+		wasEnabled := record.ExecutionEnabled
+		record.ExecutionEnabled = true
+		_, err = s.executor.machineToken(ctx, *record)
+		if err == nil {
+			if !wasEnabled {
+				return s.setNodeState(ctx, *record, "authorized", "authorized")
+			}
+			return nil
+		}
+		if !errors.Is(err, ErrNodeLogin) {
+			return err
+		}
+	}
+	// 变更设备范围前先等待现有任务收尾，不能因新增成员打断其他群的执行。
+	local, err := s.listAgents(ctx)
+	if err != nil {
+		return err
+	}
+	for _, agent := range local {
+		job, err := s.store.ActiveNodeJob(ctx, owner, agent.AgentID)
+		if err != nil {
+			return err
+		}
+		if job != nil && job.NodeID == record.NodeID {
+			return ErrNodeUnavailable
+		}
+	}
+	if err = s.Revoke(ctx, cookie); err != nil {
+		return err
+	}
+	return s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: ids, EnableExecution: true})
 }
 
 func nodeDigest(value any) string {
 	encoded, _ := json.Marshal(value)
 	sum := sha256.Sum256(encoded)
 	return hex.EncodeToString(sum[:])
+}
+
+// RecoverJob 只结束已失去本机消费者的精确执行，不重新运行，也不根据回答正文推断完成。
+func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
+	if s.executor == nil {
+		return ErrNodeUnavailable
+	}
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	scope, owner, err := s.scope(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	job, err := s.store.NodeJob(ctx, owner, id)
+	if err != nil {
+		return err
+	}
+	if job == nil || job.Scope != scope || job.Delivery == nil {
+		return ErrNodeInput
+	}
+	if job.State != "running" && job.State != "review_required" {
+		return nil
+	}
+	if s.executor.running(id) {
+		return teamstore.ErrNodeConflict
+	}
+	// 成功发出停止不是已经停止；只有原生入口确认精确轮次不在运行才能收口。
+	err = s.executor.stop(ctx, roomrealtime.InterruptRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoundID: job.RoundID})
+	if !errors.Is(err, roomrealtime.ErrTargetRoomRoundNotRunning) {
+		if err != nil {
+			return err
+		}
+		return teamstore.ErrNodeConflict
+	}
+	grant, err := s.store.NodeGrant(ctx, scope, owner)
+	if err != nil {
+		return err
+	}
+	if grant == nil || grant.NodeID != job.NodeID {
+		return ErrNodeUnavailable
+	}
+	if err = s.reconcile(ctx, cookie, grant); err != nil {
+		return err
+	}
+	if grant.State == "revoked" {
+		from := job.State
+		job.State = "failed"
+		return s.store.SaveNodeJob(ctx, *job, from, nil)
+	}
+	token, err := s.executor.cachedToken(ctx, *grant)
+	if err != nil {
+		return err
+	}
+	remote, err := s.executor.relay.ClaimDelivery(ctx, token.Token, job.ID, job.AgentID)
+	if err != nil {
+		return err
+	}
+	if remote == nil || remote.ID != job.Delivery.ID || remote.LeaseID != job.Delivery.LeaseID {
+		return teamstore.ErrNodeConflict
+	}
+	if remote.State != "leased" && remote.State != "completed" && remote.State != "failed" {
+		return teamstore.ErrNodeConflict
+	}
+	if remote.State == "leased" {
+		if _, err = s.executor.relay.SettleDelivery(ctx, token.Token, remote.ID, remote.LeaseID, true); err != nil {
+			return err
+		}
+	}
+	from := job.State
+	job.State = "failed"
+	if remote.State == "completed" {
+		job.State = "completed"
+	}
+	if err = s.store.SaveNodeJob(ctx, *job, from, nil); err != nil {
+		return err
+	}
+	s.executor.loop.Notify()
+	return nil
 }
 
 func (s *NodeService) scope(ctx context.Context, cookie string) (string, string, error) {
@@ -111,7 +362,16 @@ func (s *NodeService) candidates(ctx context.Context, cookie string) ([]NodeCand
 	return result, nil
 }
 
-func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error) {
+type NodeJobQuery struct {
+	RoomID     string
+	MessageIDs []string
+	JobID      string
+}
+
+func (s *NodeService) View(ctx context.Context, cookie string, queries ...NodeJobQuery) (NodeView, error) {
+	if len(queries) > 1 {
+		return NodeView{}, ErrNodeInput
+	}
 	scope, owner, err := s.scope(ctx, cookie)
 	if err != nil {
 		return NodeView{}, err
@@ -133,7 +393,21 @@ func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error)
 	if record != nil {
 		view.NodeID, view.State, view.Name, view.AgentIDs = record.NodeID, record.State, record.Name, record.AgentIDs
 		view.ExecutionEnabled = record.ExecutionEnabled && record.State == "authorized"
-		jobs, err := s.store.NodeJobs(ctx, owner, scope)
+		var jobs []teamstore.NodeJob
+		if len(queries) == 1 {
+			query := queries[0]
+			if query.RoomID == "" || len(query.MessageIDs) > 100 || len(query.RoomID) > 256 || len(query.JobID) > 256 {
+				return NodeView{}, ErrNodeInput
+			}
+			for _, id := range query.MessageIDs {
+				if len(id) > 256 || id == "" {
+					return NodeView{}, ErrNodeInput
+				}
+			}
+			jobs, err = s.store.NodeMessageJobs(ctx, owner, scope, query.RoomID, query.MessageIDs, query.JobID)
+		} else {
+			jobs, err = s.store.NodeJobs(ctx, owner, scope)
+		}
 		if err != nil {
 			return NodeView{}, err
 		}
@@ -142,7 +416,14 @@ func (s *NodeService) View(ctx context.Context, cookie string) (NodeView, error)
 			if state == "running" && (s.executor == nil || !s.executor.running(job.ID)) {
 				state = "review_required"
 			}
-			view.Jobs = append(view.Jobs, NodeJobView{ID: job.ID, AgentID: job.AgentID, State: state, RoomID: job.RoomID, ConversationID: job.ConversationID})
+			item := NodeJobView{ID: job.ID, AgentID: job.AgentID, State: state, RoomID: job.RoomID, ConversationID: job.ConversationID, LocalAgentID: job.LocalAgentID, RoundID: job.RoundID}
+			item.FailureCode = job.FailureCode
+			if job.Delivery != nil {
+				item.SourceRoomID = job.Delivery.RoomID
+				item.SourceMessageID = job.Delivery.MessageID
+				item.DeliveryID = job.Delivery.ID
+			}
+			view.Jobs = append(view.Jobs, item)
 		}
 	}
 	return view, nil
@@ -205,17 +486,23 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 	}
 	record.ExecutionEnabled, record.RemoteURL = input.EnableExecution, s.remoteURL
 	if record.State == "authorized" {
-		return s.store.SetNodeState(ctx, *record, "authorized", "authorized")
+		return s.setNodeState(ctx, *record, "authorized", "authorized")
 	}
-	return s.store.SetNodeState(ctx, *record, "pending", "authorized")
+	return s.setNodeState(ctx, *record, "pending", "authorized")
 }
 
 type NodeJobView struct {
-	ID             string `json:"id"`
-	AgentID        string `json:"agent_id"`
-	State          string `json:"state"`
-	RoomID         string `json:"room_id,omitempty"`
-	ConversationID string `json:"conversation_id,omitempty"`
+	FailureCode     string `json:"failure_code,omitempty"`
+	LocalAgentID    string `json:"local_agent_id,omitempty"`
+	RoundID         string `json:"round_id,omitempty"`
+	SourceRoomID    string `json:"source_room_id,omitempty"`
+	SourceMessageID string `json:"source_message_id,omitempty"`
+	DeliveryID      string `json:"delivery_id,omitempty"`
+	ID              string `json:"id"`
+	AgentID         string `json:"agent_id"`
+	State           string `json:"state"`
+	RoomID          string `json:"room_id,omitempty"`
+	ConversationID  string `json:"conversation_id,omitempty"`
 }
 
 // reconcile 只用精确节点回执推进状态；未知注册的 404 不能证明迟到请求不会提交。
@@ -245,7 +532,7 @@ func (s *NodeService) reconcile(ctx context.Context, cookie string, record *team
 	if next == record.State {
 		return nil
 	}
-	if err = s.store.SetNodeState(ctx, *record, record.State, next); err != nil {
+	if err = s.setNodeState(ctx, *record, record.State, next); err != nil {
 		return err
 	}
 	record.State = next
@@ -268,7 +555,7 @@ func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
 		return nil
 	}
 	if record.State != "revoking" {
-		if err = s.store.SetNodeState(ctx, *record, record.State, "revoking"); err != nil {
+		if err = s.setNodeState(ctx, *record, record.State, "revoking"); err != nil {
 			return err
 		}
 	}
@@ -276,5 +563,15 @@ func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
 	if err != nil {
 		return err
 	}
-	return s.store.SetNodeState(ctx, *record, "revoking", "revoked")
+	return s.setNodeState(ctx, *record, "revoking", "revoked")
+}
+
+func (s *NodeService) setNodeState(ctx context.Context, record teamstore.NodeGrant, from, to string) error {
+	if err := s.store.SetNodeState(ctx, record, from, to); err != nil {
+		return err
+	}
+	if s.executor != nil {
+		s.executor.loop.Notify()
+	}
+	return nil
 }

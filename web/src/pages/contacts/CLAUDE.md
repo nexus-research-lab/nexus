@@ -9,3 +9,7 @@
 页面加载提示从对应双语目录读取，并交给 WorkspaceLoadingState 统一呈现。
 
 删除展示模型接收 t，所有确认/失败/下一步文字来自 contacts.delete 双语目录。语言只改变文案，不改变领域证据决定的删除/刷新与危险程度。
+
+- `view=members` 装配组织成员详情，`member` 仅选择当前组织目录中存在的人；不挂载 Agent 编辑控制器，浏览详情不创建会话。
+
+- 组织成员默认页展示可搜索成员列表；正文复用 `WORKSPACE_CONTENT_PAGE_CLASS_NAME`、`WorkspaceContentHeader` 与列表面板，不自建居中窄列。选中成员进入详情，可返回列表。

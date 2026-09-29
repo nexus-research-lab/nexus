@@ -442,6 +442,7 @@ export function InteractionGallery({ locale }: { locale: Locale }) {
             value={icon}
           />
           <div className="flex flex-wrap gap-2">
+            <span data-gallery-selected-avatar><UiAgentAvatar avatar={icon} name="Preview" size="lg" /></span>
             <IconPickerPopover
               ariaLabel={galleryText(locale, "选择 Agent 图标", "Choose Agent icon")}
               iconFamily="agent"

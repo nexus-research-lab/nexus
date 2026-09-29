@@ -1,6 +1,6 @@
 // INPUT: 当前真人的在线 Room 邀请与接受/拒绝动作。
 // OUTPUT: 聊天目录中的紧凑邀请卡片。
-// POS: 展示 pending 邀请及刷新入口，不拥有远程状态。
+// POS: 仅展示待处理邀请、群主接管或读取失败，不拥有远程状态。
 
 import { UiButton } from "@/shared/ui/button/button";
 import { useState } from "react";
@@ -34,13 +34,14 @@ export function TeamInvitationList({
 }) {
   const { t } = useI18n();
   const [recovery, setRecovery] = useState<TeamRoomRecovery | null>(null);
+  if (invitations.length === 0 && recoveryRooms.length === 0 && !failed && !recovery) return null;
   return (
     <section aria-label={t("team.pending_invitations")} className="mx-2 mb-2 space-y-1.5">
       <div className="flex items-center justify-between">
       <p className={`px-1 ${getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" })}`}>
         {t("team.pending_invitations")}
       </p>
-      <UiButton disabled={loading} aria-busy={loading} onClick={onRefresh} size="xs" variant="text">{t("common.refresh")}</UiButton>
+      {failed ? <UiButton disabled={loading} aria-busy={loading} onClick={onRefresh} size="xs" variant="text">{t("state.retry")}</UiButton> : null}
       </div>
       {failed ? <p role="alert" className={getUiTypographyClassName({ role: "supporting", tone: "danger" })}>{t("team.invitation_failed")}</p> : null}
       {invitations.map((invitation) => {

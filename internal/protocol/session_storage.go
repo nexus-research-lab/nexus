@@ -33,6 +33,9 @@ func LegacySessionDirectoryIdentity(value string) string {
 			if threadID := escapeLegacySessionPathAtom(parsed.ThreadID); threadID != "" {
 				parts = append(parts, "topic", threadID)
 			}
+			if generation := escapeLegacySessionPathAtom(parsed.Generation); generation != "" {
+				parts = append(parts, "gen", generation)
+			}
 			return joinLegacySessionPathSegments(parts...)
 		case "group":
 			parts := []string{"room"}
@@ -48,6 +51,9 @@ func LegacySessionDirectoryIdentity(value string) string {
 			if threadID := escapeLegacySessionPathAtom(parsed.ThreadID); threadID != "" {
 				parts = append(parts, "topic", threadID)
 			}
+			if generation := escapeLegacySessionPathAtom(parsed.Generation); generation != "" {
+				parts = append(parts, "gen", generation)
+			}
 			return joinLegacySessionPathSegments(parts...)
 		default:
 			return joinLegacySessionPathSegments(
@@ -56,6 +62,7 @@ func LegacySessionDirectoryIdentity(value string) string {
 				escapeLegacySessionPathAtom(parsed.AccountID),
 				escapeLegacySessionPathAtom(parsed.Ref),
 				escapeLegacySessionPathAtom(parsed.ThreadID),
+				escapeLegacySessionPathAtom(parsed.Generation),
 			)
 		}
 	default:

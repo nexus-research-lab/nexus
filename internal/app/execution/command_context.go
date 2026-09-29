@@ -42,6 +42,10 @@ func ResolveCommandContext(
 	runtimeRoundID := strings.TrimSpace(runtimeContext.RootRoundID)
 	switch sourceContextType {
 	case "agent":
+	case runtimectx.SourceContextGoalContinuation:
+		if !validGoalContinuationContext(runtimeContext, ownerUserID, agentID, scopeSessionKey) {
+			return executioncontract.Context{}, false
+		}
 	case "room":
 		scopeKind = protocol.ExecutionScopeRoom
 		runtimeRoundID = strings.TrimSpace(runtimeContext.AgentRoundID)
@@ -95,6 +99,61 @@ func ResolveCommandContext(
 		}
 	}
 	return sctx, true
+}
+
+// validGoalContinuationContext is deliberately stricter than the ordinary
+// trusted DM route. The source label alone is never authority: every
+// host-issued continuation identity must agree with the live Goal and
+// Responsibility snapshots for this exact physical round.
+func validGoalContinuationContext(
+	runtimeContext runtimectx.RuntimeCommandContext,
+	ownerUserID string,
+	agentID string,
+	scopeSessionKey string,
+) bool {
+	authority := runtimeContext.GoalContinuationAuthority
+	if authority == nil || !authority.Valid() {
+		return false
+	}
+	normalized := cloneGoalContinuationAuthority(authority)
+	if normalized.OwnerUserID != ownerUserID || normalized.AgentID != agentID ||
+		normalized.ScopeSessionKey != scopeSessionKey ||
+		normalized.RootRoundID != strings.TrimSpace(runtimeContext.RootRoundID) ||
+		normalized.ExecutionID != strings.TrimSpace(runtimeContext.ExecutionID) ||
+		strings.TrimSpace(runtimeContext.SourceContextID) != agentID ||
+		strings.TrimSpace(runtimeContext.RuntimeSessionKey) != scopeSessionKey {
+		return false
+	}
+	parsed := protocol.ParseSessionKey(scopeSessionKey)
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent ||
+		parsed.ChatType != protocol.RoomTypeDM ||
+		parsed.Channel != protocol.SessionChannelWebSocketSegment ||
+		strings.TrimSpace(parsed.AgentID) != agentID {
+		return false
+	}
+	goalAuthority, ok := runtimeContext.GoalAuthority.Load()
+	if !ok || goalAuthority.GoalID != normalized.GoalID ||
+		goalAuthority.ObjectiveRevision != normalized.ObjectiveRevision ||
+		goalAuthority.ExecutionID != normalized.ExecutionID {
+		return false
+	}
+	responsibility := runtimeContext.ResponsibilityAuthority
+	if responsibility == nil {
+		return false
+	}
+	responsibilityAuthority, ok := responsibility.Load()
+	return ok && responsibilityAuthority.GoalID == normalized.GoalID &&
+		responsibilityAuthority.ObjectiveRevision == normalized.ObjectiveRevision &&
+		responsibilityAuthority.ExecutionID == normalized.ExecutionID
+}
+
+func cloneGoalContinuationAuthority(
+	authority *runtimectx.GoalContinuationAuthority,
+) runtimectx.GoalContinuationAuthority {
+	if authority == nil {
+		return runtimectx.GoalContinuationAuthority{}
+	}
+	return authority.Normalized()
 }
 
 func cloneReviewBinding(binding *protocol.ExecutionReviewBinding) *protocol.ExecutionReviewBinding {

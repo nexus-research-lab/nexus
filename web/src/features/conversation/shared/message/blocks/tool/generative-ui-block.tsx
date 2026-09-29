@@ -187,49 +187,69 @@ export function GenerativeUIBlock({
         ) : null}
       </header>
       {missingWidgetCode ? (
-        <UiResourceState
-          className="min-h-0 rounded-none border-x-0 px-4 py-5"
-          impact={t("generative_ui.failure_impact")}
-          nextStep={t("generative_ui.missing_next_step")}
-          size="sm"
-          state="error"
-          title={t("generative_ui.missing_title")}
-          urgency="polite"
-          variant="card"
-        />
-      ) : renderState.status === "error" ? (
-        <UiResourceState
-          className="min-h-0 rounded-none border-x-0 px-4 py-5"
-          impact={t("generative_ui.failure_impact")}
-          primaryAction={{
-            icon: <RotateCcw className="h-3.5 w-3.5" />,
-            label: t("generative_ui.retry"),
-            onClick: () => {
-              setRenderState({ status: "loading" });
-              setFrameRevision((revision) => revision + 1);
-            },
-          }}
-          size="sm"
-          state="error"
-          title={t("generative_ui.render_failed_title")}
-          urgency="polite"
-          variant="card"
-        />
+        <div
+          className="relative w-full"
+          data-generative-ui-error-overlay
+          style={{ height: INITIAL_HEIGHT }}
+        >
+          <UiResourceState
+            className="h-full min-h-0 rounded-none border-0 px-4 py-5"
+            impact={t("generative_ui.failure_impact")}
+            nextStep={t("generative_ui.missing_next_step")}
+            size="sm"
+            state="error"
+            title={t("generative_ui.missing_title")}
+            urgency="polite"
+            variant="card"
+          />
+        </div>
       ) : null}
       {widgetCode ? (
-        <iframe
-          key={frameRevision}
-          className="block w-full border-0 bg-(--surface-panel-background)"
-          loading="lazy"
-          onLoad={sendWidgetUpdate}
-          ref={frameRef}
-          sandbox="allow-scripts"
-          srcDoc={shellDocument}
+        <div
+          className="relative w-full"
           style={{ height }}
-          title={title || t("generative_ui.title")}
-        />
+        >
+          <iframe
+            key={frameRevision}
+            aria-hidden={renderState.status === "error" || undefined}
+            className="block h-full w-full border-0 bg-(--surface-panel-background)"
+            loading="lazy"
+            onLoad={sendWidgetUpdate}
+            ref={frameRef}
+            sandbox="allow-scripts"
+            srcDoc={shellDocument}
+            title={title || t("generative_ui.title")}
+          />
+          {renderState.status === "error" ? (
+            <div
+              className="absolute inset-0 bg-(--surface-panel-background)"
+              data-generative-ui-error-overlay
+            >
+              <UiResourceState
+                className="h-full min-h-0 rounded-none border-0 px-4 py-5"
+                impact={t("generative_ui.failure_impact")}
+                primaryAction={{
+                  icon: <RotateCcw className="h-3.5 w-3.5" />,
+                  label: t("generative_ui.retry"),
+                  onClick: () => {
+                    setRenderState({ status: "loading" });
+                    setFrameRevision((revision) => revision + 1);
+                  },
+                }}
+                size="sm"
+                state="error"
+                title={t("generative_ui.render_failed_title")}
+                urgency="polite"
+                variant="card"
+              />
+            </div>
+          ) : null}
+        </div>
       ) : !complete ? (
-        <UiSkeleton className="h-[180px] w-full surface-radius-sm" />
+        <UiSkeleton
+          className="w-full surface-radius-sm"
+          style={{ height: INITIAL_HEIGHT }}
+        />
       ) : null}
     </section>
   );

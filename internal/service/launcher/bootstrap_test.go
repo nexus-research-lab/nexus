@@ -4,139 +4,55 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
 )
 
 type fakeLauncherSessionReader struct {
-	err       error
-	pages     map[string]*protocol.MessagePage
-	requested []string
-	limits    []int
+	err      error
+	previews map[string]string
+	calls    int
 }
 
 func (f *fakeLauncherSessionReader) ListDirectorySessions(context.Context) ([]protocol.Session, error) {
 	return nil, nil
 }
+func (f *fakeLauncherSessionReader) ListRoomReplyPreviews(context.Context) (map[string]string, error) {
+	f.calls++
+	return f.previews, f.err
+}
 
-func (f *fakeLauncherSessionReader) GetSessionMessagesPage(
-	_ context.Context,
-	sessionKey string,
-	request sessionsvc.MessagePageRequest,
-) (*protocol.MessagePage, error) {
-	f.requested = append(f.requested, sessionKey)
-	f.limits = append(f.limits, request.Limit)
-	if f.err != nil {
-		return nil, f.err
+func TestBootstrapReadsRoomPreviewsOnce(t *testing.T) {
+	reader := &fakeLauncherSessionReader{previews: map[string]string{"dm": "DM 回复", "room": "公区回复"}}
+	items := []BootstrapConversation{{RoomID: "dm"}, {RoomID: "room"}, {RoomID: "room"}, {RoomID: "room", ChannelType: protocol.SessionChannelDiscord}, {RoomID: "cold"}}
+	(&Service{session: reader}).attachLatestReplyPreviews(context.Background(), items)
+	want := []string{"DM 回复", "公区回复", "公区回复", "", ""}
+	for i, item := range items {
+		if item.LastReplyPreview != want[i] {
+			t.Fatalf("preview[%d]=%q", i, item.LastReplyPreview)
+		}
 	}
-	if page, ok := f.pages[sessionKey]; ok {
-		return page, nil
+	if reader.calls != 1 {
+		t.Fatalf("queries=%d", reader.calls)
 	}
-	return &protocol.MessagePage{}, nil
 }
 
 func TestPreviewFailureUsesExportedRequestLogger(t *testing.T) {
 	var output bytes.Buffer
 	logger := logx.New(logx.Options{Output: &output, Format: "json"}).With("request_id", "req-preview")
 	ctx := logx.WithLogger(context.Background(), logger)
-	service := &Service{session: &fakeLauncherSessionReader{err: errors.New("history unavailable")}}
-	items := []BootstrapConversation{{SessionKey: "session-a", RoomID: "room-a", RoomType: protocol.RoomTypeDM}}
-	service.attachLatestReplyPreviews(ctx, items)
-	for _, want := range []string{"req-preview", "session-a", "room-a", "duration_ms", "history unavailable"} {
-		if !strings.Contains(output.String(), want) {
-			t.Fatalf("导出诊断缺少 %q: %s", want, output.String())
-		}
+	reader := &fakeLauncherSessionReader{err: errors.New("summary unavailable")}
+	items := []BootstrapConversation{{RoomID: "room"}}
+	(&Service{session: reader}).attachLatestReplyPreviews(ctx, items)
+	if !strings.Contains(output.String(), "req-preview") || !strings.Contains(output.String(), "summary unavailable") {
+		t.Fatal(output.String())
 	}
 	if items[0].LastReplyPreview != "" {
-		t.Fatal("读取失败不得填充预览")
-	}
-}
-
-func TestAttachLatestReplyPreviewsIncludesDMConversations(t *testing.T) {
-	sharedRoomKey := protocol.BuildRoomSharedSessionKey("conversation-room")
-	reader := &fakeLauncherSessionReader{
-		pages: map[string]*protocol.MessagePage{
-			"agent-session-dm": {
-				Items: []protocol.Message{
-					{
-						"role": "assistant",
-						"content": []any{
-							map[string]any{"type": "text", "text": "DM latest reply"},
-						},
-					},
-				},
-			},
-			sharedRoomKey: {
-				Items: []protocol.Message{
-					{
-						"role": "assistant",
-						"content": []any{
-							map[string]any{"type": "text", "text": "Room latest reply"},
-						},
-					},
-				},
-			},
-		},
-	}
-	service := &Service{session: reader}
-	items := []BootstrapConversation{
-		{
-			SessionKey: "agent-session-dm",
-			AgentID:    "agent-a",
-			RoomType:   protocol.RoomTypeDM,
-			Title:      "DM",
-		},
-		{
-			SessionKey:     "room-slot-a",
-			RoomID:         "room-1",
-			ConversationID: "conversation-room",
-			RoomType:       "room",
-			Title:          "Room",
-		},
-		{
-			SessionKey:     "room-slot-b",
-			RoomID:         "room-1",
-			ConversationID: "conversation-room",
-			RoomType:       "room",
-			Title:          "Room duplicate",
-		},
-		{
-			SessionKey:  "external-dm",
-			AgentID:     "agent-b",
-			RoomType:    protocol.RoomTypeDM,
-			ChannelType: protocol.SessionChannelDiscord,
-			Title:       "External DM",
-		},
-	}
-
-	service.attachLatestReplyPreviews(context.Background(), items)
-
-	if got := items[0].LastReplyPreview; got != "DM latest reply" {
-		t.Fatalf("DM preview = %q, want %q", got, "DM latest reply")
-	}
-	if got := items[1].LastReplyPreview; got != "Room latest reply" {
-		t.Fatalf("Room preview = %q, want %q", got, "Room latest reply")
-	}
-	if got := items[2].LastReplyPreview; got != "" {
-		t.Fatalf("duplicate Room preview = %q, want empty", got)
-	}
-	if got := items[3].LastReplyPreview; got != "" {
-		t.Fatalf("external conversation preview = %q, want empty", got)
-	}
-
-	wantRequests := []string{"agent-session-dm", sharedRoomKey}
-	if !reflect.DeepEqual(reader.requested, wantRequests) {
-		t.Fatalf("requested session keys = %#v, want %#v", reader.requested, wantRequests)
-	}
-	for _, limit := range reader.limits {
-		if limit != 2 {
-			t.Fatalf("message page limit = %d, want 2", limit)
-		}
+		t.Fatal("失败时不能填摘要")
 	}
 }
 
@@ -174,7 +90,7 @@ func TestLatestReplyPreviewUsesFinalBody(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			messages := []protocol.Message{{"role": "assistant", "content": test.content, "result_summary": test.result}}
-			if got := latestReplyPreview(messages); got != test.want {
+			if got := messageutil.LatestReplyPreview(messages); got != test.want {
 				t.Fatalf("preview = %q, want %q", got, test.want)
 			}
 		})
@@ -186,7 +102,7 @@ func TestLatestReplyPreviewUsesFinalBody(t *testing.T) {
 			{"role": "user", "content": "继续查询"},
 			{"role": "assistant", "content": []any{text("正在查询"), tool, thinking}},
 		}
-		if got := latestReplyPreview(messages); got != "上一条正文" {
+		if got := messageutil.LatestReplyPreview(messages); got != "上一条正文" {
 			t.Fatalf("preview = %q, want previous body", got)
 		}
 	})

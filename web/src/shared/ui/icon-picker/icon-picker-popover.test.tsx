@@ -5,6 +5,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { I18N_CONTEXT } from "@/shared/i18n/i18n-context";
+import { getIconAvatarSrc } from "@/lib/avatar";
 import { IconPickerPopover } from "./icon-picker-popover";
 
 beforeEach(() => {
@@ -23,7 +24,7 @@ it("focuses the selected choice and commits its exact identity", async () => {
   trigger.focus();
   await user.keyboard("{Enter}");
   const choices = within(screen.getByRole("dialog")).getAllByRole("button");
-  expect(document.activeElement).toBe(choices[1]);
+  expect(document.activeElement).toBe(choices[2]);
   await user.keyboard("{Enter}");
   expect(select).toHaveBeenLastCalledWith("2");
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -62,5 +63,27 @@ it("restores focus on Escape and respects outside click focus", async () => {
   await user.click(trigger);
   await user.click(screen.getByRole("textbox"));
   expect(screen.queryByRole("dialog")).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole("textbox"));
+});
+it("previews repeated random choices and commits only the last on outside click", async () => {
+  select.mockClear();
+  const user = userEvent.setup();
+  render(<Form />);
+  await user.click(screen.getByRole("button", { name: "Choose avatar" }));
+  const dialog = screen.getByRole("dialog");
+  expect(screen.queryByRole("combobox")).toBeNull();
+  const random = screen.getByRole("button", { name: "common.avatar_randomize" });
+  await user.click(random);
+  const first = dialog.querySelector("img")?.getAttribute("src");
+  await user.click(random);
+  const last = dialog.querySelector("img")?.getAttribute("src");
+  expect(last).not.toBe(first);
+  expect(screen.getByRole("dialog")).toBe(dialog);
+  expect(document.activeElement).toBe(random);
+  expect(select).not.toHaveBeenCalled();
+  await user.click(screen.getByRole("textbox"));
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(select).toHaveBeenCalledTimes(1);
+  expect(getIconAvatarSrc(select.mock.calls[0][0])).toBe(last);
   expect(document.activeElement).toBe(screen.getByRole("textbox"));
 });

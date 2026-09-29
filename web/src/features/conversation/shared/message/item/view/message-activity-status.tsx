@@ -10,7 +10,7 @@ import {
   Globe,
   type LucideIcon,
   MessageCircleMore,
-  MessageSquareText,
+  MessageCircle,
   RefreshCw,
   Shield,
   Wrench,
@@ -24,6 +24,9 @@ import {
 } from "@/shared/ui/feedback/loading-orb";
 
 import type { MessageActivityState } from "../activity/message-activity-state";
+
+export const ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME =
+  "px-0";
 
 interface MessageActivityPresentation {
   icon: LucideIcon;
@@ -43,7 +46,7 @@ const ACTIVITY_PRESENTATION: Record<
     toneClassName: "text-(--text-muted)",
   },
   sending: {
-    icon: MessageSquareText,
+    icon: MessageCircle,
     indicator: "active",
     labelKey: "message.activity_sending",
     toneClassName: "text-(--text-muted)",
@@ -55,7 +58,7 @@ const ACTIVITY_PRESENTATION: Record<
     toneClassName: "text-(--text-muted)",
   },
   replying: {
-    icon: MessageSquareText,
+    icon: MessageCircle,
     indicator: "active",
     labelKey: "message.activity_replying",
     toneClassName: "text-(--text-default)",
@@ -129,15 +132,14 @@ export function MessageActivityStatus({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center px-1.5",
-        stableSlot && "h-7",
+        "flex h-7 min-w-0 items-center px-0",
         className,
       )}
       data-message-activity-stable-slot={stableSlot || undefined}
     >
       <div className={cn(
         "inline-flex min-w-0 items-center gap-1.5 text-sm transition-colors",
-        stableSlot ? "py-0 font-normal leading-5" : "py-1 font-medium",
+        stableSlot ? "font-normal leading-5" : "font-medium leading-5",
         uniformTone ? "text-primary" : presentation.toneClassName,
       )}>
         <span

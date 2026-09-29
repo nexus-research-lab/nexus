@@ -312,6 +312,7 @@ export function useComposerSlashCommand({
     onPlanToggle();
     close();
     requestAnimationFrame(() => {
+      if (textareaRef.current?.value !== input) return;
       textareaRef.current?.focus();
       textareaRef.current?.setSelectionRange(input.length, input.length);
     });
@@ -336,6 +337,8 @@ export function useComposerSlashCommand({
     setSkillQuery("");
     setModelQuery("");
     requestAnimationFrame(() => {
+      // 与 @ 插入一致：下一帧不能把用户已经继续输入的光标拉回旧位置。
+      if (textareaRef.current?.value !== insertion.value) return;
       textareaRef.current?.setSelectionRange(
         insertion.cursorPosition,
         insertion.cursorPosition,
@@ -360,7 +363,7 @@ export function useComposerSlashCommand({
     close();
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
-      if (!textarea) {
+      if (!textarea || textarea.value !== insertion.value) {
         return;
       }
       textarea.setSelectionRange(

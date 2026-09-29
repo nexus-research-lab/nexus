@@ -2,6 +2,8 @@
 
 ## 职责
 
+- `RoomAgentStopButton` 统一本地与在线执行的停止按钮及 stopping 反馈；调用方只能传精确执行命令，按钮不拥有任务状态或权限判断。
+
 - `group-round-card-model.ts` 聚合一轮内的用户消息、Agent 执行身份、人工介入请求和权威展示顺序。
 - 模型只输出 `entries` 与 root 用户消息，不接受姓名/头像目录或翻译函数；没有旧版 completed/pending 数组及第二次兼容归组。`group-agent-reply.tsx` 必须接收当前完整身份目录，在显示边界用共享名称所有者处理缺失成员，不能把 UI 姓名混入结构归组或稳定 key。
 - `group-round-card-group.tsx` 按统一 entries 顺序编排用户消息与 Agent slot，不按运行状态重排。

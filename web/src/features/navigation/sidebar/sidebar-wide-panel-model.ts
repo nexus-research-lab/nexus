@@ -10,7 +10,7 @@ import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-naviga
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type { PinnedConversationPreference } from "@/store/room-navigation";
-import type { LauncherConversationSummary } from "@/types/app/launcher";
+import type { LauncherAgentSummary, LauncherRoomSummary, LauncherConversationSummary } from "@/types/app/launcher";
 
 import type {
   SidebarPinnedConversationItem,
@@ -72,11 +72,15 @@ export function buildSidebarPrimaryTabs(
 }
 
 export function buildSidebarPinnedConversations({
+  agents,
+  rooms,
   conversations,
   pathname,
   pinnedConversations,
   untitledLabel,
 }: {
+  agents: LauncherAgentSummary[];
+  rooms: LauncherRoomSummary[];
   conversations: LauncherConversationSummary[];
   pathname: string;
   pinnedConversations: PinnedConversationPreference[];
@@ -106,12 +110,18 @@ export function buildSidebarPinnedConversations({
       conversation.room_id,
       conversation.conversation_id,
     ));
+    const room = rooms.find((item) => item.id === conversation.room_id);
+    const agent = agents.find((item) => item.id === (room?.dm_target_agent_id ?? directoryConversation?.agent_id));
     const route = AppRouteBuilders.conversation(
       conversation.room_id,
       conversation.conversation_id,
     );
     return {
       active: pathname === route,
+      avatar: room?.room_type === "room" ? room.avatar : agent?.avatar ?? room?.members?.[0]?.avatar ?? room?.avatar,
+      avatarName: agent?.name ?? room?.name,
+      roomType: room?.room_type ?? directoryConversation?.room_type,
+      members: room?.members,
       conversationId: conversation.conversation_id,
       key: getPinnedConversationIdentity(
         conversation.room_id,

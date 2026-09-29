@@ -148,15 +148,22 @@ function ChannelLoginVerifyCode({
 
 function ChannelLoginSession({
   loading,
+  canStartLogin,
   mutationBlocked,
   model,
+  onStartLogin,
   onSubmitVerifyCode,
+  restartable,
 }: {
   loading: boolean;
+  canStartLogin: boolean;
   mutationBlocked: boolean;
   model: Extract<ChannelLoginPanelModel, { kind: "session" }>;
+  onStartLogin: () => Promise<boolean>;
   onSubmitVerifyCode: (value: string) => Promise<boolean>;
+  restartable: boolean;
 }) {
+  const { t } = useI18n();
   const StatusIcon = LOGIN_STATUS_ICONS[model.status.icon];
   return (
     <div className="mt-3 space-y-3">
@@ -191,7 +198,23 @@ function ChannelLoginSession({
         </UiPanel>
       ) : null}
       {model.failure ? (
-        <FeedbackBanner {...model.failure} />
+        <>
+          <FeedbackBanner {...model.failure} />
+          {restartable && canStartLogin ? (
+            <UiButton
+              aria-busy={loading || undefined}
+              className="w-fit"
+              disabled={loading || mutationBlocked}
+              onClick={() => void onStartLogin()}
+              size="sm"
+              tone="primary"
+              type="button"
+              variant="solid"
+            >
+              {t("capability.channel_login_resume_action")}
+            </UiButton>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -200,17 +223,21 @@ function ChannelLoginSession({
 export function ChannelLoginPanel({
   channelTitle,
   channelType,
+  canStartLogin,
   loading,
   loginView,
   mutationBlocked,
+  onStartLogin,
   onSubmitVerifyCode,
   recoveryNotice,
 }: {
   channelTitle: string;
   channelType: ImChannelType;
+  canStartLogin: boolean;
   loading: boolean;
   loginView: ChannelLoginView | null;
   mutationBlocked: boolean;
+  onStartLogin: () => Promise<boolean>;
   onSubmitVerifyCode: (value: string) => Promise<boolean>;
   recoveryNotice: FeedbackBannerProps | null;
 }) {
@@ -228,11 +255,28 @@ export function ChannelLoginPanel({
       {model.kind === "session" ? (
         <ChannelLoginSession
           loading={loading}
+          canStartLogin={canStartLogin}
           mutationBlocked={mutationBlocked}
           model={model}
+          onStartLogin={onStartLogin}
           onSubmitVerifyCode={onSubmitVerifyCode}
+          restartable={loginView?.status === "error" || loginView?.status === "expired" || loginView?.status === "cancelled"}
         />
-      ) : null}
+      ) : canStartLogin ? (
+        <div className="mt-3">
+          <UiButton
+            aria-busy={loading || undefined}
+            disabled={loading || mutationBlocked}
+            onClick={() => void onStartLogin()}
+            size="sm"
+            tone="primary"
+            type="button"
+            variant="solid"
+          >
+            {t("capability.channel_qr_start")}
+          </UiButton>
+        </div>
+        ) : null}
     </UiPanel>
   );
 }

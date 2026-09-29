@@ -1,5 +1,7 @@
+// INPUT: 待确认请求、历史消息与权威轮次终态。
+// OUTPUT: 仅依据过期、轮次终态或精确工具结果清理的待确认队列。
+// POS: DM/Room 共用的权限历史对账与过期策略。
 import type { Message } from "@/types/conversation/message/entity";
-import { matchPendingPermissionsToMessages } from "@/lib/conversation/pending-permission-match";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 function getExpirationTime(permission: PendingPermission): number | null {
@@ -27,14 +29,12 @@ export function filterPendingPermissionsFromSnapshot(
     return currentPermissions;
   }
 
-  const loadedAssistantMessageIds = new Set(
-    messages
-      .filter((message) => message.role === "assistant")
-      .map((message) => message.message_id),
-  );
-  const matchResult = matchPendingPermissionsToMessages(
-    messages,
-    currentPermissions,
+  const resolvedToolUseIds = new Set(
+    messages.flatMap((message) => message.role === "assistant"
+      ? message.content.flatMap((block) => block.type === "tool_result"
+        ? [block.tool_use_id]
+        : [])
+      : []),
   );
 
   return currentPermissions.filter((permission) => {
@@ -44,12 +44,9 @@ export function filterPendingPermissionsFromSnapshot(
     if (permission.round_id && isRoundTerminal(permission.round_id)) {
       return false;
     }
-    if (matchResult.matchedRequestIds.has(permission.request_id)) {
-      return true;
-    }
-    // 旧事件缺少 messageId，无法唯一绑定，只能等待明确结果或重载收口。
-    return !permission.message_id
-      || !loadedAssistantMessageIds.has(permission.message_id);
+    // 宿主确认可独立于原始工具块；历史缺少匹配项不代表请求已完成。
+    const toolUseId = permission.tool_use_id?.trim();
+    return !toolUseId || !resolvedToolUseIds.has(toolUseId);
   });
 }
 

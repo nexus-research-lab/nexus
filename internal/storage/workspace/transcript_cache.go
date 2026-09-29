@@ -1,119 +1,54 @@
-// INPUT: transcript 文件状态与影响投影结果的 round marker 字段。
-// OUTPUT: 可安全复用或失效的 transcript 消息缓存。
-// POS: workspace transcript 投影的缓存边界。
+// INPUT: 已校验 transcript 文件快照与规范化 JSONL 条目。
+// OUTPUT: 与 marker、会话身份和 fork 边界无关的解析缓存。
+// POS: 普通、分段和显式 transcript 读取共用的缓存边界。
 package workspace
 
 import (
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type transcriptCacheEntry struct {
-	FileSize               int64
-	ModifiedUnix           int64
-	RoundMarkerFingerprint string
-	LastAccessUTC          int64
-	Messages               []protocol.Message
+	Source        historyPageSourceSnapshot
+	LastAccessUTC int64
+	Entries       []transcriptEntry
 }
 
-func (s *AgentHistoryStore) readTranscriptCache(
-	path string,
-	fileInfo os.FileInfo,
-	roundMarkerFingerprint string,
-) ([]protocol.Message, bool) {
-	s.cache.mu.RLock()
-	entry, exists := s.cache.messages[path]
-	s.cache.mu.RUnlock()
-	if !exists {
-		return nil, false
-	}
-	if entry.FileSize != fileInfo.Size() ||
-		entry.ModifiedUnix != fileInfo.ModTime().UnixNano() ||
-		entry.RoundMarkerFingerprint != roundMarkerFingerprint {
-		return nil, false
-	}
-
+func (s *AgentHistoryStore) readTranscriptCache(path string, source historyPageSourceSnapshot) ([]transcriptEntry, bool) {
 	s.cache.mu.Lock()
-	refreshedEntry := s.cache.messages[path]
-	refreshedEntry.LastAccessUTC = time.Now().UTC().UnixNano()
-	s.cache.messages[path] = refreshedEntry
+	entry, exists := s.cache.entries[path]
+	if exists && entry.Source == source {
+		entry.LastAccessUTC = time.Now().UnixNano()
+		s.cache.entries[path] = entry
+	}
 	s.cache.mu.Unlock()
-	return entry.Messages, true
+	if !exists || entry.Source != source {
+		return nil, false
+	}
+	return cloneTranscriptEntries(entry.Entries), true
 }
 
-func (s *AgentHistoryStore) writeTranscriptCache(
-	path string,
-	fileInfo os.FileInfo,
-	roundMarkerFingerprint string,
-	rows []protocol.Message,
-) {
+func (s *AgentHistoryStore) writeTranscriptCache(path string, source historyPageSourceSnapshot, entries []transcriptEntry) {
+	// 缓存只持有私有副本，投影和分段合并不能修改其他请求的原始条目。
+	entry := transcriptCacheEntry{Source: source, LastAccessUTC: time.Now().UnixNano(), Entries: cloneTranscriptEntries(entries)}
 	s.cache.mu.Lock()
 	defer s.cache.mu.Unlock()
-
-	s.cache.messages[path] = transcriptCacheEntry{
-		FileSize:               fileInfo.Size(),
-		ModifiedUnix:           fileInfo.ModTime().UnixNano(),
-		RoundMarkerFingerprint: roundMarkerFingerprint,
-		LastAccessUTC:          time.Now().UTC().UnixNano(),
-		Messages:               rows,
-	}
+	s.cache.entries[path] = entry
 	s.pruneTranscriptCacheLocked()
 }
 
-func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) string {
-	if len(roundMarkers) == 0 {
-		return ""
+func cloneTranscriptEntries(entries []transcriptEntry) []transcriptEntry {
+	cloned := make([]transcriptEntry, len(entries))
+	for i, entry := range entries {
+		cloned[i] = transcriptEntry{Index: entry.Index, Data: cloneTranscriptJSON(entry.Data).(map[string]any)}
 	}
-	var builder strings.Builder
-	for _, marker := range roundMarkers {
-		builder.WriteString(strconv.Itoa(len(marker.RoundID)))
-		builder.WriteString(":")
-		builder.WriteString(marker.RoundID)
-		builder.WriteString("|")
-		builder.WriteString(strconv.Itoa(len(marker.SourceRoundID)))
-		builder.WriteString(":")
-		builder.WriteString(marker.SourceRoundID)
-		builder.WriteString("|")
-		builder.WriteString(strconv.Itoa(len(marker.Content)))
-		builder.WriteString(":")
-		builder.WriteString(marker.Content)
-		builder.WriteString("|")
-		for _, attachment := range protocol.NormalizeChatAttachments(marker.Attachments, "") {
-			builder.WriteString(string(attachment.Scope))
-			builder.WriteString(":")
-			builder.WriteString(attachment.RoomID)
-			builder.WriteString(":")
-			builder.WriteString(attachment.ConversationID)
-			builder.WriteString(":")
-			builder.WriteString(attachment.WorkspaceAgentID)
-			builder.WriteString(":")
-			builder.WriteString(attachment.WorkspacePath)
-			builder.WriteString("|")
-		}
-		builder.WriteString("|")
-		builder.WriteString(strconv.FormatInt(marker.Timestamp, 10))
-		builder.WriteString("|")
-		builder.WriteString(marker.DeliveryPolicy)
-		builder.WriteString("|")
-		builder.WriteString(strconv.FormatBool(marker.HiddenFromUser))
-		builder.WriteString("|")
-		builder.WriteString(strconv.FormatBool(marker.Synthetic))
-		builder.WriteString("|")
-		builder.WriteString(strconv.FormatBool(marker.ControlOnly))
-		builder.WriteString("|")
-		builder.WriteString(marker.Purpose)
-		builder.WriteString("\n")
-	}
-	return builder.String()
+	return cloned
 }
 
 func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
-	if len(s.cache.messages) <= maxTranscriptCacheEntries {
+	if len(s.cache.entries) <= maxTranscriptCacheEntries {
 		return
 	}
 
@@ -122,8 +57,8 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 		LastAccessUTC int64
 	}
 
-	candidates := make([]cacheCandidate, 0, len(s.cache.messages))
-	for path, entry := range s.cache.messages {
+	candidates := make([]cacheCandidate, 0, len(s.cache.entries))
+	for path, entry := range s.cache.entries {
 		candidates = append(candidates, cacheCandidate{
 			Path:          path,
 			LastAccessUTC: entry.LastAccessUTC,
@@ -133,23 +68,37 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 		return candidates[i].LastAccessUTC < candidates[j].LastAccessUTC
 	})
 	for len(candidates) > maxTranscriptCacheEntries {
-		delete(s.cache.messages, candidates[0].Path)
+		delete(s.cache.entries, candidates[0].Path)
 		candidates = candidates[1:]
 	}
-}
-
-func (s *AgentHistoryStore) invalidateTranscriptCache(path string) {
-	s.cache.mu.Lock()
-	defer s.cache.mu.Unlock()
-	delete(s.cache.messages, path)
 }
 
 func (s *AgentHistoryStore) invalidateTranscriptCachePrefix(prefix string) {
 	s.cache.mu.Lock()
 	defer s.cache.mu.Unlock()
-	for path := range s.cache.messages {
+	for path := range s.cache.entries {
 		if path == prefix || strings.HasPrefix(path, prefix+string(os.PathSeparator)) {
-			delete(s.cache.messages, path)
+			delete(s.cache.entries, path)
 		}
+	}
+}
+
+// transcript 条目来自 JSON 解码，只需复制 map 和 slice，标量可安全共享。
+func cloneTranscriptJSON(value any) any {
+	switch value := value.(type) {
+	case map[string]any:
+		cloned := make(map[string]any, len(value))
+		for key, item := range value {
+			cloned[key] = cloneTranscriptJSON(item)
+		}
+		return cloned
+	case []any:
+		cloned := make([]any, len(value))
+		for index, item := range value {
+			cloned[index] = cloneTranscriptJSON(item)
+		}
+		return cloned
+	default:
+		return value
 	}
 }

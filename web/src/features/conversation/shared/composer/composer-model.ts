@@ -25,6 +25,7 @@ export interface ComposerPanelProps {
   contextUsage: ContextUsageData | null;
   /** 纯文本消费者可隐藏附件与 Goal 动作入口。 */
   showActionMenu?: boolean;
+  attachmentsDisabledReason?: string;
   contextUsageItems?: readonly ComposerContextUsageItem[];
   /**
    * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
@@ -66,7 +67,7 @@ export interface ComposerPanelProps {
   stopLabel?: string;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
-  roomMembers?: Agent[];
+  roomMembers?: Pick<Agent, "agent_id" | "name" | "avatar">[];
   onPrepareAttachments: (
     files: File[],
   ) => Promise<MessageAttachment[]>;

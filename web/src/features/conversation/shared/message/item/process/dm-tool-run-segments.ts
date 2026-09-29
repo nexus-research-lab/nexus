@@ -11,6 +11,7 @@ import type {
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
 import {
   isRejectedToolResult,
+  isInterruptedToolResult,
   isSupersededToolResult,
 } from "../../tool-result-semantic-model";
 import type {
@@ -22,6 +23,7 @@ export type ToolRunPhase =
   | "active"
   | "complete"
   | "error"
+  | "stopped"
   | "rejected"
   | "superseded";
 
@@ -357,7 +359,7 @@ function countToolRunErrors(
     const block = content[index];
     if (
       block?.type === "tool_use_error"
-      || (block?.type === "tool_result" && block.is_error)
+      || (block?.type === "tool_result" && block.is_error && !isInterruptedToolResult(block))
     ) {
       count += 1;
     }
@@ -402,7 +404,9 @@ function resolveTerminalToolRunPhase(
       ) {
         return;
       }
-      phase = block.is_error
+      phase = isInterruptedToolResult(block)
+        ? "stopped"
+        : block.is_error
         ? "error"
         : isRejectedToolResult(block)
         ? "rejected"

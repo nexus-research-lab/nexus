@@ -133,11 +133,18 @@ func (h *Handlers) HandleTestSubscriptionProviderModel(writer http.ResponseWrite
 	if !h.requireSubscriptionProviderAdmin(writer, request) {
 		return
 	}
-	item, err := h.providers.TestPublicModel(
-		request.Context(),
-		chi.URLParam(request, "provider"),
-		chi.URLParam(request, "model_id"),
-	)
+	var item *providercfg.TestResult
+	var err error
+	if capability := request.URL.Query().Get("capability"); capability != "" {
+		expectedVersion, parseErr := parseProviderIfMatch(request.Header.Get("If-Match"))
+		if parseErr != nil {
+			h.writeProviderPreconditionFailure(writer, request, parseErr)
+			return
+		}
+		item, err = h.providers.TestModelCapability(request.Context(), chi.URLParam(request, "provider"), chi.URLParam(request, "model_id"), capability, expectedVersion, true)
+	} else {
+		item, err = h.providers.TestPublicModel(request.Context(), chi.URLParam(request, "provider"), chi.URLParam(request, "model_id"))
+	}
 	if err != nil {
 		h.writeProviderMutationFailure(writer, request, "test_model", err)
 		return

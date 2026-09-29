@@ -264,7 +264,7 @@ function ToolRun({
           <>
             {streaming && activity.state ? (
               <LocalizedMessageActivityStatus
-                className="px-0 pt-1"
+                className="pt-1"
                 state={activity.state}
               />
             ) : null}
@@ -283,6 +283,8 @@ function formatToolRunSummary(
   let statusKey: TranslationKey | null = null;
   if (phase === "error") {
     statusKey = "message.tool_run_failed";
+  } else if (phase === "stopped") {
+    statusKey = "message.stopped";
   } else if (phase === "rejected") {
     statusKey = "message.tool_run_rejected";
   } else if (phase === "superseded") {

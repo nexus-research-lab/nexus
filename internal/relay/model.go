@@ -19,14 +19,48 @@ const (
 
 // ContentBlock 是一段版本化消息正文。
 type ContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	RoomID        string `json:"room_id,omitempty"`
+	InviteeUserID string `json:"invitee_user_id,omitempty"`
+	InvitedAt     string `json:"invited_at,omitempty"`
+	Type          string `json:"type"`
+	Text          string `json:"text"`
 }
 
 // MessageContent 是 Relay 保存的共享正文。
 type MessageContent struct {
-	Version int            `json:"version"`
-	Blocks  []ContentBlock `json:"blocks"`
+	Attachments []MessageAttachment `json:"attachments,omitempty"`
+	Version     int                 `json:"version"`
+	Blocks      []ContentBlock      `json:"blocks"`
+	Execution   *ExecutionMetadata  `json:"execution,omitempty"`
+}
+
+// MessageAttachment 仅引用已持久化的群文件，不接受本机路径或远程 URL。
+type MessageAttachment struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Size   int64  `json:"size"`
+	SHA256 string `json:"sha256"`
+}
+
+// ExecutionMetadata 只共享回复统计，不包含私人记忆、路径、工具输入和运行凭据。
+type ExecutionMetadata struct {
+	Model         string                  `json:"model,omitempty"`
+	ResultSummary *ExecutionResultSummary `json:"result_summary,omitempty"`
+}
+
+type ExecutionResultSummary struct {
+	DurationMS    float64         `json:"duration_ms"`
+	DurationAPIMS float64         `json:"duration_api_ms"`
+	NumTurns      int64           `json:"num_turns"`
+	TotalCostUSD  *float64        `json:"total_cost_usd,omitempty"`
+	Usage         *ExecutionUsage `json:"usage,omitempty"`
+}
+
+type ExecutionUsage struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens,omitempty"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens,omitempty"`
 }
 
 // MessageMention 是消息中经过 Relay 校验的结构化 Agent 目标。
@@ -37,6 +71,7 @@ type MessageMention struct {
 
 // Room 是显式创建的在线协作空间。
 type Room struct {
+	DirectUserID           string    `json:"direct_user_id,omitempty"`
 	ID                     string    `json:"id"`
 	OrganizationID         string    `json:"organization_id"`
 	TeamID                 string    `json:"team_id,omitempty"`
@@ -65,11 +100,24 @@ type Conversation struct {
 	HighWaterSyncEventSeq int64      `json:"high_water_sync_event_seq"`
 }
 
-// RoomView 是当前成员可见的 Room、主 Conversation 和自身角色。
+// ReadState 是 Relay 持有的当前真人阅读水位。
+type ReadState struct {
+	LastReadMessageSeq int64 `json:"last_read_message_seq"`
+}
+
+// MarkReadInput 绑定当前同步世代的本人阅读确认。
+type MarkReadInput struct {
+	MessageSeq  int64  `json:"message_seq"`
+	StreamEpoch string `json:"stream_epoch"`
+}
+
+// RoomView 是当前成员可见的 Room、主 Conversation、自身角色与未读状态。
 type RoomView struct {
-	Room            Room         `json:"room"`
-	Conversation    Conversation `json:"conversation"`
-	CurrentUserRole string       `json:"current_user_role"`
+	LastReadMessageSeq int64        `json:"last_read_message_seq"`
+	UnreadCount        int64        `json:"unread_count"`
+	Room               Room         `json:"room"`
+	Conversation       Conversation `json:"conversation"`
+	CurrentUserRole    string       `json:"current_user_role"`
 }
 
 // RoomList 是当前真人的在线 Room 目录。
@@ -95,7 +143,19 @@ type RoomMember struct {
 // RoomDetails 是在线 Room 管理使用的成员快照。
 type RoomDetails struct {
 	RoomView
-	Members []RoomMember `json:"members"`
+	NextMemberCursor string           `json:"next_member_cursor,omitempty"`
+	Members          []RoomMember     `json:"members"`
+	Deliveries       []DeliveryStatus `json:"deliveries"`
+}
+
+// DeliveryStatus 是所有群成员可见的最小进度，不包含本机执行信息。
+type DeliveryStatus struct {
+	ExecutionState string `json:"execution_state,omitempty"`
+	ID             string `json:"id"`
+	MessageID      string `json:"message_id"`
+	AgentID        string `json:"agent_id"`
+	State          string `json:"state"`
+	FailureCode    string `json:"failure_code,omitempty"`
 }
 
 // RoomInvitation 是当前真人尚未处理的在线 Room 邀请。
@@ -134,6 +194,7 @@ type RoomConfigurationMutation struct {
 
 // CreateRoomInput 是显式建群请求。
 type CreateRoomInput struct {
+	DirectUserID           string   `json:"direct_user_id,omitempty"`
 	Name                   string   `json:"name"`
 	Description            string   `json:"description,omitempty"`
 	Avatar                 string   `json:"avatar,omitempty"`
@@ -142,6 +203,7 @@ type CreateRoomInput struct {
 	MemberUserIDs          []string `json:"member_user_ids,omitempty"`
 	AgentIDs               []string `json:"agent_ids,omitempty"`
 	CoordinatorAgentID     string   `json:"coordinator_agent_id,omitempty"`
+	HostAutoReplyEnabled   bool     `json:"host_auto_reply_enabled,omitempty"`
 }
 
 // AddRoomAgentInput 将当前真人拥有的 Control Agent 加入 Room。
@@ -163,6 +225,7 @@ type UpdateRoomAgentInput struct {
 
 // UpdateRoomInput 更新群资料、主持 Agent，或显式解散群。
 type UpdateRoomInput struct {
+	HideDirect                   bool    `json:"hide_direct,omitempty"`
 	Dissolve                     bool    `json:"dissolve,omitempty"`
 	CoordinatorAgentID           *string `json:"coordinator_agent_id,omitempty"`
 	Name                         *string `json:"name,omitempty"`
@@ -299,4 +362,10 @@ func (e *RemoteError) Error() string {
 		return "Relay 请求失败"
 	}
 	return fmt.Sprintf("Relay 请求失败: %s (%s)", e.Message, e.Code)
+}
+
+// RoomMemberPage 是同一成员版本下的有界续页。
+type RoomMemberPage struct {
+	Members    []RoomMember `json:"members"`
+	NextCursor string       `json:"next_cursor,omitempty"`
 }

@@ -84,6 +84,7 @@ export function SubagentTaskToolEntry({
       variant="surface"
     >
       <UiSeededAvatar
+        variant="humation"
         data-subagent-task-avatar
         seed={toolUse.id}
         size="2xs"

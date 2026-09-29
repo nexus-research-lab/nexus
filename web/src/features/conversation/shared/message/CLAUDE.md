@@ -1,5 +1,7 @@
 # 消息领域
 
+- MessageReplyChip 是本地 handoff 与在线回复来源的共同视觉实现；在线通过 MessageItem.assistantReplyTarget 提供真实姓名和头像，显示在作者名旁，不改写 handoff 协议或触发通讯。
+
 - `message-content-model.ts` 负责跨消息项、时间线和会话导航共享的文本协议清理与内容提取；`nexus_room_no_reply`、`nexus_room_fanout` 等 Room 编排标记必须在这里一次剥离，正文、result、复制与历史投影不得各自维护名单。
 - `message-tool-names.ts` 只保存跨活动、过程和视图共同依赖的稳定工具标识，避免兄弟领域相互借用常量。
 - `message-time.ts` 只负责消息时间的稳定格式化，不读取视图状态。

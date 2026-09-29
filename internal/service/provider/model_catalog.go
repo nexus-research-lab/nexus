@@ -134,6 +134,7 @@ var knownModelLimits = []knownModelLimit{
 	{Family: "deepseek-reasoner", Tokens: 1_000_000},
 
 	// 智谱 GLM。Coding Plan 以接口精确 token 上限为准，而不是文档中的 200K 简写。
+	{Family: "glm-5.3-flashx", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.3-flash", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.3", Tokens: 1_000_000, MaxOutputTokens: 131_072},
 	{Family: "glm-5.2", Tokens: 1_000_000},
@@ -186,90 +187,6 @@ var knownModelLimits = []knownModelLimit{
 	// 腾讯混元与阶跃星辰。
 	{Family: "hy3", Tokens: 262_144},
 	{Family: "step-3.5-flash", Tokens: 262_144},
-}
-
-// knownVisionCapability 只补齐已经稳定支持图片输入的常见模型族。
-//
-// 返回 nil 表示未知，而不是不支持。远端模型卡和用户覆盖值始终优先。
-func knownVisionCapability(modelID string) *bool {
-	normalized := normalizeCatalogModelID(modelID)
-	switch {
-	case modelIDMatchesGeneration(normalized, "gpt-5"),
-		modelIDMatchesGeneration(normalized, "gpt-4.1"),
-		modelIDMatchesGeneration(normalized, "gpt-4o"),
-		modelIDMatchesGeneration(normalized, "claude-3"),
-		modelIDMatchesGeneration(normalized, "claude-opus-4"),
-		modelIDMatchesGeneration(normalized, "claude-sonnet-4"),
-		modelIDMatchesGeneration(normalized, "claude-haiku-4"),
-		modelIDMatchesGeneration(normalized, "claude-mythos-5"),
-		modelIDMatchesGeneration(normalized, "claude-fable-5"),
-		modelIDMatchesGeneration(normalized, "claude-opus-5"),
-		modelIDMatchesGeneration(normalized, "claude-sonnet-5"),
-		modelIDMatchesGeneration(normalized, "gemini"),
-		modelIDMatchesGeneration(normalized, "grok-4.6"),
-		modelIDMatchesGeneration(normalized, "kimi-for-coding"),
-		modelIDMatchesGeneration(normalized, "kimi-k3"),
-		modelIDMatchesGeneration(normalized, "kimi-k2.6"),
-		modelIDMatchesGeneration(normalized, "qwen3.8-max"),
-		modelIDMatchesGeneration(normalized, "qwen3.7-plus"),
-		modelIDMatchesGeneration(normalized, "qwen3.7-flash"),
-		modelIDMatchesGeneration(normalized, "minimax-m3"),
-		modelIDMatchesGeneration(normalized, "doubao-seed-2-0"),
-		modelIDMatchesGeneration(normalized, "ernie-5.0"),
-		modelIDMatchesGeneration(normalized, "step-3.7-flash"),
-		modelIDMatchesGeneration(normalized, "mistral-medium-3-5"),
-		modelIDMatchesGeneration(normalized, "mistral-small-2603"),
-		modelIDMatchesGeneration(normalized, "mistral-large-2512"),
-		modelIDMatchesGeneration(normalized, "ministral-14b-2512"),
-		modelIDMatchesGeneration(normalized, "ministral-8b-2512"),
-		modelIDMatchesGeneration(normalized, "ministral-3b-2512"),
-		modelIDMatchesGeneration(normalized, "llama-4-scout"),
-		modelIDMatchesGeneration(normalized, "llama-4-maverick"),
-		modelIDMatchesGeneration(normalized, "command-a-plus"),
-		strings.Contains(normalized, "amazon.nova-2-lite"):
-		return boolPointer(true)
-	case strings.Contains(normalized, "qwen") && strings.Contains(normalized, "vl"):
-		return boolPointer(true)
-	case modelIDMatchesGeneration(normalized, "glm-5.3-flash"),
-		modelIDMatchesGeneration(normalized, "glm-4v"),
-		modelIDMatchesGeneration(normalized, "pixtral"),
-		modelIDMatchesGeneration(normalized, "llava"):
-		return boolPointer(true)
-	default:
-		return nil
-	}
-}
-
-// knownReasoningCapability 只补齐官方明确标记为推理模型的模型族。
-func knownReasoningCapability(modelID string) *bool {
-	normalized := normalizeCatalogModelID(modelID)
-	switch {
-	case modelIDMatchesGeneration(normalized, "gpt-5.6"),
-		modelIDMatchesGeneration(normalized, "gpt-oss"),
-		modelIDMatchesGeneration(normalized, "claude-fable-5"),
-		modelIDMatchesGeneration(normalized, "claude-opus-5"),
-		modelIDMatchesGeneration(normalized, "claude-sonnet-5"),
-		modelIDMatchesGeneration(normalized, "gemini-3.7"),
-		modelIDMatchesGeneration(normalized, "gemini-3.5"),
-		modelIDMatchesGeneration(normalized, "gemini-3.1-flash-lite"),
-		modelIDMatchesGeneration(normalized, "grok-4.6"),
-		modelIDMatchesGeneration(normalized, "glm-5.3"),
-		modelIDMatchesGeneration(normalized, "kimi-k3"),
-		modelIDMatchesGeneration(normalized, "kimi-k2.6"),
-		modelIDMatchesGeneration(normalized, "qwen3.8"),
-		modelIDMatchesGeneration(normalized, "qwen3.7"),
-		modelIDMatchesGeneration(normalized, "minimax-m3"),
-		modelIDMatchesGeneration(normalized, "doubao-seed-2-0"),
-		modelIDMatchesGeneration(normalized, "ernie-5.0"),
-		modelIDMatchesGeneration(normalized, "hy3"),
-		modelIDMatchesGeneration(normalized, "step-3.7-flash"),
-		modelIDMatchesGeneration(normalized, "step-3.5-flash"),
-		modelIDMatchesGeneration(normalized, "mistral-small-2603"),
-		modelIDMatchesGeneration(normalized, "command-a-plus"):
-		return boolPointer(true)
-	default:
-		return nil
-	}
 }
 
 func knownContextWindow(modelID string) *int {

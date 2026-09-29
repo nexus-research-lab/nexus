@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 )
@@ -28,6 +29,9 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 	}
 	if normalized.SessionKey == "" {
 		normalized.SessionKey = routeSessionKey
+	}
+	if err := r.validateExternalDeliveryTarget(ctx, agentID, normalized); err != nil {
+		return DeliveryResult{}, err
 	}
 	if err := normalized.Validate(); err != nil {
 		return DeliveryResult{}, err
@@ -48,7 +52,7 @@ func (r *Router) DeliverMessage(ctx context.Context, agentID string, text string
 	}
 	result = normalizeDeliveryResult(result, normalized)
 	if err = r.rememberDeliveryTarget(ctx, agentID, routeSessionKey, result.Target); err != nil {
-		return DeliveryResult{}, err
+		return result, err
 	}
 	r.logDeliverySuccess(ctx, agentID, text, result)
 	return result, nil
@@ -115,6 +119,9 @@ func (r *Router) DeliverAutomationResult(
 	if err = resolved.Validate(); err != nil {
 		return DeliveryResult{}, err
 	}
+	if err = r.validateExternalDeliveryTarget(ctx, routeAgentID, resolved); err != nil {
+		return DeliveryResult{Target: resolved}, err
+	}
 
 	var tracked *imdelivery.Delivery
 	if r.imDeliveries != nil && !isSessionDeliveryChannel(resolved.Channel) {
@@ -151,7 +158,11 @@ func (r *Router) DeliverAutomationResult(
 			return DeliveryResult{Target: resolved}, errors.New("IM delivery grant was revoked before send")
 		}
 	}
-	result, sendErr := r.sendDelivery(ctx, routeAgentID, text, resolved)
+	sendCtx := ctx
+	if tracked != nil {
+		sendCtx = r.withIMDeliveryProgress(ctx, *tracked)
+	}
+	result, sendErr := r.sendDelivery(sendCtx, routeAgentID, text, resolved)
 	result = normalizeDeliveryResult(result, resolved)
 	if tracked != nil {
 		result.DeliveryID = tracked.ID
@@ -257,6 +268,22 @@ func (r *Router) sendDelivery(
 		r.loggerFor(ctx).Error("投递通道未配置", "agent_id", agentID, "channel", target.Channel, "err", err)
 		return DeliveryResult{Target: target}, err
 	}
+	if target.PairingID != "" {
+		r.mu.RLock()
+		grants := r.imGrants
+		r.mu.RUnlock()
+		guard, ok := grants.(interface {
+			AcquireBindingDelivery(context.Context, string, string, DeliveryTarget) (func(), error)
+		})
+		if !ok {
+			return DeliveryResult{}, ErrExternalSessionGrantUnavailable
+		}
+		unlock, err := guard.AcquireBindingDelivery(ctx, authctx.OwnerUserID(ctx), agentID, target)
+		if err != nil {
+			return DeliveryResult{}, err
+		}
+		defer unlock()
+	}
 	result, err := sendDeliveryMessage(ctx, channel, agentID, target, text)
 	if err != nil {
 		r.loggerFor(ctx).Error("文本投递失败",
@@ -293,6 +320,9 @@ func normalizeDeliveryResult(result DeliveryResult, fallback DeliveryTarget) Del
 		result.Target = fallback
 	} else {
 		result.Target = result.Target.Normalized()
+		// 平台回执不能替换宿主冻结的绑定版本。
+		result.Target.PairingID = fallback.PairingID
+		result.Target.BindingVersion = fallback.BindingVersion
 	}
 	return result
 }
@@ -350,6 +380,9 @@ func (r *Router) SetTyping(ctx context.Context, agentID string, target DeliveryT
 	if err := normalized.Validate(); err != nil {
 		return err
 	}
+	if err := r.validateExternalDeliveryTarget(ctx, agentID, normalized); err != nil {
+		return err
+	}
 	channel := r.channelForDelivery(ctx, agentID, normalized.Channel)
 	if channel == nil {
 		return nil
@@ -376,3 +409,96 @@ func (r *Router) SetTyping(ctx context.Context, agentID string, target DeliveryT
 	)
 	return nil
 }
+
+// validateExternalDeliveryTarget is the final send-side authorization fence.
+// Ingress and automation configuration validation happen earlier, but a DM
+// round or typing loop may outlive a pairing deletion/rebind. Recheck the
+// exact structured external Session immediately before every physical send.
+// Legacy explicit targets without a session_key remain compatible; all new
+// ingress and session-scoped routes carry the exact key and are fail-closed.
+func (r *Router) validateExternalDeliveryTarget(
+	ctx context.Context,
+	agentID string,
+	target DeliveryTarget,
+) error {
+	parsed := protocol.ParseSessionKey(strings.TrimSpace(target.SessionKey))
+	if !parsed.IsStructured || parsed.Kind != protocol.SessionKeyKindAgent {
+		return nil
+	}
+	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
+	if channel == protocol.SessionChannelWebSocket || channel == protocol.SessionChannelInternalSegment || channel == "" {
+		return nil
+	}
+	if r == nil {
+		return unavailableExternalSessionGrant("external delivery router is unavailable")
+	}
+	r.mu.RLock()
+	grants := r.imGrants
+	sessions := r.sessions
+	// A nil IM delivery store and nil projection resolver identify lightweight
+	// channel-only routers used by legacy/unit callers. Once either lifecycle
+	// dependency is configured, an external structured Session must be checked
+	// against the real pairing and Session projection; silently allowing it when
+	// the grant service was forgotten would turn a deleted Session into a live
+	// return address.
+	lifecycleConfigured := r.imDeliveries != nil || sessions != nil
+	r.mu.RUnlock()
+	validator, ok := grants.(interface {
+		ValidateExternalSessionGrant(context.Context, string, string, string) error
+	})
+	if !ok {
+		if lifecycleConfigured {
+			return unavailableExternalSessionGrant("external Session grant validator is not configured")
+		}
+		return nil
+	}
+	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	if ownerUserID == "" {
+		return errors.New("external delivery owner is unavailable")
+	}
+	if err := validator.ValidateExternalSessionGrant(ctx, ownerUserID, agentID, parsed.Raw); err != nil {
+		return err
+	}
+	if target.PairingID != "" {
+		binding, ok := grants.(interface {
+			ValidateBindingDelivery(context.Context, string, string, DeliveryTarget) (bool, error)
+		})
+		if !ok {
+			return ErrExternalSessionGrantUnavailable
+		}
+		roomBound, err := binding.ValidateBindingDelivery(ctx, ownerUserID, agentID, target)
+		if err != nil {
+			return err
+		}
+		// Room 绑定使用已授权传输地址，不需要启动或物化第二个 IM runtime。
+		if roomBound {
+			return nil
+		}
+	}
+	// The first inbound human message is deliberately remembered before DM
+	// dispatch so retries and concurrent windows have an exact return address.
+	// DM admission materializes the workspace Session immediately afterwards;
+	// only that one ingress bookkeeping path may defer the projection check.
+	// Every physical send (including the first reply) uses an ordinary context
+	// and therefore still requires the projection below.
+	if allow, _ := ctx.Value(unmaterializedExternalSessionKey{}).(bool); allow {
+		return nil
+	}
+	if sessions == nil {
+		if lifecycleConfigured {
+			return unavailableExternalSessionGrant("external Session projection is not configured")
+		}
+		return nil
+	}
+	projected, err := sessions.ResolveDeliverySession(ctx, parsed.Raw)
+	if err != nil {
+		return unavailableExternalSessionGrant(fmt.Sprintf("读取 external Session projection 失败: %v", err))
+	}
+	if projected == nil || strings.TrimSpace(projected.SessionKey) != parsed.Raw ||
+		strings.TrimSpace(projected.AgentID) != strings.TrimSpace(agentID) {
+		return unavailableExternalSessionGrant("external Session projection is unavailable")
+	}
+	return nil
+}
+
+type unmaterializedExternalSessionKey struct{}
