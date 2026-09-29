@@ -29,6 +29,8 @@ Intel 或正式发布门禁，`releaseAccepted=false` 继续成立。
 再次使用同一 `.env` 通过真实模型完成 nxs 的 Write/Read/Bash、越界文件/sidecar/Ruby 子进程/网络拒绝和
 Interrupt/Close 清理；范围仍限 nxs runtime，不替代图形 App 或发布验收。
 
+[受限 fork executor gate](evidence/desktop-sandbox/2026-09-29-restricted-fork-gate/README.md) 随后完成：SDK `069cfa86` 将受限 fork 的 canonical transcript、独占目标发布、plan、artifact 复制与 session ID 重写统一接入文件执行器；新 nxs SHA-256 `c2e2f656…b634` 的 host-integration gate 通过。该项仍不扩大图形 App、macOS 14.0 或正式发布范围。
+
 随后 [受限 rewind executor gate](evidence/desktop-sandbox/2026-09-29-rewind-executor-gate/README.md)
 验证 SDK `ac2c41f9` 的 transcript、file-history backup 和目标文件恢复均沿受限文件端口执行；Nexus host-integration-only
 门禁通过，仍不扩大图形 App、后代监督或发布验收范围。
