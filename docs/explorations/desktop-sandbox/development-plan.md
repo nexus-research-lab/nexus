@@ -122,7 +122,7 @@ arm64 App/DMG 与原生 UI smoke，以及当前固定 nxs、Claude CLI 2.1.273 �
 | 完整取消与异常恢复 | 默认 macOS App 已接入随包校验 helper、固定 `app/processes` 根、原生进程恢复及资源/策略后续恢复；真实 sidecar 崩溃/重启已验证脱离宿主后代回收、process/policy/scratch 对账和 no-replay。仍需解决 macOS 14.0 缺精确 audit-token 信号接口、完整图形端到端故障证据；SDK 多文件掉电事务/持久执行回执仍未完成 |
 | 其余执行边界 | HTTP 图片/远程 URL 已补逐请求网络准入、受控物化和权限代次取消；HTTP/SSE MCP、认证 helper 与 stdio 服务已接入独立受控执行；后台内容替换记录读取及前序记忆 IO 已按上方证据收口。可信 MCP 代理、其余 SDK 辅助 IO、秘密文件/进程句柄和 Provider 自身网络出口仍需分别收口；当前命令网络限制不覆盖模型 transport，环境清理也不等于完整秘密隔离 |
 | 产品端到端 | 独立 App UI 的 DM 写读、交付批准/拒绝、停止已通过；修复版 App 的 HTTP/WebSocket DM 重启、Room 写读/审批、独立后台审批、动态网络批准/取消、双向后端及 nxs/Claude Full Access 切换、共同退出已通过。继续补完整 UI 复验及未覆盖的 Room 绑定后台/AutoDream 等路径，不用后端结果替代窗口操作 |
-| 老用户兼容 | Nexus/nxs 配套发布；发布前握手自检及已发布 nxs v0.1.34 会话升级/回退通过；干净 arm64 ad-hoc App/DMG smoke 通过，继续补完整 App 数据库与安装升级证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
+| 老用户兼容 | Nexus/nxs 配套发布；显式 previous/candidate nxs 的 runtime data upgrade、resume 与 rollback 三阶段已通过，随包握手和干净 arm64 ad-hoc App/DMG smoke 通过。仍需补完整 App 数据库迁移、DMG 安装升级/回退和正式签名包证据。HTTP/SSE、认证 helper 与 stdio 已接入各自受限执行合同；实际第三方 MCP 与完整功能迁移仍待验收 |
 | 正式 macOS 分发 | 从干净固定提交构建 Developer ID 签名/公证包，在启用正常 Gatekeeper 的干净机器验证 quarantine、安装、版本升级与回退；若支持 Intel，另补 Intel 证据 |
 
 2026-09-28 本轮最终复核：Mac 仍锁屏，完整窗口验收无法继续；GitHub 签名工作流所需 `NEXUS_SANDBOX_SDK_READ_TOKEN` 仍未配置。待桌面解锁与 CI 私有 SDK 只读授权后继续 UI 和分发验收。当前本地证据不替代这两个外部条件。
