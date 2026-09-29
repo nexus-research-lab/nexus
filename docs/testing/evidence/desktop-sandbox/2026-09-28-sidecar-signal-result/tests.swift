@@ -1,9 +1,7 @@
 import Darwin
 import Foundation
-import XCTest
-@testable import NexusDesktop
 
-final class SidecarOrphanReaperTests: XCTestCase {
+final class SidecarOrphanReaperTests {
   func testNativeSignalResultUsesReturnedErrorBeforeErrno() throws {
     try NativeSidecarProcessControl.validateSignalResult(0, errorNumber: EPERM)
     try NativeSidecarProcessControl.validateSignalResult(ESRCH, errorNumber: 0)

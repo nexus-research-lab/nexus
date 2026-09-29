@@ -1,5 +1,5 @@
 // INPUT: Kernel process identity and exact-target signal API.
-// OUTPUT: Boot-bound audit identity, proven absence, or an explicit observation error.
+// OUTPUT: Boot-bound audit identity, proven absence, or an explicit observation/signal error.
 // POS: Never falls back from audit-token signaling to a bare PID signal.
 import Darwin
 import Foundation
@@ -70,8 +70,16 @@ struct NativeSidecarProcessControl: SidecarProcessControlling {
       bytes.copyBytes(from: identity.auditToken.withUnsafeBytes { Array($0) })
     }
     errno = 0
-    if send(&token, signal) != 0 && errno != ESRCH {
-      throw failure("exact process signal failed: \(errno)")
+    let result = send(&token, signal)
+    try Self.validateSignalResult(result, errorNumber: errno)
+  }
+
+  // libproc returns positive errno values; only negative results consult errno.
+  // A stale errno must not hide a failure or turn an absent exact target into an error.
+  static func validateSignalResult(_ result: Int32, errorNumber: Int32) throws {
+    let failureCode = result >= 0 ? result : (errorNumber != 0 ? errorNumber : EIO)
+    if failureCode != 0 && failureCode != ESRCH {
+      throw SidecarRecoveryError(detail: "exact process signal failed: \(failureCode)")
     }
   }
 
