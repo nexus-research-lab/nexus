@@ -47,6 +47,8 @@ SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-
 
 [当前 sidecar 崩溃恢复证据](evidence/desktop-sandbox/2026-09-29-sidecar-crash-recovery/README.md) 随后通过：原宿主退出后脱离后代确认存活，重启后 process/policy/scratch 均完成对账，`noReplay=true` 且后代已回收。该证据是默认 macOS nxs fixture 的真实启动链结果；原始临时状态根已清理，不能扩大为 macOS 14.0、完整图形 App 或正式发布验收。
 
+[MCP helper header hardening](evidence/desktop-sandbox/2026-09-29-mcp-helper-header-hardening/README.md) 使用 SDK `3891dbdc` 构建的新 nxs 通过 `make check-desktop-sandbox` 的 `host-integration-only` 门禁；该增量只覆盖认证 header 解析的 fail-closed 规则，不扩大外部 MCP proxy、图形 App 或发布验收范围。
+
 最新 macOS sidecar 身份回归见 [2026-09-28 信号结果与随包自检](evidence/desktop-sandbox/2026-09-28-sidecar-signal-result/README.md)：Nexus 当前工作树修正 libproc 正值错误码解释，10 个独立 Swift 回归体、固定 nxs 宿主集成基线、真实 sidecar 崩溃恢复、随包 arm64 nxs 兼容性检查和显式已发布/候选 runtime 升级四阶段均通过。该批次仍不证明 macOS 14.0 缺失的精确信号 API、图形 App 全链路、Developer ID/公证、Intel、clean-host 或发布验收。
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
