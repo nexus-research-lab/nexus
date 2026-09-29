@@ -29,6 +29,10 @@ Intel 或正式发布门禁，`releaseAccepted=false` 继续成立。
 再次使用同一 `.env` 通过真实模型完成 nxs 的 Write/Read/Bash、越界文件/sidecar/Ruby 子进程/网络拒绝和
 Interrupt/Close 清理；范围仍限 nxs runtime，不替代图形 App 或发布验收。
 
+随后 [受限 rewind executor gate](evidence/desktop-sandbox/2026-09-29-rewind-executor-gate/README.md)
+验证 SDK `ac2c41f9` 的 transcript、file-history backup 和目标文件恢复均沿受限文件端口执行；Nexus host-integration-only
+门禁通过，仍不扩大图形 App、后代监督或发布验收范围。
+
 计划恢复的 [fail-closed 回归](evidence/desktop-sandbox/2026-09-29-plan-recovery-fail-closed/README.md) 由 SDK `867e788c` 收口：仅明确确认不存在时才独占创建，权限、取消、未知结果和已有文件均不写入；基线仍通过且 `releaseAccepted=false`。
 
 SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-29-rewind-fail-closed/README.md) 明确拒绝受限模式下尚未接入原子 file-executor 的 legacy 多文件回滚，避免绕过策略；Full Access 兼容路径保持不变。
