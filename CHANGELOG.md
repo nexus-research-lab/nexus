@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Complete the default macOS supervisor assembly: the bundled helper, protected `app/processes` root, two-phase process/resource recovery, and shutdown ordering now run through the desktop App startup path. Unresolved recovery still fails closed; macOS 14.0 compatibility and signed distribution remain separate release gates.
+
 - Interpret macOS exact-process signal return codes before consulting errno, so stale errno cannot hide permission failures or misclassify an already-absent process. Failed cleanup continues to retain the recovery record.
 
 - Persist macOS sidecar identity using its boot session and kernel audit token. Orphan cleanup and normal shutdown signal that exact identity, retain uncertain or malformed records and never signal a reused PID. Read legacy records without granting bare-PID termination authority; a still-running legacy sidecar requires closing the old app first. Restricted backends also protect the existing sidecar identity record from reads and writes.
