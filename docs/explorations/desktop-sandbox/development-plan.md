@@ -10,6 +10,8 @@
 
 2026-09-29 受限 prompt IO 收口：SDK `b3064c83` 在受限模式不再由宿主直接启动 `git`/`uname`，Git 状态快照改为省略并要求通过受限 Bash 获取；新 nxs SHA-256 `71940cdc…f19db7` 的 Nexus host-integration gate 通过。该修复不扩大后代监督、fork/rewind、图形 App 或发布验收范围。本机当前只有 `Nexus CUA Hardware Test Signing`，没有 Developer ID 身份，公证与 clean-host 发布继续待凭据。
 
+2026-09-29 受限 rewind 已接入 `ContextFiles`：SDK `ac2c41f9` 通过受限端口读取 transcript/file-history backup，使用原子替换恢复目标，普通文件删除走独立 worker operation；未知传输、缺失 backup 和越界路径均 fail closed。新 nxs SHA-256 `747d1afc…c5efcf` 的 host-integration gate 通过。受限 fork 的 transcript/artifact 多文件 materialization 仍未完成，不能把本项扩大为 fork 或发布验收。
+
 当前 Windows 固定基线：SDK `2148b4b1833b2324a4f41f6e42235aa9a73424e5`，Bridge
 `c018b4973dc3`（Go 模块 `v0.1.34-0.20260927154842-c018b4973dc3`）。Windows 11 amd64
 本机已通过 53 个指定原生检查和 Windows amd64/arm64 构建。SDK 修复普通 settings
