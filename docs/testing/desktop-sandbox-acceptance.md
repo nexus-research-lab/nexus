@@ -51,6 +51,8 @@ SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-
 
 Nexus 持久化 MCP 配置也已在 `ad62e8d73` 收紧静态 header：非法 token 名称、CR/LF/NUL 和超过 128 个条目在连接前拒绝；`go test ./internal/runtime/clientopts -count=1` 通过。该项仍属于配置边界回归，不替代外部 MCP proxy、图形 App 或发布验收。
 
+提交 `dc4ef2bf4` 进一步拒绝 MCP endpoint 与 OAuth metadata URL 中的 userinfo 和 fragment；同一 `clientopts` 目标测试通过。
+
 最新 macOS sidecar 身份回归见 [2026-09-28 信号结果与随包自检](evidence/desktop-sandbox/2026-09-28-sidecar-signal-result/README.md)：Nexus 当前工作树修正 libproc 正值错误码解释，10 个独立 Swift 回归体、固定 nxs 宿主集成基线、真实 sidecar 崩溃恢复、随包 arm64 nxs 兼容性检查和显式已发布/候选 runtime 升级四阶段均通过。该批次仍不证明 macOS 14.0 缺失的精确信号 API、图形 App 全链路、Developer ID/公证、Intel、clean-host 或发布验收。
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
