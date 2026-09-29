@@ -4,7 +4,7 @@
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
-2026-09-29 当前收口状态：默认 macOS App 的真实 sidecar 崩溃/重启恢复已通过，脱离宿主的后代进程被回收，持久 process/policy/scratch 记录均完成对账且 `noReplay=true`；见[崩溃恢复证据](../../testing/evidence/desktop-sandbox/2026-09-29-sidecar-crash-recovery/README.md)。受限 fork、read-only resource 和随包 runtime compatibility 也已完成对应门禁。以下历史段落中的“尚未接入”仅保留为当时记录，不覆盖上述当前状态。当前主要未完成项是：其余 SDK 辅助 IO/MCP、秘密/句柄及 Provider 出口边界，macOS 14.0 精确终止兼容，完整图形 App 窗口级 DM/Room/后台验收，以及 Developer ID/公证/clean-host/Intel（如支持）正式发布门禁。
+2026-09-29 当前收口状态：macOS App 最低版本已提升到 14.2（`xnu-10002.61.3` 起提供精确 audit-token 信号接口）；默认 macOS App 的真实 sidecar 崩溃/重启恢复已通过，脱离宿主的后代进程被回收，持久 process/policy/scratch 记录均完成对账且 `noReplay=true`；见[崩溃恢复证据](../../testing/evidence/desktop-sandbox/2026-09-29-sidecar-crash-recovery/README.md)。受限 fork、read-only resource 和随包 runtime compatibility 也已完成对应门禁。以下历史段落中的“尚未接入”仅保留为当时记录，不覆盖上述当前状态。当前主要未完成项是：其余 SDK 辅助 IO/MCP、秘密/句柄及 Provider 出口边界，macOS 14.0 精确终止兼容，完整图形 App 窗口级 DM/Room/后台验收，以及 Developer ID/公证/clean-host/Intel（如支持）正式发布门禁。
 
 同日 SDK `3891dbdc` 收紧 MCP `headersHelper` 的 checked 与兼容入口：输出大小、条目数、RFC token header 名称及控制字符统一 fail closed；该修复只涉及认证 header 解析，不扩大图形 App 或发布验收范围。
 

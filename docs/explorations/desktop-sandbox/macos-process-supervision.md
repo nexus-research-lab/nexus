@@ -27,7 +27,7 @@ Bridge 已落地尚未接线的 `internal/processscope`：严格登记/恢复、
 
 ## 尚未解决的兼容与信任边界
 
-当前 App 最低版本是 macOS 14.0。XNU `xnu-10002.1.13` 没有精确 audit-token 信号入口，较新的 `xnu-10002.61.3` 有；早期系统仍需可部署的精确终止方案。`proc_info_extended_id` 在旧实现中只把 identity 参数传给查询，`PROC_INFO_CALL_TERMINATE` 仍直接调用 `proc_terminate(pid)`，不能作为无竞态替代。
+当前 App 最低版本是 macOS 14.2。XNU `xnu-10002.1.13`（macOS 14.0）和 `xnu-10002.41.9`（macOS 14.1）没有精确 audit-token 信号入口；`xnu-10002.61.3`（macOS 14.2）起提供该接口。低于 14.2 的系统由 App 部署目标拒绝。`proc_info_extended_id` 在旧实现中只把 identity 参数传给查询，`PROC_INFO_CALL_TERMINATE` 仍直接调用 `proc_terminate(pid)`，不能作为无竞态替代。
 
 coalition 观察结构及 usage wrapper 涉及私有 ABI，必须明确验证及失败关闭策略；进程自行委托其他系统服务产生的副作用不等于直接 fork 后代，仍属于各服务/网络/IPC 的独立权限边界。原型不提供抵御任意未受限同 UID 程序伪造本地控制状态的保证。正式登记与 IPC 鉴权完成前，不将实验函数接入现有自动回收入口。
 

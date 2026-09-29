@@ -612,7 +612,8 @@ native thread, so the absolute state path is not limited by `sockaddr_un.sun_pat
 It does not change process cwd, create a short alias, or move control sockets into
 shared temporary directories. Host cleanup retains unlink ownership; missing
 thread-local cwd support fails closed. Ordinary filesystem limits and supported-OS
-acceptance still apply; this does not solve the separate macOS 14.0 signal gap.
+acceptance still apply; the macOS App now requires macOS 14.2 or newer for the
+audit-token signal path.
 
 One active launch per owner/session is enforced by a unique index. `prepared` may
 be canceled as `aborted` before registration; registration writes the exact original
@@ -799,4 +800,4 @@ macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 
 
 原生壳继续读取既有 `NexusSidecar.pid.json`，新增记录格式 version 2 保存 PID、可执行路径、系统 boot session UUID 与 kernel audit token。正常退出和孤儿清理都通过 `proc_signal_with_audittoken` 发信号，不回退裸 PID kill；发送前验证同用户、PID/version 与本次 boot。信号调用返回正值时直接按该错误码处理，仅负值读取 errno；只接受成功或精确目标已不存在，其他失败继续保留恢复记录。旧记录只持 PID/path：明确查无进程才清理记录，仍存活或观察未知时保留并拒绝启动，提示先退出旧版 Nexus，不因路径不同而删除。新格式 PID 已复用或 boot 已变化时不信号新进程；相同内核进程但可执行路径改变保留 unknown。损坏、链接、非普通文件、读取或精确终止失败不当作退出。记录只在当前内容仍匹配本次所有权时删除。
 
-这保护原生 sidecar 身份，不替代 Go 实例锁与任务后代恢复。macOS 14.0 的精确信号可用性仍是交付缺口：接口缺失时明确失败，不以较新系统原生通过冒充最低版本支持。Full Access 仍不提供文件隔离保证。
+这保护原生 sidecar 身份，不替代 Go 实例锁与任务后代恢复。macOS App 的最低系统版本为 14.2；该版本起提供精确 audit-token 信号接口，低于此版本由系统部署目标直接拒绝。Full Access 仍不提供文件隔离保证。
