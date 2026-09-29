@@ -1470,3 +1470,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored message protocol boundaries by adding `StreamMessage` and unifying backend streaming messages, final messages, and frontend consumption models.
 - Adjusted WebSocket/IM sending layers to explicitly separate `message`, `stream`, and `event` transports.
 - Passed `include_partial_messages` to the SDK by default and removed invalid frontend streaming/round configuration options.
+- Raise the macOS desktop minimum to 14.2, the first Sonoma release whose XNU kernel includes the audit-token signal path required for race-free sidecar termination.
