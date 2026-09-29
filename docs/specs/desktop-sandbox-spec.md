@@ -349,8 +349,8 @@ claim and prevents a pre-runtime transcript/plan write from bypassing the host
 boundary. Restricted recorder updates and tombstone/UUID-based transcript rewrites now use the
 executor-backed transcript mutation port; the Full Access compatibility path remains unchanged.
 Live context-state rewrites still fail closed until an atomic mutation port is
-available. The recorder port is a scoped read/write boundary; atomic publication,
-other transcript auxiliary reads and remaining IO stay separate work,
+available. The recorder port uses the native helper's same-directory atomic
+replacement for append/update/delete and artifact writes; other transcript auxiliary reads and remaining IO stay separate work,
 and other platforms retain their existing local coordination path.
 
 The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
