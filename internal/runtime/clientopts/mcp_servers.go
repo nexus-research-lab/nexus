@@ -228,7 +228,7 @@ func parsePersistedRemoteMCPServer(
 	if err != nil {
 		return nil, agentMCPServerError(name, err.Error())
 	}
-	if err = validateNonEmptyMapKeys(input.Headers, "headers"); err != nil {
+	if err = validateMCPHeaders(input.Headers); err != nil {
 		return nil, agentMCPServerError(name, err.Error())
 	}
 	oauth, err := parsePersistedMCPServerOAuth(input.OAuth)
@@ -290,6 +290,35 @@ func validateNonEmptyMapKeys(values map[string]string, field string) error {
 		}
 	}
 	return nil
+}
+
+func validateMCPHeaders(values map[string]string) error {
+	if len(values) > 128 {
+		return fmt.Errorf("headers 不能包含超过 128 个条目")
+	}
+	for key, value := range values {
+		if !validMCPHeaderName(key) || strings.ContainsAny(value, "\r\n\x00") {
+			return fmt.Errorf("headers 包含非法名称或控制字符")
+		}
+	}
+	return nil
+}
+
+func validMCPHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		switch r {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func decodeStrictMCPServerObject(object map[string]any, target any) error {

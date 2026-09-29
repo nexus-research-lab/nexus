@@ -85,6 +85,27 @@ func TestMergeAgentMCPServersParsesSupportedTransports(t *testing.T) {
 	}
 }
 
+func TestMergeAgentMCPServersRejectsUnsafeStaticHeaders(t *testing.T) {
+	for name, headers := range map[string]map[string]any{
+		"control-character-name":  {"X-Bad\nName": "value"},
+		"control-character-value": {"X-Bad": "value\r\nmore"},
+		"non-token-name":          {"X Bad": "value"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := MergeAgentMCPServers(nil, map[string]any{
+				"remote": map[string]any{
+					"type":    "http",
+					"url":     "https://mcp.example.com/rpc",
+					"headers": headers,
+				},
+			})
+			if err == nil || !strings.Contains(err.Error(), "非法") {
+				t.Fatalf("unsafe headers accepted: %v", err)
+			}
+		})
+	}
+}
+
 func TestMergeAgentMCPServersRejectsManagedNames(t *testing.T) {
 	tests := []struct {
 		name       string
