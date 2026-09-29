@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject unsafe static MCP header names, control characters and oversized header maps before persisting or connecting remote servers.
 
+- Reject MCP and OAuth metadata URLs containing userinfo or fragments before they reach the desktop network contract.
+
 - Run the macOS App smoke test against an isolated state root by default, while allowing explicit roots for upgrade and recovery checks. This prevents stale or partially migrated user databases from producing false sandbox failures.
 
 - Complete the default macOS supervisor assembly: the bundled helper, protected `app/processes` root, two-phase process/resource recovery, and shutdown ordering now run through the desktop App startup path. Unresolved recovery still fails closed; macOS 14.0 compatibility and signed distribution remain separate release gates.
