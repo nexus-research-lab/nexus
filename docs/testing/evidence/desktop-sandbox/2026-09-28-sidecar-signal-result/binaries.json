@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox/desktop/macos/.build/sidecar-build.r2B269/Nexus.app/Contents/MacOS/nexus-server",
+    "sha256": "25ad915dc143df0b4517407885cb1555b9860a1604982ff58606ecfad1312350"
+  },
+  {
+    "path": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox/desktop/macos/.build/sidecar-build.r2B269/Nexus.app/Contents/Resources/bin/nexus-runtime-bootstrap",
+    "sha256": "1ec21347021023c9b5a0df9d08d9d671861bb763cf97464c750bdf8960ebe229"
+  },
+  {
+    "path": "/private/tmp/nexus-hook-sandbox/nxs",
+    "sha256": "ecb1f7cf1b4650c1bb77f79a31e9812e4fcc3131e2af5e3de752b8f16b43438f"
+  }
+]

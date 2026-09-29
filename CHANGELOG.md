@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Interpret macOS exact-process signal return codes before consulting errno, so stale errno cannot hide permission failures or misclassify an already-absent process. Failed cleanup continues to retain the recovery record.
+
 - Persist macOS sidecar identity using its boot session and kernel audit token. Orphan cleanup and normal shutdown signal that exact identity, retain uncertain or malformed records and never signal a reused PID. Read legacy records without granting bare-PID termination authority; a still-running legacy sidecar requires closing the old app first. Restricted backends also protect the existing sidecar identity record from reads and writes.
 
 - Enable the macOS desktop process supervisor by default using the bundled, verified helper and sidecar ownership lock. Recover original process and resource records before serving requests; failed recovery preserves records and blocks startup. Keep supervision resources until runtime shutdown completes. Development builds now use a matching sidecar/helper bundle instead of `go run`.

@@ -2,6 +2,8 @@
 
 状态：开发验收清单，non-normative，更新至 2026-09-28。当前合同见 [规范](../specs/desktop-sandbox-spec.md)，开发状态见 [计划](../explorations/desktop-sandbox/development-plan.md)。
 
+最新 macOS sidecar 身份回归见 [2026-09-28 信号结果与随包自检](evidence/desktop-sandbox/2026-09-28-sidecar-signal-result/README.md)：Nexus 当前工作树修正 libproc 正值错误码解释，10 个独立 Swift 回归体、固定 nxs 宿主集成基线、真实 sidecar 崩溃恢复、随包 arm64 nxs 兼容性检查和显式已发布/候选 runtime 升级四阶段均通过。该批次仍不证明 macOS 14.0 缺失的精确信号 API、图形 App 全链路、Developer ID/公证、Intel、clean-host 或发布验收。
+
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
 
 最新 macOS 固定基线见 [2026-09-28 后台会话记录读取](evidence/desktop-sandbox/2026-09-28-memory-transcript/README.md)：Nexus `fc888db41`、SDK `2d1fd0d6`、Bridge `4b2972f`，61 项检查及 888 个必测名称全部通过。Summary、AutoMemory 与 AutoDream 只沿当前 recorder 路径经文件执行器读取内容替换记录；拒绝、取消或不完整读取均在调用模型前停止，不再回退宿主 catalog 或 Git worktree 扫描。流式传输保留原有大日志 compact 后缀、保留段和 metadata 语义，不新增有效后缀的硬大小上限。原生 runtime 普通构建 18 个、原生流式 helper race 4 个必测名称通过，相关包 race 与 vet 通过。此前[记忆写入租约](evidence/desktop-sandbox/2026-09-28-memory-writer/README.md)、[AutoDream 读取](evidence/desktop-sandbox/2026-09-28-autodream/README.md)、[初始化与摘要](evidence/desktop-sandbox/2026-09-28-memory-persistence/README.md)和[记忆召回](evidence/desktop-sandbox/2026-09-28-memory-recall/README.md)证据保留，写入租约批次额外 runtime race 初始化超时的失败也保留原结论。普通会话录制/恢复、其余 SDK IO、任意后代监督与一般 unknown 恢复仍未闭合。

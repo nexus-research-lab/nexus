@@ -6,6 +6,8 @@
 
 当前开发位置（2026-09-28）：Windows 机器的三个 worktree 位于 `E:\Code\nexus\worktrees\desktop-sandbox\`；macOS 机器继续使用 `/Users/berhand/program/Work/Nexus/worktrees/` 下三个仓库各自的 `desktop-sandbox` worktree。两台机器都使用本地与 origin 的 `codex/desktop-sandbox-approvals`，分平台验证并在推送前合并远端进展。历史“仅本地”限制不适用于本轮；Nexus main 未参与本轮修改。
 
+2026-09-29 追加的 macOS 回归已修正精确 sidecar 信号接口正值错误码处理；固定 sidecar/helper 构建、随包 nxs `check-desktop-runtime`、显式 released/candidate runtime upgrade 四阶段和真实宿主崩溃恢复均有归档证据。该项不改变 macOS 14.0 精确信号 API、图形 App 全链路及签名发布验收仍未完成的状态。
+
 当前 Windows 固定基线：SDK `2148b4b1833b2324a4f41f6e42235aa9a73424e5`，Bridge
 `c018b4973dc3`（Go 模块 `v0.1.34-0.20260927154842-c018b4973dc3`）。Windows 11 amd64
 本机已通过 53 个指定原生检查和 Windows amd64/arm64 构建。SDK 修复普通 settings
