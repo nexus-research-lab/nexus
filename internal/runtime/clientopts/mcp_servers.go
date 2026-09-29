@@ -262,7 +262,7 @@ func parsePersistedMCPServerOAuth(input *persistedMCPServerOAuth) (*sdkmcp.OAuth
 	metadataURL := strings.TrimSpace(input.AuthServerMetadataURL)
 	if metadataURL != "" {
 		parsed, err := url.Parse(metadataURL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
 			return nil, fmt.Errorf("oauth authServerMetadataUrl 必须是有效的 HTTPS URL")
 		}
 	}
@@ -277,7 +277,7 @@ func parsePersistedMCPServerOAuth(input *persistedMCPServerOAuth) (*sdkmcp.OAuth
 func validateRemoteMCPServerURL(raw string) (string, error) {
 	serverURL := strings.TrimSpace(raw)
 	parsed, err := url.Parse(serverURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return "", fmt.Errorf("url 必须是有效的 HTTP 或 HTTPS URL")
 	}
 	return serverURL, nil
