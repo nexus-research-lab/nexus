@@ -10,6 +10,8 @@
 
 计划恢复的 [fail-closed 回归](evidence/desktop-sandbox/2026-09-29-plan-recovery-fail-closed/README.md) 由 SDK `867e788c` 收口：仅明确确认不存在时才独占创建，权限、取消、未知结果和已有文件均不写入；基线仍通过且 `releaseAccepted=false`。
 
+SDK `7090d9c5` 的 [rewind fail-closed 基线](evidence/desktop-sandbox/2026-09-29-rewind-fail-closed/README.md) 明确拒绝受限模式下尚未接入原子 file-executor 的 legacy 多文件回滚，避免绕过策略；Full Access 兼容路径保持不变。
+
 最新 macOS sidecar 身份回归见 [2026-09-28 信号结果与随包自检](evidence/desktop-sandbox/2026-09-28-sidecar-signal-result/README.md)：Nexus 当前工作树修正 libproc 正值错误码解释，10 个独立 Swift 回归体、固定 nxs 宿主集成基线、真实 sidecar 崩溃恢复、随包 arm64 nxs 兼容性检查和显式已发布/候选 runtime 升级四阶段均通过。该批次仍不证明 macOS 14.0 缺失的精确信号 API、图形 App 全链路、Developer ID/公证、Intel、clean-host 或发布验收。
 
 最新 Windows 本机证据见 [2026-09-28 原生组件与恢复基线](evidence/desktop-sandbox/2026-09-28-windows-native/README.md)：53 个指定原生检查和 amd64/arm64 构建通过；完整 Windows 执行后端及发布验收仍未完成，`releaseAccepted=false`。下文按日期保留历史结果，不能把旧“无 Windows 主机”结论当作当前状态。
