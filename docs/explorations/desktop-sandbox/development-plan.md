@@ -1,6 +1,6 @@
 # 桌面沙箱完整改造与开发计划
 
-状态：**non-normative / 待分阶段实现与验收，2026-09-29**。
+状态：**non-normative / 待分阶段实现与验收，2026-09-30**。
 本文件是剩余工作的唯一开发计划与状态入口；不是当前协议。已经实现的行为只写入 [当前规范](../../specs/desktop-sandbox-spec.md)。
 背景与证据见 [现状评估](current-assessment-2026-09-15.md)，逐项测试见 [验收矩阵](../../testing/desktop-sandbox-acceptance.md)。
 
@@ -22,9 +22,9 @@
 
 2026-09-29 受限 rewind 已接入 `ContextFiles`：SDK `ac2c41f9` 通过受限端口读取 transcript/file-history backup，使用原子替换恢复目标，普通文件删除走独立 worker operation；未知传输、缺失 backup 和越界路径均 fail closed。新 nxs SHA-256 `747d1afc…c5efcf` 的 host-integration gate 通过。受限 fork 的 transcript/artifact 多文件 materialization 仍未完成，不能把本项扩大为 fork 或发布验收。
 
-当前 Windows 固定基线：SDK `2148b4b1833b2324a4f41f6e42235aa9a73424e5`，Bridge
-`c018b4973dc3`（Go 模块 `v0.1.34-0.20260927154842-c018b4973dc3`）。Windows 11 amd64
-本机已通过 53 个指定原生检查和 Windows amd64/arm64 构建。SDK 修复普通 settings
+当前 Windows 已验证固定基线：SDK `38221838946f17f87be9da4af5f10ddc95671edf`，Bridge
+`b0402649d44b`（Go 模块 `v0.1.34-0.20260927155900-b0402649d44b`）。Windows 11 amd64
+本机已通过 57 个指定原生检查和 Windows amd64/arm64 构建。SDK 修复普通 settings
 写入与进程崩溃恢复；Bridge 挂起创建后绑定 Job 再恢复，修复入口立即派生的清理窗口，
 预检取消和输出管道等待有界。原生 junction 拒绝及宿主崩溃/unknown 对账也有实测。
 详见[本机证据](../../testing/evidence/desktop-sandbox/2026-09-28-windows-native/README.md)。
@@ -35,6 +35,41 @@ P3 兼容与控制隔离的完整组合矩阵仍在进行；P4 原生执行/文�
 capability-only 为 8 通过/2 兼容失败，capability＋logon 为 9 通过/1 CLR 失败。定向
 跟踪定位到 CLR 自建全局 IPC section 的显式 DACL。结果、证据边界及下一轮唯一假设
 见 [Windows P3 本机决策](windows-p3-native-decision.md)；没有一组已获完整验收。
+
+### 2026-09-30 Windows 功能集中补齐检查点（尚未编译或验收）
+
+SDK 实现检查点为 `d330525faa221cba0393fe68948d94267d162fb0`，不是以上已验证基线。
+按用户要求，当前先集中补功能，期间仅格式整理与静态检查，不反复编译或运行矩阵；
+功能接线完成后再统一补测试、编译及本机真实执行/拒绝证据。当前新增实现如下：
+
+- Windows 文件 worker 使用固定父句柄处理逐组件路径、junction/symlink、实际类型、
+  lstat、独占创建、删除和同目录按句柄原子替换；未接通 OS 授权不能使用它宣称受限 IO。
+- 单次 AppContainer 创建属性及实际 token 校验、专用 runner 内的唯一 profile 生命周期、
+  私有桌面/stdio/悬挂命令统一 owner、规范准备正文和已认证管道的准备/start 门禁已装配。
+  准备与启动持久记录前后要求租约复查，错误保留清理责任，不自动重放。
+- 固定目录快照包含卷/128 位文件身份、owner/group/control 与原始 DACL。
+  新增宿主保护 DACL 的独占追加日志，刷盘后才交出授权意图，固定领域归属和策略代次，
+  严格有界恢复拒绝损坏/残帧/非法阶段；恢复 owner 不得重新授权或用于 start。
+  单目录核验器检查真实快照与可信计划，但不代替整组资源清单。
+- 单目录元数据 lease 已接通实际精确 profile SID 的无继承 ACL 授予、准备失败阻止 runner
+  Start，以及真实 runner Job 清理后的核对撤销。核验器在实际目录检查前后确认 runner
+  内核进程存活。MAXIMUM_ALLOWED 目标句柄不传播子项的语义及整个实现尚未原生验证。
+
+仍需完成的主要工作按依赖顺序推进：
+
+1. 收口 AppContainer 的系统兼容准备、NUL/普通 Go 后代 stdio 和 PowerShell 祖先元数据，
+   在同一身份/零 capability/控制隔离候选中完成组合验收。
+2. 从单目录元数据租约扩展为完整目录树 ACL 修改、已有/新建子项的继承与精确撤销、完整目录清单、
+   SACL/完整性和崩溃恢复；网络默认拒绝及允许网络的代理/资源租约也必须闭合。
+3. 接通专用 runner 与 nxs 的产品入口、账号 provisioning 和 SDK→Bridge→Nexus 装配。
+   复用现有应用层能力接入 Windows 文件/搜索/媒体/Notebook/Skill/context/project/settings/policy，
+   不把内部组件或管道帧通过当作产品能力。
+4. 功能完成后统一验证凭据/句柄、进程树、取消、审批、权限切换、unknown 恢复及
+   原生安装/修复/升级与端到端运行；补固定版本的测试和拒绝证据，继续阶段性提交/推送。
+
+目录日志自身不修改 ACL；新增单目录 lease 是独立修改层，不能证明完整目录树已回收，
+不宣称断电持久性，尚未接通部署和恢复产品入口。
+Windows capability 及 `releaseAccepted` 保持关闭，完整目标仍未完成。
 
 此前 macOS 已验证的运行时代码基线为 SDK `9956def130da33af47accf799a9c27c16a551104`、Bridge
 `37434c2d38b129b6bbde67ac81afee673f39816d`，Nexus 使用精确模块
