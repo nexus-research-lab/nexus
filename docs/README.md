@@ -20,7 +20,7 @@
 | Control 部署与账号迁移 | [Nexus Control 部署与迁移](./operations/control-migration.md) |
 | OpenAI Responses runtime | [OpenAI Responses runtime 集成](./specs/openai-responses-runtime-spec.md) |
 | Echo 主动跟进 | [Echo 主动跟进模块](./specs/echo-spec.md) |
-| 维护者回归测试 | [Nexus 回归测试总目录](./testing/nexus-regression-catalog.md) · [会话打开与最新消息滚动](./testing/conversation-latest-scroll-regression.md) · [多模态模型上下文与图片输入限制](./testing/vision-model-image-limits.md) · [万张照片与智能体产品实现模式](./testing/large-photo-agent-product-patterns.md) |
+| 维护者回归测试 | [Nexus 回归测试总目录](./testing/nexus-regression-catalog.md) · [会话打开与最新消息滚动](./testing/conversation-latest-scroll-regression.md) |
 
 ## 维护者规范
 

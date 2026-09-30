@@ -43,9 +43,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a non-normative research record for large-photo agent products, separating photo-library capacity from single-request image limits and documenting retrieval-first implementation patterns.
-- Added a non-normative research record for GLM-5.3-Flash, Kimi K3, Qwen3.8-Max, and Qwen3.7-Plus context and image-input limits.
-
 - IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 
 - 在线群与真人私聊支持跨端持久已读水位及侧栏未读数；后台页面不会自动标记已读。
