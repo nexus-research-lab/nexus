@@ -6,6 +6,7 @@
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 
 ## Build & Validation Commands
+- `NEXUS_WINDOWS_SANDBOX_PREVIEW=true` 仅打开宿主开发装配，默认关闭；固定机器 helper/实例锁和完整 SDK 握手仍必需。已批准精确域名在同次 probe/runtime 中只解析一次并绑定固定公网 HTTPS 端点；当前尚缺 Provider 凭据通道及原生验收，不得把预览开关当发布支持或跳过 unknown。
 - Windows 机器沙箱准备包由 `scripts/desktop/package-windows-sandbox-system.ps1` 与 `desktop/windows/sandbox-system/Package.wxs` 单独构建，必须提供同架构签名服务、签名 nxs bootstrap 和 SDK 源码；安装预检摘要编译进独立 SYSTEM custom action。受保护 sandbox-runtime.json 固定六字段记录版本、架构、两个映像摘要与签名元数据，供 Bridge LoadInstalled 读取；签名指纹字段不替代 Authenticode 验证。服务保持 disabled，不能据 XML/脚本解析通过宣称安装或沙箱验收完成；维护保留所有租约证据，不使用 per-user 可写映像注册 SYSTEM 服务。
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
 - `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。

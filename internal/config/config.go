@@ -41,6 +41,7 @@ type Config struct {
 	WebDistDir                       string
 	AppMode                          string
 	DesktopSandboxEnabled            bool
+	WindowsSandboxPreview            bool
 	DesktopSessionToken              string
 	BrowserEnabled                   bool
 	SkillsAPIURL                     string
@@ -198,6 +199,7 @@ func Load() Config {
 		// Keep the field for internal option plumbing and test injection, but do
 		// not expose a runtime on/off switch through the process environment.
 		DesktopSandboxEnabled:       strings.EqualFold(strings.TrimSpace(appMode), "desktop"),
+		WindowsSandboxPreview:       mustBool(getEnv("NEXUS_WINDOWS_SANDBOX_PREVIEW", "false")),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		BrowserEnabled:              browserEnabled,
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),

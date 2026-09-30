@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 // INPUT: 非 macOS App 装配。
 // OUTPUT: 保留现有平台启动行为。

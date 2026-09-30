@@ -818,3 +818,9 @@ macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 
 原生壳继续读取既有 `NexusSidecar.pid.json`，新增记录格式 version 2 保存 PID、可执行路径、系统 boot session UUID 与 kernel audit token。正常退出和孤儿清理都通过 `proc_signal_with_audittoken` 发信号，不回退裸 PID kill；发送前验证同用户、PID/version 与本次 boot。信号调用返回正值时直接按该错误码处理，仅负值读取 errno；只接受成功或精确目标已不存在，其他失败继续保留恢复记录。旧记录只持 PID/path：明确查无进程才清理记录，仍存活或观察未知时保留并拒绝启动，提示先退出旧版 Nexus，不因路径不同而删除。新格式 PID 已复用或 boot 已变化时不信号新进程；相同内核进程但可执行路径改变保留 unknown。损坏、链接、非普通文件、读取或精确终止失败不当作退出。记录只在当前内容仍匹配本次所有权时删除。
 
 这保护原生 sidecar 身份，不替代 Go 实例锁与任务后代恢复。macOS App 的最低系统版本为 14.2；该版本起提供精确 audit-token 信号接口，低于此版本由系统部署目标直接拒绝。Full Access 仍不提供文件隔离保证。
+
+### Windows 独立持久启动与资源责任
+
+Windows 显式监督以原 owner/session/generation、随机 launch ID 和用途顺序保存 Reserve、prepared、单次 ClaimStart 及 cleaned/unknown；探测与 runtime 共用 scope 栅栏。策略回执绑定原 runtime launch、SDK execution ID、prepare/grant 双摘要，不借用 Darwin UID 或 launchd 字段。未知启动即使切换 Full Access 也不能绕过。
+
+Reserve 同事务保存 scratch pending 责任。正常最后 Release 仅在精确 cleaned 回执后用原 live owner 删除，再提交 complete；删除成功但提交失败只重试原完成记录，不用路径缺失推断成功。冷启动遇到 pending scratch 且无原进程内 owner 时拒绝替换。InspectWindowsSandboxRecovery 提供精确诊断；持实例锁的 RecoverWindowsSandbox 仅在执行 cleaned 且 scratch complete 时对账原关联策略。SDK 原生崩溃清理或原 scratch 删除证明缺失时继续保留 unknown，不重放任务，不从 PID 退出、复用或目录不存在构造恢复成功。原生冷恢复仍未完成验收。

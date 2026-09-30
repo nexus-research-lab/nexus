@@ -6,6 +6,7 @@ package sandbox
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - windows_process_*.go / windows_resources.go / windows_receipt_process.go / windows_policy_recovery.go：Windows独立启动CAS、scratch责任及精确策略关联；不以路径或PID缺失生成cleaned。
 //   - lifecycle_recovery.go：已终止进程的资源完成阶段和独立 pending 策略扫描，稳定 launch ID 分页。
 //   - scratch_recovery.go / policy_recovery.go：资源清理意图、单调阶段及 pending 栅栏；原进程和 scratch 完成后只 reconcile exact 关联策略。
 //   - receipt_process.go：策略代次绑定原 runtime exact key，按原进程代次读取，拒绝猜测旧回执或改绑。

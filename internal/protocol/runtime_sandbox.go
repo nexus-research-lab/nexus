@@ -36,6 +36,7 @@ type SandboxPolicyReceiptSnapshot struct {
 	// ProcessKey binds this policy generation to its original supervised runtime.
 	// Nil preserves historical unsupervised receipts without inventing evidence.
 	ProcessKey               *SandboxProcessKey
+	WindowsProcess           *WindowsSandboxPolicyBinding
 	Generation               uint64
 	RoundID                  string
 	PolicyDigest             string

@@ -35,7 +35,7 @@ func (m *Manager) SetSandboxProcessSupervisor(config SandboxProcessSupervisor) e
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.activeStartups != 0 || len(m.sessions) != 0 || m.shutdownDone != nil {
+	if m.activeStartups != 0 || len(m.sessions) != 0 || m.shutdownDone != nil || m.windowsSandboxSupervisor != nil {
 		return errors.New("process supervisor must be configured before runtime startup")
 	}
 	if _, ok := m.sandboxReceiptStore.(SandboxProcessStore); !ok {
@@ -52,6 +52,11 @@ func (m *Manager) SetSandboxProcessSupervisor(config SandboxProcessSupervisor) e
 }
 
 func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, session string, floor uint64, lease *SandboxResourceLease) (bridge.Options, error) {
+	var windowsErr error
+	options, windowsErr = m.windowsSupervisedProcessOptions(options, owner, session, floor, lease)
+	if windowsErr != nil {
+		return bridge.Options{}, windowsErr
+	}
 	m.mu.RLock()
 	config := m.sandboxSupervisor
 	store, ok := m.sandboxReceiptStore.(SandboxProcessStore)

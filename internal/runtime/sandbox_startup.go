@@ -35,6 +35,11 @@ func (m *Manager) sandboxStartupGeneration(ctx context.Context, owner, session s
 	if err != nil {
 		return 0, err
 	}
+	windowsFloor, err := windowsSandboxStartupGeneration(ctx, store, owner, session)
+	if err != nil {
+		return 0, err
+	}
+	processFloor = max(processFloor, windowsFloor)
 	snapshot, found, err := reader.Latest(ctx, owner, session)
 	if err != nil {
 		return 0, fmt.Errorf("read previous sandbox runtime receipt: %w", err)

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Persist Windows launch admission, prepared bindings, one-time start claims and cleanup outcomes with independent scope fences. Bind policy receipts to the original runtime execution and retain pending scratch across unknown outcomes; recovery only reconciles existing complete proof and does not infer cleanup from a missing PID or path.
+
+- Wire an explicit Windows sandbox host preview through App, DM, Room and memory maintenance. The preview loads the protected machine helper manifest, retains sidecar ownership and requires restricted nxs resource policies; Full Access stays an explicit separate path. Approved exact domains are resolved once into fixed public HTTPS endpoints for probe/runtime; provider credential channels, native capability acceptance and cold recovery remain incomplete. No native validation is claimed by this assembly change.
+
 - Add a Windows sidecar state-root byte lock before migrations and preserve ownership through shutdown. Package a protected, versioned runtime manifest for the Bridge installed-helper loader and pin that Bridge revision. These changes have only been formatted and statically checked; native lock and installation acceptance remain pending.
 
 - Add a separate machine-level Windows sandbox MSI source and signed packaging entry for the SYSTEM service and protected command bootstrap. Bind both image digests into installation preflight, check actual PE architectures and signatures, and preserve lease evidence during maintenance. The service remains disabled; packaging, installation and native execution acceptance are pending.

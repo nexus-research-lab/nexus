@@ -250,6 +250,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    e.service.config.AppMode,
 		DesktopSandboxEnabled:      e.service.config.DesktopSandboxEnabled,
+		WindowsSandboxPreview:      e.service.config.WindowsSandboxPreview,
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
 		IsMainAgent:                e.agent.IsMain,

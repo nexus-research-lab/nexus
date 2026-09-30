@@ -453,6 +453,10 @@ func (m *Manager) getOrCreateWithFactory(
 				current.StartupGeneration = generationFloor
 			}
 			current.ProcessGeneration = 0
+			current.WindowsProcessGeneration = 0
+			if launchOptions.WindowsSandbox != nil {
+				current.WindowsProcessGeneration = max(generationFloor, memoryGeneration) + 1
+			}
 			if m.sandboxSupervisor != nil {
 				current.ProcessGeneration = max(generationFloor, memoryGeneration) + 1
 			}
@@ -752,6 +756,10 @@ func (m *Manager) replaceRuntimeClient(
 		return nil, errors.Join(sandboxPhaseErr, sandboxTerminalErr, ownershipErr)
 	}
 	state.ProcessGeneration = 0
+	state.WindowsProcessGeneration = 0
+	if launchOptions.WindowsSandbox != nil {
+		state.WindowsProcessGeneration = generationFloor + 1
+	}
 	if m.sandboxSupervisor != nil {
 		state.ProcessGeneration = generationFloor + 1
 	}
@@ -950,6 +958,7 @@ func (m *Manager) connectClient(
 	ownerUserID := state.OwnerUserID
 	generation := state.StartupGeneration
 	processGeneration := state.ProcessGeneration
+	windowsProcessGeneration := state.WindowsProcessGeneration
 	receiptStore := m.sandboxReceiptStore
 	effectiveReceipt := EffectiveSandboxPolicyReceipt(expected)
 	if effectiveReceipt != nil {
@@ -972,6 +981,9 @@ func (m *Manager) connectClient(
 			)
 			if snapshotErr == nil {
 				snapshotErr = bindSandboxReceiptProcess(context.Background(), receiptStore, &snapshot, processGeneration)
+			}
+			if snapshotErr == nil {
+				snapshotErr = bindWindowsSandboxReceiptProcess(context.Background(), receiptStore, &snapshot, windowsProcessGeneration)
 			}
 			if snapshotErr != nil {
 				expected.Retire()

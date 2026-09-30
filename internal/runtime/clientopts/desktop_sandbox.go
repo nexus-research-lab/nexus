@@ -25,14 +25,24 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") {
 		return options, nil
 	}
-	// Windows desktop sandbox rollout is intentionally deferred. Keep the
-	// existing Windows runtime contract untouched until its native boundary is
-	// validated; only macOS may claim the desktop sandbox capability today.
-	if platform == "windows" {
+	// Windows remains opt-in until native acceptance; host preview still requires
+	// the complete SDK capability handshake and never claims release readiness.
+	if platform == "windows" && !input.WindowsSandboxPreview {
 		return options, nil
 	}
-	if platform != "darwin" {
+	if platform != "darwin" && platform != "windows" {
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox is unsupported on %s", platform)
+	}
+	if platform == "windows" {
+		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+			if input.SandboxResources != nil {
+				return agentclient.Options{}, fmt.Errorf("Windows Full Access cannot carry restricted resources")
+			}
+			return options, nil
+		}
+		if options.Runtime.Kind != agentclient.RuntimeNXS || input.SandboxResources == nil {
+			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")
+		}
 	}
 	if options.Env == nil {
 		options.Env = make(map[string]string)

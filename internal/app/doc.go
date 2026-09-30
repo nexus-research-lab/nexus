@@ -7,6 +7,8 @@
 // 成员清单：
 //   - app_services.go / core_services.go：共享依赖图、Browser 持久化诊断 logger 与数据库所有权；AppServices.Close 先关闭 runtime 准入并等待终态落盘，再释放标题任务、授权任务、Browser 与自有数据库；runtime 等待超时保留数据库。
 //   - desktop_sandbox_darwin.go：消费入口实例锁和随包 helper，固定 app/processes，在服务暴露前完成原生/资源两阶段恢复；失败保留记录并关闭服务，Manager 排空前不释放监督根。
+//   - desktop_sandbox_windows.go：显式 WindowsSandboxPreview 消费机器清单及实例锁，装配独立 Windows supervisor；保留持久 unknown 栅栏，不默认启用或声明冷恢复已验收。
+//   - windows_sandbox_network.go：宿主精确域名审批解析为固定公网 HTTPS/443 端点，拒绝本机/私网/元数据和过渡地址，不替代 SDK 拨号复核。
 //   - agent_deletion_coordinator.go / dm_external_reply.go：Agent 删除与外部回复的跨域宿主适配。
 //   - goal/：会话所有权、命令路由、引导、中断与续跑的 DM/Room 适配。
 //   - execution/ / workgraph/：执行取消、命令上下文、历史投影与隐藏编辑会话适配。

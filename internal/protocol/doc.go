@@ -1,4 +1,5 @@
 // Package protocol 是 HTTP、WebSocket、前端与 runtime 共享的 wire truth。
+// runtime_windows_sandbox.go 定义独立Windows启动、双摘要策略绑定、scratch责任和恢复诊断，不复用Darwin身份。
 //
 // InputQueue 的 im_delivery_reply 来源区分 IM 人类反馈与直接用户输入，不授予用户控制权限。
 //

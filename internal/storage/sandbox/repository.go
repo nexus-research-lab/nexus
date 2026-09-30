@@ -122,6 +122,17 @@ func (r *Repository) Save(ctx context.Context, snapshot protocol.SandboxPolicyRe
 	if err := r.validateReceiptProcess(ctx, snapshot); err != nil {
 		return err
 	}
+	if err := r.validateWindowsReceiptProcess(ctx, snapshot); err != nil {
+		return err
+	}
+	windowsProcessJSON := ""
+	if snapshot.WindowsProcess != nil {
+		body, err := json.Marshal(snapshot.WindowsProcess)
+		if err != nil {
+			return err
+		}
+		windowsProcessJSON = string(body)
+	}
 	var processGeneration uint64
 	var processLaunchID string
 	if snapshot.ProcessKey != nil {
@@ -147,8 +158,8 @@ owner_user_id, session_key, generation, version, session_id,
  session_id_provisional, runtime_kind, round_id, policy_digest,
  required_capabilities_json, acknowledged_capabilities_json,
  capability_evidence, isolation_evidence, resource_policy_json, lease_id,
- phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id
-) VALUES (` + r.dialect.BindList(21) + `)
+ phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id, windows_process_json
+) VALUES (` + r.dialect.BindList(22) + `)
 ON CONFLICT(owner_user_id, session_key, generation) DO UPDATE SET
 	-- A retry of the original connect receipt must never reopen a retired or
 	-- unknown generation. The exact generation payload is immutable; lifecycle
@@ -163,7 +174,7 @@ END
 -- Connect retries may refresh a still-confirmed row, but a lifecycle terminal
 -- row is immutable. In particular, a late retry must not replace the policy
 -- payload or lease identity after cleanup has become unknown/retired.
-WHERE sandbox_policy_receipts.phase = 'confirmed' AND sandbox_policy_receipts.process_generation = excluded.process_generation AND sandbox_policy_receipts.process_launch_id = excluded.process_launch_id`
+WHERE sandbox_policy_receipts.phase = 'confirmed' AND sandbox_policy_receipts.process_generation = excluded.process_generation AND sandbox_policy_receipts.process_launch_id = excluded.process_launch_id AND sandbox_policy_receipts.windows_process_json=excluded.windows_process_json`
 	_, err = r.db.ExecContext(ctx, query,
 		snapshot.OwnerUserID, snapshot.SessionKey, snapshot.Generation,
 		snapshot.Version, snapshot.SessionID, snapshot.SessionIDProvisional,
@@ -172,7 +183,7 @@ WHERE sandbox_policy_receipts.phase = 'confirmed' AND sandbox_policy_receipts.pr
 		snapshot.IsolationEvidence, snapshot.ResourcePolicyJSON, snapshot.LeaseID,
 		string(snapshot.Phase), snapshot.UnknownReason,
 		r.dialect.TimestampValue(snapshot.ConfirmedAt),
-		r.dialect.TimestampValue(snapshot.UpdatedAt), processGeneration, processLaunchID,
+		r.dialect.TimestampValue(snapshot.UpdatedAt), processGeneration, processLaunchID, windowsProcessJSON,
 	)
 	if err != nil {
 		return fmt.Errorf("save desktop sandbox policy receipt: %w", err)
@@ -183,7 +194,7 @@ WHERE sandbox_policy_receipts.phase = 'confirmed' AND sandbox_policy_receipts.pr
 	if err != nil {
 		return err
 	}
-	if !found || !sameReceiptProcess(saved.ProcessKey, snapshot.ProcessKey) {
+	if !found || !sameReceiptProcess(saved.ProcessKey, snapshot.ProcessKey) || !sameWindowsReceiptProcess(saved.WindowsProcess, snapshot.WindowsProcess) {
 		return fmt.Errorf("%w: immutable process binding conflict", ErrInvalidReceipt)
 	}
 	return nil
@@ -287,13 +298,16 @@ func (r *Repository) Latest(ctx context.Context, ownerUserID, sessionKey string)
 	query := `SELECT version, generation, session_id, session_id_provisional,
  runtime_kind, round_id, policy_digest, required_capabilities_json,
  acknowledged_capabilities_json, capability_evidence, isolation_evidence,
- resource_policy_json, lease_id, phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id
+ resource_policy_json, lease_id, phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id, windows_process_json
 FROM sandbox_policy_receipts WHERE owner_user_id = ` + r.dialect.Bind(1) +
 		` AND session_key = ` + r.dialect.Bind(2) + ` ORDER BY generation DESC LIMIT 1`
 	snapshot, found, err := r.scan(ctx, query, ownerUserID, sessionKey)
 	if found {
 		snapshot.OwnerUserID = ownerUserID
 		snapshot.SessionKey = sessionKey
+		if snapshot.WindowsProcess != nil && (snapshot.WindowsProcess.Key.OwnerUserID != ownerUserID || snapshot.WindowsProcess.Key.SessionKey != sessionKey) {
+			return protocol.SandboxPolicyReceiptSnapshot{}, false, ErrInvalidReceipt
+		}
 		if snapshot.ProcessKey != nil {
 			snapshot.ProcessKey.OwnerUserID = ownerUserID
 			snapshot.ProcessKey.SessionKey = sessionKey
@@ -314,13 +328,16 @@ func (r *Repository) Get(ctx context.Context, ownerUserID, sessionKey string, ge
 	query := `SELECT version, generation, session_id, session_id_provisional,
  runtime_kind, round_id, policy_digest, required_capabilities_json,
  acknowledged_capabilities_json, capability_evidence, isolation_evidence,
- resource_policy_json, lease_id, phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id
+ resource_policy_json, lease_id, phase, unknown_reason, confirmed_at, updated_at, process_generation, process_launch_id, windows_process_json
 FROM sandbox_policy_receipts WHERE owner_user_id = ` + r.dialect.Bind(1) +
 		` AND session_key = ` + r.dialect.Bind(2) + ` AND generation = ` + r.dialect.Bind(3)
 	snapshot, found, err := r.scan(ctx, query, ownerUserID, sessionKey, generation)
 	if found {
 		snapshot.OwnerUserID = ownerUserID
 		snapshot.SessionKey = sessionKey
+		if snapshot.WindowsProcess != nil && (snapshot.WindowsProcess.Key.OwnerUserID != ownerUserID || snapshot.WindowsProcess.Key.SessionKey != sessionKey) {
+			return protocol.SandboxPolicyReceiptSnapshot{}, false, ErrInvalidReceipt
+		}
 		if snapshot.ProcessKey != nil {
 			snapshot.ProcessKey.OwnerUserID = ownerUserID
 			snapshot.ProcessKey.SessionKey = sessionKey
@@ -336,6 +353,7 @@ func (r *Repository) scan(ctx context.Context, query string, args ...any) (proto
 	var confirmedAt, updatedAt any
 	var generation, processGeneration int64
 	var processLaunchID string
+	var windowsProcessJSON string
 	var phase string
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&snapshot.Version, &generation, &snapshot.SessionID, &provisional,
@@ -343,7 +361,7 @@ func (r *Repository) scan(ctx context.Context, query string, args ...any) (proto
 		&required, &acknowledged, &snapshot.CapabilityEvidence,
 		&snapshot.IsolationEvidence, &snapshot.ResourcePolicyJSON,
 		&snapshot.LeaseID, &phase, &snapshot.UnknownReason,
-		&confirmedAt, &updatedAt, &processGeneration, &processLaunchID,
+		&confirmedAt, &updatedAt, &processGeneration, &processLaunchID, &windowsProcessJSON,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return protocol.SandboxPolicyReceiptSnapshot{}, false, nil
@@ -359,6 +377,15 @@ func (r *Repository) scan(ctx context.Context, query string, args ...any) (proto
 	}
 	if processGeneration > 0 {
 		snapshot.ProcessKey = &protocol.SandboxProcessKey{Generation: uint64(processGeneration), LaunchID: processLaunchID}
+	}
+	if windowsProcessJSON != "" {
+		if processGeneration != 0 || json.Unmarshal([]byte(windowsProcessJSON), &snapshot.WindowsProcess) != nil || snapshot.WindowsProcess == nil {
+			return snapshot, false, ErrInvalidReceipt
+		}
+		canonical, err := json.Marshal(snapshot.WindowsProcess)
+		if err != nil || string(canonical) != windowsProcessJSON || validateWindowsSandboxKey(snapshot.WindowsProcess.Key) != nil || snapshot.WindowsProcess.Key.Generation > uint64(generation) || !validWindowsSandboxPrepared(snapshot.WindowsProcess.Prepared) {
+			return snapshot, false, ErrInvalidReceipt
+		}
 	}
 	snapshot.Generation = uint64(generation)
 	snapshot.SessionIDProvisional = provisional

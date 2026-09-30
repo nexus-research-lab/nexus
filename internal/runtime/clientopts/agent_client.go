@@ -70,6 +70,8 @@ type AgentClientOptionsInput struct {
 	// production builder derives it from AppMode so desktop sessions cannot
 	// disable the sandbox through an environment switch.
 	DesktopSandboxEnabled bool
+	// WindowsSandboxPreview is a host-only development admission; it does not grant release acceptance.
+	WindowsSandboxPreview bool
 	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
 	// 只有该宿主事实可启用 owner-scoped nexusctl；nexuscfg 由独立 round capability 授权。

@@ -212,6 +212,10 @@ func validateDesktopTypedRemoteMCP(
 // endpoint. An explicit host grant still replaces the copied Network object for
 // callers that have completed the separate domain-approval flow.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
+	// Deferred Windows callers and explicit Full Access have no restricted network contract.
+	if runtime.GOOS == "windows" && (!input.WindowsSandboxPreview || options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions) {
+		return options, nil
+	}
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
 		(options.Runtime.Kind != agentclient.RuntimeNXS &&
 			(options.Runtime.Kind != agentclient.RuntimeClaude || input.DesktopSandboxNetworkAdmission == nil)) {
