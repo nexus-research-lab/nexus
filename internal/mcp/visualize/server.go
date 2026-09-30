@@ -14,7 +14,7 @@ import (
 func BuildTools() []sdktool.Tool {
 	return []sdktool.Tool{{
 		Name:        "show_widget",
-		Description: "把自包含 HTML fragment 流式渲染到最终回复。仅在已加载 visualize Skill 且可视化优于正文或表格时调用；传入简短 title 与按短 style、可见内容、script 顺序组织的 widget_code。",
+		Description: "把自包含 HTML fragment 流式渲染到最终回复。仅在已加载 visualize Skill 且可视化优于正文或表格时调用；传入简短 title 与按短 style、可见内容、script 顺序组织的 widget_code。workspace 图片使用 nexus://workspace/<相对路径>，不要使用 file://、绝对路径或 Base64。",
 		SearchHint:  "render show interactive visualization chart diagram dashboard simulator HTML widget",
 		AlwaysLoad:  true,
 		InputSchema: showWidgetSchema(),
@@ -57,7 +57,7 @@ func showWidgetSchema() map[string]any {
 			},
 			"widget_code": map[string]any{
 				"type":        "string",
-				"description": "自包含 HTML fragment，不含 document 标签；短 style、可见内容、script 依次输出。可内联 CSS/JavaScript，也可加载任意 HTTPS 网络与 CDN 资源。",
+				"description": "自包含 HTML fragment，不含 document 标签；短 style、可见内容、script 依次输出。可内联 CSS/JavaScript，也可加载任意 HTTPS 网络与 CDN 资源。workspace 图片使用 nexus://workspace/<相对路径>，由宿主鉴权加载。",
 			},
 		},
 		"required":             []string{"title", "widget_code"},

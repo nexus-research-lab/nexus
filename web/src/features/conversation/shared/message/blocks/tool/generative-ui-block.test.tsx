@@ -5,8 +5,28 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { GenerativeUIBlock } from "./generative-ui-block";
+import { materializeWorkspaceImages } from "./generative-ui-workspace-images";
 import { GENERATIVE_UI_ERROR_MESSAGE, GENERATIVE_UI_MESSAGE_SOURCE } from "./generative-ui-document";
 vi.mock("@/shared/theme/theme-context", () => ({ useTheme: () => ({ theme: "light" }) }));
+
+it("materializes host workspace image references without granting iframe same-origin access", async () => {
+  const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:nexus-preview");
+  const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("image"));
+  const html = await materializeWorkspaceImages(
+    '<img src="nexus://workspace/.cloud-photo/preview.jpg">',
+    "photo-agent",
+    new Map(),
+    (agentId, path) => `/agents/${agentId}/workspace/download?path=${encodeURIComponent(path)}`,
+  );
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/agents/photo-agent/workspace/download?"),
+    { credentials: "include" },
+  );
+  expect(html).toContain('src="blob:nexus-preview"');
+  createObjectURL.mockRestore();
+  fetchMock.mockRestore();
+});
+
 it("replaces the failed iframe on retry and rejects messages from its old window", async () => {
   const { container } = render(<I18nProvider><GenerativeUIBlock complete toolUse={{ type: "tool_use", id: "widget", name: "show_widget", input: { widget_code: "<p>Hello</p>" } }} /></I18nProvider>);
   const frame = container.querySelector("iframe")!;

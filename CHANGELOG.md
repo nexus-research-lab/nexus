@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Render workspace images in Generative UI through authenticated host-side `nexus://workspace/` references instead of inaccessible local paths or model-carried image payloads.
+
 - Simplify the runtime settings sandbox section to keep support checks and residual-resource recovery without presenting a redundant sandbox toggle.
 
 - Add two non-normative macOS desktop sandbox records covering the end-to-end engineering model and a code-oriented call-chain reading guide.

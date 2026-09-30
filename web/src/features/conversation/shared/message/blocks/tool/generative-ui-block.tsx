@@ -16,6 +16,7 @@ import { RotateCcw } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
+import { getWorkspaceFilePreviewUrl } from "@/lib/api/agent/agent-api";
 import { cn } from "@/shared/ui/class-name";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
@@ -31,6 +32,7 @@ import {
   GENERATIVE_UI_UPDATE_MESSAGE,
 } from "./generative-ui-document";
 import { resolveGenerativeUIHeightRevision } from "./generative-ui-height-model";
+import { materializeWorkspaceImages } from "./generative-ui-workspace-images";
 
 const UPDATE_DELAY_MS = 150;
 const FINAL_HEIGHT_SETTLE_MS = 80;
@@ -44,9 +46,11 @@ type RenderState =
 export function GenerativeUIBlock({
   complete,
   toolUse,
+  workspaceAgentId,
 }: {
   complete: boolean;
   toolUse: ToolUseContent;
+  workspaceAgentId?: string | null;
 }) {
   const { t } = useI18n();
   const { theme } = useTheme();
@@ -59,6 +63,8 @@ export function GenerativeUIBlock({
   const [renderState, setRenderState] = useState<RenderState>({
     status: "loading",
   });
+  const objectUrlsRef = useRef(new Map<string, string>());
+  const updateRevisionRef = useRef(0);
   const input = toolUse.input ?? {};
   const title = typeof input.title === "string" ? input.title.trim() : "";
   const widgetCode = typeof input.widget_code === "string"
@@ -71,17 +77,27 @@ export function GenerativeUIBlock({
     [visualTheme],
   );
 
-  const sendWidgetUpdate = useCallback(() => {
+  const sendWidgetUpdate = useCallback(async () => {
     if (!widgetCode) {
       return;
     }
+    const updateRevision = ++updateRevisionRef.current;
     setRenderState({ status: "loading" });
+    const renderedCode = await materializeWorkspaceImages(
+      widgetCode,
+      workspaceAgentId,
+      objectUrlsRef.current,
+      getWorkspaceFilePreviewUrl,
+    );
+    if (updateRevision !== updateRevisionRef.current) {
+      return;
+    }
     frameRef.current?.contentWindow?.postMessage({
       type: GENERATIVE_UI_UPDATE_MESSAGE,
       final: complete,
-      html: widgetCode,
+      html: renderedCode,
     }, "*");
-  }, [complete, widgetCode]);
+  }, [complete, widgetCode, workspaceAgentId]);
 
   const cancelHeightSettle = useCallback(() => {
     if (heightSettleTimerRef.current !== null) {
@@ -123,6 +139,13 @@ export function GenerativeUIBlock({
   }, [cancelHeightSettle, complete, widgetCode]);
 
   useEffect(() => cancelHeightSettle, [cancelHeightSettle]);
+
+  useEffect(() => () => {
+    for (const objectUrl of objectUrlsRef.current.values()) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    objectUrlsRef.current.clear();
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
