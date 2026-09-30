@@ -251,12 +251,11 @@ describe("runtime fields", () => {
 
 
 describe("sandbox diagnosis", () => {
-  it("presents the restricted runtime as always on without an enable toggle", () => {
+  it("keeps sandbox diagnosis without a redundant always-on setting", () => {
     configure("brave");
     renderSettings();
-    expect(screen.getByText(text("sandbox_title"))).toBeTruthy();
-    expect(screen.getByText(text("sandbox_always_on"))).toBeTruthy();
-    expect(screen.queryByRole("switch", { name: text("sandbox_title") })).toBeNull();
+    expect(screen.getByRole("button", { name: text("sandbox_check") })).toBeTruthy();
+    expect(screen.queryByRole("switch", { name: text("sandbox_check") })).toBeNull();
   });
 
   it("checks explicitly without changing the engine or tool preferences", async () => {
