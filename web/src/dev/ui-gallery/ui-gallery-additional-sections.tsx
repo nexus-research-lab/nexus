@@ -65,6 +65,7 @@ import {
 } from "@/shared/ui/icon-picker/icon-picker-popover";
 import { AppLoadingState } from "@/shared/ui/layout/app-loading-screen";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
+import { PermissionRequestDetails } from "@/shared/ui/permission/permission-request-details";
 import { WorkspaceContentDetailHeader, WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { GlassMagnifier } from "@/shared/ui/liquid-glass/glass-magnifier";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
@@ -233,7 +234,7 @@ export function ContentGallery({ locale }: { locale: Locale }) {
         eyebrow="01 · FEEDBACK"
         title={galleryText(locale, "反馈与恢复", "Feedback and recovery")}
       >
-        <PreviewCard components={["FeedbackBanner", "FeedbackBannerViewport", "UiInlineNotice", "RecoverySummary"]}>
+        <PreviewCard components={["FeedbackBanner", "FeedbackBannerViewport", "UiInlineNotice", "RecoverySummary", "PermissionRequestDetails"]}>
           <FeedbackBanner
             message={galleryText(locale, "组件清单已与 shared/ui 同步。", "The component inventory is synchronized with shared/ui.")}
             onDismiss={() => undefined}
@@ -255,6 +256,15 @@ export function ContentGallery({ locale }: { locale: Locale }) {
             icon={<CircleAlert />}
             message={galleryText(locale, "保留上一次成功读取的内容。", "The last successful content remains available.")}
             title={galleryText(locale, "资源暂时不可用", "Resource temporarily unavailable")}
+            tone="warning"
+          />
+          <PermissionRequestDetails
+            description={galleryText(locale, "此操作需要访问当前工作区中的文件。", "This action needs access to files in the current workspace.")}
+            fields={[
+              { label: galleryText(locale, "工具", "Tool"), value: "workspace.read" },
+              { label: galleryText(locale, "目标", "Target"), value: "web/src/shared/ui" },
+            ]}
+            title={galleryText(locale, "需要确认权限", "Permission confirmation required")}
             tone="warning"
           />
           <UiInlineNotice
