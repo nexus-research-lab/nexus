@@ -152,6 +152,22 @@ describe("ComposerPermissionSurface", () => {
     expect(screen.queryByText(/This command requests execution outside/)).toBeNull();
   });
 
+  it("renders external file approvals without duplicating the target as a command", () => {
+    renderPermissionSurface({
+      permission: {
+        request_id: "sandbox-file-escape",
+        permission_boundary: "sandbox_escape",
+        summary: "This file action requests one write outside the active sandbox. Execution working directory: \"/Users/example/workspace\".",
+        tool_input: { file_path: "/Users/example/Documents/output.txt", content: "hello" },
+        tool_name: "Write",
+      },
+    });
+
+    expect(screen.getByText("/Users/example/Documents/output.txt")).toBeTruthy();
+    expect(screen.getByText("composer.permission_sandbox_escape_target")).toBeTruthy();
+    expect(screen.queryByText("composer.permission_sandbox_escape_command")).toBeNull();
+  });
+
   it("closes a scope menu on request changes and submits only the newly opened request", async () => {
     const user = userEvent.setup();
     const permission: PendingPermission = {
