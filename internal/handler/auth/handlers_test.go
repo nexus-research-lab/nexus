@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
@@ -14,6 +15,14 @@ import (
 )
 
 func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
+	// #286：desktop 全量装配自 77c7e2340 起在 darwin 上硬性要求 sidecar ownership，
+	// 且 runtimebootstrap.LoadCurrent 只认可 canonical App bundle 内的随包 helper；
+	// go test 二进制永远无法满足这两个条件。本测试走 serverapp.New 全装配，
+	// 在 darwin 上按 issue 建议方向 2 先跳过以消除整包假红；desktop 认证路径
+	// 继续由 Linux CI 覆盖，macOS 覆盖等待装配注入方案（issue 建议方向 1）。
+	if runtime.GOOS == "darwin" {
+		t.Skip("darwin 上 desktop 全量装配要求真实 sidecar ownership 与 App bundle 随包 helper，go test 无法提供（#286）；desktop 认证路径由 Linux CI 覆盖")
+	}
 	cfg := handlertest.NewConfig(t)
 	cfg.AppMode = "desktop"
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
