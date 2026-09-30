@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 DM 执行态短暂未同步 `is_loading` 时前端把新输入当作即时消息发送，导致草稿被清空且未进入队列；所有非空闲 runtime phase 现在都会保持队列路由。
+
 - Fix DM message rerun rejecting a visible message when hidden control rows follow it.
 
 - IM 配对支持选择当前智能体已有的本地 DM 会话，复用原历史与执行 Session；改绑校验所属智能体，旧版本回信失效。
