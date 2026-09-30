@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix DM message rerun rejecting a visible message when hidden control rows follow it.
+
 - IM 配对支持选择当前智能体已有的本地 DM 会话，复用原历史与执行 Session；改绑校验所属智能体，旧版本回信失效。
 
 - 修复 IM 绑定群聊后误回传工具调用过程的问题：复用原成员会话，仅回传成功轮次的最终回答；修正群聊主动投递以公区 key 查询 Session 导致的 session not found。
