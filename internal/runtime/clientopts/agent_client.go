@@ -1,5 +1,5 @@
-// INPUT: Agent runtime、主/后台模型与可选辅助视觉、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
-// OUTPUT: 主模型校验与可用辅助视觉投影、后台进度模型环境投影、固定宿主子智能体定义与 MCP 名称隔离后的 SDK client options。
+// INPUT: Agent runtime、主/后台模型、权限/工具/Skill、round capability、内建 MCP 与持久化 MCP 配置。
+// OUTPUT: 经统一校验、固定宿主 Provider 所有权、后台模型投影与 MCP 名称隔离后的 SDK client options。
 // POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -64,6 +66,11 @@ type RuntimeConfigForRuntimeResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
+	// DesktopSandboxEnabled is retained for internal/test option plumbing. The
+	// production builder derives it from AppMode so desktop sessions cannot
+	// disable the sandbox through an environment switch.
+	DesktopSandboxEnabled bool
+	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
 	// 只有该宿主事实可启用 owner-scoped nexusctl；nexuscfg 由独立 round capability 授权。
 	IsMainAgent        bool
@@ -107,6 +114,15 @@ type AgentClientOptionsInput struct {
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
+	// SandboxResources is a host-prepared, versioned resource contract. The
+	// builder only copies and validates it; scratch creation and cleanup remain
+	// owned by the runtime/session host.
+	SandboxResources *agentclient.SandboxResourcePolicy
+	// DesktopSandboxNetworkAdmission is a host-prepared exact-domain grant.
+	// A nil value means deny all sandbox network destinations. User/task
+	// settings must not manufacture this grant; changing it requires runtime
+	// replacement so pending connections cannot outlive the approval epoch.
+	DesktopSandboxNetworkAdmission *DesktopSandboxNetworkAdmission
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -140,7 +156,35 @@ func BuildAgentClientOptionsWithConfig(
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
+	if err := validateConfigurationEnvironment(input.ConfigurationEnv); err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
+	// Desktop execution always enters the selected backend's restricted
+	// contract. Keep the explicit field for server/test callers, but do not let
+	// a false value disable the product default for desktop sessions.
+	input.DesktopSandboxEnabled = input.DesktopSandboxEnabled ||
+		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
+		input.AgentMCPServers,
+		effectiveRuntimeKind,
+		input.AppMode,
+		input.DesktopSandboxEnabled,
+		input.PermissionMode,
+		input.DesktopSandboxNetworkAdmission,
+	); err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(
+		mcpServers,
+		effectiveRuntimeKind,
+		input.AppMode,
+		input.DesktopSandboxEnabled,
+		input.PermissionMode,
+		input.DesktopSandboxNetworkAdmission,
+	); err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, nil, err
@@ -149,7 +193,6 @@ func BuildAgentClientOptionsWithConfig(
 	// bridge 会继承宿主进程环境；先清掉全局路径和密钥，再由后续
 	// provider/runtime 投影显式恢复当前会话允许使用的变量。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, diagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
@@ -162,19 +205,12 @@ func BuildAgentClientOptionsWithConfig(
 	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
 	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
-	if err != nil && ctx.Err() != nil {
-		return agentclient.Options{}, nil, ctx.Err()
+	if err != nil {
+		return agentclient.Options{}, nil, err
 	}
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
-	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
-		// 辅助视觉模型出错时保留诊断原因；nxs 将不可读图片转为能力说明，由 Agent 回复用户。
-		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
-		if err != nil {
-			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = err.Error()
-		}
-		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
-	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoMemoryRuntimeEnv(effectiveRuntimeKind, input.AutoMemoryDisabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoDreamRuntimeEnv(effectiveRuntimeKind, input.AutoDreamDisabled))
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
@@ -199,6 +235,20 @@ func BuildAgentClientOptionsWithConfig(
 			strings.TrimSpace(runtimeEnv[protocol.NexusConfigCapabilityTokenEnvName]) == "") {
 		return agentclient.Options{}, nil, errors.New("nexuscfg runtime capability 不完整")
 	}
+	// Provider, vision and WebSearch credentials are host-resolved inputs. They
+	// must be projected again after ExtraEnv/ConfigurationEnv so task-scoped
+	// environment values cannot reroute a request or borrow another owner's
+	// secret. This is input ownership only; it does not claim OS process or
+	// handle isolation from arbitrary descendants.
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
+	// Long-term memory is an nxs host-owned workspace boundary. Configuration
+	// capabilities may add their own broker keys, but cannot redirect memory or
+	// opt the runtime into a remote store.
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, managedMemoryRuntimeEnv(effectiveRuntimeKind, input.WorkspacePath))
+	// Provider 所有权和后台唤醒归宿主，调用方环境不能在装配末尾撤销。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
@@ -283,6 +333,22 @@ func BuildAgentClientOptionsWithConfig(
 	)
 	if err != nil {
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
+	}
+	options, err = applyDesktopSandbox(options, input)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir())
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	options, err = applyDesktopSandboxNetworkAdmission(options, input)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
+	if strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") &&
+		input.DesktopSandboxEnabled && input.WebSearch.AllowPrivateNetwork {
+		return agentclient.Options{}, nil, errors.New("desktop sandbox rejects WebSearch private-network access without a host network grant")
 	}
 	return options, runtimeConfig, nil
 }

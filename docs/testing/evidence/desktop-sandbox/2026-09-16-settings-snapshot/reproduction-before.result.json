@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-count=1",
+    "./client",
+    "./internal/agent/runtime",
+    "-run",
+    "^Test(SettingsProfileRejectsUnknown|SettingsProfileCannotRedirectConfigRoot|DarwinSettingsIntegrity)$"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/sdk",
+  "started": 1789532372.2516322,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "NEXUS_SANDBOX_INTEGRATION": "1"
+  },
+  "exitCode": 1,
+  "elapsedSeconds": 12.595
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "platform": "linux",
+    "exitCode": 0,
+    "command": [
+      "go",
+      "test",
+      "-mod=readonly",
+      "-exec=/usr/bin/true",
+      "./client",
+      "./internal/config/env",
+      "./internal/agent/runtime",
+      "./internal/tool/executor/hooks",
+      "./cmd/nxs"
+    ],
+    "scope": "compile-only"
+  },
+  {
+    "platform": "windows",
+    "exitCode": 0,
+    "command": [
+      "go",
+      "test",
+      "-mod=readonly",
+      "-exec=/usr/bin/true",
+      "./client",
+      "./internal/config/env",
+      "./internal/agent/runtime",
+      "./internal/tool/executor/hooks",
+      "./cmd/nxs"
+    ],
+    "scope": "compile-only"
+  }
+]

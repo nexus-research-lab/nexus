@@ -1,0 +1,12 @@
+ M CHANGELOG.md
+ M internal/config/settings/loader.go
+ M internal/config/settings/snapshot.go
+ M internal/skill/discovery.go
+ M internal/skill/doc.go
+ M internal/skill/frontmatter.go
+ M internal/skill/loader.go
+ M internal/skill/memory_gate.go
+ M internal/skill/model.go
+ M internal/skill/options.go
+?? internal/skill/filesystem.go
+?? internal/skill/filesystem_test.go

@@ -10,10 +10,12 @@ import (
 	"maps"
 	"net/url"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 var persistedMCPServerNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
@@ -79,6 +81,45 @@ func MergeAgentMCPServers(
 		merged[name] = server
 	}
 	return merged, nil
+}
+
+// RejectDesktopSandboxRemoteMCP 让 macOS MCP/helper 分别进入独立的网络与命令合同。
+// 其他平台仍在能力未实现时拒绝，端点授权不扩张普通工具网络。
+func RejectDesktopSandboxRemoteMCP(
+	configured map[string]any,
+	runtimeKind string,
+	appMode string,
+	desktopSandboxEnabled bool,
+	permissionMode sdkpermission.Mode,
+) error {
+	if !desktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(appMode), "desktop") ||
+		!runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	for _, name := range sortedConfiguredMCPNames(configured) {
+		object, ok := configured[name].(map[string]any)
+		if !ok {
+			continue
+		}
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && runtime.GOOS != "darwin" {
+			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
+		}
+		serverType, _ := object["type"].(string)
+		serverType = strings.ToLower(strings.TrimSpace(serverType))
+		if runtime.GOOS != "darwin" && permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
+			return agentMCPServerError(name, "桌面沙箱当前拒绝外部 HTTP/SSE MCP；需要宿主显式网络域名准入")
+		}
+	}
+	return nil
+}
+
+func sortedConfiguredMCPNames(configured map[string]any) []string {
+	names := make([]string, 0, len(configured))
+	for name := range configured {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 func validateAgentMCPServerName(name string, builtIn map[string]sdkmcp.ServerConfig) error {
@@ -187,7 +228,7 @@ func parsePersistedRemoteMCPServer(
 	if err != nil {
 		return nil, agentMCPServerError(name, err.Error())
 	}
-	if err = validateNonEmptyMapKeys(input.Headers, "headers"); err != nil {
+	if err = validateMCPHeaders(input.Headers); err != nil {
 		return nil, agentMCPServerError(name, err.Error())
 	}
 	oauth, err := parsePersistedMCPServerOAuth(input.OAuth)
@@ -221,7 +262,7 @@ func parsePersistedMCPServerOAuth(input *persistedMCPServerOAuth) (*sdkmcp.OAuth
 	metadataURL := strings.TrimSpace(input.AuthServerMetadataURL)
 	if metadataURL != "" {
 		parsed, err := url.Parse(metadataURL)
-		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
 			return nil, fmt.Errorf("oauth authServerMetadataUrl 必须是有效的 HTTPS URL")
 		}
 	}
@@ -236,7 +277,7 @@ func parsePersistedMCPServerOAuth(input *persistedMCPServerOAuth) (*sdkmcp.OAuth
 func validateRemoteMCPServerURL(raw string) (string, error) {
 	serverURL := strings.TrimSpace(raw)
 	parsed, err := url.Parse(serverURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+	if err != nil || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
 		return "", fmt.Errorf("url 必须是有效的 HTTP 或 HTTPS URL")
 	}
 	return serverURL, nil
@@ -249,6 +290,35 @@ func validateNonEmptyMapKeys(values map[string]string, field string) error {
 		}
 	}
 	return nil
+}
+
+func validateMCPHeaders(values map[string]string) error {
+	if len(values) > 128 {
+		return fmt.Errorf("headers 不能包含超过 128 个条目")
+	}
+	for key, value := range values {
+		if !validMCPHeaderName(key) || strings.ContainsAny(value, "\r\n\x00") {
+			return fmt.Errorf("headers 包含非法名称或控制字符")
+		}
+	}
+	return nil
+}
+
+func validMCPHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			continue
+		}
+		switch r {
+		case '!', '#', '$', '%', '&', '\'', '*', '+', '-', '.', '^', '_', '`', '|', '~':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func decodeStrictMCPServerObject(object map[string]any, target any) error {

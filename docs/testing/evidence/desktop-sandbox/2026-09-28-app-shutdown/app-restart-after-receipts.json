@@ -1,0 +1,20 @@
+[
+  {
+    "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+    "generation": 1,
+    "runtime_kind": "nxs",
+    "phase": "retired",
+    "unknown_reason": "",
+    "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+    "lease_id": "e6cfeaa7776a3444d0392a019ec92034"
+  },
+  {
+    "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+    "generation": 2,
+    "runtime_kind": "nxs",
+    "phase": "confirmed",
+    "unknown_reason": "",
+    "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+    "lease_id": "1036c0da3d9ccba84e7a401ea75e01d5"
+  }
+]

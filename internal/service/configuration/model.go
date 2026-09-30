@@ -222,3 +222,36 @@ type AuditRecord struct {
 	CreatedAt              time.Time       `json:"created_at"`
 	UpdatedAt              time.Time       `json:"updated_at"`
 }
+
+// ReconcileRequest 表示对一条未知配置写入的人工核对决定。
+// Decision 只允许 applied 或 not_applied；它不会重新执行原始变更。
+// ObservedRevision 必须由同一次 review 返回的当前脱敏快照提供，避免
+// 页面或 CLI 用过期状态确认未知结果。
+type ReconcileRequest struct {
+	RequestID        string `json:"request_id"`
+	Decision         string `json:"decision"`
+	ObservedRevision string `json:"observed_revision"`
+	Confirmed        bool   `json:"confirmed"`
+	Note             string `json:"note,omitempty"`
+}
+
+// ReconciliationEvidence 只描述当前真相源与 durable receipt 的关系。
+// decision_source 明确表示最终结论来自真人确认，不是宿主猜测或自动重放。
+type ReconciliationEvidence struct {
+	CurrentRevision        string  `json:"current_revision"`
+	RecordedRevisionBefore string  `json:"recorded_revision_before,omitempty"`
+	RecordedRevisionAfter  string  `json:"recorded_revision_after,omitempty"`
+	RevisionRelation       string  `json:"revision_relation"`
+	CurrentStateVersion    int64   `json:"current_state_version,omitempty"`
+	DecisionSource         string  `json:"decision_source"`
+	Checks                 []Check `json:"checks"`
+}
+
+// ChangeReconciliation 是 review 与人工 reconcile 共用的脱敏结果。
+// Receipt 保留完整的 owner/scope/approval/revision 审计身份；Current 只含
+// 当前 Actor 有权读取的值和健康检查。
+type ChangeReconciliation struct {
+	Receipt  AuditRecord            `json:"receipt"`
+	Current  DomainSnapshot         `json:"current"`
+	Evidence ReconciliationEvidence `json:"evidence"`
+}

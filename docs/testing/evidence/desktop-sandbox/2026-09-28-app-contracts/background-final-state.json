@@ -1,0 +1,80 @@
+[
+  {
+    "job_id": "task_6cf8eff752f2d7739fdf",
+    "name": "Sandbox QA background allow_once",
+    "agent_id": "94a0a7739fb9",
+    "schedule": {
+      "kind": "every",
+      "interval_seconds": 86400,
+      "timezone": "Asia/Shanghai"
+    },
+    "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+    "execution_kind": "agent",
+    "permission_mode": "default",
+    "session_target": {
+      "kind": "isolated",
+      "wake_mode": "next-heartbeat"
+    },
+    "delivery": {
+      "mode": "none"
+    },
+    "session_binding_state": "ready",
+    "source": {
+      "kind": "user_page"
+    },
+    "overlap_policy": "skip",
+    "enabled": false,
+    "running": false,
+    "last_run_at": "2026-09-27T20:43:27.339544Z",
+    "last_run_status": "succeeded",
+    "last_delivery_status": "not_required",
+    "configuration_version": 1,
+    "permission_policy": {
+      "version": 1,
+      "revision": 1,
+      "grants": [],
+      "denied_tools": []
+    },
+    "permission_state": "ready"
+  },
+  {
+    "job_id": "task_8132bf053b6fbf23e334",
+    "name": "Sandbox QA background deny",
+    "agent_id": "94a0a7739fb9",
+    "schedule": {
+      "kind": "every",
+      "interval_seconds": 86400,
+      "timezone": "Asia/Shanghai"
+    },
+    "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+    "execution_kind": "agent",
+    "permission_mode": "default",
+    "session_target": {
+      "kind": "isolated",
+      "wake_mode": "next-heartbeat"
+    },
+    "delivery": {
+      "mode": "none"
+    },
+    "session_binding_state": "ready",
+    "source": {
+      "kind": "user_page"
+    },
+    "overlap_policy": "skip",
+    "enabled": false,
+    "running": false,
+    "last_run_at": "2026-09-27T20:42:44.511475Z",
+    "last_run_status": "failed",
+    "failure_streak": 1,
+    "last_error": "用户拒绝了定时任务的权限请求",
+    "last_delivery_status": "not_attempted",
+    "configuration_version": 1,
+    "permission_policy": {
+      "version": 1,
+      "revision": 1,
+      "grants": [],
+      "denied_tools": []
+    },
+    "permission_state": "denied"
+  }
+]

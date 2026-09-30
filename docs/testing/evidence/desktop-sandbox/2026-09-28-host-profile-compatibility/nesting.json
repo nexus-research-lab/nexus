@@ -1,0 +1,36 @@
+{
+  "os": "27.0",
+  "machine": "arm64",
+  "cases": [
+    {
+      "name": "unrestricted_nested",
+      "code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "outer_read_denied",
+      "code": 1,
+      "stdout": "",
+      "stderr": "cat: /private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-host-profile-mc7cg8ri/app/sentinel: Operation not permitted\n"
+    },
+    {
+      "name": "same_profile_nested",
+      "code": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "relaxed_profile_nested",
+      "code": 71,
+      "stdout": "",
+      "stderr": "sandbox-exec: sandbox_apply: Operation not permitted\n"
+    },
+    {
+      "name": "stricter_profile_nested",
+      "code": 71,
+      "stdout": "",
+      "stderr": "sandbox-exec: sandbox_apply: Operation not permitted\n"
+    }
+  ]
+}

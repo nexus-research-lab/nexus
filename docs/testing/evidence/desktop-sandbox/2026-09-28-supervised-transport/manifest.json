@@ -1,0 +1,23 @@
+{
+  "bridgeCommit": "e8787a420df14cd7725f0744ef5b674ea433f3ba",
+  "bridgeTransportIntegrated": true,
+  "nexusDefaultIntegrated": false,
+  "releaseAccepted": false,
+  "mandatoryTests": [
+    "TestSupervisedTransportNative",
+    "TestSupervisedTransportNative/stdio",
+    "TestSupervisedTransportNative/exit_code",
+    "TestSupervisedTransportNative/detached_output",
+    "TestSupervisedTransportNative/forced_close",
+    "TestSupervisedTransportNative/finish_failure",
+    "TestSupervisedTransportNative/all_probes",
+    "TestSupervisedTransportNative/probe_cancel"
+  ],
+  "sha256": {
+    "README.md": "6bf6d5c3be97dcf990e85c82e07671a968d1c6c079254f8c78451e962e4f41b7",
+    "native-race.jsonl": "00e4e0317d529cd0502a36e3b28eed540b91b095da1bf9773f8251ca0a49705b",
+    "nexus-pin.txt": "6abd6f1b7f071ce3419215c210abf05f96a5f7b40d4d89625d75def65fabb34d",
+    "no-cgo.txt": "95307f8c44d66a2d13f4d4e66e732400d794989042e6d992062edee7eb7f3f67",
+    "regression-race.txt": "726eaf9ae2bda2ecc82b56102eb39f12925f0d6f189062b9c52bdd13fe10b1bd"
+  }
+}

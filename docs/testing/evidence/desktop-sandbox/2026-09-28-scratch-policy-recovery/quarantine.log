@@ -1,0 +1,6 @@
+=== RUN   TestQuarantineDirectoryKeepsPinnedRootsAndRefusesReplacement
+--- PASS: TestQuarantineDirectoryKeepsPinnedRootsAndRefusesReplacement (0.01s)
+=== RUN   TestQuarantineDirectoryRejectsChangedSourceAndTraversal
+--- PASS: TestQuarantineDirectoryRejectsChangedSourceAndTraversal (0.00s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/infra/confinedfs	1.821s

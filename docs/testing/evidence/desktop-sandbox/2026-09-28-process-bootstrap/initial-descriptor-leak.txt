@@ -1,0 +1,8 @@
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope	2.749s
+--- FAIL: TestLaunchWireRejectsAndClosesTransferredDescriptors (1.01s)
+    --- FAIL: TestLaunchWireRejectsAndClosesTransferredDescriptors/truncated_rights (1.00s)
+        wire_darwin_test.go:174: descriptor retained: read |0: i/o timeout
+FAIL
+FAIL	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap	1.990s
+?   	github.com/nexus-research-lab/nexus-agent-sdk-bridge/cmd/nexus-runtime-bootstrap	[no test files]
+FAIL

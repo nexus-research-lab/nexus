@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "scope": "native macOS launchd coalition feasibility only",
+  "productionIntegrated": false,
+  "releaseAccepted": false,
+  "sourceNexus": "44f043d6edc23d595e496b1cf765770c71934757",
+  "cases": {
+    "plain": {
+      "passed": true,
+      "nativeRelease": "27.0",
+      "kernel": "27.0.0",
+      "resource": 19581,
+      "staleIdentityRejected": true,
+      "reaped": true,
+      "controlPreserved": true,
+      "jobRemoved": true
+    },
+    "double-fork-exec": {
+      "passed": true,
+      "nativeRelease": "27.0",
+      "kernel": "27.0.0",
+      "resource": 19587,
+      "staleIdentityRejected": true,
+      "reaped": true,
+      "controlPreserved": true,
+      "jobRemoved": true
+    },
+    "sandbox-double-fork-exec": {
+      "passed": true,
+      "nativeRelease": "27.0",
+      "kernel": "27.0.0",
+      "resource": 19589,
+      "staleIdentityRejected": true,
+      "reaped": true,
+      "controlPreserved": true,
+      "jobRemoved": true
+    }
+  },
+  "files": {
+    "README.md": "96f7a3853dc3d8400caa43686d3b6f00f3d746cbbe2b5426bf7845f836f0afd1",
+    "double-fork-exec.json": "33923b03b756da83c68c98a716e79669b92c59282a7d390cf2f32761ce8e225a",
+    "plain.json": "a7c037bf082355da4c04c3fd33debbb976b2eae5bf7903696089000d7d23aa87",
+    "probe.c": "bb7f73ac9b6d575572b0ee0727a012f42bba4686585750cf561bad69d30c813f",
+    "probe.py": "f6f8a3ffff4269c8a1a48c007d817ebb68df1419a33df59564411691318328fe",
+    "sandbox-double-fork-exec.json": "95ae4ea8890864ac8f0c4e21d3165ba2dcc2c9e0c492593b2fb628b6cea88569",
+    "source-index.json": "3f586c6de3fb085dc9eb550dc4d55444c0b97c71f6d3108c8feefd02af2adac6"
+  }
+}

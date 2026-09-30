@@ -1,0 +1,8 @@
+{"Time":"2026-09-28T09:21:25.099263+08:00","Action":"start","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope"}
+{"Time":"2026-09-28T09:21:25.535125+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Test":"TestMacOSScopeReapsDetached"}
+{"Time":"2026-09-28T09:21:25.535243+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Test":"TestMacOSScopeReapsDetached","Output":"=== RUN   TestMacOSScopeReapsDetached\n","OutputType":"frame"}
+{"Time":"2026-09-28T09:21:25.635398+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Test":"TestMacOSScopeReapsDetached","Output":"--- PASS: TestMacOSScopeReapsDetached (0.10s)\n","OutputType":"frame"}
+{"Time":"2026-09-28T09:21:25.63544+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Test":"TestMacOSScopeReapsDetached","Elapsed":0.1}
+{"Time":"2026-09-28T09:21:25.635465+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-09-28T09:21:25.635983+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Output":"ok  \tgithub.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope\t0.536s\n"}
+{"Time":"2026-09-28T09:21:25.636007+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processscope","Elapsed":0.537}

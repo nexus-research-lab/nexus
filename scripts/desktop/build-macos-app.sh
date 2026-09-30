@@ -47,6 +47,7 @@ SIDECAR_BUILD_DIR="${APP_BUILD_DIR}/.intermediates"
 SIDECAR_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-server"
 NEXUSCTL_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexusctl"
 NEXUSCFG_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexuscfg"
+BOOTSTRAP_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-runtime-bootstrap"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
 NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
@@ -69,7 +70,7 @@ case "${NEXUS_DESKTOP_TARGET_ARCH:-${HOST_ARCH}}" in
 esac
 
 if [[ "${TARGET_ARCH}" == "${HOST_ARCH}" ]]; then
-  DEFAULT_CGO_ENABLED="$(go env CGO_ENABLED)"
+  DEFAULT_CGO_ENABLED="$(GOWORK=off go env CGO_ENABLED)"
 else
   DEFAULT_CGO_ENABLED=0
 fi
@@ -140,25 +141,31 @@ NEXUS_DESKTOP_BUILD=1 corepack pnpm@9.15.2 build
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
-CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${SIDECAR_BUILD_PATH}" \
   ./cmd/nexus-server
 
 echo "==> Building nexusctl"
-CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${NEXUSCTL_BUILD_PATH}" \
   ./cmd/nexusctl
 
 echo "==> Building nexuscfg"
-CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+GOWORK=off CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${NEXUSCFG_BUILD_PATH}" \
   ./cmd/nexuscfg
+
+echo "==> Building pinned runtime bootstrap"
+BRIDGE_VERSION="$(GOWORK=off go list -m -f '{{if .Replace}}replacement{{else}}{{.Version}}{{end}}' github.com/nexus-research-lab/nexus-agent-sdk-bridge)"
+GOWORK=off CGO_ENABLED=1 GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
+  -trimpath -ldflags="-s -w" -o "${BOOTSTRAP_BUILD_PATH}" \
+  github.com/nexus-research-lab/nexus-agent-sdk-bridge/cmd/nexus-runtime-bootstrap
 
 echo "==> Building Swift shell (${TARGET_ARCH})"
 swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}"
@@ -173,6 +180,7 @@ cp "${SWIFT_BIN_PATH}/${SWIFT_PRODUCT}" "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME
 cp "${SIDECAR_BUILD_PATH}" "${MACOS_CONTENTS_DIR}/nexus-server"
 cp "${NEXUSCTL_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexusctl"
 cp "${NEXUSCFG_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexuscfg"
+cp "${BOOTSTRAP_BUILD_PATH}" "${RESOURCES_DIR}/bin/nexus-runtime-bootstrap"
 cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 
 if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
@@ -211,6 +219,7 @@ require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 require_macho_architecture "${MACOS_CONTENTS_DIR}/nexus-server"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexusctl"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexuscfg"
+require_macho_architecture "${RESOURCES_DIR}/bin/nexus-runtime-bootstrap"
 if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
   require_macho_architecture "${RESOURCES_DIR}/bin/nxs"
 fi
@@ -221,7 +230,8 @@ fi
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
   "${MACOS_CONTENTS_DIR}/nexus-server" \
   "${RESOURCES_DIR}/bin/nexusctl" \
-  "${RESOURCES_DIR}/bin/nexuscfg"
+  "${RESOURCES_DIR}/bin/nexuscfg" \
+  "${RESOURCES_DIR}/bin/nexus-runtime-bootstrap"
 if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
   chmod 0755 "${RESOURCES_DIR}/bin/nxs"
 fi
@@ -262,6 +272,7 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   codesign_target "${MACOS_CONTENTS_DIR}/nexus-server"
   codesign_target "${RESOURCES_DIR}/bin/nexusctl"
   codesign_target "${RESOURCES_DIR}/bin/nexuscfg"
+  codesign_target "${RESOURCES_DIR}/bin/nexus-runtime-bootstrap"
   if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
     codesign_target "${RESOURCES_DIR}/bin/nxs"
   fi
@@ -269,7 +280,16 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
     codesign_target "${RESOURCES_DIR}/bin/rg"
   fi
   codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
+  node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" write "${APP_BUNDLE}" "${BRIDGE_VERSION}"
   codesign_target "${APP_BUNDLE}"
+else
+  node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" write "${APP_BUNDLE}" "${BRIDGE_VERSION}"
+fi
+node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" verify "${APP_BUNDLE}" "${BRIDGE_VERSION}"
+
+if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
+  bash "${ROOT_DIR}/scripts/desktop/check-macos-runtime.sh" \
+    "${APP_BUNDLE}" "${APP_BUILD_DIR}/${APP_NAME}.runtime-compatibility.json"
 fi
 
 rm -rf "${SIDECAR_BUILD_DIR}"

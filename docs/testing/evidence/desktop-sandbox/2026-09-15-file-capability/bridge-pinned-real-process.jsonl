@@ -1,0 +1,20 @@
+{"Time":"2026-09-15T16:19:23.948228+08:00","Action":"start","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"}
+{"Time":"2026-09-15T16:19:24.856397+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess"}
+{"Time":"2026-09-15T16:19:24.856504+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess","Output":"=== RUN   TestFileSandboxRealProcess\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:24.856553+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/current"}
+{"Time":"2026-09-15T16:19:24.856563+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/current","Output":"=== RUN   TestFileSandboxRealProcess/current\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:24.936058+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/current","Output":"--- PASS: TestFileSandboxRealProcess/current (0.08s)\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:24.936095+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/current","Elapsed":0.08}
+{"Time":"2026-09-15T16:19:24.936117+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/legacy"}
+{"Time":"2026-09-15T16:19:24.936123+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/legacy","Output":"=== RUN   TestFileSandboxRealProcess/legacy\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.034025+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/legacy","Output":"--- PASS: TestFileSandboxRealProcess/legacy (0.10s)\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.034052+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess/legacy","Elapsed":0.1}
+{"Time":"2026-09-15T16:19:25.034062+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess","Output":"--- PASS: TestFileSandboxRealProcess (0.18s)\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.034068+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestFileSandboxRealProcess","Elapsed":0.18}
+{"Time":"2026-09-15T16:19:25.034072+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestRequiredSandboxRealProcess"}
+{"Time":"2026-09-15T16:19:25.034076+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestRequiredSandboxRealProcess","Output":"=== RUN   TestRequiredSandboxRealProcess\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.095572+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestRequiredSandboxRealProcess","Output":"--- PASS: TestRequiredSandboxRealProcess (0.06s)\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.095605+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Test":"TestRequiredSandboxRealProcess","Elapsed":0.06}
+{"Time":"2026-09-15T16:19:25.095614+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-09-15T16:19:25.096162+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Output":"ok  \tgithub.com/nexus-research-lab/nexus-agent-sdk-bridge/client\t1.148s\n"}
+{"Time":"2026-09-15T16:19:25.096183+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-bridge/client","Elapsed":1.148}

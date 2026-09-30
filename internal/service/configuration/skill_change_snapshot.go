@@ -289,23 +289,19 @@ func (s *Service) snapshotForChangeState(
 			return DomainSnapshot{}, err
 		}
 	}
-	key, err := s.integrityKeyBytes()
-	if err != nil {
-		return DomainSnapshot{}, fmt.Errorf("初始化 Skills revision 密钥: %w", err)
-	}
-	snapshot.Revision, err = integrityRevisionFor(map[string]any{
+	snapshot.Scope = ScopeRef{Kind: ScopeKindAgent, ID: targetState.AgentID}
+	snapshot.StateVersion = targetState.RuntimeVersion
+	snapshot.Revision, err = s.snapshotRevision(ctx, request.Domain, snapshot.Scope, request.Target, snapshot.StateVersion, map[string]any{
 		"skill_catalog_revision": snapshot.Revision,
 		"agent_id":               targetState.AgentID,
 		"agent_runtime_version":  targetState.RuntimeVersion,
 		"target_scope":           targetState.TargetScope,
 		"source_identity":        targetState.SourceIdentity,
 		"target_skill":           targetState,
-	}, key)
+	})
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
-	snapshot.Scope = ScopeRef{Kind: ScopeKindAgent, ID: targetState.AgentID}
-	snapshot.StateVersion = targetState.RuntimeVersion
 	snapshot.Values = map[string]any{
 		"catalog": snapshot.Values,
 		"target_agent": map[string]any{
@@ -446,19 +442,16 @@ func (s *Service) augmentSkillCatalogChangeSnapshot(
 	default:
 		return snapshot, nil
 	}
-	key, err := s.integrityKeyBytes()
-	if err != nil {
-		return DomainSnapshot{}, fmt.Errorf("初始化 Skills catalog revision 密钥: %w", err)
-	}
-	snapshot.Revision, err = integrityRevisionFor(map[string]any{
+	snapshot.StateVersion = version
+	revision, err := s.snapshotRevision(ctx, request.Domain, snapshot.Scope, request.Target, snapshot.StateVersion, map[string]any{
 		"skill_catalog_revision": snapshot.Revision,
 		"target_kind":            targetKind,
 		"target":                 target,
-	}, key)
+	})
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
-	snapshot.StateVersion = version
+	snapshot.Revision = revision
 	snapshot.Values = map[string]any{
 		"catalog":     snapshot.Values,
 		"target_kind": targetKind,

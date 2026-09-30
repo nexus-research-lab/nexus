@@ -1,0 +1,41 @@
+{
+  "app_name": "Nexus",
+  "executable_name": "Nexus",
+  "bundle_identifier": "com.leemysw.nexus",
+  "platform": "macos",
+  "architecture": "arm64",
+  "version": "0.2.0",
+  "build_number": "2457",
+  "created_at": "2026-09-24T07:34:16Z",
+  "source": {
+    "commit": "e9a15522db53cafe8f653ce3ef43871acd34dfed",
+    "short_commit": "e9a15522d",
+    "dirty": true
+  },
+  "signing": {
+    "kind": "ad-hoc",
+    "developer_id": false,
+    "notarized": false,
+    "team_id": null
+  },
+  "keychain": {
+    "expected_storage": "file",
+    "expected_reason": "ad_hoc_signature"
+  },
+  "runtime": {
+    "nxs": {
+      "bundled": true,
+      "release": "nxs-stable",
+      "relative_path": "Contents/Resources/bin/nxs"
+    }
+  },
+  "artifact": {
+    "name": "Nexus-macos-arm64-0.2.0-2457",
+    "format": "dmg"
+  },
+  "validation": {
+    "build_script": "scripts/desktop/build-macos-app.sh",
+    "smoke_script": "scripts/desktop/smoke-macos-app.sh",
+    "expected_credentials_storage": "file"
+  }
+}

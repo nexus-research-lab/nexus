@@ -1,0 +1,6 @@
+=== RUN   TestDesktopSandboxRealRuntimeNegotiation
+--- PASS: TestDesktopSandboxRealRuntimeNegotiation (1.62s)
+=== RUN   TestDesktopSandboxRealRuntimeWithHostResources
+--- PASS: TestDesktopSandboxRealRuntimeWithHostResources (1.47s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/runtime/clientopts	4.462s

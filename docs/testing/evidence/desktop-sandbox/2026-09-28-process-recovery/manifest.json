@@ -1,0 +1,21 @@
+{
+  "bridgeCommit": "5e6db3dc4bef9c0b0a54e116d5bed68386a3d0a2",
+  "explicitRecoveryIntegrated": true,
+  "automaticAppRecovery": false,
+  "releaseAccepted": false,
+  "mandatoryNativeTests": [
+    "TestRecoveryNativeHostExit"
+  ],
+  "sha256": {
+    "README.md": "c7fe425d189a949c5f23243a1976751839b8cfbef9bb68c434e0070dc64f7372",
+    "adapter-race.txt": "632a20f7585de428c1d77147b6468106470fdbdfa188d38b5640cbc98b5b18d1",
+    "bridge-race.txt": "992be99d7282ffac3829bc596d40fecc597dc80984b001d6867741b5b82066be",
+    "native-race.jsonl": "d6384dfc41fbad1e76d740c1a83fe29ce1ae2c8d455f74c633243f741b85fc7c",
+    "no-cgo.txt": "f6d58261d2a2e34d7de236714a8575045fdebb37146d0b7a65ec21237ef71aeb",
+    "runtime.txt": "7558ac3e2f5c6c57cd7008948f7978f5066df29a33714c3e5ab52a0984b0e3c6"
+  },
+  "sourceSHA256": {
+    "internal/runtime/sandbox_process_recovery.go": "e5fe54bbff571b3191ef2a94e20537d0c197e184f83cfffcdbe070e718188f9f",
+    "internal/runtime/sandbox_process_recovery_test.go": "96c12fdc03c053c396fad1f01b57b3860cd9c5c1604ef062b79b481337ffc716"
+  }
+}

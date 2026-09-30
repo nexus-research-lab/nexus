@@ -1,0 +1,14 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M docs/explorations/desktop-sandbox/development-plan.md
+ M docs/specs/desktop-sandbox-spec.md
+ M go.mod
+ M go.sum
+ M internal/runtime/clientopts/desktop_sandbox.go
+ M internal/runtime/clientopts/desktop_sandbox_integration_test.go
+ M internal/runtime/clientopts/desktop_sandbox_test.go
+ M internal/runtime/clientopts/doc.go
+ M internal/runtime/doc.go
+ M internal/runtime/process_policy.go
+ M internal/runtime/process_policy_test.go
+ M scripts/desktop/check-sandbox-baseline.mjs

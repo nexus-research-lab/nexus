@@ -1,0 +1,17 @@
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+scratch = Path(__file__).resolve().parent
+previous = json.loads(Path('/private/tmp/nexus-sandbox-managed.WBw3Kb/bridge-pinned-real-process.result.json').read_text())
+environment = os.environ.copy()
+environment.update(previous['environment'])
+environment['NEXUS_SETTINGS_SANDBOX_LEGACY_TEST_BINARY'] = previous['environment']['NEXUS_SANDBOX_TEST_BINARY']
+baseline = Path((scratch / 'baseline-driver.jsonl').read_text().splitlines()[0].split(': ', 1)[1])
+environment['NEXUS_SANDBOX_TEST_BINARY'] = str(baseline / 'nxs')
+module = json.loads((scratch / 'bridge-download.json').read_text())
+command = previous['command'][:-1] + [previous['command'][-1].replace('|SandboxResources)', '|SettingsFilesSandbox|SandboxResources)')]
+result = subprocess.run([sys.executable, str(scratch / 'run.py'), 'bridge-pinned-real-process', module['Dir'], *command], env=environment)
+sys.exit(result.returncode)

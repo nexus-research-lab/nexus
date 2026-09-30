@@ -34,6 +34,7 @@ type configurationRequest struct {
 	Confirmed bool                           `json:"confirmed,omitempty"`
 	Domain    string                         `json:"domain,omitempty"`
 	Limit     int                            `json:"limit,omitempty"`
+	RequestID string                         `json:"request_id,omitempty"`
 }
 
 // NewConfigurationEnvironmentBuilder 为 runtime round 签发配置能力环境。
@@ -201,6 +202,13 @@ func NewConfigurationHandler(
 			)
 		case "history":
 			result, err = svc.ListChanges(request.Context(), actor, command.Domain, command.Limit)
+		case "review":
+			result, err = svc.ReviewChange(request.Context(), actor, command.RequestID)
+		case "reconcile":
+			// A round-scoped Agent capability may inspect an unknown receipt, but
+			// only the local owner configuration entry can record the human
+			// decision. Do not let a model turn its own input into approval.
+			err = errors.New("Agent runtime 不能提交人工配置 reconcile")
 		default:
 			err = errors.New("未知 nexuscfg broker action")
 		}

@@ -1,0 +1,96 @@
+//go:build darwin
+
+// INPUT: 原生文件 worker、项目定义及拒绝读取策略。
+// OUTPUT: 项目发现不能在沙箱装配前把受限定义带入 runtime。
+// POS: 启动和显式刷新项目目录的真实 Seatbelt 回归。
+package runtime
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	sdkconfig "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config"
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/sandbox"
+)
+
+// TestDarwinSandboxProjectFiles 使用 New 的实际装配路径验证正文、目录和链接。
+func TestDarwinSandboxProjectFiles(t *testing.T) {
+	for _, source := range []string{"project_agent", "user_agent", "project_command", "user_command", "skill", "file_symlink", "directory_symlink", "directory", "hook_settings"} {
+		for _, allowed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/allowed=%t", source, allowed), func(t *testing.T) {
+				cfg := contextFileFixture(t)
+				path := filepath.Join(cfg.Project.CWD, ".nexus", "agents", "private.md")
+				body := "PROJECT_PRIVATE_MARKER"
+				switch source {
+				case "user_agent":
+					path = filepath.Join(cfg.ConfigDir, "agents", "private.md")
+				case "project_command", "file_symlink", "directory_symlink", "directory":
+					path = filepath.Join(cfg.Project.CWD, ".nexus", "commands", "private.md")
+				case "user_command":
+					path = filepath.Join(cfg.ConfigDir, "commands", "private.md")
+				case "skill":
+					path = filepath.Join(sdkconfig.ProjectSkillsDir(cfg.Project.CWD), "private", "SKILL.md")
+					body = "---\nname: private\nuser-invocable: false\n---\n" + body
+				case "hook_settings":
+					cfg.Project.LoadSettingsHooks = true
+					path = filepath.Join(cfg.Project.CWD, ".nexus", "settings.json")
+					body = `{"hooks":{"UserPromptSubmit":[{"hooks":[{"type":"command","command":"PROJECT_PRIVATE_MARKER"}]}]}}`
+				}
+				denied := path
+				if source == "file_symlink" {
+					denied = filepath.Join(t.TempDir(), "private.md")
+					writeContextFixture(t, denied, body)
+					if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(denied, path); err != nil {
+						t.Fatal(err)
+					}
+				} else if source == "directory_symlink" {
+					denied = t.TempDir()
+					writeContextFixture(t, filepath.Join(denied, "private.md"), body)
+					if err := os.MkdirAll(filepath.Dir(filepath.Dir(path)), 0700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink(denied, filepath.Dir(path)); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					writeContextFixture(t, path, body)
+					if source == "directory" {
+						denied = filepath.Dir(path)
+					}
+				}
+				if !allowed {
+					cfg.Tools.Permission.Sandbox.Filesystem = &sandbox.FilesystemConfig{DenyRead: []string{denied}}
+				}
+				rt, err := New(cfg)
+				if !allowed {
+					if err == nil {
+						t.Fatal("runtime admitted a denied project definition")
+					}
+					if !errors.Is(err, fs.ErrPermission) {
+						t.Fatalf("definition did not reach file denial: %v", err)
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				encoded, err := json.Marshal(rt.project.Snapshot())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(encoded), "PROJECT_PRIVATE_MARKER") {
+					t.Fatalf("allowed definition missing: %s", encoded)
+				}
+			})
+		}
+	}
+}

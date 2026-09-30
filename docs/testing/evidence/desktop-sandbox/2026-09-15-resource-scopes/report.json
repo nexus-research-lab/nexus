@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "scope": "P1/P2 host-only workspace write scopes and private scratch contract; SDK and Bridge local integration",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "67975b901ce6700d88ac4b64da80ae2254b4c3cf",
+  "bridgeRevision": "1fc3dca78dd8bc23e45a7c7d4c6f6754ad0b11f8",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915091919-1fc3dca78dd8",
+    "sum": "h1:RRtBLsl1nlSWJZI4vclra1BmqN8NmqAD8uqJY3ufRwE=",
+    "availability": "local-only, unpublished; local file proxy archive from exact commit"
+  },
+  "nexusBaselineRevision": "696e0143a9b3b3443b25b4ec8d000bc721f0c3df",
+  "nexusChanges": [
+    "M CHANGELOG.md",
+    " M docs/README.md",
+    " M docs/explorations/desktop-sandbox/development-plan.md",
+    " M go.mod",
+    " M go.sum",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-z7S5G7/nxs",
+    "sha256": "9168d5187010f9a1409e917d6372a04229115d795a3ecd80b93dfad121fc2c71",
+    "source": "fixed-sdk-archive"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "reference": {
+    "repository": "openai/codex",
+    "revision": "4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd",
+    "file": "codex-rs/protocol/src/permissions.rs",
+    "scope": "separate read-only/workspace-write filesystem semantics; Nexus contract and scratch ownership remain independently implemented"
+  },
+  "baseline": {
+    "log": "baseline-report.json",
+    "exitCode": 0,
+    "requiredTopLevelTests": 26,
+    "requiredSubtests": 16,
+    "requiredSkips": []
+  },
+  "sdkContract": {
+    "log": "sdk-contract.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 9,
+    "skips": [],
+    "failures": []
+  },
+  "sdkPackages": {
+    "log": "sdk-packages.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 285,
+    "skips": [
+      "TestPowerShellStatusProtocolSupportsAvailableExecutables",
+      "TestPowerShellExecutionPreservesObjectsAndStatus",
+      "TestPowerShellStreamingKeepsStatusOutOfProgress",
+      "TestPowerShellExecutionAllowsApprovedExpandableStrings",
+      "TestPowerShellExecutionPreservesNativeExitCode",
+      "TestPowerShellExecutionDoesNotReuseStaleNativeExitCode",
+      "TestPowerShellExecutionCancellationUsesProcessStatus",
+      "TestPowerShellStatusChannelSupportsConstrainedLanguage",
+      "TestNativeFileSandbox",
+      "TestSandboxSeccompHelperUsesInjectedEnvironment",
+      "TestMacOSSandboxIgnoresTaskPath"
+    ],
+    "failures": []
+  },
+  "fileRejection": {
+    "log": "file-rejection.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 1,
+    "skips": [],
+    "failures": []
+  },
+  "bridgePackages": {
+    "log": "bridge-packages.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 151,
+    "skips": [
+      "TestFileSandboxRealProcess/current",
+      "TestFileSandboxRealProcess/legacy",
+      "TestRequiredSandboxRealProcess",
+      "TestSandboxResourcesRealProcess/current",
+      "TestSandboxResourcesRealProcess/legacy"
+    ],
+    "failures": []
+  },
+  "bridgePinnedReal": {
+    "log": "bridge-pinned-real.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 4,
+    "skips": [],
+    "failures": []
+  },
+  "bridgeRace": {
+    "log": "bridge-race.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 11,
+    "skips": [
+      "TestSandboxResourcesRealProcess/current",
+      "TestSandboxResourcesRealProcess/legacy"
+    ],
+    "failures": []
+  },
+  "cleanupReproduction": {
+    "log": "bridge-before-cleanup-fix.jsonl",
+    "exitCode": 1,
+    "topLevelPasses": 1,
+    "skips": [],
+    "failures": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "reason": "New negative test exposed Disconnect waiting for a read loop never admitted after pre-start resource validation rejected; fixed by tracking read-loop ownership under the connection lock"
+  },
+  "windows": {
+    "scope": "cross-compilation only; native execution not run",
+    "checks": [
+      {
+        "command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off GOPROXY=off go test -mod=readonly -c ./internal/tool/executor",
+        "exitCode": 0,
+        "sha256": "c94880834bd6385566dc9557f46e2f0f9b357389039d67acaa100a1ec7a98352"
+      },
+      {
+        "command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off GOPROXY=off go test -mod=readonly -c ./cmd/nxs",
+        "exitCode": 0,
+        "sha256": "da9fea9a22bcd87186c4856d8c8d46c065450c1a5b34bb29fd2f40902f7980f5"
+      }
+    ]
+  },
+  "gateChecks": {
+    "nodeSyntaxExitCode": 0,
+    "evidenceParserTests": 6,
+    "architectureExitCode": 0
+  },
+  "limitations": [
+    "Nexus pins the new Bridge but does not yet supply Resources; default host scratch lease preparation, retirement and cleanup remain pending",
+    "Only covered macOS command/file write scopes; ordinary read/deny and network settings remain separate, no confined-read profile or effective-policy receipt",
+    "SDK validates scratch syntax, directory availability and workspace separation; the host must prove exclusive ownership and descendant termination before reclamation",
+    "Global SDK IO, Skills/startup/settings/background memory, Claude adapter, native Windows, Linux owner and installer/release acceptance remain outstanding",
+    "All commits and artifacts remain local per user instruction; no remote module publication or push"
+  ]
+}

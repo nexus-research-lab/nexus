@@ -177,7 +177,7 @@ export const enAgentMessages = {
   "agent_options.advanced.permission.bypass.description": "Approves most actions automatically while existing safety restrictions still apply.",
   "agent_options.advanced.permission.dont_ask.label": "Don't ask",
   "agent_options.advanced.permission.dont_ask.description": "Never prompts; actions that cannot be approved automatically are denied.",
-  "agent_options.advanced.bypass_warning": "Full access approves most actions automatically while existing safety restrictions still apply. Use this mode only for trusted work.",
+  "agent_options.advanced.bypass_warning": "Full access can access local files available to your user account, provides no sandbox isolation guarantee, and approves most actions automatically. Use it only for trusted work.",
   "agent_options.advanced.tool_access": "Pre-approved tools",
   "agent_options.advanced.enabled_tools": "{count} pre-approved",
   "agent_options.advanced.security_hint": "Only higher-risk tools that can be approved in advance are shown here. Basic capabilities such as reading, search, task status, skills, and image generation need no separate setup.",

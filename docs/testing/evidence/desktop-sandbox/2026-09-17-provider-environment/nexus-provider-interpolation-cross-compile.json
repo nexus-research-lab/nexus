@@ -1,0 +1,32 @@
+[
+  {
+    "platform": "linux",
+    "exitCode": 0,
+    "command": [
+      "go",
+      "test",
+      "-mod=readonly",
+      "-exec=/usr/bin/true",
+      "./internal/config/env",
+      "./internal/mcp/client",
+      "./internal/tool/executor/hooks",
+      "./cmd/nxs"
+    ],
+    "scope": "compile-only"
+  },
+  {
+    "platform": "windows",
+    "exitCode": 0,
+    "command": [
+      "go",
+      "test",
+      "-mod=readonly",
+      "-exec=/usr/bin/true",
+      "./internal/config/env",
+      "./internal/mcp/client",
+      "./internal/tool/executor/hooks",
+      "./cmd/nxs"
+    ],
+    "scope": "compile-only"
+  }
+]

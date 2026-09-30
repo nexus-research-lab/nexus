@@ -1,0 +1,53 @@
+//go:build darwin && cgo
+
+// INPUT: 已认证启动帧中的宿主规则。
+// OUTPUT: exec 前安装继承到后代的 Seatbelt profile，失败拒绝执行。
+// POS: 引导程序原生边界，不在磁盘保存策略或秘密。
+package processbootstrap
+
+/*
+#cgo LDFLAGS: -lsandbox
+#include <stdlib.h>
+#include <sandbox.h>
+static int nexus_install_host_policy(const char *profile) {
+ char *error = NULL;
+ int result = sandbox_init(profile, 0, &error);
+ if (error != NULL) sandbox_free_error(error);
+ return result;
+}
+*/
+import "C"
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"unsafe"
+)
+
+func applyHostPolicy(policy *HostPolicy) error {
+	if policy == nil {
+		return nil
+	}
+	profile, err := hostPolicyProfile(policy)
+	if err != nil {
+		return err
+	}
+	// 发送方不能以词法路径遮蔽一个不同的实际保护目标。
+	for _, root := range append(append([]string{}, policy.DenyRoots...), policy.ReadOnlyRoots...) {
+		canonical, err := filepath.EvalSymlinks(root)
+		if err != nil || canonical != root {
+			return errors.New("bootstrap host root is not canonical")
+		}
+		info, err := os.Stat(root)
+		if err != nil || !info.IsDir() {
+			return errors.New("bootstrap host root is not a directory")
+		}
+	}
+	text := C.CString(profile)
+	defer C.free(unsafe.Pointer(text))
+	if C.nexus_install_host_policy(text) != 0 {
+		return errors.New("bootstrap host protection unavailable")
+	}
+	return nil
+}

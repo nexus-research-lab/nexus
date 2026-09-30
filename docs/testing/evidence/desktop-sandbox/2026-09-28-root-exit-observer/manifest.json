@@ -1,0 +1,11 @@
+{
+  "bridgeCommit": "882df63ef230ccd96cfe6df3a7bce16c1fd2075e",
+  "productionIntegrated": false,
+  "releaseAccepted": false,
+  "sha256": {
+    "README.md": "f0baf276bf7659ade4d9876a3151c23ea2ddd96d35ea1096ae4f500fc67328c8",
+    "native.jsonl": "b4189be39dd9e5092eaf839d60c72d7876135cec047ea39107d7ee1856903a0a",
+    "no-cgo.txt": "f2f38f70e033128ef97ed66390fdd6cce4e5d6f21344a470254e6cdb43fcf021",
+    "race.txt": "45c1e761bd5a0d28e6849df4c9c6dc8f973dcadfd5f3234335da5907c15584cc"
+  }
+}

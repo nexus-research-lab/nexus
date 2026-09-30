@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "files": [
+    "README.md",
+    "report.json",
+    "module.json",
+    "bridge-target.log",
+    "bridge-race.log",
+    "bridge-vet.log",
+    "nexus-clientopts.log",
+    "nexus-desktop-gate.log",
+    "claude-cli-probe.json",
+    "claude-cli-probe.stdout.json",
+    "claude-cli-probe.stderr.log"
+  ],
+  "notes": "SHA256SUMS covers every file listed above. All evidence is local and no model request was made."
+}

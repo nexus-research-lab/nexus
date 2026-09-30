@@ -1,0 +1,22 @@
+=== RUN   TestMacOSSupervisedStart
+=== RUN   TestMacOSSupervisedStart/long_state_root
+=== RUN   TestMacOSSupervisedStart/detached_output
+=== RUN   TestMacOSSupervisedStart/cancel_close_waiter
+=== RUN   TestMacOSSupervisedStart/success
+=== RUN   TestMacOSSupervisedStart/reserve
+=== RUN   TestMacOSSupervisedStart/publish
+=== RUN   TestMacOSSupervisedStart/register
+=== RUN   TestMacOSSupervisedStart/release
+=== RUN   TestMacOSSupervisedStart/finish
+--- PASS: TestMacOSSupervisedStart (2.93s)
+    --- PASS: TestMacOSSupervisedStart/long_state_root (0.54s)
+    --- PASS: TestMacOSSupervisedStart/detached_output (1.19s)
+    --- PASS: TestMacOSSupervisedStart/cancel_close_waiter (0.13s)
+    --- PASS: TestMacOSSupervisedStart/success (0.10s)
+    --- PASS: TestMacOSSupervisedStart/reserve (0.01s)
+    --- PASS: TestMacOSSupervisedStart/publish (0.01s)
+    --- PASS: TestMacOSSupervisedStart/register (0.07s)
+    --- PASS: TestMacOSSupervisedStart/release (0.07s)
+    --- PASS: TestMacOSSupervisedStart/finish (0.09s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision	4.862s

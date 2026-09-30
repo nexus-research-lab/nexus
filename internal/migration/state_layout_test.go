@@ -502,6 +502,8 @@ func TestMoveLayoutEntrySamePathIsNoop(t *testing.T) {
 }
 
 func TestRunStateLayoutRejectsConflictingDestination(t *testing.T) {
+	// Desktop has a separate conflict-preserving recovery path; this tests server behavior.
+	t.Setenv(nexusAppModeEnvironment, "web")
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	sourcePath := filepath.Join(stateRoot, "data", "nexus.db")
 	targetPath := filepath.Join(stateRoot, "app", "data", "nexus.db")
@@ -606,6 +608,8 @@ func TestRunStateLayoutPreservesPrecreatedRuntimeConfig(t *testing.T) {
 }
 
 func TestRunStateLayoutHardensSharedWorkspacePermissions(t *testing.T) {
+	// Desktop deliberately preserves native filesystem modes.
+	t.Setenv(nexusAppModeEnvironment, "web")
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	sharedFile := filepath.Join(stateRoot, "shared-workspaces", "project", "README.md")
 	writeMigrationTestFile(t, sharedFile, "shared\n")

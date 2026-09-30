@@ -1,0 +1,107 @@
+import Foundation
+
+
+
+
+final class SidecarBundleLocatorTests {
+  func testDevelopmentLocatorRejectsDistOlderThanNestedSource() throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+    let sourceURL = fixture.webRoot.appendingPathComponent("src/features/conversation/Composer.tsx")
+    try write("export {}", to: sourceURL)
+    try setModificationDate(Date(timeIntervalSince1970: 2_000), for: fixture.distIndex)
+    try setModificationDate(Date(timeIntervalSince1970: 3_000), for: sourceURL)
+
+    XCTAssertThrowsError(try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)) { error in
+      guard case let DesktopShellError.webDistStale(webDistPath, newerInputPath) = error else {
+        return XCTFail("Expected webDistStale, got \(error)")
+      }
+      XCTAssertEqual(webDistPath, fixture.webRoot.appendingPathComponent("dist").path)
+      XCTAssertEqual(
+        URL(fileURLWithPath: newerInputPath).resolvingSymlinksInPath().path,
+        sourceURL.resolvingSymlinksInPath().path
+      )
+      XCTAssertTrue(error.localizedDescription.contains("make app-run-dev"))
+    }
+  }
+
+  func testDevelopmentLocatorRejectsDistOlderThanBuildConfiguration() throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+    let configURL = fixture.webRoot.appendingPathComponent("vite.config.ts")
+    try write("export default {}", to: configURL)
+    try setModificationDate(Date(timeIntervalSince1970: 2_000), for: fixture.distIndex)
+    try setModificationDate(Date(timeIntervalSince1970: 3_000), for: configURL)
+
+    XCTAssertThrowsError(try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)) { error in
+      guard case let DesktopShellError.webDistStale(_, newerInputPath) = error else {
+        return XCTFail("Expected webDistStale, got \(error)")
+      }
+      XCTAssertEqual(newerInputPath, configURL.path)
+    }
+  }
+
+  func testDevelopmentLocatorAcceptsDistNewerThanInputs() throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+    let sourceURL = fixture.webRoot.appendingPathComponent("src/main.tsx")
+    let configURL = fixture.webRoot.appendingPathComponent("package.json")
+    try write("export {}", to: sourceURL)
+    try write("{}", to: configURL)
+    try setModificationDate(Date(timeIntervalSince1970: 2_000), for: sourceURL)
+    try setModificationDate(Date(timeIntervalSince1970: 2_500), for: configURL)
+    try setModificationDate(Date(timeIntervalSince1970: 3_000), for: fixture.distIndex)
+
+    let locator = try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)
+
+    XCTAssertEqual(locator.projectRoot, fixture.root)
+    XCTAssertEqual(locator.webDistURL, fixture.webRoot.appendingPathComponent("dist", isDirectory: true))
+    XCTAssertEqual(locator.command, fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/MacOS/nexus-server").resolvingSymlinksInPath().path)
+    XCTAssertEqual(locator.arguments, [])
+  }
+
+  func testDevelopmentLocatorRejectsMissingHelper() throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    try FileManager.default.removeItem(at: fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/Resources/bin/nexus-runtime-bootstrap"))
+    XCTAssertThrowsError(try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)) { error in
+      guard case DesktopShellError.sidecarExecutableNotFound = error else {
+        return XCTFail("Expected missing runtime, got \(error)")
+      }
+    }
+  }
+
+  private func makeFixture() throws -> (root: URL, webRoot: URL, distIndex: URL) {
+    let fileManager = FileManager.default
+    let root = fileManager.temporaryDirectory.appendingPathComponent(
+      "nexus-sidecar-bundle-locator-\(UUID().uuidString)",
+      isDirectory: true
+    )
+    let webRoot = root.appendingPathComponent("web", isDirectory: true)
+    let distIndex = webRoot.appendingPathComponent("dist/index.html")
+    try write("<!doctype html>", to: distIndex)
+    let contents = root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents")
+    for relative in ["MacOS/nexus-server", "Resources/bin/nexus-runtime-bootstrap"] {
+      let binary = contents.appendingPathComponent(relative)
+      try write("fixture", to: binary)
+      try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
+    }
+    try write("{}", to: contents.appendingPathComponent("Resources/runtime-bootstrap.json"))
+    return (root, webRoot, distIndex)
+  }
+
+  private func write(_ contents: String, to url: URL) throws {
+    try FileManager.default.createDirectory(
+      at: url.deletingLastPathComponent(),
+      withIntermediateDirectories: true
+    )
+    try contents.write(to: url, atomically: true, encoding: .utf8)
+  }
+
+  private func setModificationDate(_ date: Date, for url: URL) throws {
+    try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+  }
+}

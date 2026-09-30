@@ -1,11 +1,12 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、换代、关闭语义。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力、换代语义及清理失败后的重连栅栏。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"os"
@@ -15,6 +16,7 @@ import (
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // Client 抽象出宿主管理 Agent runtime 所需的最小能力，便于测试替身接入。
@@ -67,6 +69,8 @@ type agentClient struct {
 	connecting               *agentClientConnectFlight
 	configuring              *agentClientConfigFlight
 	cleanup                  *agentClientSessionCleanup
+	sandboxLease             *SandboxResourceLease
+	sandboxReceipt           *SandboxEffectivePolicyReceipt
 	streamErr                error
 	retired                  bool
 	newSession               func(context.Context, bridge.Options) (*bridge.Session, error)
@@ -96,13 +100,129 @@ type agentClientConfigFlight struct {
 }
 
 type agentClientSessionCleanup struct {
-	done chan struct{}
-	err  error
+	done         chan struct{}
+	errMu        sync.Mutex
+	err          error
+	leaseMu      sync.Mutex
+	scratchLease *SandboxResourceLease
+	// finalize runs after the candidate session close and before done closes.
+	// It may claim a lease retained for a configuration retry if lifecycle
+	// invalidation arrives while the candidate is closing.
+	finalize  func(closeErr error) error
+	startOnce sync.Once
+}
+
+func (c *agentClientSessionCleanup) getScratchLease() *SandboxResourceLease {
+	if c == nil {
+		return nil
+	}
+	c.leaseMu.Lock()
+	defer c.leaseMu.Unlock()
+	return c.scratchLease
+}
+
+func (c *agentClientSessionCleanup) setScratchLease(lease *SandboxResourceLease) {
+	if c == nil {
+		return
+	}
+	c.leaseMu.Lock()
+	c.scratchLease = lease
+	c.leaseMu.Unlock()
+}
+
+func (c *agentClientSessionCleanup) getErr() error {
+	if c == nil {
+		return nil
+	}
+	c.errMu.Lock()
+	defer c.errMu.Unlock()
+	return c.err
+}
+
+func (c *agentClientSessionCleanup) setErr(err error) {
+	if c == nil {
+		return
+	}
+	c.errMu.Lock()
+	c.err = err
+	c.errMu.Unlock()
 }
 
 // NewAgentClient 创建负责并发连接、配置换代和进程回收的 Agent client。
 func NewAgentClient(options bridge.Options) Client {
 	return &agentClient{options: options}
+}
+
+// BindSandboxLease transfers one host-owned scratch handle to this runtime
+// generation. The handle is later moved into the exact bridge cleanup record;
+// path lookup is never used to decide which generation may delete a resource.
+func (c *agentClient) BindSandboxLease(lease *SandboxResourceLease) error {
+	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return bridge.ErrAborted
+	}
+	if lease != nil && !lease.active() {
+		c.mu.Unlock()
+		return errors.New("desktop sandbox lease is already released")
+	}
+	if lease != nil && normalizedManagedRuntimeKind(c.options.Runtime.Kind) != bridge.RuntimeNXS {
+		c.mu.Unlock()
+		return fmt.Errorf("desktop sandbox lease requires nxs runtime")
+	}
+	if lease != nil && c.options.Env[protocol.NexusDesktopSandboxPolicyEnvName] == "1" {
+		var expected *bridge.SandboxResourcePolicy
+		if c.options.Sandbox != nil {
+			expected = c.options.Sandbox.Resources
+		}
+		actual := lease.Resources()
+		if expected == nil || actual == nil || *expected != *actual {
+			c.mu.Unlock()
+			return errors.New("desktop sandbox lease policy does not match runtime options")
+		}
+	}
+	previous := c.sandboxLease
+	if previous == lease {
+		c.mu.Unlock()
+		return nil
+	}
+	if previous != nil && !previous.active() {
+		c.mu.Unlock()
+		return errors.New("desktop sandbox client holds a released lease")
+	}
+	// A connected or in-flight generation already has its resource path in the
+	// bridge options. Replacing it with a different resource would leave the
+	// process using the old path while cleanup owns the new one; only handles
+	// over the same shared resource may rotate between rounds.
+	if c.connecting != nil && previous != lease {
+		c.mu.Unlock()
+		return errors.New("desktop sandbox lease cannot change while runtime is connecting")
+	}
+	if c.session != nil && !leasesShareResource(previous, lease) {
+		c.mu.Unlock()
+		return errors.New("desktop sandbox lease cannot change while runtime generation is active")
+	}
+	c.sandboxLease = lease
+	c.mu.Unlock()
+	if previous == nil {
+		return nil
+	}
+	if err := previous.Release(); err != nil {
+		c.mu.Lock()
+		if c.sandboxLease == lease {
+			c.sandboxLease = previous
+		}
+		c.mu.Unlock()
+		return err
+	}
+	if lease != nil {
+		c.mu.Lock()
+		if c.sandboxLease == lease && c.session != nil && leasesShareResource(previous, lease) {
+			c.refreshSandboxReceiptLeaseLocked(lease)
+		}
+		c.mu.Unlock()
+	}
+	return nil
 }
 
 func (c *agentClient) Connect(ctx context.Context) error {
@@ -136,6 +256,9 @@ func (c *agentClient) Connect(ctx context.Context) error {
 		if cleanup != nil {
 			c.mu.Unlock()
 			if err := waitAgentClientTransition(ctx, cleanup.done); err != nil {
+				return err
+			}
+			if err := cleanup.getErr(); err != nil {
 				return err
 			}
 			c.clearCompletedAgentClientCleanup(cleanup)
@@ -180,6 +303,7 @@ func (c *agentClient) runConnectFlight(
 		}
 		options := c.options
 		configVersion := c.configVersion
+		lease := c.sandboxLease
 		c.mu.Unlock()
 
 		session, err := c.openSession(ctx, options)
@@ -187,6 +311,14 @@ func (c *agentClient) runConnectFlight(
 			c.mu.Lock()
 			configChanged := c.configVersion != configVersion
 			invalidated := c.lifecycleVersion != requestLifecycleVersion
+			if invalidated && lease != nil && c.sandboxLease == lease {
+				cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: lease}
+				c.sandboxLease = nil
+				c.cleanup = cleanup
+				c.mu.Unlock()
+				c.startBridgeSessionCleanup(nil, nil, cleanup)
+				return bridge.ErrAborted
+			}
 			c.mu.Unlock()
 			if invalidated {
 				return bridge.ErrAborted
@@ -204,6 +336,71 @@ func (c *agentClient) runConnectFlight(
 			}
 			return err
 		}
+		receipt, receiptErr := buildSandboxEffectivePolicyReceipt(session, options, lease)
+		if receiptErr != nil {
+			cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
+			c.mu.Lock()
+			lifecycleChanged := c.lifecycleVersion != requestLifecycleVersion
+			configChanged := c.configVersion != configVersion
+			leaseChanged := !leasesShareResource(c.sandboxLease, lease)
+			existingCleanup := c.cleanup
+			if !lifecycleChanged && !configChanged && !leaseChanged {
+				cleanup.setScratchLease(c.sandboxLease)
+				c.sandboxLease = nil
+			} else if lease != nil && c.sandboxLease != lease {
+				// This session captured the obsolete handle. If a newer
+				// generation replaced the client lease, only the captured handle
+				// belongs to this cleanup; keep the current handle installed.
+				cleanup.setScratchLease(lease)
+			} else if lifecycleChanged && lease != nil && c.sandboxLease == lease {
+				// The lifecycle fence did not move the lease because Connect was
+				// still in flight. This stale session now owns the exact transfer.
+				cleanup.setScratchLease(lease)
+				c.sandboxLease = nil
+			}
+			if lifecycleChanged && existingCleanup != nil && existingCleanup.getScratchLease() == lease {
+				// Disconnect/Retire may already own this exact handle in its
+				// cleanup fence. Do not release it a second time here.
+				cleanup.setScratchLease(nil)
+			}
+			if cleanup.getScratchLease() == nil && lease != nil && c.sandboxLease == lease {
+				cleanup.finalize = c.deferredInvalidatedLeaseFinalizer(lease, requestLifecycleVersion, cleanup)
+			}
+			if c.cleanup == nil {
+				c.cleanup = cleanup
+			}
+			c.mu.Unlock()
+			c.startBridgeSessionCleanup(session, nil, cleanup)
+			waitErr := waitAgentClientTransition(ctx, cleanup.done)
+			c.mu.Lock()
+			lifecycleChanged = lifecycleChanged || c.lifecycleVersion != requestLifecycleVersion
+			c.mu.Unlock()
+			if lifecycleChanged {
+				if waitErr != nil {
+					<-cleanup.done
+				}
+				if err := c.finishInvalidatedStartupLease(lease, cleanup); err != nil {
+					return err
+				}
+				return bridge.ErrAborted
+			}
+			if waitErr != nil {
+				return waitErr
+			}
+			if err := cleanup.getErr(); err != nil {
+				return err
+			}
+			c.clearCompletedAgentClientCleanup(cleanup)
+			if configChanged || leaseChanged {
+				continue
+			}
+			sharedFailure = &agentClientConnectFailure{
+				err:              receiptErr,
+				configVersion:    configVersion,
+				lifecycleVersion: requestLifecycleVersion,
+			}
+			return sharedFailure.err
+		}
 
 		pumpCtx, cancel := context.WithCancel(context.Background())
 		messages := make(chan sdkprotocol.ReceivedMessage, 64)
@@ -213,17 +410,39 @@ func (c *agentClient) runConnectFlight(
 		c.mu.Lock()
 		configChanged := c.configVersion != configVersion
 		invalidated := c.lifecycleVersion != requestLifecycleVersion
-		if !configChanged && !invalidated {
+		leaseChanged := !leasesShareResource(c.sandboxLease, lease)
+		if !configChanged && !invalidated && !leaseChanged {
 			c.session = session
 			c.messages = messages
 			c.cancel = cancel
 			c.streamErr = nil
+			c.sandboxReceipt = receipt
 			c.mu.Unlock()
 			go c.pumpMessages(pumpCtx, session, messages)
 			return nil
 		}
 		cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
-		c.cleanup = cleanup
+		existingCleanup := c.cleanup
+		if lease != nil && c.sandboxLease != lease {
+			// Release the lease captured by this stale startup, never the
+			// lease currently bound to a newer generation.
+			cleanup.setScratchLease(lease)
+		}
+		if invalidated && c.sandboxLease == lease {
+			// A lifecycle invalidation without an installed cleanup still owns
+			// the captured handle. Transfer exactly that handle here.
+			cleanup.setScratchLease(lease)
+			c.sandboxLease = nil
+		}
+		if invalidated && existingCleanup != nil && existingCleanup.getScratchLease() == lease {
+			cleanup.setScratchLease(nil)
+		}
+		if cleanup.getScratchLease() == nil && lease != nil && c.sandboxLease == lease {
+			cleanup.finalize = c.deferredInvalidatedLeaseFinalizer(lease, requestLifecycleVersion, cleanup)
+		}
+		if !invalidated || existingCleanup == nil {
+			c.cleanup = cleanup
+		}
 		c.mu.Unlock()
 
 		cancel()
@@ -233,10 +452,19 @@ func (c *agentClient) runConnectFlight(
 		invalidated = invalidated || c.lifecycleVersion != requestLifecycleVersion
 		c.mu.Unlock()
 		if invalidated {
+			if waitErr != nil {
+				<-cleanup.done
+			}
+			if err := c.finishInvalidatedStartupLease(lease, cleanup); err != nil {
+				return err
+			}
 			return bridge.ErrAborted
 		}
 		if waitErr != nil {
 			return waitErr
+		}
+		if err := cleanup.getErr(); err != nil {
+			return err
 		}
 		c.clearCompletedAgentClientCleanup(cleanup)
 	}
@@ -404,6 +632,11 @@ func (c *agentClient) SetPermissionMode(ctx context.Context, mode sdkpermission.
 		c.mu.Unlock()
 		return bridge.ErrAborted
 	}
+	if desktopSandboxModeTransition(currentOptions, normalized) {
+		c.mu.Unlock()
+		c.Retire()
+		return ErrDesktopSandboxPolicyChanged
+	}
 	nextOptions := currentOptions
 	nextOptions.Runtime.PermissionMode = normalized
 	c.options = nextOptions
@@ -558,7 +791,10 @@ func (c *agentClient) Disconnect(ctx context.Context) error {
 	if connecting != nil {
 		connecting.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	c.mu.Lock()
+	hasScratchLease := cleanup != nil && cleanup.getScratchLease() != nil
+	c.mu.Unlock()
+	if session != nil || hasScratchLease {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 	if err := waitAgentClientCleanup(ctx, cleanup); err != nil {
@@ -576,12 +812,14 @@ func (c *agentClient) Disconnect(ctx context.Context) error {
 		if err := waitAgentClientCleanup(ctx, latestCleanup); err != nil {
 			return err
 		}
-		if latestCleanup != nil && latestCleanup.err != nil {
-			return latestCleanup.err
+		if latestCleanup != nil {
+			if err := latestCleanup.getErr(); err != nil {
+				return err
+			}
 		}
 	}
 	if cleanup != nil {
-		return cleanup.err
+		return cleanup.getErr()
 	}
 	return nil
 }
@@ -605,7 +843,10 @@ func (c *agentClient) Retire() {
 	if configuring != nil {
 		configuring.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	c.mu.Lock()
+	hasScratchLease := cleanup != nil && cleanup.getScratchLease() != nil
+	c.mu.Unlock()
+	if session != nil || hasScratchLease {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
@@ -616,15 +857,33 @@ func (c *agentClient) detachCurrentSessionLocked(
 	// 即使当前没有 session 也要换代，使尚未完成的 Connect 无法回挂。
 	c.lifecycleVersion++
 	if c.session == nil {
+		c.sandboxReceipt = nil
 		if err != nil {
 			c.streamErr = err
 		}
-		return nil, nil, c.cleanup
+		cleanup := c.cleanup
+		// An in-flight Connect still owns the lease captured by its startup
+		// snapshot. Leave it with that flight so a late session cannot be
+		// released by a nil-session cleanup before Bridge close is proven.
+		if cleanup == nil && c.connecting == nil && c.sandboxLease != nil {
+			cleanup = &agentClientSessionCleanup{done: make(chan struct{})}
+			c.cleanup = cleanup
+		}
+		if cleanup != nil && cleanup.getScratchLease() == nil {
+			cleanup.setScratchLease(c.sandboxLease)
+			c.sandboxLease = nil
+		}
+		return nil, nil, cleanup
 	}
 	c.streamErr = err
+	c.sandboxReceipt = nil
 	session := c.session
 	cancel := c.cancel
-	cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
+	cleanup := &agentClientSessionCleanup{
+		done:         make(chan struct{}),
+		scratchLease: c.sandboxLease,
+	}
+	c.sandboxLease = nil
 	c.session = nil
 	c.messages = nil
 	c.cancel = nil
@@ -644,7 +903,10 @@ func (c *agentClient) DiscardUncleanSession() {
 	if connecting != nil {
 		connecting.cancel(bridge.ErrAborted)
 	}
-	if session != nil {
+	c.mu.Lock()
+	hasScratchLease := cleanup != nil && cleanup.getScratchLease() != nil
+	c.mu.Unlock()
+	if session != nil || hasScratchLease {
 		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
@@ -675,10 +937,70 @@ func waitAgentClientCleanup(ctx context.Context, cleanup *agentClientSessionClea
 	return waitAgentClientTransition(ctx, cleanup.done)
 }
 
+// deferredInvalidatedLeaseFinalizer runs inside the cleanup goroutine, after
+// the candidate session close and before its done fence opens. Configuration
+// replacement keeps the lease for retry; a lifecycle invalidation transfers
+// and releases the exact captured handle only after close is known.
+func (c *agentClient) deferredInvalidatedLeaseFinalizer(
+	lease *SandboxResourceLease,
+	requestLifecycleVersion uint64,
+	cleanup *agentClientSessionCleanup,
+) func(error) error {
+	return func(closeErr error) error {
+		c.mu.Lock()
+		invalidated := c.lifecycleVersion != requestLifecycleVersion
+		if !invalidated || c.sandboxLease != lease {
+			c.mu.Unlock()
+			return nil
+		}
+		c.sandboxLease = nil
+		cleanup.setScratchLease(lease)
+		c.mu.Unlock()
+		if closeErr != nil {
+			return lease.MarkCleanupUncertain(closeErr)
+		}
+		return lease.Release()
+	}
+}
+
+// finishInvalidatedStartupLease closes the small window between a cleanup
+// finalizer's lifecycle check and the connect flight's own recheck. The caller
+// has already observed cleanup.done, so a lease retained by the client can be
+// released here without racing the session close.
+func (c *agentClient) finishInvalidatedStartupLease(lease *SandboxResourceLease, cleanup *agentClientSessionCleanup) error {
+	if lease == nil || cleanup == nil {
+		return nil
+	}
+	if cleanup.getScratchLease() != nil {
+		return cleanup.getErr()
+	}
+	cleanupErr := cleanup.getErr()
+	c.mu.Lock()
+	if c.sandboxLease != lease {
+		c.mu.Unlock()
+		return nil
+	}
+	c.sandboxLease = nil
+	cleanup.setScratchLease(lease)
+	c.mu.Unlock()
+	if cleanupErr != nil {
+		if markerErr := lease.MarkCleanupUncertain(cleanupErr); markerErr != nil {
+			cleanupErr = errors.Join(cleanupErr, markerErr)
+			cleanup.setErr(cleanupErr)
+		}
+		return cleanupErr
+	}
+	if err := lease.Release(); err != nil {
+		cleanup.setErr(err)
+		return err
+	}
+	return nil
+}
+
 // clearCompletedAgentClientCleanup 只清除自己观察到的 cleanup，不能覆盖并发产生的新代。
 func (c *agentClient) clearCompletedAgentClientCleanup(cleanup *agentClientSessionCleanup) {
 	c.mu.Lock()
-	if c.cleanup == cleanup {
+	if c.cleanup == cleanup && cleanup.getErr() == nil {
 		c.cleanup = nil
 	}
 	c.mu.Unlock()
@@ -706,13 +1028,41 @@ func (c *agentClient) startBridgeSessionCleanup(
 	cancel context.CancelFunc,
 	cleanup *agentClientSessionCleanup,
 ) {
+	if cleanup == nil {
+		return
+	}
 	if cancel != nil {
 		cancel()
 	}
-	go func() {
-		cleanup.err = c.closeBridgeSession(session)
-		close(cleanup.done)
-	}()
+	c.mu.Lock()
+	scratchLease := cleanup.getScratchLease()
+	c.mu.Unlock()
+	cleanup.startOnce.Do(func() {
+		go func() {
+			var closeErr error
+			if session != nil || c.closeSession != nil {
+				closeErr = c.closeBridgeSession(session)
+			}
+			// A scratch lease is released only after bridge close succeeds. If the
+			// process cannot be proven stopped, preserve the lease for recovery and
+			// keep the runtime session close fence active.
+			var scratchErr error
+			if scratchLease != nil {
+				if closeErr != nil {
+					if markerErr := scratchLease.MarkCleanupUncertain(closeErr); markerErr != nil {
+						closeErr = errors.Join(closeErr, markerErr)
+					}
+				} else {
+					scratchErr = scratchLease.Release()
+				}
+			}
+			if cleanup.finalize != nil {
+				scratchErr = errors.Join(scratchErr, cleanup.finalize(closeErr))
+			}
+			cleanup.setErr(errors.Join(closeErr, scratchErr))
+			close(cleanup.done)
+		}()
+	})
 }
 
 func (c *agentClient) openSession(
@@ -778,6 +1128,11 @@ func (c *agentClient) Reconfigure(ctx context.Context, options bridge.Options) e
 		c.mu.Unlock()
 		return bridge.ErrAborted
 	}
+	// 监督工厂绑定 client 首次创建的宿主身份，普通配置热更新不得撤销或换代它。
+	if currentOptions.ProcessSupervision != nil {
+		options.ProcessSupervision = currentOptions.ProcessSupervision
+	}
+
 	session := c.session
 	c.options = options
 	c.configVersion++
@@ -810,6 +1165,68 @@ func (c *agentClient) Supports(capability bridge.Capability) bool {
 	session := c.session
 	c.mu.Unlock()
 	return session != nil && session.Supports(capability)
+}
+
+func (c *agentClient) currentSandboxLease() *SandboxResourceLease {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.sandboxLease
+}
+
+func (c *agentClient) refreshSandboxReceiptLeaseLocked(lease *SandboxResourceLease) {
+	if c.sandboxReceipt == nil || lease == nil {
+		return
+	}
+	marker := lease.Marker()
+	if marker == nil || strings.TrimSpace(marker.LeaseID) == "" {
+		return
+	}
+	c.sandboxReceipt.LeaseID = marker.LeaseID
+	if roundID := lease.RoundID(); roundID != "" {
+		c.sandboxReceipt.RoundID = roundID
+	} else {
+		c.sandboxReceipt.RoundID = marker.RoundID
+	}
+}
+
+func (c *agentClient) setSandboxReceiptGeneration(generation uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.sandboxReceipt != nil {
+		c.sandboxReceipt.Generation = generation
+	}
+}
+
+// EffectiveSandboxPolicyReceipt returns the confirmed policy for the current
+// connected runtime generation. A nil result means this is not a desktop
+// sandbox runtime or no generation is currently connected.
+func (c *agentClient) EffectiveSandboxPolicyReceipt() *SandboxEffectivePolicyReceipt {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	receipt := cloneSandboxEffectivePolicyReceipt(c.sandboxReceipt)
+	if receipt == nil || !receipt.SessionIDProvisional || c.session == nil {
+		return receipt
+	}
+	if sessionID := strings.TrimSpace(c.session.ID()); sessionID != "" {
+		receipt.SessionID = sessionID
+		receipt.SessionIDProvisional = false
+	}
+	return receipt
+}
+
+// EffectiveSandboxPolicyReceipt reads the optional host receipt without
+// expanding the Client interface used by test and alternate runtime clients.
+func EffectiveSandboxPolicyReceipt(client Client) *SandboxEffectivePolicyReceipt {
+	if client == nil {
+		return nil
+	}
+	reader, ok := client.(interface {
+		EffectiveSandboxPolicyReceipt() *SandboxEffectivePolicyReceipt
+	})
+	if !ok {
+		return nil
+	}
+	return reader.EffectiveSandboxPolicyReceipt()
 }
 
 func (c *agentClient) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
@@ -905,6 +1322,11 @@ func (f defaultFactory) New(options bridge.Options) Client {
 // IsRuntimeTransportClosedError 判断底层 SDK transport 是否已经断开。
 func IsRuntimeTransportClosedError(err error) bool {
 	if err == nil {
+		return false
+	}
+	var cleanupErr *bridge.ProcessCleanupError
+	if errors.As(err, &cleanupErr) {
+		// 断管可能与后代清理失败同时发生，不能据此吞掉生命周期错误。
 		return false
 	}
 	if errors.Is(err, bridge.ErrNotConnected) ||

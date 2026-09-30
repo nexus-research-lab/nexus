@@ -1,0 +1,34 @@
+Sandbox evidence: /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-LCw3Jb
+Checking nexus-revision
+Checking nexus-changes
+Checking go-version
+Checking bridge-module
+Checking sdk-revision
+Checking sdk-changes-excluded
+Checking sdk-export
+Checking sdk-extract
+Checking sdk-build
+Checking host-policy
+Checking host-lifecycle
+Checking macos-backend-path
+Checking macos-resource-denials
+Checking macos-resource-scopes
+Checking macos-search-contract
+Checking macos-search
+Checking macos-media-contract
+Checking macos-media-files
+Checking macos-skill-contract
+Checking macos-skill-files
+Checking macos-context-contract
+Checking macos-context-startup
+Checking macos-context-recovery
+Checking macos-project-contract
+Checking macos-project-files
+Checking macos-managed-contract
+Checking macos-managed-sources
+Checking macos-managed-integrity
+Checking macos-settings-contract
+Checking macos-settings-snapshots
+Checking macos-settings-native
+Checking macos-native
+PASS: host-and-macos-native-baseline; installation and release acceptance remain separate.

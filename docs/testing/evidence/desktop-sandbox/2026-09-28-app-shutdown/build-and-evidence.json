@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "source": "132b5ad69826ecde11cab769fdeda03b7436c257",
+  "sdk": "b84b7b6c7c3970d4a948501eaed2874563730cc2",
+  "bridge": "v0.1.34-0.20260927182153-4b2972f09143",
+  "sourceDirtyAtBuild": false,
+  "platform": "darwin",
+  "architecture": "arm64",
+  "signature": "ad-hoc",
+  "bundleID": "com.nexus.sandbox-shutdown-qa",
+  "appPath": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-shutdown-fixed-t92m8h63/app/Nexus.app",
+  "releaseAccepted": false,
+  "model": "kimi-for-coding",
+  "providerAPI": "anthropic_messages",
+  "usesOfficialClaudeAuth": false,
+  "sha256": {
+    "Contents/MacOS/Nexus": "4cde88a559c003c4fda73ef58b4502dc2c63818d36b71f72db5a6c0b79fd4cd2",
+    "Contents/MacOS/nexus-server": "b0f50fc182e33bdcf81f2e0effbbea9b5f35eccdf9ebc80ebe03b22aedce73fc",
+    "Contents/Resources/bin/nxs": "478078af4a6ae42c1bd5574b1309479fcb6c02ebfa4d38277d03e1607e4fa912"
+  },
+  "archives": {
+    "baseline-logs.tar.gz": "938d0724f5e636c733d3e2796618ab31e2fd4a0004e34b85068210b690ffc544",
+    "app-acceptance-logs.tar.gz": "a502e3623313f63e976bcb114b089f63fe2999e801d0b2688f2f0dcedadc334e"
+  }
+}

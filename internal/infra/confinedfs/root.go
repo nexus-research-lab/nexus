@@ -313,11 +313,12 @@ func (r *Root) openFileNoSymlink(name string, flag int, perm os.FileMode) (*os.F
 			return nil, openErr
 		}
 		opened, openErr := file.Stat()
+		openedHardlink := openErr == nil && hasMultipleHardLinksFile(file, opened)
 		observed, observeErr := r.Lstat(name)
 		if openErr != nil ||
 			observeErr != nil ||
 			observed.Mode()&os.ModeSymlink != 0 ||
-			hasMultipleHardLinks(opened) ||
+			openedHardlink ||
 			hasMultipleHardLinks(observed) ||
 			!os.SameFile(expected, opened) ||
 			!os.SameFile(expected, observed) {
@@ -331,7 +332,7 @@ func (r *Root) openFileNoSymlink(name string, flag int, perm os.FileMode) (*os.F
 			if observed.Mode()&os.ModeSymlink != 0 {
 				return nil, ErrSymlink
 			}
-			if hasMultipleHardLinks(opened) || hasMultipleHardLinks(observed) {
+			if openedHardlink || hasMultipleHardLinks(observed) {
 				return nil, ErrHardlink
 			}
 			// 合法的原子替换也会短暂改变 inode；下一轮仍会完整执行安全校验。

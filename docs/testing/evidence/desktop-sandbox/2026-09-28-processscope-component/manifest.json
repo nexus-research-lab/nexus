@@ -1,0 +1,18 @@
+{
+  "bridgeCommit": "27f2a4f3ccd491d0613783bb42ad03f0817b6948",
+  "productionIntegrated": false,
+  "releaseAccepted": false,
+  "sha256": {
+    "README.md": "0e15764895aa0f94ed3789aae3beb49cb1b3837ef46fb2157943eae6899e18e2",
+    "bootout-persistent.json": "8631821be8bb4fc7d9bf9dacbd69dfba80e720e558accc63539aee2282fbaf3b",
+    "native.jsonl": "adfe8c9107e20b6b13724e5d3f93e8dcf70ed7c937221d600b5714725bf84ed4",
+    "no-cgo.log": "795996de3be006213ce159cbfac6676698c4849a31f0fdfecba94e9fa693e672",
+    "peer-native.jsonl": "59d6bcc8c783d61b49e921a125dec20fc2750121ab011e7e2a67d71a4ea3b60a",
+    "peer-no-cgo.log": "36d551bcf3a9ff30711beee1e5937763c4d7a96336b21034b481ff87cf62f1c9",
+    "peer-race.log": "36f6a0d67437b371a4b8bc3c6aa1268f914bef6852a2a79bf5bc59ec79fecea1",
+    "probe.c": "bb7f73ac9b6d575572b0ee0727a012f42bba4686585750cf561bad69d30c813f",
+    "probe.py": "dc8dbe839254cb5cf00e47d23cdcc57f802d2ba0190d626c409710dcd162b8e9",
+    "race.log": "082d21579fb35c50d6ae0c5c3ce1cf0a4029ea0c6db458f4f1041ec640817650"
+  },
+  "peerBindingCommit": "af3031b5850f96dd3433ed690fbb0427884739e7"
+}

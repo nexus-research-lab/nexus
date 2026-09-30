@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "goVersion": "go1.27.1",
+  "commands": [
+    {
+      "target": "windows-amd64",
+      "package": "./internal/runtime",
+      "command": "GOWORK=off GOOS=windows GOARCH=amd64 go test -c",
+      "exitCode": 0,
+      "artifactSha256": "2e2b02e4148f23930ca693d73c44f968ffa58496ae3e51e684a72e500b0ea882"
+    },
+    {
+      "target": "windows-amd64",
+      "package": "./internal/infra/confinedfs",
+      "command": "GOWORK=off GOOS=windows GOARCH=amd64 go test -c",
+      "exitCode": 0,
+      "artifactSha256": "24001781b3d7aaef8ef727773ce5d72f835bbaffe0f54e8ccf1a8b76555c02d2"
+    },
+    {
+      "target": "darwin-arm64",
+      "package": "./internal/runtime",
+      "command": "GOWORK=off GOOS=darwin GOARCH=arm64 go test -c",
+      "exitCode": 0,
+      "artifactSha256": "ff3fcea92091a91ada5140786773e5b2006372e522354f224afc9cf333b5fe86"
+    },
+    {
+      "target": "darwin-arm64",
+      "package": "./internal/infra/confinedfs",
+      "command": "GOWORK=off GOOS=darwin GOARCH=arm64 go test -c",
+      "exitCode": 0,
+      "artifactSha256": "2f456da65e972354e4d5882e0f0394bd9d47c16a372bfa02cc2e537c618df9fd"
+    }
+  ],
+  "releaseAccepted": false,
+  "scope": "cross-compile-only"
+}

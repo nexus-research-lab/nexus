@@ -1,0 +1,618 @@
+#!/usr/bin/env node
+// INPUT: An explicit nxs binary, or an SDK repository/ref to export and build.
+// OUTPUT: Pinned-dependency test logs and a scoped JSON evidence report.
+// POS: Opt-in sandbox baseline; no model calls, setup, policy changes or release acceptance.
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { requirePassedTests } from "./sandbox-test-evidence.mjs";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const usage = "node scripts/desktop/check-sandbox-baseline.mjs (--nxs /absolute/nxs | --sdk-source /repo [--sdk-ref ref])";
+const options = {};
+for (let index = 2; index < process.argv.length; index += 2) {
+  const key = process.argv[index];
+  const value = process.argv[index + 1];
+  if (!["--nxs", "--sdk-source", "--sdk-ref"].includes(key) || !value || value.startsWith("--") || options[key]) {
+    throw new Error(usage);
+  }
+  options[key] = value;
+}
+if (Boolean(options["--nxs"]) === Boolean(options["--sdk-source"]) || options["--sdk-ref"] && !options["--sdk-source"]) {
+  throw new Error(usage);
+}
+if (options["--sdk-source"] && process.platform !== "darwin") {
+  throw new Error("SDK native baseline currently requires macOS; use --nxs for host integration only.");
+}
+for (const key of ["--nxs", "--sdk-source"]) {
+  if (options[key] && !path.isAbsolute(options[key])) throw new Error(`${key} requires an absolute path`);
+}
+
+const reportDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "nexus-sandbox-baseline-"));
+const environment = { ...process.env, GOWORK: "off", NEXUS_CONFIG_DIR: path.join(reportDirectory, "config") };
+const report = {
+  version: 1, startedAt: new Date().toISOString(),
+  platform: process.platform, architecture: process.arch, osRelease: os.release(),
+  scope: options["--sdk-source"] ? "host-and-macos-native-baseline" : "host-integration-only",
+  releaseAccepted: false, passed: false, checks: [],
+};
+console.log(`Sandbox evidence: ${reportDirectory}`);
+
+// Commands never pass through a shell; output stays in an isolated evidence directory.
+function run(name, command, args, cwd = root, env = environment, timeout = 180_000) {
+  console.log(`Checking ${name}`);
+  const result = spawnSync(command, args, { cwd, env, encoding: "utf8", timeout, maxBuffer: 64 << 20 });
+  fs.writeFileSync(path.join(reportDirectory, `${name}.stdout.log`), result.stdout ?? "");
+  fs.writeFileSync(path.join(reportDirectory, `${name}.stderr.log`), result.stderr ?? "");
+  report.checks.push({ name, command, args, cwd, exitCode: result.status, signal: result.signal });
+  if (result.error || result.status !== 0) throw new Error(`${name} failed: ${result.error?.message ?? `exit ${result.status}`}`);
+  return result.stdout;
+}
+
+function testGroup(name, packages, requiredTests, cwd = root, env = environment) {
+  // Go splits -run at slashes; run each parent, then require exact child evidence.
+  const parents = [...new Set(requiredTests.map((test) => test.split("/")[0]))];
+  const pattern = `^(${parents.join("|")})$`;
+  // Native cases launch many confined workers. Budget the whole group by case
+  // count; operation deadlines and exact required pass/skip checks stay fixed.
+  const timeoutSeconds = Math.max(120, requiredTests.length * 15);
+  const output = run(name, "go", ["test", "-mod=readonly", "-json", "-count=1", `-timeout=${timeoutSeconds}s`, ...packages, "-run", pattern], cwd, env, (timeoutSeconds + 60) * 1000);
+  report.checks.at(-1).passedTests = requirePassedTests(output, 0, requiredTests);
+}
+
+const sha256 = (file) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+try {
+  report.nexusRevision = run("nexus-revision", "git", ["rev-parse", "HEAD"]).trim();
+  report.nexusChanges = run("nexus-changes", "git", ["status", "--porcelain"]).trim().split("\n").filter(Boolean);
+  report.goVersion = run("go-version", "go", ["env", "GOVERSION"]).trim();
+  environment.GOTOOLCHAIN = report.goVersion;
+  const bridge = JSON.parse(run("bridge-module", "go", ["list", "-mod=readonly", "-m", "-json", "github.com/nexus-research-lab/nexus-agent-sdk-bridge"]));
+  if (bridge.Replace) throw new Error("Bridge replacement cannot satisfy pinned dependency acceptance.");
+  report.bridge = { path: bridge.Path, version: bridge.Version, sum: bridge.Sum };
+  let binary = options["--nxs"];
+  let sdkSource;
+  if (options["--sdk-source"]) {
+    const repository = fs.realpathSync(options["--sdk-source"]);
+    report.sdkRevision = run("sdk-revision", "git", ["rev-parse", "--verify", `${options["--sdk-ref"] ?? "HEAD"}^{commit}`], repository).trim();
+    report.sdkWorktreeChanges = run("sdk-changes-excluded", "git", ["status", "--porcelain"], repository).trim().split("\n").filter(Boolean);
+    sdkSource = path.join(reportDirectory, "sdk");
+    fs.mkdirSync(sdkSource);
+    const archive = path.join(reportDirectory, "sdk.tar");
+    run("sdk-export", "git", ["archive", "--format=tar", "--output", archive, report.sdkRevision], repository);
+    run("sdk-extract", "tar", ["-xf", archive, "-C", sdkSource]);
+    binary = path.join(reportDirectory, "nxs");
+    run("sdk-build", "go", ["build", "-mod=readonly", "-o", binary, "./cmd/nxs"], sdkSource);
+  }
+  binary = fs.realpathSync(binary);
+  fs.accessSync(binary, fs.constants.X_OK);
+  report.runtime = { path: binary, sha256: sha256(binary), source: sdkSource ? "fixed-sdk-archive" : "explicit-binary" };
+  environment.NEXUS_SANDBOX_TEST_BINARY = binary;
+
+  testGroup("host-policy", ["./internal/runtime/clientopts", "./internal/runtime/permission", "./internal/service/nxsruntime"], [
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership",
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership/extra",
+    "TestBuildAgentClientOptionsPreservesHostProviderOwnership/configuration",
+    "TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership",
+    "TestDesktopSandboxPolicySeparatesResourcesAndFullAccess",
+    "TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature",
+    "TestDesktopSandboxRealRuntimeNegotiation",
+    "TestDesktopSandboxRealRuntimeWithHostResources",
+    "TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules",
+    "TestUnknownApprovalBoundaryFailsBeforeCreatingPending",
+    "TestCancelledApprovalDoesNotCreateNewPending",
+    "TestSandboxNetworkApprovalUsesOneConnectionScope",
+    "TestSandboxDiagnosisDoesNotInventAvailability",
+    "TestSandboxDiagnosisRealNXS",
+  ]);
+  testGroup("host-lifecycle", ["./internal/runtime", "./internal/app", "./internal/service/room/realtime"], [
+    "TestAppServicesClosePersistsSandboxRetirementBeforeDatabaseClose",
+    "TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites",
+    "TestManagerShutdownRejectsNewWorkAndPreservesFailure",
+    "TestManagerShutdownWaitsForLateFactory",
+    "TestManagerShutdownDrainsReceiptInsertionBeforeRetirement",
+    "TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate",
+    "TestManagerHandlesSandboxModeReplacementAsExpectedTransition",
+    "TestManagerReplacesRuntimeForSandboxTransitions",
+    "TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay",
+    "TestRoomSandboxTransitionDoesNotHideCleanupFailure",
+    "TestAgentClientCleanupFailureBlocksReconnect",
+    "TestAgentClientStaleStartupCleanupFailureStopsRetry",
+    "TestManagerCleanupFailureRetainsSessionFence",
+    "TestManagerCleanupFailureRetainsSessionFence/synchronous",
+    "TestManagerCleanupFailureRetainsSessionFence/after_timeout",
+    "TestCleanupFailureIsNotAnOrdinaryClosedTransport",
+    "TestManagerBulkCleanupReportsAndRetainsFailure",
+    ...["owner", "idle", "agent_revocation"].map((entry) => `TestManagerBulkCleanupReportsAndRetainsFailure/${entry}`),
+    "TestProcessPolicyIncludesHostSandboxRequirements",
+    "TestProviderOwnershipChangeReplacesRuntime",
+    ...["NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"].map((key) => `TestProviderOwnershipChangeReplacesRuntime/${key}`),
+    "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
+    "TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent",
+    "TestAcquirePersistsDurableMarkerAndReleaseRemovesIt",
+    "TestSandboxProcessMarkerUsesConservativeIdentityFallback",
+    "TestAcquireReusesActiveSessionLease",
+    "TestConcurrentAcquireDoesNotTreatPublishingMarkerAsCrash",
+    "TestSandboxCleanupUnknownSurvivesRestart",
+    ...["original", "legacy_replacement"].map((path) => `TestSandboxCleanupUnknownSurvivesRestart/${path}`),
+    "TestManagerSandboxRestartContinuesDurableGeneration",
+    ...["retired", "reconciled"].map((phase) => `TestManagerSandboxRestartContinuesDurableGeneration/${phase}`),
+    "TestManagerSandboxRestartRejectsUnresolvedReceiptBeforeFactory",
+    ...["confirmed", "retiring", "unknown"].map((phase) => `TestManagerSandboxRestartRejectsUnresolvedReceiptBeforeFactory/${phase}`),
+    "TestManagerSandboxRestartRejectsUnreadableAndExhaustedReceipt",
+    ...["unreadable", "exhausted"].map((reason) => `TestManagerSandboxRestartRejectsUnreadableAndExhaustedReceipt/${reason}`),
+    "TestManagerSandboxReceiptSurvivesCleanRestartAndIdleRecreation",
+    "TestSandboxResourceCleanupFailureFencesNewAcquisition",
+    "TestAcquireRejectsWriteScopeChangeForActiveSession",
+    "TestReleaseRetainsLeaseWhenScratchParentIsReplaced",
+    "TestSweepStaleSandboxResourcesRequiresExplicitApply",
+    "TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers",
+    "TestAgentClientCleanupUsesExactScratchHandle",
+    "TestClientStartupBindFailureDoesNotConsumeLease",
+    "TestClientStartupBindLeaseFailsClosedForUnsupportedClient",
+    "TestAgentClientBindSandboxLeaseRejectsClaudeRuntime",
+    "TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession",
+  ]);
+  testGroup("host-websocket-cancellation", ["./internal/handler/shared"], [
+    "TestWebSocketSenderCanceledBroadcastKeepsConnection",
+    "TestWebSocketSenderAdmittedWriteSurvivesCallerCancellation",
+    "TestWebSocketSenderTransportFailureRetiresConnection",
+  ]);
+  testGroup("host-settings-recovery", ["./internal/storage/configuration", "./internal/service/configuration"], [
+    "TestRevisionKeyConcurrentInitialization",
+    "TestRevisionKeyAcrossProcesses",
+    "TestRevisionKeyMigrationPreservesReceipts",
+    "TestRevisionKeyRejectsMissingOrCorruptState",
+    ...["missing", "malformed", "empty", "unknown_version", "invalid_bootstrap"].map((entry) => `TestRevisionKeyRejectsMissingOrCorruptState/${entry}`),
+    "TestConfigurationRevisionSurvivesDatabaseReopen",
+    "TestConfigurationRevisionBindsScopeAndSecrets",
+    ...["scope", "domain", "target", "version", "secret"].map((entry) => `TestConfigurationRevisionBindsScopeAndSecrets/${entry}`),
+    "TestConfigurationRevisionLegacyReceiptIsIncomparable",
+    "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
+  ]);
+  if (process.platform === "darwin") testGroup("host-app-shutdown", ["./internal/app"], [
+    "TestAppServicesCloseRealSandboxRuntimeAfterRestart",
+  ]);
+  if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
+    "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),
+    "TestDesktopSandboxStdioMCPRoundTrip", ...["stdio_persisted", "stdio_connector"].map((name) => `TestDesktopSandboxStdioMCPRoundTrip/${name}`),
+  ]);
+  if (sdkSource) {
+    testGroup("provider-environment", ["./client", "./internal/config/env", "./internal/agent/runtime", "./internal/tool/executor/hooks", "./internal/mcp/client"], [
+      "TestHostManagedSettingsCannotRedirectProvider",
+      ...["project", "flag"].flatMap((source) => ["environment", "provider"].map((shape) => `TestHostManagedSettingsCannotRedirectProvider/${source}/${shape}`)),
+      "TestHostManagedSettingsCannotReplaceProviderRequestBody",
+      "TestHostManagedSettingsPreserveProviderOwnership",
+      "TestStandaloneSettingsRetainProviderInputs",
+      "TestHostManagedSubprocessRemovesSDKCredentials",
+      ...["OPENAI_API_KEY", "OPENAI_CUSTOM_HEADERS", "NEXUS_WEBSEARCH_API_KEY", "NEXUS_WEBFETCH_SUMMARIZER_API_KEY", "NEXUS_WEBFETCH_DOMAIN_CHECK_API_KEY", "NEXUS_CLIENT_KEY", "NEXUS_CLIENT_KEY_PASSPHRASE", "NEXUS_API_KEY_FILE_DESCRIPTOR", "NEXUS_OAUTH_TOKEN_FILE_DESCRIPTOR", "INPUT_OPENAI_API_KEY"].map((key) => `TestHostManagedSubprocessRemovesSDKCredentials/${key}`),
+      "TestHostProviderOwnershipCannotBeDisabledByTaskEnvironment",
+      "TestCommandHookRespectsRuntimeProviderOwnership",
+      "TestShellProcessesRespectRuntimeProviderOwnership",
+      ...["bash", "selected_shell", "powershell_environment"].map((shell) => `TestShellProcessesRespectRuntimeProviderOwnership/${shell}`),
+      "TestMemoryModelRespectsHostProviderOwnership",
+      "TestMemoryModelRespectsHostProviderOwnership/standalone",
+      "TestMemoryModelRespectsHostProviderOwnership/host_managed",
+      "TestHostManagedBackgroundSettingDoesNotAcknowledgeUnusedUpdate",
+      "TestHTTPHookCannotInterpolateHostProviderCredentials",
+      ...["process", "runtime", "standalone"].map((mode) => `TestHTTPHookCannotInterpolateHostProviderCredentials/${mode}`),
+      "TestMCPInterpolationCannotBorrowHostProviderCredentials",
+      "TestStandaloneMCPInterpolationPreservesEnvironment",
+    ], sdkSource);
+    testGroup("macos-backend-path", ["./internal/tool/builtin/bash/sandboxexec"], [
+      "TestMacOSSandboxDependencyUsesSystemPath",
+      "TestMacOSSandboxIgnoresTaskPath",
+      "TestMacOSSandboxIgnoresTaskPath/shadowed_path",
+      "TestMacOSSandboxIgnoresTaskPath/empty_path",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-resource-denials", ["./internal/tool/executor"], [
+      "TestDarwinMandatorySandboxReadDenyPrecedence",
+      ...["same_root", "parent_root", "nested_root", "symlink_target"].flatMap((grant) =>
+        ["Read", "Bash"].map((tool) => `TestDarwinMandatorySandboxReadDenyPrecedence/${grant}/${tool}`)),
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-resource-scopes", ["./internal/tool/executor"], [
+      "TestDarwinSandboxResourceScopes",
+      "TestDarwinSandboxResourceScopes/read-only",
+      "TestDarwinSandboxResourceScopes/workspace-write",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-workspace-aliases", ["./internal/tool/executor"], [
+      "TestDarwinWorkspaceCanonicalAliases",
+      ...["default", "auto"].flatMap((mode) =>
+        ["Read", "Glob", "Grep", "Write", "Edit"].map((tool) => `TestDarwinWorkspaceCanonicalAliases/${mode}/${tool}`)),
+      "TestDarwinWorkspaceAliasesPreserveRules",
+      ...["ask", "deny"].flatMap((policy) =>
+        ["relative", "logical", "physical"].flatMap((rule) =>
+          ["logical", "physical"].map((path) => `TestDarwinWorkspaceAliasesPreserveRules/${policy}/${rule}/${path}`))),
+      "TestDarwinWorkspaceAliasesKeepDescendantLinksUnapproved",
+    ], sdkSource);
+    testGroup("macos-search-contract", ["./cmd/nxs"], [
+      "TestSandboxSearchToolsNegotiation",
+      "TestSandboxSearchToolsRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSearchToolsRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-search", ["./internal/tool/executor"], [
+      "TestDarwinSandboxSearchToolsRuntime",
+      ...["direct", "symlink"].flatMap((target) =>
+        ["glob", "content", "count", "files_with_matches"].map((mode) => `TestDarwinSandboxSearchToolsRuntime/${target}/${mode}`)),
+      "TestDarwinSandboxSearchAuxiliaryCannotExpandResources",
+      "TestDarwinSandboxSearchPreservesResults",
+      ...["glob", "absolute_glob", "content", "single_file", "count", "filenames", "no_matches", "suggestion"].map(
+        (scenario) => `TestDarwinSandboxSearchPreservesResults/${scenario}`),
+      "TestDarwinSandboxSearchPreparationFailsClosed",
+      ...["Glob", "Grep"].map((tool) => `TestDarwinSandboxSearchPreparationFailsClosed/${tool}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-mcp-network", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/builtin/bash/sandboxexec", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestSandboxMCPNetworkRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPNetworkRequirement/${name}`),
+      "TestSandboxMCPEndpointDoesNotGrantToolNetwork",
+      "TestSandboxMCPEndpointRejectsUnownedProxies",
+      ...["http", "socks", "mitm"].map((name) => `TestSandboxMCPEndpointRejectsUnownedProxies/${name}`),
+      "TestSandboxMCPEndpointRejectsCrossOriginRedirects",
+      "TestSandboxMCPEndpointRespectsManagedAndDeniedDomains",
+      ...["untrusted_configuration", "explicit_deny", "managed_domains_only"].map((name) => `TestSandboxMCPEndpointRespectsManagedAndDeniedDomains/${name}`),
+      "TestRemoteMCPNetworkLifecycle",
+      ...["http", "sse"].flatMap((transport) => ["cancel", "disable", "remove", "replace", "close"].map((name) => `TestRemoteMCPNetworkLifecycle/${transport}/${name}`)),
+      "TestRemoteMCPRejectsStaleDiscovery",
+      ...["disable", "remove", "replace", "close"].map((name) => `TestRemoteMCPRejectsStaleDiscovery/${name}`),
+      "TestRemoteMCPSSERejectsForeignPostEndpoint",
+      "TestDarwinSandboxMCPNetworkPermissionEpoch",
+      "TestDarwinSandboxMCPRuntimeNetwork",
+      "TestDarwinSandboxMCPRuntimeNetwork/ambient", "TestDarwinSandboxMCPRuntimeNetwork/explicit",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("file-output-limit", ["./internal/tool/builtin/file/sandboxfs"], ["TestBoundedOutputLimitsExecCopy"], sdkSource);
+    testGroup("macos-mcp-stdio", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
+      "TestSandboxMCPStdioRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPStdioRequirement/${name}`),
+      "TestStdioMCPConcurrentResponses", "TestStdioMCPProtocolFailure",
+      ...["malformed", "oversized", "closed"].map((name) => `TestStdioMCPProtocolFailure/${name}`),
+      "TestStdioMCPCancellationAndRegistry",
+      ...["cancel", "blocked_write", "disable", "remove", "replace", "close"].map((name) => `TestStdioMCPCancellationAndRegistry/${name}`),
+      "TestStdioMCPDiscoveryCancellation", "TestStdioMCPClientRequests", "TestMCPResponseBounds",
+      ...["json", "json_whitespace", "http_sse", "legacy_sse"].map((name) => `TestMCPResponseBounds/${name}`),
+      "TestDarwinSandboxMCPStdioFilesAndEnvironment",
+      ...["workspace_read", "denied_read", "readonly_write", "scratch_write"].map((name) => `TestDarwinSandboxMCPStdioFilesAndEnvironment/${name}`),
+      "TestDarwinSandboxMCPStdioArgv", "TestDarwinSandboxMCPStdioNetwork", "TestDarwinSandboxMCPStdioLifecycle",
+      ...["cancel", "permission", "close", "replace", "ordinary_descendant"].map((name) => `TestDarwinSandboxMCPStdioLifecycle/${name}`),
+      "TestMCPProcessCleanupFailureIsSticky", "TestMCPStdioExecutableUsesWorkingDirectory",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-mcp-helpers", ["./cmd/nxs", "./internal/mcp/client", "./internal/tool/executor"], [
+      "TestSandboxMCPHelpersRequirement",
+      ...["supported", "ambient", "missing_base", "missing_capability", "string", "null", "disabled"].map((name) => `TestSandboxMCPHelpersRequirement/${name}`),
+      "TestMCPHelperFailurePreventsNetwork", "TestMCPHelperRefreshesOncePerRequest",
+      "TestDarwinSandboxMCPHelperFilesAndEnvironment",
+      ...["workspace_read", "denied_read", "readonly_write", "scratch_write"].map((name) => `TestDarwinSandboxMCPHelperFilesAndEnvironment/${name}`),
+      "TestDarwinSandboxMCPHelperNetwork", "TestDarwinSandboxMCPHelperLifecycle",
+      ...["cancel", "permission", "close", "stdout_limit", "stderr_limit", "ordinary_descendant"].map((name) => `TestDarwinSandboxMCPHelperLifecycle/${name}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-media-contract", ["./cmd/nxs"], [
+      "TestSandboxMediaFilesNegotiation",
+      "TestSandboxMediaFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxMediaFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-media-files", ["./internal/tool/executor"], [
+      "TestDarwinSandboxMediaFileSources",
+      ...["absolute", "file_url", "workspace_link", "attachment_reference"].map(
+        (scenario) => `TestDarwinSandboxMediaFileSources/${scenario}`),
+      "TestDarwinSandboxMediaPreprocess",
+      ...["user_absolute", "user_file_url", "user_link", "tool_absolute", "tool_file_url", "tool_link"].map(
+        (scenario) => `TestDarwinSandboxMediaPreprocess/${scenario}`),
+      "TestDarwinSandboxMediaAllowedSources",
+      ...["absolute", "relative", "file_url", "attachment_reference", "inline", "user_preprocess", "tool_preprocess"].map(
+        (scenario) => `TestDarwinSandboxMediaAllowedSources/${scenario}`),
+      "TestDarwinSandboxMediaPreparationFailsClosed",
+      ...["view_image", "preprocess"].map((scenario) => `TestDarwinSandboxMediaPreparationFailsClosed/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-media-network-contract", ["./cmd/nxs"], [
+      "TestSandboxMediaNetworkNegotiation",
+      "TestSandboxMediaNetworkRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxMediaNetworkRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-media-network", ["./internal/tool/executor", "./internal/environment/media/vision", "./internal/tool/builtin/bash/sandboxexec"], [
+      "TestDarwinSandboxMediaNetwork",
+      ...["main", "tool_result", "view_image", "reference"].map((scenario) => `TestDarwinSandboxMediaNetwork/${scenario}`),
+      "TestDarwinSandboxMediaNetworkApprovalAndEpoch",
+      ...["allow", "deny", "changed_input", "persist", "epoch"].map((scenario) => `TestDarwinSandboxMediaNetworkApprovalAndEpoch/${scenario}`),
+      "TestImageSourceAccessMaterializesProviderURLs",
+      ...["main", "tool", "auxiliary", "reference"].map((scenario) => `TestImageSourceAccessMaterializesProviderURLs/${scenario}`),
+      "TestSandboxHTTPRedirectRechecksDestination",
+      "TestSandboxHTTPApprovalIsPerRequest",
+      "TestSandboxHTTPCleanupCancelsLateApproval",
+      "TestSandboxHTTPCleanupCancelsResponseBody",
+      "TestSandboxHTTPManagedPolicyCannotAsk",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-skill-contract", ["./cmd/nxs"], [
+      "TestSandboxSkillFilesNegotiation",
+      "TestSandboxSkillFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSkillFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-skill-files", ["./internal/tool/executor"], [
+      "TestDarwinSandboxSkillFileEntrypoints",
+      ...["additional", "symlink", "body", "user"].flatMap((source) =>
+        ["initial_listing", "slash_catalog", "slash_run", "skill", "discover"].map(
+          (entry) => `TestDarwinSandboxSkillFileEntrypoints/${source}/${entry}`)),
+      "TestDarwinSandboxSkillAllowedEntrypoints",
+      ...["project", "additional", "user", "symlink"].flatMap((source) =>
+        ["initial_listing", "slash_catalog", "slash_run", "skill", "discover"].map(
+          (entry) => `TestDarwinSandboxSkillAllowedEntrypoints/${source}/${entry}`)),
+      "TestDarwinSandboxSkillDynamicDiscovery",
+      ...["repository", "no_repository", "gitignored", "denied_body", "conditional"].map(
+        (scenario) => `TestDarwinSandboxSkillDynamicDiscovery/${scenario}`),
+      "TestDarwinSandboxSkillGitAuxiliary",
+      "TestDarwinSandboxSkillMemoryGate",
+      "TestDarwinSandboxSkillMemorySettings",
+      ...["inline_enabled", "absolute_enabled", "relative_enabled", "relative_disabled"].map(
+        (scenario) => `TestDarwinSandboxSkillMemorySettings/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-file-readers", ["./internal/environment/filesystem/worker", "./internal/memory/memdir", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestReadPrefixKeepsFullReadLimit", "TestReadPrefixRejectsInvalidRequests",
+      ...["0", "-1", "33554433", "null", "1.5", '"10"', "stat", "lstat", "read_dir", "write", "mkdir_all"].map(
+        (input) => `TestReadPrefixRejectsInvalidRequests/${input}`),
+      "TestLstatPreservesDirectoryLinkKind", "TestStreamReadPrefix",
+      ...["large", "short", "empty"].map((size) => `TestStreamReadPrefix/${size}`),
+      "TestStreamPrefixRejectsExcessResponse", "TestStreamLargeFileAndTruncatedRequest", "TestStreamRejectsShortWriter",
+      "TestMemoryScanKeepsNestedFilesWithoutFollowingDirectoryLinks", "TestContextMemoryReaderDoesNotFallback",
+      "TestMemoryRecallCanceledSelectionDoesNotPublish", "TestReadRelevantMemoryContentEnforcesLineAndByteLimits",
+    ], sdkSource);
+    testGroup("memory-initialization", ["./internal/environment/filesystem/worker", "./internal/memory", "./internal/memory/summary", "./internal/tool/builtin/file/sandboxfs", "./internal/tool/executor", "./internal/agent/runtime"], [
+      "TestCreateIfAbsentPreservesExisting", "TestCreateIfAbsentPreservesExisting/symlink", "TestCreateIfAbsentConcurrent",
+      "TestCreateIfAbsentRejectsInvalidRequests",
+      ...["missing_data", "null_data", "null_mode", "invalid_mode", "read_limit"].map(
+        (input) => `TestCreateIfAbsentRejectsInvalidRequests/${input}`),
+      "TestCreateIfAbsentLostReplyIsUnknown", "TestMemoryInitializerDoesNotFallback",
+      "TestSummaryInitializationPreservesConcurrentFile", "TestSummaryInitializationRejectsUnknownCreate",
+      "TestSummaryReadDenialDoesNotInitialize",
+      ...["summary", "template", "prompt"].map((source) => `TestSummaryReadDenialDoesNotInitialize/${source}`),
+      "TestInitializeStoreCreatesLayoutAndPreservesEntrypoint", "TestInitializeStoreKeepsManagedWorkspacePermissions",
+      "TestEnsureFileCreatesSessionSummaryTemplate", "TestEnsureFilePreservesManagedRuntimeACLMask",
+      ...["standalone", "managed"].map((mode) => `TestEnsureFilePreservesManagedRuntimeACLMask/${mode}`),
+      "TestNewLeavesMemoryIndexForAutoDream", "TestNewReturnsMemoryStoreInitializationError",
+    ], sdkSource);
+    testGroup("macos-memory-persistence", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryInitialization",
+      ...["directory", "index", "root_symlink"].map((source) => `TestDarwinSandboxMemoryInitialization/${source}`),
+      "TestDarwinSandboxMemoryInitializationAllowed", "TestDarwinSandboxReadOnlyMemory",
+      "TestDarwinSandboxSummaryCompaction",
+      ...["denied", "allowed"].map((access) => `TestDarwinSandboxSummaryCompaction/${access}`),
+      "TestDarwinSandboxSummaryPreparation",
+      ...["summary", "template", "prompt", "write", "symlink", "allowed", "new", "custom"].map(
+        (source) => `TestDarwinSandboxSummaryPreparation/${source}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("autodream-scan", ["./internal/memory/autodream"], [
+      "TestAutoDreamScanPreservesSelection", "TestAutoDreamScanRejectsPartialResults",
+      ...["nil", "directory_denied", "entry_denied", "cancelled", "disappeared"].map(
+        (source) => `TestAutoDreamScanRejectsPartialResults/${source}`),
+      "TestAutoDreamCompletionRejectsUnreadableState",
+      ...["nil", "denied", "directory", "cancelled"].map(
+        (source) => `TestAutoDreamCompletionRejectsUnreadableState/${source}`),
+      "TestTryAcquireConsolidationLockIsAtomic", "TestRecordConsolidationSeparatesCompletionFromActiveLock",
+      "TestReleaseConsolidationLockPreservesLastSuccess",
+    ], sdkSource);
+    testGroup("autodream-writer-locks", ["./internal/memory/autodream", "./internal/agent/runtime"], [
+      "TestConsolidationLockPreservesLiveOrUnknownHolder",
+      ...["live", "same_process", "unknown_probe", "invalid", "partial"].map(
+        (holder) => `TestConsolidationLockPreservesLiveOrUnknownHolder/${holder}`),
+      "TestConsolidationLockReclaimsConfirmedDeadHolder", "TestAutoDreamProcessExitRequiresEvidence",
+      ...["alive", "denied", "unknown", "done", "missing"].map(
+        (state) => `TestAutoDreamProcessExitRequiresEvidence/${state}`),
+      "TestAutoDreamProcessProbeKeepsCurrentProcess",
+    ], sdkSource);
+    testGroup("macos-autodream-scan", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxAutoDreamScan",
+      ...["completion", "completion_symlink", "directory", "transcript", "transcript_symlink", "allowed", "missing"].map(
+        (source) => `TestDarwinSandboxAutoDreamScan/${source}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-writer-ownership", ["./internal/memory/autodream", "./internal/memory/autodream/writerworker", "./internal/tool/executor"], [
+      "TestMemoryWriterOwnership", "TestMemoryWriterDoesNotFallback",
+      "TestMemoryWriterLegacyCompatibility",
+      ...["live", "dead", "unknown", "empty"].map((state) => `TestMemoryWriterLegacyCompatibility/${state}`),
+      "TestMemoryWriterReplacement",
+      ...["guard", "directory"].map((entry) => `TestMemoryWriterReplacement/${entry}`),
+      "TestMemoryWriterRejectsSpecialGuard",
+      ...["symlink", "hardlink", "fifo"].map((kind) => `TestMemoryWriterRejectsSpecialGuard/${kind}`),
+      "TestMemoryWriterProtocolRejectsInvalidFrames",
+      ...["unknown_field", "truncated", "multiple", "oversized"].map((kind) => `TestMemoryWriterProtocolRejectsInvalidFrames/${kind}`),
+    ], sdkSource);
+    testGroup("macos-memory-writer-process", ["./internal/tool/builtin/file/sandboxfs"], [
+      "TestSandboxMemoryWriterLifecycle",
+      ...["complete", "release", "cancel", "parent_eof"].map((action) => `TestSandboxMemoryWriterLifecycle/${action}`),
+      "TestSandboxMemoryWriterLostCompletion",
+      ...["nonzero_exit", "no_reply", "extra_reply"].map((failure) => `TestSandboxMemoryWriterLostCompletion/${failure}`),
+      "TestSandboxMemoryWriterUnexpectedExit", "TestSandboxMemoryWriterAcquireCancellation",
+      "TestSandboxMemoryWriterLegacyProbe",
+      ...[true, false].map((live) => `TestSandboxMemoryWriterLegacyProbe/live_${live}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-memory-writer-runtime", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryWriter",
+      ...["acquire_denied", "legacy_read_denied", "completion_denied", "allowed", "lock_replaced", "directory_replaced"].map(
+        (scenario) => `TestDarwinSandboxMemoryWriter/${scenario}`),
+      "TestDarwinSandboxMemoryExtractionWriter",
+      ...["denied", "allowed", "cancelled"].map((scenario) => `TestDarwinSandboxMemoryExtractionWriter/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("memory-transcript-stream", ["./internal/session", "./internal/environment/filesystem/worker", "./internal/tool/executor"], [
+      "TestTranscriptStreamPreservesCompaction",
+      ...["small", "large", "preserved", "disabled"].map((scenario) => `TestTranscriptStreamPreservesCompaction/${scenario}`),
+      "TestTranscriptStreamRejectsPartialResult",
+      ...["late_error", "cancelled", "missing_reader"].map((scenario) => `TestTranscriptStreamRejectsPartialResult/${scenario}`),
+      "TestTranscriptFileLoadPreservesBoundedContentReplacements",
+      "TestStreamSinkValidatesTerminal",
+      ...["allowed", "truncated", "length", "trailing", "short_writer"].map((scenario) => `TestStreamSinkValidatesTerminal/${scenario}`),
+      "TestStreamSinkRejectsOversizedFrame", "TestContextStreamDoesNotFallback",
+    ], sdkSource);
+    testGroup("macos-memory-transcript-transport", ["./internal/tool/builtin/file/sandboxfs"], [
+      "TestSandboxTranscriptRejectsLateFailure",
+      ...["allowed", "nonzero_exit", "truncated"].map((scenario) => `TestSandboxTranscriptRejectsLateFailure/${scenario}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-memory-transcript-runtime", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryTranscriptReplacements",
+      ...["direct_denied", "symlink_denied", "allowed"].map((scenario) => `TestDarwinSandboxMemoryTranscriptReplacements/${scenario}`),
+      "TestDarwinSandboxMemoryTranscriptAdmission",
+      ...["summary", "extraction", "dream"].flatMap((entry) => [
+        `TestDarwinSandboxMemoryTranscriptAdmission/${entry}`,
+        ...["denied", "allowed", "cancelled"].map((access) => `TestDarwinSandboxMemoryTranscriptAdmission/${entry}/${access}`),
+      ]),
+      "TestDarwinSandboxMemoryTranscriptMissing",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-memory-recall", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxMemoryRecall",
+      ...["file", "symlink", "directory"].flatMap((source) =>
+        ["denied", "allowed"].map((access) => `TestDarwinSandboxMemoryRecall/${source}/${access}`)),
+      "TestDarwinSandboxMemoryRecallReplacement", "TestDarwinSandboxMemoryManifest", "TestDarwinSandboxMemoryRecallLargeFile",
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-context-contract", ["./cmd/nxs"], [
+      "TestSandboxContextFilesNegotiation",
+      "TestSandboxContextFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxContextFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-context-startup", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxStartupInstructions",
+      ...["project", "user", "local", "rule", "symlink", "include", "additional", "managed"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxStartupInstructions/${source}/allowed=${allowed}`)),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-context-recovery", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxCompactFileRestore",
+      ...["denied", "symlink", "allowed"].map((source) => `TestDarwinSandboxCompactFileRestore/${source}`),
+      "TestDarwinSandboxInstructionSettings",
+      ...["user", "project", "local", "relative_flag", "managed", "dropin", "symlink"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxInstructionSettings/${source}/allowed=${allowed}`)),
+      "TestDarwinSandboxInstructionReload",
+      ...["settings", "cancel", "symlink"].map((failure) => `TestDarwinSandboxInstructionReload/${failure}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-project-contract", ["./cmd/nxs"], [
+      "TestSandboxProjectFilesNegotiation",
+      "TestSandboxProjectFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxProjectFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-project-files", ["./internal/agent/runtime"], [
+      "TestDarwinSandboxProjectFiles",
+      ...["project_agent", "user_agent", "project_command", "user_command", "skill", "file_symlink", "directory_symlink", "directory", "hook_settings"].flatMap((source) =>
+        [false, true].map((allowed) => `TestDarwinSandboxProjectFiles/${source}/allowed=${allowed}`)),
+      "TestDarwinSandboxProjectRefresh",
+      ...["symlink", "cancel", "malformed_settings", "changed_agent", "changed_hook"].map(
+        (failure) => `TestDarwinSandboxProjectRefresh/${failure}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-managed-contract", ["./cmd/nxs"], [
+      "TestSandboxManagedPolicyNegotiation", "TestSandboxManagedPolicyRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxManagedPolicyRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-managed-sources", ["./internal/config", "./client", "./internal/tool/builtin/bash/sandboxexec"], [
+      "TestManagedPolicySnapshot", "TestManagedPolicyInvalidSource", "TestManagedPolicyRejectsFIFO",
+      ...["empty", "null", "array", "malformed", "deny_string", "deny_element", "managed_only_type", "sandbox_null", "sandbox_deny_type"].map(
+        (source) => `TestManagedPolicyInvalidSource/${source}`),
+      "TestManagedPolicySettingsCannotRedirectSource", "TestManagedPolicyStartupRejectsUnknown",
+      "TestManagedPolicyConfigurationFailure",
+      ...["parse", "typed", "provided_error", "disabled", "force_unsandboxed"].map(
+        (scenario) => `TestManagedPolicyConfigurationFailure/${scenario}`),
+      "TestMandatoryPolicyDoesNotReadTaskSettings",
+    ], sdkSource);
+    testGroup("macos-managed-integrity", ["./internal/agent/runtime"], [
+      "TestDarwinManagedPolicyIntegrity",
+      ...["malformed", "deleted", "relaxed"].map((change) => `TestDarwinManagedPolicyIntegrity/${change}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-settings-contract", ["./cmd/nxs"], [
+      "TestSandboxSettingsFilesNegotiation", "TestSandboxSettingsFilesRequirement",
+      ...["supported", "file_only", "missing_base", "missing_files", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSettingsFilesRequirement/${scenario}`),
+    ], sdkSource);
+    testGroup("macos-settings-snapshots", ["./client", "./internal/config/settings", "./internal/agent/runtime", "./cmd/nxs"], [
+      "TestSettingsProfileRejectsUnknown",
+      ...["user", "project", "flag", "inline"].map((source) => `TestSettingsProfileRejectsUnknown/${source}`),
+      "TestSettingsProfileCannotRedirectConfigRoot", "TestSettingsProfileSkipsDisabledSource", "TestSettingsProfileRejectsFIFO",
+      "TestSettingsBindingSnapshot", "TestSettingsBindingConcurrentUpdates", "TestSettingsBindingUpdate",
+      ...["canceled", "conflict", "success"].map((outcome) => `TestSettingsBindingUpdate/${outcome}`),
+      "TestSettingsControlKeepsAppliedState", "TestRuntimeSettingsControlSnapshot",
+    ], sdkSource);
+    testGroup("settings-writes-contract", ["./cmd/nxs"], [
+      "TestSandboxSettingsWritesNegotiation", "TestSandboxSettingsWritesRequirement",
+      ...["supported", "missing_base", "missing_files", "missing_settings_requirement", "missing_settings_capability", "missing_writes_capability", "string", "null", "disabled"].map(
+        (scenario) => `TestSandboxSettingsWritesRequirement/${scenario}`),
+      "TestRuntimeInitializationAdmission", "TestRuntimeTextCLISessionAdmission",
+    ], sdkSource);
+    testGroup("settings-writers", ["./client", "./internal/config/settings", "./internal/agent/runtime", "./internal/tool/executor", "./internal/tool/builtin/config"], [
+      "TestSettingsProfileStaysBelowExplicitOptionsAndEnv",
+      "TestDocumentTemporaryPattern", "TestDocumentStoreSharesMissingProjectDirectoryGeneration",
+      "TestDocumentStoreWritesTwoDocuments", "TestDocumentStoreAdoptsPhysicalParentCreatedAfterBinding",
+      "TestDocumentStorePreflightsAllDocumentSizes", "TestDocumentStoreRejectsLeafSymlink",
+      "TestDocumentStoreRejectsParentSymlink", "TestDocumentStoreRejectsParentReplacement",
+      "TestDocumentStoreBreaksHardlinkOnWrite", "TestDocumentStorePreservesExistingMode",
+      "TestDocumentStorePreservesExistingPermissionBitsUnderUmask", "TestDocumentStoreRejectsExistingReadOnlyLeaf",
+      "TestSettingsJournalIsClearedAfterSuccessfulUpdate", "TestSettingsJournalRecoversFullOldState",
+      "TestSettingsJournalRecoversFullNewState", "TestSettingsJournalMixedStateFailsClosed",
+      "TestSettingsJournalCrossRootMixedStateFailsClosed",
+      "TestSettingsJournalDoesNotStoreDocumentPlaintext",
+      "TestSettingsBindingUnknownIsShared",
+      ...["parent", "child"].map((runtime) => `TestSettingsBindingUnknownIsShared/${runtime}`),
+      "TestSettingsBindingConfigTarget",
+      ...["user_default", "relative_flag", "absolute_flag", "inline_falls_back_to_user", "no_writable_source"].map(
+        (scenario) => `TestSettingsBindingConfigTarget/${scenario}`),
+      "TestSettingsBindingConfigNoOp", "TestSettingsBindingConfigRejectsOverride", "TestSettingsBindingConfigRejectsSameValueOverride",
+      "TestPermissionSettingsWriteIdentity",
+      ...["file_symlink", "directory_symlink", "directory_replaced", "hardlink"].map(
+        (scenario) => `TestPermissionSettingsWriteIdentity/${scenario}`),
+      "TestDefinitionDisablesConcurrentExecution", "TestRunGetReadsBoundStoreDocument",
+      "TestRunGetPrefersCanonicalValueOverLegacyFallback", "TestRunSetWritesCanonicalPathAndPreservesLegacyValue",
+      "TestRunSetUsesControlledStoreUpdateAndRequestsRestart", "TestRunSetNoOpDoesNotRequestRestart",
+      "TestRunWithoutStoreFailsClosed", "TestRunStoreErrorsDoNotFallBack",
+      ...["read", "update"].map((operation) => `TestRunStoreErrorsDoNotFallBack/${operation}`),
+      "TestConfigWriteRequiresFreshRuntime",
+    ], sdkSource);
+    testGroup("settings-request-admission", ["./internal/provider", "./internal/agent/runtime", "./internal/tool/executor"], [
+      "TestWithRequestAdmissionGuardsStreamAndComplete", "TestWithRequestAdmissionPreservesOptionalCapabilities",
+      "TestRunQueryStopsAllSamplingAfterConfigWriteWithToolSummariesEnabled",
+      "TestManualCompactRechecksConfigurationAfterPreCompactHook",
+      "TestWebFetchSummaryRechecksConfiguration",
+      ...["environment", "adapter"].flatMap((source) => ["unchanged", "changed"].map(
+        (change) => `TestWebFetchSummaryRechecksConfiguration/${source}/${change}`)),
+    ], sdkSource);
+    testGroup("macos-settings-writes", ["./client", "./internal/config/settings", "./internal/tool/executor"], [
+      "TestDarwinMandatorySandboxProtectsSettingsTemporaryEntries",
+      "TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters",
+      ...["settings", "temporary"].map((target) => `TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters/${target}`),
+      "TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases",
+      ...["target_physical", "target_logical", "temporary_physical"].map(
+        (target) => `TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases/${target}`),
+      "TestDarwinMandatorySandboxCannotCreateSettingsHardlink",
+      "TestDarwinRequiredSandboxRejectsHardlinkedSettingsProfile", "TestRequiredSandboxBindingRejectsHardlinkedSettings",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-settings-native", ["./client", "./internal/agent/runtime"], [
+      "TestDarwinSettingsProfileFiles",
+      ...["user", "project", "local", "flag", "symlink", "filtered"].flatMap((source) =>
+        ["denied", "allowed"].map((access) => `TestDarwinSettingsProfileFiles/${source}/${access}`)),
+      "TestDarwinSettingsIntegrity",
+      ...["malformed", "deleted", "relaxed"].map((change) => `TestDarwinSettingsIntegrity/${change}`),
+    ], sdkSource, { ...environment, NEXUS_SANDBOX_INTEGRATION: "1" });
+    testGroup("macos-native", ["./internal/tool/executor"], [
+      "TestDarwinSandboxFileToolsRuntime",
+      "TestDarwinFileInstructionsShareSandbox",
+      "TestDarwinLargeFileReadRetainsFullState",
+      "TestDarwinRequiredSandboxChildWriteBoundary",
+      "TestDarwinRequiredSandboxBlocksDirectNetwork",
+      "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/foreground_completion",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval/permission_change",
+    ], sdkSource, { ...environment, NEXUS_FILE_HELPER_TEST_BINARY: binary, NEXUS_SANDBOX_INTEGRATION: "1" });
+  }
+  if (sha256(binary) !== report.runtime.sha256) throw new Error("Runtime binary changed during acceptance.");
+  report.passed = true;
+} catch (error) {
+  report.error = error.message;
+  console.error(error.message);
+  process.exitCode = 1;
+} finally {
+  report.finishedAt = new Date().toISOString();
+  fs.writeFileSync(path.join(reportDirectory, "report.json"), JSON.stringify(report, null, 2) + "\n");
+  console.log(`${report.passed ? "PASS" : "FAIL"}: ${report.scope}; installation and release acceptance remain separate.`);
+}

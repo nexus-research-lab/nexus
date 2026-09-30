@@ -1,0 +1,2 @@
+2026-09-28 15:18:54.839 check[55533:5478838] [Nexus Sidecar] retained process record: 无法确认旧的 Nexus 运行组件已安全退出。请退出旧版 Nexus 后重试；运行记录和本地数据已保留。
+PASS nine reaper test bodies, including native exact/stale-token termination

@@ -1,0 +1,1 @@
+{"version":1,"platform":"darwin","architecture":"arm64","runtime_sha256":"b013bc086aae6fe72e90538fa3d87d143621df6efe9be8f36ed48ea7ebdf7ed9","bridge":"v0.1.34-0.20260927182153-4b2972f09143","profiles":["workspace-write","read-only","full-access"]}

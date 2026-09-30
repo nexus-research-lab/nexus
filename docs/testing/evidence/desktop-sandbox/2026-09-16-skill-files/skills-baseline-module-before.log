@@ -1,0 +1,7 @@
+Sandbox evidence: /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-7FG1O0
+Checking nexus-revision
+Checking nexus-changes
+Checking go-version
+Checking bridge-module
+bridge-module failed: exit 1
+FAIL: host-and-macos-native-baseline; installation and release acceptance remain separate.

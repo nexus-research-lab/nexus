@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "scope": "runtime-data-compatibility",
+  "releaseAccepted": false,
+  "passed": true,
+  "binaries": {
+    "previous": {
+      "path": "/Users/berhand/program/Work/Nexus/nexus-agent-sdk-go-rewrite-fix/dist/nxs/darwin-arm64/nxs",
+      "sha256": "232336bca73e87acbe1558a273b64bbb1fe21749e887ac55876b0af2152c9b5f"
+    },
+    "candidate": {
+      "path": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/dist/nxs/darwin-arm64/nxs",
+      "sha256": "bafa01e64507c09739d88b2910ed76a593c90e0b0c91506470bc0086543e9987"
+    }
+  },
+  "bridge": {
+    "Path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "Version": "v0.1.34-0.20260928040950-c994b197e010",
+    "Time": "2026-09-28T04:09:50Z",
+    "Dir": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260928040950-c994b197e010",
+    "GoMod": "/Users/berhand/program/go/pkg/mod/cache/download/github.com/nexus-research-lab/nexus-agent-sdk-bridge/@v/v0.1.34-0.20260928040950-c994b197e010.mod",
+    "GoVersion": "1.24.0",
+    "Sum": "h1:PyU1PlK2VlevRfzhlOHD0fIEBNQvxOz+RGC5fyqt6FA=",
+    "GoModSum": "h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y="
+  },
+  "tests": [
+    "TestDesktopSandboxRuntimeUpgradeAndRollback",
+    "TestDesktopSandboxRuntimeUpgradeAndRollback/before_upgrade",
+    "TestDesktopSandboxRuntimeUpgradeAndRollback/after_upgrade",
+    "TestDesktopSandboxRuntimeUpgradeAndRollback/after_rollback"
+  ]
+}

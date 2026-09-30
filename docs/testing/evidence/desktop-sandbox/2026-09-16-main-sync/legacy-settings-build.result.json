@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "/private/tmp/nexus-sandbox-main-sync/nxs-before-settings",
+    "./cmd/nxs"
+  ],
+  "sourceRevision": "8031091325a882d384ac40902e3905bd46b021db",
+  "exitCode": 0,
+  "seconds": 2.037
+}

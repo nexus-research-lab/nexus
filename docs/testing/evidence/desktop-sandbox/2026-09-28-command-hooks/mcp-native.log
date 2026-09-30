@@ -1,0 +1,8 @@
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork/ambient
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork/explicit
+--- PASS: TestDarwinSandboxMCPRuntimeNetwork (8.10s)
+    --- PASS: TestDarwinSandboxMCPRuntimeNetwork/ambient (3.24s)
+    --- PASS: TestDarwinSandboxMCPRuntimeNetwork/explicit (4.86s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime	8.645s

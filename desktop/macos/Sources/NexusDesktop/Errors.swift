@@ -32,7 +32,7 @@ enum DesktopShellError: LocalizedError {
     case .webDistStale(let webDistPath, let newerInputPath):
       return "Web 产物已过期：\(webDistPath) 早于 \(newerInputPath)。请执行 make app-run-dev 重新构建并启动桌面开发版。"
     case .sidecarExecutableNotFound:
-      return "未找到 Go sidecar。开发模式需要可用的 go 命令，打包模式需要 bundle 内的 nexus-server。"
+      return "未找到完整的桌面运行组件。开发模式请执行 make app-run-dev 重新构建；安装版请重新安装完整应用。"
     case .portUnavailable(let port):
       return "Nexus 桌面端本地端口 \(port) 已被占用，请关闭占用该端口的进程后重试。"
     case .sidecarExited:

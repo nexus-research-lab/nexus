@@ -38,6 +38,8 @@ type configurationController interface {
 	Plan(context.Context, configurationsvc.ChangeRequest) (*configurationsvc.ChangePlan, error)
 	Apply(context.Context, configurationsvc.ChangeRequest, configurationsvc.CLIApplyOptions) (*configurationsvc.ApplyResult, error)
 	History(context.Context, string, int) ([]configurationsvc.AuditRecord, error)
+	Review(context.Context, string) (*configurationsvc.ChangeReconciliation, error)
+	Reconcile(context.Context, configurationsvc.ReconcileRequest) (*configurationsvc.ChangeReconciliation, error)
 }
 
 // NewConfiguration 创建只负责产品配置的 nexuscfg 应用。
@@ -57,6 +59,8 @@ func NewConfiguration(cfg config.Config) (*App, error) {
 	root.AddCommand(newConfigurationPlanCommand(services))
 	root.AddCommand(newConfigurationApplyCommand(services))
 	root.AddCommand(newConfigurationHistoryCommand(services))
+	root.AddCommand(newConfigurationReviewCommand(services))
+	root.AddCommand(newConfigurationReconcileCommand(services))
 	return &App{command: root, services: services}, nil
 }
 
@@ -221,6 +225,69 @@ func newConfigurationHistoryCommand(services *cliServiceProvider) *cobra.Command
 	return command
 }
 
+func newConfigurationReviewCommand(services *cliServiceProvider) *cobra.Command {
+	var requestID string
+	command := &cobra.Command{
+		Use:   "review",
+		Short: "读取一条配置 receipt 并核对当前真相源",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			controller, err := configurationCLIController(cmd, services)
+			if err != nil {
+				return err
+			}
+			requestID = strings.TrimSpace(requestID)
+			if requestID == "" {
+				return usageErrorf("--request-id 不能为空")
+			}
+			review, err := controller.Review(cmd.Context(), requestID)
+			if err != nil {
+				return err
+			}
+			return emitJSON(map[string]any{"action": "review", "review": review})
+		},
+	}
+	command.Flags().StringVar(&requestID, "request-id", "", "要核对的配置审计 request_id")
+	_ = command.MarkFlagRequired("request-id")
+	return command
+}
+
+func newConfigurationReconcileCommand(services *cliServiceProvider) *cobra.Command {
+	var request configurationsvc.ReconcileRequest
+	command := &cobra.Command{
+		Use:   "reconcile",
+		Short: "人工确认未知配置写入的结果（不重放写入）",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			controller, err := configurationCLIController(cmd, services)
+			if err != nil {
+				return err
+			}
+			request.RequestID = strings.TrimSpace(request.RequestID)
+			request.Decision = strings.ToLower(strings.TrimSpace(request.Decision))
+			request.ObservedRevision = strings.TrimSpace(request.ObservedRevision)
+			if request.RequestID == "" || request.Decision == "" || request.ObservedRevision == "" {
+				return usageErrorf("--request-id、--decision、--observed-revision 均不能为空")
+			}
+			if !request.Confirmed {
+				return usageErrorf("reconcile 必须使用 --confirm；该操作只记录人工决定，不会重放写入")
+			}
+			result, err := controller.Reconcile(cmd.Context(), request)
+			if err != nil {
+				return err
+			}
+			return emitJSON(map[string]any{"action": "reconcile", "reconciliation": result})
+		},
+	}
+	command.Flags().StringVar(&request.RequestID, "request-id", "", "要收口的配置审计 request_id")
+	command.Flags().StringVar(&request.Decision, "decision", "", "人工决定：applied 或 not_applied")
+	command.Flags().StringVar(&request.ObservedRevision, "observed-revision", "", "review 返回的当前 revision")
+	command.Flags().BoolVar(&request.Confirmed, "confirm", false, "确认记录人工决定；不会重新执行原变更")
+	command.Flags().StringVar(&request.Note, "note", "", "可选的人工备注；只保存是否填写，不保存正文")
+	_ = command.MarkFlagRequired("request-id")
+	_ = command.MarkFlagRequired("decision")
+	_ = command.MarkFlagRequired("observed-revision")
+	return command
+}
+
 func bindConfigurationChangeFlags(command *cobra.Command, flags *configurationChangeFlags) {
 	command.Flags().StringVar(&flags.domain, "domain", "", "配置域")
 	command.Flags().StringVar(&flags.operation, "operation", "", "inspect 返回的精确操作名")
@@ -377,6 +444,20 @@ func (c localConfigurationController) History(
 	return c.service.ListChanges(ctx, c.actor, domain, limit)
 }
 
+func (c localConfigurationController) Review(
+	ctx context.Context,
+	requestID string,
+) (*configurationsvc.ChangeReconciliation, error) {
+	return c.service.ReviewChange(ctx, c.actor, requestID)
+}
+
+func (c localConfigurationController) Reconcile(
+	ctx context.Context,
+	request configurationsvc.ReconcileRequest,
+) (*configurationsvc.ChangeReconciliation, error) {
+	return c.service.ReconcileChange(ctx, c.actor, request)
+}
+
 type runtimeConfigurationController struct {
 	endpoint string
 	token    string
@@ -384,13 +465,15 @@ type runtimeConfigurationController struct {
 }
 
 type runtimeConfigurationCommand struct {
-	Action    string                         `json:"action"`
-	Domains   []string                       `json:"domains,omitempty"`
-	Verify    bool                           `json:"verify,omitempty"`
-	Change    configurationsvc.ChangeRequest `json:"change,omitempty"`
-	Confirmed bool                           `json:"confirmed,omitempty"`
-	Domain    string                         `json:"domain,omitempty"`
-	Limit     int                            `json:"limit,omitempty"`
+	Action    string                            `json:"action"`
+	Domains   []string                          `json:"domains,omitempty"`
+	Verify    bool                              `json:"verify,omitempty"`
+	Change    configurationsvc.ChangeRequest    `json:"change,omitempty"`
+	Confirmed bool                              `json:"confirmed,omitempty"`
+	Domain    string                            `json:"domain,omitempty"`
+	Limit     int                               `json:"limit,omitempty"`
+	RequestID string                            `json:"request_id,omitempty"`
+	Reconcile configurationsvc.ReconcileRequest `json:"reconcile,omitempty"`
 }
 
 type runtimeConfigurationResponse struct {
@@ -478,6 +561,24 @@ func (c *runtimeConfigurationController) History(
 		Action: "history", Domain: domain, Limit: limit,
 	}, &result)
 	return result, err
+}
+
+func (c *runtimeConfigurationController) Review(
+	ctx context.Context,
+	requestID string,
+) (*configurationsvc.ChangeReconciliation, error) {
+	var result configurationsvc.ChangeReconciliation
+	err := c.call(ctx, runtimeConfigurationCommand{
+		Action: "review", RequestID: requestID,
+	}, &result)
+	return &result, err
+}
+
+func (c *runtimeConfigurationController) Reconcile(
+	ctx context.Context,
+	request configurationsvc.ReconcileRequest,
+) (*configurationsvc.ChangeReconciliation, error) {
+	return nil, errors.New("Agent runtime 不能提交人工配置 reconcile")
 }
 
 func (c *runtimeConfigurationController) call(

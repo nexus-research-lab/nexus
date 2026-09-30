@@ -1,0 +1,752 @@
+{
+  "version": 1,
+  "recordedAt": "2026-09-17T13:07:53.360596+00:00",
+  "scope": "provider-environment-ownership-and-interpolation",
+  "passed": true,
+  "releaseAccepted": false,
+  "localOnly": true,
+  "sdkRevision": "460c0f1c8fec8a818c7e3ebf86beb4d4d5b09124",
+  "sdkBaseRevision": "00b72d227d8adf108bcdcacaebfa84bf9c34361b",
+  "bridgeRevision": "a2316d747b092b5e1fd300f6ed26efe7eb61ce12",
+  "nexusBaseRevision": "0c75c27eb5d583ed7c51e22fd2718a05308cd054",
+  "nexusSourcePatch": {
+    "path": "nexus-source.patch.gz",
+    "rawSHA256": "d300d54aac844fed1ba8ba17956e1611241cedcfe352c3b45d0ec7e98cfbda35"
+  },
+  "nexusSourceFiles": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "724bcfa7631e49cf20de403c6cc470b8dcf6ce82e7cdd736cd417930d7f39bb1"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "19beba732a2b1f0dab7dee23bae5e0e444793cbf8193fe3d90b6c5f909ba6927"
+    },
+    {
+      "path": "docs/explorations/desktop-sandbox/development-plan.md",
+      "sha256": "644aae91815908b573dd012eac4c85b7be1fcf020e67c9fc96cf17545c8bc85b"
+    },
+    {
+      "path": "docs/specs/desktop-sandbox-spec.md",
+      "sha256": "a521db5d0f6fcecc6d6d54065040217eb8b4d03625ee46b83848e73c1434c942"
+    },
+    {
+      "path": "docs/testing/desktop-sandbox-acceptance.md",
+      "sha256": "eee515ff3c4fae96717610a892ffcbd73f1b47ed973c0b6efeea8229a289423c"
+    },
+    {
+      "path": "internal/runtime/clientopts/agent_client.go",
+      "sha256": "9d0c7bad2aa8d2daa2d067ec183f7b279f4959aac93a014bc191eb2756d97125"
+    },
+    {
+      "path": "internal/runtime/clientopts/doc.go",
+      "sha256": "e9752f66f0f303a996733abbb2077e6005840b4d4f3a7ea55089985e5f2ddef2"
+    },
+    {
+      "path": "internal/runtime/clientopts/provider_environment_test.go",
+      "sha256": "7c42d28de67cdb64494dfde3d92ef868683247f4361aa5ca98d407a56cc20fc4"
+    },
+    {
+      "path": "internal/runtime/doc.go",
+      "sha256": "39aff3bab205be7413c7c2ade7a573d85c301ec8e6fb7f7080ab86592f9c9cf9"
+    },
+    {
+      "path": "internal/runtime/process_policy.go",
+      "sha256": "27add85d0db820256095065712e82e6565da6fba5fc2cf608d257a081bba4bac"
+    },
+    {
+      "path": "internal/runtime/process_policy_test.go",
+      "sha256": "3c19f46b2926637129da3a77a162ad8bf177bc678267bff85a0cd29b6b044883"
+    },
+    {
+      "path": "scripts/desktop/check-sandbox-baseline.mjs",
+      "sha256": "c5f988949cb13d68f45354cde91e149fe96f5570321c5053bb04e153bb1bd267"
+    }
+  ],
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260917020413-a2316d747b09",
+    "sum": "h1:nOd4a9+Fw0jdd37FgYFGIweRYb8WURNBu/56K1RF+hM="
+  },
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-MSTLX7/nxs",
+    "sha256": "061cdd611709ad3a05ed07faf0873098a2eb63cb65688d07a08c8a7fdc7931cd",
+    "source": "fixed-sdk-archive"
+  },
+  "platform": {
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "27.0.0",
+    "goVersion": "go1.27.1"
+  },
+  "baseline": {
+    "report": "baseline-report.json",
+    "exitCode": 0,
+    "requiredTopLevel": 143,
+    "requiredSubtests": 309,
+    "requiredSkipped": 0
+  },
+  "finalHostSupplement": {
+    "passed": true,
+    "requiredTests": [
+      "TestProviderOwnershipChangeReplacesRuntime",
+      "TestProviderOwnershipChangeReplacesRuntime/NEXUS_PROVIDER_MANAGED_BY_HOST",
+      "TestProviderOwnershipChangeReplacesRuntime/NEXUS_SUBPROCESS_ENV_SCRUB",
+      "TestProviderOwnershipChangeReplacesRuntime/CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+      "TestProviderOwnershipChangeReplacesRuntime/NEXUS_AUTO_DREAM_WAKE_MODE",
+      "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange"
+    ],
+    "scope": "Final Nexus process-policy delta after the fixed-SDK baseline started"
+  },
+  "sourceScopeNote": "Final Nexus process-policy change was added after baseline host tests had run. Final runtime/clientopts race tests and exact required tests separately cover that delta; no claim that the earlier baseline included it.",
+  "checks": [
+    {
+      "name": "sdk-before",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "00b72d22 plus archived test fixtures",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./client",
+        "./internal/config/env",
+        "./internal/agent/runtime",
+        "./internal/tool/executor/hooks",
+        "-run",
+        "Test(HostManaged|HostProviderOwnership|CommandHookRespectsRuntime|ShellProcessesRespect|MemoryModelRespectsHost)",
+        "-count=1"
+      ],
+      "exitCode": 1,
+      "expectedOutcome": "reproduced-failure",
+      "log": {
+        "path": "sdk-before.jsonl.gz",
+        "rawSHA256": "7280d0a64ecf61b7e50d77f35bb4783d89b9bc18c69470d8ff2ed942760f9ce4"
+      },
+      "events": {
+        "fail": 26,
+        "pass": 1
+      },
+      "skippedTests": [],
+      "failedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/OPENAI_API_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/OPENAI_CUSTOM_HEADERS",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_WEBSEARCH_API_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_WEBFETCH_SUMMARIZER_API_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_WEBFETCH_DOMAIN_CHECK_API_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_CLIENT_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_CLIENT_KEY_PASSPHRASE",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_API_KEY_FILE_DESCRIPTOR",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/NEXUS_OAUTH_TOKEN_FILE_DESCRIPTOR",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials/INPUT_OPENAI_API_KEY",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostManagedSubprocessRemovesSDKCredentials",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/TestHostProviderOwnershipCannotBeDisabledByTaskEnvironment",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/env/<package>",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestMemoryModelRespectsHostProviderOwnership/host_managed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestMemoryModelRespectsHostProviderOwnership",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotRedirectProvider/project/environment",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotRedirectProvider/project/provider",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotRedirectProvider/flag/environment",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotRedirectProvider/flag/provider",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotRedirectProvider",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsPreserveProviderOwnership",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/<package>",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestHostManagedBackgroundSettingDoesNotAcknowledgeUnusedUpdate",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/<package>",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestCommandHookRespectsRuntimeProviderOwnership",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestShellProcessesRespectRuntimeProviderOwnership/bash",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestShellProcessesRespectRuntimeProviderOwnership/selected_shell",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestShellProcessesRespectRuntimeProviderOwnership/powershell_environment",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestShellProcessesRespectRuntimeProviderOwnership",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/<package>"
+      ]
+    },
+    {
+      "name": "sdk-body-before",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "101f34fa production except missing request-body classification; see provider-body-before.go.source",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./client",
+        "-run",
+        "Test(HostManagedSettingsCannotReplaceProviderRequestBody|StandaloneSettingsRetainProviderInputs)$",
+        "-count=1"
+      ],
+      "exitCode": 1,
+      "expectedOutcome": "reproduced-failure",
+      "log": {
+        "path": "sdk-body-before.jsonl.gz",
+        "rawSHA256": "d755f74249d27db4493d9dcbdddb582e5881a8699a8a0fe882714559af0f6d19"
+      },
+      "events": {
+        "fail": 1,
+        "pass": 1
+      },
+      "skippedTests": [],
+      "failedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestHostManagedSettingsCannotReplaceProviderRequestBody",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/<package>"
+      ]
+    },
+    {
+      "name": "host-before",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "Nexus 0c75c27eb plus provider_environment_test.go",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "-json",
+        "./internal/runtime/clientopts",
+        "-run",
+        "TestBuild(AgentClientOptionsPreservesHostProviderOwnership|ClaudeOptionsDoNotClaimNXSProviderOwnership)$",
+        "-count=1"
+      ],
+      "exitCode": 1,
+      "expectedOutcome": "reproduced-failure",
+      "log": {
+        "path": "host-before.jsonl.gz",
+        "rawSHA256": "d2e7ee9d426f46bda63f3091eaa23258f94f9d2c7bba2286b2557f36d97b37ff"
+      },
+      "events": {
+        "fail": 3,
+        "pass": 1
+      },
+      "skippedTests": [],
+      "failedTests": [
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts/TestBuildAgentClientOptionsPreservesHostProviderOwnership/extra",
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts/TestBuildAgentClientOptionsPreservesHostProviderOwnership/configuration",
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts/TestBuildAgentClientOptionsPreservesHostProviderOwnership",
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts/<package>"
+      ]
+    },
+    {
+      "name": "sdk-packages",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "101f34fa",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./client",
+        "./internal/config/...",
+        "./internal/agent/runtime/...",
+        "./internal/tool/executor/...",
+        "./internal/tool/builtin/bash/...",
+        "./internal/tool/builtin/powershell",
+        "./internal/provider/...",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "expectedOutcome": "pass",
+      "log": {
+        "path": "sdk-packages.jsonl.gz",
+        "rawSHA256": "bd118101fad90e49c72ac0073c86adc0fe564820c5cc6aedf4bb022f323e4a85"
+      },
+      "events": {
+        "pass": 1171,
+        "skip": 167
+      },
+      "skippedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellStatusProtocolSupportsAvailableExecutables",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellExecutionPreservesObjectsAndStatus",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellStreamingKeepsStatusOutOfProgress",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellExecutionAllowsApprovedExpandableStrings",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellExecutionPreservesNativeExitCode",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellExecutionDoesNotReuseStaleNativeExitCode",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellExecutionCancellationUsesProcessStatus",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell/TestPowerShellStatusChannelSupportsConstrainedLanguage",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/project/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/project/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/user/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/user/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/local/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/local/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/rule/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/rule/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/symlink/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/symlink/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/include/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/include/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/additional/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/additional/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/managed/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxStartupInstructions/managed/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/user/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/user/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/project/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/project/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/local/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/local/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/relative_flag/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/relative_flag/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/managed/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/managed/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/dropin/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/dropin/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/symlink/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionSettings/symlink/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionReload/settings",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionReload/cancel",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxInstructionReload/symlink",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxCompactFileRestore/denied",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxCompactFileRestore/symlink",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxCompactFileRestore/allowed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinManagedPolicyIntegrity/malformed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinManagedPolicyIntegrity/deleted",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinManagedPolicyIntegrity/relaxed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec/TestSandboxSeccompHelperUsesInjectedEnvironment",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec/TestMacOSSandboxIgnoresTaskPath",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestPowerShellBackgroundModesPreserveObjectStatusAndCWD",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/project_agent/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/project_agent/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/user_agent/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/user_agent/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/project_command/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/project_command/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/user_command/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/user_command/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/skill/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/skill/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/file_symlink/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/file_symlink/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/directory_symlink/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/directory_symlink/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/directory/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/directory/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/hook_settings/allowed=false",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectFiles/hook_settings/allowed=true",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectRefresh/symlink",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectRefresh/cancel",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectRefresh/malformed_settings",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectRefresh/changed_agent",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSandboxProjectRefresh/changed_hook",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxFileToolsRuntime",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinFileInstructionsShareSandbox",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinLargeFileReadRetainsFullState",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/workspace_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/attachment_reference",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/relative",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/attachment_reference",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/inline",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/user_preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/tool_preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreparationFailsClosed/view_image",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreparationFailsClosed/preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestApprovedPowerShellExpandableStringReachesExecutor",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxChildWriteBoundary",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxBlocksDirectNetwork",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxReadDenyPrecedence",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsSettingsTemporaryEntries",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxCannotCreateSettingsHardlink",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxResourceScopes",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchPreservesResults",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchPreparationFailsClosed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchToolsRuntime",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchAuxiliaryCannotExpandResources",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemoryGate",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/inline_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/absolute_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/relative_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/relative_disabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillGitAuxiliary",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/repository",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/no_repository",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/gitignored",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/denied_body",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/conditional",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSettingsIntegrity/malformed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSettingsIntegrity/deleted",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/TestDarwinSettingsIntegrity/relaxed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestDarwinSettingsProfileFiles",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/client/TestDarwinRequiredSandboxRejectsHardlinkedSettingsProfile"
+      ],
+      "failedTests": []
+    },
+    {
+      "name": "sdk-consumers",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "101f34fa",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./internal/mcp/...",
+        "./internal/environment/...",
+        "./internal/skill/...",
+        "./internal/memory/...",
+        "./cmd/nxs",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "expectedOutcome": "pass",
+      "log": {
+        "path": "sdk-consumers.jsonl.gz",
+        "rawSHA256": "6e28bb07ea75e99fbd74c578b83c722694a2dd8d422904b237551ae0801315e7"
+      },
+      "events": {
+        "pass": 247,
+        "skip": 1
+      },
+      "skippedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/filesystem/worker/TestNativeMacOSFileHelper"
+      ],
+      "failedTests": []
+    },
+    {
+      "name": "sdk-race",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "101f34fa",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./client",
+        "./internal/config/env",
+        "./internal/agent/runtime",
+        "./internal/tool/executor/hooks",
+        "-run",
+        "Test(HostManaged|HostProviderOwnership|StandaloneSettingsRetain|CommandHookRespectsRuntime|ShellProcessesRespect|MemoryModelRespectsHost|RuntimeSettingsControls|UpdateEnvironment)",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "expectedOutcome": "pass",
+      "log": {
+        "path": "sdk-race.jsonl.gz",
+        "rawSHA256": "078cd4f38fbbbd34a6adf7d3f96d52ad770bc2b56b7d3598e488aa5bb2fcbd81"
+      },
+      "events": {
+        "pass": 31
+      },
+      "skippedTests": [],
+      "failedTests": []
+    },
+    {
+      "name": "interpolation-before",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "101f34fa plus interpolation test fixtures from 460c0f1c",
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "./internal/tool/executor/hooks",
+        "./internal/mcp/client",
+        "-run",
+        "Test(HTTPHookCannotInterpolateHostProviderCredentials|MCPInterpolationCannotBorrowHostProviderCredentials|StandaloneMCPInterpolationPreservesEnvironment)$",
+        "-count=1"
+      ],
+      "exitCode": 1,
+      "expectedOutcome": "reproduced-failure",
+      "log": {
+        "path": "interpolation-before.jsonl.gz",
+        "rawSHA256": "ad095e0f0e5a1b5f9e3612d4fb969bd66cbfeb3c883cd7fc7dfc3c590956824c"
+      },
+      "events": {
+        "fail": 4,
+        "pass": 2
+      },
+      "skippedTests": [],
+      "failedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestHTTPHookCannotInterpolateHostProviderCredentials/process",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestHTTPHookCannotInterpolateHostProviderCredentials/runtime",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/TestHTTPHookCannotInterpolateHostProviderCredentials",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/hooks/<package>",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/mcp/client/TestMCPInterpolationCannotBorrowHostProviderCredentials",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/mcp/client/<package>"
+      ]
+    },
+    {
+      "name": "interpolation-after",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "460c0f1c",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "./internal/config/env",
+        "./internal/mcp/client",
+        "./internal/tool/executor/hooks",
+        "./internal/tool/executor",
+        "./cmd/nxs",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "expectedOutcome": "pass",
+      "log": {
+        "path": "interpolation-after.jsonl.gz",
+        "rawSHA256": "671da85cb70e0afb9063155a4346574c7d905cd6a367c96e23580a2d6ecf1d6a"
+      },
+      "events": {
+        "pass": 358,
+        "skip": 90
+      },
+      "skippedTests": [
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestPowerShellBackgroundModesPreserveObjectStatusAndCWD",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxFileToolsRuntime",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinFileInstructionsShareSandbox",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinLargeFileReadRetainsFullState",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/workspace_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaFileSources/attachment_reference",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/user_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreprocess/tool_link",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/absolute",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/relative",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/file_url",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/attachment_reference",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/inline",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/user_preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaAllowedSources/tool_preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreparationFailsClosed/view_image",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxMediaPreparationFailsClosed/preprocess",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestApprovedPowerShellExpandableStringReachesExecutor",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxChildWriteBoundary",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxBlocksDirectNetwork",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxReadDenyPrecedence",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsSettingsTemporaryEntries",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsLiteralFlagSettingsMetacharacters",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxProtectsPhysicalSettingsAliases",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinMandatorySandboxCannotCreateSettingsHardlink",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxResourceScopes",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchPreservesResults",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchPreparationFailsClosed",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchToolsRuntime",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSearchAuxiliaryCannotExpandResources",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/additional/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/symlink/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/body/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillFileEntrypoints/user/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemoryGate",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/inline_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/absolute_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/relative_enabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillMemorySettings/relative_disabled",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillGitAuxiliary",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/project/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/additional/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/user/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/initial_listing",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_catalog",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/slash_run",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/skill",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillAllowedEntrypoints/symlink/discover",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/repository",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/no_repository",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/gitignored",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/denied_body",
+        "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor/TestDarwinSandboxSkillDynamicDiscovery/conditional"
+      ],
+      "failedTests": []
+    },
+    {
+      "name": "host-replace-before",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "Nexus 0c75c27eb process_policy.go plus new replacement test",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "-json",
+        "./internal/runtime",
+        "-run",
+        "^TestProviderOwnershipChangeReplacesRuntime$",
+        "-count=1"
+      ],
+      "exitCode": 1,
+      "expectedOutcome": "reproduced-failure",
+      "log": {
+        "path": "host-replace-before.jsonl.gz",
+        "rawSHA256": "0d9cfd8c1068cd26cc6aaf6ceea31b7d6e533d78bdde8f612e888698276e1b45"
+      },
+      "events": {
+        "fail": 5
+      },
+      "skippedTests": [],
+      "failedTests": [
+        "github.com/nexus-research-lab/nexus/internal/runtime/TestProviderOwnershipChangeReplacesRuntime/NEXUS_PROVIDER_MANAGED_BY_HOST",
+        "github.com/nexus-research-lab/nexus/internal/runtime/TestProviderOwnershipChangeReplacesRuntime/NEXUS_SUBPROCESS_ENV_SCRUB",
+        "github.com/nexus-research-lab/nexus/internal/runtime/TestProviderOwnershipChangeReplacesRuntime/CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+        "github.com/nexus-research-lab/nexus/internal/runtime/TestProviderOwnershipChangeReplacesRuntime/NEXUS_AUTO_DREAM_WAKE_MODE",
+        "github.com/nexus-research-lab/nexus/internal/runtime/TestProviderOwnershipChangeReplacesRuntime",
+        "github.com/nexus-research-lab/nexus/internal/runtime/<package>"
+      ]
+    },
+    {
+      "name": "final-host",
+      "environment": {
+        "GOWORK": "off"
+      },
+      "source": "final Nexus staged source patch",
+      "command": [
+        "go",
+        "test",
+        "-mod=readonly",
+        "-race",
+        "-json",
+        "./internal/runtime",
+        "./internal/runtime/clientopts",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "expectedOutcome": "pass",
+      "log": {
+        "path": "final-host.jsonl.gz",
+        "rawSHA256": "2a6d25b92fafb091d58aef707083f50a0ad3351f1858bc3279dc3dad9313db1d"
+      },
+      "events": {
+        "pass": 205,
+        "skip": 1
+      },
+      "skippedTests": [
+        "github.com/nexus-research-lab/nexus/internal/runtime/clientopts/TestDesktopSandboxRealRuntimeNegotiation"
+      ],
+      "failedTests": []
+    }
+  ],
+  "staticChecks": [
+    {
+      "name": "sdk affected packages vet",
+      "exitCode": 0
+    },
+    {
+      "name": "sdk interpolation packages vet",
+      "exitCode": 0
+    },
+    {
+      "name": "Nexus final runtime/clientopts vet",
+      "exitCode": 0
+    },
+    {
+      "name": "make check-architecture",
+      "exitCode": 0
+    },
+    {
+      "name": "sandbox evidence parser tests",
+      "exitCode": 0,
+      "tests": 6
+    },
+    {
+      "name": "baseline script syntax",
+      "exitCode": 0
+    }
+  ],
+  "limitations": [
+    "Known SDK environment credentials only; no complete secret-file/process/handle confinement",
+    "External MCP/headersHelper execution, background IO and network admission remain pending",
+    "Cross compilation does not prove Linux/Windows native behavior",
+    "No release package, signing, default activation or P1-P7 completion",
+    "Bridge module is local-only and not published"
+  ]
+}
