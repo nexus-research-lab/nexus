@@ -38,10 +38,15 @@ capability-only 为 8 通过/2 兼容失败，capability＋logon 为 9 通过/1 
 
 ### 2026-09-30 Windows 功能集中补齐检查点（尚未编译或验收）
 
-SDK 实现检查点为 `1cba2a42`，不是以上已验证基线。
+SDK 实现检查点为 `db5d3732`，不是以上已验证基线。
 按用户要求，当前先集中补功能，期间仅格式整理与静态检查，不反复编译或运行矩阵；
 功能接线完成后再统一补测试、编译及本机真实执行/拒绝证据。当前新增实现如下：
 
+- nxs 内部 runner 已接入认证的命令发布、资源清单、准备/start 和独立 stdio 管道。
+  Host 核验真实进程创建时间、账号、低盒 token 与外层 Job；runner 独立核验只读清单。
+  正常清理回执先持久记录并 ACK，再等待 runner 退出及 Host 权限撤销，ACK 不表示整体完成。
+  实际 HTTP client 已接入 context 绑定的 Windows relay；运行期检查真实进程/Job 和活跃租约，
+  不以初始文件集合不变限制合法写入。私有程序/CWD 的可信 bootstrap、生产组合和恢复仍待完成。
 - Windows 文件 worker 使用固定父句柄处理逐组件路径、junction/symlink、实际类型、
   lstat、独占创建、删除和同目录按句柄原子替换；未接通 OS 授权不能使用它宣称受限 IO。
 - 单次 AppContainer 创建属性及实际 token 校验、专用 runner 内的唯一 profile 生命周期、
