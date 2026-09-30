@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - Add one-time sandbox escape approval for ordinary external Write/Edit actions. The approval is bound to the exact file operation and never creates a persistent directory whitelist; protected paths remain denied.
+- Carry one-shot sandbox escape and network approval scope on the exact tool result so the model can distinguish temporary approval from a persistent policy change.
 
 ### Changed
 
