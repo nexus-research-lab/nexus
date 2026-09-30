@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a separate machine-level Windows sandbox MSI source and signed packaging entry for the SYSTEM service and protected command bootstrap. Bind both image digests into installation preflight, check actual PE architectures and signatures, and preserve lease evidence during maintenance. The service remains disabled; packaging, installation and native execution acceptance are pending.
+
 - Simplify the runtime settings sandbox section to keep support checks and residual-resource recovery without presenting a redundant sandbox toggle.
 
 - Add two non-normative macOS desktop sandbox records covering the end-to-end engineering model and a code-oriented call-chain reading guide.

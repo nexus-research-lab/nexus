@@ -6,6 +6,7 @@
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 
 ## Build & Validation Commands
+- Windows 机器沙箱准备包由 `scripts/desktop/package-windows-sandbox-system.ps1` 与 `desktop/windows/sandbox-system/Package.wxs` 单独构建，必须提供同架构签名服务、签名 nxs bootstrap 和 SDK 源码；安装预检摘要编译进独立 SYSTEM custom action。服务保持 disabled，不能据 XML/脚本解析通过宣称安装或沙箱验收完成；维护保留所有租约证据，不使用 per-user 可写映像注册 SYSTEM 服务。
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
 - `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包

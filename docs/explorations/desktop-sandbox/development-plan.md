@@ -42,6 +42,11 @@ SDK 实现检查点为 `8c5a3bab`，不是以上已验证基线。
 按用户要求，当前先集中补功能，期间仅格式整理与静态检查，不反复编译或运行矩阵；
 功能接线完成后再统一补测试、编译及本机真实执行/拒绝证据。当前新增实现如下：
 
+- 独立机器 MSI 源码和打包脚本现部署固定 SYSTEM 服务及 ProgramFiles 下的 nxs bootstrap。
+  输入要求真实 PE 架构匹配、固定发布证书签名；服务/bootstrap 摘要编译进 deferred
+  NoImpersonate 安装预检，安装配置与租约证据保留。机器 bootstrap 只向普通用户和低盒
+  授予读取/执行，修改仍限机器管理主体。服务默认 disabled；仅做脚本/XML 静态解析，
+  尚未构建签名包、实际安装或运行服务，也未启用 Windows capability。
 - NUL 服务侧 Job 接管先复制并核验 Host 既有 QUERY/TERMINATE 权限，再缩小权限；
   对真实 runner/child 核验创建时间、账号、低盒 token、存活与 Job 成员。Host 退出或
   真实断链主动终止全 Job 并等待清空，未批准句柄只关闭，分阶段清理支持关闭失败重试。

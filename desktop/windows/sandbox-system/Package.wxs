@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- INPUT: signed machine service and embedded SYSTEM setup action; neither comes from the per-user app directory. -->
+<!-- OUTPUT: separate per-machine MSI; service stays disabled until production runtime acceptance is wired. -->
+<!-- POS: Windows sandbox system preparation packaging; preserves lease evidence across repair/upgrade/uninstall. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Nexus Sandbox System" Manufacturer="Nexus" Version="$(var.PackageVersion)"
+           UpgradeCode="D316A106-07FA-4BDA-93CC-DCB7C42D9B30" Scope="perMachine" InstallerVersion="500">
+    <MajorUpgrade DowngradeErrorMessage="A newer Nexus Sandbox System package is installed."
+                  Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" />
+    <Property Id="NEXUS_HOST_SID" Secure="yes">
+      <RegistrySearch Id="ExistingSandboxHost" Root="HKLM" Key="SOFTWARE\Nexus\SandboxSystem"
+                      Name="HostSID" Type="raw" Bitness="always64" />
+    </Property>
+    <Launch Condition="Installed OR NEXUS_HOST_SID" Message="NEXUS_HOST_SID must identify the authorized desktop Host account." />
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="NexusMachineDirectory" Name="Nexus">
+        <Directory Id="SandboxRuntimeDirectory" Name="SandboxRuntime">
+          <Component Id="SandboxRuntimeDirectoryAcl" Guid="B9E2BAC8-AC28-4877-9187-080A7EB11D78" Bitness="always64">
+            <CreateFolder><PermissionEx Id="RuntimeDirectorySecurity" Sddl="O:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;GRGX;;;BU)(A;OICI;GRGX;;;S-1-15-2-1)" /></CreateFolder>
+          </Component>
+          <Component Id="SandboxRuntimeBootstrap" Guid="7105B506-9D48-40B0-8CD8-0EC762C763CF" Bitness="always64">
+            <File Id="SandboxRuntimeExecutable" Source="$(var.BootstrapBinary)" Name="nxs.exe" KeyPath="yes">
+              <PermissionEx Id="RuntimeImageSecurity" Sddl="O:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;BU)(A;;GRGX;;;S-1-15-2-1)" />
+            </File>
+          </Component>
+        </Directory>
+        <Directory Id="SandboxSystemDirectory" Name="SandboxSystem">
+          <Component Id="SandboxSystemDirectoryAcl" Guid="D420EB9D-031F-4BCE-98B0-66EEAC9A2C8B" Bitness="always64">
+            <CreateFolder><PermissionEx Id="MachineDirectorySecurity" Sddl="O:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" /></CreateFolder>
+          </Component>
+          <Component Id="SandboxSystemService" Guid="5BE729AF-ED5E-4A3C-81F3-67AE39D5AACB" Bitness="always64">
+            <File Id="SandboxSystemExecutable" Source="$(var.ServiceBinary)" Name="nxs-sandbox-system.exe" KeyPath="yes">
+              <PermissionEx Id="MachineImageSecurity" Sddl="O:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)" />
+            </File>
+            <ServiceInstall Id="RegisterSandboxSystem" Name="NexusSandboxSystem" DisplayName="Nexus Sandbox System"
+                            Description="Nexus execution-scoped null-device preparation."
+                            Type="ownProcess" Start="disabled" ErrorControl="normal" Account="LocalSystem" Arguments="--service" Vital="yes" />
+            <ServiceControl Id="RemoveSandboxSystem" Name="NexusSandboxSystem" Stop="both" Remove="uninstall" Wait="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="NexusMachineStateDirectory" Name="Nexus">
+        <Directory Id="SandboxSystemStateDirectory" Name="SandboxSystem">
+          <Directory Id="SandboxSystemLeaseDirectory" Name="NulLeases">
+            <Component Id="SandboxSystemLeases" Guid="6C3BB3BA-C4FC-4A66-9968-45B04A3104CD" Bitness="always64" Permanent="yes">
+              <CreateFolder><PermissionEx Id="MachineLeaseDirectorySecurity" Sddl="O:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" /></CreateFolder>
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <Component Id="SandboxSystemConfiguration" Guid="0B9A191C-EA34-4BD8-934E-07F2BBA32020" Directory="SandboxSystemDirectory" Bitness="always64" Permanent="yes">
+      <RegistryKey Root="HKLM" Key="SOFTWARE\Nexus\SandboxSystem">
+        <PermissionEx Id="MachineConfigurationSecurity" Sddl="O:SYD:P(A;;KA;;;SY)(A;;KA;;;BA)" />
+        <RegistryValue Name="HostSID" Type="string" Value="[NEXUS_HOST_SID]" KeyPath="yes" />
+      </RegistryKey>
+    </Component>
+    <Binary Id="SandboxSystemSetup" SourceFile="$(var.SetupBinary)" />
+    <CustomAction Id="CheckSandboxMaintenance" BinaryRef="SandboxSystemSetup" ExeCommand="--maintenance"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="CheckSandboxPayload" BinaryRef="SandboxSystemSetup" ExeCommand="--preflight"
+                  Execute="deferred" Impersonate="no" Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="CheckSandboxMaintenance" Before="RemoveExistingProducts" Condition="Installed OR WIX_UPGRADE_DETECTED" />
+      <Custom Action="CheckSandboxPayload" Before="InstallServices" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+    <Feature Id="SandboxSystemFeature" Title="Nexus Sandbox System" Level="1">
+      <ComponentRef Id="SandboxSystemDirectoryAcl" />
+      <ComponentRef Id="SandboxRuntimeDirectoryAcl" />
+      <ComponentRef Id="SandboxRuntimeBootstrap" />
+      <ComponentRef Id="SandboxSystemService" />
+      <ComponentRef Id="SandboxSystemLeases" />
+      <ComponentRef Id="SandboxSystemConfiguration" />
+    </Feature>
+  </Package>
+</Wix>
