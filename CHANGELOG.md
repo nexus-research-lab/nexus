@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Bound Generative UI `show_widget` payloads to 256 KiB per fragment and 192 KiB of inline image data, with explicit tool guidance to load the `visualize` Skill and split photo previews before the limit is reached.
+
 - Simplify the runtime settings sandbox section to keep support checks and residual-resource recovery without presenting a redundant sandbox toggle.
 
 - Add two non-normative macOS desktop sandbox records covering the end-to-end engineering model and a code-oriented call-chain reading guide.

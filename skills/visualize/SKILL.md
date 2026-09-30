@@ -12,10 +12,36 @@ Create a custom interactive visual only when it communicates the answer better t
 
 ## Workflow
 
-1. Choose the visual form and read only the relevant references below before composing the fragment.
-2. Call `show_widget` with a concise title and one self-contained HTML fragment in `widget_code`.
+1. Load this Skill before composing a visual. If another Skill requests a visual (for example a photo search or photo organization), load `visualize` explicitly in the current runtime before calling the tool; do not infer its rules from the Skill name alone. Read only the relevant references below after loading it.
+2. Call `show_widget` with a concise title and one self-contained HTML fragment in `widget_code`. In Nexus, `show_widget` is the implementation of the `visualize` capability; `/visualize` only expands the prompt and `visualize` markers are not a Nexus Agent rendering API.
 3. Put explanation and conclusions in the normal response around the widget. Do not repeat the visual as Markdown.
 4. The tool result only confirms delivery to the client. Do not claim that rendering succeeded.
+
+## Payload budget and image previews
+
+Nexus enforces a `show_widget` transport budget: `widget_code` is limited to **256 KiB UTF-8** and inline `data:image/...` URLs together are limited to **192 KiB**. The client still does not report an individual image's load result. Keep these limits visible while composing the fragment, and use the smaller photo-card rule below so a widget remains readable and stable:
+
+- serialized `widget_code`: at most **256 KiB UTF-8**;
+- all inline `data:image/...` URLs together: at most **192 KiB** (measure the encoded string, including the Base64 prefix);
+- a photo widget: one contact sheet or at most **six image cards** per call.
+
+Measure the final serialized fragment, not the source image size. If any budget is exceeded, reduce the preview dimensions/quality or split by category/batch before calling `show_widget`. Never put a whole photo library into one widget. For large result sets, use native image attachments or durable preview files for the image body and reserve `show_widget` for a small representative visual and the structured mapping.
+
+For image cards, use eager loading (`loading="eager"`, `decoding="async"`) and an explicit broken-image state. A successful `accepted: true` result is not an image-rendering acknowledgement; if the client cannot show the pixels, report the preview as incomplete and retry with a smaller batch.
+
+Use this shape for a self-contained photo preview (the Base64 string must be generated from the file as one uninterrupted ASCII string):
+
+```html
+<img
+  src="data:image/jpeg;base64,<complete-base64-bytes>"
+  alt="照片预览"
+  loading="eager"
+  decoding="async"
+  style="display:block;width:100%;height:auto;max-height:360px;object-fit:contain"
+>
+```
+
+JPEG, PNG, WebP, and GIF data URLs are supported. A workspace path, `file://` URL, `localhost` URL, or a truncated/mismatched Base64 string cannot be repaired by CSS and will show as an empty or broken image.
 
 ## Read on demand
 
