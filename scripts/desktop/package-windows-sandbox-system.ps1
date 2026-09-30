@@ -63,6 +63,7 @@ $outputPath = [System.IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $outputPath -Force | Out-Null
 $setupPath = Join-Path $outputPath 'nxs-sandbox-system-setup.exe'
 $msiPath = Join-Path $outputPath ("nexus-sandbox-system-$PackageVersion-$Architecture.msi")
+$runtimeManifestPath = Join-Path $outputPath 'sandbox-runtime.json'
 $sourcePath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../desktop/windows/sandbox-system/Package.wxs'))
 $savedWork = $env:GOWORK
 $savedOS = $env:GOOS
@@ -91,7 +92,17 @@ if ((Get-FileHash -LiteralPath $servicePath -Algorithm SHA256).Hash.ToLowerInvar
 if ((Get-FileHash -LiteralPath $bootstrapPath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $bootstrapDigest) {
     throw 'Machine bootstrap changed while constructing its bound setup executable'
 }
-& $WixPath build $sourcePath -arch $Architecture -d "ServiceBinary=$servicePath" -d "BootstrapBinary=$bootstrapPath" -d "SetupBinary=$setupPath" -d "PackageVersion=$PackageVersion" -o $msiPath
+# 运行时摘要从已验证签名的实际输入生成，由机器安装根保护；不读取任务目录或环境投影。
+$runtimeManifest = [ordered]@{
+    version = 1
+    bootstrapSHA256 = $bootstrapDigest
+    serviceSHA256 = $serviceDigest
+    architecture = $(if ($Architecture -eq 'x64') { 'amd64' } else { 'arm64' })
+    packageVersion = $PackageVersion
+    signerThumbprint = $SigningCertificateThumbprint.ToUpperInvariant()
+}
+[System.IO.File]::WriteAllText($runtimeManifestPath, ($runtimeManifest | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+& $WixPath build $sourcePath -arch $Architecture -d "ServiceBinary=$servicePath" -d "BootstrapBinary=$bootstrapPath" -d "RuntimeManifest=$runtimeManifestPath" -d "SetupBinary=$setupPath" -d "PackageVersion=$PackageVersion" -o $msiPath
 if ($LASTEXITCODE -ne 0) { throw 'Machine MSI build failed' }
 & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampURL /td SHA256 $msiPath
 if ($LASTEXITCODE -ne 0) { throw 'Machine MSI signing failed' }

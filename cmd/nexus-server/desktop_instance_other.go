@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 // INPUT: 非 macOS 的现有启动入口。
 // OUTPUT: 保持原平台实例管理行为，不启用 macOS 恢复凭据。

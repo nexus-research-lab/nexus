@@ -24,6 +24,11 @@
               <PermissionEx Id="RuntimeImageSecurity" Sddl="O:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;BU)(A;;GRGX;;;S-1-15-2-1)" />
             </File>
           </Component>
+          <Component Id="SandboxRuntimeManifest" Guid="CBFC3A57-A5AC-4CBD-A184-13C06454BEF5" Bitness="always64">
+            <File Id="SandboxRuntimeManifestFile" Source="$(var.RuntimeManifest)" Name="sandbox-runtime.json" KeyPath="yes">
+              <PermissionEx Id="RuntimeManifestSecurity" Sddl="O:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;GR;;;BU)" />
+            </File>
+          </Component>
         </Directory>
         <Directory Id="SandboxSystemDirectory" Name="SandboxSystem">
           <Component Id="SandboxSystemDirectoryAcl" Guid="D420EB9D-031F-4BCE-98B0-66EEAC9A2C8B" Bitness="always64">
@@ -71,6 +76,7 @@
       <ComponentRef Id="SandboxSystemDirectoryAcl" />
       <ComponentRef Id="SandboxRuntimeDirectoryAcl" />
       <ComponentRef Id="SandboxRuntimeBootstrap" />
+      <ComponentRef Id="SandboxRuntimeManifest" />
       <ComponentRef Id="SandboxSystemService" />
       <ComponentRef Id="SandboxSystemLeases" />
       <ComponentRef Id="SandboxSystemConfiguration" />

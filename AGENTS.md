@@ -6,7 +6,7 @@
 - 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
 
 ## Build & Validation Commands
-- Windows 机器沙箱准备包由 `scripts/desktop/package-windows-sandbox-system.ps1` 与 `desktop/windows/sandbox-system/Package.wxs` 单独构建，必须提供同架构签名服务、签名 nxs bootstrap 和 SDK 源码；安装预检摘要编译进独立 SYSTEM custom action。服务保持 disabled，不能据 XML/脚本解析通过宣称安装或沙箱验收完成；维护保留所有租约证据，不使用 per-user 可写映像注册 SYSTEM 服务。
+- Windows 机器沙箱准备包由 `scripts/desktop/package-windows-sandbox-system.ps1` 与 `desktop/windows/sandbox-system/Package.wxs` 单独构建，必须提供同架构签名服务、签名 nxs bootstrap 和 SDK 源码；安装预检摘要编译进独立 SYSTEM custom action。受保护 sandbox-runtime.json 固定六字段记录版本、架构、两个映像摘要与签名元数据，供 Bridge LoadInstalled 读取；签名指纹字段不替代 Authenticode 验证。服务保持 disabled，不能据 XML/脚本解析通过宣称安装或沙箱验收完成；维护保留所有租约证据，不使用 per-user 可写映像注册 SYSTEM 服务。
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
 - `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
@@ -35,7 +35,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 服务 + 自动迁移，macOS 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
+cmd/        - 可执行入口（nexus-server 服务 + 自动迁移，macOS/Windows 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
 desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期（boot-bound audit identity 精确终止，旧格式存活/未知记录保留并拒绝并发启动）、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区并通过公开可见性生命周期随主窗口挂起或恢复，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展以代次化标签页引用、来源继承租约、round 收尾、命令截止/取消与执行阶段诊断和增量 AX 快照为 Browser 提供页面、标签页、历史、下载、可见 Agent 指针、交互与用户启用后的完整 CDP 操作）
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
@@ -54,7 +54,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   cli/        - nexusctl / nexuscfg 本地命令行装配（按领域文件组织）；模型侧命令不经过 CLI
   app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；退出先停止 runtime 准入并等待终态落盘，再关闭数据库；server 只负责 HTTP/WS 与后台启停；macOS 桌面入口将迁移前实例锁交给 App，以随包 helper 和 app/processes 完成两阶段恢复后才开放任务，goal / execution / workgraph / runtime 承载宿主适配，runtimecheck 负责安装包内核配套检查；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
   mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，IM 场景用宿主数据库保存投递来源并把人类反馈交回原 Session，好友私聊保持独立语义，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；mcp/artifact 通过 deliver_files 登记 Skill/脚本等最终文件交付，由 workspace 服务校验后随产出 Agent 的精确轮次消息持久化；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
-  config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/desktopinstance 承载 macOS sidecar 的状态根独占锁（无 PID 推断，旧版未持锁宿主仍须单独核验），infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界，infra/runtimebootstrap 校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要
+  config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/desktopinstance 承载 macOS/Windows sidecar 的状态根独占锁（无 PID 推断，旧版未持锁宿主仍须单独核验），infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界，infra/runtimebootstrap 校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要
 docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单与证据，specs/ 保存当前维护者合同，explorations/ 保存明确标记 non-normative 的在研专题及历史证据，architecture-html/ 保存可独立打开的图解页面
 </directory>
 ```
