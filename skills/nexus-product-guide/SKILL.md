@@ -36,13 +36,13 @@ description: Explain current Nexus product features, entry locations, ordinary u
 ## 按问题读取资料
 
 - 不知道从哪里开始、启动页、侧边栏、固定会话、首次设置：读取 [navigation-and-starting.md](references/navigation-and-starting.md)。
-- 新会话、历史、消息、输入框、附件、模型、权限、排队与分支聊天：读取 [conversations-and-collaboration.md](references/conversations-and-collaboration.md)。
+- 新会话、历史、消息、输入框、附件、当前会话模型、权限、排队与分支聊天：读取 [conversations-and-collaboration.md](references/conversations-and-collaboration.md)。涉及供应商、模型能力或视觉理解时，再读取 [model-services-and-vision.md](references/model-services-and-vision.md)。
 - 智能体、记忆、联系人、好友联络、私聊与多人房间：读取 [agents-rooms-and-memory.md](references/agents-rooms-and-memory.md)。
 - Goal、工作图、自然语言编辑工作图、任务分工、临时子任务和可视化：读取 [goals-workgraphs-and-execution.md](references/goals-workgraphs-and-execution.md)。
 - 主动跟进、定时任务、运行记录与结果送达：读取 [proactive-followup-and-automation.md](references/proactive-followup-and-automation.md)。
 - 使用本机浏览器、把网页交给 Nexus、网页操作与安全开关：读取 [browser-and-web-access.md](references/browser-and-web-access.md)。
 - Skill、连接器、外部消息通道与配对：读取 [capabilities.md](references/capabilities.md)。
-- 设置、模型服务、数据目录、账号、管理后台和故障排查：读取 [settings-and-help.md](references/settings-and-help.md)。
+- 设置、数据目录、账号、管理后台和故障排查：读取 [settings-and-help.md](references/settings-and-help.md)；供应商、Coding Plan、模型能力和视觉理解：读取 [model-services-and-vision.md](references/model-services-and-vision.md)。
 
 如果问题横跨多个领域，只读取直接相关的资料。例如“每天浏览网页并把结果发给我”需要浏览器与定时任务两份资料，不需要加载全部手册。
 
