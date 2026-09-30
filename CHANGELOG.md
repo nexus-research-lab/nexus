@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Defer desktop sandbox policy installation on Windows until the native boundary is validated; macOS remains the only desktop platform that claims the sandbox contract.
+
 - Fix duplicate SQLite/PostgreSQL migration numbering in desktop sandbox builds.
 
 All notable changes to this project will be documented in this file.

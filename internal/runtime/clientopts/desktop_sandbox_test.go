@@ -25,6 +25,12 @@ func TestBuildAgentClientOptionsInstallsDesktopPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if runtime.GOOS == "windows" {
+		if options.Sandbox != nil || options.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "" {
+			t.Fatalf("Windows desktop sandbox must remain deferred: %#v", options)
+		}
+		return
+	}
 	if runtime.GOOS == "darwin" && (options.Sandbox == nil || !options.MCP.StrictConfig || !options.Sandbox.RequireMCPNetwork || !options.Sandbox.RequireMCPHelpers || !options.Sandbox.RequireMCPStdio) {
 		t.Fatal("macOS MCP endpoint contract missing")
 	}
@@ -57,7 +63,7 @@ func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
 func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true,
 		SkillDirectories: []string{"/skills"}, AdditionalDirectories: []string{"/mounted"}}
-	for _, platform := range []string{"darwin", "windows"} {
+	for _, platform := range []string{"darwin"} {
 		for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto, sdkpermission.ModeBypassPermissions} {
 			before := agentclient.Options{Env: map[string]string{"existing": "value"}, Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: mode}}
 			got, err := applyDesktopSandboxForPlatform(before, input, platform)
@@ -90,6 +96,22 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 	}
 }
 
+func TestDesktopSandboxIsDeferredOnWindows(t *testing.T) {
+	before := agentclient.Options{
+		Env:     map[string]string{"existing": "value"},
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault},
+	}
+	got, err := applyDesktopSandboxForPlatform(before, AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true,
+	}, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, before) {
+		t.Fatalf("Windows must retain the pre-sandbox runtime contract: got %#v want %#v", got, before)
+	}
+}
+
 func TestDesktopSandboxUsesClaudeNativeCommandSandboxContract(t *testing.T) {
 	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}
 	for _, platform := range []string{"darwin"} {
@@ -112,8 +134,12 @@ func TestDesktopSandboxUsesClaudeNativeCommandSandboxContract(t *testing.T) {
 			}
 		}
 	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}}, input, "windows"); err == nil {
-		t.Fatal("Windows Claude restricted mode silently accepted without a native sandbox")
+	gotWindows, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}}, input, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotWindows.Sandbox != nil || gotWindows.Env != nil {
+		t.Fatalf("Windows must retain the unsandboxed Claude contract: %#v", gotWindows)
 	}
 }
 
@@ -163,14 +189,18 @@ func TestDesktopSandboxClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSCon
 	}, "darwin"); err == nil {
 		t.Fatal("Claude native sandbox accepted an nxs host resource contract")
 	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude, PermissionMode: sdkpermission.ModeBypassPermissions}}, AgentClientOptionsInput{
+	gotWindows, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude, PermissionMode: sdkpermission.ModeBypassPermissions}}, AgentClientOptionsInput{
 		AppMode:               "desktop",
 		DesktopSandboxEnabled: true,
 		SandboxResources: &agentclient.SandboxResourcePolicy{
 			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: "/tmp/scratch",
 		},
-	}, "windows"); err == nil {
-		t.Fatal("Claude Full Access silently discarded an nxs host resource contract")
+	}, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotWindows.Sandbox != nil {
+		t.Fatalf("Windows must defer the desktop sandbox contract: %#v", gotWindows.Sandbox)
 	}
 }
 
