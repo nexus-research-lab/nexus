@@ -17,6 +17,9 @@ TAG ?= 0.2.3
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
+# Source development runs outside the canonical macOS App bundle. Keep the
+# backend in server mode so a desktop-only helper lookup cannot abort `make dev`.
+NEXUS_DEV_APP_MODE ?= server
 NEXUS_CONTROL_ROOT ?= $(abspath ../nexus-control)
 NEXUS_DEV_STATE_ROOT ?= $(if $(strip $(NEXUS_STATE_ROOT)),$(NEXUS_STATE_ROOT),$(HOME)/.nexus)
 CONTROL_DATA_DIR := $(if $(strip $(CONTROL_DATA_DIR)),$(CONTROL_DATA_DIR),$(NEXUS_DEV_STATE_ROOT)/control)
@@ -98,6 +101,7 @@ run-backend: prepare-dev-runtime-cli ## Run Go backend in development mode
 	NEXUS_CONTROL_SERVICE_TOKEN="$${NEXUS_CONTROL_SERVICE_TOKEN:-$${CONTROL_SERVICE_TOKEN:-}}" \
 	NEXUS_CONTROL_SERVICE_TOKEN_FILE="$${NEXUS_CONTROL_SERVICE_TOKEN_FILE:-$(CONTROL_DATA_DIR)/control-service.token}" \
 	NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE="$${NEXUS_CONTROL_PRINCIPAL_PUBLIC_KEY_FILE:-$(CONTROL_DATA_DIR)/control-signing.pub}" \
+	NEXUS_APP_MODE="$(NEXUS_DEV_APP_MODE)" \
 	NEXUS_APP_ROOT=$${NEXUS_APP_ROOT:-$(CURDIR)} PORT=$(BACKEND_PORT) go run ./cmd/nexus-server
 
 run-backend-go: run-backend ## Alias of run-backend
