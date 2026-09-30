@@ -107,6 +107,9 @@ export function ComposerPermissionSurface({
   const isSandboxEscape = permission.permission_boundary === "sandbox_escape"
     || permission.risk_label === "沙箱外执行"
     || permission.risk_label === "Execution outside the sandbox";
+  const sandboxFileTarget = isSandboxEscape
+    ? readStringField(permission.tool_input, "file_path")
+    : null;
   const secretSlots = permission.configuration_secret_slots ?? [];
   const secretValues = getConfigurationSecretDraftValues(
     secretDraft,
@@ -226,24 +229,27 @@ export function ComposerPermissionSurface({
       {isSandboxEscape ? (
         <PermissionRequestDetails
           description={t("composer.permission_sandbox_escape_description")}
-          fields={[
-            {
-              label: t("composer.permission_sandbox_escape_command"),
-              value: readStringField(permission.tool_input, "command")
-                ?? readStringField(permission.tool_input, "file_path")
-                ?? presentation.detail,
-            },
-            ...(readStringField(permission.tool_input, "file_path")
-              ? [{
+          fields={sandboxFileTarget
+            ? [
+              {
                 label: t("composer.permission_sandbox_escape_target"),
-                value: readStringField(permission.tool_input, "file_path"),
-              }]
-              : []),
-            {
-              label: t("composer.permission_sandbox_escape_working_directory"),
-              value: extractWorkingDirectory(permission.summary),
-            },
-          ]}
+                value: sandboxFileTarget,
+              },
+              {
+                label: t("composer.permission_sandbox_escape_working_directory"),
+                value: extractWorkingDirectory(permission.summary),
+              },
+            ]
+            : [
+              {
+                label: t("composer.permission_sandbox_escape_command"),
+                value: readStringField(permission.tool_input, "command") ?? presentation.detail,
+              },
+              {
+                label: t("composer.permission_sandbox_escape_working_directory"),
+                value: extractWorkingDirectory(permission.summary),
+              },
+            ]}
           title={t("composer.permission_sandbox_escape_title")}
           tone="warning"
         />
