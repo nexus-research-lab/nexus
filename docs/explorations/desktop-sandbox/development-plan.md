@@ -38,15 +38,29 @@ capability-only 为 8 通过/2 兼容失败，capability＋logon 为 9 通过/1 
 
 ### 2026-09-30 Windows 功能集中补齐检查点（尚未编译或验收）
 
-SDK 实现检查点为 `8c5a3bab`，不是以上已验证基线。
+SDK 已提交并推送集成检查点 `1ac91e0e`，不是以上已验证基线。
 按用户要求，当前先集中补功能，期间仅格式整理与静态检查，不反复编译或运行矩阵；
 功能接线完成后再统一补测试、编译及本机真实执行/拒绝证据。当前新增实现如下：
+
+- 本次集成机器专用账号、固定低盒 bootstrap、Host 资源装配、NUL SCM 服务与 guard 恢复，
+  以及 Host→runner→低盒的文件/HTTP 通道。固定 nxs 在同一 AppContainer 内消费可信私有
+  context；文件通道存在性和网络摘要必须匹配原准备意图。文件数据面覆盖十一种 worker 操作。
+  静态复查修复了关闭/启动竞态、凭据关闭失败阻断 Job 清理、NUL 撤销重复写入和共享硬链
+  manifest 遗漏；只完成 gofmt、diff 检查，未编译或增加原生通过证据。
+- 下一集成批次补三个实际缺口：Git/PDF/rg 辅助命令仍走 POSIX 路径；普通文件读写的
+  symlink/junction 兼容仍拒绝；Host 输入/输出目前各 1 MiB，不能承载长时 stream-json。
+  完整文件流式、SDK→Bridge→Nexus 产品后端、通用命令网络、配置/策略及安装恢复验收
+  仍需继续完成，不能由本次内部集成推导任何 Windows capability 已支持。
 
 - 独立机器 MSI 源码和打包脚本现部署固定 SYSTEM 服务及 ProgramFiles 下的 nxs bootstrap。
   输入要求真实 PE 架构匹配、固定发布证书签名；服务/bootstrap 摘要编译进 deferred
   NoImpersonate 安装预检，安装配置与租约证据保留。机器 bootstrap 只向普通用户和低盒
   授予读取/执行，修改仍限机器管理主体。服务默认 disabled；仅做脚本/XML 静态解析，
   尚未构建签名包、实际安装或运行服务，也未启用 Windows capability。
+  安装器维护入口继续补为正常请求服务停止、最多等待一分钟，再核验所有恢复日志；
+  未收口则在替换前失败，不强杀服务。STOPPED 不使用该状态下无效的 ProcessId 字段。
+  此维护代码尚未编译/运行；停止语义参考
+  [Windows 服务控制请求](https://learn.microsoft.com/en-us/windows/win32/services/service-control-requests)。
 - NUL 服务侧 Job 接管先复制并核验 Host 既有 QUERY/TERMINATE 权限，再缩小权限；
   对真实 runner/child 核验创建时间、账号、低盒 token、存活与 Job 成员。Host 退出或
   真实断链主动终止全 Job 并等待清空，未批准句柄只关闭，分阶段清理支持关闭失败重试。
