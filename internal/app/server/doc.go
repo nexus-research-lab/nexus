@@ -1,11 +1,12 @@
 // Package server 装配 HTTP/WebSocket 路由、实时通知与进程生命周期。
 //
-// 启动时修复 IM 回传的本地持久入队意图；入站恢复器随通道启停，按原轮次核验回执，不重发或重跑未知副作用。
+// macOS 桌面构造显式接收入口实例锁，经 App 两阶段沙箱恢复后才挂载路由。
+// 启动时修复 IM 回传的本地持久入队意图，不重发结果未知的外部消息。
 //
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go / lifecycle.go：消费 app.AppServices，启动后台协调器；Control identity invalidation coordinator 对持续失败事件执行有界重试、fail-closed 隔离并继续消费后续事件；关闭时先排空 HTTP、等待后台退出，再释放共享资源；启动失败逆序回收。
+//   - server.go / lifecycle.go：消费 app.AppServices，启动后台协调器；配置变更 unknown receipt 在启动首扫并按周期有界恢复，首扫失败保持 fail-closed；Control identity invalidation coordinator 对持续失败事件执行有界重试、fail-closed 隔离并继续消费后续事件；关闭时先排空 HTTP、等待后台退出，再释放共享资源；启动失败逆序回收。
 //   - routes.go / routes_web.go / path_param_router.go / http_handlers.go / websocket.go：HTTP/Web/可选 Team 路由、Desktop 线上账号与 Team 同源代理、统一路径段解码（含 Provider 历史 model_id 兼容边界）、HTTP handlerSet 装配、WS 入口与 orchestration ExecutionInvalidationSink 装配。
 //   - realtime_invalidation.go / configuration_notifier.go：Session、conversation 标题、定时任务、Agent 与 Room 配置变更到 websocket 实时投影的统一失效通知装配。
 //   - channel_external_session.go：外部通道会话到 WebSocket 的通知适配。

@@ -2,10 +2,12 @@ package clientopts
 
 import (
 	"context"
+	"runtime"
 	"strings"
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 type countingMCPRuntimeResolver struct {
@@ -80,6 +82,56 @@ func TestMergeAgentMCPServersParsesSupportedTransports(t *testing.T) {
 	sse, ok := merged["remote_sse"].(sdkmcp.SSEServerConfig)
 	if !ok || sse.URL != "http://127.0.0.1:9000/events" || sse.Headers["X-Test"] != "value" {
 		t.Fatalf("sse config = %#v", merged["remote_sse"])
+	}
+}
+
+func TestMergeAgentMCPServersRejectsUnsafeStaticHeaders(t *testing.T) {
+	for name, headers := range map[string]map[string]any{
+		"control-character-name":  {"X-Bad\nName": "value"},
+		"control-character-value": {"X-Bad": "value\r\nmore"},
+		"non-token-name":          {"X Bad": "value"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := MergeAgentMCPServers(nil, map[string]any{
+				"remote": map[string]any{
+					"type":    "http",
+					"url":     "https://mcp.example.com/rpc",
+					"headers": headers,
+				},
+			})
+			if err == nil || !strings.Contains(err.Error(), "非法") {
+				t.Fatalf("unsafe headers accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestMergeAgentMCPServersRejectsURLCredentialsAndFragments(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{name: "userinfo", url: "https://user:password@mcp.example.com/rpc"},
+		{name: "fragment", url: "https://mcp.example.com/rpc#token"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := MergeAgentMCPServers(nil, map[string]any{
+				"remote": map[string]any{"type": "http", "url": tc.url},
+			})
+			if err == nil || !strings.Contains(err.Error(), "有效的 HTTP 或 HTTPS URL") {
+				t.Fatalf("unsafe URL accepted: %v", err)
+			}
+		})
+	}
+	_, err := MergeAgentMCPServers(nil, map[string]any{
+		"remote": map[string]any{
+			"type": "http", "url": "https://mcp.example.com/rpc",
+			"oauth": map[string]any{"authServerMetadataUrl": "https://user:password@auth.example.com/meta#token"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "有效的 HTTPS URL") {
+		t.Fatalf("unsafe OAuth metadata URL accepted: %v", err)
 	}
 }
 
@@ -228,5 +280,40 @@ func TestBuildAgentClientOptionsMergesAgentMCPServersBeforeRuntimeResolution(t *
 	}
 	if resolver.calls != 0 {
 		t.Fatalf("invalid MCP config reached runtime resolver: calls=%d", resolver.calls)
+	}
+}
+
+func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
+	configured := map[string]any{
+		"remote": map[string]any{
+			"type": "http",
+			"url":  "https://mcp.example.com/mcp",
+		},
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); (err == nil) != (runtime.GOOS == "darwin") {
+		t.Fatalf("remote MCP platform contract: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions); err != nil {
+		t.Fatalf("explicit bypass should retain existing MCP behavior: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindClaude, "desktop", true, sdkpermission.ModeDefault); err != nil {
+		t.Fatalf("Claude must not receive nxs-only rejection: %v", err)
+	}
+	if err := RejectDesktopSandboxRemoteMCP(map[string]any{
+		"local": map[string]any{"type": "stdio", "command": "local-mcp"},
+	}, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); err != nil {
+		t.Fatalf("stdio MCP should remain a separate lifecycle boundary: %v", err)
+	}
+	for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeBypassPermissions} {
+		err := RejectDesktopSandboxRemoteMCP(map[string]any{
+			"helper": map[string]any{
+				"type":          "http",
+				"url":           "https://mcp.example.com/mcp",
+				"headersHelper": "/tmp/unattested-helper",
+			},
+		}, runtimeKindNXS, "desktop", true, mode)
+		if (err == nil) != (runtime.GOOS == "darwin") {
+			t.Fatalf("mode %v helper platform contract: %v", mode, err)
+		}
 	}
 }

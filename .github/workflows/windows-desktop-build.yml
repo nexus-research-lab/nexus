@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - "desktop/windows/**"
+      - "internal/infra/confinedfs/**"
+      - "internal/runtime/**"
+      - "internal/protocol/runtime_sandbox.go"
+      - "go.mod"
+      - "go.sum"
       - "scripts/desktop/**"
       - ".github/workflows/**"
   push:
@@ -11,6 +16,11 @@ on:
       - main
     paths:
       - "desktop/windows/**"
+      - "internal/infra/confinedfs/**"
+      - "internal/runtime/**"
+      - "internal/protocol/runtime_sandbox.go"
+      - "go.mod"
+      - "go.sum"
       - "scripts/desktop/**"
       - ".github/workflows/**"
 
@@ -29,10 +39,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Checkout pinned sandbox SDK
+        uses: actions/checkout@v6
+        with:
+          repository: nexus-research-lab/nexus-agent-sdk-go
+          ref: 38221838946f17f87be9da4af5f10ddc95671edf
+          path: .nexus-sandbox-sdk
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "8.0.x"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Check Windows sandbox contracts and native components
+        shell: pwsh
+        run: node scripts/desktop/check-windows-sandbox.mjs --native
+        env:
+          NEXUS_SANDBOX_SDK_SOURCE: ${{ github.workspace }}/.nexus-sandbox-sdk
+          NEXUS_SANDBOX_REPORT_DIRECTORY: ${{ runner.temp }}/windows-sandbox-evidence
+
+      - name: Upload Windows sandbox evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-sandbox-native-evidence
+          if-no-files-found: error
+          path: ${{ runner.temp }}/windows-sandbox-evidence/nexus-windows-sandbox-*
 
       - name: Build Windows desktop shell
         shell: pwsh

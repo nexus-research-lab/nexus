@@ -40,6 +40,7 @@ type Config struct {
 	CacheFileDir                     string
 	WebDistDir                       string
 	AppMode                          string
+	DesktopSandboxEnabled            bool
 	DesktopSessionToken              string
 	BrowserEnabled                   bool
 	SkillsAPIURL                     string
@@ -176,23 +177,27 @@ func Load() Config {
 			"logs",
 			filepath.Join(appRoot, "logs"),
 		),
-		LogStdout:                   mustBool(getEnv("LOG_STDOUT", "true")),
-		LogNoColor:                  mustBool(getEnv("LOG_NO_COLOR", "false")),
-		LogFileEnabled:              mustBool(getEnv("LOG_FILE_ENABLED", "true")),
-		LogRotateDaily:              mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
-		LogMaxSizeMB:                parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
-		LogMaxAgeDays:               parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
-		LogMaxBackups:               parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
-		LogCompress:                 mustBool(getEnv("LOG_COMPRESS", "true")),
-		MessageDebugStreamEvent:     mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
-		APIPrefix:                   getEnv("API_PREFIX", "/nexus/v1"),
-		WebSocketPath:               getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
-		DefaultAgentID:              getEnv("DEFAULT_AGENT_ID", "nexus"),
-		DefaultTimezone:             getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
-		WorkspacePath:               workspacePath,
-		CacheFileDir:                cacheDir,
-		WebDistDir:                  getEnv("WEB_DIST_DIR", ""),
-		AppMode:                     appMode,
+		LogStdout:               mustBool(getEnv("LOG_STDOUT", "true")),
+		LogNoColor:              mustBool(getEnv("LOG_NO_COLOR", "false")),
+		LogFileEnabled:          mustBool(getEnv("LOG_FILE_ENABLED", "true")),
+		LogRotateDaily:          mustBool(getEnv("LOG_ROTATE_DAILY", "true")),
+		LogMaxSizeMB:            parseIntEnv(getEnv("LOG_MAX_SIZE_MB", "10"), 10),
+		LogMaxAgeDays:           parseIntEnv(getEnv("LOG_MAX_AGE_DAYS", "7"), 7),
+		LogMaxBackups:           parseIntEnv(getEnv("LOG_MAX_BACKUPS", "7"), 7),
+		LogCompress:             mustBool(getEnv("LOG_COMPRESS", "true")),
+		MessageDebugStreamEvent: mustBool(getEnv("MESSAGE_DEBUG_STREAM_EVENT", "false")),
+		APIPrefix:               getEnv("API_PREFIX", "/nexus/v1"),
+		WebSocketPath:           getEnv("WEBSOCKET_PATH", "/nexus/v1/chat/ws"),
+		DefaultAgentID:          getEnv("DEFAULT_AGENT_ID", "nexus"),
+		DefaultTimezone:         getEnv("DEFAULT_TIMEZONE", "Asia/Shanghai"),
+		WorkspacePath:           workspacePath,
+		CacheFileDir:            cacheDir,
+		WebDistDir:              getEnv("WEB_DIST_DIR", ""),
+		AppMode:                 appMode,
+		// Desktop execution is always admitted through the sandbox contract.
+		// Keep the field for internal option plumbing and test injection, but do
+		// not expose a runtime on/off switch through the process environment.
+		DesktopSandboxEnabled:       strings.EqualFold(strings.TrimSpace(appMode), "desktop"),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		BrowserEnabled:              browserEnabled,
 		SkillsAPIURL:                getEnv("SKILLS_API_URL", "https://skills.sh"),

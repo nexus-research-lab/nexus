@@ -12,8 +12,18 @@
 //   - mcp_servers.go：严格解析 Agent 持久化 stdio/http/sse MCP 配置并在禁止覆盖内建及 GitHub 等 Connector 托管名称的前提下合并。
 //   - web_search.go：runtime 自有的 WebSearch 配置与环境投影。
 //   - log_runtime.go：runtime 日志选项。
+//   - desktop_host_paths.go：受限 macOS 会话由宿主状态根生成 app 整树禁止写入与私有目录禁止读取的词法/物理规则，额外保护既有状态根 sidecar 身份记录，保留公开 Skill 投影读取；nxs 使用文件沙箱，Claude 使用原生命令沙箱与 Read/Edit，Full Access 不提供隔离保证。
+//   - desktop_sandbox.go：实验桌面执行策略装配，分别要求命令、原生 Read/Write/Edit、Glob/Grep、本地图片、远程图片网络、macOS 显式 HTTP/SSE MCP 端点网络、Notebook、Skill、指令/compact 文件读取与受控设置写入能力，区分 Skill 读取根与显式写入挂载，保留 Full Access 路径。
 //   - runtime_admission.go：认证转场到 Agent runtime admission 与强隔离要求的动态依赖边界。
+//   - desktop_sandbox_live_test.go：显式 opt-in 的 macOS 真实第三方 Provider 验收；经当前装配分别验证 nxs 文件边界与 Claude Read/Edit + Bash 沙箱，不属于普通测试或发布验收。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // auto 原样传给两种运行时；bridge 协商 nxs 能力并确认 Claude 原生模式。
+// RequireProjectFiles 与其余桌面文件要求共同进入启动选项，不从旧上下文能力推断项目定义覆盖。
+// RequireManagedPolicy 要求固定托管来源与执行前完整性，不推断普通配置或凭据已收口。
+// RequireSettingsFiles 确认普通配置的受限读取和完整快照，凭据隔离与原子持久化仍独立验收。
+// RequireSettingsWrites 确认 Config 更新复用同一受检来源并在写后强制替换 runtime；跨进程事务和持久回执仍独立验收。
+// nxs Provider 与 AutoDream 唤醒的宿主所有权在所有环境合并后固定；ExtraEnv/ConfigurationEnv 不能撤销。
+// macOS 的持久化与 Connector MCP 认证 helper 由独立必需执行能力接纳，端点授权不扩张 helper 网络。
+// macOS stdio MCP 通过 RequireMCPStdio 独立要求受限进程，纳入替换指纹与有效策略回执。
 package clientopts

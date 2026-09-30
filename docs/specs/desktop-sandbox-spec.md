@@ -1,0 +1,820 @@
+# Desktop sandbox integration (experimental)
+
+This document describes implemented host wiring, not acceptance of the full App
+sandbox. Remaining design and delivery work is tracked in
+[the development plan](../explorations/desktop-sandbox/development-plan.md);
+the [documentation index](../explorations/desktop-sandbox/README.md) separates
+the current contract, dated assessment, acceptance evidence and historical experiments.
+
+## Activation and scope
+
+Desktop execution derives the host sandbox contract from `NEXUS_APP_MODE=desktop`;
+there is no user-facing or process-environment on/off switch. Server deployments
+retain their existing runtime identity/isolation policy. Agent settings cannot
+set or clear the internal host policy marker.
+
+DM, Room and background memory maintenance use the same client-options builder.
+For restricted nxs sessions, it requires nxs `required_sandbox_v1`,
+`sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation. Restricted
+Claude sessions use the separate Bridge `RequireClaudeNativeSandbox` contract
+and generated native `sandbox` settings (`enabled=true`,
+`failIfUnavailable=true`, `allowUnsandboxedCommands=false`); they do not claim
+nxs capabilities or use `--restricted` tool removal as a command-sandbox proof.
+An unsupported runtime fails instead of silently accepting an unenforced policy.
+Negotiation is not proof of current dependencies or an installed effective policy.
+Native file-tool capability is currently declared only by macOS nxs builds;
+Windows native execution is still incomplete and these desktop sessions fail
+closed before receiving a task. A desktop session therefore never silently
+falls back to an unrestricted backend when the selected contract is unavailable.
+
+The Windows Bridge lifecycle is implemented independently of SDK sandbox capability:
+runtime and CLI probe processes start suspended, join a kill-on-close Job, then resume
+their validated initial thread. Probe cancellation collects descendants before waiting
+for output pipes. Native tests cover immediate descendants and host termination after
+admission. Creation and Job assignment are still separate operations; a crash between
+them can leave a suspended process. This lifecycle boundary does not authorize Windows
+SDK file/network execution or establish an atomic creation/resource-recovery receipt.
+
+The host passes Skill directories as read resources and user-mounted directories
+as explicit sandbox write grants. The SDK additionally grants its stable workspace
+and compatibility paths under its mandatory execution policy. Project settings
+cannot expand that mandatory policy. Unknown outbound shell proxy destinations use
+the SDK's independent `sandbox_network` approval boundary when a mandatory runtime
+has no explicit host network callback. Explicit denied domains and managed-only
+domain policy remain authoritative. Default mode asks the user; auto mode uses the
+existing independent reviewer and human fallback. Explicit command escape continues
+through the separate sandbox-bypass approval boundary.
+
+The pinned Bridge also exposes host-only `SandboxSettings.Resources` and the
+independent `sandbox_resources_v1` contract for macOS command/file write scopes
+and a host-prepared private scratch directory. Nexus now prepares owner/runtime
+scoped leases for desktop nxs DM, Room and background memory maintenance and
+releases them only after a confirmed Bridge close; each acquisition is an
+independent handle over the shared resource, so preparation failure or an old
+runtime generation cannot release a newer holder's scratch. Failed cleanup keeps
+the runtime fence and exact lease for recovery and blocks new acquisition in that
+scope. Durable markers and explicit stale-sweep primitives exist. A failed close
+persists `cleanup_unknown`, its bounded error summary and update time through the
+fixed lease directory handle; discovery exposes that state after a host restart,
+while deletion still requires an explicit owner-scoped sweep; a `cleanup_unknown`
+marker is retained even when its recorded PID is dead until a separate
+reconciliation can prove the full runtime boundary is closed. Connect writes an
+effective-policy receipt for each runtime generation to the host database and
+keeps a clone in memory for the connected session. The receipt records the
+required/acknowledged Bridge capabilities, policy digest, session identity and
+(when present) exact scratch lease/round identity, with durable `confirmed`,
+`retiring`, `retired` and `unknown` lifecycle phases. A process restart can read
+the latest owner-scoped receipt, but a persisted receipt never represents a
+currently connected runtime or grants permission. This receipt is host
+diagnostic evidence, not proof of whole-SDK IO, OS descendants, network, secrets
+or native platform isolation. Lifecycle updates are monotonic: a late callback
+cannot reopen `retired` or `unknown` as `retiring`. There is currently no
+automatic or browser-triggered receipt reconciliation to `reconciled`; an
+`unknown` receipt remains unknown until a future control surface can prove the
+complete runtime boundary. Within one owner/session/generation, the receipt
+payload and `confirmed_at` are immutable; a duplicate connect observation may
+refresh only `updated_at`, and a terminal row ignores late payload retries.
+Automatic crash sweep, whole-SDK IO confinement and native platform acceptance
+remain separate work.
+
+Where the platform exposes a safe process-identity query, the marker also
+records `process_start_time_unix_nano`. Windows recovery compares that value
+with `GetProcessTimes` before treating an ordinary marker as stale, so a reused
+PID cannot authorize cleanup. A permission or query failure remains unknown;
+`cleanup_unknown` always takes precedence. Older markers and platforms without
+this identity probe retain the conservative PID-liveness behavior.
+
+The owner process reaper is part of that same close boundary. If Bridge close
+has already reported `retired` but the owner-level reaper fails, the host
+conservatively downgrades the exact generation back to `unknown` and records a
+bounded reason. A clean Bridge close therefore never hides descendants that
+the host could not prove were collected.
+
+A fresh Claude connection may not publish its session identity until the first
+user turn; its receipt is marked provisional until that identity is available.
+During startup configuration changes, cleanup uses the exact captured lease
+handle and keeps the current client lease available for retry. Lifecycle
+invalidation reuses an existing cleanup owner for that handle rather than
+transferring it twice. If the handle that first records `cleanup_unknown` is
+released while sibling handles still reference the same resource, the cleanup
+fence transfers to one live sibling; it cannot become attached to an already
+released handle or be silently dropped.
+
+The desktop settings API exposes this recovery boundary through
+`GET /settings/runtime/sandbox/resources` and
+`POST /settings/runtime/sandbox/reconcile`. Both routes derive the owner from
+the authenticated request and never accept an owner or filesystem root from the
+caller. Inspection is read-only. Reconcile requires a positive
+`older_than_seconds`; it is a dry run unless the request body explicitly sets
+`apply=true`. Runtime checks still retain active, unknown, malformed and
+`cleanup_unknown` markers, so the endpoint does not turn a dead PID into proof
+that descendants and handles are gone. This is a local diagnostic/recovery
+surface, not a substitute for native platform acceptance. `GET
+/settings/runtime/sandbox/receipt?session_key=...` first exposes the current
+owner-scoped connected generation's receipt; after a restart it falls back to the
+latest durable receipt for that exact owner/session. A missing, closing,
+cross-owner or non-desktop generation with no durable row returns not found. The
+receipt's capability and lease fields remain admission evidence and never attest
+OS or whole-SDK IO isolation.
+
+This resource contract belongs to nxs only. When a host resource lease is
+present, Nexus forces `allowUnsandboxedCommands=false` and rejects explicit
+write-directory grants under the read-only scope; the Bridge rejects the
+contradictory combination before transport startup. Claude's native sandbox
+settings never receive an nxs resource lease, and accidental cross-backend
+mixing fails closed. An active owner/session lease also keeps its write scope
+immutable; a later round cannot silently widen or narrow the policy by reusing
+the same scratch path.
+
+The host creates and removes the scratch parent and lease directory through
+`internal/infra/confinedfs` fixed directory handles. Marker reads and
+stale-resource scans reject replaced parents, symlinks, non-regular marker
+files, and (including on Windows through the opened file handle) hard-linked
+marker identities; a cleanup failure keeps the exact lease registered instead
+of treating a redirected path as success.
+
+The current mandatory macOS SDK applies explicit read/write and protected-path
+movement denials after ordinary directory, device and PTY grants. A read grant
+cannot reopen content in a denied same, parent or child root; symlink reads use
+the same enforced boundary. `denyRead` and `denyWrite` remain separate, so secrets
+requiring both protections must appear in both. Legacy non-mandatory read
+carve-outs retain their existing semantics. These macOS guarantees do not prove
+equivalent Linux/Windows behavior or confinement of all SDK IO. Capability
+acknowledgement also does not establish that an older binary includes later
+policy fixes; fixed-version acceptance remains separate.
+
+macOS nxs file approval recognizes both the configured workspace root and its
+canonical spelling. Read, search and ordinary file edits keep their existing
+local approval behavior when a resumed or switched backend supplies the canonical
+path (for example `/private/var` for a `/var` workspace). Explicit ask/deny rules
+match both spellings; descendant symlinks, hidden writes and protected write globs
+retain their checks. This preflight does not rewrite the tool input or replace
+the execution-time file sandbox, and it makes no additional Windows claim.
+
+Network approval carries the command input, tool-use identity, captured working
+directory and exact host/port, bound to the command's permission epoch. Nexus shows
+one pending connection and offers no persistent grant. Input changes or permission
+updates in the response are rejected by the SDK; Nexus also rejects persistent
+updates. Approval resumes the pending connection without replaying the command.
+Effective permission changes invalidate pending and subsequent network requests
+from the old command epoch. Explicit SDK host callbacks retain their existing API;
+legacy non-mandatory runtimes do not acquire this new fallback.
+
+When the automatic reviewer approves a sandbox escape or one pending network
+connection, the SDK carries a short provider-neutral approval reminder on the
+result of that exact tool call. The reminder names the boundary and tool-use
+identity, states that the approval is one-shot, and explicitly says that it does
+not change policy or authorize replay or a broader action. Ordinary automatic
+tool approvals remain result-based and do not add an approval reminder. UI and
+audit messages may retain the full review rationale, but that rationale is not
+copied into model context. A persistent network policy amendment, when explicitly
+chosen by the user, is a separate decision and gets its own policy-change result;
+it is never inferred from a one-shot approval.
+
+Direct Bash/PowerShell background startup carries the same scoped callback when it
+rebuilds execution options. Completion of the foreground call does not itself
+cancel the background proxy's approval; changing the permission epoch still rejects
+its pending connection. Native macOS Bash tests cover this continuation and
+invalidation, not complete background review/session recovery on all platforms.
+
+Closing an SDK execution proxy cancels its pending network callback contexts,
+rejects late callback allows, and closes owned SOCKS/HTTP CONNECT tunnels. Complete
+durable execution-effect recovery and background/session turnover acceptance remain
+outstanding; these callback guarantees do not prove every process has terminated.
+
+Mandatory SDK temporary-directory preparation uses a workspace directory handle
+before the command sandbox starts, so descendant symlink replacement cannot redirect
+the host's directory creation outside that root. Unsupported native backends reject
+before temporary-directory or proxy allocation. These preparation guarantees do
+not establish confinement for every other host-side filesystem operation.
+
+Sandbox escape uses the typed `permission_boundary=sandbox_escape` classification.
+Nexus shows an explicit outside-sandbox explanation and exposes only one-time
+approval. This covers explicit Bash/PowerShell escape requests and ordinary
+external `Write`/`Edit` targets. An approved file action receives a temporary
+helper-scoped write capability for the reviewed operation (including its
+same-directory atomic staging) only while that helper runs; it is not a user
+directory whitelist and is not persisted in Agent settings. Persistent rules supplied in a response
+are rejected by both Nexus and the SDK; IM cannot persist a grant when no scope
+suggestion exists. The SDK also rejects an allow response that adds escape or
+changes its reviewed JSON input while remaining outside the sandbox. Hidden paths,
+symlinked ancestors, read-only resource scopes and configured protected paths stay
+denied even when a user is asked to approve an external action. Ordinary tool input
+edits and returning an action inside the sandbox retain their existing behavior.
+Unknown boundary classifications are rejected before a pending approval is created.
+
+For sandbox escape, the SDK captures the working-directory path before asking and
+uses that path for Bash/PowerShell execution, including their streaming entrypoints.
+A later session cwd update cannot redirect the approved relative command. The
+approval explanation includes this directory, and automatic-review human fallback
+preserves that explanation. This captures session state; it is not an inode lease
+against arbitrary filesystem renames.
+
+The host separately requires native Read/Write/Edit coverage through
+`SandboxSettings.RequireFileTools` and initialize `required_sandbox_file_tools`.
+The SDK must acknowledge `sandbox_file_tools_v1` as well as the command contract;
+an older binary with only command acknowledgement is rejected before any task
+or internal continuation is sent. File content, directory suggestions, link/metadata
+and freshness checks use the restricted file executor, with no direct-IO fallback
+on preparation or execution failure. This contract does not cover Glob/Grep,
+startup settings, Skills, background memory or the entire SDK process.
+Normal settings cannot substitute for this host requirement, and changing it
+requires runtime replacement. It is a coverage requirement, not a user sandbox toggle.
+
+The host additionally sets `SandboxSettings.RequireSearchTools` and initialize
+`required_sandbox_search_tools`. An older SDK that confirms commands and
+Read/Write/Edit but lacks `sandbox_search_tools_v1` is rejected before task writes.
+Search coverage is currently macOS-only: Glob/Grep path checks, missing-path
+suggestions, rg and result metadata use the same restricted file environment.
+The auxiliary process uses a minimal environment and denies network access,
+including when the runtime resolves a custom rg executable. If a ResourcePolicy
+is supplied, search uses the same write scope and scratch. Preparation, execution,
+cancellation and output-limit failures do not fall back to direct host IO or retry
+through the ordinary runner. Restricted searches return complete results or an
+explicit failure; single-file content/count results retain their filename.
+This independent requirement also participates in process-policy identity and
+requires runtime replacement when changed. It does not cover Notebook, startup
+configuration, Skills, background memory, full descendant supervision or an
+effective-policy receipt; the older file capability retains its original scope.
+
+The host also requires `SandboxSettings.RequireMediaFiles`, initialize
+`required_sandbox_media_files` and the separate `sandbox_media_files_v1`
+acknowledgement. Current macOS coverage includes local reads for ViewImage and
+main-model preprocessing: local paths, file URLs, symlinks, deferred references,
+user images and nested tool-result images all use the file executor. Local paths
+are materialized before provider dispatch. Preparation and read failures do not
+fall back; local access is checked before auxiliary analysis cache lookup.
+Old command/file/search acknowledgements cannot substitute for this capability.
+It participates in process-policy identity and requires runtime replacement when
+changed. It does not cover HTTP image downloads, remote URL forwarding policy,
+Claude or whole-SDK IO; those remain separate contracts.
+
+Desktop nxs also requires `RequireMediaNetwork`, initialize
+`required_sandbox_media_network` and `sandbox_media_network_v1`. This separate
+contract requires command, file and local media capabilities. All remote image
+sources are downloaded before dispatch to the main/auxiliary Provider, including
+deferred references and nested tool images; Provider URL support cannot bypass
+the captured policy. Every HTTP request and redirect is admitted against the
+network policy. Deny and managed-only rules remain authoritative. Explicit
+ViewImage network approvals bind the exact input, tool-use, cwd, destination
+and permission epoch, reject input changes and persistent grants, and cannot
+survive cancellation or a policy change. Preprocessing without a tool identity
+uses existing network grants or an explicit host callback. Environment proxies
+and Provider credentials are not inherited; configured host proxies remain
+supported. Cleanup cancels pending approvals and body reads. This contract does
+not extend to model Provider transport, WebFetch, external MCP or Claude.
+
+The host separately requires `SandboxSettings.RequireNotebookFiles`, initialize
+`required_sandbox_notebook_files` and the separate `sandbox_notebook_files_v1`
+acknowledgement. Notebook content and cell outputs are parsed only after the
+local bytes have been read through the restricted file executor. The requirement
+depends on the command and native file contracts, participates in process-policy
+identity and currently acknowledges only the macOS nxs backend. Old command,
+file, search or media acknowledgements cannot substitute for it. This is a local
+read/parse guarantee; Notebook execution, remote networking and whole-SDK IO
+remain separate work.
+
+The host separately requires `SandboxSettings.RequireSkillFiles`, initialize
+`required_sandbox_skill_files` and `sandbox_skill_files_v1`. Current macOS
+coverage includes initial/model/Slash catalogs, Skill bodies, Read-triggered
+dynamic discovery, Git ignore queries and remember-availability settings.
+They share the captured file context and cwd, including metadata and symlinks.
+Allowed project/user/additional sources and conditional/Git ignore behavior
+remain supported. Git uses a minimal environment and denies network; cancellation,
+unknown exit results and preparation failures cannot trigger host IO fallback.
+Uncertain dynamic observations can be checked again on a later file access.
+The requirement participates in process identity and requires replacement when
+changed. Global startup settings, hooks, background memory, effective-policy
+receipts, other platforms and Claude remain separate acceptance work.
+
+The host separately requires `SandboxSettings.RequireContextFiles`, initialize
+`required_sandbox_context_files` and `sandbox_context_files_v1`. Startup and
+compact instruction loading, dynamic instruction discovery, and recent-file
+restoration use the file execution boundary for contents, metadata, directories,
+symlinks and instruction exclusion settings. A denied optional instruction is not
+injected. Unreadable or malformed selected exclusion settings stop startup or
+reload, rather than removing the exclusion policy. Failed reloads clear stale
+instructions and prevent the next model request until reading recovers. Query,
+manual compact and child-agent dispatch preserve the current cancellation context;
+startup/reload and compact file restoration have bounded total read time.
+This requirement participates in process identity. Global permission/provider
+settings, project definitions, hooks, persistence, background IO, effective-policy
+receipts and other runtime/platform acceptance remain separate work.
+
+The paired nxs build also routes memory recall and extraction manifests through
+the current file executor. Directory discovery, link metadata, frontmatter and
+selected content use that boundary; preparation or missing ports never fall back
+to host IO. It preserves non-following directory traversal and re-reads selected
+content after the selector, so replacement with a denied symlink is rejected.
+Header and body reads use bounded prefixes enforced by both the helper and its
+caller; ordinary full-file streaming retains its existing large-file behavior.
+The existing 200-line/4096-byte per-memory and 60KB per-session injection budgets,
+workspace paths and selection semantics remain unchanged. Recall and manifest
+reads each have a 30-second total deadline, and canceled recall cannot publish a
+partial attachment. This is an internal fix in the jointly released Nexus/nxs
+pair, not a new capability or a broader `sandbox_context_files_v1` guarantee.
+The paired build additionally routes memory-store initialization and Summary file,
+template, prompt and compact input through the current file executor. Initial files
+use exclusive creation: existing or concurrently created content is preserved,
+unknown results stop the current operation without replay or path-based deletion.
+Only confirmed absence permits initialization or built-in template fallback; denied
+reads are errors. Summary preparation has a 30-second IO deadline, and model edits
+continue through the existing exact-file Edit permission and sandbox. Exclusive
+creation does not promise atomic content publication or power-loss transactions.
+Read-only resource sessions remain usable and can read existing memories, but do
+not initialize the layout or schedule AutoMemory, Summary or AutoDream persistent
+updates. AutoDream scheduling also uses the current file executor for completion
+timestamps, transcript directory discovery and each candidate's target metadata,
+with a shared 30-second deadline. Only missing histories are empty; denied reads,
+other IO errors or cancellation return no partial candidates, start no maintenance
+and do not advance the successful scan interval. Files removed during a scan are
+skipped, and non-regular targets are not accepted as markers or transcripts.
+Memory writer locks are not reclaimed solely because their file is over an hour
+old. A known holder must be confirmed exited; a live/current holder, missing probe
+or malformed/partial record retains the lock. Permission and unsupported probe
+errors are not exit evidence, and process-observation handles are released.
+macOS AutoMemory/AutoDream now acquire a maintenance writer through the current
+file executor. A dedicated sandboxed worker holds a pinned directory descriptor
+and a kernel lock; release closes owned descriptors without deleting the guard
+path. Completion checks directory/guard identity, uses exclusive temporary files
+and a rename within the pinned directory, and requires a valid terminal reply
+plus confirmed successful worker exit. Lost replies remain unknown without replay
+or path-based compensation. Acquisition and terminal operations each have a
+30-second deadline; the lease follows the task lifetime, and cancellation, parent
+EOF or worker failure cancels maintenance. Failed completion/release cannot
+publish a saved event or advance an extraction cursor. Existing active PID records
+are preserved: only confirmed dead holders permit continuation. A busy result may
+still follow creation of the stable guard. Memory layout and data are unchanged.
+This does not prove arbitrary detached-descendant supervision, general unknown
+cleanup recovery, or resistance to arbitrary unconfined same-UID tampering.
+Background Summary/AutoMemory/AutoDream content-replacement reads now use the
+current recorder transcript and explicit file-executor streaming port. Missing
+ports fail closed; only a confirmed missing current transcript is empty. Denied,
+canceled or incomplete reads stop the background model, without falling back to a
+host catalog or Git worktree scan. Preparation and IO share a 30-second deadline.
+The transport does not buffer the whole file; the session layer retains its
+5 MiB threshold, last non-preserved compact suffix, metadata and explicit skip
+opt-out semantics. The valid suffix itself has no new hard size cap. Records are
+published only after complete length/result/EOF verification and successful
+worker exit; late errors discard already-delivered data. This does not change
+session recording/resume, the transcript format or stored user data.
+Session fork materialization is also fail-closed while restricted: the SDK's
+legacy multi-file fork writer is not allowed to run before the file executor is
+installed. Full Access keeps its existing fork behavior. An atomic fork port
+must be added before restricted fork is enabled; this guard adds no capability
+claim and prevents a pre-runtime transcript/plan write from bypassing the host
+boundary. Restricted recorder updates and tombstone/UUID-based transcript rewrites now use the
+executor-backed transcript mutation port; the Full Access compatibility path remains unchanged.
+Live context-state rewrites still fail closed until an atomic mutation port is
+available. The recorder port uses the native helper's same-directory atomic
+replacement for append/update/delete and artifact writes; other transcript auxiliary reads and remaining IO stay separate work,
+and other platforms retain their existing local coordination path.
+
+The host separately requires `SandboxSettings.RequireProjectFiles`, initialize
+`required_sandbox_project_files` and `sandbox_project_files_v1`. Before tool
+assembly, project discovery uses the file boundary for user/project Agent and
+command definitions, project Skill definitions, and selected hook-setting files.
+Directory entries, metadata, symlinks and contents share the same worker. Missing
+settings are allowed; denied, canceled or malformed settings reject the whole
+snapshot. Failed refresh clears the catalog and prevents subsequent model
+requests. Agent/hook changes require a new runtime because they are bound during
+assembly; a successful refresh may update Slash bodies directly. This requirement
+participates in process replacement. Global permission/provider and managed-policy
+loading, persistence and hook execution remain separate work.
+
+The host also requires `SandboxSettings.RequireManagedPolicy`, initialize
+`required_sandbox_managed_policy` and `sandbox_managed_policy_v1`. Before settings
+environment projection, nxs fixes the managed root and an immutable policy
+snapshot. All later policy consumers use that source, including child runtimes.
+Malformed JSON, invalid known safety-field types, unreadable files and effective
+policy changes block query, manual compact, tool dispatch, file-context preparation
+and permission updates. The original effective policy can be restored; applying a
+new policy requires runtime recreation. The control-plane reader accepts regular
+files up to 16 MiB each, with nonblocking Unix open and descriptor type validation.
+Required execution excludes task settings before any such read. This requirement
+participates in process identity and currently acknowledges the macOS backend.
+Ordinary settings and credentials, permission-persistence concurrency, hook
+execution, background IO and effective-policy receipts remain separate work.
+
+The host additionally requires `SandboxSettings.RequireSettingsFiles`, initialize
+`required_sandbox_settings_files` and `sandbox_settings_files_v1`. nxs fixes the
+config root and selected sources before profile projection. Required execution
+uses the file worker for ordinary user/project/local/flag settings, filters disabled
+sources before IO, applies a 16 MiB limit to every selected document, and rejects
+incomplete or invalid snapshots. Runtime consumers share a bound snapshot; child
+runtimes keep independent logical snapshots. Source changes or read errors block
+query, compact, tool dispatch, file-context preparation and settings controls or
+permission updates. Restoring the original content permits recovery; new file
+contents require runtime recreation. `get_settings` uses the bound flag sources.
+Dynamic updates reject fields whose execution configuration is static. This
+requirement participates in process identity and currently acknowledges macOS.
+
+Restricted desktop sessions also require `SandboxSettings.RequireSettingsWrites`,
+initialize `required_sandbox_settings_writes` and `sandbox_settings_writes_v1`.
+The write contract depends on required sandbox, file tools and settings files, and
+is admitted only for nxs. Config and permission updates share the checked Binding,
+physical directory identity and process-local write transaction. Existing or newly
+created parents must remain real directories beneath the fixed physical root;
+symlink swaps, directory generation changes, special files and read-only targets
+fail closed. A single document is replaced through a same-directory temporary file,
+and task sandbox rules deny both lexical and physical aliases of protected settings
+and temporary names. Multi-document permission updates use deterministic order and
+mark the shared store unknown after a partial commit.
+
+Config writes canonical nested settings keys. Explicit SDK Options and process
+environment values retain their higher precedence, so a persisted value is a
+settings default rather than proof of the effective runtime value. A real Config
+change marks the runtime for recreation; the query loop checks this fence before
+every provider turn, while a no-op leaves the runtime usable. WebFetch also checks
+the binding immediately before calling its selected summary provider, environment
+endpoint or host adapter, including changes during page retrieval. Initialization
+reserves its admission state when enqueued; at most 32 ordinary stream messages
+wait for success, and initialization failure discards them without creating a
+base-config Session. The requirement and its host-only flag participate in Bridge
+and Nexus process identity.
+
+The write contract currently acknowledges native macOS only. The pinned SDK adds
+per-root cross-process locks, post-lock snapshot checks, parent-directory syncing,
+and reverse-order rollback when the changed documents can still be identified.
+It does not establish multi-file power-loss atomicity or durable SDK execution
+receipts. Nexus configuration-control receipts have their own unknown recovery,
+human review/reconcile and stable revision contract in the
+[configuration specification](conversational-configuration-control-spec.md);
+they do not substitute for SDK file-transaction evidence. Neither path replays an
+unknown write automatically. Unix replacement preserves
+ordinary permission bits but does not claim owner, ACL, xattr or file flags. Windows
+only has compile coverage and its Go writable-bit checks do not establish DACL
+privacy. Whole-process Provider credential isolation and full background IO confinement remain pending.
+
+## Host-owned Provider inputs
+
+Nexus finalizes `NEXUS_PROVIDER_MANAGED_BY_HOST=1` and host-owned AutoDream wake
+after every environment merge. `ExtraEnv` and `ConfigurationEnv` cannot revoke
+these nxs-specific declarations; Claude does not receive an nxs ownership claim.
+Provider ownership, subprocess scrub and background-wake declarations are part of
+the process-policy fingerprint. Changing them replaces the old process before
+reconfiguration; ordinary Provider credential rotation remains a hot update.
+The fixed SDK checks Provider ownership before projecting ordinary settings.
+In host-managed mode, settings cannot supply Provider/main/fallback/background
+models, vision routes, credentials, custom headers, request-body overrides,
+proxy or certificate inputs. Explicit host Options/environment remain authoritative,
+and ordinary task environment values remain available. Standalone SDK settings
+retain their existing routing semantics. Background-model settings updates that
+cannot take effect in host-managed mode return an error.
+
+For Anthropic-compatible third-party models, the host-owned `BaseURL` is
+projected as `ANTHROPIC_BASE_URL`. nxs projects the host-owned `AuthToken` through
+the SDK's `ANTHROPIC_API_KEY` path for both first-party and compatible endpoints, which
+emits `x-api-key` and the SDK's compatible-endpoint Bearer fallback. Claude
+keeps `ANTHROPIC_AUTH_TOKEN` for its native CLI semantics. In addition to the
+earlier local mock SSE and fixed SDK header checks, the 2026-09-27 live-provider
+acceptance exercises both projections against one real third-party gateway,
+including file/command execution, explicit denials and ordinary interruption.
+This does not establish arbitrary gateway or official account/OAuth compatibility.
+Provider-specific custom headers still have no declared Nexus field and are not
+accepted by this contract.
+
+The nxs `Sandbox.Network` object is currently consumed by command/tool
+execution (including shell network preflight) and is not a host-level egress
+firewall for the model Provider transport. Nexus therefore does not silently
+add the resolved Provider host to `DesktopSandboxNetworkAdmission`; Provider
+reachability is an input-ownership and host-integration guarantee only. A
+complete OS-level Provider egress boundary still requires platform/Bridge
+evidence and remains outside this receipt.
+
+Command and hook environment builders remove known SDK main/auxiliary credentials
+after applying runtime environment values. Task values cannot disable a Provider
+ownership declaration already present in the host process. This is a versioned
+implementation guarantee checked by the fixed-source baseline, not a new wire
+capability inferred from settings-write acknowledgement. It does not establish
+credential secrecy against host-file reads, process inspection, inherited handles,
+external MCP or network egress; those boundaries and default product activation
+remain separately pending.
+
+HTTP hook Header interpolation also uses the task-visible environment, even when
+the hook allowlist names a Provider credential. nxs MCP configuration interpolation
+treats such process credentials as missing, including URL, argument, environment
+alias and Header locations, and preserves the existing missing/fallback semantics.
+Dedicated hook/MCP authentication variables and explicit host-provided values
+remain independent. This prevents implicit credential borrowing; it does not
+establish confinement of external MCP servers. The MCP registry passes the
+runtime-owned environment into `headersHelper` and refreshes it on an environment
+update; managed helpers cannot read known Provider credentials or redirect the
+managed memory root. This remains an environment-source boundary, not an OS
+boundary for external MCP processes.
+
+For nxs, Nexus fixes `NEXUS_MEMORY_DIR` to the current Agent workspace after all
+configuration capability merges and clears remote-memory overrides. The SDK typed
+memory profile applies the same rule to Summary, AutoMemory and AutoDream
+consumers. These ownership inputs participate in the process-policy fingerprint,
+so a changed root cannot reuse an old runtime. Claude does not receive this
+nxs-specific ownership claim.
+
+The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
+records the verified SDK baseline and its remaining IO paths. MCP servers,
+Connectors and the desktop UI retain their separate authorization. The feature
+must not be represented as fully accepted App isolation.
+
+## Remote MCP endpoints on macOS
+
+Nexus and bundled nxs are released as one application. Compatibility acceptance concerns existing user data, configuration, sessions and working features. The package handshake checks the contents assembled for that release; normal users do not manage a separate runtime upgrade.
+
+macOS nxs options now require `sandbox_mcp_network_v1` through `RequireMCPNetwork` and `MCP.StrictConfig`. Both persisted Agent HTTP/SSE configuration and typed Connector servers are explicit host inputs. A configured endpoint receives a separate grant for its scheme, host and port; redirects and legacy SSE POST endpoints cannot leave that origin. This does not add the MCP domain to command/image network allowlists. Explicit denied domains and managed-only domain restrictions still apply. Task-settings HTTP/SOCKS/MITM proxy routes are rejected before connecting; MCP credentials require a separate host-owned proxy contract, and the runtime must not silently bypass an explicit proxy. The other platform admission paths and Claude's native behavior are unchanged by this macOS contract.
+
+Before an endpoint enters the runtime, persisted MCP and OAuth metadata URLs reject userinfo and fragments. Static MCP headers are fail-closed at the Nexus configuration boundary: names must be HTTP token names, values cannot contain CR/LF/NUL, and a server may provide at most 128 headers. The SDK applies the same limits to dynamic `headersHelper` output, including the 64 KiB output bound. These checks protect the configuration and credential transport boundary; they do not constitute the separate host-owned proxy or provider-egress guarantee.
+
+Each request and response body is canceled when its connection is retired or its permission epoch changes. Removal, disable, replacement and session shutdown retire owned connections; a delayed discovery cannot revive an old configuration. Failed or canceled operations are not automatically replayed. Connection failures are scoped to their MCP server, so an unavailable remote endpoint does not stop the entire Agent. macOS nxs options also require `sandbox_mcp_helpers_v1` through `RequireMCPHelpers`. Persisted and Connector `headersHelper` configurations use the current command sandbox, configuration checks and filtered task environment. They do not inherit the MCP endpoint grant or tool approvals. Each request refreshes authentication after network admission; invalid output or execution failure stops that request without using stale/static credentials. Helpers have a 10-second execution deadline, 64 KiB stdout and 16 KiB stderr limits; stderr is never included in service errors. Permission changes and connection retirement cancel in-flight helpers; session close also waits for owned helper cleanup and propagates failures. Ordinary process-group cleanup is tested, while independently detached descendants, OAuth discovery/token exchange and model Provider networking remain separate boundaries.
+
+Nexus also requires `sandbox_mcp_stdio_v1` / `RequireMCPStdio` on macOS. Persisted command configurations (including inferred stdio type) and typed Connector configurations now start actual services through the command sandbox. The executor owns argv execution, pipes, configuration checks, permission epochs and process/proxy cleanup; the MCP client owns bounded JSONL and unique IDs for concurrent replies. Cancellation or timeout retires the whole service and its other pending calls, with no replay. Same-name replacement waits for the previous process; session close awaits all owned stdio/helper processes and preserves cleanup errors. Inherited Provider credentials are filtered before explicit service credentials are added; reserved runtime/home/temporary-root environment fields cannot override host policy. Network access uses command policy and its proxy, without endpoint grants or current tool approvals. Messages are capped at 10 MiB and pending stdio requests at 64; stderr is drained without retaining credential-bearing logs. HTTP/SSE also bound aggregate event and JSON body sizes. This covers ordinary process groups; detached descendants, host crash recovery, trusted MCP proxy routes and full secret/handle isolation remain separate acceptance work.
+
+## Approval modes and runtime replacement
+
+Full Access is an explicit user choice to access local files available to the current OS account, with **no sandbox isolation guarantee**, including the host app directory. It does not grant administrator rights or bypass Nexus domain authorization. Existing nxs safety checks may remain, but are not a promise of isolation. The product does not require a separate OS identity solely to isolate Full Access tasks. Restricted-mode protection and Full Access lifecycle tests must be reported separately.
+
+Restricted macOS client options derive `appfs.AppDir()` from the host process, never task `ExtraEnv`. They resolve relative state roots against the host working directory and preserve both lexical and canonical paths, including existing private-directory symlink targets (resolving the existing parent for a new state directory), then deny writes to the entire app tree and reads to its private `data`, `config`, `cache`, `logs`, `rooms`, `processes`, `.migrations`, `.agents` and `sidecar.lock` paths. The existing state-root `NexusSidecar.pid.json` and its physical aliases are also denied for reads and writes. Read-only `platform-skills` and `host-skills` projections remain available. Claude additionally receives absolute Read/Edit rules for the same private read and whole-tree write scopes. New host secrets must remain in these private directories, or the policy registry must be extended before introducing a new private path. This protects those execution paths, not arbitrary SDK IO, hooks, IPC or delegated external services; those remain separately validated boundaries.
+
+The host does not change the selected approval mode to enable sandboxing: the
+restricted runtime is already part of every desktop task contract. A fresh nxs
+Full Access (`bypassPermissions`) runtime still installs the nxs capability and
+lifecycle boundary; it broadens the command/file resource policy through the
+SDK setting instead of disabling the runtime. This does not grant OS
+administrator privileges or override domain authorization. A restricted Claude
+session installs Bridge's typed `RequireClaudeNativeSandbox` contract, which
+generates one host-owned `--settings` object and rejects missing, duplicate or
+overridden JSON, bypass permissions, `--restricted` tool-mode mixing, and any
+unsandboxed-command setting before transport startup. Bridge also probes the exact
+resolved CLI with `--settings <generated-json> --help` using a bounded timeout,
+bounded output and scrubbed environment; a rejected or unadvertised settings
+entry point prevents startup. Help output does not attest that the policy is
+effective. The corresponding
+`CapabilityClaudeNativeSandbox` is a local Bridge configuration capability, not
+a Claude wire response or proof of OS/file/network/Provider isolation. Claude
+Full Access is an explicit exception and does not install the contract or
+settings; it still retains host lifecycle, domain authorization, and other
+mandatory policy. Fixed CLI-version, native behavior, and clean-host acceptance
+remain separate release evidence.
+
+The recorded Claude CLI 2.1.273 help describes `--restricted` as removing code
+execution tools and limiting file tools to the working directory. The desktop
+contract therefore uses Claude's native command sandbox settings so Bash and
+build commands remain available. Bridge settings validation is implemented;
+Claude's effective-policy admission and real allowed/denied command, network,
+credential, cancellation and cleanup tests remain separate unfinished
+integration work. Native Windows Claude is rejected until a supported native
+environment is verified.
+
+For host-managed desktop policy, a live change crossing into or out of Full Access
+retires the old client before returning the transition signal. DM closes the old
+session; Room cancels the exact slot and its pending approval requests, retires the
+client, and waits for cleanup. A confirmed close is an expected mode transition;
+cleanup failure is reported. A subsequent request constructs fresh options and
+the existing process-policy fingerprint requires replacement of the old runtime.
+HTTP updates process both DM and Room even if one domain fails; their errors are
+reported together instead of leaving the later domain on its old policy.
+
+Changing between restricted approval modes keeps the sandbox boundary and uses
+the existing permission-mode update path. This document does not claim complete
+approval-revision invalidation across every host callback yet.
+For SDK manual/automatic permission callbacks, effective rule/mode changes cancel
+the pending policy epoch and invalidate even a late allow response. Identical
+refreshes preserve the pending epoch. A cancelled request cannot create a fresh
+Nexus pending prompt. The nxs proxy preserves human-only requirements and review
+evidence; the reviewer treats sandbox escape as additional execution authority.
+
+Mode changes do not resubmit a prompt or repeat a tool invocation. Stopping a
+process does not roll back prior side effects; an unknown or partial command result
+must not be interpreted as permission to replay it. Bridge cleanup waits for
+transport exit, not merely stream closure. This confirms the runtime main process;
+full descendant cleanup needs the remaining platform backend integration.
+
+Bridge returns `ProcessCleanupError` for failed process-session cleanup, including
+after main-process success, forced termination and repeated closes. Nexus preserves
+this error even when joined with an ordinary closed-pipe error. Failed client
+cleanup blocks reconnect and stale-startup retry; Manager retains the exact failed
+session in closing state rather than publishing a replacement. Explicit close and
+owner/Agent close callers can read the retained result. Sandbox file requirements
+and resource scopes participate explicitly in the process-policy fingerprint,
+even though ordinary settings serialization excludes those host-only fields.
+
+The host database now also stores process-launch facts in `sandbox_process_launches`.
+These share the existing owner/session/generation identity, with a unique launch ID,
+boot/user identity, job label, helper digest and optional lease binding. They contain
+no task arguments, environment or Provider credentials. This is distinct from the
+policy receipt written after connection and from user-writable scratch markers.
+For explicitly supervised DM/Room startup, `GetOrCreateWithLease` supplies the
+already acquired host scratch handle before client creation. Required resources
+without a live matching owner/session/policy handle fail before the factory;
+launch intents persist its exact lease ID. Each supervised launch revalidates the
+original handle, and a different handle cannot replace it at ownership transfer.
+Reading this identity does not transfer cleanup responsibility: the caller retains
+it until `BindSandboxLease` succeeds. No resource is discovered by path. App default
+supervisor setup remains unconnected.
+
+Host AutoDream uses the same Manager through an isolated `memory-maintenance:<agent>`
+key. Its owner-scoped background registration starts before the startup transaction,
+so host shutdown, owner cancellation and Agent revocation cancel maintenance as well.
+The acquired scratch handle follows the same pre-factory supervision binding and
+explicit ownership transfer as DM/Room. AutoDream is a control request rather than
+a chat round; a bounded cancellation watcher retires/disconnects the exact client
+without concurrently manipulating the startup transaction. The transaction retires
+the client after control completion or failure, persisting policy/process terminal
+facts and keeping failed cleanup fences. No independent raw Bridge session bypass
+remains in the host maintenance runner. Scheduling and memory consolidation rules
+continue to belong to nxs; native disabled-gate control tests establish lifecycle,
+not real model consolidation or complete App UI acceptance.
+
+Supervised macOS sockets remain under the original protected host job directory.
+The Bridge binds/connects by parent directory descriptor and basename on a dedicated
+native thread, so the absolute state path is not limited by `sockaddr_un.sun_path`.
+It does not change process cwd, create a short alias, or move control sockets into
+shared temporary directories. Host cleanup retains unlink ownership; missing
+thread-local cwd support fails closed. Ordinary filesystem limits and supported-OS
+acceptance still apply; the macOS App now requires macOS 14.2 or newer for the
+audit-token signal path.
+
+One active launch per owner/session is enforced by a unique index. `prepared` may
+be canceled as `aborted` before registration; registration writes the exact original
+coalition and changes the phase to `registered`. `ClaimProcessRelease` changes it
+to `released` exactly once. A lost response or restarted host must not repeat that
+claim or resend execution. `registered`/`released` can become `reaped` only with
+an exact original registration plus kernel-coalition retirement or changed-boot
+observation; the repository validates the binding, not the kernel itself. Root
+exit, empty enumeration and missing launchd job are not accepted proof reasons.
+
+Fresh Manager creation checks these records when the configured database repository
+provides them. `prepared`, `registered` and `released` block the factory even if no
+policy receipt exists or the caller selects another runtime backend. `aborted` and
+properly evidenced `reaped` records contribute to the same generation lower bound;
+read errors and malformed identity/evidence fail closed. Aborting an unregistered
+intent revokes any late registration/release CAS, but does not prove the trusted
+helper has exited; its job still needs cleanup. Current production startup does
+not yet write these records or launch the bootstrap helper. The storage and read
+gate alone therefore do not close the actual pre-execution crash window or enable
+automatic reconciliation of old unknown receipts.
+
+Explicit process recovery requires `SandboxProcessRecoveryOwnership`, implemented
+by the macOS sidecar instance Guard. `WithOwnership` verifies the original lock and
+app-directory inodes, holds the lock handle through the entire recovery callback,
+and blocks concurrent Guard closure. The Manager rejects a process directory outside
+that app root, linked traversal or a different directory inode before reading the
+original process for recovery. Missing, closed or replaced ownership cannot reach
+native job revocation or clear a durable fence. This only coordinates participating
+sidecars; older uncoordinated hosts and automatic startup recovery remain separate
+integration requirements. Policy and scratch reconciliation remain independent.
+
+`RecoverPendingSandboxProcesses` processes one ownership-protected batch of at most
+256 pending records. The storage scan uses immutable unique launch IDs as keyset
+cursors and an index limited to prepared/registered/released rows; retiring earlier
+rows does not shift later pages. It lists original exact keys, then each recovery
+re-reads and validates the original intent/registration. An item failure leaves its
+record pending, is returned both on the item and as an aggregate error, and does not
+starve later items in the batch. Cancellation stops before the next item and retains
+the last attempted cursor. A caller must inspect errors independently of `HasMore`;
+failed records can be revisited from their original keys or a new scan. This internal
+cross-owner query has no user API. It does not replay tasks, reconcile tool outcomes,
+or clear policy/scratch unknown records. Startup invocation remains unconnected.
+
+Fresh Manager client creation reads the latest receipt for the exact owner/session
+before invoking the factory. A retired or explicitly reconciled receipt provides
+the generation lower bound, so clean App restart or idle-session recreation cannot
+reuse an old durable identity. Confirmed, retiring or unknown history without the
+original live client blocks recreation; read/identity failures also stop startup.
+This check applies before choosing the new runtime, so a backend or Full Access
+change cannot bypass unresolved previous execution. It does not infer an exit
+from an absent in-memory client or automatically replay a request.
+
+Normal host shutdown closes Manager admission for clients, rounds and background
+tasks before releasing the App database. It cancels existing round/background
+work, drains in-flight startup and receipt insertion, then closes sessions in
+parallel through the existing cleanup and receipt lifecycle. Repeated close calls
+wait for the same result. A caller timeout does not cancel shared cleanup or close
+the database while runtime writes remain possible. This orderly exit path does
+not clear receipts left unresolved by a crash or failed descendant cleanup.
+
+Scratch allocation independently checks persisted markers through its fixed parent
+directory handle. The same owner/session's cleanup-unknown marker, including one
+under an older replacement path, blocks a new lease after restart. Invalid markers
+at that scope's expected path also block allocation. Unrelated sessions remain
+independent; concurrent preparation in one host cannot misread a half-written marker.
+These are durable startup fences, not proof that detached descendants terminated.
+The Bridge Unix sweep still observes only visible members of the original session;
+complete supervision and safe reconciliation of uncertain execution remain separate.
+
+## Explicit local diagnostics
+
+The runtime settings page offers an explicit sandbox-support check. Only
+`GET /settings/runtime/nxs/status?include_sandbox=true` launches the bounded Bridge
+query; the existing request without this option remains a file-only check used
+when selecting nxs. Responses keep `available` independent and optionally include
+`sandbox.state`: `unknown`, `unsupported`, `missing_dependencies`, or
+`dependencies_available`, plus a known platform. `dependencies_available`
+means the default local prerequisites for the restricted runtime are present;
+task admission still confirms the exact negotiated capability and effective
+policy before starting. Failures remain unknown and do not change preferences,
+approval mode, or execution policy. This diagnostic never acts as an on/off
+control.
+
+The Bridge module version and checksum are owned by `go.mod` and `go.sum`.
+Dependency publication, the configured nxs binary, and packaged application
+acceptance are separate delivery facts, recorded in the
+[assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
+and [acceptance matrix](../testing/desktop-sandbox-acceptance.md). Dependency
+availability must not be inferred from a successful local workspace build.
+
+## Main integration compatibility
+
+### macOS App/runtime pairing and existing data
+
+Nexus and nxs ship together in the macOS App. Normal App upgrades replace the
+matched pair; there is no separate runtime upgrade step for existing users.
+The existing development/environment override precedence remains unchanged.
+The compatibility requirement is that the new pair preserves existing settings,
+sessions, memory, workspaces and previously supported product behavior.
+
+The macOS build includes `Contents/Resources/bin/nexus-runtime-bootstrap` built
+from the sidecar's pinned Bridge module with native cgo. After signing that helper,
+the build records its SHA-256, exact module version, command entrypoint-derived
+architecture and fixed relative path in `Resources/runtime-bootstrap.json`, then
+signs the App. Assembly and packaging (including skip-build) verify this manifest
+against the actual helper build identity and bytes. A replacement Bridge module is
+not a distributable helper source. Manifest authenticity relies on the App signing
+boundary; it is not an independent trust root.
+
+`infra/runtimebootstrap.LoadCurrent` derives the expected Bridge version from the
+running sidecar's own build information, never from task settings or the manifest.
+The loader uses confined file access and verifies path, version, architecture,
+native cgo build identity and digest before returning the helper. The desktop sidecar passes its migration-before-start ownership guard into App assembly. The default Manager uses this verified helper and confined `app/processes`; all native process recovery pages precede lifecycle/resource reconciliation before HTTP or background admission. Any recovery error fails startup without replay. Local ad-hoc assembly does not establish Developer ID,
+notarization, clean-host or supported-version acceptance.
+
+Bundled builds and packages run `nexus-server check-desktop-runtime --nxs <bundled path>`
+from the actual assembled App. The diagnostic bypasses server startup, `.env`, database
+migration and model requests; the packaging runner supplies an empty environment and
+fresh temporary HOME. The product options builder and sidecar's linked Bridge must
+complete initialize and close for workspace-write, read-only and Full Access. There is
+no skip flag for this check when nxs is bundled, including skip-build/skip-smoke packaging.
+The report stays outside the signed bundle; package metadata includes the binary SHA-256,
+Bridge version and confirmed profiles. An incompatible rolling-channel download stops
+the build before distribution. This is a package compatibility gate, not an automatic
+runtime download or permission downgrade at user startup.
+
+`scripts/desktop/check-runtime-upgrade.mjs` accepts explicit previous-release and
+candidate binaries and requires all three phases: create with the old runtime, resume
+under current desktop policy, then resume with the old runtime. A local Provider fixture
+verifies the actual model history, stable session ID and append-only transcript; settings,
+memory and workspace fixtures must remain unchanged. The old phase uses its supported
+pre-upgrade policy, rather than asking the old runtime to advertise newly added security
+capabilities. This does not prove database downgrade, signed App installation, every
+historical release or an external Provider; those remain separate acceptance evidence.
+
+### Historical main integration
+
+The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished. [Acceptance evidence](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容) records this integration separately from default sandbox rollout and platform acceptance.
+
+### 宿主监督启动登记（显式装配）
+
+Manager 的 `SetSandboxProcessSupervisor` 只允许启动前由宿主配置可信 helper 摘要和受保护目录句柄。在 client factory 前冻结 owner/session/generation，普通配置热更新保留该 client 的监督工厂。Bridge 为 runtime 与各 CLI probe 分别创建 Host；同代次固定顺序为 Claude sandbox probe、restricted probe、version probe、runtime，可以跳过不适用的探测但不能倒退或重放。数据库仍只允许一个 owner/session 存在一个 prepared/registered/released 启动，未清理 probe 与主进程一样阻断新 factory。
+
+迁移 145 保留旧 intent JSON；旧 purpose 空值固定解释为 runtime。同代次存在多个启动记录时，回退到旧唯一键会事务失败，不删除部分证据凑成可回退状态。macOS App 默认装配此监督器，helper 来自随包校验，根固定为持锁的 `app/processes`；发布验收仍未完成。
+
+`Manager.RecoverSandboxProcess` 是宿主内部显式入口：调用方先取得跨进程独占实例锁并确认旧宿主退出，Manager 再取得会话启动 gate 并拒绝活动 client；按 exact key 读取原记录并调用 Bridge 恢复，既不重新 Reserve/ClaimRelease，也不重放命令。终态重复调用只读原结果。失败保留原记录；成功只代表原进程记录收口，不清除 policy unknown 或 scratch 栅栏。App 启动通过分页入口自动调用原记录恢复。
+
+macOS 桌面 `nexus-server` 在布局迁移前获取 canonical `app/sidecar.lock` 的非阻塞内核独占锁，保持到服务关闭后。锁文件不保存 PID，不按年龄删除，不 unlink；描述符 CLOEXEC，第二个采用同协议的 sidecar 拒绝启动。恢复使用前可通过 Guard.Verify 校验目录和锁 inode 未被替换。该锁不覆盖旧版未持锁宿主，也不替代原生窗口锁、原任务集合退出证据或旧版未持锁宿主的退出证明。
+
+### 策略回执与监督进程的身份关联
+
+显式启用进程监督时，Manager 在创建 client 前冻结原进程代次；同一 client 的 warm 请求继续增加策略回执代次，但不改写原进程代次。Connect 持久化策略前按 owner/session/原进程代次精确读取 runtime 用途记录，将唯一 launch ID 与原进程代次一同保存。探测、未放行进程、跨 owner/session、runtime 或 lease 不匹配均拒绝。进程可已经有精确回收终态；关联本身不宣称其当前存活。
+
+既有策略记录的进程关联不可改绑，也不能从无关联升级为推测关联。迁移 147 保留历史无关联记录及 unknown 状态；已有绑定事实时拒绝丢失该事实的数据库回退。这一关联用于显式进程/资源恢复后的策略收口，不证明业务动作结果，App 默认启动已先执行原生恢复，再执行资源和策略对账。
+
+### macOS scratch 的可信目录身份
+
+监督启动在 Host Reserve 写入启动意图前，从 Acquire 保存的原 parent/leaf 文件信息生成身份（device、inode、generation、birth time），与固定父路径和 leaf name 一同保存。每次 probe/runtime 启动工厂调用均重新打开当前目录核对原身份；已经释放、cleanup unknown 或目录替换时拒绝。身份不从任务可写的 `.nexus-sandbox-lease.json` 读取。原进程恢复保留完整身份，不重新采样替代原值。
+
+旧记录以及非 macOS 路径保留空身份；不能据此自动删除资源。此字段是后续恢复的必要输入，不是目录删除已经完成的证据。显式 RecoverSandboxScratch 已实现持锁宿主、原进程终态、其他使用者排除和回收区清理提交/重试流程；App 启动通过两阶段分页自动调用，错误阻止本次服务开放。
+
+### 显式资源与策略恢复
+
+macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 和资源 Acquire gate 内运行。原进程必须已回收或从未放行的启动意图已撤销；同会话其他活跃启动、本实例 client 或 lease 存活时拒绝清理。宿主数据库先保存不可改绑的资源回收记录；pending 记录同时阻断 Manager factory 与新进程登记。回收源只接受实例所属 canonical owner runtime/sandbox，任务不能指定删除目标。
+
+清理阶段固定为 `prepared → quarantined → deleting → complete`。以固定 parent 句柄将原目录不覆盖地移入任务不可访问的宿主回收区，核对移动后身份并同步目录，才提交 quarantined；删除前先提交 deleting，删除并同步后才提交 complete。prepared 时源路径缺失不构成成功；只有 durable deleting 阶段下的回收区目标缺失才能作为删除完成对账。任何身份不符、占用、移动或同步失败保留记录和栅栏。完成后重复调用不访问或删除后来同名的新目录。该流程依赖 Supervisor Root 已实现任务不可访问的配置合同；受限模式对该宿主根的 deny 由统一 options 构建器投影；Full Access 不承诺隔离，完整 App 场景仍待验收。
+
+`ReconcileSandboxPolicy` 独立核对原进程 reaped 和（存在 lease 时）同资源 complete，再将明确绑定该 process key 的 confirmed/retiring/unknown 策略改为 reconciled。原 unknown reason 保留用于审计；没有进程关联的历史 unknown 不改变。策略恢复不修改消息、工具、任务或外部副作用结果，不授权重放。资源删除后、策略提交前崩溃可重复调用；启动自动扫描必须覆盖这些已回收进程的未完成后续步骤，已接入 App 默认启动。
+
+迁移 148 保存资源恢复阶段，已有记录时拒绝丢失恢复事实的降级。当前本机测试覆盖 SQLite；PostgreSQL 迁移仅有 SQL 审查证据。
+
+
+### 正常退出与终态后续扫描
+
+显式 macOS 监督在 client factory 前把正常最终 lease Release 绑定到原 supervisor、store、owner/session、资源身份及启动代次下界。只有确认该资源从未登记启动时才沿用原句柄删除；存在启动记录时必须匹配原资源，并复用持久隔离删除阶段。阶段提交响应丢失时保留 owning handle，按原记录重试；不会因目录已经删除而重新猜测结果。此回调在资源锁内运行，不反向取得 Acquire gate。
+
+迁移 149 为原进程增加独立 resource_phase，并索引资源待办及明确绑定的策略待办。`RecoverPendingSandboxLifecycles` 是原生 pending 进程扫描完成后的第二阶段：持同实例所有权，按稳定 launch ID 有界发现 terminal 进程，完成原 scratch 后确认资源阶段，再收口 reaped 进程的 exact 关联策略。正常清理已经 complete 的记录无需重新访问已删除源目录。历史无资源身份证明的记录不能推测删除或宣称成功。
+
+单项失败保留待办，返回聚合错误且允许后续项推进；游标只代表处理进度，HasMore=false 不代表全部恢复成功。取消保留未处理游标。调用方须在任务准入前跑完原生和生命周期两阶段并处理失败；App 默认装配已接入：60 秒启动上下文、每页 64 条、错误跨页保留，游标不前进立即失败；不以 HasMore=false 当作全部成功。迁移回退在已有进程记录时拒绝丢失扫描进度。当前真实 nxs AutoDream 正常退出及独立宿主崩溃恢复测试只证明组件链路，不证明 App UI、签名安装包或干净机器验收。
+
+开发桌面构建同样固定 Bridge、禁用 go.work，并生成带 helper 清单的独立 sidecar bundle；原生壳直接启动校验过布局的 sidecar，不再使用 go run。每次构建生成新目录并原子切换开发指针，保留旧目录以免替换仍在运行的 helper；这些开发产物不是签名发布验收。
+
+### 原生 sidecar 身份与旧记录
+
+原生壳继续读取既有 `NexusSidecar.pid.json`，新增记录格式 version 2 保存 PID、可执行路径、系统 boot session UUID 与 kernel audit token。正常退出和孤儿清理都通过 `proc_signal_with_audittoken` 发信号，不回退裸 PID kill；发送前验证同用户、PID/version 与本次 boot。信号调用返回正值时直接按该错误码处理，仅负值读取 errno；只接受成功或精确目标已不存在，其他失败继续保留恢复记录。旧记录只持 PID/path：明确查无进程才清理记录，仍存活或观察未知时保留并拒绝启动，提示先退出旧版 Nexus，不因路径不同而删除。新格式 PID 已复用或 boot 已变化时不信号新进程；相同内核进程但可执行路径改变保留 unknown。损坏、链接、非普通文件、读取或精确终止失败不当作退出。记录只在当前内容仍匹配本次所有权时删除。
+
+这保护原生 sidecar 身份，不替代 Go 实例锁与任务后代恢复。macOS App 的最低系统版本为 14.2；该版本起提供精确 audit-token 信号接口，低于此版本由系统部署目标直接拒绝。Full Access 仍不提供文件隔离保证。

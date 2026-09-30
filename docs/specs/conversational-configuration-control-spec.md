@@ -174,6 +174,20 @@ flowchart LR
 
 `request_id` 是审计唯一键。每次新 CLI 执行使用新 ID 或由命令自动生成；结果不确定时先查询 history 并按 reconcile 流程处理，不用旧 ID 发起新进程。
 
+配置 `revision` 使用 `hmac-sha256:v2:` 格式，HMAC 输入绑定 domain、scope、target、
+资源 `state_version` 与未脱敏值；秘密轮换会改变 revision，但输出不能作为低熵秘密的
+无密钥离线猜测依据。密钥仅保存在宿主数据库的 `configuration_revision_key`，不写入
+owner workspace、运行时环境、快照或审计。migration 142 创建明确的未初始化单例，
+首次快照以 CAS 安装 32 字节随机密钥；并发宿主读取数据库中的获胜值。这一次私有元数据
+初始化不改业务配置、权限或 receipt；之后只读取，缺表、缺行、损坏或未知版本均拒绝，
+不回退临时密钥。完整数据库恢复必须保留该表。
+
+同一快照可跨服务进程和数据库重开比较；`plan_digest` 继续由另一把进程临时密钥签发，
+重启后的旧计划仍须重新 plan/确认。历史进程内 revision 的密钥不能恢复，因此旧 receipt
+与 v2 快照返回 `revision_relation=incomparable`，不伪报配置已变化，也不重写历史
+revision。人工仍须根据当前快照明确确认结果；稳定 revision 不证明多文件事务、外部
+副作用结果或跨进程人工 reconcile 与所有领域写入的原子性。
+
 CLI 作用域由宿主环境和当前 owner 的主智能体共同绑定。审计记录保留 owner、Agent、scope、request ID 和脱敏 intent digest，不依赖模型提供运行时身份。
 
 Provider 把主记录、模型卡、默认模型和最近测试状态视为同一个配置聚合。更新、模型同步、模型 patch、默认切换、测试结果和删除都先以 plan 中的 `configuration_version` CAS，再在同一数据库事务内完成；每次目标写入只推进一次版本。对话 merge patch 在未脱敏的最新持久化记录上合并，未声明字段不会被 plan 阶段的旧快照覆盖。切换跨 Provider 默认模型时，失去默认项的 Provider 也推进自己的版本，使其旧计划立即失效。
@@ -292,8 +306,15 @@ Connector 数据库与宿主 keyring 构成不可拆分的加密身份。所有�
 - `nexuscfg plan`：验证精确 operation/target/input，返回风险、确认要求和 runtime effect，不写入。
 - `nexuscfg apply`：在同一进程重新 plan，执行 revision CAS，并返回写后 snapshot、checks 与 reload status。
 - `nexuscfg history`：查询当前 Actor 有权查看范围内的脱敏审计和 reconcile 状态。
+- `nexuscfg review --request-id <id>`：读取一条配置 receipt，并在同一 owner/scope
+  下重新读取当前脱敏真相源；只返回 revision 关系和 checks，不改变状态。
+- `nexuscfg reconcile --request-id <id> --decision applied|not_applied
+  --observed-revision <revision> --confirm`：只能由当前 owner 的人工配置入口提交，
+  把 `reconcile_required` 收口为带 `human_confirmation` 证据的 `reconciled`。它不
+  重放原始请求、不修改配置值，也不接受 Agent round capability 的提交。
 
-审计读取沿用同一作用域：
+结果不确定时先查询 history，再用 `review` 取得当前 revision 并由真人显式
+`reconcile`；不使用旧 request ID 发起新的副作用进程。审计读取沿用同一作用域：
 
 - 主智能体只查看宿主绑定 owner 的私有记录。
 - Host 与公共管理记录仍要求 local single-user 或真实 owner/admin。

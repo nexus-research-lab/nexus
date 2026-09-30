@@ -59,8 +59,19 @@ final class SidecarBundleLocatorTests: XCTestCase {
 
     XCTAssertEqual(locator.projectRoot, fixture.root)
     XCTAssertEqual(locator.webDistURL, fixture.webRoot.appendingPathComponent("dist", isDirectory: true))
-    XCTAssertEqual(locator.command, "/usr/bin/env")
-    XCTAssertEqual(locator.arguments, ["go", "run", "./cmd/nexus-server"])
+    XCTAssertEqual(locator.command, fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/MacOS/nexus-server").resolvingSymlinksInPath().path)
+    XCTAssertEqual(locator.arguments, [])
+  }
+
+  func testDevelopmentLocatorRejectsMissingHelper() throws {
+    let fixture = try makeFixture()
+    defer { try? FileManager.default.removeItem(at: fixture.root) }
+    try FileManager.default.removeItem(at: fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/Resources/bin/nexus-runtime-bootstrap"))
+    XCTAssertThrowsError(try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)) { error in
+      guard case DesktopShellError.sidecarExecutableNotFound = error else {
+        return XCTFail("Expected missing runtime, got \(error)")
+      }
+    }
   }
 
   private func makeFixture() throws -> (root: URL, webRoot: URL, distIndex: URL) {
@@ -72,6 +83,13 @@ final class SidecarBundleLocatorTests: XCTestCase {
     let webRoot = root.appendingPathComponent("web", isDirectory: true)
     let distIndex = webRoot.appendingPathComponent("dist/index.html")
     try write("<!doctype html>", to: distIndex)
+    let contents = root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents")
+    for relative in ["MacOS/nexus-server", "Resources/bin/nexus-runtime-bootstrap"] {
+      let binary = contents.appendingPathComponent(relative)
+      try write("fixture", to: binary)
+      try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
+    }
+    try write("{}", to: contents.appendingPathComponent("Resources/runtime-bootstrap.json"))
     return (root, webRoot, distIndex)
   }
 
