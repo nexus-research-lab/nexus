@@ -6,6 +6,8 @@
 
 | 需要了解什么 | 文档 | 维护方式 |
 | --- | --- | --- |
+| macOS 沙箱的整体逻辑和工程化思路 | [macOS 整体沙箱记录](macos-sandbox-engineering.md) | 解释性记录；以当前规范和代码为准 |
+| 按调用链阅读 macOS 沙箱代码 | [macOS 沙箱代码解读](macos-sandbox-code-reading.md) | 解释性记录；实现变化时同步校对 |
 | 现在实现了什么、有什么问题、相比 Codex 缺什么 | [2026-09-15 现状评估](current-assessment-2026-09-15.md) | 固定审计快照，不追加实施流水 |
 | 完整目标架构、阶段依赖、下一步和 Goal | [完整开发计划](development-plan.md) | 剩余工作的唯一状态入口 |
 | 当前实际生效的产品行为 | [当前规范](../../specs/desktop-sandbox-spec.md) | 只随已实现合同更新 |

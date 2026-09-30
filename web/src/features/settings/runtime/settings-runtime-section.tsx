@@ -162,39 +162,27 @@ export function SettingsRuntimeSection() {
             />
           </div>
 
-          <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-          <div className={SETTINGS_ROW_CLASS_NAME}>
-            <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
-              <div className={SETTINGS_ICON_CLASS_NAME}>
-                <ShieldCheck className="h-3.5 w-3.5" />
-              </div>
-              <div className="min-w-0">
-                <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
-                  {t("settings.runtime.sandbox_title")}
-                </h3>
-                <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                  {t("settings.runtime.sandbox_description")}
-                </p>
-              </div>
-            </div>
-            <p className={cn(SETTINGS_ITEM_DESCRIPTION_CLASS_NAME, "font-medium") }>
-              {t("settings.runtime.sandbox_always_on")}
-            </p>
-          </div>
-
           {settings.runtimeKind === "nxs" ? (
             <>
               <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                    {t("settings.runtime.sandbox_check_description")}
-                  </p>
-                  {settings.sandboxState ? (
-                    <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-                      {t(`settings.runtime.sandbox_${settings.sandboxState}`)}
+              <div className={SETTINGS_ROW_CLASS_NAME}>
+                <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+                  <div className={SETTINGS_ICON_CLASS_NAME}>
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                      {t("settings.runtime.sandbox_check")}
+                    </h3>
+                    <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                      {t("settings.runtime.sandbox_check_description")}
                     </p>
-                  ) : null}
+                    {settings.sandboxState ? (
+                      <p role="status" className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                        {t(`settings.runtime.sandbox_${settings.sandboxState}`)}
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
                 <UiButton variant="text" disabled={settings.sandboxChecking} onClick={() => void settings.onCheckSandbox()}>
                   {t(settings.sandboxChecking ? "settings.runtime.sandbox_checking" : "settings.runtime.sandbox_check")}
