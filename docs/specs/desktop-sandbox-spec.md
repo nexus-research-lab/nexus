@@ -160,6 +160,17 @@ Effective permission changes invalidate pending and subsequent network requests
 from the old command epoch. Explicit SDK host callbacks retain their existing API;
 legacy non-mandatory runtimes do not acquire this new fallback.
 
+When the automatic reviewer approves a sandbox escape or one pending network
+connection, the SDK carries a short provider-neutral approval reminder on the
+result of that exact tool call. The reminder names the boundary and tool-use
+identity, states that the approval is one-shot, and explicitly says that it does
+not change policy or authorize replay or a broader action. Ordinary automatic
+tool approvals remain result-based and do not add an approval reminder. UI and
+audit messages may retain the full review rationale, but that rationale is not
+copied into model context. A persistent network policy amendment, when explicitly
+chosen by the user, is a separate decision and gets its own policy-change result;
+it is never inferred from a one-shot approval.
+
 Direct Bash/PowerShell background startup carries the same scoped callback when it
 rebuilds execution options. Completion of the foreground call does not itself
 cancel the background proxy's approval; changing the permission epoch still rejects
