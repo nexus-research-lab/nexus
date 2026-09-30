@@ -135,6 +135,23 @@ describe("ComposerPermissionSurface", () => {
     });
   });
 
+  it("renders sandbox escape requests as structured command and directory details", () => {
+    renderPermissionSurface({
+      permission: {
+        request_id: "sandbox-escape",
+        risk_label: "沙箱外执行",
+        summary: "该命令将在沙箱外执行。批准仅对本次调用生效。 This command requests execution outside the active sandbox; ordinary tool allow rules do not authorize this access. Execution working directory: \"/Users/example/workspace\".",
+        tool_input: { command: "env -u HOST python3 scripts/main.py login" },
+        tool_name: "Bash",
+      },
+    });
+
+    expect(screen.getByTestId("permission-request-details")).toBeTruthy();
+    expect(screen.getByText("env -u HOST python3 scripts/main.py login")).toBeTruthy();
+    expect(screen.getByText("/Users/example/workspace")).toBeTruthy();
+    expect(screen.queryByText(/This command requests execution outside/)).toBeNull();
+  });
+
   it("closes a scope menu on request changes and submits only the newly opened request", async () => {
     const user = userEvent.setup();
     const permission: PendingPermission = {

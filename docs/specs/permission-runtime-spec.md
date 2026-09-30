@@ -85,6 +85,8 @@
 
 持久权限范围由 runtime 的 `suggestions` 唯一决定。Composer 在存在建议时，把 Nexus 的真实规则动作收进“允许本次”旁的下拉：动作行说明新增或修改什么权限规则，次级说明展示匹配内容与 runtime 指定的 Agent/项目/用户/会话范围；选择后在允许响应中原样回传对应 `updated_permissions`。`suggestions` 为空时只能允许本次，前端和宿主不得推断或合成永久规则。
 
+沙箱越界是独立的 `sandbox_escape` 边界。受限模式下，Bash/PowerShell 的显式沙箱外执行，以及 Write/Edit 写入普通工作区外文件，都必须先进入人工审批；允许后只向当前一次精确动作临时授予执行权。这个授权不扩大为目录范围、不写入 Agent 权限设置，也不能通过 `updated_permissions` 或修改后的工具输入扩大。隐藏路径、符号链接祖先、只读资源和宿主配置声明的受保护路径继续拒绝。Read、Glob、Grep、ViewImage 等读取工具仍按各自读取审核规则处理，不能被文档误写成写入白名单。
+
 ## 5. 重连规则
 
 ### 5.1 断开

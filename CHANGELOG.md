@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add one-time sandbox escape approval for ordinary external Write/Edit actions. The approval is bound to the exact file operation and never creates a persistent directory whitelist; protected paths remain denied.
+
 ### Changed
 
 - Reject unsafe static MCP header names, control characters and oversized header maps before persisting or connecting remote servers.

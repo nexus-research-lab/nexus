@@ -41,6 +41,7 @@ import { UiSplitButton } from "@/shared/ui/button/split-button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiInput } from "@/shared/ui/form/form-control";
+import { PermissionRequestDetails } from "@/shared/ui/permission/permission-request-details";
 import {
   UiActionMenu,
 } from "@/shared/ui/menu/action-menu";
@@ -103,6 +104,9 @@ export function ComposerPermissionSurface({
     kind,
     localization,
   );
+  const isSandboxEscape = permission.permission_boundary === "sandbox_escape"
+    || permission.risk_label === "沙箱外执行"
+    || permission.risk_label === "Execution outside the sandbox";
   const secretSlots = permission.configuration_secret_slots ?? [];
   const secretValues = getConfigurationSecretDraftValues(
     secretDraft,
@@ -219,22 +223,48 @@ export function ComposerPermissionSurface({
         ) : null}
       </div>
 
-      <div className="space-y-3">
-        <p className={cn(
-          "m-0",
-          getUiTypographyClassName({ role: "body", tone: "strong" }),
-        )}>
-          {presentation.description}
-        </p>
-        {presentation.detail ? (
-          <pre className={cn(
-            "message-cjk-font m-0 max-h-28 overflow-auto whitespace-pre-wrap break-all",
-            getUiTypographyClassName({ role: "code", tone: "muted" }),
+      {isSandboxEscape ? (
+        <PermissionRequestDetails
+          description={t("composer.permission_sandbox_escape_description")}
+          fields={[
+            {
+              label: t("composer.permission_sandbox_escape_command"),
+              value: readStringField(permission.tool_input, "command")
+                ?? readStringField(permission.tool_input, "file_path")
+                ?? presentation.detail,
+            },
+            ...(readStringField(permission.tool_input, "file_path")
+              ? [{
+                label: t("composer.permission_sandbox_escape_target"),
+                value: readStringField(permission.tool_input, "file_path"),
+              }]
+              : []),
+            {
+              label: t("composer.permission_sandbox_escape_working_directory"),
+              value: extractWorkingDirectory(permission.summary),
+            },
+          ]}
+          title={t("composer.permission_sandbox_escape_title")}
+          tone="warning"
+        />
+      ) : (
+        <div className="space-y-3">
+          <p className={cn(
+            "m-0",
+            getUiTypographyClassName({ role: "body", tone: "strong" }),
           )}>
-            {presentation.detail}
-          </pre>
-        ) : null}
-      </div>
+            {presentation.description}
+          </p>
+          {presentation.detail ? (
+            <pre className={cn(
+              "message-cjk-font m-0 max-h-28 overflow-auto whitespace-pre-wrap break-all",
+              getUiTypographyClassName({ role: "code", tone: "muted" }),
+            )}>
+              {presentation.detail}
+            </pre>
+          ) : null}
+        </div>
+      )}
 
       {secretSlots.length > 0 ? (
         <fieldset
@@ -408,4 +438,9 @@ function readStringField(
   return typeof value === "string" && value.trim()
     ? value.trim()
     : null;
+}
+
+function extractWorkingDirectory(summary?: string): string | null {
+  const value = summary?.match(/Execution working directory:\s*["“]([^"”]+)["”]/)?.[1];
+  return value?.trim() || null;
 }

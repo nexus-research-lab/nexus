@@ -179,12 +179,18 @@ not establish confinement for every other host-side filesystem operation.
 
 Sandbox escape uses the typed `permission_boundary=sandbox_escape` classification.
 Nexus shows an explicit outside-sandbox explanation and exposes only one-time
-approval. Persistent rules supplied in a response are rejected by both Nexus and
-the SDK; IM cannot persist a grant when no scope suggestion exists. The SDK also
-rejects an allow response that adds escape or changes its reviewed JSON input while
-remaining outside the sandbox. Ordinary tool input edits and returning an action
-inside the sandbox retain their existing behavior. Unknown boundary classifications
-are rejected before a pending approval is created.
+approval. This covers explicit Bash/PowerShell escape requests and ordinary
+external `Write`/`Edit` targets. An approved file action receives a temporary
+helper-scoped write capability for the reviewed operation (including its
+same-directory atomic staging) only while that helper runs; it is not a user
+directory whitelist and is not persisted in Agent settings. Persistent rules supplied in a response
+are rejected by both Nexus and the SDK; IM cannot persist a grant when no scope
+suggestion exists. The SDK also rejects an allow response that adds escape or
+changes its reviewed JSON input while remaining outside the sandbox. Hidden paths,
+symlinked ancestors, read-only resource scopes and configured protected paths stay
+denied even when a user is asked to approve an external action. Ordinary tool input
+edits and returning an action inside the sandbox retain their existing behavior.
+Unknown boundary classifications are rejected before a pending approval is created.
 
 For sandbox escape, the SDK captures the working-directory path before asking and
 uses that path for Bash/PowerShell execution, including their streaming entrypoints.

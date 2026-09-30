@@ -52,6 +52,7 @@ export interface PendingPermission {
   request_id: string;
   tool_name: string;
   tool_input: ToolInput;
+  permission_boundary?: "sandbox_escape" | "sandbox_network" | string;
   configuration_secret_slots?: ConfigurationSecretSlot[];
   session_key?: string | null;
   agent_id?: string | null;
