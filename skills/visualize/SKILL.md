@@ -35,6 +35,8 @@ Resolve these paths relative to this skill directory. Do not load the whole refe
 - Inline the widget's CSS and JavaScript. SVG, Canvas, DOM, Web Components, and external CDN libraries are supported.
 - Network access and external resources are allowed without a domain allowlist. Prefer established HTTPS CDNs.
 - The fragment runs in an isolated iframe and cannot access the Nexus page, cookies, storage, or parent DOM.
+- To show an image that already exists in the current Agent workspace, use a host reference such as `src="nexus://workspace/.cloud-photo/preview.jpg"`. Nexus resolves this reference through the authenticated workspace preview endpoint before handing the fragment to the isolated iframe. The path is workspace-relative and must not contain an Agent absolute path.
+- Do not use `file://`, localhost URLs, absolute workspace paths, or Base64 for workspace images. Those forms either cannot cross the iframe boundary safely or make the model carry large binary payloads.
 - Streaming order is short style, visible content, then scripts last. Scripts run only after the complete tool input arrives. Keep native controls and static content useful before initialization.
 - Before calling `show_widget`, check every inline script for unmatched quotes, backticks, brackets, and incomplete blocks. Prefer short functions over one monolithic script.
 - Before calling `show_widget`, verify that every id, class, or data attribute referenced by JavaScript exists in the submitted markup and is spelled identically.
