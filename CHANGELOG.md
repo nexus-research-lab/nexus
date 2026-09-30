@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add two non-normative macOS desktop sandbox records covering the end-to-end engineering model and a code-oriented call-chain reading guide.
+
 - Defer desktop sandbox policy installation on Windows until the native boundary is validated; macOS remains the only desktop platform that claims the sandbox contract.
 
 - Fix duplicate SQLite/PostgreSQL migration numbering in desktop sandbox builds.
