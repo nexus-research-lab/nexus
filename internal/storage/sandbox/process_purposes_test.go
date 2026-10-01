@@ -1,4 +1,4 @@
-// INPUT: 同 owner/session/generation 的独立启动用途及已有 144 版 SQLite 数据。
+// INPUT: 同 owner/session/generation 的独立启动用途及 launches 表初创版本的 SQLite 数据。
 // OUTPUT: 探测顺序与唯一活跃边界、旧登记保留及无损回退拒绝。
 // POS: 多进程启动代次的持久语义，不证明原生集合状态。
 package sandbox
@@ -62,13 +62,14 @@ func TestProcessPurposesShareGenerationWithoutReplay(t *testing.T) {
 			t.Fatalf("replayed %s: %v", purpose, err)
 		}
 	}
-	// 迁移回退不得选择性丢弃同代次的探测证据。149 的生命周期扫描
+	// 迁移回退不得选择性丢弃同代次的探测证据。生命周期扫描迁移的
 	// 进度保护会先拒绝有原进程记录的降级，必须保留当前完整 schema。
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 144); err == nil {
+	guard := sandboxMigrationVersion(t, "sandbox_lifecycle_recovery_scan")
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", guard-1); err == nil {
 		t.Fatal("lossy rollback succeeded")
 	}
 	version, err := goose.GetDBVersion(r.db)
-	if err != nil || version != 149 {
+	if err != nil || version != guard {
 		t.Fatalf("failed rollback changed schema: %d %v", version, err)
 	}
 	latest, _, err := r.LatestProcess(ctx, previous.Key.OwnerUserID, previous.Key.SessionKey)
@@ -84,7 +85,9 @@ func TestProcessPurposesShareGenerationWithoutReplay(t *testing.T) {
 func TestProcessPurposeMigrationPreservesLegacyIntent(t *testing.T) {
 	r := newSandboxReceiptRepository(t)
 	ctx := t.Context()
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 144); err != nil {
+	// 旧库形态：launches 表已创建而 purposes 语义尚未落地。
+	legacy := sandboxMigrationVersion(t, "sandbox_process_launches")
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", legacy); err != nil {
 		t.Fatal(err)
 	}
 	i := processIntent()

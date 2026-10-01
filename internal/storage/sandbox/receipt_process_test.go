@@ -139,7 +139,9 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, historical); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err != nil {
+	// 历史形态：receipts 表已创建而 process 绑定尚未落地；Down/Up 往返必须保留历史行。
+	receipts := sandboxMigrationVersion(t, "sandbox_policy_receipts")
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", receipts); err != nil {
 		t.Fatal(err)
 	}
 	if err := goose.Up(r.db, "../../../db/migrations/sqlite"); err != nil {
@@ -163,7 +165,7 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, bound); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err == nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", receipts); err == nil {
 		t.Fatal("discarded process binding during rollback")
 	}
 	got, found, err = r.Get(ctx, bound.OwnerUserID, bound.SessionKey, bound.Generation)
