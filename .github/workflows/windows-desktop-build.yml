@@ -43,6 +43,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
+          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
           ref: 38221838946f17f87be9da4af5f10ddc95671edf
           path: .nexus-sandbox-sdk
           fetch-depth: 1
