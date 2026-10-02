@@ -1,6 +1,6 @@
 module github.com/nexus-research-lab/nexus
 
-go 1.26.2
+go 1.26.6
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/gorilla/websocket v1.5.3
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.11.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.34-0.20260928040950-c994b197e010
@@ -18,9 +18,9 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.21.0
 	golang.org/x/sys v0.43.0
-	golang.org/x/text v0.36.0
+	golang.org/x/text v0.39.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.46.1
