@@ -791,8 +791,34 @@ func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
 		lease := c.BindSessionRoute(session, RouteContext{DispatchSessionKey: shared})
 		defer c.UnbindSessionRoute(lease)
 		go func() { _, _ = c.RequestPermission(requestCtx, session, sdkpermission.Request{ToolName: "Write"}) }()
-		event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-		ids[session], _ = event.Data["request_id"].(string)
+	}
+	// BindSession 的异步 replay 与 live dispatch 之间没有排序保证，公区 sender 可能对同一
+	// request 收到重复事件。按 request_id 等到两个不同请求都出现后再映射归属成员，
+	// 不假设顺序消费的第 i 个事件属于第 i 个成员（#300）。
+	distinct := make(map[string]struct{})
+	deadline := time.After(2 * time.Second)
+	for len(distinct) < 2 {
+		select {
+		case event := <-sender.events:
+			if event.EventType != protocol.EventTypePermissionRequest {
+				continue
+			}
+			if id, _ := event.Data["request_id"].(string); id != "" {
+				distinct[id] = struct{}{}
+			}
+		case <-deadline:
+			t.Fatalf("等待两个不同 request_id 的权限事件超时，已见: %v", distinct)
+		}
+	}
+	for _, session := range []string{first, second} {
+		for id := range distinct {
+			if c.CountSessionPermissionRequests(session, id) == 1 {
+				ids[session] = id
+			}
+		}
+		if ids[session] == "" {
+			t.Fatalf("成员 %s 的请求 request_id 未能映射，已见: %v", session, distinct)
+		}
 	}
 	if c.CountSessionPermissionRequests(shared, "") != 2 || c.CountSessionPermissionRequests(first, "") != 1 {
 		t.Fatal("成员权限计数必须与公区聚合隔离")

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
@@ -48,6 +49,11 @@ type PendingRequest struct {
 	finalizeOnce             sync.Once
 }
 
+// permissionRequestSeq 保证同一纳秒时间戳内创建的多个请求仍拥有唯一 request ID：
+// 仅用 UnixNano 生成时，时钟粒度较粗的平台上同 tick 请求会拿到相同 ID 并在
+// pendingRequests 中相互覆盖，导致先注册的请求永远无法被 resolve（#300）。
+var permissionRequestSeq atomic.Uint64
+
 func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Request) *PendingRequest {
 	route := c.resolveRouteContext(sessionKey)
 	now := time.Now()
@@ -65,7 +71,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 	return &PendingRequest{
 		Boundary:           request.Boundary,
 		Review:             review,
-		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
+		RequestID:          fmt.Sprintf("perm_%d_%d", now.UnixNano(), permissionRequestSeq.Add(1)),
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           toolName,
