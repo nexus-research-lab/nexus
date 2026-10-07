@@ -173,6 +173,11 @@ func TestDesktopSandboxNetworkAdmissionDoesNotOverrideClaudeNativeSandbox(t *tes
 }
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
+	// Desktop mode unconditionally enables the sandbox, and the sandbox assembly
+	// errors on non-darwin platforms before the WebSearch admission check runs. #290
+	if runtime.GOOS != "darwin" {
+		t.Skip("desktop option assembly is darwin-only")
+	}
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		AppMode:       "desktop",
 		RuntimeKind:   runtimeKindNXS,
@@ -185,6 +190,10 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 }
 
 func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T) {
+	// Same platform contract as above: desktop assembly is darwin-only today. #290
+	if runtime.GOOS != "darwin" {
+		t.Skip("desktop option assembly is darwin-only")
+	}
 	t.Setenv("OPENAI_API_KEY", "inherited-host-secret")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{

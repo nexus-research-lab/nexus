@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -64,6 +65,12 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 }
 
 func TestDesktopHostPathsIgnoreTaskStateRoot(t *testing.T) {
+	// Full desktop assembly is a darwin contract: applyDesktopSandboxForPlatform
+	// rejects desktop mode on other platforms ("desktop sandbox is unsupported on
+	// linux") before host path protection runs. #290
+	if runtime.GOOS != "darwin" {
+		t.Skip("desktop option assembly is darwin-only")
+	}
 	root := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, root)
 	got, err := BuildAgentClientOptions(context.Background(), nil, AgentClientOptionsInput{AppMode: "desktop", RuntimeKind: "nxs", WorkspacePath: t.TempDir(), OwnerUserID: "owner", ExtraEnv: map[string]string{appfs.NexusStateRootEnvName: "/task-controlled"}})
