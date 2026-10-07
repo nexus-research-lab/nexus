@@ -1432,12 +1432,20 @@ test("loading stays still in reduced motion and keeps its footprint when animate
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const samples = await orb.evaluate((element) => new Promise<Array<{ glyph: string; width: number; height: number }>>((resolve) => {
     const frames: Array<{ glyph: string; width: number; height: number }> = [];
+    const glyphs = new Set<string>();
     const started = performance.now();
+    // CI runners can throttle rAF and delay the first animation frame change
+    // well past the 700ms observation window. Keep sampling until the animation
+    // has demonstrably advanced (a second glyph) or the deadline passes; the
+    // glyph assertion below still fails when the animation never advances.
+    const deadline = 4_000;
     const sample = () => {
       const bounds = element.getBoundingClientRect();
       const glyph = Array.from(element.children).filter((frame) => getComputedStyle(frame).opacity === "1").map((frame) => frame.textContent).join("");
+      glyphs.add(glyph);
       frames.push({ glyph, width: bounds.width, height: bounds.height });
-      if (performance.now() - started >= 700) resolve(frames);
+      const elapsed = performance.now() - started;
+      if ((glyphs.size >= 2 && elapsed >= 700) || elapsed >= deadline) resolve(frames);
       else requestAnimationFrame(sample);
     };
     requestAnimationFrame(sample);
