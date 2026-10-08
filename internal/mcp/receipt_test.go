@@ -45,19 +45,3 @@ func TestSuccessfulGoalCompletionIDUsesReceiptIdentityAndFailsClosedOnConflict(t
 		t.Fatalf("blocked completion ID = %q, want empty", got)
 	}
 }
-
-func TestReceiptStateIsMonotonic(t *testing.T) {
-	state := NewCommandReceiptState()
-	first := state.Record(CommandReceipt{Domain: CommandDomainGoal, Operation: GoalOperationCreate})
-	second := state.Record(CommandReceipt{Domain: CommandDomainExecution, Operation: ExecutionOperationPlan})
-	if first.Sequence != 1 || second.Sequence != 2 {
-		t.Fatalf("sequences = %d, %d", first.Sequence, second.Sequence)
-	}
-	receipts, sequence := state.Since(1)
-	if sequence != 2 || len(receipts) != 1 || receipts[0].Sequence != 2 {
-		t.Fatalf("Since(1) = %+v sequence=%d", receipts, sequence)
-	}
-	if !HasDomain(receipts, CommandDomainExecution) || HasDomain(receipts, CommandDomainGoal) {
-		t.Fatalf("domain classification failed for %+v", receipts)
-	}
-}

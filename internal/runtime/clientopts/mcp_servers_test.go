@@ -106,35 +106,6 @@ func TestMergeAgentMCPServersRejectsUnsafeStaticHeaders(t *testing.T) {
 	}
 }
 
-func TestMergeAgentMCPServersRejectsURLCredentialsAndFragments(t *testing.T) {
-	tests := []struct {
-		name string
-		url  string
-	}{
-		{name: "userinfo", url: "https://user:password@mcp.example.com/rpc"},
-		{name: "fragment", url: "https://mcp.example.com/rpc#token"},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := MergeAgentMCPServers(nil, map[string]any{
-				"remote": map[string]any{"type": "http", "url": tc.url},
-			})
-			if err == nil || !strings.Contains(err.Error(), "有效的 HTTP 或 HTTPS URL") {
-				t.Fatalf("unsafe URL accepted: %v", err)
-			}
-		})
-	}
-	_, err := MergeAgentMCPServers(nil, map[string]any{
-		"remote": map[string]any{
-			"type": "http", "url": "https://mcp.example.com/rpc",
-			"oauth": map[string]any{"authServerMetadataUrl": "https://user:password@auth.example.com/meta#token"},
-		},
-	})
-	if err == nil || !strings.Contains(err.Error(), "有效的 HTTPS URL") {
-		t.Fatalf("unsafe OAuth metadata URL accepted: %v", err)
-	}
-}
-
 func TestMergeAgentMCPServersRejectsManagedNames(t *testing.T) {
 	tests := []struct {
 		name       string

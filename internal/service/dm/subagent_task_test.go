@@ -2,11 +2,9 @@ package dm
 
 import (
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) {
@@ -30,69 +28,6 @@ func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) 
 	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_notification", "completed"))
 	if runner.claimSubagentPostRoundDispatch() {
 		t.Fatal("同一父 round 的 task follow-up 不应重复触发 post-round work")
-	}
-}
-
-func TestDMSubagentUsagePendingBlocksTerminalDispatch(t *testing.T) {
-	runner := &roundRunner{}
-	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
-	runner.markSubagentUsagePending("task-1", 0)
-	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_notification", "completed"))
-
-	if !runner.hasRunningSubagentTask() {
-		t.Fatal("terminal lifecycle 已结束但 usage checkpoint 未完成时仍应保留 join barrier")
-	}
-	if runner.claimSubagentPostRoundDispatch() {
-		t.Fatal("usage checkpoint 未完成时不应触发 post-round work")
-	}
-
-	runner.clearSubagentUsagePending("task-1", 0)
-	if runner.hasRunningSubagentTask() {
-		t.Fatal("usage checkpoint 完成后应释放 join barrier")
-	}
-	if !runner.claimSubagentPostRoundDispatch() {
-		t.Fatal("usage checkpoint 完成后应允许一次 post-round work")
-	}
-}
-
-func TestDMOlderSettledUsageDoesNotClearNewerPendingSnapshot(t *testing.T) {
-	runner := &roundRunner{}
-	runner.markSubagentUsagePending("task-1", 0)
-	if pending, ok := runner.subagentUsagePending["task-1"]; !ok || pending.CumulativeTotal != 0 {
-		t.Fatalf("explicit zero pending = %#v, %v; want stored zero snapshot", pending, ok)
-	}
-
-	runner.markSubagentUsagePending("task-1", 100)
-	runner.markSubagentUsagePending("task-1", 150)
-	runner.clearSubagentUsagePending("task-1", 100)
-	if pending := runner.subagentUsagePending["task-1"]; pending.CumulativeTotal != 150 {
-		t.Fatalf("older success cleared newer pending: got %#v, want total 150", pending)
-	}
-	if !runner.hasRunningSubagentTask() {
-		t.Fatal("newer pending snapshot must keep the child join barrier")
-	}
-
-	runner.clearSubagentUsagePending("task-1", 150)
-	if runner.hasRunningSubagentTask() {
-		t.Fatal("latest settled snapshot did not release the child join barrier")
-	}
-}
-
-func TestDMOlderProgressSettlementDoesNotClearSameTotalTerminalEvidence(t *testing.T) {
-	runner := &roundRunner{}
-	progress := goalsvc.SubagentUsageObservation{CumulativeTotal: 25}
-	terminal := goalsvc.SubagentUsageObservation{CumulativeTotal: 25, Terminal: true}
-	runner.markSubagentUsageObservationPending("task-1", progress)
-	runner.markSubagentUsageObservationPending("task-1", terminal)
-
-	runner.clearSubagentUsageObservationPending("task-1", progress)
-	pending, ok := runner.subagentUsagePending["task-1"]
-	if !ok || !pending.Terminal {
-		t.Fatalf("progress settlement cleared terminal evidence: %#v, present=%v", pending, ok)
-	}
-	runner.clearSubagentUsageObservationPending("task-1", terminal)
-	if runner.hasRunningSubagentTask() {
-		t.Fatal("terminal evidence settlement did not release join barrier")
 	}
 }
 
@@ -126,24 +61,4 @@ func dmSubagentTaskMessage(subtype string, status string) protocol.Message {
 			"status":     status,
 		},
 	}
-}
-
-// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个
-// task 最新的累计值。它与 runtime task 生命周期分开，防止终态消息先移除
-// task、后写 checkpoint 时被并发 finalization 穿透。
-func (r *roundRunner) markSubagentUsagePending(taskID string, totalTokens int64) {
-	r.markSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal: totalTokens,
-		ObservedAt:      time.Now().UTC(),
-	})
-}
-
-// clearSubagentUsagePending 只清除不新于已落库累计值的 pending。并发中的旧
-// checkpoint 成功不能覆盖随后到达、但仍未持久化的新累计值。
-func (r *roundRunner) clearSubagentUsagePending(taskID string, settledTotalTokens int64) {
-	r.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal:            settledTotalTokens,
-		Terminal:                   true,
-		TerminalTokenUsageObserved: true,
-	})
 }

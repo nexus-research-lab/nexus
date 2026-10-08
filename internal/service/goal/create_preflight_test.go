@@ -26,49 +26,6 @@ func (r *concurrentGoalCreateRepository) CreateGoalWithEvent(
 	return nil, errors.New("current Goal unique constraint")
 }
 
-func TestServiceCreatePreflightUsesModelScopeAndRunsBeforePersistence(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(testConfig(), repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	accountant := &fakeExternalMutationAccountant{
-		createConflicts: map[string][]string{
-			"root-consumed": {"round-b", "round-a"},
-		},
-	}
-	service.SetExternalMutationAccountant(accountant)
-
-	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:create-preflight-model",
-		Objective:  "Must not share an already consumed scope",
-		CreatedBy:  "model",
-		RoundID:    " root-consumed ",
-	})
-	if !errors.Is(err, ErrGoalConflict) {
-		t.Fatalf("Create() error = %v, want ErrGoalConflict", err)
-	}
-	if len(repo.goals) != 0 || len(repo.events) != 0 {
-		t.Fatalf("preflight persisted goals=%d events=%d, want zero", len(repo.goals), len(repo.events))
-	}
-	if len(accountant.createPreflightCalls) != 1 ||
-		accountant.createPreflightCalls[0] != "agent:nexus:ws:dm:create-preflight-model:root-consumed" {
-		t.Fatalf("preflight calls = %#v, want normalized model scope", accountant.createPreflightCalls)
-	}
-
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:create-preflight-model",
-		Objective:  "An unrelated scope may create its Goal",
-		CreatedBy:  "model",
-		RoundID:    "root-other",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created == nil || created.ID == "" {
-		t.Fatalf("created = %#v, want Goal for unrelated scope", created)
-	}
-}
-
 func TestServiceCreatePreflightUsesWholeSessionForExternalGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(testConfig(), repo)
@@ -125,34 +82,6 @@ func TestServiceCreateClassifiesConcurrentCurrentGoalInsertAsConflict(t *testing
 	}
 	if len(repo.events) != 0 {
 		t.Fatalf("losing create events = %#v, want none", repo.events)
-	}
-}
-
-func TestServiceCreateDoesNotTreatHistoricalUnfinalizedGoalAsLiveConflict(t *testing.T) {
-	repo := newMemoryRepository()
-	historical := protocol.Goal{
-		ID:             "goal-historical",
-		SessionKey:     "agent:nexus:ws:dm:create-after-history",
-		Objective:      "Old Goal with unavailable evidence",
-		Status:         protocol.GoalStatusComplete,
-		Version:        1,
-		UsageFinalized: false,
-	}
-	repo.goals[historical.ID] = historical
-	service := NewService(testConfig(), repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: historical.SessionKey,
-		Objective:  "A new live round may start a new Goal",
-		CreatedBy:  "user",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if created == nil || created.ID == historical.ID {
-		t.Fatalf("created = %#v, want a new current Goal", created)
 	}
 }
 

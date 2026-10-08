@@ -6,14 +6,12 @@ package room_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/app"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 )
 
@@ -123,43 +121,6 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	for _, contextValue := range contexts {
 		assertRoomMemberParticipation(t, contextValue.Members, agentA.AgentID, false)
 		assertRoomMemberParticipation(t, contextValue.Members, agentB.AgentID, false)
-	}
-}
-
-func TestRoomContextQueriesDoNotReadHistory(t *testing.T) {
-	cfg := newRoomTestConfig(t)
-	migrateRoomSQLite(t, cfg.DatabaseURL)
-
-	agentService, db, err := newRoomTestAgentService(t, cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
-	roomService := app.NewRoomServiceWithDB(cfg, db, agentService)
-	ctx := context.Background()
-	agentA := createTestAgent(t, agentService, ctx, "消息计数成员 A")
-	agentB := createTestAgent(t, agentService, ctx, "消息计数成员 B")
-	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
-		Name:     "消息计数测试",
-	})
-	if err != nil {
-		t.Fatalf("创建 Room 失败: %v", err)
-	}
-	// 用目录占据 ledger 路径：任何历史扫描都会失败，元数据查询仍应成功。
-	path := workspacestore.New(cfg.WorkspacePath).RoomConversationOverlayPath(
-		roomContext.Room.OwnerUserID, roomContext.Conversation.ID,
-	)
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := roomService.GetRoomContexts(ctx, roomContext.Room.ID); err != nil {
-		t.Fatalf("查询 Room 上下文不应读取历史: %v", err)
-	}
-	if _, err := roomService.GetConversationContext(ctx, roomContext.Conversation.ID); err != nil {
-		t.Fatalf("查询 conversation 不应读取历史: %v", err)
-	}
-	if _, err := roomService.GetConversationContextForSystem(ctx, roomContext.Conversation.ID); err != nil {
-		t.Fatalf("系统查询 conversation 不应读取历史: %v", err)
 	}
 }
 

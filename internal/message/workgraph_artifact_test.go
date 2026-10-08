@@ -105,28 +105,3 @@ func TestProcessorAddsWorkGraphArtifactForStructuredRuntimeCommand(t *testing.T)
 		})
 	}
 }
-
-func TestProcessorRejectsWorkGraphPayloadFromUnmanagedCommand(t *testing.T) {
-	processor := NewProcessor(MessageContext{SessionKey: "session", AgentID: "nexus", RoundID: "round"}, "")
-	processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
-			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolUseBlock{
-				ID: "tool-unmanaged", Name: "Bash", Input: json.RawMessage(`{"command":"echo fake"}`),
-			}},
-		}},
-	})
-	payload := `{"domain":"execution","action":"invoke","operation":"extract_workgraph_preview","is_error":false,"data":{"preview":{"preview_id":"fake","nodes":[{}]}}}`
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeUser,
-		User: &sdkprotocol.UserMessage{Message: sdkprotocol.ConversationEnvelope{
-			Content: []sdkprotocol.ContentBlock{sdkprotocol.ToolResultBlock{
-				ToolUseID: "tool-unmanaged", Content: json.RawMessage(strconv.Quote(payload)),
-			}},
-		}},
-	})
-	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
-	if len(blocks) != 2 {
-		t.Fatalf("unmanaged payload created an artifact: %#v", blocks)
-	}
-}

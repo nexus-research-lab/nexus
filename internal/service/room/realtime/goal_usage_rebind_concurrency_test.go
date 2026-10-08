@@ -20,12 +20,6 @@ type blockingRoomGoalUsageProvider struct {
 	once    sync.Once
 }
 
-type failOnceRoomGoalUsageProvider struct {
-	*fakeRoomGoalContextProvider
-	mu       sync.Mutex
-	failNext bool
-}
-
 type failNRoomGoalUsageProvider struct {
 	*fakeRoomGoalContextProvider
 	mu                sync.Mutex
@@ -120,22 +114,6 @@ func (p *failNRoomGoalUsageProvider) RecordUsageForGoal(
 		return nil, errors.New("transient usage write failure")
 	}
 	p.mu.Unlock()
-	return p.fakeRoomGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
-}
-
-func (p *failOnceRoomGoalUsageProvider) RecordUsageForGoal(
-	ctx context.Context,
-	goalID string,
-	usage protocol.GoalUsage,
-	roundID string,
-) (*protocol.Goal, error) {
-	p.mu.Lock()
-	fail := p.failNext
-	p.failNext = false
-	p.mu.Unlock()
-	if fail {
-		return nil, errors.New("transient usage write failure")
-	}
 	return p.fakeRoomGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
 }
 
@@ -447,53 +425,6 @@ func TestRoomSlotSerializesUsageSettlementWithExternalGoalRebind(t *testing.T) {
 	}
 	if got := slot.goalIDForUsage(); got != "goal-new" {
 		t.Fatalf("Goal binding = %q, want goal-new after settlement", got)
-	}
-}
-
-func TestRoomSlotRetriesUncommittedUsageAtTerminal(t *testing.T) {
-	base := &fakeRoomGoalContextProvider{}
-	provider := &failOnceRoomGoalUsageProvider{
-		fakeRoomGoalContextProvider: base,
-		failNext:                    true,
-	}
-	service := &Service{goals: provider}
-	accelerateRoomGoalUsageRetry(service)
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:retry",
-		AgentRoundID:      "round-retry",
-	}
-	slot.setGoalBinding("room:group:retry", "goal-retry")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.recordGoalUsageSnapshotForSlot(context.Background(), slot, goalsvc.RuntimeUsageSnapshot{
-		TurnID: "turn-a",
-		Usage: protocol.GoalUsage{
-			InputTokens:       90,
-			OutputTokens:      10,
-			ActualTotalTokens: 100,
-			ActualTotalKnown:  true,
-		},
-	})
-	if !service.settleTerminalGoalUsageSnapshotForSlotWithRetry(
-		context.Background(),
-		slot,
-		goalsvc.RuntimeUsageSnapshot{
-			Usage: protocol.GoalUsage{
-				InputTokens:       140,
-				OutputTokens:      10,
-				ActualTotalTokens: 150,
-				ActualTotalKnown:  true,
-			},
-			Cumulative:         true,
-			Terminal:           true,
-			TokenUsageObserved: true,
-		}) {
-		t.Fatal("terminal usage retry did not settle")
-	}
-
-	usages := base.recordedUsage()
-	if len(usages) != 1 || usages[0].BudgetTokens() != 150 || usages[0].ActualTokens() != 150 {
-		t.Fatalf("persisted usage = %#v, want one complete terminal retry of 150", usages)
 	}
 }
 

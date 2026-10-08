@@ -73,37 +73,6 @@ func TestServiceRejectsAgentActorAtEveryScriptControlEntry(t *testing.T) {
 	}
 }
 
-func TestServiceRejectsAgentActorAfterHumanSwitchesTaskToScript(t *testing.T) {
-	service := newScriptControlBoundaryService(t)
-	task, err := service.CreateTask(context.Background(), scriptControlTaskInput("initial-agent", automationdomain.ExecutionKindAgent))
-	if err != nil {
-		t.Fatalf("create Agent task: %v", err)
-	}
-	stale, err := service.GetTask(context.Background(), task.JobID)
-	if err != nil || stale == nil {
-		t.Fatalf("read stale Agent snapshot: task=%+v err=%v", stale, err)
-	}
-	if automationdomain.NormalizeExecutionKind(stale.ExecutionKind) == automationdomain.ExecutionKindScript {
-		t.Fatalf("precondition task already script: %+v", stale)
-	}
-
-	scriptKind := automationdomain.ExecutionKindScript
-	if _, err = service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{
-		ExecutionKind: &scriptKind,
-	}); err != nil {
-		t.Fatalf("human switch to script failed: %v", err)
-	}
-
-	agentCtx := automationexec.WithActorAgentID(context.Background(), "agent-1")
-	changedName := "stale-agent-update"
-	if _, err = service.UpdateTask(agentCtx, task.JobID, automationdomain.UpdateJobInput{Name: &changedName}); !errors.Is(err, errAgentScriptControl) {
-		t.Fatalf("stale Agent update error = %v, want boundary rejection", err)
-	}
-	if _, err = service.RunTaskNow(agentCtx, task.JobID); !errors.Is(err, errAgentScriptControl) {
-		t.Fatalf("stale Agent run error = %v, want boundary rejection", err)
-	}
-}
-
 func TestServiceSerializesConcurrentHumanScriptTransitionBeforeAgentRun(t *testing.T) {
 	service := newScriptControlBoundaryService(t)
 	task, err := service.CreateTask(context.Background(), scriptControlTaskInput("concurrent-agent", automationdomain.ExecutionKindAgent))
@@ -151,25 +120,6 @@ func TestServiceSerializesConcurrentHumanScriptTransitionBeforeAgentRun(t *testi
 	}
 	if err = <-agentDone; !errors.Is(err, errAgentScriptControl) {
 		t.Fatalf("Agent run after script transition error = %v, want boundary rejection", err)
-	}
-}
-
-func TestHumanControlPlaneRetainsScriptTaskManagement(t *testing.T) {
-	service := newScriptControlBoundaryService(t)
-	task, err := service.CreateTask(context.Background(), scriptControlTaskInput("human-script", automationdomain.ExecutionKindScript))
-	if err != nil {
-		t.Fatalf("human script create failed: %v", err)
-	}
-	name := "human-updated-script"
-	updated, err := service.UpdateTask(context.Background(), task.JobID, automationdomain.UpdateJobInput{Name: &name})
-	if err != nil {
-		t.Fatalf("human script update failed: %v", err)
-	}
-	if updated.Name != name {
-		t.Fatalf("human script update not applied: %+v", updated)
-	}
-	if _, err = service.DeleteTask(context.Background(), task.JobID); err != nil {
-		t.Fatalf("human script delete failed: %v", err)
 	}
 }
 

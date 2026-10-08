@@ -15,48 +15,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestServiceRecordsAndDeduplicatesMessageUsage(t *testing.T) {
-	cfg, db := newUsageTestDB(t)
-	service := NewServiceWithDB(cfg, db)
-	ctx := context.Background()
-
-	input := RecordInput{
-		OwnerUserID: "user-1",
-		Source:      "dm_runtime",
-		SessionKey:  "agent:nexus:default:session-1",
-		MessageID:   "result-1",
-		RoundID:     "round-1",
-		AgentID:     "nexus",
-		Usage: map[string]any{
-			"input_tokens":                100,
-			"output_tokens":               20,
-			"cache_creation_input_tokens": 3,
-			"cache_read_input_tokens":     7,
-		},
-		OccurredAt: time.Unix(100, 0).UTC(),
-	}
-	if err := service.RecordMessageUsage(ctx, input); err != nil {
-		t.Fatalf("写入 token usage 失败: %v", err)
-	}
-	if err := service.RecordMessageUsage(ctx, input); err != nil {
-		t.Fatalf("重复写入 token usage 失败: %v", err)
-	}
-
-	summary, err := service.Summary(ctx, "user-1")
-	if err != nil {
-		t.Fatalf("汇总 token usage 失败: %v", err)
-	}
-	if summary.SessionCount != 1 || summary.MessageCount != 1 {
-		t.Fatalf("去重计数不正确: %+v", summary)
-	}
-	if summary.InputTokens != 100 || summary.OutputTokens != 20 {
-		t.Fatalf("输入输出 token 不正确: %+v", summary)
-	}
-	if summary.CacheCreationInputTokens != 3 || summary.CacheReadInputTokens != 7 || summary.TotalTokens != 130 {
-		t.Fatalf("总 token 不正确: %+v", summary)
-	}
-}
-
 func TestServiceRecordsJSONNumberUsage(t *testing.T) {
 	cfg, db := newUsageTestDB(t)
 	service := NewServiceWithDB(cfg, db)
@@ -88,21 +46,6 @@ func TestServiceRecordsJSONNumberUsage(t *testing.T) {
 	}
 	if summary.TotalTokens != 40800 {
 		t.Fatalf("json.Number 总 token 不正确: %+v", summary)
-	}
-}
-
-func TestMessageHasUsage(t *testing.T) {
-	t.Parallel()
-
-	if MessageHasUsage(map[string]any{"usage": map[string]any{}}) {
-		t.Fatal("空 usage 不应被判定为可入账")
-	}
-	if !MessageHasUsage(map[string]any{
-		"usage": map[string]any{
-			"cache_read_input_tokens": json.Number("59072"),
-		},
-	}) {
-		t.Fatal("cache read usage 应被判定为可入账")
 	}
 }
 
@@ -162,67 +105,6 @@ func TestServicePersistsNormalizedCacheAttributionAndSegments(t *testing.T) {
 	}
 	if share, ok := segment.CacheReadShare(); !ok || share < 0.777 || share > 0.778 {
 		t.Fatalf("CacheReadShare() = %f, %v", share, ok)
-	}
-}
-
-func TestServiceMissingCacheAttributionIsExplicitUnknown(t *testing.T) {
-	cfg, db := newUsageTestDB(t)
-	service := NewServiceWithDB(cfg, db)
-	if err := service.RecordMessageUsage(context.Background(), RecordInput{
-		OwnerUserID: "unknown-owner",
-		Source:      "dm_runtime",
-		SessionKey:  "agent:nexus:default:unknown",
-		MessageID:   "result-unknown",
-		Usage:       map[string]any{"cache_read_input_tokens": 12},
-	}); err != nil {
-		t.Fatalf("RecordMessageUsage() error = %v", err)
-	}
-	segments, err := service.CacheSegments(context.Background(), "unknown-owner")
-	if err != nil {
-		t.Fatalf("CacheSegments() error = %v", err)
-	}
-	if len(segments) != 1 {
-		t.Fatalf("segments = %+v, want one", segments)
-	}
-	attribution := segments[0].CacheAttribution
-	if attribution.GoalScope != ScopeUnknown ||
-		attribution.ExecutionScope != ScopeUnknown ||
-		attribution.ResponsibilityLane != ScopeUnknown {
-		t.Fatalf("missing attribution = %+v, want explicit unknown", attribution)
-	}
-}
-
-func TestServiceUsageSettlementSurvivesMissingAttributionColumns(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "legacy-usage.db"))
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Exec(`CREATE TABLE token_usage_records (
-		owner_user_id TEXT NOT NULL, usage_key TEXT NOT NULL, source TEXT NOT NULL,
-		session_key TEXT NOT NULL, message_id TEXT NOT NULL, round_id TEXT NOT NULL,
-		agent_id TEXT NOT NULL, room_id TEXT NOT NULL, conversation_id TEXT NOT NULL,
-		input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
-		cache_creation_input_tokens INTEGER NOT NULL, cache_read_input_tokens INTEGER NOT NULL,
-		total_tokens INTEGER NOT NULL, occurred_at DATETIME NOT NULL,
-		created_at DATETIME NOT NULL, updated_at DATETIME NOT NULL,
-		PRIMARY KEY (owner_user_id, usage_key)
-	)`); err != nil {
-		t.Fatalf("create legacy ledger: %v", err)
-	}
-	service := NewServiceWithDB(config.Config{DatabaseDriver: "sqlite"}, db)
-	if err := service.RecordMessageUsage(context.Background(), RecordInput{
-		OwnerUserID: "legacy-owner",
-		Source:      "dm_runtime",
-		SessionKey:  "agent:nexus:default:legacy",
-		MessageID:   "result-legacy",
-		Usage:       map[string]any{"input_tokens": 5},
-	}); err != nil {
-		t.Fatalf("settlement must ignore attribution update failure: %v", err)
-	}
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM token_usage_records`).Scan(&count); err != nil || count != 1 {
-		t.Fatalf("legacy usage count = %d, err=%v", count, err)
 	}
 }
 

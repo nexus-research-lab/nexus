@@ -69,45 +69,6 @@ func TestRunWorkspaceFilesPreservesHistoricalMemoryMigrations(t *testing.T) {
 	assertMigrationPathExists(t, lateLegacyPath)
 }
 
-func TestRunWorkspaceFilesRemovesRetiredManagedSkillsOnce(t *testing.T) {
-	root := t.TempDir()
-	configRoot := filepath.Join(root, ".nexus")
-	workspaceRoot := filepath.Join(configRoot, "workspace")
-	agentWorkspace := filepath.Join(workspaceRoot, "user_demo", "Amy")
-	roomWorkspace := filepath.Join(configRoot, "rooms", "room-demo")
-
-	for _, workspacePath := range []string{agentWorkspace, roomWorkspace} {
-		for _, skillName := range retiredManagedSkillNames {
-			for _, entryPath := range deployedSkillEntries(workspacePath, skillName) {
-				writeMigrationTestFile(t, filepath.Join(entryPath, "SKILL.md"), "legacy\n")
-			}
-		}
-		writeMigrationTestFile(t, filepath.Join(workspacePath, ".agents", "skills", "goal-manager", "SKILL.md"), "keep\n")
-	}
-
-	if err := RunWorkspaceFiles(configRoot, workspaceRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("执行已退役 Skill 迁移失败: %v", err)
-	}
-	for _, workspacePath := range []string{agentWorkspace, roomWorkspace} {
-		for _, skillName := range retiredManagedSkillNames {
-			for _, entryPath := range deployedSkillEntries(workspacePath, skillName) {
-				assertMigrationPathMissing(t, entryPath)
-			}
-		}
-		assertMigrationPathExists(t, filepath.Join(workspacePath, ".agents", "skills", "goal-manager", "SKILL.md"))
-	}
-	assertCompletedMigrationMarker(t, configRoot, retiredManagedSkillsMigrationName)
-
-	customSkill := filepath.Join(agentWorkspace, ".agents", "skills", "scheduled-task-manager", "SKILL.md")
-	writeMigrationTestFile(t, customSkill, "custom\n")
-	if err := RunWorkspaceFiles(configRoot, workspaceRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("重复执行已退役 Skill 迁移失败: %v", err)
-	}
-	if content, err := os.ReadFile(customSkill); err != nil || string(content) != "custom\n" {
-		t.Fatalf("已完成迁移后不应重复删除同名自定义 Skill: content=%q err=%v", content, err)
-	}
-}
-
 func TestRunWorkspaceFilesRemovesOnlyLegacyMemoryManagerSkill(t *testing.T) {
 	root := t.TempDir()
 	configRoot := filepath.Join(root, ".nexus")

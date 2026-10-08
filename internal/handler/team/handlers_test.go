@@ -435,27 +435,6 @@ func TestTeamDifferenceDoesNotHideProjectionFailure(t *testing.T) {
 	}
 }
 
-func TestTeamMessageKeepsCommittedSuccessWhenProjectionFails(t *testing.T) {
-	projector := &teamProjectorStub{err: errors.New("local database unavailable")}
-	relay := &teamRelayStub{commit: relaycontract.MessageCommit{
-		Message:     relaycontract.Message{ID: "message-1"},
-		StreamEpoch: "epoch-1",
-	}}
-	recorder := teamRequest(
-		t,
-		newTeamTestRouterWithProjector(
-			&teamTokenStub{token: "token"}, relay, projector, teamTestPrincipal(),
-		),
-		http.MethodPost,
-		"/nexus/v1/team/conversations/conversation-1/messages",
-		`{"content":{"version":1,"blocks":[{"type":"markdown","text":"hello"}]}}`,
-		true,
-	)
-	if recorder.Code != http.StatusOK || projector.commitCalls != 1 {
-		t.Fatalf("status=%d projector=%+v body=%s", recorder.Code, projector, recorder.Body.String())
-	}
-}
-
 func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	sessionID := "session-1"
 	principal := &authsvc.Principal{
@@ -577,20 +556,6 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 	}
 }
 
-func TestTeamCreateRoomRejectsCrossOrganizationMember(t *testing.T) {
-	tokens := &teamTokenStub{token: "relay-token", verifyErr: authsvc.ErrOrganizationMemberInvalid}
-	relay := &teamRelayStub{}
-	created := teamRequest(
-		t, newTeamTestRouter(tokens, relay, teamTestPrincipal()), http.MethodPost,
-		"/nexus/v1/team/rooms", `{"name":"研发群","member_user_ids":["user-other"]}`, true,
-	)
-	failure := decodeTeamFailure(t, created)
-	if created.Code != http.StatusForbidden || failure.Code != "team.organization_member_required" ||
-		tokens.verifyCalls != 1 || relay.createRoomCalls != 0 {
-		t.Fatalf("status=%d failure=%+v tokens=%+v relay calls=%d", created.Code, failure, tokens, relay.createRoomCalls)
-	}
-}
-
 func TestTeamInviteVerifiesOrganizationBeforeRelay(t *testing.T) {
 	tokens := &teamTokenStub{token: "relay-token"}
 	relay := &teamRelayStub{}
@@ -703,32 +668,6 @@ func TestTeamHandlersRejectClientIdentityFields(t *testing.T) {
 				)
 			}
 		})
-	}
-}
-
-func TestTeamMessageAcceptsMaximumContentAfterJSONEscaping(t *testing.T) {
-	payload, err := json.Marshal(relaycontract.CreateMessageInput{Content: relaycontract.MessageContent{
-		Version: relaycontract.ContentVersionV1,
-		Blocks: []relaycontract.ContentBlock{{
-			Type: relaycontract.BlockTypeMarkdown,
-			Text: strings.Repeat("\\", 64*1024),
-		}},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tokens := &teamTokenStub{token: "relay-token"}
-	relay := &teamRelayStub{}
-	recorder := teamRequest(
-		t,
-		newTeamTestRouter(tokens, relay, teamTestPrincipal()),
-		http.MethodPost,
-		"/nexus/v1/team/conversations/conversation-1/messages",
-		string(payload),
-		true,
-	)
-	if recorder.Code != http.StatusOK || relay.messageCalls != 1 {
-		t.Fatalf("status=%d calls=%d body=%s", recorder.Code, relay.messageCalls, recorder.Body.String())
 	}
 }
 

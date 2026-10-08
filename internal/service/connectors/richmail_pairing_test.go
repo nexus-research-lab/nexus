@@ -179,30 +179,6 @@ func TestRichMailBearerTokenAcceptsKnownShapesAndRejectsUnsafeHeaders(t *testing
 	}
 }
 
-func TestRichMailIsFixedAvailableConnector(t *testing.T) {
-	service, db := newRichMailPairingTestService(t)
-	defer func() { _ = db.Close() }()
-	items, err := service.ListConnectors(
-		context.Background(), "owner-1", "richmail", "", "available",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 1 || items[0].ConnectorID != richMailConnectorID ||
-		items[0].AuthType != "local_pairing" {
-		t.Fatalf("RichMail 目录投影不正确: %+v", items)
-	}
-	detail, err := service.GetConnectorDetail(
-		context.Background(), "owner-1", richMailConnectorID,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if detail.MCPServerURL != richMailDefaultMCPURL || detail.ConnectionState != "disconnected" {
-		t.Fatalf("RichMail 详情不正确: %+v", detail)
-	}
-}
-
 func TestDiscoverRichMailCapabilitiesUsesSavedBearerAndPreservesDescription(t *testing.T) {
 	server := mcp.NewServer(
 		&mcp.Implementation{Name: "richmail", Title: "RichMail", Version: "1.0.0"},

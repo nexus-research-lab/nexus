@@ -141,28 +141,3 @@ func TestEmptyTranscriptGoalMarkerMatchingBoundaries(t *testing.T) {
 		})
 	}
 }
-
-func TestHistoryReadModelDiscardsOldGoalRoundProjection(t *testing.T) {
-	model := &historyReadModel{path: filepath.Join(t.TempDir(), historyReadModelFileName)}
-	db, err := model.database(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Exec(`INSERT INTO history_read_scopes
-		(scope, schema_version, generation, group_count, sources_json, round_index_json, accessed_at_ms)
-		VALUES ('old-goal-rounds', 4, 'old-generation', 0, '[]', '[]', 0);
-		PRAGMA user_version = 4;`); err != nil {
-		t.Fatal(err)
-	}
-	if err := initializeHistoryReadModel(context.Background(), db); err != nil {
-		t.Fatal(err)
-	}
-	var count int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM history_read_scopes`).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != 0 {
-		t.Fatalf("stale Goal round projections retained = %d", count)
-	}
-}

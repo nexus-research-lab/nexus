@@ -3,7 +3,6 @@ package dm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -321,150 +320,6 @@ func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 	}
 }
 
-func TestSDKSessionSyncClearsPendingConversationFork(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	agentService := newDMAgentService(t, cfg)
-	service := NewService(
-		cfg,
-		agentService,
-		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
-		permissionctx.NewContext(),
-	)
-
-	workspacePath := dmMainWorkspacePath(cfg)
-	newSessionID := "44444444-4444-4444-8444-444444444444"
-	writeTranscriptFixture(t, workspacePath, newSessionID, []map[string]any{{
-		"type":      "user",
-		"uuid":      "44000000-0000-4000-8000-000000000001",
-		"sessionId": newSessionID,
-		"timestamp": "2026-08-17T00:00:00Z",
-		"cwd":       workspacePath,
-		"message": map[string]any{
-			"role":    "user",
-			"content": "继续 fork",
-		},
-	}})
-	now := time.Now().UTC()
-	stored, err := service.files.UpsertSession(workspacePath, protocol.Session{
-		SessionKey:   "agent:nexus:ws:dm:fork-materialize",
-		AgentID:      cfg.DefaultAgentID,
-		ChannelType:  "websocket",
-		ChatType:     "dm",
-		Status:       "active",
-		CreatedAt:    now,
-		LastActivity: now,
-		Options: map[string]any{
-			protocol.OptionRuntimeKind:                "claude",
-			protocol.OptionRuntimeProvider:            "glm",
-			protocol.OptionRuntimeModel:               "glm-5.1",
-			protocol.OptionRuntimeForkSourceSessionID: "source-session",
-			protocol.OptionRuntimeForkMessageID:       "source-boundary",
-		},
-		IsActive: true,
-	})
-	if err != nil || stored == nil {
-		t.Fatalf("预写入 pending fork Session 失败: stored=%+v err=%v", stored, err)
-	}
-
-	updated, err := service.syncSDKSessionIDForOwner(
-		context.Background(),
-		"__system__",
-		workspacePath,
-		*stored,
-		newSessionID,
-		"claude",
-		"glm",
-		"glm-5.1",
-		"surface",
-	)
-	if err != nil {
-		t.Fatalf("物化 fork session 失败: %v", err)
-	}
-	if got := stringPointer(t, updated.SessionID); got != newSessionID {
-		t.Fatalf("fork session_id = %q, want %q", got, newSessionID)
-	}
-	if sourceID, messageID := pendingConversationFork(updated.Options); sourceID != "" || messageID != "" {
-		t.Fatalf("pending fork 未清理: source=%q message=%q", sourceID, messageID)
-	}
-}
-
-func TestSDKSessionSyncKeepsWorkspacePendingWhenRoomPersistenceFails(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	agentService := newDMAgentService(t, cfg)
-	service := NewService(
-		cfg,
-		agentService,
-		runtimectx.NewManagerWithFactory(&fakeDMFactory{}),
-		permissionctx.NewContext(),
-	)
-	persistErr := errors.New("persist room fork identity")
-	service.SetRoomSessionStore(forkRoomSessionStore{updateErr: persistErr})
-
-	workspacePath := dmMainWorkspacePath(cfg)
-	newSessionID := "55555555-5555-4555-8555-555555555555"
-	writeTranscriptFixture(t, workspacePath, newSessionID, []map[string]any{{
-		"type":      "user",
-		"uuid":      "55000000-0000-4000-8000-000000000001",
-		"sessionId": newSessionID,
-		"timestamp": "2026-08-17T00:00:00Z",
-		"cwd":       workspacePath,
-		"message": map[string]any{
-			"role":    "user",
-			"content": "继续 fork",
-		},
-	}})
-	roomSessionID := "room-session-fork-pending"
-	now := time.Now().UTC()
-	stored, err := service.files.UpsertSession(workspacePath, protocol.Session{
-		SessionKey:    "agent:nexus:ws:dm:fork-room-persist-failure",
-		AgentID:       cfg.DefaultAgentID,
-		RoomSessionID: &roomSessionID,
-		ChannelType:   "websocket",
-		ChatType:      "dm",
-		Status:        "active",
-		CreatedAt:     now,
-		LastActivity:  now,
-		Options: map[string]any{
-			protocol.OptionRuntimeKind:                "claude",
-			protocol.OptionRuntimeProvider:            "glm",
-			protocol.OptionRuntimeModel:               "glm-5.1",
-			protocol.OptionRuntimeForkSourceSessionID: "source-session",
-			protocol.OptionRuntimeForkMessageID:       "source-boundary",
-		},
-		IsActive: true,
-	})
-	if err != nil || stored == nil {
-		t.Fatalf("预写入 pending fork Session 失败: stored=%+v err=%v", stored, err)
-	}
-
-	if _, err = service.syncSDKSessionIDForOwner(
-		context.Background(),
-		"__system__",
-		workspacePath,
-		*stored,
-		newSessionID,
-		"claude",
-		"glm",
-		"glm-5.1",
-		"surface",
-	); !errors.Is(err, persistErr) {
-		t.Fatalf("Room 持久化失败应原样返回: %v", err)
-	}
-	reloaded, _, err := service.files.ForOwner("__system__").FindSession(
-		[]string{workspacePath},
-		stored.SessionKey,
-	)
-	if err != nil || reloaded == nil {
-		t.Fatalf("重读 pending fork Session 失败: session=%+v err=%v", reloaded, err)
-	}
-	if reloaded.SessionID != nil && strings.TrimSpace(*reloaded.SessionID) != "" {
-		t.Fatalf("SQL 未提交时 workspace 不应先切换 target SDK: %q", *reloaded.SessionID)
-	}
-	if sourceID, messageID := pendingConversationFork(reloaded.Options); sourceID != "source-session" || messageID != "source-boundary" {
-		t.Fatalf("SQL 未提交时 workspace 应保留 pending fork: source=%q message=%q", sourceID, messageID)
-	}
-}
-
 func TestResolveConversationForkBoundaryFindsHistoricalTranscriptSegment(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	workspacePath := dmMainWorkspacePath(cfg)
@@ -577,66 +432,6 @@ func TestCompletedAssistantRoundUsesPagedMessageSemantics(t *testing.T) {
 	}
 }
 
-func TestLatestCompletedAssistantRoundSkipsActiveAndFailedTail(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"round_id": "round-success",
-			"role":     "assistant",
-			"result_summary": map[string]any{
-				"subtype": "success",
-			},
-		},
-		{
-			"round_id":    "round-failed",
-			"role":        "assistant",
-			"stop_reason": "error",
-		},
-		{
-			"round_id": "round-active",
-			"role":     "assistant",
-		},
-	}
-	if got := latestCompletedAssistantRound(rows, []string{"round-active"}); got != "round-success" {
-		t.Fatalf("latestCompletedAssistantRound() = %q, want round-success", got)
-	}
-}
-
-func TestLatestForkableAssistantRoundSkipsOverlayOnlyProjection(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"round_id": "round-transcript",
-			"role":     "assistant",
-			"result_summary": map[string]any{
-				"subtype": "success",
-			},
-		},
-		{
-			"round_id": "round-overlay",
-			"role":     "assistant",
-			"result_summary": map[string]any{
-				"subtype": "success",
-			},
-		},
-	}
-	resolved := make([]string, 0, 2)
-	roundID, err := latestForkableAssistantRound(rows, nil, func(candidate string) error {
-		resolved = append(resolved, candidate)
-		if candidate == "round-overlay" {
-			return fmt.Errorf("%w: %s", workspacestore.ErrTranscriptRoundNotFound, candidate)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if roundID != "round-transcript" {
-		t.Fatalf("latest forkable round = %q, want round-transcript", roundID)
-	}
-	if !slices.Equal(resolved, []string{"round-overlay", "round-transcript"}) {
-		t.Fatalf("resolved candidates = %v", resolved)
-	}
-}
-
 func TestLatestForkableAssistantRoundSkipsIncompleteTranscriptProjection(t *testing.T) {
 	rows := []protocol.Message{
 		{
@@ -706,22 +501,4 @@ func TestTransientForkAtTranscriptTailOmitsProviderSpecificMessageBoundary(t *te
 	}, "round-target") {
 		t.Fatal("historical round was incorrectly recognized as the transcript tail")
 	}
-}
-
-func latestCompletedAssistantRound(rows []protocol.Message, activeRoundIDs []string) string {
-	seen := make(map[string]struct{})
-	for index := len(rows) - 1; index >= 0; index-- {
-		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
-		if roundID == "" {
-			continue
-		}
-		if _, duplicate := seen[roundID]; duplicate {
-			continue
-		}
-		seen[roundID] = struct{}{}
-		if completedAssistantRound(rows, roundID, activeRoundIDs) {
-			return roundID
-		}
-	}
-	return ""
 }

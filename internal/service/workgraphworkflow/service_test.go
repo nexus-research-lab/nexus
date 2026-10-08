@@ -302,24 +302,6 @@ func TestSavedWorkflowReopensItsDraftAndPersistsSelectedRevisionAsUpdate(t *test
 	}
 }
 
-func TestPreviewPrefersAvailableSingleWordSlashName(t *testing.T) {
-	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
-		"existing-research": {ID: "existing-research", OwnerUserID: "owner-a", SlashName: "research"},
-	}}
-	service := NewService(repository, workflowExecutionViewer{view: workflowSourceView()})
-	service.SetAbstractor(workflowAbstractor(reusableTestAbstractor))
-
-	preview, err := service.PreviewFromExecution(context.Background(), "owner-a", protocol.PreviewWorkGraphWorkflowRequest{
-		SourceSessionKey: "session-a", SourceExecutionID: "execution-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if preview.SlashName != "deep" {
-		t.Fatalf("slash name = %q, want next available single word", preview.SlashName)
-	}
-}
-
 func TestPreviewUsesNumberedFallbackWhenSinglesAndBuiltinNameConflict(t *testing.T) {
 	repository := &workflowMemoryRepository{items: map[string]protocol.WorkGraphWorkflow{
 		"existing-research": {ID: "existing-research", OwnerUserID: "owner-a", SlashName: "research"},

@@ -390,23 +390,6 @@ func TestMapAutomationFailurePreservesEffectEvidence(t *testing.T) {
 	}
 }
 
-func TestDeleteTaskPreparedFailureExplainsDurableCleanup(t *testing.T) {
-	t.Parallel()
-
-	failure := mapAutomationFailure(
-		automationFailureDeleteTask,
-		automationsvc.MarkTaskDeletionPrepared(errors.New("cleanup unavailable")),
-	)
-	if failure.spec.Effect != protocol.FailureEffectAccepted {
-		t.Fatalf("unexpected durable delete failure: %+v", failure.spec)
-	}
-	for _, phrase := range []string{"已停止接受新运行", "不会撤回", "不会自动重放", "稍后刷新"} {
-		if !strings.Contains(failure.spec.Detail, phrase) {
-			t.Fatalf("delete failure detail %q omitted %q", failure.spec.Detail, phrase)
-		}
-	}
-}
-
 func TestDeleteTaskReviewRequiredFailureDoesNotPromiseAutomaticRecovery(t *testing.T) {
 	t.Parallel()
 

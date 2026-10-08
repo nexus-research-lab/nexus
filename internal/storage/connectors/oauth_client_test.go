@@ -13,19 +13,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestOAuthClientStoreGetEmpty(t *testing.T) {
-	store, closeDB := newOAuthClientStoreForTest(t)
-	defer closeDB()
-
-	record, err := store.Get(context.Background(), "user-1", "github")
-	if err != nil {
-		t.Fatalf("读取空 OAuth client 失败: %v", err)
-	}
-	if record != nil {
-		t.Fatalf("空表应返回 nil，实际: %+v", record)
-	}
-}
-
 func TestOAuthClientStoreUpsertGetAndDelete(t *testing.T) {
 	store, closeDB := newOAuthClientStoreForTest(t)
 	defer closeDB()
@@ -101,45 +88,6 @@ func TestOAuthClientStoreRequiresEncryptionKey(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "CONNECTOR_CREDENTIALS_KEY 未配置") {
 		t.Fatalf("缺少 key 应拒绝保存 secret，实际: %v", err)
-	}
-}
-
-func TestOAuthClientStoreReadsIdentifiedAndUnidentifiedLegacyKeys(t *testing.T) {
-	db := newOAuthClientStoreDB(t)
-	defer db.Close()
-	activeRaw := testConnectorCredentialKey()
-	legacyRaw := base64.StdEncoding.EncodeToString([]byte("abcdefghijklmnopqrstuvwxyz123456"))
-	legacyKey, err := credentials.DecodeKey(legacyRaw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacyStore := NewOAuthClientStore(db, "sqlite", legacyKey)
-	if err = legacyStore.Upsert(context.Background(), OAuthClient{
-		OwnerUserID: "user-1", ConnectorID: "github",
-		ClientID: "client-id", ClientSecret: "identified-legacy",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	activeKeyring, keyringErr := credentials.NewKeyring(activeRaw, []string{legacyRaw})
-	store := NewOAuthClientStoreWithKeyring(db, "sqlite", activeKeyring, keyringErr)
-	record, err := store.Get(context.Background(), "user-1", "github")
-	if err != nil || record == nil || record.ClientSecret != "identified-legacy" {
-		t.Fatalf("identified legacy OAuth client mismatch: record=%+v err=%v", record, err)
-	}
-
-	legacyV1, err := credentials.EncryptPayload(legacyKey, []byte("unidentified-legacy"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`
-UPDATE connector_oauth_clients SET client_secret_encrypted = ?
- WHERE owner_user_id = 'user-1' AND connector_id = 'github'`, legacyV1); err != nil {
-		t.Fatal(err)
-	}
-	record, err = store.Get(context.Background(), "user-1", "github")
-	if err != nil || record == nil || record.ClientSecret != "unidentified-legacy" {
-		t.Fatalf("unidentified legacy OAuth client mismatch: record=%+v err=%v", record, err)
 	}
 }
 

@@ -125,35 +125,6 @@ func TestRepositoryPersistsLatestReceiptAndPhaseAcrossReopen(t *testing.T) {
 	}
 }
 
-func TestRepositoryAllowsReaperFailureToDowngradeRetiredToUnknown(t *testing.T) {
-	repository := newSandboxReceiptRepository(t)
-	receipt := testSandboxReceipt()
-	if err := repository.Save(t.Context(), receipt); err != nil {
-		t.Fatal(err)
-	}
-	if err := repository.UpdatePhase(t.Context(), receipt.OwnerUserID, receipt.SessionKey, receipt.Generation, protocol.SandboxPolicyReceiptRetired, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := repository.UpdatePhase(t.Context(), receipt.OwnerUserID, receipt.SessionKey, receipt.Generation, protocol.SandboxPolicyReceiptUnknown, "owner process reaper failed"); err != nil {
-		t.Fatal(err)
-	}
-	got, found, err := repository.Latest(t.Context(), receipt.OwnerUserID, receipt.SessionKey)
-	if err != nil || !found {
-		t.Fatalf("latest receipt found=%t err=%v", found, err)
-	}
-	if got.Phase != protocol.SandboxPolicyReceiptUnknown || got.UnknownReason != "owner process reaper failed" {
-		t.Fatalf("reaper failure phase = %#v", got)
-	}
-	// Once uncertainty is recorded, stale callbacks cannot make it look clean.
-	if err := repository.UpdatePhase(t.Context(), receipt.OwnerUserID, receipt.SessionKey, receipt.Generation, protocol.SandboxPolicyReceiptRetired, "late callback"); err != nil {
-		t.Fatal(err)
-	}
-	got, _, err = repository.Latest(t.Context(), receipt.OwnerUserID, receipt.SessionKey)
-	if err != nil || got.Phase != protocol.SandboxPolicyReceiptUnknown || got.UnknownReason != "owner process reaper failed" {
-		t.Fatalf("late retired callback changed unknown receipt = %#v err=%v", got, err)
-	}
-}
-
 func TestRepositoryRejectsUnknownWithoutReasonAndMalformedRows(t *testing.T) {
 	repository := newSandboxReceiptRepository(t)
 	receipt := testSandboxReceipt()

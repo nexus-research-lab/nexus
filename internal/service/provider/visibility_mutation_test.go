@@ -9,53 +9,6 @@ import (
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
-func TestProviderListIncludesUsageAgents(t *testing.T) {
-	ctx := context.Background()
-	service, db := newTestService(t)
-	record, err := service.Create(ctx, CreateInput{
-		Provider:    "blocked",
-		PresetKey:   presetCustom,
-		APIFormat:   APIFormatAnthropicMessages,
-		AuthToken:   "blocked-key",
-		BaseURL:     "https://api.example.com",
-		ModelsPath:  "/models",
-		DisplayName: "Blocked",
-	})
-	if err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
-	insertProviderUsageAgent(t, db, "agent-main", "main", "main", "主助手", true, record.Provider, "active")
-	insertProviderUsageAgent(t, db, "agent-worker", "worker", "worker", "", false, record.Provider, "active")
-	insertProviderUsageAgent(t, db, "agent-archived", "archived", "archived", "归档助手", false, record.Provider, "archived")
-
-	records, err := service.List(ctx)
-	if err != nil {
-		t.Fatalf("读取 provider 列表失败: %v", err)
-	}
-	var target *Record
-	for index := range records {
-		if records[index].Provider == record.Provider {
-			target = &records[index]
-			break
-		}
-	}
-	if target == nil {
-		t.Fatalf("未找到 provider: %+v", records)
-	}
-	if target.UsageCount != 2 {
-		t.Fatalf("usage_count 应只统计 active Agent: %+v", target)
-	}
-	if len(target.UsedByAgents) != 2 {
-		t.Fatalf("used_by_agents 数量不正确: %+v", target.UsedByAgents)
-	}
-	if target.UsedByAgents[0].AgentID != "agent-main" || target.UsedByAgents[0].DisplayName != "主助手" || !target.UsedByAgents[0].IsMain {
-		t.Fatalf("主 Agent 摘要不正确: %+v", target.UsedByAgents[0])
-	}
-	if target.UsedByAgents[1].AgentID != "agent-worker" || target.UsedByAgents[1].DisplayName != "worker" {
-		t.Fatalf("普通 Agent 摘要不正确: %+v", target.UsedByAgents[1])
-	}
-}
-
 func TestProviderVisibilityScopesProvidersByOwner(t *testing.T) {
 	service, _ := newTestService(t)
 	adminCtx := providerTestContext("admin-user", authctx.RoleAdmin)
@@ -343,78 +296,6 @@ func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *test
 	insertProviderUsageAgentForOwner(t, db, "owner-b", "agent-public-b", "public-b", "Public B", "", false, record.Provider, "active")
 	if _, err = service.Delete(adminCtx, record.Provider, DeleteInput{}); err == nil || !strings.Contains(err.Error(), "2 个 Agent") {
 		t.Fatalf("公共 provider 删除应按全局使用保护: %v", err)
-	}
-}
-
-func TestProviderDisablePreservesExplicitBindingsForAutomaticRestore(t *testing.T) {
-	service, db := newTestService(t)
-	ctx := providerTestContext("owner-user", authctx.RoleMember)
-	fallback, err := service.Create(ctx, CreateInput{
-		Provider:    "fallback-provider",
-		PresetKey:   presetCustom,
-		APIFormat:   APIFormatAnthropicMessages,
-		AuthToken:   "fallback-token",
-		BaseURL:     "https://fallback.example.com",
-		ModelsPath:  "/models",
-		Enabled:     true,
-		DisplayName: "Fallback",
-	})
-	if err != nil {
-		t.Fatalf("创建 fallback provider 失败: %v", err)
-	}
-	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
-		t.Fatalf("设置 fallback 默认模型失败: %v", err)
-	}
-	setTestDefaultAgentSelection(service, DefaultAgentSelection{
-		Provider:    fallback.Provider,
-		Model:       "fallback-model",
-		RuntimeKind: "claude",
-	})
-	record, err := service.Create(ctx, CreateInput{
-		Provider:    "used-private",
-		PresetKey:   presetCustom,
-		APIFormat:   APIFormatAnthropicMessages,
-		AuthToken:   "private-token",
-		BaseURL:     "https://private.example.com",
-		ModelsPath:  "/models",
-		Enabled:     true,
-		DisplayName: "Used Private",
-	})
-	if err != nil {
-		t.Fatalf("创建私有 provider 失败: %v", err)
-	}
-	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-main", "main", "Nexus", "", true, record.Provider, "active")
-	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-used-private", "used-private", "Used Private Agent", "", false, record.Provider, "active")
-	if _, err = db.Exec(`UPDATE runtimes SET model = ? WHERE agent_id IN (?, ?)`, "target-model", "agent-main", "agent-used-private"); err != nil {
-		t.Fatalf("写入显式模型绑定失败: %v", err)
-	}
-
-	updated, err := service.Update(ctx, record.Provider, UpdateInput{
-		PresetKey:    record.PresetKey,
-		APIFormat:    record.APIFormat,
-		DisplayName:  record.DisplayName,
-		BaseURL:      record.BaseURL,
-		ModelsPath:   record.ModelsPath,
-		ProviderKind: record.ProviderKind,
-		Enabled:      false,
-	})
-	if err != nil {
-		t.Fatalf("关闭正在使用的 provider 应成功: %v", err)
-	}
-	if updated.Enabled {
-		t.Fatalf("provider 应已关闭: %+v", updated)
-	}
-	entity, err := service.repository.GetVisibleByProvider(ctx, "owner-user", record.Provider)
-	if err != nil {
-		t.Fatalf("读取 provider 失败: %v", err)
-	}
-	if entity == nil || entity.AuthToken != "private-token" {
-		t.Fatalf("关闭 provider 应保留 token: %+v", entity)
-	}
-	runtimes := runtimeSelectionsByAgent(t, db, "agent-main", "agent-used-private")
-	if runtimes["agent-main"].provider != record.Provider || runtimes["agent-main"].model != "target-model" ||
-		runtimes["agent-used-private"].provider != record.Provider || runtimes["agent-used-private"].model != "target-model" {
-		t.Fatalf("失效 provider 的显式绑定应保留，以便恢复后自动切回: %+v", runtimes)
 	}
 }
 

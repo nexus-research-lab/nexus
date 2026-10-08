@@ -69,39 +69,6 @@ func TestServiceRepairCurrentGoalPreviewsUsesDurableOwner(t *testing.T) {
 	}
 }
 
-func TestServiceRunAutoResumeOnceDispatchesActiveGoal(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{
-		GoalEnabled:             true,
-		GoalAutoContinueEnabled: true,
-	}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Resume after restart",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatcher := &fakeContinuationDispatcher{}
-	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
-		t.Fatal(err)
-	}
-	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
-		t.Fatalf("plans = %#v, want one resumed goal", dispatcher.plans)
-	}
-	current, err := service.Current(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.ContinuationCount != 1 {
-		t.Fatalf("ContinuationCount = %d, want 1", current.ContinuationCount)
-	}
-}
-
 func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -124,47 +91,6 @@ func TestServiceRunAutoResumeOnceSkipsDeferredGoal(t *testing.T) {
 	}
 	if len(dispatcher.plans) != 0 {
 		t.Fatalf("plans = %#v, want no dispatch for busy session", dispatcher.plans)
-	}
-}
-
-func TestServiceRunAutoResumeOnceReleasesPlanWhenDispatchDefers(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{
-		GoalEnabled:             true,
-		GoalAutoContinueEnabled: true,
-	}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Do not count deferred continuation",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatcher := &fakeContinuationDispatcher{}
-	dispatcher.onShouldDefer = func(call int, sessionKey string) {
-		if call == 2 {
-			dispatcher.deferSessions = map[string]bool{sessionKey: true}
-		}
-	}
-	if err := service.RunAutoResumeOnce(ctx, dispatcher); err != nil {
-		t.Fatal(err)
-	}
-	if len(dispatcher.plans) != 0 {
-		t.Fatalf("plans = %#v, want no dispatch after second defer", dispatcher.plans)
-	}
-	current, err := service.Current(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.ContinuationCount != 0 {
-		t.Fatalf("ContinuationCount = %d, want deferred continuation released", current.ContinuationCount)
-	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "continuation_deferred" {
-		t.Fatalf("last event = %#v, want continuation_deferred", got)
 	}
 }
 

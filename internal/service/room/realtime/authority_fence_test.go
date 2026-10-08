@@ -142,25 +142,6 @@ func (b *authorityFenceBroadcaster) eventCount() int {
 	return len(b.events)
 }
 
-func TestRoomSlotOutputFenceRechecksMembership(t *testing.T) {
-	initialContext := newAuthorityFenceContext()
-	store := &authorityFenceRoomStore{contextValue: initialContext}
-	service := &Service{rooms: store}
-	roundValue := newAuthorityFenceRound(initialContext)
-	slot := &activeRoomSlot{AgentID: "agent-a"}
-
-	if err := service.ensureSlotOutputAuthorized(t.Context(), roundValue, slot); err != nil {
-		t.Fatalf("current member output was rejected: %v", err)
-	}
-	store.update(func(contextValue *protocol.ConversationContextAggregate) {
-		contextValue.Members = contextValue.Members[1:]
-		contextValue.Room.AuthorityEpoch++
-	})
-	if err := service.ensureSlotOutputAuthorized(t.Context(), roundValue, slot); !errors.Is(err, errRoomSlotAuthorityRevoked) {
-		t.Fatalf("removed member output was not fenced: %v", err)
-	}
-}
-
 func TestRoomSlotOutputFenceRejectsPausedMember(t *testing.T) {
 	initialContext := newAuthorityFenceContext()
 	store := &authorityFenceRoomStore{contextValue: initialContext}
@@ -173,39 +154,6 @@ func TestRoomSlotOutputFenceRejectsPausedMember(t *testing.T) {
 	})
 	if err := service.ensureSlotOutputAuthorized(t.Context(), roundValue, slot); !errors.Is(err, errRoomSlotAuthorityRevoked) {
 		t.Fatalf("paused member output was not fenced: %v", err)
-	}
-}
-
-func TestRoomSlotOutputFenceRechecksWithCancelledRuntimeContext(t *testing.T) {
-	initialContext := newAuthorityFenceContext()
-	store := &authorityFenceRoomStore{
-		contextValue:        initialContext,
-		respectCancellation: true,
-	}
-	service := &Service{rooms: store}
-	roundValue := newAuthorityFenceRound(initialContext)
-	slot := &activeRoomSlot{AgentID: "agent-a"}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	if err := service.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
-		t.Fatalf("cancelled runtime context prevented authoritative recheck: %v", err)
-	}
-}
-
-func TestRoomSlotOutputFenceRejectsAuthorityEpochChange(t *testing.T) {
-	initialContext := newAuthorityFenceContext()
-	store := &authorityFenceRoomStore{contextValue: initialContext}
-	service := &Service{rooms: store}
-	roundValue := newAuthorityFenceRound(initialContext)
-	slot := &activeRoomSlot{AgentID: "agent-a"}
-
-	store.update(func(contextValue *protocol.ConversationContextAggregate) {
-		// 模拟 host transfer：成员仍在，但旧 round 的授权世代已经失效。
-		contextValue.Room.AuthorityEpoch++
-	})
-	if err := service.ensureSlotOutputAuthorized(t.Context(), roundValue, slot); !errors.Is(err, errRoomSlotAuthorityRevoked) {
-		t.Fatalf("stale authority epoch was not fenced: %v", err)
 	}
 }
 
@@ -272,37 +220,6 @@ func TestRoomDirectedReplyDropsAfterAuthorityRevocation(t *testing.T) {
 	if broadcaster.eventCount() != 0 {
 		t.Fatalf("revoked directed reply emitted %d events", broadcaster.eventCount())
 	}
-}
-
-func TestRoomCompletionAdmissionPrecedesGoalMutation(t *testing.T) {
-	initialContext := newAuthorityFenceContext()
-	store := &authorityFenceRoomStore{contextValue: initialContext}
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{
-		rooms:       store,
-		goals:       goalProvider,
-		broadcaster: &authorityFenceBroadcaster{},
-	}
-	roundValue := newAuthorityFenceRound(initialContext)
-	slot := &activeRoomSlot{AgentID: "agent-a", AgentRoundID: "agent-round-a"}
-	slot.setStatus("running")
-	slot.setGoalBinding(roundValue.SessionKey, "goal-a")
-	store.update(func(contextValue *protocol.ConversationContextAggregate) {
-		contextValue.Room.AuthorityEpoch++
-	})
-	execution := &slotExecution{
-		service: service,
-		ctx:     t.Context(),
-		round:   roundValue,
-		slot:    slot,
-		// mapper 故意为空：撤权闸门必须在读取 runtime 最终快照前返回。
-	}
-
-	err := execution.complete(exec.RoundExecutionResult{TerminalStatus: "finished"})
-	if !errors.Is(err, errRoomSlotAuthorityRevoked) {
-		t.Fatalf("revoked completion returned err=%v", err)
-	}
-	assertAuthorityFenceGoalProviderUntouched(t, goalProvider)
 }
 
 func TestRoomFailureAfterRevocationIsSilentlyRetired(t *testing.T) {

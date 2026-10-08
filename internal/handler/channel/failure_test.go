@@ -226,27 +226,6 @@ func TestHandleGetCurrentChannelLoginFailsClosedWithoutExposingBinding(t *testin
 	}
 }
 
-func TestHandleGetCurrentChannelLoginAbsenceIsReadFactNotWriteOutcome(t *testing.T) {
-	handler := New(handlershared.NewAPI(nil), nil, &fakeControl{
-		currentLoginErr: channelspkg.ErrChannelLoginNotFound,
-	})
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(
-		http.MethodGet,
-		"/nexus/v1/capability/channels/feishu/login",
-		nil,
-	)
-	request = request.WithContext(withRouteParam(
-		request.Context(),
-		"channel_type",
-		channelspkg.ChannelTypeFeishu,
-	))
-	handler.HandleGetCurrentChannelLogin(recorder, request)
-
-	assertChannelFailure(t, recorder, http.StatusNotFound,
-		"channel.read_login_not_found", protocol.FailureEffectNotApplicable)
-}
-
 func assertChannelFailure(
 	t *testing.T,
 	recorder *httptest.ResponseRecorder,

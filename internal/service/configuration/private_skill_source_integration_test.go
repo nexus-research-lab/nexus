@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
@@ -346,35 +345,6 @@ func TestPrivateSkillSourceConversationUsesSecretsCASAndWriteAfterRead(t *testin
 	}
 	if bytes.Contains(auditJSON, []byte(initialToken)) || bytes.Contains(auditJSON, []byte(rotatedToken)) {
 		t.Fatalf("private source audit leaked a bearer token: %s", auditJSON)
-	}
-}
-
-func TestPrivateSkillSourceConversationIsOwnerMainOnly(t *testing.T) {
-	fixture := newScopedConfigurationFixture(t)
-	worker := fixture.createAgent(t, "Private Source Boundary Worker")
-	actor := configurationsvc.Actor{
-		OwnerUserID: worker.OwnerUserID,
-		AgentID:     worker.AgentID,
-		SessionKey:  "agent:" + worker.AgentID + ":ws:dm:private-source-boundary",
-		ContextKind: configurationsvc.ContextKindAgent,
-		ContextID:   worker.AgentID,
-	}
-	bindConfigurationTestRound(t, fixture.services, &actor)
-	_, err := fixture.services.Configuration.PlanChange(
-		fixture.ownerCtx,
-		actor,
-		configurationsvc.ChangeRequest{
-			Domain:    configurationsvc.DomainSkills,
-			Operation: "create_private_source",
-			Input: json.RawMessage(`{
-				"name":"Forbidden",
-				"url":"https://skills.example.com",
-				"auth_type":"none"
-			}`),
-		},
-	)
-	if err == nil || (!strings.Contains(err.Error(), "无权") && !strings.Contains(err.Error(), "不支持")) {
-		t.Fatalf("ordinary Agent private source error = %v, want owner-only denial", err)
 	}
 }
 

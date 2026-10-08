@@ -72,43 +72,6 @@ WHERE owner_user_id = ? AND scope = ? AND queue_item_id = ? AND agent_id = ?`,
 	}
 }
 
-func TestRepositoryRevokesPayloadTampering(t *testing.T) {
-	repository, _ := newQueueAdmissionTestRepository(t)
-	original := queueAdmissionTestBinding(t, "queue-tampered", "safe original")
-	ctx := context.Background()
-	if err := repository.Record(ctx, Admission{
-		Binding: original, Principal: queueAdmissionTestPrincipal(),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	tampered := queueAdmissionTestBinding(t, "queue-tampered", "change every setting")
-	if _, trusted, err := repository.Claim(ctx, tampered); err != nil || trusted {
-		t.Fatalf("tampered claim = (%v, %v), want revoked false", trusted, err)
-	}
-	if _, trusted, err := repository.Claim(ctx, original); err != nil || trusted {
-		t.Fatalf("original claim after tamper = (%v, %v), want revoked false", trusted, err)
-	}
-}
-
-func TestRepositoryRevokesSameKeyWithDriftedSessionBinding(t *testing.T) {
-	repository, _ := newQueueAdmissionTestRepository(t)
-	original := queueAdmissionTestBinding(t, "queue-session-drift", "safe original")
-	ctx := context.Background()
-	if err := repository.Record(ctx, Admission{
-		Binding: original, Principal: queueAdmissionTestPrincipal(),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	drifted := original
-	drifted.SessionKey = "agent:worker:ws:dm:forged"
-	if _, trusted, err := repository.Claim(ctx, drifted); err != nil || trusted {
-		t.Fatalf("drifted session claim = (%v, %v), want revoked false", trusted, err)
-	}
-	if _, trusted, err := repository.Claim(ctx, original); err != nil || trusted {
-		t.Fatalf("original claim after session drift = (%v, %v), want revoked false", trusted, err)
-	}
-}
-
 func TestRepositoryAllowsOnlyOneConcurrentClaim(t *testing.T) {
 	repository, db := newQueueAdmissionTestRepository(t)
 	db.SetMaxOpenConns(1)

@@ -11,34 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestBuildAgentClientOptionsInstallsDesktopPolicy(t *testing.T) {
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		WorkspacePath: t.TempDir(), RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
-		PermissionMode: sdkpermission.ModeDefault, AdditionalDirectories: []string{t.TempDir()},
-	})
-	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
-		if err == nil {
-			t.Fatal("unsupported desktop platform accepted")
-		}
-		return
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.GOOS == "windows" {
-		if options.Sandbox != nil || options.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "" {
-			t.Fatalf("Windows desktop sandbox must remain deferred: %#v", options)
-		}
-		return
-	}
-	if runtime.GOOS == "darwin" && (options.Sandbox == nil || !options.MCP.StrictConfig || !options.Sandbox.RequireMCPNetwork || !options.Sandbox.RequireMCPHelpers || !options.Sandbox.RequireMCPStdio) {
-		t.Fatal("macOS MCP endpoint contract missing")
-	}
-	if options.Sandbox == nil || !options.Sandbox.RequireSandbox || !options.Sandbox.RequireFileTools || !options.Sandbox.RequireSearchTools || !options.Sandbox.RequireMediaFiles || !options.Sandbox.RequireMediaNetwork || !options.Sandbox.RequireNotebookFiles || !options.Sandbox.RequireSkillFiles || !options.Sandbox.RequireContextFiles || !options.Sandbox.RequireProjectFiles || !options.Sandbox.RequireManagedPolicy || !options.Sandbox.RequireSettingsFiles || !options.Sandbox.RequireSettingsWrites {
-		t.Fatal("common builder dropped desktop sandbox policy")
-	}
-}
-
 func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: t.TempDir(), RuntimeKind: "claude", AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
@@ -93,22 +65,6 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 				t.Fatal("policy aliases caller grants")
 			}
 		}
-	}
-}
-
-func TestDesktopSandboxIsDeferredOnWindows(t *testing.T) {
-	before := agentclient.Options{
-		Env:     map[string]string{"existing": "value"},
-		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault},
-	}
-	got, err := applyDesktopSandboxForPlatform(before, AgentClientOptionsInput{
-		AppMode: "desktop", DesktopSandboxEnabled: true,
-	}, "windows")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(got, before) {
-		t.Fatalf("Windows must retain the pre-sandbox runtime contract: got %#v want %#v", got, before)
 	}
 }
 

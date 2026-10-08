@@ -301,10 +301,6 @@ func optionalBudget(value int64) protocol.OptionalInt64 {
 	return protocol.OptionalInt64{Present: true, Value: &value}
 }
 
-func clearBudget() protocol.OptionalInt64 {
-	return protocol.OptionalInt64{Present: true}
-}
-
 func assertGoalInvalidInputMessage(t *testing.T, err error, want string) {
 	t.Helper()
 	if !errors.Is(err, ErrGoalInvalidInput) {

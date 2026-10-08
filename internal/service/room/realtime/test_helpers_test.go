@@ -231,19 +231,6 @@ func sendFakeAssistantResult(client *fakeRoomClient, messageID string, text stri
 	sendFakeAssistantResultWithUsage(client, messageID, text, nil)
 }
 
-func mentionCountFromTestValue(value any) int {
-	switch typed := value.(type) {
-	case []protocol.AgentMention:
-		return len(typed)
-	case []map[string]any:
-		return len(typed)
-	case []any:
-		return len(typed)
-	default:
-		return 0
-	}
-}
-
 type fakeRoomTitleScheduler struct {
 	mu       sync.Mutex
 	requests []titlegen.Request
@@ -561,24 +548,6 @@ func normalizePendingValue(value any) string {
 		return typed
 	}
 	return ""
-}
-
-func assertRoomStreamBlockIndex(t *testing.T, events []protocol.EventMessage, messageID string, blockType string, expectedIndex int) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType != protocol.EventTypeStream || event.MessageID != messageID {
-			continue
-		}
-		contentBlock, ok := event.Data["content_block"].(map[string]any)
-		if !ok || contentBlock["type"] != blockType {
-			continue
-		}
-		if event.Data["index"] != expectedIndex {
-			t.Fatalf("Room %s stream index 不正确: got=%v want=%d event=%+v", blockType, event.Data["index"], expectedIndex, event)
-		}
-		return
-	}
-	t.Fatalf("未找到 Room block_type=%s message_id=%s 的 stream 事件: %+v", blockType, messageID, events)
 }
 
 func findRoomAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {

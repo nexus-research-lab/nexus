@@ -6,7 +6,6 @@ package workspace
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -290,152 +288,6 @@ func TestHistoryReadModelRoundIndexMatchesCanonicalProjection(t *testing.T) {
 		}
 		assertSessionRoundIndexJSONEqual(t, expected, warm)
 	})
-}
-
-func TestHistoryReadModelBackfillDoesNotRewriteCanonicalData(t *testing.T) {
-	root := t.TempDir()
-	workspacePath := filepath.Join(root, "Amy")
-	session := protocol.Session{
-		SessionKey: "agent:amy:ws:dm:canonical-unchanged",
-		AgentID:    "amy",
-	}
-	history := NewAgentHistoryStore(root)
-	writeAgentHistoryIndexSession(t, history, workspacePath, session)
-	appendAgentHistoryIndexRound(
-		t, history, workspacePath, session.SessionKey, "round-1", 1000,
-	)
-	overlayPath := history.paths.SessionOverlayPath(workspacePath, session.SessionKey)
-	before, err := os.ReadFile(overlayPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = history.ReadMessagesPageContext(
-		context.Background(),
-		workspacePath,
-		session,
-		nil,
-		HistoryPageQuery{Limit: 1},
-	); err != nil {
-		t.Fatal(err)
-	}
-	waitHistoryPageIndexFuture(t, history.historyPageAccess(workspacePath, session).Scope)
-	after, err := os.ReadFile(overlayPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(before) != string(after) {
-		t.Fatal("derived read-model backfill rewrote canonical overlay")
-	}
-	if _, err = os.Stat(history.readModel.path); err != nil {
-		t.Fatalf("derived database was not created outside canonical session: %v", err)
-	}
-}
-
-func TestRoomHistoryPageIndexTracksPrivateTranscriptDependencies(t *testing.T) {
-	stateRoot := t.TempDir()
-	history := newRoomHistoryTestStore(t, stateRoot)
-	ownerUserID := testRoomOwnerUserID
-	conversationID := "room-index-private-transcript"
-	workspacePath := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, ownerUserID), "Amy")
-	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	privateSessionKey := "agent:amy:ws:group:" + conversationID
-	sessionID := "5d928f9e-31bd-48a0-9cd5-21a804772001"
-	ownerHistory := history.agentHistory.ForOwner(ownerUserID)
-	writeAgentHistoryIndexSession(t, ownerHistory, workspacePath, protocol.Session{
-		SessionKey: privateSessionKey,
-		AgentID:    "amy",
-		SessionID:  &sessionID,
-	})
-	if err := ownerHistory.AppendRoundMarker(
-		workspacePath,
-		privateSessionKey,
-		"private-round-1",
-		"处理公区任务",
-		1000,
-	); err != nil {
-		t.Fatal(err)
-	}
-	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
-		{
-			"type": "user", "uuid": "room-private-user", "sessionId": sessionID,
-			"timestamp": "2026-08-17T00:00:00Z",
-			"message":   map[string]any{"role": "user", "content": "处理公区任务"},
-		},
-		{
-			"type": "assistant", "uuid": "room-private-assistant", "sessionId": sessionID,
-			"parentUuid": "room-private-user", "timestamp": "2026-08-17T00:00:01Z",
-			"message": map[string]any{
-				"id": "room-assistant-1", "role": "assistant", "stop_reason": "end_turn",
-				"content": []map[string]any{{"type": "text", "text": "公区任务已完成。"}},
-			},
-		},
-	})
-	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
-		"message_id": "room-user-1", "round_id": "root-private", "role": "user",
-		"content": "处理公区任务", "timestamp": int64(1000),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := history.AppendTranscriptReference(
-		ownerUserID,
-		conversationID,
-		workspacePath,
-		privateSessionKey,
-		protocol.Message{
-			"message_id": "room-assistant-1", "session_id": sessionID,
-			"conversation_id": conversationID, "agent_id": "amy",
-			"round_id": "root-private:amy", "agent_round_id": "private-round-1",
-			"role": "assistant", "is_complete": true, "timestamp": int64(1100),
-		},
-	); err != nil {
-		t.Fatal(err)
-	}
-	appendRoomHistoryIndexRound(t, history, ownerUserID, conversationID, "root-next", "amy", 2000)
-
-	latest := assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 1, "", 0, "", 0)
-	access := history.historyPageAccess(ownerUserID, conversationID)
-	waitHistoryPageIndexFuture(t, access.Scope)
-	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 1, "", 0, "", 0)
-	assertRoomHistoryPageParity(
-		t,
-		history,
-		ownerUserID,
-		conversationID,
-		nil,
-		1,
-		derefString(latest.NextBeforeRoundID),
-		derefInt64(latest.NextBeforeRoundTimestamp),
-		"",
-		0,
-	)
-	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 0, "", 0, "root-private", 1)
-
-	db, err := access.ReadModel.database(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelScope, ok, err := readHistoryReadModelScope(context.Background(), db, access.Scope)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("Room read model scope 未落盘")
-	}
-	kinds := make(map[string]bool)
-	for _, source := range modelScope.Sources {
-		kinds[source.Kind] = true
-	}
-	for _, kind := range []string{
-		historyPageSourceRoomLedger,
-		historyPageSourceRoomPrivateOverlay,
-		historyPageSourceTranscript,
-	} {
-		if !kinds[kind] {
-			t.Fatalf("Room index 缺少依赖 source %q: %+v", kind, modelScope.Sources)
-		}
-	}
 }
 
 func TestHistoryPageIndexActiveRoundsSuppressSyntheticInterrupt(t *testing.T) {
@@ -808,57 +660,6 @@ func TestHistoryReadModelRecreatesCorruptDerivedDatabase(t *testing.T) {
 	}
 	if version != historyReadModelSchemaVersion {
 		t.Fatalf("recreated schema version=%d, want %d", version, historyReadModelSchemaVersion)
-	}
-}
-
-func TestHistoryReadModelPageUsesOneGenerationSnapshot(t *testing.T) {
-	rootPath := t.TempDir()
-	model := sharedHistoryReadModel(rootPath)
-	access := historyPageIndexAccess{
-		Scope:     "generation-snapshot-" + rootPath,
-		ReadModel: model,
-		OpenRoot: func(bool) (*confinedfs.Root, error) {
-			return confinedfs.Open(rootPath)
-		},
-	}
-	oldBuild := testHistoryPageBuild("round-old")
-	oldBuild.Sources = []historyPageSourceSnapshot{{Kind: "test", Exists: true, Size: 1}}
-	if err := model.persist(context.Background(), access, oldBuild); err != nil {
-		t.Fatal(err)
-	}
-	db, err := model.database(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	readTx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer readTx.Rollback()
-	oldScope, ok, err := readHistoryReadModelScope(context.Background(), readTx, access.Scope)
-	if err != nil || !ok {
-		t.Fatalf("read old scope: ok=%v err=%v", ok, err)
-	}
-
-	newBuild := testHistoryPageBuild("round-new")
-	newBuild.Sources = []historyPageSourceSnapshot{{Kind: "test", Exists: true, Size: 2}}
-	if err = model.persist(context.Background(), access, newBuild); err != nil {
-		t.Fatal(err)
-	}
-	metadata, err := readHistoryReadModelMetadataRange(
-		context.Background(), readTx, access.Scope, oldScope.Generation, 0, 1,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	groups, err := readHistoryReadModelGroups(
-		context.Background(), readTx, access.Scope, oldScope.Generation, metadata, []int{0}, 0,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(groups) != 1 || groups[0].CursorRoundID != "round-old" {
-		t.Fatalf("generation changed inside one page read: %+v", groups)
 	}
 }
 

@@ -150,61 +150,6 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 	}
 }
 
-func TestDMSubagentUsageBackgroundRetryRecoversAndDispatchesNormalParentOnce(t *testing.T) {
-	const (
-		sessionKey = "agent:nexus:ws:dm:source-background-retry"
-		goalID     = "goal-source-background-retry"
-		roundID    = "round-source-background-retry"
-	)
-	provider := newRetryingDMGoalUsageProvider(sessionKey, goalID, 6)
-	var dispatches atomic.Int64
-	runner := &roundRunner{
-		service:                &Service{goals: provider},
-		sessionKey:             sessionKey,
-		roundID:                roundID,
-		ownerUserID:            "owner-source-background-retry",
-		goalIDForUsage:         goalID,
-		childGoalIDForUsage:    goalID,
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
-		runtimeKind:            "nxs",
-		goalTokenUsageObserved: true,
-		postRoundDispatchHook: func() {
-			dispatches.Add(1)
-		},
-	}
-	accelerateDMGoalUsageRetry(runner)
-	runner.markSubagentParentTerminal(subagentParentTerminalNormal)
-	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
-	terminalMessage := dmSubagentTaskMessage("task_notification", "completed")
-	terminalMessage["metadata"].(map[string]any)["usage"] = map[string]any{"total_tokens": int64(100)}
-
-	if settled := runner.recordSubagentGoalUsage(context.Background(), terminalMessage); len(settled) != 0 {
-		t.Fatalf("synchronous failed checkpoints settled = %#v, want none", settled)
-	}
-	runner.rememberSubagentTaskMessage(terminalMessage)
-	if got := dispatches.Load(); got != 0 {
-		t.Fatalf("post-round dispatch before retry recovery = %d, want 0", got)
-	}
-
-	waitForDMGoalUsageRetry(t, func() bool {
-		return dispatches.Load() == 1 &&
-			provider.finalizeCallCount() == 1 &&
-			dmGoalUsageRetryStopped(runner)
-	})
-	if attempts := provider.sourceAttemptCount(); attempts != 7 {
-		t.Fatalf("source attempts = %d, want 6 failures plus one background success", attempts)
-	}
-	if runner.hasRunningSubagentTask() {
-		t.Fatal("background retry success left the child join barrier pending")
-	}
-	if got := dispatches.Load(); got != 1 {
-		t.Fatalf("post-round dispatches after retry settled = %d, want exactly 1", got)
-	}
-	if calls := provider.finalizeCallCount(); calls != 1 {
-		t.Fatalf("finalization calls after retry settled = %d, want exactly 1", calls)
-	}
-}
-
 func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *testing.T) {
 	const (
 		sessionKey = "agent:nexus:ws:dm:finalize-background-retry"
@@ -243,55 +188,6 @@ func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *t
 	}
 	if got := dispatches.Load(); got != 1 {
 		t.Fatalf("post-round dispatches after finalization recovery = %d, want exactly 1", got)
-	}
-}
-
-func TestDMSubagentUsageBackgroundRetryDoesNotDispatchFailedOrInterruptedParent(t *testing.T) {
-	for _, terminal := range []string{
-		subagentParentTerminalFailed,
-		subagentParentTerminalInterrupted,
-	} {
-		t.Run(terminal, func(t *testing.T) {
-			const (
-				sessionKey = "agent:nexus:ws:dm:abnormal-source-background-retry"
-				goalID     = "goal-abnormal-source-background-retry"
-				roundID    = "round-abnormal-source-background-retry"
-			)
-			provider := newRetryingDMGoalUsageProvider(sessionKey, goalID, 6)
-			var dispatches atomic.Int64
-			runner := &roundRunner{
-				service:                &Service{goals: provider},
-				sessionKey:             sessionKey,
-				roundID:                roundID,
-				ownerUserID:            "owner-abnormal-source-background-retry",
-				goalIDForUsage:         goalID,
-				childGoalIDForUsage:    goalID,
-				goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
-				runtimeKind:            "nxs",
-				goalTokenUsageObserved: true,
-				postRoundDispatchHook: func() {
-					dispatches.Add(1)
-				},
-			}
-			accelerateDMGoalUsageRetry(runner)
-			runner.markSubagentParentTerminal(terminal)
-			runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
-			terminalMessage := dmSubagentTaskMessage("task_notification", "completed")
-			terminalMessage["metadata"].(map[string]any)["usage"] = map[string]any{"total_tokens": int64(100)}
-
-			runner.recordSubagentGoalUsage(context.Background(), terminalMessage)
-			runner.rememberSubagentTaskMessage(terminalMessage)
-
-			waitForDMGoalUsageRetry(t, func() bool {
-				return provider.finalizeCallCount() == 1
-			})
-			if got := dispatches.Load(); got != 0 {
-				t.Fatalf("abnormal parent post-round dispatches = %d, want 0", got)
-			}
-			if runner.subagentPostRoundDispatched {
-				t.Fatal("abnormal parent claimed normal post-round dispatch")
-			}
-		})
 	}
 }
 
@@ -587,42 +483,6 @@ func TestCompletedDMGoalWithoutTokenUsageSettlesWithoutFinalizationFence(t *test
 	}
 }
 
-func TestCompletedDMGoalExplicitZeroTokenUsageCanFinalize(t *testing.T) {
-	const (
-		sessionKey = "agent:nexus:ws:dm:explicit-zero-terminal-usage"
-		goalID     = "goal-explicit-zero-terminal-usage"
-	)
-	provider := &fakeDMGoalUsageFinalizer{
-		fakeGoalContextProvider: &fakeGoalContextProvider{},
-		report: protocol.GoalUsageReport{
-			GoalID:     goalID,
-			SessionKey: sessionKey,
-			Status:     protocol.GoalStatusComplete,
-		},
-	}
-	runner := &roundRunner{
-		service:        &Service{goals: provider},
-		sessionKey:     sessionKey,
-		roundID:        "round-explicit-zero-terminal-usage",
-		goalIDForUsage: goalID,
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
-	}
-
-	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{Raw: map[string]any{"total_tokens": int64(0)}},
-	}, nil)
-
-	if calls := provider.finalizeCallCount(); calls != 1 {
-		t.Fatalf("FinalizeUsageForGoal calls = %d, want 1 for explicit provider zero", calls)
-	}
-	provider.mu.Lock()
-	finalized := provider.report.UsageFinalized
-	provider.mu.Unlock()
-	if !finalized {
-		t.Fatal("explicit provider zero did not establish finalization fence")
-	}
-}
-
 func TestDMTerminalUsageDurableParentLedgerReplaysWithoutDoubleAttribution(t *testing.T) {
 	for _, test := range []struct {
 		name              string
@@ -697,48 +557,6 @@ func TestDMTerminalUsageDurableParentLedgerReplaysWithoutDoubleAttribution(t *te
 				}
 			}
 		})
-	}
-}
-
-func TestDMTerminalUsageAlreadyFinalizedFenceWinsOverUncommittedLocalDelta(t *testing.T) {
-	const (
-		sessionKey = "agent:nexus:ws:dm:finalize-commit-response-lost"
-		goalID     = "goal-finalize-commit-response-lost"
-	)
-	provider := newCommitThenErrorDMGoalProvider(sessionKey, goalID)
-	runner := &roundRunner{
-		service:        &Service{goals: provider},
-		sessionKey:     sessionKey,
-		roundID:        "round-finalize-commit-response-lost",
-		goalIDForUsage: goalID,
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
-	}
-	snapshot := goalsvc.RuntimeUsageSnapshot{
-		Usage: protocol.GoalUsage{
-			InputTokens:       9,
-			OutputTokens:      1,
-			ActualTotalTokens: 10,
-			ActualTotalKnown:  true,
-		},
-		TokenUsageObserved: true,
-		Cumulative:         true,
-		Terminal:           true,
-	}
-
-	if runner.settleTerminalGoalUsageSnapshot(context.Background(), snapshot) {
-		t.Fatal("first settlement unexpectedly observed the lost finalization response")
-	}
-	if !runner.settleTerminalGoalUsageSnapshot(context.Background(), snapshot) {
-		t.Fatal("durable finalization fence did not close replayed local delta")
-	}
-	if calls := provider.finalizeCallCount(); calls != 1 {
-		t.Fatalf("finalization calls = %d, want exactly one committed call", calls)
-	}
-	provider.mu.Lock()
-	usage := provider.report.Usage
-	provider.mu.Unlock()
-	if usage.BudgetTokens() != 10 || usage.ActualTokens() != 10 {
-		t.Fatalf("final usage = %#v, want exactly one 10-token settlement", usage)
 	}
 }
 
@@ -910,52 +728,6 @@ func (p *evidenceAwareDMGoalProvider) childEvidence(taskID string) dmChildEviden
 	return p.childEvidenceByID[taskID]
 }
 
-type commitThenErrorDMGoalProvider struct {
-	*fakeDMGoalUsageFinalizer
-	responseLost bool
-}
-
-func newCommitThenErrorDMGoalProvider(
-	sessionKey string,
-	goalID string,
-) *commitThenErrorDMGoalProvider {
-	return &commitThenErrorDMGoalProvider{
-		fakeDMGoalUsageFinalizer: &fakeDMGoalUsageFinalizer{
-			fakeGoalContextProvider: &fakeGoalContextProvider{},
-			report: protocol.GoalUsageReport{
-				GoalID:     goalID,
-				SessionKey: sessionKey,
-				Status:     protocol.GoalStatusComplete,
-			},
-		},
-	}
-}
-
-func (p *commitThenErrorDMGoalProvider) FinalizeUsageForGoal(
-	_ context.Context,
-	goalID string,
-	delta protocol.GoalUsage,
-	_ string,
-) (*protocol.Goal, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.finalizeCalls++
-	p.finalizeDeltas = append(p.finalizeDeltas, delta)
-	p.report.Usage = p.report.Usage.Add(delta)
-	p.report.UsageFinalized = true
-	if !p.responseLost {
-		p.responseLost = true
-		return nil, errors.New("injected committed DM finalization response failure")
-	}
-	return &protocol.Goal{
-		ID:             goalID,
-		SessionKey:     p.report.SessionKey,
-		Status:         protocol.GoalStatusComplete,
-		Usage:          p.report.Usage,
-		UsageFinalized: true,
-	}, nil
-}
-
 type retryingDMGoalUsageProvider struct {
 	*fakeDMGoalUsageFinalizer
 	sourceFailuresRemaining   int
@@ -993,12 +765,6 @@ func (p *retryingDMGoalUsageProvider) RecordUsageSourceSnapshot(
 		return protocol.GoalUsageSourceResult{}, errors.New("injected DM source snapshot failure")
 	}
 	return protocol.GoalUsageSourceResult{}, nil
-}
-
-func (p *retryingDMGoalUsageProvider) sourceAttemptCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.sourceAttempts
 }
 
 func (p *retryingDMGoalUsageProvider) FinalizeUsageForGoal(

@@ -221,20 +221,6 @@ func TestAllCapabilityCheckPreservesDisabledModelAndSelection(t *testing.T) {
 	}
 }
 
-func TestProbeReceiptAllowsFormattingButNotFabrication(t *testing.T) {
-	const receipt = "ab0123456789abcdef0123456789abcdef"
-	for _, value := range []string{receipt, "Receipt: `" + receipt + "`", "\"" + receipt + "\""} {
-		if !probeContainsReceipt(value, receipt) {
-			t.Errorf("rejected formatting %q", value)
-		}
-	}
-	for _, value := range []string{"done", "a" + receipt, receipt[:16], receipt + "9"} {
-		if probeContainsReceipt(value, receipt) {
-			t.Errorf("accepted wrong receipt %q", value)
-		}
-	}
-}
-
 func TestParallelCapabilityObservationsMergeOnlyUnchangedModels(t *testing.T) {
 	for _, sameModel := range []bool{false, true} {
 		t.Run(fmt.Sprint(sameModel), func(t *testing.T) {
@@ -277,32 +263,5 @@ func TestParallelCapabilityObservationsMergeOnlyUnchangedModels(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestEmptyHTTP200CannotEnableUntestedModel(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{}`)) }))
-	defer server.Close()
-	ctx := context.Background()
-	service, _ := newTestService(t)
-	created := createConfigurationVersionTestProvider(t, service, ctx, "empty-success", server.URL)
-	result, err := service.TestModel(ctx, created.Provider, "unverified")
-	if err != nil || result.Success {
-		t.Fatalf("empty reply passed: %+v %v", result, err)
-	}
-	current, _ := service.Get(ctx, created.Provider)
-	if len(current.Models) != 0 {
-		t.Fatal("unverified model was enabled/defaulted")
-	}
-}
-
-func TestReasoningPlaceholderIsNotEvidence(t *testing.T) {
-	response := parseProbeResponse([]byte(`{"status":"completed","output":[{"type":"reasoning","summary":[]}]}`), APIFormatResponses)
-	if response.Reasoning {
-		t.Fatal("empty reasoning item became positive evidence")
-	}
-	response = parseProbeResponse([]byte(`{"status":"completed","output":[{"type":"reasoning","summary":[]}],"usage":{"output_tokens_details":{"reasoning_tokens":12}}}`), APIFormatResponses)
-	if !response.Reasoning {
-		t.Fatal("reasoning usage was discarded")
 	}
 }

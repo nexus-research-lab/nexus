@@ -105,62 +105,6 @@ func TestProcessorPreservesPermissionErrorCode(t *testing.T) {
 	}
 }
 
-func TestProcessorHandlesToolResultMessage(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-tool-result",
-		ParentID:   "round-tool-result",
-	}, "")
-
-	// 先注入一个 tool_use，使结果进入同一工具分段。
-	processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				ID: "assistant-tool-result-1",
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolUseBlock{ID: "tool-123", Name: "AskUserQuestion"},
-				},
-			},
-		},
-	})
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeUser,
-		User: &sdkprotocol.UserMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolResultBlock{
-						ToolUseID: "tool-123",
-						Content:   json.RawMessage(`"等待用户确认超时"`),
-						IsError:   true,
-						ErrorCode: "permission_request_timeout",
-					},
-				},
-			},
-		},
-	})
-
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("tool result 未生成 durable assistant 消息: %+v", output)
-	}
-	assistantMessage := output.DurableMessages[0]
-	if assistantMessage["role"] != "assistant" || assistantMessage["is_complete"] != true {
-		t.Fatalf("tool result 生成的 assistant 消息不正确: %+v", assistantMessage)
-	}
-	blocks, _ := assistantMessage["content"].([]map[string]any)
-	if len(blocks) != 2 {
-		t.Fatalf("tool result 未正确并入 content: %+v", blocks)
-	}
-	if blocks[1]["type"] != "tool_result" {
-		t.Fatalf("第二块应为 tool_result: %+v", blocks[1])
-	}
-	if blocks[1]["error_code"] != "permission_request_timeout" {
-		t.Fatalf("tool result 未正确附加 error_code: %+v", blocks[1])
-	}
-}
-
 func TestProcessorPreservesParentAcrossToolResultSnapshot(t *testing.T) {
 	parentToolUseID := "agent-parent-tool"
 	processor := NewProcessor(MessageContext{
@@ -197,60 +141,6 @@ func TestProcessorPreservesParentAcrossToolResultSnapshot(t *testing.T) {
 	assistant := output.DurableMessages[0]
 	if assistant["parent_id"] != parentToolUseID || assistant["parent_tool_use_id"] != parentToolUseID {
 		t.Fatalf("tool result snapshot parent lost: %+v", assistant)
-	}
-}
-
-func TestProcessorPreservesRecoverableToolResultMarker(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-malformed-tool-input",
-		ParentID:   "round-malformed-tool-input",
-	}, "")
-	processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeAssistant,
-		Assistant: &sdkprotocol.AssistantMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolUseBlock{ID: "tool-malformed", Name: "WebFetch"},
-				},
-			},
-		},
-	})
-
-	message, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "user",
-		"message": map[string]any{
-			"role": "user",
-			"content": []any{map[string]any{
-				"type":        "tool_result",
-				"tool_use_id": "tool-malformed",
-				"content":     "Tool input was not valid JSON",
-				"is_error":    true,
-				"metadata": map[string]any{
-					"_nexus_internal_kind": "malformed_tool_input",
-				},
-			}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("DecodeMessage() error = %v", err)
-	}
-
-	output := processor.Process(message)
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("recoverable tool result 未生成 durable message: %+v", output)
-	}
-	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
-	if len(blocks) < 2 {
-		t.Fatalf("durable assistant content = %+v，期望保留 tool_use 与 tool_result", blocks)
-	}
-	metadata, _ := blocks[1]["metadata"].(map[string]any)
-	if metadata["_nexus_internal_kind"] != "malformed_tool_input" {
-		t.Fatalf("recoverable tool result marker 丢失: %+v", blocks[1])
-	}
-	if blocks[1]["is_error"] != true {
-		t.Fatalf("recoverable tool result 必须保留 is_error=true: %+v", blocks[1])
 	}
 }
 
@@ -379,37 +269,5 @@ func TestProcessorDropsUnmatchedSuccessfulToolResultMessage(t *testing.T) {
 
 	if len(output.DurableMessages) != 0 {
 		t.Fatalf("无匹配 tool_use 的成功 tool_result 不应生成 durable 消息: %+v", output.DurableMessages)
-	}
-}
-
-func TestProcessorKeepsUnmatchedErrorToolResultMessage(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-unmatched-tool-error",
-		ParentID:   "round-unmatched-tool-error",
-	}, "")
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeUser,
-		User: &sdkprotocol.UserMessage{
-			Message: sdkprotocol.ConversationEnvelope{
-				Content: []sdkprotocol.ContentBlock{
-					sdkprotocol.ToolResultBlock{
-						ToolUseID: "missing-tool",
-						Content:   json.RawMessage(`"failed"`),
-						IsError:   true,
-					},
-				},
-			},
-		},
-	})
-
-	if len(output.DurableMessages) != 1 {
-		t.Fatalf("无匹配 tool_use 的错误 tool_result 应保留诊断消息: %+v", output)
-	}
-	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
-	if len(blocks) != 1 || blocks[0]["type"] != "tool_result" || blocks[0]["is_error"] != true {
-		t.Fatalf("错误 tool_result 内容不正确: %+v", blocks)
 	}
 }

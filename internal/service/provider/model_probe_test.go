@@ -8,16 +8,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
@@ -250,76 +247,6 @@ func TestProbeFailuresNeverInventUnsupportedCapabilities(t *testing.T) {
 				t.Fatalf("unknown became a verdict: %+v", result)
 			}
 		})
-	}
-}
-
-func TestProbeConfigurationFenceRejectsLateResults(t *testing.T) {
-	started, release := make(chan struct{}), make(chan struct{})
-	var once sync.Once
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		once.Do(func() { close(started) })
-		<-release
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer server.Close()
-	service, _ := newTestService(t)
-	ctx := context.Background()
-	created := createConfigurationVersionTestProvider(t, service, ctx, "probe-fence", server.URL)
-	completed := make(chan error, 1)
-	go func() {
-		_, err := service.TestModelAtVersion(ctx, created.Provider, "kimi-k2.6", created.ConfigurationVersion)
-		completed <- err
-	}()
-	<-started
-	key := "rotated-key"
-	_, err := service.PatchAtVersion(ctx, created.Provider, PatchInput{AuthToken: &key}, created.ConfigurationVersion)
-	close(release)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = <-completed; !errors.Is(err, ErrConfigurationVersionConflict) {
-		t.Fatalf("late result: %v", err)
-	}
-	current, err := service.Get(ctx, created.Provider)
-	if err != nil || len(current.Models) != 0 {
-		t.Fatalf("stale test wrote model: %+v %v", current, err)
-	}
-}
-
-func TestCapabilityEvidenceIdentityAndUnknownMerge(t *testing.T) {
-	item := providerstore.Entity{ID: "p", OwnerUserID: "owner", Visibility: "private", PresetKey: presetCustom, ProviderKind: ProviderKindLLM, APIFormat: APIFormatChatCompletions, AuthToken: "test-key", BaseURL: "https://local.test"}
-	model := providerstore.ModelEntity{ProviderID: "p", ModelID: "kimi-k2.6", ProviderOptionsJSON: `{}`}
-	model.CapabilitiesAutoJSON = withModelProbe(`{"vision":true}`, modelProbeEvidence{Version: modelProbeVersion, Fingerprint: modelProbeFingerprint(item, model), TestedAt: time.Now(), Capabilities: ModelCapabilities{Vision: adviceBool(true)}})
-	if !projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
-		t.Fatal("current evidence lost")
-	}
-	if decodeModelAutoCapabilities(model.CapabilitiesAutoJSON).Vision != nil {
-		t.Fatal("probe upgraded historical guesses")
-	}
-	for _, mutate := range []func(*providerstore.Entity, *providerstore.ModelEntity){
-		func(p *providerstore.Entity, _ *providerstore.ModelEntity) { p.OwnerUserID = "other" },
-		func(p *providerstore.Entity, _ *providerstore.ModelEntity) { p.ID = "other" },
-		func(p *providerstore.Entity, _ *providerstore.ModelEntity) { p.BaseURL += "/other" },
-		func(p *providerstore.Entity, _ *providerstore.ModelEntity) { p.APIFormat = APIFormatResponses },
-		func(_ *providerstore.Entity, m *providerstore.ModelEntity) { m.ModelID = "other" },
-		func(_ *providerstore.Entity, m *providerstore.ModelEntity) {
-			m.ProviderOptionsJSON = `{"thinking":false}`
-		},
-	} {
-		p, m := item, model
-		mutate(&p, &m)
-		if currentModelProbe(p, m) != nil {
-			t.Fatal("evidence crossed configuration identity")
-		}
-	}
-	item.DisplayName = "renamed"
-	item.ConfigurationVersion++
-	if currentModelProbe(item, model) == nil {
-		t.Fatal("cosmetic change discarded proof")
-	}
-	merged := mergeObservedCapabilities(ModelCapabilities{Vision: adviceBool(true)}, ModelCapabilities{})
-	if merged.Vision == nil || !*merged.Vision {
-		t.Fatal("unknown erased success")
 	}
 }
 

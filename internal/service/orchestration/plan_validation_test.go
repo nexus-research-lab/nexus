@@ -9,13 +9,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestValidatePlanDraftAcceptsSequentialRoomWork(t *testing.T) {
-	draft := validPlanDraft()
-	if err := ValidatePlanDraft(draft); err != nil {
-		t.Fatalf("valid Plan rejected: %v", err)
-	}
-}
-
 func TestPlanExecutionReturnsActionableRecoveryForEmptyWorkGraph(t *testing.T) {
 	for _, test := range []struct {
 		name  string
@@ -180,46 +173,6 @@ func TestValidatePlanDraftProjectionCollectionLimit(t *testing.T) {
 			test.mutate(&draft)
 			assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeProjectionLimitExceeded)
 		})
-	}
-}
-
-func TestValidatePlanDraftAllowsAgentSelectedAcceptanceCriteriaAndTerminal(t *testing.T) {
-	t.Run("criteria", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[0].AcceptanceCriteria = nil
-		if err := ValidatePlanDraft(draft); err != nil {
-			t.Fatalf("optional acceptance criteria rejected: %v", err)
-		}
-	})
-	t.Run("terminal", func(t *testing.T) {
-		draft := validPlanDraft()
-		draft.Items[2].Terminal = false
-		if err := ValidatePlanDraft(draft); err != nil {
-			t.Fatalf("Plan without a terminal marker rejected: %v", err)
-		}
-	})
-}
-
-func TestNormalizeAndValidatePlanDraftReturnsCopyWithoutMutatingInput(t *testing.T) {
-	draft := validPlanDraft()
-	draft.RevisionReason = "  split evidence and analysis  "
-	draft.Items[0].Subject = "  Collect evidence  "
-	draft.Items[1].DependsOn[0].LogicalKey = " W1 "
-	draft.Items[0].OutputScopes[0].Scope = " dir:report//sources/ "
-
-	normalized, err := NormalizeAndValidatePlanDraft(draft)
-	if err != nil {
-		t.Fatalf("normalize valid Plan: %v", err)
-	}
-	if normalized.RevisionReason != "split evidence and analysis" ||
-		normalized.Items[0].Subject != "Collect evidence" ||
-		normalized.Items[1].DependsOn[0].LogicalKey != "W1" ||
-		normalized.Items[0].OutputScopes[0].Scope != "dir:report/sources" {
-		t.Fatalf("normalized Plan = %#v", normalized)
-	}
-	if draft.Items[1].DependsOn[0].LogicalKey != " W1 " ||
-		draft.Items[0].OutputScopes[0].Scope != " dir:report//sources/ " {
-		t.Fatalf("input draft was mutated: %#v", draft)
 	}
 }
 

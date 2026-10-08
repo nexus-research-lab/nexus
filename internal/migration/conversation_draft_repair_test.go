@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -23,48 +22,6 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"github.com/pressly/goose/v3"
 )
-
-func TestDesktopLegacyConversationDraftRepairRunsOnlyOnce(t *testing.T) {
-	markerPath := filepath.Join(t.TempDir(), "repair.marker")
-	cfg := config.Config{AppMode: "desktop", DatabaseDriver: "sqlite"}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	calls := 0
-	apply := func(
-		context.Context,
-		config.Config,
-		*slog.Logger,
-	) (legacyConversationDraftRepairSummary, error) {
-		calls++
-		return legacyConversationDraftRepairSummary{OwnersScanned: 2}, nil
-	}
-
-	if err := runDesktopLegacyConversationDraftRepairOnce(
-		t.Context(),
-		cfg,
-		logger,
-		markerPath,
-		apply,
-	); err != nil {
-		t.Fatalf("首次修复失败: %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("首次 apply 次数 = %d, want 1", calls)
-	}
-	assertOneTimeRepairMarker(t, markerPath, oneTimeRepairStateCompleted)
-
-	if err := runDesktopLegacyConversationDraftRepairOnce(
-		t.Context(),
-		cfg,
-		logger,
-		markerPath,
-		apply,
-	); err != nil {
-		t.Fatalf("完成后重复检查失败: %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("completed marker 后不应重跑，apply 次数 = %d", calls)
-	}
-}
 
 func TestDesktopLegacyConversationDraftRepairStartedMarkerSuppressesRetry(t *testing.T) {
 	markerPath := filepath.Join(t.TempDir(), "repair.marker")

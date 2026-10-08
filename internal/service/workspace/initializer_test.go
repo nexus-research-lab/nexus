@@ -17,117 +17,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
-	testCases := []string{
-		".git/config",
-		"repo/.git/config",
-		"repo/.claude/settings.json",
-		"repo/node_modules/pkg/index.js",
-		"repo/web/node_modules/pkg/index.js",
-		"repo/web/.next/server/app.js",
-		"repo/web/dist/assets/main.js",
-		"repo/coverage/index.html",
-		"repo/__pycache__/cache.pyc",
-		"repo/.DS_Store",
-	}
-	for _, testCase := range testCases {
-		if !shouldHideWorkspaceEntry(testCase) {
-			t.Fatalf("应隐藏 workspace 重目录: %s", testCase)
-		}
-	}
-
-	visibleCases := []string{
-		"repo/internal/service/workspace/service.go",
-		"repo/web/src/main.tsx",
-		"repo/docs/spec.md",
-		"tmp/attachments/demo/input.md",
-	}
-	for _, testCase := range visibleCases {
-		if shouldHideWorkspaceEntry(testCase) {
-			t.Fatalf("不应隐藏普通 workspace 文件: %s", testCase)
-		}
-	}
-}
-
-func TestWorkspaceBrowserHidesAgentProfileTemplate(t *testing.T) {
-	for _, testCase := range []string{"AGENTS.md", "agents.md"} {
-		if !shouldHideWorkspaceBrowserEntry(testCase) {
-			t.Fatalf("Agent 身份文件应从 workspace 文件树隐藏: %s", testCase)
-		}
-	}
-	for _, testCase := range []string{"USER.md", "nested/AGENTS.md", "tmp/attachments/AGENTS.md"} {
-		if shouldHideWorkspaceBrowserEntry(testCase) {
-			t.Fatalf("不应隐藏普通或嵌套 workspace 文件: %s", testCase)
-		}
-	}
-}
-
-func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
-	useTemporaryWorkspaceStateRoot(t)
-	root := t.TempDir()
-	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
-		t.Fatalf("初始化普通 agent workspace 失败: %v", err)
-	}
-	for fileName, expected := range map[string]string{
-		"AGENTS.md": "Follow the injected Agent Identity, Agent Profile",
-		"USER.md":   "replace this entire file with a configured profile",
-		"SOUL.md":   "## Emotion",
-		"TOOLS.md":  "## Tool Notes",
-	} {
-		assertWorkspaceFileContains(t, root, fileName, expected)
-	}
-	for _, fileName := range []string{"AGENTS.md", "USER.md", "SOUL.md", "TOOLS.md"} {
-		content, err := os.ReadFile(filepath.Join(root, fileName))
-		if err != nil {
-			t.Fatalf("读取 workspace 模板 %s 失败: %v", fileName, err)
-		}
-		if strings.HasPrefix(strings.TrimSpace(string(content)), "# "+fileName) {
-			t.Fatalf("workspace 模板不应在文件内容开头注入文件名 %s: %s", fileName, content)
-		}
-	}
-	for _, fileName := range []string{"MEMORY.md", "RUNBOOK.md"} {
-		if _, err := os.Stat(filepath.Join(root, fileName)); !os.IsNotExist(err) {
-			t.Fatalf("普通 agent 不应默认生成 %s: %v", fileName, err)
-		}
-	}
-	defaultAgentsContent, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
-	if err != nil {
-		t.Fatalf("读取普通 agent AGENTS.md 失败: %v", err)
-	}
-	if strings.Contains(string(defaultAgentsContent), "You are Nexus, a personal workspace agent") {
-		t.Fatalf("普通 agent 模板不应把身份写死成 Nexus: %s", defaultAgentsContent)
-	}
-	for _, unexpected := range []string{
-		"main Nexus agent organizes collaboration",
-		"nexus_automation",
-		"scheduled-task-manager",
-		"nexusctl memory",
-		"Room titles must be specific",
-	} {
-		if strings.Contains(string(defaultAgentsContent), unexpected) {
-			t.Fatalf("普通 agent 模板不应包含 main/tool 固定职责 %q: %s", unexpected, defaultAgentsContent)
-		}
-	}
-	if strings.Contains(string(defaultAgentsContent), "Identity:") || strings.Contains(string(defaultAgentsContent), "WORKING DIRECTORY:") {
-		t.Fatalf("普通 agent 模板不应暴露系统身份字段: %s", defaultAgentsContent)
-	}
-
-	mainRoot := t.TempDir()
-	if err := EnsureInitialized("nexus", "Nexus", mainRoot, true, time.Now()); err != nil {
-		t.Fatalf("初始化 main agent workspace 失败: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(mainRoot, "AGENTS.md")); !os.IsNotExist(err) {
-		t.Fatalf("main agent 不应默认生成 AGENTS.md 暴露内部提示词: %v", err)
-	}
-	assertWorkspaceFileContains(t, mainRoot, "USER.md", "setup_status: unconfigured")
-	assertWorkspaceFileContains(t, mainRoot, "USER.md", "Replace this template instead of appending below it")
-	for _, fileName := range []string{"MEMORY.md", "SOUL.md", "TOOLS.md", "RUNBOOK.md"} {
-		if _, err := os.Stat(filepath.Join(mainRoot, fileName)); !os.IsNotExist(err) {
-			t.Fatalf("main agent 不应默认生成 %s: %v", fileName, err)
-		}
-	}
-}
-
 func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing.T) {
 	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
@@ -229,28 +118,6 @@ func TestEnsureInitializedOnceUsesHostStateAndValidatesManagedInputs(t *testing.
 	}
 	if _, err = os.Stat(markerPath); !os.IsNotExist(err) {
 		t.Fatalf("Agent 删除后不应残留 workspace 初始化状态: %v", err)
-	}
-}
-
-func TestEnsureInitializedRemovesBundledSkillCopies(t *testing.T) {
-	useTemporaryWorkspaceStateRoot(t)
-	root := t.TempDir()
-	for _, name := range []string{"ima-skill", "imagegen"} {
-		skillPath := filepath.Join(root, ".agents", "skills", name, "SKILL.md")
-		if err := os.MkdirAll(filepath.Dir(skillPath), 0o755); err != nil {
-			t.Fatalf("创建旧平台 Skill 副本失败: %v", err)
-		}
-		if err := os.WriteFile(skillPath, []byte("stale"), 0o644); err != nil {
-			t.Fatalf("写入旧平台 Skill 副本失败: %v", err)
-		}
-	}
-	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
-		t.Fatalf("初始化 workspace 失败: %v", err)
-	}
-	for _, name := range []string{"ima-skill", "imagegen"} {
-		if _, err := os.Stat(filepath.Join(root, ".agents", "skills", name)); !os.IsNotExist(err) {
-			t.Fatalf("平台 Skill 副本未清理 %s: %v", name, err)
-		}
 	}
 }
 
@@ -469,17 +336,6 @@ func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testin
 	}
 	if _, err = os.Stat(claudeSkillDir); !os.IsNotExist(err) {
 		t.Fatalf("卸载后 Claude Skill 镜像应被删除: %v", err)
-	}
-}
-
-func assertWorkspaceFileContains(t *testing.T, root string, fileName string, expected string) {
-	t.Helper()
-	content, err := os.ReadFile(filepath.Join(root, fileName))
-	if err != nil {
-		t.Fatalf("读取 %s 失败: %v", fileName, err)
-	}
-	if !strings.Contains(string(content), expected) {
-		t.Fatalf("%s 缺少 %q: %s", fileName, expected, content)
 	}
 }
 

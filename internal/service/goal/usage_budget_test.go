@@ -2,103 +2,11 @@ package goal
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestServicePauseAndModelBlockPreserveBudgetLimitedGoal(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		run  func(context.Context, *Service, protocol.Goal) (*protocol.Goal, error)
-	}{
-		{
-			name: "user pause",
-			run: func(ctx context.Context, service *Service, item protocol.Goal) (*protocol.Goal, error) {
-				return service.Pause(ctx, item.ID)
-			},
-		},
-		{
-			name: "model block",
-			run: func(ctx context.Context, service *Service, item protocol.Goal) (*protocol.Goal, error) {
-				return service.BlockByModel(ctx, item.ID, protocol.BlockGoalRequest{BlockerID: "external-input-unavailable", Reason: "external input unavailable", NeededInput: "provide the missing external input", RoundID: "round-blocked"})
-			},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			repo := newMemoryRepository()
-			service := NewService(config.Config{GoalEnabled: true}, repo)
-			service.nowFn = fixedClock()
-			service.idFactory = sequentialID()
-			ctx := context.Background()
-			budget := int64(10)
-
-			created, err := service.Create(ctx, protocol.CreateGoalRequest{
-				SessionKey:  "agent:nexus:ws:dm:" + strings.ReplaceAll(tc.name, " ", "-"),
-				Objective:   "Preserve budget limit",
-				TokenBudget: &budget,
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			limited, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-budget")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if limited.Status != protocol.GoalStatusBudgetLimited {
-				t.Fatalf("limited status = %q, want budget_limited", limited.Status)
-			}
-
-			updated, err := tc.run(ctx, service, *limited)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if updated.Status != protocol.GoalStatusBudgetLimited {
-				t.Fatalf("updated status = %q, want budget_limited", updated.Status)
-			}
-			for _, event := range repo.events {
-				if event.EventType == "paused" || event.EventType == "blocked" {
-					t.Fatalf("events = %#v, want no paused/blocked event after budget_limited", repo.events)
-				}
-			}
-		})
-	}
-}
-
-func TestServiceRecordUsageForCompletedGoal(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Complete with final usage",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	updated, err := service.RecordUsageForGoal(ctx, completed.ID, protocol.GoalUsage{
-		TotalTokens:    12,
-		RuntimeSeconds: 5,
-	}, "round-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Status != protocol.GoalStatusComplete || updated.Usage.Total() != 12 || updated.TimeUsedSeconds != 5 {
-		t.Fatalf("updated = %#v, want completed goal with final usage", updated)
-	}
-	if len(repo.events) != 3 || repo.events[2].EventType != "usage_recorded" || repo.events[2].RoundID != "round-1" {
-		t.Fatalf("events = %#v, want usage_recorded after completion", repo.events)
-	}
-}
 
 func TestServiceLateUsageLimitForCompletedGoalDoesNotAffectReplacement(t *testing.T) {
 	repo := newMemoryRepository()
@@ -311,45 +219,6 @@ func TestServiceResumePreservesExhaustedBudgetLimitedGoal(t *testing.T) {
 	}
 }
 
-func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
-	repo := newMemoryRepository()
-	budget := int64(50)
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey:  "agent:nexus:ws:dm:chat",
-		Objective:   "Budget accounting",
-		TokenBudget: &budget,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	updated, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{
-		InputTokens:              10,
-		OutputTokens:             20,
-		CacheCreationInputTokens: 80,
-		CacheReadInputTokens:     90,
-		ReasoningTokens:          40,
-		ActualTotalTokens:        240,
-	}, "round-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Status != protocol.GoalStatusActive {
-		t.Fatalf("status = %q, want active", updated.Status)
-	}
-	if updated.Usage.TotalTokens != 30 || updated.Usage.BudgetTokens() != 30 || updated.Usage.ActualTokens() != 240 {
-		t.Fatalf("usage = %#v, want budget 30 and actual 240", updated.Usage)
-	}
-	remaining := updated.RemainingTokens()
-	if remaining == nil || *remaining != 20 {
-		t.Fatalf("RemainingTokens() = %#v, want 20", remaining)
-	}
-}
-
 func TestServicePauseAfterBudgetLimitAccountingKeepsBudgetLimited(t *testing.T) {
 	repo := newMemoryRepository()
 	budget := int64(5)
@@ -492,62 +361,5 @@ func TestServiceUsageLimitForSessionTransitionsActiveAndBudgetLimitedGoal(t *tes
 	}
 	if limited.Status != protocol.GoalStatusUsageLimited {
 		t.Fatalf("budget-limited transition status = %q, want usage_limited", limited.Status)
-	}
-}
-
-func TestServiceUpdateBudgetClearResumesLimitedGoal(t *testing.T) {
-	repo := newMemoryRepository()
-	initialBudget := int64(10)
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey:  "agent:nexus:ws:dm:chat",
-		Objective:   "Clear budget",
-		TokenBudget: &initialBudget,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 10}, "round-1"); err != nil {
-		t.Fatal(err)
-	}
-	resumed, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: clearBudget()})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resumed.Status != protocol.GoalStatusActive || resumed.TokenBudget != nil {
-		t.Fatalf("resumed = %#v, want active with cleared budget", resumed)
-	}
-}
-
-func TestServiceUpdateBudgetLimitsActiveGoal(t *testing.T) {
-	repo := newMemoryRepository()
-	initialBudget := int64(100)
-	loweredBudget := int64(25)
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey:  "agent:nexus:ws:dm:chat",
-		Objective:   "Lower budget",
-		TokenBudget: &initialBudget,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.RecordUsageForSession(ctx, created.SessionKey, protocol.GoalUsage{TotalTokens: 30}, "round-1"); err != nil {
-		t.Fatal(err)
-	}
-	limited, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{TokenBudget: optionalBudget(loweredBudget)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if limited.Status != protocol.GoalStatusBudgetLimited || limited.LastError == "" {
-		t.Fatalf("limited = %#v, want budget_limited with error", limited)
 	}
 }

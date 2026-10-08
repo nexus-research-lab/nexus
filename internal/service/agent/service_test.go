@@ -24,36 +24,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestServiceKeepsManagedSemanticSkillsBound(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	ctx := context.Background()
-
-	agentValue, err := service.CreateAgent(ctx, protocol.CreateRequest{
-		Name: "managed-skill-agent",
-		Options: &protocol.Options{
-			SkillIDs:         []string{"private-skill"},
-			DisabledSkillIDs: []string{"goal-manager", "execution-orchestrator", "workspace-off"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertManagedSemanticSkillBindings(t, agentValue)
-
-	agentValue, err = service.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{
-		Options: &protocol.Options{
-			SkillIDs:         []string{},
-			DisabledSkillIDs: []string{"goal-manager", "execution-orchestrator"},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertManagedSemanticSkillBindings(t, agentValue)
-}
-
 func TestServiceKeepsBusinessTagsOutOfRuntimeProfile(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -94,18 +64,6 @@ func TestServiceKeepsBusinessTagsOutOfRuntimeProfile(t *testing.T) {
 	}
 	if strings.Contains(prompt, "Catalog-Retail-Z8") {
 		t.Fatal("业务标签不应进入运行时提示词")
-	}
-}
-
-func assertManagedSemanticSkillBindings(t *testing.T, agentValue *protocol.Agent) {
-	t.Helper()
-	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {
-		if !slices.Contains(agentValue.Options.SkillIDs, skillName) {
-			t.Fatalf("managed Skill %q was removed: %+v", skillName, agentValue.Options)
-		}
-		if slices.Contains(agentValue.Options.DisabledSkillIDs, skillName) {
-			t.Fatalf("managed Skill %q remained disabled: %+v", skillName, agentValue.Options)
-		}
 	}
 }
 
@@ -220,125 +178,6 @@ func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
 	}
 	if string(after) != string(before) {
 		t.Fatal("被链接 owner 的 runtime settings 不应发生变化")
-	}
-}
-
-func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, _ := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-
-	items, err := service.ListAgents(ctx)
-	if err != nil {
-		t.Fatalf("列出主智能体失败: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("主智能体初始化数量不正确: got=%d", len(items))
-	}
-	if items[0].AgentID != cfg.DefaultAgentID {
-		t.Fatalf("主智能体 ID 不匹配: got=%s want=%s", items[0].AgentID, cfg.DefaultAgentID)
-	}
-	if items[0].Avatar != "nexus" {
-		t.Fatalf("主智能体应使用 Nexus 默认头像: got=%s", items[0].Avatar)
-	}
-	if items[0].Options.Provider != "" {
-		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
-	}
-	if items[0].Options.PermissionMode != protocol.DefaultAgentPermissionMode {
-		t.Fatalf("主智能体默认权限应自动接受编辑: %+v", items[0].Options)
-	}
-	if len(items[0].Options.AllowedTools) != 0 {
-		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
-	}
-	updatedMain, err := service.UpdateAgent(ctx, items[0].AgentID, protocol.UpdateRequest{
-		Options: &protocol.Options{Provider: "stale-provider", Model: "stale-model"},
-	})
-	if err != nil {
-		t.Fatalf("更新主智能体失败: %v", err)
-	}
-	if updatedMain.Options.Provider != "" || updatedMain.Options.Model != "" {
-		t.Fatalf("主智能体模型应始终跟随全局默认: %+v", updatedMain.Options)
-	}
-	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
-
-	validation, err := service.ValidateName(ctx, "测试助手", "")
-	if err != nil {
-		t.Fatalf("校验名称失败: %v", err)
-	}
-	if !validation.IsValid || !validation.IsAvailable {
-		t.Fatalf("名称应该可用: %+v", validation)
-	}
-
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{
-		Name:        "测试助手",
-		Description: "首个集成测试 agent",
-	})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	if created.AgentID == "" {
-		t.Fatal("创建后的 agent_id 不能为空")
-	}
-	if created.Avatar == "" {
-		t.Fatal("创建 Agent 时应自动分配头像")
-	}
-	if created.Options.PermissionMode != protocol.DefaultAgentPermissionMode {
-		t.Fatalf("新 Agent 默认权限应自动接受编辑: %+v", created.Options)
-	}
-	if _, err = os.Stat(created.WorkspacePath); err != nil {
-		t.Fatalf("workspace 目录未创建: %v", err)
-	}
-	assertRuntimeEmotionStateFile(t, created.WorkspacePath)
-	profileTemplate, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
-	if err != nil {
-		t.Fatalf("创建 Agent 时应立即写入默认行为模板: %v", err)
-	}
-	if !strings.Contains(string(profileTemplate), "## Role") {
-		t.Fatalf("默认行为模板内容不正确: %s", profileTemplate)
-	}
-	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
-		t.Fatalf("创建测试 skill-a 失败: %v", err)
-	}
-	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a", "SKILL.md"), []byte("# skill-a\n"), 0o644); err != nil {
-		t.Fatalf("写入测试 skill-a 失败: %v", err)
-	}
-	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b"), 0o755); err != nil {
-		t.Fatalf("创建测试 skill-b 失败: %v", err)
-	}
-	if err = os.WriteFile(filepath.Join(created.WorkspacePath, ".claude", "skills", "skill-b", "SKILL.md"), []byte("# skill-b\n"), 0o644); err != nil {
-		t.Fatalf("写入测试 skill-b 失败: %v", err)
-	}
-
-	loaded, err := service.GetAgent(ctx, created.AgentID)
-	if err != nil {
-		t.Fatalf("读取 agent 失败: %v", err)
-	}
-	if loaded.SkillsCount != 9 {
-		t.Fatalf("skills_count 不正确: got=%d want=9", loaded.SkillsCount)
-	}
-
-	items, err = service.ListAgents(ctx)
-	if err != nil {
-		t.Fatalf("再次列出 agent 失败: %v", err)
-	}
-	if len(items) != 2 {
-		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
-	}
-	for _, item := range items {
-		if item.AgentID == created.AgentID && item.SkillsCount != 9 {
-			t.Fatalf("list_agents skills_count 不正确: got=%d want=9", item.SkillsCount)
-		}
-	}
-
-	validation, err = service.ValidateName(ctx, "测试助手", "")
-	if err != nil {
-		t.Fatalf("重复名称校验失败: %v", err)
-	}
-	if !validation.IsValid || !validation.IsAvailable {
-		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
 	}
 }
 
@@ -527,64 +366,6 @@ func TestServiceDeleteAtVersionRejectsStalePlanBeforeWorkspaceCleanup(t *testing
 	}
 }
 
-func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-
-	service, db := newAgentTestService(t, cfg)
-
-	ctx := context.Background()
-	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	if _, err = db.Exec(`
-INSERT INTO im_channel_configs (owner_user_id, channel_type, agent_id, status, config_json)
-VALUES (?, 'telegram', ?, 'configured', '{}');
-INSERT INTO im_channel_accounts (owner_user_id, channel_type, account_id, status, config_json)
-VALUES (?, 'telegram', 'account-a', 'connected', '{}');
-INSERT INTO im_pairings (
-    pairing_id, owner_user_id, channel_type, chat_type, external_ref, agent_id, status, source
-) VALUES ('pair-agent-delete', ?, 'telegram', 'dm', 'chat-a', ?, 'active', 'manual');`,
-		created.OwnerUserID,
-		created.AgentID,
-		created.OwnerUserID,
-		created.OwnerUserID,
-		created.AgentID,
-	); err != nil {
-		t.Fatalf("准备 Agent Channel 级联数据失败: %v", err)
-	}
-	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
-		t.Fatalf("删除 agent 失败: %v", err)
-	}
-
-	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
-	assertNoRowsForAgent(t, db, "profiles", "agent_id", created.AgentID)
-	assertNoRowsForAgent(t, db, "runtimes", "agent_id", created.AgentID)
-	assertNoRowsForAgent(t, db, "im_channel_configs", "agent_id", created.AgentID)
-	assertNoRowsForAgent(t, db, "im_pairings", "agent_id", created.AgentID)
-	assertNoRowsForAgent(t, db, "im_channel_accounts", "account_id", "account-a")
-	var channelVersion int64
-	if err = db.QueryRow(
-		"SELECT version FROM channel_control_versions WHERE owner_user_id = ?",
-		created.OwnerUserID,
-	).Scan(&channelVersion); err != nil || channelVersion != 2 {
-		t.Fatalf("Agent 删除应在同一事务推进 Channel version: version=%d err=%v", channelVersion, err)
-	}
-
-	if _, err = service.GetAgent(ctx, created.AgentID); !errors.Is(err, agentpkg.ErrAgentNotFound) {
-		t.Fatalf("硬删除后读取 agent 应返回不存在: %v", err)
-	}
-
-	recreated, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
-	if err != nil {
-		t.Fatalf("删除后应允许复用名称: %v", err)
-	}
-	if recreated.AgentID == created.AgentID {
-		t.Fatalf("复用名称应创建新的 agent_id: old=%s new=%s", created.AgentID, recreated.AgentID)
-	}
-}
-
 func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -747,21 +528,6 @@ func agentTranscriptProjectDir(workspacePath string) string {
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)
-}
-
-func assertRuntimeEmotionStateFile(t *testing.T, workspacePath string) {
-	t.Helper()
-	statePath := filepath.Join(workspacePath, ".agents", "emotion.json")
-	info, err := os.Stat(statePath)
-	if err != nil {
-		t.Fatalf("emotion state 未初始化: %v", err)
-	}
-	if info.IsDir() {
-		t.Fatalf("emotion state 应为文件: %s", statePath)
-	}
-	if info.Size() != 0 {
-		t.Fatalf("emotion state 初始文件应为空: size=%d", info.Size())
-	}
 }
 
 func assertNoRowsForAgent(t *testing.T, db *sql.DB, table string, column string, value string) {

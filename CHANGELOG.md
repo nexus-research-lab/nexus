@@ -4,6 +4,8 @@
 
 - Room workspace attachments now reject an empty resolved owner, matching DM; both share one authorization path. Backend dead code, test-only wrappers and duplicated helpers are consolidated, and `make check-architecture` rejects new private copies of the shared string helpers.
 
+- Prune 1,025 Go tests and 41 web test files that add no unique statement coverage, keeping script- and doc-named, concurrency, platform-specific and subprocess-entry tests.
+
 - Render workspace images in Generative UI through authenticated host-side `nexus://workspace/` references instead of inaccessible local paths or model-carried image payloads.
 
 - Simplify the runtime settings sandbox section to keep support checks and residual-resource recovery without presenting a redundant sandbox toggle.

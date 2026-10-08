@@ -169,17 +169,6 @@ func TestGetCurrentChannelLoginFailsClosedForAmbiguousOrBoundState(t *testing.T)
 	}
 }
 
-func TestGetCurrentChannelLoginAbsenceRemainsUnprovenToCaller(t *testing.T) {
-	service := &ControlService{loginStore: newChannelLoginStore()}
-	if _, err := service.GetCurrentChannelLogin(
-		context.Background(),
-		"owner-a",
-		ChannelTypeFeishu,
-	); !errors.Is(err, ErrChannelLoginNotFound) {
-		t.Fatalf("missing current login error = %v", err)
-	}
-}
-
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error) {
 	if c.startErr != nil {
 		return channeladapters.PersonalWeixinQRCodeResponse{}, c.startErr
@@ -272,64 +261,6 @@ func testChannelCredentialKey() string {
 	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 }
 
-func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	service.idFactory = func(prefix string) string {
-		return prefix + "-1"
-	}
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		return &fakePersonalWeixinLoginClient{}
-	}
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"base_url": "https://ilink.test",
-		},
-	})
-	if err != nil {
-		t.Fatalf("配置个人微信通道失败: %v", err)
-	}
-
-	started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
-	if err != nil {
-		t.Fatalf("启动个人微信扫码登录失败: %v", err)
-	}
-	if started.LoginID != "channel_login-1" || started.Status != ChannelLoginStatusRunning {
-		t.Fatalf("初始登录状态不正确: %+v", started)
-	}
-	if started.QRPayload != "weixin://qr-login" {
-		t.Fatalf("登录二维码不正确: %+v", started)
-	}
-
-	latest := waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
-	if latest.AccountID != "wx-account-1" || !strings.Contains(latest.Output, "微信已连接") {
-		t.Fatalf("登录完成状态不正确: %+v", latest)
-	}
-	items, err := service.ListChannels(context.Background(), "owner-a")
-	if err != nil {
-		t.Fatalf("读取频道配置失败: %v", err)
-	}
-	var configured *ChannelConfigView
-	for index := range items {
-		if items[index].ChannelType == ChannelTypeWeixinPersonal {
-			configured = &items[index]
-			break
-		}
-	}
-	if configured == nil || !configured.HasCredentials || len(configured.Accounts) != 1 || configured.Accounts[0].AccountID != "wx-account-1" {
-		t.Fatalf("登录后应保存 iLink 账号和 token: %+v", configured)
-	}
-	if configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
-		t.Fatalf("个人微信账号不应再写回顶层 channel 配置: %+v", configured.PublicConfig)
-	}
-}
-
 func TestControlServiceRegistersOfficialQRCodeChannels(t *testing.T) {
 	cases := []struct {
 		channelType string
@@ -389,92 +320,6 @@ func TestControlServiceRegistersOfficialQRCodeChannels(t *testing.T) {
 				t.Fatalf("扫码凭据未保存: %+v", view)
 			}
 		})
-	}
-}
-
-func TestControlServiceStoresMultipleWeixinPersonalLogins(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	var id int
-	service.idFactory = func(prefix string) string {
-		id++
-		return fmt.Sprintf("%s-%d", prefix, id)
-	}
-	statuses := []channeladapters.PersonalWeixinQRStatusResponse{
-		{
-			Status:      "confirmed",
-			BotToken:    "ilink-token-1",
-			IlinkBotID:  "wx-account-1",
-			IlinkUserID: "wx-user-1",
-			BaseURL:     "https://ilink-a.test",
-		},
-		{
-			Status:      "confirmed",
-			BotToken:    "ilink-token-2",
-			IlinkBotID:  "wx-account-2",
-			IlinkUserID: "wx-user-2",
-			BaseURL:     "https://ilink-b.test",
-		},
-	}
-	var loginIndex int
-	service.weixinLoginClientFactory = func(string, map[string]string) personalWeixinLoginClient {
-		status := statuses[loginIndex]
-		loginIndex++
-		return &fakePersonalWeixinLoginClient{status: status}
-	}
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"base_url": "https://ilink.test",
-		},
-	})
-	if err != nil {
-		t.Fatalf("配置个人微信通道失败: %v", err)
-	}
-
-	for index := range statuses {
-		started, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
-		if err != nil {
-			t.Fatalf("启动第 %d 个个人微信扫码登录失败: %v", index+1, err)
-		}
-		waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
-	}
-
-	accounts, err := service.listChannelAccountRows(context.Background(), "owner-a", ChannelTypeWeixinPersonal)
-	if err != nil {
-		t.Fatalf("读取个人微信账号失败: %v", err)
-	}
-	if len(accounts) != 2 {
-		t.Fatalf("两个扫码微信账号应分别保存，实际: %+v", accounts)
-	}
-	seen := map[string]bool{}
-	for _, account := range accounts {
-		seen[account.AccountID] = true
-	}
-	if !seen["wx-account-1"] || !seen["wx-account-2"] {
-		t.Fatalf("个人微信账号保存不完整: %+v", accounts)
-	}
-	items, err := service.ListChannels(context.Background(), "owner-a")
-	if err != nil {
-		t.Fatalf("读取频道配置失败: %v", err)
-	}
-	var configured *ChannelConfigView
-	for index := range items {
-		if items[index].ChannelType == ChannelTypeWeixinPersonal {
-			configured = &items[index]
-			break
-		}
-	}
-	if configured == nil || !configured.HasCredentials || configured.PublicConfig["account_count"] != "2" || len(configured.Accounts) != 2 {
-		t.Fatalf("个人微信频道应展示两个已登录账号: %+v", configured)
-	}
-	if configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
-		t.Fatalf("个人微信多账号不应暴露最后扫码账号为顶层配置: %+v", configured.PublicConfig)
 	}
 }
 

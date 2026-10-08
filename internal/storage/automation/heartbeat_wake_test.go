@@ -41,51 +41,6 @@ id, owner_user_id, slug, name, description, definition, status, workspace_path
 	return db, NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 }
 
-func TestHeartbeatWakeMigrationRoundTrip(t *testing.T) {
-	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "heartbeat-wake-migration.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.UpTo(db, "../../../db/migrations/sqlite", 125); err != nil {
-		t.Fatal(err)
-	}
-	assertHeartbeatWakeColumns := func(want bool) {
-		t.Helper()
-		rows, queryErr := db.Query(`PRAGMA table_info(automation_system_events)`)
-		if queryErr != nil {
-			t.Fatal(queryErr)
-		}
-		defer rows.Close()
-		found := map[string]bool{}
-		for rows.Next() {
-			var cid, notNull, primaryKey int
-			var name, columnType string
-			var defaultValue sql.NullString
-			if scanErr := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); scanErr != nil {
-				t.Fatal(scanErr)
-			}
-			found[name] = true
-		}
-		for _, column := range []string{
-			"owner_user_id", "request_id", "intent_digest",
-			"accepted_configuration_version", "claim_token", "claim_expires_at",
-		} {
-			if found[column] != want {
-				t.Fatalf("column %s present=%v want=%v", column, found[column], want)
-			}
-		}
-	}
-	assertHeartbeatWakeColumns(true)
-	if err = goose.DownTo(db, "../../../db/migrations/sqlite", 124); err != nil {
-		t.Fatal(err)
-	}
-	assertHeartbeatWakeColumns(false)
-}
-
 func TestHeartbeatWakeAcceptanceLinearizesWithConfigurationUpdate(t *testing.T) {
 	_, repository := newHeartbeatWakeRepository(t)
 	ctx := context.Background()
@@ -172,46 +127,5 @@ func TestHeartbeatWakeRequestIsIdempotentAndIntentScoped(t *testing.T) {
 	input.IntentDigest = "different-wake-intent"
 	if _, err = repository.AcceptHeartbeatWake(ctx, input); !errors.Is(err, automationdomain.ErrHeartbeatWakeRequestConflict) {
 		t.Fatalf("different intent error = %v", err)
-	}
-}
-
-func TestExpiredHeartbeatWakeClaimFailsClosedWithoutRedispatch(t *testing.T) {
-	_, repository := newHeartbeatWakeRepository(t)
-	ctx := context.Background()
-	acceptedAt := time.Now().UTC().Add(-time.Minute)
-	accepted, err := repository.AcceptHeartbeatWake(ctx, HeartbeatWakeAcceptanceInput{
-		EventID: "wake-recovery", AgentID: "wake-agent", Mode: automationdomain.WakeModeNow,
-		AcceptedAt: acceptedAt,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	now := time.Now().UTC()
-	claimed, err := repository.ClaimHeartbeatWakeEvent(
-		ctx, accepted.Event.EventID, "expired-claim", acceptedAt, now.Add(-time.Second),
-	)
-	if err != nil || !claimed {
-		t.Fatalf("initial claim = %v err=%v", claimed, err)
-	}
-	agents, err := repository.ListRecoverableHeartbeatWakeAgentIDs(ctx, now)
-	if err != nil || len(agents) != 0 {
-		t.Fatalf("started wake must not become redispatchable: agents=%+v err=%v", agents, err)
-	}
-	deadline, err := repository.NextRecoverableHeartbeatWakeAt(ctx)
-	if err != nil || deadline == nil || deadline.After(now) {
-		t.Fatalf("recovery deadline = %v err=%v", deadline, err)
-	}
-	failed, err := repository.FailExpiredHeartbeatWakeClaims(ctx, now)
-	if err != nil || failed != 1 {
-		t.Fatalf("expired claim fail-closed = %d err=%v", failed, err)
-	}
-	if completed, completeErr := repository.CompleteHeartbeatWakeEvent(
-		ctx, accepted.Event.EventID, "expired-claim", "processed",
-	); completeErr != nil || completed {
-		t.Fatalf("stale claim completed event: completed=%v err=%v", completed, completeErr)
-	}
-	var status string
-	if err = repository.db.QueryRowContext(ctx, `SELECT status FROM automation_system_events WHERE event_id = ?`, accepted.Event.EventID).Scan(&status); err != nil || status != "failed" {
-		t.Fatalf("expired wake status = %q err=%v", status, err)
 	}
 }

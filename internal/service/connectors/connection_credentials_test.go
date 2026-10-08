@@ -9,96 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	_ "modernc.org/sqlite"
 )
-
-func TestServiceEncryptsConnectionCredentials(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	ctx := context.Background()
-	service := NewService(cfg, db)
-	if err = service.upsertConnection(ctx, connectionRecord{
-		ConnectorID: "github",
-		State:       "connected",
-		Credentials: `{"access_token":"secret-token"}`,
-		AuthType:    "oauth2",
-	}); err != nil {
-		t.Fatalf("写入连接状态失败: %v", err)
-	}
-
-	var credentialText string
-	var encrypted sql.NullString
-	var keyID sql.NullString
-	//goland:noinspection SqlResolve
-	if err = db.QueryRowContext(ctx, "SELECT credentials, credentials_encrypted, credentials_key_id FROM connector_connections WHERE connector_id = ?", "github").Scan(&credentialText, &encrypted, &keyID); err != nil {
-		t.Fatalf("读取连接凭证失败: %v", err)
-	}
-	if credentialText != "__encrypted__" {
-		t.Fatalf("明文字段不应保存 token payload: %q", credentialText)
-	}
-	if !encrypted.Valid || strings.Contains(encrypted.String, "secret-token") {
-		t.Fatalf("加密字段未正确写入: %q", encrypted.String)
-	}
-	key, err := credentials.DecodeKey(cfg.ConnectorCredentialsKey)
-	if err != nil {
-		t.Fatalf("解析测试密钥失败: %v", err)
-	}
-	plain, err := credentials.DecryptPayload(key, encrypted.String)
-	if err != nil {
-		t.Fatalf("解密连接凭证失败: %v", err)
-	}
-	if string(plain) != `{"access_token":"secret-token"}` {
-		t.Fatalf("解密后的凭证不正确: %s", plain)
-	}
-	if !keyID.Valid || keyID.String != credentials.KeyID(key) {
-		t.Fatalf("连接凭证缺少稳定 key_id: %q", keyID.String)
-	}
-}
-
-func TestServiceLoadActiveConnectionDecryptsAccessToken(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	cfg.ConnectorCredentialsKey = testConnectorCredentialKey()
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	service := NewService(cfg, db)
-	ctx := context.Background()
-	if err = service.upsertConnection(ctx, connectionRecord{
-		ConnectorID: "github",
-		State:       "connected",
-		Credentials: `{"access_token":"token","scope":"repo"}`,
-		AuthType:    "oauth2",
-	}); err != nil {
-		t.Fatalf("写入连接状态失败: %v", err)
-	}
-
-	item, err := service.LoadActiveConnection(ctx, auth.SystemUserID, "github")
-	if err != nil {
-		t.Fatalf("读取连接快照失败: %v", err)
-	}
-	if item == nil || item.AccessToken != "token" || item.APIBaseURL != "https://api.github.com" {
-		t.Fatalf("连接快照不正确: %+v", item)
-	}
-	if item.Extra["scope"] != "repo" {
-		t.Fatalf("extra 字段未保留: %+v", item.Extra)
-	}
-
-}
 
 func TestServiceConnectsAPIKeyConnectors(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
@@ -263,56 +177,6 @@ func TestServiceConnectsOfficeMCPTokenConnectors(t *testing.T) {
 				t.Fatalf("能力说明不完整: features=%v details=%v", detail.Features, detail.FeatureDetails)
 			}
 		})
-	}
-}
-
-func TestServiceScopesAmapAPIKeyByOwner(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	service := NewService(cfg, db)
-	ctx := context.Background()
-	if _, err = service.Connect(ctx, "owner-a", "amap", map[string]string{"api_key": "amap-owner-a"}); err != nil {
-		t.Fatalf("连接 owner-a 高德失败: %v", err)
-	}
-	if _, err = service.Connect(ctx, "owner-b", "amap", map[string]string{"api_key": "amap-owner-b"}); err != nil {
-		t.Fatalf("连接 owner-b 高德失败: %v", err)
-	}
-
-	snapshotA, err := service.LoadActiveConnection(ctx, "owner-a", "amap")
-	if err != nil {
-		t.Fatalf("读取 owner-a 高德连接失败: %v", err)
-	}
-	snapshotB, err := service.LoadActiveConnection(ctx, "owner-b", "amap")
-	if err != nil {
-		t.Fatalf("读取 owner-b 高德连接失败: %v", err)
-	}
-	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" {
-		t.Fatalf("owner-a 不应读到其他用户高德 Key: %+v", snapshotA)
-	}
-	if snapshotB == nil || snapshotB.AccessToken != "amap-owner-b" {
-		t.Fatalf("owner-b 不应读到其他用户高德 Key: %+v", snapshotB)
-	}
-
-	if _, err = service.Disconnect(ctx, "owner-b", "amap"); err != nil {
-		t.Fatalf("断开 owner-b 高德失败: %v", err)
-	}
-	snapshotA, err = service.LoadActiveConnection(ctx, "owner-a", "amap")
-	if err != nil {
-		t.Fatalf("再次读取 owner-a 高德连接失败: %v", err)
-	}
-	snapshotB, err = service.LoadActiveConnection(ctx, "owner-b", "amap")
-	if err != nil {
-		t.Fatalf("再次读取 owner-b 高德连接失败: %v", err)
-	}
-	if snapshotA == nil || snapshotA.AccessToken != "amap-owner-a" || snapshotB != nil {
-		t.Fatalf("断开 owner-b 不应影响 owner-a: owner-a=%+v owner-b=%+v", snapshotA, snapshotB)
 	}
 }
 

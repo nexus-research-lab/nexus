@@ -1,49 +1,8 @@
 package room
 
 import (
-	"slices"
 	"testing"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestResolveMentionAgentIDs(t *testing.T) {
-	aliases := map[string]string{
-		"Amy":   "agent-amy",
-		"Devin": "agent-devin",
-		"Jim":   "agent-jim",
-		"Sam":   "agent-sam",
-	}
-	tests := []struct {
-		name    string
-		content string
-		want    []string
-	}{
-		{
-			name:    "保留全部目标",
-			content: "@Amy 让 @Devin 查天气并在公区回复",
-			want:    []string{"agent-amy", "agent-devin"},
-		},
-		{
-			name:    "保持文本顺序",
-			content: "@Sam 先来，然后 @Amy 收一下，最后 @Devin 总结",
-			want:    []string{"agent-sam", "agent-amy", "agent-devin"},
-		},
-		{
-			name:    "忽略代码区",
-			content: "首位投票 @Jim，结束用 `@Sam`。\n```text\n@Devin 这里只是示例\n```\n最后交回 @Amy",
-			want:    []string{"agent-jim", "agent-amy"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := ResolveMentionAgentIDs(test.content, aliases); !slices.Equal(got, test.want) {
-				t.Fatalf("ResolveMentionAgentIDs() = %v, want %v", got, test.want)
-			}
-		})
-	}
-}
 
 func TestResolveMentionMatches(t *testing.T) {
 	tests := []struct {
@@ -126,17 +85,5 @@ func TestResolveMentionMatches(t *testing.T) {
 				t.Fatalf("标识符后缀不应截断成 mention: %#v", matches)
 			}
 		})
-	}
-}
-
-func TestBuildMentionAliasesDropsAmbiguity(t *testing.T) {
-	for _, names := range [][2]string{{"同名", "同名"}, {"Amy", "amy"}} {
-		aggregate := &protocol.ConversationContextAggregate{MemberAgents: []protocol.Agent{
-			{AgentID: "agent-a", Name: names[0]},
-			{AgentID: "agent-b", Name: names[1]},
-		}}
-		if matches := ResolveMentionMatches("@"+names[0], BuildMentionAliases(aggregate)); len(matches) != 0 {
-			t.Fatalf("歧义 alias %q 不应触发 handoff: %#v", names[0], matches)
-		}
 	}
 }

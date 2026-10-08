@@ -40,6 +40,14 @@
 
 结果：生产 Go 代码净减约 2,400 行；逐字重复 helper 从 1,083 行降到约 660 行；`deadcode -test` 剩余 7 项，均为单平台专用实现。
 
+## 3.1 测试瘦身
+
+- **方法**：3,081 个 Linux 可运行的顶层 Go 测试逐个单独运行，记录跨包语句覆盖（`-coverpkg=internal/...`）；对 49,116 个被覆盖块做贪心集合覆盖，选出保持全部覆盖所需的最小测试集。前端 406 个标准 Vitest 文件按文件单独采集 V8 语句与分支覆盖，做同样的选择。
+- **始终保留**：被 `scripts/`、`makefile`、非 evidence 文档点名的必测用例；名字表明并发/竞态的用例（覆盖率无法表达交错）；Linux 上跳过或基线失败的用例；darwin/windows 专用测试；被父测试以 `-test.run` 子进程重入的入口（`TestRevisionKeyChildProcess`、`TestSandboxCrashHelper`）；校验仓库数据不变量的 `TestMigrationVersionsAreUniqueAcrossDialects`。
+- **结果**：删除 1,025 个无独有覆盖的 Go 测试及其孤立辅助代码和 32 个空测试文件，测试代码从 187,751 行降到约 144,400 行；删除 41 个前端测试文件（145 个用例，约 2,400 行）。全量运行中仅少量依赖断连/取消时序的错误分支在单次运行里未命中，原覆盖它们的测试均保留。
+- **局限**：覆盖率只能证明“执行过”，不能证明“断言过”。同一路径上断言不同错误码或边界值的测试可能被一并删除；后续补测试应优先针对未覆盖分支，而不是重复已覆盖路径。
+- `internal/runtime/permission` 的 `TestMemberSessionPermissionDoesNotResolveOtherRoomMember` 在删除前的基线上即约 30% 概率失败（两个 goroutine 的请求发出顺序不确定），需单独修复。
+
 ## 4. 未处理热点与建议（按收益排序）
 
 1. **ingress 一次清洗，下游信任**。`protocol.ExecutionWorkBinding.Normalized` 的注释已经写明“清洗只发生在 ingress，下游一律信任已清洗的值”，但大部分领域没有执行这一原则。建议每个领域只在 handler/MCP parser/仓储扫描处裁剪，service 内部删除重复 `TrimSpace`；room/realtime（845 次）与 automation（839 次）收益最大。需逐领域推进并补齐 ingress 测试，不适合机械批量替换。

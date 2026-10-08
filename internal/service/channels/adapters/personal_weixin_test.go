@@ -61,61 +61,6 @@ func (r *recordingPersonalWeixinIngress) Accept(_ context.Context, request chann
 	}, nil
 }
 
-func TestPersonalWeixinChannelSendDeliveryMessage(t *testing.T) {
-	var receivedPath string
-	var receivedAuth string
-	var payload map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		receivedPath = request.URL.Path
-		receivedAuth = request.Header.Get("Authorization")
-		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-			t.Fatalf("解析个人微信回投请求失败: %v", err)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"ret":0}`))
-	}))
-	defer server.Close()
-
-	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-		BaseURL:   server.URL,
-		Token:     "token-1",
-		AccountID: "account-1",
-	}, server.Client())
-	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:         channelcontract.DeliveryModeExplicit,
-		Channel:      channelcontract.ChannelTypeWeixinPersonal,
-		To:           "wx-user-1",
-		ContextToken: "ctx-token-1",
-	}, "你好")
-	if err != nil {
-		t.Fatalf("个人微信回投失败: %v", err)
-	}
-	if receivedPath != "/ilink/bot/sendmessage" {
-		t.Fatalf("个人微信回投路径不正确: %s", receivedPath)
-	}
-	if receivedAuth != "Bearer token-1" {
-		t.Fatalf("个人微信回投 Authorization 不正确: %q", receivedAuth)
-	}
-	message, ok := payload["msg"].(map[string]any)
-	if !ok {
-		t.Fatalf("个人微信回投 msg 不正确: %+v", payload)
-	}
-	if message["to_user_id"] != "wx-user-1" || message["context_token"] != "ctx-token-1" {
-		t.Fatalf("个人微信回投目标不正确: %+v", message)
-	}
-	items, ok := message["item_list"].([]any)
-	if !ok || len(items) != 1 {
-		t.Fatalf("个人微信回投 item_list 不正确: %+v", message)
-	}
-	textItem := items[0].(map[string]any)["text_item"].(map[string]any)
-	if textItem["text"] != "你好" {
-		t.Fatalf("个人微信回投文本不正确: %+v", textItem)
-	}
-	if _, ok := payload["base_info"].(map[string]any); !ok {
-		t.Fatalf("个人微信回投应携带 base_info: %+v", payload)
-	}
-}
-
 func TestPersonalWeixinMultiAccountChannelRoutesByAccountID(t *testing.T) {
 	var receivedAuth string
 	var receivedTo string
@@ -322,66 +267,6 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 	}
 }
 
-func TestPersonalWeixinMultiAccountChannelDoesNotNotifyStopForAdoptedDuplicate(t *testing.T) {
-	var mu sync.Mutex
-	stopTokens := []string{}
-	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-		switch request.URL.Path {
-		case "/ilink/bot/msg/notifystart":
-			return jsonResponse(`{"ret":0}`), nil
-		case "/ilink/bot/getupdates":
-			<-request.Context().Done()
-			return nil, request.Context().Err()
-		case "/ilink/bot/msg/notifystop":
-			mu.Lock()
-			stopTokens = append(stopTokens, strings.TrimPrefix(request.Header.Get("Authorization"), "Bearer "))
-			mu.Unlock()
-			return jsonResponse(`{"ret":0}`), nil
-		default:
-			t.Fatalf("未知个人微信请求路径: %s", request.URL.Path)
-			return nil, nil
-		}
-	})}
-	newAccount := func(token string) *PersonalWeixinChannel {
-		return NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-			BaseURL:   "https://weixin.test",
-			Token:     token,
-			AccountID: "account-1",
-		}, client)
-	}
-
-	runCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	previous := newAccount("token-1")
-	if err := previous.Start(runCtx); err != nil {
-		t.Fatalf("启动旧个人微信账号失败: %v", err)
-	}
-	replacement := NewPersonalWeixinMultiAccountChannel([]*PersonalWeixinChannel{
-		newAccount("token-1"),
-	})
-	if err := replacement.Start(runCtx); err != nil {
-		t.Fatalf("启动候选个人微信账号失败: %v", err)
-	}
-	if !replacement.AdoptReplacedChannel(previous) {
-		t.Fatal("候选 runtime 应接管同 token 的旧账号")
-	}
-
-	mu.Lock()
-	stopsBeforeShutdown := len(stopTokens)
-	mu.Unlock()
-	if stopsBeforeShutdown != 0 {
-		t.Fatalf("停止被替换的重复 poller 不应通知厂商下线: %+v", stopTokens)
-	}
-	if err := replacement.Stop(context.Background()); err != nil {
-		t.Fatalf("停止接管后的个人微信账号失败: %v", err)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if len(stopTokens) != 1 || stopTokens[0] != "token-1" {
-		t.Fatalf("最终停止应且仅应通知一次厂商下线: %+v", stopTokens)
-	}
-}
-
 func TestPersonalWeixinMultiAccountChannelDoesNotRestoreRemovedAccount(t *testing.T) {
 	removed := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
 		BaseURL:   "https://weixin.test",
@@ -487,27 +372,6 @@ func TestPersonalWeixinChannelTypingIgnoresGetConfigFailure(t *testing.T) {
 	}
 	if getConfigCalls != 1 || sendTypingCalls != 0 {
 		t.Fatalf("typing 降级不正确: getconfig=%d sendtyping=%d", getConfigCalls, sendTypingCalls)
-	}
-}
-
-func TestPersonalWeixinChannelSendDeliveryMessageChecksBusinessError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"ret":1,"errmsg":"send unavailable"}`))
-	}))
-	defer server.Close()
-
-	channel := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
-		BaseURL: server.URL,
-		Token:   "token-1",
-	}, server.Client())
-	_, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:    channelcontract.DeliveryModeExplicit,
-		Channel: channelcontract.ChannelTypeWeixinPersonal,
-		To:      "wx-user-1",
-	}, "你好")
-	if err == nil || !strings.Contains(err.Error(), "ret=1") {
-		t.Fatalf("个人微信业务失败应返回错误: %v", err)
 	}
 }
 

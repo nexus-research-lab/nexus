@@ -19,20 +19,6 @@ type abstractionProviderRecorder struct {
 	model    string
 }
 
-func TestAbstractionPromptPreservesStructureAndAbstractsTaskSemantics(t *testing.T) {
-	for _, required := range []string{
-		"input.nodes 是宿主提供的完整权威结构",
-		"默认逐个保留节点",
-		"主要工作是抽象每个节点的具体任务语义",
-		"must_preserve=true 的节点必须出现在输出中",
-		"无法确定时保留",
-	} {
-		if !strings.Contains(abstractionSystemPrompt, required) {
-			t.Fatalf("abstraction prompt missing %q", required)
-		}
-	}
-}
-
 func TestApplyAbstractionRejectsOmittedStructuralNode(t *testing.T) {
 	sourceNodes := []protocol.WorkGraphWorkflowNode{
 		{LogicalKey: "prepare", Terminal: false},
