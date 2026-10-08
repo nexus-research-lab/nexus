@@ -8,22 +8,27 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
+	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
 func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
-	cfg.AppMode = "desktop"
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	handlertest.CloseServer(t, server)
-	httpServer := httptest.NewServer(server.Router())
+	// 验证真实认证、HTTP handler 与资料持久化，不启动无关的桌面进程监督。
+	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
+	t.Cleanup(func() { _ = db.Close() })
+	authority := authsvc.NewLocalAuthority(cfg.DatabaseDriver, db, nil)
+	api := handlershared.NewAPI(nil)
+	handlers := authhandler.New(api, authority, nil, nil)
+	router := http.NewServeMux()
+	router.HandleFunc("GET /nexus/v1/auth/status", handlers.HandleAuthStatus)
+	router.HandleFunc("GET /nexus/v1/settings/profile", handlers.HandlePersonalProfile)
+	router.HandleFunc("PATCH /nexus/v1/settings/profile", handlers.HandleUpdatePersonalProfile)
+	httpServer := httptest.NewServer(handlershared.AuthMiddleware(api, authority)(router))
 	defer httpServer.Close()
 
 	status := getAuthStatus(t, httpServer.URL)

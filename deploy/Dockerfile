@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG GO_IMAGE=golang:1.26.2-bookworm
+ARG GO_IMAGE=golang:1.26.6-bookworm
 ARG NODE_IMAGE=node:22-bookworm-slim
 
 FROM ${GO_IMAGE} AS builder
