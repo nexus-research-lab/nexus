@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 nexuscfg 全部 runtime 配置请求因携带多余 reconcile 字段而返回“请求参数错误”，恢复 inspect、plan、apply、history 与 review 的请求解析。修正配置 Skill 的排障指引，避免将通用接口错误或页面不可见直接归因于权限或版本缺失。
+
 - 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
 
 - 优化部署用户目录与新建流程：创建改为独立弹窗，补齐焦点、字段校验、加载与未知结果核对反馈。
