@@ -313,7 +313,7 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 		"usage":     map[string]any{"total_tokens": int64(7)},
 	}}
 	for _, settlement := range runner.recordSubagentGoalUsage(context.Background(), childTerminal) {
-		runner.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
+		runner.ClearSubagentUsagePending(settlement.TaskID, settlement.Observation)
 	}
 	runner.rememberSubagentTaskMessage(childTerminal)
 	if runner.HasRunningSubagentTask() {
@@ -370,7 +370,7 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 	record := func(message protocol.Message) {
 		t.Helper()
 		for _, settlement := range runner.recordSubagentGoalUsage(context.Background(), message) {
-			runner.clearSubagentUsageObservationPending(
+			runner.ClearSubagentUsagePending(
 				settlement.TaskID,
 				settlement.Observation,
 			)
