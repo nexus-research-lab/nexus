@@ -71,7 +71,7 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 		AssistantID: textutil.AnyString(assistant["message_id"]),
 		FinishedAt:  time.Now().UTC(),
 	}
-	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
+	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.echoHooks.OnTerminal(ctx, terminal)
 	})
 }

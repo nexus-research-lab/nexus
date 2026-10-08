@@ -118,7 +118,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 	)
 	logger.Info("开始执行 DM round")
-	ownerCtx := contextWithExactOwner(context.Background(), r.ownerUserID)
+	ownerCtx := runtimehost.ContextWithExactOwner(context.Background(), r.ownerUserID)
 	stopTyping := r.startExternalReplyTyping(ownerCtx)
 	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
@@ -306,7 +306,7 @@ func (r *roundRunner) executeRound(
 		executeErr = errors.New("runtime fork 未提交可恢复的独立 SDK session")
 	}
 	if executeErr != nil && r.forkSourceSessionID != "" {
-		r.closeUncommittedForkRuntime(logger, executeErr)
+		r.service.CloseUncommittedForkRuntime(r.sessionKey, r.client, logger, executeErr)
 	}
 	failureReason := ""
 	if executeErr != nil {
@@ -318,19 +318,6 @@ func (r *roundRunner) executeRound(
 		failureReason,
 	)
 	return result, executeErr
-}
-
-func (r *roundRunner) closeUncommittedForkRuntime(logger *slog.Logger, forkErr error) {
-	lease, ok := r.service.Runtime.CaptureClientLease(r.sessionKey, r.client)
-	if !ok {
-		return
-	}
-	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
-	defer cancel()
-	_, closeErr := r.service.Runtime.CloseSessionIfLease(closeCtx, lease)
-	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-		logger.Warn("关闭未提交的 fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
-	}
 }
 
 func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
@@ -420,7 +407,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {
-		r.clearSubagentUsageObservationPending(settled.taskID, settled.observation)
+		r.clearSubagentUsageObservationPending(settled.TaskID, settled.Observation)
 	}
 	r.RememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)
@@ -462,7 +449,7 @@ func (r *roundRunner) dispatchNextInputQueueItem() {
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}
-	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
+	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location)
 	})
@@ -479,7 +466,7 @@ func (r *roundRunner) dispatchPostRoundWork() {
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}
-	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
+	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
 			return

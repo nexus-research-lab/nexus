@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -137,7 +138,7 @@ func (s *Service) prepareConnectorRuntime(
 	if err != nil {
 		return err
 	}
-	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 	expectedSelection := protocol.SessionConnectorSelectionFromOptions(snapshot.Options)
 	current, err := s.ensureSession(ctx, agentValue, parsed, snapshot.SessionKey)
 	if err != nil {

@@ -833,24 +833,19 @@ type dmGoalUsageSourceRecorder interface {
 	RecordUsageSourceSnapshot(context.Context, protocol.GoalUsageSourceSnapshot) (protocol.GoalUsageSourceResult, error)
 }
 
-type dmSubagentUsageSettlement struct {
-	taskID      string
-	observation goalsvc.SubagentUsageObservation
-}
-
 func (r *roundRunner) recordSubagentGoalUsage(
 	ctx context.Context,
 	message protocol.Message,
-) []dmSubagentUsageSettlement {
+) []runtimehost.SubagentUsageSettlement {
 	if r == nil || r.service == nil ||
 		!strings.EqualFold(r.runtimeKind, "nxs") {
 		return nil
 	}
-	observations := dmSubagentUsageObservations(r, message)
+	observations := r.SubagentUsageObservations(message)
 	if len(observations) == 0 {
 		return nil
 	}
-	settledSnapshots := make([]dmSubagentUsageSettlement, 0, len(observations))
+	settledSnapshots := make([]runtimehost.SubagentUsageSettlement, 0, len(observations))
 	recorder, persistent := r.service.goals.(dmGoalUsageSourceRecorder)
 	if persistent {
 		hadFailure := false
@@ -861,13 +856,13 @@ func (r *roundRunner) recordSubagentGoalUsage(
 		r.goalUsageBindingMu.Lock()
 		for _, child := range observations {
 			r.Mu.Lock()
-			r.markSubagentUsageObservationPendingLocked(child.taskID, child.observation)
-			observation := r.SubagentUsagePending[child.taskID]
+			r.markSubagentUsageObservationPendingLocked(child.TaskID, child.Observation)
+			observation := r.SubagentUsagePending[child.TaskID]
 			currentGoalID := strings.TrimSpace(r.ChildIDForUsage)
 			if currentGoalID == "" {
 				currentGoalID = strings.TrimSpace(r.IDForUsage)
 			}
-			snapshot := r.subagentUsageSourceSnapshotLocked(child.taskID, observation)
+			snapshot := r.subagentUsageSourceSnapshotLocked(child.TaskID, observation)
 			r.Mu.Unlock()
 			var (
 				result protocol.GoalUsageSourceResult
@@ -888,16 +883,16 @@ func (r *roundRunner) recordSubagentGoalUsage(
 					"session_key", r.sessionKey,
 					"goal_id", currentGoalID,
 					"round_id", r.roundID,
-					"task_id", child.taskID,
+					"task_id", child.TaskID,
 					"err", err,
 				)
 				continue
 			}
 			r.Mu.Lock()
-			r.clearSubagentUsageObservationPendingLocked(child.taskID, observation)
-			settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-				taskID:      child.taskID,
-				observation: observation,
+			r.clearSubagentUsageObservationPendingLocked(child.TaskID, observation)
+			settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: observation,
 			})
 			r.rememberSubagentUsageResultBindingLocked(result)
 			r.Mu.Unlock()
@@ -910,7 +905,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	}
 
 	for _, child := range observations {
-		r.markSubagentUsageObservationPending(child.taskID, child.observation)
+		r.markSubagentUsageObservationPending(child.TaskID, child.Observation)
 	}
 	r.Mu.Lock()
 	goalID := strings.TrimSpace(r.ChildIDForUsage)
@@ -921,41 +916,28 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	r.Mu.Unlock()
 	for _, child := range observations {
 		if r.service.Runtime == nil {
-			settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-				taskID:      child.taskID,
-				observation: child.observation,
+			settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: child.Observation,
 			})
 			continue
 		}
 		delta := r.service.Runtime.ObserveSubagentUsage(
 			r.sessionKey,
-			child.taskID,
-			child.observation.CumulativeTotal,
+			child.TaskID,
+			child.Observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && r.service.goals != nil && !r.ignoreGoalRuntime() {
 			// 兼容测试/非 SQL provider：TaskUsage 只有 provider actual total，
 			// 没有 breakdown 时不得冒充预算 token。
 			r.recordGoalUsageDelta(ctx, protocol.GoalUsage{ActualTotalTokens: delta})
 		}
-		settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-			taskID:      child.taskID,
-			observation: child.observation,
+		settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+			TaskID:      child.TaskID,
+			Observation: child.Observation,
 		})
 	}
 	return settledSnapshots
-}
-
-func dmSubagentUsageObservations(runner *roundRunner, message protocol.Message) []dmSubagentUsageSettlement {
-	var knowsTask func(string) bool
-	if runner != nil {
-		knowsTask = runner.KnowsSubagentTask
-	}
-	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
-	result := make([]dmSubagentUsageSettlement, 0, len(observations))
-	for _, item := range observations {
-		result = append(result, dmSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage})
-	}
-	return result
 }
 
 // persistSubagentUsageObservationLocked resolves the child Goal binding and

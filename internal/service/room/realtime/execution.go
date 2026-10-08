@@ -27,6 +27,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -460,7 +461,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		executeErr = errors.New("Room runtime fork 未提交可恢复的独立 SDK session")
 	}
 	if executeErr != nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
-		e.closeUncommittedForkRuntime(client, executeErr)
+		e.service.CloseUncommittedForkRuntime(e.slot.RuntimeSessionKey, client, e.logger, executeErr)
 	}
 	failureReason := ""
 	if executeErr != nil {
@@ -496,19 +497,6 @@ func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
 		e.runtimeIdentityCommitted = true
 	}
 	return nil
-}
-
-func (e *slotExecution) closeUncommittedForkRuntime(client runtimectx.Client, forkErr error) {
-	lease, ok := e.service.Runtime.CaptureClientLease(e.slot.RuntimeSessionKey, client)
-	if !ok {
-		return
-	}
-	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
-	defer cancel()
-	_, closeErr := e.service.Runtime.CloseSessionIfLease(closeCtx, lease)
-	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-		e.logger.Warn("关闭未提交的 Room fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
-	}
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
@@ -598,7 +586,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	settledSubagentUsage := e.service.recordSubagentGoalUsageForSlot(e.ctx, e.slot, messageValue)
 	e.slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		e.slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+		e.slot.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
 	}
 	e.service.startRoomSubagentUsageRetry(e.round, e.slot)
 	if e.slot.hasSubagentHistory() {
@@ -685,7 +673,7 @@ func (s *Service) runRound(
 	agentByID map[string]*protocol.Agent,
 ) {
 	defer s.Runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
-	ctx = contextWithExactQueueOwner(ctx, roundValue.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, roundValue.OwnerUserID)
 	logger := s.LoggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -701,7 +689,7 @@ func (s *Service) runRound(
 			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
 			// 每个 Agent 独立串行。当前 slot 已终态且 runtime 清理完成后，
 			// 立即释放它错过的 guide 并派发其队列，不等待同 root 的其他成员。
-			dispatchCtx := contextWithExactQueueOwner(context.Background(), roundValue.OwnerUserID)
+			dispatchCtx := runtimehost.ContextWithExactOwner(context.Background(), roundValue.OwnerUserID)
 			s.releaseUndeliveredRoomGuidance(dispatchCtx, roundValue.SessionKey, roundValue.Context)
 			s.dispatchNextInputQueueItem(dispatchCtx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
 		}(slot)
@@ -757,7 +745,7 @@ func (s *Service) runRound(
 	// Round 已经结束后，所有仍可能写 queue/workspace 或启动后续 runtime 的工作
 	// 必须先登记到 session 生命周期，再执行。否则 CloseSession 可能在
 	// round 进入终态与这些写盘操作之间返回，迟到 goroutine 会重新创建已清理目录。
-	s.startSessionBackgroundTask(
+	s.StartSessionBackgroundTask(
 		roundValue.SessionKey,
 		roundValue.OwnerUserID,
 		func(taskCtx context.Context) {

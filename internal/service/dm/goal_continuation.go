@@ -31,7 +31,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 		s.LoggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	ctx = contextWithExactOwner(ctx, location.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, location.OwnerUserID)
 	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
@@ -67,7 +67,7 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 		return true, nil
 	}
 	if err == nil && agentValue != nil {
-		ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+		ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 	}
 	return false, err
 }
@@ -170,7 +170,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if agentValue == nil || strings.TrimSpace(agentValue.OwnerUserID) == "" {
 		return errors.New("dm goal continuation target agent has no owner")
 	}
-	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 
 	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return err

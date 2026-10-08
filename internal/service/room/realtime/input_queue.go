@@ -188,7 +188,7 @@ func (s *Service) HandleInputQueue(
 						"err", broadcastErr,
 					)
 				}
-				s.startSessionBackgroundTask(
+				s.StartSessionBackgroundTask(
 					sessionKey,
 					ownerUserID,
 					func(taskCtx context.Context) {
@@ -235,7 +235,7 @@ func (s *Service) HandleInputQueue(
 					"err", broadcastErr,
 				)
 			}
-			s.startSessionBackgroundTask(
+			s.StartSessionBackgroundTask(
 				sessionKey,
 				ownerUserID,
 				func(taskCtx context.Context) {
@@ -313,7 +313,7 @@ func (s *Service) InputQueueSnapshotEvent(
 		return protocol.EventMessage{}, err
 	}
 	event := newRoomInputQueueEvent(sessionKey, strings.TrimSpace(roomID), strings.TrimSpace(conversationID), items)
-	s.startSessionBackgroundTask(
+	s.StartSessionBackgroundTask(
 		sessionKey,
 		contextValue.Room.OwnerUserID,
 		func(taskCtx context.Context) {
@@ -353,7 +353,7 @@ func (s *Service) guideInputQueueItem(
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			entry.Item.OwnerUserID,
 			func(taskCtx context.Context) {

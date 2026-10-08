@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -35,7 +36,7 @@ func (s *Service) inputQueueGuidanceHook(
 	location workspacestore.InputQueueLocation,
 ) sdkhook.Callback {
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
-		ctx = contextWithExactOwner(ctx, location.OwnerUserID)
+		ctx = runtimehost.ContextWithExactOwner(ctx, location.OwnerUserID)
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
@@ -237,7 +238,7 @@ func (s *Service) confirmPendingInputQueueGuidance(
 			guidance.targetRoundID,
 		)
 		if persistErr != nil {
-			restored, restoreErr := s.restorePendingInputQueueGuidance(location, claimed)
+			restored, restoreErr := s.RestoreInputQueueItems(location, claimed)
 			if restoreErr == nil {
 				restoredByID := make(map[string]protocol.InputQueueItem, len(restored))
 				for _, restoredItem := range restored {
@@ -267,17 +268,6 @@ func (s *Service) setPendingInputQueueGuidanceLocked(key string, pending []prepa
 		return
 	}
 	s.inputQueueGuidancePending[key] = pending
-}
-
-func (s *Service) restorePendingInputQueueGuidance(
-	location workspacestore.InputQueueLocation,
-	items []protocol.InputQueueItem,
-) ([]protocol.InputQueueItem, error) {
-	entries := make([]workspacestore.InputQueueEnqueue, 0, len(items))
-	for _, item := range items {
-		entries = append(entries, workspacestore.InputQueueEnqueue{Location: location, Item: item})
-	}
-	return s.InputQueue.EnqueueBatchWithItems(entries)
 }
 
 func (s *Service) clearPendingInputQueueGuidance(sessionKey string, roundID string) {

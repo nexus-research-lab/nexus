@@ -66,7 +66,7 @@ func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
 			revision := &atomic.Int64{}
 			revision.Store(7)
 			runner := &roundRunner{
-				service:               &Service{goals: provider},
+				service:               &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 				sessionKey:            "agent:nexus:ws:dm:revision",
 				roundID:               "round-revision",
 				GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: "goal-revision"},
@@ -123,7 +123,7 @@ func TestDMGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 		nil,
 	)
 	runner := &roundRunner{
-		service:               &Service{goals: &fakeGoalContextProvider{}},
+		service:               &Service{goals: &fakeGoalContextProvider{}, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: "goal-1"},
 		goalObjectiveRevision: func() *atomic.Int64 { value := &atomic.Int64{}; value.Store(1); return value }(),
 		responsibilityState:   goalOnly,
@@ -220,7 +220,7 @@ func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *tes
 		bindErr:                 bindConflict,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		ownerUserID:    "owner-bind-conflict",
 		sessionKey:     "agent:nexus:ws:dm:bind-conflict",
 		roundID:        "round-bind-conflict",
@@ -276,7 +276,7 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 		bindErr: bindConflict,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		ownerUserID:    "owner-model-bind-window",
 		sessionKey:     sessionKey,
 		roundID:        roundID,
@@ -400,7 +400,7 @@ func TestDMGoalFinalizingHookDeclinesIgnoredOrUnboundRound(t *testing.T) {
 func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "round-1",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -433,7 +433,7 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "goal_continuation_1",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", SubagentTasks: map[string]struct{}{"task-1": {}}},
@@ -458,7 +458,7 @@ func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testi
 func TestRoundRunnerActivateSameGoalPreservesLowerExactTerminalCalibration(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:same-goal-activate",
 		roundID:        "round-same-goal-activate",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-same", ChildIDForUsage: "goal-same", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -500,7 +500,7 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	t.Run("create_goal command", func(t *testing.T) {
 		goalProvider := &fakeGoalContextProvider{}
 		runner := &roundRunner{
-			service:        &Service{goals: goalProvider},
+			service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 			sessionKey:     "agent:nexus:ws:dm:test",
 			roundID:        "round-1",
 			GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
@@ -534,7 +534,7 @@ func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T)
 		runtimeGoal: &protocol.Goal{ID: "goal-created", SessionKey: sessionKey},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: goalProvider},
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     sessionKey,
 		roundID:        "round-1",
 		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
@@ -605,7 +605,7 @@ func TestDMExternalActivationFlushesPendingChildBeforeBindAndSkipsStaleRetry(t *
 		fakeGoalContextProvider: &fakeGoalContextProvider{},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:bind-pending",
 		roundID:        "round-bind-pending",
 		ownerUserID:    "owner-bind-pending",
@@ -653,7 +653,7 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 		sourceErr:               sourceErr,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:bind-pending-failure",
 		roundID:        "round-bind-pending-failure",
 		ownerUserID:    "owner-bind-pending-failure",
@@ -717,7 +717,7 @@ func TestRoundRunnerClaimsPreCreateSubagentUsageAndKeepsChildBoundAfterTerminal(
 	}
 	provider := &fakePersistentDMGoalProvider{fakeGoalContextProvider: base}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     sessionKey,
 		roundID:        "round-create",
 		ownerUserID:    "owner-dm",

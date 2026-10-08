@@ -186,7 +186,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		delivery.ConversationID,
 		[]string{delivery.TargetAgentID},
 	)) == 0 {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			delivery.SessionKey,
 			delivery.OwnerUserID,
 			func(taskCtx context.Context) {

@@ -141,7 +141,7 @@ func (s *Service) guideRunningInput(
 	))
 	s.broadcastSessionStatus(ctx, sessionKey)
 	if recovered {
-		s.startSessionBackgroundTask(sessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+		s.StartSessionBackgroundTask(sessionKey, location.OwnerUserID, func(taskCtx context.Context) {
 			s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, agentValue.AgentID, location)
 		})
 	}

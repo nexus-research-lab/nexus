@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
@@ -27,7 +28,7 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	provider.finalizeFailuresRemaining = goalUsagePersistAttempts * 2
 	var dispatches atomic.Int64
 	runner := &roundRunner{
-		service:               &Service{goals: provider},
+		service:               &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:            sessionKey,
 		roundID:               roundID,
 		ownerUserID:           "owner-parent-terminal-background-retry",
@@ -115,7 +116,7 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 			provider.finalizeFailuresRemaining = goalUsagePersistAttempts * 2
 			var dispatches atomic.Int64
 			runner := &roundRunner{
-				service:               &Service{goals: provider},
+				service:               &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 				sessionKey:            sessionKey,
 				roundID:               roundID,
 				GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -156,7 +157,7 @@ func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *t
 	provider.finalizeFailuresRemaining = 6
 	var dispatches atomic.Int64
 	runner := &roundRunner{
-		service:                &Service{goals: provider},
+		service:                &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:             sessionKey,
 		roundID:                roundID,
 		ownerUserID:            "owner-finalize-background-retry",
@@ -201,7 +202,7 @@ func TestCompletedDMGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) 
 		claimFailuresRemaining: goalUsagePersistAttempts * 2,
 	}
 	runner := &roundRunner{
-		service:                &Service{goals: provider},
+		service:                &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:             sessionKey,
 		roundID:                roundID,
 		ownerUserID:            "owner-claim-retry",
@@ -278,7 +279,7 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 		},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     sessionKey,
 		roundID:        roundID,
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true), SubagentTasks: map[string]struct{}{"child-task": {}}},
@@ -312,7 +313,7 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 		"usage":     map[string]any{"total_tokens": int64(7)},
 	}}
 	for _, settlement := range runner.recordSubagentGoalUsage(context.Background(), childTerminal) {
-		runner.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+		runner.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
 	}
 	runner.rememberSubagentTaskMessage(childTerminal)
 	if runner.HasRunningSubagentTask() {
@@ -345,7 +346,7 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 	provider := newEvidenceAwareDMGoalProvider(sessionKey, goalID)
 	var dispatches atomic.Int64
 	runner := &roundRunner{
-		service:                &Service{goals: provider},
+		service:                &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		ownerUserID:            "owner-child-unavailable",
 		sessionKey:             sessionKey,
 		roundID:                roundID,
@@ -370,8 +371,8 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 		t.Helper()
 		for _, settlement := range runner.recordSubagentGoalUsage(context.Background(), message) {
 			runner.clearSubagentUsageObservationPending(
-				settlement.taskID,
-				settlement.observation,
+				settlement.TaskID,
+				settlement.Observation,
 			)
 		}
 		runner.rememberSubagentTaskMessage(message)
@@ -441,7 +442,7 @@ func TestCompletedDMGoalWithoutTokenUsageSettlesWithoutFinalizationFence(t *test
 		},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     sessionKey,
 		roundID:        "round-missing-terminal-usage",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageStartedAt: time.Now().Add(-2 * time.Second)},
@@ -500,7 +501,7 @@ func TestDMTerminalUsageDurableParentLedgerReplaysWithoutDoubleAttribution(t *te
 				provider.finalizeFailuresRemaining = 1
 			}
 			runner := &roundRunner{
-				service:        &Service{goals: provider},
+				service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 				ownerUserID:    "owner-durable-parent-replay",
 				sessionKey:     sessionKey,
 				roundID:        roundID,

@@ -21,6 +21,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -773,7 +774,7 @@ func (s *Service) repairGoalDirectedMessageHandoffs(ctx context.Context) error {
 			strings.TrimSpace(contextValue.Room.ID) != strings.TrimSpace(message.RoomID) {
 			continue
 		}
-		repairCtx := contextWithExactQueueOwner(ctx, ownerUserID)
+		repairCtx := runtimehost.ContextWithExactOwner(ctx, ownerUserID)
 		goal, goalErr := s.goalForCollaborationBinding(
 			repairCtx,
 			message.ConversationID,
@@ -873,7 +874,7 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 			// 不在这里再创建一条 target round。
 			if s.InputQueue != nil {
 				sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-				s.startSessionBackgroundTask(
+				s.StartSessionBackgroundTask(
 					sessionKey,
 					contextValue.Room.OwnerUserID,
 					func(taskCtx context.Context) {
@@ -1165,7 +1166,7 @@ func (s *Service) recoverGoalDirectedMessageHandoff(
 		return nil
 	}
 	return s.runPersistedImmediateRoomDirectedMessageWake(
-		contextWithExactQueueOwner(ctx, contextValue.Room.OwnerUserID),
+		runtimehost.ContextWithExactOwner(ctx, contextValue.Room.OwnerUserID),
 		contextValue,
 		*source,
 	)

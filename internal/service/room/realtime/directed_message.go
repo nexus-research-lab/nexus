@@ -20,6 +20,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -887,7 +888,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 		return err
 	}
 	s.scheduleRoomDirectedQueueDispatch(
-		contextWithExactQueueOwner(context.Background(), authctx.OwnerUserID(ctx)),
+		runtimehost.ContextWithExactOwner(context.Background(), authctx.OwnerUserID(ctx)),
 		sessionKey,
 		message.RoomID,
 		message.ConversationID,
@@ -907,7 +908,7 @@ func (s *Service) scheduleRoomDirectedQueueDispatch(
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
 	s.wakeTimers.ScheduleDispatch(key, roomDirectedWakeBatchWindow, func() {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			ownerUserID,
 			func(taskCtx context.Context) {

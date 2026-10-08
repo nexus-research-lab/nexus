@@ -1024,41 +1024,16 @@ func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
 }
 
 func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message) {
-	if slot == nil {
-		return
-	}
-	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(anyString(metadata["task_id"]))
-	if taskID == "" {
-		return
-	}
-	subtype := strings.TrimSpace(anyString(metadata["subtype"]))
-	status := strings.TrimSpace(anyString(metadata["status"]))
-	if !messagepkg.IsSubagentTaskMetadata(metadata) && !slot.mutable.goal.KnowsSubagentTask(taskID) {
+	if slot == nil || !slot.mutable.goal.RememberSubagentTaskMessage(message) {
 		return
 	}
 	runtimeKind := slot.runtimeKind()
 	slot.mutable.goal.Mu.Lock()
 	defer slot.mutable.goal.Mu.Unlock()
-	if runtimeKind != "" {
+	if metadata, _ := message["metadata"].(map[string]any); metadata != nil && runtimeKind != "" {
 		metadata["runtime_kind"] = runtimeKind
 	}
 	slot.mutable.goal.subagentHistory = true
-	if slot.mutable.goal.SubagentTasks == nil {
-		slot.mutable.goal.SubagentTasks = map[string]struct{}{}
-	}
-	switch subtype {
-	case "task_started", "task_progress", "task_updated":
-		if messagepkg.IsTerminalSubagentTaskStatus(status) {
-			delete(slot.mutable.goal.SubagentTasks, taskID)
-			return
-		}
-		slot.mutable.goal.SubagentTasks[taskID] = struct{}{}
-	case "task_notification":
-		if messagepkg.IsTerminalSubagentTaskStatus(status) {
-			delete(slot.mutable.goal.SubagentTasks, taskID)
-		}
-	}
 }
 
 func (slot *activeRoomSlot) hasSubagentHistory() bool {
