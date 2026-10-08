@@ -599,8 +599,8 @@ func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string,
 	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
 		return "", ""
 	}
-	return strings.TrimSpace(textutil.PointerValue(session.RoomID)),
-		strings.TrimSpace(textutil.PointerValue(session.ConversationID))
+	return textutil.PointerValue(session.RoomID),
+		textutil.PointerValue(session.ConversationID)
 }
 
 func (e *dmChatExecution) registerRunner() {

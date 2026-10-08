@@ -16,7 +16,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 		AgentID:    strings.TrimSpace(agentID),
 		SessionKey: sessionKey,
 		WakeMode:   strings.TrimSpace(wakeMode),
-		Text:       strings.TrimSpace(textutil.PointerValue(text)),
+		Text:       textutil.PointerValue(text),
 	}
 	s.wakeRequests[sessionKey] = append(s.wakeRequests[sessionKey], request)
 	if state := s.heartbeatState[request.AgentID]; state != nil {

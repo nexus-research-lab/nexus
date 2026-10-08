@@ -5,7 +5,6 @@ package realtime
 
 import (
 	"context"
-	"strings"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
@@ -17,7 +16,7 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 	if e.slot == nil {
 		return nil
 	}
-	inputs := goalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot))
+	inputs := runtimectx.GoalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot))
 	if e.round != nil {
 		inputs = append(runtimectx.AutomationRunContextualInputs(e.round.AutomationRun), inputs...)
 	}
@@ -63,17 +62,7 @@ func (s *Service) executionContextualInputs(
 	if err != nil {
 		return nil, err
 	}
-	if content = strings.TrimSpace(content); content == "" {
-		return nil, nil
-	}
-	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(
-			runtimectx.ContextualInputNameExecution,
-			content,
-			runtimectx.ContextualInputPriorityExecution,
-			nil,
-		),
-	}, nil
+	return runtimectx.ExecutionContextualInputs(content), nil
 }
 
 func (s *Service) executionGoalBinding(

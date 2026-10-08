@@ -5,7 +5,6 @@ package dm
 
 import (
 	"context"
-	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -37,9 +36,7 @@ func (s *Service) recordGoalQuotaLimit(ctx context.Context, sessionKey string, r
 		return
 	}
 	if _, err := s.goals.UsageLimitForSession(ctx, sessionKey, roundID, reason); err != nil &&
-		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
-		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
-		!errors.Is(err, goalsvc.ErrGoalInvalidState) {
+		!goalsvc.IsInactive(err) {
 		s.loggerFor(ctx).Warn("标记 Goal 账号额度限制失败",
 			"session_key", sessionKey,
 			"round_id", roundID,

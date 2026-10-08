@@ -52,13 +52,6 @@ type dmClientPreparation struct {
 	permissionMode         sdkpermission.Mode
 }
 
-func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
-	if lease == nil {
-		return nil
-	}
-	return lease.Resources()
-}
-
 func (s *Service) ensureClient(
 	ctx context.Context,
 	sessionKey string,
@@ -446,7 +439,7 @@ func (s *Service) ensureClient(
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
-		SandboxResources:           sandboxResourcesFromLease(scratchLease),
+		SandboxResources:           scratchLease.Resources(),
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -760,7 +753,7 @@ func forkSessionStateCommitted(
 	sessionID string,
 	toolSurfaceFingerprint string,
 ) bool {
-	currentSessionID := strings.TrimSpace(textutil.PointerValue(sessionItem.SessionID))
+	currentSessionID := textutil.PointerValue(sessionItem.SessionID)
 	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	return currentSessionID == strings.TrimSpace(sessionID) &&
 		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)
@@ -888,7 +881,7 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
+		if goalsvc.IsAbsent(err) {
 			return "", "", 0
 		}
 		s.loggerFor(ctx).Warn("读取 Goal runtime context 失败", "session_key", sessionKey, "err", err)

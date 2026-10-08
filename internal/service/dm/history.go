@@ -355,7 +355,7 @@ func (s *sdkSessionSync) prepare() bool {
 	if s.nextSessionID == "" {
 		return false
 	}
-	currentSessionID := strings.TrimSpace(textutil.PointerValue(s.current.SessionID))
+	currentSessionID := textutil.PointerValue(s.current.SessionID)
 	s.sessionIDChanged = currentSessionID != s.nextSessionID
 	s.fingerprintChanged = runtimeFingerprintFromSession(s.current) != s.nextFingerprint
 	return s.sessionIDChanged || s.fingerprintChanged
@@ -373,7 +373,7 @@ func (s *sdkSessionSync) decideSessionPersistence() {
 
 func (s *sdkSessionSync) apply() {
 	if s.canPersistSession {
-		currentSessionID := strings.TrimSpace(textutil.PointerValue(s.current.SessionID))
+		currentSessionID := textutil.PointerValue(s.current.SessionID)
 		s.current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
 			s.current.TranscriptSessionIDs,
 			[]string{currentSessionID, s.nextSessionID},

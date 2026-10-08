@@ -86,15 +86,13 @@ func (s *Service) resolveRuntimeAttachmentPath(
 	ctx context.Context,
 	attachment protocol.ChatAttachment,
 ) (conversationsvc.ResolvedAttachment, error) {
-	pathStore := workspacestore.New(s.config.WorkspacePath)
-	ownerUserID := authctx.OwnerUserID(ctx)
 	if attachment.Scope == protocol.ChatAttachmentScopeRoomConversation {
 		conversationID := strings.TrimSpace(attachment.ConversationID)
 		if conversationID == "" {
 			return conversationsvc.ResolvedAttachment{}, errors.New("room attachment conversation_id is required")
 		}
-		absolutePath, file, err := pathStore.OpenRoomConversationAssetFile(
-			ownerUserID,
+		absolutePath, file, err := workspacestore.New(s.config.WorkspacePath).OpenRoomConversationAssetFile(
+			authctx.OwnerUserID(ctx),
 			conversationID,
 			attachment.WorkspacePath,
 		)
@@ -107,31 +105,11 @@ func (s *Service) resolveRuntimeAttachmentPath(
 		}, nil
 	}
 
-	agentID := strings.TrimSpace(attachment.WorkspaceAgentID)
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(attachment.WorkspaceAgentID))
 	if err != nil {
 		return conversationsvc.ResolvedAttachment{}, err
 	}
-	ownerUserID = authctx.OwnerUserID(ctx)
-	if agentOwner := strings.TrimSpace(agentValue.OwnerUserID); agentOwner != "" {
-		if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
-			strings.TrimSpace(currentUserID) != agentOwner {
-			return conversationsvc.ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
-		}
-		ownerUserID = agentOwner
-	}
-	absolutePath, file, err := pathStore.OpenOwnerWorkspaceFile(
-		ownerUserID,
-		agentValue.WorkspacePath,
-		attachment.WorkspacePath,
-	)
-	if err != nil {
-		return conversationsvc.ResolvedAttachment{}, err
-	}
-	return conversationsvc.ResolvedAttachment{
-		AbsolutePath: absolutePath,
-		File:         file,
-	}, nil
+	return conversationsvc.OpenAgentWorkspaceAttachment(ctx, s.config.WorkspacePath, *agentValue, attachment.WorkspacePath)
 }
 
 func (s *Service) renderRuntimeAttachmentMessages(

@@ -24,11 +24,11 @@ func edit(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if svc == nil {
-				return errorResult(errImagegenServiceMissing), nil
+				return sdktool.ErrorResult(errImagegenServiceMissing), nil
 			}
 			workspacePath, err := requireWorkspacePath(sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, payload, err := svc.EditImage(scopedToolContext(ctx, sctx), imagegensvc.EditInput{
 				Prompt:            stringArg(args, "prompt"),
@@ -42,7 +42,7 @@ func edit(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 				FileName:          stringArg(args, "file_name"),
 			})
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			return imageResult("edit_image", result, len(payload)), nil
 		},
@@ -66,7 +66,7 @@ func imageResult(action string, result *imagegensvc.Result, payloadBytes int) sd
 			item["revised_prompt"] = result.RevisedPrompt
 		}
 	}
-	return jsonResult(map[string]any{
+	return sdktool.StructuredJSONResult(map[string]any{
 		"domain":        "imagegen",
 		"action":        action,
 		"item":          item,

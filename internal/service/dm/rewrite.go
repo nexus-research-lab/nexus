@@ -223,8 +223,8 @@ func isSyntheticTerminalErrorAssistant(row protocol.Message) bool {
 		!strings.EqualFold(textutil.AnyString(summary["subtype"]), "error") {
 		return false
 	}
-	resultMessageID := strings.TrimSpace(textutil.AnyString(summary["message_id"]))
-	assistantMessageID := strings.TrimSpace(textutil.AnyString(row["message_id"]))
+	resultMessageID := textutil.AnyString(summary["message_id"])
+	assistantMessageID := textutil.AnyString(row["message_id"])
 	return resultMessageID != "" && assistantMessageID == "assistant_"+resultMessageID
 }
 

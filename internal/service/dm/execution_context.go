@@ -13,28 +13,6 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 )
 
-func goalContextualInputs(contextText string, goalID string, sessionKey string) []runtimectx.ContextualInputBlock {
-	contextText = strings.TrimSpace(contextText)
-	if contextText == "" {
-		return nil
-	}
-	metadata := map[string]string{}
-	if goalID = strings.TrimSpace(goalID); goalID != "" {
-		metadata["goal_id"] = goalID
-	}
-	if sessionKey = strings.TrimSpace(sessionKey); sessionKey != "" {
-		metadata["session_key"] = sessionKey
-	}
-	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(
-			runtimectx.ContextualInputNameGoal,
-			contextText,
-			runtimectx.ContextualInputPriorityGoal,
-			metadata,
-		),
-	}
-}
-
 func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInputBlock {
 	if e.request.Internal || strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
 		return nil
@@ -67,7 +45,7 @@ func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
 	}
 	inputs := r.transportContextualInputs()
 	inputs = append(inputs, runtimectx.AutomationRunContextualInputs(r.automationRun)...)
-	inputs = append(inputs, goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)...)
+	inputs = append(inputs, runtimectx.GoalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)...)
 	return append(inputs, r.recoveryContext...)
 }
 
@@ -91,17 +69,7 @@ func (s *Service) executionContextualInputs(
 	if err != nil {
 		return nil, err
 	}
-	if content = strings.TrimSpace(content); content == "" {
-		return nil, nil
-	}
-	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(
-			runtimectx.ContextualInputNameExecution,
-			content,
-			runtimectx.ContextualInputPriorityExecution,
-			nil,
-		),
-	}, nil
+	return runtimectx.ExecutionContextualInputs(content), nil
 }
 
 func (s *Service) executionObserver() orchestrationruntimehook.Observer {

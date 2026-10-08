@@ -2,6 +2,7 @@ package sdktool
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -31,5 +32,23 @@ func TestSDKMCPPreservesRuntimeToolUseIdentity(t *testing.T) {
 		if received[i] != id {
 			t.Fatalf("call %d identity = %q, want %q", i, received[i], id)
 		}
+	}
+}
+
+func TestResultHelpersProjectTextAndErrors(t *testing.T) {
+	failed := ErrorResult(errors.New("boom"))
+	if !failed.IsError || failed.Content[0]["text"] != "boom" {
+		t.Fatalf("ErrorResult = %#v", failed)
+	}
+	plain := JSONResult(map[string]any{"ok": true})
+	if plain.IsError || plain.Content[0]["text"] != `{"ok":true}` || plain.StructuredContent != nil {
+		t.Fatalf("JSONResult = %#v", plain)
+	}
+	structured := StructuredJSONResult(map[string]any{"ok": true})
+	if structured.StructuredContent == nil {
+		t.Fatalf("StructuredJSONResult = %#v", structured)
+	}
+	if invalid := JSONResult(func() {}); !invalid.IsError {
+		t.Fatalf("unencodable value must fail: %#v", invalid)
 	}
 }
