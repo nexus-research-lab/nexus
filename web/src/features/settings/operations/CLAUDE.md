@@ -32,4 +32,4 @@ L3 | 父级: web/src/features/settings
 
 项目目录使用连续分组和成员权限行，不套多层卡片；新建项目为紧凑折叠入口，权限说明保留。公共模型服务复用 Provider 目录/详情，删除通过直接图标按钮进入原确认流程。
 
-- `deployment-members-panel.tsx` 是平台 owner/admin 的独立 Web 用户创建和目录页（`section=operations-members`），只消费 `/auth/v1/deployment-members`，不要求组织身份、不自动加入组织。密码仅在提交表单中使用，完成或失败即清除；未知写入禁写，刷新按原唯一用户名核对，未找到不推断失败或自动重试。
+- `deployment-members-panel.tsx` 是平台 owner/admin 的独立 Web 用户创建和目录页（`section=operations-members`），只消费 `/auth/v1/deployment-members`，不要求组织身份、不自动加入组织。目录使用新建按钮、搜索和稳定用户/角色/状态列；新建复用公共 Dialog，初始焦点为用户名，提交时禁用关闭，成功关闭并刷新本地列表，明确失败留在弹窗修正。密码仅在弹窗中使用，关闭、完成或请求失败即清除；未知写入禁写，刷新按原唯一用户名核对，未找到不推断失败或自动重试。
