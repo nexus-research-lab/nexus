@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -257,7 +258,7 @@ func runtimeCoordinationRoundKey(actor ActorContext) string {
 		normalizeActorKind(actor.ActorKind) != protocol.ExecutionActorAgent {
 		return ""
 	}
-	roundID := firstCoordinationValue(
+	roundID := textutil.FirstNonEmpty(
 		actor.RuntimeRoundID,
 		actor.AgentRoundID,
 		actor.RootRoundID,
@@ -271,13 +272,4 @@ func runtimeCoordinationRoundKey(actor ActorContext) string {
 		strings.TrimSpace(actor.AgentID),
 		roundID,
 	}, "\x00")
-}
-
-func firstCoordinationValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }

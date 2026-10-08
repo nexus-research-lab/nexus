@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -168,7 +169,7 @@ func (s *Service) deliverClaimedCancellation(
 			workerID,
 			protocol.ExecutionCancellationDispatchNotRequired,
 			protocol.ExecutionCancellationOutcomeNotStarted,
-			firstNonEmpty(
+			textutil.FirstNonEmpty(
 				dispatch.LimitationCode,
 				"attempt_not_started",
 			),
@@ -183,7 +184,7 @@ func (s *Service) deliverClaimedCancellation(
 			workerID,
 			protocol.ExecutionCancellationDispatchUnsupported,
 			protocol.ExecutionCancellationOutcomeUnsupported,
-			firstNonEmpty(
+			textutil.FirstNonEmpty(
 				dispatch.LimitationCode,
 				"runtime_identity_unavailable",
 			),

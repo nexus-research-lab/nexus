@@ -12,6 +12,7 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -106,7 +107,7 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 ) error {
 	metadata, _ := message["metadata"].(map[string]any)
 	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) &&
-		dmdomain.NormalizeString(metadata["source"]) != "echo" {
+		textutil.AnyString(metadata["source"]) != "echo" {
 		s.history.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
 		return nil
 	}
@@ -144,7 +145,7 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 		context.Background(),
 		workspacePath,
 		current,
-		dmdomain.NormalizeString(message["session_id"]),
+		textutil.AnyString(message["session_id"]),
 	)
 	nextSessionIDValue := ""
 	if nextSessionID != nil {
@@ -354,7 +355,7 @@ func (s *sdkSessionSync) prepare() bool {
 	if s.nextSessionID == "" {
 		return false
 	}
-	currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(s.current.SessionID))
+	currentSessionID := strings.TrimSpace(textutil.PointerValue(s.current.SessionID))
 	s.sessionIDChanged = currentSessionID != s.nextSessionID
 	s.fingerprintChanged = runtimeFingerprintFromSession(s.current) != s.nextFingerprint
 	return s.sessionIDChanged || s.fingerprintChanged
@@ -372,7 +373,7 @@ func (s *sdkSessionSync) decideSessionPersistence() {
 
 func (s *sdkSessionSync) apply() {
 	if s.canPersistSession {
-		currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(s.current.SessionID))
+		currentSessionID := strings.TrimSpace(textutil.PointerValue(s.current.SessionID))
 		s.current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
 			s.current.TranscriptSessionIDs,
 			[]string{currentSessionID, s.nextSessionID},

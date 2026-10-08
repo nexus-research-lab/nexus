@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -239,7 +240,7 @@ func (s *Service) automationPermissionSessionEvent(
 		return protocol.EventMessage{}, internal, err
 	}
 	riskLevel, riskLabel := automationPermissionSessionRisk(request.Capability.Effect)
-	taskName := firstNonEmpty(job.Name, job.JobID, "未命名任务")
+	taskName := textutil.FirstNonEmpty(job.Name, job.JobID, "未命名任务")
 	summary := strings.TrimSpace(request.Description)
 	if summary == "" {
 		summary = strings.TrimSpace(request.Title)
@@ -321,8 +322,8 @@ func (s *Service) resolveAutomationPermissionSessionRoute(
 	}
 	return automationPermissionSessionRoute{
 		SessionKey:     sessionKey,
-		RoomID:         optionalAutomationSessionString(stored.RoomID),
-		ConversationID: optionalAutomationSessionString(stored.ConversationID),
+		RoomID:         textutil.PointerValue(stored.RoomID),
+		ConversationID: textutil.PointerValue(stored.ConversationID),
 		AgentID:        strings.TrimSpace(stored.AgentID),
 	}, true, nil
 }
@@ -383,11 +384,4 @@ func automationPermissionSessionRisk(effect string) (string, string) {
 func automationPermissionResponseString(response map[string]any, key string) string {
 	value, _ := response[key].(string)
 	return strings.TrimSpace(value)
-}
-
-func optionalAutomationSessionString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -19,7 +20,7 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 	if boolValue(toolResult["is_error"]) {
 		return nil
 	}
-	toolUseID := normalizeString(toolResult["tool_use_id"])
+	toolUseID := textutil.AnyString(toolResult["tool_use_id"])
 	if toolUseID == "" {
 		return nil
 	}
@@ -27,7 +28,7 @@ func (p *Processor) workspaceFileArtifactsForToolResult(toolResult map[string]an
 	if len(toolUse) == 0 {
 		return nil
 	}
-	toolName := normalizeString(toolUse["name"])
+	toolName := textutil.AnyString(toolUse["name"])
 	if isFileDeliveryTool(toolName) {
 		return p.fileDeliveryArtifacts(toolResult, toolUseID, toolName)
 	}
@@ -74,18 +75,18 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 		return nil
 	}
 	payload := firstImagegenPayload(toolResultContentText(toolResult["content"]))
-	if len(payload) == 0 || normalizeString(payload["domain"]) != "imagegen" {
+	if len(payload) == 0 || textutil.AnyString(payload["domain"]) != "imagegen" {
 		return nil
 	}
 	item, _ := payload["item"].(map[string]any)
 	if len(item) == 0 {
 		return nil
 	}
-	relativePath := p.normalizeWorkspaceArtifactPath(normalizeString(item["path"]))
+	relativePath := p.normalizeWorkspaceArtifactPath(textutil.AnyString(item["path"]))
 	if relativePath == "" {
 		return nil
 	}
-	mimeType := normalizeString(item["mime_type"])
+	mimeType := textutil.AnyString(item["mime_type"])
 	kind, inferredMIME := workspaceFileArtifactKindAndMIME(relativePath, mimeType)
 	if mimeType == "" {
 		mimeType = inferredMIME
@@ -111,7 +112,7 @@ func (p *Processor) imagegenArtifactForToolResult(toolResult map[string]any, too
 }
 
 func imagegenArtifactLabel(payload map[string]any) string {
-	switch normalizeString(payload["action"]) {
+	switch textutil.AnyString(payload["action"]) {
 	case "edit", "edit_image":
 		return "编辑图片"
 	default:
@@ -143,7 +144,7 @@ func firstImagegenPayload(content string) map[string]any {
 		if err := json.Unmarshal([]byte(candidate), &payload); err != nil {
 			continue
 		}
-		if normalizeString(payload["domain"]) == "imagegen" {
+		if textutil.AnyString(payload["domain"]) == "imagegen" {
 			return payload
 		}
 	}

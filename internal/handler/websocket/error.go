@@ -10,6 +10,7 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 )
@@ -175,7 +176,7 @@ func (h *Handler) newGatewayErrorEvent(
 	}
 	event := protocol.NewEvent(protocol.EventTypeError, data)
 	event.SessionKey = sessionKey
-	if roundID := strings.TrimSpace(handlershared.StringValue(details["round_id"])); roundID != "" {
+	if roundID := strings.TrimSpace(textutil.AnyString(details["round_id"])); roundID != "" {
 		event.RoundID = roundID
 	}
 	return event

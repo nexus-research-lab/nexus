@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -426,7 +427,7 @@ func addRoundIndexAgentID(
 	agentID string,
 	defaultAgentID string,
 ) {
-	normalizedAgentID := firstNonEmpty(agentID, defaultAgentID)
+	normalizedAgentID := textutil.FirstNonEmpty(agentID, defaultAgentID)
 	if normalizedAgentID == "" {
 		return
 	}

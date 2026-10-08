@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // HumanToolApproval 是服务端从 pending request 固化的人工批准上下文。
@@ -33,7 +34,7 @@ func isRecordedHumanApprovalTool(toolName string, toolInput map[string]any) bool
 		return true
 	}
 	return matchesToolLeaf(toolName, "connector_authorization") &&
-		normalizeString(toolInput["action"]) == "start"
+		textutil.AnyString(toolInput["action"]) == "start"
 }
 
 func matchesToolLeaf(toolName string, leaf string) bool {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -113,7 +114,7 @@ func (e *slotExecution) contextUsageSessionMeta() protocol.Session {
 	options := map[string]any{}
 
 	if contextValue := e.round.Context; contextValue != nil {
-		title = firstContextUsageString(
+		title = textutil.FirstNonEmpty(
 			contextValue.Conversation.Title,
 			contextValue.Room.Name,
 			title,
@@ -133,11 +134,11 @@ func (e *slotExecution) contextUsageSessionMeta() protocol.Session {
 			contextValue.Sessions,
 			e.slot.AgentID,
 		); found {
-			roomSessionID = contextUsageStringPointer(firstContextUsageString(
+			roomSessionID = contextUsageStringPointer(textutil.FirstNonEmpty(
 				e.slot.RoomSessionID,
 				record.ID,
 			))
-			sessionID = contextUsageStringPointer(firstContextUsageString(
+			sessionID = contextUsageStringPointer(textutil.FirstNonEmpty(
 				e.slot.getSDKSessionID(),
 				record.SDKSessionID,
 			))
@@ -182,15 +183,6 @@ func contextUsageStringPointer(value string) *string {
 		return nil
 	}
 	return &value
-}
-
-func firstContextUsageString(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func firstContextUsageTime(values ...time.Time) time.Time {

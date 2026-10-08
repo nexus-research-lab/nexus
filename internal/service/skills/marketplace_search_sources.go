@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 func (s *Service) searchClaudePluginsSource(ctx context.Context, source externalSkillSource, needle string) ([]ExternalSkillSearchItem, error) {
@@ -59,12 +61,12 @@ func (s *Service) searchClaudePluginsSource(ctx context.Context, source external
 		if packageSpec == "" {
 			continue
 		}
-		detailURL := firstNonEmpty(anyString(row["sourceUrl"]), githubTreeURL(gitURL, gitPath), rawURL, gitURL)
+		detailURL := textutil.FirstNonEmpty(anyString(row["sourceUrl"]), githubTreeURL(gitURL, gitPath), rawURL, gitURL)
 		items = append(items, ExternalSkillSearchItem{
 			Name:           name,
-			Title:          firstNonEmpty(anyString(row["title"]), name),
+			Title:          textutil.FirstNonEmpty(anyString(row["title"]), name),
 			Description:    repairClaudePluginsText(anyString(row["description"])),
-			Source:         firstNonEmpty(anyString(row["namespace"]), gitURL, source.URL),
+			Source:         textutil.FirstNonEmpty(anyString(row["namespace"]), gitURL, source.URL),
 			PackageSpec:    packageSpec,
 			SkillSlug:      name,
 			Installs:       anyInt(row["installs"]),
@@ -79,7 +81,7 @@ func (s *Service) searchClaudePluginsSource(ctx context.Context, source external
 			GitPath:        gitPath,
 			RawURL:         rawURL,
 			Tags:           anyStringSlice(row["tags"]),
-			Version:        firstNonEmpty(anyString(row["version"]), packageSpec),
+			Version:        textutil.FirstNonEmpty(anyString(row["version"]), packageSpec),
 		})
 	}
 	return items, nil
@@ -120,16 +122,16 @@ func (s *Service) searchSkillsShSource(ctx context.Context, source externalSkill
 	items := make([]ExternalSkillSearchItem, 0, len(rows))
 	for _, row := range rows {
 		id := anyString(row["id"])
-		sourceRef := firstNonEmpty(anyString(row["source"]), skillsShSourceFromID(id))
-		skillSlug := firstNonEmpty(anyString(row["skillId"]), anyString(row["skill_id"]), anyString(row["slug"]), skillsShSkillFromID(id), anyString(row["name"]))
-		name := firstNonEmpty(anyString(row["name"]), skillSlug)
+		sourceRef := textutil.FirstNonEmpty(anyString(row["source"]), skillsShSourceFromID(id))
+		skillSlug := textutil.FirstNonEmpty(anyString(row["skillId"]), anyString(row["skill_id"]), anyString(row["slug"]), skillsShSkillFromID(id), anyString(row["name"]))
+		name := textutil.FirstNonEmpty(anyString(row["name"]), skillSlug)
 		if name == "" || skillSlug == "" {
 			continue
 		}
-		packageSpec := buildSkillsPackageSpec(firstNonEmpty(id, sourceRef), skillSlug, name)
+		packageSpec := buildSkillsPackageSpec(textutil.FirstNonEmpty(id, sourceRef), skillSlug, name)
 		item := ExternalSkillSearchItem{
 			Name:           name,
-			Title:          firstNonEmpty(anyString(row["title"]), name),
+			Title:          textutil.FirstNonEmpty(anyString(row["title"]), name),
 			Description:    anyString(row["description"]),
 			Source:         sourceRef,
 			PackageSpec:    packageSpec,
@@ -143,7 +145,7 @@ func (s *Service) searchSkillsShSource(ctx context.Context, source externalSkill
 			SourceTrust:    source.Trust,
 			ImportMode:     externalSourceKindSkillsSh,
 			Tags:           anyStringSlice(row["tags"]),
-			Version:        firstNonEmpty(anyString(row["version"]), packageSpec),
+			Version:        textutil.FirstNonEmpty(anyString(row["version"]), packageSpec),
 		}
 		items = append(items, item)
 	}
@@ -179,8 +181,8 @@ func (s *Service) searchClawhubSource(ctx context.Context, source externalSkillS
 		if slug == "" {
 			continue
 		}
-		owner := firstNonEmpty(anyString(row["ownerHandle"]), anyString(anyMap(row["owner"])["handle"]))
-		name := firstNonEmpty(anyString(row["displayName"]), anyString(row["display_name"]), slug)
+		owner := textutil.FirstNonEmpty(anyString(row["ownerHandle"]), anyString(anyMap(row["owner"])["handle"]))
+		name := textutil.FirstNonEmpty(anyString(row["displayName"]), anyString(row["display_name"]), slug)
 		rawURL := clawhubDownloadURL(source.URL, slug)
 		if rawURL == "" {
 			continue
@@ -189,8 +191,8 @@ func (s *Service) searchClawhubSource(ctx context.Context, source externalSkillS
 		items = append(items, ExternalSkillSearchItem{
 			Name:           slug,
 			Title:          name,
-			Description:    firstNonEmpty(anyString(row["summary"]), anyString(row["description"])),
-			Source:         firstNonEmpty(owner, source.URL),
+			Description:    textutil.FirstNonEmpty(anyString(row["summary"]), anyString(row["description"])),
+			Source:         textutil.FirstNonEmpty(owner, source.URL),
 			PackageSpec:    rawURL,
 			SkillSlug:      slug,
 			Installs:       firstNonZero(anyInt(row["downloads"]), anyInt(row["installs"]), anyInt(row["installsAllTime"]), anyInt(stats["downloads"]), anyInt(stats["installsAllTime"])),
@@ -202,7 +204,7 @@ func (s *Service) searchClawhubSource(ctx context.Context, source externalSkillS
 			SourceTrust:    source.Trust,
 			ImportMode:     externalSourceKindURL,
 			RawURL:         rawURL,
-			Version:        firstNonEmpty(anyString(row["version"]), slug),
+			Version:        textutil.FirstNonEmpty(anyString(row["version"]), slug),
 		})
 	}
 	return items, nil

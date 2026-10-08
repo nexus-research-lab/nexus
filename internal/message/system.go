@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -83,8 +84,8 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 	return p.buildSystemEventMessage(
 		"system_api_retry_"+p.ctx.RoundID,
 		firstNonEmpty(
-			normalizeString(metadata["error_details"]),
-			normalizeString(metadata["message"]),
+			textutil.AnyString(metadata["error_details"]),
+			textutil.AnyString(metadata["message"]),
 			apiRetryDefaultMessage(metadata),
 		),
 		metadata,
@@ -94,7 +95,7 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 func (p *Processor) projectCompactBoundarySystemMessage(message sdkprotocol.SystemMessage) *protocol.Message {
 	return p.buildSystemEventMessage(
 		"system_compact_boundary_"+p.ctx.RoundID,
-		firstNonEmpty(normalizeString(message.Data["content"]), "上下文已压缩"),
+		firstNonEmpty(textutil.AnyString(message.Data["content"]), "上下文已压缩"),
 		normalizeCompactBoundaryMetadata(message.Data),
 	)
 }
@@ -162,7 +163,7 @@ func normalizeAPIRetryMetadata(data map[string]any) map[string]any {
 }
 
 func apiRetryDefaultMessage(metadata map[string]any) string {
-	if normalizeString(metadata["error"]) == "rate_limit" {
+	if textutil.AnyString(metadata["error"]) == "rate_limit" {
 		return "模型请求暂时受限，正在自动重试。"
 	}
 	return "API 请求失败，正在自动重试。"
@@ -239,13 +240,13 @@ func (p *Processor) projectPermissionReviewSystemMessage(message sdkprotocol.Sys
 	if !ok {
 		return nil
 	}
-	rationale := normalizeString(review["rationale"])
-	toolID := normalizeString(message.Data["tool_use_id"])
+	rationale := textutil.AnyString(review["rationale"])
+	toolID := textutil.AnyString(message.Data["tool_use_id"])
 	if rationale == "" || toolID == "" {
 		return nil
 	}
 	title := "需要你批准："
-	if normalizeString(review["status"]) == "approved" {
+	if textutil.AnyString(review["status"]) == "approved" {
 		title = "已自动批准："
 	}
 	metadata := cloneMapOrEmpty(message.Data)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 type skillsShImportTarget struct {
@@ -51,12 +52,12 @@ func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShIm
 		return skillsShImportTarget{}, errors.New("skills.sh 来源 GitHub 仓库不合法")
 	}
 	sourceRef = strings.Join(sourceParts, "/")
-	cleanSkillPath := firstNonEmpty(sourcePath, rawSlug)
+	cleanSkillPath := textutil.FirstNonEmpty(sourcePath, rawSlug)
 	cleanSkillPath, err := cleanSkillSubdirPath(cleanSkillPath)
 	if err != nil {
 		return skillsShImportTarget{}, err
 	}
-	slug := firstNonEmpty(filepath.Base(filepath.FromSlash(cleanSkillPath)), rawSlug)
+	slug := textutil.FirstNonEmpty(filepath.Base(filepath.FromSlash(cleanSkillPath)), rawSlug)
 	if slug == "." || slug == string(os.PathSeparator) {
 		slug = rawSlug
 	}
@@ -132,7 +133,7 @@ func findSkillsShSourceDir(root string, skillPath string, skillSlug string) (str
 	if err = filepath.Walk(root, search.visit); err != nil {
 		return "", err
 	}
-	return search.resolve(firstNonEmpty(skillPath, skillSlug))
+	return search.resolve(textutil.FirstNonEmpty(skillPath, skillSlug))
 }
 
 func exactSkillsShSourceDir(root string, cleanSkillPath string) string {
@@ -239,7 +240,7 @@ func (s *skillsShSourceSearch) resolve(label string) (string, error) {
 }
 
 func buildSkillsPackageSpec(source string, slug string, name string) string {
-	base := firstNonEmpty(source, slug)
+	base := textutil.FirstNonEmpty(source, slug)
 	if base == "" {
 		return name
 	}
@@ -247,7 +248,7 @@ func buildSkillsPackageSpec(source string, slug string, name string) string {
 		return base
 	}
 	cleanBase := strings.Trim(base, "/")
-	cleanSlug := firstNonEmpty(strings.Trim(strings.TrimSpace(slug), "/"), strings.Trim(strings.TrimSpace(name), "/"))
+	cleanSlug := textutil.FirstNonEmpty(strings.Trim(strings.TrimSpace(slug), "/"), strings.Trim(strings.TrimSpace(name), "/"))
 	if cleanSlug == "" || strings.HasSuffix(cleanBase, "/"+cleanSlug) {
 		return cleanBase
 	}

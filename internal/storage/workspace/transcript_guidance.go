@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -29,7 +30,7 @@ func buildTranscriptGuidanceMessages(
 
 	roundID := strings.TrimSpace(currentRoundID)
 	if roundID == "" {
-		roundID = buildTranscriptRoundID(firstNonEmpty(
+		roundID = buildTranscriptRoundID(textutil.FirstNonEmpty(
 			stringFromAny(entry["parentUuid"]),
 			stringFromAny(entry["uuid"]),
 		))
@@ -41,7 +42,7 @@ func buildTranscriptGuidanceMessages(
 		sourceRoundID := strings.TrimSpace(item.RoundID)
 		messageID := sourceRoundID
 		if messageID == "" {
-			messageID = firstNonEmpty(entryUUID, roundID) + ":guidance:" + strconv.Itoa(index+1)
+			messageID = textutil.FirstNonEmpty(entryUUID, roundID) + ":guidance:" + strconv.Itoa(index+1)
 		}
 		rows = append(rows, message.NewGuidedInputMessage(message.GuidedInputMessageInput{
 			MessageID:     messageID,

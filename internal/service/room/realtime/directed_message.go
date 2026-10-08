@@ -9,16 +9,18 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const roomDirectedMessageMaxDelaySeconds = 86400
@@ -219,8 +221,8 @@ func (s *Service) ensureGoalDirectedMessageHandoffs(
 				HandoffID:          handoffID,
 				ConversationID:     message.ConversationID,
 				RoomID:             message.RoomID,
-				RootRoundID:        firstNonEmptyString(message.RootRoundID, message.MessageID),
-				SourceAgentRoundID: firstNonEmptyString(message.CausedByRoundID, message.RootRoundID, message.MessageID),
+				RootRoundID:        textutil.FirstNonEmpty(message.RootRoundID, message.MessageID),
+				SourceAgentRoundID: textutil.FirstNonEmpty(message.CausedByRoundID, message.RootRoundID, message.MessageID),
 				SourceMessageID:    message.MessageID,
 				SourceAgentID:      message.SourceAgentID,
 				TargetAgentID:      targetAgentID,
@@ -842,7 +844,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 			ReplyRoute:      message.ReplyRoute,
 			OwnerUserID:     authctx.OwnerUserID(ctx),
-			RootRoundID:     firstNonEmptyString(message.RootRoundID, message.MessageID),
+			RootRoundID:     textutil.FirstNonEmpty(message.RootRoundID, message.MessageID),
 			HopIndex:        message.HopIndex,
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				message.GoalCollaborationBinding,
@@ -916,15 +918,6 @@ func (s *Service) scheduleRoomDirectedQueueDispatch(
 			},
 		)
 	})
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
 }
 
 const roomDirectedMessageTriggerType = "room_directed_message"

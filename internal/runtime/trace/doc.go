@@ -6,7 +6,7 @@
 //   - message.go：SDKMessageLogOptions 与 BuildSDKMessageLogFieldsWithOptions 入口。
 //   - fields.go：各消息类型的日志字段构建。
 //   - summary.go：BuildSDKMessageLogSummary 单行摘要与各 summarize* 逻辑。
-//   - value.go：RawMap / RawString / FirstNonEmpty 等 raw SDK 值解析工具（供 runtime、exec 复用）。
+//   - value.go：RawMap / RawString 等 raw SDK 值解析工具（供 runtime、exec 复用）。
 //
 // 本包只依赖 SDK 协议类型，不反向依赖 runtime/exec，可被两者安全引用。
 //

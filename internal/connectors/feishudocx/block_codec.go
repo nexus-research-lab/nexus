@@ -2,7 +2,6 @@ package feishudocx
 
 import (
 	"encoding/json"
-	"strings"
 
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 )
@@ -133,13 +132,4 @@ func chunkStrings(values []string, size int) [][]string {
 		result = append(result, values[start:end])
 	}
 	return result
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

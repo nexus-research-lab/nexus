@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -287,7 +287,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}
 	err = s.handleChat(dispatchCtx, Request{
 		SessionKey:                        normalizedSessionKey,
-		AgentID:                           dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
+		AgentID:                           textutil.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 		Content:                           item.Content,
 		Attachments:                       item.Attachments,
 		ClientMessageID:                   item.ClientMessageID,
@@ -314,7 +314,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 				s.dispatchNextInputQueueItemAtLocation(
 					taskCtx,
 					normalizedSessionKey,
-					dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
+					textutil.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 					location,
 				)
 			})
@@ -434,7 +434,7 @@ func (s *Service) resolveInputQueueAgent(
 	parsed protocol.SessionKey,
 	requestAgentID string,
 ) (*protocol.Agent, error) {
-	agentID := dmdomain.FirstNonEmpty(parsed.AgentID, requestAgentID)
+	agentID := textutil.FirstNonEmpty(parsed.AgentID, requestAgentID)
 	if agentID == "" {
 		defaultAgent, err := s.agents.GetDefaultAgent(ctx)
 		if err != nil {

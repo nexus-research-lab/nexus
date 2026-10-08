@@ -3,6 +3,8 @@ package message
 import (
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 type Kind string
@@ -114,15 +116,15 @@ func NormalizeInbound(message *Inbound, fallback InboundParams) *Inbound {
 		return NewInbound(fallback)
 	}
 	params := InboundParams{
-		Channel:           firstNonEmpty(message.Channel, fallback.Channel),
-		Target:            firstNonEmpty(message.Target, fallback.Target),
-		PlatformMessageID: firstNonEmpty(message.PlatformMessageID, fallback.PlatformMessageID),
-		ThreadID:          firstNonEmpty(message.ThreadID, fallback.ThreadID),
-		ReplyToID:         firstNonEmpty(message.ReplyToID, fallback.ReplyToID),
-		SenderID:          firstNonEmpty(message.SenderID, fallback.SenderID),
-		SenderName:        firstNonEmpty(message.SenderName, fallback.SenderName),
-		ChatType:          firstNonEmpty(message.ChatType, fallback.ChatType),
-		Text:              firstNonEmpty(message.Text, fallback.Text),
+		Channel:           textutil.FirstNonEmpty(message.Channel, fallback.Channel),
+		Target:            textutil.FirstNonEmpty(message.Target, fallback.Target),
+		PlatformMessageID: textutil.FirstNonEmpty(message.PlatformMessageID, fallback.PlatformMessageID),
+		ThreadID:          textutil.FirstNonEmpty(message.ThreadID, fallback.ThreadID),
+		ReplyToID:         textutil.FirstNonEmpty(message.ReplyToID, fallback.ReplyToID),
+		SenderID:          textutil.FirstNonEmpty(message.SenderID, fallback.SenderID),
+		SenderName:        textutil.FirstNonEmpty(message.SenderName, fallback.SenderName),
+		ChatType:          textutil.FirstNonEmpty(message.ChatType, fallback.ChatType),
+		Text:              textutil.FirstNonEmpty(message.Text, fallback.Text),
 		Edited:            message.Edited || fallback.Edited,
 		ReceivedAt:        message.ReceivedAt,
 		Metadata:          mergeMetadata(fallback.Metadata, message.Metadata),
@@ -212,15 +214,6 @@ func TextPart(messageID string) ReceiptPart {
 		PlatformMessageID: strings.TrimSpace(messageID),
 		Kind:              KindText,
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func copyMetadata(input map[string]string) map[string]string {

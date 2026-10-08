@@ -16,6 +16,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
@@ -121,16 +122,16 @@ func (s *Service) buildExternalRecordFromEntity(
 	}
 	detail := Detail{
 		Info: Info{
-			Name:         firstNonEmpty(record.SkillName, parsed.Name),
-			Title:        firstNonEmpty(record.Title, parsed.Title, record.SkillName),
-			Description:  firstNonEmpty(record.Description, parsed.Description),
-			Scope:        defaultSkillScope(firstNonEmpty(record.Scope, parsed.Scope)),
+			Name:         textutil.FirstNonEmpty(record.SkillName, parsed.Name),
+			Title:        textutil.FirstNonEmpty(record.Title, parsed.Title, record.SkillName),
+			Description:  textutil.FirstNonEmpty(record.Description, parsed.Description),
+			Scope:        defaultSkillScope(textutil.FirstNonEmpty(record.Scope, parsed.Scope)),
 			Tags:         firstNonEmptySlice(tags, parsed.Tags),
-			CategoryKey:  firstNonEmpty(record.CategoryKey, parsed.CategoryKey, "custom-imports"),
-			CategoryName: firstNonEmpty(record.CategoryName, parsed.CategoryName, "自定义导入"),
+			CategoryKey:  textutil.FirstNonEmpty(record.CategoryKey, parsed.CategoryKey, "custom-imports"),
+			CategoryName: textutil.FirstNonEmpty(record.CategoryName, parsed.CategoryName, "自定义导入"),
 			SourceType:   sourceTypeExternal,
-			SourceRef:    firstNonEmpty(record.SourceRef, skillDir),
-			Version:      firstNonEmpty(record.Version, parsed.Version, "external"),
+			SourceRef:    textutil.FirstNonEmpty(record.SourceRef, skillDir),
+			Version:      textutil.FirstNonEmpty(record.Version, parsed.Version, "external"),
 			Locked:       false,
 			HasUpdate:    record.UpdateAvailable,
 			Deletable:    true,
@@ -143,7 +144,7 @@ func (s *Service) buildExternalRecordFromEntity(
 			OriginKind:   externalOriginKind(record.SourceKind),
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
+		Recommendation: textutil.FirstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 }
@@ -228,19 +229,19 @@ func (s *Service) importedSkillEntity(
 	return skillstore.ImportedSkillEntity{
 		OwnerUserID:    authctx.OwnerUserID(ctx),
 		SkillName:      canonicalName,
-		Title:          firstNonEmpty(manifest.Title, parsed.Title, parsed.Name, canonicalName),
-		Description:    firstNonEmpty(manifest.Description, parsed.Description),
-		Scope:          defaultSkillScope(firstNonEmpty(manifest.Scope, parsed.Scope)),
+		Title:          textutil.FirstNonEmpty(manifest.Title, parsed.Title, parsed.Name, canonicalName),
+		Description:    textutil.FirstNonEmpty(manifest.Description, parsed.Description),
+		Scope:          defaultSkillScope(textutil.FirstNonEmpty(manifest.Scope, parsed.Scope)),
 		TagsJSON:       jsoncodec.MarshalStringSlice(firstNonEmptySlice(manifest.Tags, parsed.Tags)),
-		CategoryKey:    firstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports"),
-		CategoryName:   firstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入"),
-		Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
-		Version:        firstNonEmpty(manifest.Version, parsed.Version, "external"),
+		CategoryKey:    textutil.FirstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports"),
+		CategoryName:   textutil.FirstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入"),
+		Recommendation: textutil.FirstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
+		Version:        textutil.FirstNonEmpty(manifest.Version, parsed.Version, "external"),
 		SourceID:       s.importedSkillSourceID(manifest),
 		SourceKind:     manifest.SourceKind,
 		SourceRef:      manifest.SourceRef,
 		SourceName:     manifest.SourceName,
-		SourceTrust:    firstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity),
+		SourceTrust:    textutil.FirstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity),
 		SourceSkillID:  manifest.SourceSkillID,
 		ArtifactSHA256: manifest.ArtifactSHA256,
 		ImportMode:     manifest.ImportMode,
@@ -260,17 +261,17 @@ func (s *Service) importedSkillSourceID(manifest externalManifest) string {
 	if strings.HasPrefix(sourceKey, "skill_src_") {
 		return sourceKey
 	}
-	sourceURL := firstNonEmpty(manifest.GitURL, manifest.RawURL, manifest.DetailURL)
+	sourceURL := textutil.FirstNonEmpty(manifest.GitURL, manifest.RawURL, manifest.DetailURL)
 	if sourceURL == "" && strings.HasPrefix(strings.TrimSpace(manifest.SourceRef), "http") {
 		sourceURL = manifest.SourceRef
 	}
 	if sourceURL == "" && manifest.ImportMode == "skills_sh" {
-		sourceURL = firstNonEmpty(s.config.SkillsAPIURL, "https://skills.sh")
+		sourceURL = textutil.FirstNonEmpty(s.config.SkillsAPIURL, "https://skills.sh")
 	}
 	if sourceURL == "" {
 		return ""
 	}
-	return buildSkillSourceID(firstNonEmpty(manifest.SourceKind, manifest.ImportMode), sourceURL)
+	return buildSkillSourceID(textutil.FirstNonEmpty(manifest.SourceKind, manifest.ImportMode), sourceURL)
 }
 
 func hashSkillContent(skillDir string) string {
@@ -351,15 +352,15 @@ func loadExternalRecordsFromRegistryRoot(
 		detail := Detail{
 			Info: Info{
 				Name:         canonicalName,
-				Title:        firstNonEmpty(manifest.Title, parsed.Title, parsed.Name, skillName),
-				Description:  firstNonEmpty(manifest.Description, parsed.Description),
-				Scope:        defaultSkillScope(firstNonEmpty(manifest.Scope, parsed.Scope)),
+				Title:        textutil.FirstNonEmpty(manifest.Title, parsed.Title, parsed.Name, skillName),
+				Description:  textutil.FirstNonEmpty(manifest.Description, parsed.Description),
+				Scope:        defaultSkillScope(textutil.FirstNonEmpty(manifest.Scope, parsed.Scope)),
 				Tags:         firstNonEmptySlice(manifest.Tags, parsed.Tags),
-				CategoryKey:  firstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports"),
-				CategoryName: firstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入"),
+				CategoryKey:  textutil.FirstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports"),
+				CategoryName: textutil.FirstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入"),
 				SourceType:   sourceTypeExternal,
-				SourceRef:    firstNonEmpty(manifest.SourceRef, skillDir),
-				Version:      firstNonEmpty(manifest.Version, parsed.Version, "external"),
+				SourceRef:    textutil.FirstNonEmpty(manifest.SourceRef, skillDir),
+				Version:      textutil.FirstNonEmpty(manifest.Version, parsed.Version, "external"),
 				Locked:       false,
 				HasUpdate:    false,
 				Deletable:    true,
@@ -367,7 +368,7 @@ func loadExternalRecordsFromRegistryRoot(
 				OriginKind:   externalOriginKind(manifest.SourceKind),
 			},
 			ReadmeMarkdown: parsed.ReadmeMarkdown,
-			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
+			Recommendation: textutil.FirstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
 		}
 		addCatalogRecord(
 			result,

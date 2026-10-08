@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -18,11 +19,11 @@ func (h *Handler) handleSubscribeRoom(
 	sender *handlershared.WebSocketSender,
 	inbound map[string]any,
 ) {
-	roomID := handlershared.StringValue(inbound["room_id"])
-	conversationID := handlershared.StringValue(inbound["conversation_id"])
+	roomID := textutil.AnyString(inbound["room_id"])
+	conversationID := textutil.AnyString(inbound["conversation_id"])
 	if err := h.validateRoomSubscription(ctx, roomID, conversationID); err != nil {
 		h.sendGatewayError(ctx, sender, "", "invalid_room_subscription", err, map[string]any{
-			"type":            handlershared.StringValue(inbound["type"]),
+			"type":            textutil.AnyString(inbound["type"]),
 			"room_id":         roomID,
 			"conversation_id": conversationID,
 		})
@@ -47,7 +48,7 @@ func (h *Handler) handleSubscribeRoom(
 			&replayBoundary,
 		); err != nil {
 			h.sendGatewayError(ctx, sender, "", "room_subscription_error", err, map[string]any{
-				"type":            handlershared.StringValue(inbound["type"]),
+				"type":            textutil.AnyString(inbound["type"]),
 				"room_id":         roomID,
 				"conversation_id": conversationID,
 			})
@@ -74,8 +75,8 @@ func (h *Handler) handleUnsubscribeRoom(sender *handlershared.WebSocketSender, i
 	}
 	h.roomSubs.UnsubscribeRoom(
 		sender,
-		handlershared.StringValue(inbound["room_id"]),
-		handlershared.StringValue(inbound["conversation_id"]),
+		textutil.AnyString(inbound["room_id"]),
+		textutil.AnyString(inbound["conversation_id"]),
 	)
 }
 

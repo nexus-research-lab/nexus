@@ -110,15 +110,6 @@ func resolveInterruptReason(interruptReason func() string) string {
 	return strings.TrimSpace(interruptReason())
 }
 
-func resolveSessionID(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func messageString(value any) string {
 	typed, ok := value.(string)
 	if !ok {

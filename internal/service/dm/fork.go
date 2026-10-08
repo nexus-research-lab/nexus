@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -133,7 +133,7 @@ func (s *Service) forkConversationSession(
 	if err != nil {
 		return err
 	}
-	if dmdomain.StringPointerValue(targetSession.SessionID) != "" {
+	if textutil.PointerValue(targetSession.SessionID) != "" {
 		return errors.New("target conversation already has an SDK session")
 	}
 	if targetSession.Options == nil {
@@ -215,7 +215,7 @@ func resolveConversationForkBoundary(
 	sourceSession protocol.Session,
 	targetRoundID string,
 ) (string, string, error) {
-	sessionIDs := []string{dmdomain.StringPointerValue(sourceSession.SessionID)}
+	sessionIDs := []string{textutil.PointerValue(sourceSession.SessionID)}
 	if segmented, _ := sourceSession.Options[protocol.OptionRuntimeSegmentedTranscript].(bool); segmented {
 		sessionIDs = protocol.SessionTranscriptIDs(sourceSession)
 	}

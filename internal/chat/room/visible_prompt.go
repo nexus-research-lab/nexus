@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // BuildSystemPrompt 构建 Room 成员稳定系统提示词。
@@ -56,7 +58,7 @@ func formatMemberDirectory(agentNameByID map[string]string) string {
 		}
 		members = append(members, memberLine{
 			agentID: normalizedAgentID,
-			name:    firstNonEmpty(strings.TrimSpace(name), normalizedAgentID),
+			name:    textutil.FirstNonEmpty(strings.TrimSpace(name), normalizedAgentID),
 		})
 	}
 	sort.Slice(members, func(i int, j int) bool {

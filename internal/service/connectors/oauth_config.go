@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
@@ -80,7 +81,7 @@ func (s *Service) saveOAuthClientConfig(
 	if err != nil {
 		return nil, err
 	}
-	info := s.toInfo(ctx, ownerUserID, entry, connectorFirstNonEmpty(state, "disconnected"))
+	info := s.toInfo(ctx, ownerUserID, entry, textutil.FirstNonEmpty(state, "disconnected"))
 	return &info, nil
 }
 

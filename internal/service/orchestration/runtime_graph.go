@@ -13,6 +13,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -168,7 +169,7 @@ func (s *Service) ObserveRuntimeMessage(
 			continue
 		}
 		sourceNodeID := rootNodeID
-		if parentNodeID := firstNonEmpty(
+		if parentNodeID := textutil.FirstNonEmpty(
 			parentNodeBySubject[runtimeGraphParentKey(identity.AgentRoundID, parentSubjectID)],
 			parentNodeBySubject[parentSubjectID],
 		); parentNodeID != "" {
@@ -194,8 +195,8 @@ func (s *Service) ObserveRuntimeMessage(
 			metadata[runtimeGraphCommandOperationMetadataKey] = evidence.commandIdentity.Operation
 			metadata[runtimeGraphCommandRequestIDMetadataKey] = evidence.commandIdentity.RequestID
 		}
-		name := firstNonEmpty(event.Name, previousNode.Name)
-		description := firstNonEmpty(event.Description, previousNode.Description)
+		name := textutil.FirstNonEmpty(event.Name, previousNode.Name)
+		description := textutil.FirstNonEmpty(event.Description, previousNode.Description)
 		boundaryOperation := runtimeGraphAssignmentBoundaryOperationForNode(
 			protocol.ExecutionRuntimeNodeRun{Name: name, Metadata: metadata},
 		)
@@ -239,14 +240,14 @@ func (s *Service) ObserveRuntimeMessage(
 			GraphID:          identity.GraphID,
 			OwnerUserID:      identity.OwnerUserID,
 			SessionKey:       identity.SessionKey,
-			ExecutionID:      firstNonEmpty(identity.ExecutionID, activeSegment.ExecutionID),
+			ExecutionID:      textutil.FirstNonEmpty(identity.ExecutionID, activeSegment.ExecutionID),
 			Kind:             nodeKind,
 			SubjectID:        strings.TrimSpace(event.SubjectID),
 			ParentSubjectID:  parentSubjectID,
 			RootRoundID:      identity.RootRoundID,
 			RuntimeRoundID:   identity.RuntimeRoundID,
 			AgentRoundID:     identity.AgentRoundID,
-			AgentID:          firstNonEmpty(event.AgentID, identity.AgentID),
+			AgentID:          textutil.FirstNonEmpty(event.AgentID, identity.AgentID),
 			Name:             name,
 			Description:      description,
 			Status:           status,
@@ -392,7 +393,7 @@ func (s *Service) observeRuntimeSubagentLifecycle(
 		input.Interrupted = status == "cancelled" || status == "canceled" ||
 			status == "interrupted" || status == "stopped" || status == "aborted"
 		if event.Failed {
-			input.Error = firstNonEmpty(strings.TrimSpace(event.Description), status, "subagent failed")
+			input.Error = textutil.FirstNonEmpty(strings.TrimSpace(event.Description), status, "subagent failed")
 		}
 		result, err = s.ObserveSubagentStop(ctx, actor, input)
 	default:

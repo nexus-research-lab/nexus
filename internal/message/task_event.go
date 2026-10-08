@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -40,12 +41,12 @@ func SubagentTaskUsageSnapshots(message protocol.Message) []SubagentTaskUsage {
 	}
 
 	metadata := mapValue(message["metadata"])
-	observe(normalizeString(metadata["task_id"]), metadata["usage"])
+	observe(textutil.AnyString(metadata["task_id"]), metadata["usage"])
 	observeTaskProgress := func(block map[string]any) {
-		if normalizeString(block["type"]) != "task_progress" {
+		if textutil.AnyString(block["type"]) != "task_progress" {
 			return
 		}
-		observe(normalizeString(block["task_id"]), block["usage"])
+		observe(textutil.AnyString(block["task_id"]), block["usage"])
 	}
 	switch content := message["content"].(type) {
 	case []map[string]any:
@@ -101,10 +102,10 @@ func (p *Processor) projectTaskProgress(progress sdkprotocol.TaskProgressMessage
 
 func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgressMessage) (*protocol.Message, bool) {
 	data := mapValue(progress.Additional["data"])
-	progressType := normalizeString(data["type"])
+	progressType := textutil.AnyString(data["type"])
 	if shellType := resolveShellProgressType(progressType, progress.ToolName); shellType != "" {
 		trackingID := firstNonEmpty(
-			normalizePointerString(progress.ParentToolUseID),
+			textutil.PointerValue(progress.ParentToolUseID),
 			progress.ToolUseID,
 		)
 		if trackingID == "" || !p.shouldEmitShellToolProgress(trackingID, progress.ElapsedTimeSeconds) {
@@ -129,20 +130,20 @@ func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgress
 	}
 	taskID := firstNonEmpty(
 		progress.TaskID,
-		normalizeString(data["agent_id"]),
+		textutil.AnyString(data["agent_id"]),
 		progress.ToolUseID,
 	)
 	description := firstNonEmpty(
-		normalizeString(data["description"]),
-		normalizeString(data["agent_type"]),
+		textutil.AnyString(data["description"]),
+		textutil.AnyString(data["agent_type"]),
 		"子 Agent 正在执行",
 	)
-	agentID := firstNonEmpty(normalizeString(data["agent_id"]), taskID)
+	agentID := firstNonEmpty(textutil.AnyString(data["agent_id"]), taskID)
 	metadata := mergeTaskEventMetadata(data, map[string]string{
 		"agent_id": agentID,
 		"child_session_id": firstNonEmpty(
-			normalizeString(data["child_session_id"]),
-			normalizeString(data["childSessionId"]),
+			textutil.AnyString(data["child_session_id"]),
+			textutil.AnyString(data["childSessionId"]),
 			agentID,
 		),
 		"task_type": "local_agent",
@@ -150,7 +151,7 @@ func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgress
 	return p.buildTaskProgressMessage(
 		taskID,
 		description,
-		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), progress.ToolUseID),
+		firstNonEmpty(textutil.PointerValue(progress.ParentToolUseID), progress.ToolUseID),
 		firstNonEmpty(agentProgressLastToolName(data), progress.ToolName),
 		mapValue(data["usage"]),
 		metadata,
@@ -163,43 +164,43 @@ func (p *Processor) processSubagentAttachmentMessage(attachment sdkprotocol.Atta
 	}
 	data := mapValue(attachment.Data)
 	agentID := firstNonEmpty(
-		normalizeString(data["agent_id"]),
-		normalizeString(data["agentId"]),
+		textutil.AnyString(data["agent_id"]),
+		textutil.AnyString(data["agentId"]),
 	)
 	toolUseID := firstNonEmpty(
 		attachment.ToolUseID,
-		normalizeString(data["tool_use_id"]),
-		normalizeString(data["toolUseId"]),
+		textutil.AnyString(data["tool_use_id"]),
+		textutil.AnyString(data["toolUseId"]),
 	)
 	if agentID == "" || toolUseID == "" {
 		return nil
 	}
 	status := normalizeSubagentAttachmentStatus(firstNonEmpty(
-		normalizeString(data["task_status"]),
-		normalizeString(data["taskStatus"]),
-		normalizeString(data["status"]),
+		textutil.AnyString(data["task_status"]),
+		textutil.AnyString(data["taskStatus"]),
+		textutil.AnyString(data["status"]),
 	))
 	description := firstNonEmpty(
-		normalizeString(data["description"]),
-		normalizeString(data["agent_type"]),
-		normalizeString(data["agentType"]),
+		textutil.AnyString(data["description"]),
+		textutil.AnyString(data["agent_type"]),
+		textutil.AnyString(data["agentType"]),
 	)
 	return p.buildTaskNotificationMessage(
 		agentID,
 		firstNonEmpty(description, "子 Agent 状态已更新"),
 		toolUseID,
 		status,
-		firstNonEmpty(normalizeString(data["output_file"]), normalizeString(data["outputFile"])),
+		firstNonEmpty(textutil.AnyString(data["output_file"]), textutil.AnyString(data["outputFile"])),
 		mapValue(data["usage"]),
 		map[string]any{
 			"agent_id": agentID,
 			"agent_type": firstNonEmpty(
-				normalizeString(data["agent_type"]),
-				normalizeString(data["agentType"]),
+				textutil.AnyString(data["agent_type"]),
+				textutil.AnyString(data["agentType"]),
 			),
 			"child_session_id": firstNonEmpty(
-				normalizeString(data["child_session_id"]),
-				normalizeString(data["childSessionId"]),
+				textutil.AnyString(data["child_session_id"]),
+				textutil.AnyString(data["childSessionId"]),
 				agentID,
 			),
 			"description": description,
@@ -472,7 +473,7 @@ func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
 		"output_file", "parent_task_id", "prompt", "summary", "task_type", "team_name",
 		"transcript_path", "workflow_name", "progress_type",
 	} {
-		if value := normalizeString(additional[key]); value != "" {
+		if value := textutil.AnyString(additional[key]); value != "" {
 			metadata[key] = value
 		}
 	}
@@ -513,7 +514,7 @@ func taskUsageMap(usage sdkprotocol.TaskUsage, rawUsage any) map[string]any {
 
 func agentProgressLastToolName(data map[string]any) string {
 	message := mapValue(data["message"])
-	if normalizeString(message["type"]) != "assistant" {
+	if textutil.AnyString(message["type"]) != "assistant" {
 		return ""
 	}
 	envelope := mapValue(message["message"])
@@ -523,10 +524,10 @@ func agentProgressLastToolName(data map[string]any) string {
 	}
 	for index := len(items) - 1; index >= 0; index-- {
 		block := mapValue(items[index])
-		if normalizeString(block["type"]) != "tool_use" {
+		if textutil.AnyString(block["type"]) != "tool_use" {
 			continue
 		}
-		if name := normalizeString(block["name"]); name != "" {
+		if name := textutil.AnyString(block["name"]); name != "" {
 			return name
 		}
 	}
@@ -551,15 +552,15 @@ func IsSubagentTaskMetadata(metadata map[string]any) bool {
 	if len(metadata) == 0 {
 		return false
 	}
-	taskType := strings.ToLower(strings.TrimSpace(normalizeString(metadata["task_type"])))
+	taskType := strings.ToLower(strings.TrimSpace(textutil.AnyString(metadata["task_type"])))
 	if taskType == "local_shell" {
 		return false
 	}
 	if taskType != "" {
 		return taskType == "local_agent"
 	}
-	return strings.TrimSpace(normalizeString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(normalizeString(metadata["agent_type"])) != ""
+	return strings.TrimSpace(textutil.AnyString(metadata["agent_id"])) != "" ||
+		strings.TrimSpace(textutil.AnyString(metadata["agent_type"])) != ""
 }
 
 // IsTerminalSubagentTaskStatus 判断子任务是否已进入不可继续运行的终态。

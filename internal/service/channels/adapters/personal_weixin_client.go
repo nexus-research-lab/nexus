@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
-
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
@@ -92,9 +91,9 @@ func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *htt
 	return &PersonalWeixinIlinkClient{
 		baseURL:            normalizePersonalWeixinBaseURL(config.BaseURL),
 		token:              strings.TrimSpace(config.Token),
-		botAgent:           channelcontract.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
-		ilinkAppID:         channelcontract.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
-		ilinkClientVersion: channelcontract.FirstNonEmpty(config.IlinkClientVersion, DefaultPersonalWeixinClientVersion),
+		botAgent:           textutil.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
+		ilinkAppID:         textutil.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
+		ilinkClientVersion: textutil.FirstNonEmpty(config.IlinkClientVersion, DefaultPersonalWeixinClientVersion),
 		client:             client,
 		configCache:        make(map[string]personalWeixinConfigCacheEntry),
 	}
@@ -294,7 +293,7 @@ func (c *PersonalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth
 func (c *PersonalWeixinIlinkClient) baseInfo() map[string]string {
 	return map[string]string{
 		"channel_version": "nexus",
-		"bot_agent":       channelcontract.FirstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
+		"bot_agent":       textutil.FirstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
 	}
 }
 

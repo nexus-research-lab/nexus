@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
@@ -25,9 +25,9 @@ func (s *Service) scheduleTitleGeneration(
 	roomID := ""
 	conversationID := ""
 	if !isExternalIMSession(parsed, sessionItem) {
-		roomID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
+		roomID = strings.TrimSpace(textutil.PointerValue(sessionItem.RoomID))
 		if roomID != "" {
-			conversationID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
+			conversationID = strings.TrimSpace(textutil.PointerValue(sessionItem.ConversationID))
 		}
 	}
 	conversationMessageCount := 0

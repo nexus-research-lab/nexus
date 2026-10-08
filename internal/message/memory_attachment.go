@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // captureRelevantMemoryAttachment 暂存本轮已实际注入模型的记忆摘要。
@@ -32,8 +33,8 @@ func recalledMemoryReferences(attachment sdkprotocol.AttachmentMessage) []map[st
 		payload := mapValue(item)
 		name := recalledMemoryName(payload)
 		description := firstNonEmpty(
-			normalizeString(payload["description"]),
-			memoryFrontmatterDescription(normalizeString(payload["content"])),
+			textutil.AnyString(payload["description"]),
+			memoryFrontmatterDescription(textutil.AnyString(payload["content"])),
 			name,
 		)
 		if description == "" {
@@ -49,9 +50,9 @@ func recalledMemoryReferences(attachment sdkprotocol.AttachmentMessage) []map[st
 
 func recalledMemoryName(payload map[string]any) string {
 	name := firstNonEmpty(
-		normalizeString(payload["name"]),
-		normalizeString(payload["filename"]),
-		filepath.Base(normalizeString(payload["path"])),
+		textutil.AnyString(payload["name"]),
+		textutil.AnyString(payload["filename"]),
+		filepath.Base(textutil.AnyString(payload["path"])),
 	)
 	name = strings.TrimSuffix(name, filepath.Ext(name))
 	return strings.TrimSpace(strings.NewReplacer("_", " ", "-", " ").Replace(name))
@@ -79,10 +80,10 @@ func mergeRecalledMemoryReferences(current []map[string]any, incoming []map[stri
 	result := cloneBlockSlice(current)
 	seen := make(map[string]struct{}, len(result)+len(incoming))
 	for _, reference := range result {
-		seen[normalizeString(reference["name"])+"\x00"+normalizeString(reference["description"])] = struct{}{}
+		seen[textutil.AnyString(reference["name"])+"\x00"+textutil.AnyString(reference["description"])] = struct{}{}
 	}
 	for _, reference := range incoming {
-		key := normalizeString(reference["name"]) + "\x00" + normalizeString(reference["description"])
+		key := textutil.AnyString(reference["name"]) + "\x00" + textutil.AnyString(reference["description"])
 		if _, exists := seen[key]; exists {
 			continue
 		}

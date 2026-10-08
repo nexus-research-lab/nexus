@@ -13,6 +13,7 @@ import (
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -426,7 +427,7 @@ func latestGuidanceTrigger(queueItems []protocol.InputQueueItem) (string, roomTr
 			trigger = roomTrigger{
 				TriggerType:   guidanceTriggerType(item.Source),
 				Content:       content,
-				MessageID:     firstNonEmptyString(item.SourceMessageID, roundID),
+				MessageID:     textutil.FirstNonEmpty(item.SourceMessageID, roundID),
 				SourceAgentID: strings.TrimSpace(item.SourceAgentID),
 				TargetAgentID: strings.TrimSpace(item.AgentID),
 				ReplyRoute:    item.ReplyRoute,

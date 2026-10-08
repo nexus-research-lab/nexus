@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -143,7 +144,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
 		"round_id":    roundID,
-		"session_id":  stringPointerValue(sessionValue.SessionID),
+		"session_id":  textutil.PointerValue(sessionValue.SessionID),
 		"role":        "assistant",
 		"timestamp":   now.UnixMilli(),
 		"content": []map[string]any{
@@ -159,7 +160,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
 		"round_id":        roundID,
-		"session_id":      stringPointerValue(sessionValue.SessionID),
+		"session_id":      textutil.PointerValue(sessionValue.SessionID),
 		"parent_id":       assistantMessage["message_id"],
 		"role":            "result",
 		"timestamp":       now.UnixMilli(),
@@ -366,11 +367,4 @@ func stringValue(value any) string {
 	default:
 		return ""
 	}
-}
-
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }

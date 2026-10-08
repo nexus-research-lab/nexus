@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 
 	"github.com/bwmarrin/discordgo"
@@ -119,7 +120,7 @@ func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channel
 	if strings.TrimSpace(c.token) == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("discord channel is not configured")
 	}
-	targetID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
+	targetID := textutil.FirstNonEmpty(target.ThreadID, target.To)
 	if targetID == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("discord delivery target requires to or thread_id")
 	}
@@ -173,7 +174,7 @@ func (c *DiscordChannel) SendDeliveryTyping(ctx context.Context, target channelc
 	if strings.TrimSpace(c.token) == "" {
 		return fmt.Errorf("discord channel is not configured")
 	}
-	targetID := channelcontract.FirstNonEmpty(target.ThreadID, target.To)
+	targetID := textutil.FirstNonEmpty(target.ThreadID, target.To)
 	if targetID == "" {
 		return fmt.Errorf("discord typing target requires to or thread_id")
 	}

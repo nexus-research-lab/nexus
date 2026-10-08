@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
@@ -107,7 +107,7 @@ func (h *Handler) resolveCommandCatalogAgent(
 		if h == nil || h.dm == nil {
 			return "", errors.New("DM service is unavailable")
 		}
-		if requestedAgentID := handlershared.StringValue(inbound["agent_id"]); requestedAgentID != "" &&
+		if requestedAgentID := textutil.AnyString(inbound["agent_id"]); requestedAgentID != "" &&
 			requestedAgentID != parsed.AgentID {
 			return "", errors.New("agent_id does not match session_key")
 		}
@@ -121,11 +121,11 @@ func (h *Handler) resolveCommandCatalogAgent(
 	}
 
 	conversationID := parsed.ConversationID
-	if requested := handlershared.StringValue(inbound["conversation_id"]); requested != "" &&
+	if requested := textutil.AnyString(inbound["conversation_id"]); requested != "" &&
 		requested != conversationID {
 		return "", errors.New("conversation_id does not match session_key")
 	}
-	agentID := handlershared.StringValue(inbound["agent_id"])
+	agentID := textutil.AnyString(inbound["agent_id"])
 	if agentID == "" {
 		return "", errors.New("agent_id is required for a Room command catalog")
 	}
@@ -139,7 +139,7 @@ func (h *Handler) resolveCommandCatalogAgent(
 	if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
 		return "", errors.New("Room command catalog requires a group Room")
 	}
-	if roomID := handlershared.StringValue(inbound["room_id"]); roomID != "" &&
+	if roomID := textutil.AnyString(inbound["room_id"]); roomID != "" &&
 		roomID != contextValue.Room.ID {
 		return "", errors.New("room_id does not match conversation")
 	}

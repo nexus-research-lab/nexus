@@ -1,6 +1,7 @@
 package dm
 
 import (
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -18,7 +19,7 @@ func NewMessageMapper(sessionKey string, agentID string, roundID string, agentRo
 		Context: message.MessageContext{
 			SessionKey:    sessionKey,
 			AgentID:       agentID,
-			WorkspacePath: FirstNonEmpty(workspacePath...),
+			WorkspacePath: textutil.FirstNonEmpty(workspacePath...),
 			RoundID:       roundID,
 			AgentRoundID:  agentRoundID,
 			ParentID:      parentID,

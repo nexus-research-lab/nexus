@@ -13,6 +13,7 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -71,7 +72,7 @@ func (s *Service) inputQueueGuidanceHook(
 		prepared := make(map[string]preparedDMGuidance, len(items))
 		for _, item := range items {
 			sourceRoundID := inputQueueItemRoundID(item)
-			targetRoundID := dmdomain.FirstNonEmpty(item.RootRoundID, runningRoundIDs[0])
+			targetRoundID := textutil.FirstNonEmpty(item.RootRoundID, runningRoundIDs[0])
 			runtimeContent, renderErr := s.renderRuntimeContentWithAttachments(ctx, item.Content, item.Attachments)
 			if renderErr != nil {
 				return sdkhook.Output{}, renderErr

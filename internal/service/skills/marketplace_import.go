@@ -21,6 +21,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -123,17 +124,17 @@ func (s *Service) importGit(
 		slog.WarnContext(ctx, "git rev-parse HEAD 失败", "repository_url", repositoryURL, "err", revErr)
 	}
 	manifest.SourceType = sourceTypeExternal
-	manifest.SourceRef = firstNonEmpty(manifest.SourceRef, repositoryURL)
-	manifest.SourceKind = firstNonEmpty(manifest.SourceKind, externalSourceKindGit)
-	manifest.SourceKey = firstNonEmpty(manifest.SourceKey, repositoryURL)
-	manifest.SourceName = firstNonEmpty(manifest.SourceName, "Git")
-	manifest.SourceTrust = firstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity)
+	manifest.SourceRef = textutil.FirstNonEmpty(manifest.SourceRef, repositoryURL)
+	manifest.SourceKind = textutil.FirstNonEmpty(manifest.SourceKind, externalSourceKindGit)
+	manifest.SourceKey = textutil.FirstNonEmpty(manifest.SourceKey, repositoryURL)
+	manifest.SourceName = textutil.FirstNonEmpty(manifest.SourceName, "Git")
+	manifest.SourceTrust = textutil.FirstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity)
 	manifest.ImportMode = "git"
 	manifest.GitURL = repositoryURL
 	manifest.GitBranch = strings.TrimSpace(branch)
 	manifest.GitPath = filepath.ToSlash(cleanSkillPath)
 	manifest.GitCommit = strings.TrimSpace(commitOutput)
-	manifest.Version = firstNonEmpty(commitOutput, manifest.Version, "git")
+	manifest.Version = textutil.FirstNonEmpty(commitOutput, manifest.Version, "git")
 	return s.importSourceDirAtVersion(ctx, sourceDir, manifest, expectedVersion)
 }
 
@@ -189,15 +190,15 @@ func (s *Service) importSkillsSh(
 		SourceType:  sourceTypeExternal,
 		SourceRef:   target.Identifier,
 		SourceKind:  externalSourceKindSkillsSh,
-		SourceKey:   firstNonEmpty(s.config.SkillsAPIURL, "https://skills.sh"),
+		SourceKey:   textutil.FirstNonEmpty(s.config.SkillsAPIURL, "https://skills.sh"),
 		SourceName:  "skills.sh",
 		SourceTrust: externalSourceTrustCommunity,
 		ImportMode:  "skills_sh",
 		GitURL:      target.RepositoryURL,
 		GitPath:     filepath.ToSlash(target.SkillPath),
 		GitCommit:   strings.TrimSpace(commitOutput),
-		DetailURL:   skillsShDetailURL(firstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), target.SourceRef, target.SkillSlug),
-		Version:     firstNonEmpty(commitOutput, target.Identifier),
+		DetailURL:   skillsShDetailURL(textutil.FirstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), target.SourceRef, target.SkillSlug),
+		Version:     textutil.FirstNonEmpty(commitOutput, target.Identifier),
 	}, expectedVersion)
 }
 
@@ -224,7 +225,7 @@ func (s *Service) importExternalSkill(
 	if strings.TrimSpace(item.SourceKind) == externalSourceKindPrivateRegistry {
 		return nil, errors.New("私有来源必须通过 source_id 和 skill_id 导入")
 	}
-	mode := normalizeImportMode(firstNonEmpty(item.ImportMode, inferExternalImportMode(item)))
+	mode := normalizeImportMode(textutil.FirstNonEmpty(item.ImportMode, inferExternalImportMode(item)))
 	manifest := externalManifest{
 		Name:           externalItemSkillName(item),
 		Title:          strings.TrimSpace(item.Title),
@@ -232,13 +233,13 @@ func (s *Service) importExternalSkill(
 		Tags:           normalizeStringSlice(item.Tags),
 		Version:        strings.TrimSpace(item.Version),
 		SourceType:     sourceTypeExternal,
-		SourceRef:      firstNonEmpty(item.PackageSpec, item.RawURL, item.GitURL, item.DetailURL),
+		SourceRef:      textutil.FirstNonEmpty(item.PackageSpec, item.RawURL, item.GitURL, item.DetailURL),
 		SourceKind:     strings.TrimSpace(item.SourceKind),
 		SourceKey:      strings.TrimSpace(item.SourceKey),
 		SourceName:     strings.TrimSpace(item.SourceName),
 		SourceTrust:    strings.TrimSpace(item.SourceTrust),
 		ImportMode:     mode,
-		Recommendation: firstNonEmpty(item.Description, "外部导入能力。"),
+		Recommendation: textutil.FirstNonEmpty(item.Description, "外部导入能力。"),
 		GitURL:         strings.TrimSpace(item.GitURL),
 		GitBranch:      strings.TrimSpace(item.GitBranch),
 		GitPath:        strings.TrimSpace(item.GitPath),
@@ -249,10 +250,10 @@ func (s *Service) importExternalSkill(
 	case externalSourceKindSkillsSh:
 		return s.importSkillsSh(ctx, item.PackageSpec, item.SkillSlug, expectedVersion)
 	case externalSourceKindGit:
-		repositoryURL := firstNonEmpty(item.GitURL, item.PackageSpec, item.Source)
+		repositoryURL := textutil.FirstNonEmpty(item.GitURL, item.PackageSpec, item.Source)
 		return s.importGit(ctx, repositoryURL, item.GitBranch, item.GitPath, manifest, expectedVersion)
 	case externalSourceKindURL:
-		sourceURL := firstNonEmpty(item.RawURL, item.DetailURL, item.PackageSpec, item.Source)
+		sourceURL := textutil.FirstNonEmpty(item.RawURL, item.DetailURL, item.PackageSpec, item.Source)
 		return s.importSkillURL(ctx, sourceURL, manifest, expectedVersion)
 	default:
 		return nil, errors.New("不支持的外部 skill 来源")
@@ -263,7 +264,7 @@ func externalItemSkillName(item ExternalSkillSearchItem) string {
 	for _, candidate := range []string{
 		item.SkillSlug,
 		item.Name,
-		skillNameFromSourceURL(firstNonEmpty(item.RawURL, item.PackageSpec, item.DetailURL, item.GitURL)),
+		skillNameFromSourceURL(textutil.FirstNonEmpty(item.RawURL, item.PackageSpec, item.DetailURL, item.GitURL)),
 	} {
 		if name := normalizeSkillNameFallback(candidate); name != "" {
 			return name
@@ -359,15 +360,15 @@ func (s *Service) importSkillURL(
 		return nil, err
 	}
 	manifest.SourceType = sourceTypeExternal
-	manifest.SourceRef = firstNonEmpty(manifest.SourceRef, targetURL)
-	manifest.SourceKind = firstNonEmpty(manifest.SourceKind, externalSourceKindURL)
-	manifest.SourceKey = firstNonEmpty(manifest.SourceKey, targetURL)
-	manifest.SourceName = firstNonEmpty(manifest.SourceName, "URL")
-	manifest.Name = firstNonEmpty(normalizeSkillNameFallback(manifest.Name), skillNameFromSourceURL(targetURL))
-	manifest.SourceTrust = firstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity)
+	manifest.SourceRef = textutil.FirstNonEmpty(manifest.SourceRef, targetURL)
+	manifest.SourceKind = textutil.FirstNonEmpty(manifest.SourceKind, externalSourceKindURL)
+	manifest.SourceKey = textutil.FirstNonEmpty(manifest.SourceKey, targetURL)
+	manifest.SourceName = textutil.FirstNonEmpty(manifest.SourceName, "URL")
+	manifest.Name = textutil.FirstNonEmpty(normalizeSkillNameFallback(manifest.Name), skillNameFromSourceURL(targetURL))
+	manifest.SourceTrust = textutil.FirstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity)
 	manifest.ImportMode = externalSourceKindURL
 	manifest.RawURL = targetURL
-	manifest.Version = firstNonEmpty(manifest.Version, targetURL)
+	manifest.Version = textutil.FirstNonEmpty(manifest.Version, targetURL)
 	return s.importSourceDirAtVersion(ctx, sourceDir, manifest, expectedVersion)
 }
 
@@ -385,7 +386,7 @@ func (s *Service) importSourceDirAtVersion(
 	if err != nil {
 		return nil, err
 	}
-	parsed := parseSkillFrontmatter(content, firstNonEmpty(manifest.Name, skillName))
+	parsed := parseSkillFrontmatter(content, textutil.FirstNonEmpty(manifest.Name, skillName))
 	parsed.Name = strings.TrimSpace(parsed.Name)
 	if parsed.Name == "" {
 		return nil, errors.New("SKILL.md 缺少 name")
@@ -423,13 +424,13 @@ func (s *Service) importSourceDirAtVersion(
 		return nil, err
 	}
 	manifest.Name = parsed.Name
-	manifest.Title = firstNonEmpty(parsed.Title, manifest.Title, parsed.Name)
-	manifest.Description = firstNonEmpty(parsed.Description, manifest.Description)
-	manifest.Scope = defaultSkillScope(firstNonEmpty(parsed.Scope, manifest.Scope))
+	manifest.Title = textutil.FirstNonEmpty(parsed.Title, manifest.Title, parsed.Name)
+	manifest.Description = textutil.FirstNonEmpty(parsed.Description, manifest.Description)
+	manifest.Scope = defaultSkillScope(textutil.FirstNonEmpty(parsed.Scope, manifest.Scope))
 	manifest.Tags = firstNonEmptySlice(parsed.Tags, manifest.Tags)
-	manifest.CategoryKey = firstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports")
-	manifest.CategoryName = firstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入")
-	manifest.Recommendation = firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。")
+	manifest.CategoryKey = textutil.FirstNonEmpty(manifest.CategoryKey, parsed.CategoryKey, "custom-imports")
+	manifest.CategoryName = textutil.FirstNonEmpty(manifest.CategoryName, parsed.CategoryName, "自定义导入")
+	manifest.Recommendation = textutil.FirstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。")
 	manifest.SourceType = sourceTypeExternal
 	payload, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {

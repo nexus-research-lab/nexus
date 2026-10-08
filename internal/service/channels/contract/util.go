@@ -24,15 +24,6 @@ func NullStringValue(value sql.NullString) string {
 	return strings.TrimSpace(value.String)
 }
 
-func FirstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func NewID(prefix string) string {
 	buffer := make([]byte, 8)
 	if _, err := rand.Read(buffer); err != nil {

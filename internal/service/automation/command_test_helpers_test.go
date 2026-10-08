@@ -4,15 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -58,7 +60,7 @@ func newAutomationCommandFixture(t *testing.T, resultText string) automationComm
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
 		permission: permission,
-		resultText: firstNonEmptyString(resultText, "ok"),
+		resultText: textutil.FirstNonEmpty(resultText, "ok"),
 	}
 	router := channels.NewRouter(
 		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
@@ -147,10 +149,10 @@ func callAutomationCommand(
 ) (map[string]any, bool) {
 	t.Helper()
 	if strings.TrimSpace(sctx.LeaseSessionKey) == "" {
-		sctx.LeaseSessionKey = firstNonEmptyString(sctx.SessionKey, "agent:test:dm:websocket:test:")
+		sctx.LeaseSessionKey = textutil.FirstNonEmpty(sctx.SessionKey, "agent:test:dm:websocket:test:")
 	}
 	if strings.TrimSpace(sctx.LeaseRoundID) == "" {
-		sctx.LeaseRoundID = firstNonEmptyString(sctx.RoundID, "round-test")
+		sctx.LeaseRoundID = textutil.FirstNonEmpty(sctx.RoundID, "round-test")
 	}
 	if strings.TrimSpace(sctx.RoundID) == "" {
 		sctx.RoundID = sctx.LeaseRoundID

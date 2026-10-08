@@ -10,6 +10,7 @@ import (
 	_ "time/tzdata"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // GetDailyReport 按日期聚合任务运行和投递状态。
@@ -17,7 +18,7 @@ func (s *Service) GetDailyReport(ctx context.Context, input automationdomain.Sch
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	timezone := firstNonEmpty(input.Timezone, s.config.DefaultTimezone, "Asia/Shanghai")
+	timezone := textutil.FirstNonEmpty(input.Timezone, s.config.DefaultTimezone, "Asia/Shanghai")
 	loc, err := time.LoadLocation(timezone)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", automationdomain.ErrDailyReportTimezoneInvalid, timezone)

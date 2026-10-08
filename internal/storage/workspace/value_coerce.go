@@ -38,25 +38,9 @@ func stringFromAny(value any) string {
 	}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func stringPointer(value string) *string {
 	copyValue := value
 	return &copyValue
-}
-
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }
 
 func boolValueAny(value any) bool {

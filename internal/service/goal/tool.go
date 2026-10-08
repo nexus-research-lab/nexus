@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -193,7 +194,7 @@ func (s *Service) UsageLimitForSession(ctx context.Context, sessionKey string, r
 	if item == nil {
 		return nil, ErrGoalNotFound
 	}
-	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, firstNonEmptyGoalReason(reason, "Runtime usage limit reached"))
+	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, textutil.FirstNonEmpty(reason, "Runtime usage limit reached"))
 }
 
 // UsageLimitForGoal 把 runtime usage limit 固定投影到发起该 round 的 Goal。
@@ -212,7 +213,7 @@ func (s *Service) UsageLimitForGoal(ctx context.Context, goalID string, roundID 
 	if !protocol.IsCurrentGoalStatus(item.Status) {
 		return item, nil
 	}
-	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, firstNonEmptyGoalReason(reason, "Runtime usage limit reached"))
+	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, textutil.FirstNonEmpty(reason, "Runtime usage limit reached"))
 }
 
 func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
@@ -320,13 +321,4 @@ func (s *Service) recordUsageForLoadedGoal(ctx context.Context, item *protocol.G
 		s.clearWallClockGoal(*updated)
 	}
 	return updated, nil
-}
-
-func firstNonEmptyGoalReason(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

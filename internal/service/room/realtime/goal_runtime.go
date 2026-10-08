@@ -17,6 +17,7 @@ import (
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
@@ -1218,7 +1219,7 @@ func (s *Service) grantRoomGoalMutationAuthorityForScope(
 			SessionKey:        goalSessionKey,
 			GoalID:            goalID,
 			ObjectiveRevision: objectiveRevision,
-			ExecutionID: firstNonEmptyString(
+			ExecutionID: textutil.FirstNonEmpty(
 				executionIDFromRoomBindings(
 					candidate.WorkBinding,
 					candidate.ReviewBinding,

@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -26,10 +27,10 @@ func IsNoReplyOutputMessage(message protocol.Message) bool {
 	case "assistant":
 		text = extractHistoryText(message)
 	case "result":
-		if message["is_error"] == true || normalizeAnyString(message["subtype"]) == "error" {
+		if message["is_error"] == true || textutil.AnyString(message["subtype"]) == "error" {
 			return false
 		}
-		text = normalizeAnyString(message["result"])
+		text = textutil.AnyString(message["result"])
 	default:
 		return false
 	}
@@ -55,8 +56,8 @@ func StripNoReplyMarker(message protocol.Message) protocol.Message {
 		if len(blocks) > 0 {
 			next := make([]map[string]any, 0, len(blocks))
 			for _, block := range blocks {
-				if normalizeAnyString(block["type"]) == "text" {
-					stripped := stripNoReplyMarker(normalizeAnyString(block["text"]))
+				if textutil.AnyString(block["type"]) == "text" {
+					stripped := stripNoReplyMarker(textutil.AnyString(block["text"]))
 					if stripped == "" {
 						continue
 					}
@@ -81,7 +82,7 @@ func StripNoReplyMarker(message protocol.Message) protocol.Message {
 
 // IsNoReplyCandidateStreamEvent 判断流式事件是否仍可能只是无回复标记。
 func IsNoReplyCandidateStreamEvent(event protocol.EventMessage) bool {
-	eventType := normalizeAnyString(event.Data["type"])
+	eventType := textutil.AnyString(event.Data["type"])
 	switch eventType {
 	case "message_start", "message_delta", "message_stop":
 		return true
@@ -89,10 +90,10 @@ func IsNoReplyCandidateStreamEvent(event protocol.EventMessage) bool {
 		return true
 	case "content_block_start", "content_block_delta":
 		block, _ := event.Data["content_block"].(map[string]any)
-		if normalizeAnyString(block["type"]) != "text" {
+		if textutil.AnyString(block["type"]) != "text" {
 			return false
 		}
-		text := normalizeAnyString(block["text"])
+		text := textutil.AnyString(block["text"])
 		return text == "" || strings.HasPrefix(NoReplyMarker, text)
 	default:
 		return false

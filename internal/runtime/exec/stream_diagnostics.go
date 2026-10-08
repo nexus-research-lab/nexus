@@ -5,6 +5,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 )
 
@@ -86,10 +87,10 @@ func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, me
 			Observed:     true,
 			MessageIndex: messageIndex,
 			Summary:      strings.TrimSpace(trace.BuildSDKMessageLogSummary(message)),
-			StopReason:   trace.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["stop_reason"])), d.currentStopReason),
+			StopReason:   textutil.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["stop_reason"])), d.currentStopReason),
 			SessionID:    strings.TrimSpace(message.SessionID),
-			MessageID:    trace.FirstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
-			Model:        trace.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["model"])), d.currentModel),
+			MessageID:    textutil.FirstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
+			Model:        textutil.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["model"])), d.currentModel),
 		}
 	}
 }

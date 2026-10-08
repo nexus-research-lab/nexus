@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -68,7 +68,7 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 		AgentID:     strings.TrimSpace(r.agent.AgentID),
 		SessionKey:  r.sessionKey,
 		RoundID:     r.roundID,
-		AssistantID: dmdomain.NormalizeString(assistant["message_id"]),
+		AssistantID: textutil.AnyString(assistant["message_id"]),
 		FinishedAt:  time.Now().UTC(),
 	}
 	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
@@ -163,7 +163,7 @@ func (r *roundRunner) broadcastDeferredAssistant(message protocol.Message) {
 	event.AgentID = r.agent.AgentID
 	event.RoundID = r.roundID
 	event.AgentRoundID = r.agentRoundID
-	event.MessageID = dmdomain.NormalizeString(message["message_id"])
+	event.MessageID = textutil.AnyString(message["message_id"])
 	event.DeliveryMode = protocol.DeliveryModeDurable
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 }

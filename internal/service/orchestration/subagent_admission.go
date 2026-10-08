@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -200,7 +201,7 @@ func (s *Service) AdmitSubagentLaunch(
 			ParentAttemptID: parent.ID,
 			ExecutorKind:    protocol.AttemptExecutorSubagent,
 			ParentAgentID:   strings.TrimSpace(actor.AgentID),
-			RuntimeSessionKey: firstNonEmpty(
+			RuntimeSessionKey: textutil.FirstNonEmpty(
 				strings.TrimSpace(input.RuntimeSessionKey),
 				strings.TrimSpace(actor.SessionKey),
 			),
@@ -338,19 +339,19 @@ func (s *Service) ObserveSubagentStop(
 			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		terminal := *child
-		terminal.SDKSessionID = firstNonEmpty(
+		terminal.SDKSessionID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.SDKSessionID),
 			terminal.SDKSessionID,
 		)
-		terminal.SDKTaskID = firstNonEmpty(
+		terminal.SDKTaskID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.SDKTaskID),
 			terminal.SDKTaskID,
 		)
-		terminal.ChildSessionID = firstNonEmpty(
+		terminal.ChildSessionID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.ChildSessionID),
 			terminal.ChildSessionID,
 		)
-		terminal.ExecutorAgentID = firstNonEmpty(
+		terminal.ExecutorAgentID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.SDKAgentID),
 			terminal.ExecutorAgentID,
 		)
@@ -359,7 +360,7 @@ func (s *Service) ObserveSubagentStop(
 		errorMessage := strings.TrimSpace(input.Error)
 		if input.Interrupted {
 			terminal.Status = protocol.WorkAttemptStatusInterrupted
-			terminal.FailureReason = firstNonEmpty(errorMessage, "subagent interrupted")
+			terminal.FailureReason = textutil.FirstNonEmpty(errorMessage, "subagent interrupted")
 		} else if errorMessage != "" {
 			terminal.Status = protocol.WorkAttemptStatusFailed
 			terminal.FailureReason = errorMessage
@@ -870,7 +871,7 @@ func mergeSubagentRuntime(
 	actor ActorContext,
 	input SubagentLaunchInput,
 ) protocol.WorkAttempt {
-	attempt.RuntimeSessionKey = firstNonEmpty(
+	attempt.RuntimeSessionKey = textutil.FirstNonEmpty(
 		strings.TrimSpace(input.RuntimeSessionKey),
 		strings.TrimSpace(actor.SessionKey),
 	)
@@ -935,9 +936,9 @@ func matchingTerminalSubagentAttempt(
 
 func actorForAttempt(actor ActorContext, attempt protocol.WorkAttempt) ActorContext {
 	result := actor
-	result.RootRoundID = firstNonEmpty(attempt.RootRoundID, actor.RootRoundID)
-	result.RuntimeRoundID = firstNonEmpty(attempt.RuntimeRoundID, actor.RuntimeRoundID)
-	result.AgentRoundID = firstNonEmpty(attempt.AgentRoundID, actor.AgentRoundID)
+	result.RootRoundID = textutil.FirstNonEmpty(attempt.RootRoundID, actor.RootRoundID)
+	result.RuntimeRoundID = textutil.FirstNonEmpty(attempt.RuntimeRoundID, actor.RuntimeRoundID)
+	result.AgentRoundID = textutil.FirstNonEmpty(attempt.AgentRoundID, actor.AgentRoundID)
 	return result
 }
 

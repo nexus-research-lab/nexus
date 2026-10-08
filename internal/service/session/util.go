@@ -66,13 +66,6 @@ func mergeSessions(fileSessions []protocol.Session, roomSessions []protocol.Sess
 	return result
 }
 
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
 func shouldHideWorkspaceSession(item protocol.Session) bool {
 	if protocol.IsRoomSharedSessionKey(item.SessionKey) {
 		return true

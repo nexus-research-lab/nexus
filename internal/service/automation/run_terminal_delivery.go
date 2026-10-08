@@ -11,6 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -237,7 +238,7 @@ func executionObservationFromRun(run automationdomain.ScheduledTaskRun) automati
 		Status:        run.Status,
 		SessionID:     run.SessionID,
 		MessageCount:  run.MessageCount,
-		ResultText:    anyStringPointer(run.ResultText),
-		AssistantText: anyStringPointer(run.AssistantText),
+		ResultText:    textutil.PointerValue(run.ResultText),
+		AssistantText: textutil.PointerValue(run.AssistantText),
 	}
 }

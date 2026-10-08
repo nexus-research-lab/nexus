@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 )
 
@@ -292,8 +293,8 @@ func includeParallelSubagentAttachment(
 		return false
 	}
 	data, _ := attachment["data"].(map[string]any)
-	agentID := firstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
-	toolUseID := firstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
+	agentID := textutil.FirstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
+	toolUseID := textutil.FirstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
 	if agentID == "" || toolUseID == "" {
 		return false
 	}

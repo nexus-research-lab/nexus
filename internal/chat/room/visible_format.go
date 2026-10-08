@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -31,7 +32,7 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	if triggerType == "" && content == "" {
 		return "(No trigger message.)"
 	}
-	sourceName := firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
+	sourceName := textutil.FirstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
 	if sourceName == "" {
 		sourceName = formatHumanSource(trigger.SourceUserID, trigger.SourceUsername, trigger.SourceDisplayName)
 	}

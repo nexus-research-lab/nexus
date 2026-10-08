@@ -12,6 +12,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
 
@@ -213,7 +214,7 @@ func (s *Service) loadHeartbeatTaskSection(ctx context.Context, agentID string) 
 func heartbeatTaskLines(tasks []automationexec.HeartbeatTask) []string {
 	lines := make([]string, 0, len(tasks))
 	for _, task := range tasks {
-		line := firstNonEmpty(
+		line := textutil.FirstNonEmpty(
 			strings.TrimSpace(task.Prompt),
 			strings.TrimSpace(task.Name),
 			strings.TrimSpace(task.Interval),
@@ -232,10 +233,10 @@ func heartbeatEventLines(events []automationdomain.SystemEvent) []string {
 		_ = json.Unmarshal([]byte(event.Payload), &payload)
 		line := strings.TrimSpace(anyString(payload["text"]))
 		if line == "" && event.EventType == "heartbeat.wake" {
-			mode := firstNonEmpty(strings.TrimSpace(anyString(payload["wake_mode"])), "unknown")
+			mode := textutil.FirstNonEmpty(strings.TrimSpace(anyString(payload["wake_mode"])), "unknown")
 			line = "wake request (" + mode + ")"
 		}
-		lines = append(lines, firstNonEmpty(line, event.EventType))
+		lines = append(lines, textutil.FirstNonEmpty(line, event.EventType))
 	}
 	return lines
 }
@@ -264,7 +265,7 @@ func heartbeatWakeLine(request automationexec.HeartbeatWakeRequest) string {
 	if text := strings.TrimSpace(request.Text); text != "" {
 		return text
 	}
-	mode := firstNonEmpty(strings.TrimSpace(request.WakeMode), "unknown")
+	mode := textutil.FirstNonEmpty(strings.TrimSpace(request.WakeMode), "unknown")
 	return "wake request (" + mode + ")"
 }
 

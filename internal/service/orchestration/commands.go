@@ -352,15 +352,6 @@ func logicalWork(snapshot *protocol.ExecutionSnapshot, workID string) protocol.W
 	return protocol.WorkItem{}
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func resultOrZero(result *MutationResult) MutationResult {
 	if result == nil {
 		return MutationResult{}

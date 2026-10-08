@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
@@ -333,7 +334,7 @@ func permissionIMRequestStatusText(request automationdomain.AutomationPermission
 	if strings.TrimSpace(request.Decision) != "" {
 		return request.Decision
 	}
-	return firstNonEmpty(request.Status, "已结束")
+	return textutil.FirstNonEmpty(request.Status, "已结束")
 }
 
 func permissionIMCommandUsage() string {

@@ -12,14 +12,16 @@ import (
 	"reflect"
 	"time"
 
+	"strings"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"strings"
 )
 
 type roomMentionTextBlock struct {
@@ -1065,7 +1067,7 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 		return s.settleDiscardedGoalHandoff(ownerUserID, conversationID, handoff)
 	}
 	if handoff.GoalPublicEvidence {
-		roundID := firstNonEmptyString(
+		roundID := textutil.FirstNonEmpty(
 			handoff.TargetAgentRoundID,
 			handoff.TargetRoundID,
 			handoff.HandoffID,
@@ -1080,7 +1082,7 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 			return err
 		}
 	}
-	handbackRoundID := firstNonEmptyString(
+	handbackRoundID := textutil.FirstNonEmpty(
 		handoff.TargetRoundID,
 		handoff.TargetAgentRoundID,
 		handoff.HandoffID,

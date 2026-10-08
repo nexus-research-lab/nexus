@@ -14,6 +14,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -190,7 +191,7 @@ func (s *Service) resolveDMSession(
 }
 
 func (s *Service) resolveChatAgentID(ctx context.Context, parsed protocol.SessionKey, requestedAgentID string) (string, error) {
-	if agentID := dmdomain.FirstNonEmpty(parsed.AgentID, requestedAgentID); agentID != "" {
+	if agentID := textutil.FirstNonEmpty(parsed.AgentID, requestedAgentID); agentID != "" {
 		return agentID, nil
 	}
 	defaultAgent, err := s.agents.GetDefaultAgent(ctx)
@@ -598,8 +599,8 @@ func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string,
 	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
 		return "", ""
 	}
-	return strings.TrimSpace(dmdomain.StringPointerValue(session.RoomID)),
-		strings.TrimSpace(dmdomain.StringPointerValue(session.ConversationID))
+	return strings.TrimSpace(textutil.PointerValue(session.RoomID)),
+		strings.TrimSpace(textutil.PointerValue(session.ConversationID))
 }
 
 func (e *dmChatExecution) registerRunner() {

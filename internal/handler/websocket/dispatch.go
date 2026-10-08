@@ -4,6 +4,7 @@ import (
 	"context"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -13,14 +14,14 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 	inbound map[string]any,
 	dispatcher *controlMessageDispatcher,
 ) {
-	msgType := handlershared.StringValue(inbound["type"])
+	msgType := textutil.AnyString(inbound["type"])
 	if _, ok := inbound["method"]; ok {
 		h.handleAppServerRPC(ctx, sender, inbound)
 		return
 	}
 	switch msgType {
 	case "ping":
-		_ = sender.SendEvent(ctx, protocol.NewPongEvent(handlershared.StringValue(inbound["session_key"])))
+		_ = sender.SendEvent(ctx, protocol.NewPongEvent(textutil.AnyString(inbound["session_key"])))
 	case "subscribe_workspace":
 		h.handleSubscribeWorkspace(ctx, sender, inbound)
 	case "unsubscribe_workspace":
@@ -45,7 +46,7 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 		h.handleControlMessage(ctx, sender, inbound, dispatcher)
 	default:
 		_ = sender.SendEvent(ctx, h.newGatewayErrorEvent(
-			handlershared.StringValue(inbound["session_key"]),
+			textutil.AnyString(inbound["session_key"]),
 			"unknown_message_type",
 			"Go HTTP 服务已接管入口，但该消息类型尚未实现",
 			map[string]any{"type": msgType},

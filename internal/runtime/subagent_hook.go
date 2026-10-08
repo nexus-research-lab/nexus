@@ -11,6 +11,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -197,7 +198,7 @@ func (m *Manager) dynamicSubagentHook(
 		case sdkhook.EventPreToolUse:
 			return m.routeSubagentPreToolUse(ctx, sessionKey, input, toolUseID)
 		case sdkhook.EventPostToolUseFailure:
-			return m.routeSubagentLifecycle(ctx, sessionKey, event, input, firstSubagentHookValue(toolUseID, input.ToolUseID))
+			return m.routeSubagentLifecycle(ctx, sessionKey, event, input, textutil.FirstNonEmpty(toolUseID, input.ToolUseID))
 		case sdkhook.EventSubagentStart, sdkhook.EventSubagentStop:
 			// Some bridge events expose an unrelated input.ToolUseID. Only the
 			// callback correlation ID, then Task/SDK Agent identity, is trusted.
@@ -214,7 +215,7 @@ func (m *Manager) routeSubagentPreToolUse(
 	input sdkhook.Input,
 	callbackToolUseID string,
 ) (sdkhook.Output, error) {
-	toolUseID := firstSubagentHookValue(callbackToolUseID, input.ToolUseID)
+	toolUseID := textutil.FirstNonEmpty(callbackToolUseID, input.ToolUseID)
 	if toolUseID == "" {
 		return denySubagentHookOutput(
 			sdkhook.EventPreToolUse,
@@ -515,15 +516,6 @@ func subagentHookOutputAccepted(event sdkhook.Event, output sdkhook.Output) bool
 		return false
 	}
 	return true
-}
-
-func firstSubagentHookValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 // DenySubagentHookOutput 把结构化 reason code 投影成 bridge 可执行的拒绝。

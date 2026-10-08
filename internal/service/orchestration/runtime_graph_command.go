@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -127,7 +128,7 @@ func (s *Service) applyRuntimeCommandReceipt(
 	}
 	node.Name = receipt.Operation
 	node.Description = "Nexus execution command"
-	node.ExecutionID = firstNonEmpty(receipt.ExecutionID, actor.ExecutionID, node.ExecutionID)
+	node.ExecutionID = textutil.FirstNonEmpty(receipt.ExecutionID, actor.ExecutionID, node.ExecutionID)
 	node.ResultSummary = strings.TrimSpace(receipt.Message)
 	node.ErrorCode = strings.TrimSpace(receipt.ReasonCode)
 	node.Metadata[runtimeGraphCommandDomainMetadataKey] = "execution"

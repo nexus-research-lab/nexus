@@ -1,18 +1,21 @@
 package room
 
-import "github.com/nexus-research-lab/nexus/internal/protocol"
+import (
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
 
 // WrapMessageEvent 构建 Room 公区消息事件。roundID 必须是 root round。
 func WrapMessageEvent(roomID string, conversationID string, message protocol.Message, roundID string) protocol.EventMessage {
 	event := protocol.NewEvent(protocol.EventTypeMessage, message)
 	event.DeliveryMode = "durable"
-	event.SessionKey = normalizeAnyString(message["session_key"])
+	event.SessionKey = textutil.AnyString(message["session_key"])
 	event.RoomID = roomID
 	event.ConversationID = conversationID
-	event.AgentID = normalizeAnyString(message["agent_id"])
-	event.MessageID = normalizeAnyString(message["message_id"])
+	event.AgentID = textutil.AnyString(message["agent_id"])
+	event.MessageID = textutil.AnyString(message["message_id"])
 	event.RoundID = roundID
-	event.AgentRoundID = normalizeAnyString(message["agent_round_id"])
+	event.AgentRoundID = textutil.AnyString(message["agent_round_id"])
 	return event
 }
 

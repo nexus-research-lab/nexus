@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels/typingloop"
@@ -92,7 +92,7 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 
 	receipt := workspacestore.ExternalDeliveryReceipt{
 		RoundID:                  r.roundID,
-		MessageID:                dmdomain.NormalizeString(assistant["message_id"]),
+		MessageID:                textutil.AnyString(assistant["message_id"]),
 		Channel:                  result.Channel,
 		Target:                   result.To,
 		ThreadID:                 result.ThreadID,

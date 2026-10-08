@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // SearchExternalSkills 聚合搜索配置化的外部技能来源。
@@ -138,7 +140,7 @@ func dedupeExternalItems(items []ExternalSkillSearchItem) []ExternalSkillSearchI
 	seen := map[string]struct{}{}
 	result := make([]ExternalSkillSearchItem, 0, len(items))
 	for _, item := range items {
-		key := firstNonEmpty(item.SourceKey, item.PackageSpec, item.GitURL, item.RawURL, item.DetailURL) + "::" + firstNonEmpty(item.SkillSlug, item.Name)
+		key := textutil.FirstNonEmpty(item.SourceKey, item.PackageSpec, item.GitURL, item.RawURL, item.DetailURL) + "::" + textutil.FirstNonEmpty(item.SkillSlug, item.Name)
 		if _, ok := seen[key]; ok {
 			continue
 		}

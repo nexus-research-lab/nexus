@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	larksheets "github.com/larksuite/oapi-sdk-go/v3/service/sheets/v3"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // SheetTarget 是从 URL 或 token 里解析出的电子表格目标。
@@ -60,7 +61,7 @@ func ParseSheetTarget(raw string) (SheetTarget, error) {
 	for index, segment := range segments {
 		if segment == "sheets" && index+1 < len(segments) {
 			target.SpreadsheetToken = strings.TrimSpace(segments[index+1])
-			target.SheetID = firstNonEmpty(parsed.Query().Get("sheet"), parsed.Query().Get("sheet_id"))
+			target.SheetID = textutil.FirstNonEmpty(parsed.Query().Get("sheet"), parsed.Query().Get("sheet_id"))
 			return target, nil
 		}
 	}
@@ -123,7 +124,7 @@ func (c *Client) ReadSheetValues(ctx context.Context, raw string, rangeValue str
 	}
 	return &SheetValuesResult{
 		SpreadsheetToken: target.SpreadsheetToken,
-		Range:            firstNonEmpty(stringField(valueRange, "range"), rangeValue),
+		Range:            textutil.FirstNonEmpty(stringField(valueRange, "range"), rangeValue),
 		Revision:         intField(valueRange, "revision"),
 		Values:           matrixValue(valueRange["values"]),
 	}, nil
@@ -135,7 +136,7 @@ func (c *Client) FindSheet(ctx context.Context, raw string, sheetID string, quer
 	if err != nil {
 		return nil, err
 	}
-	sheetID = firstNonEmpty(sheetID, target.SheetID)
+	sheetID = textutil.FirstNonEmpty(sheetID, target.SheetID)
 	if sheetID == "" {
 		return nil, errors.New("sheet_id 不能为空；可传 sheet URL 或显式传 sheet_id")
 	}

@@ -14,6 +14,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -404,8 +405,8 @@ func (s *Service) buildDeliveryRetryCompletion(
 		Status:        automationdomain.RunStatusSucceeded,
 		SessionID:     run.SessionID,
 		MessageCount:  run.MessageCount,
-		ResultText:    anyStringPointer(run.ResultText),
-		AssistantText: anyStringPointer(run.AssistantText),
+		ResultText:    textutil.PointerValue(run.ResultText),
+		AssistantText: textutil.PointerValue(run.AssistantText),
 	}
 	// 一次执行的首投递使用 run 启动时快照；进入 failed 后，用户对任务目标的
 	// 显式修正就是恢复动作，人工和到期重试都应使用当前目标，避免坏路由被永久冻结。
