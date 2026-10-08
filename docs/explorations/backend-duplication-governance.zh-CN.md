@@ -57,4 +57,4 @@ dupl -t 80 $(find internal cmd -name '*.go' ! -name '*_test.go')
 make check-architecture           # 依赖方向 + textutil 私有副本
 ```
 
-已知基线问题：`internal/runtime/clientopts` 中 5 个用例在 Linux 上于本次改动前即失败（桌面沙箱不支持 Linux、视觉模型校验），与本次治理无关。
+已知基线问题：`internal/runtime/clientopts` 中 5 个用例（桌面沙箱不支持 Linux、视觉模型校验）与 `internal/storage/sandbox` 中 3 个进程迁移用例在本次改动前的基线提交上即于 Linux 失败，与本次治理无关；其余 `go vet ./...` 与 `go test ./...` 全部通过。
