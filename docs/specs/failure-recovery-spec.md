@@ -164,3 +164,10 @@ Goal 和 Configuration 继续使用各自的 revision、request ID、plan digest
 - 服务端 receipt、revision 和 durable 阶段在响应丢失、并发与重启后仍保持一致。
 
 不为以下内容维护测试：源码必须出现某个组件/字段/正则、每个错误文案必须拆成固定三个属性、截图目录必须包含每一种错误、浏览器 journal 或 Web Lock 的内部实现。视觉审查只针对真实用户流程中仍存在歧义或交互风险的页面。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- 普通 HTTP 失败可显式携带最小 `FailureCore v1`（version/code/category/effect/可选 transport request ID），但旧 `WriteFailure` 与各领域既有身份默认不变；协议不携带恢复动作、重试等待或用户文案，Web 使用当前界面的本地化标题、一句影响/下一步说明和至多一个动作。`failure.transport_request_id` 只复用经过限长和字符校验的当前 `X-Request-ID` 做诊断，不得变成幂等、授权、路由、缓存或业务身份；Agent 创建的 owner-scoped `creation_request_id`、密码修改的 user-scoped `request_id`、Conversation `client_request_id/client_message_id`、Configuration/Automation/Goal/Execution 的既有 `request_id` 与 run/round/resource identity 继续各自拥有真相。Agent 创建回执只保存 intent digest、保留的 Agent identity/path 和阶段，不保存完整请求或秘密；密码终态回执只保存 request identity、`committed|not_applied` 与收口时间，committed 必须和凭据 CAS 同事务，not_applied 必须阻止同 request 的迟到写入，浏览器不得持久密码草稿。Agent/Profile/Runtime 与 committed receipt 同事务，删除与 receipt 墓碑同事务，lease 到期不把 pending 猜成 not_applied，也不触发后台重放。数据影响只能由事务、revision、durable ACK 或领域回执证明；断线/超时必须进入 unknown 并先对账，禁止自动重放副作用。浏览器不维护通用 mutation journal 或 Web Lock 正确性边界；页面内可临时防重，重载与多窗口状态直接服从服务端 revision/receipt。Subscription 未对账 mutation 锁独立于可见 feedback，dismiss 或读失败不得解锁。读取辅助数据失败不能摧毁仍有权限的主快照。完整合同见 `docs/specs/failure-recovery-spec.md`。
+- Automation 的运行领取、执行结束、首次投递、人工重投、任务删除和 Heartbeat wake 是六个独立的持久阶段。人工运行必须先按 exact owner/job/configuration/permission/request identity 把 runtime claim 与初始 run 单事务提交，之后才 dispatch；terminal run 与 task runtime 也必须先按 exact owner/job/run 单事务提交，之后才能以内部 attempt token 领取外投。router 已调用但结果未知时保持 `retrying`，后台永不自动补投，只有用户核对接收端后才能用配置版本和 delivery attempts 显式领取新 attempt。任务删除必须先持久 claim、禁用新运行并推进配置版本，再中断 exact 本地 attempt、原子收口 run/权限/投递/审计并删除定义；无法证明原执行实例已停止时进入 `review_required`，保留任务与历史且禁止按超时猜测。删除中的迟到 terminal 只能走 exact deletion token 的独立 suppressed commit，强制 `not_attempted` 且不得投递或改写 task runtime。Heartbeat wake 必须在配置事务栅栏内先写 durable outbox，未领取项可恢复，已经开始但结果未知的 claim 不得自动重投。查询不得隐式写策略或调度状态；deadline 由索引、合并唤醒和低频审计驱动，不做 per-task 轮询。完整合同见 `docs/specs/failure-recovery-spec.md`。

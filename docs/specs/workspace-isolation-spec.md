@@ -580,3 +580,15 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - [Linux acl(5)：access ACL 与 default ACL](https://man7.org/linux/man-pages/man5/acl.5.html)
 - [Linux Landlock：非特权进程的叠加式文件系统限制](https://www.kernel.org/doc/html/latest/userspace-api/landlock.html)
 - [Docker bind mounts：挂载默认可写及其宿主文件系统影响](https://docs.docker.com/engine/storage/bind-mounts/)
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；启动提交阶段必须先重映射持久路径与路径派生的 Session 删除恢复文件名，再通过健康检查提交新根；业务进程不支持拆分或在线迁移局部子树。
+- 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
+- nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
+- Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
+- 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过 `internal/migration/state_layout.go` 与 `workspace_layout.go` 这类明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局；迁移不能因版本发布而提前移除，必须允许用户跨版本直接升级。
+- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`；所有交互 Agent 通过宿主签发的 round capability 调用 `nexuscfg`，权限仍由 configuration 角色矩阵收口。
+- 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。

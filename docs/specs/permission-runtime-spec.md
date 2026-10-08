@@ -149,3 +149,9 @@ Room 底部 Composer 是所有阻塞式人工交互的权威处理面：
 - 连接可以随时换
 - 等待用户响应的请求总能重新找到当前控制端
 - Room 用户无需进入 Thread 就能解除执行阻塞
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- 活跃 Nexus Session 的 MCP 工具面只由稳定会话拓扑和用户显式 MCP/Connector 选择决定；内部唤醒、私域回传、Room 角色、WorkBinding/ReviewBinding、Goal authority 与通讯开关只改变逐轮执行权限，不得通过卸载 schema 鉴权。无权轮次必须保留工具定义并在 service 真相源 fail closed；`ToolSearch` 只是默认关闭的 schema 传递优化，不参与挂载或鉴权。

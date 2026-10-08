@@ -342,3 +342,10 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 - 不从普通聊天、Goal、Task、Tool 名称或 UI 布局反推 managed WorkGraph。
 - 不把失败事实解释成服务端已经自动重试。
 - 不把尚未实现的类型或行为写成当前契约。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- Runtime Graph 必须把当前 `nexus.command` 的 exact tool identity 识别为 Goal/Execution 控制面，只持久化 `domain + action + operation + request_id` 分类而不持久化业务 `input`；这些控制调用始终作为 direct owner 的 `detail` 审计事实，不因失败、重试、Artifact 或控制边进入主画布。读取历史运行记录时，旧 Goal/Execution CLI、旧 MCP 工具身份与 canonical staging 路径归入同一 transport 语义，但不得恢复旧路由或授权。控制节点只能按 exact Execution ID + Execution root round 读取，并由宿主 typed receipt 的 `domain + operation + request_id + changed refs` 核验；同一 exact request 的 provider Tool lifecycle 与 host receipt 是一个语义边界，不能重复切段。DM 同一物理 round 内每个成功 self `assign_work` 或 `take_over_work` 必须据此建立独立 Work Item/Assignment/Attempt 执行段；首个 Assignment 在 block/release 前尚无 round identity 时，只能由同 coordinator、同 exact request、唯一生命周期区间恢复，其他缺失、冲突或跨 scope 引用必须清空边界而非沿用上一段。画布必须用同一 read transaction 读取当前 Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 历史，每个 root Attempt 和 immutable Submission Gate 保留独立轮次；Acceptance 只更新对应 Submission Gate 的结论，不能因 current Assignment 清空再补建第二个 Gate。运行工具优先按 exact Attempt/Submission/round 归属，不能被最新 Work Item 头像吞并。Work Item/Attempt/Review/Gate 继续表达权威图变化；普通成功 Bash、`MEMORY.md`/`memory/` 维护与无 Artifact/显式重要性的本地文件操作只留在详情，运行中、失败/取消/中断、业务 Artifact、显式可见 hint、retry/loop-back 或失败后的恢复才提升为关键画布节点，外部可观察动作仍按语义展示。
+- WorkGraph 编辑小页固定为左侧标准 DM、右侧实时草图预览的扁平双栏；左侧以 Nexus 主智能体身份展示不进入 transcript 或模型上下文的本地接待说明，再展示隐藏专用 Session 自身的持续编辑消息。首次进入以接待说明为顶部锚点，短内容向下增长；恢复既有对话或溢出后复用 FOLLOW，用户上滚后复用 READING。右侧展示不可变版本目录和当前 selected revision；关闭只隐藏页面，显式应用才把所选版本投影回确认页，任何编辑或保存消息都不合并回源会话。

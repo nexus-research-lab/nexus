@@ -326,3 +326,10 @@ Provider 连通测试可能产生费用或外部流量，因此普通 `verify=tr
 - Provider `auth_token`、私有 Skill 来源 Token 与 Agent `mcp_servers` 中的用户秘密尚未使用统一加密存储。
 - 包含外部副作用的秘密变更、OAuth 与 Channel 连接不承诺一键回滚；失败后使用重新授权、显式重配或 `reconcile_required` 收口。
 - 这些限制不改变服务端身份绑定、资源 CAS、幂等 apply、写后核对、输出栅栏和全链路脱敏要求。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- `service/configuration` 按领域聚合操作输入、校验、执行与核对，共用授权、批准、CAS 和审计；`service/orchestration` 命令在同包内按业务归组，`runtimehook.Observer` 统一 DM/Room 运行观察，可信会话身份仍由各宿主提供。
+- 配置 revision 使用宿主数据库中的独立持久密钥绑定 domain/scope/target/state version；plan digest 仍随进程失效。旧格式 receipt 明确报告不可比较，禁止通过重算历史 revision 或自动重放来猜测结果；完整合同见 `docs/specs/conversational-configuration-control-spec.md`。

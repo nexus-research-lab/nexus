@@ -312,3 +312,9 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 - 多用户权限模型和跨 Room 的协作。
 
 一句话：public feed 记录共享事实，directed message 记录定向事实，wake 决定何时运行，reply route 决定 final reply 去哪里；业务意义由 Skill 负责。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见审计事实并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。当前负责人在 objective 满足且 Room/Execution readiness 通过后拥有 Goal 关闭决定权；成员数量与协作证据不构成完成门槛，但已启动的 slot、handoff、queue、wake 或 WorkGraph work 必须先终态或显式取消。公开非 Lead 实质回复仍可在同一 durable Goal ID 生命周期内单调记录为审计事实，objective revision 只 fence 迟到事件的写入归因。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。

@@ -183,3 +183,9 @@ atomic Slash 发送前会清理 bridge 尚未消费的旧隐藏上下文；Skill
   和目录测试；项目 Skill、插件命令等动态内容不进入产品补全。系统 WorkGraph 模板只从
   `internal/service/workgraphworkflow/builtins.go` 投影并保持只读；owner 命名 WorkGraph 只从
   `workgraph_workflows` 权威目录投影，并按 owner fence 读取、删除。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- Composer 加号菜单的计划模式与 `/plan` 共用 Slash 草稿及 DM/Room 请求链路，不新增设置入口或独立执行协议；当前合同见 `docs/specs/slash-command-spec.md`。

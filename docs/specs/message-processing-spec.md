@@ -429,3 +429,12 @@ GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 - 对外终态：统一为 `assistant + result_summary`
 - 展示顺序：user → 已发布 final reply → 活动 slot 状态
 - 控制消息：正文只出现一次，状态合并到目标卡片或 Thread
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- Nexus 只生产按 priority/name/content/metadata 确定性排序的内部上下文块；bridge 将它们绑定到下一条 user 消息，nxs 在 user 落盘前提取为当前 live model history 的隐藏 reminder，Claude Code 通过 `UserPromptSubmit` hook 生成同语义 attachment；两者后续请求继续携带但不进入 transcript。workspace `AGENTS.md` 只由 SDK 启动加载器读取，产品 prompt builder 不再重复拼接。
+- Conversation reliability 必须把 transport retry、Provider retry、请求受理和 Agent round 失败按稳定 `failure_code` 与 exact Session/request/round/Agent-round 身份隔离。WebSocket 首次 error 不是终态；重连先重放 Session binding，再拉 durable Session，Room 额外恢复 room_seq replay 与 subscription snapshot。旧请求取消不能让已重连的健康 sender 失效；发送前拒绝已取消的事件，接纳后的帧由连接独立超时收口。客户端只对账、不自动重发 prompt、工具或其他副作用命令；正向 ACK/stream/message/round status 只能清除精确匹配的故障。带 Agent round 的 Room 错误不得污染 root 或其他成员。用户界面只在 Composer 状态栈显示可执行文案，不暴露内部详情或 ID，不写入 Feed、历史、未读或滚动几何；完整当前合同见 `docs/specs/message-processing-spec.md`。
+- Room 与 DM 的会话内滚动只保留统一“回到底部”动作，不再把侧栏未读状态注入 Feed、自动定位首条未读或渲染“新消息”边界；当前窗口打开精确 Conversation 后立即确认该目标，其他 Conversation 的侧栏未读与系统通知继续隔离保留。
+- 首次 DM 与新 Room 的介绍只由前端在 canonical timeline 为空时渲染为静态建议面板，不写入消息、不调用模型、不创建 runtime round；历史 `conversation_welcome` 在 timeline 根入口统一隐藏。Provider `ToolUseSummary` 在执行中收到非空内容即投影为同 Agent round 原位替换的 ephemeral `progress_update`，不设长任务、耗时或工具数门槛；Room 主 Feed 只在原活动位置以统一主色显示一条不可展开的 summary/fallback，不渲染 thinking、普通工具、MCP/CLI 调用、计数或异常，具体过程进入 Thread 后才使用中文优先的可展开折叠栏。DM 没有公区/Thread 分层，继续保留同一可展开过程；DM/Thread 首次展开过程栏只显示仍然收起的子项目录，Thought、Agent、MCP 与普通工具详情必须由各自的第二次点击独立打开（Agent 可进入任务详情面板），父级不得级联展开。最终回复始终由独立 final surface 保持可见，权限、用户提问和生成式 UI 保持唯一交互面。终态清除 summary，且 summary 不得进入历史、未读、计数或最终 assistant。

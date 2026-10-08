@@ -818,3 +818,19 @@ macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 
 原生壳继续读取既有 `NexusSidecar.pid.json`，新增记录格式 version 2 保存 PID、可执行路径、系统 boot session UUID 与 kernel audit token。正常退出和孤儿清理都通过 `proc_signal_with_audittoken` 发信号，不回退裸 PID kill；发送前验证同用户、PID/version 与本次 boot。信号调用返回正值时直接按该错误码处理，仅负值读取 errno；只接受成功或精确目标已不存在，其他失败继续保留恢复记录。旧记录只持 PID/path：明确查无进程才清理记录，仍存活或观察未知时保留并拒绝启动，提示先退出旧版 Nexus，不因路径不同而删除。新格式 PID 已复用或 boot 已变化时不信号新进程；相同内核进程但可执行路径改变保留 unknown。损坏、链接、非普通文件、读取或精确终止失败不当作退出。记录只在当前内容仍匹配本次所有权时删除。
 
 这保护原生 sidecar 身份，不替代 Go 实例锁与任务后代恢复。macOS App 的最低系统版本为 14.2；该版本起提供精确 audit-token 信号接口，低于此版本由系统部署目标直接拒绝。Full Access 仍不提供文件隔离保证。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败；原生 macOS 完整入口见 docs/testing/desktop-sandbox-acceptance.md
+- macOS 固定源码基线还必须覆盖工作区根别名的文件免审与 ask/deny、子链接和受保护写入反例；界面菜单切换不能替代实际工具与生效策略验证。
+- macOS 捆绑构建/打包由实际 sidecar 的 `check-desktop-runtime` 检查随包 nxs，作为配套发布的构建自检。升级数据兼容性入口为 `scripts/desktop/check-runtime-upgrade.mjs`，必须显式提供已发布和候选二进制。
+- Windows 本机组件入口为 `node scripts/desktop/check-windows-sandbox.mjs --native`，指定本地 SDK 后要求每个必测项真实通过；进程退出必须看内核信号，残留句柄、可查询 PID/创建时间或退出码 259 均不能单独证明存活。组件门禁不授予 Windows 后端发布验收。
+- runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、本地媒体与远程图片网络、macOS 显式 MCP 端点网络、Skill、指令上下文及项目定义文件能力，策略回执持久绑定原监督进程身份、warm 策略代次独立，macOS 启动前保存宿主原 scratch 目录身份，显式持锁恢复以回收区和持久阶段收口资源与关联策略；正常最终 Release 复用同一持久清理，独立终态扫描发现进程回收后的资源/策略待办，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏；重建前读取持久回执及宿主数据库启动登记，prepared/registered/released 在 factory 前阻断重建；显式监督 Host 已适配数据库和受保护目录句柄；Manager 可在 factory 前冻结启动代次，探测与主进程按同代次独立顺序登记；显式恢复在会话锁内只收口原进程记录，App 默认装配/自动恢复仍待接入，终态沿用 owner/session/generation 的代次，同 scope 的 cleanup_unknown scratch 不得被重启绕过；显式 MCP 的端点网络、认证 helper 与 stdio 进程分别协商，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
+- 配套 nxs 的记忆召回/manifest、store 初始化、Summary 文件/模板/提示词和 compact 摘要输入使用当前文件执行器；初始文件独占创建且不覆盖已有数据，未知结果不重放。只读资源会话保留已有记忆读取，不初始化或调度持久写入。AutoDream 完成时间和历史 transcript 目录/元数据也使用当前文件执行器，失败不启动整理或推进扫描节流。macOS 记忆写入租约由同策略 worker 持有固定目录句柄和内核锁，完成只尝试一次且核对退出，释放不删除路径；旧活动记录只有明确死亡才允许继续。后台内容替换记录只沿当前 recorder 路径经文件执行器流式读取，完整响应和成功退出后才交给模型，拒绝/取消不回退宿主目录。大日志保留原 compact 后缀与保留段语义；该实现不扩大能力协商范围，普通会话录制/恢复、其余 SDK IO 与任意后代监督仍独立收口。
+- macOS 受限模式在统一 clientopts 装配中拒绝写入整个 app 树及读取其私有目录，保留 Skill 投影读取及词法/物理路径；新私有文件必须位于 desktop_host_paths 的已保护目录或先扩展该表；nxs 复用自身文件沙箱，Claude 复用命令沙箱和 Read/Edit 规则。Full Access 按用户明确选择访问当前用户本机文件，不提供沙箱隔离保证，不要求额外隔离身份；不得把残留能力握手或生命周期回执当作隔离证据。
+- `runtime/clientopts` 在所有环境合并后固定 nxs Provider 与 AutoDream 唤醒的宿主所有权；任务 settings 和附加环境不能撤销该声明。Provider 环境隔离不代表整个 SDK 的文件、网络、MCP 或进程秘密隔离，当前范围见 `docs/specs/desktop-sandbox-spec.md`。
+- macOS 显式监督的 socket 保留在原宿主状态目录；Bridge 用专用原生线程的父目录句柄与文件名绑定/连接，不改进程 cwd，不创建短路径别名或共享临时控制目录。
+- macOS 进程恢复必须持有经核验的 sidecar 实例所有权，回收目录须属于同一个 app 根且 inode 未替换；锁必须覆盖整个原生回收和持久终态提交，不能仅在入口检查后释放。
+- 启动恢复按持久 launch ID 分页读取未收口记录，每批最多 256 条；失败记录保留并单独报告，游标继续以免阻塞其他条目。该内部跨 owner 扫描只供持锁宿主，不提供用户 API，不重放任务，不把进程回收等同于业务结果已知。
