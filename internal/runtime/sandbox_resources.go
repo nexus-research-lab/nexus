@@ -1119,11 +1119,6 @@ func ReleasePath(path string) error {
 	return errors.New("sandbox lease cleanup requires its exact handle")
 }
 
-// ReleaseSandboxPath releases only a path previously registered by the host.
-func ReleaseSandboxPath(path string) error {
-	return ReleasePath(path)
-}
-
 func removeStaleSandboxScratch(base, path string, expectedLeaf os.FileInfo, expectedLeaseID string) error {
 	base = filepath.Clean(base)
 	path = filepath.Clean(path)

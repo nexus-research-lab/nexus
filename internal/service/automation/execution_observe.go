@@ -9,17 +9,6 @@ import (
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
-func (s *Service) observeJobRun(
-	job automationdomain.ScheduledTask,
-	runID string,
-	roundID string,
-	sessionKey string,
-	sink *automationexec.ExecutionSink,
-	cleanup func(),
-) {
-	s.observeJobRunWithCompletion(job, runID, roundID, sessionKey, sink, cleanup, nil, nil)
-}
-
 func (s *Service) observeJobRunWithCompletion(
 	job automationdomain.ScheduledTask,
 	runID string,

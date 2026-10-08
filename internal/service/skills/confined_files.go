@@ -140,19 +140,6 @@ func readSkillFileAtOwnerPath(
 	return readSkillRegistryFileAt(ownerRoot, filepath.Base(relative), fileName)
 }
 
-func readSkillRegistryDirectories(registryRoot string) (*confinedfs.Root, []fs.DirEntry, error) {
-	root, err := openSkillRegistry(registryRoot, true)
-	if err != nil {
-		return nil, nil, err
-	}
-	entries, err := fs.ReadDir(root.FS(), ".")
-	if err != nil {
-		root.Close()
-		return nil, nil, err
-	}
-	return root, entries, nil
-}
-
 func readSkillRegistryDirectoriesAt(
 	ownerRoot *confinedfs.Root,
 	create bool,
@@ -178,29 +165,6 @@ func readConfinedDirectoryEntries(rootPath string) ([]fs.DirEntry, error) {
 	return fs.ReadDir(root.FS(), ".")
 }
 
-func createPrivateSkillStaging(boundaryRoot string) (string, error) {
-	if err := os.MkdirAll(
-		boundaryRoot,
-		appfs.RuntimeCollaborativeDirectoryMode(0o700),
-	); err != nil {
-		return "", err
-	}
-	root, err := confinedfs.Open(boundaryRoot)
-	if err != nil {
-		return "", err
-	}
-	defer root.Close()
-	relativePath, err := root.MkdirTemp(
-		privateSkillStagingRoot,
-		".external-skill-",
-		0o700,
-	)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(boundaryRoot, filepath.FromSlash(relativePath)), nil
-}
-
 // relativeSkillPath 将已知 owner 根内的绝对路径转换为受控相对路径。
 func relativeSkillPath(root *confinedfs.Root, targetPath string) (string, error) {
 	if root == nil {
@@ -224,18 +188,4 @@ func readConfinedRegularFile(root *confinedfs.Root, fileName string) ([]byte, er
 	}
 	defer file.Close()
 	return io.ReadAll(file)
-}
-
-func writeSkillDirectoryFile(
-	skillDir string,
-	fileName string,
-	payload []byte,
-	mode os.FileMode,
-) error {
-	root, err := confinedfs.Open(skillDir)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return root.WriteFileAtomic(fileName, payload, mode)
 }

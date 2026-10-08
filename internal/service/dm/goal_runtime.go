@@ -1032,20 +1032,6 @@ func dmSubagentUsageObservations(runner *roundRunner, message protocol.Message) 
 	return result
 }
 
-func (r *roundRunner) persistSubagentUsageObservation(
-	ctx context.Context,
-	recorder dmGoalUsageSourceRecorder,
-	taskID string,
-	observation goalsvc.SubagentUsageObservation,
-) (protocol.GoalUsageSourceResult, error) {
-	r.goalUsageBindingMu.Lock()
-	defer r.goalUsageBindingMu.Unlock()
-	r.goalUsageMu.Lock()
-	snapshot := r.subagentUsageSourceSnapshotLocked(taskID, observation)
-	r.goalUsageMu.Unlock()
-	return recorder.RecordUsageSourceSnapshot(ctx, snapshot)
-}
-
 // persistSubagentUsageObservationLocked resolves the child Goal binding and
 // persists the source snapshot under one lock. Callers must hold goalUsageMu so
 // an external from-now bind cannot move the source between resolution and commit.

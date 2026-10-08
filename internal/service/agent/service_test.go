@@ -694,10 +694,6 @@ type fakeAgentGoalCleaner struct {
 	agentIDs []string
 }
 
-type failingWorkspaceStateCleaner struct {
-	removeCalls int
-}
-
 type recordingWorkspaceManager struct {
 	initialized   []protocol.Agent
 	initializeErr error
@@ -716,21 +712,6 @@ func (*recordingWorkspaceManager) RemoveAgentWorkspaceState(
 	protocol.Agent,
 ) error {
 	return nil
-}
-
-func (*failingWorkspaceStateCleaner) InitializeAgentWorkspace(
-	context.Context,
-	protocol.Agent,
-) error {
-	return nil
-}
-
-func (f *failingWorkspaceStateCleaner) RemoveAgentWorkspaceState(
-	context.Context,
-	protocol.Agent,
-) error {
-	f.removeCalls++
-	return errors.New("marker cleanup failed")
 }
 
 func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {
@@ -794,16 +775,6 @@ func assertNoRowsForAgent(t *testing.T, db *sql.DB, table string, column string,
 	if count != 0 {
 		t.Fatalf("删除 agent 后 %s 仍有残留: %d", table, count)
 	}
-}
-
-func agentSlug(t *testing.T, db *sql.DB, agentID string) string {
-	t.Helper()
-
-	var slug string
-	if err := db.QueryRow(`SELECT slug FROM agents WHERE id = ?`, agentID).Scan(&slug); err != nil {
-		t.Fatalf("查询 agent slug 失败: %v", err)
-	}
-	return slug
 }
 
 func canonicalizeAgentTranscriptPath(path string) string {

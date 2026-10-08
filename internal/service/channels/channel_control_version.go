@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 var ErrChannelControlVersionConflict = errors.New("channel control version conflict")
@@ -123,8 +122,4 @@ func channelControlVersionError(expectedVersion int64, err error) error {
 		expectedVersion,
 		err,
 	)
-}
-
-func normalizedChannelOwner(ownerUserID string) string {
-	return normalizeChannelOwnerUserID(strings.TrimSpace(ownerUserID))
 }

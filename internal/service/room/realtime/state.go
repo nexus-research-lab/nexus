@@ -747,22 +747,6 @@ func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageA
 	slot.mutable.goal.mu.Unlock()
 }
 
-func (slot *activeRoomSlot) startGoalUsageFromRoundStartIfInactive() (protocol.GoalUsage, bool) {
-	if slot == nil {
-		return protocol.GoalUsage{}, false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active() {
-		return protocol.GoalUsage{}, false
-	}
-	if slot.mutable.goal.usage == nil {
-		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
-	}
-	// 模型在本轮创建 Goal 时，当前 slot 的整轮工作都属于这个 Goal。
-	return slot.mutable.goal.usage.ActivateFromRoundStart()
-}
-
 func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot) {
 	if slot == nil {
 		return
@@ -774,19 +758,6 @@ func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot
 	slot.mutable.goal.usage.Reset(snapshot)
 	slot.mutable.goal.terminalSettled = false
 	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) goalUsageDelta(snapshot goalsvc.RuntimeUsageSnapshot) (protocol.GoalUsage, bool, bool) {
-	if slot == nil {
-		return protocol.GoalUsage{}, false, false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usage == nil {
-		return protocol.GoalUsage{}, false, false
-	}
-	usage, ok := slot.mutable.goal.usage.Delta(snapshot)
-	return usage, ok, true
 }
 
 func (slot *activeRoomSlot) goalUsageActive() bool {

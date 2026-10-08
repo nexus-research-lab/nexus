@@ -99,11 +99,6 @@ func UserStateRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "state")
 }
 
-// UserRoomRoot 返回指定用户的 Room 状态根。
-func UserRoomRoot(ownerUserID string) string {
-	return UserRoomRootAt(StateRoot(), ownerUserID)
-}
-
 // UserRoomRootAt 返回指定状态根下的用户 Room 状态根。
 func UserRoomRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserStateRootAt(stateRoot, ownerUserID), "rooms")
@@ -117,13 +112,6 @@ func UserWorkspaceRoot(ownerUserID string) string {
 // UserWorkspaceRootAt 返回指定状态根下的用户 workspace 根。
 func UserWorkspaceRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "workspace")
-}
-
-// UserRoomAssetsRoot 返回指定用户可供 runtime 读取的 Room 公共资产根。
-//
-// Room ledger 与附件分别留在 state 和 workspace，保持状态职责与清理边界独立。
-func UserRoomAssetsRoot(ownerUserID string) string {
-	return UserRoomAssetsRootAt(StateRoot(), ownerUserID)
 }
 
 // UserRoomAssetsRootAt 返回指定状态根下的用户 Room 公共资产根。

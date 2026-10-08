@@ -164,10 +164,6 @@ func canonicalizeTranscriptPath(path string) string {
 	return norm.NFC.String(resolved)
 }
 
-func findTranscriptProjectDir(projectPath string) string {
-	return findTranscriptProjectDirAt(transcriptProjectsDirForWorkspace(projectPath), projectPath)
-}
-
 // TranscriptProjectsDirForWorkspace 返回 workspace 对应的 transcript projects 根。
 //
 // canonical owner workspace 使用该 owner 的 runtime/projects；非 canonical
@@ -300,11 +296,6 @@ func transcriptProjectsDirForWorkspace(workspacePath string) string {
 		return transcriptProjectsDir()
 	}
 	return filepath.Join(canonicalUsersRoot, parts[0], "runtime", "projects")
-}
-
-func listTranscriptWorktreePaths(cwd string) []string {
-	paths, _ := listTranscriptWorktreePathsContext(context.Background(), cwd)
-	return paths
 }
 
 type transcriptCommandContext func(context.Context, string, ...string) *exec.Cmd

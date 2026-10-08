@@ -7,14 +7,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func (h *Handler) dispatchWebSocketMessage(
-	ctx context.Context,
-	sender *handlershared.WebSocketSender,
-	inbound map[string]any,
-) {
-	h.dispatchWebSocketMessageWithControlDispatcher(ctx, sender, inbound, nil)
-}
-
 func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,

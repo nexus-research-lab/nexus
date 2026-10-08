@@ -5,7 +5,6 @@ package command
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -113,14 +112,6 @@ func (o Operation) Invoke(ctx context.Context, input map[string]any, call *CallC
 		return o.Handler(ctx, input)
 	}
 	return Result{IsError: true, Content: []map[string]any{{"type": "text", "text": "Nexus command handler 未装配"}}}, nil
-}
-
-// MarshalJSONInput 把严格输入重编码给领域 parser。
-func MarshalJSONInput(input map[string]any) ([]byte, error) {
-	if input == nil {
-		input = map[string]any{}
-	}
-	return json.Marshal(input)
 }
 
 func FindOperation(operations []Operation, name string) (Operation, bool) {

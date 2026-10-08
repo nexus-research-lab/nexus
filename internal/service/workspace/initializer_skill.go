@@ -15,7 +15,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -30,11 +29,6 @@ var (
 	// createSymlink 仅作为平台能力探针；真正的创建由 confinedfs.Root.Symlink 完成。
 	createSymlink = func(string, string) error { return nil }
 )
-
-// BuildSkillRenderContext 构建 skill 模板渲染上下文。
-func BuildSkillRenderContext(agentID string, agentName string, workspacePath string, createdAt time.Time) map[string]string {
-	return buildTemplateContext(agentID, agentName, workspacePath, createdAt)
-}
 
 // DeploySkill 把指定 skill 部署到目标 workspace。
 func DeploySkill(skillName string, sourceDir string, workspacePath string, context map[string]string) error {
@@ -419,41 +413,6 @@ func appendSkillNameOnce(items []string, name string) []string {
 	return append(items, name)
 }
 
-func syncDirectory(
-	sourceDir string,
-	boundaryRoot string,
-	targetDir string,
-	context map[string]string,
-) error {
-	if err := os.MkdirAll(boundaryRoot, workspaceDirectoryMode()); err != nil {
-		return err
-	}
-	root, err := confinedfs.Open(boundaryRoot)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	relativeTarget, err := relativePathWithin(boundaryRoot, targetDir)
-	if err != nil {
-		return err
-	}
-	return syncDirectoryAt(sourceDir, root, relativeTarget, context)
-}
-
-func syncDirectoryAt(
-	sourceDir string,
-	root *confinedfs.Root,
-	relativeTarget string,
-	context map[string]string,
-) error {
-	sourceRoot, err := confinedfs.Open(sourceDir)
-	if err != nil {
-		return err
-	}
-	defer sourceRoot.Close()
-	return syncDirectoryRootAt(sourceRoot, root, relativeTarget, context)
-}
-
 func syncDirectoryRootAt(
 	sourceRoot *confinedfs.Root,
 	root *confinedfs.Root,
@@ -552,39 +511,6 @@ func syncSkillDirectory(
 		}
 	}
 	return nil
-}
-
-func ensureClaudeSkillEntry(
-	sourceDir string,
-	workspacePath string,
-	entryPath string,
-	relativeTarget string,
-	context map[string]string,
-) error {
-	err := ensureRelativeSymlink(workspacePath, entryPath, relativeTarget)
-	if err == nil {
-		return nil
-	}
-	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给 Claude 读取。
-	if mirrorErr := syncDirectory(sourceDir, workspacePath, entryPath, context); mirrorErr != nil {
-		return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, mirrorErr)
-	}
-	return nil
-}
-
-func ensureClaudeSkillEntryAt(
-	sourceDir string,
-	root *confinedfs.Root,
-	entryPath string,
-	relativeTarget string,
-	context map[string]string,
-) error {
-	sourceRoot, err := confinedfs.Open(sourceDir)
-	if err != nil {
-		return err
-	}
-	defer sourceRoot.Close()
-	return ensureClaudeSkillEntryRootAt(sourceRoot, root, entryPath, relativeTarget, context)
 }
 
 func ensureClaudeSkillEntryRootAt(

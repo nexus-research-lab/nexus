@@ -287,15 +287,6 @@ func buildSkillSourceID(kind string, sourceURL string) string {
 	return "skill_src_" + hex.EncodeToString(sum[:10])
 }
 
-func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRecord, error) {
-	confinedRoot, _, err := readSkillRegistryDirectories(root)
-	if err != nil {
-		return nil, err
-	}
-	defer confinedRoot.Close()
-	return loadExternalRecordsFromRegistryRoot(root, confinedRoot)
-}
-
 func (s *Service) loadExternalRecordsFromRootAt(
 	root string,
 	ownerRoot *confinedfs.Root,

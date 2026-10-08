@@ -3,8 +3,6 @@ package provider
 import (
 	"context"
 	"database/sql"
-	"log/slog"
-	"sync"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
@@ -132,69 +130,6 @@ func runtimeSelectionsByAgent(t *testing.T, db *sql.DB, agentIDs ...string) map[
 	return result
 }
 
-type capturedLogRecord struct {
-	message string
-	attrs   map[string]any
-}
-
-type captureSlogHandler struct {
-	mu      sync.Mutex
-	records []capturedLogRecord
-}
-
-func (h *captureSlogHandler) Enabled(context.Context, slog.Level) bool {
-	return true
-}
-
-func (h *captureSlogHandler) Handle(_ context.Context, record slog.Record) error {
-	attrs := map[string]any{}
-	record.Attrs(func(attr slog.Attr) bool {
-		attrs[attr.Key] = attr.Value.Any()
-		return true
-	})
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.records = append(h.records, capturedLogRecord{
-		message: record.Message,
-		attrs:   attrs,
-	})
-	return nil
-}
-
-func (h *captureSlogHandler) WithAttrs([]slog.Attr) slog.Handler {
-	return h
-}
-
-func (h *captureSlogHandler) WithGroup(string) slog.Handler {
-	return h
-}
-
-func (h *captureSlogHandler) find(message string) *capturedLogRecord {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for index := range h.records {
-		if h.records[index].message == message {
-			record := h.records[index]
-			return &record
-		}
-	}
-	return nil
-}
-
-func (h *captureSlogHandler) messages() []string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	result := make([]string, 0, len(h.records))
-	for _, record := range h.records {
-		result = append(result, record.message)
-	}
-	return result
-}
-
-func hasOptionProvider(items []Option, provider string) bool {
-	return optionByProvider(items, provider) != nil
-}
-
 func optionByProvider(items []Option, provider string) *Option {
 	for index := range items {
 		if items[index].Provider == provider {
@@ -202,13 +137,4 @@ func optionByProvider(items []Option, provider string) *Option {
 		}
 	}
 	return nil
-}
-
-func hasModelOption(items []ModelOption, modelID string) bool {
-	for _, item := range items {
-		if item.ModelID == modelID {
-			return true
-		}
-	}
-	return false
 }

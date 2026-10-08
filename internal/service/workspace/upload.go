@@ -47,19 +47,6 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 	return result, nil
 }
 
-// UploadFileToRoot 上传单个文件到指定根目录，调用方负责保证根目录归属。
-func UploadFileToRoot(root string, filename string, destination string, reader io.Reader) (*UploadResult, error) {
-	result, _, err := uploadFileToRoot(
-		root,
-		filename,
-		destination,
-		reader,
-		uploadFileOptions{dedupeRoots: []string{"attachments"}},
-		nil,
-	)
-	return result, err
-}
-
 // UploadFileWithRoot 在调用方已固定的 workspace fd 内上传文件。
 func UploadFileWithRoot(
 	rootPath string,
@@ -81,30 +68,6 @@ func UploadFileWithRoot(
 		nil,
 	)
 	return result, err
-}
-
-func uploadFileToRoot(
-	root string,
-	filename string,
-	destination string,
-	reader io.Reader,
-	options uploadFileOptions,
-	beforeWrite func(string),
-) (*UploadResult, []byte, error) {
-	confinedRoot, err := confinedfs.Open(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer confinedRoot.Close()
-	return uploadFileAtRoot(
-		root,
-		confinedRoot,
-		filename,
-		destination,
-		reader,
-		options,
-		beforeWrite,
-	)
 }
 
 func uploadFileAtRoot(

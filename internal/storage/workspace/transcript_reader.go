@@ -70,10 +70,6 @@ func (s *AgentHistoryStore) openTranscriptReadFile(root *confinedfs.Root, relati
 	})
 }
 
-func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {
-	return readTranscriptEntriesFileContext(context.Background(), file)
-}
-
 func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
 	reader := bufio.NewScanner(file)
 	reader.Buffer(make([]byte, 0, transcriptReadBufferBytes), transcriptScannerBufferBytes)

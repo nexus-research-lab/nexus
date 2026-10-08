@@ -114,11 +114,6 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 	return sessionKey, parsed, agentID, nil
 }
 
-func (s *IngressService) resolveIngressAgent(ctx context.Context, request IngressRequest) (string, error) {
-	agentID, _, err := s.resolveIngressSession(ctx, request)
-	return agentID, err
-}
-
 func (s *IngressService) resolveIngressSession(ctx context.Context, request IngressRequest) (string, string, error) {
 	if s.control != nil {
 		agentID, sessionKey, err := s.control.ResolveIngressSession(ctx, request)

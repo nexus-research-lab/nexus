@@ -221,16 +221,6 @@ func dep(logicalKey, dependsOn string) protocol.WorkGraphWorkflowDependency {
 	return protocol.WorkGraphWorkflowDependency{LogicalKey: logicalKey, DependsOnLogicalKey: dependsOn, Kind: protocol.WorkDependencyHard}
 }
 
-func chain(keys ...string) []protocol.WorkGraphWorkflowDependency {
-	result := make([]protocol.WorkGraphWorkflowDependency, 0, len(keys)-1)
-	for index := 1; index < len(keys); index++ {
-		result = append(result, protocol.WorkGraphWorkflowDependency{
-			LogicalKey: keys[index], DependsOnLogicalKey: keys[index-1], Kind: protocol.WorkDependencyHard,
-		})
-	}
-	return result
-}
-
 func artifact(name, kind, format, purpose string, sections ...string) protocol.WorkGraphArtifactSpec {
 	return protocol.WorkGraphArtifactSpec{Name: name, Kind: kind, Format: format, Purpose: purpose, RequiredSections: sections}
 }

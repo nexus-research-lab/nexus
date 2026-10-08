@@ -416,20 +416,6 @@ func (r *roomRoundRegistry) deleteGuidance(slot *activeRoomSlot) {
 	}
 }
 
-func (r *roomRoundRegistry) updateGuidance(slot *activeRoomSlot, update func(*pendingRoomGuidance) bool) bool {
-	state := r.guidanceStateForSlot(slot)
-	if state == nil {
-		return false
-	}
-	state.mu.Lock()
-	pending, ok := state.guidance[slot]
-	if ok && update(&pending) {
-		state.guidance[slot] = pending
-	}
-	state.mu.Unlock()
-	return ok
-}
-
 func (r *roomRoundRegistry) enqueuePublicMention(roundValue *activeRoomRound, wake publicMentionWake) bool {
 	if roundValue == nil {
 		return false

@@ -71,25 +71,6 @@ func Open(name string) (*Root, error) {
 	return &Root{root: root, name: name}, nil
 }
 
-// RemoveTree 删除指定目录树的最后一个路径段。
-//
-// 调用方应只把宿主已授权的顶层目录传入；父目录以目录 fd 固定后，
-// 最后一个段的替换不会跟随到父树之外。
-func RemoveTree(name string) error {
-	name = filepath.Clean(strings.TrimSpace(name))
-	if name == "" || name == "." || name == string(filepath.Separator) {
-		return errors.New("cannot remove broad root")
-	}
-	parent := filepath.Dir(name)
-	base := filepath.Base(name)
-	root, err := Open(parent)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return root.RemoveAll(base)
-}
-
 // Name 返回打开根目录时使用的宿主路径，仅用于桌面端展示或日志。
 func (r *Root) Name() string {
 	if r == nil {

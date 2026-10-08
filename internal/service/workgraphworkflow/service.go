@@ -992,16 +992,6 @@ func normalizeWorkflowOutputLanguage(value string) string {
 	}
 }
 
-func humanizeSlashName(value string) string {
-	parts := strings.Fields(strings.ReplaceAll(value, "-", " "))
-	for index := range parts {
-		if parts[index] != "" {
-			parts[index] = strings.ToUpper(parts[index][:1]) + parts[index][1:]
-		}
-	}
-	return strings.Join(parts, " ")
-}
-
 func parseSlashInvocation(content string) (string, string, bool) {
 	content = strings.TrimSpace(content)
 	if !strings.HasPrefix(content, "/") {
