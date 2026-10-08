@@ -286,3 +286,66 @@ func LogGoalMutationFailure(logger *slog.Logger, message string, err error, sess
 	attrs := append([]any{"session_key", sessionKey, "goal_id", goalID, "round_id", roundID}, fields...)
 	logger.Warn(message, append(attrs, "err", err)...)
 }
+
+// RetryGoalUsage 以指数退避执行 op，最多 GoalUsagePersistAttempts 次；
+// 返回首个成功结果、最后一次错误，或等待期间 ctx 结束的错误。
+func RetryGoalUsage[T any](ctx context.Context, baseDelay time.Duration, op func() (T, error)) (T, error) {
+	var (
+		zero T
+		err  error
+	)
+	for attempt := 0; attempt < GoalUsagePersistAttempts; attempt++ {
+		if attempt > 0 && !WaitGoalUsagePersistRetry(ctx, baseDelay, attempt) {
+			return zero, ctx.Err()
+		}
+		var result T
+		if result, err = op(); err == nil {
+			return result, nil
+		}
+	}
+	return zero, err
+}
+
+// GoalUsageScopeBinder 由支持 durable from-now 用量边界的 Goal provider 实现。
+type GoalUsageScopeBinder interface {
+	BindUsageScopeFromNow(context.Context, protocol.GoalUsageScopeBinding) (protocol.GoalUsageScopeBindResult, error)
+}
+
+// BindGoalUsageScopeFromNow 建立 durable from-now 用量边界。ErrGoalInvalidState 表示
+// provider 没有 durable scope 能力，按成功处理并沿用内存记账；其他错误必须阻止 Reset。
+func BindGoalUsageScopeFromNow(
+	ctx context.Context,
+	binder GoalUsageScopeBinder,
+	baseDelay time.Duration,
+	binding protocol.GoalUsageScopeBinding,
+) error {
+	_, err := RetryGoalUsage(ctx, baseDelay, func() (struct{}, error) {
+		_, bindErr := binder.BindUsageScopeFromNow(ctx, binding)
+		if errors.Is(bindErr, goalsvc.ErrGoalInvalidState) {
+			return struct{}{}, nil
+		}
+		return struct{}{}, bindErr
+	})
+	return err
+}
+
+type goalUsageRoundClaimer interface {
+	ClaimUsageSourceRound(context.Context, protocol.GoalUsageSourceRoundClaim) (protocol.GoalUsageSourceResult, error)
+}
+
+// ClaimGoalUsageSourceRound 认领子任务用量 source round；provider 不支持认领时视为已完成。
+func ClaimGoalUsageSourceRound(
+	ctx context.Context,
+	provider any,
+	baseDelay time.Duration,
+	claim protocol.GoalUsageSourceRoundClaim,
+) bool {
+	claimer, ok := provider.(goalUsageRoundClaimer)
+	if !ok {
+		return true
+	}
+	_, err := RetryGoalUsage(ctx, baseDelay, func() (protocol.GoalUsageSourceResult, error) {
+		return claimer.ClaimUsageSourceRound(ctx, claim)
+	})
+	return err == nil
+}

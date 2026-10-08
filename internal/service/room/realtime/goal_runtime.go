@@ -31,7 +31,6 @@ import (
 )
 
 const (
-	goalUsagePersistAttempts   = 5
 	roomGoalUsageRetryMaxDelay = 5 * time.Second
 )
 
@@ -41,10 +40,6 @@ type roomGoalUsageSourceRecorder interface {
 
 type roomGoalUsageParentRecorder interface {
 	RecordUsageParentSnapshot(context.Context, protocol.GoalUsageParentSnapshot) (protocol.GoalUsageParentResult, error)
-}
-
-type roomGoalUsageScopeBinder interface {
-	BindUsageScopeFromNow(context.Context, protocol.GoalUsageScopeBinding) (protocol.GoalUsageScopeBindResult, error)
 }
 
 // QueueRoomContextualGuidanceInput 把共享 Goal steering 分发到每个活跃 slot，并排除产生 retarget 的 caller。
@@ -821,34 +816,19 @@ func (s *Service) finalizeCompletedRoomGoalWithRetry(
 	goalID string,
 	roundID string,
 ) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
-			return false
-		}
+	return runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool {
 		report, err := finalizer.UsageByGoalID(ctx, goalID)
 		if err != nil {
-			continue
+			return false
 		}
-		if report == nil || protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete {
+		if report == nil || protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete || report.UsageFinalized {
 			return true
 		}
-		if report.UsageFinalized {
-			return true
-		}
-		if _, err = finalizer.FinalizeUsageForGoal(
-			ctx,
-			goalID,
-			protocol.GoalUsage{},
-			roundID,
-		); err == nil {
-			return true
-		} else if errors.Is(err, goalsvc.ErrGoalUsageUnavailable) {
-			// Durable parent ledger 已证明 provider usage 缺失。这是终态真相，
-			// 不是可恢复写失败：保留 usage_finalized=false 并释放业务收尾。
-			return true
-		}
-	}
-	return false
+		_, err = finalizer.FinalizeUsageForGoal(ctx, goalID, protocol.GoalUsage{}, roundID)
+		// ErrGoalUsageUnavailable 表示 durable parent ledger 已证明 provider usage 缺失，
+		// 这是终态而非可恢复写失败：保留 usage_finalized=false 并释放业务收尾。
+		return err == nil || errors.Is(err, goalsvc.ErrGoalUsageUnavailable)
+	})
 }
 
 func (s *Service) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) *protocol.Goal {
@@ -1174,16 +1154,6 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 	goalID string,
 	goalSessionKey string,
 ) bool {
-	if s.goals == nil || slot == nil {
-		return true
-	}
-	claimer, ok := s.goals.(interface {
-		ClaimUsageSourceRound(context.Context, protocol.GoalUsageSourceRoundClaim) (protocol.GoalUsageSourceResult, error)
-	})
-	if !ok {
-		slot.setGoalUsageClaimPending(false)
-		return true
-	}
 	slot.setGoalUsageClaimPending(true)
 	claim := protocol.GoalUsageSourceRoundClaim{
 		OwnerUserID:       goalUsageOwnerUserIDForRoomSlot(ctx, slot),
@@ -1194,17 +1164,11 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 		GoalID:            strings.TrimSpace(goalID),
 		GoalSessionKey:    goalUsageSessionKeyForRoomSlot(slot, goalSessionKey),
 	}
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
-			return false
-		}
-		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
-			continue
-		}
-		slot.setGoalUsageClaimPending(false)
-		return true
+	if !runtimehost.ClaimGoalUsageSourceRound(ctx, s.goals, s.goalUsageRetryBaseDelay, claim) {
+		return false
 	}
-	return false
+	slot.setGoalUsageClaimPending(false)
+	return true
 }
 
 func (s *Service) recordSubagentGoalUsageForSlot(
@@ -1241,26 +1205,9 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 			}
 			goalID := slot.childGoalIDForUsage()
 			goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
-			var (
-				result protocol.GoalUsageSourceResult
-				err    error
-			)
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
-					break
-				}
-				result, err = s.persistSubagentGoalUsageObservationForSlot(
-					ctx,
-					slot,
-					child.TaskID,
-					observation,
-					goalID,
-					goalSessionKey,
-				)
-				if err == nil {
-					break
-				}
-			}
+			result, err := runtimehost.RetryGoalUsage(ctx, s.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+				return s.persistSubagentGoalUsageObservationForSlot(ctx, slot, child.TaskID, observation, goalID, goalSessionKey)
+			})
 			if err != nil {
 				s.LoggerFor(ctx).Warn("记录 Room nxs 子任务 Goal usage 失败",
 					"session_key", goalSessionKey,
@@ -1389,7 +1336,7 @@ func (s *Service) activateGoalUsageForSlot(
 			// 边界；否则 retry 会在 bind 后把旧累计误归新 Goal。
 			return err
 		}
-		if binder, ok := s.goals.(roomGoalUsageScopeBinder); ok {
+		if binder, ok := s.goals.(runtimehost.GoalUsageScopeBinder); ok {
 			binding := protocol.GoalUsageScopeBinding{
 				OwnerUserID:    goalUsageOwnerUserIDForRoomSlot(ctx, slot),
 				GoalSessionKey: goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot)),
@@ -1398,22 +1345,7 @@ func (s *Service) activateGoalUsageForSlot(
 				GoalID:         goalID,
 				BoundAt:        time.Now().UTC(),
 			}
-			var err error
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
-					return ctx.Err()
-				}
-				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
-					break
-				}
-				if errors.Is(err, goalsvc.ErrGoalInvalidState) {
-					// 非 SQL provider 没有 durable scope capability；保留原有
-					// in-memory accounting 路径，不把能力缺失当成瞬时写失败。
-					err = nil
-					break
-				}
-			}
-			if err != nil {
+			if err := runtimehost.BindGoalUsageScopeFromNow(ctx, binder, s.goalUsageRetryBaseDelay, binding); err != nil {
 				// durable bind 是 Reset 的前置条件。失败时保持旧 Goal/baseline，
 				// 由 Goal service 把错误表面化并回滚新建 Goal。
 				return err

@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type roomParentLedgerProvider struct {
@@ -165,8 +166,8 @@ func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) 
 		t.Fatal("activateGoalUsageForSlot() error = nil, want durable bind failure")
 	}
 	bindings := provider.scopeBindings()
-	if len(bindings) != goalUsagePersistAttempts {
-		t.Fatalf("scope binding attempts = %d, want %d", len(bindings), goalUsagePersistAttempts)
+	if len(bindings) != runtimehost.GoalUsagePersistAttempts {
+		t.Fatalf("scope binding attempts = %d, want %d", len(bindings), runtimehost.GoalUsagePersistAttempts)
 	}
 	for _, binding := range bindings {
 		if binding.OwnerUserID != "owner-room" ||

@@ -687,8 +687,8 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 	if pending := runner.SubagentUsagePending["task-pending"]; pending.CumulativeTotal != 75 {
 		t.Fatalf("failed source checkpoint lost pending observation: %#v", pending)
 	}
-	if len(provider.snapshots) != goalUsagePersistAttempts {
-		t.Fatalf("source attempts = %d, want %d", len(provider.snapshots), goalUsagePersistAttempts)
+	if len(provider.snapshots) != runtimehost.GoalUsagePersistAttempts {
+		t.Fatalf("source attempts = %d, want %d", len(provider.snapshots), runtimehost.GoalUsagePersistAttempts)
 	}
 	observedAt := provider.snapshots[0].ObservedAt
 	if observedAt.IsZero() {

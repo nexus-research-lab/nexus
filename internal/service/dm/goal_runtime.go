@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	goalUsagePersistAttempts       = 5
 	subagentUsageRetryInitialDelay = 320 * time.Millisecond
 	subagentUsageRetryMaxDelay     = 5 * time.Second
 )
@@ -132,13 +131,6 @@ func (r *roundRunner) initializeGoalUsageCreateGuard() {
 	r.Mu.Unlock()
 }
 
-type dmGoalUsageScopeBinder interface {
-	BindUsageScopeFromNow(
-		context.Context,
-		protocol.GoalUsageScopeBinding,
-	) (protocol.GoalUsageScopeBindResult, error)
-}
-
 func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) error {
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return nil
@@ -162,7 +154,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 		return nil
 	}
 	if goalID != "" {
-		if binder, ok := r.service.goals.(dmGoalUsageScopeBinder); ok {
+		if binder, ok := r.service.goals.(runtimehost.GoalUsageScopeBinder); ok {
 			// Durable source checkpoint 与 from-now bind 必须共享同一临界区。
 			// 已经进入 pending 的 child observation 先按旧/空 Goal 语义落库，
 			// 再由 repository 在绑定事务内将绑定前 backlog 排除，并把仍在运行
@@ -180,22 +172,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 				GoalID:         goalID,
 				BoundAt:        time.Now().UTC(),
 			}
-			var err error
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
-					return ctx.Err()
-				}
-				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
-					break
-				}
-				if errors.Is(err, goalsvc.ErrGoalInvalidState) {
-					// 非 SQL provider 没有 durable scope capability；保留兼容的
-					// in-memory Reset，不把能力缺失当成瞬时写失败。
-					err = nil
-					break
-				}
-			}
-			if err != nil {
+			if err := runtimehost.BindGoalUsageScopeFromNow(ctx, binder, r.goalUsageRetryBaseDelay, binding); err != nil {
 				// durable bind 是 Reset/consumed 的前置条件。失败时必须保持
 				// 原 Goal binding 与 accumulator baseline。
 				return err
@@ -767,15 +744,6 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 	if !pending {
 		return true
 	}
-	claimer, ok := r.service.goals.(interface {
-		ClaimUsageSourceRound(context.Context, protocol.GoalUsageSourceRoundClaim) (protocol.GoalUsageSourceResult, error)
-	})
-	if !ok {
-		r.Mu.Lock()
-		r.UsageClaimPending = false
-		r.Mu.Unlock()
-		return true
-	}
 	claim := protocol.GoalUsageSourceRoundClaim{
 		OwnerUserID:       r.ownerUserID,
 		RuntimeSessionKey: r.sessionKey,
@@ -785,19 +753,13 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 		GoalID:            goalID,
 		GoalSessionKey:    r.sessionKey,
 	}
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
-			return false
-		}
-		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
-			continue
-		}
-		r.Mu.Lock()
-		r.UsageClaimPending = false
-		r.Mu.Unlock()
-		return true
+	if !runtimehost.ClaimGoalUsageSourceRound(ctx, r.service.goals, r.goalUsageRetryBaseDelay, claim) {
+		return false
 	}
-	return false
+	r.Mu.Lock()
+	r.UsageClaimPending = false
+	r.Mu.Unlock()
+	return true
 }
 
 type dmGoalUsageSourceRecorder interface {
@@ -835,19 +797,9 @@ func (r *roundRunner) recordSubagentGoalUsage(
 			}
 			snapshot := r.subagentUsageSourceSnapshotLocked(child.TaskID, observation)
 			r.Mu.Unlock()
-			var (
-				result protocol.GoalUsageSourceResult
-				err    error
-			)
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
-					break
-				}
-				result, err = recorder.RecordUsageSourceSnapshot(ctx, snapshot)
-				if err == nil {
-					break
-				}
-			}
+			result, err := runtimehost.RetryGoalUsage(ctx, r.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+				return recorder.RecordUsageSourceSnapshot(ctx, snapshot)
+			})
 			if err != nil {
 				hadFailure = true
 				r.service.LoggerFor(ctx).Warn("记录 nxs 子任务 Goal usage 失败",
@@ -976,24 +928,9 @@ func (r *roundRunner) flushPendingSubagentUsageBeforeBindLocked(
 	recorder dmGoalUsageSourceRecorder,
 ) error {
 	for taskID, observation := range r.SubagentUsagePending {
-		var (
-			result protocol.GoalUsageSourceResult
-			err    error
-		)
-		for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-			if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
-				return ctx.Err()
-			}
-			result, err = r.persistSubagentUsageObservationLocked(
-				ctx,
-				recorder,
-				taskID,
-				observation,
-			)
-			if err == nil {
-				break
-			}
-		}
+		result, err := runtimehost.RetryGoalUsage(ctx, r.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+			return r.persistSubagentUsageObservationLocked(ctx, recorder, taskID, observation)
+		})
 		if err != nil {
 			return err
 		}
