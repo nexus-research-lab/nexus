@@ -985,15 +985,7 @@ func (slot *activeRoomSlot) markCancelled() bool {
 }
 
 func (slot *activeRoomSlot) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
-	if slot == nil {
-		return nil
-	}
-	state := slot.ensureCommandReceiptState()
-	slot.mutable.goal.Mu.Lock()
-	receipts, sequence := state.Since(slot.mutable.goal.CommandReceiptSequence)
-	slot.mutable.goal.CommandReceiptSequence = sequence
-	slot.mutable.goal.Mu.Unlock()
-	return receipts
+	return slot.mutable.goal.ConsumeCommandReceipts(slot.ensureCommandReceiptState())
 }
 
 func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
@@ -1025,38 +1017,6 @@ func (slot *activeRoomSlot) hasSubagentHistory() bool {
 	slot.mutable.goal.Mu.RLock()
 	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.subagentHistory
-}
-
-func (slot *activeRoomSlot) markSubagentUsageObservationPending(
-	observation goalsvc.SubagentUsageObservation,
-	taskID string,
-) {
-	if slot == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	slot.mutable.goal.Mu.Lock()
-	if slot.mutable.goal.SubagentUsagePending == nil {
-		slot.mutable.goal.SubagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
-	}
-	taskID = strings.TrimSpace(taskID)
-	slot.mutable.goal.SubagentUsagePending[taskID] = slot.mutable.goal.SubagentUsagePending[taskID].Merge(observation)
-	slot.mutable.goal.Mu.Unlock()
-}
-
-func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
-	taskID string,
-	settled goalsvc.SubagentUsageObservation,
-) {
-	if slot == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	slot.mutable.goal.Mu.Lock()
-	taskID = strings.TrimSpace(taskID)
-	if pending, ok := slot.mutable.goal.SubagentUsagePending[taskID]; ok &&
-		pending.CoveredBy(settled) {
-		delete(slot.mutable.goal.SubagentUsagePending, taskID)
-	}
-	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) subagentUsagePendingSnapshot() map[string]int64 {
@@ -1129,15 +1089,6 @@ func (slot *activeRoomSlot) finishSubagentUsageRetry() bool {
 	needsRestart := len(slot.mutable.goal.SubagentUsagePending) > 0
 	slot.mutable.goal.Mu.Unlock()
 	return needsRestart
-}
-
-func (slot *activeRoomSlot) markGoalToolProgress() {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.Mu.Lock()
-	slot.mutable.goal.ToolProgress = true
-	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) markPendingGoalCollaboration() {

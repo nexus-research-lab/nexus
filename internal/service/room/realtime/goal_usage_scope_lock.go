@@ -131,7 +131,7 @@ func (s *Service) flushRoomSubagentUsageBeforeExternalBind(
 					err,
 				)
 			}
-			slot.clearSubagentUsageObservationPending(taskID, observation)
+			slot.mutable.goal.ClearSubagentUsagePending(taskID, observation)
 		}
 	}
 	return nil

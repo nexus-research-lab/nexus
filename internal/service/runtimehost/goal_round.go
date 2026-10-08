@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -198,4 +199,60 @@ func (g *GoalRoundState) RecordTerminalAssistantUsage(message protocol.Message, 
 	if !written {
 		write(message)
 	}
+}
+
+// MarkSubagentUsagePendingLocked 合并一条尚未落库的子任务用量观察；调用方持有 Mu。
+func (g *GoalRoundState) MarkSubagentUsagePendingLocked(taskID string, observation goalsvc.SubagentUsageObservation) {
+	if observation.ObservedAt.IsZero() {
+		observation.ObservedAt = time.Now().UTC()
+	}
+	if g.SubagentUsagePending == nil {
+		g.SubagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
+	}
+	taskID = strings.TrimSpace(taskID)
+	g.SubagentUsagePending[taskID] = g.SubagentUsagePending[taskID].Merge(observation)
+}
+
+// MarkSubagentUsagePending 是 MarkSubagentUsagePendingLocked 的加锁版本。
+func (g *GoalRoundState) MarkSubagentUsagePending(taskID string, observation goalsvc.SubagentUsageObservation) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	g.MarkSubagentUsagePendingLocked(taskID, observation)
+}
+
+// ClearSubagentUsagePendingLocked 在 settled 覆盖待落库观察时清除它，避免旧回执吞掉后到的累计值；调用方持有 Mu。
+func (g *GoalRoundState) ClearSubagentUsagePendingLocked(taskID string, settled goalsvc.SubagentUsageObservation) {
+	taskID = strings.TrimSpace(taskID)
+	if pending, ok := g.SubagentUsagePending[taskID]; ok && pending.CoveredBy(settled) {
+		delete(g.SubagentUsagePending, taskID)
+	}
+}
+
+// ClearSubagentUsagePending 是 ClearSubagentUsagePendingLocked 的加锁版本。
+func (g *GoalRoundState) ClearSubagentUsagePending(taskID string, settled goalsvc.SubagentUsageObservation) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	g.ClearSubagentUsagePendingLocked(taskID, settled)
+}
+
+// RememberGoalToolProgress 记录本轮工具调用推进过 Goal。
+func (g *GoalRoundState) RememberGoalToolProgress(progressed bool) {
+	if !progressed {
+		return
+	}
+	g.Mu.Lock()
+	g.ToolProgress = true
+	g.Mu.Unlock()
+}
+
+// ConsumeCommandReceipts 返回 state 中本轮尚未消费的命令回执并推进游标。
+func (g *GoalRoundState) ConsumeCommandReceipts(state *nexusmcp.CommandReceiptState) []nexusmcp.CommandReceipt {
+	if state == nil {
+		return nil
+	}
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	receipts, sequence := state.Since(g.CommandReceiptSequence)
+	g.CommandReceiptSequence = sequence
+	return receipts
 }

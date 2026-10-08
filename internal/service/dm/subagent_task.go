@@ -6,11 +6,9 @@ package dm
 import (
 	"context"
 	"strings"
-	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 const (
@@ -80,55 +78,6 @@ func (r *roundRunner) annotateSubagentTaskRuntimeKind(message protocol.Message) 
 func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	if r.RememberSubagentTaskMessage(message) {
 		r.service.Runtime.MarkSubagentHistory(r.sessionKey)
-	}
-}
-
-func (r *roundRunner) markSubagentUsageObservationPending(
-	taskID string,
-	observation goalsvc.SubagentUsageObservation,
-) {
-	if r == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	r.Mu.Lock()
-	r.markSubagentUsageObservationPendingLocked(taskID, observation)
-	r.Mu.Unlock()
-}
-
-func (r *roundRunner) markSubagentUsageObservationPendingLocked(
-	taskID string,
-	observation goalsvc.SubagentUsageObservation,
-) {
-	if observation.ObservedAt.IsZero() {
-		observation.ObservedAt = time.Now().UTC()
-	}
-	if r.SubagentUsagePending == nil {
-		r.SubagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
-	}
-	taskID = strings.TrimSpace(taskID)
-	r.SubagentUsagePending[taskID] = r.SubagentUsagePending[taskID].Merge(observation)
-}
-
-func (r *roundRunner) clearSubagentUsageObservationPending(
-	taskID string,
-	settled goalsvc.SubagentUsageObservation,
-) {
-	if r == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	r.Mu.Lock()
-	r.clearSubagentUsageObservationPendingLocked(taskID, settled)
-	r.Mu.Unlock()
-}
-
-func (r *roundRunner) clearSubagentUsageObservationPendingLocked(
-	taskID string,
-	settled goalsvc.SubagentUsageObservation,
-) {
-	taskID = strings.TrimSpace(taskID)
-	if pending, ok := r.SubagentUsagePending[taskID]; ok &&
-		pending.CoveredBy(settled) {
-		delete(r.SubagentUsagePending, taskID)
 	}
 }
 

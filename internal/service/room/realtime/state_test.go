@@ -400,15 +400,13 @@ func (slot *activeRoomSlot) setPendingStream(events []protocol.EventMessage) {
 // 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
 // task、后写 checkpoint 时被并发 finalization 穿透。
 func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
-	slot.markSubagentUsageObservationPending(goalsvc.SubagentUsageObservation{
-		CumulativeTotal: cumulativeTotal,
-	}, taskID)
+	slot.mutable.goal.MarkSubagentUsagePending(taskID, goalsvc.SubagentUsageObservation{CumulativeTotal: cumulativeTotal})
 }
 
 // clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
 // 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
 func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
-	slot.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
+	slot.mutable.goal.ClearSubagentUsagePending(taskID, goalsvc.SubagentUsageObservation{
 		CumulativeTotal:            settledTotal,
 		Terminal:                   true,
 		TerminalTokenUsageObserved: true,

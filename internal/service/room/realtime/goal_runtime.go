@@ -312,13 +312,6 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	}, "agent_id", slot.AgentID)
 }
 
-func rememberGoalToolProgressForSlot(slot *activeRoomSlot, progressed bool) {
-	if slot == nil || !progressed {
-		return
-	}
-	slot.markGoalToolProgress()
-}
-
 func slotHasGoalToolProgress(slot *activeRoomSlot) bool {
 	if slot == nil {
 		return false
@@ -498,7 +491,7 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	if s.goals == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	rememberGoalToolProgressForSlot(slot, nexusmcp.HasGoalProgress(receipts))
+	slot.mutable.goal.RememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
 	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
 		receipts, command.DomainGoal, command.GoalOperationCreate,
@@ -1192,7 +1185,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		// pending 的建立本身也属于 scope 临界区。若 activation 已先拿到锁，
 		// 此消息线性化在 bind 之后；若此处先拿到锁，它一定会在 bind 前落库。
 		for _, child := range observations {
-			slot.markSubagentUsageObservationPending(child.Observation, child.TaskID)
+			slot.mutable.goal.MarkSubagentUsagePending(child.TaskID, child.Observation)
 		}
 		for _, child := range observations {
 			pending := slot.subagentUsageObservationPendingSnapshot()
@@ -1223,7 +1216,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				TaskID:      child.TaskID,
 				Observation: observation,
 			})
-			slot.clearSubagentUsageObservationPending(child.TaskID, observation)
+			slot.mutable.goal.ClearSubagentUsagePending(child.TaskID, observation)
 			if result.Goal != nil {
 				s.bindRoomGoalUsageForScope(slot, result.Goal.SessionKey, result.Goal.ID)
 			}
@@ -1232,7 +1225,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	}
 
 	for _, child := range observations {
-		slot.markSubagentUsageObservationPending(child.Observation, child.TaskID)
+		slot.mutable.goal.MarkSubagentUsagePending(child.TaskID, child.Observation)
 	}
 	goalID := slot.childGoalIDForUsage()
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()

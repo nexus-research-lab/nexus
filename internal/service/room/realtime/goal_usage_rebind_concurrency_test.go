@@ -161,10 +161,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 	}
 	// peer 的 running child 只有内存 pending；activation 必须在 bind 前把
 	// 它写成 evidence/checkpoint，且不能因为是 0 就丢掉 lifecycle。
-	peer.markSubagentUsageObservationPending(
-		goalsvc.SubagentUsageObservation{},
-		"task-peer-running",
-	)
+	peer.mutable.goal.MarkSubagentUsagePending("task-peer-running", goalsvc.SubagentUsageObservation{})
 	roundValue := &activeRoomRound{
 		ConversationID: "child-bind",
 		SessionKey:     sessionID,
@@ -265,10 +262,7 @@ func TestRoomExternalBindRequiresKnownChildPendingToFlush(t *testing.T) {
 	}
 	slot.setRuntimeKind("nxs")
 	slot.setGoalBinding("room:group:child-flush-failure", "")
-	slot.markSubagentUsageObservationPending(
-		goalsvc.SubagentUsageObservation{ObservedAt: time.Now().UTC()},
-		"task-running",
-	)
+	slot.mutable.goal.MarkSubagentUsagePending("task-running", goalsvc.SubagentUsageObservation{ObservedAt: time.Now().UTC()})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

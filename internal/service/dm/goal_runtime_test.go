@@ -612,7 +612,7 @@ func TestDMExternalActivationFlushesPendingChildBeforeBindAndSkipsStaleRetry(t *
 		runtimeKind:    "nxs",
 		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
 	}
-	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
+	runner.MarkSubagentUsagePending("task-pending", goalsvc.SubagentUsageObservation{
 		CumulativeTotal: 75,
 	})
 
@@ -661,7 +661,7 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", ChildIDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageScopeConsumed: true},
 	}
 	accelerateDMGoalUsageRetry(runner)
-	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
+	runner.MarkSubagentUsagePending("task-pending", goalsvc.SubagentUsageObservation{
 		CumulativeTotal: 75,
 	})
 

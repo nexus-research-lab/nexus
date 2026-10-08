@@ -383,7 +383,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {
-		r.clearSubagentUsageObservationPending(settled.TaskID, settled.Observation)
+		r.ClearSubagentUsagePending(settled.TaskID, settled.Observation)
 	}
 	r.RememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)

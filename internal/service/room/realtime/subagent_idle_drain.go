@@ -133,7 +133,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	settledSubagentUsage := s.recordSubagentGoalUsageForSlot(ctx, slot, messageValue)
 	slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		slot.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
+		slot.mutable.goal.ClearSubagentUsagePending(settlement.TaskID, settlement.Observation)
 	}
 	s.startRoomSubagentUsageRetry(roundValue, slot)
 	if slot.hasSubagentHistory() {
@@ -276,7 +276,7 @@ func (s *Service) retryRoomSubagentUsage(
 					)
 					continue
 				}
-				slot.clearSubagentUsageObservationPending(taskID, observation)
+				slot.mutable.goal.ClearSubagentUsagePending(taskID, observation)
 			}
 			if len(slot.subagentUsagePendingSnapshot()) > 0 {
 				unlockScope()

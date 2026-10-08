@@ -517,7 +517,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	settledSubagentUsage := e.service.recordSubagentGoalUsageForSlot(e.ctx, e.slot, messageValue)
 	e.slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		e.slot.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
+		e.slot.mutable.goal.ClearSubagentUsagePending(settlement.TaskID, settlement.Observation)
 	}
 	e.service.startRoomSubagentUsageRetry(e.round, e.slot)
 	if e.slot.hasSubagentHistory() {

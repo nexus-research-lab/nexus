@@ -203,14 +203,14 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	if protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	receipts := r.consumeRuntimeCommandReceipts()
+	receipts := r.ConsumeCommandReceipts(r.commandReceipts)
 	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
 		r.service.ExecutionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
-	r.rememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
+	r.RememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
 	snapshot := r.assistantGoalUsageSnapshot(message)
 	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
 		receipts, command.DomainGoal, command.GoalOperationCreate,
@@ -257,17 +257,6 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		}
 		r.Mu.Unlock()
 	}
-}
-
-func (r *roundRunner) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
-	if r == nil || r.commandReceipts == nil {
-		return nil
-	}
-	r.Mu.Lock()
-	receipts, sequence := r.commandReceipts.Since(r.CommandReceiptSequence)
-	r.CommandReceiptSequence = sequence
-	r.Mu.Unlock()
-	return receipts
 }
 
 func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionResult) {
@@ -338,15 +327,6 @@ func (r *roundRunner) hasGoalRoundBinding() bool {
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {
 	runtimehost.LogGoalMutationFailure(r.service.LoggerFor(context.Background()), logMessage, mutation(), r.sessionKey, r.IDForUsage, r.roundID, fields...)
-}
-
-func (r *roundRunner) rememberGoalToolProgress(progressed bool) {
-	if !progressed {
-		return
-	}
-	r.Mu.Lock()
-	r.ToolProgress = true
-	r.Mu.Unlock()
 }
 
 func (r *roundRunner) hasGoalToolProgress() bool {
@@ -789,7 +769,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 		r.goalUsageBindingMu.Lock()
 		for _, child := range observations {
 			r.Mu.Lock()
-			r.markSubagentUsageObservationPendingLocked(child.TaskID, child.Observation)
+			r.MarkSubagentUsagePendingLocked(child.TaskID, child.Observation)
 			observation := r.SubagentUsagePending[child.TaskID]
 			currentGoalID := strings.TrimSpace(r.ChildIDForUsage)
 			if currentGoalID == "" {
@@ -812,7 +792,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 				continue
 			}
 			r.Mu.Lock()
-			r.clearSubagentUsageObservationPendingLocked(child.TaskID, observation)
+			r.ClearSubagentUsagePendingLocked(child.TaskID, observation)
 			settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
 				TaskID:      child.TaskID,
 				Observation: observation,
@@ -828,7 +808,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	}
 
 	for _, child := range observations {
-		r.markSubagentUsageObservationPending(child.TaskID, child.Observation)
+		r.MarkSubagentUsagePending(child.TaskID, child.Observation)
 	}
 	r.Mu.Lock()
 	goalID := strings.TrimSpace(r.ChildIDForUsage)
@@ -934,7 +914,7 @@ func (r *roundRunner) flushPendingSubagentUsageBeforeBindLocked(
 		if err != nil {
 			return err
 		}
-		r.clearSubagentUsageObservationPendingLocked(taskID, observation)
+		r.ClearSubagentUsagePendingLocked(taskID, observation)
 		r.rememberSubagentUsageResultBindingLocked(result)
 	}
 	return nil
@@ -1042,7 +1022,7 @@ func (r *roundRunner) retryPendingSubagentUsageObservation(
 		return err
 	}
 	r.Mu.Lock()
-	r.clearSubagentUsageObservationPendingLocked(taskID, observation)
+	r.ClearSubagentUsagePendingLocked(taskID, observation)
 	r.rememberSubagentUsageResultBindingLocked(result)
 	r.Mu.Unlock()
 	return nil
