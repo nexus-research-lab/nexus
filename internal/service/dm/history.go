@@ -14,7 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -482,29 +481,7 @@ func (s *Service) canPersistSDKSessionIDForOwner(
 	current protocol.Session,
 	sessionID string,
 ) bool {
-	decision := sessionresumesvc.NewPolicy(
-		s.History.ForOwner(ownerUserID),
-	).CanPersist(workspacePath, sessionID)
-	if decision.Allowed {
-		return true
-	}
-	if decision.Err != nil {
-		s.LoggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
-			"session_key", current.SessionKey,
-			"workspace_path", workspacePath,
-			"sdk_session_id", decision.SessionID,
-			"reason", string(decision.Reason),
-			"err", decision.Err,
-		)
-		return false
-	}
-	s.LoggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
-		"session_key", current.SessionKey,
-		"workspace_path", workspacePath,
-		"sdk_session_id", decision.SessionID,
-		"reason", string(decision.Reason),
-	)
-	return false
+	return s.CanPersistSDKSessionID(ctx, ownerUserID, workspacePath, sessionID, "session_key", current.SessionKey)
 }
 
 func (s *Service) clearReusableSDKSessionID(

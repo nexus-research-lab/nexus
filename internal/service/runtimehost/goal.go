@@ -349,3 +349,32 @@ func ClaimGoalUsageSourceRound(
 	})
 	return err == nil
 }
+
+// RunGoalContinuation 为 sessionKey 准备下一轮 Goal 续跑计划并交给宿主 dispatch；
+// 启动前失败会回写 Goal，预期的并发推进错误静默结束。
+func RunGoalContinuation(
+	ctx context.Context,
+	provider any,
+	logger *slog.Logger,
+	sessionKey string,
+	causedByRoundID string,
+	shouldDefer func(protocol.GoalContinuation) bool,
+	dispatch func(context.Context, protocol.GoalContinuation) error,
+) {
+	planner, ok := provider.(goalsvc.ContinuationPlanProvider)
+	if !ok || sessionKey == "" {
+		return
+	}
+	plan, err := goalsvc.PrepareContinuationForDispatch(ctx, planner, sessionKey, causedByRoundID, shouldDefer)
+	if err != nil {
+		LogGoalMutationFailure(logger, "准备 Goal 自动续跑失败", err, sessionKey, "", causedByRoundID)
+		return
+	}
+	if plan == nil {
+		return
+	}
+	if err := dispatch(ctx, *plan); err != nil && !goalsvc.IsExpectedMutationError(err) {
+		RecordGoalContinuationDispatchFailure(ctx, provider, logger, *plan, err)
+		LogGoalMutationFailure(logger, "启动 Goal 自动续跑失败", err, sessionKey, plan.Goal.ID, plan.RoundID)
+	}
+}

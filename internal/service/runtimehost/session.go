@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -86,4 +87,30 @@ func (h *Host) CloseUncommittedForkRuntime(
 	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
 		logger.Warn("关闭未提交的 fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
 	}
+}
+
+// CanPersistSDKSessionID 判断 SDK session transcript 已落盘、可以持久化为 resume 点；
+// 不可持久化时以 fields 标识宿主上下文记录原因。
+func (h *Host) CanPersistSDKSessionID(
+	ctx context.Context,
+	ownerUserID string,
+	workspacePath string,
+	sessionID string,
+	fields ...any,
+) bool {
+	decision := sessionresumesvc.NewPolicy(h.History.ForOwner(ownerUserID)).CanPersist(workspacePath, sessionID)
+	if decision.Allowed {
+		return true
+	}
+	attrs := append(fields,
+		"workspace_path", workspacePath,
+		"sdk_session_id", decision.SessionID,
+		"reason", string(decision.Reason),
+	)
+	if decision.Err != nil {
+		h.LoggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume", append(attrs, "err", decision.Err)...)
+		return false
+	}
+	h.LoggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume", attrs...)
+	return false
 }

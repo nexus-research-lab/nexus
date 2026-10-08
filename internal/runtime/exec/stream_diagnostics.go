@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -26,8 +27,38 @@ type RoundStreamStopDiagnostics struct {
 	Model                     string
 }
 
-// RoundStreamStopDiagnosticLogFields 返回 message_stop 诊断日志字段。
-func RoundStreamStopDiagnosticLogFields(diagnostics RoundStreamStopDiagnostics) []any {
+// RoundStreamFailureLogFields 返回流关闭或空闲超时错误的诊断日志字段；其他错误返回 nil。
+func RoundStreamFailureLogFields(err error) []any {
+	var fields []any
+	var streamClosed *RoundStreamClosedError
+	if errors.As(err, &streamClosed) {
+		fields = append(fields,
+			"stream_messages_seen", streamClosed.MessagesSeen,
+			"stream_last_type", streamClosed.LastMessageType,
+			"stream_last_summary", streamClosed.LastMessageSummary,
+			"stream_last_session_id", streamClosed.LastSessionID,
+			"stream_last_message_id", streamClosed.LastMessageID,
+			"stream_read_error", streamClosed.ReadError,
+			"stream_wait_error", streamClosed.WaitError,
+		)
+		fields = append(fields, roundStreamStopLogFields(streamClosed.LastStreamStop)...)
+	}
+	var streamIdle *RoundStreamIdleTimeoutError
+	if errors.As(err, &streamIdle) {
+		fields = append(fields,
+			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
+			"stream_messages_seen", streamIdle.MessagesSeen,
+			"stream_last_type", streamIdle.LastMessageType,
+			"stream_last_summary", streamIdle.LastMessageSummary,
+			"stream_last_session_id", streamIdle.LastSessionID,
+			"stream_last_message_id", streamIdle.LastMessageID,
+		)
+		fields = append(fields, roundStreamStopLogFields(streamIdle.LastStreamStop)...)
+	}
+	return fields
+}
+
+func roundStreamStopLogFields(diagnostics RoundStreamStopDiagnostics) []any {
 	if !diagnostics.Observed {
 		return nil
 	}

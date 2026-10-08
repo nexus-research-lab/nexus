@@ -18,17 +18,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
-
-type fakeTokenUsageRecorder struct {
-	inputs []usagesvc.RecordInput
-}
-
-func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usagesvc.RecordInput) error {
-	r.inputs = append(r.inputs, input)
-	return nil
-}
 
 func TestRoomDirectedReplyUsesAutomaticRoute(t *testing.T) {
 	const conversationID = "conversation-directed-reply-route"

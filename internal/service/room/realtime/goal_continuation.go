@@ -654,48 +654,12 @@ func (s *Service) dispatchGoalContinuationForSession(
 	sessionKey string,
 	causedByRoundID string,
 ) {
-	if strings.TrimSpace(sessionKey) == "" || s.goals == nil {
-		return
-	}
-	planner, ok := s.goals.(goalContinuationProvider)
-	if !ok {
-		return
-	}
-	plan, err := goalsvc.PrepareContinuationForDispatch(
-		ctx,
-		planner,
-		sessionKey,
-		causedByRoundID,
+	runtimehost.RunGoalContinuation(ctx, s.goals, s.LoggerFor(ctx), strings.TrimSpace(sessionKey), causedByRoundID,
 		func(plan protocol.GoalContinuation) bool {
 			return s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey)
 		},
+		s.DispatchGoalContinuation,
 	)
-	if err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		s.LoggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
-			"session_key", sessionKey,
-			"round_id", causedByRoundID,
-			"err", err,
-		)
-		return
-	}
-	if plan == nil {
-		return
-	}
-	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		runtimehost.RecordGoalContinuationDispatchFailure(ctx, s.goals, s.LoggerFor(ctx), *plan, err)
-		s.LoggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
-			"session_key", sessionKey,
-			"round_id", plan.RoundID,
-			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-	}
 }
 
 // DispatchGoalContinuation 把共享 Room Goal 的隐藏续跑交给 Room 运行链路。
