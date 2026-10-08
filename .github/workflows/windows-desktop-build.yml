@@ -39,10 +39,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Validate sandbox SDK credential
+        shell: pwsh
+        env:
+          SDK_READ_TOKEN: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SDK_READ_TOKEN)) {
+            throw "Configure NEXUS_SANDBOX_SDK_READ_TOKEN with read access to nexus-agent-sdk-go. Private SDK validation cannot run without this credential."
+          }
+
       - name: Checkout pinned sandbox SDK
         uses: actions/checkout@v6
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
+          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
           ref: 38221838946f17f87be9da4af5f10ddc95671edf
           path: .nexus-sandbox-sdk
           fetch-depth: 1
@@ -64,6 +74,7 @@ jobs:
           node-version: "22"
 
       - name: Check Windows sandbox contracts and native components
+        id: sandbox
         shell: pwsh
         run: node scripts/desktop/check-windows-sandbox.mjs --native
         env:
@@ -71,7 +82,7 @@ jobs:
           NEXUS_SANDBOX_REPORT_DIRECTORY: ${{ runner.temp }}/windows-sandbox-evidence
 
       - name: Upload Windows sandbox evidence
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.sandbox.outcome != 'skipped' && steps.sandbox.outcome != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: windows-sandbox-native-evidence

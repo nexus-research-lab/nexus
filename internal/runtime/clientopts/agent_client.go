@@ -204,13 +204,21 @@ func BuildAgentClientOptionsWithConfig(
 		effectiveRuntimeKind,
 	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
-	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
-	if err != nil {
-		return agentclient.Options{}, nil, err
+	visionConfig, visionErr := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
+	if visionErr != nil && ctx.Err() != nil {
+		return agentclient.Options{}, nil, ctx.Err()
 	}
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
+	visionEnv := visionRuntimeEnvFromConfig(visionConfig)
+	if visionErr != nil {
+		visionEnv["NEXUS_VISION_CONFIG_ERROR"] = visionErr.Error()
+	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	// 辅助视觉模型是可选能力：解析失败只降级为能力说明，不得阻断纯文本会话。
+	// 显式空值同时压过继承环境与 ExtraEnv 中的旧视觉路由。
+	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
+		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
+	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoMemoryRuntimeEnv(effectiveRuntimeKind, input.AutoMemoryDisabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoDreamRuntimeEnv(effectiveRuntimeKind, input.AutoDreamDisabled))
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
@@ -241,7 +249,7 @@ func BuildAgentClientOptionsWithConfig(
 	// secret. This is input ownership only; it does not claim OS process or
 	// handle isolation from arbitrary descendants.
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	// Long-term memory is an nxs host-owned workspace boundary. Configuration
 	// capabilities may add their own broker keys, but cannot redirect memory or

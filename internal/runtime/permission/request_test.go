@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
@@ -809,4 +810,43 @@ func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
 	if c.CountSessionPermissionRequests(second, ids[second]) != 1 {
 		t.Fatal("另一个成员的请求必须保持待确认")
 	}
+}
+
+// 延迟公区广播，使绑定发生在请求注册之后、实时投递之前。
+type delayedPermissionBroadcaster struct {
+	release chan struct{}
+}
+
+func (b *delayedPermissionBroadcaster) Broadcast(_ context.Context, _ string, event protocol.EventMessage) []error {
+	if event.EventType == protocol.EventTypePermissionRequest {
+		<-b.release
+	}
+	return nil
+}
+
+func TestPermissionReplayDoesNotDuplicateDelayedLiveDispatch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		c := NewContext()
+		session := "agent:nexus:ws:dm:replay"
+		c.BindSessionRoute(session, RouteContext{RoomID: "room", DispatchSessionKey: session})
+		broadcaster := &delayedPermissionBroadcaster{release: make(chan struct{})}
+		c.SetRoomBroadcaster(broadcaster)
+		requestCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { _, _ = c.RequestPermission(requestCtx, session, sdkpermission.Request{ToolName: "Write"}) }()
+		synctest.Wait()
+		sender := newPermissionTestSender("reconnected")
+		c.BindSession(session, sender)
+		synctest.Wait()
+		if len(sender.events) != 1 {
+			t.Fatalf("重连应重放一个待审批请求，实际 %d", len(sender.events))
+		}
+		close(broadcaster.release)
+		synctest.Wait()
+		if len(sender.events) != 1 {
+			t.Fatalf("延迟的实时投递重复发送了请求，实际 %d", len(sender.events))
+		}
+		cancel()
+		synctest.Wait()
+	})
 }
