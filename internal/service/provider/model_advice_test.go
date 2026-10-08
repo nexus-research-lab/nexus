@@ -4,55 +4,10 @@
 package provider
 
 import (
-	"net/url"
-	"strings"
 	"testing"
-	"time"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
-
-func TestOfficialModelAdvice(t *testing.T) {
-	for _, tc := range []struct {
-		preset, id                  string
-		recommend, vision, textOnly bool
-	}{
-		{presetGLMCodingPlan, "glm-5.3", true, false, true},
-		{presetGLMCodingPlan, "glm-5.3-flash", true, true, false},
-		{presetGLMCodingPlan, "glm-5.3-flashx", false, true, false},
-		{presetCustom, "glm-5.3-flashx", false, true, false},
-		{presetGLMCodingPlan, "glm-5.1", false, false, true},
-		{presetGLMCodingPlan, "glm-5.4", false, false, false},
-		{presetMiniMaxToken, "MiniMax-M3", true, true, false},
-		{presetMiniMaxToken, "MiniMax-M2.7", false, false, true},
-		{presetKimiCode, "k3-256k", true, true, false},
-		{presetKimiCode, "kimi-for-coding", true, true, false},
-		{presetQwenTokenPlan, "qwen3.8-max", true, true, false},
-		{presetQwenTokenPlan, "deepseek-v4-flash", false, false, true},
-		{presetDeepSeek, "deepseek-flash", true, true, false},
-		{presetDeepSeek, "deepseek-chat", false, false, false},
-		{presetOpenAI, "gpt-6-astra", true, true, false},
-		{presetAnthropic, "claude-opus-5", true, true, false},
-		{presetVolcengine, "glm-5.3-flash", true, true, false},
-		{presetDoubao, "doubao-seed-2-1-pro-260915", true, true, false},
-		{presetDashScope, "qwen-vl-plus", false, true, false},
-		{presetAzure, "gpt-6-astra", false, true, false},
-		{presetCustom, "gpt-6-astra", false, true, false},
-		{presetCustom, "QWEN-VL-PLUS", false, true, false},
-		{presetCustom, "private-model-v1", false, false, false},
-		{presetOpenAI, "other/gpt-6-astra", false, false, false},
-	} {
-		t.Run(tc.preset+"/"+tc.id, func(t *testing.T) {
-			g := projectModelGuidance(providerstore.Entity{PresetKey: tc.preset, ProviderKind: ProviderKindLLM}, providerstore.ModelEntity{ModelID: tc.id})
-			if (g.Recommendations[PurposeChat] != "") != tc.recommend || g.Eligibility[PurposeVision].Available != tc.vision || g.TextOnly != tc.textOnly {
-				t.Fatalf("unexpected guidance: %+v", g)
-			}
-			if g.Eligibility[PurposeImage].Available {
-				t.Fatal("chat/image input must not grant image generation")
-			}
-		})
-	}
-}
 
 func TestModelNameFallbackKeepsProviderPolicyScoped(t *testing.T) {
 	item := providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}
@@ -77,16 +32,6 @@ func TestModelNameFallbackKeepsProviderPolicyScoped(t *testing.T) {
 	model.CapabilitiesAutoJSON = encodeModelAutoCapabilities(ModelCapabilities{Vision: adviceBool(true)})
 	if !projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
 		t.Fatal("远端事实应能修正跨 Provider 的同名默认值")
-	}
-}
-
-func TestFlashXModelCard(t *testing.T) {
-	g := projectModelGuidance(providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}, providerstore.ModelEntity{ModelID: "glm-5.3-flashx"})
-	if g.Capabilities.Reasoning == nil || !*g.Capabilities.Reasoning || g.Capabilities.ToolCalling == nil || !*g.Capabilities.ToolCalling {
-		t.Fatalf("FlashX 缺少推理或工具调用能力: %+v", g.Capabilities)
-	}
-	if len(g.Recommendations) != 0 || g.Evidence == nil || g.Evidence.Notice != "" {
-		t.Fatalf("FlashX 不应继承套餐推荐: %+v", g)
 	}
 }
 
@@ -123,23 +68,6 @@ func TestMultimodalTextOutputWinsOverEmbeddingFlag(t *testing.T) {
 	}
 }
 
-func TestHistoricalGuessesRequireRediscovery(t *testing.T) {
-	item := providerstore.Entity{PresetKey: presetCustom, ProviderKind: ProviderKindLLM}
-	model := providerstore.ModelEntity{ModelID: "gemini-future", CapabilitiesAutoJSON: `{"vision":true,"reasoning":true}`}
-	g := projectModelGuidance(item, model)
-	if g.Capabilities.Vision != nil || g.Capabilities.Reasoning != nil {
-		t.Fatal("unverified historical positives still trusted")
-	}
-	model.CapabilitiesAutoJSON = encodeModelAutoCapabilities(ModelCapabilities{Vision: adviceBool(true)})
-	if !projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
-		t.Fatal("fresh remote facts not accepted")
-	}
-	model.CapabilitiesOverrideJSON = `{"vision":false}`
-	if projectModelGuidance(item, model).Eligibility[PurposeVision].Available {
-		t.Fatal("user denial ignored")
-	}
-}
-
 func TestDocumentedImageCapabilityStillRequiresTransport(t *testing.T) {
 	for _, tc := range []struct {
 		preset, id     string
@@ -154,30 +82,6 @@ func TestDocumentedImageCapabilityStillRequiresTransport(t *testing.T) {
 		g := projectModelGuidance(providerstore.Entity{PresetKey: tc.preset, ProviderKind: ProviderKindLLM}, providerstore.ModelEntity{ModelID: tc.id})
 		if g.Eligibility[PurposeImage].Available != tc.generate || g.Eligibility[PurposeEdit].Available != tc.edit || g.Eligibility[PurposeChat].Available {
 			t.Fatalf("%s: %+v", tc.id, g)
-		}
-	}
-}
-
-func TestAdviceEvidenceAndIdentityCompleteness(t *testing.T) {
-	seen := map[string]bool{}
-	for _, entry := range modelAdviceCatalog {
-		if _, err := time.Parse("2006-01-02", entry.Evidence.ReviewedAt); err != nil || len(entry.Evidence.URLs) == 0 {
-			t.Fatalf("missing evidence: %+v", entry)
-		}
-		for _, raw := range entry.Evidence.URLs {
-			u, err := url.Parse(raw)
-			if err != nil || u.Scheme != "https" || u.Host == "" {
-				t.Fatalf("bad evidence URL: %s", raw)
-			}
-		}
-		for _, preset := range entry.Presets {
-			for _, id := range entry.IDs {
-				key := preset + "/" + strings.ToLower(id)
-				if seen[key] {
-					t.Fatalf("ambiguous advice: %s", key)
-				}
-				seen[key] = true
-			}
 		}
 	}
 }

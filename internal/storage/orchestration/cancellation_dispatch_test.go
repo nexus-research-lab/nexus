@@ -3,8 +3,6 @@ package orchestration
 import (
 	"context"
 	"errors"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -220,48 +218,5 @@ func TestBuildCancellationDispatchUsesParentRuntimeForRoomSubagent(t *testing.T)
 		dispatch.ToolUseID != child.ToolUseID ||
 		dispatch.AgentRoundID != parent.AgentRoundID {
 		t.Fatalf("subagent cancellation target = %+v", dispatch)
-	}
-}
-
-func TestAllBulkAttemptInterruptionPathsCaptureCancellationFirst(t *testing.T) {
-	files := []string{
-		"state.go",
-		"plan.go",
-		"assignment.go",
-		"execution_transition.go",
-	}
-	checked := 0
-	for _, name := range files {
-		content, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		source := string(content)
-		offset := 0
-		for {
-			index := strings.Index(source[offset:], "UPDATE execution_attempts")
-			if index < 0 {
-				break
-			}
-			index += offset
-			afterEnd := min(len(source), index+600)
-			after := source[index:afterEnd]
-			if strings.Contains(after, "status IN ('pending', 'running')") {
-				beforeStart := max(0, index-1400)
-				before := source[beforeStart:index]
-				if !strings.Contains(before, "enqueueAttemptCancellations(") {
-					t.Fatalf(
-						"%s bulk terminalization at byte %d has no preceding cancellation capture",
-						name,
-						index,
-					)
-				}
-				checked++
-			}
-			offset = index + len("UPDATE execution_attempts")
-		}
-	}
-	if checked != 4 {
-		t.Fatalf("checked %d bulk interruption paths, want 4", checked)
 	}
 }

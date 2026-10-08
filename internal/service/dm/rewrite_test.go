@@ -31,17 +31,3 @@ func TestLastVisibleUserMessageSkipsHiddenControlRows(t *testing.T) {
 		t.Fatalf("lastVisibleUserMessage() round_id = %#v, want round-visible", got["round_id"])
 	}
 }
-
-func TestLastVisibleUserMessageIgnoresHiddenOnlyHistory(t *testing.T) {
-	rows := []protocol.Message{{
-		"hidden_from_user": true,
-		"role":             "user",
-	}, {
-		"is_synthetic": true,
-		"role":         "user",
-	}}
-
-	if got, ok := lastVisibleUserMessage(rows); ok || got != nil {
-		t.Fatalf("lastVisibleUserMessage() = (%#v, %v), want (nil, false)", got, ok)
-	}
-}

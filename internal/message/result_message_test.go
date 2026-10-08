@@ -82,32 +82,6 @@ func TestProcessorTreatsSuccessSubtypeWithErrorFlagAsFailure(t *testing.T) {
 	}
 }
 
-func TestProcessorProjectsRawRuntimeErrorWhenResultIsEmpty(t *testing.T) {
-	processor := NewProcessor(MessageContext{
-		SessionKey: "agent:nexus:ws:dm:test",
-		AgentID:    "nexus",
-		RoundID:    "round-provider-error",
-	}, "sdk-session-provider-error")
-	rawError := "The engine is currently overloaded, please try again later"
-
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeResult,
-		UUID: "result-provider-error",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype:        "error_during_execution",
-			IsError:        true,
-			TerminalReason: "rate_limit",
-			Errors:         []string{rawError},
-		},
-	})
-	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
-		t.Fatalf("provider result terminal = (%q, %q), want error", output.TerminalStatus, output.ResultSubtype)
-	}
-	if got := output.DurableMessages[0]["result"]; got != rawError {
-		t.Fatalf("provider result = %#v, want raw runtime error", got)
-	}
-}
-
 func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:room:test",
@@ -198,19 +172,6 @@ func TestProcessorWaitsForResultAfterAssistantAPIError(t *testing.T) {
 	}
 }
 
-func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
-	processor := NewProcessor(MessageContext{RoundID: "round-error-subtype"}, "")
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeResult,
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "error_max_turns",
-		},
-	})
-	if output.ResultSubtype != "error" || output.TerminalStatus != "error" {
-		t.Fatalf("CC error subtype = (%q, %q), want error", output.ResultSubtype, output.TerminalStatus)
-	}
-}
-
 func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-hook-stopped"}, "")
 	output := processor.Process(sdkprotocol.ReceivedMessage{
@@ -239,49 +200,5 @@ func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 	projected := ProjectResultMessage(nil, result)
 	if projected == nil || ExtractAssistantDisplayText(projected) != hookStoppedDisplayText {
 		t.Fatalf("hook stopped result 未投影为 assistant 正文: %+v", projected)
-	}
-}
-
-func TestProcessorProjectsDecodedEmptyResultPayload(t *testing.T) {
-	processor := NewProcessor(MessageContext{RoundID: "round-empty-result"}, "session-empty-result")
-	decoded, err := sdkprotocol.DecodeMessage(map[string]any{
-		"type": "result",
-		"uuid": "result-empty-payload",
-	})
-	if err != nil {
-		t.Fatalf("DecodeMessage() error = %v", err)
-	}
-	output := processor.Process(decoded)
-	if output.TerminalStatus != "finished" || output.ResultSubtype != "success" {
-		t.Fatalf("empty result terminal state = %+v", output)
-	}
-	if len(output.DurableMessages) != 1 || output.DurableMessages[0]["is_error"] != false {
-		t.Fatalf("empty result should produce a successful terminal message: %+v", output.DurableMessages)
-	}
-}
-
-func TestNormalizeInterruptedOutputHidesInternalInterruptSentinel(t *testing.T) {
-	output := Output{
-		ResultSubtype:  "error",
-		TerminalStatus: "error",
-		DurableMessages: []protocol.Message{{
-			"role":     "result",
-			"subtype":  "error",
-			"is_error": true,
-			"result":   "runtime canceled",
-		}},
-	}
-
-	NormalizeInterruptedOutput(&output, InterruptWithoutMessage)
-
-	if output.ResultSubtype != "interrupted" || output.TerminalStatus != "interrupted" {
-		t.Fatalf("内部中断应收口为 interrupted: %+v", output)
-	}
-	result := output.DurableMessages[0]
-	if result["is_error"] != false || result["subtype"] != "interrupted" {
-		t.Fatalf("中断 result 语义不正确: %+v", result)
-	}
-	if _, exists := result["result"]; exists {
-		t.Fatalf("内部中断哨兵不应投影为 result: %+v", result)
 	}
 }

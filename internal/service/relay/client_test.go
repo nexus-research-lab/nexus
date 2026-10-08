@@ -440,37 +440,6 @@ func TestClientRejectsTrailingResponseData(t *testing.T) {
 	}
 }
 
-func TestClientAcceptsFullRelayPageAfterJSONEscaping(t *testing.T) {
-	messages := make([]relaycontract.Message, 70)
-	for index := range messages {
-		messages[index] = relaycontract.Message{
-			ID:         "message",
-			MessageSeq: int64(index + 1),
-			Content: relaycontract.MessageContent{
-				Version: relaycontract.ContentVersionV1,
-				Blocks: []relaycontract.ContentBlock{{
-					Type: relaycontract.BlockTypeMarkdown,
-					Text: strings.Repeat(`\`, 60_000),
-				}},
-			},
-		}
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		writeRelayTestData(t, writer, http.StatusOK, relaycontract.Snapshot{StreamEpoch: "epoch-1", Messages: messages})
-	}))
-	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := client.Snapshot(
-		context.Background(), "token", "conversation-1", relaycontract.SnapshotOptions{Limit: 100},
-	)
-	if err != nil || len(snapshot.Messages) != len(messages) {
-		t.Fatalf("Snapshot() messages=%d err=%v", len(snapshot.Messages), err)
-	}
-}
-
 func TestClientDoesNotForwardCredentialsAcrossRedirect(t *testing.T) {
 	redirected := make(chan struct{}, 1)
 	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

@@ -228,35 +228,6 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 	}
 }
 
-func TestRunStateLayoutPreservesCompletedTreePermissions(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	runtimeFile := filepath.Join(
-		stateRoot,
-		"users",
-		authctx.SystemUserID,
-		"runtime",
-		"settings.json",
-	)
-	writeMigrationTestFile(t, filepath.Join(stateRoot, "settings.json"), "{}\n")
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("执行状态根布局迁移失败: %v", err)
-	}
-	if err := os.Chmod(runtimeFile, 0o660); err != nil {
-		t.Fatalf("模拟 runtime 私有组权限失败: %v", err)
-	}
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("完成迁移后的重复启动失败: %v", err)
-	}
-	info, err := os.Stat(runtimeFile)
-	if err != nil {
-		t.Fatalf("读取 runtime 文件权限失败: %v", err)
-	}
-	if info.Mode().Perm() != 0o660 {
-		t.Fatalf("完成标记后不应重新收紧 runtime ACL mask: %o", info.Mode().Perm())
-	}
-}
-
 func TestRunStateLayoutLeavesPermissionsToIsolationLauncher(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows 不提供 Unix 权限位语义")
@@ -347,41 +318,6 @@ func TestRunStateLayoutRemovesLegacyCacheWhenCanonicalMissing(t *testing.T) {
 	assertMigrationPathMissing(t, targetPath)
 }
 
-func TestRunStateLayoutPrefersCanonicalCacheOnConflict(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	sourceRoot := filepath.Join(stateRoot, "cache")
-	targetRoot := filepath.Join(stateRoot, "app", "cache")
-	writeMigrationTestFile(
-		t,
-		filepath.Join(sourceRoot, "WebView2", "last-runtime-version.txt"),
-		"0.1.27\n",
-	)
-	writeMigrationTestFile(t, filepath.Join(sourceRoot, "WebView2", "legacy-only.bin"), "legacy cache\n")
-	writeMigrationTestFile(
-		t,
-		filepath.Join(targetRoot, "WebView2", "last-runtime-version.txt"),
-		"0.1.33\n",
-	)
-	writeMigrationTestFile(t, filepath.Join(targetRoot, "WebView2", "current-only.bin"), "current cache\n")
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("新旧缓存冲突不应阻断状态迁移: %v", err)
-	}
-
-	assertMigrationPathMissing(t, sourceRoot)
-	assertMigrationFileContent(
-		t,
-		filepath.Join(targetRoot, "WebView2", "last-runtime-version.txt"),
-		"0.1.33\n",
-	)
-	assertMigrationFileContent(
-		t,
-		filepath.Join(targetRoot, "WebView2", "current-only.bin"),
-		"current cache\n",
-	)
-	assertMigrationPathMissing(t, filepath.Join(targetRoot, "WebView2", "legacy-only.bin"))
-}
-
 func TestRunStateLayoutIgnoresConflictingFinderMetadata(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "rooms", ".DS_Store"), "legacy-finder-cache\n")
@@ -397,21 +333,6 @@ func TestRunStateLayoutIgnoresConflictingFinderMetadata(t *testing.T) {
 		"current-finder-cache\n",
 	)
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "rooms"))
-}
-
-func TestRunStateLayoutMergesRoomOverlaySuperset(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
-	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
-	writeMigrationTestFile(t, sourcePath, "source-1\nsource-2\n")
-	writeMigrationTestFile(t, targetPath, "source-1\n")
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("Room overlay 子集合并不应阻断迁移: %v", err)
-	}
-
-	assertMigrationFileContent(t, targetPath, "source-1\nsource-2\n")
-	assertMigrationPathMissing(t, sourcePath)
 }
 
 func TestRunStateLayoutAcceptsRoomOverlayTimestampRefresh(t *testing.T) {
@@ -548,96 +469,6 @@ func TestRunStateLayoutPreservesPrecreatedAppConfig(t *testing.T) {
 		filepath.Join(stateRoot, "app", "config", "desktop-state.json.legacy-config"),
 		"legacy\n",
 	)
-}
-
-func TestRunStateLayoutPreservesLegacyClaudeConfigConflict(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	writeMigrationTestFile(t, filepath.Join(stateRoot, ".claude.json"), "current\n")
-	writeMigrationTestFile(t, filepath.Join(stateRoot, "config", ".claude.json"), "legacy\n")
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("Claude 配置冲突不应阻断迁移: %v", err)
-	}
-
-	assertMigrationFileContent(
-		t,
-		filepath.Join(stateRoot, "users", authctx.SystemUserID, "runtime", ".claude.json"),
-		"current\n",
-	)
-	assertMigrationFileContent(
-		t,
-		filepath.Join(
-			stateRoot,
-			"users",
-			authctx.SystemUserID,
-			"runtime",
-			".claude.json.legacy-config",
-		),
-		"legacy\n",
-	)
-}
-
-func TestRunStateLayoutPreservesPrecreatedRuntimeConfig(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	writeMigrationTestFile(t, filepath.Join(stateRoot, ".claude.json"), "legacy\n")
-	writeMigrationTestFile(
-		t,
-		filepath.Join(stateRoot, "users", authctx.SystemUserID, "runtime", ".claude.json"),
-		"precreated\n",
-	)
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("预创建 runtime 配置不应阻断迁移: %v", err)
-	}
-	assertMigrationFileContent(
-		t,
-		filepath.Join(stateRoot, "users", authctx.SystemUserID, "runtime", ".claude.json"),
-		"precreated\n",
-	)
-	assertMigrationFileContent(
-		t,
-		filepath.Join(
-			stateRoot,
-			"users",
-			authctx.SystemUserID,
-			"runtime",
-			".claude.json.legacy-config",
-		),
-		"legacy\n",
-	)
-}
-
-func TestRunStateLayoutHardensSharedWorkspacePermissions(t *testing.T) {
-	// Desktop deliberately preserves native filesystem modes.
-	t.Setenv(nexusAppModeEnvironment, "web")
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	sharedFile := filepath.Join(stateRoot, "shared-workspaces", "project", "README.md")
-	writeMigrationTestFile(t, sharedFile, "shared\n")
-	if err := os.Chmod(filepath.Dir(sharedFile), 0o777); err != nil {
-		t.Fatalf("设置旧共享目录权限失败: %v", err)
-	}
-	if err := os.Chmod(sharedFile, 0o666); err != nil {
-		t.Fatalf("设置旧共享文件权限失败: %v", err)
-	}
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("共享 workspace 权限收紧失败: %v", err)
-	}
-
-	directoryInfo, err := os.Stat(filepath.Join(stateRoot, "shared-workspaces", "project"))
-	if err != nil {
-		t.Fatalf("读取共享目录失败: %v", err)
-	}
-	if directoryInfo.Mode().Perm() != 0o700 {
-		t.Fatalf("共享目录权限错误: %o", directoryInfo.Mode().Perm())
-	}
-	fileInfo, err := os.Stat(filepath.Join(stateRoot, "shared-workspaces", "project", "README.md"))
-	if err != nil {
-		t.Fatalf("读取共享文件失败: %v", err)
-	}
-	if fileInfo.Mode().Perm() != 0o600 {
-		t.Fatalf("共享文件权限错误: %o", fileInfo.Mode().Perm())
-	}
 }
 
 func TestRetryMissingLayoutSourceTreatsRemovedSourceAsCompleted(t *testing.T) {

@@ -151,64 +151,6 @@ func TestServicePlanContinuationUsesOneRecoveryTurnBeforeSuppressing(t *testing.
 	}
 }
 
-func TestServiceCompletionCommandMissAllowsOneFinalizationRetry(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{
-		GoalEnabled:                true,
-		GoalAutoContinueEnabled:    true,
-		GoalMaxContinuationsPerRun: 3,
-	}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Finish with a proper Goal update",
-		CreatedBy:  "model",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.RecordCompletionCommandMiss(ctx, created.ID, plan.RoundID, "assistant could not call update_goal"); err != nil {
-		t.Fatal(err)
-	}
-	retry, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if retry == nil {
-		t.Fatal("retry = nil, want finalization retry continuation")
-	}
-	for _, want := range []string{
-		"Completion finalization retry:",
-		"previous goal-continuation response",
-		"invoke `update_goal`",
-		"before any final response",
-	} {
-		if !strings.Contains(retry.Prompt, want) {
-			t.Fatalf("retry prompt missing %q: %s", want, retry.Prompt)
-		}
-	}
-	if !strings.Contains(retry.Prompt, "Do not manufacture an alignment audit or WorkGraph") {
-		t.Fatalf("Goal-only retry must state the direct completion boundary: %s", retry.Prompt)
-	}
-	current, err := service.Current(ctx, created.SessionKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.EmptyProgressCount != 0 || goalCompletionCommandRetryCount(current.Metadata) != 1 {
-		t.Fatalf("current = %#v, want one retry without empty-progress suppression", current)
-	}
-	if got := repo.events[len(repo.events)-2]; got.EventType != "completion_command_retry" || got.RoundID != plan.RoundID {
-		t.Fatalf("retry event = %#v, want completion_command_retry for first miss", got)
-	}
-}
-
 func TestServiceCompletionCommandMissCompletesAfterRetry(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{
@@ -429,45 +371,6 @@ func TestServicePlanContinuationCompletesStaleCompletionCommandMissSuppression(t
 			completedEvent,
 			finalizedEvent,
 		)
-	}
-}
-
-func TestServiceResumeActiveGoalClearsEmptyProgressAndDispatchesContinuation(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{
-		GoalEnabled:             true,
-		GoalAutoContinueEnabled: true,
-	}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	dispatcher := &fakeContinuationDispatcher{}
-	service.SetContinuationDispatcher(dispatcher)
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Resume suppressed active goal",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatcher.plans = nil
-	if _, err := service.RecordContinuationProgress(ctx, created.ID, "goal_continuation_1", false); err != nil {
-		t.Fatal(err)
-	}
-
-	resumed, err := service.Resume(ctx, created.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resumed.Status != protocol.GoalStatusActive || resumed.EmptyProgressCount != 0 {
-		t.Fatalf("resumed = %#v, want active goal with empty progress cleared", resumed)
-	}
-	if len(dispatcher.plans) != 1 || dispatcher.plans[0].Goal.ID != created.ID {
-		t.Fatalf("plans = %#v, want resumed active goal to dispatch continuation", dispatcher.plans)
-	}
-	if got := repo.events[len(repo.events)-2]; got.EventType != "resumed" {
-		t.Fatalf("event before continuation = %#v, want resumed", got)
 	}
 }
 

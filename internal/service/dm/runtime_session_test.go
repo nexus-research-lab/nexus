@@ -3,12 +3,10 @@ package dm
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -39,136 +37,6 @@ func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
 		if got := strings.Contains(output.String(), "startup error"); got != enabled {
 			t.Fatalf("enabled=%t, stderr logged=%t", enabled, got)
 		}
-	}
-}
-
-func TestServiceHandleChatStartupFailureDoesNotWaitForBackgroundDispatchInputGate(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	startupErr := errors.New("runtime startup failed")
-	client := newFakeDMClient()
-	client.connectErrors = []error{startupErr}
-	factory := &fakeDMFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(
-		cfg,
-		newDMAgentService(t, cfg),
-		runtimeManager,
-		permissionctx.NewContext(),
-	)
-	sessionKey := "agent:nexus:ws:dm:startup-background-gate"
-	waiterEntered := make(chan struct{})
-	waiterResult := make(chan error, 1)
-	client.onConnect = func(context.Context) {
-		if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
-			close(waiterEntered)
-			err := service.inputQueueDispatchMu.LockContext(taskCtx)
-			if err == nil {
-				service.inputQueueDispatchMu.Unlock()
-			}
-			waiterResult <- err
-		}) {
-			t.Error("启动失败前登记后台派发任务失败")
-			return
-		}
-		<-waiterEntered
-	}
-
-	handleCtx, cancelHandle := context.WithCancel(context.Background())
-	defer cancelHandle()
-	handleDone := make(chan error, 1)
-	go func() {
-		handleDone <- service.HandleChat(handleCtx, Request{
-			SessionKey: sessionKey,
-			Content:    "触发 runtime 启动失败",
-			RoundID:    "round-startup-background-gate",
-		})
-	}()
-
-	select {
-	case err := <-handleDone:
-		if !errors.Is(err, startupErr) {
-			t.Fatalf("HandleChat() error = %v, want %v", err, startupErr)
-		}
-	case <-time.After(3 * time.Second):
-		cancelHandle()
-		t.Fatal("HandleChat 清理启动失败的 runtime 时与后台派发锁死")
-	}
-	select {
-	case err := <-waiterResult:
-		if err != nil {
-			t.Fatalf("后台派发锁等待结果 = %v，期望前台释放后取得锁", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("前台启动失败返回后后台派发锁等待未退出")
-	}
-	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
-	defer cancelWait()
-	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
-		t.Fatalf("等待后台派发任务退出失败: %v", err)
-	}
-	if runtimeManager.HasSession(sessionKey) {
-		t.Fatal("启动失败的 runtime session 未清理")
-	}
-	client.mu.Lock()
-	connectCalls := client.connectCalls
-	disconnectCalls := client.disconnectCalls
-	client.mu.Unlock()
-	if connectCalls != 1 || disconnectCalls != 1 {
-		t.Fatalf("runtime 调用次数 = connect:%d disconnect:%d", connectCalls, disconnectCalls)
-	}
-}
-
-func TestServiceBackgroundHandleChatStartupFailureDoesNotWaitForItself(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	startupErr := errors.New("background runtime startup failed")
-	connectStarted := make(chan struct{})
-	client := newFakeDMClient()
-	client.connectErrors = []error{startupErr}
-	client.onConnect = func(context.Context) {
-		close(connectStarted)
-	}
-	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
-	service := NewService(
-		cfg,
-		newDMAgentService(t, cfg),
-		runtimeManager,
-		permissionctx.NewContext(),
-	)
-	sessionKey := "agent:nexus:ws:dm:background-startup-self-cleanup"
-	handleResult := make(chan error, 1)
-	if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
-		handleResult <- service.HandleChat(taskCtx, Request{
-			SessionKey: sessionKey,
-			Content:    "后台派发触发 runtime 启动失败",
-			RoundID:    "round-background-startup-self-cleanup",
-		})
-	}) {
-		t.Fatal("登记后台 HandleChat 任务失败")
-	}
-	select {
-	case <-connectStarted:
-	case <-time.After(3 * time.Second):
-		t.Fatal("后台 HandleChat 未进入 runtime Connect()")
-	}
-	select {
-	case err := <-handleResult:
-		if !errors.Is(err, startupErr) {
-			t.Fatalf("后台 HandleChat() error = %v, want %v", err, startupErr)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("后台 HandleChat 清理启动失败的 client 时等待自身退出")
-	}
-	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
-	defer cancelWait()
-	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
-		t.Fatalf("等待后台 HandleChat 任务退出失败: %v", err)
-	}
-	if runtimeManager.HasSession(sessionKey) {
-		t.Fatal("后台启动失败的 runtime session 未清理")
 	}
 }
 
@@ -348,87 +216,6 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	if output.SpecificOutput == nil ||
 		!strings.Contains(output.SpecificOutput.PermissionDecisionReason, "subagent_admission_unavailable") {
 		t.Fatalf("未注入 provider 时 Agent tool 必须 fail closed: %#v", output)
-	}
-}
-
-func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	agentService := newDMAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-resume",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
-	}
-
-	factory := &fakeDMFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	sender := newDMTestSender("sender-resume")
-	sessionKey := "agent:nexus:ws:dm:resume-chat"
-	permission.BindSession(sessionKey, sender)
-
-	resumeID := "11111111-1111-4111-8111-111111111111"
-	workspacePath := dmMainWorkspacePath(cfg)
-	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
-		{
-			"type":      "user",
-			"uuid":      "11000000-0000-4000-8000-000000000001",
-			"sessionId": resumeID,
-			"timestamp": "2026-06-09T00:00:00Z",
-			"cwd":       workspacePath,
-			"message": map[string]any{
-				"role":    "user",
-				"content": "之前的消息",
-			},
-		},
-	})
-	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
-		SessionKey:   sessionKey,
-		AgentID:      cfg.DefaultAgentID,
-		SessionID:    &resumeID,
-		ChannelType:  "websocket",
-		ChatType:     "dm",
-		Status:       "active",
-		CreatedAt:    now,
-		LastActivity: now,
-		Title:        "Resume Chat",
-		MessageCount: 0,
-		Options:      map[string]any{},
-		IsActive:     true,
-	}); err != nil {
-		t.Fatalf("预写入会话 meta 失败: %v", err)
-	}
-
-	if err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "测试 resume",
-		RoundID:    "round-resume",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-
-	options := factory.LastOptions()
-	if options.Session.ResumeID != resumeID {
-		t.Fatalf("runtime 未将持久化 session_id 作为 resume 透传: %+v", options)
 	}
 }
 

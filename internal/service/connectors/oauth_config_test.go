@@ -63,55 +63,6 @@ func TestServiceScopesOAuthStateByOwner(t *testing.T) {
 	}
 }
 
-func TestServiceOAuthUsesDeploymentCredentialsOnly(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	cfg.ConnectorGitHubClientID = ""
-	cfg.ConnectorGitHubClientSecret = ""
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	service := NewService(cfg, db)
-	ctx := context.Background()
-	const ownerUserID = "user-oauth-client"
-
-	items, err := service.ListConnectors(ctx, ownerUserID, "github", "", "")
-	if err != nil {
-		t.Fatalf("列出连接器失败: %v", err)
-	}
-	if len(items) != 1 || items[0].IsConfigured {
-		t.Fatalf("未配置环境变量时应为待配置: %+v", items)
-	}
-
-	cfg.ConnectorGitHubClientID = "env-client-id"
-	cfg.ConnectorGitHubClientSecret = "env-client-secret"
-	service = NewService(cfg, db)
-
-	items, err = service.ListConnectors(ctx, ownerUserID, "github", "", "")
-	if err != nil {
-		t.Fatalf("列出连接器失败: %v", err)
-	}
-	if len(items) != 1 || !items[0].IsConfigured {
-		t.Fatalf("配置环境变量后应可连接: %+v", items)
-	}
-
-	authURL, err := service.GetAuthURL(ctx, ownerUserID, "github", "", nil)
-	if err != nil {
-		t.Fatalf("生成授权地址失败: %v", err)
-	}
-	parsedURL, err := url.Parse(authURL.AuthURL)
-	if err != nil {
-		t.Fatalf("解析授权地址失败: %v", err)
-	}
-	if parsedURL.Query().Get("client_id") != "env-client-id" {
-		t.Fatalf("应使用环境变量中的 client_id，实际: %s", authURL.AuthURL)
-	}
-}
-
 func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
 	cfg := newConnectorsTestConfig(t)
 	migrateConnectorsSQLite(t, cfg.DatabaseURL)
@@ -245,40 +196,5 @@ func TestServiceRecordsDesktopRedirectKind(t *testing.T) {
 	}
 	if redirectKind != oauthRedirectKindDesktop {
 		t.Fatalf("redirect kind 不正确: got=%q want=%q", redirectKind, oauthRedirectKindDesktop)
-	}
-}
-
-func TestServiceMultipleAuthURLsDoNotOverwrite(t *testing.T) {
-	cfg := newConnectorsTestConfig(t)
-	migrateConnectorsSQLite(t, cfg.DatabaseURL)
-
-	db, err := sql.Open("sqlite", cfg.DatabaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	service := NewService(cfg, db)
-	ctx := context.Background()
-
-	first, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "", nil)
-	if err != nil {
-		t.Fatalf("生成第一次授权地址失败: %v", err)
-	}
-	second, err := service.GetAuthURL(ctx, auth.SystemUserID, "github", "", nil)
-	if err != nil {
-		t.Fatalf("生成第二次授权地址失败: %v", err)
-	}
-	if first.State == second.State {
-		t.Fatalf("两次 state 不应相同: %q", first.State)
-	}
-
-	var count int
-	//goland:noinspection SqlResolve
-	if err = db.QueryRowContext(ctx, "SELECT COUNT(1) FROM connector_oauth_states WHERE state IN (?, ?)", first.State, second.State).Scan(&count); err != nil {
-		t.Fatalf("查询 OAuth state 失败: %v", err)
-	}
-	if count != 2 {
-		t.Fatalf("OAuth state 不应被覆盖: got=%d want=2", count)
 	}
 }

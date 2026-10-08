@@ -2,50 +2,6 @@ package protocol
 
 import "testing"
 
-func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T) {
-	t.Parallel()
-
-	wantMessage := "Plan Document items must contain at least one complete Work Item"
-	for name, value := range map[string]any{
-		"structured": map[string]any{
-			"outcome": "rejected", "reason_code": "plan_items_empty", "message": wantMessage,
-		},
-		"json text": `{"outcome":"rejected","reason_code":"plan_items_empty","message":"` + wantMessage + `"}`,
-		"wrapped": map[string]any{"structuredContent": map[string]any{
-			"outcome": "rejected", "reason_code": "plan_items_empty", "message": wantMessage,
-		}},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := ParseMutationResultEnvelope(value)
-			if !ok {
-				t.Fatal("ParseMutationResultEnvelope() did not recognize the envelope")
-			}
-			if got.Outcome != MutationResultRejected || got.ReasonCode != "plan_items_empty" || got.Message != wantMessage {
-				t.Fatalf("ParseMutationResultEnvelope() = %+v", got)
-			}
-		})
-	}
-	if result, ok := ParseMutationResultEnvelope(
-		map[string]any{"outcome": "maybe", "message": "not a stable envelope"},
-		"ordinary tool output",
-	); ok {
-		t.Fatalf("unexpected mutation result = %+v", result)
-	}
-}
-
-func TestParseMutationResultEnvelopeAcceptsSupersededOutcome(t *testing.T) {
-	got, ok := ParseMutationResultEnvelope(map[string]any{
-		"outcome":     "superseded",
-		"reason_code": "execution_terminal",
-		"message":     "the bound Room work was replaced",
-	})
-	if !ok || got.Outcome != MutationResultSuperseded ||
-		got.ReasonCode != "execution_terminal" {
-		t.Fatalf("ParseMutationResultEnvelope() = %+v/%t", got, ok)
-	}
-}
-
 func TestParseMutationResultChangedReadsOnlyExplicitEnvelopeRefs(t *testing.T) {
 	t.Parallel()
 

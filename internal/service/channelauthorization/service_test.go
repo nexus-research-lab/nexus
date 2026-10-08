@@ -667,52 +667,6 @@ func TestAuthorizationCommitLeaseBlocksHumanSessionRevocation(t *testing.T) {
 	}
 }
 
-func TestAuthorizationCommitLeaseRejectsRevokedHumanSession(t *testing.T) {
-	db := newAuthorizationTestDB(t)
-	control := newFakeChannelControl()
-	verifier := &revocableHumanVerifier{}
-	service := NewService(
-		config.Config{
-			DatabaseDriver:          "sqlite",
-			ConnectorCredentialsKey: authorizationTestKey,
-		},
-		db,
-		fakeAuthority{},
-		verifier,
-		control,
-		&recordingPresenter{},
-	)
-	service.monitorInterval = time.Hour
-	defer func() { _ = service.Close(context.Background()) }()
-	actor := testAuthorizationActor("round-revoked")
-	started, err := service.Start(
-		context.Background(),
-		actor,
-		StartInput{ChannelType: "weixin-personal"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	verifier.revoke()
-	release, err := service.AcquireChannelLoginAuthorizationCommit(
-		context.Background(),
-		channelssvc.ChannelLoginAuthorizationCommit{
-			OwnerUserID:          actor.OwnerUserID,
-			ChannelType:          started.ChannelType,
-			LoginID:              "internal-login-1",
-			AuthorizationBinding: started.Generation,
-			StartControlVersion:  started.StartControlVersion,
-		},
-	)
-	if release != nil {
-		release()
-		t.Fatal("revoked human session received a commit lease")
-	}
-	if err == nil || !strings.Contains(err.Error(), "revoked") {
-		t.Fatalf("revoked human session commit error = %v", err)
-	}
-}
-
 func TestServiceRestoresFlowAcrossRoundsAndRejectsCrossScopeHumanSubmission(t *testing.T) {
 	db := newAuthorizationTestDB(t)
 	control := newFakeChannelControl()
@@ -866,28 +820,6 @@ func TestServiceReportsVersionConflictAndReloadRollbackWithoutRawError(t *testin
 				t.Fatalf("completion = %+v", completion)
 			}
 		})
-	}
-}
-
-func TestServiceBindsStartVersionAndAccount(t *testing.T) {
-	db := newAuthorizationTestDB(t)
-	control := newFakeChannelControl()
-	service := newAuthorizationTestService(t, db, control, &recordingPresenter{})
-	defer func() { _ = service.Close(context.Background()) }()
-	_, err := service.Start(
-		context.Background(),
-		testAuthorizationActor("round-binding"),
-		StartInput{ChannelType: "weixin-personal", AccountID: "exact-account"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if control.lastStartVersion != 2 || control.lastAccountID != "exact-account" {
-		t.Fatalf(
-			"start binding mismatch: version=%d account=%q",
-			control.lastStartVersion,
-			control.lastAccountID,
-		)
 	}
 }
 

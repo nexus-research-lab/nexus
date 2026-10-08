@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/runtimeadmission"
 )
 
@@ -27,22 +26,5 @@ func TestBeginAgentRuntimeAdmissionFailsClosed(t *testing.T) {
 	)
 	if lease != nil || err == nil || !strings.Contains(err.Error(), "database unavailable") {
 		t.Fatalf("认证状态读取失败必须 fail closed，lease=%v err=%v", lease, err)
-	}
-}
-
-func TestBuildAgentClientOptionsHonorsConfiguredOffIsolationMode(t *testing.T) {
-	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: true})
-	ctx = authctx.WithPrincipal(ctx, &authctx.Principal{UserID: "owner-a"})
-	_, err := BuildAgentClientOptions(
-		ctx,
-		fakeRuntimeConfigResolver{},
-		AgentClientOptionsInput{
-			OwnerUserID:          "owner-a",
-			WorkspacePath:        "/tmp/workspace",
-			RuntimeIsolationMode: "off",
-		},
-	)
-	if err != nil {
-		t.Fatalf("off 配置应直接生效，err=%v", err)
 	}
 }

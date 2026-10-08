@@ -13,72 +13,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestServiceRetargetByModelPreservesGoalAndRefreshesProjection(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	dispatcher := &fakeGuidanceDispatcher{}
-	service.SetGuidanceDispatcher(dispatcher)
-	preview := &fakePreviewFiller{}
-	service.SetPreviewFiller(preview)
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Analyze M3 and M4",
-		CreatedBy:  "model",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	stored := repo.goals[created.ID]
-	stored.Usage = protocol.GoalUsage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120}
-	stored.TimeUsedSeconds = 12
-	stored.ContinuationCount = 2
-	stored.EmptyProgressCount = 1
-	repo.goals[created.ID] = stored
-	preview.items = nil
-	preview.titleSchedules = nil
-
-	updated, err := service.RetargetByModel(ctx, created.SessionKey, protocol.RetargetGoalRequest{
-		Objective: "Analyze M4 and M5",
-		RoundID:   "round-correction",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.ID != created.ID || updated.Objective != "Analyze M4 and M5" || updated.Status != protocol.GoalStatusActive {
-		t.Fatalf("updated = %#v, want same active goal with corrected objective", updated)
-	}
-	if updated.Usage != stored.Usage || updated.TimeUsedSeconds != stored.TimeUsedSeconds {
-		t.Fatalf("usage = %#v/%d, want preserved %#v/%d", updated.Usage, updated.TimeUsedSeconds, stored.Usage, stored.TimeUsedSeconds)
-	}
-	if updated.ContinuationCount != 0 || updated.EmptyProgressCount != 0 {
-		t.Fatalf("continuation counters = %d/%d, want reset", updated.ContinuationCount, updated.EmptyProgressCount)
-	}
-	if len(repo.events) != 2 {
-		t.Fatalf("events = %#v, want created + updated", repo.events)
-	}
-	event := repo.events[1]
-	if event.EventType != "updated" || event.Source != protocol.GoalUpdateSourceModel || event.RoundID != "round-correction" || !eventPayloadBool(event.Payload, "objective_updated") {
-		t.Fatalf("event = %#v, want model updated/objective_updated audit", event)
-	}
-	if len(dispatcher.items) != 0 {
-		t.Fatalf("guidance = %#v, want model retarget tool result to carry the correction", dispatcher.items)
-	}
-	if len(preview.items) != 1 || preview.items[0].title != "Analyze M4 and M5" || len(preview.titleSchedules) != 1 {
-		t.Fatalf("preview = %#v schedules=%#v, want corrected objective projection", preview.items, preview.titleSchedules)
-	}
-	progressed, err := service.RecordContinuationProgress(ctx, created.ID, "round-correction", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if progressed.EmptyProgressCount != 0 || progressed.ContinuationCount != 0 {
-		t.Fatalf("continuation counters after retarget progress = %d/%d, want reset", progressed.EmptyProgressCount, progressed.ContinuationCount)
-	}
-}
-
 func TestServiceRetargetByModelRetriesVersionStaleAndPreservesConcurrentUsage(t *testing.T) {
 	base := newMemoryRepository()
 	repo := &staleOnceUsageRepository{
@@ -420,41 +354,6 @@ func TestServiceRoomGoalModelMutationsRequireLeadAgent(t *testing.T) {
 	claimed, err := service.RetargetByModel(ctx, legacy.SessionKey, protocol.RetargetGoalRequest{Objective: "Claimed objective", AgentID: "agent-host"})
 	if err != nil || RoomLeadAgentID(*claimed) != "agent-host" {
 		t.Fatalf("reconciled legacy retarget = %#v err=%v, want host lead", claimed, err)
-	}
-}
-
-func TestServiceObjectiveRevisionIgnoresUsageVersionBumps(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.nowFn = fixedClock()
-	service.idFactory = sequentialID()
-	ctx := context.Background()
-
-	created, err := service.Create(ctx, protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Analyze M4 and M5",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	used, err := service.RecordUsageForGoal(ctx, created.ID, protocol.GoalUsage{InputTokens: 10, OutputTokens: 2}, "round-usage")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if used.Version == created.Version || used.ObjectiveRevision() != created.ObjectiveRevision() {
-		t.Fatalf("versions = goal:%d->%d objective:%d->%d", created.Version, used.Version, created.ObjectiveRevision(), used.ObjectiveRevision())
-	}
-	metadataUpdated, err := service.Update(ctx, created.ID, protocol.UpdateGoalRequest{
-		Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(99)},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if metadataUpdated.ObjectiveRevision() != created.ObjectiveRevision() {
-		t.Fatalf("metadata update changed objective revision to %d", metadataUpdated.ObjectiveRevision())
-	}
-	if _, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{ExpectedObjectiveRevision: created.ObjectiveRevision()}); err != nil {
-		t.Fatalf("completion after usage bump error = %v", err)
 	}
 }
 

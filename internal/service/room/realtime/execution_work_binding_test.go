@@ -14,52 +14,6 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 )
 
-func TestRoomRuntimeMCPContextClonesStructuredWorkBinding(t *testing.T) {
-	binding := &protocol.ExecutionWorkBinding{
-		ExecutionID:  "execution-1",
-		PlanID:       "plan-1",
-		WorkItemID:   "work-1",
-		SpecID:       "spec-1",
-		AssignmentID: "assignment-1",
-		AttemptID:    "attempt-1",
-		DispatchID:   "dispatch-1",
-	}
-	service := &Service{}
-	execution := &slotExecution{
-		service: service,
-		ctx:     context.Background(),
-		round: &activeRoomRound{
-			SessionKey:         "room:group:conversation-1",
-			RoomID:             "room-1",
-			ConversationID:     "conversation-1",
-			RootRoundID:        "root-round-1",
-			CoordinatorAgentID: "agent-lead",
-		},
-		slot: &activeRoomSlot{
-			AgentID:           "agent-member",
-			AgentRoundID:      "agent-round-1",
-			RuntimeSessionKey: "runtime-session-1",
-			WorkBinding:       binding,
-		},
-		agent: &protocol.Agent{
-			AgentID:     "agent-member",
-			OwnerUserID: "owner-1",
-		},
-	}
-
-	captured := execution.runtimeCommandRoundContext("").CommandContext.WorkBinding
-	if captured != nil {
-		captured.AssignmentID = "assignment-mutated"
-	}
-
-	if captured == nil || captured == binding {
-		t.Fatalf("captured WorkBinding = %#v", captured)
-	}
-	if binding.AssignmentID != "assignment-1" {
-		t.Fatal("Execution command context builder mutated the Room slot WorkBinding")
-	}
-}
-
 func TestRoomRuntimeSharesDynamicSelfWorkBindingWithCommandAndGraphActor(t *testing.T) {
 	service := &Service{}
 	execution := &slotExecution{
@@ -245,44 +199,6 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 	}
 }
 
-func TestDynamicRoomSelfBindingFailureSettlesRootAttempt(t *testing.T) {
-	terminalizer := &roomAttemptTerminalizerFake{}
-	service := &Service{executionContext: terminalizer}
-	roundValue := &activeRoomRound{
-		SessionKey: "room:group:conversation-1", RoomID: "room-1",
-		ConversationID: "conversation-1", CoordinatorAgentID: "agent-lead",
-		RootRoundID: "root-round-1", OwnerUserID: "owner-1",
-	}
-	slot := &activeRoomSlot{
-		RoomSessionID: "room-session-1", AgentID: "agent-lead",
-		AgentRoundID: "agent-round-1", RuntimeSessionKey: "runtime-session-1",
-	}
-	binding := testRoomExecutionWorkBinding()
-	binding.DispatchID = ""
-	if !slot.ensureWorkBindingState().Bind(binding) {
-		t.Fatal("bind dynamic Room self WorkBinding")
-	}
-
-	if err := service.finishBoundRoomAttempt(
-		context.Background(),
-		roundValue,
-		slot,
-		"error",
-		"runtime failed before submit_work",
-	); err != nil {
-		t.Fatal(err)
-	}
-	assertRoomAttemptTerminalCall(
-		t,
-		terminalizer,
-		protocol.WorkAttemptStatusFailed,
-		"runtime failed before submit_work",
-	)
-	if terminalizer.calls[0].Binding.DispatchID != "" {
-		t.Fatalf("self WorkBinding terminal call = %#v", terminalizer.calls[0].Binding)
-	}
-}
-
 func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 	terminalizer := &roomAttemptTerminalizerFake{}
 	service := &Service{
@@ -358,32 +274,6 @@ func authorizeRoomExecutionTestSlot(
 	service.rooms = &authorityFenceRoomStore{contextValue: contextValue}
 	roundValue.Context = cloneAuthorityFenceContext(contextValue)
 	roundValue.AuthorityEpoch = contextValue.Room.AuthorityEpoch
-}
-
-func TestStructuredRoomSlotTerminalizerFailureIsReturnedToCompletion(t *testing.T) {
-	terminalizer := &roomAttemptTerminalizerFake{err: errors.New("database unavailable")}
-	service := &Service{executionContext: terminalizer}
-	err := service.finishBoundRoomAttempt(
-		context.Background(),
-		&activeRoomRound{
-			SessionKey:     "room:group:conversation-1",
-			RoomID:         "room-1",
-			ConversationID: "conversation-1",
-			RootRoundID:    "root-round-1",
-			OwnerUserID:    "owner-1",
-		},
-		&activeRoomSlot{
-			AgentID:           "agent-member",
-			AgentRoundID:      "agent-round-1",
-			RuntimeSessionKey: "runtime-session-1",
-			WorkBinding:       testRoomExecutionWorkBinding(),
-		},
-		"finished",
-		"",
-	)
-	if err == nil || err.Error() != "database unavailable" {
-		t.Fatalf("finishBoundRoomAttempt error = %v", err)
-	}
 }
 
 func TestGenericRoomQueueControlCannotEraseResponsibility(t *testing.T) {

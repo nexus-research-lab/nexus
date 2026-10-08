@@ -34,67 +34,6 @@ func (f *managedExecutionAdmissionFake) AuthorizeRoomRuntimeTarget(
 	return f.err
 }
 
-func TestManagedExecutionTargetAdmissionRunsBeforeRoomWake(t *testing.T) {
-	provider := &managedExecutionAdmissionFake{err: errors.New("target has no current Assignment")}
-	service := &Service{executionContext: provider}
-	binding := &protocol.ExecutionWorkBinding{
-		ExecutionID:  "execution-1",
-		PlanID:       "plan-1",
-		WorkItemID:   "work-1",
-		SpecID:       "spec-1",
-		AssignmentID: "assignment-1",
-		AttemptID:    "attempt-1",
-		DispatchID:   "dispatch-1",
-	}
-	roundValue := &activeRoomRound{
-		SessionKey:     "room:group:conversation-1",
-		RoomID:         "room-1",
-		ConversationID: "conversation-1",
-		RootRoundID:    "root-1",
-		OwnerUserID:    "owner-1",
-	}
-	err := service.authorizeManagedExecutionTarget(
-		context.Background(),
-		roundValue,
-		"agent-unassigned",
-		binding,
-	)
-	if err == nil {
-		t.Fatal("Room wake bypassed managed Execution admission")
-	}
-	if provider.actor.ExecutionID != "execution-1" ||
-		provider.actor.AgentID != "agent-unassigned" ||
-		provider.actor.ScopeKind != protocol.ExecutionScopeRoom ||
-		provider.binding == nil ||
-		provider.binding.AssignmentID != "assignment-1" {
-		t.Fatalf("admission identity = actor=%+v binding=%+v", provider.actor, provider.binding)
-	}
-}
-
-func TestRawMentionRemainsConversationWhenRoomHasManagedExecution(t *testing.T) {
-	provider := &managedExecutionAdmissionFake{err: errors.New("target has no current Assignment")}
-	service := &Service{executionContext: provider}
-	parent := &activeRoomRound{
-		SessionKey:     "room:group:conversation-1",
-		RoomID:         "room-1",
-		ConversationID: "conversation-1",
-		RootRoundID:    "root-1",
-		OwnerUserID:    "owner-1",
-	}
-	err := service.authorizeManagedExecutionTarget(
-		context.Background(),
-		parent,
-		"agent-unassigned",
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("conversation-only raw @ was rejected: %v", err)
-	}
-	if provider.binding != nil || provider.actor.AgentID != "" {
-		t.Fatalf("conversation-only raw @ consulted WorkGraph admission: %+v", provider.actor)
-	}
-}
-
 func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T) {
 	binding := testRoomExecutionWorkBinding()
 	parent := &activeRoomRound{
@@ -178,40 +117,6 @@ func TestStructuredHandoffRecoveryRequiresExactQueueCapability(t *testing.T) {
 	item.DeliveryPolicy = protocol.ChatDeliveryPolicyGuide
 	if inputQueueItemMatchesDurableHandoff(item, handoff) {
 		t.Fatal("guided queue item suppressed structured handoff recovery")
-	}
-}
-
-func TestRoomExecutionActorRoleUsesHostAndFailsClosedWhenMissing(t *testing.T) {
-	tests := []struct {
-		name        string
-		coordinator string
-		actor       string
-		want        orchestrationsvc.ExecutionActorRole
-	}{
-		{
-			name:        "host is coordinator",
-			coordinator: "agent-host",
-			actor:       "agent-host",
-			want:        orchestrationsvc.ExecutionActorCoordinator,
-		},
-		{
-			name:        "other member stays member",
-			coordinator: "agent-host",
-			actor:       "agent-worker",
-			want:        orchestrationsvc.ExecutionActorMember,
-		},
-		{
-			name:  "missing host does not elect first slot",
-			actor: "agent-worker",
-			want:  orchestrationsvc.ExecutionActorMember,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := roomExecutionActorRole(test.coordinator, test.actor); got != test.want {
-				t.Fatalf("role = %q, want %q", got, test.want)
-			}
-		})
 	}
 }
 

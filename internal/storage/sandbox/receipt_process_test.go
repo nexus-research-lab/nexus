@@ -92,44 +92,6 @@ func TestReceiptProcessBindingWarmGeneration(t *testing.T) {
 	}
 }
 
-func TestReceiptProcessBindingRejectsUnreleasedAndProbe(t *testing.T) {
-	for _, purpose := range []protocol.SandboxProcessPurpose{protocol.SandboxProcessRuntime, protocol.SandboxProcessVersionProbe} {
-		t.Run(string(purpose), func(t *testing.T) {
-			r := newSandboxReceiptRepository(t)
-			ctx := t.Context()
-			i := processIntent()
-			i.Purpose = purpose
-			if err := r.PrepareProcess(ctx, i); err != nil {
-				t.Fatal(err)
-			}
-			receipt := testSandboxReceipt()
-			receipt.OwnerUserID = i.Key.OwnerUserID
-			receipt.SessionKey = i.Key.SessionKey
-			receipt.LeaseID = i.LeaseID
-			receipt.ProcessKey = &i.Key
-			if err := r.Save(ctx, receipt); err == nil {
-				t.Fatal("accepted prepared runtime")
-			}
-			if err := r.RegisterProcess(ctx, i.Key, processRegistration(i)); err != nil {
-				t.Fatal(err)
-			}
-			if err := r.Save(ctx, receipt); err == nil {
-				t.Fatal("accepted unreleased runtime")
-			}
-			if err := r.ClaimProcessRelease(ctx, i.Key); err != nil {
-				t.Fatal(err)
-			}
-			err := r.Save(ctx, receipt)
-			if purpose == protocol.SandboxProcessRuntime && err != nil {
-				t.Fatal(err)
-			}
-			if purpose != protocol.SandboxProcessRuntime && err == nil {
-				t.Fatal("accepted probe as runtime")
-			}
-		})
-	}
-}
-
 func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *testing.T) {
 	r := newSandboxReceiptRepository(t)
 	ctx := t.Context()

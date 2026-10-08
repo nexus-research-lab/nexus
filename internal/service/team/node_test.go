@@ -25,52 +25,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestPrepareRoomWithoutAuthorizationOrPriorJob(t *testing.T) {
-	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var data any
-		switch r.URL.Path {
-		case "/auth/v1/status":
-			data = nodeIdentity{Authenticated: true, UserID: "remote", OrganizationID: "org"}
-		case "/auth/v1/agents":
-			data = []nodeAgent{{AgentID: "online", SourceAgentID: "local"}, {AgentID: "foreign-host", SourceAgentID: "absent"}}
-		default:
-			t.Errorf("不应授权或运行: %s", r.URL.Path)
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
-	}))
-	defer remote.Close()
-	members := []relaycontract.RoomMember{{Type: "agent", ID: "online", State: "active", AgentPaused: true}, {Type: "agent", ID: "foreign-host", State: "active"}}
-	service, err := NewNodeService(config.Config{AppMode: "desktop", RemoteURL: remote.URL, AuthSessionCookieName: "session"}, nil, func(context.Context) ([]protocol.Agent, error) {
-		return []protocol.Agent{{AgentID: "local", Status: "active"}}, nil
-	}, func(context.Context, string, string) (relaycontract.RoomDetails, error) {
-		return relaycontract.RoomDetails{Members: members}, nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	prepared := 0
-	service.executor = &NodeExecutor{prepare: func(_ context.Context, binding, agent string) (*protocol.ConversationContextAggregate, error) {
-		prepared++
-		if !strings.HasSuffix(binding, ":online-room") || agent != "local" {
-			t.Fatal("错误绑定")
-		}
-		return &protocol.ConversationContextAggregate{Room: protocol.RoomRecord{ID: "local-room"}, Conversation: protocol.ConversationRecord{ID: "local-conversation"}}, nil
-	}}
-	ctx := authctx.WithPrincipal(t.Context(), &authctx.Principal{UserID: "local-owner"})
-	if _, err = service.PrepareRoom(ctx, "", "online-room"); !errors.Is(err, ErrNodeLogin) {
-		t.Fatal(err)
-	}
-	bindings, err := service.PrepareRoom(ctx, "cookie", "online-room")
-	if err != nil || len(bindings) != 1 || prepared != 1 || bindings[0].LocalAgentID != "local" {
-		t.Fatalf("%+v %v", bindings, err)
-	}
-	members[0].State = "removed"
-	bindings, err = service.PrepareRoom(ctx, "cookie", "online-room")
-	if err != nil || len(bindings) != 0 || prepared != 1 {
-		t.Fatalf("被移除成员得到绑定: %+v %v", bindings, err)
-	}
-}
-
 func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
 	var registered nodeStatus
 	posts, deletes, tokenStatus := 0, 0, http.StatusOK

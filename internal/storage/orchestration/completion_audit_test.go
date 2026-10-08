@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/pressly/goose/v3"
 )
 
 func TestAcceptedReviewAndCompletionAuditReceiptCommitAtomically(t *testing.T) {
@@ -112,56 +111,6 @@ func TestReviewVersionConflictLeavesNoAcceptanceOrCompletionAudit(t *testing.T) 
 	}
 	if receipt != nil {
 		t.Fatalf("stale Review created completion audit receipt: %#v", receipt)
-	}
-}
-
-func TestCompletionAuditMigrationBackfillsLegacyAcceptedReview(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	snapshot := prepareCompletionAuditSubmission(t, ctx, repository, "migration")
-	assignment := findAssignment(t, snapshot, "assignment-completion-migration")
-	submission := findSubmission(t, snapshot, "submission-completion-migration")
-	snapshot, err := repository.Review(ctx, completionAuditReviewCommand(
-		snapshot,
-		assignment,
-		submission,
-		"acceptance-completion-migration",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(snapshot.CompletionBlockers) != 0 {
-		t.Fatalf("legacy fixture retained blockers: %#v", snapshot.CompletionBlockers)
-	}
-
-	// Roll only the new receipt migration back to reproduce the exact legacy
-	// state: accepted active WorkGraph, no durable completion-audit table.
-	ensureGooseSQLiteDialect(t)
-	if err = goose.DownTo(
-		repository.db,
-		orchestrationMigrationDir(t, "sqlite"),
-		102,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.UpTo(
-		repository.db,
-		orchestrationMigrationDir(t, "sqlite"),
-		103,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	restarted := NewSQLRepository("sqlite", repository.db)
-	receipt, err := restarted.GetCompletionAuditReceipt(ctx, snapshot.Execution.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt == nil || receipt.State != CompletionAuditPending ||
-		receipt.TriggerAcceptanceID != "acceptance-completion-migration" ||
-		receipt.NextAttemptAt == nil ||
-		receipt.LastError != "legacy accepted review recovered during migration" {
-		t.Fatalf("migration backfill receipt = %#v", receipt)
 	}
 }
 

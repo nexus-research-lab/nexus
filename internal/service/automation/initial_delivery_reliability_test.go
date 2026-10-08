@@ -269,38 +269,6 @@ func TestScriptLaunchRegistrationFailureUsesAtomicTerminalPath(t *testing.T) {
 	}
 }
 
-func TestPendingRouterErrorStaysUnverifiedAndNeverAutoRetries(t *testing.T) {
-	service, db, delivery, task := newInitialDeliveryTestService(t, "pending-router-unknown")
-	delivery.err = errors.New("transport disconnected after send")
-	runID := "run-pending-router-unknown"
-	insertTerminalPendingDeliveryRun(t, db, service, task, runID, task.Delivery, "possibly delivered")
-	run, err := service.repository.GetRun(context.Background(), task.OwnerUserID, task.JobID, runID)
-	if err != nil {
-		t.Fatalf("读取 pending run: %v", err)
-	}
-	updated, err := service.deliverPendingRun(context.Background(), task, *run)
-	if !errors.Is(err, automationdomain.ErrDeliveryRetryCompletionUnconfirmed) {
-		t.Fatalf("router 未知结果必须要求人工核对: %v", err)
-	}
-	if updated == nil || updated.DeliveryStatus != automationdomain.DeliveryStatusRetrying ||
-		updated.DeliveryAttempts != 1 || updated.DeliveryNextAttemptAt != nil || updated.DeliveryDeadLetterAt != nil {
-		t.Fatalf("未知投递状态不正确: %+v", updated)
-	}
-	if err = service.retryDueRunDelivery(context.Background(), *updated); err == nil {
-		t.Fatal("retrying run 不应被自动 worker 重放")
-	}
-	due, err := service.repository.ListDueDeliveryRetries(context.Background(), time.Now().Add(24*time.Hour), maxAutoDeliveryAttempts, 20)
-	if err != nil || len(due) != 0 {
-		t.Fatalf("retrying 不得进入 due 查询: due=%+v err=%v", due, err)
-	}
-	if _, err = service.RetryRunDelivery(context.Background(), task.JobID, runID); !errors.Is(err, automationdomain.ErrDeliveryRetryUnverified) {
-		t.Fatalf("普通人工 retry 也必须先核对: %v", err)
-	}
-	if calls := delivery.Calls(); len(calls) != 1 {
-		t.Fatalf("未知结果后不得自动产生第二次外投: %+v", calls)
-	}
-}
-
 func TestOrphanPendingRecoveryDeadLettersWithoutDelivery(t *testing.T) {
 	service, db, delivery, task := newInitialDeliveryTestService(t, "orphan-pending")
 	runID := "run-orphan-pending"

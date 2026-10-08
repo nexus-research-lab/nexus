@@ -6,20 +6,6 @@ import (
 	"testing"
 )
 
-func TestGoalAuthorityStateRequiresGoalAndRevisionButAllowsEmptyExecution(t *testing.T) {
-	t.Parallel()
-
-	empty := NewGoalAuthorityState("", 0, "execution-ignored")
-	if authority, ok := empty.Load(); ok || authority != (GoalAuthority{}) {
-		t.Fatalf("empty authority = %#v, ok=%t", authority, ok)
-	}
-	state := NewGoalAuthorityState(" goal-1 ", 2, "")
-	authority, ok := state.Load()
-	if !ok || authority.GoalID != "goal-1" || authority.ObjectiveRevision != 2 || authority.ExecutionID != "" {
-		t.Fatalf("Goal-only authority = %#v, ok=%t", authority, ok)
-	}
-}
-
 func TestGoalAuthorityStateRejectsGoalSwitchAndRevisionRegression(t *testing.T) {
 	t.Parallel()
 

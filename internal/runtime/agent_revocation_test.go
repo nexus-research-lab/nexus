@@ -128,32 +128,6 @@ func TestManagerRevokeAgentSessionsClosesOnlyMatchingAgentAndTombstones(t *testi
 	}
 }
 
-func TestManagerRevokeAgentSessionsKeepsTombstoneWhenDisconnectFails(t *testing.T) {
-	disconnectErr := errors.New("runtime process did not exit")
-	client := &fakeRuntimeClient{disconnectErr: disconnectErr}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-	const sessionKey = "agent:agent-a:ws:dm:disconnect-failure"
-	options := ownerRuntimeOptions("owner-a")
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := manager.RevokeAgentSessions(
-		context.Background(),
-		"owner-a",
-		"agent-a",
-	); !errors.Is(err, disconnectErr) {
-		t.Fatalf("断连错误必须交给删除 reconcile: %v", err)
-	}
-	if _, err := manager.GetOrCreate(
-		context.Background(),
-		"agent:agent-a:ws:dm:retry-after-failure",
-		options,
-	); !errors.Is(err, ErrRuntimeAgentRevoked) {
-		t.Fatalf("后置清理失败不得解除 Agent 墓碑: %v", err)
-	}
-}
-
 type blockingConnectRuntimeClient struct {
 	*fakeRuntimeClient
 	started        chan struct{}

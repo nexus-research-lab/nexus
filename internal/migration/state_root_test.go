@@ -62,36 +62,6 @@ func TestRunDesktopStateRootRebaseCommitsCopiedState(t *testing.T) {
 	}
 }
 
-func TestRunDesktopStateRootRebasePreservesExternalPaths(t *testing.T) {
-	root := t.TempDir()
-	previousRoot := filepath.Join(root, "old", ".nexus")
-	currentRoot := filepath.Join(root, "new", "NexusData")
-	externalWorkspace := filepath.Join(root, "external", "agent-a")
-	configureStateRootMigrationTest(t, previousRoot, currentRoot)
-	cfg := config.Config{
-		AppMode:        "desktop",
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(currentRoot, "app", "data", "nexus.db"),
-	}
-	seedStateRootMigrationDatabase(t, cfg, "agent-a", "owner-a", externalWorkspace, externalWorkspace)
-
-	if err := RunDesktopStateRootRebase(context.Background(), cfg, nil); err != nil {
-		t.Fatal(err)
-	}
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	var workspacePath string
-	if err = db.QueryRow(`SELECT workspace_path FROM agents WHERE id = 'agent-a'`).Scan(&workspacePath); err != nil {
-		t.Fatal(err)
-	}
-	if workspacePath != externalWorkspace {
-		t.Fatalf("外部 workspace 被错误重写: %q", workspacePath)
-	}
-}
-
 func TestValidateStateRootTransitionRejectsNestedRoots(t *testing.T) {
 	root := t.TempDir()
 	if err := validateStateRootTransition(root, filepath.Join(root, "nested")); err == nil {

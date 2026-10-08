@@ -38,10 +38,6 @@ func newConnectorsTestConfig(t *testing.T) config.Config {
 	}
 }
 
-func testConnectorCredentialKey() string {
-	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-}
-
 func migrateConnectorsSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 	handlertest.MigrateSQLiteFromDir(t, databaseURL, connectorsTestMigrationDir(t))

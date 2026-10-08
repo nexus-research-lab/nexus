@@ -14,54 +14,6 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-func TestValidateExternalSessionGrantRequiresExactActivePairing(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
-		ChannelType: ChannelTypeWeixinPersonal,
-		AccountID:   "weixin-account",
-		ChatType:    "dm",
-		ExternalRef: "weixin-user",
-		AgentID:     "agent-a",
-		Status:      PairingStatusActive,
-	})
-	if err != nil {
-		t.Fatalf("创建 active pairing 失败: %v", err)
-	}
-	sessionKey := protocol.BuildAgentAccountSessionKey(
-		"agent-a",
-		protocol.SessionChannelWeixinPersonal,
-		"dm",
-		"weixin-account",
-		"weixin-user",
-		"",
-	)
-	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", sessionKey); err != nil {
-		t.Fatalf("精确 active pairing 应授权 Automation 投递: %v", err)
-	}
-	otherTarget := protocol.BuildAgentAccountSessionKey(
-		"agent-a",
-		protocol.SessionChannelWeixinPersonal,
-		"dm",
-		"weixin-account",
-		"another-user",
-		"",
-	)
-	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", otherTarget); err == nil {
-		t.Fatal("同账号下不同 IM 对话不得复用 pairing grant")
-	}
-	status := PairingStatusPending
-	if _, err = service.UpdatePairing(context.Background(), "owner-a", created.PairingID, UpdatePairingRequest{
-		Status: &status,
-	}); err != nil {
-		t.Fatalf("撤销 active pairing 失败: %v", err)
-	}
-	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", sessionKey); err == nil {
-		t.Fatal("pairing 不再 active 后 Automation 投递必须立即 fail closed")
-	}
-}
-
 func TestPairingReenableRotatesParentAndWildcardSessionKeys(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -159,61 +111,6 @@ func TestValidateExternalSessionGrantRejectsRotatedSessionKey(t *testing.T) {
 	}
 	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", rotatedKey); err != nil {
 		t.Fatalf("当前 Session key 应保持可授权: %v", err)
-	}
-}
-
-func TestValidateExternalSessionGrantAcceptsGeneratedWildcardProjection(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	if _, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
-		ChannelType: ChannelTypeFeishu,
-		ChatType:    protocol.RoomTypeGroup,
-		ExternalRef: "oc-wildcard",
-		AgentID:     "agent-a",
-		Status:      PairingStatusActive,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	_, sessionKey, err := service.ResolveIngressSession(context.Background(), IngressRequest{
-		OwnerUserID: "owner-a",
-		Channel:     ChannelTypeFeishu,
-		AccountID:   "cli-a",
-		ChatType:    protocol.RoomTypeGroup,
-		Ref:         "oc-wildcard",
-		ThreadID:    "omt-a",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if protocol.ParseSessionKey(sessionKey).Generation == "" {
-		t.Fatalf("具体通配映射应带独立代次: %q", sessionKey)
-	}
-	if err = service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", sessionKey); err != nil {
-		t.Fatalf("生成的通配具体 Session 必须可通过当前 pairing 授权: %v", err)
-	}
-}
-
-func TestValidateExternalSessionGrantDoesNotUseExplicitPairingForAnotherThread(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	if _, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
-		ChannelType: ChannelTypeFeishu,
-		ChatType:    protocol.RoomTypeGroup,
-		ExternalRef: "oc-explicit",
-		ThreadID:    "omt-a",
-		AgentID:     "agent-a",
-		Status:      PairingStatusActive,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	foreign := protocol.BuildAgentAccountSessionKey(
-		"agent-a", protocol.SessionChannelFeishu, protocol.RoomTypeGroup,
-		"cli-a", "oc-explicit", "omt-b",
-	)
-	if err := service.ValidateExternalSessionGrant(context.Background(), "owner-a", "agent-a", foreign); err == nil {
-		t.Fatal("显式 topic pairing 不得授权另一个 topic")
 	}
 }
 

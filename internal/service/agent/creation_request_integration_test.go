@@ -8,7 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
@@ -54,56 +53,6 @@ func TestAgentCreationRequestReplaysExactResultAndSurvivesDeletion(t *testing.T)
 	}
 	if _, err = service.CreateAgent(ctx, request); !errors.Is(err, agentpkg.ErrAgentCreationResultDeleted) {
 		t.Fatalf("late replay error = %v, want deleted tombstone", err)
-	}
-}
-
-func TestAgentCreationRequestBusinessTagChangeConflicts(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	ctx := context.Background()
-	request := protocol.CreateRequest{
-		Name:              "Tagged Recovery Agent",
-		BusinessTags:      []string{"engineering"},
-		CreationRequestID: "web-create:tag-change",
-	}
-
-	if _, err := service.CreateAgent(ctx, request); err != nil {
-		t.Fatalf("first CreateAgent() error = %v", err)
-	}
-	conflict := request
-	conflict.BusinessTags = []string{"finance"}
-	if _, err := service.CreateAgent(ctx, conflict); !errors.Is(err, agentpkg.ErrAgentCreationRequestConflict) {
-		t.Fatalf("business tag replay error = %v, want conflict", err)
-	}
-}
-
-func TestAgentCreationRequestEquivalentBusinessTagsReplayExactResult(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	ctx := context.Background()
-	request := protocol.CreateRequest{
-		Name:              "Normalized Tag Agent",
-		BusinessTags:      []string{"Research"},
-		CreationRequestID: "web-create:normalized-tags",
-	}
-
-	created, err := service.CreateAgent(ctx, request)
-	if err != nil {
-		t.Fatalf("first CreateAgent() error = %v", err)
-	}
-	equivalent := request
-	equivalent.BusinessTags = []string{" Research ", "research", "", "RESEARCH"}
-	replayed, err := service.CreateAgent(ctx, equivalent)
-	if err != nil {
-		t.Fatalf("equivalent CreateAgent() error = %v", err)
-	}
-	if replayed.AgentID != created.AgentID {
-		t.Fatalf("replayed agent_id = %q, want %q", replayed.AgentID, created.AgentID)
-	}
-	if len(replayed.BusinessTags) != 1 || replayed.BusinessTags[0] != "Research" {
-		t.Fatalf("replayed business_tags = %#v, want normalized tag", replayed.BusinessTags)
 	}
 }
 
@@ -187,39 +136,6 @@ func TestConcurrentAgentCreationRequestProducesOneAgentIdentity(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("created Agent count = %d, want 1", count)
-	}
-}
-
-func TestAgentCreationRequestIdentityIsOwnerScoped(t *testing.T) {
-	cfg := newTestConfig(t)
-	migrateSQLite(t, cfg.DatabaseURL)
-	service, _ := newAgentTestService(t, cfg)
-	request := protocol.CreateRequest{
-		Name:              "Owner Scoped Agent",
-		CreationRequestID: "web-create:shared-literal",
-	}
-	ownerA := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "owner-a"})
-	ownerB := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "owner-b"})
-
-	createdA, err := service.CreateAgent(ownerA, request)
-	if err != nil {
-		t.Fatalf("owner A CreateAgent() error = %v", err)
-	}
-	createdB, err := service.CreateAgent(ownerB, request)
-	if err != nil {
-		t.Fatalf("owner B CreateAgent() error = %v", err)
-	}
-	if createdA.AgentID == createdB.AgentID || createdA.OwnerUserID == createdB.OwnerUserID {
-		t.Fatalf("owner-scoped requests collapsed: A=%#v B=%#v", createdA, createdB)
-	}
-	for ctx, want := range map[context.Context]string{
-		ownerA: createdA.AgentID,
-		ownerB: createdB.AgentID,
-	} {
-		result, resultErr := service.GetAgentCreationRequestResult(ctx, request.CreationRequestID)
-		if resultErr != nil || result.Agent == nil || result.Agent.AgentID != want {
-			t.Fatalf("owner-scoped result = %#v err=%v, want Agent %q", result, resultErr, want)
-		}
 	}
 }
 

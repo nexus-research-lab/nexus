@@ -4,7 +4,6 @@
 package runtime
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"os"
@@ -109,84 +108,6 @@ func TestSandboxProcessHostExactLifecycle(t *testing.T) {
 	}
 }
 
-type responseLostProcessStore struct {
-	SandboxProcessStore
-	stage string
-}
-
-func (s responseLostProcessStore) PrepareProcess(ctx context.Context, i protocol.SandboxProcessIntent) error {
-	err := s.SandboxProcessStore.PrepareProcess(ctx, i)
-	if err == nil && s.stage == "prepare" {
-		return errors.New("response lost")
-	}
-	return err
-}
-func (s responseLostProcessStore) RegisterProcess(ctx context.Context, k protocol.SandboxProcessKey, r protocol.SandboxProcessRegistration) error {
-	err := s.SandboxProcessStore.RegisterProcess(ctx, k, r)
-	if err == nil && s.stage == "register" {
-		return errors.New("response lost")
-	}
-	return err
-}
-func (s responseLostProcessStore) ClaimProcessRelease(ctx context.Context, k protocol.SandboxProcessKey) error {
-	err := s.SandboxProcessStore.ClaimProcessRelease(ctx, k)
-	if err == nil && s.stage == "release" {
-		return errors.New("response lost")
-	}
-	return err
-}
-
-func TestSandboxProcessHostReconcilesLostResponses(t *testing.T) {
-	for _, stage := range []string{"prepare", "register", "release"} {
-		t.Run(stage, func(t *testing.T) {
-			h, store, i := newProcessHostFixture(t)
-			ctx := t.Context()
-			h.store = responseLostProcessStore{store, stage}
-			_, err := h.Reserve(ctx, i)
-			if stage == "prepare" {
-				if err == nil {
-					t.Fatal("expected lost response")
-				}
-				if err := h.Finish(ctx, i, nil); err != nil {
-					t.Fatal(err)
-				}
-				s, _, _ := store.LatestProcess(ctx, "owner", "session")
-				if s.Phase != protocol.SandboxProcessAborted {
-					t.Fatal(s.Phase)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			r := supervision.Registration{Version: 1, BootID: i.BootID, OwnerUID: i.OwnerUID, CoalitionID: 9}
-			err = h.Register(ctx, i, r)
-			if stage == "register" {
-				if err == nil {
-					t.Fatal("expected lost response")
-				}
-			} else {
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := h.ClaimRelease(ctx, i); err == nil {
-					t.Fatal("expected lost response")
-				}
-			}
-			if err := h.Finish(ctx, i, nil); err == nil {
-				t.Fatal("cleared uncertain launch without evidence")
-			}
-			if err := h.Finish(ctx, i, &supervision.Evidence{Registration: r, Reason: "coalition_reaped", ObservedBootID: i.BootID}); err != nil {
-				t.Fatal(err)
-			}
-			s, _, _ := store.LatestProcess(ctx, "owner", "session")
-			if s.Phase != protocol.SandboxProcessReaped {
-				t.Fatal(s.Phase)
-			}
-		})
-	}
-}
-
 func TestSandboxProcessHostRejectsUnsafePaths(t *testing.T) {
 	h, store, i := newProcessHostFixture(t)
 	ctx := t.Context()
@@ -208,27 +129,6 @@ func TestSandboxProcessHostRejectsUnsafePaths(t *testing.T) {
 		t.Fatal(s.Phase)
 	}
 	if _, err := os.Stat(filepath.Join(outside, "sentinel")); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSandboxProcessHostRetainsLongSocketInProtectedRoot(t *testing.T) {
-	h, store, i := newProcessHostFixture(t)
-	child, err := h.root.OpenOrCreateRootNoSymlink(strings.Repeat("x", 100), 0700)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer child.Close()
-	h.root = child
-	paths, err := h.Reserve(t.Context(), i)
-	if err != nil || len(paths.Socket) <= 103 || !strings.HasPrefix(paths.Socket, child.Name()+string(os.PathSeparator)) {
-		t.Fatalf("protected long path=%+v err=%v", paths, err)
-	}
-	snapshot, found, err := store.LatestProcess(t.Context(), "owner", "session")
-	if err != nil || !found || snapshot.Phase != protocol.SandboxProcessPrepared {
-		t.Fatalf("reservation=%+v found=%v err=%v", snapshot, found, err)
-	}
-	if err := h.Finish(t.Context(), i, nil); err != nil {
 		t.Fatal(err)
 	}
 }

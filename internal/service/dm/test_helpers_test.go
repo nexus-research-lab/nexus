@@ -106,12 +106,6 @@ func newDMTestConfig(t *testing.T) config.Config {
 	}
 }
 
-func isolateDMRuntimeKindEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("NEXUS_AGENT_RUNTIME_KIND", "")
-	t.Setenv("NEXUS_AGENT_RUNTIME", "")
-}
-
 func mustFindDMSession(
 	t *testing.T,
 	service *Service,

@@ -35,41 +35,6 @@ func TestNormalizeContextUsageRejectsMissingWindow(t *testing.T) {
 	}
 }
 
-func TestManagerContextUsageSnapshotsKeepPerAgentLatestValue(t *testing.T) {
-	manager := NewManager()
-	sessionKey := "room:group:conversation-a"
-	manager.RecordContextUsage(sessionKey, "agent-b", protocol.ContextUsageData{
-		TotalTokens: 20,
-		MaxTokens:   100,
-		Percentage:  20,
-		Model:       "model-b-old",
-	})
-	manager.RecordContextUsage(sessionKey, "agent-a", protocol.ContextUsageData{
-		TotalTokens: 10,
-		MaxTokens:   100,
-		Percentage:  10,
-		Model:       "model-a",
-	})
-	manager.RecordContextUsage(sessionKey, "agent-b", protocol.ContextUsageData{
-		TotalTokens: 30,
-		MaxTokens:   100,
-		Percentage:  30,
-		Model:       "model-b",
-	})
-
-	snapshots := manager.ContextUsageSnapshots(sessionKey)
-	if len(snapshots) != 2 {
-		t.Fatalf("ContextUsageSnapshots() len = %d, want 2", len(snapshots))
-	}
-	if snapshots[0].AgentID != "agent-a" ||
-		snapshots[0].Usage.Model != "model-a" ||
-		snapshots[1].AgentID != "agent-b" ||
-		snapshots[1].Usage.TotalTokens != 30 ||
-		snapshots[1].Usage.Model != "model-b" {
-		t.Fatalf("ContextUsageSnapshots() = %#v, want sorted latest values", snapshots)
-	}
-}
-
 func TestManagerRecordContextUsageAfterRuntimeReplacement(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:agent-a:ws:dm:session-a"

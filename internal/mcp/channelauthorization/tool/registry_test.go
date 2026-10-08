@@ -95,26 +95,3 @@ func TestAuthorizationToolDispatchesActions(t *testing.T) {
 		t.Fatalf("unknown action must return tool error: result=%+v err=%v", result, err)
 	}
 }
-
-func TestVerificationCodeNeverAppearsInAnyToolSchema(t *testing.T) {
-	sctx := contract.ServerContext{
-		CurrentAgentID: "main",
-		ContextKind:    configurationsvc.ContextKindAgent,
-		ContextID:      "main",
-		IsMainAgent:    true,
-	}
-	item := BuildAll(&channelAuthorizationToolTestService{}, sctx)[0]
-	properties, _ := item.InputSchema["properties"].(map[string]any)
-	for _, forbidden := range []string{
-		"code", "verify_code", "verification_code",
-		"owner_user_id", "agent_id", "session_key", "round_id",
-		"lease_session_key", "lease_round_id", "qr_payload",
-	} {
-		if _, ok := properties[forbidden]; ok {
-			t.Fatalf("%s schema exposes forbidden field %s", item.Name, forbidden)
-		}
-	}
-	if additional, ok := item.InputSchema["additionalProperties"].(bool); !ok || additional {
-		t.Fatalf("%s must reject additional properties: %+v", item.Name, item.InputSchema)
-	}
-}

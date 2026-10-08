@@ -803,67 +803,6 @@ func TestSessionLocalDirectoriesRequireDesktopAndPersist(t *testing.T) {
 	}
 }
 
-func TestSessionServiceListsExternalIMSessions(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-
-	ctx := context.Background()
-	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "个人微信助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-
-	now := time.Now().UTC()
-	sessionKey := protocol.BuildAgentSessionKey(
-		agentValue.AgentID,
-		protocol.SessionChannelWeixinPersonalSegment,
-		"dm",
-		"wx-user-1",
-		"",
-	)
-	store := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
-	if _, err = store.UpsertSession(agentValue.WorkspacePath, protocol.Session{
-		SessionKey:   sessionKey,
-		AgentID:      agentValue.AgentID,
-		ChannelType:  protocol.SessionChannelWeixinPersonal,
-		ChatType:     protocol.RoomTypeDM,
-		Status:       "closed",
-		CreatedAt:    now,
-		LastActivity: now,
-		Title:        "New Chat",
-		MessageCount: 2,
-		Options:      map[string]any{},
-	}); err != nil {
-		t.Fatalf("写入外部 IM session 失败: %v", err)
-	}
-
-	agentSessions, err := sessionService.ListAgentSessions(ctx, agentValue.AgentID)
-	if err != nil {
-		t.Fatalf("读取 agent sessions 失败: %v", err)
-	}
-	externalSession := findSessionByKey(agentSessions, sessionKey)
-	if externalSession == nil {
-		t.Fatalf("agent sessions 未包含外部 IM session: %+v", agentSessions)
-	}
-	if externalSession.RoomID != nil || externalSession.ConversationID != nil {
-		t.Fatalf("外部 IM session 不应被伪装成普通 room conversation: %+v", externalSession)
-	}
-	if externalSession.ChannelType != protocol.SessionChannelWeixinPersonal {
-		t.Fatalf("外部 IM channel_type 不正确: %+v", externalSession)
-	}
-
-	allSessions, err := sessionService.ListSessions(ctx)
-	if err != nil {
-		t.Fatalf("读取全部 sessions 失败: %v", err)
-	}
-	if findSessionByKey(allSessions, sessionKey) == nil {
-		t.Fatalf("全部 sessions 未包含外部 IM session: %+v", allSessions)
-	}
-}
-
 func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)

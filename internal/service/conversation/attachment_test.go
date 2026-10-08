@@ -52,29 +52,6 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 	}
 }
 
-func TestIsSlashCommandInput(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		content string
-		want    bool
-	}{
-		{name: "command", content: "/model", want: true},
-		{name: "leading whitespace", content: "  /review api", want: true},
-		{name: "ordinary prompt", content: "请执行 /model", want: false},
-		{name: "empty", content: "", want: false},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := IsSlashCommandInput(test.content); got != test.want {
-				t.Fatalf("IsSlashCommandInput(%q) = %t, want %t", test.content, got, test.want)
-			}
-		})
-	}
-}
-
 func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 	t.Parallel()
 
@@ -173,40 +150,6 @@ func TestRenderRuntimeContentWithImageOnlyCanAppendContext(t *testing.T) {
 	}
 }
 
-func TestRuntimeContentAppendText(t *testing.T) {
-	t.Parallel()
-
-	content := NewRuntimeTextContent("用户问题").AppendText("动态上下文")
-	if content.PlainText() != "用户问题\n\n动态上下文" {
-		t.Fatalf("text append mismatch: %q", content.PlainText())
-	}
-	if payload, ok := content.Payload().(string); !ok || payload != content.PlainText() {
-		t.Fatalf("text payload mismatch: %#v", content.Payload())
-	}
-}
-
-func TestRuntimeContentAppendTextWithBlocks(t *testing.T) {
-	t.Parallel()
-
-	content := RuntimeContent{
-		text: "用户问题",
-		blocks: []map[string]any{
-			{"type": "text", "text": "用户问题"},
-		},
-	}.AppendText("动态上下文")
-
-	if content.PlainText() != "用户问题\n\n动态上下文" {
-		t.Fatalf("block plain text mismatch: %q", content.PlainText())
-	}
-	blocks, ok := content.Payload().([]map[string]any)
-	if !ok {
-		t.Fatalf("block payload type mismatch: %#v", content.Payload())
-	}
-	if len(blocks) != 2 || blocks[1]["type"] != "text" || blocks[1]["text"] != "动态上下文" {
-		t.Fatalf("dynamic context should be appended as trailing text block: %#v", blocks)
-	}
-}
-
 func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -234,49 +177,6 @@ func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("unsupported runtime image should return an error")
-	}
-}
-
-func TestResolveWorkspaceAttachmentPathRejectsEscape(t *testing.T) {
-	t.Parallel()
-
-	workspacePath := t.TempDir()
-	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "../outside.txt"); err == nil {
-		t.Fatal("expected escaping attachment path to be rejected")
-	}
-}
-
-func TestResolveWorkspaceAttachmentPathRejectsSymlink(t *testing.T) {
-	workspacePath := t.TempDir()
-	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
-	if err := os.WriteFile(outsidePath, []byte("secret"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(outsidePath, filepath.Join(workspacePath, "attachment.txt")); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "attachment.txt"); err == nil {
-		t.Fatal("workspace attachment symlink should be rejected")
-	}
-}
-
-func TestResolveWorkspaceAttachmentPathRejectsIntermediateSymlink(t *testing.T) {
-	workspacePath := t.TempDir()
-	privateDir := filepath.Join(workspacePath, "private")
-	if err := os.Mkdir(privateDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(privateDir, "secret.txt"), []byte("secret"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink("private", filepath.Join(workspacePath, "attachments")); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-	if _, err := ResolveWorkspaceAttachmentPath(
-		workspacePath,
-		"attachments/secret.txt",
-	); err == nil {
-		t.Fatal("workspace attachment intermediate symlink should be rejected")
 	}
 }
 

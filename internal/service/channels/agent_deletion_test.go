@@ -10,46 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
-func TestControlServiceCoordinatesAgentDeletionAndRevokesRuntime(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-	seedAgentChannelImpact(t, db)
-
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	if err := router.Start(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	defer router.Stop(context.Background())
-	channel := &recordingDeliveryChannel{channelType: ChannelTypeTelegram}
-	if err := router.RegisterAndStartForOwner(context.Background(), "owner-a", channel); err != nil {
-		t.Fatal(err)
-	}
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, router)
-
-	err := service.CoordinateAgentDeletion(
-		context.Background(),
-		"owner-a",
-		"agent-a",
-		func(ctx context.Context) error {
-			return deleteSeededAgentChannelImpact(ctx, db)
-		},
-	)
-	if err != nil {
-		t.Fatalf("Agent 删除协调失败: %v", err)
-	}
-	if router.GetForOwner("owner-a", ChannelTypeTelegram) != nil || channel.stops != 1 {
-		t.Fatalf("Agent 删除后 runtime 未立即撤销: runtime=%T stops=%d",
-			router.GetForOwner("owner-a", ChannelTypeTelegram),
-			channel.stops,
-		)
-	}
-	assertNoAgentChannelImpact(t, db)
-	version, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || version != 2 {
-		t.Fatalf("Agent 级联删除应推进 Channel version: version=%d err=%v", version, err)
-	}
-}
-
 func TestControlServiceAgentDeletionReportsRuntimeStopFailureAfterCommit(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()

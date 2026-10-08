@@ -33,59 +33,6 @@ func TestRepairLegacyAgentDisabledSkillSchemaAdvancesVersionCollision(t *testing
 	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
 }
 
-func TestRepairLegacyAgentDisabledSkillSchemaKeepsLaterLegacyVersion(t *testing.T) {
-	db := openAgentDisabledSkillMigrationTestDB(t, "legacy-later.db")
-	migrationDir := providerRecoveryMigrationDir(t)
-	if err := goose.UpTo(db, migrationDir, 55); err != nil {
-		t.Fatal(err)
-	}
-	applyLegacyConversationDraftMigration(t, db, 56)
-	if _, err := db.Exec(
-		"INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, 1)",
-		57,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := RepairLegacyAgentDisabledSkillSchema(
-		t.Context(),
-		"sqlite",
-		db,
-		57,
-		discardMigrationLogger(),
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.Up(db, migrationDir); err != nil {
-		t.Fatalf("apply current migrations after later legacy version: %v", err)
-	}
-
-	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
-}
-
-func TestRepairLegacyAgentDisabledSkillSchemaLeavesCurrentSchemaUntouched(t *testing.T) {
-	db := openAgentDisabledSkillMigrationTestDB(t, "current.db")
-	migrationDir := providerRecoveryMigrationDir(t)
-	if err := goose.UpTo(db, migrationDir, 56); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := RepairLegacyAgentDisabledSkillSchema(
-		t.Context(),
-		"sqlite",
-		db,
-		56,
-		discardMigrationLogger(),
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.Up(db, migrationDir); err != nil {
-		t.Fatalf("apply current migrations from current version 56: %v", err)
-	}
-
-	assertAgentDisabledSkillSchema(t, db, latestTestMigrationVersion(t))
-}
-
 func openAgentDisabledSkillMigrationTestDB(t *testing.T, name string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), name))

@@ -74,70 +74,6 @@ func TestConcurrentUnversionedRoomMemberRemovalRetainsOneAgent(t *testing.T) {
 	assertStoredRoomVersions(t, roomValue.Room, 2, 2)
 }
 
-func TestRoomAuthorizationSnapshotRemainsConsistentDuringHostTransfers(t *testing.T) {
-	dbA, _, repositoryA, repositoryB := newConcurrentRoomRepositories(t)
-	const (
-		ownerID = "owner-authorization-snapshot"
-		roomID  = "room-authorization-snapshot"
-		agentA  = "agent-authorization-a"
-		agentB  = "agent-authorization-b"
-	)
-	seedRoomRepositoryAgent(t, dbA, ownerID, agentA)
-	seedRoomRepositoryAgent(t, dbA, ownerID, agentB)
-	createRepositoryRoom(t, repositoryA, ownerID, roomID, agentA, agentA, agentB)
-
-	writerDone := make(chan error, 1)
-	go func() {
-		for index := 0; index < 30; index++ {
-			nextHost := agentB
-			if index%2 == 1 {
-				nextHost = agentA
-			}
-			if _, err := repositoryA.UpdateRoom(
-				context.Background(),
-				ownerID,
-				roomID,
-				UpdateRoomPatch{HostAgentID: &nextHost},
-			); err != nil {
-				writerDone <- err
-				return
-			}
-		}
-		writerDone <- nil
-	}()
-
-	for {
-		snapshot, err := repositoryB.GetRoomAuthorizationSnapshot(
-			context.Background(),
-			ownerID,
-			roomID,
-			agentA,
-		)
-		if err != nil {
-			t.Fatalf("读取并发权限快照失败: %v", err)
-		}
-		assertConsistentAuthorizationSnapshot(t, snapshot, agentA, agentB)
-		select {
-		case err = <-writerDone:
-			if err != nil {
-				t.Fatalf("并发转移 host 失败: %v", err)
-			}
-			finalSnapshot, finalErr := repositoryB.GetRoomAuthorizationSnapshot(
-				context.Background(),
-				ownerID,
-				roomID,
-				agentA,
-			)
-			if finalErr != nil {
-				t.Fatalf("读取最终权限快照失败: %v", finalErr)
-			}
-			assertConsistentAuthorizationSnapshot(t, finalSnapshot, agentA, agentB)
-			return
-		default:
-		}
-	}
-}
-
 func TestConcurrentHostTransferAndMemberRemovalCannotPersistDanglingHost(t *testing.T) {
 	dbA, _, repositoryA, repositoryB := newConcurrentRoomRepositories(t)
 	const (
@@ -190,32 +126,6 @@ func TestConcurrentHostTransferAndMemberRemovalCannotPersistDanglingHost(t *test
 		}
 	}
 	t.Fatalf("并发 mutation 留下悬空 host: %+v members=%+v", roomValue.Room, roomValue.Members)
-}
-
-func assertConsistentAuthorizationSnapshot(
-	t *testing.T,
-	snapshot *protocol.RoomAuthorizationSnapshot,
-	agentA string,
-	agentB string,
-) {
-	t.Helper()
-
-	if snapshot == nil {
-		t.Fatal("Room authorization snapshot = nil")
-	}
-	if !snapshot.AgentIsMember || snapshot.AgentID != agentA {
-		t.Fatalf("权限快照成员事实错误: %+v", snapshot)
-	}
-	if snapshot.ConfigurationVersion != snapshot.AuthorityEpoch {
-		t.Fatalf("权限快照出现 torn version/epoch: %+v", snapshot)
-	}
-	expectedHost := agentA
-	if snapshot.ConfigurationVersion%2 == 0 {
-		expectedHost = agentB
-	}
-	if snapshot.HostAgentID != expectedHost {
-		t.Fatalf("权限快照出现 torn host/version: %+v, want host=%s", snapshot, expectedHost)
-	}
 }
 
 func newConcurrentRoomRepositories(

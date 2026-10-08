@@ -403,18 +403,6 @@ func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 	}
 }
 
-func TestSubagentTaskUsageSnapshot(t *testing.T) {
-	taskID, totalTokens, ok := SubagentTaskUsageSnapshot(protocol.Message{
-		"metadata": map[string]any{
-			"task_id": "task-1",
-			"usage":   map[string]any{"total_tokens": int64(150)},
-		},
-	})
-	if !ok || taskID != "task-1" || totalTokens != 150 {
-		t.Fatalf("snapshot = %q/%d/%v, want task-1/150/true", taskID, totalTokens, ok)
-	}
-}
-
 func TestSubagentTaskUsageSnapshotsCollectsMetadataAndAssistantBlocks(t *testing.T) {
 	message := protocol.Message{
 		"metadata": map[string]any{

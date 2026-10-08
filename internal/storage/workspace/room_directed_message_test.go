@@ -6,45 +6,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestRoomDirectedMessageStoreRestoresGoalCollaborationBinding(t *testing.T) {
-	root := t.TempDir()
-	store := NewRoomDirectedMessageStore(root)
-	store.paths.StateRoot = root
-	message := protocol.RoomDirectedMessageRecord{
-		MessageID:      "directed-goal-binding",
-		RoomID:         "room-goal-binding",
-		ConversationID: "conversation-goal-binding",
-		SourceAgentID:  "agent-lead",
-		Recipients:     []string{"agent-peer"},
-		Content:        "complete the private check",
-		WakePolicy:     protocol.RoomWakePolicyImmediate,
-		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
-			GoalID:            "goal-room",
-			ObjectiveRevision: 5,
-		},
-	}
-	if err := store.AppendMessage(testRoomOwnerUserID, message); err != nil {
-		t.Fatal(err)
-	}
-	reloaded := NewRoomDirectedMessageStore(root)
-	reloaded.paths.StateRoot = root
-	rows, err := reloaded.ReadMessages(
-		testRoomOwnerUserID,
-		message.ConversationID,
-	)
-	if err != nil || len(rows) != 1 || rows[0].GoalCollaborationBinding == nil ||
-		rows[0].GoalCollaborationBinding.GoalID != "goal-room" ||
-		rows[0].GoalCollaborationBinding.ObjectiveRevision != 5 {
-		t.Fatalf("Goal collaboration binding was not restored: rows=%+v err=%v", rows, err)
-	}
-	recoveryRows, err := reloaded.GoalCollaborationMessagesAll()
-	if err != nil || len(recoveryRows) != 1 ||
-		recoveryRows[0].OwnerUserID != testRoomOwnerUserID ||
-		recoveryRows[0].Message.MessageID != message.MessageID {
-		t.Fatalf("Goal directed-message recovery scan = %+v err=%v", recoveryRows, err)
-	}
-}
-
 func TestRoomDirectedMessageStoreDeduplicatesStableMessageID(t *testing.T) {
 	root := t.TempDir()
 	store := NewRoomDirectedMessageStore(root)

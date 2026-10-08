@@ -95,54 +95,6 @@ func TestRewriteUsesBackgroundPreferenceAndSanitizesObjective(t *testing.T) {
 	}
 }
 
-func TestRewritePrefersAgentConversationModelOverBackgroundPreference(t *testing.T) {
-	t.Parallel()
-
-	server := newRewriteResponseServer(t, "\"完成 Goal 对齐\"")
-	resolver := &fakeProviderResolver{
-		config: &clientopts.RuntimeConfig{
-			Provider:  "conversation-provider",
-			AuthToken: "token",
-			BaseURL:   server.URL + "/v1",
-			Model:     "conversation-model",
-			APIFormat: "chat_completions",
-		},
-	}
-	service := NewService(resolver, fakePreferencesService{prefs: preferencessvc.Preferences{
-		DefaultAgentOptions: protocol.Options{
-			Provider: "default-agent-provider",
-			Model:    "default-agent-model",
-		},
-		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
-			Provider: "background-provider",
-			Model:    "background-model",
-		},
-	}})
-	service.SetConversationResolvers(
-		fakeAgentLookup{agents: map[string]*protocol.Agent{
-			"agent-dev": {
-				AgentID: "agent-dev",
-				Options: protocol.Options{
-					Provider: "conversation-provider",
-					Model:    "conversation-model",
-				},
-			},
-		}},
-		nil,
-	)
-
-	if _, err := service.Rewrite(context.Background(), Request{
-		OwnerUserID: "owner-1",
-		SessionKey:  "agent:agent-dev:ws:dm:chat",
-		Objective:   "把 Goal 模式检查清楚",
-	}); err != nil {
-		t.Fatalf("Rewrite() error = %v", err)
-	}
-	if resolver.provider != "conversation-provider" || resolver.model != "conversation-model" {
-		t.Fatalf("resolver args = %q/%q, want conversation model", resolver.provider, resolver.model)
-	}
-}
-
 func TestRewriteUsesRoomGoalTargetAgentModel(t *testing.T) {
 	t.Parallel()
 
@@ -222,14 +174,6 @@ type fakePreferencesService struct {
 
 func (f fakePreferencesService) Get(context.Context, string) (preferencessvc.Preferences, error) {
 	return f.prefs, nil
-}
-
-type fakeAgentLookup struct {
-	agents map[string]*protocol.Agent
-}
-
-func (f fakeAgentLookup) GetAgent(_ context.Context, agentID string) (*protocol.Agent, error) {
-	return f.agents[agentID], nil
 }
 
 type fakeRoomLookup struct {

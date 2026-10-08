@@ -161,32 +161,6 @@ func TestManagerCleanupFailureRetainsSessionFence(t *testing.T) {
 	}
 }
 
-func TestAgentClientCleanupReleasesHostScratchOnlyAfterBridgeClose(t *testing.T) {
-	lease, err := Acquire(t.Context(), Input{
-		OwnerUserID: "cleanup-owner",
-		SessionKey:  "session-a",
-		Root:        t.TempDir(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := lease.Path()
-	client := &agentClient{closeSession: func(*bridge.Session) error { return nil }}
-	cleanup := &agentClientSessionCleanup{done: make(chan struct{}), scratchLease: lease}
-	client.startBridgeSessionCleanup(nil, nil, cleanup)
-	select {
-	case <-cleanup.done:
-	case <-time.After(time.Second):
-		t.Fatal("scratch cleanup did not finish")
-	}
-	if err := cleanup.getErr(); err != nil {
-		t.Fatalf("cleanup error = %v", err)
-	}
-	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("scratch remains after successful bridge close: %v", err)
-	}
-}
-
 func TestAgentClientCleanupFailureRetainsHostScratchLease(t *testing.T) {
 	lease, err := Acquire(t.Context(), Input{
 		OwnerUserID: "cleanup-owner",

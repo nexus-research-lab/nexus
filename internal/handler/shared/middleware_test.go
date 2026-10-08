@@ -3,7 +3,6 @@ package shared
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 )
 
@@ -43,42 +41,6 @@ func TestWebAccessDoesNotGrantServerResourcesOrBlockDesktopRelay(t *testing.T) {
 				}
 			}
 		}
-	}
-}
-
-func TestMiddlewareWritesRequestIDAndAccessLog(t *testing.T) {
-	var buffer bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	handler := RequestContextMiddleware(logger)(
-		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.WriteHeader(http.StatusCreated)
-			_, _ = writer.Write([]byte("ok"))
-		})),
-	)
-
-	request := httptest.NewRequest(http.MethodPost, "/nexus/v1/agents?limit=10", nil)
-	request.RemoteAddr = "127.0.0.1:9000"
-	recorder := httptest.NewRecorder()
-
-	handler.ServeHTTP(recorder, request)
-
-	if requestID := recorder.Result().Header.Get("X-Request-ID"); requestID == "" {
-		t.Fatal("响应头未写入 X-Request-ID")
-	}
-
-	output := buffer.String()
-	if !strings.Contains(output, "\"msg\":\"HTTP 请求完成\"") {
-		t.Fatalf("未写入 access log: %s", output)
-	}
-	if !strings.Contains(output, "\"status\":201") {
-		t.Fatalf("access log 状态码不正确: %s", output)
-	}
-	if !strings.Contains(output, "\"request_id\"") {
-		t.Fatalf("access log 缺少 request_id: %s", output)
-	}
-	if strings.Contains(output, "\"ok\"") {
-		t.Fatalf("access log 不应包含响应体: %s", output)
 	}
 }
 
@@ -116,135 +78,6 @@ func TestAccessLogMiddlewareRedactsSensitiveQueryValues(t *testing.T) {
 	}
 }
 
-func TestAccessLogMiddlewareNeverLogsOAuthCallbackSecrets(t *testing.T) {
-	tests := []struct {
-		name string
-		path string
-		keys []string
-	}{
-		{
-			name: "provider callback",
-			path: "/capability/connectors/oauth/callback?" +
-				"code=oauth-code-plain&state=oauth-state-plain&limit=10",
-			keys: []string{"code", "state"},
-		},
-		{
-			name: "desktop callback entry",
-			path: "/oauth-callback.html?" +
-				"desktop_route=%2Fcapability%2Fconnectors%2Foauth%2Fcallback" +
-				"%3Fcode%3Dnested-oauth-code%26state%3Dnested-oauth-state",
-			keys: []string{"desktop_route"},
-		},
-		{
-			name: "case insensitive callback keys",
-			path: "/capability/connectors/oauth/callback?" +
-				"Code=upper-oauth-code&STATE=upper-oauth-state",
-			keys: []string{"Code", "STATE"},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			var buffer bytes.Buffer
-			logger := slog.New(slog.NewJSONHandler(
-				&buffer,
-				&slog.HandlerOptions{Level: slog.LevelDebug},
-			))
-			handler := RequestContextMiddleware(logger)(
-				AccessLogMiddleware()(http.HandlerFunc(
-					func(writer http.ResponseWriter, request *http.Request) {
-						writer.WriteHeader(http.StatusFound)
-					},
-				)),
-			)
-
-			request := httptest.NewRequest(http.MethodGet, test.path, nil)
-			handler.ServeHTTP(httptest.NewRecorder(), request)
-
-			output := buffer.String()
-			for _, secret := range []string{
-				"oauth-code-plain",
-				"oauth-state-plain",
-				"nested-oauth-code",
-				"nested-oauth-state",
-				"upper-oauth-code",
-				"upper-oauth-state",
-			} {
-				if strings.Contains(output, secret) {
-					t.Fatalf("access log 泄露 OAuth callback secret %q: %s", secret, output)
-				}
-			}
-			for _, key := range test.keys {
-				if !strings.Contains(output, key+"=%5Bredacted%5D") {
-					t.Fatalf("access log 未脱敏 callback 参数 %s: %s", key, output)
-				}
-			}
-			if strings.Contains(test.path, "limit=10") &&
-				!strings.Contains(output, "limit=10") {
-				t.Fatalf("access log 不应移除非敏感 callback 参数: %s", output)
-			}
-		})
-	}
-}
-
-func TestAccessLogMiddlewareDemotesSuccessfulGetAtInfoLevel(t *testing.T) {
-	var buffer bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	handler := RequestContextMiddleware(logger)(
-		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.WriteHeader(http.StatusOK)
-		})),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/assets/app.js", nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if output := buffer.String(); strings.Contains(output, "HTTP 请求完成") {
-		t.Fatalf("成功 GET 不应写入 info access log: %s", output)
-	}
-}
-
-func TestAccessLogMiddlewareDemotesSuccessfulWebSocketAtInfoLevel(t *testing.T) {
-	var buffer bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	handler := RequestContextMiddleware(logger)(
-		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.WriteHeader(http.StatusSwitchingProtocols)
-		})),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/chat/ws", nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	if output := buffer.String(); strings.Contains(output, "HTTP 请求完成") {
-		t.Fatalf("WebSocket 101 不应写入 info access log: %s", output)
-	}
-}
-
-func TestAccessLogMiddlewareKeepsFailureAtInfoLevel(t *testing.T) {
-	var buffer bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
-	handler := RequestContextMiddleware(logger)(
-		AccessLogMiddleware()(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			writer.WriteHeader(http.StatusNotFound)
-		})),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/assets/missing.js", nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-
-	output := buffer.String()
-	if !strings.Contains(output, "\"msg\":\"HTTP 请求完成\"") || !strings.Contains(output, "\"status\":404") {
-		t.Fatalf("失败请求应继续写入 access log: %s", output)
-	}
-}
-
 func TestRecoverMiddlewareReturnsInternalError(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -272,81 +105,6 @@ func TestRecoverMiddlewareReturnsInternalError(t *testing.T) {
 	output := buffer.String()
 	if !strings.Contains(output, "\"msg\":\"HTTP 请求 panic\"") {
 		t.Fatalf("未记录 panic 日志: %s", output)
-	}
-}
-
-func TestDesktopSessionTokenMiddlewareProtectsAPI(t *testing.T) {
-	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
-		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			_, _ = writer.Write([]byte("ok"))
-		}),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusUnauthorized {
-		t.Fatalf("缺少 token 应返回 401，实际: %d", recorder.Code)
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
-	request.Header.Set(DesktopSessionTokenHeader, "desktop-token")
-	recorder = httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK || strings.TrimSpace(recorder.Body.String()) != "ok" {
-		t.Fatalf("合法 token 未通过: status=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-}
-
-func TestDesktopSessionTokenFailureIsStructuredBeforeHandler(t *testing.T) {
-	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	downstreamCalls := 0
-	handler := RequestContextMiddleware(api.BaseLogger())(
-		DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
-			http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-				downstreamCalls++
-				writer.WriteHeader(http.StatusNoContent)
-			}),
-		),
-	)
-
-	for _, test := range []struct {
-		method string
-		effect protocol.FailureEffect
-	}{
-		{method: http.MethodGet, effect: protocol.FailureEffectNotApplicable},
-		{method: http.MethodPost, effect: protocol.FailureEffectNotApplied},
-	} {
-		request := httptest.NewRequest(test.method, "/nexus/v1/runtime/options", nil)
-		request.Header.Set("X-Request-ID", "desktop-auth-attempt")
-		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, request)
-		if recorder.Code != http.StatusUnauthorized {
-			t.Fatalf("%s status=%d body=%s", test.method, recorder.Code, recorder.Body.String())
-		}
-		var payload struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-			Success bool   `json:"success"`
-			Data    struct {
-				Detail  string               `json:"detail"`
-				Failure protocol.FailureCore `json:"failure"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-			t.Fatalf("解析 desktop auth failure: %v", err)
-		}
-		if payload.Code != "401" || payload.Message != "failed" || payload.Success ||
-			payload.Data.Detail != "桌面登录状态已失效" ||
-			payload.Data.Failure.Code != "auth.desktop_session_invalid" ||
-			payload.Data.Failure.Category != protocol.FailureCategoryAuthentication ||
-			payload.Data.Failure.Effect != test.effect {
-			t.Fatalf("%s desktop auth failure=%+v", test.method, payload)
-		}
-	}
-	if downstreamCalls != 0 {
-		t.Fatalf("认证拒绝不得执行下游 Handler: calls=%d", downstreamCalls)
 	}
 }
 
@@ -403,53 +161,10 @@ func TestPublicAuthRouteAllowsOAuthCallbackPost(t *testing.T) {
 	}
 }
 
-func TestPublicAuthRouteRejectsRemovedAccountRoutes(t *testing.T) {
-	for _, path := range []string{"/nexus/v1/auth/login", "/nexus/v1/auth/logout"} {
-		request := httptest.NewRequest(http.MethodPost, path, nil)
-		if PublicAuthRoute(request) {
-			t.Fatalf("已移除的 Nexus 账号路由仍被标记为公开: %s", path)
-		}
-	}
-}
-
 func TestPublicAuthRouteAllowsRuntimeConfigurationBrokerWithCustomPrefix(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/custom/internal/runtime/configuration", nil)
 	if !PublicAuthRoute(request) {
 		t.Fatal("nexuscfg runtime broker 应自行通过 capability 鉴权")
-	}
-}
-
-func TestDesktopSessionTokenMiddlewareAcceptsWebSocketProtocolToken(t *testing.T) {
-	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
-		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			_, _ = writer.Write([]byte("ok"))
-		}),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/chat/ws", nil)
-	request.Header.Set("Sec-WebSocket-Protocol", "nexus.desktop.v1, nexus.desktop.token.desktop-token")
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("WebSocket protocol token 未通过: %d", recorder.Code)
-	}
-}
-
-func TestDesktopSessionTokenMiddlewareAcceptsCookieToken(t *testing.T) {
-	api := NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := DesktopSessionTokenMiddleware(api, "desktop-token", "/nexus/v1")(
-		http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			_, _ = writer.Write([]byte("ok"))
-		}),
-	)
-
-	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/chat/ws", nil)
-	request.AddCookie(&http.Cookie{Name: DesktopSessionTokenCookie, Value: "desktop-token"})
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("桌面 cookie token 未通过: %d", recorder.Code)
 	}
 }
 

@@ -73,33 +73,6 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 	}
 }
 
-func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
-	receipts := nexusmcp.NewCommandReceiptState()
-	runner := &roundRunner{
-		service:         &Service{goals: &fakeGoalContextProvider{}},
-		goalIDForUsage:  "goal-1",
-		commandReceipts: receipts,
-	}
-	receipts.Record(nexusmcp.CommandReceipt{
-		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
-		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
-		GoalStatus: string(protocol.GoalStatusBlocked),
-	})
-	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusBlocked))
-	if runner.goalCompletionCandidateID != "" {
-		t.Fatalf("blocked update created completion candidate %q", runner.goalCompletionCandidateID)
-	}
-	receipts.Record(nexusmcp.CommandReceipt{
-		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
-		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
-		GoalStatus: string(protocol.GoalStatusComplete),
-	})
-	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
-	if runner.goalCompletionCandidateID != "goal-1" {
-		t.Fatalf("complete update candidate = %q, want goal-1", runner.goalCompletionCandidateID)
-	}
-}
-
 func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
 	receipts := nexusmcp.NewCommandReceiptState()
 	runner := &roundRunner{

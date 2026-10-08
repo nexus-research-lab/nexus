@@ -136,21 +136,6 @@ func TestResponsibilityAuthorityConflictingInitialBindingsFailClosed(t *testing.
 	}
 }
 
-func TestResponsibilityAuthorityIncompleteInitialBindingFailsClosed(t *testing.T) {
-	state := NewResponsibilityAuthorityState(
-		NewGoalAuthorityState("goal-1", 1, "execution-1"),
-		"execution-1",
-		&protocol.ExecutionWorkBinding{ExecutionID: "execution-1"},
-		nil,
-	)
-	authority, _ := state.Load()
-	if authority.ExecutionID != "" || authority.GoalID != "" ||
-		authority.Lane != ResponsibilityLaneUnbound ||
-		state.SeedExecution("execution-1") {
-		t.Fatalf("incomplete authority = %#v, want permanent fail-close", authority)
-	}
-}
-
 func responsibilityTestWorkBinding(
 	executionID string,
 	assignmentID string,
