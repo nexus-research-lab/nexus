@@ -48,6 +48,14 @@
 - **局限**：覆盖率只能证明“执行过”，不能证明“断言过”。同一路径上断言不同错误码或边界值的测试可能被一并删除；后续补测试应优先针对未覆盖分支，而不是重复已覆盖路径。
 - `internal/runtime/permission` 的 `TestMemberSessionPermissionDoesNotResolveOtherRoomMember` 在删除前的基线上即约 30% 概率失败：`BindSession` 异步重放已挂起请求，晚于首个请求执行时同一请求会被实时下发与重放各送达一次，测试误把重复事件当成第二个成员的请求。重放本身是至少一次语义，已改为按未见过的 `request_id` 取事件修复。
 
+## 3.2 第二轮架构治理（AGENTS 瘦身、依赖装配、入口规范化、DM/Room 共用宿主）
+
+- **AGENTS.md 瘦身**：60 段产品合同原文迁入对应 `docs/specs/`，新增 `online-team-spec.md`；AGENTS.md 从 50 KB 降到约 9 KB，只保留构建门禁、文档分层、依赖方向、工程原则和合同索引。
+- **依赖装配 fail fast**：DM 与 Room realtime 方法内 134 处接收者与构造器自有存储的 nil 守卫删除；`RequireWiring` 让 app 装配缺依赖时在启动前失败；测试夹具通过 `withConstructorDefaults` 补齐构造器不变量。`rooms`/`agents` 守卫保留，测试用它表达“宿主没有 Room 仓库”。
+- **入口规范化**：`tools/trimcheck` 用类型信息证明 494 处 `strings.TrimSpace` 冗余并删除（另有 48 处自赋值），三平台取交集保证可靠；`make check-normalization` 防回潮。剩余约 8,500 处多数作用于参数或带 tag/反射写入的字段，需要按领域在入口显式清洗后才能继续删除。
+- **DM/Room 共用宿主**：`service/runtimehost.Host` 承载 12 个共用依赖、12 个注入方法与额度、执行上下文、Slash 展开、生图默认、日志、Goal 续跑标记/结算、完成收据、额度标记、用量重试、投递策略和诊断日志等阶段；两个 Service 嵌入它。孪生函数从 44 对（DM 侧约 716 行）降到 30 对（约 515 行）。
+- **DM/Room 剩余重复**：多为 DM `roundRunner` 与 Room `activeRoomSlot` 上的每轮 Goal 状态访问（子任务、完成收据、用量 scope），两者加锁结构不同（`goalUsageMu` 与 `slot.mutable.goal.mu`）。下一步应先抽出共用的每轮 Goal 状态结构并统一加锁，再合并访问方法；用量写入与可信队列受理的差异属于产品语义（execution lane 归属、Room 宿主维护的 Goal 归属），需产品确认后再合并。
+
 ## 4. 未处理热点与建议（按收益排序）
 
 1. **ingress 一次清洗，下游信任**。`protocol.ExecutionWorkBinding.Normalized` 的注释已经写明“清洗只发生在 ingress，下游一律信任已清洗的值”，但大部分领域没有执行这一原则。建议每个领域只在 handler/MCP parser/仓储扫描处裁剪，service 内部删除重复 `TrimSpace`；room/realtime（845 次）与 automation（839 次）收益最大。需逐领域推进并补齐 ingress 测试，不适合机械批量替换。
