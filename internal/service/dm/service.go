@@ -199,10 +199,6 @@ type (
 	ConfigurationRuntimeEnvironmentBuilder = runtimehost.ConfigurationRuntimeEnvironmentBuilder
 	NexusMCPServerBuilder                  = runtimehost.NexusMCPServerBuilder
 	RuntimeSlashExpander                   = runtimehost.RuntimeSlashExpander
-	queueAdmissionStore                    = runtimehost.QueueAdmissionStore
-	usageRecorder                          = runtimehost.UsageRecorder
-	quotaChecker                           = runtimehost.QuotaChecker
-	executionContextProvider               = runtimehost.ExecutionContextProvider
 )
 
 // Service 负责编排 DM 实时链路。

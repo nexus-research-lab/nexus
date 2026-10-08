@@ -21,6 +21,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -137,7 +138,7 @@ func (s *Service) prepareChatExecution(
 		return nil, err
 	}
 	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	deliveryPolicy := safeDMDeliveryPolicy(request)
+	deliveryPolicy := runtimehost.SafeDeliveryPolicy(request.DeliveryPolicy, request.TrustedConfigurationContext)
 	if !request.TrustedConfigurationContext && deliveryPolicy == protocol.ChatDeliveryPolicyGuide {
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
@@ -156,14 +157,6 @@ func (s *Service) prepareChatExecution(
 		initialMessageCount: sessionItem.MessageCount,
 		deliveryPolicy:      deliveryPolicy,
 	}, nil
-}
-
-func safeDMDeliveryPolicy(request Request) protocol.ChatDeliveryPolicy {
-	policy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
-	if !request.TrustedConfigurationContext && policy == protocol.ChatDeliveryPolicyGuide {
-		return protocol.ChatDeliveryPolicyQueue
-	}
-	return policy
 }
 
 func (s *Service) resolveDMSession(
@@ -267,7 +260,7 @@ func (e *dmChatExecution) prepareRunner() error {
 func (e *dmChatExecution) prepareRoundStart() error {
 	if err := e.service.EnsureQuotaAvailable(e.ctx); err != nil {
 		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
-			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
+			runtimehost.RecordGoalQuotaLimit(e.ctx, e.service.goals, e.service.LoggerFor(e.ctx), e.sessionKey, e.request.RoundID, err)
 		}
 		return err
 	}
@@ -445,16 +438,8 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
 		goalUsageStarted:           time.Now(),
 		permissionHandler:          e.request.PermissionHandler,
-		automationRun:              cloneAutomationRunContext(e.request.AutomationRun),
+		automationRun:              e.request.AutomationRun.NormalizedCopy(),
 	}
-}
-
-func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
-	if value == nil {
-		return nil
-	}
-	result := value.Normalized()
-	return &result
 }
 
 func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {

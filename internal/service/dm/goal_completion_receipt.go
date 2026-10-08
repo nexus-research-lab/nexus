@@ -5,13 +5,12 @@ package dm
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (r *roundRunner) rememberGoalCompletionAssistant(message protocol.Message) {
@@ -53,7 +52,7 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		(stored && !refresh) {
 		return
 	}
-	report, reportOK := r.goalCompletionReport(ctx, goalID)
+	report, reportOK := runtimehost.GoalCompletionReport(ctx, r.service.goals, r.service.LoggerFor(ctx), goalID)
 	if !reportOK && stored {
 		return
 	}
@@ -84,27 +83,6 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
 		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 	}
-}
-
-func (r *roundRunner) goalCompletionReport(
-	ctx context.Context,
-	goalID string,
-) (*protocol.GoalUsageReport, bool) {
-	provider, ok := r.service.goals.(dmGoalUsageFinalizationProvider)
-	if !ok {
-		return nil, false
-	}
-	report, err := provider.UsageByGoalID(ctx, goalID)
-	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			r.service.LoggerFor(ctx).Debug("读取 DM Goal 完成收据数据失败", "goal_id", goalID, "err", err)
-		}
-		return nil, false
-	}
-	if !goalsvc.IsCompletionUsageReport(report, goalID) {
-		return nil, false
-	}
-	return report, true
 }
 
 func (r *roundRunner) markGoalCompletionReceiptStored(

@@ -30,6 +30,15 @@ func (c AutomationRunContext) Normalized() AutomationRunContext {
 	return result
 }
 
+// NormalizedCopy 返回规范化后的独立副本；nil 保持 nil。
+func (c *AutomationRunContext) NormalizedCopy() *AutomationRunContext {
+	if c == nil {
+		return nil
+	}
+	result := c.Normalized()
+	return &result
+}
+
 // Valid 表示该 binding 足以作为一次可信 Automation run 身份。
 func (c AutomationRunContext) Valid() bool {
 	normalized := c.Normalized()

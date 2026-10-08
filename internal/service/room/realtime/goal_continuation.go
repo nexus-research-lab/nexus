@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -754,24 +755,6 @@ type durableRoomGoalContinuationLauncher interface {
 	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
 }
 
-type durableRoomGoalContinuationSettler interface {
-	SettleContinuationPlan(context.Context, string, string, int64) error
-}
-
-func settleRoomGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
-	if durable, ok := provider.(durableRoomGoalContinuationSettler); ok {
-		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
-	}
-	return nil
-}
-
-func markRoomGoalContinuationStarted(ctx context.Context, provider goalContinuationProvider, plan protocol.GoalContinuation) error {
-	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
-		return durable.MarkContinuationPlanStarted(ctx, plan)
-	}
-	return nil
-}
-
 func retryRoomGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
 	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
 		return durable.RetryContinuationPlan(ctx, plan, reason)
@@ -816,7 +799,7 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
 		continuationStartAdmission: func(admissionCtx context.Context) error {
-			return markRoomGoalContinuationStarted(admissionCtx, planner, plan)
+			return runtimehost.MarkGoalContinuationStarted(admissionCtx, planner, plan)
 		},
 	})
 }

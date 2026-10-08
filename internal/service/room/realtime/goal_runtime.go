@@ -27,6 +27,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 const (
@@ -214,7 +215,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		receiptRoundID = roomRootRoundID(roundValue)
 	}
 	settleContinuationReceipt := func() error {
-		return settleRoomGoalContinuationAfterRuntime(
+		return runtimehost.SettleGoalContinuationAfterRuntime(
 			ctx,
 			s.goals,
 			goalID,
@@ -459,7 +460,7 @@ func (s *Service) finalizeGoalUsageForSlot(
 	finalAssistant protocol.Message,
 ) {
 	snapshot, _ := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
-	settled := s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool { return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) })
 	slot.setGoalUsageTerminalSettled(settled)
 	if !settled {
 		s.LoggerFor(ctx).Warn(
@@ -471,38 +472,6 @@ func (s *Service) finalizeGoalUsageForSlot(
 		return
 	}
 	closeGoalUsageForSlot(slot)
-}
-
-func (s *Service) settleTerminalGoalUsageSnapshotForSlotWithRetry(
-	ctx context.Context,
-	slot *activeRoomSlot,
-	snapshot goalsvc.RuntimeUsageSnapshot,
-) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Service) waitRoomGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	baseDelay := 20 * time.Millisecond
-	if s != nil && s.goalUsageRetryBaseDelay > 0 {
-		baseDelay = s.goalUsageRetryBaseDelay
-	}
-	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
 }
 
 func (s *Service) recordGoalUsageLimitForSlot(
@@ -860,11 +829,9 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 				return false
 			}
 			if !slot.goalUsageTerminalSettled() {
-				if !s.settleTerminalGoalUsageSnapshotForSlotWithRetry(
-					ctx,
-					slot,
-					goalsvc.RuntimeUsageSnapshot{Terminal: true},
-				) {
+				if !runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool {
+					return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, goalsvc.RuntimeUsageSnapshot{Terminal: true})
+				}) {
 					return false
 				}
 				slot.setGoalUsageTerminalSettled(true)
@@ -891,7 +858,7 @@ func (s *Service) finalizeCompletedRoomGoalWithRetry(
 	roundID string,
 ) bool {
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
 			return false
 		}
 		report, err := finalizer.UsageByGoalID(ctx, goalID)
@@ -1264,7 +1231,7 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 		GoalSessionKey:    goalUsageSessionKeyForRoomSlot(slot, goalSessionKey),
 	}
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
 			return false
 		}
 		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
@@ -1315,7 +1282,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				err    error
 			)
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
 					break
 				}
 				result, err = s.persistSubagentGoalUsageObservationForSlot(
@@ -1484,7 +1451,7 @@ func (s *Service) activateGoalUsageForSlot(
 			}
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
 					return ctx.Err()
 				}
 				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
