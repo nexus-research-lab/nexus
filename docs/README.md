@@ -1,8 +1,10 @@
 # Nexus 文档
 
+- [桌面沙箱与一次性审批](guides/desktop-sandbox.md)
+
 本目录收录面向用户、运维人员、集成开发者和贡献者的文档。中文是当前主要维护语言，对外入口和关键指南会逐步提供英文版本。
 
-仓库只记录当前行为。历史实施计划、一次性审计、专利草稿和本地 worktree 记录不进入公开文档目录。
+产品指南与维护者规范记录当前行为。明确授权保留的在研改造资料集中在 explorations，标注 non-normative，并与当前规范分开；其历史证据不得作为已交付行为引用。
 
 ## 文档入口
 
@@ -30,6 +32,7 @@
 
 - [工作区隔离与多用户运行时规范](./specs/workspace-isolation-spec.md)
 - [运行时人工交互规范](./specs/permission-runtime-spec.md)
+- [桌面沙箱当前规范](./specs/desktop-sandbox-spec.md)
 - [消息处理规范](./specs/message-processing-spec.md)
 - [失败解释与恢复基础协议](./specs/failure-recovery-spec.md)
 - [Session Key 统一规范](./specs/session-key-spec.md)
@@ -59,14 +62,18 @@
 
 `/nexus/v1` 下的 HTTP 与 WebSocket 路由用于连接 Nexus 后端、Web 客户端和桌面宿主，当前没有作为稳定的第三方 API 发布。路由真相源位于 [`internal/app/server/routes.go`](../internal/app/server/routes.go)，不要另行维护容易漂移的端点清单。
 
+## 在研改造资料
+
+- [桌面沙箱：现状评估、Codex 对照、开发计划与验收](./explorations/desktop-sandbox/README.md)（non-normative）。
 ## IM 投递回传
 
 - [当前通讯合同](specs/platform-communication-spec.md)
 - [本地与真实通道验收](testing/im-delivery-replies.md)
 
+
 ## 文档维护规则
 
-- 只描述默认分支已经存在的行为。
+- 产品指南与当前规范只描述已实现行为，并明确分支、版本与部署前提。
 - 明确标注部署前置条件和安全边界。
 - 链接到代码真相源，避免复制容易漂移的清单。
-- 提案、迁移草稿和评审记录放在 issue 或 pull request 中，不进入公开文档目录。
+- 一般提案、迁移草稿和评审记录放在 issue 或 pull request 中；已授权的在研专题通过独立入口维护，不混入当前规范。

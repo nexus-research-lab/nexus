@@ -1,0 +1,10 @@
+{
+	"Path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+	"Version": "v0.1.34-0.20260916013218-eeaff7df69f3",
+	"Time": "2026-09-16T01:32:18Z",
+	"Dir": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260916013218-eeaff7df69f3",
+	"GoMod": "/Users/berhand/program/go/pkg/mod/cache/download/github.com/nexus-research-lab/nexus-agent-sdk-bridge/@v/v0.1.34-0.20260916013218-eeaff7df69f3.mod",
+	"GoVersion": "1.24.0",
+	"Sum": "h1:txRuwSPedbxkbZEPNilyj5BxoT2/de6t6ADnhxNI0X4=",
+	"GoModSum": "h1:vrO/rqDQJM2orurZpB49MfPX4LjSNlb6DQZAmELJw1Y="
+}

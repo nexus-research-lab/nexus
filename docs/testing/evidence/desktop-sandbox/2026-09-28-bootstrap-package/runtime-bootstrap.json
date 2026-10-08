@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "relative_path": "bin/nexus-runtime-bootstrap",
+  "bridge_version": "v0.1.34-0.20260928032121-5e6db3dc4bef",
+  "architecture": "arm64",
+  "sha256": "eb85b320eb6890a1f5c4144463ec08f79a3c13d205d1ea03c7e97e34eaf314ec"
+}

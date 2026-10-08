@@ -1,0 +1,129 @@
+{
+  "recordedAt": "2026-09-27T21:05:16.643890+00:00",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "architecture": "arm64",
+  "releaseAccepted": false,
+  "provider": {
+    "name": "third-party Anthropic-compatible gateway",
+    "actualModel": "kimi-for-coding",
+    "officialClaudeAuthentication": false
+  },
+  "sourceTreesAtBuild": "clean",
+  "builds": [
+    {
+      "source": "5c51baa09d52cf9c7ec3534a1a729d4251c59d60",
+      "root": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-switch-fixed-tqyqr_y1",
+      "sdk": "5a937a18355c94d8766458b705d4b9eef7bd8a23",
+      "bridge": {
+        "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "version": "v0.1.34-0.20260927182153-4b2972f09143",
+        "sum": "h1:61JYZ5QUkuhaEb1Y0Bxe17ETd6CYolEQVQgZdb+bNRc="
+      },
+      "app": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-switch-fixed-tqyqr_y1/app/Nexus.app",
+      "bundleID": "com.nexus.sandbox-switch-qa",
+      "buildLog": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-switch-fixed-tqyqr_y1/build-complete.log",
+      "signature": "ad-hoc",
+      "codesignDeepStrictVerified": true,
+      "nxsInput": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-switch-fixed-tqyqr_y1/runtime-input/nxs",
+      "nxsInputSHA256": "2cc81e4cb7a97393020dd6c58b3b83455e3f08adabe1a277507932d1bd956296",
+      "rgInputSHA256": "35ac582b4bd7897de22234f78de14723a4c2e6a60eb5c889bf92073cab542f53",
+      "bundledNxsSHA256": "b013bc086aae6fe72e90538fa3d87d143621df6efe9be8f36ed48ea7ebdf7ed9",
+      "sidecarSHA256": "d55ee9f9262b202f874a9d75f7b3ce2cd190e7418b468d6febc7fe44ae8a1c18",
+      "scope": "native App plus HTTP/WebSocket; no UI clicks in this batch"
+    },
+    {
+      "source": "259ccda2de7c93777628377f70f05229157ef81f",
+      "root": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-reconnect-fixed-zg8enqo0",
+      "sdk": "5a937a18355c94d8766458b705d4b9eef7bd8a23",
+      "bridge": {
+        "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "version": "v0.1.34-0.20260927182153-4b2972f09143",
+        "sum": "h1:61JYZ5QUkuhaEb1Y0Bxe17ETd6CYolEQVQgZdb+bNRc="
+      },
+      "app": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-reconnect-fixed-zg8enqo0/app/Nexus.app",
+      "bundleID": "com.nexus.sandbox-switch-qa",
+      "buildLog": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-reconnect-fixed-zg8enqo0/build.log",
+      "signature": "ad-hoc",
+      "codesignDeepStrictVerified": true,
+      "nxsInput": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-switch-fixed-tqyqr_y1/runtime-input/nxs",
+      "nxsInputSHA256": "2cc81e4cb7a97393020dd6c58b3b83455e3f08adabe1a277507932d1bd956296",
+      "rgInputSHA256": "35ac582b4bd7897de22234f78de14723a4c2e6a60eb5c889bf92073cab542f53",
+      "bundledNxsSHA256": "b013bc086aae6fe72e90538fa3d87d143621df6efe9be8f36ed48ea7ebdf7ed9",
+      "sidecarSHA256": "bee3eb7c9a9eb24c178a606b577705c6da67b7e3b87c042c41cec5d4d7424f56",
+      "scope": "native App plus HTTP/WebSocket; no UI clicks in this batch"
+    }
+  ],
+  "baseline": {
+    "checks": 48,
+    "mandatoryPassedNames": 689,
+    "binarySHA256": "afe33b70a921d29bd6e56b5c904e46ea55edb36b7695b07f0dc7c1f7de2e87ae",
+    "note": "The App reuses the earlier fixed SDK 5a937a18 build input; the later baseline rebuild has its own recorded binary hash."
+  },
+  "verification": {
+    "senderRegressionBeforeFix": "Both cancellation cases failed on the previous implementation (canceled write admitted or healthy connection poisoned).",
+    "focusedPackages": "GOWORK=off go test ./internal/handler/shared ./internal/handler/websocket -count=1: passed",
+    "senderRace": "GOWORK=off go test -race ./internal/handler/shared -run TestWebSocketSender -count=20: passed",
+    "incrementalGo": "GOWORK=off make check-go: passed",
+    "architecture": "GOWORK=off make check-architecture: passed",
+    "secretScan": {
+      "desktopAndProviderValuesMatched": false,
+      "archivedConnectionsOrDatabase": false
+    }
+  },
+  "archives": {
+    "app-acceptance-logs.tar.gz": {
+      "sha256": "abb6dde3ef183d1f4d7a85b7c4d14c391524ec28ded3f46755c7a7fb1d299907",
+      "bytes": 243921
+    },
+    "baseline-logs.tar.gz": {
+      "sha256": "6c30ac9a26759ac48c90006ac82b1eba5b217a0d0fa89a5825887153c3d65e62",
+      "bytes": 84232
+    },
+    "switch-baseline-logs.tar.gz": {
+      "sha256": "bdf05ca78898df96715e3307d96b06f7a540595369ffb315cf5e30a06d1ea6d1",
+      "bytes": 85092
+    }
+  },
+  "appLogEntries": [
+    "switch-source-5c51baa09/contract-after-network-cancel-events.json",
+    "switch-source-5c51baa09/contract-boundary-full-access-events.json",
+    "switch-source-5c51baa09/contract-boundary-restricted-events.json",
+    "switch-source-5c51baa09/contract-boundary-restricted-return-events.json",
+    "switch-source-5c51baa09/contract-cancel-network-events.json",
+    "switch-source-5c51baa09/contract-cancel-recovery-probe-events.json",
+    "switch-source-5c51baa09/contract-fixed-claude-events.json",
+    "switch-source-5c51baa09/contract-fixed-full-access-events.json",
+    "switch-source-5c51baa09/contract-fixed-nxs-events.json",
+    "switch-source-5c51baa09/contract-fixed-nxs-return-events.json",
+    "switch-source-5c51baa09/contract-fixed-restricted-return-events.json",
+    "switch-source-5c51baa09/contract-network-allow-once-events.json",
+    "switch-source-5c51baa09/contract-network-deny-again-events.json",
+    "switch-source-5c51baa09/contract-network-deny-events.json",
+    "switch-source-5c51baa09/contract-room-allow-events.json",
+    "switch-source-5c51baa09/contract-room-deny-events.json",
+    "switch-source-5c51baa09/app-contract.log",
+    "switch-source-5c51baa09/build.log",
+    "switch-source-5c51baa09/build-complete.log",
+    "reconnect-source-259ccda2d/contract-after-cancel-reconnect-1-events.json",
+    "reconnect-source-259ccda2d/contract-after-cancel-reconnect-2-events.json",
+    "reconnect-source-259ccda2d/contract-cancel-reconnect-1-events.json",
+    "reconnect-source-259ccda2d/contract-cancel-reconnect-2-events.json",
+    "reconnect-source-259ccda2d/contract-claude-boundary-default-events.json",
+    "reconnect-source-259ccda2d/contract-claude-boundary-full-events.json",
+    "reconnect-source-259ccda2d/contract-claude-boundary-return-events.json",
+    "reconnect-source-259ccda2d/contract-nxs-final-return-events.json",
+    "reconnect-source-259ccda2d/app-contract.log",
+    "reconnect-source-259ccda2d/build.log",
+    "clients/nexus-app-contract.cjs",
+    "clients/nexus-app-switch-acceptance.cjs",
+    "clients/nexus-app-boundary-acceptance.cjs",
+    "clients/nexus-app-room-approval.cjs",
+    "clients/nexus-app-network-acceptance.cjs",
+    "clients/nexus-app-background-approval.cjs",
+    "clients/nexus-app-cancel-approval.cjs",
+    "clients/nexus-app-cancel-reconnect.cjs",
+    "clients/nexus-app-claude-access.cjs",
+    "clients/nexus-app-contract-shutdown.py",
+    "clients/nexus-app-contract-launch.py"
+  ]
+}

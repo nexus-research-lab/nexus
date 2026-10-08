@@ -1,0 +1,8 @@
+{"Time":"2026-09-15T17:17:41.237248+08:00","Action":"start","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"}
+{"Time":"2026-09-15T17:17:42.240137+08:00","Action":"run","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Test":"TestInvalidFileResourcesCannotFallback"}
+{"Time":"2026-09-15T17:17:42.240715+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Test":"TestInvalidFileResourcesCannotFallback","Output":"=== RUN   TestInvalidFileResourcesCannotFallback\n","OutputType":"frame"}
+{"Time":"2026-09-15T17:17:42.265114+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Test":"TestInvalidFileResourcesCannotFallback","Output":"--- PASS: TestInvalidFileResourcesCannotFallback (0.02s)\n","OutputType":"frame"}
+{"Time":"2026-09-15T17:17:42.265145+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Test":"TestInvalidFileResourcesCannotFallback","Elapsed":0.02}
+{"Time":"2026-09-15T17:17:42.265419+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Output":"PASS\n","OutputType":"frame"}
+{"Time":"2026-09-15T17:17:42.265945+08:00","Action":"output","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Output":"ok  \tgithub.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor\t1.028s\n"}
+{"Time":"2026-09-15T17:17:42.265962+08:00","Action":"pass","Package":"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor","Elapsed":1.029}

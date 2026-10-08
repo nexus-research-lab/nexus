@@ -1,0 +1,72 @@
+// INPUT: 通过 SDK Options 注入的托管标记和主/辅助凭据。
+// OUTPUT: 真实 exec-form hook 子进程只收到任务变量，不继承 Provider 凭据。
+// POS: hook 环境组装回归；独立于 OS 沙箱和 MCP 授权验收。
+package hooks
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash"
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/powershell"
+)
+
+func TestCommandHookRespectsRuntimeProviderOwnership(t *testing.T) {
+	t.Setenv("NEXUS_PROVIDER_MANAGED_BY_HOST", "")
+	t.Setenv("NEXUS_SUBPROCESS_ENV_SCRUB", "")
+	t.Setenv("CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := RunCommandBlocking(t.Context(), CommandSpec{
+		Command:          map[string]any{"args": []string{"-test.run=^TestHookProviderEnvironmentHelper$"}},
+		WorkingDirectory: t.TempDir(),
+		Environment:      map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": "1", "ANTHROPIC_API_KEY": "test-anthropic", "OPENAI_API_KEY": "test-openai", "NEXUS_WEBSEARCH_API_KEY": "test-search", "NEXUS_TEST_HOOK_ENV_HELPER": "1", "NEXUS_TEST_TASK_VALUE": "kept"},
+	}, executable, nil, 10*time.Second)
+	if result.Err != nil || result.ExitCode != 0 || !strings.Contains(result.Stdout, "task value kept") {
+		t.Fatalf("hook environment was not separated: exit=%d err=%v stdout=%q", result.ExitCode, result.Err, result.Stdout)
+	}
+}
+
+func TestShellProcessesRespectRuntimeProviderOwnership(t *testing.T) {
+	t.Setenv("NEXUS_PROVIDER_MANAGED_BY_HOST", "")
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment := map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": "1", "OPENAI_API_KEY": "test-openai", "NEXUS_WEBSEARCH_API_KEY": "test-search", "NEXUS_TEST_HOOK_ENV_HELPER": "1", "NEXUS_TEST_TASK_VALUE": "kept"}
+	for name, build := range map[string]func() []string{
+		"bash":                   func() []string { return bash.ShellEnvironment(environment) },
+		"selected_shell":         func() []string { return bash.ShellEnvironmentForShell("/bin/sh", environment) },
+		"powershell_environment": func() []string { return powershell.PowerShellEnvironment(environment) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			command := exec.CommandContext(t.Context(), executable, "-test.run=^TestHookProviderEnvironmentHelper$")
+			command.Env = build()
+			output, err := command.CombinedOutput()
+			if err != nil || !strings.Contains(string(output), "task value kept") {
+				t.Fatalf("child environment was not separated: err=%v output=%q", err, output)
+			}
+		})
+	}
+}
+
+func TestHookProviderEnvironmentHelper(t *testing.T) {
+	if os.Getenv("NEXUS_TEST_HOOK_ENV_HELPER") != "1" {
+		return
+	}
+	for _, key := range []string{"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "NEXUS_WEBSEARCH_API_KEY"} {
+		if os.Getenv(key) != "" {
+			fmt.Println("provider credential inherited")
+			os.Exit(42)
+		}
+	}
+	if os.Getenv("NEXUS_TEST_TASK_VALUE") == "kept" {
+		fmt.Println("task value kept")
+	}
+}

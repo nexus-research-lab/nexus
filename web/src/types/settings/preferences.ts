@@ -19,12 +19,36 @@ export function normalizeAgentRuntimeKind(value?: string | null): AgentRuntimeKi
   }
 }
 
+export type NXSSandboxDiagnosticState = "unknown" | "unsupported" | "missing_dependencies" | "dependencies_available";
+
 export interface NXSRuntimeStatus {
   available: boolean;
   path?: string;
   source?: "env" | string;
   can_download: boolean;
+  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string };
   message?: string;
+}
+
+export interface SandboxResourceRecord {
+  marker: {
+    cleanup_state?: "active" | "cleanup_unknown" | string;
+  };
+  process_active: boolean;
+}
+
+export interface SandboxResourceInspection {
+  owner_user_id: string;
+  resources: SandboxResourceRecord[];
+}
+
+export interface SandboxResourceReconcileResult {
+  owner_user_id: string;
+  older_than_seconds: number;
+  apply: boolean;
+  candidates: SandboxResourceRecord[];
+  removed: SandboxResourceRecord[];
+  skipped: SandboxResourceRecord[];
 }
 
 export interface ModelSelectionPreference {

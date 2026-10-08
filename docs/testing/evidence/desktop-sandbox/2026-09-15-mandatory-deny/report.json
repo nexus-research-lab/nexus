@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "scope": "P1/P2 mandatory macOS resource-denial precedence; local integration only",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "d9687a3ed9d3a7da86b84be02a49ddbbed6dfa91",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915080938-a4fef0aec5bc",
+    "sum": "h1:GSjnxL0+p1yQtRf4bvoUeKQS3jv7qpKdoYL3efA9XEE=",
+    "availability": "local-only, unpublished"
+  },
+  "nexusBaselineRevision": "5747c2744f1f53474ad0e918a365de03d289cc08",
+  "nexusChanges": [
+    "M docs/README.md",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "reference": {
+    "repository": "openai/codex",
+    "revision": "4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd",
+    "file": "codex-rs/sandboxing/src/seatbelt.rs",
+    "scope": "read access excludes unreadable roots; final ancestor move denies follow all grants"
+  },
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+    "sha256": "801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb",
+    "source": "fixed-sdk-archive"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "reproduction": {
+    "baseSDKRevision": "12ea63b8fa7664c8abe5dcde625ec2905ddfa5b8",
+    "change": "only new regression tests before production fix",
+    "exitCode": 1,
+    "log": "mandatory-deny-before.jsonl",
+    "failedCases": [
+      "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Bash",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Bash",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Bash"
+    ],
+    "alreadyPassing": [
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write"
+    ]
+  },
+  "fixed": {
+    "exitCode": 0,
+    "log": "macos-resource-denials.stdout.log",
+    "requiredTests": [
+      "TestDarwinMandatorySandboxReadDenyPrecedence",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/same_root/Bash",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/parent_root/Bash",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/nested_root/Bash",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/symlink_target/Read",
+      "TestDarwinMandatorySandboxReadDenyPrecedence/symlink_target/Bash",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/read",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor/write"
+    ],
+    "skips": []
+  },
+  "packageRegression": {
+    "log": "mandatory-deny-package.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 109,
+    "skips": [
+      "TestSandboxSeccompHelperUsesInjectedEnvironment",
+      "TestMacOSSandboxIgnoresTaskPath"
+    ]
+  },
+  "baseline": "baseline-report.json",
+  "windows": {
+    "scope": "cross-compilation only",
+    "exitCode": 0,
+    "command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -mod=readonly -c ./internal/tool/builtin/bash/sandboxexec",
+    "sha256": "60d8a3d4a7af49447878a1c09a80630e4a4d3c29e8f9591b8c43be5fe75e51af"
+  },
+  "limitations": [
+    "Only mandatory macOS execution changes; legacy read carve-outs remain",
+    "DenyRead and DenyWrite remain independent; secrets requiring no read and no write must be denied in both",
+    "Read-only/workspace-write resource profile, private scratch contract and installed policy receipts remain incomplete",
+    "Whole-SDK IO, Claude adapter, native Windows, Linux owner and package/release acceptance remain outstanding",
+    "All commits and artifacts remain local per user instruction"
+  ]
+}

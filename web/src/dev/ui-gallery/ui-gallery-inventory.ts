@@ -67,7 +67,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     mode: "direct",
     renderer: "Feedback and motion",
     components: [
-      "FeedbackBanner", "FeedbackBannerViewport", "UiInlineNotice", "RecoverySummary", "LoadingOrb",
+      "FeedbackBanner", "FeedbackBannerViewport", "UiInlineNotice", "RecoverySummary", "PermissionRequestDetails", "LoadingOrb",
       "AnimatedHeroText", "FadeSlideIn", "TypewriterFileView", "LottiePlayer",
       "AppLoadingState", "SidebarEmptyGuide",
     ],

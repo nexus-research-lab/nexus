@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
@@ -36,11 +37,16 @@ func New(cfg config.Config) (*Server, error) {
 
 // NewWithLogger 创建带显式 logger 的 HTTP server。
 func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
+	return NewWithDesktopOwnership(cfg, logger, nil)
+}
+
+// NewWithDesktopOwnership 只消费入口已持有的实例锁，在挂载路由前恢复原沙箱记录。
+func NewWithDesktopOwnership(cfg config.Config, logger *slog.Logger, ownership runtimectx.SandboxProcessRecoveryOwnership) (*Server, error) {
 	if logger == nil {
 		logger = newLogger(cfg)
 	}
 
-	appServices, err := app.NewAppServices(cfg, logger)
+	appServices, err := app.NewAppServicesWithDesktopOwnership(cfg, logger, ownership)
 	if err != nil {
 		return nil, err
 	}

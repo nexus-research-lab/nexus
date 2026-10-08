@@ -1,5 +1,5 @@
-// INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
-// OUTPUT: 完成 schema/宿主修复后启动并完整收口的 HTTP/WebSocket 服务。
+// INPUT: Nexus server 环境配置、桌面状态根独占锁、数据库 migration、进程生命周期信号或显式 runtime 检查参数。
+// OUTPUT: 完成 schema/宿主修复的 HTTP/WebSocket 服务，或不启动服务的随包 runtime 兼容性报告。
 // POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
@@ -23,6 +23,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/migration"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
@@ -215,6 +216,7 @@ func buildRootCommand() *cobra.Command {
 			return runServer()
 		},
 	}
+	root.AddCommand(buildRuntimeCheckCommand())
 	return root
 }
 
@@ -225,6 +227,19 @@ func runServer() error {
 		return fmt.Errorf("加载环境配置失败: %w", err)
 	}
 	stateRoot := appfs.StateRoot()
+	var desktopOwnership runtimectx.SandboxProcessRecoveryOwnership
+	// 窗口进程的锁不能证明旧 sidecar 已退出。先由本进程持有 app 根锁，
+	// 再执行布局/数据库迁移；defer 晚于下面的服务 Close 执行。
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEXUS_APP_MODE")), "desktop") {
+		instance, err := acquireDesktopInstanceLock(stateRoot)
+		if err != nil {
+			return fmt.Errorf("acquire desktop sidecar ownership: %w", err)
+		}
+		if instance != nil {
+			defer instance.Close()
+			desktopOwnership, _ = instance.(runtimectx.SandboxProcessRecoveryOwnership)
+		}
+	}
 	if err := migration.RunStateLayout(stateRoot, slog.Default()); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
@@ -355,7 +370,7 @@ func runServer() error {
 		return err
 	}
 
-	server, err := serverapp.NewWithLogger(cfg, logger)
+	server, err := serverapp.NewWithDesktopOwnership(cfg, logger, desktopOwnership)
 	if err != nil {
 		logger.Error("初始化 HTTP 服务失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)

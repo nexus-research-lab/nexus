@@ -1,0 +1,116 @@
+=== RUN   TestMacOSBootstrapExec
+=== RUN   TestMacOSBootstrapExec/wrong_observer
+=== RUN   TestMacOSBootstrapExec/disconnect_before_admission
+--- PASS: TestMacOSBootstrapExec (0.88s)
+    --- PASS: TestMacOSBootstrapExec/wrong_observer (0.34s)
+    --- PASS: TestMacOSBootstrapExec/disconnect_before_admission (0.01s)
+=== RUN   TestLaunchRejectsMalformedInputs
+=== RUN   TestLaunchRejectsMalformedInputs/valid
+=== RUN   TestLaunchRejectsMalformedInputs/version
+=== RUN   TestLaunchRejectsMalformedInputs/command
+=== RUN   TestLaunchRejectsMalformedInputs/directory
+=== RUN   TestLaunchRejectsMalformedInputs/nul
+=== RUN   TestLaunchRejectsMalformedInputs/duplicate_env
+=== RUN   TestLaunchRejectsMalformedInputs/empty_key
+=== RUN   TestLaunchRejectsMalformedInputs/no_equals
+--- PASS: TestLaunchRejectsMalformedInputs (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/valid (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/version (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/command (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/directory (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/nul (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/duplicate_env (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/empty_key (0.00s)
+    --- PASS: TestLaunchRejectsMalformedInputs/no_equals (0.00s)
+=== RUN   TestControlSocketLongPathPreservesWorkingDirectory
+--- PASS: TestControlSocketLongPathPreservesWorkingDirectory (0.01s)
+=== RUN   TestControlSocketRejectsInvalidPaths
+--- PASS: TestControlSocketRejectsInvalidPaths (0.00s)
+=== RUN   TestLaunchWirePreservesPipes
+--- PASS: TestLaunchWirePreservesPipes (0.00s)
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/extra_fd
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/many_rights
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/wrong_direction
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/wrong_type
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/bad_marker
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/missing_body
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/oversized
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/invalid_json
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/unknown_field
+=== RUN   TestLaunchWireRejectsAndClosesTransferredDescriptors/truncated_body
+--- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/extra_fd (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/many_rights (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/wrong_direction (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/wrong_type (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/bad_marker (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/missing_body (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/oversized (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/invalid_json (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/unknown_field (0.00s)
+    --- PASS: TestLaunchWireRejectsAndClosesTransferredDescriptors/truncated_body (0.00s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap	2.754s
+=== RUN   TestLaunchctlOutputBoundSurvivesCopy
+--- PASS: TestLaunchctlOutputBoundSurvivesCopy (0.00s)
+=== RUN   TestCanceledStartNeverReservesIntent
+--- PASS: TestCanceledStartNeverReservesIntent (0.00s)
+=== RUN   TestRecoveryNativeHostExit
+    recover_darwin_test.go:24: explicit native helper required
+--- SKIP: TestRecoveryNativeHostExit (0.00s)
+=== RUN   TestRecoveryHostFixture
+--- PASS: TestRecoveryHostFixture (0.00s)
+=== RUN   TestRecoveryOrderingAndFailures
+=== RUN   TestRecoveryOrderingAndFailures/success
+=== RUN   TestRecoveryOrderingAndFailures/prepared
+=== RUN   TestRecoveryOrderingAndFailures/boot_changed
+=== RUN   TestRecoveryOrderingAndFailures/observe
+=== RUN   TestRecoveryOrderingAndFailures/restore
+=== RUN   TestRecoveryOrderingAndFailures/revoke
+=== RUN   TestRecoveryOrderingAndFailures/reap
+=== RUN   TestRecoveryOrderingAndFailures/boot
+=== RUN   TestRecoveryOrderingAndFailures/finish
+=== RUN   TestRecoveryOrderingAndFailures/wrong_owner
+=== RUN   TestRecoveryOrderingAndFailures/wrong_scope
+=== RUN   TestRecoveryOrderingAndFailures/bad_proof
+=== RUN   TestRecoveryOrderingAndFailures/canceled
+--- PASS: TestRecoveryOrderingAndFailures (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/success (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/prepared (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/boot_changed (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/observe (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/restore (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/revoke (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/reap (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/boot (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/finish (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/wrong_owner (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/wrong_scope (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/bad_proof (0.00s)
+    --- PASS: TestRecoveryOrderingAndFailures/canceled (0.00s)
+=== RUN   TestMacOSSupervisedStart
+=== RUN   TestMacOSSupervisedStart/long_state_root
+=== RUN   TestMacOSSupervisedStart/detached_output
+=== RUN   TestMacOSSupervisedStart/cancel_close_waiter
+=== RUN   TestMacOSSupervisedStart/success
+=== RUN   TestMacOSSupervisedStart/reserve
+=== RUN   TestMacOSSupervisedStart/publish
+=== RUN   TestMacOSSupervisedStart/register
+=== RUN   TestMacOSSupervisedStart/release
+=== RUN   TestMacOSSupervisedStart/finish
+--- PASS: TestMacOSSupervisedStart (2.51s)
+    --- PASS: TestMacOSSupervisedStart/long_state_root (0.41s)
+    --- PASS: TestMacOSSupervisedStart/detached_output (1.13s)
+    --- PASS: TestMacOSSupervisedStart/cancel_close_waiter (0.13s)
+    --- PASS: TestMacOSSupervisedStart/success (0.10s)
+    --- PASS: TestMacOSSupervisedStart/reserve (0.01s)
+    --- PASS: TestMacOSSupervisedStart/publish (0.01s)
+    --- PASS: TestMacOSSupervisedStart/register (0.07s)
+    --- PASS: TestMacOSSupervisedStart/release (0.07s)
+    --- PASS: TestMacOSSupervisedStart/finish (0.09s)
+=== RUN   TestSupervisionDetachedWorker
+    start_darwin_test.go:375: native fixture worker only
+--- SKIP: TestSupervisionDetachedWorker (0.00s)
+PASS
+ok  	github.com/nexus-research-lab/nexus-agent-sdk-bridge/supervision	4.366s

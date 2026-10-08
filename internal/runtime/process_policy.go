@@ -1,4 +1,4 @@
-// INPUT: 即将复用 runtime session 的进程路径、工作目录、sandbox 与身份隔离选项。
+// INPUT: 即将复用 runtime session 的进程路径、目录、沙箱要求、Provider 所有权与身份隔离选项。
 // OUTPUT: 不包含明文凭据的稳定 process-policy 指纹。
 // POS: Reconfigure 之前的进程级安全边界；指纹变化必须替换旧 runtime。
 package runtime
@@ -29,24 +29,41 @@ type runtimeDirectConnectShape struct {
 }
 
 type runtimeProcessPolicy struct {
-	CLIPath           string                       `json:"cli_path"`
-	CWD               string                       `json:"cwd"`
-	User              string                       `json:"user"`
-	Executable        string                       `json:"executable"`
-	ExecutableArgs    []string                     `json:"executable_args"`
-	PathToExecutable  string                       `json:"path_to_executable"`
-	TransportType     string                       `json:"transport_type"`
-	DirectConnect     *runtimeDirectConnectShape   `json:"direct_connect,omitempty"`
-	Settings          string                       `json:"settings"`
-	SettingsObject    map[string]any               `json:"settings_object,omitempty"`
-	Sandbox           *agentclient.SandboxSettings `json:"sandbox,omitempty"`
-	ExtraArgs         map[string]string            `json:"extra_args,omitempty"`
-	ExtraBoolArgs     []string                     `json:"extra_bool_args,omitempty"`
-	AvailableTools    []string                     `json:"available_tools,omitempty"`
-	ToolPreset        string                       `json:"tool_preset,omitempty"`
-	IsolationEnv      map[string]string            `json:"isolation_env,omitempty"`
-	Hooks             []runtimeHookShape           `json:"hooks,omitempty"`
-	HookEventsEnabled bool                         `json:"hook_events_enabled"`
+	CLIPath                       string                             `json:"cli_path"`
+	CWD                           string                             `json:"cwd"`
+	User                          string                             `json:"user"`
+	Executable                    string                             `json:"executable"`
+	ExecutableArgs                []string                           `json:"executable_args"`
+	PathToExecutable              string                             `json:"path_to_executable"`
+	TransportType                 string                             `json:"transport_type"`
+	DirectConnect                 *runtimeDirectConnectShape         `json:"direct_connect,omitempty"`
+	Settings                      string                             `json:"settings"`
+	SettingsObject                map[string]any                     `json:"settings_object,omitempty"`
+	Sandbox                       *agentclient.SandboxSettings       `json:"sandbox,omitempty"`
+	ClaudeNativeSandboxRequired   bool                               `json:"claude_native_sandbox_required,omitempty"`
+	SandboxFileToolsRequired      bool                               `json:"sandbox_file_tools_required,omitempty"`
+	SandboxSearchToolsRequired    bool                               `json:"sandbox_search_tools_required,omitempty"`
+	SandboxMediaFilesRequired     bool                               `json:"sandbox_media_files_required,omitempty"`
+	MCPStrictConfig               bool                               `json:"mcp_strict_config"`
+	SandboxMCPNetworkRequired     bool                               `json:"sandbox_mcp_network_required,omitempty"`
+	SandboxMCPHelpersRequired     bool                               `json:"sandbox_mcp_helpers_required,omitempty"`
+	SandboxMCPStdioRequired       bool                               `json:"sandbox_mcp_stdio_required,omitempty"`
+	SandboxMediaNetworkRequired   bool                               `json:"sandbox_media_network_required,omitempty"`
+	SandboxNotebookFilesRequired  bool                               `json:"sandbox_notebook_files_required,omitempty"`
+	SandboxSkillFilesRequired     bool                               `json:"sandbox_skill_files_required,omitempty"`
+	SandboxContextFilesRequired   bool                               `json:"sandbox_context_files_required,omitempty"`
+	SandboxProjectFilesRequired   bool                               `json:"sandbox_project_files_required,omitempty"`
+	SandboxManagedPolicyRequired  bool                               `json:"sandbox_managed_policy_required,omitempty"`
+	SandboxSettingsFilesRequired  bool                               `json:"sandbox_settings_files_required,omitempty"`
+	SandboxSettingsWritesRequired bool                               `json:"sandbox_settings_writes_required,omitempty"`
+	SandboxResources              *agentclient.SandboxResourcePolicy `json:"sandbox_resources,omitempty"`
+	ExtraArgs                     map[string]string                  `json:"extra_args,omitempty"`
+	ExtraBoolArgs                 []string                           `json:"extra_bool_args,omitempty"`
+	AvailableTools                []string                           `json:"available_tools,omitempty"`
+	ToolPreset                    string                             `json:"tool_preset,omitempty"`
+	IsolationEnv                  map[string]string                  `json:"isolation_env,omitempty"`
+	Hooks                         []runtimeHookShape                 `json:"hooks,omitempty"`
+	HookEventsEnabled             bool                               `json:"hook_events_enabled"`
 }
 
 func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string {
@@ -70,6 +87,26 @@ func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string 
 	}
 	if options.Tools.Preset != nil {
 		policy.ToolPreset = options.Tools.Preset.Preset
+	}
+	if options.Sandbox != nil {
+		// 这些项是宿主 initialize 合同，普通 sandbox JSON 故意不序列化它们。
+		policy.SandboxFileToolsRequired = options.Sandbox.RequireFileTools
+		policy.ClaudeNativeSandboxRequired = options.Sandbox.RequireClaudeNativeSandbox
+		policy.SandboxSearchToolsRequired = options.Sandbox.RequireSearchTools
+		policy.SandboxMediaFilesRequired = options.Sandbox.RequireMediaFiles
+		policy.SandboxMediaNetworkRequired = options.Sandbox.RequireMediaNetwork
+		policy.SandboxMCPNetworkRequired = options.Sandbox.RequireMCPNetwork
+		policy.SandboxMCPHelpersRequired = options.Sandbox.RequireMCPHelpers
+		policy.SandboxMCPStdioRequired = options.Sandbox.RequireMCPStdio
+		policy.MCPStrictConfig = options.MCP.StrictConfig
+		policy.SandboxNotebookFilesRequired = options.Sandbox.RequireNotebookFiles
+		policy.SandboxSkillFilesRequired = options.Sandbox.RequireSkillFiles
+		policy.SandboxContextFilesRequired = options.Sandbox.RequireContextFiles
+		policy.SandboxProjectFilesRequired = options.Sandbox.RequireProjectFiles
+		policy.SandboxManagedPolicyRequired = options.Sandbox.RequireManagedPolicy
+		policy.SandboxSettingsFilesRequired = options.Sandbox.RequireSettingsFiles
+		policy.SandboxSettingsWritesRequired = options.Sandbox.RequireSettingsWrites
+		policy.SandboxResources = options.Sandbox.Resources
 	}
 	if options.DirectConnect != nil {
 		policy.DirectConnect = &runtimeDirectConnectShape{
@@ -104,7 +141,10 @@ func runtimeIsolationEnvironment(environment map[string]string) map[string]strin
 func runtimeProcessEnvironmentKey(key string) bool {
 	switch key {
 	case "HOME", "PATH", "TMPDIR", "NEXUS_STATE_ROOT", "NEXUS_CONFIG_DIR",
-		"CLAUDE_CONFIG_DIR", "NEXUS_RUNTIME_USER_ID", "NEXUS_RUNTIME_LAUNCHER":
+		"CLAUDE_CONFIG_DIR", "NEXUS_RUNTIME_USER_ID", "NEXUS_RUNTIME_LAUNCHER",
+		"NEXUS_MEMORY_DIR", "NEXUS_ENABLE_REMOTE_MEMORY", "NEXUS_REMOTE_MEMORY_DIR",
+		"NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB",
+		"CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE":
 		return true
 	}
 	return strings.HasPrefix(key, "NEXUS_RUNTIME_IDENTITY_") ||

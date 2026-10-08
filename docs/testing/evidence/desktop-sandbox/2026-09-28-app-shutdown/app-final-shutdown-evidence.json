@@ -1,0 +1,95 @@
+{
+  "source": "132b5ad69826ecde11cab769fdeda03b7436c257",
+  "scope": "native-app-through-websocket",
+  "time": "2026-09-27T20:09:37.598745+00:00",
+  "before": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "e6cfeaa7776a3444d0392a019ec92034",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 2,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "1036c0da3d9ccba84e7a401ea75e01d5",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": "",
+      "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+      "lease_id": "87cd70b9b63ad318381a5450dcb67bce",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-0c206081708a85c4\"}"
+    }
+  ],
+  "after": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "e6cfeaa7776a3444d0392a019ec92034",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 2,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "252dfcff-b49f-493f-ab7e-3f6233952cf3",
+      "lease_id": "1036c0da3d9ccba84e7a401ea75e01d5",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+      "lease_id": "87cd70b9b63ad318381a5450dcb67bce",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-0c206081708a85c4\"}"
+    }
+  ],
+  "oldProcessIDs": [
+    79739,
+    79741,
+    79750,
+    79751,
+    80905,
+    80906
+  ],
+  "remainingOldProcesses": "",
+  "scratch": [
+    {
+      "generation": 1,
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "exists": false
+    },
+    {
+      "generation": 2,
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "exists": false
+    },
+    {
+      "generation": 1,
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "exists": false
+    }
+  ]
+}

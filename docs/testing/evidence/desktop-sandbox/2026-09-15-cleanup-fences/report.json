@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "scope": "P1/P2 runtime cleanup error propagation and in-memory successor fences; scratch lifecycle prerequisite",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "67975b901ce6700d88ac4b64da80ae2254b4c3cf",
+  "bridgeRevision": "034c449fb4cf1d402213a07450e0d02d7578bf9d",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915095108-034c449fb4cf",
+    "sum": "h1:8ksEXEKjVOEMXmzH4upmOHoQAI7hD5u04pQTE6sHze4=",
+    "availability": "local-only, unpublished; exact-commit file proxy"
+  },
+  "nexusBaselineRevision": "748071d2921e8e5536a8117e44491baf579db555",
+  "nexusChanges": [
+    "M AGENTS.md",
+    " M CHANGELOG.md",
+    " M docs/README.md",
+    " M docs/specs/desktop-sandbox-spec.md",
+    " M go.mod",
+    " M go.sum",
+    " M internal/runtime/agent_revocation.go",
+    " M internal/runtime/client.go",
+    " M internal/runtime/doc.go",
+    " M internal/runtime/idle.go",
+    " M internal/runtime/lifecycle.go",
+    " M internal/runtime/manager.go",
+    " M internal/runtime/owner.go",
+    " M internal/runtime/process_policy.go",
+    " M internal/runtime/session.go",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? internal/runtime/client_cleanup_test.go",
+    "?? internal/runtime/process_policy_test.go",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "platform": "darwin",
+  "architecture": {
+    "log": "cleanup-architecture.txt",
+    "exitCode": 0
+  },
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "baselineRuntime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-2kJZ8U/nxs",
+    "sha256": "66c9c61a7de6203ed13e46e8d8bb53b70273913a946e410def14b0c5c6dae0eb",
+    "source": "fixed-sdk-archive"
+  },
+  "bridgeRealRuntime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-z7S5G7/nxs",
+    "sha256": "9168d5187010f9a1409e917d6372a04229115d795a3ecd80b93dfad121fc2c71"
+  },
+  "legacyFileRuntime": {
+    "path": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+    "sha256": "fbdb0b5b677ec8f274697f0e9f3e27aa65f6978292183ecf14700a0345477386"
+  },
+  "legacyResourceRuntime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+    "sha256": "801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb"
+  },
+  "baseline": {
+    "log": "baseline-report.json",
+    "exitCode": 0,
+    "GOWORK": "off",
+    "requiredTopLevelTests": 32,
+    "requiredSubtests": 21,
+    "requiredSkips": []
+  },
+  "before": {
+    "bridge": {
+      "log": "cleanup-bridge-before.jsonl",
+      "exitCode": 1,
+      "topLevelPasses": 0,
+      "subtestPasses": 0,
+      "packages": [],
+      "skips": [],
+      "failures": [
+        "TestProcessCleanupFailureReachesWaitAndRepeatedClose",
+        "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport"
+      ]
+    },
+    "host": {
+      "log": "cleanup-host-before.jsonl",
+      "exitCode": 1,
+      "topLevelPasses": 0,
+      "subtestPasses": 0,
+      "packages": [],
+      "skips": [],
+      "failures": [
+        "TestAgentClientCleanupFailureBlocksReconnect",
+        "TestAgentClientStaleStartupCleanupFailureStopsRetry",
+        "github.com/nexus-research-lab/nexus/internal/runtime"
+      ]
+    }
+  },
+  "hostPackages": {
+    "log": "cleanup-host-final-packages.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 219,
+    "subtestPasses": 191,
+    "packages": [
+      "github.com/nexus-research-lab/nexus/internal/runtime",
+      "github.com/nexus-research-lab/nexus/internal/runtime/clientopts",
+      "github.com/nexus-research-lab/nexus/internal/runtime/permission",
+      "github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation",
+      "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+    ],
+    "skips": [
+      "github.com/nexus-research-lab/nexus/internal/runtime/provider",
+      "github.com/nexus-research-lab/nexus/internal/runtime/trace",
+      "TestDesktopSandboxRealRuntimeNegotiation",
+      "TestWorkspacePolicyHookRejectsPowerShellSlashRoot",
+      "TestWorkspacePolicyHookRejectsWindowsBackslashTraversal",
+      "TestApplyMainAgentKeepsHookWithoutLauncher",
+      "TestOwnerProcessReaperRejectsUnsafeOwner"
+    ],
+    "failures": [],
+    "GOWORK": "/private/tmp/nexus-sandbox-capabilities.60SUhq/integration.work",
+    "scope": "all runtime subpackages against isolated Bridge at the committed implementation; platform and opt-in skips listed"
+  },
+  "hostRace": {
+    "log": "cleanup-host-race.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 20,
+    "subtestPasses": 7,
+    "packages": [
+      "github.com/nexus-research-lab/nexus/internal/runtime"
+    ],
+    "skips": [],
+    "failures": [],
+    "GOWORK": "/private/tmp/nexus-sandbox-capabilities.60SUhq/integration.work",
+    "scope": "targeted client, Manager cleanup, replacement/reset and owner/Agent lifecycle"
+  },
+  "bridgeRace": {
+    "log": "cleanup-bridge-race.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 148,
+    "subtestPasses": 78,
+    "packages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client",
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport"
+    ],
+    "skips": [
+      "TestFileSandboxRealProcess/current",
+      "TestFileSandboxRealProcess/legacy",
+      "TestRequiredSandboxRealProcess",
+      "TestSandboxResourcesRealProcess/current",
+      "TestSandboxResourcesRealProcess/legacy",
+      "TestProcessManagerStartsWindowsPowerShellScript",
+      "TestProcessManagerRedirectsWindowsBatchShimToPowerShell"
+    ],
+    "failures": [],
+    "GOWORK": "off",
+    "scope": "client and internal/transport packages; opted-in actual nxs tested separately"
+  },
+  "bridgeReal": {
+    "log": "cleanup-bridge-real.jsonl",
+    "exitCode": 0,
+    "topLevelPasses": 3,
+    "subtestPasses": 4,
+    "packages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "skips": [],
+    "failures": [],
+    "GOWORK": "off",
+    "race": true,
+    "scope": "actual current and two older nxs binaries; no model requests"
+  },
+  "crossCompilation": [
+    {
+      "GOOS": "windows",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./client",
+        "./internal/transport"
+      ],
+      "exitCode": 0,
+      "nativeExecution": false,
+      "log": "cleanup-windows-build.log.txt",
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-capabilities.60SUhq/cleanup-windows/client.test.exe",
+          "sha256": "33fc79e919c7e62b831e83081c1b9b7a80507ecdb8422540a29136a18b356eb9"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-capabilities.60SUhq/cleanup-windows/transport.test.exe",
+          "sha256": "99e8c411fc9746facbe99da8923c4777758ae582f9e9a248d76b6cab1446ec95"
+        }
+      ]
+    },
+    {
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./client",
+        "./internal/transport"
+      ],
+      "exitCode": 0,
+      "nativeExecution": false,
+      "log": "cleanup-linux-build.log.txt",
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-capabilities.60SUhq/cleanup-linux/client.test",
+          "sha256": "d5d8561dfd9c8820cf3bfc91afbfead37c423febe296ed0bbf79e23a15cf85b8"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-capabilities.60SUhq/cleanup-linux/transport.test",
+          "sha256": "2633d68729b4e36aaee3b037ab18cf852f7a9ef249d5032b0e4ff6739d215ea6"
+        }
+      ]
+    }
+  ],
+  "evidenceParser": {
+    "command": "node --test scripts/desktop/sandbox-test-evidence.test.mjs",
+    "exitCode": 0,
+    "passedTests": 6
+  },
+  "limits": [
+    "Unix cleanup observes only visible members of the original session. A detached session, PID namespace, hidden process or successful host signal callback is not independently proven terminated.",
+    "Process identity reuse and complete descendant supervision remain unimplemented acceptance requirements.",
+    "Nexus failed-close state is in memory only. Crash recovery, persistent cleanup receipts and reconciliation remain pending.",
+    "Nexus does not allocate, lease or reclaim the new scratch resource and does not supply SandboxSettings.Resources yet.",
+    "The full runtime package run contains explicit platform/opt-in skips. The fixed baseline and actual nxs runs independently required their named tests without skips.",
+    "Linux and Windows results are cross-compilation only, not native runtime or owner-isolation acceptance.",
+    "Whole SDK IO, effective-policy receipts, default product policy, Claude adapter, native packages and release availability remain outside this batch.",
+    "All commits and module archives remain local at the user request; no source or dependency publication occurred."
+  ]
+}

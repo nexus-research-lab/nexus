@@ -1,0 +1,5 @@
+=== RUN   TestRecoveryNativeHostExitWithScratchAndPolicies
+2026/09/28 13:09:06 goose: no migrations to run. current version: 148
+--- PASS: TestRecoveryNativeHostExitWithScratchAndPolicies (9.92s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/runtime	12.043s

@@ -15,5 +15,6 @@
 //   - output.go：输出格式。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
-//   - configuration.go：nexuscfg inspect/plan/apply/history；members 密码槽由宿主确认卡收集，CLI 不传秘密。
+//   - configuration.go：nexuscfg inspect/plan/apply/history/review/reconcile；members 密码槽由宿主确认卡收集，CLI 不传秘密；
+//     reconcile 只记录人工决定，不能重放未知写入。
 package cli

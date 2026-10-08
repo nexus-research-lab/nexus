@@ -44,6 +44,7 @@ export function decodePermissionRequest(
     request_id: requestId,
     tool_name: toolName,
     tool_input: readToolInput(event.data.tool_input),
+    permission_boundary: readOptionalString(event.data, "permission_boundary"),
     configuration_secret_slots: readConfigurationSecretSlots(
       event.data.configuration_secret_slots,
     ),

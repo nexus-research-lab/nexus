@@ -1,5 +1,5 @@
 // INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
-// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记。
+// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记；删除动作显示时元信息与状态让位。
 // POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
 
 import {
@@ -99,7 +99,7 @@ function ConversationRowMeta({
         <span
           className={cn(
             "text-xs tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
-            onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0",
+            onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0 [@media(hover:none)]:opacity-0",
           )}
         >
           {timeLabel}
@@ -188,10 +188,15 @@ export function ConversationRow({
       ) : null}
       onClick={onClick}
       subtitleTrailing={(
-        <ConversationRowStatus
-          activityStatus={item.activityStatus}
-          unreadCount={item.unreadCount ?? 0}
-        />
+        <span className={cn(
+          "flex shrink-0 items-center gap-2 transition-opacity duration-(--motion-duration-fast)",
+          onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0 [@media(hover:none)]:opacity-0",
+        )}>
+          <ConversationRowStatus
+            activityStatus={item.activityStatus}
+            unreadCount={item.unreadCount ?? 0}
+          />
+        </span>
       )}
       title={item.title}
     />

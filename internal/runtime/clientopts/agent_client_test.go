@@ -94,11 +94,11 @@ func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
 	if options.Env[anthropicModelEnvName] != "kimi-k2" {
 		t.Fatalf("运行时模型未写入 env: %+v", options.Env)
 	}
-	if options.Env[anthropicAuthTokenEnvName] != "token-1" {
-		t.Fatalf("Anthropic-compatible bearer token 未写入 env: %+v", options.Env)
+	if options.Env[anthropicAPIKeyEnvName] != "token-1" {
+		t.Fatalf("nxs Anthropic-compatible API key 未写入 env: %+v", options.Env)
 	}
-	if options.Env[anthropicAPIKeyEnvName] != "" {
-		t.Fatalf("Anthropic-compatible 非官方 endpoint 应清空 API key env，避免继承脏 key: %+v", options.Env)
+	if options.Env[anthropicAuthTokenEnvName] != "" {
+		t.Fatalf("nxs Anthropic-compatible runtime 不应改走 Claude auth token env: %+v", options.Env)
 	}
 	if options.Env[nexusAPIProviderEnvName] != "anthropic-compatible" {
 		t.Fatalf("Anthropic-compatible provider 标记未写入 env: %+v", options.Env)
@@ -176,6 +176,7 @@ func TestBuildAgentClientOptionsKeepsValidVisionRoute(t *testing.T) {
 func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	tests := []struct {
 		name          string
+		runtimeKind   string
 		baseURL       string
 		authToken     string
 		wantAPIKey    string
@@ -184,13 +185,23 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 	}{
 		{
 			name:          "compatible gateway",
+			runtimeKind:   runtimeKindClaude,
 			baseURL:       "https://provider.example.com/anthropic",
 			authToken:     "token-1",
 			wantAuthToken: "token-1",
 			wantPresent:   true,
 		},
 		{
+			name:        "nxs compatible gateway uses api key compatibility path",
+			runtimeKind: runtimeKindNXS,
+			baseURL:     "https://provider.example.com/anthropic",
+			authToken:   "token-1",
+			wantAPIKey:  "token-1",
+			wantPresent: true,
+		},
+		{
 			name:        "first party anthropic",
+			runtimeKind: runtimeKindClaude,
 			baseURL:     "https://api.anthropic.com",
 			authToken:   "token-1",
 			wantAPIKey:  "token-1",
@@ -198,11 +209,17 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 		},
 		{
 			name:        "empty base url defaults first party",
+			runtimeKind: runtimeKindClaude,
 			authToken:   "token-1",
 			wantAPIKey:  "token-1",
 			wantPresent: true,
 		},
-		{name: "empty token", baseURL: "https://provider.example.com/anthropic", authToken: ""},
+		{
+			name:        "empty token",
+			runtimeKind: runtimeKindClaude,
+			baseURL:     "https://provider.example.com/anthropic",
+			authToken:   "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,7 +227,7 @@ func TestAnthropicRuntimeEnvRoutesCredentialsByBaseURL(t *testing.T) {
 				AuthToken: tt.authToken,
 				BaseURL:   tt.baseURL,
 				Model:     "model-1",
-			})
+			}, tt.runtimeKind)
 			apiKey, apiKeyExists := env[anthropicAPIKeyEnvName]
 			authToken, authTokenExists := env[anthropicAuthTokenEnvName]
 			if apiKey != tt.wantAPIKey || authToken != tt.wantAuthToken ||

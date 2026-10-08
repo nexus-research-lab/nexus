@@ -1,0 +1,22 @@
+{
+  "bridgeCommit": "95b9616f8770ad2f31d1701b31aa80e17306dead",
+  "productionTransportIntegrated": false,
+  "releaseAccepted": false,
+  "mandatoryTests": [
+    "TestMacOSSupervisedStart",
+    "TestMacOSSupervisedStart/detached_output",
+    "TestMacOSSupervisedStart/cancel_close_waiter",
+    "TestMacOSSupervisedStart/success",
+    "TestMacOSSupervisedStart/reserve",
+    "TestMacOSSupervisedStart/publish",
+    "TestMacOSSupervisedStart/register",
+    "TestMacOSSupervisedStart/release",
+    "TestMacOSSupervisedStart/finish"
+  ],
+  "sha256": {
+    "README.md": "8625f13a530db29c3c66c0fdf60a45d8646f40aa628d05fd6ed6a78cb6512fb8",
+    "native-race.jsonl": "80a5d04916ebcec5a1ae4ae6a2208c5d7c3ca67b28ee424670f5caa94a709825",
+    "no-cgo.txt": "04436f25b1b7368f03d9bbb1d2d8a15339a6b5a043e39b86e49f702ed84badef",
+    "unit-race.txt": "31a4a1f270b5f1c4aaae4c5c7e502895320e2977b5ba9913ae2538bcc3da4abd"
+  }
+}

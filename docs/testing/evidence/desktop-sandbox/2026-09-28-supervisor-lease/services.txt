@@ -1,0 +1,2 @@
+ok  	github.com/nexus-research-lab/nexus/internal/service/dm	0.884s
+ok  	github.com/nexus-research-lab/nexus/internal/service/room/realtime	1.023s

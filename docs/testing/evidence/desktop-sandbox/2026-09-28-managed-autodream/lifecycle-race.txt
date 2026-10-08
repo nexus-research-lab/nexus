@@ -1,0 +1,16 @@
+=== RUN   TestManagedAutoDreamRetiresAndTransfersScratch
+--- PASS: TestManagedAutoDreamRetiresAndTransfersScratch (0.01s)
+=== RUN   TestManagedAutoDreamCancellationForcesUnresponsiveControl
+=== RUN   TestManagedAutoDreamCancellationForcesUnresponsiveControl/caller
+=== RUN   TestManagedAutoDreamCancellationForcesUnresponsiveControl/shutdown
+=== RUN   TestManagedAutoDreamCancellationForcesUnresponsiveControl/agent_revocation
+--- PASS: TestManagedAutoDreamCancellationForcesUnresponsiveControl (0.00s)
+    --- PASS: TestManagedAutoDreamCancellationForcesUnresponsiveControl/caller (0.00s)
+    --- PASS: TestManagedAutoDreamCancellationForcesUnresponsiveControl/shutdown (0.00s)
+    --- PASS: TestManagedAutoDreamCancellationForcesUnresponsiveControl/agent_revocation (0.00s)
+=== RUN   TestManagedAutoDreamCleanupFailureRetainsFence
+--- PASS: TestManagedAutoDreamCleanupFailureRetainsFence (0.01s)
+=== RUN   TestManagedAutoDreamConnectFailureClosesTransferredLease
+--- PASS: TestManagedAutoDreamConnectFailureClosesTransferredLease (0.01s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/runtime	2.123s

@@ -244,20 +244,18 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	targets := make([]*sessionCloseTarget, 0)
+	waiting := make(map[string]<-chan struct{})
 
 	m.mu.Lock()
-	if lifecycle := m.owners[ownerUserID]; lifecycle != nil && lifecycle.reap != nil {
-		flight := lifecycle.reap
-		m.mu.Unlock()
-		return 0, waitOwnerReap(ctx, flight)
-	}
 	for sessionKey, state := range m.sessions {
 		if state == nil || state.OwnerUserID != ownerUserID {
 			continue
 		}
-		target, started, _ := m.beginSessionCloseLocked(sessionKey)
+		target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
 		if started {
 			targets = append(targets, target)
+		} else if closeDone != nil {
+			waiting[sessionKey] = closeDone
 		}
 	}
 	reapPlan, reapFlight := m.beginOwnerReapLocked(ownerUserID, nil, true)
@@ -268,8 +266,9 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 	}
 	m.startOwnerReap(reapPlan)
 
-	errs := make([]error, 0, len(targets)+1)
+	errs := make([]error, 0, len(targets)+len(waiting)+1)
 	for _, target := range targets {
+		sandboxPhaseErr := m.markSandboxReceiptRetiring(target)
 		var disconnectErr error
 		if target.client != nil {
 			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
@@ -279,14 +278,17 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
+		cleanupErr := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
+		sandboxTerminalPhaseErr := m.finalizeSandboxReceipt(target, cleanupErr)
+		cleanupErr = errors.Join(cleanupErr, sandboxPhaseErr, sandboxTerminalPhaseErr)
 		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 			errors.Is(disconnectErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, cleanupErr)
 		} else {
-			m.finishSessionClose(target)
+			m.finishSessionClose(target, cleanupErr)
 		}
-		err := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
+		err := cleanupErr
 		if err != nil && !IsRuntimeTransportClosedError(err) {
 			errs = append(errs, fmt.Errorf(
 				"close owner runtime session %s: %w",
@@ -295,8 +297,18 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 			))
 		}
 	}
+	for sessionKey, closeDone := range waiting {
+		if err := m.waitSessionCloseResult(ctx, sessionKey, closeDone); err != nil {
+			errs = append(errs, fmt.Errorf("wait owner runtime session %s close: %w", sessionKey, err))
+		}
+	}
 	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {
 		errs = append(errs, fmt.Errorf("reap owner runtime processes: %w", reaperErr))
+		for _, target := range targets {
+			if receiptErr := m.markSandboxReceiptUnknownAfterReaper(target, reaperErr); receiptErr != nil {
+				errs = append(errs, fmt.Errorf("record owner sandbox reaper uncertainty: %w", receiptErr))
+			}
+		}
 	}
 	return len(targets), errors.Join(errs...)
 }

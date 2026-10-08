@@ -1,0 +1,175 @@
+# INPUT: Exact Nexus event revision and a pinned SDK commit on the sandbox branch.
+# OUTPUT: Signed/notarized macOS acceptance artifacts and native install evidence.
+# POS: Artifact-only acceptance; no release, tag, Windows job or publication writes.
+name: macOS Sandbox Acceptance
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-sandbox-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  GOWORK: "off"
+  PINNED_SDK_REVISION: 2d1fd0d6b2d0d7d1a6dedbad071533132dde61d9
+
+jobs:
+  package:
+    name: Sign and check macOS ${{ matrix.arch }}
+    if: github.ref == 'refs/heads/codex/desktop-sandbox-approvals'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+        working-directory: nexus
+    env:
+      NEXUS_DESKTOP_TARGET_ARCH: ${{ matrix.arch }}
+      NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_NXS_RELEASE: source-2d1fd0d6b2d0d7d1a6dedbad071533132dde61d9
+      NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
+      NEXUS_DESKTOP_BUILD_NUMBER: ${{ github.run_number }}
+      NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
+      NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
+      NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
+
+    steps:
+      - name: Checkout exact Nexus source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: nexus
+          persist-credentials: false
+
+      - name: Checkout pinned SDK source
+        uses: actions/checkout@v6
+        with:
+          repository: nexus-research-lab/nexus-agent-sdk-go
+          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
+          ref: ${{ env.PINNED_SDK_REVISION }}
+          path: sdk-source
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: nexus/go.mod
+          cache-dependency-path: |
+            nexus/go.sum
+            sdk-source/go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Prepare package dependencies and fixed runtime
+        env:
+          NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/sandbox-app
+          NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/sandbox-artifacts
+          NEXUS_DESKTOP_NXS_RUNTIME_PATH: ${{ runner.temp }}/sandbox-runtime/nxs
+        run: |
+          set -euo pipefail
+          echo "NEXUS_DESKTOP_APP_BUILD_DIR=${NEXUS_DESKTOP_APP_BUILD_DIR}" >> "${GITHUB_ENV}"
+          echo "NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR=${NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR}" >> "${GITHUB_ENV}"
+          echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${NEXUS_DESKTOP_NXS_RUNTIME_PATH}" >> "${GITHUB_ENV}"
+          test "$(uname -m)" = "${NEXUS_DESKTOP_TARGET_ARCH}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test -z "$(git status --porcelain)"
+          test "$(git -C ../sdk-source rev-parse HEAD)" = "${PINNED_SDK_REVISION}"
+          test -z "$(git -C ../sdk-source status --porcelain)"
+          corepack enable
+          corepack prepare pnpm@9.15.2 --activate
+          if ! command -v rg >/dev/null 2>&1; then brew install ripgrep; fi
+          mkdir -p "${RUNNER_TEMP}/sandbox-runtime" "${NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR}"
+          (cd ../sdk-source && go build -mod=readonly -trimpath -o "${NEXUS_DESKTOP_NXS_RUNTIME_PATH}" ./cmd/nxs)
+          cp "$(command -v rg)" "${RUNNER_TEMP}/sandbox-runtime/rg"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const { execFileSync } = require('node:child_process');
+          const run = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8' }).trim();
+          const report = {
+            nexus: run('git', ['rev-parse', 'HEAD']),
+            sdk: process.env.PINNED_SDK_REVISION,
+            bridge: JSON.parse(run('go', ['list', '-m', '-json', 'github.com/nexus-research-lab/nexus-agent-sdk-bridge'])),
+            go: run('go', ['version']),
+            ripgrep: run('rg', ['--version']),
+            architecture: process.env.NEXUS_DESKTOP_TARGET_ARCH,
+            acceptanceOnly: true,
+            smokeAllowsHeadlessFallback: true,
+            releaseAccepted: false,
+          };
+          if (report.bridge.Replace || !report.bridge.Sum) throw new Error('Bridge must be a canonical remote module');
+          fs.writeFileSync(path.join(process.env.NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR, 'provenance.json'), JSON.stringify(report, null, 2) + '\n');
+          NODE
+
+      - name: Import acceptance signing certificate
+        env:
+          MACOS_DEVELOPER_ID_CERTIFICATE_BASE64: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_BASE64 }}
+          MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "${MACOS_DEVELOPER_ID_CERTIFICATE_BASE64}"
+          test -n "${MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD}"
+          cert_path="${RUNNER_TEMP}/sandbox-signing.p12"
+          keychain_path="${RUNNER_TEMP}/sandbox-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "SANDBOX_SIGNING_KEYCHAIN=${keychain_path}" >> "${GITHUB_ENV}"
+          printf '%s' "${MACOS_DEVELOPER_ID_CERTIFICATE_BASE64}" | base64 --decode > "${cert_path}"
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${cert_path}" -k "${keychain_path}" -P "${MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD}" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "${cert_path}"
+          security default-keychain -s "${keychain_path}"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${keychain_password}" "${keychain_path}"
+
+      - name: Build signed and notarized acceptance DMG
+        env:
+          NEXUS_DESKTOP_CODESIGN_IDENTITY: ${{ vars.MACOS_DEVELOPER_ID_APPLICATION || secrets.MACOS_DEVELOPER_ID_APPLICATION }}
+          NEXUS_DESKTOP_NOTARIZE: "1"
+          NEXUS_DESKTOP_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          NEXUS_DESKTOP_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+          NEXUS_DESKTOP_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${NEXUS_DESKTOP_CODESIGN_IDENTITY}"
+          scripts/desktop/package-macos-app.sh
+
+      - name: Verify quarantined copy from DMG
+        run: |
+          scripts/desktop/check-macos-signed-install.sh "${NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR}"
+
+      - name: Upload acceptance artifacts and evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-sandbox-${{ matrix.arch }}-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/sandbox-artifacts/*.dmg
+            ${{ runner.temp }}/sandbox-artifacts/*.sha256
+            ${{ runner.temp }}/sandbox-artifacts/*.json
+            ${{ runner.temp }}/sandbox-artifacts/*.log
+
+      - name: Remove acceptance signing material
+        if: always()
+        run: |
+          if [ -n "${SANDBOX_SIGNING_KEYCHAIN:-}" ]; then security delete-keychain "${SANDBOX_SIGNING_KEYCHAIN}" || true; fi
+          rm -f "${RUNNER_TEMP}/sandbox-signing.p12"

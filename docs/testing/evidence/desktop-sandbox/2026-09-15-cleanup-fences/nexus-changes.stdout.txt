@@ -1,0 +1,20 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M docs/README.md
+ M docs/specs/desktop-sandbox-spec.md
+ M go.mod
+ M go.sum
+ M internal/runtime/agent_revocation.go
+ M internal/runtime/client.go
+ M internal/runtime/doc.go
+ M internal/runtime/idle.go
+ M internal/runtime/lifecycle.go
+ M internal/runtime/manager.go
+ M internal/runtime/owner.go
+ M internal/runtime/process_policy.go
+ M internal/runtime/session.go
+ M scripts/desktop/check-sandbox-baseline.mjs
+?? docs/explorations/im-delivery-replies.md
+?? internal/runtime/client_cleanup_test.go
+?? internal/runtime/process_policy_test.go
+?? web/browser-tests/conversation-session-scroll.spec.ts

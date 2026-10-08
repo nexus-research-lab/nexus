@@ -1,0 +1,30 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-mod=readonly",
+    "-json",
+    "-count=1",
+    "./client",
+    "-run",
+    "^Test(RequiredSandbox|FileSandbox|SearchSandbox|MediaFileSandbox|SkillFileSandbox|ContextFileSandbox|ProjectFileSandbox|ManagedPolicySandbox|SandboxResources)RealProcess$"
+  ],
+  "cwd": "/Users/berhand/program/go/pkg/mod/github.com/nexus-research-lab/nexus-agent-sdk-bridge@v0.1.34-0.20260916040534-796ab55c1b7d",
+  "started": 1789531670.9327302,
+  "environment": {
+    "GOWORK": "off",
+    "GOPROXY": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "NEXUS_SANDBOX_TEST_BINARY": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-znxXCm/nxs",
+    "NEXUS_SANDBOX_LEGACY_TEST_BINARY": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+    "NEXUS_SANDBOX_RESOURCES_LEGACY_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-bm3p4d/nxs",
+    "NEXUS_SEARCH_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-z7S5G7/nxs",
+    "NEXUS_MEDIA_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-rXi6ah/nxs",
+    "NEXUS_SKILL_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-xr21tb/nxs",
+    "NEXUS_CONTEXT_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-I6JUXH/nxs",
+    "NEXUS_PROJECT_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-OLgioZ/nxs",
+    "NEXUS_MANAGED_SANDBOX_LEGACY_TEST_BINARY": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-ZhdwGl/nxs"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 38.648
+}

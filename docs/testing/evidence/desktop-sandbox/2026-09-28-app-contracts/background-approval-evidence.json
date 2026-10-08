@@ -1,0 +1,386 @@
+[
+  {
+    "decision": "deny",
+    "task": {
+      "job_id": "task_8132bf053b6fbf23e334",
+      "name": "Sandbox QA background deny",
+      "agent_id": "94a0a7739fb9",
+      "schedule": {
+        "kind": "every",
+        "interval_seconds": 86400,
+        "timezone": "Asia/Shanghai"
+      },
+      "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+      "execution_kind": "agent",
+      "permission_mode": "default",
+      "session_target": {
+        "kind": "isolated",
+        "wake_mode": "next-heartbeat"
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "session_binding_state": "ready",
+      "source": {
+        "kind": "user_page"
+      },
+      "overlap_policy": "skip",
+      "enabled": false,
+      "running": false,
+      "configuration_version": 1,
+      "permission_policy": {
+        "version": 1,
+        "revision": 1,
+        "grants": [],
+        "denied_tools": []
+      },
+      "permission_state": "ready"
+    },
+    "started": {
+      "job_id": "task_8132bf053b6fbf23e334",
+      "run_id": "run_b09898749f7c4417c25b",
+      "status": "running",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+      "scheduled_for": "2026-09-27T20:42:23.288887Z",
+      "round_id": "round_521423d9a9acb010edc3",
+      "message_count": 0
+    },
+    "pending": {
+      "request_id": "permission_a22ec8991e72285d7116",
+      "job_id": "task_8132bf053b6fbf23e334",
+      "run_id": "run_b09898749f7c4417c25b",
+      "policy_revision": 1,
+      "kind": "tool",
+      "status": "pending",
+      "capability": {
+        "tool_name": "mcp__nexus__deliver_files",
+        "effect": "execute",
+        "input_fingerprint": "a4eb32af8cb4a9e901158884711d55520ea2babb0d3f0c1e8a73aa7ccf773d4f"
+      },
+      "input_summary": {
+        "paths": [
+          "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt"
+        ]
+      },
+      "title": "mcp__nexus__deliver_files调用需要确认",
+      "description": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+      "reason": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+      "round_id": "round_521423d9a9acb010edc3",
+      "tool_use_id": "tool_Cpp8ti6ww4sHytmpc7tKAXMG",
+      "resume_safe": true,
+      "created_at": "2026-09-27T20:42:44Z",
+      "updated_at": "2026-09-27T20:42:44Z"
+    },
+    "resolution": {
+      "request": {
+        "request_id": "permission_a22ec8991e72285d7116",
+        "job_id": "task_8132bf053b6fbf23e334",
+        "run_id": "run_b09898749f7c4417c25b",
+        "policy_revision": 1,
+        "kind": "tool",
+        "status": "denied",
+        "decision": "deny",
+        "capability": {
+          "tool_name": "mcp__nexus__deliver_files",
+          "effect": "execute",
+          "input_fingerprint": "a4eb32af8cb4a9e901158884711d55520ea2babb0d3f0c1e8a73aa7ccf773d4f"
+        },
+        "input_summary": {
+          "paths": [
+            "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt"
+          ]
+        },
+        "title": "mcp__nexus__deliver_files调用需要确认",
+        "description": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+        "reason": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+        "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+        "round_id": "round_521423d9a9acb010edc3",
+        "tool_use_id": "tool_Cpp8ti6ww4sHytmpc7tKAXMG",
+        "resume_safe": true,
+        "resolved_by_user_id": "__system__",
+        "created_at": "2026-09-27T20:42:44Z",
+        "updated_at": "2026-09-27T20:42:44Z",
+        "resolved_at": "2026-09-27T20:42:44.511475Z"
+      },
+      "task": {
+        "job_id": "task_8132bf053b6fbf23e334",
+        "name": "Sandbox QA background deny",
+        "agent_id": "94a0a7739fb9",
+        "schedule": {
+          "kind": "every",
+          "interval_seconds": 86400,
+          "timezone": "Asia/Shanghai"
+        },
+        "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+        "execution_kind": "agent",
+        "permission_mode": "default",
+        "session_target": {
+          "kind": "isolated",
+          "wake_mode": "next-heartbeat"
+        },
+        "delivery": {
+          "mode": "none"
+        },
+        "session_binding_state": "ready",
+        "source": {
+          "kind": "user_page"
+        },
+        "overlap_policy": "skip",
+        "enabled": false,
+        "running": false,
+        "last_run_at": "2026-09-27T20:42:44.511475Z",
+        "last_run_status": "failed",
+        "failure_streak": 1,
+        "last_error": "用户拒绝了定时任务的权限请求",
+        "last_delivery_status": "not_attempted",
+        "configuration_version": 1,
+        "permission_policy": {
+          "version": 1,
+          "revision": 1,
+          "grants": [],
+          "denied_tools": []
+        },
+        "permission_state": "denied"
+      },
+      "run": {
+        "run_id": "run_b09898749f7c4417c25b",
+        "job_id": "task_8132bf053b6fbf23e334",
+        "client_request_id": "2d8976b6-fe98-40bf-a314-842ba2a25f7d",
+        "status": "failed",
+        "trigger_kind": "manual",
+        "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+        "round_id": "round_521423d9a9acb010edc3",
+        "delivery_mode": "none",
+        "delivery_target": {
+          "mode": "none"
+        },
+        "delivery_status": "not_attempted",
+        "scheduled_for": "2026-09-27T20:42:23.288887Z",
+        "started_at": "2026-09-27T20:42:23.288961Z",
+        "finished_at": "2026-09-27T20:42:44.511475Z",
+        "attempts": 1,
+        "error_message": "用户拒绝了定时任务的权限请求",
+        "permission_policy_revision": 1,
+        "created_at": "2026-09-27T20:42:23Z",
+        "updated_at": "2026-09-27T20:42:44Z"
+      },
+      "resume_started": false
+    },
+    "finalRun": {
+      "run_id": "run_b09898749f7c4417c25b",
+      "job_id": "task_8132bf053b6fbf23e334",
+      "client_request_id": "2d8976b6-fe98-40bf-a314-842ba2a25f7d",
+      "status": "failed",
+      "trigger_kind": "manual",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+      "round_id": "round_521423d9a9acb010edc3",
+      "delivery_mode": "none",
+      "delivery_target": {
+        "mode": "none"
+      },
+      "delivery_status": "not_attempted",
+      "scheduled_for": "2026-09-27T20:42:23.288887Z",
+      "started_at": "2026-09-27T20:42:23.288961Z",
+      "finished_at": "2026-09-27T20:42:44.511475Z",
+      "attempts": 1,
+      "error_message": "用户拒绝了定时任务的权限请求",
+      "permission_policy_revision": 1,
+      "created_at": "2026-09-27T20:42:23Z",
+      "updated_at": "2026-09-27T20:42:44Z"
+    }
+  },
+  {
+    "decision": "allow_once",
+    "task": {
+      "job_id": "task_6cf8eff752f2d7739fdf",
+      "name": "Sandbox QA background allow_once",
+      "agent_id": "94a0a7739fb9",
+      "schedule": {
+        "kind": "every",
+        "interval_seconds": 86400,
+        "timezone": "Asia/Shanghai"
+      },
+      "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+      "execution_kind": "agent",
+      "permission_mode": "default",
+      "session_target": {
+        "kind": "isolated",
+        "wake_mode": "next-heartbeat"
+      },
+      "delivery": {
+        "mode": "none"
+      },
+      "session_binding_state": "ready",
+      "source": {
+        "kind": "user_page"
+      },
+      "overlap_policy": "skip",
+      "enabled": false,
+      "running": false,
+      "configuration_version": 1,
+      "permission_policy": {
+        "version": 1,
+        "revision": 1,
+        "grants": [],
+        "denied_tools": []
+      },
+      "permission_state": "ready"
+    },
+    "started": {
+      "job_id": "task_6cf8eff752f2d7739fdf",
+      "run_id": "run_cded55187542f136161c",
+      "status": "running",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+      "scheduled_for": "2026-09-27T20:42:44.52733Z",
+      "round_id": "round_6b3350bd9b0ccf7c2457",
+      "message_count": 0
+    },
+    "pending": {
+      "request_id": "permission_5dd817ce52524e130159",
+      "job_id": "task_6cf8eff752f2d7739fdf",
+      "run_id": "run_cded55187542f136161c",
+      "policy_revision": 1,
+      "kind": "tool",
+      "status": "pending",
+      "capability": {
+        "tool_name": "mcp__nexus__deliver_files",
+        "effect": "execute",
+        "input_fingerprint": "a4eb32af8cb4a9e901158884711d55520ea2babb0d3f0c1e8a73aa7ccf773d4f"
+      },
+      "input_summary": {
+        "paths": [
+          "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt"
+        ]
+      },
+      "title": "mcp__nexus__deliver_files调用需要确认",
+      "description": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+      "reason": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+      "round_id": "round_6b3350bd9b0ccf7c2457",
+      "tool_use_id": "tool_kha1tWvFNqdRaoIseZRV9KvT",
+      "resume_safe": true,
+      "created_at": "2026-09-27T20:43:06Z",
+      "updated_at": "2026-09-27T20:43:06Z"
+    },
+    "resolution": {
+      "request": {
+        "request_id": "permission_5dd817ce52524e130159",
+        "job_id": "task_6cf8eff752f2d7739fdf",
+        "run_id": "run_cded55187542f136161c",
+        "policy_revision": 1,
+        "kind": "tool",
+        "status": "approved",
+        "decision": "allow_once",
+        "capability": {
+          "tool_name": "mcp__nexus__deliver_files",
+          "effect": "execute",
+          "input_fingerprint": "a4eb32af8cb4a9e901158884711d55520ea2babb0d3f0c1e8a73aa7ccf773d4f"
+        },
+        "input_summary": {
+          "paths": [
+            "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt"
+          ]
+        },
+        "title": "mcp__nexus__deliver_files调用需要确认",
+        "description": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+        "reason": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+        "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+        "round_id": "round_6b3350bd9b0ccf7c2457",
+        "tool_use_id": "tool_kha1tWvFNqdRaoIseZRV9KvT",
+        "resume_safe": true,
+        "resolved_by_user_id": "__system__",
+        "created_at": "2026-09-27T20:43:06Z",
+        "updated_at": "2026-09-27T20:43:07Z",
+        "resolved_at": "2026-09-27T20:43:07.142273Z"
+      },
+      "task": {
+        "job_id": "task_6cf8eff752f2d7739fdf",
+        "name": "Sandbox QA background allow_once",
+        "agent_id": "94a0a7739fb9",
+        "schedule": {
+          "kind": "every",
+          "interval_seconds": 86400,
+          "timezone": "Asia/Shanghai"
+        },
+        "instruction": "这是独立后台任务的权限验收。请仅调用一次 mcp__nexus__deliver_files，参数固定为 {\"paths\":[\"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/workspace/94a0a7739fb9/sandbox-ui-qa.txt\"]}。不要读取、写入、联网或调用其他工具。若权限阻塞则立即结束；得到后续批准再执行同一调用。",
+        "execution_kind": "agent",
+        "permission_mode": "default",
+        "session_target": {
+          "kind": "isolated",
+          "wake_mode": "next-heartbeat"
+        },
+        "delivery": {
+          "mode": "none"
+        },
+        "session_binding_state": "ready",
+        "source": {
+          "kind": "user_page"
+        },
+        "overlap_policy": "skip",
+        "enabled": false,
+        "running": true,
+        "running_run_id": "run_cded55187542f136161c",
+        "running_started_at": "2026-09-27T20:43:08.514998Z",
+        "last_run_status": "awaiting_approval",
+        "last_error": "任务需要调用mcp__nexus__deliver_files。请确认是否允许本次运行继续。",
+        "configuration_version": 1,
+        "permission_policy": {
+          "version": 1,
+          "revision": 1,
+          "grants": [],
+          "denied_tools": []
+        },
+        "permission_state": "ready"
+      },
+      "run": {
+        "run_id": "run_cded55187542f136161c",
+        "job_id": "task_6cf8eff752f2d7739fdf",
+        "client_request_id": "bb17f13b-d058-4715-b943-8f88307ca8a1",
+        "status": "running",
+        "trigger_kind": "manual",
+        "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+        "round_id": "round_a0f95a2cebb15ffcf684",
+        "delivery_mode": "none",
+        "delivery_target": {
+          "mode": "none"
+        },
+        "delivery_status": "not_required",
+        "scheduled_for": "2026-09-27T20:42:44.52733Z",
+        "started_at": "2026-09-27T20:43:08.514998Z",
+        "attempts": 2,
+        "permission_policy_revision": 1,
+        "created_at": "2026-09-27T20:42:44Z",
+        "updated_at": "2026-09-27T20:43:08Z"
+      },
+      "resume_started": true
+    },
+    "finalRun": {
+      "run_id": "run_cded55187542f136161c",
+      "job_id": "task_6cf8eff752f2d7739fdf",
+      "client_request_id": "bb17f13b-d058-4715-b943-8f88307ca8a1",
+      "status": "succeeded",
+      "trigger_kind": "manual",
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+      "round_id": "round_a0f95a2cebb15ffcf684",
+      "session_id": "e712e062-65af-43e8-9558-856a64229d91",
+      "message_count": 7,
+      "delivery_mode": "none",
+      "delivery_target": {
+        "mode": "none"
+      },
+      "delivery_status": "not_required",
+      "scheduled_for": "2026-09-27T20:42:44.52733Z",
+      "started_at": "2026-09-27T20:43:08.514998Z",
+      "finished_at": "2026-09-27T20:43:27.339544Z",
+      "attempts": 2,
+      "result_summary": "调用成功，文件交付已登记：\n\n- 文件：`sandbox-ui-qa.txt`\n- 类型：file_delivery\n- version：1",
+      "assistant_text": "调用成功，文件交付已登记：\n\n- 文件：`sandbox-ui-qa.txt`\n- 类型：file_delivery\n- version：1",
+      "artifact_path": ".nexus/automation/runs/task_6cf8eff752f2d7739fdf/run_cded55187542f136161c.md",
+      "permission_policy_revision": 1,
+      "effect_started": true,
+      "created_at": "2026-09-27T20:42:44Z",
+      "updated_at": "2026-09-27T20:43:27Z"
+    }
+  }
+]

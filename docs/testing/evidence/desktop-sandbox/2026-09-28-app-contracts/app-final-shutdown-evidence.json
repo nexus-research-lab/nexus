@@ -1,0 +1,117 @@
+{
+  "source": "259ccda2de7c93777628377f70f05229157ef81f",
+  "sdk": "5a937a18355c94d8766458b705d4b9eef7bd8a23",
+  "scope": "native-app-through-websocket",
+  "trigger": "SIGTERM handled by NSApp.terminate",
+  "before": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 34,
+      "runtime_kind": "nxs",
+      "phase": "confirmed",
+      "unknown_reason": "",
+      "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+      "lease_id": "33c7be482bdb62bc70b9119be7013093",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "generation": 5,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+      "lease_id": "c1082c0af5f377d7f1a5b1b472d3c0ca",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-0c206081708a85c4\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "28839f8d-527a-4c90-92a2-aca8d6570b21",
+      "lease_id": "b3b831492bf8b3c02a5a91e03c16472d",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-ca93c5b7efaf641a\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+      "generation": 2,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "e712e062-65af-43e8-9558-856a64229d91",
+      "lease_id": "2e42d2a85c1a65d190e96328b326302f",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-b293dc67f18c92ec\"}"
+    }
+  ],
+  "after": [
+    {
+      "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+      "generation": 34,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+      "lease_id": "33c7be482bdb62bc70b9119be7013093",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:ws:group:c0cc3277c0f3",
+      "generation": 5,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "b3e60f19-cb1d-47cb-bde9-0e4f84d1f6fd",
+      "lease_id": "c1082c0af5f377d7f1a5b1b472d3c0ca",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-0c206081708a85c4\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_8132bf053b6fbf23e334:run_b09898749f7c4417c25b",
+      "generation": 1,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "28839f8d-527a-4c90-92a2-aca8d6570b21",
+      "lease_id": "b3b831492bf8b3c02a5a91e03c16472d",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-ca93c5b7efaf641a\"}"
+    },
+    {
+      "session_key": "agent:94a0a7739fb9:automation:dm:scheduled-task:task_6cf8eff752f2d7739fdf:run_cded55187542f136161c",
+      "generation": 2,
+      "runtime_kind": "nxs",
+      "phase": "retired",
+      "unknown_reason": "",
+      "session_id": "e712e062-65af-43e8-9558-856a64229d91",
+      "lease_id": "2e42d2a85c1a65d190e96328b326302f",
+      "resource_policy_json": "{\"version\":1,\"write_scope\":\"workspace-write\",\"scratch_root\":\"/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-b293dc67f18c92ec\"}"
+    }
+  ],
+  "oldProcessIDs": [
+    28134,
+    28141,
+    42741,
+    42742
+  ],
+  "remainingOldProcesses": "",
+  "scratch": [
+    {
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-0c206081708a85c4",
+      "exists": false
+    },
+    {
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-b293dc67f18c92ec",
+      "exists": false
+    },
+    {
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-ca93c5b7efaf641a",
+      "exists": false
+    },
+    {
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-recovery-app-8h00d3gv/state/users/__system__/runtime/sandbox/.scratch-cac8d0bcccfbcf2c",
+      "exists": false
+    }
+  ],
+  "shutdownSeconds": 0.5741527499922086,
+  "time": "2026-09-27T21:04:03.288843+00:00"
+}

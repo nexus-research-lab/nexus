@@ -1,0 +1,2906 @@
+{
+  "scope": "Current WindowManager/WKWebView with app-shell; no AppDelegate or sidecar",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "cases": [
+    {
+      "case": "app-light-en-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "n",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": "g",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": "Meta",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": "Meta",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-light-en-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-light-zh-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-light-zh-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-dark-en-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-dark-en-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-dark-zh-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-dark-zh-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-rain-en-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-rain-en-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-rain-zh-1280",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          1280,
+          820
+        ],
+        "window": [
+          1280,
+          820
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          1280,
+          820
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          1280,
+          820
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "case": "app-rain-zh-360",
+      "status": {
+        "controls_center": [
+          16,
+          24
+        ],
+        "controls_inset": 85,
+        "key": true,
+        "occluded": false,
+        "url": "http://127.0.0.1:63255/app",
+        "visible": true,
+        "webview": [
+          360,
+          640
+        ],
+        "window": [
+          360,
+          640
+        ]
+      },
+      "navigation_width": 56,
+      "navigation_leading_padding": 0,
+      "zoom_sizes": [
+        [
+          360,
+          640
+        ],
+        [
+          1512,
+          889
+        ],
+        [
+          360,
+          640
+        ]
+      ],
+      "native_events": [
+        {
+          "key": "q",
+          "trusted": true,
+          "type": "keydown"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "input"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        },
+        {
+          "key": null,
+          "trusted": true,
+          "type": "click"
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "timeline": [
+    {
+      "delta_ms": 33.2,
+      "elapsed_ms": 33.2,
+      "event": "main_window.create_begin",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 50.3,
+      "elapsed_ms": 83.4,
+      "event": "webview.created",
+      "metadata": {
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 7,
+      "elapsed_ms": 90.4,
+      "event": "main_window.created",
+      "metadata": {
+        "height": "820",
+        "material": "windowBackground",
+        "min_height": "520",
+        "min_width": "360",
+        "width": "1280",
+        "window_close_button_center_x": "16",
+        "window_close_button_center_y": "24",
+        "window_controls_leading_inset": "85"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 90.6,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 9.6,
+      "elapsed_ms": 100.2,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.5,
+      "elapsed_ms": 100.6,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 100.7,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "2",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 24.9,
+      "elapsed_ms": 125.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 9.9,
+      "elapsed_ms": 135.5,
+      "event": "webview.load_skipped_stale",
+      "metadata": {
+        "current_navigation_request_id": "2",
+        "host": "127.0.0.1",
+        "navigation_request_id": "1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 135.6,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "2",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 178,
+      "elapsed_ms": 313.7,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 453.7,
+      "elapsed_ms": 767.3,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 34.8,
+      "elapsed_ms": 802.1,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.3,
+      "elapsed_ms": 803.4,
+      "event": "desktop_window_interaction.ready",
+      "metadata": {
+        "drag_region_count": "0",
+        "no_drag_region_count": "0"
+      }
+    },
+    {
+      "delta_ms": 233.3,
+      "elapsed_ms": 1036.7,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "484.0",
+        "web_first_contentful_paint_ms": "506.0",
+        "web_load_event_end_ms": "488.0",
+        "web_ready_ms": "722.0",
+        "web_response_end_ms": "12.0"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 1036.8,
+      "event": "main_window.revealed",
+      "metadata": {
+        "source": "web.ready"
+      }
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 1037.2,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=light&locale=en&qa_case=app-light-en-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "723.0"
+      }
+    },
+    {
+      "delta_ms": 134.5,
+      "elapsed_ms": 1171.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 1171.8,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 421.3,
+      "elapsed_ms": 1593.1,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 431.2,
+      "elapsed_ms": 2024.2,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 684,
+      "elapsed_ms": 2708.2,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 717.1,
+      "elapsed_ms": 3425.3,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4844.3,
+      "elapsed_ms": 8269.7,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "show_existing",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 21.9,
+      "elapsed_ms": 8291.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 52.1,
+      "elapsed_ms": 8343.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 85.7,
+      "elapsed_ms": 8429.4,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "show_existing",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 91.5,
+      "elapsed_ms": 8520.9,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.9,
+      "elapsed_ms": 8521.8,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 8521.9,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "3",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 3.6,
+      "elapsed_ms": 8525.5,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "3",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4.1,
+      "elapsed_ms": 8529.5,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 20.4,
+      "elapsed_ms": 8549.9,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.6,
+      "elapsed_ms": 8551.5,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 168.3,
+      "elapsed_ms": 8719.8,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "68.0",
+        "web_first_contentful_paint_ms": "85.0",
+        "web_load_event_end_ms": "70.0",
+        "web_ready_ms": "190.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 8720,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=light&locale=en&qa_case=app-light-en-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "190.0"
+      }
+    },
+    {
+      "delta_ms": 2429.1,
+      "elapsed_ms": 11149.1,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4830.1,
+      "elapsed_ms": 15979.3,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 15979.7,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 25.9,
+      "elapsed_ms": 16005.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 131.4,
+      "elapsed_ms": 16137,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 39.7,
+      "elapsed_ms": 16176.8,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 4.7,
+      "elapsed_ms": 16181.4,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 16181.5,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "4",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4.5,
+      "elapsed_ms": 16186,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "4",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 6.4,
+      "elapsed_ms": 16192.4,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 23.5,
+      "elapsed_ms": 16215.8,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.4,
+      "elapsed_ms": 16217.3,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 176.4,
+      "elapsed_ms": 16393.7,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "72.0",
+        "web_first_contentful_paint_ms": "89.0",
+        "web_load_event_end_ms": "74.0",
+        "web_ready_ms": "201.0",
+        "web_response_end_ms": "3.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 16393.9,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=light&locale=zh&qa_case=app-light-zh-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "201.0"
+      }
+    },
+    {
+      "delta_ms": 2345.9,
+      "elapsed_ms": 18739.8,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4829.9,
+      "elapsed_ms": 23569.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.3,
+      "elapsed_ms": 23569.9,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 39.1,
+      "elapsed_ms": 23609.1,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 121.6,
+      "elapsed_ms": 23730.6,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 37.8,
+      "elapsed_ms": 23768.4,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 3,
+      "elapsed_ms": 23771.4,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 23771.6,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "5",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 3.6,
+      "elapsed_ms": 23775.2,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "5",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4,
+      "elapsed_ms": 23779.1,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 56.3,
+      "elapsed_ms": 23835.4,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 13.2,
+      "elapsed_ms": 23848.6,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 152,
+      "elapsed_ms": 24000.6,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "67.0",
+        "web_first_contentful_paint_ms": "79.0",
+        "web_load_event_end_ms": "69.0",
+        "web_ready_ms": "221.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 24000.8,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=light&locale=zh&qa_case=app-light-zh-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "221.0"
+      }
+    },
+    {
+      "delta_ms": 2348.7,
+      "elapsed_ms": 26349.5,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4828.6,
+      "elapsed_ms": 31178.1,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 31178.4,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 30.4,
+      "elapsed_ms": 31208.8,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 129.5,
+      "elapsed_ms": 31338.3,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 51.3,
+      "elapsed_ms": 31389.6,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 2.4,
+      "elapsed_ms": 31392,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 31392.1,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "6",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.7,
+      "elapsed_ms": 31392.8,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "6",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 6.1,
+      "elapsed_ms": 31398.9,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 25.3,
+      "elapsed_ms": 31424.2,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.5,
+      "elapsed_ms": 31425.7,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 250.5,
+      "elapsed_ms": 31676.2,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "72.0",
+        "web_first_contentful_paint_ms": "76.0",
+        "web_load_event_end_ms": "75.0",
+        "web_ready_ms": "277.0",
+        "web_response_end_ms": "3.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 31676.4,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=dark&locale=en&qa_case=app-dark-en-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "277.0"
+      }
+    },
+    {
+      "delta_ms": 2286.8,
+      "elapsed_ms": 33963.2,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4831.6,
+      "elapsed_ms": 38794.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.3,
+      "elapsed_ms": 38795,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 41.7,
+      "elapsed_ms": 38836.8,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 117.2,
+      "elapsed_ms": 38953.9,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 43.6,
+      "elapsed_ms": 38997.5,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.7,
+      "elapsed_ms": 38998.2,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 38998.3,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "7",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 5.7,
+      "elapsed_ms": 39004,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "7",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4,
+      "elapsed_ms": 39008,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 55.6,
+      "elapsed_ms": 39063.6,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 12.8,
+      "elapsed_ms": 39076.4,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 158.2,
+      "elapsed_ms": 39234.6,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "66.0",
+        "web_first_contentful_paint_ms": "68.0",
+        "web_load_event_end_ms": "68.0",
+        "web_ready_ms": "226.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 39234.8,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=dark&locale=en&qa_case=app-dark-en-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "226.0"
+      }
+    },
+    {
+      "delta_ms": 2354.8,
+      "elapsed_ms": 41589.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4823.5,
+      "elapsed_ms": 46413.2,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.3,
+      "elapsed_ms": 46413.5,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 27,
+      "elapsed_ms": 46440.5,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 130.5,
+      "elapsed_ms": 46571,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 46.6,
+      "elapsed_ms": 46617.6,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 1.3,
+      "elapsed_ms": 46618.9,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 46619,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "8",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.1,
+      "elapsed_ms": 46620.1,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "8",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.3,
+      "elapsed_ms": 46621.4,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 23.5,
+      "elapsed_ms": 46644.8,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.5,
+      "elapsed_ms": 46646.3,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 237.5,
+      "elapsed_ms": 46883.8,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "69.0",
+        "web_first_contentful_paint_ms": "72.0",
+        "web_load_event_end_ms": "71.0",
+        "web_ready_ms": "262.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 46883.9,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=dark&locale=zh&qa_case=app-dark-zh-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "262.0"
+      }
+    },
+    {
+      "delta_ms": 2331.7,
+      "elapsed_ms": 49215.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4834.5,
+      "elapsed_ms": 54050.1,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 54050.5,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 28.4,
+      "elapsed_ms": 54078.9,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 132.3,
+      "elapsed_ms": 54211.2,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 40.5,
+      "elapsed_ms": 54251.8,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 3,
+      "elapsed_ms": 54254.7,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 54254.9,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "9",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4.6,
+      "elapsed_ms": 54259.5,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "9",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4.6,
+      "elapsed_ms": 54264.1,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 57.2,
+      "elapsed_ms": 54321.3,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 12.8,
+      "elapsed_ms": 54334.1,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 113.4,
+      "elapsed_ms": 54447.5,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "68.0",
+        "web_first_contentful_paint_ms": "70.0",
+        "web_load_event_end_ms": "69.0",
+        "web_ready_ms": "183.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 54447.7,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=dark&locale=zh&qa_case=app-dark-zh-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "1.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "183.0"
+      }
+    },
+    {
+      "delta_ms": 2398.9,
+      "elapsed_ms": 56846.6,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4821.4,
+      "elapsed_ms": 61668,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 61668.1,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 23.6,
+      "elapsed_ms": 61691.7,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 134.2,
+      "elapsed_ms": 61826,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 45.3,
+      "elapsed_ms": 61871.2,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 1.4,
+      "elapsed_ms": 61872.7,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 61872.8,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "10",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 61873.2,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "10",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.6,
+      "elapsed_ms": 61874.8,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 63.3,
+      "elapsed_ms": 61938.1,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.8,
+      "elapsed_ms": 61938.9,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 227.2,
+      "elapsed_ms": 62166,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "80.0",
+        "web_first_contentful_paint_ms": "83.0",
+        "web_load_event_end_ms": "83.0",
+        "web_ready_ms": "291.0",
+        "web_response_end_ms": "3.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 62166.2,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=rain&locale=en&qa_case=app-rain-en-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "3.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "291.0"
+      }
+    },
+    {
+      "delta_ms": 2424.8,
+      "elapsed_ms": 64591,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4834.7,
+      "elapsed_ms": 69425.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 69426,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 34,
+      "elapsed_ms": 69460,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 123.3,
+      "elapsed_ms": 69583.3,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 50.5,
+      "elapsed_ms": 69633.8,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.7,
+      "elapsed_ms": 69634.5,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 69634.5,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "11",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.4,
+      "elapsed_ms": 69634.9,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "11",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.2,
+      "elapsed_ms": 69636.2,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 20.9,
+      "elapsed_ms": 69657,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 1.5,
+      "elapsed_ms": 69658.5,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 192.6,
+      "elapsed_ms": 69851.2,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "64.0",
+        "web_first_contentful_paint_ms": "67.0",
+        "web_load_event_end_ms": "66.0",
+        "web_ready_ms": "214.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 69851.3,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=rain&locale=en&qa_case=app-rain-en-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "3.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "214.0"
+      }
+    },
+    {
+      "delta_ms": 2397.8,
+      "elapsed_ms": 72249.2,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4831.2,
+      "elapsed_ms": 77080.3,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.3,
+      "elapsed_ms": 77080.6,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 25.3,
+      "elapsed_ms": 77105.9,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 132.8,
+      "elapsed_ms": 77238.7,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 53.4,
+      "elapsed_ms": 77292.1,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 1.8,
+      "elapsed_ms": 77293.9,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 77294.1,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "12",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.8,
+      "elapsed_ms": 77294.9,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "12",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 10.3,
+      "elapsed_ms": 77305.2,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 54.5,
+      "elapsed_ms": 77359.7,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 0.8,
+      "elapsed_ms": 77360.5,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 142.8,
+      "elapsed_ms": 77503.3,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "71.0",
+        "web_first_contentful_paint_ms": "74.0",
+        "web_load_event_end_ms": "73.0",
+        "web_ready_ms": "197.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 77503.5,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=rain&locale=zh&qa_case=app-rain-zh-1280",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "3.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "198.0"
+      }
+    },
+    {
+      "delta_ms": 2539.4,
+      "elapsed_ms": 80042.9,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4839.8,
+      "elapsed_ms": 84882.7,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 84882.7,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 36.3,
+      "elapsed_ms": 84919,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 122.8,
+      "elapsed_ms": 85041.9,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 31.2,
+      "elapsed_ms": 85073.1,
+      "event": "app.url_route",
+      "metadata": {
+        "host": "launcher",
+        "path": "",
+        "route_path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 1.8,
+      "elapsed_ms": 85074.9,
+      "event": "main_window.route_load",
+      "metadata": {
+        "path": "/launcher"
+      }
+    },
+    {
+      "delta_ms": 0.1,
+      "elapsed_ms": 85075,
+      "event": "webview.cookie_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "13",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 3.4,
+      "elapsed_ms": 85078.4,
+      "event": "webview.load_begin",
+      "metadata": {
+        "host": "127.0.0.1",
+        "navigation_request_id": "13",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 4.3,
+      "elapsed_ms": 85082.7,
+      "event": "webview.navigation_started",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 54.1,
+      "elapsed_ms": 85136.8,
+      "event": "webview.navigation_finished",
+      "metadata": {
+        "host": "127.0.0.1",
+        "path": "/app.html",
+        "query_keys": "desktop_route",
+        "scheme": "http",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 13.7,
+      "elapsed_ms": 85150.5,
+      "event": "webview.bridge_probe",
+      "metadata": {
+        "has_bridge_handler": "true",
+        "has_lifecycle_handler": "true",
+        "has_runtime": "true",
+        "has_webkit": "true",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 152.2,
+      "elapsed_ms": 85302.7,
+      "event": "web.ready",
+      "metadata": {
+        "location_path": "/launcher",
+        "source": "afterPaint",
+        "surface": "main",
+        "web_dom_content_loaded_ms": "65.0",
+        "web_first_contentful_paint_ms": "68.0",
+        "web_load_event_end_ms": "67.0",
+        "web_ready_ms": "219.0",
+        "web_response_end_ms": "2.0"
+      }
+    },
+    {
+      "delta_ms": 0.2,
+      "elapsed_ms": 85302.9,
+      "event": "web.health",
+      "metadata": {
+        "kind": "web.health",
+        "location_path": "/launcher",
+        "location_query_keys": "locale,qa_case,theme",
+        "snapshot_body_children": "2.0",
+        "snapshot_body_text_length": "1.0",
+        "snapshot_has_root": "1.0",
+        "snapshot_path": "/launcher?theme=rain&locale=zh&qa_case=app-rain-zh-360",
+        "snapshot_ready_state": "complete",
+        "snapshot_root_children": "3.0",
+        "snapshot_root_text_length": "1.0",
+        "snapshot_title": "Nexus",
+        "source": "afterPaint",
+        "status": "ready",
+        "surface": "main",
+        "web_ready_ms": "220.0"
+      }
+    },
+    {
+      "delta_ms": 2398.3,
+      "elapsed_ms": 87701.2,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "false"
+      }
+    },
+    {
+      "delta_ms": 4832.5,
+      "elapsed_ms": 92533.6,
+      "event": "main_window.became_key",
+      "metadata": {}
+    },
+    {
+      "delta_ms": 0.3,
+      "elapsed_ms": 92534,
+      "event": "webview.resume_check_begin",
+      "metadata": {
+        "path": "/launcher",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    },
+    {
+      "delta_ms": 45.1,
+      "elapsed_ms": 92579,
+      "event": "main_window.occlusion_changed",
+      "metadata": {
+        "visible": "true"
+      }
+    },
+    {
+      "delta_ms": 113.8,
+      "elapsed_ms": 92692.8,
+      "event": "webview.resume_check_ready",
+      "metadata": {
+        "path": "/app",
+        "reason": "became_key",
+        "surface": "main"
+      }
+    }
+  ],
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+  "transport": {
+    "kind": "nexus-native-ui-fixture",
+    "port": 63255,
+    "rejectedBusinessRequests": 0,
+    "reads": [
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/auth/status",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/auth/status",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/runtime/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status",
+      "GET /nexus/v1/launcher/bootstrap",
+      "GET /nexus/v1/settings/providers/options",
+      "GET /nexus/v1/auth/status",
+      "GET /auth/v1/status"
+    ],
+    "rejected": [],
+    "socketConnections": 12,
+    "socketMessages": [
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events",
+      "subscribe_app_events"
+    ]
+  },
+  "passed": true
+}

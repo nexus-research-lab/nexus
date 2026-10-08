@@ -1,0 +1,97 @@
+// INPUT: 已加载配置目录与内容相同的文件/目录替换。
+// OUTPUT: 非授权目录和链接目标不因权限持久化而被写入。
+// POS: 权限持久化物理身份边界的缺陷复现；完整事务回执另行验收。
+package runtime
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	project "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/workspace"
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+)
+
+func TestPermissionSettingsWriteIdentity(t *testing.T) {
+	for _, change := range []string{"file_symlink", "directory_symlink", "directory_replaced", "hardlink"} {
+		t.Run(change, func(t *testing.T) {
+			t.Setenv("NEXUS_MANAGED_SETTINGS_PATH", t.TempDir())
+			workspace, outside := t.TempDir(), t.TempDir()
+			directory := filepath.Join(workspace, ".nexus")
+			if err := os.Mkdir(directory, 0700); err != nil {
+				t.Fatal(err)
+			}
+			const original = `{"permissions":{"deny":["Bash"]}}`
+			path := filepath.Join(directory, "settings.local.json")
+			target := filepath.Join(outside, "settings.local.json")
+			for _, file := range []string{path, target} {
+				if err := os.WriteFile(file, []byte(original), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			rt, err := New(Config{ConfigDir: t.TempDir(), Project: project.Config{CWD: workspace}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch change {
+			case "file_symlink", "hardlink":
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+				if change == "file_symlink" {
+					err = os.Symlink(target, path)
+				} else {
+					err = os.Link(target, path)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			case "directory_symlink", "directory_replaced":
+				if err := os.Rename(directory, directory+"-original"); err != nil {
+					t.Fatal(err)
+				}
+				if change == "directory_symlink" {
+					if err := os.Symlink(outside, directory); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					if err := os.Mkdir(directory, 0700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(path, []byte(original), 0600); err != nil {
+						t.Fatal(err)
+					}
+					target = path
+				}
+			}
+			err = rt.ApplyPermissionUpdates(context.Background(), []permission.Update{{Type: "addRules", Behavior: permission.BehaviorAllow, Destination: permission.UpdateDestinationLocalSettings, Rules: []permission.RuleValue{{ToolName: "Read"}}}})
+			if change != "hardlink" && err == nil {
+				t.Errorf("replaced settings identity admitted a write: %s", change)
+			}
+			if change == "hardlink" && err != nil {
+				t.Errorf("atomic replacement of hard link failed: %v", err)
+			}
+			content, readErr := os.ReadFile(target)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(content) != original {
+				t.Errorf("write modified unapproved target: %s", change)
+			}
+			if change == "hardlink" {
+				a, err := os.Stat(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				b, err := os.Stat(target)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if os.SameFile(a, b) {
+					t.Error("settings write kept the shared inode")
+				}
+			}
+		})
+	}
+}

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "kind": "desktop_sandbox_provider_environment_boundary",
+  "date": "2026-09-20",
+  "sdkCommit": "431966dd8862429f80a0bb555aef048d02dedf23",
+  "bridgeCommit": "436346420c2905907375cc63b8fee9b88bc07287",
+  "bridgeModule": "v0.1.34-0.20260920062457-436346420c29",
+  "bridgeModuleSum": "h1:kwNq8HuqV0NihWeE96YulddxdlX6Gbq+XiAJEkGs8nM=",
+  "checks": {
+    "bridgeTransportTarget": "passed",
+    "bridgeTransportRace": "passed",
+    "bridgeTransportVet": "passed",
+    "bridgeClientTransportTarget": "passed",
+    "bridgeClientTransportVet": "passed",
+    "bridgeWindowsLinuxCompile": "passed",
+    "sdkSettingsTarget": "passed",
+    "sdkSettingsRace": "passed",
+    "sdkSettingsVet": "passed",
+    "sdkSettingsWindowsLinuxCompile": "passed",
+    "nexusRuntimeTarget": "passed",
+    "nexusRuntimeVet": "passed"
+  },
+  "assertions": [
+    "inherited Provider and bearer-token names are removed",
+    "proxy-auth and SSH-agent names are removed",
+    "typed Provider overrides remain available",
+    "Windows environment matching is case-insensitive",
+    "ordinary PATH, HOME, and runtime identity remain available"
+  ],
+  "scope": {
+    "modelRequest": "not sent",
+    "providerRequest": "not sent",
+    "secretFiles": "not tested",
+    "inheritedHandles": "not tested",
+    "networkIsolation": "not tested",
+    "claudeNativeSandbox": "not tested",
+    "descendantCleanup": "not tested",
+    "nativePlatformRuntime": "not tested",
+    "packageAcceptance": "not tested"
+  },
+  "releaseAccepted": false
+}

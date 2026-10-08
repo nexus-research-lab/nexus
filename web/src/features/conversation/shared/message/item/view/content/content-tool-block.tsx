@@ -69,6 +69,7 @@ export function ContentToolBlock({
       <GenerativeUIBlock
         complete={Boolean(state.result)}
         toolUse={block}
+        workspaceAgentId={context.workspaceAgentId}
       />
     );
   }

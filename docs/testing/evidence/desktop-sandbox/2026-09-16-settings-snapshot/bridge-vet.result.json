@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "vet",
+    "./client",
+    "./protocol"
+  ],
+  "cwd": "/private/tmp/nexus-sandbox-capabilities.60SUhq/bridge",
+  "started": 1789534663.463688,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 0.446
+}

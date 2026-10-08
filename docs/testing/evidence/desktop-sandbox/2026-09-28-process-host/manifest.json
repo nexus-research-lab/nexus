@@ -1,0 +1,20 @@
+{
+  "bridgeCommit": "95b9616f8770ad2f31d1701b31aa80e17306dead",
+  "productionTransportIntegrated": false,
+  "releaseAccepted": false,
+  "mandatoryNativeTests": [
+    "TestSandboxProcessHostNativeLaunch"
+  ],
+  "sha256": {
+    "README.md": "8f23f92bce5f49c91039bf5bf8960e886327de63fca369e0ced74093342d4b1b",
+    "host-race.txt": "069da9f45d0bb7c788290d898a37d10c0d0b6ce6167decddfc2d95a8c78051d9",
+    "native-race.jsonl": "0d50aed6c438a2b4ca4f884fbf6fd8a6093c3f434d13ca9fbad81bde0dcde33f",
+    "no-cgo.txt": "9aa8bd2b1e63bfe99b68f30484587353730357a84c5edc5c9f79e146a683eb66",
+    "runtime.txt": "f4edd5ac7b0068e59e8ac6905ae2a773a66b68577f0eed8dd4b50957117060c4"
+  },
+  "sourceSHA256": {
+    "internal/runtime/sandbox_process_host.go": "ee5a6f6c1bb857544a1cc982e161b3e0ad919bf8af9e2f6dff3021a27f2575fd",
+    "internal/runtime/sandbox_process_host_test.go": "cdbc8f24061fffa8c6f12a96d7ae21e402f230f70378484eceebd2686b9d64bb",
+    "internal/runtime/sandbox_process_host_native_test.go": "db3394a28d47702b8034458d6265c55fdd0d10a033c2c1d7563b8ea3be34c0c8"
+  }
+}

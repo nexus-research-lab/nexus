@@ -1,0 +1,53 @@
+// INPUT: 宿主 Provider 所有权标记和低信任 settings 环境层。
+// OUTPUT: 不可由任务撤销的托管判定，以及可进入任务设置默认层的环境键。
+// POS: Provider 输入所有权的共享分类；不代替进程/文件/网络隔离。
+package env
+
+import (
+	"os"
+	"strings"
+)
+
+const ProviderManagedByHostEnv = "NEXUS_PROVIDER_MANAGED_BY_HOST"
+
+// HostManagesProvider 保留进程宿主已经声明的所有权；普通 scrub 开关仍可
+// 按既有语义覆盖，但任务环境不能撤销这个独立的宿主管理边界。
+func HostManagesProvider(environment map[string]string) bool {
+	value, _ := Lookup(environment, ProviderManagedByHostEnv)
+	return Truthy(value) || Truthy(os.Getenv(ProviderManagedByHostEnv))
+}
+
+// TaskSettingsEnvironment 只用于已由宿主管理 Provider 的 settings 默认层。
+// 调用者显式 Options/env 与进程环境仍是可信输入，不经过这项过滤。
+func TaskSettingsEnvironment(environment map[string]string) map[string]string {
+	result := make(map[string]string, len(environment))
+	for key, value := range environment {
+		if !providerControlledSetting(key) {
+			result[key] = value
+		}
+	}
+	return result
+}
+
+// providerControlledSetting 覆盖 SDK 消费的路由、认证与 HTTP 信任输入。
+func providerControlledSetting(key string) bool {
+	key = strings.ToUpper(key)
+	if shouldScrubSubprocessEnvKey(key) {
+		return true
+	}
+	for _, prefix := range []string{"ANTHROPIC_", "OPENAI_", "NEXUS_OPENAI_", "NEXUS_VISION_", "NEXUS_WEBSEARCH_", "NEXUS_WEBFETCH_", "NEXUS_CLIENT_", "NEXUS_DEFAULT_"} {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	switch key {
+	case ProviderManagedByHostEnv, "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB",
+		"NEXUS_API_PROVIDER", "NEXUS_MODEL_PROVIDER", "NEXUS_RUNTIME_PROVIDER",
+		"NEXUS_MODEL", "MODEL", "NEXUS_FALLBACK_MODEL", "NEXUS_PLAN_MODEL", "NEXUS_SUBAGENT_MODEL", "NEXUS_BACKGROUND_MODEL",
+		"NEXUS_TOOL_DISCOVERY_TRANSPORT", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "SSL_CERT_DIR",
+		"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY":
+		return true
+	default:
+		return false
+	}
+}

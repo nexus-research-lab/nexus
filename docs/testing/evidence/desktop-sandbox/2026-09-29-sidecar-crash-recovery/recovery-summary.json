@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-29",
+  "harness": "scripts/desktop/check-sidecar-crash.mjs",
+  "result": "passed",
+  "processes": 1,
+  "policies": 1,
+  "scratch": 1,
+  "noReplay": true,
+  "detachedChildGone": true,
+  "raw_fixture_root": "cleaned by harness/system before archival"
+}

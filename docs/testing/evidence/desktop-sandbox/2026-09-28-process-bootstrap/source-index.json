@@ -1,0 +1,10 @@
+[
+  {
+    "url": "https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/uipc_usrreq.c",
+    "sha256": "c34d28100931762957c2cb2f3b7a2bef5fe078e4d9c1dca1c494345cbec0e12c"
+  },
+  {
+    "url": "https://github.com/apple-oss-distributions/xnu/blob/f6217f891ac0bb64f3d375211650a4c1ff8ca1ea/bsd/kern/uipc_syscalls.c",
+    "sha256": "72090fdc19c2c96481457beb70579f4d5292b5b1139b0ef735d7b01508799ac0"
+  }
+]

@@ -1,0 +1,54 @@
+// INPUT: 宿主管理模式、已绑定后台模型设置和宿主模型默认值。
+// OUTPUT: 后台任务在托管模式只采用宿主模型，独立模式继续消费 settings。
+// POS: 主/辅助模型所有权一致性回归。
+package runtime
+
+import (
+	"strings"
+	"testing"
+
+	runtimesettings "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/settings"
+	project "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/workspace"
+	coreprovider "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/provider"
+	tools "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+)
+
+func TestMemoryModelRespectsHostProviderOwnership(t *testing.T) {
+	t.Setenv("NEXUS_BACKGROUND_MODEL", "")
+	t.Setenv("NEXUS_SUBAGENT_MODEL", "")
+	t.Setenv("NEXUS_PROVIDER_MANAGED_BY_HOST", "")
+	for _, managed := range []bool{false, true} {
+		name, flag, want := "standalone", "0", "task-background"
+		if managed {
+			name, flag, want = "host_managed", "1", "host-model"
+		}
+		t.Run(name, func(t *testing.T) {
+			binding, err := runtimesettings.NewBinding(t.Context(), runtimesettings.LoadOptions{
+				ConfigDir: t.TempDir(), ProjectRoot: t.TempDir(),
+				FlagSettings: `{"runtime":{"backgroundModel":"task-background"}}`,
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rt := &Runtime{config: Config{Env: map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": flag}, Model: coreprovider.Config{Model: "host-model"}, Tools: tools.Config{Workspace: tools.WorkspaceConfig{SettingsBinding: binding}}}}
+			if got := rt.memoryTaskModel(); got != want {
+				t.Fatalf("background model = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestHostManagedBackgroundSettingDoesNotAcknowledgeUnusedUpdate(t *testing.T) {
+	t.Setenv("NEXUS_MANAGED_SETTINGS_PATH", t.TempDir())
+	rt, err := New(Config{ConfigDir: t.TempDir(), Project: project.Config{CWD: t.TempDir()}, Env: map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": "1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = rt.ApplyFlagSettingsContext(t.Context(), map[string]any{"runtime": map[string]any{"backgroundModel": "task-model"}})
+	if err == nil || !strings.Contains(err.Error(), "managed by the host") {
+		t.Fatalf("ApplyFlagSettingsContext() = %v, want host ownership rejection", err)
+	}
+	if rt.settingsSnapshot().Profile().Runtime.BackgroundModel != "" {
+		t.Fatal("rejected update changed the bound snapshot")
+	}
+}

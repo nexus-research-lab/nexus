@@ -1,0 +1,67 @@
+//go:build darwin
+
+// INPUT: 原生文件限制和 Provider 装配前的配置来源。
+// OUTPUT: 允许来源可用，禁止来源不会先通过宿主 IO 被消费。
+// POS: 客户端 profile 读取的真实 macOS 边界。
+package client
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/nexus-research-lab/nexus-agent-sdk-go/sandbox"
+)
+
+// TestDarwinSettingsProfileFiles 同时保留允许/拒绝、链接和来源禁用的行为。
+func TestDarwinSettingsProfileFiles(t *testing.T) {
+	if os.Getenv("NEXUS_SANDBOX_INTEGRATION") != "1" {
+		t.Skip("requires native Seatbelt")
+	}
+	for _, source := range []string{"user", "project", "local", "flag", "symlink", "filtered"} {
+		for _, allowed := range []bool{false, true} {
+			t.Run(source+map[bool]string{false: "/denied", true: "/allowed"}[allowed], func(t *testing.T) {
+				o := settingsInputFixture(t)
+				path := filepath.Join(o.Env["NEXUS_CONFIG_DIR"], "settings.json")
+				switch source {
+				case "project", "filtered":
+					path = filepath.Join(o.CWD, ".nexus", "settings.json")
+				case "local":
+					path = filepath.Join(o.CWD, ".nexus", "settings.local.json")
+				case "flag", "symlink":
+					path = filepath.Join(t.TempDir(), "profile.json")
+					o.Settings = path
+				}
+				writeSettingsInputFixture(t, path, `{"model":"guarded-profile"}`)
+				if source == "symlink" {
+					link := filepath.Join(o.CWD, "linked.json")
+					if err := os.Symlink(path, link); err != nil {
+						t.Fatal(err)
+					}
+					o.Settings = link
+				}
+				if source == "filtered" {
+					o.SettingSources = []string{"user"}
+				}
+				o.Runtime.Sandbox = &sandbox.Settings{RequireSandbox: true, Resources: &sandbox.ResourcePolicy{
+					Version: 1, WriteScope: sandbox.WriteScopeReadOnly, ScratchRoot: t.TempDir(),
+				}}
+				if !allowed {
+					o.Runtime.Sandbox.Filesystem = &sandbox.FilesystemConfig{DenyRead: []string{path}}
+				}
+				normalized, err := o.normalizedContext(t.Context())
+				if allowed || source == "filtered" {
+					if err != nil {
+						t.Fatal(err)
+					}
+					value := normalized.settingsBinding.Snapshot().Effective["model"]
+					if source == "filtered" && value != nil || source != "filtered" && value != "guarded-profile" {
+						t.Fatalf("unexpected profile projection: %v", value)
+					}
+				} else if err == nil {
+					t.Fatal("denied settings read reached profile")
+				}
+			})
+		}
+	}
+}

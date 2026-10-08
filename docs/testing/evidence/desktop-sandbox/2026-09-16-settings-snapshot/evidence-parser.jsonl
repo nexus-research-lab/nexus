@@ -1,0 +1,46 @@
+TAP version 13
+# Subtest: requires the named native test rather than a package pass
+ok 1 - requires the named native test rather than a package pass
+  ---
+  duration_ms: 0.459333
+  type: 'test'
+  ...
+# Subtest: rejects an opt-in test skipped by a missing binary
+ok 2 - rejects an opt-in test skipped by a missing binary
+  ---
+  duration_ms: 0.103666
+  type: 'test'
+  ...
+# Subtest: accepts completed required tests and ignores unrelated output events
+ok 3 - accepts completed required tests and ignores unrelated output events
+  ---
+  duration_ms: 0.285292
+  type: 'test'
+  ...
+# Subtest: rejects a process failure even if a test already passed
+ok 4 - rejects a process failure even if a test already passed
+  ---
+  duration_ms: 1.310375
+  type: 'test'
+  ...
+# Subtest: does not hide a later failing subtest or malformed evidence
+ok 5 - does not hide a later failing subtest or malformed evidence
+  ---
+  duration_ms: 0.35725
+  type: 'test'
+  ...
+# Subtest: a passing child alone cannot satisfy the parent test
+ok 6 - a passing child alone cannot satisfy the parent test
+  ---
+  duration_ms: 0.141542
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 43.078

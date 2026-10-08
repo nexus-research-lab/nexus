@@ -1,0 +1,62 @@
+// INPUT: 已绑定的 flag 文件、动态控制与外部配置变化。
+// OUTPUT: 控制回执仅包含实际生效内容，不能另走宿主 IO 重读文件。
+// POS: stdio 设置查询和修改的完整性回归，不调用模型。
+package main
+
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// TestRuntimeSettingsControlSnapshot 验证动态设置和查询共同消费受控快照。
+func TestRuntimeSettingsControlSnapshot(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "flags.json")
+	const original = `{"theme":"initial"}`
+	write := func(body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(original)
+	config, err := parseRuntimeCLI([]string{"--input-format", "stream-json", "--output-format", "stream-json", "--settings", path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	server := newTestRuntimeServer(t, strings.NewReader(""), &output, &bytes.Buffer{}, config)
+	if _, err := server.settingsSnapshot(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.session.Close(context.Background()) })
+	if err := server.handleControlRequest(t.Context(), map[string]any{
+		"request_id": "static", "request": map[string]any{
+			"subtype": "apply_flag_settings", "settings": map[string]any{"model": "not-applied"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	response := decodeJSONLine(t, output.String())["response"].(map[string]any)
+	if response["subtype"] != "error" {
+		t.Fatalf("unapplied settings acknowledged: %v", response)
+	}
+	if err := server.session.Control().ApplyFlagSettings(t.Context(), map[string]any{"theme": "compact"}); err != nil {
+		t.Fatal(err)
+	}
+	write(`{"theme":"external"}`)
+	if snapshot, err := server.settingsSnapshot(t.Context()); err == nil || snapshot != nil {
+		t.Fatalf("external settings returned as applied: %v, %v", snapshot, err)
+	}
+	write(original)
+	snapshot, err := server.settingsSnapshot(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := snapshot["effective"].(map[string]any)["theme"]; got != "compact" {
+		t.Fatalf("lost applied inline value: %v", got)
+	}
+}

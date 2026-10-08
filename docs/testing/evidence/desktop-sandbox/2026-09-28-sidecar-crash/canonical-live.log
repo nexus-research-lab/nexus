@@ -1,0 +1,10 @@
+{"kind":"started","root":"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r","port":61148}
+{"kind":"provider-created","provider":"sandbox-crash-fixture"}
+{"kind":"agent-created","agent_id":"b99f1b1fbd99","workspace":"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r/state/users/__system__/workspace/b99f1b1fbd99"}
+{"kind":"dm-created","keys":["room","members","member_agents","conversation","sessions"],"conversation":{"id":"38bde0426abc","room_id":"992d067debb3","conversation_type":"dm","title":"sandbox-crash-fixture","is_draft":true,"message_count":0,"last_activity_at":"2026-09-28T07:01:53Z","created_at":"2026-09-28T07:01:53Z","updated_at":"2026-09-28T07:01:53Z"}}
+{"kind":"detached-child-alive","pid":53737,"session":"agent:b99f1b1fbd99:ws:dm:38bde0426abc"}
+{"kind":"ready-for-crash","root":"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r"}
+{"kind":"original-host-killed","code":null,"signal":"SIGKILL"}
+{"kind":"descendant-survived-host","pid":53737}
+{"kind":"PASS-default-crash-recovery","root":"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r","processes":1,"policies":1,"scratch":1,"noReplay":true,"detachedChildGone":true}
+{"kind":"fixture-stopped","root":"/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sidecar-crash-mxat8r"}

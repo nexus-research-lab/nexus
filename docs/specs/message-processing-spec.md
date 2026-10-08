@@ -85,6 +85,7 @@
 Conversation reliability 必须把 transport、请求受理、Agent round 和工具过程分成独立状态，禁止用一个全局错误字符串同时代表这些阶段：
 
 - WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端按统一策略执行最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”。重试耗尽进入 `unavailable` 后，持久提示必须说明连接尚未恢复、已经显示的消息和当前输入仍保留但页面可能不是最新状态，并要求连接恢复后再继续发送。
+- 宿主广播不能把来源请求的取消当作接收连接失效：发送前已取消的事件不进入连接；已接纳的帧使用连接独立的有界超时完成。旧连接退出或 interrupt 请求取消不得关闭刚重连的健康通道，真实传输失败仍使该连接失效。
 - 物理通道恢复后必须先重放仍有效的 Session binding，再对当前 Session 拉取 durable 消息快照。DM 以该快照和随后实时事件按消息身份合并；Room 还必须同时恢复 `room_seq` replay、Room subscription snapshot、pending Agent slot 和 pending interaction。subscription snapshot 必须携带捕获时的 `snapshot_room_seq`，客户端先将当前 Room 游标设为该栅栏（服务端重启后允许回到较小的新代次序号），再应用快照，并丢弃不新于该序号的迟到事件；非当前 conversation 的迟到快照不得改写游标。
 - Provider/runtime 的 API retry 只由 runtime 发起并以当前 round 的 ephemeral `api_retry` 事实投影；Web 在执行过程里显示原始 Provider 错误、当前次数和倒计时，Composer 同时保留简短的全局重试状态，但不得自行重发 prompt、工具调用或任何可能产生副作用的命令。新的 stream/message/成功 round status 必须按 exact `round_id`/`agent_round_id` 清除对应 retry；最终 error 才转成失败分类。
 - 用户消息、Goal、queue、permission 和 interrupt 的受理按 exact `client_request_id` 对账。ACK 丢失时客户端可以重连和读取 durable 状态，但不得自动重发；正向 ACK、durable `client_message_id`、input queue snapshot 或后续 round 事实只清除其精确请求故障，不能清除其他 Session 的状态。

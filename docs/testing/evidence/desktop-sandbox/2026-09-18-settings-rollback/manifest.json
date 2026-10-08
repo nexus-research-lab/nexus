@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "README.md",
+      "size": 1827,
+      "sha256": "966c87b62d68f8342b39079de91d4c1e88ed81c69cfc5a010b5ad795baef5631"
+    },
+    {
+      "path": "baseline-report.json",
+      "size": 6408,
+      "sha256": "5ed9a22128cc3e667e77549fa7b6d1c361186ec6ed26eb565283b7ae4dcb9f6a"
+    },
+    {
+      "path": "bridge-module.stdout.log.gz",
+      "size": 322,
+      "sha256": "7c7ecfd7ffb98477a09302e9652ba07dfa5725678fb9c4517bfb322a1b3c1086"
+    },
+    {
+      "path": "host-lifecycle.stdout.log.gz",
+      "size": 1933,
+      "sha256": "b306eed3cc5712abcda76a554eb9eee24bad63e13a4b0932e9b16b074278662f"
+    },
+    {
+      "path": "host-policy.stdout.log.gz",
+      "size": 1351,
+      "sha256": "4b88f7cb5a3f04a528dba44d1acd8c9a643df2b641333be0bebf295536ee3c00"
+    },
+    {
+      "path": "nexus-desktop-gate.log.gz",
+      "size": 702,
+      "sha256": "4826bfe37bd627408b3869cde64ebe49eab3298decd62d2ca95c2a61cda81cca"
+    },
+    {
+      "path": "nxs-settings-rollback.sha256",
+      "size": 93,
+      "sha256": "f7cea6f1f5ab709ceea3a817d98d29bcde1257baee96bbf88dee137d63755301"
+    },
+    {
+      "path": "sdk-build.txt",
+      "size": 145,
+      "sha256": "20bcef5c9fe343663e611c6357d73b19c2a4c760bfa44e197184847726c44a05"
+    },
+    {
+      "path": "sdk-race.log.gz",
+      "size": 110,
+      "sha256": "cdb9c4c6db86658d051606709ae8538381fd9ceca70a7b723d3ebfa55940ed08"
+    },
+    {
+      "path": "sdk-revision.txt",
+      "size": 69,
+      "sha256": "a1f218f0dcf9c6715d5d1733b8010776941588e8747fd7e5ca677f3784d4188d"
+    },
+    {
+      "path": "sdk-target.log.gz",
+      "size": 132,
+      "sha256": "602dc53f455b70b2af58b317849fe173ebe396e3dba9c91bf22d78bb63ad3c37"
+    }
+  ]
+}

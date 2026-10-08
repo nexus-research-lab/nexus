@@ -1,0 +1,50 @@
+=== RUN   TestDesktopSandboxLiveProvider
+=== RUN   TestDesktopSandboxLiveProvider/nxs
+    desktop_sandbox_live_test.go:141: live provider initialized with desktop sandbox contract
+    desktop_sandbox_live_test.go:144: tool attempted: Write
+    desktop_sandbox_live_test.go:144: tool attempted: Bash
+    desktop_sandbox_live_test.go:149: PASS live model -> native Write -> sandboxed Bash read
+    desktop_sandbox_live_test.go:154: tool attempted: Read
+    desktop_sandbox_live_test.go:158: PASS public Skill projection remains readable
+    desktop_sandbox_live_test.go:161: tool attempted: Write
+    desktop_sandbox_live_test.go:165: native denial evidence: "failed to write /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/native.txt: open /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/native.txt: operation not permitted"
+    desktop_sandbox_live_test.go:166: PASS real native file denial; target absent
+    desktop_sandbox_live_test.go:172: tool attempted: Read
+    desktop_sandbox_live_test.go:176: PASS real native read denial; host sentinel not returned
+    desktop_sandbox_live_test.go:183: tool attempted: Read
+    desktop_sandbox_live_test.go:187: tool attempted: Bash
+    desktop_sandbox_live_test.go:192: PASS sidecar identity read/write denied; original record unchanged
+    desktop_sandbox_live_test.go:195: tool attempted: Bash
+    desktop_sandbox_live_test.go:199: command denial evidence: "-e:1:in `write': Operation not permitted @ rb_sysopen - /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/blocked-shell/shell.txt (Errno::EPERM)\n\tfrom -e:1:in `\u003cmain\u003e'\n\n\u003csandbox_violations\u003e\n-e:1:in `write': Operation not permitted @ rb_sysopen - /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/blocked-shell/shell.txt (Errno::EPERM)\n\u003c/sandbox_violations\u003e\n\u003csandbox-failure\u003e\nSandbox restriction likely affected this command.\nFilesystem access is restricted by the active Bash sandbox.\nNetwork access is restricted by the active Bash sandbox.\n`dangerouslyDisableSandbox` is disabled by policy; adjust sandbox settings instead.\nUse `$TMPDIR` for temporary files instead of `/tmp`.\nViolation: filesystem /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/blocked-shell/shell.txt - -e:1:in `write': Operation not permitted @ rb_sysopen - /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/blocked-shell/shell.txt (Errno::EPERM)\nCommand: /usr/bin/ruby -e 'File.write(ARGV.fetch(0), \"BLOCKED\")' '/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProvidernxs841617568/001/state/app/data/blocked-shell/shell.txt'\n\u003c/sandbox-failure\u003e\nExit code: 1"
+    desktop_sandbox_live_test.go:200: PASS real command write denial; target absent
+    desktop_sandbox_live_test.go:201: tool attempted: Bash
+    desktop_sandbox_live_test.go:206: network denial evidence: "curl: (22) The requested URL returned error: 403\nExit code: 22"
+    desktop_sandbox_live_test.go:207: PASS command network denied; no sandbox escape granted
+    desktop_sandbox_live_test.go:258: PASS interrupt and close; fixture exited; ordinary approvals=4 boundary denials=0
+=== RUN   TestDesktopSandboxLiveProvider/claude
+    desktop_sandbox_live_test.go:141: live provider initialized with desktop sandbox contract
+    desktop_sandbox_live_test.go:144: tool attempted: Write
+    desktop_sandbox_live_test.go:144: tool attempted: Bash
+    desktop_sandbox_live_test.go:149: PASS live model -> native Write -> sandboxed Bash read
+    desktop_sandbox_live_test.go:154: tool attempted: Read
+    desktop_sandbox_live_test.go:158: PASS public Skill projection remains readable
+    desktop_sandbox_live_test.go:161: tool attempted: Write
+    desktop_sandbox_live_test.go:165: native denial evidence: "\u003ctool_use_error\u003eFile is in a directory that is denied by your permission settings.\u003c/tool_use_error\u003e"
+    desktop_sandbox_live_test.go:166: PASS real native file denial; target absent
+    desktop_sandbox_live_test.go:172: tool attempted: Read
+    desktop_sandbox_live_test.go:176: PASS real native read denial; host sentinel not returned
+    desktop_sandbox_live_test.go:183: tool attempted: Read
+    desktop_sandbox_live_test.go:187: tool attempted: Bash
+    desktop_sandbox_live_test.go:192: PASS sidecar identity read/write denied; original record unchanged
+    desktop_sandbox_live_test.go:195: tool attempted: Bash
+    desktop_sandbox_live_test.go:199: command denial evidence: "Exit code 1\n-e:1:in `write': Operation not permitted @ rb_sysopen - /var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/TestDesktopSandboxLiveProviderclaude822260525/001/state/app/data/blocked-shell/shell.txt (Errno::EPERM)\n\tfrom -e:1:in `\u003cmain\u003e'"
+    desktop_sandbox_live_test.go:200: PASS real command write denial; target absent
+    desktop_sandbox_live_test.go:201: tool attempted: Bash
+    desktop_sandbox_live_test.go:206: network denial evidence: "Exit code 22\ncurl: (22) The requested URL returned error: 403\n\n\u003csandbox_violations\u003e\ndeny network-outbound example.com:443 (host is on the deny list)\n\u003c/sandbox_violations\u003e"
+    desktop_sandbox_live_test.go:207: PASS command network denied; no sandbox escape granted
+    desktop_sandbox_live_test.go:258: PASS interrupt and close; fixture exited; ordinary approvals=2 boundary denials=0
+--- PASS: TestDesktopSandboxLiveProvider (116.70s)
+    --- PASS: TestDesktopSandboxLiveProvider/nxs (70.01s)
+    --- PASS: TestDesktopSandboxLiveProvider/claude (46.69s)
+PASS
+ok  	github.com/nexus-research-lab/nexus/internal/runtime/clientopts	117.780s

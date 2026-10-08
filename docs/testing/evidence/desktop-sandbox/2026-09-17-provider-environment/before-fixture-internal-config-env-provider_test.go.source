@@ -1,0 +1,30 @@
+// INPUT: 托管 Provider 标记、SDK 主/辅助请求凭据与任务环境覆盖。
+// OUTPUT: 工具子进程不继承已知 SDK 凭据，托管标记不能被覆盖层撤销。
+// POS: 环境边界回归；不输出真实环境或凭据。
+package env
+
+import (
+	"slices"
+	"testing"
+)
+
+func TestHostManagedSubprocessRemovesSDKCredentials(t *testing.T) {
+	for _, key := range []string{"OPENAI_API_KEY", "OPENAI_CUSTOM_HEADERS", "NEXUS_WEBSEARCH_API_KEY", "NEXUS_WEBFETCH_SUMMARIZER_API_KEY", "NEXUS_WEBFETCH_DOMAIN_CHECK_API_KEY", "NEXUS_CLIENT_KEY", "NEXUS_CLIENT_KEY_PASSPHRASE", "NEXUS_API_KEY_FILE_DESCRIPTOR", "NEXUS_OAUTH_TOKEN_FILE_DESCRIPTOR", "INPUT_OPENAI_API_KEY"} {
+		t.Run(key, func(t *testing.T) {
+			input := []string{key + "=test-value", "TASK_VALUE=kept"}
+			got := FilterSubprocessEnvironmentWithOverrides(input, map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": "1"})
+			if !slices.Equal(got, []string{"TASK_VALUE=kept"}) {
+				t.Fatalf("credential key %s was not removed", key)
+			}
+		})
+	}
+}
+
+func TestHostProviderOwnershipCannotBeDisabledByTaskEnvironment(t *testing.T) {
+	t.Setenv("NEXUS_PROVIDER_MANAGED_BY_HOST", "1")
+	input := []string{"ANTHROPIC_API_KEY=test-key", "TASK_VALUE=kept"}
+	got := FilterSubprocessEnvironmentWithOverrides(input, map[string]string{"NEXUS_PROVIDER_MANAGED_BY_HOST": "0", "NEXUS_SUBPROCESS_ENV_SCRUB": "0", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "0"})
+	if !slices.Equal(got, []string{"TASK_VALUE=kept"}) {
+		t.Fatal("task environment disabled host credential scrubbing")
+	}
+}

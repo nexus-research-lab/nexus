@@ -1,0 +1,28 @@
+{
+  "entrypointLockIntegrated": true,
+  "automaticAppRecovery": false,
+  "releaseAccepted": false,
+  "mandatoryNativeTests": [
+    "TestDesktopInstanceExclusiveAndStable",
+    "TestDesktopInstanceRejectsLinkAndReplacement",
+    "TestDesktopInstanceReleasedByProcessExit",
+    "TestDesktopInstanceRejectsLinkAndReplacement/symlink",
+    "TestDesktopInstanceRejectsLinkAndReplacement/hardlink",
+    "TestDesktopInstanceRejectsLinkAndReplacement/file_replace",
+    "TestDesktopInstanceRejectsLinkAndReplacement/directory_replace"
+  ],
+  "sha256": {
+    "README.md": "7eaf06e7691ea81601607be6995340541892119fa91e0a1b8051412a7d8ec341",
+    "entrypoint.txt": "a9c6bb6b96aa3f62fd6bca3623e295d23232ed1002da201bd41e1191a0181784",
+    "migration-race.txt": "41c29d7821de6dc7549edaada8a5752a3b32e3c9d054a021e19b38f1ded4c9ac",
+    "native-race.jsonl": "5ddbe567e0805469f2aa6412e1fcaeea49f3e4bebc7de8d4b8056d8c54cf0a12",
+    "no-cgo.txt": "e21fd5958dda6a0ad7afd7116b6d3ac4ea1ce6af3b31dbb7843769866dec9b0c"
+  },
+  "sourceSHA256": {
+    "internal/infra/desktopinstance/lock_darwin.go": "0db38870c80cb7ceaca6174d9820aa27512850e1ad02604b0159b53f48aec606",
+    "internal/infra/desktopinstance/lock_darwin_test.go": "65637721b1d98a2457b207e099f8db8550ad024c67dff287294bd00c2282f356",
+    "cmd/nexus-server/main.go": "a982a408d6d09c74a90fcaee2a2f25912c9e57cf87451c01622095dd872f1910",
+    "cmd/nexus-server/desktop_instance_darwin.go": "f47becb27aa75c7cd9ae51236d94a303c45c47d20ec28a22f473e8660a82b756",
+    "cmd/nexus-server/desktop_instance_darwin_test.go": "f189a3f77115943ac653114b8c0b611177fc31dac116cc53b326d7004a5f041a"
+  }
+}

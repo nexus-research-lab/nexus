@@ -3,7 +3,7 @@
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go：只暴露 show_widget 接收确认工具；生成规则由 skills/visualize 提供。
+//   - server.go：只暴露 show_widget 接收确认工具；生成规则由 skills/visualize 提供，workspace 图片由前端宿主解析 nexus://workspace/ 引用。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package visualize

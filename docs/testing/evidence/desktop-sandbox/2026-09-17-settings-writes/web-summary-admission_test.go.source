@@ -1,0 +1,89 @@
+// INPUT: WebFetch 抓取期间的配置变化、显式摘要端点与宿主摘要适配器。
+// OUTPUT: 抓取后再次校验配置，失效时不发送辅助摘要请求；未变化的配置保持可用。
+// POS: WebFetch 多阶段请求准入回归，不代表抓取网络隔离已验收。
+package executor
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	runtimesettings "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/settings"
+	webenv "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/web"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-go/permission"
+)
+
+// TestWebFetchSummaryRechecksConfiguration 复现工具已准入后、二级摘要前的配置失效窗口。
+func TestWebFetchSummaryRechecksConfiguration(t *testing.T) {
+	for _, source := range []string{"environment", "adapter"} {
+		for _, change := range []string{"unchanged", "changed"} {
+			t.Run(source+"/"+change, func(t *testing.T) {
+				t.Setenv("NEXUS_WEBFETCH_SUMMARIZER_ENDPOINT", "")
+				t.Setenv("NEXUS_WEBFETCH_SUMMARIZER_API_KEY", "")
+				configDir := t.TempDir()
+				settingsPath := filepath.Join(configDir, "settings.json")
+				if err := os.WriteFile(settingsPath, []byte(`{"theme":"initial"}`), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				binding, err := runtimesettings.NewBinding(t.Context(), runtimesettings.LoadOptions{
+					AllowedSources: []string{"user"}, ConfigDir: configDir,
+				}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var summaries, fetches atomic.Int32
+				web := WebAdapterConfig{}
+				if source == "environment" {
+					endpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						summaries.Add(1)
+						_, _ = w.Write([]byte(`{"result":"summary"}`))
+					}))
+					defer endpoint.Close()
+					t.Setenv("NEXUS_WEBFETCH_SUMMARIZER_ENDPOINT", endpoint.URL)
+				} else {
+					web.FetchSummary = func(context.Context, webenv.WebFetchSummarizeRequest) (webenv.WebFetchSummarizeResponse, error) {
+						summaries.Add(1)
+						return webenv.WebFetchSummarizeResponse{Result: "summary"}, nil
+					}
+				}
+				page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					fetches.Add(1)
+					if change == "changed" {
+						if err := os.WriteFile(settingsPath, []byte(`{"theme":"changed"}`), 0o600); err != nil {
+							t.Error(err)
+						}
+					}
+					w.Header().Set("Content-Type", "text/plain")
+					_, _ = w.Write([]byte("page content"))
+				}))
+				defer page.Close()
+				rt := NewRuntime(Config{
+					Workspace: WorkspaceConfig{
+						ConfigDir: configDir, WorkingDirectory: t.TempDir(), SettingsBinding: binding,
+						Env: map[string]string{"NEXUS_WEBSEARCH_CONFIG": `{"enabled":true,"provider":"searxng","base_url":"` + page.URL + `","allow_private_network":true}`},
+					},
+					Adapters: AdapterConfig{Web: web},
+				})
+				result, err := rt.Run(t.Context(), Request{
+					Name: "WebFetch", ToolUseID: "summary-admission",
+					Input: map[string]any{"url": page.URL, "prompt": "summarize"},
+				}, PermissionContext{Mode: string(sdkpermission.ModeBypassPermissions)})
+				if err != nil || fetches.Load() != 1 {
+					t.Fatalf("fetch did not reach summary boundary: fetches=%d error=%v result=%+v", fetches.Load(), err, result.Result)
+				}
+				if change == "changed" {
+					if summaries.Load() != 0 || !result.Result.IsError || !strings.Contains(result.Result.Content[0].Text, "recreate runtime") {
+						t.Fatalf("changed configuration reached summary: calls=%d result=%+v", summaries.Load(), result.Result)
+					}
+				} else if summaries.Load() != 1 || result.Result.IsError || result.Result.StructuredOutput["result"] != "summary" {
+					t.Fatalf("unchanged configuration blocked summary: calls=%d result=%+v", summaries.Load(), result.Result)
+				}
+			})
+		}
+	}
+}

@@ -1,0 +1,264 @@
+panic: test timed out after 20s
+	running tests:
+		TestDarwinSandboxMCPRuntimeNetwork (20s)
+		TestDarwinSandboxMCPRuntimeNetwork/ambient (20s)
+
+goroutine 203 [running]:
+testing.(*M).startAlarm.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2959 +0x490
+created by time.goFunc
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/time/sleep.go:182 +0x44
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc0005c2008, {0x1010d9d79, 0x22}, 0x1019e7258)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2266 +0x7dc
+testing.runTests.func1(0xc0005c2008)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2742 +0x78
+testing.tRunner(0xc0005c2008, 0xc0003ff998)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2193 +0x168
+testing.runTests({0x1010ebe29, 0x30}, {0x1010faba7, 0x47}, 0xc0000100a8, {0x101a5fa08, 0x7e, 0x7e}, {0xc0003ffa88?, 0x10066eab0?, ...})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2740 +0x7a4
+testing.(*M).Run(0xc0005aa1e0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2600 +0xb3c
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.TestMain(0xc0005aa1e0)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/context_files_darwin_test.go:48 +0x2ec
+main.main()
+	_testmain.go:298 +0x108
+
+goroutine 2 [chan receive]:
+testing.(*T).Run(0xc0005c2248, {0x1010b1c40, 0x7}, 0xc00058f090)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2266 +0x7dc
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.TestDarwinSandboxMCPRuntimeNetwork(0xc0005c2248)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/mcp_network_darwin_test.go:23 +0xd8
+testing.tRunner(0xc0005c2248, 0x1019e7258)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2193 +0x168
+created by testing.(*T).Run in goroutine 1
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2258 +0x7c0
+
+goroutine 3 [select]:
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file/sandboxfs.(*FileSystem).runStreamTo(0xc0003322c8, {0x1019e5bf8, 0xc0005ac460}, {0x1, {0x1010ae96c, 0x4}, {0xc000350000, 0x83}, 0x0, 0x0, ...}, ...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/sandboxfs/stream.go:75 +0xa18
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file/sandboxfs.(*FileSystem).runStream(...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/sandboxfs/stream.go:19
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file/sandboxfs.(*FileSystem).ReadFile(0xc0003322c8, {0x1019e5bf8, 0xc0005ac460}, {0xc000350000, 0x83})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/sandboxfs/filesystem.go:59 +0xa4
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file.Env.ReadFile({{0x1019e6450, 0xc0003322c8}, 0x1312d00, 0x40000, 0x61a8, 0x7d0, 0xc0000103d8, 0x0, {0x0, 0x0}, ...}, ...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/io.go:26 +0x50
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor.(*ContextFiles).ReadFile(0xc000139d40, {0x1019e5bf8, 0xc0005ac460}, {0xc000350000, 0x83})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/executor/context_files.go:79 +0x128
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.observedContextFiles.ReadFile.func1()
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/context_files.go:27 +0x78
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime/bootstrap.(*State).MeasureSlowOperation(0xc00013c008, {0xc000336a20, 0x20}, 0xc0006d19c8)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/bootstrap/slow_operations.go:66 +0x4c
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.observedContextFiles.ReadFile({{0x1019e5ae0?, 0xc000139d40?}, 0xc00013c008?}, {0x1019e5bf8, 0xc0005ac460}, {0xc000350000, 0x83})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/context_files.go:31 +0x13c
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/prompt.Config.read({{0x1019e5bf8, 0xc0005ac460}, {0x1019e5aa8, 0xc00040c000}, {0x0, 0x0, 0x0}, {0xc0000267e0, 0x68}, {0x0, ...}, ...}, ...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/prompt/io.go:43 +0x80
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/settings.loadChecked({0x1019e5bf8, 0xc0005ac460}, {0xc00012c210, 0x3, 0xc0000267e0?}, 0xc00051e300)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/config/settings/checked.go:45 +0x1c4
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/config/settings.LoadChecked({0x1019e5bf8, 0xc0005ac460}, {0xc00051e300, {0x0, 0x0, 0x0}, {0xc0000267e0, 0x68}, {0x0, 0x0}, ...})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/config/settings/checked.go:25 +0xb8
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/prompt.instructionExcludePatterns({{0x1019e5bf8, 0xc0005ac460}, {0x1019e5aa8, 0xc00040c000}, {0x0, 0x0, 0x0}, {0xc0000267e0, 0x68}, {0x0, ...}, ...})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/prompt/settings.go:24 +0x1b8
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/prompt.LoadChecked({{0x1019e5bf8, 0xc0005ac460}, {0x1019e5aa8, 0xc00040c000}, {0x0, 0x0, 0x0}, {0xc0000267e0, 0x68}, {0x0, ...}, ...})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/prompt/loader.go:78 +0x9c
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.loadRuntimeInstructions({_, _}, {0x0, 0x0, {0x0, 0x0, 0x0}, {{0x0, 0x0, 0x0}, ...}, ...}, ...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/context_files.go:47 +0x304
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.newRuntimeAssembly({0x0, 0x0, {0x0, 0x0, 0x0}, {{0x0, 0x0, 0x0}, {0x0, 0x0, ...}, ...}, ...}, ...)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/assembly.go:106 +0x14cc
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.New({0x0, 0x0, {0x0, 0x0, 0x0}, {{0x0, 0x0, 0x0}, {0x0, 0x0, ...}, ...}, ...})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/runtime.go:29 +0xfc
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime.TestDarwinSandboxMCPRuntimeNetwork.func1(0xc0005c2488)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/agent/runtime/mcp_network_darwin_test.go:63 +0x81c
+testing.tRunner(0xc0005c2488, 0xc00058f090)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2193 +0x168
+created by testing.(*T).Run in goroutine 2
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/testing/testing.go:2258 +0x7c0
+
+goroutine 50 [IO wait]:
+internal/poll.runtime_pollWait(0x109594000, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc000573c20, 0x72, 0x0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0xc000573c00)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:618 +0x360
+net.(*netFD).accept(0xc000573c00)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/fd_unix.go:149 +0x38
+net.(*TCPListener).accept(0xc000598000)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock_posix.go:159 +0x40
+net.(*TCPListener).Accept(0xc000598000)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock.go:387 +0x68
+net/http.(*Server).Serve(0xc00048e000, {0x1019e4d98, 0xc000598000})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/server.go:3551 +0x470
+net/http/httptest.(*Server).goServe.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/httptest/server.go:586 +0x98
+created by net/http/httptest.(*Server).goServe in goroutine 3
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/httptest/server.go:584 +0xdc
+
+goroutine 22 [IO wait]:
+internal/poll.runtime_pollWait(0x109593600, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc00007e500, 0x72, 0x1)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc00007e4e0, {0xc00018e000, 0x2000, 0x2000})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:170 +0x350
+os.(*File).read(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file_posix.go:30
+os.(*File).Read(0xc0000aa228, {0xc00018e000, 0x2000, 0x2000})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:144 +0xb0
+io.discard.ReadFrom({}, {0x1019e0b68, 0xc0000aa228})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:666 +0x98
+io.copyBuffer({0x1019e0e88, 0x101a8da80}, {0x1019e0b68, 0xc0000aa228}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:415 +0x1c0
+io.Copy(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:388
+os.genericWriteTo(0xc0000aa228, {0x1019e0e88, 0x101a8da80})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:295 +0x50
+os.(*File).WriteTo(0xc0000aa228, {0x1019e0e88, 0x101a8da80})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:273 +0x90
+io.copyBuffer({0x1019e0e88, 0x101a8da80}, {0x1019e0c28, 0xc0000aa228}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:411 +0xac
+io.Copy(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:388
+os/exec.(*Cmd).writerDescriptor.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:613 +0x5c
+os/exec.(*Cmd).Start.func2(0xc00050c460)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:768 +0x3c
+created by os/exec.(*Cmd).Start in goroutine 3
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:767 +0xb20
+
+goroutine 23 [select]:
+os/exec.(*Cmd).watchCtx(0xc000522340, 0xc0000fa5b0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:808 +0xac
+created by os/exec.(*Cmd).Start in goroutine 3
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:794 +0xaec
+
+goroutine 24 [IO wait]:
+internal/poll.runtime_pollWait(0x109593a00, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc00007e3e0, 0x72, 0x1)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc00007e3c0, {0xc0002144c5, 0xb3b, 0xb3b})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:170 +0x350
+os.(*File).read(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file_posix.go:30
+os.(*File).Read(0xc0000aa1e0, {0xc0002144c5, 0xb3b, 0xb3b})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:144 +0xb0
+bufio.(*Scanner).Scan(0xc000125dc0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/bufio/scan.go:219 +0x87c
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*macSandboxLogMonitor).consumeProcess(0x101a65040, 0xc0000104b0, {0x1019e35d0, 0xc0000aa1e0})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/seatbelt.go:689 +0x18c
+created by github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*macSandboxLogMonitor).startProcessLocked in goroutine 3
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/seatbelt.go:659 +0x3d4
+
+goroutine 91 [IO wait]:
+internal/poll.runtime_pollWait(0x109593e00, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc000167520, 0x72, 0x0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0xc000167500)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:618 +0x360
+net.(*netFD).accept(0xc000167500)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/fd_unix.go:149 +0x38
+net.(*TCPListener).accept(0xc000137540)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock_posix.go:159 +0x40
+net.(*TCPListener).Accept(0xc000137540)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock.go:387 +0x68
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*sandboxNetworkRuntime).acceptSocksConnections(0xc000159080, {0x1019e4d98, 0xc000137540})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/network.go:579 +0x48
+created by github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*sandboxNetworkRuntime).startSocksProxy in goroutine 3
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/network.go:239 +0x180
+
+goroutine 90 [IO wait]:
+internal/poll.runtime_pollWait(0x109593800, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc0001674a0, 0x72, 0x0)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0xc000167480)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:618 +0x360
+net.(*netFD).accept(0xc000167480)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/fd_unix.go:149 +0x38
+net.(*TCPListener).accept(0xc000137500)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock_posix.go:159 +0x40
+net.(*TCPListener).Accept(0xc000137500)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/tcpsock.go:387 +0x68
+net/http.(*Server).Serve(0xc00017b7c0, {0x1019e4d98, 0xc000137500})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/net/http/server.go:3551 +0x470
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*sandboxNetworkRuntime).startHTTPProxy.func2()
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/network.go:227 +0x58
+created by github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/bash/sandboxexec.(*sandboxNetworkRuntime).startHTTPProxy in goroutine 3
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/bash/sandboxexec/network.go:226 +0x358
+
+goroutine 199 [IO wait]:
+internal/poll.runtime_pollWait(0x109593200, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc00007e5c0, 0x72, 0x1)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc00007e5a0, {0xc00039e000, 0x8000, 0x8000})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:170 +0x350
+os.(*File).read(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file_posix.go:30
+os.(*File).Read(0xc000002168, {0xc00039e000, 0x8000, 0x8000})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:144 +0xb0
+io.copyBuffer({0x1019e1fc8, 0xc000137100}, {0x1019e0b68, 0xc000002168}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:429 +0x210
+io.Copy(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:388
+os.genericWriteTo(0xc000002168, {0x1019e1fc8, 0xc000137100})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:295 +0x50
+os.(*File).WriteTo(0xc000002168, {0x1019e1fc8, 0xc000137100})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:273 +0x90
+io.copyBuffer({0x1019e1fc8, 0xc000137100}, {0x1019e0c28, 0xc000002168}, {0x0, 0x0, 0x0})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:411 +0xac
+io.Copy(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/io/io.go:388
+os/exec.(*Cmd).writerDescriptor.func1()
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:613 +0x5c
+os/exec.(*Cmd).Start.func2(0xc0002c2f60)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:768 +0x3c
+created by os/exec.(*Cmd).Start in goroutine 3
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:767 +0xb20
+
+goroutine 200 [select]:
+os/exec.(*Cmd).watchCtx(0xc0004864e0, 0xc0001d9960)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:808 +0xac
+created by os/exec.(*Cmd).Start in goroutine 3
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/exec/exec.go:794 +0xaec
+
+goroutine 202 [IO wait]:
+internal/poll.runtime_pollWait(0x1319a3a00, 0x72)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/runtime/netpoll.go:351 +0xa0
+internal/poll.(*pollDesc).wait(0xc00007e2c0, 0x72, 0x1)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:84 +0xb8
+internal/poll.(*pollDesc).waitRead(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc00007e2a0, {0xc0004998df, 0x1, 0x1})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/internal/poll/fd_unix.go:170 +0x350
+os.(*File).read(...)
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file_posix.go:30
+os.(*File).Read(0xc000002140, {0xc0004998df, 0x1, 0x1})
+	/opt/homebrew/Cellar/go/1.27.1/libexec/src/os/file.go:144 +0xb0
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/filesystem/worker.streamEOF({0x1019e0c28, 0xc000002140})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/environment/filesystem/worker/stream.go:87 +0x60
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/filesystem/worker.readStreamResponse({0x1019e0c28, 0xc000002140}, 0x0)
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/environment/filesystem/worker/stream.go:215 +0x110
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/environment/filesystem/worker.ReadStreamResponse({0x1019e0c28, 0xc000002140})
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/environment/filesystem/worker/stream.go:188 +0x38
+github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file/sandboxfs.(*FileSystem).runStreamTo.func2()
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/sandboxfs/stream.go:71 +0x15c
+created by github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file/sandboxfs.(*FileSystem).runStreamTo in goroutine 3
+	/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox/internal/tool/builtin/file/sandboxfs/stream.go:59 +0x980
+FAIL	github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime	20.547s
+FAIL

@@ -1,0 +1,2 @@
+go run ./scripts/check-architecture
+架构依赖检查通过

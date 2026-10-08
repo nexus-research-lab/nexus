@@ -1,0 +1,62 @@
+{
+  "source": "259ccda2de7c93777628377f70f05229157ef81f",
+  "requestID": "c4ca4bb4-f07b-4a1e-89fc-b6197599aa39",
+  "roundID": "round_3feed7bea4ec5e611baf9120",
+  "receipt": {
+    "session_key": "agent:94a0a7739fb9:ws:dm:abcd9b8d2e68",
+    "receipt": {
+      "version": 1,
+      "runtime_kind": "nxs",
+      "generation": 34,
+      "phase": "confirmed",
+      "session_id": "2a95b50b-f063-4d9b-aa79-997a95307daa",
+      "policy_digest": "sha256:46eea75e93fa14924487244e9f4e557031cc282c731d1783ff6a42cdd52b0c0d",
+      "required_capabilities": [
+        "required_sandbox",
+        "sandbox_file_tools",
+        "sandbox_search_tools",
+        "sandbox_media_files",
+        "sandbox_mcp_network",
+        "sandbox_mcp_helpers",
+        "sandbox_mcp_stdio",
+        "sandbox_media_network",
+        "sandbox_notebook_files",
+        "sandbox_skill_files",
+        "sandbox_context_files",
+        "sandbox_project_files",
+        "sandbox_managed_policy",
+        "sandbox_settings_files",
+        "sandbox_settings_writes",
+        "sandbox_resources"
+      ],
+      "acknowledged_capabilities": [
+        "required_sandbox",
+        "sandbox_file_tools",
+        "sandbox_search_tools",
+        "sandbox_media_files",
+        "sandbox_mcp_network",
+        "sandbox_mcp_helpers",
+        "sandbox_mcp_stdio",
+        "sandbox_media_network",
+        "sandbox_notebook_files",
+        "sandbox_skill_files",
+        "sandbox_context_files",
+        "sandbox_project_files",
+        "sandbox_managed_policy",
+        "sandbox_settings_files",
+        "sandbox_settings_writes",
+        "sandbox_resources"
+      ],
+      "capability_evidence": "bridge_negotiated",
+      "isolation_evidence": "not_attested",
+      "resource_policy": {
+        "version": 1,
+        "write_scope": "workspace-write",
+        "scratch_root": ""
+      },
+      "lease_id": "33c7be482bdb62bc70b9119be7013093",
+      "round_id": "round_3feed7bea4ec5e611baf9120",
+      "confirmed_at": "2026-09-27T21:03:26.561303Z"
+    }
+  }
+}

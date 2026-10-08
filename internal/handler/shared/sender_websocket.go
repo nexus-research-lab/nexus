@@ -1,3 +1,6 @@
+// INPUT: authenticated WebSocket connection、调用方上下文与待发送事件。
+// OUTPUT: 串行且有界的完整帧发送；调用方取消不退休其他请求仍使用的连接。
+// POS: handler 共享 transport 写边界；只由真实传输失败或连接关闭标记失效。
 package shared
 
 import (
@@ -71,7 +74,14 @@ func (s *WebSocketSender) SendJSON(ctx context.Context, payload any) error {
 	if s.closed.Load() {
 		return context.Canceled
 	}
-	writeCtx, cancel := context.WithTimeout(ctx, WebSocketWriteTimeout)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// An old request may broadcast to a newly rebound connection. Reject work
+	// already canceled before admission, but let an admitted frame complete
+	// under the connection's own deadline: aborting it would also poison every
+	// later event on this shared transport.
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), WebSocketWriteTimeout)
 	defer cancel()
 	if err := wsjson.Write(writeCtx, s.conn, payload); err != nil {
 		s.MarkClosed()

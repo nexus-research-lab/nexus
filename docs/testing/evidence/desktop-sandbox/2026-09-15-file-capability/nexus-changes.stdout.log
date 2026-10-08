@@ -1,0 +1,12 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M docs/explorations/desktop-sandbox/development-plan.md
+ M docs/specs/desktop-sandbox-spec.md
+ M docs/testing/desktop-sandbox-acceptance.md
+ M go.mod
+ M go.sum
+ M internal/runtime/clientopts/desktop_sandbox.go
+ M internal/runtime/clientopts/desktop_sandbox_integration_test.go
+ M internal/runtime/clientopts/desktop_sandbox_test.go
+ M internal/runtime/clientopts/doc.go
+?? web/browser-tests/conversation-session-scroll.spec.ts

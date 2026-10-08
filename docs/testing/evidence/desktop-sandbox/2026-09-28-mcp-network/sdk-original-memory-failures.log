@@ -1,0 +1,7 @@
+--- FAIL: TestNewInitializesAutoMemoryInConfiguredWorkspace (0.03s)
+    runtime_test.go:130: workspace entries = []fs.DirEntry{(*os.unixDirent)(0x2eb9d2d4cb00), (*os.unixDirent)(0x2eb9d2d4cac0), (*os.unixDirent)(0x2eb9d2d4ca80)}, want MEMORY.md + memory/
+--- FAIL: TestSessionPersistenceOffDisablesPersistentMemory (0.02s)
+    runtime_test.go:162: workspace entries = []fs.DirEntry{(*os.unixDirent)(0x2eb9d2a22380)}, want no persistent memory artifacts
+FAIL
+FAIL	github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime	1.234s
+FAIL

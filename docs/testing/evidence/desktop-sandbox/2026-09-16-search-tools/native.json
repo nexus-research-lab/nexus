@@ -1,0 +1,17 @@
+{
+  "platform": "darwin",
+  "scope": "native Unix session and kqueue behavior; not full-tree acceptance",
+  "rootExitCode": 0,
+  "rootPid": 58101,
+  "rootSession": 58101,
+  "childPid": 58102,
+  "childSession": 58102,
+  "originalGroupKill": "group_not_found",
+  "detachedChildSurvived": true,
+  "kqueueTrack": {
+    "errorEvent": true,
+    "errno": 45,
+    "errorName": "ENOTSUP"
+  },
+  "probeChildGoneAfterExplicitCleanup": true
+}

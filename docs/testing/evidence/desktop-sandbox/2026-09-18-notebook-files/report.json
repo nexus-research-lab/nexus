@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "recordedAt": "2026-09-18T05:41:08Z",
+  "scope": "P1/P2 nxs Notebook file capability negotiation and Nexus admission",
+  "passed": true,
+  "releaseAccepted": false,
+  "localOnly": true,
+  "sdkRevision": "7bc597ea3c9db479b561d6203fb2a8d03698c982",
+  "bridgeRevision": "8a4576ba97ece60e0485f2bfbb0bce53e5b89502",
+  "nexusBaseRevision": "dc2ec1583ce4149a44e2ba5bc327f088202697bf",
+  "nexusWorkingTreeFiles": [
+    "go.mod",
+    "go.sum",
+    "internal/runtime/clientopts/desktop_sandbox.go",
+    "internal/runtime/clientopts/desktop_sandbox_test.go",
+    "internal/runtime/clientopts/doc.go",
+    "internal/runtime/doc.go",
+    "internal/runtime/process_policy.go",
+    "internal/runtime/process_policy_test.go"
+  ],
+  "bridge": {
+    "version": "v0.1.34-0.20260918053632-8a4576ba97ec",
+    "sum": "h1:nYthJgS+xL7KZayRvMhy086O/xXtJ2KcqGjB/xMPwyo=",
+    "moduleProxy": "/private/tmp/nexus-bridge-8a4576b-proxy-new",
+    "zipSHA256": "f69b17af8764da2b9758b394862d0846dc6d462c3a4459139f1266f99aef88f8"
+  },
+  "runtime": {
+    "path": "/private/tmp/nexus-notebook-evidence/nxs",
+    "sha256": "b1aebef92731ab9a1397136b2e1656407d8c2b59818b71d9ca4c71025f0c52b5",
+    "source": "fixed SDK 7bc597ea archive build"
+  },
+  "platform": {
+    "goos": "darwin",
+    "architecture": "arm64",
+    "osRelease": "27.0"
+  },
+  "checks": [
+    {
+      "name": "sdk-target",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-go/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=off",
+        "go",
+        "test",
+        "./cmd/nxs",
+        "./protocol"
+      ],
+      "exitCode": 0,
+      "log": "sdk-target.log"
+    },
+    {
+      "name": "bridge-target",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=off",
+        "go",
+        "test",
+        "./client",
+        "./protocol"
+      ],
+      "exitCode": 0,
+      "log": "bridge-target.log"
+    },
+    {
+      "name": "bridge-race",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=off",
+        "go",
+        "test",
+        "-race",
+        "./client"
+      ],
+      "exitCode": 0,
+      "log": "bridge-race.log"
+    },
+    {
+      "name": "bridge-real-nxs",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus-agent-sdk-bridge/desktop-sandbox",
+      "command": [
+        "env",
+        "NEXUS_SANDBOX_TEST_BINARY=/private/tmp/nexus-notebook-evidence/nxs",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "go",
+        "test",
+        "./client",
+        "-run",
+        "TestNotebookFileSandbox",
+        "-count=1"
+      ],
+      "exitCode": 0,
+      "log": "bridge-real.log"
+    },
+    {
+      "name": "nexus-target",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "go",
+        "test",
+        "./internal/runtime/clientopts",
+        "./internal/runtime"
+      ],
+      "exitCode": 0,
+      "log": "nexus-target.log"
+    },
+    {
+      "name": "nexus-make-check-go",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "make",
+        "check-go"
+      ],
+      "exitCode": 0,
+      "log": "make-check-go.log",
+      "note": "GO_CHECK_BASE_REF=dc2ec1583 forced the incremental Go scope to include the committed Notebook code."
+    },
+    {
+      "name": "nexus-make-check-architecture",
+      "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+      "command": [
+        "env",
+        "GOWORK=off",
+        "GOPROXY=file:///private/tmp/nexus-bridge-8a4576b-proxy-new",
+        "GONOPROXY=none",
+        "GONOSUMDB=github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+        "make",
+        "check-architecture"
+      ],
+      "exitCode": 0,
+      "log": "make-check-architecture.log"
+    }
+  ],
+  "contract": {
+    "nxsRequest": "required_sandbox_notebook_files=true",
+    "dependencies": [
+      "required_sandbox_v1",
+      "sandbox_file_tools_v1"
+    ],
+    "capability": "sandbox_notebook_files_v1",
+    "admission": "missing command, file, or Notebook capability fails before the first task",
+    "coverage": "local Notebook content and cell-output reads use the restricted file executor"
+  },
+  "limitations": [
+    "Only the macOS nxs file backend is declared; Windows/Linux native Notebook execution is not accepted.",
+    "This batch does not prove Notebook execution, remote network policy, or whole-SDK IO confinement.",
+    "Provider credential separation, descendant/handle/secret-file cleanup, durable recovery, Claude acceptance, signed packages, and P0-P7 release gates remain open.",
+    "The nxs binary and Bridge module are local evidence and are not published or available as a clean-host dependency."
+  ],
+  "nexusCommittedRevisions": [
+    "2fa81e09f",
+    "0e3e1c21f"
+  ],
+  "nexusWorkingTreeCleanAtVerification": true
+}

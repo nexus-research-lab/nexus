@@ -1,0 +1,15 @@
+{
+  "command": [
+    "make",
+    "check-architecture"
+  ],
+  "cwd": "/Users/berhand/program/Work/Nexus/worktrees/nexus/desktop-sandbox",
+  "started": 1789534791.541913,
+  "environment": {
+    "GOWORK": "off",
+    "GOCACHE": "/private/tmp/nexus-sandbox-review-gocache",
+    "GOPROXY": "off"
+  },
+  "exitCode": 0,
+  "elapsedSeconds": 0.669
+}

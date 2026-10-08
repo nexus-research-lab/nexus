@@ -1,0 +1,520 @@
+{
+  "version": 1,
+  "archivedOn": "2026-09-16",
+  "scope": "macOS search confinement, independent admission, and descendant-supervision gap investigation",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d",
+  "bridgeRevision": "f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103",
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915103347-f6e456da2ecb",
+    "sum": "h1:TOcpWlLdRaKpBe1rz5EldtyuwRR48WypXsj9C331gMo=",
+    "availability": "local-only, unpublished; exact-commit file proxy"
+  },
+  "nexusBaselineRevision": "bf2e2fe4b4beaff11cf01793c14b4e2d43ba488e",
+  "nexusChangesDuringBaseline": [
+    "M AGENTS.md",
+    " M CHANGELOG.md",
+    " M docs/README.md",
+    " M go.mod",
+    " M go.sum",
+    " M internal/runtime/clientopts/desktop_sandbox.go",
+    " M internal/runtime/clientopts/desktop_sandbox_integration_test.go",
+    " M internal/runtime/clientopts/desktop_sandbox_test.go",
+    " M internal/runtime/clientopts/doc.go",
+    " M internal/runtime/doc.go",
+    " M internal/runtime/process_policy.go",
+    " M internal/runtime/process_policy_test.go",
+    " M scripts/desktop/check-sandbox-baseline.mjs",
+    "?? docs/explorations/im-delivery-replies.md",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-rXi6ah/nxs",
+    "sha256": "597cae76273dd59c71f3d911f7c203f5022e80b68287ee9e5784bd10d0ae742c",
+    "source": "fixed-sdk-archive"
+  },
+  "legacyRuntimes": [
+    {
+      "missingCapability": "file",
+      "path": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+      "sha256": "fbdb0b5b677ec8f274697f0e9f3e27aa65f6978292183ecf14700a0345477386"
+    },
+    {
+      "missingCapability": "resources",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-poDX83/nxs",
+      "sha256": "801c33a9448a517d1c6c6cb5eee5f797b0ccd405279e42ec04daffecdf87fadb"
+    },
+    {
+      "missingCapability": "search",
+      "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-2kJZ8U/nxs",
+      "sha256": "66c9c61a7de6203ed13e46e8d8bb53b70273913a946e410def14b0c5c6dae0eb"
+    }
+  ],
+  "baseline": {
+    "log": "baseline-report.json",
+    "exitCode": 0,
+    "GOWORK": "off",
+    "requiredTopLevelTests": 38,
+    "requiredSubtests": 46,
+    "requiredSkips": [],
+    "logs": {
+      "nexus-revision": {
+        "stdout": "nexus-revision.stdout.log",
+        "stderr": "nexus-revision.stderr.log"
+      },
+      "nexus-changes": {
+        "stdout": "nexus-changes.stdout.log",
+        "stderr": "nexus-changes.stderr.log"
+      },
+      "go-version": {
+        "stdout": "go-version.stdout.log",
+        "stderr": "go-version.stderr.log"
+      },
+      "bridge-module": {
+        "stdout": "bridge-module.stdout.log",
+        "stderr": "bridge-module.stderr.log"
+      },
+      "sdk-revision": {
+        "stdout": "sdk-revision.stdout.log",
+        "stderr": "sdk-revision.stderr.log"
+      },
+      "sdk-changes-excluded": {
+        "stdout": "sdk-changes-excluded.stdout.log",
+        "stderr": "sdk-changes-excluded.stderr.log"
+      },
+      "sdk-export": {
+        "stdout": "sdk-export.stdout.log",
+        "stderr": "sdk-export.stderr.log"
+      },
+      "sdk-extract": {
+        "stdout": "sdk-extract.stdout.log",
+        "stderr": "sdk-extract.stderr.log"
+      },
+      "sdk-build": {
+        "stdout": "sdk-build.stdout.log",
+        "stderr": "sdk-build.stderr.log"
+      },
+      "host-policy": {
+        "stdout": "host-policy.stdout.log",
+        "stderr": "host-policy.stderr.log"
+      },
+      "host-lifecycle": {
+        "stdout": "host-lifecycle.stdout.log",
+        "stderr": "host-lifecycle.stderr.log"
+      },
+      "macos-backend-path": {
+        "stdout": "macos-backend-path.stdout.log",
+        "stderr": "macos-backend-path.stderr.log"
+      },
+      "macos-resource-denials": {
+        "stdout": "macos-resource-denials.stdout.log",
+        "stderr": "macos-resource-denials.stderr.log"
+      },
+      "macos-resource-scopes": {
+        "stdout": "macos-resource-scopes.stdout.log",
+        "stderr": "macos-resource-scopes.stderr.log"
+      },
+      "macos-search-contract": {
+        "stdout": "macos-search-contract.stdout.log",
+        "stderr": "macos-search-contract.stderr.log"
+      },
+      "macos-search": {
+        "stdout": "macos-search.stdout.log",
+        "stderr": "macos-search.stderr.log"
+      },
+      "macos-native": {
+        "stdout": "macos-native.stdout.log",
+        "stderr": "macos-native.stderr.log"
+      }
+    }
+  },
+  "before": {
+    "log": "search-before.jsonl",
+    "exitCode": 1,
+    "scope": "SDK 67975b90 production code plus new native denial tests; direct/symlink Glob and Grep leaked names/content, custom rg inherited a fake secret and could write/connect",
+    "topLevelPasses": 0,
+    "subtestPasses": 0,
+    "passedPackages": [],
+    "skips": [],
+    "failures": [
+      "TestDarwinSandboxSearchToolsRuntime/direct/glob",
+      "TestDarwinSandboxSearchToolsRuntime/direct/content",
+      "TestDarwinSandboxSearchToolsRuntime/direct/count",
+      "TestDarwinSandboxSearchToolsRuntime/direct/files_with_matches",
+      "TestDarwinSandboxSearchToolsRuntime/symlink/glob",
+      "TestDarwinSandboxSearchToolsRuntime/symlink/content",
+      "TestDarwinSandboxSearchToolsRuntime/symlink/count",
+      "TestDarwinSandboxSearchToolsRuntime/symlink/files_with_matches",
+      "TestDarwinSandboxSearchToolsRuntime",
+      "TestDarwinSandboxSearchAuxiliaryCannotExpandResources",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ]
+  },
+  "firstRepair": {
+    "log": "search-after.jsonl",
+    "exitCode": 0,
+    "scope": "working implementation with two native denial/auxiliary tests; final contract and positive cases verified separately",
+    "topLevelPasses": 2,
+    "subtestPasses": 8,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ],
+    "skips": [],
+    "failures": []
+  },
+  "nativeRace": {
+    "log": "search-native-race.jsonl",
+    "exitCode": 0,
+    "scope": "working search implementation before final capability addition; existing fixed SDK 67975b90 file helper, 4 native search tests plus related unit tests",
+    "topLevelPasses": 13,
+    "subtestPasses": 27,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/grep",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/ripgrep",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ],
+    "skips": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/glob"
+    ],
+    "failures": []
+  },
+  "sdkPackages": {
+    "log": "sdk-targeted.jsonl",
+    "exitCode": 0,
+    "scope": "changed SDK command/protocol/executor/search/file packages; opt-in and platform skips listed, required native behavior checked by fixed baseline",
+    "topLevelPasses": 165,
+    "subtestPasses": 76,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/protocol",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/ripgrep",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/grep",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/file",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/cmd/nxs",
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/executor"
+    ],
+    "skips": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-go/internal/tool/builtin/glob",
+      "TestConfinedGitDiffNative",
+      "TestPowerShellBackgroundModesPreserveObjectStatusAndCWD",
+      "TestDarwinSandboxFileToolsRuntime",
+      "TestDarwinFileInstructionsShareSandbox",
+      "TestDarwinLargeFileReadRetainsFullState",
+      "TestApprovedPowerShellExpandableStringReachesExecutor",
+      "TestDarwinRequiredSandboxChildWriteBoundary",
+      "TestDarwinRequiredSandboxBlocksDirectNetwork",
+      "TestDarwinRequiredSandboxApprovesPendingNetworkWithoutReplay",
+      "TestDarwinRequiredSandboxBackgroundNetworkKeepsCommandApproval",
+      "TestDarwinMandatorySandboxReadDenyPrecedence",
+      "TestDarwinMandatorySandboxCannotMoveDeniedAncestor",
+      "TestDarwinSandboxResourceScopes",
+      "TestDarwinSandboxSearchPreservesResults",
+      "TestDarwinSandboxSearchPreparationFailsClosed",
+      "TestDarwinSandboxSearchToolsRuntime",
+      "TestDarwinSandboxSearchAuxiliaryCannotExpandResources"
+    ],
+    "failures": []
+  },
+  "bridgeRace": {
+    "log": "bridge-race.jsonl",
+    "exitCode": 0,
+    "scope": "Bridge client/protocol race tests; explicit real-process opt-ins checked separately",
+    "topLevelPasses": 154,
+    "subtestPasses": 74,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol",
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "skips": [
+      "TestFileSandboxRealProcess/current",
+      "TestFileSandboxRealProcess/legacy",
+      "TestRequiredSandboxRealProcess",
+      "TestSandboxResourcesRealProcess/current",
+      "TestSandboxResourcesRealProcess/legacy",
+      "TestSearchSandboxRealProcess/current",
+      "TestSearchSandboxRealProcess/legacy"
+    ],
+    "failures": []
+  },
+  "hostRace": {
+    "log": "host-race.jsonl",
+    "exitCode": 0,
+    "scope": "Nexus runtime/clientopts with pinned Bridge and GOWORK=off; real nxs opt-in independently required by baseline",
+    "topLevelPasses": 157,
+    "subtestPasses": 39,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus/internal/runtime",
+      "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+    ],
+    "skips": [
+      "TestDesktopSandboxRealRuntimeNegotiation"
+    ],
+    "failures": []
+  },
+  "bridgeReal": {
+    "log": "bridge-pinned-real.jsonl",
+    "exitCode": 0,
+    "scope": "pinned Bridge with GOWORK=off and race; new nxs plus three older capability baselines; no model requests",
+    "topLevelPasses": 4,
+    "subtestPasses": 6,
+    "passedPackages": [
+      "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+    ],
+    "skips": [],
+    "failures": []
+  },
+  "crossCompilation": [
+    {
+      "repository": "sdk",
+      "revision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d",
+      "GOOS": "windows",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/glob",
+        "./internal/tool/builtin/grep",
+        "./internal/tool/builtin/ripgrep",
+        "./internal/tool/builtin/file"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows",
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/glob",
+        "./internal/tool/builtin/grep",
+        "./internal/tool/builtin/ripgrep",
+        "./internal/tool/builtin/file"
+      ],
+      "log": "sdk-windows-compile.log",
+      "exitCode": 0,
+      "nativeExecution": false,
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/executor.test.exe",
+          "sha256": "9a475e2a26711e948717a3b8edff40a84db3a650f634e1252834b49893c5ae11"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/file.test.exe",
+          "sha256": "f3c2614bbe4fccad41919a5eaae3fe299900d7c0657f3fe3f766ff84022fb023"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/grep.test.exe",
+          "sha256": "278eb3d7fcd99ae8e3a035889e3da8abd282f8eef8c24b141ba0bed36841c93e"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/nxs.test.exe",
+          "sha256": "800c9cc224ad377cc31f13c8cf03bc39b576135d61a6c18d23f868dd51f99401"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/protocol.test.exe",
+          "sha256": "f29aa3c7e6fc0c2ad78a8abacda870fc862c94fc7ba4267883cb08b1040070a7"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-windows/ripgrep.test.exe",
+          "sha256": "4abd53398a5ddd681c533ef5f4802689ecfd252960dbeb9c9f691b1e80e2980f"
+        }
+      ]
+    },
+    {
+      "repository": "bridge",
+      "revision": "f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103",
+      "GOOS": "windows",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./client",
+        "./protocol"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows",
+        "./client",
+        "./protocol"
+      ],
+      "log": "bridge-windows-compile.log",
+      "exitCode": 0,
+      "nativeExecution": false,
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows/client.test.exe",
+          "sha256": "c692bb54e25d9c344995310d0d5805b66acbe2b3fb27fa04053a9d6032f9369d"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-windows/protocol.test.exe",
+          "sha256": "cd8df7fc221b426b2e62c00c72386ecae6790304205847e37c711e4d91c31ba4"
+        }
+      ]
+    },
+    {
+      "repository": "sdk",
+      "revision": "19c80fb21bb6a00d1132fdea3e63251dac4c015d",
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/glob",
+        "./internal/tool/builtin/grep",
+        "./internal/tool/builtin/ripgrep",
+        "./internal/tool/builtin/file"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux",
+        "./cmd/nxs",
+        "./protocol",
+        "./internal/tool/executor",
+        "./internal/tool/builtin/glob",
+        "./internal/tool/builtin/grep",
+        "./internal/tool/builtin/ripgrep",
+        "./internal/tool/builtin/file"
+      ],
+      "log": "sdk-linux-compile.log",
+      "exitCode": 0,
+      "nativeExecution": false,
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/executor.test",
+          "sha256": "93827c4edb34ec91e566d33256f4d30a26cfbcd67f08c6437cfe0bd4a2fc405a"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/file.test",
+          "sha256": "0360cef8ec9203ef9e872dd24e59c470fd652938d8a2ae482745d51c85e17242"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/grep.test",
+          "sha256": "7f27eaacd6ffac389ab6e5a1e79130c69584ac8f26cf91adcecae44022354386"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/nxs.test",
+          "sha256": "de63ede1c06d3b8675cbf9b79fd71eb3a21ccf633b476956255bf9d70ac1f7ec"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/protocol.test",
+          "sha256": "94c5955324c2e1331efaecbc650e9e52519d6bf3d2b6d37a18e7ea340656ce5d"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/sdk-linux/ripgrep.test",
+          "sha256": "8230a4ffee61c29bcfda7be035d21fb0582369d3e3d3a5a677d6c663883b45d5"
+        }
+      ]
+    },
+    {
+      "repository": "bridge",
+      "revision": "f6e456da2ecbfd3c6b9edfbd62d43d7e25e6b103",
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0",
+      "packages": [
+        "./client",
+        "./protocol"
+      ],
+      "command": [
+        "go",
+        "test",
+        "-c",
+        "-mod=readonly",
+        "-o",
+        "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux",
+        "./client",
+        "./protocol"
+      ],
+      "log": "bridge-linux-compile.log",
+      "exitCode": 0,
+      "nativeExecution": false,
+      "artifacts": [
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux/client.test",
+          "sha256": "cdfb50627f2d57d09fabe112367e6f8c762a9b2ce3771b3a35baff3b1c2dda7e"
+        },
+        {
+          "path": "/private/tmp/nexus-sandbox-descendant-audit.34cGLH/bridge-linux/protocol.test",
+          "sha256": "61203a4efa12859b00da894e638990e6ecffeb29d48c59cc19e7abad98ac4c47"
+        }
+      ]
+    }
+  ],
+  "architectureGate": {
+    "log": "architecture.log",
+    "exitCode": 0
+  },
+  "evidenceParser": {
+    "log": "evidence-parser.log",
+    "exitCode": 0,
+    "passedTests": 6
+  },
+  "entrySyntax": {
+    "command": "node --check scripts/desktop/check-sandbox-baseline.mjs",
+    "exitCode": 0
+  },
+  "descendantInvestigation": {
+    "scope": "native self-owned fixtures; negative results do not constitute implemented supervision",
+    "sessionAndKqueue": {
+      "source": "probe.py",
+      "log": "native.json",
+      "exitCode": 0
+    },
+    "endpointSecurity": {
+      "source": "endpoint_probe.c",
+      "log": "endpoint.json",
+      "compileExitCode": 0,
+      "exitCode": 0
+    },
+    "referenceCodexRevision": "4e6450bbfd60bdfa845182f30aaa9d6f068e8bbd",
+    "referencePaths": [
+      "codex-rs/core/src/spawn.rs",
+      "codex-rs/core/src/exec.rs"
+    ],
+    "localAppleSDK": "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk",
+    "headers": [
+      "usr/include/sys/event.h",
+      "usr/include/EndpointSecurity/ESClient.h",
+      "usr/include/EndpointSecurity/ESTypes.h"
+    ],
+    "sources": [
+      "https://raw.githubusercontent.com/apple-oss-distributions/xnu/main/bsd/kern/kern_event.c",
+      "https://developer.apple.com/documentation/endpointsecurity/es_new_descendants_client(_:_:)"
+    ],
+    "finding": "A detached session survived original process-group cleanup. NOTE_TRACK was unsupported. The macOS 27 descendants API was present but denied without Endpoint Security entitlement; no subscriptions or machine authorization changes."
+  },
+  "limits": [
+    "All commits and module archives remain local and unpublished at the user request.",
+    "Search capability covers Glob/Grep path checks, search auxiliary and metadata only, not whole SDK IO or an effective-policy receipt.",
+    "Scoped search deliberately rejects unsupported custom argv0 and returns an error for cancellation, timeout or output limits instead of partial success.",
+    "SDK/Bridge/Nexus broad package logs contain explicit platform/opt-in skips. Required fixed-baseline and real-binary tests contain no required skips.",
+    "Windows and Linux evidence is compilation only; no native runtime, owner isolation or package acceptance was performed.",
+    "Native supervision probes establish a gap, not an implementation. Session/group sweeps cannot prove arbitrary detached descendants have ended.",
+    "Endpoint Security descendants support remains a candidate requiring platform/version, entitlement, event-loss, exact-identity and crash-recovery acceptance; existing minimum OS support is unchanged.",
+    "Nexus does not allocate, lease or reclaim private scratch or supply Resources yet. Cleanup fences remain in memory; persistent recovery is pending.",
+    "Notebook, startup/Skill/configuration/background IO, Claude adapter, default product policy and native package/release gates remain unfinished."
+  ],
+  "executionDates": [
+    "2026-09-15",
+    "2026-09-16"
+  ]
+}

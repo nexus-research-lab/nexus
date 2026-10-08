@@ -1,0 +1,13 @@
+{
+  "directory": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-stdio-package-dn8qqrlq",
+  "nexus": "d92fdb7e94b74538a48e6677a10a73b79a75b2f6",
+  "sdk": "b84b7b6c7c3970d4a948501eaed2874563730cc2",
+  "inputRuntimeSHA256": "bee303f173601780412ff544dcd5c1653dbc959156849817a7b4122a429951fa",
+  "stateRoot": "/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-macos-stdio-package-dn8qqrlq/state",
+  "preferencesSuite": "com.nexus.sandbox-stdio-qa.nexus-macos-stdio-package-dn8qqrlq",
+  "releaseAccepted": false,
+  "exitCode": 0,
+  "mountedAcceptanceExitCode": 0,
+  "liveProviderNXSExitCode": 0,
+  "initialMountedCleanupError": "The ad hoc verifier used a missing lsregister path after smoke/runtime success; explicit detach completed and the corrected verifier passed including cleanup."
+}

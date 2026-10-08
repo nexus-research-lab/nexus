@@ -1,0 +1,11 @@
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork/ambient
+    mcp_network_darwin_test.go:65: context deadline exceeded
+=== RUN   TestDarwinSandboxMCPRuntimeNetwork/explicit
+    mcp_network_darwin_test.go:65: context deadline exceeded
+--- FAIL: TestDarwinSandboxMCPRuntimeNetwork (77.37s)
+    --- FAIL: TestDarwinSandboxMCPRuntimeNetwork/ambient (38.66s)
+    --- FAIL: TestDarwinSandboxMCPRuntimeNetwork/explicit (38.71s)
+FAIL
+FAIL	github.com/nexus-research-lab/nexus-agent-sdk-go/internal/agent/runtime	78.422s
+FAIL

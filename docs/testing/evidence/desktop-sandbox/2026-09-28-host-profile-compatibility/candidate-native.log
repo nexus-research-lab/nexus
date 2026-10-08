@@ -1,0 +1,29 @@
+# github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap [github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap.test]
+internal/processbootstrap/host_policy_darwin.go:14:15: warning: 'sandbox_init' is deprecated: first deprecated in macOS 10.8 - No longer supported [-Wdeprecated-declarations]
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sandbox.h:49:5: note: 'sandbox_init' has been explicitly marked deprecated here
+internal/processbootstrap/host_policy_darwin.go:15:21: warning: 'sandbox_free_error' is deprecated: first deprecated in macOS 10.8 - No longer supported [-Wdeprecated-declarations]
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sandbox.h:68:6: note: 'sandbox_free_error' has been explicitly marked deprecated here
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/task_write
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/host_write_denied
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/alias_read_denied
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/host_signal_denied
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/host_read_denied
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/ancestor_rename_denied
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/child_inherits
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/bundle_read_only
+=== RUN   TestHostPolicyNativeFilesystemAndInheritance/nested_profile_cannot_relax
+    host_policy_darwin_test.go:76: worker: exit status 71 sandbox-exec: sandbox_apply: Operation not permitted
+--- FAIL: TestHostPolicyNativeFilesystemAndInheritance (0.18s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/task_write (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/host_write_denied (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/alias_read_denied (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/host_signal_denied (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/host_read_denied (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/ancestor_rename_denied (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/child_inherits (0.02s)
+    --- PASS: TestHostPolicyNativeFilesystemAndInheritance/bundle_read_only (0.02s)
+    --- FAIL: TestHostPolicyNativeFilesystemAndInheritance/nested_profile_cannot_relax (0.03s)
+FAIL
+FAIL	github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/processbootstrap	1.097s
+FAIL

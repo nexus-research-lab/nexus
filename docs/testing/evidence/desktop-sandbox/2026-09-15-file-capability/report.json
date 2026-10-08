@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "scope": "P1 command and native file capability admission; local integration only",
+  "passed": true,
+  "releaseAccepted": false,
+  "sdkRevision": "c8580cf49342a7d946c849ecb04c1db01c30eb4c",
+  "bridgeRevision": "a4fef0aec5bc4049cf8c4e20047fcb2f8bedd45c",
+  "nexusBaselineRevision": "5a781cece10edd700a5617a070d1f9287ad7fdbd",
+  "nexusChanges": [
+    "M AGENTS.md",
+    " M CHANGELOG.md",
+    " M docs/explorations/desktop-sandbox/development-plan.md",
+    " M docs/specs/desktop-sandbox-spec.md",
+    " M docs/testing/desktop-sandbox-acceptance.md",
+    " M go.mod",
+    " M go.sum",
+    " M internal/runtime/clientopts/desktop_sandbox.go",
+    " M internal/runtime/clientopts/desktop_sandbox_integration_test.go",
+    " M internal/runtime/clientopts/desktop_sandbox_test.go",
+    " M internal/runtime/clientopts/doc.go",
+    "?? web/browser-tests/conversation-session-scroll.spec.ts"
+  ],
+  "bridge": {
+    "path": "github.com/nexus-research-lab/nexus-agent-sdk-bridge",
+    "version": "v0.1.34-0.20260915080938-a4fef0aec5bc",
+    "sum": "h1:GSjnxL0+p1yQtRf4bvoUeKQS3jv7qpKdoYL3efA9XEE=",
+    "availability": "local-only, unpublished; user requested no push",
+    "provenance": "golang.org/x/mod/zip.CreateFromVCS v0.34.0 from exact local Bridge commit; no replacement",
+    "localProxyDirectory": "/private/tmp/nexus-sandbox-capabilities.60SUhq/local-proxy",
+    "artifacts": [
+      {
+        "file": "v0.1.34-0.20260915080938-a4fef0aec5bc.zip",
+        "sha256": "d1714e0d16293d4b1882a1f2b20639b8abc010fc17b5f52e4ca6fd74438cbc54"
+      },
+      {
+        "file": "v0.1.34-0.20260915080938-a4fef0aec5bc.mod",
+        "sha256": "385a49ea427302d8bda7a8463e640a8ff99a61a6954aff708f2b688cd83c126b"
+      },
+      {
+        "file": "v0.1.34-0.20260915080938-a4fef0aec5bc.info",
+        "sha256": "1ff9f0fc908be2e0553b05795e351ca5944395c3855a10d22e7b248655b9d395"
+      }
+    ]
+  },
+  "runtime": {
+    "path": "/private/var/folders/jk/9xhnwgrx6cj4fj76wffmxy0w0000gn/T/nexus-sandbox-baseline-bm3p4d/nxs",
+    "sha256": "2826515dc193bd41a5e05cde5cfe799c7361f0bf027d9223b39a38d2655e720f",
+    "source": "fixed-sdk-archive"
+  },
+  "legacyRuntime": {
+    "path": "/private/tmp/nexus-desktop-sandbox-audit.4mhcm0/nxs",
+    "sdkRevision": "c824526230860fbfc2a28736980b5fa720dbffe4",
+    "sha256": "fbdb0b5b677ec8f274697f0e9f3e27aa65f6978292183ecf14700a0345477386"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "osRelease": "27.0.0",
+  "goVersion": "go1.27.1",
+  "baseline": "baseline-report.json",
+  "realProcess": {
+    "requiredTests": [
+      "TestFileSandboxRealProcess/current",
+      "TestFileSandboxRealProcess/legacy",
+      "TestRequiredSandboxRealProcess"
+    ],
+    "log": "bridge-pinned-real-process.jsonl",
+    "exitCode": 0,
+    "skips": []
+  },
+  "tests": [
+    {
+      "log": "sdk-unit.jsonl",
+      "exitCode": 0,
+      "topLevelPasses": 5,
+      "skips": []
+    },
+    {
+      "log": "bridge-packages.jsonl",
+      "exitCode": 0,
+      "topLevelPasses": 172,
+      "skips": [
+        "TestProcessManagerStartsWindowsPowerShellScript",
+        "TestProcessManagerRedirectsWindowsBatchShimToPowerShell",
+        "TestFileSandboxRealProcess/current",
+        "TestFileSandboxRealProcess/legacy",
+        "TestRequiredSandboxRealProcess"
+      ]
+    },
+    {
+      "log": "bridge-pinned-real-process.jsonl",
+      "exitCode": 0,
+      "topLevelPasses": 2,
+      "skips": []
+    }
+  ],
+  "windows": {
+    "scope": "cross-compilation only; no native execution",
+    "command": "GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go test -c ./cmd/nxs",
+    "exitCode": 0,
+    "sha256": "95d7310d0684afc502a948d853ed6a51779a99663dd72749b20edae1dd7ec9d9"
+  },
+  "limitations": [
+    "P1 resource inventory, profiles and effective policy receipts remain outstanding",
+    "Claude native adapter, Windows native behavior, Linux owner isolation and installation/release acceptance not executed",
+    "SDK/Bridge unit logs precede the same code being committed; fixed-source baseline separately confirms the committed SDK and pinned Bridge",
+    "No remote availability assertion; file:// module artifact is local only"
+  ]
+}
