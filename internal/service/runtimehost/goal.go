@@ -245,3 +245,44 @@ func RecordGoalContinuationDispatchFailure(
 		)
 	}
 }
+
+type goalUsageLimitByGoal interface {
+	UsageLimitForGoal(context.Context, string, string, string) (*protocol.Goal, error)
+}
+
+// RecordGoalUsageLimit 在 runtime 报告用量上限后标记 Goal；有 Goal 绑定时按 Goal 标记，
+// 否则按会话标记。Goal 不活跃时静默跳过。
+func RecordGoalUsageLimit(
+	ctx context.Context,
+	provider any,
+	logger *slog.Logger,
+	sessionKey string,
+	goalID string,
+	roundID string,
+	reason string,
+) {
+	goalID = strings.TrimSpace(goalID)
+	var err error
+	if byGoal, ok := provider.(goalUsageLimitByGoal); ok && goalID != "" {
+		_, err = byGoal.UsageLimitForGoal(ctx, goalID, roundID, reason)
+	} else if bySession, ok := provider.(goalUsageLimiter); ok {
+		_, err = bySession.UsageLimitForSession(ctx, sessionKey, roundID, reason)
+	}
+	if err != nil && !goalsvc.IsInactive(err) {
+		logger.Warn("标记 Goal usage limit 失败",
+			"session_key", sessionKey,
+			"goal_id", goalID,
+			"round_id", roundID,
+			"err", err,
+		)
+	}
+}
+
+// LogGoalMutationFailure 记录尽力型 Goal 变更失败；预期的并发推进错误不记录。
+func LogGoalMutationFailure(logger *slog.Logger, message string, err error, sessionKey, goalID, roundID string, fields ...any) {
+	if err == nil || goalsvc.IsExpectedMutationError(err) {
+		return
+	}
+	attrs := append([]any{"session_key", sessionKey, "goal_id", goalID, "round_id", roundID}, fields...)
+	logger.Warn(message, append(attrs, "err", err)...)
+}
