@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
+
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
 
 - 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
