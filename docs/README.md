@@ -65,6 +65,7 @@
 ## 在研改造资料
 
 - [桌面沙箱：现状评估、Codex 对照、开发计划与验收](./explorations/desktop-sandbox/README.md)（non-normative）。
+- [Go 后端重复与防御性代码治理审计](./explorations/backend-duplication-governance.zh-CN.md)（non-normative）。
 ## IM 投递回传
 
 - [当前通讯合同](specs/platform-communication-spec.md)
