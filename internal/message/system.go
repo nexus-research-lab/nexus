@@ -83,7 +83,7 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 	metadata := normalizeAPIRetryMetadata(message.Data)
 	return p.buildSystemEventMessage(
 		"system_api_retry_"+p.ctx.RoundID,
-		firstNonEmpty(
+		textutil.FirstNonEmpty(
 			textutil.AnyString(metadata["error_details"]),
 			textutil.AnyString(metadata["message"]),
 			apiRetryDefaultMessage(metadata),
@@ -95,7 +95,7 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 func (p *Processor) projectCompactBoundarySystemMessage(message sdkprotocol.SystemMessage) *protocol.Message {
 	return p.buildSystemEventMessage(
 		"system_compact_boundary_"+p.ctx.RoundID,
-		firstNonEmpty(textutil.AnyString(message.Data["content"]), "上下文已压缩"),
+		textutil.FirstNonEmpty(textutil.AnyString(message.Data["content"]), "上下文已压缩"),
 		normalizeCompactBoundaryMetadata(message.Data),
 	)
 }
@@ -183,7 +183,7 @@ func normalizeAPIRetryError(value string) string {
 	case strings.Contains(normalized, "connection") || strings.Contains(normalized, "connect"):
 		return "connection"
 	default:
-		return firstNonEmpty(normalized, "api_error")
+		return textutil.FirstNonEmpty(normalized, "api_error")
 	}
 }
 

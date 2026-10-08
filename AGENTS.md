@@ -139,7 +139,7 @@ cmd -> app -> handler -> service -> domain/storage
 
 Node 执行另需显式开启，旧授权默认关闭。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型、未知运行人工解锁和远程产物尚未验收/实现。
 
-当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
+当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入并拒绝按形状识别的 textutil 私有副本，并接入增量 Go 检查与全量 vet 入口。
 
 - protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol，并通过 `internal/infra/confinedfs` 使用固定目录句柄完成宿主沙箱资源的创建、标记和回收；除该明确文件边界与只依赖标准库的 `internal/infra/textutil` 叶子包外不得引入其他 infra/service 依赖；textutil 自身不得依赖任何 internal 包。
 - service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。

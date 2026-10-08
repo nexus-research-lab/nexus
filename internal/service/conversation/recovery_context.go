@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -76,12 +77,12 @@ func latestTerminalOutcome(history []protocol.Message, agentID string) (terminal
 }
 
 func terminalOutcomeFrom(terminal map[string]any, message protocol.Message) terminalOutcome {
-	subtype := stringValue(terminal["subtype"])
+	subtype := textutil.AnyString(terminal["subtype"])
 	isError := boolValue(terminal["is_error"]) || subtype == "error"
 	signals := []string{
-		stringValue(terminal["terminal_reason"]),
-		stringValue(terminal["stop_reason"]),
-		stringValue(terminal["result"]),
+		textutil.AnyString(terminal["terminal_reason"]),
+		textutil.AnyString(terminal["stop_reason"]),
+		textutil.AnyString(terminal["result"]),
 		fmt.Sprint(terminal["errors"]),
 		fmt.Sprint(message["content"]),
 	}
@@ -90,7 +91,7 @@ func terminalOutcomeFrom(terminal map[string]any, message protocol.Message) term
 	}
 	return terminalOutcome{
 		failed:  isError,
-		reason:  stringValue(terminal["terminal_reason"]),
+		reason:  textutil.AnyString(terminal["terminal_reason"]),
 		signals: signals,
 	}
 }
@@ -99,7 +100,7 @@ func matchesRecoveryAgent(message protocol.Message, agentID string) bool {
 	if agentID == "" {
 		return true
 	}
-	return stringValue(message["agent_id"]) == agentID
+	return textutil.AnyString(message["agent_id"]) == agentID
 }
 
 func resultSummary(value any) (map[string]any, bool) {
@@ -150,11 +151,6 @@ func recoveryInstruction(reason string) string {
 		reason,
 		description,
 	)
-}
-
-func stringValue(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
 }
 
 func boolValue(value any) bool {

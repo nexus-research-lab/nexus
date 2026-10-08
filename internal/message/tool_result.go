@@ -67,7 +67,7 @@ func (p *Processor) processToolResultMessage(
 	return p.buildAssistantDurableMessage(
 		true,
 		true,
-		firstNonEmpty(textutil.PointerValue(user.ParentToolUseID), p.parentToolUseID),
+		textutil.FirstNonEmpty(textutil.PointerValue(user.ParentToolUseID), p.parentToolUseID),
 	)
 }
 

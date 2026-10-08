@@ -194,7 +194,7 @@ func toolResultContentText(value any) string {
 		}
 		return builder.String()
 	case map[string]any:
-		return firstNonEmpty(
+		return textutil.FirstNonEmpty(
 			rawString(typed["text"]),
 			rawString(typed["content"]),
 			rawString(typed["data"]),

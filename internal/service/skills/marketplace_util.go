@@ -243,11 +243,6 @@ func anyMap(value any) map[string]any {
 	return item
 }
 
-func anyString(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
-}
-
 func anyStringSlice(value any) []string {
 	switch typed := value.(type) {
 	case []string:

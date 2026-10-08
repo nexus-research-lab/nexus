@@ -45,7 +45,7 @@ func (s *AssistantSegment) Reset() {
 // Start 开始新的 assistant 段。
 func (s *AssistantSegment) Start(messageID string, model string, usage map[string]any, timestamp int64) {
 	s.Reset()
-	s.messageID = firstNonEmpty(messageID, fmt.Sprintf("assistant_%d", time.Now().UnixMilli()))
+	s.messageID = textutil.FirstNonEmpty(messageID, fmt.Sprintf("assistant_%d", time.Now().UnixMilli()))
 	s.model = strings.TrimSpace(model)
 	s.usage = cloneMap(usage)
 	if timestamp <= 0 {
