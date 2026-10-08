@@ -1,6 +1,6 @@
 // INPUT: DM session、稳定 execution contract、exact Goal authority、隔离 WorkGraph 保存绑定、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
-// POS: DM 服务的 runtime client 装配与 owner-private command scope 签发边界。
+// OUTPUT: static/dynamic prompt 分层、跨 backend 工具面 fork、受限临时 Session policy、factory 前 desktop sandbox lease 身份绑定与创建后所有权交接，以及共用同轮 authority 的 Goal/Execution command 与 Subagent control runtime client。
+// POS: DM 服务的 runtime client 装配、sandbox lease 失败回收与 owner-private command scope 签发边界。
 package dm
 
 import (
@@ -49,6 +49,13 @@ type dmClientPreparation struct {
 	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
 	commandReceipts        *nexusmcp.CommandReceiptState
 	permissionMode         sdkpermission.Mode
+}
+
+func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
+	if lease == nil {
+		return nil
+	}
+	return lease.Resources()
 }
 
 func (s *Service) ensureClient(
@@ -379,7 +386,30 @@ func (s *Service) ensureClient(
 		toolPolicy,
 		s.runtimeImagegenDefaultEnabled(ctx),
 	)
+	var scratchLease *runtimectx.SandboxResourceLease
+	var scratchInput runtimectx.SandboxResourceInput
+	scratchLeaseOwned := false
+	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
+		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
+		permissionMode != sdkpermission.ModeBypassPermissions {
+		scratchInput = runtimectx.SandboxResourceInput{
+			OwnerUserID: agentValue.OwnerUserID,
+			SessionKey:  sessionKey,
+			RoundID:     request.RoundID,
+		}
+		scratchLease, err = runtimectx.AcquireSandboxResource(ctx, scratchInput)
+		if err != nil {
+			return dmClientPreparation{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
+		}
+		defer func() {
+			if !scratchLeaseOwned {
+				_ = scratchLease.Release()
+			}
+		}()
+	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
+		AppMode:                    s.config.AppMode,
+		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled,
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
 		IsMainAgent:                agentValue.IsMain,
@@ -415,6 +445,7 @@ func (s *Service) ensureClient(
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
+		SandboxResources:           sandboxResourcesFromLease(scratchLease),
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -512,7 +543,8 @@ func (s *Service) ensureClient(
 			"runtime_provider", runtimeProvider,
 		)...,
 	)
-	client, err := s.acquireRuntimeClient(ctx, startup, options)
+	client, sandboxLeaseTransferred, err := s.acquireRuntimeClient(ctx, startup, options, scratchLease)
+	scratchLeaseOwned = sandboxLeaseTransferred
 	if err != nil {
 		retired, closeErr := retireDMRuntimeClient(ctx, startup)
 		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
@@ -553,7 +585,27 @@ func (s *Service) ensureClient(
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
 			return dmClientPreparation{}, err
 		}
-		client, err = s.acquireRuntimeClient(ctx, startup, options)
+		if scratchLease != nil {
+			// A failed GetOrCreate/Bind attempt never transferred ownership to
+			// the runtime manager. Release that exact handle before replacing it;
+			// otherwise the retry would strand the old scratch directory while
+			// the new lease becomes the only handle reachable by this function.
+			if !scratchLeaseOwned {
+				if releaseErr := scratchLease.Release(); releaseErr != nil {
+					return dmClientPreparation{}, fmt.Errorf("清理失效 resume 的 desktop sandbox scratch: %w", releaseErr)
+				}
+				scratchLease = nil
+			}
+			nextLease, acquireErr := runtimectx.AcquireSandboxResource(ctx, scratchInput)
+			if acquireErr != nil {
+				err = acquireErr
+				return dmClientPreparation{}, fmt.Errorf("重新准备 desktop sandbox scratch: %w", err)
+			}
+			scratchLease = nextLease
+			scratchLeaseOwned = false
+		}
+		client, sandboxLeaseTransferred, err = s.acquireRuntimeClient(ctx, startup, options, scratchLease)
+		scratchLeaseOwned = sandboxLeaseTransferred
 		if err != nil {
 			if _, cleanupErr := retireDMRuntimeClient(ctx, startup); cleanupErr != nil &&
 				!runtimectx.IsRuntimeTransportClosedError(cleanupErr) {
@@ -567,6 +619,7 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
+	scratchLeaseOwned = sandboxLeaseTransferred
 	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())
@@ -1046,21 +1099,27 @@ func (s *Service) acquireRuntimeClient(
 	ctx context.Context,
 	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
-) (runtimectx.Client, error) {
-	client, err := startup.GetOrCreateWithFactory(ctx, options, nil)
+	scratchLease *runtimectx.SandboxResourceLease,
+) (runtimectx.Client, bool, error) {
+	client, err := startup.GetOrCreateWithLease(ctx, options, nil, scratchLease)
 	if err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "get_or_create", options, err)
-		return client, err
+		return client, false, err
+	}
+	transferred, err := startup.BindSandboxLease(scratchLease)
+	if err != nil {
+		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "bind_sandbox_lease", options, err)
+		return client, false, err
 	}
 	if err := startup.Connect(ctx); err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "connect", options, err)
-		return client, err
+		return client, transferred, err
 	}
 	s.loggerFor(ctx).Info("runtime client connected",
 		"session_key", startup.SessionKey(),
 		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
-	return client, nil
+	return client, transferred, nil
 }
 
 func (s *Service) logRuntimeStartupFailure(

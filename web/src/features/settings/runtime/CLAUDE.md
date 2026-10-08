@@ -10,3 +10,6 @@
 - 私有网络与服务商提取选项直接消费 `UiCheckboxRow density="compact"`，不保留只转发属性的 SettingsCheckSetting。业务值、Provider 能力条件、精确 patch 与保存锁继续由运行设置持有。
 - 独立表单输入组合 UiField，并用实例级 ID 精确关联；已有左侧标题的搜索服务选择使用 ariaLabel，不重复显示可见标签；密钥输入、清除动作和获取地址互为独立节点，禁止恢复包裹复合内容的私有 SettingsField。运行引擎分段组复用左侧标题并保留 aria-label；高级选项没有行标题时通过 showLabel 显示一次组名，JSON 校验保留原有 blur 提交语义，错误归公共 Field，不能给全部实例共用错误 ID。
 - `settings-runtime-section.test.tsx` 使用实际页面和隔离控制器命令覆盖六种服务的标签/分组、失焦规范化保存、密钥替换/清除、禁用与多实例 JSON 错误；不替代 Preferences 事务或浏览器视觉验收。
+
+- 显式“检查沙箱支持”单独调用有界诊断，不复用引擎切换锁、不修改 Preferences。默认依赖齐全不展示为任务已启用沙箱；旧接口和读取失败保持未知。
+- nxs 的沙箱残留资源恢复先调用 owner-scoped inspect，再调用 dry-run reconcile；只有用户点击明确的回收动作才提交 `apply=true`。页面只投影资源数量、可回收数量和 `cleanup_unknown` 待核对数量，禁止显示 marker 路径或把 dead PID 解释为已安全收口。

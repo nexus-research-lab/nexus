@@ -1,6 +1,12 @@
 name: macOS Desktop Build
 
 on:
+  workflow_dispatch:
+    inputs:
+      sandbox_acceptance:
+        description: "Run pinned signed macOS sandbox acceptance artifacts only"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "desktop/macos/**"
@@ -39,7 +45,12 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  sandbox_acceptance:
+    if: github.event_name == 'workflow_dispatch' && inputs.sandbox_acceptance
+    uses: ./.github/workflows/macos-sandbox-acceptance.yml
+    secrets: inherit
   build:
+    if: ${{ !inputs.sandbox_acceptance }}
     name: Validate macOS ${{ matrix.display_name }} build, smoke, and package
     strategy:
       fail-fast: false

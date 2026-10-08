@@ -386,6 +386,9 @@ func (m *Manager) SetPermissionModeForAgent(ctx context.Context, agentID string,
 			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			closeErr := m.CloseSession(closeCtx, target.sessionKey)
 			cancel()
+			if errors.Is(err, ErrDesktopSandboxPolicyChanged) && closeErr == nil {
+				continue
+			}
 			errs = append(errs, fmt.Errorf(
 				"session %s 权限热同步失败，已关闭旧 runtime: %w",
 				target.sessionKey,

@@ -23,7 +23,10 @@ func forbidden(from, to string) bool {
 		return true
 	}
 	if from == "runtime" {
-		return to != "protocol"
+		// Runtime owns bridge lifecycle, while confinedfs is the sole host
+		// filesystem boundary it may use for sandbox resources. Other infra and
+		// all service imports remain forbidden.
+		return to != "protocol" && to != "infra/confinedfs"
 	}
 	if from == "app" && within(to, "app/server") {
 		return true

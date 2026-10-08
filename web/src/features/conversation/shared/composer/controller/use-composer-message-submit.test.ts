@@ -31,3 +31,33 @@ it.each(["attachments", "rejected", "unknown"])("contains %s failures without lo
   expect(deliver).toHaveBeenCalledTimes(failure === "attachments" ? 0 : 1);
   expect(restoreFailedDraftSubmission).toHaveBeenCalledTimes(failure === "rejected" ? 1 : 0);
 });
+
+it("queues input when the runtime phase is active before isLoading catches up", async () => {
+  const enqueue = vi.fn().mockResolvedValue(undefined);
+  const send = vi.fn().mockResolvedValue(undefined);
+  const draft = { ...EMPTY_COMPOSER_DRAFT, input: "follow up" };
+  const { result } = renderHook(() => useComposerMessageSubmit({
+    attachmentCount: 0,
+    claimDraftSubmission: vi.fn(() => draft),
+    clearAttachmentError: vi.fn(),
+    defaultDeliveryPolicy: "queue",
+    input: draft.input,
+    isLoading: false,
+    isPreparingAttachments: false,
+    onEnqueueMessage: enqueue,
+    onSendMessage: send,
+    prepareAttachments: vi.fn().mockResolvedValue([]),
+    queueItemCount: 0,
+    queueWhenSessionBusy: true,
+    recordHistory: vi.fn(),
+    resetTextareaHeight: vi.fn(),
+    restoreFailedDraftSubmission: vi.fn(() => true),
+    runtimePhase: "streaming",
+    targetAgentIDs: [],
+  }));
+
+  await act(async () => { await result.current(); });
+
+  expect(enqueue).toHaveBeenCalledWith("follow up", "queue", [], []);
+  expect(send).not.toHaveBeenCalled();
+});

@@ -158,7 +158,11 @@ function resolveMessageSubmission(
     return null;
   }
   const delivery = resolveComposerDelivery(
-    [options.isLoading, options.queueItemCount > 0].some(Boolean),
+    [
+      options.isLoading,
+      options.queueItemCount > 0,
+      options.runtimePhase !== null && options.runtimePhase !== "idle",
+    ].some(Boolean),
     options.queueWhenSessionBusy,
     options.defaultDeliveryPolicy,
   );

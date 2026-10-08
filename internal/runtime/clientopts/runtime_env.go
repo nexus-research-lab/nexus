@@ -5,6 +5,7 @@ package clientopts
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"net/url"
 	"os"
@@ -164,7 +165,7 @@ func runtimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[
 	var env map[string]string
 	switch strings.TrimSpace(runtimeConfig.APIFormat) {
 	case "", apiFormatAnthropicMessages:
-		env = anthropicRuntimeEnvFromConfig(runtimeConfig)
+		env = anthropicRuntimeEnvFromConfig(runtimeConfig, runtimeKind)
 	case apiFormatChatCompletions, apiFormatResponses:
 		if profile.isNXS() {
 			env = openAIRuntimeEnvFromConfig(runtimeConfig)
@@ -286,7 +287,7 @@ func visionRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string 
 	return env
 }
 
-func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]string {
+func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig, runtimeKind string) map[string]string {
 	env := map[string]string{
 		anthropicBaseURLEnvName:          runtimeConfig.BaseURL,
 		anthropicModelEnvName:            runtimeConfig.Model,
@@ -297,19 +298,29 @@ func anthropicRuntimeEnvFromConfig(runtimeConfig *RuntimeConfig) map[string]stri
 		NexusRuntimeProviderEnvName:      runtimeConfig.Provider,
 		nexusAPIProviderEnvName:          "anthropic-compatible",
 	}
-	applyAnthropicCredentialsEnv(env, runtimeConfig)
+	applyAnthropicCredentialsEnv(env, runtimeConfig, runtimeKind)
 	if runtimeConfig.Reasoning {
 		applyDefaultModelCapabilitiesEnv(env, thinkingCapabilityName)
 	}
 	return env
 }
 
-func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig) {
+func applyAnthropicCredentialsEnv(env map[string]string, runtimeConfig *RuntimeConfig, runtimeKind string) {
 	token := strings.TrimSpace(runtimeConfig.AuthToken)
 	if token == "" {
 		return
 	}
 	if isFirstPartyAnthropicBaseURL(runtimeConfig.BaseURL) {
+		env[anthropicAPIKeyEnvName] = token
+		env[anthropicAuthTokenEnvName] = ""
+		return
+	}
+	// The nxs provider accepts ANTHROPIC_API_KEY for compatible gateways and
+	// adds x-api-key plus its compatibility Authorization header in the SDK
+	// request path. Claude Code keeps the separate auth-token projection so its
+	// native CLI semantics remain unchanged; its real provider authentication
+	// is a separate acceptance track.
+	if runtimeProfileForKind(runtimeKind).isNXS() {
 		env[anthropicAPIKeyEnvName] = token
 		env[anthropicAuthTokenEnvName] = ""
 		return
@@ -376,6 +387,17 @@ func nxsHostManagedRuntimeEnv(runtimeKind string) map[string]string {
 	return map[string]string{
 		nexusAutoDreamWakeModeEnvName:     "host",
 		nexusProviderManagedByHostEnvName: "1",
+	}
+}
+
+func managedMemoryRuntimeEnv(runtimeKind string, workspacePath string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	return map[string]string{
+		nexusMemoryDirEnvName:          strings.TrimSpace(workspacePath),
+		nexusEnableRemoteMemoryEnvName: "",
+		nexusRemoteMemoryDirEnvName:    "",
 	}
 }
 
@@ -508,28 +530,73 @@ func scrubInheritedRuntimeEnv() map[string]string {
 		"RELAY_PRINCIPAL_PUBLIC_KEY_FILE",
 		"DISCORD_BOT_TOKEN",
 		"TELEGRAM_BOT_TOKEN",
+		// SDK bootstrap credentials may be carried by a descriptor or a
+		// well-known environment fallback. The descriptor itself is not a
+		// secret, but inheriting it would let a child reopen a host-owned fd.
+		"NEXUS_API_KEY",
+		"NEXUS_API_KEY_FILE_DESCRIPTOR",
+		"NEXUS_OAUTH_TOKEN",
+		"NEXUS_OAUTH_TOKEN_FILE_DESCRIPTOR",
+		"CLAUDE_CODE_OAUTH_TOKEN",
 		// provider 的环境凭据属于宿主全局秘密；当前用户的凭据只能
 		// 通过 runtime config 显式投影，不能依赖继承环境。
 		anthropicBaseURLEnvName,
 		anthropicAPIKeyEnvName,
 		anthropicAuthTokenEnvName,
+		"ANTHROPIC_CUSTOM_HEADERS",
+		"ANTHROPIC_FOUNDRY_API_KEY",
 		anthropicModelEnvName,
 		"OPENAI_API_KEY",
 		"OPENAI_BASE_URL",
 		"OPENAI_MODEL",
+		"OPENAI_CUSTOM_HEADERS",
+		"OPENAI_API_BASE",
+		"OPENAI_ORG_ID",
+		"OPENAI_ORGANIZATION",
+		"OPENAI_PROJECT_ID",
+		"OPENAI_PROJECT",
 		"AZURE_OPENAI_API_KEY",
 		"AZURE_OPENAI_ENDPOINT",
 		"AZURE_OPENAI_API_VERSION",
+		"AZURE_CLIENT_ID",
+		"AZURE_CLIENT_SECRET",
+		"AZURE_TENANT_ID",
 		"AWS_ACCESS_KEY_ID",
 		"AWS_SECRET_ACCESS_KEY",
 		"AWS_SESSION_TOKEN",
 		"AWS_PROFILE",
+		"AWS_BEARER_TOKEN_BEDROCK",
+		"AWS_SECURITY_TOKEN",
+		"AWS_WEB_IDENTITY_TOKEN_FILE",
 		"GOOGLE_API_KEY",
 		"GEMINI_API_KEY",
+		"GOOGLE_APPLICATION_CREDENTIALS",
+		"GOOGLE_OAUTH_ACCESS_TOKEN",
 		"COHERE_API_KEY",
 		"MISTRAL_API_KEY",
 		"DEEPSEEK_API_KEY",
 		"XAI_API_KEY",
+		"NEXUS_VISION_API_KEY",
+		"NEXUS_WEBSEARCH_API_KEY",
+		"NEXUS_WEBFETCH_DOMAIN_CHECK_API_KEY",
+		"NEXUS_WEBFETCH_SUMMARIZER_API_KEY",
+		"NEXUS_CLIENT_CERT",
+		"NEXUS_CLIENT_KEY",
+		"NEXUS_CLIENT_KEY_PASSPHRASE",
+		"NODE_EXTRA_CA_CERTS",
+		"OTEL_EXPORTER_OTLP_HEADERS",
+		"OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+		"OTEL_EXPORTER_OTLP_METRICS_HEADERS",
+		"OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+		"SSH_AUTH_SOCK",
+		"GIT_SSH_COMMAND",
+		"GIT_SSH_VARIANT",
+		"CONNECTOR_GITHUB_CLIENT_SECRET",
+		"CONNECTOR_GOOGLE_CLIENT_SECRET",
+		"CONNECTOR_LINKEDIN_CLIENT_SECRET",
+		"CONNECTOR_TWITTER_CLIENT_SECRET",
+		"CONNECTOR_INSTAGRAM_CLIENT_SECRET",
+		"CONNECTOR_SHOPIFY_CLIENT_SECRET",
 	} {
 		// 只为真实继承值生成清空覆盖，避免让 options 看起来像显式
 		// 配置了另一套 provider 环境，同时仍能切断宿主中的实际秘密。
@@ -644,4 +711,22 @@ func mergeRuntimeEnv(
 	maps.Copy(result, base)
 	maps.Copy(result, extra)
 	return result
+}
+
+// validateConfigurationEnvironment keeps the round-scoped nexuscfg
+// capability as a two-variable typed contract.  ConfigurationEnv is supplied
+// by an internal host builder today, but accepting arbitrary keys here would
+// let a future caller smuggle PATH/HOME, provider credentials, or runtime
+// isolation switches into the child after managedUserRuntimeEnv has fixed the
+// owner boundary.  Unknown keys therefore fail closed before any process can
+// be started.
+func validateConfigurationEnvironment(environment map[string]string) error {
+	for key := range environment {
+		switch strings.TrimSpace(key) {
+		case protocol.NexusConfigBrokerURLEnvName, protocol.NexusConfigCapabilityTokenEnvName:
+		default:
+			return fmt.Errorf("nexuscfg runtime capability contains unsupported environment key %q", key)
+		}
+	}
+	return nil
 }

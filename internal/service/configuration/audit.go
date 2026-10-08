@@ -11,12 +11,159 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
 
 const (
 	auditFinishTimeout = 5 * time.Second
 	staleAuditAfter    = 5 * time.Minute
 )
+
+// RecoverStaleApplyingChanges closes durable applying receipts whose executor
+// lease has expired. It only records that the outcome requires reconciliation;
+// it never guesses whether the underlying settings write committed.
+//
+// This is intentionally a recovery primitive. Callers still need to inspect
+// the current settings state before presenting a resolved outcome.
+func (s *Service) RecoverStaleApplyingChanges(
+	ctx context.Context,
+	ownerUserID string,
+	limit int,
+) ([]AuditRecord, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return nil, errors.New("owner_user_id 不能为空")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	cutoff := time.Now().UTC().Add(-staleAuditAfter)
+	query := fmt.Sprintf(
+		`SELECT request_id
+		 FROM configuration_changes
+		 WHERE owner_user_id = %s AND status = 'applying' AND updated_at <= %s
+		 ORDER BY updated_at ASC
+		 LIMIT %s`,
+		s.dialect.Bind(1), s.dialect.Bind(2), s.dialect.Bind(3),
+	)
+	rows, err := s.db.QueryContext(ctx, query, ownerUserID, cutoff, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	requestIDs := make([]string, 0, limit)
+	for rows.Next() {
+		var requestID string
+		if err := rows.Scan(&requestID); err != nil {
+			return nil, err
+		}
+		requestIDs = append(requestIDs, requestID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	recovered := make([]AuditRecord, 0, len(requestIDs))
+	recoveryErr := errors.New("配置执行租约已过期，实际写入结果未知；必须重新 inspect 并使用新的 request_id reconcile")
+	for _, requestID := range requestIDs {
+		resultJSON := string(sanitizedJSON(map[string]any{
+			"applied": "unknown",
+			"error":   recoveryErr.Error(),
+		}))
+		updateQuery := fmt.Sprintf(
+			`UPDATE configuration_changes
+			 SET result_json = %s, status = 'reconcile_required', error_message = %s,
+			     updated_at = %s
+			 WHERE owner_user_id = %s AND request_id = %s
+			   AND status = 'applying' AND updated_at <= %s`,
+			s.dialect.Bind(1), s.dialect.Bind(2), s.dialect.CurrentTimestamp(),
+			s.dialect.Bind(3), s.dialect.Bind(4), s.dialect.Bind(5),
+		)
+		updated, err := s.db.ExecContext(
+			ctx, updateQuery, resultJSON, recoveryErr.Error(),
+			ownerUserID, requestID, cutoff,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if count, err := updated.RowsAffected(); err != nil {
+			return nil, err
+		} else if count == 0 {
+			continue
+		}
+		record, err := s.auditByID(ctx, ownerUserID, requestID)
+		if err != nil {
+			return nil, err
+		}
+		if record != nil {
+			recovered = append(recovered, *record)
+		}
+	}
+	return recovered, nil
+}
+
+// RecoverStaleApplyingChangesForAllOwners is the process recovery entrypoint
+// used by the host lifecycle. It discovers only owners with stale applying
+// receipts and then delegates each owner to the scoped recovery primitive.
+// The limit is global to this invocation; a later scheduler tick can continue
+// with any remaining owners. Unknown outcomes remain reconcile_required and
+// are never replayed by this sweep.
+func (s *Service) RecoverStaleApplyingChangesForAllOwners(
+	ctx context.Context,
+	limit int,
+) ([]AuditRecord, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	cutoff := time.Now().UTC().Add(-staleAuditAfter)
+	query := fmt.Sprintf(
+		`SELECT DISTINCT owner_user_id
+		 FROM configuration_changes
+		 WHERE status = 'applying' AND updated_at <= %s
+		 ORDER BY owner_user_id ASC`,
+		s.dialect.Bind(1),
+	)
+	rows, err := s.db.QueryContext(ctx, query, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	owners := make([]string, 0)
+	for rows.Next() {
+		var ownerUserID string
+		if err := rows.Scan(&ownerUserID); err != nil {
+			return nil, err
+		}
+		ownerUserID = strings.TrimSpace(ownerUserID)
+		if ownerUserID != "" {
+			owners = append(owners, ownerUserID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	recovered := make([]AuditRecord, 0, limit)
+	for _, ownerUserID := range owners {
+		remaining := limit - len(recovered)
+		if remaining <= 0 {
+			break
+		}
+		items, err := s.RecoverStaleApplyingChanges(ctx, ownerUserID, remaining)
+		if err != nil {
+			return nil, err
+		}
+		recovered = append(recovered, items...)
+	}
+	return recovered, nil
+}
 
 func (s *Service) beginAudit(
 	ctx context.Context,
@@ -231,6 +378,241 @@ func (s *Service) ListChanges(ctx context.Context, actor Actor, domain string, l
 		result = append(result, *record)
 	}
 	return result, rows.Err()
+}
+
+// ReviewChange reads one durable receipt together with the current scoped
+// configuration. It is deliberately read-only: a receipt in
+// reconcile_required remains unknown until a human explicitly confirms a
+// decision through ReconcileChange.
+func (s *Service) ReviewChange(
+	ctx context.Context,
+	actor Actor,
+	requestID string,
+) (*ChangeReconciliation, error) {
+	resolved, err := s.resolveActor(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	requestID = strings.TrimSpace(requestID)
+	if !requestIDPattern.MatchString(requestID) {
+		return nil, errors.New("request_id 格式无效")
+	}
+	record, err := s.auditByID(ctx, resolved.OwnerUserID, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, fmt.Errorf("配置审计记录不存在: request_id=%s", requestID)
+	}
+	if err := authorizeAuditReview(resolved, record); err != nil {
+		return nil, err
+	}
+	current, err := s.currentReconciliationSnapshot(
+		scopedContext(ctx, resolved.Actor), resolved, record,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &ChangeReconciliation{
+		Receipt:  *record,
+		Current:  current,
+		Evidence: reconciliationEvidence(*record, current),
+	}, nil
+}
+
+// ReconcileChange records an explicit human decision for an unknown receipt.
+// It never calls executeChange and therefore cannot replay a provider request,
+// file write, or any other side effect. The observed revision is checked
+// immediately before the durable status transition so a stale settings page
+// cannot close a newer state as if it were reviewed.
+func (s *Service) ReconcileChange(
+	ctx context.Context,
+	actor Actor,
+	request ReconcileRequest,
+) (*ChangeReconciliation, error) {
+	resolved, err := s.resolveActor(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	if resolved.Authority != AuthorityOwnerMain || resolved.RoundLeaseRequired {
+		return nil, errors.New("未知配置写入只能由当前 owner 的人工配置入口 reconcile")
+	}
+	if !resolved.LocalSingleUser &&
+		resolved.AuthMethod != "nexuscfg" &&
+		!(resolved.AuthMethod == authctx.AuthMethodPassword && resolved.AuthSessionID != "") {
+		return nil, errors.New("reconcile 缺少当前真人的本地配置入口或远程登录会话")
+	}
+	if !request.Confirmed {
+		return nil, errors.New("reconcile 必须明确确认；它只记录人工决定，不会重放写入")
+	}
+	request.RequestID = strings.TrimSpace(request.RequestID)
+	request.Decision = strings.ToLower(strings.TrimSpace(request.Decision))
+	request.ObservedRevision = strings.TrimSpace(request.ObservedRevision)
+	if !requestIDPattern.MatchString(request.RequestID) {
+		return nil, errors.New("request_id 格式无效")
+	}
+	if request.Decision != "applied" && request.Decision != "not_applied" {
+		return nil, errors.New("reconcile decision 必须为 applied 或 not_applied")
+	}
+	if request.ObservedRevision == "" {
+		return nil, errors.New("observed_revision 不能为空；请先 review 当前配置")
+	}
+	if len(request.Note) > 512 {
+		return nil, errors.New("reconcile note 不能超过 512 个字符")
+	}
+
+	review, err := s.ReviewChange(ctx, resolved.Actor, request.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	if review.Receipt.Status != "reconcile_required" {
+		return nil, fmt.Errorf(
+			"request_id=%s 当前状态为 %s，只有 reconcile_required 可以人工收口",
+			request.RequestID, review.Receipt.Status,
+		)
+	}
+	if request.ObservedRevision != review.Current.Revision {
+		return nil, fmt.Errorf(
+			"当前配置已变化：observed_revision=%s current_revision=%s；请重新 review",
+			request.ObservedRevision, review.Current.Revision,
+		)
+	}
+
+	// Serialize the status transition with other configuration mutations for
+	// this receipt's scope. The receipt itself remains owner/request scoped in
+	// the conditional update below, so a second process cannot win twice.
+	unlock := s.lockMutation(resolved.OwnerUserID + ":reconcile:" + review.Receipt.ScopeKind + ":" + review.Receipt.ScopeID)
+	defer unlock()
+	// Re-read after taking the same in-process scope lock used by apply. The
+	// first review only lets the user choose a receipt; it is not the final
+	// concurrency check for the status transition.
+	latestReview, err := s.ReviewChange(ctx, resolved.Actor, request.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	if latestReview.Receipt.Status != "reconcile_required" {
+		return nil, fmt.Errorf(
+			"request_id=%s 已被另一项 reconcile 收口为 %s",
+			request.RequestID, latestReview.Receipt.Status,
+		)
+	}
+	if request.ObservedRevision != latestReview.Current.Revision {
+		return nil, fmt.Errorf(
+			"当前配置已变化：observed_revision=%s current_revision=%s；请重新 review",
+			request.ObservedRevision, latestReview.Current.Revision,
+		)
+	}
+	review = latestReview
+	resultPayload := map[string]any{
+		"applied":               request.Decision == "applied",
+		"decision":              request.Decision,
+		"decision_source":       "human_confirmation",
+		"note_present":          strings.TrimSpace(request.Note) != "",
+		"current_revision":      review.Current.Revision,
+		"revision_relation":     review.Evidence.RevisionRelation,
+		"current_state_version": review.Current.StateVersion,
+	}
+	query := fmt.Sprintf(
+		`UPDATE configuration_changes
+		 SET result_json = %s, revision_after = %s, status = 'reconciled',
+		     error_message = '', updated_at = %s
+		 WHERE owner_user_id = %s AND request_id = %s AND status = 'reconcile_required'`,
+		s.dialect.Bind(1), s.dialect.Bind(2), s.dialect.CurrentTimestamp(),
+		s.dialect.Bind(3), s.dialect.Bind(4),
+	)
+	updated, err := s.db.ExecContext(
+		ctx, query, string(sanitizedJSON(resultPayload)), review.Current.Revision,
+		resolved.OwnerUserID, request.RequestID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	count, err := updated.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if count != 1 {
+		latest, latestErr := s.auditByID(ctx, resolved.OwnerUserID, request.RequestID)
+		if latestErr != nil {
+			return nil, latestErr
+		}
+		if latest == nil {
+			return nil, fmt.Errorf("配置审计记录不存在: request_id=%s", request.RequestID)
+		}
+		return nil, fmt.Errorf("request_id=%s 已被另一项 reconcile 收口为 %s", request.RequestID, latest.Status)
+	}
+
+	return s.ReviewChange(ctx, resolved.Actor, request.RequestID)
+}
+
+func authorizeAuditReview(actor *resolvedActor, record *AuditRecord) error {
+	if actor == nil || record == nil {
+		return errors.New("配置审计 review 身份无效")
+	}
+	if _, _, err := definitionForActor(actor, record.Domain); err != nil {
+		return err
+	}
+	scopeID := strings.TrimSpace(record.ScopeID)
+	switch actor.Authority {
+	case AuthorityOwnerMain:
+		if record.ScopeKind == ScopeKindOwner && scopeID != actor.OwnerUserID {
+			return errors.New("配置审计不属于当前 owner")
+		}
+	case AuthorityAgentSelf:
+		if record.ScopeKind != ScopeKindAgent || scopeID != actor.AgentID {
+			return errors.New("普通 Agent 不能读取其他 scope 的配置审计")
+		}
+	case AuthorityRoomHost, AuthorityRoomMember:
+		if record.ScopeKind != ScopeKindRoom || scopeID != actor.RoomID {
+			return errors.New("Room Agent 不能读取其他 Room 的配置审计")
+		}
+	default:
+		return fmt.Errorf("%s 无权读取配置审计", actor.Authority)
+	}
+	return nil
+}
+
+func (s *Service) currentReconciliationSnapshot(
+	ctx context.Context,
+	actor *resolvedActor,
+	record *AuditRecord,
+) (DomainSnapshot, error) {
+	target := record.Target
+	if isTargetDeletion(ChangeRequest{Domain: record.Domain, Operation: record.Operation}) {
+		target = ""
+	}
+	return s.domainSnapshot(ctx, actor, record.Domain, target, true)
+}
+
+func reconciliationEvidence(record AuditRecord, current DomainSnapshot) ReconciliationEvidence {
+	relation := "different"
+	switch {
+	case current.Revision == "":
+		relation = "unavailable"
+	case record.RevisionBefore != "" && current.Revision == record.RevisionBefore:
+		relation = "matches_recorded_before"
+	case record.RevisionAfter != "" && current.Revision == record.RevisionAfter:
+		relation = "matches_recorded_after"
+	case !strings.HasPrefix(current.Revision, durableRevisionPrefix) ||
+		(!strings.HasPrefix(record.RevisionBefore, durableRevisionPrefix) &&
+			!strings.HasPrefix(record.RevisionAfter, durableRevisionPrefix)):
+		// Old revisions used a process-local key that cannot be recovered.
+		// A format change is not evidence that the configuration changed.
+		relation = "incomparable"
+	}
+	evidence := ReconciliationEvidence{
+		CurrentRevision:        current.Revision,
+		RecordedRevisionBefore: record.RevisionBefore,
+		RecordedRevisionAfter:  record.RevisionAfter,
+		RevisionRelation:       relation,
+		CurrentStateVersion:    current.StateVersion,
+		DecisionSource:         "human_confirmation_required",
+		Checks:                 current.Checks,
+	}
+	if record.Status == "reconciled" {
+		evidence.DecisionSource = "human_confirmation"
+	}
+	return evidence
 }
 
 type auditScanner interface {

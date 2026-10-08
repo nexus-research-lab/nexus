@@ -7,5 +7,7 @@ cd "${ROOT_DIR}/web"
 corepack pnpm@9.15.2 install --frozen-lockfile
 NEXUS_DESKTOP_BUILD=1 corepack pnpm@9.15.2 build
 
+"${ROOT_DIR}/scripts/desktop/build-macos-sidecar-dev.sh"
+
 cd "${ROOT_DIR}/desktop/macos"
 swift build

@@ -1,6 +1,6 @@
 // INPUT: Room round/slot、成员 Session 本机目录、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、工具面换代且 revision 绑定的 runtime options/client。
-// POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
+// OUTPUT: static/dynamic prompt 分层、本机目录授权、producer/reviewer capability 绑定、固定父 round Subagent control、真实 Agent slot lease、factory 前 desktop sandbox lease 身份绑定与创建后所有权交接、工具面换代且 revision 绑定的 runtime options/client。
+// POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份、失败回收 sandbox lease 的 runtime 装配边界。
 package realtime
 
 import (
@@ -38,12 +38,14 @@ const (
 )
 
 type preparedSlotRuntime struct {
-	options                agentclient.Options
-	selection              runtimeselectionsvc.Selection
-	provider               string
-	toolSurfaceFingerprint string
-	toolSurfaceComplete    bool
-	forkLegacyToolSurface  bool
+	options                 agentclient.Options
+	selection               runtimeselectionsvc.Selection
+	provider                string
+	toolSurfaceFingerprint  string
+	toolSurfaceComplete     bool
+	forkLegacyToolSurface   bool
+	scratchLease            *runtimectx.SandboxResourceLease
+	scratchLeaseTransferred bool
 }
 
 type roomRuntimePrompt struct {
@@ -111,6 +113,13 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
+func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
+	if lease == nil {
+		return nil
+	}
+	return lease.Resources()
+}
+
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if e.round == nil {
 		return nil, errors.New("room round is required")
@@ -130,6 +139,9 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
+		if runtimeValue.scratchLease != nil && !runtimeValue.scratchLeaseTransferred {
+			_ = runtimeValue.scratchLease.Release()
+		}
 		return nil, err
 	}
 	e.logger.Info("Room runtime 启动成功",
@@ -216,7 +228,28 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		}
 	}
 	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
+	var scratchLease *runtimectx.SandboxResourceLease
+	scratchLeaseOwned := false
+	defer func() {
+		if scratchLease != nil && !scratchLeaseOwned {
+			_ = scratchLease.Release()
+		}
+	}()
+	if strings.EqualFold(strings.TrimSpace(e.service.config.AppMode), "desktop") &&
+		(strings.TrimSpace(selection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs")) &&
+		permissionMode != sdkpermission.ModeBypassPermissions {
+		scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
+			OwnerUserID: e.agent.OwnerUserID,
+			SessionKey:  e.slot.RuntimeSessionKey,
+			RoundID:     e.round.RootRoundID,
+		})
+		if err != nil {
+			return preparedSlotRuntime{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
+		}
+	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
+		AppMode:                    e.service.config.AppMode,
+		DesktopSandboxEnabled:      e.service.config.DesktopSandboxEnabled,
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
 		IsMainAgent:                e.agent.IsMain,
@@ -253,6 +286,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
+		SandboxResources:           sandboxResourcesFromLease(scratchLease),
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -268,12 +302,14 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, fmt.Errorf("计算 Room runtime 工具面指纹: %w", err)
 	}
+	scratchLeaseOwned = true
 	return preparedSlotRuntime{
 		options:                options,
 		selection:              selection,
 		provider:               runtimeProvider,
 		toolSurfaceFingerprint: toolSurfaceFingerprint,
 		toolSurfaceComplete:    toolSurfaceComplete,
+		scratchLease:           scratchLease,
 		forkLegacyToolSurface: len(protocol.EffectiveSessionConnectorIDs(
 			e.agent.Options.ConnectorIDs,
 			roomAgentSessionOptions(e.round, e.agent.AgentID),
@@ -596,7 +632,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		)
 	}
 
-	client, err := e.connectRuntimeOnce(startup, *runtimeValue)
+	client, err := e.connectRuntimeOnce(startup, runtimeValue)
 	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
 		e.logger.Warn("Room SDK session resume 失效，清除后重试",
 			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
@@ -619,8 +655,31 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 			runtimeValue.options.Session.ResumeID = ""
 			runtimeValue.options.Session.ResumeAt = ""
 			runtimeValue.options.Session.Fork = false
+			if runtimeValue.scratchLease != nil {
+				// GetOrCreate/Bind can fail before ownership reaches the
+				// runtime manager. Drop that exact unbound handle before a
+				// resume retry replaces the pointer, or the first scratch leaf
+				// remains registered forever.
+				if !runtimeValue.scratchLeaseTransferred {
+					if releaseErr := runtimeValue.scratchLease.Release(); releaseErr != nil {
+						return nil, fmt.Errorf("清理失效 resume 的 Room desktop sandbox scratch: %w", releaseErr)
+					}
+					runtimeValue.scratchLease = nil
+				}
+				nextLease, acquireErr := runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
+					OwnerUserID: e.agent.OwnerUserID,
+					SessionKey:  e.slot.RuntimeSessionKey,
+					RoundID:     e.round.RootRoundID,
+				})
+				if acquireErr != nil {
+					err = acquireErr
+					return nil, fmt.Errorf("重新准备 Room desktop sandbox scratch: %w", err)
+				}
+				runtimeValue.scratchLease = nextLease
+				runtimeValue.scratchLeaseTransferred = false
+			}
 			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
-				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
+				client, err = e.connectRuntimeOnce(startup, runtimeValue)
 			}
 		}
 	}
@@ -686,18 +745,24 @@ func retireExistingRoomRuntimeClient(ctx context.Context, startup *runtimectx.Cl
 
 func (e *slotExecution) connectRuntimeOnce(
 	startup *runtimectx.ClientStartup,
-	runtimeValue preparedSlotRuntime,
+	runtimeValue *preparedSlotRuntime,
 ) (runtimectx.Client, error) {
 	e.logger.Info("准备启动 Room runtime",
 		roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...,
 	)
 	previousClient := e.service.runtime.SessionClient(e.slot.RuntimeSessionKey)
 	hadWarmSession := e.service.runtime.HasSession(e.slot.RuntimeSessionKey)
-	client, err := startup.GetOrCreateWithFactory(
+	client, err := startup.GetOrCreateWithLease(
 		e.ctx,
 		runtimeValue.options,
 		e.service.factory,
+		runtimeValue.scratchLease,
 	)
+	if err != nil {
+		return client, err
+	}
+	transferred, err := startup.BindSandboxLease(runtimeValue.scratchLease)
+	runtimeValue.scratchLeaseTransferred = transferred
 	if err != nil {
 		return client, err
 	}

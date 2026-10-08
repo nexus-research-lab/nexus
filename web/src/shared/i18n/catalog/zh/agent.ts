@@ -174,7 +174,7 @@ export const zhAgentMessages = {
   "agent_options.advanced.permission.bypass.description": "自动放行大多数操作，已有的安全限制仍然有效。",
   "agent_options.advanced.permission.dont_ask.label": "不询问模式",
   "agent_options.advanced.permission.dont_ask.description": "不弹出权限询问；无法自动放行的操作将直接拒绝。",
-  "agent_options.advanced.bypass_warning": "完全访问会自动放行大多数操作，但已有的安全限制仍然有效；请仅在可信任务中使用此模式。",
+  "agent_options.advanced.bypass_warning": "完全访问可访问当前用户的本机文件，不提供沙箱隔离保证，并会自动放行大多数操作。请仅用于可信任务。",
   "agent_options.advanced.tool_access": "提前授权工具",
   "agent_options.advanced.enabled_tools": "已提前授权 {count} 个",
   "agent_options.advanced.security_hint": "这里只列出可以提前授权的高权限工具；读取文件、搜索、任务状态、技能和图片生成等基础能力无需单独开启。",

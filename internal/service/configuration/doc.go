@@ -3,10 +3,12 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - model.go / catalog.go：配置域、资源 scope、业务会话与 runtime lease 身份、能力目录与 workspace 行为模板分流、变更计划、reload 状态与审计协议。
+//   - model.go / catalog.go：配置域、资源 scope、业务会话与 runtime lease 身份、能力目录与 workspace 行为模板/Skill 内容分流、变更计划、reload 状态与审计协议。
 //   - actor.go / access.go：逐次重验 active runtime lease、数据库 owner-main / agent-self / room-host / room-member 身份与字段级能力边界。
 //   - service.go / snapshot.go / host_snapshot.go：服务装配、按可信 scope 读取、Skills 全局/各 Agent workspace 来源目录、
 //     主机白名单投影与配置健康检查。
+//   - revision.go：用宿主数据库中的独立持久密钥生成绑定 domain/scope/target/version 的 v2 revision；
+//     plan digest 继续使用进程临时密钥，旧格式回执无法比较时明确报告 incomparable。
 //   - skill_change_snapshot.go / connector_change_snapshot.go：Skills target_scope/source_identity、私有来源安全元数据、owner catalog CAS、
 //     目标 Agent 与 Connector 目标资源的版本、状态和写后结果绑定。
 //   - change.go / change_validate.go / change_verify.go：有界分片资源锁、plan digest、CAS、幂等、
@@ -18,7 +20,9 @@
 //     保留可信情绪上下文、最小 Session 投影、Preferences CAS、锁内 merge 与条件回滚。
 //   - change_input.go / change_dispatch.go：共用 JSON 补丁合并与领域执行路由，不再平铺所有操作分支。
 //   - member_change.go：管理员主智能体私聊的 Control 成员创建、资料/权限修改、撤销与写后核对。
-//   - audit.go：同时绑定业务 session/root round 与真实 runtime lease、按 owner 与资源 scope 隔离的配置变更审计仓储。
+//   - audit.go：同时绑定业务 session/root round 与真实 runtime lease、按 owner 与资源 scope 隔离的配置变更审计仓储；
+//     提供过期 applying receipt 的 durable unknown 收口、按旧 request 的脱敏 review，以及只能由人工确认且不重放写入的
+//     reconcile；启动恢复入口按 owner 有界扫描并委托同一 scoped primitive，不猜测或重放未知写入。
 //   - human_approval.go / sanitize.go：绑定认证 session/runtime lease 的一次性批准与带外 secret slot、私有 Skill Bearer 轮换、
 //     任意配置树的凭据与内部提示词脱敏。
 //

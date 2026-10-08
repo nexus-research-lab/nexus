@@ -1,4 +1,4 @@
-// INPUT: owner/Agent 身份、Manager 中已绑定的 DM/Room runtime session。
+// INPUT: owner/Agent 身份、Manager 退出栅栏与已绑定的 DM/Room/后台记忆维护 runtime session。
 // OUTPUT: 持久 Agent 墓碑、全部匹配 session 的取消/断连，以及后续创建的 fail-closed 拒绝。
 // POS: Agent 数据库身份删除提交后的 runtime 生命周期撤销边界。
 package runtime
@@ -28,6 +28,9 @@ func newAgentRuntimeIdentity(ownerUserID string, agentID string) agentRuntimeIde
 }
 
 func runtimeSessionAgentID(sessionKey string) string {
+	if strings.HasPrefix(strings.TrimSpace(sessionKey), "memory-maintenance:") {
+		return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(sessionKey), "memory-maintenance:"))
+	}
 	parsed := protocol.ParseSessionKey(strings.TrimSpace(sessionKey))
 	if parsed.Kind != protocol.SessionKeyKindAgent {
 		return ""
@@ -40,6 +43,9 @@ func (m *Manager) runtimeAgentAdmissionErrorLocked(
 	ownerUserID string,
 	agentID string,
 ) error {
+	if m.shutdownDone != nil {
+		return ErrRuntimeManagerClosed
+	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	agentID = strings.TrimSpace(agentID)
@@ -87,7 +93,7 @@ func (m *Manager) RevokeAgentSessions(
 	}
 
 	targets := make([]*sessionCloseTarget, 0)
-	waiting := make([]<-chan struct{}, 0)
+	waiting := make(map[string]<-chan struct{})
 
 	m.mu.Lock()
 	m.revokedAgents[identity] = struct{}{}
@@ -107,7 +113,7 @@ func (m *Manager) RevokeAgentSessions(
 		if started {
 			targets = append(targets, target)
 		} else if closeDone != nil {
-			waiting = append(waiting, closeDone)
+			waiting[sessionKey] = closeDone
 		}
 	}
 	// 只有 owner 已无其他 Agent runtime 时才执行 owner 级进程树回收；
@@ -122,6 +128,7 @@ func (m *Manager) RevokeAgentSessions(
 
 	errs := make([]error, 0, len(targets)+len(waiting)+1)
 	for _, target := range targets {
+		sandboxPhaseErr := m.markSandboxReceiptRetiring(target)
 		var closeErr error
 		if target.client != nil {
 			closeErr = target.client.Disconnect(ctx)
@@ -129,14 +136,17 @@ func (m *Manager) RevokeAgentSessions(
 		idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
-		closeErr = errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
+		cleanupErr := errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
+		sandboxTerminalPhaseErr := m.finalizeSandboxReceipt(target, cleanupErr)
+		cleanupErr = errors.Join(cleanupErr, sandboxPhaseErr, sandboxTerminalPhaseErr)
 		clientCleanupPending := errors.Is(closeErr, context.Canceled) ||
 			errors.Is(closeErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target, clientCleanupPending)
+			m.finishSessionCloseWhenDone(target, clientCleanupPending, cleanupErr)
 		} else {
-			m.finishSessionClose(target)
+			m.finishSessionClose(target, cleanupErr)
 		}
+		closeErr = cleanupErr
 		if closeErr != nil && !IsRuntimeTransportClosedError(closeErr) {
 			errs = append(errs, fmt.Errorf(
 				"close deleted Agent runtime session %s: %w",
@@ -145,13 +155,18 @@ func (m *Manager) RevokeAgentSessions(
 			))
 		}
 	}
-	for _, closeDone := range waiting {
-		if err := waitSessionClose(ctx, closeDone); err != nil {
+	for sessionKey, closeDone := range waiting {
+		if err := m.waitSessionCloseResult(ctx, sessionKey, closeDone); err != nil {
 			errs = append(errs, fmt.Errorf("wait deleted Agent runtime session close: %w", err))
 		}
 	}
 	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {
 		errs = append(errs, fmt.Errorf("reap deleted Agent runtime processes: %w", reaperErr))
+		for _, target := range targets {
+			if receiptErr := m.markSandboxReceiptUnknownAfterReaper(target, reaperErr); receiptErr != nil {
+				errs = append(errs, fmt.Errorf("record deleted Agent sandbox reaper uncertainty: %w", receiptErr))
+			}
+		}
 	}
 	return len(targets) + len(waiting), errors.Join(errs...)
 }

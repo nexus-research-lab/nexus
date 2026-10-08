@@ -216,6 +216,9 @@ require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
 require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/nexus-server"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
 require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexuscfg"
+require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexus-runtime-bootstrap"
+BRIDGE_VERSION="$(cd "${ROOT_DIR}" && GOWORK=off go list -m -f '{{if .Replace}}replacement{{else}}{{.Version}}{{end}}' github.com/nexus-research-lab/nexus-agent-sdk-bridge)"
+node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" verify "${APP_BUNDLE}" "${BRIDGE_VERSION}"
 
 NXS_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nxs"
 if is_enabled "${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}" && [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
@@ -235,6 +238,14 @@ if command -v codesign >/dev/null 2>&1; then
 fi
 
 detect_app_signature
+
+# Even skip-build packages must pair the actual sidecar with its bundled nxs.
+# Keep evidence outside the signed App so verification does not change its seal.
+RUNTIME_COMPATIBILITY_PATH=""
+if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
+  RUNTIME_COMPATIBILITY_PATH="${OUTPUT_DIR}/${DIST_NAME}.runtime-compatibility.json"
+  bash "${ROOT_DIR}/scripts/desktop/check-macos-runtime.sh" "${APP_BUNDLE}" "${RUNTIME_COMPATIBILITY_PATH}"
+fi
 
 if [[ "${NEXUS_DESKTOP_PACKAGE_SKIP_SMOKE:-0}" != "1" ]]; then
   NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE="${NEXUS_DESKTOP_SMOKE_EXPECTED_CREDENTIALS_STORAGE:-${PACKAGE_KEYCHAIN_EXPECTED_STORAGE}}" \
@@ -293,6 +304,7 @@ PACKAGE_DIST_NAME="${DIST_NAME}" \
 PACKAGE_ARTIFACT_FORMAT="${ARTIFACT_FORMAT}" \
 PACKAGE_NXS_RUNTIME_BUNDLED="${NXS_RUNTIME_BUNDLED}" \
 PACKAGE_NXS_RUNTIME_RELEASE="${NEXUS_DESKTOP_NXS_RELEASE:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-stable}}" \
+PACKAGE_RUNTIME_COMPATIBILITY_PATH="${RUNTIME_COMPATIBILITY_PATH}" \
 PACKAGE_SIGNING_KIND="${PACKAGE_SIGNING_KIND}" \
 PACKAGE_SIGNING_DEVELOPER_ID="${PACKAGE_SIGNING_DEVELOPER_ID}" \
 PACKAGE_SIGNING_NOTARIZED="${PACKAGE_SIGNING_NOTARIZED}" \
@@ -333,6 +345,8 @@ const metadata = {
       bundled: env.PACKAGE_NXS_RUNTIME_BUNDLED === "true",
       release: env.PACKAGE_NXS_RUNTIME_RELEASE,
       relative_path: "Contents/Resources/bin/nxs",
+      compatibility: env.PACKAGE_RUNTIME_COMPATIBILITY_PATH
+        ? JSON.parse(fs.readFileSync(env.PACKAGE_RUNTIME_COMPATIBILITY_PATH, "utf8")) : null,
     },
   },
   artifact: {

@@ -19,6 +19,23 @@ MAIN_NAVIGATION_FINISHED_PATTERN="event=webview\\.navigation_finished.*surface=m
 LAUNCHER_ROUTE_PATTERN="/launcher($|[[:space:]])"
 
 APP_PID=""
+SMOKE_STATE_ROOT="${NEXUS_DESKTOP_STATE_ROOT:-}"
+SMOKE_PREFERENCES_SUITE="${NEXUS_DESKTOP_PREFERENCES_SUITE:-}"
+
+# Smoke tests must never attach to a user's existing desktop state.  An old
+# database can have a newer migration marker while missing a table (for
+# example after an interrupted upgrade), which makes the result about the
+# operator's local state rather than the bundle under test.  Preserve an
+# explicitly supplied root for targeted upgrade tests; otherwise create a
+# private root for this invocation.
+if [[ -z "${SMOKE_STATE_ROOT}" ]]; then
+  SMOKE_STATE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nexus-desktop-smoke.XXXXXX")"
+  export NEXUS_DESKTOP_STATE_ROOT="${SMOKE_STATE_ROOT}"
+fi
+if [[ -z "${SMOKE_PREFERENCES_SUITE}" ]]; then
+  SMOKE_PREFERENCES_SUITE="com.leemysw.nexus.smoke.$(basename "${SMOKE_STATE_ROOT}")"
+  export NEXUS_DESKTOP_PREFERENCES_SUITE="${SMOKE_PREFERENCES_SUITE}"
+fi
 
 fail() {
   echo "smoke failed: $*" >&2

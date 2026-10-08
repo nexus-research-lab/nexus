@@ -11,8 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
-
-	_ "modernc.org/sqlite"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 type fakeIngressDMHandler struct {
@@ -77,7 +76,8 @@ func migrateIngressSQLite(t *testing.T, databaseURL string) *sql.DB {
 	t.Helper()
 
 	handlertest.MigrateSQLiteFromDir(t, databaseURL, ingressMigrationDir(t))
-	db, err := sql.Open("sqlite", databaseURL)
+	// 与生产保持相同的单连接、事务和外键语义，避免并发审批使用裸连接竞争写锁。
+	db, err := storage.OpenDB(config.Config{DatabaseDriver: "sqlite", DatabaseURL: databaseURL})
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}

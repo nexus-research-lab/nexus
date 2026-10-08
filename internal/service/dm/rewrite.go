@@ -306,7 +306,12 @@ func (s *Service) broadcastHistoryRewriteResync(
 func lastVisibleUserMessage(rows []protocol.Message) (protocol.Message, bool) {
 	for index := len(rows) - 1; index >= 0; index-- {
 		row := rows[index]
-		if dmdomain.NormalizeString(row["role"]) == "user" {
+		// Goal/control continuation and compatibility markers may be stored as
+		// user rows, but they are hidden from the conversation and cannot be the
+		// target of the visible message's edit/rerun action.
+		if dmdomain.NormalizeString(row["role"]) == "user" &&
+			row["hidden_from_user"] != true &&
+			row["is_synthetic"] != true {
 			return row, true
 		}
 	}

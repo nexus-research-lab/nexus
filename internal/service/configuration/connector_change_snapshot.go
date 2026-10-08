@@ -33,19 +33,15 @@ func (s *Service) augmentConnectorChangeSnapshot(
 			return snapshot, err
 		}
 	}
-	key, err := s.integrityKeyBytes()
-	if err != nil {
-		return DomainSnapshot{}, fmt.Errorf("初始化 Connector revision 密钥: %w", err)
-	}
-	snapshot.Revision, err = integrityRevisionFor(map[string]any{
+	snapshot.Scope = ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}
+	snapshot.StateVersion = state.ConfigurationVersion
+	snapshot.Revision, err = s.snapshotRevision(ctx, request.Domain, snapshot.Scope, request.Target, snapshot.StateVersion, map[string]any{
 		"target_definition": detail,
 		"target_connector":  state,
-	}, key)
+	})
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
-	snapshot.Scope = ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}
-	snapshot.StateVersion = state.ConfigurationVersion
 	snapshot.Values = map[string]any{
 		"catalog":          snapshot.Values,
 		"target_connector": state,

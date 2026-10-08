@@ -46,6 +46,23 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 	if pending.DecisionReason != "" {
 		payload["summary"] = pending.DecisionReason + "\n" + summarizeInput(pending.ToolName, pending.ToolInput)
 	}
+	if pending.Boundary != "" {
+		payload["permission_boundary"] = string(pending.Boundary)
+	}
+	if pending.Boundary == sdkpermission.BoundarySandboxEscape {
+		payload["risk_level"] = "high"
+		payload["risk_label"] = "沙箱外执行"
+		payload["summary"] = "该命令将在沙箱外执行。批准仅对本次调用生效。\n" + payload["summary"].(string)
+		payload["suggestions"] = []map[string]any{}
+	}
+	if pending.Boundary == sdkpermission.BoundarySandboxNetwork {
+		payload["risk_label"] = "访问网络"
+		payload["summary"] = "批准仅允许当前命令的这次目标连接，不会重跑命令或保存永久规则。\n" + payload["summary"].(string)
+		payload["suggestions"] = []map[string]any{}
+	}
+	if pending.Review != nil {
+		payload["review"] = *pending.Review
+	}
 	if len(pending.ConfigurationSecretSlots) > 0 {
 		payload["configuration_secret_slots"] = pending.ConfigurationSecretSlots
 	}
