@@ -60,7 +60,7 @@ import { APP_NARROW_VIEWPORT_MEDIA_QUERY, clampHomeSidePanelWidthPercent, HOME_S
 import { useMouseDrag } from "@/shared/lib/react/use-mouse-drag";
 import { useRoomSidePanelResize } from "@/features/conversation/room/surface/layout/use-room-side-panel-resize";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
-import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { hasTeamAccess, useAuth } from "@/shared/auth/auth-context";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { UiAgentAvatar, UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -83,7 +83,7 @@ export function TeamPage() {
 
 function TeamPageContent({ roomId }: { roomId: string | null }) {
   const { status } = useAuth();
-  const canUseRelay = hasOrganizationAccess(status);
+  const canUseRelay = hasTeamAccess(status);
   const [commandCatalog, setCommandCatalog] = useState<CommandCatalogData>({commands: [], status: "unavailable"});
   const transfers = useRef(new AbortController());
   const [submitError, setSubmitError] = useState<string | null>(null);

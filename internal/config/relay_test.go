@@ -2,6 +2,17 @@ package config
 
 import "testing"
 
+func TestLoadMultiplayerDisabled(t *testing.T) {
+	for _, value := range []string{"true", "false", ""} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("NEXUS_MULTIPLAYER_DISABLED", value)
+			if got := Load().MultiplayerDisabled; got != (value == "true") {
+				t.Fatalf("MultiplayerDisabled = %v for %q", got, value)
+			}
+		})
+	}
+}
+
 func TestLoadRelayConfigurationIsOptional(t *testing.T) {
 	t.Setenv("NEXUS_RELAY_URL", "")
 	t.Setenv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "")
