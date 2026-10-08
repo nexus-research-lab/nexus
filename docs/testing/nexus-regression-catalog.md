@@ -2,8 +2,6 @@
 
 本文把 Nexus 近期反复出现过的生产故障、跨 runtime 对齐和桌面端回归整理成可重复测试。它是测试入口，不替代代码测试；历史结果只用于说明风险，发布结论必须来自当前构建的重新执行。
 
-详细滚动场景见[会话打开与最新消息滚动回归测试](./conversation-latest-scroll-regression.md)。
-
 ## 使用规则
 
 1. 先记录 product、bridge、nxs 三个仓库的 Commit，以及实际运行的 App 和 runtime 二进制路径。
@@ -320,7 +318,7 @@ go test ./permission ./protocol ./client
 
 ### ROOM-07 会话打开与滚动
 
-执行[会话打开与最新消息滚动回归测试](./conversation-latest-scroll-regression.md)的 SCROLL-01、SCROLL-03、SCROLL-06；Room/时间线改动执行全部十项。
+冷打开 DM 与 Room 会话时定位到最新消息；向上加载历史不跳动；新消息到达时只在已贴底时自动滚动。
 
 自动化入口：
 
