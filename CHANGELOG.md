@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
+
 - 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
 
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
