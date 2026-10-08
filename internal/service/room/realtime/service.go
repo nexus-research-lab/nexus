@@ -135,10 +135,6 @@ type (
 	ConfigurationRuntimeEnvironmentBuilder = runtimehost.ConfigurationRuntimeEnvironmentBuilder
 	NexusMCPServerBuilder                  = runtimehost.NexusMCPServerBuilder
 	RuntimeSlashExpander                   = runtimehost.RuntimeSlashExpander
-	queueAdmissionStore                    = runtimehost.QueueAdmissionStore
-	usageRecorder                          = runtimehost.UsageRecorder
-	quotaChecker                           = runtimehost.QuotaChecker
-	executionContextProvider               = runtimehost.ExecutionContextProvider
 )
 
 type Service struct {

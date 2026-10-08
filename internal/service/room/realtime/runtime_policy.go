@@ -31,14 +31,6 @@ func cloneRuntimeToolPolicy(policy *protocol.RuntimeToolPolicy) *protocol.Runtim
 	}
 }
 
-func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
-	if value == nil {
-		return nil
-	}
-	result := value.Normalized()
-	return &result
-}
-
 func roomRoundToolPolicy(round *activeRoomRound, agent *protocol.Agent) (allowed []string, denied []string, snapshotted bool) {
 	if round != nil && round.RuntimeToolPolicy != nil {
 		return slices.Clone(round.RuntimeToolPolicy.AllowedTools), slices.Clone(round.RuntimeToolPolicy.DisallowedTools), true

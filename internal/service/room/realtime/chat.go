@@ -24,6 +24,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -309,7 +310,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 			return nil, err
 		}
 	}
-	deliveryPolicy := safeRoomDeliveryPolicy(request)
+	deliveryPolicy := runtimehost.SafeDeliveryPolicy(request.DeliveryPolicy, request.TrustedConfigurationContext)
 	if !request.Internal &&
 		(contextValue.Room.RoomType != protocol.RoomTypeGroup || !request.TrustedConfigurationContext) {
 		targetAgentIDs, targetResolution = s.resolveActiveRoomTargets(
@@ -323,7 +324,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	if len(targetAgentIDs) > 0 {
 		if err = s.EnsureQuotaAvailable(ctx); err != nil {
 			if request.Internal && strings.TrimSpace(request.GoalID) != "" {
-				s.recordGoalQuotaLimit(ctx, sessionKey, request.RoundID, err)
+				runtimehost.RecordGoalQuotaLimit(ctx, s.goals, s.LoggerFor(ctx), sessionKey, request.RoundID, err)
 			}
 			return nil, err
 		}
@@ -383,14 +384,6 @@ func (s *Service) roomChatStageRecorder(ctx context.Context, request ChatRequest
 		}
 		stage, startedAt = nextStage, time.Now()
 	}
-}
-
-func safeRoomDeliveryPolicy(request ChatRequest) protocol.ChatDeliveryPolicy {
-	policy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
-	if !request.TrustedConfigurationContext && policy == protocol.ChatDeliveryPolicyGuide {
-		return protocol.ChatDeliveryPolicyQueue
-	}
-	return policy
 }
 
 func ensureRoomChatIDs(request *ChatRequest) {
@@ -774,7 +767,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		PermissionMode:                    e.request.PermissionMode,
 		PermissionHandler:                 e.request.PermissionHandler,
 		RuntimeToolPolicy:                 cloneRuntimeToolPolicy(e.request.RuntimeToolPolicy),
-		AutomationRun:                     cloneAutomationRunContext(e.request.AutomationRun),
+		AutomationRun:                     e.request.AutomationRun.NormalizedCopy(),
 		EventObserver:                     e.request.EventObserver,
 		GoalContext:                       strings.TrimSpace(e.request.GoalContext),
 		GoalID:                            strings.TrimSpace(e.request.GoalID),

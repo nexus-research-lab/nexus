@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
@@ -114,13 +115,10 @@ func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
 }
 
 func TestUntrustedDMGuideFallsBackToQueue(t *testing.T) {
-	if got := safeDMDeliveryPolicy(Request{DeliveryPolicy: protocol.ChatDeliveryPolicyGuide}); got != protocol.ChatDeliveryPolicyQueue {
+	if got := runtimehost.SafeDeliveryPolicy(protocol.ChatDeliveryPolicyGuide, false); got != protocol.ChatDeliveryPolicyQueue {
 		t.Fatalf("untrusted guide policy = %q", got)
 	}
-	if got := safeDMDeliveryPolicy(Request{
-		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
-		TrustedConfigurationContext: true,
-	}); got != protocol.ChatDeliveryPolicyGuide {
+	if got := runtimehost.SafeDeliveryPolicy(protocol.ChatDeliveryPolicyGuide, true); got != protocol.ChatDeliveryPolicyGuide {
 		t.Fatalf("trusted guide policy = %q", got)
 	}
 }

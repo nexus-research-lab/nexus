@@ -18,6 +18,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 const (
@@ -37,7 +38,7 @@ func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundEx
 		)
 		return
 	}
-	settled := r.settleTerminalGoalUsageSnapshotWithRetry(ctx, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, r.goalUsageRetryBaseDelay, func() bool { return r.settleTerminalGoalUsageSnapshot(ctx, snapshot) })
 	if !settled {
 		r.service.LoggerFor(ctx).Warn(
 			"DM terminal Goal usage 未能持久化",
@@ -49,37 +50,6 @@ func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundEx
 	}
 	if r.clearTerminalGoalUsageSnapshot(version) {
 		r.closeGoalUsageIfNoTerminalSnapshotPending()
-	}
-}
-
-func (r *roundRunner) settleTerminalGoalUsageSnapshotWithRetry(
-	ctx context.Context,
-	snapshot goalsvc.RuntimeUsageSnapshot,
-) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if r.settleTerminalGoalUsageSnapshot(ctx, snapshot) {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *roundRunner) waitGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	baseDelay := 20 * time.Millisecond
-	if r != nil && r.goalUsageRetryBaseDelay > 0 {
-		baseDelay = r.goalUsageRetryBaseDelay
-	}
-	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
 	}
 }
 
@@ -239,7 +209,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 			}
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
 					return ctx.Err()
 				}
 				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
@@ -405,7 +375,7 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	progressed := r.hasGoalToolProgress()
 	if !progressed && r.hasRunningSubagentTask() {
 		r.recordGoalMutation("结算已启动 Goal 续跑回执失败", func() error {
-			return settleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
+			return runtimehost.SettleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
 		})
 		return
 	}
@@ -711,7 +681,7 @@ func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Conte
 	if !pending {
 		snapshot = goalsvc.RuntimeUsageSnapshot{Terminal: true}
 	}
-	settled := r.settleTerminalGoalUsageSnapshotWithRetry(ctx, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, r.goalUsageRetryBaseDelay, func() bool { return r.settleTerminalGoalUsageSnapshot(ctx, snapshot) })
 	if settled {
 		canClose := true
 		if pending {
@@ -878,7 +848,7 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 		GoalSessionKey:    r.sessionKey,
 	}
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
 			return false
 		}
 		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
@@ -937,7 +907,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 				err    error
 			)
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
 					break
 				}
 				result, err = recorder.RecordUsageSourceSnapshot(ctx, snapshot)
@@ -1091,7 +1061,7 @@ func (r *roundRunner) flushPendingSubagentUsageBeforeBindLocked(
 			err    error
 		)
 		for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-			if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
+			if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, r.goalUsageRetryBaseDelay, attempt) {
 				return ctx.Err()
 			}
 			result, err = r.persistSubagentUsageObservationLocked(

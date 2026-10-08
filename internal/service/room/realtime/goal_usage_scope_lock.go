@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type roomGoalUsageScopeLockEntry struct {
@@ -119,7 +121,7 @@ func (s *Service) flushRoomSubagentUsageBeforeExternalBind(
 			observation := pending[taskID]
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
 					return ctx.Err()
 				}
 				_, err = s.persistSubagentGoalUsageObservationForSlot(

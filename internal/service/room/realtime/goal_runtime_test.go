@@ -20,6 +20,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -1463,7 +1464,7 @@ func (s *Service) recordGoalUsageForSlot(
 	if !ok {
 		return
 	}
-	_ = s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
+	_ = runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool { return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) })
 }
 
 func (s *Service) recordGoalUsageFromSlotAssistantMessage(

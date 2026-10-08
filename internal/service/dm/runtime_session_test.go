@@ -31,9 +31,9 @@ func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
 		if enabled {
 			value = "1"
 		}
-		options := service.withRuntimeDiagnosticsLogger(agentclient.Options{
+		options := runtimehost.WithRuntimeDiagnosticsLogger(agentclient.Options{
 			Env: map[string]string{runtimectx.AgentSDKDiagnosticsEnvName: value},
-		}, "session", "agent")
+		}, service.LoggerFor(context.Background()).With("session_key", "session", "agent_id", "agent"))
 		options.Callbacks.Stderr("startup error")
 		if got := strings.Contains(output.String(), "startup error"); got != enabled {
 			t.Fatalf("enabled=%t, stderr logged=%t", enabled, got)

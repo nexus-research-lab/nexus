@@ -17,6 +17,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -63,7 +64,7 @@ func TestRoomContinuationStartAdmissionCancelsRegisteredRootBeforeSlotsRun(t *te
 			SessionKey: plan.Goal.SessionKey, ConversationID: "conversation-start-admission",
 			RoundID: plan.RoundID, GoalID: plan.Goal.ID,
 			continuationStartAdmission: func(ctx context.Context) error {
-				return markRoomGoalContinuationStarted(ctx, provider, plan)
+				return runtimehost.MarkGoalContinuationStarted(ctx, provider, plan)
 			},
 		},
 		sessionKey:     plan.Goal.SessionKey,

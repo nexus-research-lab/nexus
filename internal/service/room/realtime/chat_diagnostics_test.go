@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestRoomRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
@@ -21,7 +22,7 @@ func TestRoomRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
 		if enabled {
 			value = "1"
 		}
-		options := withRoomRuntimeDiagnosticsLogger(agentclient.Options{
+		options := runtimehost.WithRuntimeDiagnosticsLogger(agentclient.Options{
 			Env: map[string]string{runtimectx.AgentSDKDiagnosticsEnvName: value},
 		}, logger)
 		options.Callbacks.Stderr("startup error")

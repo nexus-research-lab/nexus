@@ -24,6 +24,7 @@ import (
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -494,7 +495,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		GoalAuthority:           goalAuthority,
 		ResponsibilityAuthority: responsibilityAuthority,
 		SDKSessionIdentity:      e.slot.ensureSDKSessionIdentityState(),
-		AutomationRun:           cloneAutomationRunContext(e.round.AutomationRun),
+		AutomationRun:           e.round.AutomationRun.NormalizedCopy(),
 	}
 	return nexusmcp.RoundContext{
 		SessionKey: e.round.SessionKey, RoundID: e.round.RootRoundID,
@@ -575,7 +576,7 @@ func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclie
 		RoomID:         e.round.RoomID,
 		ConversationID: e.round.ConversationID,
 	}))
-	return withRoomRuntimeDiagnosticsLogger(options, e.logger.With("agent_id", e.slot.AgentID, "agent_round_id", e.slot.AgentRoundID))
+	return runtimehost.WithRuntimeDiagnosticsLogger(options, e.logger.With("agent_id", e.slot.AgentID, "agent_round_id", e.slot.AgentRoundID))
 }
 
 func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runtimectx.Client, error) {
@@ -860,59 +861,4 @@ func roomRuntimeConnectFailureLogFields(
 		"error_type", fmt.Sprintf("%T", err),
 		"transport_closed", runtimectx.IsRuntimeTransportClosedError(err),
 	)
-}
-
-func withRoomRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logger) agentclient.Options {
-	diagnosticsEnabled := runtimectx.AgentSDKDiagnosticsEnabled(options.Env)
-	previousStderr := options.Callbacks.Stderr
-	options.Callbacks.Stderr = func(line string) {
-		normalizedLine := runtimectx.NormalizeRuntimeStderrLine(line)
-		if previousStderr != nil {
-			previousStderr(normalizedLine)
-		}
-		if diagnosticsEnabled {
-			logger.Info("Agent SDK stderr", "stderr", normalizedLine)
-		} else {
-			logger.Debug("Agent SDK stderr", "stderr", normalizedLine)
-		}
-	}
-	previousDiagnostics := options.Callbacks.Diagnostics
-	options.Callbacks.Diagnostics = func(event agentclient.DiagnosticEvent) {
-		if previousDiagnostics != nil {
-			previousDiagnostics(event)
-		}
-		component := strings.TrimSpace(event.Component)
-		eventName := strings.TrimSpace(event.Event)
-		if diagnosticsEnabled {
-			logger.Info("Agent SDK diagnostics",
-				"component", component,
-				"event", eventName,
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-			return
-		}
-		if clientopts.ShouldLogRuntimeStartupDiagnostic(event) {
-			logger.Info("Agent SDK startup diagnostics",
-				"component", component,
-				"event", eventName,
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-			return
-		}
-		if clientopts.ShouldWarnRuntimeStartupDiagnostic(event) {
-			logger.Warn("Agent SDK startup diagnostics",
-				"component", component,
-				"event", eventName,
-				"attrs", clientopts.SanitizeRuntimeDiagnosticAttributes(event.Event, event.Attributes),
-			)
-		}
-	}
-	if !diagnosticsEnabled {
-		return options
-	}
-	logger.Info("Agent SDK diagnostics 已启用",
-		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
-		"provider_debug_body", runtimectx.AgentSDKProviderDebugBodyValue(options.Env),
-	)
-	return options
 }

@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -215,7 +216,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				RootRoundID:       strings.TrimSpace(validated.RoundID),
 			},
 			continuationStartAdmission: func(admissionCtx context.Context) error {
-				return markGoalContinuationStarted(admissionCtx, s.goals, *validated)
+				return runtimehost.MarkGoalContinuationStarted(admissionCtx, s.goals, *validated)
 			},
 		}, chatExecutionInline)
 	}
@@ -271,24 +272,6 @@ func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context,
 type durableGoalContinuationLauncher interface {
 	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
 	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
-}
-
-type durableGoalContinuationSettler interface {
-	SettleContinuationPlan(context.Context, string, string, int64) error
-}
-
-func settleGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
-	if durable, ok := provider.(durableGoalContinuationSettler); ok {
-		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
-	}
-	return nil
-}
-
-func markGoalContinuationStarted(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation) error {
-	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
-		return durable.MarkContinuationPlanStarted(ctx, plan)
-	}
-	return nil
 }
 
 func retryGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {

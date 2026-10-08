@@ -5,13 +5,11 @@ package realtime
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (s *Service) persistRoomGoalCompletionReceipts(
@@ -43,7 +41,7 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		(stored && !refresh) {
 		return
 	}
-	report, reportOK := s.roomGoalCompletionReport(ctx, goalID)
+	report, reportOK := runtimehost.GoalCompletionReport(ctx, s.goals, s.LoggerFor(ctx), goalID)
 	if !reportOK && stored {
 		return
 	}
@@ -78,27 +76,6 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		)
 		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, event)
 	}
-}
-
-func (s *Service) roomGoalCompletionReport(
-	ctx context.Context,
-	goalID string,
-) (*protocol.GoalUsageReport, bool) {
-	provider, ok := s.goals.(roomGoalUsageFinalizationProvider)
-	if !ok {
-		return nil, false
-	}
-	report, err := provider.UsageByGoalID(ctx, goalID)
-	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			s.LoggerFor(ctx).Debug("读取 Room Goal 完成收据数据失败", "goal_id", goalID, "err", err)
-		}
-		return nil, false
-	}
-	if !goalsvc.IsCompletionUsageReport(report, goalID) {
-		return nil, false
-	}
-	return report, true
 }
 
 func (s *Service) logRoomGoalCompletionReceiptError(
