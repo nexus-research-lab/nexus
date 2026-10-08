@@ -547,4 +547,3 @@ func proposalItemError(logicalKey string, err error) error {
 func validProposalDependencyKind(kind protocol.WorkDependencyKind) bool {
 	return kind == protocol.WorkDependencyHard || kind == protocol.WorkDependencySoft
 }
-

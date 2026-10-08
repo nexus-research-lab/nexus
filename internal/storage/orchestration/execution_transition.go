@@ -731,4 +731,3 @@ func planEvent(
 		CreatedAt:      meta.CreatedAt,
 	}
 }
-
