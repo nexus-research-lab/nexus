@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
+	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
 // GoalRoundState 是一个 Agent round 的 Goal 运行状态；Mu 保护全部字段。
@@ -172,4 +173,29 @@ func (g *GoalRoundState) RememberSubagentTaskMessage(message protocol.Message) b
 		}
 	}
 	return true
+}
+
+// RecordResultUsage 用 write 写入 result 消息的 token 用量，成功后记住本轮已写过 result 用量。
+func (g *GoalRoundState) RecordResultUsage(message protocol.Message, write func(protocol.Message) bool) {
+	if protocol.MessageRole(message) != "result" || !usagesvc.MessageHasUsage(message) {
+		return
+	}
+	if write(message) {
+		g.Mu.Lock()
+		g.ResultUsageWritten = true
+		g.Mu.Unlock()
+	}
+}
+
+// RecordTerminalAssistantUsage 仅在本轮没有 result 用量时，用终态 assistant 消息的用量兜底，避免重复计量。
+func (g *GoalRoundState) RecordTerminalAssistantUsage(message protocol.Message, write func(protocol.Message) bool) {
+	if protocol.MessageRole(message) != "assistant" || !usagesvc.MessageHasUsage(message) {
+		return
+	}
+	g.Mu.RLock()
+	written := g.ResultUsageWritten
+	g.Mu.RUnlock()
+	if !written {
+		write(message)
+	}
 }

@@ -316,8 +316,8 @@ func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.
 		},
 	}
 
-	runner.recordUsage(result)
-	runner.recordTerminalAssistantUsage(assistant)
+	runner.RecordResultUsage(result, runner.writeUsage)
+	runner.RecordTerminalAssistantUsage(assistant, runner.writeUsage)
 
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("usage 记录数量 = %d，期望只记录 result 聚合 usage", len(recorder.inputs))
@@ -338,14 +338,14 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 		roundID:     "round-1",
 	}
 
-	runner.recordUsage(protocol.Message{
+	runner.RecordResultUsage(protocol.Message{
 		"role":        "result",
 		"message_id":  "result-empty",
 		"session_key": "agent:demo:dm:session",
 		"round_id":    "round-1",
 		"usage":       map[string]any{},
-	})
-	runner.recordTerminalAssistantUsage(protocol.Message{
+	}, runner.writeUsage)
+	runner.RecordTerminalAssistantUsage(protocol.Message{
 		"role":        "assistant",
 		"message_id":  "assistant-1",
 		"session_key": "agent:demo:dm:session",
@@ -353,7 +353,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 		"usage": map[string]any{
 			"input_tokens": 3,
 		},
-	})
+	}, runner.writeUsage)
 
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("usage 记录数量 = %d，期望 fallback 记录 assistant usage", len(recorder.inputs))

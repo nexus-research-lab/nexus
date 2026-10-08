@@ -145,7 +145,7 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	}
 	lastAssistant := e.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
-		e.service.recordTerminalAssistantUsage(e.round, e.slot, lastAssistant)
+		e.slot.mutable.goal.RecordTerminalAssistantUsage(lastAssistant, e.writeUsage)
 		e.slot.mutable.goal.RememberGoalCompletionAssistant(lastAssistant)
 		e.service.persistRoomGoalCompletionReceipt(e.ctx, e.round, e.slot, false)
 	}

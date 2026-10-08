@@ -3,6 +3,7 @@ package realtime
 import (
 	"testing"
 
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -34,6 +35,9 @@ func withConstructorDefaults(t *testing.T, s *Service) *Service {
 	}
 	if s.InputQueue == nil {
 		s.InputQueue = workspacestore.NewInputQueueStore(root)
+	}
+	if s.Runtime == nil {
+		s.Runtime = runtimectx.NewManager()
 	}
 	return s
 }

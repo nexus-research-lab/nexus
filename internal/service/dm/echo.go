@@ -104,7 +104,7 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 		err = r.persistMessage(message)
 	}
 	if err == nil {
-		r.recordTerminalAssistantUsage(message)
+		r.RecordTerminalAssistantUsage(message, r.writeUsage)
 		r.broadcastDeferredAssistant(message)
 		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusDelivered})
 	} else {

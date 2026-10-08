@@ -612,7 +612,7 @@ func TestRoomParentTerminalHandoffRestartsWorkerAfterSkippedStart(t *testing.T) 
 			Status:     protocol.GoalStatusComplete,
 		},
 	}
-	service := &Service{goals: provider}
+	service := withConstructorDefaults(t, &Service{goals: provider})
 	accelerateRoomGoalUsageRetry(service)
 
 	// 旧 worker 尚未清 flag，runRound 的 terminal start 因而先跳过。

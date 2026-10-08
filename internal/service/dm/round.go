@@ -31,30 +31,6 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-type dmRoundMapperAdapter struct {
-	mapper *dmdomain.MessageMapper
-}
-
-func (a dmRoundMapperAdapter) Map(
-	incoming sdkprotocol.ReceivedMessage,
-	interruptReason ...string,
-) (exec.RoundMapResult, error) {
-	events, durableMessages, terminalStatus, resultSubtype, err := a.mapper.Map(incoming, interruptReason...)
-	if err != nil {
-		return exec.RoundMapResult{}, err
-	}
-	return exec.RoundMapResult{
-		Events:          events,
-		DurableMessages: durableMessages,
-		TerminalStatus:  terminalStatus,
-		ResultSubtype:   resultSubtype,
-	}, nil
-}
-
-func (a dmRoundMapperAdapter) SessionID() string {
-	return a.mapper.SessionID()
-}
-
 type roundRunner struct {
 	// GoalRoundState 是与 DM/Room 共用的每轮 Goal 状态；其 Mu 保护全部 Goal 字段。
 	runtimehost.GoalRoundState
@@ -159,7 +135,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	r.recordGoalContinuationProgress(result)
 	r.finalizeGoalUsage(context.Background(), result, finalAssistant)
 	if result.CompletedByAssistant {
-		r.recordTerminalAssistantUsage(finalAssistant)
+		r.RecordTerminalAssistantUsage(finalAssistant, r.writeUsage)
 	}
 	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.scheduleEchoAfterTerminal(result, finalAssistant)
@@ -236,7 +212,7 @@ func (r *roundRunner) executeRound(
 		ContextualInputs: append(executionInputs, r.contextualInputs()...),
 		InputOptions:     r.runtimeInputOptions(),
 		Client:           r.client,
-		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
+		Mapper:           runtimehost.RoundMapper{EventMapper: r.mapper.EventMapper},
 		IdleTimeout:      r.service.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
 			return r.service.Permission.PendingRequestState(r.sessionKey)
@@ -389,7 +365,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	role := protocol.MessageRole(message)
 	if r.deferredAssistant != nil {
 		if role == "result" {
-			r.recordUsage(message)
+			r.RecordResultUsage(message, r.writeUsage)
 		}
 		return nil
 	}
@@ -486,7 +462,7 @@ func (r *roundRunner) persistMessage(message protocol.Message) error {
 	); err != nil {
 		return err
 	}
-	r.recordUsage(message)
+	r.RecordResultUsage(message, r.writeUsage)
 	updated, err := r.service.refreshSessionMetaAfterMessageForOwner(
 		r.ownerUserID,
 		r.workspacePath,
@@ -520,28 +496,6 @@ func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
 	if updated != nil {
 		r.session = *updated
 	}
-}
-
-func (r *roundRunner) recordUsage(message protocol.Message) {
-	if r.service.Usage == nil || protocol.MessageRole(message) != "result" {
-		return
-	}
-	if !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	if r.writeUsage(message) {
-		r.ResultUsageWritten = true
-	}
-}
-
-func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
-	if r.service.Usage == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	if r.ResultUsageWritten || !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	r.writeUsage(message)
 }
 
 func (r *roundRunner) writeUsage(message protocol.Message) bool {
