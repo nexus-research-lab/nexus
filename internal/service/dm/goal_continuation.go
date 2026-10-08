@@ -110,45 +110,13 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
-	if r.service.goals == nil || r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID) {
+	shouldDefer := func(protocol.GoalContinuation) bool {
+		return r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID)
+	}
+	if shouldDefer(protocol.GoalContinuation{}) {
 		return
 	}
-	plan, err := goalsvc.PrepareContinuationForDispatch(
-		ctx,
-		r.service.goals,
-		r.sessionKey,
-		r.roundID,
-		func(protocol.GoalContinuation) bool {
-			return r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID)
-		},
-	)
-	if err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		r.service.LoggerFor(ctx).Warn("准备 Goal 自动续跑失败",
-			"session_key", r.sessionKey,
-			"round_id", r.roundID,
-			"err", err,
-		)
-		return
-	}
-	if plan == nil {
-		return
-	}
-
-	if err = r.service.DispatchGoalContinuation(ctx, *plan); err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		runtimehost.RecordGoalContinuationDispatchFailure(ctx, r.service.goals, r.service.LoggerFor(ctx), *plan, err)
-		r.service.LoggerFor(ctx).Warn("启动 Goal 自动续跑失败",
-			"session_key", r.sessionKey,
-			"round_id", plan.RoundID,
-			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-	}
+	runtimehost.RunGoalContinuation(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, r.roundID, shouldDefer, r.service.DispatchGoalContinuation)
 }
 
 // DispatchGoalContinuation 在同一启动边界内重新校验 prepared plan 并注册 runtime round。

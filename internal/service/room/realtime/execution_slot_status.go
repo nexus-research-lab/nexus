@@ -5,7 +5,6 @@ package realtime
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -14,7 +13,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
-	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 )
 
 func (s *Service) syncSlotRuntimeIdentity(
@@ -46,33 +44,11 @@ func (s *Service) syncSlotRuntimeIdentity(
 }
 
 func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
-	workspacePath := slotWorkspacePath(slot)
-	history := s.History.ForOwner(slot.OwnerUserID)
-	decision := sessionresumesvc.NewPolicy(history).CanPersist(workspacePath, sessionID)
-	if decision.Allowed {
-		return true
-	}
-	if decision.Err != nil {
-		s.LoggerFor(ctx).Warn("检查 Room SDK session transcript 失败，暂不持久化 resume",
-			"agent_id", slotAgentID(slot),
-			"agent_round_id", slotAgentRoundID(slot),
-			"runtime_session_key", slotRuntimeSessionKey(slot),
-			"workspace_path", workspacePath,
-			"sdk_session_id", decision.SessionID,
-			"reason", string(decision.Reason),
-			"err", decision.Err,
-		)
-		return false
-	}
-	s.LoggerFor(ctx).Warn("Room SDK session transcript 尚未落盘，暂不持久化 resume",
+	return s.CanPersistSDKSessionID(ctx, slot.OwnerUserID, slotWorkspacePath(slot), sessionID,
 		"agent_id", slotAgentID(slot),
 		"agent_round_id", slotAgentRoundID(slot),
 		"runtime_session_key", slotRuntimeSessionKey(slot),
-		"workspace_path", workspacePath,
-		"sdk_session_id", decision.SessionID,
-		"reason", string(decision.Reason),
 	)
-	return false
 }
 
 func (s *Service) clearSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot) error {
@@ -373,31 +349,7 @@ func (s *Service) handleSlotFailure(
 }
 
 func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper) []any {
-	fields := make([]any, 0, 16)
-	var streamClosed *exec.RoundStreamClosedError
-	if errors.As(err, &streamClosed) {
-		fields = append(fields,
-			"stream_messages_seen", streamClosed.MessagesSeen,
-			"stream_last_type", streamClosed.LastMessageType,
-			"stream_last_session_id", streamClosed.LastSessionID,
-			"stream_last_message_id", streamClosed.LastMessageID,
-			"stream_read_error", streamClosed.ReadError,
-			"stream_wait_error", streamClosed.WaitError,
-		)
-		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
-	}
-	var streamIdle *exec.RoundStreamIdleTimeoutError
-	if errors.As(err, &streamIdle) {
-		fields = append(fields,
-			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
-			"stream_messages_seen", streamIdle.MessagesSeen,
-			"stream_last_type", streamIdle.LastMessageType,
-			"stream_last_summary", streamIdle.LastMessageSummary,
-			"stream_last_session_id", streamIdle.LastSessionID,
-			"stream_last_message_id", streamIdle.LastMessageID,
-		)
-		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
-	}
+	fields := exec.RoundStreamFailureLogFields(err)
 	if mapper != nil {
 		lastAssistant := mapper.LastAssistantMessage()
 		fields = append(fields,

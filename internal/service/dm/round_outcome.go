@@ -159,31 +159,7 @@ func (r *roundRunner) outcomeSessionID() string {
 }
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
-	fields := make([]any, 0, 16)
-	var streamClosed *exec.RoundStreamClosedError
-	if errors.As(err, &streamClosed) {
-		fields = append(fields,
-			"stream_messages_seen", streamClosed.MessagesSeen,
-			"stream_last_type", streamClosed.LastMessageType,
-			"stream_last_summary", streamClosed.LastMessageSummary,
-			"stream_last_session_id", streamClosed.LastSessionID,
-			"stream_last_message_id", streamClosed.LastMessageID,
-			"stream_wait_error", streamClosed.WaitError,
-		)
-		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamClosed.LastStreamStop)...)
-	}
-	var streamIdle *exec.RoundStreamIdleTimeoutError
-	if errors.As(err, &streamIdle) {
-		fields = append(fields,
-			"stream_idle_timeout", streamIdle.IdleTimeout.String(),
-			"stream_messages_seen", streamIdle.MessagesSeen,
-			"stream_last_type", streamIdle.LastMessageType,
-			"stream_last_summary", streamIdle.LastMessageSummary,
-			"stream_last_session_id", streamIdle.LastSessionID,
-			"stream_last_message_id", streamIdle.LastMessageID,
-		)
-		fields = append(fields, exec.RoundStreamStopDiagnosticLogFields(streamIdle.LastStreamStop)...)
-	}
+	fields := exec.RoundStreamFailureLogFields(err)
 	if runner != nil && runner.client != nil {
 		fields = append(fields, "client_session_id", runner.client.SessionID())
 	}
