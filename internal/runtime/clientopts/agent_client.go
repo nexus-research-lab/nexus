@@ -145,7 +145,7 @@ func BuildAgentClientOptionsWithConfig(
 ) (agentclient.Options, *RuntimeConfig, error) {
 	ownerUserID := strings.TrimSpace(input.OwnerUserID)
 	if contextOwner, ok := authctx.CurrentUserID(ctx); ok &&
-		ownerUserID != "" && ownerUserID != strings.TrimSpace(contextOwner) {
+		ownerUserID != "" && ownerUserID != contextOwner {
 		return agentclient.Options{}, nil, errors.New("runtime owner 与认证上下文不一致")
 	}
 	if ownerUserID == "" {
@@ -372,8 +372,8 @@ func backgroundModelRuntimeEnv(
 		mainAPIFormat = normalizedRuntimeAPIFormat(mainConfig.APIFormat)
 	}
 	selectedModel := mainModel
-	backgroundProvider := strings.TrimSpace(input.BackgroundProvider)
-	backgroundModel := strings.TrimSpace(input.BackgroundModel)
+	backgroundProvider := input.BackgroundProvider
+	backgroundModel := input.BackgroundModel
 	if backgroundProvider != "" && backgroundModel != "" &&
 		strings.EqualFold(backgroundProvider, mainProvider) {
 		backgroundConfig, err := resolveRuntimeConfig(
@@ -456,8 +456,8 @@ func resolveVisionRuntimeConfig(
 	if !runtimeProfileForKind(runtimeKind).isNXS() {
 		return nil, nil
 	}
-	providerName := strings.TrimSpace(input.VisionProvider)
-	model := strings.TrimSpace(input.VisionModel)
+	providerName := input.VisionProvider
+	model := input.VisionModel
 	if providerName == "" && model == "" {
 		return nil, nil
 	}

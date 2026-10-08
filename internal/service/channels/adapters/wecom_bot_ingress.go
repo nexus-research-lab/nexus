@@ -41,7 +41,7 @@ func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 	return channelcontract.IngressRequest{
 		Channel:      channelcontract.ChannelTypeWeChat,
 		OwnerUserID:  c.ownerUserID,
-		AccountID:    strings.TrimSpace(c.botID),
+		AccountID:    c.botID,
 		ChatType:     chatType,
 		Ref:          ref,
 		ExternalName: textutil.FirstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),
@@ -52,7 +52,7 @@ func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 			Mode:           channelcontract.DeliveryModeExplicit,
 			Channel:        channelcontract.ChannelTypeWeChat,
 			To:             ref,
-			AccountID:      strings.TrimSpace(c.botID),
+			AccountID:      c.botID,
 			ReplyContextID: parsed.ReqID,
 			StreamID:       streamID,
 		},

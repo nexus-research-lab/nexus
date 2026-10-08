@@ -100,7 +100,7 @@ func NewInbound(params InboundParams) *Inbound {
 		Target:            strings.TrimSpace(params.Target),
 		PlatformMessageID: strings.TrimSpace(params.PlatformMessageID),
 		ThreadID:          strings.TrimSpace(params.ThreadID),
-		ReplyToID:         strings.TrimSpace(params.ReplyToID),
+		ReplyToID:         params.ReplyToID,
 		SenderID:          strings.TrimSpace(params.SenderID),
 		SenderName:        strings.TrimSpace(params.SenderName),
 		ChatType:          strings.TrimSpace(params.ChatType),

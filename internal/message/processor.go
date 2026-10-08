@@ -85,7 +85,7 @@ func (p *Processor) CurrentMessageID() string {
 
 // SessionID 返回当前 SDK session_id。
 func (p *Processor) SessionID() string {
-	return strings.TrimSpace(p.sessionID)
+	return p.sessionID
 }
 
 // FinalizeInterruptedAssistant 把中断前已流出的内容补成可持久化终态。
@@ -421,7 +421,7 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 }
 
 func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (string, error) {
-	currentSessionID := strings.TrimSpace(p.sessionID)
+	currentSessionID := p.sessionID
 	incomingSessionID := strings.TrimSpace(message.SessionID)
 	if incomingSessionID == "" {
 		return "", nil

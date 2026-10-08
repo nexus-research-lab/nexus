@@ -27,7 +27,7 @@ func (s *Service) GetTaskCreateRequestStatus(
 		return nil, errors.New("request_id must not exceed 128 characters")
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("scheduled task create request lookup requires an owner")
 	}
 	task, found, err := s.repository.GetScheduledTaskCreateRequestResult(ctx, ownerUserID, requestID)

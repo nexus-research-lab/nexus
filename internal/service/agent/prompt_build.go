@@ -257,7 +257,7 @@ func readOptionalWorkspacePromptFile(
 }
 
 func openPromptWorkspace(scope promptBuildScope) (*confinedfs.Root, error) {
-	if strings.TrimSpace(scope.ownerUserID) != "" {
+	if scope.ownerUserID != "" {
 		return workspacestore.New(scope.workspaceRoot).OpenOwnerWorkspacePath(
 			scope.ownerUserID,
 			scope.workspacePath,
@@ -319,7 +319,7 @@ func loadRuntimeEmotionViewForScope(
 }
 
 func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionView) string {
-	name := strings.TrimSpace(agentValueName(agentValue))
+	name := agentValueName(agentValue)
 	if name == "" {
 		name = "Nexus"
 	}

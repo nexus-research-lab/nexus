@@ -280,7 +280,7 @@ func (r *roundRunner) executeRound(
 			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
-			if sourceSessionID := strings.TrimSpace(r.forkSourceSessionID); sourceSessionID != "" &&
+			if sourceSessionID := r.forkSourceSessionID; sourceSessionID != "" &&
 				strings.TrimSpace(sessionID) == sourceSessionID {
 				return errors.New("runtime fork 仍返回 source SDK session")
 			}
@@ -318,10 +318,10 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
-	if executeErr == nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+	if executeErr == nil && r.forkSourceSessionID != "" {
 		executeErr = errors.New("runtime fork 未提交可恢复的独立 SDK session")
 	}
-	if executeErr != nil && strings.TrimSpace(r.forkSourceSessionID) != "" {
+	if executeErr != nil && r.forkSourceSessionID != "" {
 		r.closeUncommittedForkRuntime(logger, executeErr)
 	}
 	failureReason := ""
@@ -357,7 +357,7 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 	actor := orchestration.ActorContext{
 		OwnerUserID:           r.ownerUserID,
 		SessionKey:            r.sessionKey,
-		ExecutionID:           strings.TrimSpace(r.executionID),
+		ExecutionID:           r.executionID,
 		GoalID:                strings.TrimSpace(r.goalIDForUsage),
 		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
 		AgentID:               agentID,
@@ -401,7 +401,7 @@ func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 	if r.internal || r.atomicInput || options.Meta || options.Synthetic || options.HiddenFromUser {
 		return options
 	}
-	options.RecallQuery = strings.TrimSpace(r.content)
+	options.RecallQuery = r.content
 	return options
 }
 
@@ -576,7 +576,7 @@ func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
 	goalBound := strings.TrimSpace(r.goalIDForUsage) != ""
-	executionBound := strings.TrimSpace(r.executionID) != ""
+	executionBound := r.executionID != ""
 	lane := string(runtimectx.ResponsibilityLaneUnbound)
 	if executionBound {
 		lane = string(runtimectx.ResponsibilityLaneExecution)

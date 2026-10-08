@@ -262,7 +262,7 @@ func (s *Service) CompleteIfReady(
 	if err != nil || rejected != nil {
 		return resultOrZero(rejected), err
 	}
-	if strings.TrimSpace(input.CommandID) == "" {
+	if input.CommandID == "" {
 		return RejectedResult(snapshot, domainError(ErrorCodeInvalidInput, "command_id is required"), nil), nil
 	}
 	if snapshot.Execution.Status == protocol.ExecutionStatusCompleted {

@@ -89,7 +89,7 @@ func (d *roundStreamDiagnostics) Observe(message sdkprotocol.ReceivedMessage, me
 			Summary:      strings.TrimSpace(trace.BuildSDKMessageLogSummary(message)),
 			StopReason:   textutil.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["stop_reason"])), d.currentStopReason),
 			SessionID:    strings.TrimSpace(message.SessionID),
-			MessageID:    textutil.FirstNonEmpty(strings.TrimSpace(receivedMessageID(message)), d.currentMessageID),
+			MessageID:    textutil.FirstNonEmpty(receivedMessageID(message), d.currentMessageID),
 			Model:        textutil.FirstNonEmpty(strings.TrimSpace(trace.RawString(payload["model"])), d.currentModel),
 		}
 	}

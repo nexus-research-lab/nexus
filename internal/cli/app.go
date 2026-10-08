@@ -182,8 +182,8 @@ func buildScopedCLIContext(
 	localSingleUser bool,
 ) (context.Context, error) {
 	trimmedUserID := strings.TrimSpace(scopeUserID)
-	if existingUserID, ok := authsvc.CurrentUserID(base); ok && strings.TrimSpace(existingUserID) != "" {
-		if trimmedUserID != "" && trimmedUserID != strings.TrimSpace(existingUserID) {
+	if existingUserID, ok := authsvc.CurrentUserID(base); ok && existingUserID != "" {
+		if trimmedUserID != "" && trimmedUserID != existingUserID {
 			return nil, usageErrorf("命令上下文中的 user_id 与 --scope-user-id 不一致")
 		}
 		if globalScope {

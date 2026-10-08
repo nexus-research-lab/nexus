@@ -324,7 +324,7 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	if roomdomain.IsNoReplyAssistantMessage(finalAssistant) {
 		return
 	}
-	if strings.TrimSpace(messageutil.ExtractAssistantDisplayText(finalAssistant)) == "" {
+	if messageutil.ExtractAssistantDisplayText(finalAssistant) == "" {
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 协作证据失败", func() error {
@@ -808,7 +808,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 		if slot == nil {
 			continue
 		}
-		goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+		goalID := slot.childGoalIDForUsage()
 		if goalID == "" {
 			continue
 		}
@@ -842,7 +842,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 			if slot == nil {
 				continue
 			}
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			if _, belongsToAnchorGoal := goalRounds[goalID]; !belongsToAnchorGoal {
 				continue
 			}
@@ -1216,7 +1216,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 	}
 	for _, candidate := range s.roomGoalUsageSlotsForScope(origin, goalSessionKey) {
 		if candidate.goalRuntimeIgnored() ||
-			!strings.EqualFold(strings.TrimSpace(candidate.runtimeKind()), "nxs") {
+			!strings.EqualFold(candidate.runtimeKind(), "nxs") {
 			continue
 		}
 		if !s.claimSubagentGoalUsageForRoomSlot(
@@ -1282,7 +1282,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	message protocol.Message,
 ) []roomSubagentUsageSettlement {
 	if slot == nil ||
-		!strings.EqualFold(strings.TrimSpace(slot.runtimeKind()), "nxs") {
+		!strings.EqualFold(slot.runtimeKind(), "nxs") {
 		return nil
 	}
 	observations := roomSubagentUsageObservations(slot, message)
@@ -1308,7 +1308,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				settled = append(settled, child)
 				continue
 			}
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
 			var (
 				result protocol.GoalUsageSourceResult
@@ -1357,7 +1357,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	for _, child := range observations {
 		slot.markSubagentUsageObservationPending(child.observation, child.taskID)
 	}
-	goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+	goalID := slot.childGoalIDForUsage()
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()
 	for _, child := range observations {
 		delta := s.runtime.ObserveSubagentUsage(

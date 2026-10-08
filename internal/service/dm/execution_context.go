@@ -5,7 +5,6 @@ package dm
 
 import (
 	"context"
-	"strings"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
@@ -14,7 +13,7 @@ import (
 )
 
 func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInputBlock {
-	if e.request.Internal || strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
+	if e.request.Internal || e.request.RewriteTargetRoundID != "" {
 		return nil
 	}
 	history, err := e.service.history.ReadMessages(e.agent.WorkspacePath, e.session, nil)

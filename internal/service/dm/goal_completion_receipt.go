@@ -49,7 +49,7 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 	goalID, assistant, previous, stored := r.goalCompletionReceiptSnapshot()
 	if goalID == "" || len(assistant) == 0 ||
 		strings.TrimSpace(r.workspacePath) == "" ||
-		strings.TrimSpace(r.sessionKey) == "" ||
+		r.sessionKey == "" ||
 		(stored && !refresh) {
 		return
 	}

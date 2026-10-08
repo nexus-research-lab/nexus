@@ -133,7 +133,7 @@ func runtimeTaskMatchesCurrentContext(
 	job automationdomain.ScheduledTask,
 	current runtimeCurrentTaskContext,
 ) bool {
-	if strings.TrimSpace(current.sessionKey) == "" {
+	if current.sessionKey == "" {
 		return false
 	}
 	if strings.TrimSpace(job.Source.SessionKey) == current.sessionKey ||

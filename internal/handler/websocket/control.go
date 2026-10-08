@@ -220,7 +220,7 @@ func (m *controlMessage) handleChat() {
 // 它不会进入普通 chat/runtime 路径。
 func (m *controlMessage) handleSetGoal() {
 	clientRequestID, clientMessageID := m.clientIDs()
-	objective := strings.TrimSpace(m.stringValue("objective"))
+	objective := m.stringValue("objective")
 	if objective == "" {
 		m.reportChatFailure(clientRequestID, clientMessageID, errors.New("goal objective is required"))
 		return
@@ -241,7 +241,7 @@ func (m *controlMessage) handleSetGoal() {
 // before the mutation is allowed to outlive the WebSocket connection. The host
 // registry repeats authorization inside the detached job as a fail-closed fence.
 func (m *controlMessage) validateDetachedGoalCommand() error {
-	if strings.TrimSpace(m.stringValue("objective")) == "" {
+	if m.stringValue("objective") == "" {
 		return errors.New("goal objective is required")
 	}
 	if m.handler == nil || m.handler.hostCommands == nil {
@@ -402,7 +402,7 @@ func (h *Handler) authorizeHostCommand(
 		if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
 			return errors.New("host Slash requires a group Room")
 		}
-		if agentID := strings.TrimSpace(invocation.AgentID); agentID != "" &&
+		if agentID := invocation.AgentID; agentID != "" &&
 			!roomHasAgent(contextValue.Members, agentID) {
 			return errors.New("agent_id is not a Room member")
 		}

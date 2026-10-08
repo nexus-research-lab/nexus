@@ -732,7 +732,7 @@ func privateRegistryRequest(ctx context.Context, source externalSkillSource, met
 		return nil, err
 	}
 	if source.AuthType == externalSourceAuthBearer {
-		if strings.TrimSpace(source.Credential) == "" {
+		if source.Credential == "" {
 			return nil, errors.New("私有来源缺少 Bearer Token")
 		}
 		request.Header.Set("Authorization", "Bearer "+source.Credential)

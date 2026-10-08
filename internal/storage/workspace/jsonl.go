@@ -12,7 +12,7 @@ import (
 )
 
 func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[string]any) error {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.appendOwnerWorkspaceJSONL(ownerUserID, rootPath, path, row)
 	}
 	root, relative, err := relativeStorePath(rootPath, path)
@@ -63,7 +63,7 @@ func appendJSONLAtRootWithMode(
 }
 
 func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []map[string]any) error {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.replaceOwnerWorkspaceJSONL(ownerUserID, rootPath, path, rows)
 	}
 	root, relative, err := relativeStorePath(rootPath, path)
@@ -89,7 +89,7 @@ func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []m
 }
 
 func (s *SessionFileStore) readJSONLAt(rootPath string, path string) ([]map[string]any, error) {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.readOwnerWorkspaceJSONL(ownerUserID, rootPath, path)
 	}
 	root, relative, err := relativeStorePathWithCreate(rootPath, path, false)

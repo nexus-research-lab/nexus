@@ -22,7 +22,7 @@ func (s *Service) resolveAgentWorkspacePath(
 		return "", errors.New("Room owner_user_id 不能为空")
 	}
 	if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
-		strings.TrimSpace(currentUserID) != ownerUserID {
+		currentUserID != ownerUserID {
 		return "", errors.New("Room owner 与调用上下文不一致")
 	}
 

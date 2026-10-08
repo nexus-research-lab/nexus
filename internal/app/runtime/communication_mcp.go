@@ -105,7 +105,7 @@ func communicationRuntimeActor(
 	actor := communicationsvc.Actor{
 		OwnerUserID: ownerUserID, AgentID: recordAgentID,
 		SessionKey: sessionKey, RoundID: roundID,
-		LeaseSessionKey: strings.TrimSpace(lease.SessionKey), LeaseRoundID: strings.TrimSpace(lease.RoundID),
+		LeaseSessionKey: lease.SessionKey, LeaseRoundID: lease.RoundID,
 		ContextKind: contextKind, ContextID: sourceContextID,
 	}
 	switch contextKind {

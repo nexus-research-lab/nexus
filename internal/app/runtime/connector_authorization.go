@@ -76,8 +76,8 @@ func NewConnectorAuthorizationToolBuilder(
 			CurrentAgentID:         agentID,
 			BusinessSessionKey:     sessionKey,
 			RootRoundID:            roundID,
-			RuntimeLeaseSessionKey: strings.TrimSpace(lease.SessionKey),
-			RuntimeLeaseRoundID:    strings.TrimSpace(lease.RoundID),
+			RuntimeLeaseSessionKey: lease.SessionKey,
+			RuntimeLeaseRoundID:    lease.RoundID,
 			ContextKind:            contextKind,
 			IsMainAgent:            true,
 		}

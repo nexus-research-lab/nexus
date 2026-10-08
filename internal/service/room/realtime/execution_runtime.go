@@ -231,7 +231,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		}
 	}()
 	if strings.EqualFold(strings.TrimSpace(e.service.config.AppMode), "desktop") &&
-		(strings.TrimSpace(selection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(selection.RuntimeKind), "nxs")) &&
+		(selection.RuntimeKind == "" || strings.EqualFold(selection.RuntimeKind, "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
 			OwnerUserID: e.agent.OwnerUserID,
@@ -358,7 +358,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	e.slot.setGoalContext("")
 	e.slot.setGoalBinding(sessionKey, "")
 	if !e.slot.goalRuntimeIgnored() {
-		explicitGoalID := strings.TrimSpace(e.round.GoalID)
+		explicitGoalID := e.round.GoalID
 		explicitRevision := e.round.GoalObjectiveRevision
 		if e.slot.WorkBinding != nil || e.slot.ReviewBinding != nil {
 			goalContext, authority, granted, bindingErr := e.service.resolveExecutionGoalMutationAuthority(
@@ -402,7 +402,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 			e.slot.setGoalContext(goalContext)
 		}
 	}
-	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
+	if override := e.round.GoalContext; e.round.Internal && override != "" {
 		e.slot.setGoalContext(override)
 	}
 	if e.service.externalPrompt != nil {
@@ -518,7 +518,7 @@ func roomCommandSourceContextType(round *activeRoomRound) string {
 	if round == nil {
 		return "room_untrusted"
 	}
-	executionOrigin := strings.TrimSpace(round.ExecutionOrigin)
+	executionOrigin := round.ExecutionOrigin
 	if round.trustedQueuedConfigurationContext && executionOrigin == "queue" {
 		return "room"
 	}
@@ -612,7 +612,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 	e.toolSurfaceFingerprint = strings.TrimSpace(runtimeValue.toolSurfaceFingerprint)
 	e.forkSourceSessionID = ""
 	e.runtimeIdentityCommitted = resumeID != "" &&
-		strings.TrimSpace(storedToolSurface) == e.toolSurfaceFingerprint &&
+		storedToolSurface == e.toolSurfaceFingerprint &&
 		!toolSurfaceFork
 	if toolSurfaceFork {
 		retired, retireErr := retireExistingRoomRuntimeClient(e.ctx, startup)
@@ -854,7 +854,7 @@ func roomRuntimeStartupLogFields(
 		"agent_id", slot.AgentID,
 		"agent_round_id", slot.AgentRoundID,
 		"runtime_session_key", slot.RuntimeSessionKey,
-		"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
+		"requested_runtime_kind", runtimeSelection.RuntimeKind,
 		"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
 		"requested_model", strings.TrimSpace(runtimeSelection.Model),
 		"runtime_provider", runtimeProvider,

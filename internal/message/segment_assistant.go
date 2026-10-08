@@ -56,7 +56,7 @@ func (s *AssistantSegment) Start(messageID string, model string, usage map[strin
 
 // EnsureStarted 确保段已经初始化。
 func (s *AssistantSegment) EnsureStarted() {
-	if strings.TrimSpace(s.messageID) != "" {
+	if s.messageID != "" {
 		return
 	}
 	s.Start("", "", nil, 0)
@@ -64,7 +64,7 @@ func (s *AssistantSegment) EnsureStarted() {
 
 // IsStarted 表示当前段是否已经初始化。
 func (s *AssistantSegment) IsStarted() bool {
-	return strings.TrimSpace(s.messageID) != ""
+	return s.messageID != ""
 }
 
 // ApplyBlock 按索引设置内容块。

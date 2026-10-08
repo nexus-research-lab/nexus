@@ -64,12 +64,12 @@ func (s *ControlService) PrepareFeishuIngress(ctx context.Context, raw []byte, h
 		if callback.Challenge != "" && callback.AppID == "" {
 			return FeishuIngressPreparation{Body: raw}, nil
 		}
-		if callback.AppID == "" && strings.TrimSpace(callback.Token) == "" {
+		if callback.AppID == "" && callback.Token == "" {
 			return FeishuIngressPreparation{Body: raw}, nil
 		}
 		return FeishuIngressPreparation{}, fmt.Errorf("%w: unknown feishu app", ErrFeishuCallbackUnauthorized)
 	}
-	if strings.TrimSpace(config.EncryptKey) != "" {
+	if config.EncryptKey != "" {
 		return FeishuIngressPreparation{}, fmt.Errorf("%w: encrypted feishu callback expected", ErrFeishuCallbackUnauthorized)
 	}
 	if err = channeladapters.VerifyFeishuCallbackToken(callback, config.VerificationToken); err != nil {
@@ -89,7 +89,7 @@ func (s *ControlService) prepareEncryptedFeishuIngress(
 	configs []feishuIngressConfig,
 ) (FeishuIngressPreparation, error) {
 	for _, config := range configs {
-		if strings.TrimSpace(config.EncryptKey) == "" {
+		if config.EncryptKey == "" {
 			continue
 		}
 		plain, decryptErr := channeladapters.DecryptFeishuEncryptedPayload(encryptValue, config.EncryptKey)
@@ -148,7 +148,7 @@ func (s *ControlService) listFeishuIngressConfigs(ctx context.Context) ([]feishu
 
 func matchFeishuIngressConfig(configs []feishuIngressConfig, callback FeishuIngressCallback) *feishuIngressConfig {
 	appID := callback.AppID
-	token := strings.TrimSpace(callback.Token)
+	token := callback.Token
 	for index := range configs {
 		config := &configs[index]
 		if appID != "" && config.AppID == appID {

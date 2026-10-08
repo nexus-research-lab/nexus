@@ -95,9 +95,6 @@ func (r *Registry) Register(definition Definition) error {
 		return errors.New("slash command is already registered")
 	}
 	definition.Name = name
-	definition.Description = strings.TrimSpace(definition.Description)
-	definition.ArgumentHint = strings.TrimSpace(definition.ArgumentHint)
-	definition.DisabledReason = strings.TrimSpace(definition.DisabledReason)
 	definition.Scopes = normalizeScopes(definition.Scopes)
 	if len(definition.Scopes) == 0 {
 		return errors.New("slash command scope is invalid")
@@ -168,7 +165,6 @@ func (r *Registry) execute(
 	if !exists || !supportsScope(definition.Scopes, scope) {
 		return Result{}, false, nil
 	}
-	invocation.Content = strings.TrimSpace(invocation.Content)
 	invocation.Arguments = arguments
 	if authorize != nil {
 		if err := authorize(ctx, invocation); err != nil {

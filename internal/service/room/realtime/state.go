@@ -462,7 +462,7 @@ func (slot *activeRoomSlot) getErrorMessage() string {
 	}
 	slot.mutable.runtime.mu.RLock()
 	defer slot.mutable.runtime.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.runtime.errorMessage)
+	return slot.mutable.runtime.errorMessage
 }
 
 func (slot *activeRoomSlot) isTerminal() bool {
@@ -681,7 +681,7 @@ func (slot *activeRoomSlot) runtimeKind() string {
 	}
 	slot.mutable.runtime.mu.RLock()
 	defer slot.mutable.runtime.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.runtime.runtimeKind)
+	return slot.mutable.runtime.runtimeKind
 }
 
 func (slot *activeRoomSlot) setContextWindow(window int) {
@@ -1063,7 +1063,7 @@ func (slot *activeRoomSlot) hasGoalCompletionCandidate() bool {
 	}
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.goal.completionCandidateID) != ""
+	return slot.mutable.goal.completionCandidateID != ""
 }
 
 func (slot *activeRoomSlot) rememberGoalCompletionAssistant(message protocol.Message) {
@@ -1088,7 +1088,7 @@ func (slot *activeRoomSlot) goalCompletionReceiptSnapshot() (
 	}
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.goal.completionCandidateID),
+	return slot.mutable.goal.completionCandidateID,
 		protocol.Clone(slot.mutable.goal.completionAssistant),
 		slot.mutable.goal.completionReceipt,
 		slot.mutable.goal.completionReceiptStored
@@ -1102,7 +1102,7 @@ func (slot *activeRoomSlot) markGoalCompletionReceiptStored(
 		return
 	}
 	slot.mutable.goal.mu.Lock()
-	if strings.TrimSpace(slot.mutable.goal.completionCandidateID) == strings.TrimSpace(goalID) {
+	if slot.mutable.goal.completionCandidateID == strings.TrimSpace(goalID) {
 		slot.mutable.goal.completionReceipt = receipt
 		slot.mutable.goal.completionReceiptStored = true
 	}
@@ -1403,7 +1403,6 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 	authority.SessionKey = strings.TrimSpace(authority.SessionKey)
 	authority.GoalID = strings.TrimSpace(authority.GoalID)
 	authority.ExecutionID = strings.TrimSpace(authority.ExecutionID)
-	authority.RootRoundID = strings.TrimSpace(authority.RootRoundID)
 	if !authority.valid() {
 		return false
 	}

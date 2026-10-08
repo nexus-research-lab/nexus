@@ -38,7 +38,7 @@ func (s *Service) writeRunArtifact(
 		s.loggerFor(ctx).Warn("解析自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
-	if strings.TrimSpace(workspacePath) == "" {
+	if workspacePath == "" {
 		return nil
 	}
 	defer confinedRoot.Close()

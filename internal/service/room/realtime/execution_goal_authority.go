@@ -31,15 +31,15 @@ func (s *Service) resolveExecutionGoalMutationAuthority(
 	if err != nil {
 		return "", roomGoalMutationAuthority{}, false, err
 	}
-	if strings.TrimSpace(binding.GoalID) == "" {
+	if binding.GoalID == "" {
 		return "", roomGoalMutationAuthority{}, false, nil
 	}
 
 	goalContext, goal, ok := s.goalRuntimeSnapshot(ctx, binding.SessionKey)
 	if !ok || goal == nil ||
-		strings.TrimSpace(goal.ID) != strings.TrimSpace(binding.GoalID) ||
+		strings.TrimSpace(goal.ID) != binding.GoalID ||
 		goal.ObjectiveRevision() != binding.GoalObjectiveRevision ||
-		strings.TrimSpace(goal.SessionKey) != strings.TrimSpace(binding.SessionKey) {
+		strings.TrimSpace(goal.SessionKey) != binding.SessionKey {
 		return "", roomGoalMutationAuthority{}, false, goalsvc.ErrGoalRevisionStale
 	}
 
@@ -79,7 +79,7 @@ func (s *Service) resolveExecutionGoalMutationAuthority(
 
 	actorExecutionID := executionIDFromRoomBindings(actor.WorkBinding, actor.ReviewBinding)
 	if actorExecutionID == "" ||
-		strings.TrimSpace(binding.ExecutionID) != actorExecutionID ||
+		binding.ExecutionID != actorExecutionID ||
 		strings.TrimSpace(resolution.ExecutionID) != actorExecutionID {
 		return "", roomGoalMutationAuthority{}, false, fmt.Errorf(
 			"%w: confirmed Goal Execution differs from the Work/Review binding",
@@ -88,8 +88,8 @@ func (s *Service) resolveExecutionGoalMutationAuthority(
 	}
 
 	return goalContext, roomGoalMutationAuthority{
-		SessionKey:        strings.TrimSpace(binding.SessionKey),
-		GoalID:            strings.TrimSpace(binding.GoalID),
+		SessionKey:        binding.SessionKey,
+		GoalID:            binding.GoalID,
 		ObjectiveRevision: binding.GoalObjectiveRevision,
 		ExecutionID:       actorExecutionID,
 		RootRoundID:       strings.TrimSpace(rootRoundID),

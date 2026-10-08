@@ -39,7 +39,7 @@ func buildTranscriptGuidanceMessages(
 	entryUUID := stringFromAny(entry["uuid"])
 	rows := make([]protocol.Message, 0, len(items))
 	for index, item := range items {
-		sourceRoundID := strings.TrimSpace(item.RoundID)
+		sourceRoundID := item.RoundID
 		messageID := sourceRoundID
 		if messageID == "" {
 			messageID = textutil.FirstNonEmpty(entryUUID, roundID) + ":guidance:" + strconv.Itoa(index+1)

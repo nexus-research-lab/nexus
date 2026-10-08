@@ -110,7 +110,7 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 	if clientMessageID := strings.TrimSpace(options.ClientMessageID); clientMessageID != "" {
 		row["client_message_id"] = clientMessageID
 	}
-	if sourceRoundID := strings.TrimSpace(options.SourceRoundID); sourceRoundID != "" {
+	if sourceRoundID := options.SourceRoundID; sourceRoundID != "" {
 		row["source_round_id"] = sourceRoundID
 	}
 	if options.DeliveryPolicy != "" {

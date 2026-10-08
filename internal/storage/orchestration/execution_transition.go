@@ -115,7 +115,6 @@ func (r *Repository) ReplaceWithPlan(
 	command ReplaceWithPlanCommand,
 ) (*protocol.ExecutionSnapshot, error) {
 	command.ExecutionID = strings.TrimSpace(command.ExecutionID)
-	command.Reason = strings.TrimSpace(command.Reason)
 	if command.ExecutionID == "" || command.Reason == "" {
 		return nil, fmt.Errorf("%w: replacement requires current Execution and reason", ErrInvariant)
 	}

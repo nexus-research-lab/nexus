@@ -201,9 +201,9 @@ func storeGoalBlockerMetadata(
 		metadata = map[string]any{}
 	}
 	metadata[protocol.GoalMetadataBlocker] = map[string]any{
-		"id":             strings.TrimSpace(protocol.GoalMetadataString(payload, "blocker_id")),
-		"reason":         strings.TrimSpace(protocol.GoalMetadataString(payload, "reason")),
-		"needed_input":   strings.TrimSpace(protocol.GoalMetadataString(payload, "needed_input")),
+		"id":             protocol.GoalMetadataString(payload, "blocker_id"),
+		"reason":         protocol.GoalMetadataString(payload, "reason"),
+		"needed_input":   protocol.GoalMetadataString(payload, "needed_input"),
 		"since_revision": objectiveRevision,
 		"blocked_at":     at.UTC().Format(time.RFC3339Nano),
 	}

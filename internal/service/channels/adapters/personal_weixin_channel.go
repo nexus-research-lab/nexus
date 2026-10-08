@@ -35,7 +35,7 @@ type PersonalWeixinChannel struct {
 func NewPersonalWeixinChannel(config PersonalWeixinClientConfig, client *http.Client) *PersonalWeixinChannel {
 	ilinkClient := NewPersonalWeixinIlinkClient(config, client)
 	return &PersonalWeixinChannel{
-		token:        strings.TrimSpace(config.Token),
+		token:        config.Token,
 		accountID:    strings.TrimSpace(config.AccountID),
 		userID:       strings.TrimSpace(config.UserID),
 		client:       ilinkClient,
@@ -59,7 +59,7 @@ func (c *PersonalWeixinChannel) SetIngress(ingress channelcontract.IngressAccept
 }
 
 func (c *PersonalWeixinChannel) Start(ctx context.Context) error {
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return nil
 	}
 	getUpdatesBuf := ""
@@ -99,7 +99,7 @@ func (c *PersonalWeixinChannel) stop(ctx context.Context, notifyProvider bool) e
 		cancel()
 	}
 	c.wg.Wait()
-	if cancel == nil || !notifyProvider || strings.TrimSpace(c.token) == "" {
+	if cancel == nil || !notifyProvider || c.token == "" {
 		return nil
 	}
 	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -113,7 +113,7 @@ func (c *PersonalWeixinChannel) stop(ctx context.Context, notifyProvider bool) e
 
 func (c *PersonalWeixinChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (channelcontract.DeliveryResult, error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("personal weixin channel is not configured")
 	}
 	if normalized.To == "" {
@@ -170,7 +170,7 @@ func (c *PersonalWeixinChannel) sendDeliveryChunk(
 }
 
 func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target channelcontract.DeliveryTarget, active bool) error {
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return fmt.Errorf("personal weixin channel is not configured")
 	}
 	normalized := target.Normalized()
@@ -181,7 +181,7 @@ func (c *PersonalWeixinChannel) SendDeliveryTyping(ctx context.Context, target c
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(ticket) == "" {
+	if ticket == "" {
 		return nil
 	}
 	return c.client.SendTyping(ctx, normalized.To, ticket, active)

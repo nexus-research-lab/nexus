@@ -208,7 +208,7 @@ func (s *Service) PromoteExecutionToGoal(
 			return MutationResult{}, promoteErr
 		}
 	}
-	if strings.TrimSpace(binding.GoalID) == "" ||
+	if binding.GoalID == "" ||
 		binding.GoalObjectiveRevision <= 0 ||
 		binding.ActivationOrigin != input.ActivationReason.PromotionOrigin() ||
 		!binding.ActivationReason.Valid() ||
@@ -219,7 +219,7 @@ func (s *Service) PromoteExecutionToGoal(
 		ExpectedExecutionVersion: snapshot.Execution.Version,
 		Execution: protocol.Execution{
 			ID:                    snapshot.Execution.ID,
-			GoalID:                strings.TrimSpace(binding.GoalID),
+			GoalID:                binding.GoalID,
 			GoalObjectiveRevision: binding.GoalObjectiveRevision,
 			GoalActivationOrigin:  binding.ActivationOrigin,
 			GoalActivationReason:  binding.ActivationReason,

@@ -230,11 +230,11 @@ func ParseExecutionPlanDocument(
 	document := protocol.ExecutionPlanProposalDocument{
 		Version:             version,
 		Operation:           operation,
-		Objective:           strings.TrimSpace(objective),
+		Objective:           objective,
 		CompletionCriteria:  cloneOptionalStrings(completionCriteria),
 		RevisionReason:      normalizedDraft.RevisionReason,
 		SupersedeActiveWork: supersedeActiveWork,
-		ReplacementReason:   strings.TrimSpace(replacementReason),
+		ReplacementReason:   replacementReason,
 		Items:               proposalItemsFromPlanDraft(normalizedDraft),
 	}
 	return document, normalizedDraft, nil

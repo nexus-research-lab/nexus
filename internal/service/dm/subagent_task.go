@@ -72,7 +72,7 @@ func (r *roundRunner) annotateSubagentTaskRuntimeKind(message protocol.Message) 
 	}
 	switch strings.TrimSpace(dmAnyString(metadata["subtype"])) {
 	case "task_started", "task_progress", "task_updated", "task_notification":
-		if runtimeKind := strings.TrimSpace(r.runtimeKind); runtimeKind != "" {
+		if runtimeKind := r.runtimeKind; runtimeKind != "" {
 			metadata["runtime_kind"] = runtimeKind
 		}
 	}

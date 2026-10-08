@@ -95,7 +95,7 @@ func fitRoomText(value string, maxTokens int) (string, int) {
 		return fitRoomTextPrefix(value, maxTokens)
 	}
 	body, _ := fitRoomTextPrefix(value, maxTokens-suffixTokens)
-	result := strings.TrimSpace(body) + roomContextTruncatedSuffix
+	result := body + roomContextTruncatedSuffix
 	return result, estimateRoomTokens(result)
 }
 

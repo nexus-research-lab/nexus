@@ -118,7 +118,7 @@ func (r *roundRunner) failRoundAtPhase(
 		errorEvent.AgentID = r.agent.AgentID
 		errorEvent.RoundID = r.roundID
 		errorEvent.AgentRoundID = r.agentRoundID
-		if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
+		if messageID := r.mapper.CurrentMessageID(); messageID != "" {
 			errorEvent.MessageID = messageID
 		}
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)

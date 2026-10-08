@@ -152,9 +152,9 @@ func (s *Service) CacheSegments(ctx context.Context, ownerUserID string) ([]Cach
 
 func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 	ownerUserID := normalizeOwnerUserID(input.OwnerUserID)
-	sessionKey := strings.TrimSpace(input.SessionKey)
-	messageID := strings.TrimSpace(input.MessageID)
-	roundID := strings.TrimSpace(input.RoundID)
+	sessionKey := input.SessionKey
+	messageID := input.MessageID
+	roundID := input.RoundID
 	if sessionKey == "" || (messageID == "" && roundID == "") {
 		return usagestore.Record{}, false
 	}
@@ -188,9 +188,9 @@ func (s *Service) buildRecord(input RecordInput) (usagestore.Record, bool) {
 		SessionKey:               sessionKey,
 		MessageID:                messageID,
 		RoundID:                  roundID,
-		AgentID:                  strings.TrimSpace(input.AgentID),
-		RoomID:                   strings.TrimSpace(input.RoomID),
-		ConversationID:           strings.TrimSpace(input.ConversationID),
+		AgentID:                  input.AgentID,
+		RoomID:                   input.RoomID,
+		ConversationID:           input.ConversationID,
 		GoalScope:                attribution.GoalScope,
 		ExecutionScope:           attribution.ExecutionScope,
 		ResponsibilityLane:       attribution.ResponsibilityLane,

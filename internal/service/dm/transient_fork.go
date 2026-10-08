@@ -204,7 +204,7 @@ func latestForkableAssistantRound(
 ) (string, error) {
 	seen := make(map[string]struct{})
 	for index := len(rows) - 1; index >= 0; index-- {
-		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		roundID := protocol.MessageRoundID(rows[index])
 		if roundID == "" {
 			continue
 		}

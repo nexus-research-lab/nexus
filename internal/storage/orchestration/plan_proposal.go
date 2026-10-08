@@ -329,7 +329,6 @@ func (r *Repository) MarkPlanProposalMaterialized(
 		return nil, err
 	}
 	command.MaterializedExecutionID = strings.TrimSpace(command.MaterializedExecutionID)
-	command.MaterializedPlanID = strings.TrimSpace(command.MaterializedPlanID)
 	command.NextAttemptAt = utcTimePointer(command.NextAttemptAt)
 	if command.MaterializedExecutionID == "" || command.MaterializedPlanID == "" {
 		return nil, fmt.Errorf("%w: complete materialization receipt is required", ErrInvariant)
@@ -366,8 +365,8 @@ func (r *Repository) MarkPlanProposalMaterialized(
 		if receiptErr != nil {
 			return nil, receiptErr
 		}
-		if strings.TrimSpace(receiptPlanID) == "" ||
-			strings.TrimSpace(receiptPlanID) != command.MaterializedPlanID {
+		if receiptPlanID == "" ||
+			receiptPlanID != command.MaterializedPlanID {
 			return nil, fmt.Errorf(
 				"%w: blocked proposal can only converge through its exact authoritative command receipt",
 				ErrInvariant,
@@ -508,7 +507,6 @@ func (r *Repository) MarkPlanProposalConfirmation(
 	if err = validateExpectedVersion(command.ExpectedVersion, "expected proposal version"); err != nil {
 		return nil, err
 	}
-	command.LastError = strings.TrimSpace(command.LastError)
 	command.NextAttemptAt = utcTimePointer(command.NextAttemptAt)
 	switch command.ConfirmationState {
 	case protocol.ExecutionPlanProposalConfirmationPending:

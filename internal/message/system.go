@@ -218,14 +218,14 @@ func NewGuidedInputMessage(input GuidedInputMessageInput) protocol.Message {
 		"message_id":  strings.TrimSpace(input.MessageID),
 		"session_key": strings.TrimSpace(input.SessionKey),
 		"agent_id":    strings.TrimSpace(input.AgentID),
-		"round_id":    strings.TrimSpace(input.RoundID),
+		"round_id":    input.RoundID,
 		"role":        "system",
-		"content":     strings.TrimSpace(input.Content),
+		"content":     input.Content,
 		"timestamp":   input.Timestamp,
 		"metadata": map[string]any{
 			"subtype":         SystemMessageSubtypeGuidedInput,
 			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
-			"source_round_id": strings.TrimSpace(input.SourceRoundID),
+			"source_round_id": input.SourceRoundID,
 		},
 	}
 	if sessionID := strings.TrimSpace(input.SessionID); sessionID != "" {

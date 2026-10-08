@@ -119,7 +119,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 				"is_error":        false,
 			},
 		}
-		if strings.TrimSpace(snapshot.ParentID) != "" {
+		if snapshot.ParentID != "" {
 			payload["parent_id"] = snapshot.ParentID
 		}
 		result = append(result, payload)

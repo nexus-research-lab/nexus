@@ -99,13 +99,10 @@ func (s *Service) invalidateExecution(
 	ctx context.Context,
 	invalidation ExecutionInvalidation,
 ) {
-	if s == nil || strings.TrimSpace(invalidation.OwnerUserID) == "" ||
-		strings.TrimSpace(invalidation.SessionKey) == "" {
+	if s == nil || invalidation.OwnerUserID == "" ||
+		invalidation.SessionKey == "" {
 		return
 	}
-	invalidation.OwnerUserID = strings.TrimSpace(invalidation.OwnerUserID)
-	invalidation.SessionKey = strings.TrimSpace(invalidation.SessionKey)
-	invalidation.ExecutionID = strings.TrimSpace(invalidation.ExecutionID)
 	s.invalidationMu.RLock()
 	sink := s.invalidationSink
 	s.invalidationMu.RUnlock()

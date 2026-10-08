@@ -814,7 +814,7 @@ func (s *Service) storePreview(
 			OwnerUserID:          ownerUserID,
 			SourceExecutionID:    preview.SourceExecutionID,
 			SourceSessionKey:     preview.SourceSessionKey,
-			SourceAgentID:        strings.TrimSpace(source.AgentID),
+			SourceAgentID:        source.AgentID,
 			SourceConversationID: strings.TrimSpace(source.ConversationID),
 			OutputLanguage:       outputLanguage,
 			HeadRevision:         1,
@@ -837,7 +837,7 @@ func (s *Service) storePreview(
 	s.previews[previewCacheKey(ownerUserID, preview.PreviewID)] = workflowPreviewRecord{
 		ownerUserID:          ownerUserID,
 		preview:              cloneWorkflowPreview(preview),
-		sourceAgentID:        strings.TrimSpace(source.AgentID),
+		sourceAgentID:        source.AgentID,
 		sourceConversationID: strings.TrimSpace(source.ConversationID),
 		outputLanguage:       outputLanguage,
 	}

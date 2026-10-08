@@ -87,7 +87,7 @@ func (c *DingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	if _, err := ingress.Accept(requestCtx, channelcontract.IngressRequest{
 		Channel:      channelcontract.ChannelTypeDingTalk,
 		OwnerUserID:  c.ownerUserID,
-		AccountID:    strings.TrimSpace(c.clientID),
+		AccountID:    c.clientID,
 		ChatType:     chatType,
 		Ref:          ref,
 		Content:      content,

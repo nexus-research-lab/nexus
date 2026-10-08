@@ -123,14 +123,14 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 		if len(prepared.Body) > 0 {
 			preparedBody = prepared.Body
 		}
-		ownerUserID = strings.TrimSpace(prepared.OwnerUserID)
+		ownerUserID = prepared.OwnerUserID
 	}
 	callback, err := channeladapters.DecodeFeishuIngressCallback(preparedBody)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 		return
 	}
-	if strings.TrimSpace(callback.Challenge) != "" {
+	if callback.Challenge != "" {
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(writer).Encode(map[string]string{"challenge": callback.Challenge})
@@ -146,7 +146,7 @@ func (h *Handlers) HandleFeishuChannelIngress(writer http.ResponseWriter, reques
 	}
 	if ownerUserID != "" {
 		callback.Request.OwnerUserID = ownerUserID
-	} else if h.control != nil && strings.TrimSpace(callback.AppID) != "" {
+	} else if h.control != nil && callback.AppID != "" {
 		ownerUserID, ownerErr := h.control.ResolveChannelOwnerByConfig(
 			request.Context(),
 			channelspkg.ChannelTypeFeishu,

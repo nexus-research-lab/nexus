@@ -236,19 +236,19 @@ func publicHandoffReplyForSlot(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) *protocol.PublicHandoffReply {
-	if slot == nil || strings.TrimSpace(slot.Trigger.TriggerType) != "public_mention" ||
+	if slot == nil || slot.Trigger.TriggerType != "public_mention" ||
 		!roomSlotPublishesPublicOutput(slot) ||
 		slot.getStatus() != "finished" ||
 		!roomdomain.IsFinalPublicAssistantMessage(message) ||
 		!publicHandoffReplyTerminalSucceeded(message) ||
 		roomdomain.IsNoReplyAssistantMessage(message) ||
-		strings.TrimSpace(messageutil.ExtractAssistantDisplayText(message)) == "" {
+		messageutil.ExtractAssistantDisplayText(message) == "" {
 		return nil
 	}
 	reply := &protocol.PublicHandoffReply{
-		HandoffID:       strings.TrimSpace(slot.handoffID()),
-		SourceMessageID: strings.TrimSpace(slot.replySourceMessage()),
-		SourceAgentID:   strings.TrimSpace(slot.Trigger.SourceAgentID),
+		HandoffID:       slot.handoffID(),
+		SourceMessageID: slot.replySourceMessage(),
+		SourceAgentID:   slot.Trigger.SourceAgentID,
 	}
 	if reply.HandoffID == "" || reply.SourceMessageID == "" ||
 		reply.SourceAgentID == "" || reply.SourceAgentID == strings.TrimSpace(slot.AgentID) {
@@ -289,7 +289,7 @@ func (s *Service) detectRoomMentionHandoffs(
 	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) (*protocol.GoalCollaborationBinding, error) {
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
-	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	content := roomdomain.ExtractAssistantResultText(message)
 	detected := make(map[string]struct{}, len(mentions))
 	var storedGoalBinding *protocol.GoalCollaborationBinding
 	storedBindingSet := false
@@ -438,13 +438,13 @@ func (s *Service) markPublicHandoffTerminal(
 	if roundValue == nil || slot == nil {
 		return
 	}
-	handoffID := strings.TrimSpace(slot.handoffID())
+	handoffID := slot.handoffID()
 	if handoffID == "" {
 		return
 	}
 	lastAssistant := slot.lastGoalAssistantMessage()
 	hasSubstantiveOutput := !roomdomain.IsNoReplyAssistantMessage(lastAssistant) &&
-		strings.TrimSpace(messageutil.ExtractAssistantDisplayText(lastAssistant)) != ""
+		messageutil.ExtractAssistantDisplayText(lastAssistant) != ""
 	if err := s.publicHandoffs.MarkTerminalWithGoalOutcome(
 		roundValue.OwnerUserID,
 		roundValue.ConversationID,
@@ -721,7 +721,7 @@ func legacyHandoffRootPublicEvidence(
 		}
 		if !roomdomain.IsFinalPublicAssistantMessage(message) ||
 			roomdomain.IsNoReplyAssistantMessage(message) ||
-			strings.TrimSpace(roomdomain.ExtractAssistantResultText(message)) == "" {
+			roomdomain.ExtractAssistantResultText(message) == "" {
 			continue
 		}
 		agentRoundID := strings.TrimSpace(anyString(message["agent_round_id"]))

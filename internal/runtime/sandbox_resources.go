@@ -929,7 +929,7 @@ func DiscoverSandboxResources(ctx context.Context, input SandboxResourceSweepInp
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	owner := strings.TrimSpace(input.OwnerUserID)
+	owner := input.OwnerUserID
 	if owner == "" {
 		return nil, errors.New("sandbox resource discovery requires owner")
 	}
@@ -951,7 +951,7 @@ func SweepStaleSandboxResources(ctx context.Context, input SandboxResourceSweepI
 	if input.OlderThan <= 0 {
 		return SandboxResourceSweepResult{}, errors.New("sandbox resource sweep requires a positive age")
 	}
-	owner := strings.TrimSpace(input.OwnerUserID)
+	owner := input.OwnerUserID
 	if owner == "" {
 		return SandboxResourceSweepResult{}, errors.New("sandbox resource sweep requires owner")
 	}

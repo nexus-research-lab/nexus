@@ -118,8 +118,6 @@ func (s *Service) RewriteGoalObjective(ctx context.Context, ownerUserID string, 
 }
 
 func (s *Service) resolveLLMConfig(ctx context.Context, request Request) (*clientopts.RuntimeConfig, error) {
-	request.Provider = strings.TrimSpace(request.Provider)
-	request.Model = strings.TrimSpace(request.Model)
 	if request.Provider != "" && request.Model != "" {
 		return s.providers.ResolveLLMConfig(ctx, request.Provider, request.Model)
 	}

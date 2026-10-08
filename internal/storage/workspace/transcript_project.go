@@ -339,14 +339,14 @@ func stripTranscriptRuntimeContext(content string) string {
 
 func transcriptSlashCommandContent(entry map[string]any) string {
 	content := strings.TrimSpace(transcriptRawUserContent(entry))
-	name := strings.TrimSpace(transcriptTaggedValue(content, "command-name"))
+	name := transcriptTaggedValue(content, "command-name")
 	if name == "" {
 		return ""
 	}
 	if !strings.HasPrefix(name, "/") {
 		name = "/" + name
 	}
-	args := strings.TrimSpace(transcriptTaggedValue(content, "command-args"))
+	args := transcriptTaggedValue(content, "command-args")
 	return strings.TrimSpace(name + " " + args)
 }
 

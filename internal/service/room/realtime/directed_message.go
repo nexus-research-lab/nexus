@@ -135,7 +135,7 @@ func (s *Service) roomDirectedReplyUsesAutomaticRoute(
 		for _, slot := range roundValue.Slots {
 			if slot == nil || strings.TrimSpace(slot.AgentRoundID) != sourceAgentRoundID ||
 				strings.TrimSpace(slot.AgentID) != strings.TrimSpace(message.SourceAgentID) ||
-				strings.TrimSpace(slot.replySourceMessage()) == "" {
+				slot.replySourceMessage() == "" {
 				continue
 			}
 			route := roomSlotReplyRoute(slot)
@@ -671,7 +671,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	slot *activeRoomSlot,
 	assistantMessage protocol.Message,
 ) error {
-	if roundValue == nil || slot == nil || strings.TrimSpace(slot.replySourceMessage()) == "" {
+	if roundValue == nil || slot == nil || slot.replySourceMessage() == "" {
 		return nil
 	}
 	replyRoute := roomSlotReplyRoute(slot)
@@ -685,7 +685,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	if len(recipients) == 0 {
 		return nil
 	}
-	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(assistantMessage))
+	content := roomdomain.ExtractAssistantResultText(assistantMessage)
 	if content == "" {
 		return nil
 	}

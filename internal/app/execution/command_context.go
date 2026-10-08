@@ -57,7 +57,7 @@ func ResolveCommandContext(
 		ActorKind: protocol.ExecutionActorAgent, ScopeKind: scopeKind,
 		ScopeSessionKey:         scopeSessionKey,
 		RuntimeSessionKey:       strings.TrimSpace(runtimeContext.RuntimeSessionKey),
-		ExecutionID:             strings.TrimSpace(runtimeContext.ExecutionID),
+		ExecutionID:             runtimeContext.ExecutionID,
 		WorkBinding:             runtimeContext.WorkBinding.Clone(),
 		WorkBindingState:        runtimeContext.WorkBindingState,
 		ReviewBinding:           runtimeContext.ReviewBinding.Clone(),
@@ -119,7 +119,7 @@ func validGoalContinuationContext(
 	if normalized.OwnerUserID != ownerUserID || normalized.AgentID != agentID ||
 		normalized.ScopeSessionKey != scopeSessionKey ||
 		normalized.RootRoundID != strings.TrimSpace(runtimeContext.RootRoundID) ||
-		normalized.ExecutionID != strings.TrimSpace(runtimeContext.ExecutionID) ||
+		normalized.ExecutionID != runtimeContext.ExecutionID ||
 		strings.TrimSpace(runtimeContext.SourceContextID) != agentID ||
 		strings.TrimSpace(runtimeContext.RuntimeSessionKey) != scopeSessionKey {
 		return false

@@ -49,7 +49,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		return
 	}
 	text := messageutil.ExtractAssistantDisplayText(assistant)
-	if strings.TrimSpace(text) == "" {
+	if text == "" {
 		return
 	}
 
@@ -78,7 +78,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		"thread_id", target.ThreadID,
 		"primary_platform_message_id", result.PrimaryPlatformMessageID,
 		"platform_message_ids", result.PlatformMessageIDs,
-		"chars", len([]rune(strings.TrimSpace(text))),
+		"chars", len([]rune(text)),
 	)
 }
 

@@ -168,7 +168,7 @@ func mergeExecutionRuntimeGraph(
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
 			existingID := subagentNodeByTask[subjectID]
 			if existingID == "" {
-				toolUseID := strings.TrimSpace(runtimeGraphMetadataString(runtimeNode, "tool_use_id"))
+				toolUseID := runtimeGraphMetadataString(runtimeNode, "tool_use_id")
 				existingID = subagentNodeByToolUse[toolUseID]
 			}
 			if existingID != "" {

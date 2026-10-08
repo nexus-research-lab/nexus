@@ -55,3 +55,8 @@ Team 同步服务不新增隐式重发或后台消费者。投影恢复继续使
 - service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器，通过共享 runtime Manager 启动一次性 AutoDream 并统一监督、取消与回收
 - app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；退出先停止 runtime 准入并等待终态落盘，再关闭数据库；server 只负责 HTTP/WS 与后台启停；macOS 桌面入口将迁移前实例锁交给 App，以随包 helper 和 app/processes 完成两阶段恢复后才开放任务，goal / execution / workgraph / runtime 承载宿主适配，runtimecheck 负责安装包内核配套检查；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
 - config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/desktopinstance 承载 macOS sidecar 的状态根独占锁（无 PID 推断，旧版未持锁宿主仍须单独核验），infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界，infra/runtimebootstrap 校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要，infra/textutil 是只依赖标准库的字符串取值原语叶子包（FirstNonEmpty/PointerValue/AnyString），各包不得再私有复制同构 helper
+
+## 入口规范化
+
+- 字符串在入口清洗一次：handler/WebSocket 解析、MCP parser、存储扫描与 `authctx` 身份读取负责 `strings.TrimSpace`，下游 service 信任已清洗值。
+- `tools/trimcheck`（`make check-normalization`）用类型信息证明哪些 `TrimSpace` 是冗余的：常量、返回值全部已裁剪的本模块函数、所有赋值均已裁剪的局部变量，以及本模块声明且所有写入均已裁剪的字段（带 tag、被取地址、经接口参数反射写入或被类型转换覆盖的字段除外）。分析分别在 linux/darwin/windows 下进行，只报告三者都成立的位置。

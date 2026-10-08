@@ -55,7 +55,7 @@ func (s *Service) SetGoalFromCommand(
 		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
 		protocol.CreateGoalRequest{
 			SessionKey:      execution.sessionKey,
-			Objective:       strings.TrimSpace(request.Objective),
+			Objective:       request.Objective,
 			TokenBudget:     request.Options.TokenBudget,
 			ReplaceExisting: replaceExisting,
 			CreatedBy:       "user",

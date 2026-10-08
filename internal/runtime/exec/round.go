@@ -243,7 +243,7 @@ func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (r
 		return roundReceiveOutcome{result: failureResult}, err
 	}
 	var terminalResult RoundExecutionResult
-	isTerminal := strings.TrimSpace(mapResult.TerminalStatus) != ""
+	isTerminal := mapResult.TerminalStatus != ""
 	if isTerminal {
 		terminalResult = terminalRoundResult(mapResult, e.assistantTerminalResult, incoming.Result, e.startedAt)
 	}

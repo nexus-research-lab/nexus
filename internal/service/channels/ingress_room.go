@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -86,7 +85,7 @@ func (s *IngressService) deliverRoomReply(ctx context.Context, root, agent, sess
 	if value["role"] != "assistant" || !complete {
 		return nil
 	}
-	text := strings.TrimSpace(message.ExtractAssistantDisplayText(value))
+	text := message.ExtractAssistantDisplayText(value)
 	id, _ := value["message_id"].(string)
 	if text == "" || id == "" {
 		return nil

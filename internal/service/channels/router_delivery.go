@@ -452,7 +452,7 @@ func (r *Router) validateExternalDeliveryTarget(
 		}
 		return nil
 	}
-	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	ownerUserID := authctx.OwnerUserID(ctx)
 	if ownerUserID == "" {
 		return errors.New("external delivery owner is unavailable")
 	}

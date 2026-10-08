@@ -21,10 +21,8 @@ func (r *Repository) SupersedeGoalRevision(
 	command SupersedeGoalRevisionCommand,
 ) (*protocol.ExecutionSnapshot, error) {
 	command.ExecutionID = strings.TrimSpace(command.ExecutionID)
-	command.ExpectedOwnerUserID = strings.TrimSpace(command.ExpectedOwnerUserID)
 	command.GoalID = strings.TrimSpace(command.GoalID)
 	command.SuccessorExecutionID = strings.TrimSpace(command.SuccessorExecutionID)
-	command.Reason = strings.TrimSpace(command.Reason)
 	if command.ExecutionID == "" || command.GoalID == "" ||
 		command.SuccessorExecutionID == "" || command.SuccessorExecutionID == command.ExecutionID ||
 		command.OldGoalObjectiveRevision <= 0 ||

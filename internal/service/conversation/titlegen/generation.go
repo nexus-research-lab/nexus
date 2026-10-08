@@ -109,8 +109,8 @@ func (s *Service) logTitleGenerationError(request Request, err error) {
 	s.logger.Warn(message,
 		"session_key", request.SessionKey,
 		"conversation_id", request.ConversationID,
-		"provider", strings.TrimSpace(request.Provider),
-		"model", strings.TrimSpace(request.Model),
+		"provider", request.Provider,
+		"model", request.Model,
 		"err", err,
 	)
 }
@@ -172,7 +172,7 @@ func (s *Service) generateTitle(
 ) (string, error) {
 	runtimeConfig, err := s.resolveLLMConfig(ctx, request)
 	if err != nil {
-		return "", fmt.Errorf("解析标题模型配置失败 request_provider=%q request_model=%q: %w", strings.TrimSpace(request.Provider), strings.TrimSpace(request.Model), err)
+		return "", fmt.Errorf("解析标题模型配置失败 request_provider=%q request_model=%q: %w", request.Provider, request.Model, err)
 	}
 	llmRequest := llm.GenerateTextRequest{
 		Config:           runtimeConfig,
@@ -219,7 +219,7 @@ func (s *Service) resolveLLMConfig(
 	request Request,
 ) (*clientopts.RuntimeConfig, error) {
 	if s.prefs != nil {
-		ownerUserID := strings.TrimSpace(request.OwnerUserID)
+		ownerUserID := request.OwnerUserID
 		if ownerUserID != "" {
 			prefs, err := s.prefs.Get(ctx, ownerUserID)
 			if err != nil {

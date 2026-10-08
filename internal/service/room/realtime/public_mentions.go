@@ -51,7 +51,7 @@ func (s *Service) collectPublicMentionWakes(
 		// 只有 source slot 成功收尾才允许创建 target handoff。
 		return nil
 	}
-	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	content := roomdomain.ExtractAssistantResultText(message)
 	if content == "" {
 		return nil
 	}
@@ -102,7 +102,7 @@ func (s *Service) collectPublicMentionWakes(
 	}
 	// 标注阶段会剥离 fanout 控制标记并重写 span；必须用清理后的正文
 	// 生成 queue trigger，避免隐藏标记进入目标 Agent 上下文。
-	content = strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	content = roomdomain.ExtractAssistantResultText(message)
 	if content == "" {
 		return nil
 	}
@@ -957,7 +957,7 @@ func buildPublicMentionSlot(
 	msgID string,
 	index int,
 ) *activeRoomSlot {
-	triggerType := strings.TrimSpace(wake.TriggerType)
+	triggerType := wake.TriggerType
 	if triggerType == "" {
 		triggerType = "public_mention"
 	}
@@ -1002,7 +1002,7 @@ func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource 
 
 func roomSlotHiddenFromUser(slot *activeRoomSlot) bool {
 	return slot != nil && (slot.HiddenFromUser ||
-		strings.TrimSpace(slot.Trigger.TriggerType) == roomDirectedMessageTriggerType)
+		slot.Trigger.TriggerType == roomDirectedMessageTriggerType)
 }
 
 func roomWakeRoundID(wakes []publicMentionWake) string {

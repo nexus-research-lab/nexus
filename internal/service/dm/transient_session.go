@@ -28,7 +28,7 @@ func (s *Service) CreateTransientSession(
 ) (*protocol.Session, error) {
 	agentID := strings.TrimSpace(request.AgentID)
 	targetSessionKey := strings.TrimSpace(request.TargetSessionKey)
-	purpose := strings.TrimSpace(request.Purpose)
+	purpose := request.Purpose
 	parsed := protocol.ParseSessionKey(targetSessionKey)
 	allowedChannel := protocol.SessionChannelInternalSegment
 	if purpose == protocol.SessionPurposeWorkGraphEditor {
@@ -58,7 +58,7 @@ func (s *Service) CreateTransientSession(
 	if targetSession.Options == nil {
 		targetSession.Options = map[string]any{}
 	}
-	targetSession.Title = strings.TrimSpace(request.Title)
+	targetSession.Title = request.Title
 	if targetSession.Title == "" {
 		targetSession.Title = "Internal task"
 	}

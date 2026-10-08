@@ -363,7 +363,7 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	}
 	agentNameByID := buildMemberNameDirectory(e.round.Context)
 	trigger := e.trigger
-	if strings.TrimSpace(trigger.TriggerType) == "" {
+	if trigger.TriggerType == "" {
 		trigger.TriggerType = "public_chat"
 	}
 	if strings.TrimSpace(trigger.MessageID) == "" {
@@ -381,7 +381,7 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(publicContext) != "" {
+	if publicContext != "" {
 		e.inputs = append(e.inputs, runtimectx.GuidedInput{RoundID: e.sourceRoundID, Content: publicContext})
 	}
 	return nil

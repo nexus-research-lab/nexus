@@ -70,7 +70,7 @@ func (s *Service) buildSlotGuidedPublicContext(
 ) (string, error) {
 	publicCursorID, publicCursorTS := slot.publicCursor()
 	baseCursor := roomdomain.PublicCursor{
-		LastMessageID: strings.TrimSpace(publicCursorID),
+		LastMessageID: publicCursorID,
 		LastTimestamp: publicCursorTS,
 	}
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, baseCursor, true)
@@ -90,7 +90,7 @@ func (s *Service) buildSlotGuidedPublicContext(
 		ColdStart:           batch.ColdStart,
 		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
 	})
-	if strings.TrimSpace(plan.PublicBoundary.MessageID) != "" || plan.PublicBoundary.Timestamp > 0 {
+	if plan.PublicBoundary.MessageID != "" || plan.PublicBoundary.Timestamp > 0 {
 		_, _, messageCursorID, messageCursorTS := slot.cursorSnapshot()
 		slot.setCursors(plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp, messageCursorID, messageCursorTS)
 		if err = s.recordRoomPublicCursor(slot, roundValue, plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp); err != nil {
@@ -240,7 +240,6 @@ func (s *Service) recordRoomDirectedMessageCursor(
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
 	messageID, messageTimestamp := slot.messageCursor()
-	messageID = strings.TrimSpace(messageID)
 	if messageID == "" && messageTimestamp == 0 {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}

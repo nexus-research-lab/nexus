@@ -384,7 +384,7 @@ func configurationCLIController(
 	if err != nil {
 		return nil, err
 	}
-	ownerUserID := strings.TrimSpace(currentCLIUserID(cmd))
+	ownerUserID := currentCLIUserID(cmd)
 	mainAgent, err := appServices.Core.Agent.GetDefaultAgent(cmd.Context())
 	if err != nil {
 		return nil, fmt.Errorf("读取当前 owner 主智能体: %w", err)

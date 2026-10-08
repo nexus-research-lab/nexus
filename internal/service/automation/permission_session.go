@@ -32,7 +32,7 @@ func (s *Service) ListSessionPermissionEvents(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("automation permission replay requires an owner scope")
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -84,7 +84,7 @@ func (s *Service) ResolveSessionPermissionResponse(
 		return false, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return false, errors.New("automation permission decision requires an owner scope")
 	}
 	requestID := automationPermissionResponseString(response, "request_id")
@@ -139,7 +139,7 @@ func (s *Service) PendingPermissionRequestIDsForRoom(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("automation room permission snapshot requires an owner scope")
 	}
 	requests, err := s.repository.ListPermissionRequests(

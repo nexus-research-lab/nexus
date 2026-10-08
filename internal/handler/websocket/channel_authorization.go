@@ -158,14 +158,14 @@ func (t *channelAuthorizationTransport) registerAuthenticatedSender(
 	default:
 		return
 	}
-	if !ok || strings.TrimSpace(principalUserID) == "" {
+	if !ok || principalUserID == "" {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.pruneLocked(time.Now().UTC())
 	t.senders[sender.Key()] = authenticatedChannelAuthorizationSender{
-		principalUserID: strings.TrimSpace(principalUserID),
+		principalUserID: principalUserID,
 		principalRole:   principalRole,
 		authMethod:      authMethod,
 		authSessionID:   authSessionID,

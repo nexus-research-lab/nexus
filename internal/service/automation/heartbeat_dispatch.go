@@ -86,7 +86,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		s.failEvents(events)
 		return
 	}
-	if strings.TrimSpace(instruction) == "" {
+	if instruction == "" {
 		logger.Info("heartbeat 无可执行内容", "event_count", len(events))
 		s.markEventsProcessed(events)
 		s.finishHeartbeatRuntime(agentID, nil, nil, nil)
@@ -215,9 +215,9 @@ func heartbeatTaskLines(tasks []automationexec.HeartbeatTask) []string {
 	lines := make([]string, 0, len(tasks))
 	for _, task := range tasks {
 		line := textutil.FirstNonEmpty(
-			strings.TrimSpace(task.Prompt),
-			strings.TrimSpace(task.Name),
-			strings.TrimSpace(task.Interval),
+			task.Prompt,
+			task.Name,
+			task.Interval,
 		)
 		if line != "" {
 			lines = append(lines, line)
@@ -262,10 +262,10 @@ func heartbeatWakeLines(
 }
 
 func heartbeatWakeLine(request automationexec.HeartbeatWakeRequest) string {
-	if text := strings.TrimSpace(request.Text); text != "" {
+	if text := request.Text; text != "" {
 		return text
 	}
-	mode := textutil.FirstNonEmpty(strings.TrimSpace(request.WakeMode), "unknown")
+	mode := textutil.FirstNonEmpty(request.WakeMode, "unknown")
 	return "wake request (" + mode + ")"
 }
 

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -70,8 +69,8 @@ func (s *Service) reconcilePendingDeletion(
 	if s.runtime == nil {
 		return errors.New("Session 删除恢复缺少 runtime manager")
 	}
-	blockKey := strings.TrimSpace(item.OwnerUserID) + "\x00" +
-		strings.TrimSpace(item.SessionKey)
+	blockKey := item.OwnerUserID + "\x00" +
+		item.SessionKey
 	_, alreadyBlocked := s.recoveryBlocked[blockKey]
 	if !alreadyBlocked {
 		if _, err := s.runtime.BeginSessionDeletion(item.SessionKey); err != nil {

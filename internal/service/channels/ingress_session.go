@@ -97,7 +97,7 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 	if err != nil {
 		return "", protocol.SessionKey{}, "", err
 	}
-	if strings.TrimSpace(pairedSessionKey) != "" {
+	if pairedSessionKey != "" {
 		parsed := protocol.ParseSessionKey(pairedSessionKey)
 		return pairedSessionKey, parsed, agentID, nil
 	}
