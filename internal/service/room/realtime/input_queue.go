@@ -395,7 +395,7 @@ func (s *Service) syncQueuedPublicUserMessage(
 	rootRoundID string,
 	materialize bool,
 ) error {
-	if contextValue == nil || s.roomHistory == nil {
+	if contextValue == nil {
 		return nil
 	}
 	sourceRoundID := roomInputQueueSourceRoundID(item)

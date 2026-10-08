@@ -44,9 +44,6 @@ func (s *Service) HandleDirectedMessage(
 	if s.roomDirectedReplyUsesAutomaticRoute(request.SourceAgentRoundID, *message) {
 		return nil, roomsvc.ErrDirectedReplyAutoRouted
 	}
-	if s.directedMessages == nil {
-		return nil, errors.New("room directed message store is not configured")
-	}
 	stored, inserted, err := s.directedMessages.AppendMessageIfAbsent(
 		contextValue.Room.OwnerUserID,
 		*message,
@@ -162,7 +159,7 @@ func (s *Service) markActiveGoalCollaborationPending(
 	binding *protocol.GoalCollaborationBinding,
 ) {
 	normalizedBinding := protocol.NormalizeGoalCollaborationBinding(binding)
-	if s == nil || normalizedBinding == nil {
+	if normalizedBinding == nil {
 		return
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
@@ -200,8 +197,9 @@ func (s *Service) ensureGoalDirectedMessageHandoffs(
 	binding := protocol.NormalizeGoalCollaborationBinding(
 		message.GoalCollaborationBinding,
 	)
-	if s == nil || s.publicHandoffs == nil || contextValue == nil ||
-		binding == nil || message.WakePolicy == protocol.RoomWakePolicyNone {
+	if contextValue == nil ||
+		binding == nil ||
+		message.WakePolicy == protocol.RoomWakePolicyNone {
 		return nil
 	}
 	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
@@ -261,8 +259,7 @@ func (s *Service) terminalizeGoalDirectedMessageHandoffsForOwner(
 	message protocol.RoomDirectedMessageRecord,
 	status string,
 ) error {
-	if s == nil || s.publicHandoffs == nil ||
-		protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil {
+	if protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil {
 		return nil
 	}
 	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
@@ -674,7 +671,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	slot *activeRoomSlot,
 	assistantMessage protocol.Message,
 ) error {
-	if s.directedMessages == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.replySourceMessage()) == "" {
+	if roundValue == nil || slot == nil || strings.TrimSpace(slot.replySourceMessage()) == "" {
 		return nil
 	}
 	replyRoute := roomSlotReplyRoute(slot)
@@ -945,9 +942,6 @@ func (s *Service) runPersistedImmediateRoomDirectedMessageWake(
 	contextValue *protocol.ConversationContextAggregate,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
-	if s.directedWakes == nil {
-		return errors.New("room directed wake store is not configured")
-	}
 	wake := workspacestore.RoomDirectedMessageWake{
 		WakeID:      strings.TrimSpace(message.MessageID),
 		OwnerUserID: authctx.OwnerUserID(ctx),
@@ -978,7 +972,7 @@ func (s *Service) goalDirectedMessageHandoffInFlight(
 	binding *protocol.GoalCollaborationBinding,
 ) bool {
 	binding = protocol.NormalizeGoalCollaborationBinding(binding)
-	if s == nil || s.publicHandoffs == nil || binding == nil {
+	if binding == nil {
 		return false
 	}
 	inFlight, err := s.publicHandoffs.GoalCollaborationInFlight(
@@ -1034,9 +1028,6 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 	if delay <= 0 {
 		return errors.New("delay_seconds must be positive")
 	}
-	if s.directedWakes == nil {
-		return errors.New("room directed wake store is not configured")
-	}
 	wake := workspacestore.RoomDirectedMessageWake{
 		WakeID:      strings.TrimSpace(message.MessageID),
 		OwnerUserID: authctx.OwnerUserID(ctx),
@@ -1071,7 +1062,7 @@ func (s *Service) scheduleRoomDirectedMessageWakeRetry(
 	ctx context.Context,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
-	if message.WakePolicy == protocol.RoomWakePolicyNone || s.directedWakes == nil {
+	if message.WakePolicy == protocol.RoomWakePolicyNone {
 		return nil
 	}
 	dueAt := time.Now().Add(roomDirectedMessageWakeRetryDelay)
@@ -1125,9 +1116,6 @@ func (s *Service) roomDirectedMessageWakePending(ownerUserID string, wakeID stri
 // StartDelayedWakeScheduler 恢复宕机前未完成的 Room immediate/delayed wake。
 // 名称保留兼容，语义已经覆盖两类持久唤醒。
 func (s *Service) StartDelayedWakeScheduler(context.Context) (func(), error) {
-	if s.directedWakes == nil {
-		return nil, nil
-	}
 	pending, err := s.directedWakes.PendingAll()
 	if err != nil {
 		return nil, err

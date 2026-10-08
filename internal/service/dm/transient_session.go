@@ -26,9 +26,6 @@ func (s *Service) CreateTransientSession(
 	ctx context.Context,
 	request TransientSessionRequest,
 ) (*protocol.Session, error) {
-	if s == nil {
-		return nil, errors.New("DM service is unavailable")
-	}
 	agentID := strings.TrimSpace(request.AgentID)
 	targetSessionKey := strings.TrimSpace(request.TargetSessionKey)
 	purpose := strings.TrimSpace(request.Purpose)

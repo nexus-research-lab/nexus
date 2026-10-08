@@ -62,9 +62,6 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 	excludedAgentID string,
 	objectiveRevision int64,
 ) ([]string, error) {
-	if s == nil || s.runtime == nil {
-		return nil, runtimectx.ErrNoRunningRound
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	excludedAgentID = strings.TrimSpace(excludedAgentID)
 	targets := map[string]*activeRoomSlot{}
@@ -126,9 +123,6 @@ func (s *Service) GoalObjectiveRevisionState(
 	agentID string,
 	initial int64,
 ) *atomic.Int64 {
-	if s == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
 	agentID = strings.TrimSpace(agentID)
@@ -318,7 +312,7 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	slot *activeRoomSlot,
 	finalAssistant protocol.Message,
 ) {
-	if s == nil || s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
+	if s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
 		return
 	}
 	authority := slot.goalMutationAuthority()
@@ -418,7 +412,7 @@ func beginGoalUsageForSlot(slot *activeRoomSlot) {
 }
 
 func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
-	if s.runtime == nil || slot == nil || slot.goalRuntimeIgnored() {
+	if slot == nil || slot.goalRuntimeIgnored() {
 		return func() {}
 	}
 	sessionKey := goalSessionKeyForSlot(slot)
@@ -800,7 +794,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 	ctx context.Context,
 	anchor *activeRoomRound,
 ) (settled bool) {
-	if s == nil || s.goals == nil || anchor == nil {
+	if s.goals == nil || anchor == nil {
 		return true
 	}
 	defer func() {
@@ -993,9 +987,6 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 }
 
 func (s *Service) bindRoomGoalUsage(sessionKey string, goalID string) {
-	if s == nil {
-		return
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	goalID = strings.TrimSpace(goalID)
 	if sessionKey == "" || goalID == "" {
@@ -1017,7 +1008,7 @@ func (s *Service) roomGoalUsageSlotsForScope(
 	origin *activeRoomSlot,
 	goalSessionKey string,
 ) []*activeRoomSlot {
-	if s == nil || origin == nil {
+	if origin == nil {
 		return nil
 	}
 	scopeRoundID := goalUsageScopeRoundIDForRoomSlot(origin)
@@ -1091,7 +1082,7 @@ func (s *Service) startGoalUsageFromRoundStartForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 ) *protocol.Goal {
-	if s == nil || s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil {
 		return nil
 	}
 	slot.mutable.goal.mu.Lock()
@@ -1128,7 +1119,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	ctx context.Context,
 	slot *activeRoomSlot,
 ) (string, string) {
-	if s == nil || s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil {
 		return "", ""
 	}
 	goalID := strings.TrimSpace(slot.goalIDForUsage())
@@ -1183,7 +1174,7 @@ func (s *Service) grantRoomGoalMutationAuthorityForScope(
 	executionID string,
 	source roomGoalAuthoritySource,
 ) {
-	if s == nil || origin == nil {
+	if origin == nil {
 		return
 	}
 	goalSessionKey = goalUsageSessionKeyForRoomSlot(origin, goalSessionKey)
@@ -1215,7 +1206,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 	goalID string,
 	goalSessionKey string,
 ) {
-	if s == nil || s.goals == nil || origin == nil || origin.goalRuntimeIgnored() {
+	if s.goals == nil || origin == nil || origin.goalRuntimeIgnored() {
 		return
 	}
 	goalID = strings.TrimSpace(goalID)
@@ -1252,7 +1243,7 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 	goalID string,
 	goalSessionKey string,
 ) bool {
-	if s == nil || s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil {
 		return true
 	}
 	claimer, ok := s.goals.(interface {
@@ -1290,7 +1281,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) []roomSubagentUsageSettlement {
-	if s == nil || slot == nil ||
+	if slot == nil ||
 		!strings.EqualFold(strings.TrimSpace(slot.runtimeKind()), "nxs") {
 		return nil
 	}
@@ -1369,14 +1360,6 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	goalID := strings.TrimSpace(slot.childGoalIDForUsage())
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()
 	for _, child := range observations {
-		if s.runtime == nil {
-			settled = append(settled, roomSubagentUsageSettlement{
-				taskID:          child.taskID,
-				cumulativeTotal: child.observation.CumulativeTotal,
-				observation:     child.observation,
-			})
-			continue
-		}
 		delta := s.runtime.ObserveSubagentUsage(
 			slot.RuntimeSessionKey,
 			child.taskID,
@@ -1457,9 +1440,6 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 }
 
 func (s *Service) beginRoomGoalUsageFinalizing(sessionKey string) {
-	if s == nil {
-		return
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return
@@ -1564,7 +1544,7 @@ func (s *Service) cancelActiveRoomGoalForUser(
 	sessionKey string,
 	content string,
 ) error {
-	if s == nil || !isGoalCancellationRequest(content) {
+	if !isGoalCancellationRequest(content) {
 		return nil
 	}
 	provider, ok := s.goals.(goalCancellationProvider)
@@ -1642,7 +1622,7 @@ func (s *Service) RoomGoalCompletionReport(
 	callerRoundID string,
 ) (goalsvc.RoomGoalCompletionReport, error) {
 	var report goalsvc.RoomGoalCompletionReport
-	if s == nil || !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
+	if !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
 		return report, nil
 	}
 	parsed := protocol.ParseSessionKey(goal.SessionKey)
@@ -1749,7 +1729,7 @@ func (s *Service) roomGoalInputQueueBlocker(
 	contextValue *protocol.ConversationContextAggregate,
 	goals ...*protocol.Goal,
 ) (string, error) {
-	if s.inputQueue == nil || contextValue == nil {
+	if contextValue == nil {
 		return "", nil
 	}
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
@@ -1781,9 +1761,6 @@ func (s *Service) roomGoalDirectedWakeBlocker(
 	conversationID string,
 	goals ...*protocol.Goal,
 ) (string, error) {
-	if s.directedWakes == nil {
-		return "", nil
-	}
 	pending, err := s.directedWakes.Pending(ownerUserID)
 	if err != nil {
 		return "", err

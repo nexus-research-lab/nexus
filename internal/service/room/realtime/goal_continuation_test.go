@@ -301,7 +301,7 @@ func TestRealtimeServicePostRoundWorkReturnsControlAfterNoReplyWithoutClaimingEv
 			},
 		},
 	}
-	service := &Service{goals: goalProvider}
+	service := withConstructorDefaults(t, &Service{goals: goalProvider})
 	slot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:      "agent-peer",
 		AgentRoundID: "room-mention-peer-no-reply",
@@ -383,13 +383,13 @@ func TestRealtimeServiceCollaborationCompletionReleasesLiveSourceBarrier(t *test
 			},
 		},
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: goalProvider,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"source": sourceRound,
 			"target": targetRound,
 		}),
-	}
+	})
 
 	service.dispatchPostRoundWork(context.Background(), targetRound)
 
@@ -463,9 +463,9 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 			RoundID: "goal_continuation_1",
 		},
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: goalProvider,
-	}
+	})
 	roundValue := &activeRoomRound{
 		SessionKey:     "room:group:conversation-1",
 		ConversationID: "conversation-1",
@@ -531,7 +531,7 @@ func TestRoomGoalCollaborationDurableFenceSurvivesRestart(t *testing.T) {
 		},
 		Conversation: protocol.ConversationRecord{ID: conversationID},
 	}
-	service := &Service{goals: goalProvider, publicHandoffs: store}
+	service := withConstructorDefaults(t, &Service{goals: goalProvider, publicHandoffs: store})
 
 	if !service.shouldDeferGoalContinuationForTargetStateLocked(
 		context.Background(),

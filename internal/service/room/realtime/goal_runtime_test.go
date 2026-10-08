@@ -1362,7 +1362,7 @@ func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	contextValue := newAuthorityFenceContext()
 	contextValue.Room.OwnerUserID = "owner-completion-membership"
 	store := &authorityFenceRoomStore{contextValue: contextValue}
-	service := &Service{rooms: store}
+	service := withConstructorDefaults(t, &Service{rooms: store})
 	goal := protocol.Goal{
 		ID:         "goal-completion-membership",
 		SessionKey: protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),

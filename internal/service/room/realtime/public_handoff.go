@@ -288,9 +288,6 @@ func (s *Service) detectRoomMentionHandoffs(
 	mentions []protocol.AgentMention,
 	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) (*protocol.GoalCollaborationBinding, error) {
-	if s.publicHandoffs == nil {
-		return cloneGoalCollaborationBinding(goalCollaborationBinding), nil
-	}
 	messageID := strings.TrimSpace(anyString(message["message_id"]))
 	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
 	detected := make(map[string]struct{}, len(mentions))
@@ -438,7 +435,7 @@ func (s *Service) markPublicHandoffTerminal(
 	slot *activeRoomSlot,
 	status string,
 ) {
-	if s.publicHandoffs == nil || roundValue == nil || slot == nil {
+	if roundValue == nil || slot == nil {
 		return
 	}
 	handoffID := strings.TrimSpace(slot.handoffID())
@@ -467,7 +464,7 @@ func (s *Service) cancelSourcePublicHandoffs(
 	slot *activeRoomSlot,
 	status string,
 ) {
-	if s.publicHandoffs == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.AgentRoundID) == "" {
+	if roundValue == nil || slot == nil || strings.TrimSpace(slot.AgentRoundID) == "" {
 		return
 	}
 	if err := s.publicHandoffs.CancelForSource(
@@ -492,7 +489,7 @@ func (s *Service) markRoomQueueHandoffTerminalStatus(
 	item protocol.InputQueueItem,
 	status string,
 ) error {
-	if s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
+	if strings.TrimSpace(item.HandoffID) == "" {
 		return nil
 	}
 	return s.publicHandoffs.MarkTerminal(item.OwnerUserID, conversationID, item.HandoffID, status)
@@ -505,7 +502,7 @@ func (s *Service) cancelRootPublicHandoffs(
 	roundValue *activeRoomRound,
 	status string,
 ) {
-	if s == nil || s.publicHandoffs == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	rootRoundID := roomRootRoundID(roundValue)
@@ -527,7 +524,7 @@ func (s *Service) cancelRootPublicHandoffs(
 		s.loggerFor(ctx).Warn("取消 Room root handoff 失败", "root", rootRoundID, "err", err)
 		return
 	}
-	if s.inputQueue == nil || roundValue.Context == nil || len(edges) == 0 {
+	if roundValue.Context == nil || len(edges) == 0 {
 		return
 	}
 	cancelledIDs := make(map[string]struct{}, len(edges))
@@ -569,7 +566,7 @@ func (s *Service) cancelRootPublicHandoffs(
 // POS: Room 公区、structured Execution 与 Goal-directed 协作的 durable recovery 边界。
 // StartPublicHandoffReconciler 修补两阶段写入并恢复已确认 source 但尚未收口的 handoff。
 func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), error) {
-	if s == nil || s.publicHandoffs == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil, nil
 	}
 	if err := s.repairGoalDirectedMessageHandoffs(ctx); err != nil {
@@ -602,7 +599,7 @@ func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), err
 // non-lead terminal participant has a public substantive result in canonical
 // Room history.
 func (s *Service) repairLegacyRoomGoalHandoffAttribution(ctx context.Context) error {
-	if s == nil || s.publicHandoffs == nil || s.roomHistory == nil || s.goals == nil {
+	if s.goals == nil {
 		return nil
 	}
 	events, ok := s.goals.(goalEventProvider)
@@ -740,7 +737,7 @@ func legacyHandoffRootPublicEvidence(
 // not. Only the exact active Goal revision can be repaired; stale or terminal
 // Goal facts stay inert and never recreate collaborator work.
 func (s *Service) repairGoalDirectedMessageHandoffs(ctx context.Context) error {
-	if s == nil || s.directedMessages == nil || s.publicHandoffs == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil
 	}
 	records, err := s.directedMessages.GoalCollaborationMessagesAll()
@@ -940,9 +937,6 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 				handoff,
 			)
 		}
-		if s.roomHistory == nil {
-			return nil
-		}
 		messages, readErr := s.roomHistory.ReadMessages(
 			contextValue.Room.OwnerUserID,
 			conversationID,
@@ -1056,7 +1050,7 @@ func (s *Service) reconcileTerminalRoomGoalHandoff(
 	handoff workspacestore.RoomPublicHandoff,
 	binding *protocol.GoalCollaborationBinding,
 ) error {
-	if s == nil || s.goals == nil || binding == nil {
+	if s.goals == nil || binding == nil {
 		return errors.New("Goal provider is required for Room collaboration handback recovery")
 	}
 	goal, err := s.goalForCollaborationBinding(ctx, conversationID, binding)
@@ -1117,7 +1111,7 @@ func (s *Service) recoverGoalDirectedMessageHandoff(
 	contextValue *protocol.ConversationContextAggregate,
 	handoff workspacestore.RoomPublicHandoff,
 ) error {
-	if s == nil || contextValue == nil || s.directedMessages == nil {
+	if contextValue == nil {
 		return nil
 	}
 	messages, err := s.directedMessages.ReadMessages(
@@ -1141,9 +1135,6 @@ func (s *Service) recoverGoalDirectedMessageHandoff(
 		return nil
 	}
 	if source.WakePolicy == protocol.RoomWakePolicyDelayed {
-		if s.directedWakes == nil {
-			return nil
-		}
 		pending, pendingErr := s.directedWakes.Pending(
 			contextValue.Room.OwnerUserID,
 		)
@@ -1185,7 +1176,7 @@ func (s *Service) publicHandoffQueueItemPresent(
 	contextValue *protocol.ConversationContextAggregate,
 	handoff workspacestore.RoomPublicHandoff,
 ) (bool, error) {
-	if s.inputQueue == nil || contextValue == nil {
+	if contextValue == nil {
 		return false, nil
 	}
 	locations, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
@@ -1232,7 +1223,7 @@ func (s *Service) deletePublicHandoffQueueItems(
 	contextValue *protocol.ConversationContextAggregate,
 	handoff workspacestore.RoomPublicHandoff,
 ) error {
-	if s.inputQueue == nil || contextValue == nil {
+	if contextValue == nil {
 		return nil
 	}
 	locations, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)

@@ -50,12 +50,12 @@ func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T)
 		WorkBinding:   binding,
 	}
 
-	permanent := &Service{executionContext: &managedExecutionAdmissionFake{
+	permanent := withConstructorDefaults(t, &Service{executionContext: &managedExecutionAdmissionFake{
 		err: &orchestrationsvc.DomainError{
 			Code:    orchestrationsvc.ErrorCodeWorkBindingMismatch,
 			Message: "the bound Attempt was superseded",
 		},
-	}}
+	}})
 	if err := permanent.startPublicMentionRoundLocked(
 		context.Background(),
 		parent,
@@ -65,7 +65,7 @@ func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T)
 	}
 
 	transientErr := errors.New("database temporarily unavailable")
-	transient := &Service{executionContext: &managedExecutionAdmissionFake{err: transientErr}}
+	transient := withConstructorDefaults(t, &Service{executionContext: &managedExecutionAdmissionFake{err: transientErr}})
 	if err := transient.startPublicMentionRoundLocked(
 		context.Background(),
 		parent,

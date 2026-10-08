@@ -22,7 +22,7 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 	entries []roomInputQueueEntry,
 	currentGoal *protocol.Goal,
 ) ([]roomInputQueueEntry, error) {
-	if s == nil || s.inputQueue == nil || contextValue == nil || len(entries) == 0 {
+	if contextValue == nil || len(entries) == 0 {
 		return entries, nil
 	}
 	kept := make([]roomInputQueueEntry, 0, len(entries))
@@ -525,7 +525,7 @@ func (s *Service) logicalPublicHandoffRootRoundID(
 	if (item.Source != protocol.InputQueueSourceAgentPublicMention &&
 		!(item.Source == protocol.InputQueueSourceAgentRoomMessage &&
 			protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) != nil)) ||
-		s == nil || s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
+		strings.TrimSpace(item.HandoffID) == "" {
 		return rootRoundID
 	}
 	handoff, ok, err := s.publicHandoffs.Get(item.OwnerUserID, conversationID, item.HandoffID)

@@ -15,7 +15,7 @@ func (s *Service) startSessionBackgroundTask(
 	ownerUserID string,
 	task func(context.Context),
 ) {
-	if s == nil || task == nil {
+	if task == nil {
 		return
 	}
 	sessionKey = strings.TrimSpace(sessionKey)

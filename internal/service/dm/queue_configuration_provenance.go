@@ -20,7 +20,8 @@ func (s *Service) recordTrustedQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil ||
+	if !trusted ||
+		s.queueTrust == nil ||
 		item.Source != protocol.InputQueueSourceUser {
 		return nil
 	}
@@ -55,7 +56,7 @@ func (s *Service) claimTrustedQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s == nil || s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	agentID := inputQueueLocationAgentID(location)
@@ -85,7 +86,7 @@ func (s *Service) revokeQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s == nil || s.queueTrust == nil ||
+	if s.queueTrust == nil ||
 		item.Source != protocol.InputQueueSourceUser {
 		return nil
 	}

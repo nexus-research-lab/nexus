@@ -4,6 +4,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
 //   - im_delivery_reply.go：IM 反馈持久幂等入队、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。
 //   - service.go / request.go / guidance_input.go / round*.go：写请求阶段状态、直接或 queue/guide 物化的首条 Room DM 用户消息消费 conversation draft，与运行时轮次编排；完整回复落盘后写入独立摘要，编辑重发先失效旧摘要；/plan 在 runtime 准备阶段覆盖本轮权限。
 //   - input_queue.go / running_input.go / guidance_input.go / interrupt.go：durable 幂等受理、admission 暂时失败时保留并允许原请求重试恢复、先 ACK 后异步启动与下一轮队列、hook applied ACK 后消费引导、错过 hook 的接力与中断。

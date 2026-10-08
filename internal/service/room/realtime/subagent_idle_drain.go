@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, roundValue *activeRoomRound) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	for _, slot := range roundValue.Slots {
@@ -185,7 +185,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 }
 
 func (s *Service) releaseRoundSubagentWait(roundValue *activeRoomRound) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	if !roundValue.hasRunningSubagentTasks() &&
@@ -206,7 +206,8 @@ func (s *Service) dispatchPostRoundWorkOnce(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) {
-	if s == nil || roundValue == nil || roundValue.RunningSubagents.Load() ||
+	if roundValue == nil ||
+		roundValue.RunningSubagents.Load() ||
 		!roundValue.postRoundDispatched.CompareAndSwap(false, true) {
 		return
 	}
@@ -219,7 +220,8 @@ func (s *Service) startRoomSubagentUsageRetry(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) {
-	if s == nil || roundValue == nil || slot == nil ||
+	if roundValue == nil ||
+		slot == nil ||
 		!slot.tryStartSubagentUsageRetry() {
 		return
 	}
@@ -232,7 +234,8 @@ func (s *Service) startRoomGoalUsageRetry(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) {
-	if s == nil || roundValue == nil || slot == nil ||
+	if roundValue == nil ||
+		slot == nil ||
 		!slot.tryStartGoalUsageRetry() {
 		return
 	}

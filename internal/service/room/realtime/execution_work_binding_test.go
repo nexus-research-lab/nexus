@@ -201,11 +201,11 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 
 func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 	terminalizer := &roomAttemptTerminalizerFake{}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		executionContext: terminalizer,
 		permission:       permissionctx.NewContext(),
 		roomHistory:      workspacestore.NewRoomHistoryStore(t.TempDir()),
-	}
+	})
 	roundValue := &activeRoomRound{
 		SessionKey:         "room:group:conversation-1",
 		RoomID:             "room-1",

@@ -19,7 +19,7 @@ func (s *Service) persistRoomGoalCompletionReceipts(
 	roundValue *activeRoomRound,
 	refresh bool,
 ) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	for _, slot := range roundValue.Slots {
@@ -33,7 +33,7 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 	slot *activeRoomSlot,
 	refresh bool,
 ) {
-	if s == nil || roundValue == nil || slot == nil {
+	if roundValue == nil || slot == nil {
 		return
 	}
 	goalID, assistant, previous, stored := slot.goalCompletionReceiptSnapshot()
@@ -59,9 +59,6 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		return
 	}
 	if roomSlotPublishesPublicOutput(slot) {
-		if s.roomHistory == nil {
-			return
-		}
 		if err := s.persistSharedInlineMessage(roundValue.OwnerUserID, roundValue.ConversationID, message); err != nil {
 			s.logRoomGoalCompletionReceiptError(ctx, roundValue, slot, goalID, err)
 			return
