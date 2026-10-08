@@ -26,6 +26,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -55,6 +56,8 @@ func (a dmRoundMapperAdapter) SessionID() string {
 }
 
 type roundRunner struct {
+	// GoalRoundState 是与 DM/Room 共用的每轮 Goal 状态；其 Mu 保护全部 Goal 字段。
+	runtimehost.GoalRoundState
 	service                     *Service
 	workspacePath               string
 	session                     protocol.Session
@@ -82,41 +85,22 @@ type roundRunner struct {
 	deferredAssistant           *DeferredAssistantHooks
 	trustedExternalInteractive  bool
 	externalReplyTarget         *ExternalReplyTarget
-	goalContext                 string
 	executionID                 string
-	goalIDForUsage              string
-	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	responsibilityState         *runtimectx.ResponsibilityAuthorityState
 	sdkSessionIdentity          *runtimectx.SDKSessionIdentityState
 	commandReceipts             *nexusmcp.CommandReceiptState
-	commandReceiptSequence      uint64
-	goalUsage                   *goalsvc.RuntimeUsageAccumulator
-	goalUsageStarted            time.Time
 	goalUsageBindingMu          sync.Mutex
-	goalUsageMu                 sync.Mutex
-	goalLastAssistant           protocol.Message
-	goalCompletionCandidateID   string
-	goalCompletionAssistant     protocol.Message
-	goalCompletionReceipt       protocol.GoalCompletionReceipt
-	goalCompletionReceiptStored bool
-	goalToolProgress            bool
 	automationRun               *protocol.AutomationRunContext
 	goalTerminalUsageSnapshot   goalsvc.RuntimeUsageSnapshot
 	goalTerminalUsageVersion    uint64
 	goalTerminalUsagePending    bool
 	goalTokenUsageObserved      bool
-	goalUsageScopeConsumed      bool
-	subagentTasks               map[string]struct{}
-	subagentUsagePending        map[string]goalsvc.SubagentUsageObservation
-	subagentUsageClaimPending   bool
-	goalUsageRetryRunning       bool
 	subagentParentTerminal      string
 	subagentPostRoundDispatched bool
 	postRoundDispatchHook       func()
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
-	resultUsageWritten          bool
 	deferredRuntimeMessageUUIDs []string
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
@@ -168,7 +152,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	finalAssistant := r.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
 		r.deliverExternalAssistantReply(ownerCtx, finalAssistant)
-		r.rememberGoalCompletionAssistant(finalAssistant)
+		r.RememberGoalCompletionAssistant(finalAssistant)
 		r.persistGoalCompletionReceipt(context.Background(), false)
 	}
 	r.recordGoalUsageLimit(result)
@@ -191,7 +175,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalNormal)
-	if r.hasRunningSubagentTask() {
+	if r.HasRunningSubagentTask() {
 		return
 	}
 	r.dispatchPostRoundWorkAfterSubagents()
@@ -358,7 +342,7 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 		OwnerUserID:           r.ownerUserID,
 		SessionKey:            r.sessionKey,
 		ExecutionID:           r.executionID,
-		GoalID:                strings.TrimSpace(r.goalIDForUsage),
+		GoalID:                strings.TrimSpace(r.IDForUsage),
 		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
 		AgentID:               agentID,
 		Role:                  orchestration.ExecutionActorCoordinator,
@@ -438,7 +422,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	for _, settled := range settledSubagentUsage {
 		r.clearSubagentUsageObservationPending(settled.taskID, settled.observation)
 	}
-	r.rememberGoalAssistantMessage(message)
+	r.RememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)
 	if message["role"] == "assistant" {
 		roomID, conversationID := dmRoomPermissionRoute(r.sessionKey, r.session)
@@ -559,7 +543,7 @@ func (r *roundRunner) recordUsage(message protocol.Message) {
 		return
 	}
 	if r.writeUsage(message) {
-		r.resultUsageWritten = true
+		r.ResultUsageWritten = true
 	}
 }
 
@@ -567,7 +551,7 @@ func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 	if r.service.Usage == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	if r.resultUsageWritten || !usagesvc.MessageHasUsage(message) {
+	if r.ResultUsageWritten || !usagesvc.MessageHasUsage(message) {
 		return
 	}
 	r.writeUsage(message)
@@ -575,7 +559,7 @@ func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 
 func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
-	goalBound := strings.TrimSpace(r.goalIDForUsage) != ""
+	goalBound := strings.TrimSpace(r.IDForUsage) != ""
 	executionBound := r.executionID != ""
 	lane := string(runtimectx.ResponsibilityLaneUnbound)
 	if executionBound {

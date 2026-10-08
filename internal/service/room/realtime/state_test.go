@@ -262,13 +262,13 @@ func TestRoomSlotTracksRunningSubagentTasks(t *testing.T) {
 	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
 		"subtype": "task_started", "task_id": "task-1", "agent_id": "agent-1", "agent_type": "worker",
 	}})
-	if !slot.hasRunningSubagentTask() {
+	if !slot.mutable.goal.HasRunningSubagentTask() {
 		t.Fatal("task_started 后应记录 running subagent")
 	}
 	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
 		"subtype": "task_updated", "task_id": "task-1", "status": "killed",
 	}})
-	if slot.hasRunningSubagentTask() {
+	if slot.mutable.goal.HasRunningSubagentTask() {
 		t.Fatal("terminal task_updated 后应清除 running subagent")
 	}
 }
@@ -327,7 +327,7 @@ func TestRoomSlotIgnoresLocalShellTaskLifecycle(t *testing.T) {
 		"subtype": "task_started", "task_id": "shell-task", "agent_id": "host-agent",
 		"agent_type": "shell", "task_type": "local_shell",
 	}})
-	if slot.hasRunningSubagentTask() || slot.hasSubagentHistory() {
+	if slot.mutable.goal.HasRunningSubagentTask() || slot.hasSubagentHistory() {
 		t.Fatal("local_shell 不应进入 Room subagent 生命周期")
 	}
 }
@@ -396,18 +396,18 @@ func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageA
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usage = usage
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.Usage = usage
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalUsageActive() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	return slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active()
+	slot.mutable.goal.Mu.Lock()
+	defer slot.mutable.goal.Mu.Unlock()
+	return slot.mutable.goal.Usage != nil && slot.mutable.goal.Usage.Active()
 }
 
 func (slot *activeRoomSlot) publicMessageWasPublished() bool {
@@ -451,7 +451,7 @@ func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.subagentTasks = tasks
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.SubagentTasks = tasks
+	slot.mutable.goal.Mu.Unlock()
 }

@@ -609,7 +609,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 		e.service.recordUsage(e.round, e.slot, messageValue)
 	}
 	if messageRole == "assistant" {
-		e.slot.rememberGoalAssistantMessage(messageValue)
+		e.slot.mutable.goal.RememberGoalAssistantMessage(messageValue)
 	}
 	if roomdomain.IsNoReplyOutputMessage(messageValue) {
 		e.slot.suppressOutput()

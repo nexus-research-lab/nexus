@@ -141,7 +141,7 @@ type roomGoalBoundaryFixture struct {
 
 func (f roomGoalBoundaryFixture) recordAssistantUsage(inputTokens int64, outputTokens int64) {
 	message := roomGoalAssistantUsageMessage(inputTokens, outputTokens)
-	f.slot.rememberGoalAssistantMessage(message)
+	f.slot.mutable.goal.RememberGoalAssistantMessage(message)
 	f.room.recordGoalUsageFromSlotAssistantMessage(context.Background(), f.slot, message)
 }
 

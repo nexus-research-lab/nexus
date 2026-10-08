@@ -1,0 +1,123 @@
+// INPUT: 单个 Agent round（DM round 或 Room slot）运行期间的 Goal 用量、完成收据与子任务观察。
+// OUTPUT: DM 与 Room 共用的每轮 Goal 状态及其加锁访问。
+// POS: 每轮 Goal 状态的唯一实现；DM roundRunner 与 Room slot 都嵌入它，Mu 保护全部字段。
+package runtimehost
+
+import (
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+)
+
+// GoalRoundState 是一个 Agent round 的 Goal 运行状态；Mu 保护全部字段。
+type GoalRoundState struct {
+	Mu                      sync.RWMutex
+	Context                 string
+	IDForUsage              string
+	ChildIDForUsage         string
+	Usage                   *goalsvc.RuntimeUsageAccumulator
+	UsageStartedAt          time.Time
+	LastAssistant           protocol.Message
+	CompletionCandidateID   string
+	CompletionAssistant     protocol.Message
+	CompletionReceipt       protocol.GoalCompletionReceipt
+	CompletionReceiptStored bool
+	ToolProgress            bool
+	CommandReceiptSequence  uint64
+	SubagentTasks           map[string]struct{}
+	SubagentUsagePending    map[string]goalsvc.SubagentUsageObservation
+	UsageRetrying           bool
+	UsageClaimPending       bool
+	UsageScopeConsumed      bool
+	ResultUsageWritten      bool
+}
+
+// KnowsSubagentTask 判断 taskID 是否是本轮已登记或仍待结算的子任务。
+func (g *GoalRoundState) KnowsSubagentTask(taskID string) bool {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return false
+	}
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	if _, ok := g.SubagentTasks[taskID]; ok {
+		return true
+	}
+	_, ok := g.SubagentUsagePending[taskID]
+	return ok
+}
+
+// HasRunningSubagentTask 判断本轮是否仍有运行中或待结算用量的子任务。
+func (g *GoalRoundState) HasRunningSubagentTask() bool {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return len(g.SubagentTasks) > 0 || len(g.SubagentUsagePending) > 0
+}
+
+// RememberGoalAssistantMessage 记录本轮最后一条 assistant 消息，供用量与完成收据使用。
+func (g *GoalRoundState) RememberGoalAssistantMessage(message protocol.Message) {
+	if protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	g.Mu.Lock()
+	g.LastAssistant = protocol.Clone(message)
+	g.Mu.Unlock()
+}
+
+// LastGoalAssistantMessage 返回本轮最后一条 assistant 消息的副本。
+func (g *GoalRoundState) LastGoalAssistantMessage() protocol.Message {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return protocol.Clone(g.LastAssistant)
+}
+
+// HasGoalCompletionCandidate 判断本轮是否已有待确认完成的 Goal。
+func (g *GoalRoundState) HasGoalCompletionCandidate() bool {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return strings.TrimSpace(g.CompletionCandidateID) != ""
+}
+
+// GoalCompletionReceiptSnapshot 返回完成候选、对应 assistant、收据与是否已持久化。
+func (g *GoalRoundState) GoalCompletionReceiptSnapshot() (string, protocol.Message, protocol.GoalCompletionReceipt, bool) {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return strings.TrimSpace(g.CompletionCandidateID),
+		protocol.Clone(g.CompletionAssistant),
+		g.CompletionReceipt,
+		g.CompletionReceiptStored
+}
+
+// MarkGoalCompletionReceiptStored 在收据持久化后记录，仅当候选仍是同一 Goal 时生效。
+func (g *GoalRoundState) MarkGoalCompletionReceiptStored(goalID string, receipt protocol.GoalCompletionReceipt) {
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	if strings.TrimSpace(g.CompletionCandidateID) != strings.TrimSpace(goalID) {
+		return
+	}
+	g.CompletionReceipt = receipt
+	g.CompletionReceiptStored = true
+}
+
+// RememberGoalCompletionAssistant 为当前完成候选记录最终 assistant 消息。
+func (g *GoalRoundState) RememberGoalCompletionAssistant(message protocol.Message) {
+	if protocol.MessageRole(message) != "assistant" {
+		return
+	}
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	if strings.TrimSpace(g.CompletionCandidateID) == "" {
+		return
+	}
+	g.CompletionAssistant = protocol.Clone(message)
+}
+
+// GoalUsageScopeConsumed 判断本轮 Goal 用量 scope 是否已被认领。
+func (g *GoalRoundState) GoalUsageScopeConsumed() bool {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return g.UsageScopeConsumed
+}

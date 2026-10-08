@@ -34,7 +34,7 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 	if roundValue == nil || slot == nil {
 		return
 	}
-	goalID, assistant, previous, stored := slot.goalCompletionReceiptSnapshot()
+	goalID, assistant, previous, stored := slot.mutable.goal.GoalCompletionReceiptSnapshot()
 	if goalID == "" || len(assistant) == 0 ||
 		strings.TrimSpace(slot.WorkspacePath) == "" ||
 		strings.TrimSpace(slot.RuntimeSessionKey) == "" ||
@@ -66,7 +66,7 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		s.logRoomGoalCompletionReceiptError(ctx, roundValue, slot, goalID, err)
 		return
 	}
-	slot.markGoalCompletionReceiptStored(goalID, receipt)
+	slot.mutable.goal.MarkGoalCompletionReceiptStored(goalID, receipt)
 	if roomSlotPublishesPublicOutput(slot) {
 		event := roomdomain.WrapMessageEvent(
 			roundValue.RoomID,

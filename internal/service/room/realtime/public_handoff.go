@@ -442,7 +442,7 @@ func (s *Service) markPublicHandoffTerminal(
 	if handoffID == "" {
 		return
 	}
-	lastAssistant := slot.lastGoalAssistantMessage()
+	lastAssistant := slot.mutable.goal.LastGoalAssistantMessage()
 	hasSubstantiveOutput := !roomdomain.IsNoReplyAssistantMessage(lastAssistant) &&
 		messageutil.ExtractAssistantDisplayText(lastAssistant) != ""
 	if err := s.publicHandoffs.MarkTerminalWithGoalOutcome(

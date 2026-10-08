@@ -54,7 +54,7 @@ func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sd
 	for _, event := range events {
 		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 	}
-	if r.hasRunningSubagentTask() {
+	if r.HasRunningSubagentTask() {
 		return true
 	}
 	r.completeSubagentJoinAfterParentTerminal()
@@ -89,52 +89,29 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 	}
 	subtype := strings.TrimSpace(dmAnyString(metadata["subtype"]))
 	status := strings.TrimSpace(dmAnyString(metadata["status"]))
-	if !messageutil.IsSubagentTaskMetadata(metadata) && !r.knowsSubagentTask(taskID) {
+	if !messageutil.IsSubagentTaskMetadata(metadata) && !r.KnowsSubagentTask(taskID) {
 		return
 	}
-	r.goalUsageMu.Lock()
-	if r.subagentTasks == nil {
-		r.subagentTasks = map[string]struct{}{}
+	r.Mu.Lock()
+	if r.SubagentTasks == nil {
+		r.SubagentTasks = map[string]struct{}{}
 	}
 	switch subtype {
 	case "task_started", "task_progress", "task_updated":
 		if messageutil.IsTerminalSubagentTaskStatus(status) {
-			delete(r.subagentTasks, taskID)
+			delete(r.SubagentTasks, taskID)
 			break
 		}
-		r.subagentTasks[taskID] = struct{}{}
+		r.SubagentTasks[taskID] = struct{}{}
 	case "task_notification":
 		if messageutil.IsTerminalSubagentTaskStatus(status) {
-			delete(r.subagentTasks, taskID)
+			delete(r.SubagentTasks, taskID)
 		}
 	}
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 	if r.service != nil && r.service.runtime != nil {
 		r.service.runtime.MarkSubagentHistory(r.sessionKey)
 	}
-}
-
-func (r *roundRunner) knowsSubagentTask(taskID string) bool {
-	if r == nil || strings.TrimSpace(taskID) == "" {
-		return false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	taskID = strings.TrimSpace(taskID)
-	if _, ok := r.subagentTasks[taskID]; ok {
-		return true
-	}
-	_, ok := r.subagentUsagePending[taskID]
-	return ok
-}
-
-func (r *roundRunner) hasRunningSubagentTask() bool {
-	if r == nil {
-		return false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return len(r.subagentTasks) > 0 || len(r.subagentUsagePending) > 0
 }
 
 func (r *roundRunner) markSubagentUsageObservationPending(
@@ -144,9 +121,9 @@ func (r *roundRunner) markSubagentUsageObservationPending(
 	if r == nil || strings.TrimSpace(taskID) == "" {
 		return
 	}
-	r.goalUsageMu.Lock()
+	r.Mu.Lock()
 	r.markSubagentUsageObservationPendingLocked(taskID, observation)
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 }
 
 func (r *roundRunner) markSubagentUsageObservationPendingLocked(
@@ -156,11 +133,11 @@ func (r *roundRunner) markSubagentUsageObservationPendingLocked(
 	if observation.ObservedAt.IsZero() {
 		observation.ObservedAt = time.Now().UTC()
 	}
-	if r.subagentUsagePending == nil {
-		r.subagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
+	if r.SubagentUsagePending == nil {
+		r.SubagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
 	}
 	taskID = strings.TrimSpace(taskID)
-	r.subagentUsagePending[taskID] = r.subagentUsagePending[taskID].Merge(observation)
+	r.SubagentUsagePending[taskID] = r.SubagentUsagePending[taskID].Merge(observation)
 }
 
 func (r *roundRunner) clearSubagentUsageObservationPending(
@@ -170,9 +147,9 @@ func (r *roundRunner) clearSubagentUsageObservationPending(
 	if r == nil || strings.TrimSpace(taskID) == "" {
 		return
 	}
-	r.goalUsageMu.Lock()
+	r.Mu.Lock()
 	r.clearSubagentUsageObservationPendingLocked(taskID, settled)
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 }
 
 func (r *roundRunner) clearSubagentUsageObservationPendingLocked(
@@ -180,9 +157,9 @@ func (r *roundRunner) clearSubagentUsageObservationPendingLocked(
 	settled goalsvc.SubagentUsageObservation,
 ) {
 	taskID = strings.TrimSpace(taskID)
-	if pending, ok := r.subagentUsagePending[taskID]; ok &&
+	if pending, ok := r.SubagentUsagePending[taskID]; ok &&
 		pending.CoveredBy(settled) {
-		delete(r.subagentUsagePending, taskID)
+		delete(r.SubagentUsagePending, taskID)
 	}
 }
 
@@ -190,17 +167,17 @@ func (r *roundRunner) markSubagentParentTerminal(status string) {
 	if r == nil {
 		return
 	}
-	r.goalUsageMu.Lock()
+	r.Mu.Lock()
 	r.subagentParentTerminal = strings.TrimSpace(status)
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 }
 
 func (r *roundRunner) subagentParentTerminalStatus() string {
 	if r == nil {
 		return ""
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	return r.subagentParentTerminal
 }
 
@@ -246,8 +223,8 @@ func (r *roundRunner) subagentPostRoundWasDispatched() bool {
 	if r == nil {
 		return false
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	return r.subagentPostRoundDispatched
 }
 
@@ -255,10 +232,10 @@ func (r *roundRunner) claimSubagentPostRoundDispatch() bool {
 	if r == nil {
 		return false
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if len(r.subagentTasks) > 0 ||
-		len(r.subagentUsagePending) > 0 ||
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if len(r.SubagentTasks) > 0 ||
+		len(r.SubagentUsagePending) > 0 ||
 		r.subagentPostRoundDispatched {
 		return false
 	}

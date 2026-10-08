@@ -233,7 +233,7 @@ func TestSharedRoomGoalFinalizerWaitsForEverySlotAndRunsOnce(t *testing.T) {
 			if !slot.goalUsageTerminalSettled() {
 				t.Fatalf("FinalizeUsageForGoal observed unsettled slot %s", name)
 			}
-			if slot.hasRunningSubagentTask() {
+			if slot.mutable.goal.HasRunningSubagentTask() {
 				t.Fatalf("FinalizeUsageForGoal observed running child in slot %s", name)
 			}
 		}
@@ -342,8 +342,8 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 	for _, settlement := range settled {
 		slot.clearSubagentUsagePending(settlement.taskID, settlement.cumulativeTotal)
 	}
-	if len(settled) != 0 || !slot.hasRunningSubagentTask() {
-		t.Fatalf("failed synchronous persistence settled=%#v running=%v, want pending barrier", settled, slot.hasRunningSubagentTask())
+	if len(settled) != 0 || !slot.mutable.goal.HasRunningSubagentTask() {
+		t.Fatalf("failed synchronous persistence settled=%#v running=%v, want pending barrier", settled, slot.mutable.goal.HasRunningSubagentTask())
 	}
 	service.startRoomSubagentUsageRetry(roundValue, slot)
 
@@ -364,7 +364,7 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if slot.hasRunningSubagentTask() {
+	if slot.mutable.goal.HasRunningSubagentTask() {
 		t.Fatalf("background recovery left child barrier: %#v", slot.subagentUsagePendingSnapshot())
 	}
 	if got := provider.lastPersistedTotal(); got != 240 {
@@ -715,9 +715,9 @@ func waitForRoomGoalUsageRetryStopped(t *testing.T, slot *activeRoomSlot) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		slot.mutable.goal.mu.RLock()
-		running := slot.mutable.goal.usageRetrying
-		slot.mutable.goal.mu.RUnlock()
+		slot.mutable.goal.Mu.RLock()
+		running := slot.mutable.goal.UsageRetrying
+		slot.mutable.goal.Mu.RUnlock()
 		if !running {
 			return
 		}
