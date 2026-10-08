@@ -56,4 +56,3 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 	}
 }
-
