@@ -1744,3 +1744,14 @@ func (p *fakePersistentDMGoalProvider) ClaimUsageSourceRound(
 	p.claims = append(p.claims, claim)
 	return protocol.GoalUsageSourceResult{}, nil
 }
+
+func (r *roundRunner) recordGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
+	if r.service.goals == nil || r.ignoreGoalRuntime() {
+		return
+	}
+	snapshot, ok := r.finalGoalUsageSnapshot(result, finalAssistant)
+	if !ok {
+		return
+	}
+	r.recordGoalUsageSnapshot(ctx, snapshot)
+}

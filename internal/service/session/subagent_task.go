@@ -169,13 +169,6 @@ func subagentTaskOutputMessages(messages []protocol.Message) []protocol.Message 
 	return output
 }
 
-func (s *Service) readSubagentTaskThread(
-	task SubagentTask,
-	workspacePath string,
-) ([]protocol.Message, bool, error) {
-	return s.readSubagentTaskThreadAtOwner("", false, task, workspacePath)
-}
-
 func (s *Service) readOwnerSubagentTaskThread(
 	ctx context.Context,
 	task SubagentTask,
@@ -833,16 +826,6 @@ func updateSubagentTaskString(target *string, source map[string]any, key string)
 	if value := stringFromAny(source[key]); value != "" {
 		*target = value
 	}
-}
-
-func readSubagentOutputFile(path string, workspacePath string) (string, error) {
-	rootPath := filepath.Clean(strings.TrimSpace(workspacePath))
-	root, err := confinedfs.Open(rootPath)
-	if err != nil {
-		return "", err
-	}
-	defer root.Close()
-	return readSubagentOutputFileAt(root, path, workspacePath)
 }
 
 func (s *Service) readSubagentOutputFile(

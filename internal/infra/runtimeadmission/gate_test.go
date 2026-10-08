@@ -157,3 +157,8 @@ func TestLeaseReleaseCancelsContext(t *testing.T) {
 		})
 	}
 }
+
+// NewGate 创建 runtime admission gate。
+func NewGate() *Gate {
+	return &Gate{active: make(map[uint64]context.CancelFunc)}
+}

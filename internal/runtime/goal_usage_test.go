@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestResultUsageLimitReachedDetectsExplicitUsageLimit(t *testing.T) {
@@ -310,4 +311,10 @@ func TestGoalUsageFromTokenUsageRecognizesTotalOnlyModelUsageIncludingZero(t *te
 	if !present || !zero.ActualTotalKnown || zero.ActualTokens() != 0 {
 		t.Fatalf("total-only zero model usage = %#v, present = %v, want authoritative zero", zero, present)
 	}
+}
+
+// GoalUsageFromTokenUsage 把 SDK usage 转成 Goal accounting 口径。
+func GoalUsageFromTokenUsage(usage sdkprotocol.TokenUsage) protocol.GoalUsage {
+	goalUsage, _ := GoalUsageFromTokenUsageWithPresence(usage)
+	return goalUsage
 }

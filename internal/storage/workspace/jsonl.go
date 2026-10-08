@@ -88,15 +88,6 @@ func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []m
 	return root.WriteFileAtomic(relative, []byte(builder.String()), storageFileMode(0o644))
 }
 
-func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
-	root, relative, err := s.openStorePath(path, false)
-	if err != nil {
-		return nil, err
-	}
-	defer root.Close()
-	return readJSONLAtRoot(root, relative)
-}
-
 func (s *SessionFileStore) readJSONLAt(rootPath string, path string) ([]map[string]any, error) {
 	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
 		return s.readOwnerWorkspaceJSONL(ownerUserID, rootPath, path)

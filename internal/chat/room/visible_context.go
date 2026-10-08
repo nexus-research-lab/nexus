@@ -43,8 +43,3 @@ func (trigger Trigger) WithPublicSource(messages []protocol.Message) Trigger {
 	}
 	return trigger
 }
-
-// BuildVisibleContext 构建 Room 成员本轮动态输入。
-func BuildVisibleContext(input VisibleContextInput) string {
-	return BuildVisibleContextPlan(input).Text
-}

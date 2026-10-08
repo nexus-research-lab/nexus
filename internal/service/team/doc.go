@@ -5,7 +5,7 @@
 // 成员清单：service.go 定义可信 Access、远端与投影端口、五类同步操作及 ErrProjection；membership.go 转发 Room 真人治理命令与有界成员/投递查询。
 // node.go / node_control.go 管理本人 Agent 入群后的本机自动登记、固定 Control 公共入口和持久回执对账。
 // node.go 的消息历史查询限制每批 100 个引用，身份与组织作用域只从远程 Cookie 派生。
-// node.go 的 PrepareRoom 独立核验当前群成员与本人本机 Agent，复用确定性 Room 并自动登记执行；暂停成员只准备会话，加入群不直接启动 runtime。
+// node.go 的 PrepareRooms 独立核验当前群成员与本人本机 Agent，复用确定性 Room 并自动登记执行；暂停成员只准备会话，加入群不直接启动 runtime。
 // 节点失效恢复使用当前有效真人登录，未知写入重放原意图；设备范围变更等已有任务收尾后再执行撤销与登记，不中断其他群任务。
 // node_executor.go / node_runtime.go 负责持久领取、Room 原生启动/审批/中断和完整输出 outbox，不另建 runtime。
 // 完整回复的结构化 @ 与候选正文一起持久化；切换候选先发布旧目标，无 @ 的新消息不能继承旧目标。

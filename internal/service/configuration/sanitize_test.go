@@ -1,6 +1,8 @@
 package configuration
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -300,4 +302,13 @@ func TestHostDomainSnapshotDoesNotExposeCredentials(t *testing.T) {
 	if !strings.Contains(text, `"configured":true`) || !strings.Contains(text, `"redacted":true`) {
 		t.Fatalf("host domain snapshot must retain credential presence status: %s", text)
 	}
+}
+
+func revisionFor(value any) (string, error) {
+	payload, err := json.Marshal(sanitizeValue(value))
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(payload)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }

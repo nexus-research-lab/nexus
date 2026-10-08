@@ -437,3 +437,7 @@ func TestNodeGrantRecoversExactIntentWithoutExposingCredentials(t *testing.T) {
 		t.Fatalf("pending cancellation receipt: %+v %v", view, err)
 	}
 }
+
+func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([]NodeRoomBinding, error) {
+	return s.PrepareRooms(ctx, cookie, []string{roomID})
+}

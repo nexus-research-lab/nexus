@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -169,65 +167,6 @@ func RenderRuntimeContentWithAttachments(
 	return RuntimeContent{
 		text:   plainText,
 		blocks: blocks,
-	}, nil
-}
-
-// ResolveWorkspaceAttachmentPath 将 workspace 相对路径约束到指定 workspace 内并返回绝对路径。
-func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (string, error) {
-	resolved, err := openWorkspaceAttachment(workspacePath, relativePath)
-	if err != nil {
-		return "", err
-	}
-	_ = resolved.File.Close()
-	return resolved.AbsolutePath, nil
-}
-
-func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
-	root := filepath.Clean(strings.TrimSpace(workspacePath))
-	if root == "" {
-		return ResolvedAttachment{}, errors.New("workspace_path is required")
-	}
-	normalizedPath := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
-	normalizedPath = strings.TrimPrefix(normalizedPath, "/")
-	if normalizedPath == "" {
-		return ResolvedAttachment{}, errors.New("attachment workspace_path is required")
-	}
-	targetPath := filepath.Clean(filepath.Join(root, normalizedPath))
-	rootWithSeparator := root + string(os.PathSeparator)
-	if targetPath != root && !strings.HasPrefix(targetPath, rootWithSeparator) {
-		return ResolvedAttachment{}, errors.New("attachment path escapes workspace")
-	}
-	rootFS, err := confinedfs.Open(root)
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	relative := filepath.ToSlash(normalizedPath)
-	parent, err := rootFS.OpenRootNoSymlink(path.Dir(relative))
-	rootFS.Close()
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	defer parent.Close()
-	name := path.Base(relative)
-	file, err := parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	info, err := file.Stat()
-	if err != nil {
-		_ = file.Close()
-		return ResolvedAttachment{}, err
-	}
-	if !info.Mode().IsRegular() {
-		_ = file.Close()
-		if info.IsDir() {
-			return ResolvedAttachment{}, fmt.Errorf("attachment path is a directory: %s", normalizedPath)
-		}
-		return ResolvedAttachment{}, fmt.Errorf("attachment path is not a regular file: %s", normalizedPath)
-	}
-	return ResolvedAttachment{
-		AbsolutePath: targetPath,
-		File:         file,
 	}, nil
 }
 

@@ -634,3 +634,20 @@ func TestReadSubagentOutputFileRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
 		t.Fatalf("跨 owner workspace symlink 应被拒绝: output=%q err=%v", output, err)
 	}
 }
+
+func (s *Service) readSubagentTaskThread(
+	task SubagentTask,
+	workspacePath string,
+) ([]protocol.Message, bool, error) {
+	return s.readSubagentTaskThreadAtOwner("", false, task, workspacePath)
+}
+
+func readSubagentOutputFile(path string, workspacePath string) (string, error) {
+	rootPath := filepath.Clean(strings.TrimSpace(workspacePath))
+	root, err := confinedfs.Open(rootPath)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	return readSubagentOutputFileAt(root, path, workspacePath)
+}

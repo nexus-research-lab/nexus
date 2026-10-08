@@ -276,3 +276,9 @@ func assertDomainErrorCode(t *testing.T, err error, want ErrorCode) {
 		t.Fatalf("error code = %s, want %s: %v", domainErr.Code, want, err)
 	}
 }
+
+// ValidatePlanDraft 检查结构完整性、DAG 与已声明 output scope 冲突。
+func ValidatePlanDraft(draft PlanDraft) error {
+	_, err := NormalizeAndValidatePlanDraft(draft)
+	return err
+}

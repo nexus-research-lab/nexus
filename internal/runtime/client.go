@@ -1167,12 +1167,6 @@ func (c *agentClient) Supports(capability bridge.Capability) bool {
 	return session != nil && session.Supports(capability)
 }
 
-func (c *agentClient) currentSandboxLease() *SandboxResourceLease {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.sandboxLease
-}
-
 func (c *agentClient) refreshSandboxReceiptLeaseLocked(lease *SandboxResourceLease) {
 	if c.sandboxReceipt == nil || lease == nil {
 		return

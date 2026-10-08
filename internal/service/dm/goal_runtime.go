@@ -26,17 +26,6 @@ const (
 	subagentUsageRetryMaxDelay     = 5 * time.Second
 )
 
-func (r *roundRunner) recordGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() {
-		return
-	}
-	snapshot, ok := r.finalGoalUsageSnapshot(result, finalAssistant)
-	if !ok {
-		return
-	}
-	r.recordGoalUsageSnapshot(ctx, snapshot)
-}
-
 func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
 	snapshot, _ := r.finalGoalUsageSnapshot(result, finalAssistant)
 	version := r.rememberTerminalGoalUsageSnapshot(snapshot)

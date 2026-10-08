@@ -106,15 +106,6 @@ var deliveryRetryBackoffs = []time.Duration{
 	30 * time.Minute,
 }
 
-func (s *Service) deliverJobObservation(
-	ctx context.Context,
-	job automationdomain.ScheduledTask,
-	executionSessionKey string,
-	observation automationexec.ExecutionObservation,
-) jobDeliveryResult {
-	return s.deliverJobObservationToTarget(ctx, job, job.Delivery, executionSessionKey, observation)
-}
-
 func (s *Service) deliverJobObservationToTarget(
 	ctx context.Context,
 	job automationdomain.ScheduledTask,

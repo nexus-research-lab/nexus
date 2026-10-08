@@ -45,23 +45,6 @@ func readSkillSource(sourceDir string) (string, string, string, error) {
 	return string(content), skillMDPath, filepath.Base(sourceDir), nil
 }
 
-func copyDirectory(sourceDir string, targetDir string) error {
-	sourceRoot, err := confinedfs.Open(sourceDir)
-	if err != nil {
-		return err
-	}
-	defer sourceRoot.Close()
-	if err = os.MkdirAll(targetDir, 0o755); err != nil {
-		return err
-	}
-	targetRoot, err := confinedfs.Open(targetDir)
-	if err != nil {
-		return err
-	}
-	defer targetRoot.Close()
-	return targetRoot.CopyTreeFrom(sourceRoot)
-}
-
 // copyDirectoryAt 将外部源目录复制到已固定的 owner 根。
 func copyDirectoryAt(
 	sourceDir string,

@@ -42,12 +42,6 @@ type PlanDependencyDraft struct {
 	Kind       protocol.WorkDependencyKind
 }
 
-// ValidatePlanDraft 检查结构完整性、DAG 与已声明 output scope 冲突。
-func ValidatePlanDraft(draft PlanDraft) error {
-	_, err := NormalizeAndValidatePlanDraft(draft)
-	return err
-}
-
 // NormalizeAndValidatePlanDraft 返回服务端可安全持久化的规范化副本，不修改调用方输入。
 func NormalizeAndValidatePlanDraft(draft PlanDraft) (PlanDraft, error) {
 	if err := newProjectionLimitError("items", len(draft.Items), ""); err != nil {

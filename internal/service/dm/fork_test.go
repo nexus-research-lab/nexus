@@ -707,3 +707,21 @@ func TestTransientForkAtTranscriptTailOmitsProviderSpecificMessageBoundary(t *te
 		t.Fatal("historical round was incorrectly recognized as the transcript tail")
 	}
 }
+
+func latestCompletedAssistantRound(rows []protocol.Message, activeRoundIDs []string) string {
+	seen := make(map[string]struct{})
+	for index := len(rows) - 1; index >= 0; index-- {
+		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		if roundID == "" {
+			continue
+		}
+		if _, duplicate := seen[roundID]; duplicate {
+			continue
+		}
+		seen[roundID] = struct{}{}
+		if completedAssistantRound(rows, roundID, activeRoundIDs) {
+			return roundID
+		}
+	}
+	return ""
+}

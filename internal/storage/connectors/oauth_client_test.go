@@ -183,3 +183,13 @@ CREATE TABLE connector_oauth_clients (
 func testConnectorCredentialKey() string {
 	return base64.StdEncoding.EncodeToString([]byte("01234567890123456789012345678901"))
 }
+
+// NewOAuthClientStore 创建 connector OAuth client 仓储。
+func NewOAuthClientStore(db *sql.DB, driver string, key []byte) *OAuthClientStore {
+	raw := ""
+	if len(key) > 0 {
+		raw = base64.StdEncoding.EncodeToString(key)
+	}
+	keyring, keyringErr := credentials.NewKeyring(raw, nil)
+	return NewOAuthClientStoreWithKeyring(db, driver, keyring, keyringErr)
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -532,4 +533,30 @@ func TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers(t *testing.T
 	if err := active.Release(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeSandboxLeaseMarker(path string, marker SandboxLeaseMarker) error {
+	root, err := openSandboxDirectory(path)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeSandboxLeaseMarkerInRoot(root, marker)
+}
+
+// ReleasePath is retained as a fail-closed compatibility helper. Cleanup of a
+// live resource must use the exact Lease handle; a path alone cannot identify
+// which runtime generation owns a reference.
+func ReleasePath(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "." || path == "" {
+		return nil
+	}
+	registryMu.Lock()
+	resource := registry[path]
+	registryMu.Unlock()
+	if resource == nil {
+		return nil
+	}
+	return errors.New("sandbox lease cleanup requires its exact handle")
 }
