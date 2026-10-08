@@ -93,6 +93,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	prefs := preferencessvc.DefaultPreferences()
 	prefs.EmotionEnabled = true
 	service.SetPreferences(fakeDMPreferencesService{prefs: prefs})
+	service.SetUsageRecorder(&fakeTokenUsageRecorder{})
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
 	permission.BindSession(sessionKey, sender)

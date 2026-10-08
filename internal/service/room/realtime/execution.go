@@ -63,57 +63,8 @@ type slotExecution struct {
 	runtimeIdentityCommitted bool
 }
 
-type roomRoundMapperAdapter struct {
-	mapper *roomdomain.SlotMessageMapper
-}
-
-func (a roomRoundMapperAdapter) Map(
-	incoming sdkprotocol.ReceivedMessage,
-	interruptReason ...string,
-) (exec.RoundMapResult, error) {
-	result, err := a.mapper.MapResult(incoming, interruptReason...)
-	if err != nil {
-		return exec.RoundMapResult{}, err
-	}
-	return exec.RoundMapResult{
-		Events:          result.Events,
-		DurableMessages: result.DurableMessages,
-		TerminalStatus:  result.TerminalStatus,
-		ResultSubtype:   result.ResultSubtype,
-	}, nil
-}
-
-func (a roomRoundMapperAdapter) SessionID() string {
-	return a.mapper.SessionID()
-}
-
-func (s *Service) recordUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.Usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "result" {
-		return
-	}
-	if !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	if s.writeUsage(roundValue, slot, message) {
-		slot.setResultUsageWritten()
-	}
-}
-
-func (s *Service) recordTerminalAssistantUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.Usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	if slot.resultUsageWasWritten() || !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	s.writeUsage(roundValue, slot, message)
-}
-
-func (s *Service) writeUsage(
-	roundValue *activeRoomRound,
-	slot *activeRoomSlot,
-	message protocol.Message,
-) bool {
+func (e *slotExecution) writeUsage(message protocol.Message) bool {
+	s, roundValue, slot := e.service, e.round, e.slot
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
 	if err := s.WriteRuntimeUsage(slot.RuntimeSessionKey, input, slot.ensureResponsibilityAuthorityState(), slot.goalIDForUsage(), ""); err != nil {
 		s.LoggerFor(context.Background()).Error("Room token usage 写入失败",
@@ -411,7 +362,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
 		InputOptions:     inputOptions,
 		Client:           client,
-		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
+		Mapper:           runtimehost.RoundMapper{EventMapper: e.mapper.EventMapper},
 		IdleTimeout:      e.service.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
 			return e.service.Permission.PendingRequestState(e.slot.RuntimeSessionKey)
@@ -574,7 +525,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	}
 	if messageRole == "result" {
 		e.slot.setStatus(resultStatus(messageValue["subtype"]))
-		e.service.recordUsage(e.round, e.slot, messageValue)
+		e.slot.mutable.goal.RecordResultUsage(messageValue, e.writeUsage)
 	}
 	if messageRole == "assistant" {
 		e.slot.mutable.goal.RememberGoalAssistantMessage(messageValue)

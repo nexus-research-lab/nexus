@@ -122,27 +122,6 @@ func (c *permissionModeTestClient) Supports(capability agentclient.Capability) b
 
 func (c *permissionModeTestClient) SessionID() string { return "" }
 
-func TestRoomUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
-	t.Parallel()
-	recorder := &fakeTokenUsageRecorder{}
-	service := &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}}
-	roundValue := &activeRoomRound{OwnerUserID: "user-1", SessionKey: "room:session"}
-	slot := &activeRoomSlot{AgentID: "agent-1", AgentRoundID: "agent-round-1"}
-
-	service.recordUsage(roundValue, slot, protocol.Message{
-		"role": "result", "message_id": "result-empty", "session_key": "room:session", "round_id": "agent-round-1",
-		"usage": map[string]any{},
-	})
-	service.recordTerminalAssistantUsage(roundValue, slot, protocol.Message{
-		"role": "assistant", "message_id": "assistant-1", "session_key": "room:session", "round_id": "agent-round-1",
-		"usage": map[string]any{"input_tokens": 3},
-	})
-
-	if len(recorder.inputs) != 1 || recorder.inputs[0].MessageID != "assistant-1" {
-		t.Fatalf("应 fallback 记录 assistant usage，实际=%+v", recorder.inputs)
-	}
-}
-
 func TestInterruptActiveSlotSeparatesControlAndDisplayReasons(t *testing.T) {
 	tests := map[string]struct {
 		interruptReason string

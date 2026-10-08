@@ -611,24 +611,6 @@ func (slot *activeRoomSlot) getClient() runtimectx.Client {
 	return slot.mutable.runtime.client
 }
 
-func (slot *activeRoomSlot) setResultUsageWritten() {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.Mu.Lock()
-	slot.mutable.goal.ResultUsageWritten = true
-	slot.mutable.goal.Mu.Unlock()
-}
-
-func (slot *activeRoomSlot) resultUsageWasWritten() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.Mu.RLock()
-	defer slot.mutable.goal.Mu.RUnlock()
-	return slot.mutable.goal.ResultUsageWritten
-}
-
 func (slot *activeRoomSlot) setCancel(cancel context.CancelFunc) {
 	if slot == nil {
 		return
