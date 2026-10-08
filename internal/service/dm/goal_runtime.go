@@ -57,29 +57,11 @@ func (r *roundRunner) recordGoalUsageLimit(result exec.RoundExecutionResult) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || !result.UsageLimitReached {
 		return
 	}
-	r.Mu.Lock()
-	goalID := strings.TrimSpace(r.IDForUsage)
-	r.Mu.Unlock()
-	var err error
-	if goalID != "" {
-		if provider, ok := r.service.goals.(interface {
-			UsageLimitForGoal(context.Context, string, string, string) (*protocol.Goal, error)
-		}); ok {
-			_, err = provider.UsageLimitForGoal(context.Background(), goalID, r.roundID, result.UsageLimitReason)
-		} else {
-			_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
-		}
-	} else {
-		_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
-	}
-	if err != nil && !goalsvc.IsInactive(err) {
-		r.service.LoggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
-			"session_key", r.sessionKey,
-			"goal_id", goalID,
-			"round_id", r.roundID,
-			"err", err,
-		)
-	}
+	r.Mu.RLock()
+	goalID := r.IDForUsage
+	r.Mu.RUnlock()
+	ctx := context.Background()
+	runtimehost.RecordGoalUsageLimit(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, goalID, r.roundID, result.UsageLimitReason)
 }
 
 func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
@@ -378,18 +360,7 @@ func (r *roundRunner) hasGoalRoundBinding() bool {
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {
-	err := mutation()
-	if err == nil || goalsvc.IsExpectedMutationError(err) {
-		return
-	}
-	baseFields := []any{
-		"session_key", r.sessionKey,
-		"goal_id", r.IDForUsage,
-		"round_id", r.roundID,
-	}
-	baseFields = append(baseFields, fields...)
-	baseFields = append(baseFields, "err", err)
-	r.service.LoggerFor(context.Background()).Warn(logMessage, baseFields...)
+	runtimehost.LogGoalMutationFailure(r.service.LoggerFor(context.Background()), logMessage, mutation(), r.sessionKey, r.IDForUsage, r.roundID, fields...)
 }
 
 func (r *roundRunner) rememberGoalToolProgress(progressed bool) {

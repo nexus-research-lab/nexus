@@ -288,18 +288,7 @@ func (s *Service) recordSlotGoalMutation(
 	mutation func() error,
 	fields ...any,
 ) {
-	err := mutation()
-	if err == nil || goalsvc.IsExpectedMutationError(err) {
-		return
-	}
-	baseFields := []any{
-		"session_key", goalSessionKeyForSlot(slot),
-		"goal_id", slot.goalIDForUsage(),
-		"round_id", slot.AgentRoundID,
-	}
-	baseFields = append(baseFields, fields...)
-	baseFields = append(baseFields, "err", err)
-	s.LoggerFor(ctx).Warn(logMessage, baseFields...)
+	runtimehost.LogGoalMutationFailure(s.LoggerFor(ctx), logMessage, mutation(), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, fields...)
 }
 
 func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
@@ -476,38 +465,19 @@ func (s *Service) recordGoalUsageLimitForSlot(
 	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || !result.UsageLimitReached {
 		return
 	}
-	goalID := strings.TrimSpace(slot.goalIDForUsage())
-	var err error
-	if goalID != "" {
-		if provider, ok := s.goals.(interface {
-			UsageLimitForGoal(context.Context, string, string, string) (*protocol.Goal, error)
-		}); ok {
-			_, err = provider.UsageLimitForGoal(ctx, goalID, slot.AgentRoundID, result.UsageLimitReason)
-		} else {
-			_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
-		}
-	} else {
-		_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
-	}
-	if err != nil && !goalsvc.IsInactive(err) {
-		s.LoggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
-			"session_key", goalSessionKeyForSlot(slot),
-			"goal_id", goalID,
-			"round_id", slot.AgentRoundID,
-			"err", err,
-		)
-	}
+	runtimehost.RecordGoalUsageLimit(ctx, s.goals, s.LoggerFor(ctx), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, result.UsageLimitReason)
 }
 
 func (s *Service) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
 	snapshot, ok := slotFinalGoalUsageSnapshot(slot, exec.RoundExecutionResult{}, slot.mutable.goal.LastGoalAssistantMessage())
-	if !ok {
+	settlementBoundary := goalsvc.RuntimeUsageSettlementBoundary(ctx)
+	if !ok && !settlementBoundary {
 		return nil
 	}
-	// Goal mutation flush 是 mid-round checkpoint，不得提前把 estimated actual
-	// 当成 terminal 真值，否则后续 provider exact total 无法向下校准。
+	// Goal mutation flush 是 round 中途的检查点，不是 provider terminal；estimated actual
+	// 必须等真正终态，否则 exact total 无法向下校准。结算边界即使没有新用量也要落一次。
 	snapshot.Terminal = false
-	snapshot.SettlementBoundary = goalsvc.RuntimeUsageSettlementBoundary(ctx)
+	snapshot.SettlementBoundary = settlementBoundary
 	if s.tryRecordGoalUsageSnapshotForSlot(ctx, slot, snapshot) {
 		return nil
 	}
