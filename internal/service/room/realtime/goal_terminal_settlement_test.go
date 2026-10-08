@@ -340,7 +340,7 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 	settled := service.recordSubagentGoalUsageForSlot(context.Background(), slot, terminalMessage)
 	slot.rememberSubagentTaskMessage(terminalMessage)
 	for _, settlement := range settled {
-		slot.clearSubagentUsagePending(settlement.taskID, settlement.cumulativeTotal)
+		slot.clearSubagentUsagePending(settlement.TaskID, settlement.Observation.CumulativeTotal)
 	}
 	if len(settled) != 0 || !slot.mutable.goal.HasRunningSubagentTask() {
 		t.Fatalf("failed synchronous persistence settled=%#v running=%v, want pending barrier", settled, slot.mutable.goal.HasRunningSubagentTask())

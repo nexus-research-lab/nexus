@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -297,7 +298,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			parentRound.OwnerUserID = currentContextValue.Room.OwnerUserID
 		}
 	}
-	ctx = contextWithExactQueueOwner(ctx, parentRound.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, parentRound.OwnerUserID)
 	admittedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
 		if binding := protocol.NormalizeGoalCollaborationBinding(
@@ -540,7 +541,7 @@ func (s *Service) resumeParentAfterRejectedGoalCollaboration(
 	for _, slot := range parentRound.Slots {
 		slot.clearPendingGoalCollaboration()
 	}
-	s.startSessionBackgroundTask(
+	s.StartSessionBackgroundTask(
 		parentRound.SessionKey,
 		parentRound.OwnerUserID,
 		func(taskCtx context.Context) {
@@ -1217,7 +1218,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 	}
 	if dispatchQueued {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			parentRound.OwnerUserID,
 			func(taskCtx context.Context) {

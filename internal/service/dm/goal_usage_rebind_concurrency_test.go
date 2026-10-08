@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
@@ -84,7 +85,7 @@ func TestRoundRunnerSerializesUsageSettlementWithExternalGoalRebind(t *testing.T
 		release:                 make(chan struct{}),
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:rebind",
 		roundID:        "round-old",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -149,7 +150,7 @@ func TestRoundRunnerRetriesUncommittedUsageAtTerminal(t *testing.T) {
 		failNext:                true,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:retry",
 		roundID:        "round-retry",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -190,7 +191,7 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 		failuresRemaining:       goalUsagePersistAttempts,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:retry-window",
 		roundID:        "round-retry-window",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry-window", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -233,7 +234,7 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 func TestRoundRunnerNewerTerminalSnapshotPreventsOlderSettlementFromClosing(t *testing.T) {
 	base := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: base},
+		service:        &Service{goals: base, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:terminal-version-handoff",
 		roundID:        "round-terminal-version-handoff",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-terminal-version-handoff", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},

@@ -8,8 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
 )
 
 // GoalRoundState 是一个 Agent round 的 Goal 运行状态；Mu 保护全部字段。
@@ -120,4 +123,53 @@ func (g *GoalRoundState) GoalUsageScopeConsumed() bool {
 	g.Mu.RLock()
 	defer g.Mu.RUnlock()
 	return g.UsageScopeConsumed
+}
+
+// SubagentUsageSettlement 是一条待结算的子任务用量观察。
+type SubagentUsageSettlement struct {
+	TaskID      string
+	Observation goalsvc.SubagentUsageObservation
+}
+
+// SubagentUsageObservations 从消息中提取属于本轮子任务的用量观察。
+func (g *GoalRoundState) SubagentUsageObservations(message protocol.Message) []SubagentUsageSettlement {
+	observations := goalruntimeusage.SubagentObservations(message, g.KnowsSubagentTask)
+	result := make([]SubagentUsageSettlement, 0, len(observations))
+	for _, item := range observations {
+		result = append(result, SubagentUsageSettlement{TaskID: item.TaskID, Observation: item.Usage})
+	}
+	return result
+}
+
+// RememberSubagentTaskMessage 按子任务生命周期消息更新运行中任务集合；
+// 返回 true 表示消息属于本轮子任务，调用方据此记录宿主侧的子任务历史。
+func (g *GoalRoundState) RememberSubagentTaskMessage(message protocol.Message) bool {
+	metadata, _ := message["metadata"].(map[string]any)
+	taskID := strings.TrimSpace(textutil.AnyString(metadata["task_id"]))
+	if taskID == "" {
+		return false
+	}
+	if !messageutil.IsSubagentTaskMetadata(metadata) && !g.KnowsSubagentTask(taskID) {
+		return false
+	}
+	subtype := textutil.AnyString(metadata["subtype"])
+	terminal := messageutil.IsTerminalSubagentTaskStatus(textutil.AnyString(metadata["status"]))
+	g.Mu.Lock()
+	defer g.Mu.Unlock()
+	if g.SubagentTasks == nil {
+		g.SubagentTasks = map[string]struct{}{}
+	}
+	switch subtype {
+	case "task_started", "task_progress", "task_updated":
+		if terminal {
+			delete(g.SubagentTasks, taskID)
+		} else {
+			g.SubagentTasks[taskID] = struct{}{}
+		}
+	case "task_notification":
+		if terminal {
+			delete(g.SubagentTasks, taskID)
+		}
+	}
+	return true
 }

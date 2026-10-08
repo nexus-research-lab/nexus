@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
@@ -36,7 +35,6 @@ const (
 	nexusRoomIDEnvName             = "NEXUS_ROOM_ID"
 	nexusRoomConversationIDEnvName = "NEXUS_ROOM_CONVERSATION_ID"
 	nexusRoomAgentIDEnvName        = "NEXUS_ROOM_AGENT_ID"
-	roomToolSurfaceRetireTimeout   = 2*runtimectx.RoundIdleAbortTimeout + time.Second
 )
 
 type preparedSlotRuntime struct {
@@ -615,7 +613,7 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		storedToolSurface == e.toolSurfaceFingerprint &&
 		!toolSurfaceFork
 	if toolSurfaceFork {
-		retired, retireErr := retireExistingRoomRuntimeClient(e.ctx, startup)
+		retired, retireErr := runtimehost.RetireExistingRuntimeClient(e.ctx, startup)
 		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
 			return nil, fmt.Errorf("换代 Room runtime 工具面: %w", retireErr)
 		}
@@ -726,16 +724,6 @@ func retireRoomRuntimeClient(startup *runtimectx.ClientStartup) (bool, error) {
 	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
-}
-
-func retireExistingRoomRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	// Process transport 的优雅退出与强制回收各有一个窗口，换代必须等完两阶段。
-	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), roomToolSurfaceRetireTimeout)
-	defer cancel()
-	return startup.RetireExisting(closeCtx)
 }
 
 func (e *slotExecution) connectRuntimeOnce(

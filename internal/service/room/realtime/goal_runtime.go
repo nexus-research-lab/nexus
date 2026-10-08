@@ -35,12 +35,6 @@ const (
 	roomGoalUsageRetryMaxDelay = 5 * time.Second
 )
 
-type roomSubagentUsageSettlement struct {
-	taskID          string
-	cumulativeTotal int64
-	observation     goalsvc.SubagentUsageObservation
-}
-
 type roomGoalUsageSourceRecorder interface {
 	RecordUsageSourceSnapshot(context.Context, protocol.GoalUsageSourceSnapshot) (protocol.GoalUsageSourceResult, error)
 }
@@ -1247,16 +1241,16 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 	message protocol.Message,
-) []roomSubagentUsageSettlement {
+) []runtimehost.SubagentUsageSettlement {
 	if slot == nil ||
 		!strings.EqualFold(slot.runtimeKind(), "nxs") {
 		return nil
 	}
-	observations := roomSubagentUsageObservations(slot, message)
+	observations := slot.mutable.goal.SubagentUsageObservations(message)
 	if len(observations) == 0 {
 		return nil
 	}
-	settled := make([]roomSubagentUsageSettlement, 0, len(observations))
+	settled := make([]runtimehost.SubagentUsageSettlement, 0, len(observations))
 	_, persistent := s.goals.(roomGoalUsageSourceRecorder)
 	if persistent {
 		unlockScope := s.lockRoomGoalUsageScope(ctx, slot)
@@ -1264,11 +1258,11 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		// pending 的建立本身也属于 scope 临界区。若 activation 已先拿到锁，
 		// 此消息线性化在 bind 之后；若此处先拿到锁，它一定会在 bind 前落库。
 		for _, child := range observations {
-			slot.markSubagentUsageObservationPending(child.observation, child.taskID)
+			slot.markSubagentUsageObservationPending(child.Observation, child.TaskID)
 		}
 		for _, child := range observations {
 			pending := slot.subagentUsageObservationPendingSnapshot()
-			observation, exists := pending[child.taskID]
+			observation, exists := pending[child.TaskID]
 			if !exists {
 				// external activation 已在同一 scope 临界区内完成了 pre-bind
 				// flush；调用方的 conditional clear 仍可安全 no-op。
@@ -1288,7 +1282,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				result, err = s.persistSubagentGoalUsageObservationForSlot(
 					ctx,
 					slot,
-					child.taskID,
+					child.TaskID,
 					observation,
 					goalID,
 					goalSessionKey,
@@ -1303,17 +1297,16 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 					"goal_id", goalID,
 					"scope_round_id", goalUsageScopeRoundIDForRoomSlot(slot),
 					"source_round_id", slot.AgentRoundID,
-					"task_id", child.taskID,
+					"task_id", child.TaskID,
 					"err", err,
 				)
 				continue
 			}
-			settled = append(settled, roomSubagentUsageSettlement{
-				taskID:          child.taskID,
-				cumulativeTotal: observation.CumulativeTotal,
-				observation:     observation,
+			settled = append(settled, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: observation,
 			})
-			slot.clearSubagentUsageObservationPending(child.taskID, observation)
+			slot.clearSubagentUsageObservationPending(child.TaskID, observation)
 			if result.Goal != nil {
 				s.bindRoomGoalUsageForScope(slot, result.Goal.SessionKey, result.Goal.ID)
 			}
@@ -1322,41 +1315,27 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	}
 
 	for _, child := range observations {
-		slot.markSubagentUsageObservationPending(child.observation, child.taskID)
+		slot.markSubagentUsageObservationPending(child.Observation, child.TaskID)
 	}
 	goalID := slot.childGoalIDForUsage()
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()
 	for _, child := range observations {
 		delta := s.Runtime.ObserveSubagentUsage(
 			slot.RuntimeSessionKey,
-			child.taskID,
-			child.observation.CumulativeTotal,
+			child.TaskID,
+			child.Observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && s.goals != nil {
 			// 兼容测试/非 SQL provider：每个 slot 按 runtime session 去重，
 			// 再把 child provider actual 汇总到共享 Goal。
 			s.recordGoalUsageDeltaForSlot(ctx, slot, protocol.GoalUsage{ActualTotalTokens: delta})
 		}
-		settled = append(settled, roomSubagentUsageSettlement{
-			taskID:          child.taskID,
-			cumulativeTotal: child.observation.CumulativeTotal,
-			observation:     child.observation,
+		settled = append(settled, runtimehost.SubagentUsageSettlement{
+			TaskID:      child.TaskID,
+			Observation: child.Observation,
 		})
 	}
 	return settled
-}
-
-func roomSubagentUsageObservations(slot *activeRoomSlot, message protocol.Message) []roomSubagentUsageSettlement {
-	var knowsTask func(string) bool
-	if slot != nil {
-		knowsTask = slot.mutable.goal.KnowsSubagentTask
-	}
-	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
-	result := make([]roomSubagentUsageSettlement, 0, len(observations))
-	for _, item := range observations {
-		result = append(result, roomSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage, cumulativeTotal: item.Usage.CumulativeTotal})
-	}
-	return result
 }
 
 func (s *Service) persistSubagentGoalUsageObservationForSlot(

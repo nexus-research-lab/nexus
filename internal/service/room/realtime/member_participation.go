@@ -194,7 +194,7 @@ func (s *Service) resumeRoomMemberWork(
 			continue
 		}
 		sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			contextValue.Room.OwnerUserID,
 			func(taskCtx context.Context) {

@@ -65,7 +65,7 @@ func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &roundRunner{
-		service:       &Service{replies: dispatcher, Host: runtimehost.Host{History: history}},
+		service:       &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history}},
 		workspacePath: workspacePath,
 		session:       session,
 		agent:         &protocol.Agent{AgentID: "agent-1"},
@@ -139,7 +139,7 @@ func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
 
 	dispatcher := &fakeExternalReplyDispatcher{}
 	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
+		service:    &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		agent:      &protocol.Agent{AgentID: "agent-1"},
 		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
 		roundID:    "round-1",
@@ -183,7 +183,7 @@ func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
 
 	dispatcher := &fakeExternalReplyDispatcher{}
 	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
+		service:    &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		agent:      &protocol.Agent{AgentID: "agent-1"},
 		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
 		roundID:    "round-1",
@@ -365,7 +365,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
 	dispatcher := &fakeExternalReplyDispatcher{}
-	runner := &roundRunner{service: &Service{replies: dispatcher}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
+	runner := &roundRunner{service: &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
 	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "原会话的回答"}}})
 	calls := dispatcher.callsSnapshot()
 	if len(calls) != 1 || calls[0].target.PairingID != "pair" || calls[0].target.BindingVersion != 2 {

@@ -12,6 +12,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -134,7 +135,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 			s.LoggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 		}
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
-			s.startSessionBackgroundTask(
+			s.StartSessionBackgroundTask(
 				sessionKey,
 				contextValue.Room.OwnerUserID,
 				func(taskCtx context.Context) {
@@ -172,7 +173,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, dispatchedItem.ID))
 	if invalidCapabilityEnvelope && s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			contextValue.Room.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -279,7 +280,7 @@ func (s *Service) dispatchInputQueueItemLocked(
 			)
 		}
 	}
-	dispatchCtx := contextWithExactQueueOwner(ctx, item.OwnerUserID)
+	dispatchCtx := runtimehost.ContextWithExactOwner(ctx, item.OwnerUserID)
 	claim, trustedQueue, err := s.claimTrustedRoomQueueAdmission(
 		dispatchCtx,
 		sessionKey,

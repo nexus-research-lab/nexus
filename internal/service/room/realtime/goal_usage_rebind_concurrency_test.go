@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type blockingRoomGoalUsageProvider struct {
@@ -178,7 +179,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{scopeID: roundValue}),
 	}
 
-	recorded := make(chan []roomSubagentUsageSettlement, 1)
+	recorded := make(chan []runtimehost.SubagentUsageSettlement, 1)
 	go func() {
 		recorded <- service.recordSubagentGoalUsageForSlot(
 			context.Background(),

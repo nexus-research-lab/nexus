@@ -10,6 +10,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, roundValue *activeRoomRound) {
@@ -37,7 +38,7 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
 				return s.handleIdleSubagentMessage(
-					contextWithExactQueueOwner(drainCtx, roundValue.OwnerUserID),
+					runtimehost.ContextWithExactOwner(drainCtx, roundValue.OwnerUserID),
 					roundValue,
 					slot,
 					mapper,
@@ -132,7 +133,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	settledSubagentUsage := s.recordSubagentGoalUsageForSlot(ctx, slot, messageValue)
 	slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+		slot.clearSubagentUsageObservationPending(settlement.TaskID, settlement.Observation)
 	}
 	s.startRoomSubagentUsageRetry(roundValue, slot)
 	if slot.hasSubagentHistory() {
@@ -189,7 +190,7 @@ func (s *Service) releaseRoundSubagentWait(roundValue *activeRoomRound) {
 	}
 	if !roundValue.hasRunningSubagentTasks() &&
 		roundValue.RunningSubagents.CompareAndSwap(true, false) {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			roundValue.SessionKey,
 			roundValue.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -247,7 +248,7 @@ func (s *Service) retryRoomSubagentUsage(
 ) {
 	defer s.finishRoomGoalUsageRetryWorker(roundValue, slot)
 
-	ctx := contextWithExactQueueOwner(context.Background(), roundValue.OwnerUserID)
+	ctx := runtimehost.ContextWithExactOwner(context.Background(), roundValue.OwnerUserID)
 	retryAttempt := 0
 	for {
 		unlockScope := s.lockRoomGoalUsageScope(ctx, slot)

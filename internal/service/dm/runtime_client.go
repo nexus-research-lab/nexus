@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 
@@ -518,7 +517,7 @@ func (s *Service) ensureClient(
 	options.Session.ResumeAt = conversationForkResumeAt(sessionItem.Options, forkMessageID)
 	options.Session.Fork = forking
 	if toolSurfaceFork {
-		retired, retireErr := retireExistingDMRuntimeClient(ctx, startup)
+		retired, retireErr := runtimehost.RetireExistingRuntimeClient(ctx, startup)
 		if retireErr != nil && !runtimectx.IsRuntimeTransportClosedError(retireErr) {
 			return dmClientPreparation{}, fmt.Errorf("换代 runtime 工具面: %w", retireErr)
 		}
@@ -774,17 +773,6 @@ func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartu
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
 }
-
-func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
-	// Process transport 先给旧 runtime 一个 RoundIdleAbortTimeout 的优雅退出窗口，
-	// 再终止并等待同样长的回收窗口。宿主必须覆盖完整两阶段，否则会在进程
-	// 已被终止、即将退出的瞬间把安全换代误报为失败。
-	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), dmToolSurfaceRetireTimeout)
-	defer cancel()
-	return startup.RetireExisting(closeCtx)
-}
-
-const dmToolSurfaceRetireTimeout = 2*runtimectx.RoundIdleAbortTimeout + time.Second
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
 	executionOrigin := request.ExecutionOrigin

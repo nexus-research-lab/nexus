@@ -9,7 +9,6 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
@@ -79,37 +78,7 @@ func (r *roundRunner) annotateSubagentTaskRuntimeKind(message protocol.Message) 
 }
 
 func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
-	if r == nil {
-		return
-	}
-	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(dmAnyString(metadata["task_id"]))
-	if taskID == "" {
-		return
-	}
-	subtype := strings.TrimSpace(dmAnyString(metadata["subtype"]))
-	status := strings.TrimSpace(dmAnyString(metadata["status"]))
-	if !messageutil.IsSubagentTaskMetadata(metadata) && !r.KnowsSubagentTask(taskID) {
-		return
-	}
-	r.Mu.Lock()
-	if r.SubagentTasks == nil {
-		r.SubagentTasks = map[string]struct{}{}
-	}
-	switch subtype {
-	case "task_started", "task_progress", "task_updated":
-		if messageutil.IsTerminalSubagentTaskStatus(status) {
-			delete(r.SubagentTasks, taskID)
-			break
-		}
-		r.SubagentTasks[taskID] = struct{}{}
-	case "task_notification":
-		if messageutil.IsTerminalSubagentTaskStatus(status) {
-			delete(r.SubagentTasks, taskID)
-		}
-	}
-	r.Mu.Unlock()
-	if r.service != nil && r.service.Runtime != nil {
+	if r.RememberSubagentTaskMessage(message) {
 		r.service.Runtime.MarkSubagentHistory(r.sessionKey)
 	}
 }

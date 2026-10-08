@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -122,7 +123,7 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 				if e.round != nil {
 					ownerUserID = e.round.OwnerUserID
 				}
-				ctx := contextWithExactQueueOwner(context.Background(), ownerUserID)
+				ctx := runtimehost.ContextWithExactOwner(context.Background(), ownerUserID)
 				if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
 					e.service.LoggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
 				}
@@ -147,7 +148,7 @@ func (e *roomGuidanceExecution) bindOwnerContext() error {
 		}
 		ownerUserID = candidate
 	}
-	e.ctx = contextWithExactQueueOwner(e.ctx, ownerUserID)
+	e.ctx = runtimehost.ContextWithExactOwner(e.ctx, ownerUserID)
 	return nil
 }
 
@@ -254,7 +255,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 				rootRoundID,
 			)
 			if err = s.syncQueuedPublicUserMessage(ctx, roundValue.SessionKey, roundValue.Context, item, logicalRootRoundID, true); err != nil {
-				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				restored, restoreErr := s.RestoreInputQueueItems(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
 					s.rounds.putGuidance(slot, pending)
@@ -264,7 +265,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 		}
 		for _, item := range claimed {
 			if protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) != nil {
-				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				restored, restoreErr := s.RestoreInputQueueItems(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
 					s.rounds.putGuidance(slot, pending)
@@ -275,7 +276,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 				)
 			}
 			if err = s.markRoomQueueHandoffTerminal(roundValue.ConversationID, item); err != nil {
-				restored, restoreErr := s.restoreRoomSlotGuidance(pending.location, claimed)
+				restored, restoreErr := s.RestoreInputQueueItems(pending.location, claimed)
 				if restoreErr == nil {
 					pending.items = restored
 					s.rounds.putGuidance(slot, pending)
@@ -297,17 +298,6 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 		}
 	}
 	return nil
-}
-
-func (s *Service) restoreRoomSlotGuidance(
-	location workspacestore.InputQueueLocation,
-	items []protocol.InputQueueItem,
-) ([]protocol.InputQueueItem, error) {
-	entries := make([]workspacestore.InputQueueEnqueue, 0, len(items))
-	for _, item := range items {
-		entries = append(entries, workspacestore.InputQueueEnqueue{Location: location, Item: item})
-	}
-	return s.InputQueue.EnqueueBatchWithItems(entries)
 }
 
 func (s *Service) forgetRoomSlotGuidance(slot *activeRoomSlot) {
