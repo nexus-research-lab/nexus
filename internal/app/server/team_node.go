@@ -13,10 +13,13 @@ import (
 )
 
 func (s *Server) mountTeamNodeRoutes() {
-	if s.services == nil || s.services.Core == nil || s.services.DB == nil {
+	if s.config.MultiplayerDisabled || s.services == nil || s.services.Core == nil || s.services.DB == nil {
 		return
 	}
 	if strings.TrimSpace(s.config.RemoteURL) == "" && strings.TrimSpace(s.config.ControlURL) == "" {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") && s.services.Relay == nil {
 		return
 	}
 	var readRoom func(context.Context, string, string) (relaycontract.RoomDetails, error)

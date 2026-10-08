@@ -16,13 +16,13 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
-import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { hasTeamAccess, useAuth } from "@/shared/auth/auth-context";
 import { useTeamRefresh } from "./use-team-refresh";
 import { isTeamCommandUnapplied } from "./team-command-outcome";
 
 export function useTeamInvitations(onAccepted: () => void, available = true) {
   const { status } = useAuth();
-  const enabled = available && hasOrganizationAccess(status);
+  const enabled = available && hasTeamAccess(status);
   const generation = useSyncExternalStore(
     subscribeAuthOwnerScopeGeneration,
     captureAuthOwnerScopeGeneration,

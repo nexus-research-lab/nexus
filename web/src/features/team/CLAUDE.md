@@ -1,5 +1,7 @@
 # Team
 
+- 在线资源必须同时具备部署 capabilities.enabled、远程登录和组织身份，统一由 hasTeamAccess 判断。未部署或显式关闭多人时不请求目录、邀请和订阅；组织身份本身不代表 Relay 已启用。
+
 - 在线 Room 和目录 WS 不关闭共享 transport 心跳；复用本地聊天的 ping/pong、退避和 focus/online 恢复。重连初始水位从旧 cursor 分页补读并按消息 ID 去重，epoch 改变重建快照，绝不自动重发未知消息。
 
 - 常驻 Room 目录按登录作用域及成员版本批量准备本人 Agent，不依赖打开群；失败仅退避重试原准备操作，不增加固定任务轮询。

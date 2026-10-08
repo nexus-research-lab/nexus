@@ -1,4 +1,6 @@
-/** 认证、个人资料、密码与个人用量的 HTTP 边界。 */
+// INPUT: 本机认证、Control 身份和 Team 部署能力响应。
+// OUTPUT: 保留本地 owner、独立多人能力的认证快照与账号操作。
+// POS: 账户 HTTP 边界；身份和部署能力不能相互替代。
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getAgentApiBaseUrl, getControlAuthBaseUrl } from "@/config/runtime-endpoints";
@@ -8,6 +10,7 @@ const AUTH_API_BASE_URL = getAgentApiBaseUrl();
 const CONTROL_AUTH_BASE_URL = getControlAuthBaseUrl();
 
 export interface AuthStatus {
+  multiplayer_enabled?: boolean;
   web_access_disabled?: boolean;
   auth_required: boolean;
   password_login_enabled: boolean;
@@ -99,6 +102,12 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     method: "GET",
     notify_on_401: false,
   });
+  // 部署能力独立于组织身份；旧服务没有该接口时保持关闭，不探测邀请目录。
+  const capabilities = await requestApi<{ enabled: boolean }>(`${AUTH_API_BASE_URL}/team/capabilities`, {
+    method: "GET",
+    notify_on_401: false,
+  }).catch(() => ({ enabled: false }));
+  localStatus.multiplayer_enabled = capabilities?.enabled === true;
   if (!isDesktopRuntime()) {
     return localStatus;
   }
@@ -115,6 +124,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     }
     return {
       ...remoteStatus,
+      multiplayer_enabled: localStatus.multiplayer_enabled,
       auth_required: false,
 	  control_user_id: localStatus.control_user_id ?? remoteStatus.user_id,
       setup_enabled: false,
@@ -130,12 +140,12 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 }
 
 export async function loginApi(params: LoginParams): Promise<AuthStatus> {
-  const status = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/login`, {
+  await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/login`, {
     method: "POST",
     notify_on_401: false,
     body: JSON.stringify(params),
   });
-  return isDesktopRuntime() ? getAuthStatus() : status;
+  return getAuthStatus();
 }
 
 export async function registerApi(params: LoginParams): Promise<AuthStatus> {
@@ -143,11 +153,11 @@ export async function registerApi(params: LoginParams): Promise<AuthStatus> {
 }
 
 export async function logoutApi(): Promise<AuthStatus> {
-  const status = await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/logout`, {
+  await requestApi<AuthStatus>(`${CONTROL_AUTH_BASE_URL}/logout`, {
     method: "POST",
     notify_on_401: false,
   });
-  return isDesktopRuntime() ? getAuthStatus() : status;
+  return getAuthStatus();
 }
 
 export async function getPersonalProfileApi(): Promise<PersonalProfile> {

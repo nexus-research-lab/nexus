@@ -1,5 +1,7 @@
 # Account API
 
+- `getAuthStatus` 在身份上合并 `/team/capabilities` 的部署能力；Desktop 经原有 Team 同源代理读取远端能力。登录/登出后重新读取该组合快照，Control 的身份响应不能开启多人功能。
+
 - 组织生命周期复用 `control-api.ts`，公开注册复用 `auth-api.ts`；`AuthStatus.role` 只管平台运营，`organization_role` 只管组织管理。已有账号接受邀请提交空对象，不发送或重新设置账号密码。
 
 - `auth-api.ts` 负责认证、个人资料、密码 exact request/终态回执核对与放弃、个人用量；Server Web 登录直接走同源 Control，Desktop 经本地同源代理绑定线上 Control，同时保留本地 owner 与本地数据作用域。

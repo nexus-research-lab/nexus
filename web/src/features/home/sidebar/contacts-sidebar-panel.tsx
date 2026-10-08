@@ -8,7 +8,7 @@ import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { hasTeamAccess, useAuth } from "@/shared/auth/auth-context";
 import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
@@ -37,7 +37,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
   const navigate = useNavigate();
   const location = useLocation();
   const { status } = useAuth();
-  const online = hasOrganizationAccess(status);
+  const online = hasTeamAccess(status);
   const members = online && new URLSearchParams(location.search).get("view") === "members";
   const setActiveItem = useSidebarStore((state) => state.set_active_panel_item);
   const clearTargetNotifications = useSidebarStore(

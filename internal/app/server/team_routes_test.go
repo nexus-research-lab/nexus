@@ -4,6 +4,7 @@
 package server
 
 import (
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
@@ -54,6 +55,42 @@ func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
 	)
 	if enabledResponse.Code != http.StatusForbidden {
 		t.Fatalf("enabled Team route status=%d body=%s", enabledResponse.Code, enabledResponse.Body.String())
+	}
+}
+
+func TestTeamCapabilitiesAndDisabledRoutes(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		url      string
+		disabled bool
+		want     bool
+	}{
+		{name: "unconfigured"},
+		{name: "configured", url: "https://relay.example.com", want: true},
+		{name: "explicitly disabled", url: "https://relay.example.com", disabled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			api := handlershared.NewAPI(nil)
+			s := &Server{config: config.Config{APIPrefix: "/nexus/v1", RelayURL: tc.url, MultiplayerDisabled: tc.disabled}, router: newPathParamRouter(), api: api, handlers: handlerSet{team: teamhandler.New(api, nil, nil, nil)}}
+			s.mountTeamRoutes()
+			response := httptest.NewRecorder()
+			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
+			var body struct {
+				Data struct {
+					Enabled bool `json:"enabled"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || response.Code != http.StatusOK || body.Data.Enabled != tc.want {
+				t.Fatalf("capabilities: code=%d body=%s err=%v", response.Code, response.Body.String(), err)
+			}
+			if !tc.want {
+				response = httptest.NewRecorder()
+				s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/invitations", nil))
+				if response.Code != http.StatusNotFound {
+					t.Fatalf("disabled invitations status=%d", response.Code)
+				}
+			}
+		})
 	}
 }
 
