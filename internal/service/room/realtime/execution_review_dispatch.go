@@ -104,7 +104,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 	content string,
 ) (orchestrationsvc.ExecutionReviewDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionReviewDispatchReceipt
-	if s == nil || s.inputQueue == nil || contextValue == nil || parentRound == nil {
+	if contextValue == nil || parentRound == nil {
 		return receipt, errors.New("durable Room input queue is unavailable")
 	}
 	delivery.TargetAgentID = strings.TrimSpace(delivery.TargetAgentID)
@@ -215,9 +215,6 @@ func (s *Service) ensureExecutionReviewDispatchHandoff(
 	error,
 ) {
 	var receipt orchestrationsvc.ExecutionReviewDispatchReceipt
-	if s == nil || s.publicHandoffs == nil {
-		return false, receipt, errors.New("durable Room handoff store is unavailable")
-	}
 	binding := delivery.Binding
 	handoff, inserted, err := s.publicHandoffs.Detect(
 		delivery.OwnerUserID,
@@ -272,7 +269,7 @@ func (s *Service) authorizeManagedExecutionReviewTarget(
 	targetAgentID string,
 	binding *protocol.ExecutionReviewBinding,
 ) error {
-	if s == nil || s.executionContext == nil || roundValue == nil {
+	if s.executionContext == nil || roundValue == nil {
 		return errors.New("managed Execution review admission is unavailable")
 	}
 	authorizer, ok := s.executionContext.(executionReviewTargetAuthorizer)

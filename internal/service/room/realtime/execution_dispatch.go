@@ -46,7 +46,7 @@ func (s *Service) AuthorizeAssignmentTarget(
 	ctx context.Context,
 	request orchestrationsvc.AssignmentTargetRequest,
 ) error {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return errors.New("Room context store is unavailable")
 	}
 	contextValue, err := s.rooms.GetConversationContextForSystem(ctx, strings.TrimSpace(request.ConversationID))
@@ -170,7 +170,7 @@ func (s *Service) enqueueExecutionDispatch(
 	content string,
 ) (orchestrationsvc.ExecutionDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionDispatchReceipt
-	if s == nil || s.inputQueue == nil || contextValue == nil || parentRound == nil {
+	if contextValue == nil || parentRound == nil {
 		return receipt, errors.New("durable Room input queue is unavailable")
 	}
 	delivery.TargetAgentID = strings.TrimSpace(delivery.TargetAgentID)
@@ -273,9 +273,6 @@ func (s *Service) ensureExecutionDispatchHandoff(
 	content string,
 ) (bool, orchestrationsvc.ExecutionDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionDispatchReceipt
-	if s == nil || s.publicHandoffs == nil {
-		return false, receipt, errors.New("durable Room handoff store is unavailable")
-	}
 	binding := delivery.Binding
 	handoff, inserted, err := s.publicHandoffs.Detect(
 		delivery.OwnerUserID,
@@ -357,7 +354,7 @@ func (s *Service) authorizeManagedExecutionTarget(
 	if binding == nil {
 		return nil
 	}
-	if s == nil || s.executionContext == nil || roundValue == nil {
+	if s.executionContext == nil || roundValue == nil {
 		return errors.New("managed Execution target admission is unavailable")
 	}
 	authorizer, ok := s.executionContext.(executionTargetAuthorizer)

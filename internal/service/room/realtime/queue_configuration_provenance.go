@@ -21,7 +21,7 @@ func (s *Service) recordTrustedRoomQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil {
+	if !trusted || s.queueTrust == nil {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -52,7 +52,7 @@ func (s *Service) recordTrustedRoomQueueAdmissions(
 	items []protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil {
+	if !trusted || s.queueTrust == nil {
 		return nil
 	}
 	if len(entries) != len(items) {
@@ -95,7 +95,7 @@ func (s *Service) revokeRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s == nil || s.queueTrust == nil {
+	if s.queueTrust == nil {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -115,7 +115,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s == nil || s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)

@@ -26,7 +26,7 @@ func (s *Service) finishBoundRoomAttempt(
 	if binding == nil {
 		return nil
 	}
-	if s == nil || s.executionContext == nil {
+	if s.executionContext == nil {
 		return errors.New("managed Execution Attempt terminalizer is unavailable")
 	}
 	terminalizer, ok := s.executionContext.(executionAttemptTerminalizer)

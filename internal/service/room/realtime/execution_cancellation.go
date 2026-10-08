@@ -67,10 +67,6 @@ func (s *Service) DeliverExecutionCancellation(
 			Detail:  "exact Room slot is already terminal",
 		}, nil
 	}
-	if s.runtime == nil {
-		return orchestrationsvc.ExecutionCancellationReceipt{},
-			errors.New("Room runtime manager is unavailable")
-	}
 	interruptReason := normalizeRoomInterruptReason(delivery.Reason)
 	markRoomSlotInterrupted(slot, interruptReason)
 	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)

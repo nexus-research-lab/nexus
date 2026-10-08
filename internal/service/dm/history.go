@@ -559,8 +559,7 @@ func (s *Service) preservePersistedSessionTitleForOwner(
 	workspacePath string,
 	current protocol.Session,
 ) (protocol.Session, error) {
-	if s == nil || s.files == nil ||
-		strings.TrimSpace(workspacePath) == "" ||
+	if strings.TrimSpace(workspacePath) == "" ||
 		strings.TrimSpace(current.SessionKey) == "" {
 		return current, nil
 	}

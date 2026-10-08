@@ -652,7 +652,7 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 		Members:      []protocol.MemberRecord{{RoomID: "room-replacement", MemberType: protocol.MemberTypeAgent, MemberAgentID: agentID}},
 		MemberAgents: []protocol.Agent{{AgentID: agentID, WorkspacePath: workspacePath}},
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		inputQueue: store,
 		permission: permissionctx.NewContext(),
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -669,7 +669,7 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 				},
 			},
 		}),
-	}
+	})
 	service.releaseUndeliveredRoomGuidance(context.Background(), sharedSessionKey, contextValue)
 	items, err := store.Snapshot(location)
 	if err != nil || len(items) != 2 {
@@ -690,6 +690,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
 	conversationID := "conversation-guidance-order"
 	agentID := "agent-1"
+	agentWorkspace := filepath.Join(appfs.UserWorkspaceRoot("owner"), agentID)
 	location := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  storeRoot,
@@ -722,18 +723,19 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		t.Fatalf("写入待确认 Room 引导失败: %v", err)
 	}
 
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		permission:  permissionctx.NewContext(),
 		inputQueue:  store,
 		roomHistory: roomHistory,
-	}
+		history:     workspacestore.NewAgentHistoryStore(appfs.UsersRoot()),
+	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: "room-1", OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: "room-1"},
 		Members: []protocol.MemberRecord{{
 			RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: agentID,
 		}},
-		MemberAgents: []protocol.Agent{{AgentID: agentID, Name: "Amy", WorkspacePath: storeRoot}},
+		MemberAgents: []protocol.Agent{{AgentID: agentID, Name: "Amy", WorkspacePath: agentWorkspace}},
 	}
 	roundValue := &activeRoomRound{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
@@ -743,7 +745,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		OwnerUserID:    "owner",
 		Context:        contextValue,
 	}
-	slot := &activeRoomSlot{AgentID: agentID, AgentRoundID: "agent-reply-round", RuntimeSessionKey: location.SessionKey, WorkspacePath: storeRoot}
+	slot := &activeRoomSlot{AgentID: agentID, AgentRoundID: "agent-reply-round", RuntimeSessionKey: location.SessionKey, WorkspacePath: agentWorkspace}
 	hook := service.roomSlotGuidanceHook(roundValue, slot, location)
 	if _, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1"); err != nil {
 		t.Fatalf("准备 Room 引导失败: %v", err)

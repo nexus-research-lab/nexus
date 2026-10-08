@@ -31,9 +31,6 @@ func (s *Service) CreateTransientFork(
 	ctx context.Context,
 	request TransientForkRequest,
 ) (*protocol.Session, error) {
-	if s == nil {
-		return nil, errors.New("DM service is unavailable")
-	}
 	source, target, err := validateTransientForkKeys(
 		request.SourceSessionKey,
 		request.TargetSessionKey,

@@ -210,7 +210,7 @@ func (s *Service) logRoomContextUsage(
 }
 
 func (s *Service) recordRoomPublicCursor(slot *activeRoomSlot, roundValue *activeRoomRound, messageID string, timestamp int64) error {
-	if s.history == nil || slot == nil || roundValue == nil {
+	if slot == nil || roundValue == nil {
 		return nil
 	}
 	messageID = strings.TrimSpace(messageID)
@@ -236,7 +236,7 @@ func (s *Service) recordRoomDirectedMessageCursor(
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
 ) (workspacestore.RoomDirectedMessageCursor, bool, error) {
-	if s.directedMessages == nil || slot == nil || roundValue == nil {
+	if slot == nil || roundValue == nil {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
 	messageID, messageTimestamp := slot.messageCursor()
@@ -263,7 +263,7 @@ func (s *Service) roomDirectedMessagesForSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) ([]protocol.RoomDirectedMessageRecord, error) {
-	if s.directedMessages == nil || roundValue == nil || slot == nil {
+	if roundValue == nil || slot == nil {
 		return nil, nil
 	}
 	cursor, _, err := s.directedMessages.ReadMessageCursor(

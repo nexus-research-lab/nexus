@@ -74,7 +74,7 @@ func (s *Service) authorizeDMSessionAccess(
 		requestedAgentID != parsed.AgentID {
 		return protocol.SessionKey{}, errors.New("agent_id does not match session_key")
 	}
-	if s == nil || s.agents == nil {
+	if s.agents == nil {
 		return protocol.SessionKey{}, errors.New("DM service is not configured")
 	}
 	agentID, err := s.resolveChatAgentID(ctx, parsed, requestedAgentID)

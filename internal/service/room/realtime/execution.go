@@ -783,7 +783,7 @@ func (s *Service) settleCompletedRoomGoalUsage(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) bool {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return true
 	}
 	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
@@ -822,9 +822,6 @@ func (s *Service) settleCompletedRoomGoalUsage(
 }
 
 func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *activeRoomSlot, dispatchPrompt string) error {
-	if s.history == nil {
-		return nil
-	}
 	options := roomRoundMarkerOptions(roundValue)
 	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
 	options.AgentRoundID = slot.AgentRoundID
@@ -885,9 +882,6 @@ func roomRoundMarkerOptions(roundValue *activeRoomRound) workspacestore.RoundMar
 }
 
 func (s *Service) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {
-	if s.history == nil {
-		return nil
-	}
 	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
 	privateMessage["session_key"] = slot.RuntimeSessionKey
 	// 私有会话内 slot 自成一轮：round 对齐私有 round marker（= agent_round_id），

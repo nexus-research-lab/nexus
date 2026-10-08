@@ -155,4 +155,3 @@ func cloneGoalContinuationAuthority(
 	}
 	return authority.Normalized()
 }
-

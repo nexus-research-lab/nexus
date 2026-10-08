@@ -420,7 +420,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	claimedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
-		if s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
+		if strings.TrimSpace(wake.HandoffID) == "" {
 			claimedWakes = append(claimedWakes, wake)
 			continue
 		}
@@ -439,7 +439,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	wakes = claimedWakes
 	claimsTransferred := false
 	defer func() {
-		if claimsTransferred || s.publicHandoffs == nil {
+		if claimsTransferred {
 			return
 		}
 		for _, wake := range wakes {
@@ -561,7 +561,7 @@ func (s *Service) terminalizeRejectedExecutionWake(
 	parentRound *activeRoomRound,
 	wake publicMentionWake,
 ) {
-	if s == nil || s.publicHandoffs == nil || parentRound == nil ||
+	if parentRound == nil ||
 		strings.TrimSpace(wake.HandoffID) == "" {
 		return
 	}
@@ -749,9 +749,6 @@ func (s *Service) terminalizePublicMentionWakes(
 	wakes []publicMentionWake,
 	status string,
 ) {
-	if s == nil || s.publicHandoffs == nil {
-		return
-	}
 	for _, wake := range wakes {
 		handoffID := strings.TrimSpace(wake.HandoffID)
 		if handoffID == "" {

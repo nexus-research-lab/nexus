@@ -174,7 +174,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 		RuntimeSessionKey: runtimeSessionKey,
 		WorkspacePath:     workspacePath,
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rooms:          rooms,
 		publicHandoffs: handoffs,
 		inputQueue:     workspacestore.NewInputQueueStore(root),
@@ -190,7 +190,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 				},
 			},
 		}),
-	}
+	})
 
 	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
 		t.Fatalf("StartPublicHandoffReconciler() error = %v", err)
@@ -789,7 +789,7 @@ func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 	if err := handoffs.MarkQueued(ownerUserID, conversationID, handoff.HandoffID, item.ID); err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
 		publicHandoffs: handoffs, inputQueue: queue,
 		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
@@ -798,7 +798,7 @@ func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
 			},
 		}},
-	}
+	})
 	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -914,7 +914,7 @@ func TestPublicMentionReplyAnnotationIsHostOwnedAndSeparateFromReciprocalMention
 	}
 	slot.setDeliveryMetadata(protocol.RoomReplyRoute{}, "lead-public-message", "rh-lead-to-researcher")
 	slot.setStatus("finished")
-	service := &Service{}
+	service := withConstructorDefaults(t, &Service{})
 
 	plainReply := protocol.Message{
 		"message_id": "researcher-public-reply", "role": "assistant", "is_complete": true,
@@ -1335,10 +1335,10 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 	roomID := "room-stable-public-user-message"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	history := workspacestore.NewRoomHistoryStore(root)
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		roomHistory: history,
 		permission:  permissionctx.NewContext(),
-	}
+	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},

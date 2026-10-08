@@ -98,7 +98,7 @@ func (s *Service) setRoomMemberParticipation(
 	paused bool,
 	expectedVersion *int64,
 ) (*protocol.ConversationContextAggregate, error) {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil, errors.New("Room participation store is unavailable")
 	}
 	store, ok := s.rooms.(roomMemberParticipationStore)

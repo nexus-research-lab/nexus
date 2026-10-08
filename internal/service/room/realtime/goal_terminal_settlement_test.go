@@ -140,11 +140,11 @@ func TestTerminalRoomGoalUsageMustSettleBeforeCompletionOrContinuation(t *testin
 			"peer":   peer,
 		},
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"room-round": roundValue,
 		}),
-	}
+	})
 
 	blocker := service.activeRoomGoalBlocker(
 		sessionKey,
@@ -324,12 +324,12 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 		finalizeFailuresRemaining: goalUsagePersistAttempts,
 		persisted:                 make(chan struct{}),
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: provider,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),
-	}
+	})
 	accelerateRoomGoalUsageRetry(service)
 	terminalMessage := protocol.Message{"metadata": map[string]any{
 		"subtype": "task_notification", "task_id": "task-1", "agent_id": "agent-1",
@@ -472,12 +472,12 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 		finalizeFailuresRemaining:    goalUsagePersistAttempts,
 		parentUsagePersisted:         make(chan struct{}),
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: provider,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),
-	}
+	})
 	accelerateRoomGoalUsageRetry(service)
 	result := exec.RoundExecutionResult{Usage: sdkprotocol.TokenUsage{
 		InputTokens:  90,
@@ -559,7 +559,7 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 
 func TestRoomPostRoundDispatchRunsOnceUnderRace(t *testing.T) {
 	base := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: base}
+	service := withConstructorDefaults(t, &Service{goals: base})
 	roundValue := &activeRoomRound{
 		SessionKey: "room:group:post-round-once",
 		RoundID:    "round-post-round-once",

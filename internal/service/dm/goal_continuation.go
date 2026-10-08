@@ -19,7 +19,7 @@ import (
 // ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string, agentID string) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false
 	}
 	if len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
@@ -50,7 +50,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 // GoalContinuationTargetMissing 判断隐藏续跑目标 Agent 是否已被删除。
 func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey string, agentID string) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false, nil
 	}
 	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
@@ -78,7 +78,7 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 ) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
-	if s == nil || s.agents == nil || sessionKey == "" || agentID == "" {
+	if s.agents == nil || sessionKey == "" || agentID == "" {
 		return false
 	}
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
@@ -153,7 +153,7 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 // DispatchGoalContinuation 在同一启动边界内重新校验 prepared plan 并注册 runtime round。
 // 自动续跑和进程恢复共享此入口，避免恢复路径绕过显式用户输入。
 func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
-	if s == nil || s.goals == nil {
+	if s.goals == nil {
 		return errors.New("dm goal continuation provider is not configured")
 	}
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)

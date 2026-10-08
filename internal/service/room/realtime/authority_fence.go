@@ -35,7 +35,7 @@ func (s *Service) ensureSlotOutputAuthorized(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) error {
-	if s == nil || s.rooms == nil || roundValue == nil || slot == nil {
+	if s.rooms == nil || roundValue == nil || slot == nil {
 		return errRoomSlotAuthorityRevoked
 	}
 	// Interrupt 会先取消 slotCtx；权限复核仍必须带着原 context values

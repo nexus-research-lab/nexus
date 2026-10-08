@@ -103,6 +103,7 @@ func newAuthorityFenceContext() *protocol.ConversationContextAggregate {
 			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-a"},
 			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-b"},
 		},
+		MemberAgents: []protocol.Agent{{AgentID: "agent-a"}, {AgentID: "agent-b"}},
 	}
 }
 

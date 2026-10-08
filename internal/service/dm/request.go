@@ -721,7 +721,7 @@ func (s *Service) markRoomConversationStarted(
 	sessionKey string,
 	activityAt time.Time,
 ) error {
-	if s == nil || s.roomActivity == nil {
+	if s.roomActivity == nil {
 		return nil
 	}
 	conversationID := dmRoomConversationID(protocol.ParseSessionKey(sessionKey))

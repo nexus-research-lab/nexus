@@ -1175,7 +1175,7 @@ func (s *Service) persistSharedDurableMessage(
 }
 
 func (s *Service) touchSharedConversationActivity(ctx context.Context, conversationID string, activityAt time.Time) {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return
 	}
 	if activityAt.IsZero() {
@@ -1195,7 +1195,7 @@ func (s *Service) markConversationStarted(
 	conversationID string,
 	activityAt time.Time,
 ) error {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil
 	}
 	if activityAt.IsZero() {

@@ -28,7 +28,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 
 func (s *Service) shouldDeferGoalContinuation(ctx context.Context, sessionKey string, dispatchQueuedInput bool) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
@@ -110,7 +110,7 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 ) bool {
-	if s == nil || contextValue == nil {
+	if contextValue == nil {
 		return false
 	}
 	activeBlocker := s.activeRoomGoalBlocker(sessionKey, contextValue.Conversation.ID, "", "")
@@ -177,7 +177,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 	contextValue *protocol.ConversationContextAggregate,
 	goal protocol.Goal,
 ) bool {
-	if s == nil || s.publicHandoffs == nil || contextValue == nil {
+	if contextValue == nil {
 		return false
 	}
 	inFlight, err := s.publicHandoffs.GoalCollaborationInFlightAll(
@@ -202,7 +202,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 // GoalContinuationTargetMissing 判断共享 Room Goal 的 conversation 是否已被删除。
 func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey string) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false, nil
 	}
 	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
@@ -219,7 +219,7 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 // GoalContinuationConversationMissing 判断 Room conversation 是否已不存在。
 func (s *Service) GoalContinuationConversationMissing(ctx context.Context, conversationID string) (bool, error) {
 	conversationID = strings.TrimSpace(conversationID)
-	if s == nil || s.rooms == nil || conversationID == "" {
+	if s.rooms == nil || conversationID == "" {
 		return false, nil
 	}
 	_, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
@@ -485,7 +485,8 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) (*protocol.Goal, bool) {
-	if s == nil || s.goals == nil || roundValue == nil ||
+	if s.goals == nil ||
+		roundValue == nil ||
 		!protocol.IsRoomSharedSessionKey(roundValue.SessionKey) {
 		return nil, false
 	}
@@ -570,7 +571,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 	roundValue *activeRoomRound,
 	binding *protocol.GoalCollaborationBinding,
 ) {
-	if s == nil || s.publicHandoffs == nil || roundValue == nil ||
+	if roundValue == nil ||
 		protocol.NormalizeGoalCollaborationBinding(binding) == nil {
 		return
 	}
@@ -609,7 +610,7 @@ func (s *Service) releaseActiveGoalCollaborationSources(
 	roundValue *activeRoomRound,
 	binding *protocol.GoalCollaborationBinding,
 ) {
-	if s == nil || roundValue == nil || binding == nil {
+	if roundValue == nil || binding == nil {
 		return
 	}
 	for _, candidateRound := range s.rounds.snapshot() {
@@ -652,7 +653,7 @@ func (s *Service) dispatchGoalContinuationForSession(
 	sessionKey string,
 	causedByRoundID string,
 ) {
-	if s == nil || strings.TrimSpace(sessionKey) == "" || s.goals == nil {
+	if strings.TrimSpace(sessionKey) == "" || s.goals == nil {
 		return
 	}
 	planner, ok := s.goals.(goalContinuationProvider)
@@ -697,7 +698,7 @@ func (s *Service) dispatchGoalContinuationForSession(
 }
 
 func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
-	if s == nil || s.goals == nil || dispatchErr == nil {
+	if s.goals == nil || dispatchErr == nil {
 		return
 	}
 	reason := strings.TrimSpace(dispatchErr.Error())
@@ -717,9 +718,6 @@ func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, pla
 
 // DispatchGoalContinuation 把共享 Room Goal 的隐藏续跑交给 Room 运行链路。
 func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
-	if s == nil {
-		return errors.New("room goal continuation dispatcher is not configured")
-	}
 	planner, ok := s.goals.(goalContinuationProvider)
 	if !ok {
 		return errors.New("room goal continuation provider is not configured")
@@ -828,7 +826,7 @@ func (s *Service) goalContinuationDispatchTarget(
 	conversationID string,
 	goal protocol.Goal,
 ) ([]string, string) {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil, ""
 	}
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)

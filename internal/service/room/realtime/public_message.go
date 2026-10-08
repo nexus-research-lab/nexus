@@ -211,7 +211,7 @@ func (s *Service) publicMessageHasGoalCollaboration(
 	rootRoundID string,
 	slot *activeRoomSlot,
 ) bool {
-	if s == nil || s.publicHandoffs == nil || slot == nil {
+	if slot == nil {
 		return false
 	}
 	binding := goalCollaborationBindingForSlot(nil, slot)
@@ -307,7 +307,7 @@ func (s *Service) detectPublicMessageHandoffs(
 	targetAgentIDs []string,
 	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) error {
-	if s.publicHandoffs == nil || contextValue == nil {
+	if contextValue == nil {
 		return nil
 	}
 	for _, targetAgentID := range targetAgentIDs {

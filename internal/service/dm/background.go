@@ -13,7 +13,7 @@ func (s *Service) startSessionBackgroundTask(
 	ownerUserID string,
 	task func(context.Context),
 ) {
-	if s == nil || task == nil {
+	if task == nil {
 		return
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -24,12 +24,6 @@ func (s *Service) startSessionBackgroundTask(
 			return
 		}
 		task(ctx)
-	}
-	if s.runtime == nil {
-		// 没有 runtime manager 时通常是精简测试服务；同步执行，避免测试
-		// 返回后临时 workspace 被清理，而后台协程仍在写入。
-		run(context.Background())
-		return
 	}
 	s.runtime.StartBackgroundTaskForOwner(sessionKey, ownerUserID, run)
 }
