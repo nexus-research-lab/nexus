@@ -4,6 +4,8 @@
 package runtimehost
 
 import (
+	"context"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -255,4 +257,29 @@ func (g *GoalRoundState) ConsumeCommandReceipts(state *nexusmcp.CommandReceiptSt
 	receipts, sequence := state.Since(g.CommandReceiptSequence)
 	g.CommandReceiptSequence = sequence
 	return receipts
+}
+
+// PrepareGoalCompletionReceipt 为本轮完成候选构造附着收据的最终 assistant 消息。
+// 已持久化且未要求 refresh、读不到新用量或收据未变化时返回 false。
+func (g *GoalRoundState) PrepareGoalCompletionReceipt(
+	ctx context.Context,
+	provider any,
+	logger *slog.Logger,
+	roundID string,
+	refresh bool,
+) (string, protocol.Message, protocol.GoalCompletionReceipt, bool) {
+	goalID, assistant, previous, stored := g.GoalCompletionReceiptSnapshot()
+	if goalID == "" || len(assistant) == 0 || (stored && !refresh) {
+		return "", nil, protocol.GoalCompletionReceipt{}, false
+	}
+	report, reportOK := GoalCompletionReport(ctx, provider, logger, goalID)
+	if !reportOK && stored {
+		return "", nil, protocol.GoalCompletionReceipt{}, false
+	}
+	receipt := messageutil.BuildGoalCompletionReceipt(goalID, roundID, report)
+	if stored && previous.Equal(receipt) {
+		return "", nil, protocol.GoalCompletionReceipt{}, false
+	}
+	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
+	return goalID, message, receipt, ok
 }
