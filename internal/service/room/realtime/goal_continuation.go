@@ -688,30 +688,11 @@ func (s *Service) dispatchGoalContinuationForSession(
 		if goalsvc.IsExpectedMutationError(err) {
 			return
 		}
-		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
+		runtimehost.RecordGoalContinuationDispatchFailure(ctx, s.goals, s.LoggerFor(ctx), *plan, err)
 		s.LoggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
 			"session_key", sessionKey,
 			"round_id", plan.RoundID,
 			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-	}
-}
-
-func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
-	if s.goals == nil || dispatchErr == nil {
-		return
-	}
-	reason := strings.TrimSpace(dispatchErr.Error())
-	if reason == "" {
-		reason = "Goal continuation dispatch failed before runtime start"
-	}
-	if err := retryRoomGoalContinuationPlan(ctx, s.goals, plan, reason); err != nil &&
-		!goalsvc.IsExpectedMutationError(err) {
-		s.LoggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
-			"session_key", plan.Goal.SessionKey,
-			"goal_id", plan.Goal.ID,
-			"round_id", plan.RoundID,
 			"err", err,
 		)
 	}
@@ -748,28 +729,6 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 		return err
 	}
 	return nil
-}
-
-type durableRoomGoalContinuationLauncher interface {
-	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
-	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
-}
-
-func retryRoomGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
-	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
-		return durable.RetryContinuationPlan(ctx, plan, reason)
-	}
-	_, err := provider.RecordContinuationRuntimeFailure(
-		ctx,
-		plan.Goal.ID,
-		goalsvc.ContinuationRuntimeIdentity{
-			ReceiptRoundID: plan.RoundID,
-			AuditRoundID:   plan.RoundID,
-		},
-		reason,
-		plan.Goal.ObjectiveRevision(),
-	)
-	return err
 }
 
 // dispatchPreparedGoalContinuationLocked 在 conversation 派发闸门内启动续跑。

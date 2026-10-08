@@ -115,31 +115,11 @@ func (s *Service) writeUsage(
 	message protocol.Message,
 ) bool {
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
-	goalBound, executionBound := false, false
-	lane := string(runtimectx.ResponsibilityLaneUnbound)
-	if authorityState := slot.ensureResponsibilityAuthorityState(); authorityState != nil {
-		if authority, ok := authorityState.Load(); ok {
-			goalBound = strings.TrimSpace(authority.GoalID) != ""
-			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
-			lane = string(authority.Lane)
-		}
-	}
-	// Goal usage ownership is host-maintained even before a Goal mutation lane is
-	// granted; it may enrich scope but never grants capability back to the round.
-	goalBound = goalBound || strings.TrimSpace(slot.goalIDForUsage()) != ""
-	surface, observed := s.Runtime.CacheSurface(slot.RuntimeSessionKey)
-	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
-		surface.Input(),
-		observed,
-		goalBound,
-		executionBound,
-		lane,
-	)
-	if err := s.Usage.RecordMessageUsage(context.Background(), input); err != nil {
+	if err := s.WriteRuntimeUsage(slot.RuntimeSessionKey, input, slot.ensureResponsibilityAuthorityState(), slot.goalIDForUsage(), ""); err != nil {
 		s.LoggerFor(context.Background()).Error("Room token usage 写入失败",
-			"s", roundValue.SessionKey,
-			"r", roundValue.RoomID,
-			"c", roundValue.ConversationID,
+			"session_key", roundValue.SessionKey,
+			"room_id", roundValue.RoomID,
+			"conversation_id", roundValue.ConversationID,
 			"err", err,
 		)
 		return false

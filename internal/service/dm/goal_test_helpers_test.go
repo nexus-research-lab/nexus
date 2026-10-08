@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -96,7 +97,7 @@ func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, 
 	return nil, nil
 }
 
-func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string, revisions ...int64) (*protocol.Goal, error) {
+func (p *fakeGoalContextProvider) RecordContinuationRuntimeFailure(_ context.Context, _ string, _ goalsvc.ContinuationRuntimeIdentity, reason string, revisions ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))

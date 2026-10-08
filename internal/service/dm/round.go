@@ -546,28 +546,7 @@ func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
 
 func (r *roundRunner) writeUsage(message protocol.Message) bool {
 	input := usagesvc.MessageRecordInput(r.ownerUserID, "dm_runtime", message)
-	goalBound := strings.TrimSpace(r.IDForUsage) != ""
-	executionBound := r.executionID != ""
-	lane := string(runtimectx.ResponsibilityLaneUnbound)
-	if executionBound {
-		lane = string(runtimectx.ResponsibilityLaneExecution)
-	}
-	if r.responsibilityState != nil {
-		if authority, ok := r.responsibilityState.Load(); ok {
-			goalBound = strings.TrimSpace(authority.GoalID) != ""
-			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
-			lane = string(authority.Lane)
-		}
-	}
-	surface, observed := r.service.Runtime.CacheSurface(r.sessionKey)
-	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
-		surface.Input(),
-		observed,
-		goalBound,
-		executionBound,
-		lane,
-	)
-	if err := r.service.Usage.RecordMessageUsage(context.Background(), input); err != nil {
+	if err := r.service.WriteRuntimeUsage(r.sessionKey, input, r.responsibilityState, r.IDForUsage, r.executionID); err != nil {
 		r.service.LoggerFor(context.Background()).Error("DM token usage 写入失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
