@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fail fast at startup when DM or Room realtime wiring is incomplete; share their host dependencies and duplicated runtime stages through `service/runtimehost`; remove 494 provably redundant `strings.TrimSpace` calls with `make check-normalization` to keep them out; slim AGENTS.md to the project constitution with product contracts moved into `docs/specs/`.
+
 - Room workspace attachments now reject an empty resolved owner, matching DM; both share one authorization path. Backend dead code, test-only wrappers and duplicated helpers are consolidated, and `make check-architecture` rejects new private copies of the shared string helpers.
 
 - Prune 1,025 Go tests and 41 web test files that add no unique statement coverage, keeping script- and doc-named, concurrency, platform-specific and subprocess-entry tests.
