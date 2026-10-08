@@ -141,7 +141,7 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		if goalsvc.IsExpectedMutationError(err) {
 			return
 		}
-		r.recordGoalContinuationDispatchFailure(ctx, *plan, err)
+		runtimehost.RecordGoalContinuationDispatchFailure(ctx, r.service.goals, r.service.LoggerFor(ctx), *plan, err)
 		r.service.LoggerFor(ctx).Warn("启动 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
 			"round_id", plan.RoundID,
@@ -248,36 +248,4 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 		sessionKey,
 		agentID,
 	)
-}
-
-func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
-	if r == nil || r.service == nil || r.service.goals == nil || dispatchErr == nil {
-		return
-	}
-	reason := strings.TrimSpace(dispatchErr.Error())
-	if reason == "" {
-		reason = "Goal continuation dispatch failed before runtime start"
-	}
-	if err := retryGoalContinuationPlan(ctx, r.service.goals, plan, reason); err != nil &&
-		!goalsvc.IsExpectedMutationError(err) {
-		r.service.LoggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
-			"session_key", plan.Goal.SessionKey,
-			"goal_id", plan.Goal.ID,
-			"round_id", plan.RoundID,
-			"err", err,
-		)
-	}
-}
-
-type durableGoalContinuationLauncher interface {
-	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
-	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
-}
-
-func retryGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
-	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
-		return durable.RetryContinuationPlan(ctx, plan, reason)
-	}
-	_, err := provider.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision())
-	return err
 }

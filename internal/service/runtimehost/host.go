@@ -5,7 +5,9 @@ package runtimehost
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"strings"
 	"sync/atomic"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -247,4 +249,60 @@ func (h *Host) RuntimeImagegenDefaultEnabled(ctx context.Context) bool {
 	}
 	_, err := resolver.ResolveImageConfig(ctx, "")
 	return err == nil
+}
+
+// WriteRuntimeUsage 以缓存与责任归因写入一条 runtime 用量。宿主维护的 Goal 归属始终计入
+// goalBound（在 Goal mutation 权限授予前也成立，且不反向授予能力）；execution 与 lane
+// 以本轮责任权限为准，权限状态不可用时退回宿主绑定的 execution。
+func (h *Host) WriteRuntimeUsage(
+	sessionKey string,
+	input usagesvc.RecordInput,
+	authorityState *runtimectx.ResponsibilityAuthorityState,
+	hostGoalID string,
+	hostExecutionID string,
+) error {
+	goalBound := strings.TrimSpace(hostGoalID) != ""
+	executionBound := strings.TrimSpace(hostExecutionID) != ""
+	lane := string(runtimectx.ResponsibilityLaneUnbound)
+	if executionBound {
+		lane = string(runtimectx.ResponsibilityLaneExecution)
+	}
+	if authorityState != nil {
+		if authority, ok := authorityState.Load(); ok {
+			goalBound = goalBound || strings.TrimSpace(authority.GoalID) != ""
+			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
+			lane = string(authority.Lane)
+		}
+	}
+	surface, observed := h.Runtime.CacheSurface(sessionKey)
+	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(surface.Input(), observed, goalBound, executionBound, lane)
+	return h.Usage.RecordMessageUsage(context.Background(), input)
+}
+
+// RecordTrustedQueueAdmission 为已由宿主确认归属的用户队列条目持久化可信受理，
+// 绑定发起请求的真人 principal；非用户来源或未装配信任存储时不记录。
+func (h *Host) RecordTrustedQueueAdmission(
+	ctx context.Context,
+	location workspacestore.InputQueueLocation,
+	item protocol.InputQueueItem,
+) error {
+	if h.QueueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+		return nil
+	}
+	binding, err := queueadmissionstore.NewBinding(location, item)
+	if err != nil {
+		return err
+	}
+	principal, ok := authctx.DirectHumanPrincipalBindingFromContext(ctx, binding.OwnerUserID)
+	if !ok {
+		return errors.New("trusted queue admission requires the authenticated owner principal")
+	}
+	return h.QueueTrust.Record(ctx, queueadmissionstore.Admission{
+		Binding: binding,
+		Principal: queueadmissionstore.PrincipalBinding{
+			UserID:     principal.UserID,
+			AuthMethod: principal.AuthMethod,
+			SessionID:  principal.SessionID,
+		},
+	})
 }

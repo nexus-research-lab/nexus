@@ -203,3 +203,45 @@ func WithRuntimeDiagnosticsLogger(options agentclient.Options, logger *slog.Logg
 	)
 	return options
 }
+
+type goalContinuationFailureRecorder interface {
+	RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
+}
+
+// RecordGoalContinuationDispatchFailure 记录续跑在 runtime 启动前投递失败；
+// 持久续跑计划走 RetryContinuationPlan，否则把同一 round 记为回执与审计 round。
+func RecordGoalContinuationDispatchFailure(
+	ctx context.Context,
+	provider any,
+	logger *slog.Logger,
+	plan protocol.GoalContinuation,
+	dispatchErr error,
+) {
+	if provider == nil || dispatchErr == nil {
+		return
+	}
+	reason := strings.TrimSpace(dispatchErr.Error())
+	if reason == "" {
+		reason = "Goal continuation dispatch failed before runtime start"
+	}
+	var err error
+	if durable, ok := provider.(DurableGoalContinuationLauncher); ok {
+		err = durable.RetryContinuationPlan(ctx, plan, reason)
+	} else if recorder, ok := provider.(goalContinuationFailureRecorder); ok {
+		_, err = recorder.RecordContinuationRuntimeFailure(
+			ctx,
+			plan.Goal.ID,
+			goalsvc.ContinuationRuntimeIdentity{ReceiptRoundID: plan.RoundID, AuditRoundID: plan.RoundID},
+			reason,
+			plan.Goal.ObjectiveRevision(),
+		)
+	}
+	if err != nil && !goalsvc.IsExpectedMutationError(err) {
+		logger.Warn("记录 Goal 续跑投递失败原因失败",
+			"session_key", plan.Goal.SessionKey,
+			"goal_id", plan.Goal.ID,
+			"round_id", plan.RoundID,
+			"err", err,
+		)
+	}
+}

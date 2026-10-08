@@ -326,7 +326,7 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 			"Goal continuation runtime failed",
 		)
 		r.recordGoalMutation("记录 Goal 续跑失败原因失败", func() error {
-			_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.IDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
+			_, err := r.service.goals.RecordContinuationRuntimeFailure(context.Background(), r.IDForUsage, goalsvc.ContinuationRuntimeIdentity{ReceiptRoundID: r.roundID, AuditRoundID: r.roundID}, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -21,29 +20,14 @@ func (s *Service) recordTrustedRoomQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s.QueueTrust == nil {
+	if !trusted {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
-	if !ok || item.Source != protocol.InputQueueSourceUser {
+	if !ok {
 		return nil
 	}
-	binding, err := queueadmissionstore.NewBinding(location, item)
-	if err != nil {
-		return err
-	}
-	principal, ok := authctx.DirectHumanPrincipalBindingFromContext(ctx, binding.OwnerUserID)
-	if !ok {
-		return errors.New("trusted Room queue admission requires the authenticated owner principal")
-	}
-	return s.QueueTrust.Record(ctx, queueadmissionstore.Admission{
-		Binding: binding,
-		Principal: queueadmissionstore.PrincipalBinding{
-			UserID:     principal.UserID,
-			AuthMethod: principal.AuthMethod,
-			SessionID:  principal.SessionID,
-		},
-	})
+	return s.RecordTrustedQueueAdmission(ctx, location, item)
 }
 
 func (s *Service) recordTrustedRoomQueueAdmissions(
