@@ -36,3 +36,22 @@ Team 同步服务不新增隐式重发或后台消费者。投影恢复继续使
 - `go test -run '^$' ./internal/... ./cmd/...` 通过，验证全部内部包与命令入口编译；此项不代表运行全部测试。
 - 架构门禁及其允许/禁止依赖测试通过；门禁按当前 Go 构建环境检查生产导入。
 - Go 格式、检查脚本语法和 `git diff --check` 通过。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，IM 场景用宿主数据库保存投递来源并把人类反馈交回原 Session，好友私聊保持独立语义，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；mcp/artifact 通过 deliver_files 登记 Skill/脚本等最终文件交付，由 workspace 服务校验后随产出 Agent 的精确轮次消息持久化；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
+- `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
+- `service/configuration` 测试按身份授权、输入与风险、脱敏、审批、审计及业务集成归组；共享装配与审批辅助集中在现有集成测试文件，重复成功路径复用完整场景，独立保留越权、CAS、凭据和删除恢复边界。
+
+## 包职责详述（自 AGENTS.md 迁入）
+
+- cmd/        - 可执行入口（nexus-server 服务 + 自动迁移，macOS 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
+- desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期（boot-bound audit identity 精确终止，旧格式存活/未知记录保留并拒绝并发启动）、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区并通过公开可见性生命周期随主窗口挂起或恢复，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展以代次化标签页引用、来源继承租约、round 收尾、命令截止/取消与执行阶段诊断和增量 AX 快照为 Browser 提供页面、标签页、历史、下载、可见 Agent 指针、交互与用户启用后的完整 CDP 操作）
+- protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
+- service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
+- automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
+- service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器，通过共享 runtime Manager 启动一次性 AutoDream 并统一监督、取消与回收
+- app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；退出先停止 runtime 准入并等待终态落盘，再关闭数据库；server 只负责 HTTP/WS 与后台启停；macOS 桌面入口将迁移前实例锁交给 App，以随包 helper 和 app/processes 完成两阶段恢复后才开放任务，goal / execution / workgraph / runtime 承载宿主适配，runtimecheck 负责安装包内核配套检查；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
+- config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/desktopinstance 承载 macOS sidecar 的状态根独占锁（无 PID 推断，旧版未持锁宿主仍须单独核验），infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界，infra/runtimebootstrap 校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要，infra/textutil 是只依赖标准库的字符串取值原语叶子包（FirstNonEmpty/PointerValue/AnyString），各包不得再私有复制同构 helper

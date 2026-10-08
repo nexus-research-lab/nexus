@@ -175,3 +175,11 @@ Group Room 的 runtime 使用统一 `send_message`。当 `destination=current_ro
 - runtime provider、MCP 工具和 transcript 的内部协议。
 
 一句话：Room 是共享协作容器；conversation 是共享对话；session/slot 是成员执行边界。共享视图和私有运行时必须协同，但不能混成一层。
+
+## 宿主实现约束（自 AGENTS.md 迁入）
+
+以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
+
+- 本地 Room 保存有效群主并开启 `host_auto_reply_enabled` 后，未指定目标的浏览器消息由该群主接管；显式目标优先，暂停参与仍受闸门限制。在线 Team/Relay 不复用此回退。
+- 侧栏的聊天执行态与待确认人工交互只按 Room ID 输出；容器内部必须按精确 Conversation/Session source 隔离后取并集，空快照或终态不得清除其他 source。Room 活动快照必须携带捕获时 `room_seq` 作重放栅栏；持久 Assistant 历史只表达结构和终态，不得独立复活执行态。DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
+- Room-backed Session 中，SQL 只拥有 Room 身份、标题与配置，workspace/Room ledger 拥有运行历史进度；统一读模型必须单调合并。旧 SQL `messages` 计数只能作为兼容下限，禁止覆盖 canonical Goal 控制记录、标题、最近活动、消息数、上下文占用或 transcript lineage。
