@@ -32,31 +32,31 @@ func anyMapRows(value any) []map[string]any {
 }
 
 func externalIndexRowItem(source externalSkillSource, row map[string]any) ExternalSkillSearchItem {
-	name := textutil.FirstNonEmpty(anyString(row["name"]), anyString(row["id"]), anyString(row["slug"]))
-	slug := textutil.FirstNonEmpty(anyString(row["slug"]), name)
-	gitURL := textutil.FirstNonEmpty(anyString(row["git_url"]), anyString(row["repository_url"]), anyString(row["repo_url"]))
-	gitBranch := textutil.FirstNonEmpty(anyString(row["git_branch"]), anyString(row["branch"]), anyString(row["ref"]))
-	gitPath := textutil.FirstNonEmpty(anyString(row["git_path"]), anyString(row["skill_path"]), anyString(row["path"]))
-	rawURL := textutil.FirstNonEmpty(anyString(row["raw_url"]), anyString(row["skill_url"]), anyString(row["archive_url"]))
-	if rawURL == "" && externalURLLooksImportable(anyString(row["url"])) {
-		rawURL = anyString(row["url"])
+	name := textutil.FirstNonEmpty(textutil.AnyString(row["name"]), textutil.AnyString(row["id"]), textutil.AnyString(row["slug"]))
+	slug := textutil.FirstNonEmpty(textutil.AnyString(row["slug"]), name)
+	gitURL := textutil.FirstNonEmpty(textutil.AnyString(row["git_url"]), textutil.AnyString(row["repository_url"]), textutil.AnyString(row["repo_url"]))
+	gitBranch := textutil.FirstNonEmpty(textutil.AnyString(row["git_branch"]), textutil.AnyString(row["branch"]), textutil.AnyString(row["ref"]))
+	gitPath := textutil.FirstNonEmpty(textutil.AnyString(row["git_path"]), textutil.AnyString(row["skill_path"]), textutil.AnyString(row["path"]))
+	rawURL := textutil.FirstNonEmpty(textutil.AnyString(row["raw_url"]), textutil.AnyString(row["skill_url"]), textutil.AnyString(row["archive_url"]))
+	if rawURL == "" && externalURLLooksImportable(textutil.AnyString(row["url"])) {
+		rawURL = textutil.AnyString(row["url"])
 	}
-	packageSpec := textutil.FirstNonEmpty(anyString(row["package_spec"]), gitURL, rawURL, anyString(row["source"]))
-	detailURL := textutil.FirstNonEmpty(anyString(row["detail_url"]), anyString(row["homepage"]), anyString(row["readme_url"]), rawURL, gitURL)
+	packageSpec := textutil.FirstNonEmpty(textutil.AnyString(row["package_spec"]), gitURL, rawURL, textutil.AnyString(row["source"]))
+	detailURL := textutil.FirstNonEmpty(textutil.AnyString(row["detail_url"]), textutil.AnyString(row["homepage"]), textutil.AnyString(row["readme_url"]), rawURL, gitURL)
 	importMode := normalizeImportMode(textutil.FirstNonEmpty(
-		anyString(row["import_mode"]),
+		textutil.AnyString(row["import_mode"]),
 		inferExternalImportMode(ExternalSkillSearchItem{GitURL: gitURL, RawURL: rawURL, PackageSpec: packageSpec}),
 	))
 	return ExternalSkillSearchItem{
 		Name:           name,
-		Title:          textutil.FirstNonEmpty(anyString(row["title"]), name),
-		Description:    textutil.FirstNonEmpty(anyString(row["description"]), anyString(row["summary"])),
-		Source:         textutil.FirstNonEmpty(anyString(row["source"]), source.URL),
+		Title:          textutil.FirstNonEmpty(textutil.AnyString(row["title"]), name),
+		Description:    textutil.FirstNonEmpty(textutil.AnyString(row["description"]), textutil.AnyString(row["summary"])),
+		Source:         textutil.FirstNonEmpty(textutil.AnyString(row["source"]), source.URL),
 		PackageSpec:    packageSpec,
 		SkillSlug:      slug,
 		Installs:       anyInt(row["installs"]),
 		DetailURL:      detailURL,
-		ReadmeMarkdown: anyString(row["readme_markdown"]),
+		ReadmeMarkdown: textutil.AnyString(row["readme_markdown"]),
 		SourceKind:     source.Kind,
 		SourceKey:      source.Key,
 		SourceName:     source.Name,
@@ -67,23 +67,23 @@ func externalIndexRowItem(source externalSkillSource, row map[string]any) Extern
 		GitPath:        gitPath,
 		RawURL:         rawURL,
 		Tags:           anyStringSlice(row["tags"]),
-		Version:        textutil.FirstNonEmpty(anyString(row["version"]), packageSpec),
+		Version:        textutil.FirstNonEmpty(textutil.AnyString(row["version"]), packageSpec),
 	}
 }
 
 func hermesIndexRowItem(source externalSkillSource, row map[string]any) ExternalSkillSearchItem {
-	name := textutil.FirstNonEmpty(anyString(row["name"]), anyString(row["id"]), anyString(row["identifier"]))
-	identifier := anyString(row["identifier"])
-	gitIdentifier := textutil.FirstNonEmpty(anyString(row["resolved_github_id"]), githubIdentifierFromRepoPath(anyString(row["repo"]), anyString(row["path"])))
+	name := textutil.FirstNonEmpty(textutil.AnyString(row["name"]), textutil.AnyString(row["id"]), textutil.AnyString(row["identifier"]))
+	identifier := textutil.AnyString(row["identifier"])
+	gitIdentifier := textutil.FirstNonEmpty(textutil.AnyString(row["resolved_github_id"]), githubIdentifierFromRepoPath(textutil.AnyString(row["repo"]), textutil.AnyString(row["path"])))
 	gitURL, gitPath := splitGitHubIdentifier(gitIdentifier)
 	extra := anyMap(row["extra"])
-	detailURL := textutil.FirstNonEmpty(anyString(extra["detail_url"]), githubTreeURL(gitURL, gitPath), anyString(extra["repo_url"]))
-	sourceLabel := textutil.FirstNonEmpty(anyString(row["source"]), source.Name)
-	trust := normalizeExternalTrust(textutil.FirstNonEmpty(anyString(row["trust_level"]), source.Trust))
+	detailURL := textutil.FirstNonEmpty(textutil.AnyString(extra["detail_url"]), githubTreeURL(gitURL, gitPath), textutil.AnyString(extra["repo_url"]))
+	sourceLabel := textutil.FirstNonEmpty(textutil.AnyString(row["source"]), source.Name)
+	trust := normalizeExternalTrust(textutil.FirstNonEmpty(textutil.AnyString(row["trust_level"]), source.Trust))
 	return ExternalSkillSearchItem{
 		Name:           name,
-		Title:          textutil.FirstNonEmpty(anyString(row["title"]), name),
-		Description:    anyString(row["description"]),
+		Title:          textutil.FirstNonEmpty(textutil.AnyString(row["title"]), name),
+		Description:    textutil.AnyString(row["description"]),
 		Source:         identifier,
 		PackageSpec:    gitURL,
 		SkillSlug:      name,
@@ -98,27 +98,27 @@ func hermesIndexRowItem(source externalSkillSource, row map[string]any) External
 		GitURL:         gitURL,
 		GitPath:        gitPath,
 		Tags:           anyStringSlice(row["tags"]),
-		Version:        textutil.FirstNonEmpty(anyString(row["generated_at"]), gitIdentifier),
+		Version:        textutil.FirstNonEmpty(textutil.AnyString(row["generated_at"]), gitIdentifier),
 	}
 }
 
 func browseShRowItem(source externalSkillSource, row map[string]any) ExternalSkillSearchItem {
-	slug := anyString(row["slug"])
-	name := textutil.FirstNonEmpty(anyString(row["name"]), anyString(row["task"]), slug)
-	title := textutil.FirstNonEmpty(anyString(row["title"]), name)
-	rawURL := githubBlobToRawURL(anyString(row["sourceUrl"]))
-	if rawURL == "" && externalURLLooksImportable(anyString(row["skillMdUrl"])) {
-		rawURL = anyString(row["skillMdUrl"])
+	slug := textutil.AnyString(row["slug"])
+	name := textutil.FirstNonEmpty(textutil.AnyString(row["name"]), textutil.AnyString(row["task"]), slug)
+	title := textutil.FirstNonEmpty(textutil.AnyString(row["title"]), name)
+	rawURL := githubBlobToRawURL(textutil.AnyString(row["sourceUrl"]))
+	if rawURL == "" && externalURLLooksImportable(textutil.AnyString(row["skillMdUrl"])) {
+		rawURL = textutil.AnyString(row["skillMdUrl"])
 	}
 	return ExternalSkillSearchItem{
 		Name:           name,
 		Title:          title,
-		Description:    anyString(row["description"]),
-		Source:         textutil.FirstNonEmpty(anyString(row["hostname"]), anyString(row["source"]), source.URL),
+		Description:    textutil.AnyString(row["description"]),
+		Source:         textutil.FirstNonEmpty(textutil.AnyString(row["hostname"]), textutil.AnyString(row["source"]), source.URL),
 		PackageSpec:    rawURL,
 		SkillSlug:      textutil.FirstNonEmpty(slug, name),
 		Installs:       anyInt(row["installCount"]),
-		DetailURL:      textutil.FirstNonEmpty(rawURL, anyString(row["sourceUrl"])),
+		DetailURL:      textutil.FirstNonEmpty(rawURL, textutil.AnyString(row["sourceUrl"])),
 		ReadmeMarkdown: "",
 		SourceKind:     externalSourceKindBrowseSh,
 		SourceKey:      source.Key,
@@ -127,7 +127,7 @@ func browseShRowItem(source externalSkillSource, row map[string]any) ExternalSki
 		ImportMode:     externalSourceKindURL,
 		RawURL:         rawURL,
 		Tags:           anyStringSlice(row["tags"]),
-		Version:        textutil.FirstNonEmpty(anyString(row["updated"]), rawURL),
+		Version:        textutil.FirstNonEmpty(textutil.AnyString(row["updated"]), rawURL),
 	}
 }
 

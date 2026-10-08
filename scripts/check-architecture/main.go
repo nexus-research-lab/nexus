@@ -79,9 +79,12 @@ func main() {
 	if err == nil {
 		err = check(strings.NewReader(string(output)))
 	}
+	if err == nil {
+		err = checkSharedHelperCopies(".")
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Println("架构依赖检查通过")
+	fmt.Println("架构依赖与共享原语检查通过")
 }

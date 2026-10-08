@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
@@ -200,7 +201,7 @@ func (r *Repository) ReleaseGoalContinuation(ctx context.Context, goal protocol.
 SET status = 'released', version = version + 1, next_attempt_at = NULL,
     claim_expires_at = NULL, last_error = %s, updated_at = %s, settled_at = %s
 WHERE round_id = %s AND status IN ('scheduled', 'claimed')`, r.bind(1), r.bind(2), r.bind(3), r.bind(4))
-	result, err := tx.ExecContext(ctx, query, nullString(stringValue(event.Payload["reason"])), now.UTC(), now.UTC(), strings.TrimSpace(roundID))
+	result, err := tx.ExecContext(ctx, query, nullString(textutil.AnyString(event.Payload["reason"])), now.UTC(), now.UTC(), strings.TrimSpace(roundID))
 	if err != nil {
 		return nil, err
 	}
@@ -298,5 +299,3 @@ func parseStringMap(raw string) map[string]string {
 	}
 	return result
 }
-
-func stringValue(value any) string { text, _ := value.(string); return strings.TrimSpace(text) }

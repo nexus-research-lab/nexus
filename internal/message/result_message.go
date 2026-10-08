@@ -58,7 +58,7 @@ func (p *Processor) buildResultMessage(
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(messageID, "result_"+p.ctx.RoundID),
+		textutil.FirstNonEmpty(messageID, "result_"+p.ctx.RoundID),
 		"result",
 	)
 	payload["subtype"] = subtype
@@ -93,7 +93,7 @@ func (p *Processor) buildResultMessage(
 			stopReason = "error"
 		}
 		if strings.TrimSpace(resultText) == "" {
-			resultText = firstNonEmpty(errors...)
+			resultText = textutil.FirstNonEmpty(errors...)
 		}
 		if runtimeSubtype == "error_hook_stopped" {
 			resultText = hookStoppedDisplayText

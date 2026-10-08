@@ -454,13 +454,13 @@ func LatestReplyPreview(messages []protocol.Message) string {
 			continue
 		}
 		resultSummary, _ := item["result_summary"].(map[string]any)
-		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
+		if textutil.AnyString(resultSummary["subtype"]) == "interrupted" {
 			continue
 		}
 
 		text := ExtractAssistantFinalText(item)
 		if text == "" {
-			text = replySummaryString(resultSummary["result"])
+			text = textutil.AnyString(resultSummary["result"])
 		}
 		if preview := compactReplyPreview(text); preview != "" {
 			return preview
@@ -479,9 +479,4 @@ func compactReplyPreview(value string) string {
 		return normalized
 	}
 	return string(runes[:160-1]) + "…"
-}
-
-func replySummaryString(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
 }

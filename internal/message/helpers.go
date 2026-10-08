@@ -17,16 +17,6 @@ const (
 	interruptedToolUseMessage = "[Request interrupted by user for tool use]"
 )
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func rawString(value any) string {
 	typed, ok := value.(string)
 	if !ok {

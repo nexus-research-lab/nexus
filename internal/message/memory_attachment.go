@@ -32,7 +32,7 @@ func recalledMemoryReferences(attachment sdkprotocol.AttachmentMessage) []map[st
 	for _, item := range items {
 		payload := mapValue(item)
 		name := recalledMemoryName(payload)
-		description := firstNonEmpty(
+		description := textutil.FirstNonEmpty(
 			textutil.AnyString(payload["description"]),
 			memoryFrontmatterDescription(textutil.AnyString(payload["content"])),
 			name,
@@ -49,7 +49,7 @@ func recalledMemoryReferences(attachment sdkprotocol.AttachmentMessage) []map[st
 }
 
 func recalledMemoryName(payload map[string]any) string {
-	name := firstNonEmpty(
+	name := textutil.FirstNonEmpty(
 		textutil.AnyString(payload["name"]),
 		textutil.AnyString(payload["filename"]),
 		filepath.Base(textutil.AnyString(payload["path"])),

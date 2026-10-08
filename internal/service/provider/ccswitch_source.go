@@ -285,21 +285,21 @@ func buildCCSwitchClaudeCandidate(
 	meta map[string]any,
 ) ccSwitchCandidate {
 	environment := jsonMap(settings["env"])
-	preview.BaseURL = textutil.FirstNonEmpty(jsonString(environment["ANTHROPIC_BASE_URL"]), "https://api.anthropic.com")
-	preview.APIFormat = ccSwitchAPIFormat(jsonString(meta["apiFormat"]), "anthropic")
+	preview.BaseURL = textutil.FirstNonEmpty(textutil.AnyString(environment["ANTHROPIC_BASE_URL"]), "https://api.anthropic.com")
+	preview.APIFormat = ccSwitchAPIFormat(textutil.AnyString(meta["apiFormat"]), "anthropic")
 	preview.Models, preview.DefaultModel = ccSwitchClaudeModels(environment)
-	keyField := strings.ToUpper(jsonString(meta["apiKeyField"]))
+	keyField := strings.ToUpper(textutil.AnyString(meta["apiKeyField"]))
 	if keyField == "ANTHROPIC_API_KEY" {
 		return ccSwitchCandidate{
 			preview:   preview,
-			authToken: jsonString(environment["ANTHROPIC_API_KEY"]),
+			authToken: textutil.AnyString(environment["ANTHROPIC_API_KEY"]),
 		}
 	}
 	return ccSwitchCandidate{
 		preview: preview,
 		authToken: textutil.FirstNonEmpty(
-			jsonString(environment["ANTHROPIC_AUTH_TOKEN"]),
-			jsonString(environment["ANTHROPIC_API_KEY"]),
+			textutil.AnyString(environment["ANTHROPIC_AUTH_TOKEN"]),
+			textutil.AnyString(environment["ANTHROPIC_API_KEY"]),
 		),
 	}
 }
@@ -310,7 +310,7 @@ func buildCCSwitchCodexCandidate(
 	meta map[string]any,
 ) ccSwitchCandidate {
 	auth := jsonMap(settings["auth"])
-	configText := jsonString(settings["config"])
+	configText := textutil.AnyString(settings["config"])
 	var config ccSwitchCodexConfig
 	_ = toml.Unmarshal([]byte(configText), &config)
 	providerConfig := config.ModelProviders[config.ModelProvider]
@@ -321,14 +321,14 @@ func buildCCSwitchCodexCandidate(
 	}
 	preview.BaseURL = textutil.FirstNonEmpty(providerConfig.BaseURL, "https://api.openai.com/v1")
 	preview.APIFormat = ccSwitchAPIFormat(
-		jsonString(meta["apiFormat"]),
+		textutil.AnyString(meta["apiFormat"]),
 		textutil.FirstNonEmpty(providerConfig.WireAPI, "responses"),
 	)
 	preview.Models, preview.DefaultModel = ccSwitchCodexModels(settings, config.Model, meta)
 	return ccSwitchCandidate{
 		preview: preview,
 		authToken: textutil.FirstNonEmpty(
-			jsonString(auth["OPENAI_API_KEY"]),
+			textutil.AnyString(auth["OPENAI_API_KEY"]),
 			providerConfig.ExperimentalBearerToken,
 			config.ExperimentalBearerToken,
 		),
@@ -364,13 +364,13 @@ func finalizeCCSwitchCandidate(candidate *ccSwitchCandidate, meta map[string]any
 }
 
 func ccSwitchUnsupportedReason(candidate ccSwitchCandidate, meta map[string]any) string {
-	providerType := strings.ToLower(jsonString(meta["providerType"]))
+	providerType := strings.ToLower(textutil.AnyString(meta["providerType"]))
 	switch providerType {
 	case "codex_oauth", "github_copilot", "xai_oauth":
 		return "托管账号暂不能迁移"
 	}
 	authBinding := jsonMap(meta["authBinding"])
-	if strings.EqualFold(jsonString(authBinding["source"]), "managed_account") {
+	if strings.EqualFold(textutil.AnyString(authBinding["source"]), "managed_account") {
 		return "托管账号暂不能迁移"
 	}
 	if jsonBool(meta["isFullUrl"]) {
@@ -383,7 +383,7 @@ func ccSwitchUnsupportedReason(candidate ccSwitchCandidate, meta map[string]any)
 		return "接口格式暂不支持"
 	}
 	if candidate.preview.AppType == ccSwitchAppClaude &&
-		strings.EqualFold(jsonString(meta["apiKeyField"]), "ANTHROPIC_API_KEY") &&
+		strings.EqualFold(textutil.AnyString(meta["apiKeyField"]), "ANTHROPIC_API_KEY") &&
 		!isOfficialAnthropicURL(candidate.preview.BaseURL) {
 		return "第三方 ANTHROPIC_API_KEY 认证暂不支持"
 	}
@@ -403,7 +403,7 @@ func ccSwitchClaudeModels(environment map[string]any) ([]CCSwitchModelPreview, s
 	seen := map[string]bool{}
 	defaultModel := ""
 	for _, key := range keys {
-		raw := jsonString(environment[key])
+		raw := textutil.AnyString(environment[key])
 		modelID, contextWindow := normalizeCCSwitchModelID(raw)
 		if modelID == "" {
 			continue
@@ -417,7 +417,7 @@ func ccSwitchClaudeModels(environment map[string]any) ([]CCSwitchModelPreview, s
 		seen[modelID] = true
 		models = append(models, CCSwitchModelPreview{
 			ModelID:       modelID,
-			DisplayName:   modelDisplayName(modelID, jsonString(environment[key+"_NAME"])),
+			DisplayName:   modelDisplayName(modelID, textutil.AnyString(environment[key+"_NAME"])),
 			ContextWindow: contextWindow,
 			Capabilities:  []string{"tools"},
 		})
@@ -458,8 +458,8 @@ func ccSwitchCodexModels(
 	for _, raw := range items {
 		item := jsonMap(raw)
 		add(
-			jsonString(item["model"]),
-			textutil.FirstNonEmpty(jsonString(item["displayName"]), jsonString(item["display_name"])),
+			textutil.AnyString(item["model"]),
+			textutil.FirstNonEmpty(textutil.AnyString(item["displayName"]), textutil.AnyString(item["display_name"])),
 			jsonPositiveIntPointer(firstNonNil(item["contextWindow"], item["context_window"])),
 			jsonStringSlice(firstNonNil(item["inputModalities"], item["input_modalities"])),
 		)
@@ -560,11 +560,6 @@ func jsonSlice(value any) []any {
 	return result
 }
 
-func jsonString(value any) string {
-	result, _ := value.(string)
-	return strings.TrimSpace(result)
-}
-
 func jsonBool(value any) bool {
 	result, _ := value.(bool)
 	return result
@@ -595,7 +590,7 @@ func jsonStringSlice(value any) []string {
 	items := jsonSlice(value)
 	result := make([]string, 0, len(items))
 	for _, item := range items {
-		if text := jsonString(item); text != "" {
+		if text := textutil.AnyString(item); text != "" {
 			result = append(result, text)
 		}
 	}

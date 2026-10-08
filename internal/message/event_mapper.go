@@ -72,7 +72,7 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 	if output.Err != nil {
 		return EventMapResult{}, output.Err
 	}
-	NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
+	NormalizeInterruptedOutput(&output, textutil.FirstNonEmpty(interruptReason...))
 	if output.ResultSubtype == "interrupted" {
 		if partial := m.processor.FinalizeInterruptedAssistant(); len(partial) > 0 {
 			output.DurableMessages = append([]protocol.Message{partial}, output.DurableMessages...)

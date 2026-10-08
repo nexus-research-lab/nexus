@@ -383,7 +383,7 @@ func (p *Processor) processAssistantMessage(assistant sdkprotocol.AssistantMessa
 	}
 	includeStopReason := !p.streamStarted || p.streamTerminalObserved
 	isComplete := includeStopReason && strings.TrimSpace(p.segment.StopReason()) != ""
-	parentID := firstNonEmpty(
+	parentID := textutil.FirstNonEmpty(
 		textutil.PointerValue(assistant.ParentToolUseID),
 		p.parentToolUseID,
 	)

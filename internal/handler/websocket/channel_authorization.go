@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	authorizationsvc "github.com/nexus-research-lab/nexus/internal/service/channelauthorization"
@@ -375,9 +376,9 @@ func (h *Handler) handleChannelAuthorizationCode(
 	sender channelAuthorizationSender,
 	inbound map[string]any,
 ) {
-	flowID := stringWireValue(inbound["flow_id"])
-	token := stringWireValue(inbound["presentation_token"])
-	code := stringWireValue(inbound["code"])
+	flowID := textutil.AnyString(inbound["flow_id"])
+	token := textutil.AnyString(inbound["presentation_token"])
+	code := textutil.AnyString(inbound["code"])
 	// 尽早从通用 wire map 移除，后续错误路径或调试输出不得意外携带验证码。
 	delete(inbound, "code")
 
@@ -431,8 +432,8 @@ func (h *Handler) handleChannelAuthorizationCancel(
 	sender channelAuthorizationSender,
 	inbound map[string]any,
 ) {
-	flowID := stringWireValue(inbound["flow_id"])
-	token := stringWireValue(inbound["presentation_token"])
+	flowID := textutil.AnyString(inbound["flow_id"])
+	token := textutil.AnyString(inbound["presentation_token"])
 	transport := h.ensureChannelAuthorizationTransport()
 	actor, controller, err := transport.buildCancellation(
 		h.permission,
@@ -475,14 +476,6 @@ func (h *Handler) handleChannelAuthorizationCancel(
 		}
 	}
 	h.sendChannelAuthorizationResult(ctx, sender, flowID, true, status, message)
-}
-
-func stringWireValue(value any) string {
-	text, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(text)
 }
 
 func (t *channelAuthorizationTransport) buildSubmission(
