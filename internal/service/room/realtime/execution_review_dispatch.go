@@ -136,7 +136,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 		OwnerUserID:     delivery.OwnerUserID,
 		RootRoundID:     roomRootRoundID(parentRound),
-		ReviewBinding:   cloneExecutionReviewBinding(&delivery.Binding),
+		ReviewBinding:   (&delivery.Binding).Clone(),
 	}
 	items, inserted, err := s.inputQueue.EnqueueBounded(
 		location.Location,
@@ -285,7 +285,7 @@ func (s *Service) authorizeManagedExecutionReviewTarget(
 			OwnerUserID:    roundValue.OwnerUserID,
 			SessionKey:     roundValue.SessionKey,
 			ExecutionID:    executionIDFromReviewBinding(binding),
-			ReviewBinding:  cloneExecutionReviewBinding(binding),
+			ReviewBinding:  binding.Clone(),
 			AgentID:        strings.TrimSpace(targetAgentID),
 			ActorKind:      protocol.ExecutionActorAgent,
 			ScopeKind:      protocol.ExecutionScopeRoom,

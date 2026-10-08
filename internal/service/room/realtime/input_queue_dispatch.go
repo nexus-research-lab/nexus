@@ -491,8 +491,8 @@ func (s *Service) dispatchAgentWakeQueueItem(
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				item.GoalCollaborationBinding,
 			),
-			WorkBinding:   cloneExecutionWorkBinding(item.WorkBinding),
-			ReviewBinding: cloneExecutionReviewBinding(item.ReviewBinding),
+			WorkBinding:   item.WorkBinding.Clone(),
+			ReviewBinding: item.ReviewBinding.Clone(),
 		})
 	}
 	coordinatorAgentID := roomCoordinatorAgentID(item.SourceAgentID, contextValue)

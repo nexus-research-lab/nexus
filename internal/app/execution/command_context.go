@@ -58,9 +58,9 @@ func ResolveCommandContext(
 		ScopeSessionKey:         scopeSessionKey,
 		RuntimeSessionKey:       strings.TrimSpace(runtimeContext.RuntimeSessionKey),
 		ExecutionID:             strings.TrimSpace(runtimeContext.ExecutionID),
-		WorkBinding:             cloneWorkBinding(runtimeContext.WorkBinding),
+		WorkBinding:             runtimeContext.WorkBinding.Clone(),
 		WorkBindingState:        runtimeContext.WorkBindingState,
-		ReviewBinding:           cloneReviewBinding(runtimeContext.ReviewBinding),
+		ReviewBinding:           runtimeContext.ReviewBinding.Clone(),
 		GoalAuthority:           runtimeContext.GoalAuthority,
 		ResponsibilityAuthority: runtimeContext.ResponsibilityAuthority,
 		RootRoundID:             strings.TrimSpace(runtimeContext.RootRoundID),
@@ -156,18 +156,3 @@ func cloneGoalContinuationAuthority(
 	return authority.Normalized()
 }
 
-func cloneReviewBinding(binding *protocol.ExecutionReviewBinding) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}

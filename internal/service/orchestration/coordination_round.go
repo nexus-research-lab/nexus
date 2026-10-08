@@ -25,7 +25,7 @@ func (s *Service) ActivateRuntimeCoordination(
 		return err
 	}
 	// Historical reads must not replace this round's current coordination scope.
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		return nil
 	}
 	if !roomConversationCoordinator(actor, snapshot) &&
@@ -96,7 +96,7 @@ func (s *Service) activateReviewContinuationResult(
 	if actor.PlanMode ||
 		result.Snapshot == nil ||
 		(result.Outcome != MutationApplied && result.Outcome != MutationNoOp) ||
-		!isCurrentExecutionStatus(result.Snapshot.Execution.Status) {
+		!result.Snapshot.Execution.Status.Current() {
 		return result
 	}
 	if !reviewBindingResolved(actor, result.Snapshot) &&

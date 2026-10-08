@@ -177,7 +177,7 @@ func (r *Repository) ReplaceWithPlan(
 		return nil, sql.ErrNoRows
 	}
 	if current.Version != command.ExpectedExecutionVersion ||
-		!currentExecutionStatus(current.Status) {
+		!current.Status.Current() {
 		return nil, ErrVersionConflict
 	}
 	if strings.TrimSpace(current.GoalID) != "" {
@@ -732,8 +732,3 @@ func planEvent(
 	}
 }
 
-func currentExecutionStatus(status protocol.ExecutionStatus) bool {
-	return status == protocol.ExecutionStatusActive ||
-		status == protocol.ExecutionStatusWaiting ||
-		status == protocol.ExecutionStatusPaused
-}

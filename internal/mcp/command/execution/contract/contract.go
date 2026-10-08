@@ -107,13 +107,13 @@ type Context struct {
 // Actor 把 nexus.command 的可信身份投影到应用服务权限边界。
 func (c Context) Actor() orchestration.ActorContext {
 	goalAuthority := runtimectx.GoalAuthority{}
-	workBinding := cloneExecutionWorkBinding(c.WorkBinding)
-	reviewBinding := cloneExecutionReviewBinding(c.ReviewBinding)
+	workBinding := c.WorkBinding.Clone()
+	reviewBinding := c.ReviewBinding.Clone()
 	executionID := strings.TrimSpace(c.ExecutionID)
 	if c.ResponsibilityAuthority != nil {
 		authority, _ := c.ResponsibilityAuthority.Load()
-		workBinding = cloneExecutionWorkBinding(authority.WorkBinding)
-		reviewBinding = cloneExecutionReviewBinding(authority.ReviewBinding)
+		workBinding = authority.WorkBinding.Clone()
+		reviewBinding = authority.ReviewBinding.Clone()
 		executionID = strings.TrimSpace(authority.ExecutionID)
 		goalAuthority.GoalID = authority.GoalID
 		goalAuthority.ObjectiveRevision = authority.ObjectiveRevision
@@ -151,22 +151,3 @@ func (c Context) Actor() orchestration.ActorContext {
 	}
 }
 
-func cloneExecutionReviewBinding(
-	binding *protocol.ExecutionReviewBinding,
-) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneExecutionWorkBinding(
-	binding *protocol.ExecutionWorkBinding,
-) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}

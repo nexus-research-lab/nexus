@@ -332,8 +332,8 @@ func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
 		authority.SeedExecution(actor.ExecutionID)
 		snapshot, _ := authority.Load()
 		actor.ExecutionID = snapshot.ExecutionID
-		actor.WorkBinding = cloneExecutionWorkBinding(snapshot.WorkBinding)
-		actor.ReviewBinding = cloneExecutionReviewBinding(snapshot.ReviewBinding)
+		actor.WorkBinding = snapshot.WorkBinding.Clone()
+		actor.ReviewBinding = snapshot.ReviewBinding.Clone()
 	}
 	return actor
 }
@@ -367,8 +367,8 @@ func roomOrchestrationActor(
 			),
 			roundValue.ExecutionID,
 		),
-		WorkBinding:           cloneExecutionWorkBinding(slot.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(slot.ReviewBinding),
+		WorkBinding:           slot.WorkBinding.Clone(),
+		ReviewBinding:         slot.ReviewBinding.Clone(),
 		GoalID:                strings.TrimSpace(goalAuthority.GoalID),
 		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,
 		AgentID:               slot.AgentID,

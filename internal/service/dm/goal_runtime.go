@@ -561,7 +561,7 @@ func (r *roundRunner) tryRecordGoalUsageSnapshot(
 	}
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
-	if isZeroGoalUsage(usage) {
+	if usage.IsZero() {
 		return true
 	}
 	_, persisted := r.persistGoalUsageDeltaLocked(ctx, usage)
@@ -606,7 +606,7 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 	} else {
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
 	goalID := strings.TrimSpace(r.goalIDForUsage)
 	finalizer, canFinalize := r.service.goals.(dmGoalUsageFinalizationProvider)
@@ -745,7 +745,7 @@ func (r *roundRunner) persistGoalUsageDeltaLocked(
 	ctx context.Context,
 	usage protocol.GoalUsage,
 ) (*protocol.Goal, bool) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() || isZeroGoalUsage(usage) {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || usage.IsZero() {
 		return nil, false
 	}
 	goalID := strings.TrimSpace(r.goalIDForUsage)
@@ -1276,14 +1276,3 @@ func (r *roundRunner) ignoreGoalRuntime() bool {
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(r.permissionMode))
 }
 
-func isZeroGoalUsage(usage protocol.GoalUsage) bool {
-	return usage.InputTokens == 0 &&
-		usage.OutputTokens == 0 &&
-		usage.CacheCreationInputTokens == 0 &&
-		usage.CacheReadInputTokens == 0 &&
-		usage.ReasoningTokens == 0 &&
-		usage.TotalTokens == 0 &&
-		usage.BudgetTotalTokens == 0 &&
-		usage.ActualTotalTokens == 0 &&
-		usage.RuntimeSeconds == 0
-}

@@ -21,6 +21,21 @@ const (
 	ExecutionStatusSuperseded ExecutionStatus = "superseded"
 )
 
+// Current 表示 Execution 仍可推进（active/waiting/paused）。
+func (s ExecutionStatus) Current() bool {
+	return s == ExecutionStatusActive || s == ExecutionStatusWaiting || s == ExecutionStatusPaused
+}
+
+// Terminal 表示 Execution 已结束且不再接受推进。
+func (s ExecutionStatus) Terminal() bool {
+	switch s {
+	case ExecutionStatusCompleted, ExecutionStatusFailed, ExecutionStatusCancelled, ExecutionStatusSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
 // ExecutionScopeKind 表示 Execution 的用户可见协作作用域。
 type ExecutionScopeKind string
 
@@ -48,6 +63,16 @@ const (
 	GoalActivationOriginAdaptivePromoted GoalActivationOrigin = "adaptive_promoted"
 )
 
+// Valid 表示 origin 属于已定义的 Goal 激活来源。
+func (o GoalActivationOrigin) Valid() bool {
+	switch o {
+	case GoalActivationOriginUserExplicit, GoalActivationOriginAdaptiveInitial, GoalActivationOriginAdaptivePromoted:
+		return true
+	default:
+		return false
+	}
+}
+
 // GoalActivationReason 表示 Goal 持续性边界的确定原因。
 type GoalActivationReason string
 
@@ -61,6 +86,32 @@ const (
 	GoalActivationReasonRecoveryRequired      GoalActivationReason = "recovery_required"
 	GoalActivationReasonSubstantialComplexity GoalActivationReason = "substantial_complexity"
 )
+
+// Valid 表示 reason 属于已定义的 Goal 持续性边界原因。
+func (r GoalActivationReason) Valid() bool {
+	switch r {
+	case GoalActivationReasonPersistenceRequested,
+		GoalActivationReasonObservedBoundary,
+		GoalActivationReasonRoomDependencyChain,
+		GoalActivationReasonExternalWait,
+		GoalActivationReasonScheduledRetry,
+		GoalActivationReasonContextBoundary,
+		GoalActivationReasonRecoveryRequired,
+		GoalActivationReasonSubstantialComplexity:
+		return true
+	default:
+		return false
+	}
+}
+
+// PromotionOrigin 返回按该原因晋升 Goal 时的激活来源：只有用户显式要求持久化
+// 才视为 user_explicit，其余都是自适应晋升。
+func (r GoalActivationReason) PromotionOrigin() GoalActivationOrigin {
+	if r == GoalActivationReasonPersistenceRequested {
+		return GoalActivationOriginUserExplicit
+	}
+	return GoalActivationOriginAdaptivePromoted
+}
 
 // Execution 表示一次可恢复、可选绑定 Goal 的实际推进。
 //
@@ -130,6 +181,16 @@ const (
 	WorkItemKindVerify    WorkItemKind = "verify"
 	WorkItemKindIntegrate WorkItemKind = "integrate"
 )
+
+// Valid 表示 kind 属于已定义的 Work Item 类型。
+func (k WorkItemKind) Valid() bool {
+	switch k {
+	case WorkItemKindProduce, WorkItemKindReview, WorkItemKindVerify, WorkItemKindIntegrate:
+		return true
+	default:
+		return false
+	}
+}
 
 // WorkItemStatus 只表达 stable Work Item identity 的生命周期。
 //
@@ -341,6 +402,15 @@ type ExecutionWorkBinding struct {
 	AssignmentID string `json:"assignment_id"`
 	AttemptID    string `json:"attempt_id"`
 	DispatchID   string `json:"dispatch_id"`
+}
+
+// Clone 返回独立副本；nil 保持 nil。
+func (b *ExecutionWorkBinding) Clone() *ExecutionWorkBinding {
+	if b == nil {
+		return nil
+	}
+	result := *b
+	return &result
 }
 
 // Normalized 返回去除首尾空白的绑定副本；nil 视为空绑定。binding 的清洗
@@ -648,6 +718,15 @@ type ExecutionReviewBinding struct {
 	SubmissionID     string `json:"submission_id"`
 	ReviewDispatchID string `json:"review_dispatch_id"`
 	TargetAgentID    string `json:"target_agent_id"`
+}
+
+// Clone 返回独立副本；nil 保持 nil。
+func (b *ExecutionReviewBinding) Clone() *ExecutionReviewBinding {
+	if b == nil {
+		return nil
+	}
+	result := *b
+	return &result
 }
 
 // Normalized 返回去除首尾空白的绑定副本；nil 视为空绑定。清洗只发生在

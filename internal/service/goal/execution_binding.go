@@ -62,7 +62,7 @@ func (s *Service) BindExplicitExecution(
 			activationOrigin = protocol.GoalActivationOriginUserExplicit
 			activationReason = protocol.GoalActivationReasonPersistenceRequested
 		}
-		if !managedGoalActivationOrigin(activationOrigin) || activationReason == "" {
+		if !activationOrigin.Valid() || activationReason == "" {
 			return nil, fmt.Errorf(
 				"%w: Goal does not carry managed Execution activation provenance",
 				ErrGoalExecutionBindingConflict,
@@ -181,17 +181,6 @@ func (s *Service) BindExplicitExecution(
 		}
 		return updated, nil
 	})
-}
-
-func managedGoalActivationOrigin(origin protocol.GoalActivationOrigin) bool {
-	switch origin {
-	case protocol.GoalActivationOriginUserExplicit,
-		protocol.GoalActivationOriginAdaptiveInitial,
-		protocol.GoalActivationOriginAdaptivePromoted:
-		return true
-	default:
-		return false
-	}
 }
 
 func normalizeExecutionCompletionCriteria(values []string) []string {

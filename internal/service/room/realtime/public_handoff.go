@@ -1018,8 +1018,8 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		GoalCollaborationBinding: cloneGoalCollaborationBinding(
 			handoff.GoalCollaborationBinding,
 		),
-		WorkBinding:   cloneExecutionWorkBinding(handoff.WorkBinding),
-		ReviewBinding: cloneExecutionReviewBinding(handoff.ReviewBinding),
+		WorkBinding:   handoff.WorkBinding.Clone(),
+		ReviewBinding: handoff.ReviewBinding.Clone(),
 	}
 	lease := s.lockRoomDispatch(parentRound.SessionKey, parentRound.ConversationID)
 	defer lease.Unlock()

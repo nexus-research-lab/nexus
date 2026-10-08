@@ -689,7 +689,7 @@ func (s *Service) tryRecordGoalUsageSnapshotForSlotInScope(
 	}
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
-	if isZeroRoomGoalUsage(usage) {
+	if usage.IsZero() {
 		slot.mutable.goal.mu.Unlock()
 		return true
 	}
@@ -743,7 +743,7 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 	} else {
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroRoomGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
 	goalID := strings.TrimSpace(slot.mutable.goal.idForUsage)
 	goalSessionKey := strings.TrimSpace(slot.mutable.goal.sessionKey)
@@ -756,7 +756,7 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		// Reset/Close 的 accumulator 不具备该资格，避免 settlement 后整轮重算。
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroRoomGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
 
 	recorder, durable := s.goals.(roomGoalUsageParentRecorder)
@@ -950,7 +950,7 @@ func (s *Service) finalizeCompletedRoomGoalWithRetry(
 }
 
 func (s *Service) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) *protocol.Goal {
-	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
+	if s.goals == nil || slot == nil || usage.IsZero() {
 		return nil
 	}
 	slot.mutable.goal.mu.Lock()
@@ -991,7 +991,7 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 	goalID string,
 	goalSessionKey string,
 ) (*protocol.Goal, bool) {
-	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
+	if s.goals == nil || slot == nil || usage.IsZero() {
 		return nil, false
 	}
 	var err error
@@ -1572,18 +1572,6 @@ func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
 	}
 	elapsed := int64(time.Since(startedAt).Seconds())
 	return max(elapsed, 0)
-}
-
-func isZeroRoomGoalUsage(usage protocol.GoalUsage) bool {
-	return usage.InputTokens == 0 &&
-		usage.OutputTokens == 0 &&
-		usage.CacheCreationInputTokens == 0 &&
-		usage.CacheReadInputTokens == 0 &&
-		usage.ReasoningTokens == 0 &&
-		usage.TotalTokens == 0 &&
-		usage.BudgetTotalTokens == 0 &&
-		usage.ActualTotalTokens == 0 &&
-		usage.RuntimeSeconds == 0
 }
 
 // goalCancellationProvider 是用户取消当前 Room Goal 所需的最小 Goal 能力。

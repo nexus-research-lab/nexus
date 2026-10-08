@@ -57,7 +57,7 @@ func (s *Service) AbandonExecution(
 		}}), nil
 	}
 	if actor.PlanMode {
-		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if !snapshot.Execution.Status.Current() {
 			return RejectedResult(snapshot, terminalExecutionError(), nil), nil
 		}
 		if revisionErr := requireMutationRevision(snapshot, input.SnapshotRevision); revisionErr != nil {
@@ -73,7 +73,7 @@ func (s *Service) AbandonExecution(
 		}}
 		return result, nil
 	}
-	wasTerminal := !isCurrentExecutionStatus(snapshot.Execution.Status)
+	wasTerminal := !snapshot.Execution.Status.Current()
 	if !wasTerminal {
 		if revisionErr := requireMutationRevision(snapshot, input.SnapshotRevision); revisionErr != nil {
 			return RejectedResult(snapshot, revisionErr, nextActions(snapshot, actor)), nil
@@ -276,12 +276,6 @@ func requireExecutionCoordinator(actor ActorContext) error {
 		return nil
 	}
 	return domainError(ErrorCodeWrongOwner, "only the execution coordinator may perform this operation")
-}
-
-func isCurrentExecutionStatus(status protocol.ExecutionStatus) bool {
-	return status == protocol.ExecutionStatusActive ||
-		status == protocol.ExecutionStatusWaiting ||
-		status == protocol.ExecutionStatusPaused
 }
 
 func terminalExecutionError() error {

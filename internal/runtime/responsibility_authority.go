@@ -212,8 +212,8 @@ func (s *ResponsibilityAuthorityState) Load() (ResponsibilityAuthority, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	result := s.value
-	result.WorkBinding = cloneRuntimeWorkBinding(result.WorkBinding)
-	result.ReviewBinding = cloneRuntimeReviewBinding(result.ReviewBinding)
+	result.WorkBinding = result.WorkBinding.Clone()
+	result.ReviewBinding = result.ReviewBinding.Clone()
 	return result, true
 }
 
@@ -480,15 +480,6 @@ func (s *ResponsibilityAuthorityState) RevokeExecution(executionID string) bool 
 	}
 	s.value.Generation++
 	return true
-}
-
-// cloneRuntimeReviewBinding 浅拷贝快照所有权；字段清洗已在 ingress 完成。
-func cloneRuntimeReviewBinding(binding *protocol.ExecutionReviewBinding) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }
 
 type responsibilityAuthorityContextKey struct{}

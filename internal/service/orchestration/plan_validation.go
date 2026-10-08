@@ -118,7 +118,7 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 				"",
 			)
 		}
-		if !validWorkItemKind(item.Kind) {
+		if !item.Kind.Valid() {
 			return newDomainError(
 				ErrorCodeInvalidInput,
 				"unknown work item kind; expected produce, review, verify, or integrate",
@@ -253,18 +253,6 @@ func normalizeNonEmptyStrings(input []string) []string {
 		result = append(result, strings.TrimSpace(value))
 	}
 	return result
-}
-
-func validWorkItemKind(kind protocol.WorkItemKind) bool {
-	switch kind {
-	case protocol.WorkItemKindProduce,
-		protocol.WorkItemKindReview,
-		protocol.WorkItemKindVerify,
-		protocol.WorkItemKindIntegrate:
-		return true
-	default:
-		return false
-	}
 }
 
 func firstDependencyCycle(graph map[string][]string) []string {

@@ -439,7 +439,7 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 	if calls := provider.finalizeCallCount(); calls != 1 {
 		t.Fatalf("FinalizeUsageForGoal calls after child drain = %d, want 1", calls)
 	}
-	if deltas := provider.finalizedDeltas(); len(deltas) != 1 || !isZeroGoalUsage(deltas[0]) {
+	if deltas := provider.finalizedDeltas(); len(deltas) != 1 || !deltas[0].IsZero() {
 		t.Fatalf("finalization deltas = %#v, want one zero delta after parent usage was persisted", deltas)
 	}
 
@@ -692,7 +692,7 @@ func TestDMTerminalUsageDurableParentLedgerReplaysWithoutDoubleAttribution(t *te
 				t.Fatalf("finalization calls = %d, want %d", calls, test.wantFinalizeCalls)
 			}
 			for _, delta := range provider.finalizedDeltas() {
-				if !isZeroGoalUsage(delta) {
+				if !delta.IsZero() {
 					t.Fatalf("finalization delta = %#v, want zero after durable parent attribution", delta)
 				}
 			}
