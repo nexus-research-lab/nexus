@@ -101,4 +101,3 @@ func (s *WorkBindingState) Clear() {
 func sameRuntimeWorkBinding(left, right *protocol.ExecutionWorkBinding) bool {
 	return left != nil && right != nil && *left == *right
 }
-
