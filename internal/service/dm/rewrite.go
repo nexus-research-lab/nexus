@@ -30,7 +30,7 @@ type rewritePruneInput struct {
 func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request RewriteRequest) error {
 	sessionKey, parsed, err := s.validateRewriteRequest(request)
 	if err != nil {
-		s.loggerFor(ctx).Warn("拒绝 DM rewrite 请求",
+		s.LoggerFor(ctx).Warn("拒绝 DM rewrite 请求",
 			"session_key", request.SessionKey,
 			"agent_id", request.AgentID,
 			"target_round_id", request.TargetRoundID,
@@ -40,7 +40,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		)
 		return err
 	}
-	logger := s.loggerFor(ctx).With(
+	logger := s.LoggerFor(ctx).With(
 		"session_key", sessionKey,
 		"target_round_id", request.TargetRoundID,
 		"client_request_id", request.ClientRequestID,
@@ -258,7 +258,7 @@ func (s *Service) pruneHistoryRewriteTail(ctx context.Context, input rewritePrun
 		roundIDs,
 	)
 	if err != nil {
-		s.loggerFor(ctx).Error("DM rewrite overlay 裁剪失败",
+		s.LoggerFor(ctx).Error("DM rewrite overlay 裁剪失败",
 			"session_key", input.SessionKey,
 			"target_round_id", input.TargetRoundID,
 			"replacement_round_id", input.ReplacementRoundID,
@@ -266,7 +266,7 @@ func (s *Service) pruneHistoryRewriteTail(ctx context.Context, input rewritePrun
 			"err", err,
 		)
 	} else {
-		s.loggerFor(ctx).Info("DM rewrite overlay 已裁剪",
+		s.LoggerFor(ctx).Info("DM rewrite overlay 已裁剪",
 			"session_key", input.SessionKey,
 			"target_round_id", input.TargetRoundID,
 			"replacement_round_id", input.ReplacementRoundID,
@@ -290,7 +290,7 @@ func (s *Service) broadcastHistoryRewriteResync(
 		"replacement_round_id": strings.TrimSpace(replacementRoundID),
 	})
 	event.SessionKey = sessionKey
-	s.loggerFor(ctx).Info("广播 DM rewrite 历史刷新",
+	s.LoggerFor(ctx).Info("广播 DM rewrite 历史刷新",
 		"session_key", sessionKey,
 		"target_round_id", strings.TrimSpace(targetRoundID),
 		"replacement_round_id", strings.TrimSpace(replacementRoundID),

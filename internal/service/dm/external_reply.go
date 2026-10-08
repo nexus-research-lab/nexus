@@ -57,7 +57,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 	defer cancel()
 	result, err := r.service.replies.DeliverExternalReply(deliverCtx, agentID, text, target)
 	if err != nil {
-		r.service.loggerFor(context.Background()).Error("DM assistant 外部通道回复投递失败",
+		r.service.LoggerFor(context.Background()).Error("DM assistant 外部通道回复投递失败",
 			"session_key", r.sessionKey,
 			"agent_id", agentID,
 			"round_id", r.roundID,
@@ -69,7 +69,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		return
 	}
 	r.persistExternalReplyReceipt(assistant, result)
-	r.service.loggerFor(context.Background()).Info("DM assistant 外部通道回复已投递",
+	r.service.LoggerFor(context.Background()).Info("DM assistant 外部通道回复已投递",
 		"session_key", r.sessionKey,
 		"agent_id", agentID,
 		"round_id", r.roundID,
@@ -105,7 +105,7 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		r.session.SessionKey,
 		receipt,
 	); err != nil {
-		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
+		r.service.LoggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
 			"message_id", receipt.MessageID,
@@ -139,7 +139,7 @@ func (r *roundRunner) externalReplyTypingTarget() (string, ExternalReplyTarget, 
 }
 
 func (r *roundRunner) logExternalTypingError(agentID string, target ExternalReplyTarget, active bool, err error) {
-	r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
+	r.service.LoggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
 		"session_key", r.sessionKey,
 		"agent_id", agentID,
 		"round_id", r.roundID,

@@ -36,7 +36,7 @@ skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源与 TS codegen 输入
   runtime/    - nxs/Claude Code 共用宿主主链：bridge client、manager 生命周期、workspace isolation Hook、桌面沙箱资源
-  service/    - 业务服务；service/room 只持久化 Room，实时编排在 service/room/realtime
+  service/    - 业务服务；service/room 只持久化 Room，实时编排在 service/room/realtime；DM 与 Room realtime 共用的宿主依赖和阶段在 service/runtimehost
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
   relay/      - Relay 独立跨仓合同；service/relay 是客户端，service/team 负责远端结果与本地投影同步

@@ -4,12 +4,8 @@
 package dm
 
 import (
-	"context"
-
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
-	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 )
 
 func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInputBlock {
@@ -18,7 +14,7 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 	}
 	history, err := e.service.history.ReadMessages(e.agent.WorkspacePath, e.session, nil)
 	if err != nil {
-		e.service.loggerFor(e.ctx).Warn(
+		e.service.LoggerFor(e.ctx).Warn(
 			"读取 DM 上一轮失败上下文失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
@@ -46,31 +42,4 @@ func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
 	inputs = append(inputs, runtimectx.AutomationRunContextualInputs(r.automationRun)...)
 	inputs = append(inputs, runtimectx.GoalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)...)
 	return append(inputs, r.recoveryContext...)
-}
-
-type executionContextProvider interface {
-	RuntimeContext(context.Context, orchestrationsvc.ActorContext) (string, error)
-}
-
-// SetExecutionContextProvider 注入每轮权威 WorkGraph 上下文读取器。
-func (s *Service) SetExecutionContextProvider(provider executionContextProvider) {
-	s.executionContext = provider
-}
-
-func (s *Service) executionContextualInputs(
-	ctx context.Context,
-	actor orchestrationsvc.ActorContext,
-) ([]runtimectx.ContextualInputBlock, error) {
-	if s.executionContext == nil {
-		return nil, nil
-	}
-	content, err := s.executionContext.RuntimeContext(ctx, actor)
-	if err != nil {
-		return nil, err
-	}
-	return runtimectx.ExecutionContextualInputs(content), nil
-}
-
-func (s *Service) executionObserver() orchestrationruntimehook.Observer {
-	return orchestrationruntimehook.Observer{Provider: s.executionContext, Logger: s.logger}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	_ "modernc.org/sqlite"
 
@@ -25,7 +26,7 @@ import (
 func TestDMRuntimeDiagnosticsLogsStderrWhenEnabled(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		var output bytes.Buffer
-		service := &Service{logger: logx.New(logx.Options{Output: &output, Format: "json"})}
+		service := &Service{Host: runtimehost.Host{Logger: logx.New(logx.Options{Output: &output, Format: "json"})}}
 		value := "0"
 		if enabled {
 			value = "1"

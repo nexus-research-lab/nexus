@@ -192,7 +192,7 @@ func (s *Service) logRoomContextUsage(
 	if roundValue == nil || slot == nil {
 		return
 	}
-	s.loggerFor(ctx).Debug("Room 可见上下文预算已应用",
+	s.LoggerFor(ctx).Debug("Room 可见上下文预算已应用",
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
 		"agent_id", slot.AgentID,

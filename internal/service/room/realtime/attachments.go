@@ -11,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
-	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -48,20 +47,6 @@ func (s *Service) renderRuntimeContentWithAttachments(
 		attachments,
 		s.resolveRuntimeAttachmentPath,
 	)
-}
-
-func (s *Service) expandRuntimeSlashPrompt(
-	ctx context.Context,
-	content string,
-) (string, error) {
-	if s.runtimeSlashExpander != nil {
-		return s.runtimeSlashExpander.ExpandRuntimePrompt(
-			ctx,
-			authctx.OwnerUserID(ctx),
-			content,
-		)
-	}
-	return slashcommandsvc.ExpandProductPrompt(content), nil
 }
 
 func (s *Service) appendRuntimeUserContext(

@@ -182,7 +182,7 @@ func (s *Service) HandleInputQueue(
 			})
 			if pending {
 				if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
-					s.loggerFor(ctx).Warn("广播恢复受理的 Room input_queue 快照失败",
+					s.LoggerFor(ctx).Warn("广播恢复受理的 Room input_queue 快照失败",
 						"session_key", sessionKey,
 						"item_id", acceptedEntry.Item.ID,
 						"err", broadcastErr,
@@ -229,7 +229,7 @@ func (s *Service) HandleInputQueue(
 		}
 		if !enqueueResult.Duplicate {
 			if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
-				s.loggerFor(ctx).Warn("广播已受理的 Room input_queue 快照失败",
+				s.LoggerFor(ctx).Warn("广播已受理的 Room input_queue 快照失败",
 					"session_key", sessionKey,
 					"item_id", enqueueResult.Item.ID,
 					"err", broadcastErr,

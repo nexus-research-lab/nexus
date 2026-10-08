@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -291,7 +292,7 @@ func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",
@@ -331,7 +332,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",

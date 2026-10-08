@@ -21,7 +21,7 @@ func (s *Service) recordTrustedQueueAdmission(
 	trusted bool,
 ) error {
 	if !trusted ||
-		s.queueTrust == nil ||
+		s.QueueTrust == nil ||
 		item.Source != protocol.InputQueueSourceUser {
 		return nil
 	}
@@ -40,7 +40,7 @@ func (s *Service) recordTrustedQueueAdmission(
 	if !ok {
 		return errors.New("trusted DM queue admission requires the authenticated owner principal")
 	}
-	return s.queueTrust.Record(ctx, queueadmissionstore.Admission{
+	return s.QueueTrust.Record(ctx, queueadmissionstore.Admission{
 		Binding: binding,
 		Principal: queueadmissionstore.PrincipalBinding{
 			UserID:     principal.UserID,
@@ -56,7 +56,7 @@ func (s *Service) claimTrustedQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.QueueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	agentID := inputQueueLocationAgentID(location)
@@ -78,7 +78,7 @@ func (s *Service) claimTrustedQueueAdmission(
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}
-	return s.queueTrust.Claim(ctx, binding)
+	return s.QueueTrust.Claim(ctx, binding)
 }
 
 func (s *Service) revokeQueueAdmission(
@@ -86,7 +86,7 @@ func (s *Service) revokeQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s.queueTrust == nil ||
+	if s.QueueTrust == nil ||
 		item.Source != protocol.InputQueueSourceUser {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (s *Service) revokeQueueAdmission(
 	if err != nil {
 		return err
 	}
-	return s.queueTrust.Revoke(ctx, binding)
+	return s.QueueTrust.Revoke(ctx, binding)
 }
 
 func inputQueueItemByID(

@@ -9,7 +9,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 )
 
 func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
@@ -31,10 +30,6 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 	}
 }
 
-type executionContextProvider interface {
-	RuntimeContext(context.Context, orchestrationsvc.ActorContext) (string, error)
-}
-
 type executionGoalBindingProvider interface {
 	RuntimeGoalBinding(
 		context.Context,
@@ -46,30 +41,11 @@ type executionCoordinationLifecycle interface {
 	ReleaseRuntimeCoordination(orchestrationsvc.ActorContext)
 }
 
-// SetExecutionContextProvider 注入每轮权威 WorkGraph 上下文读取器。
-func (s *Service) SetExecutionContextProvider(provider executionContextProvider) {
-	s.executionContext = provider
-}
-
-func (s *Service) executionContextualInputs(
-	ctx context.Context,
-	actor orchestrationsvc.ActorContext,
-) ([]runtimectx.ContextualInputBlock, error) {
-	if s.executionContext == nil {
-		return nil, nil
-	}
-	content, err := s.executionContext.RuntimeContext(ctx, actor)
-	if err != nil {
-		return nil, err
-	}
-	return runtimectx.ExecutionContextualInputs(content), nil
-}
-
 func (s *Service) executionGoalBinding(
 	ctx context.Context,
 	actor orchestrationsvc.ActorContext,
 ) (orchestrationsvc.RuntimeGoalBinding, error) {
-	provider, ok := s.executionContext.(executionGoalBindingProvider)
+	provider, ok := s.ExecutionContext.(executionGoalBindingProvider)
 	if !ok || provider == nil {
 		return orchestrationsvc.RuntimeGoalBinding{}, nil
 	}
@@ -79,13 +55,9 @@ func (s *Service) executionGoalBinding(
 func (s *Service) releaseExecutionCoordination(
 	actor orchestrationsvc.ActorContext,
 ) {
-	provider, ok := s.executionContext.(executionCoordinationLifecycle)
+	provider, ok := s.ExecutionContext.(executionCoordinationLifecycle)
 	if !ok || provider == nil {
 		return
 	}
 	provider.ReleaseRuntimeCoordination(actor)
-}
-
-func (s *Service) executionObserver() orchestrationruntimehook.Observer {
-	return orchestrationruntimehook.Observer{Provider: s.executionContext, Logger: s.logger}
 }

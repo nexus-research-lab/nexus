@@ -243,7 +243,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}
 	item, items, err := s.inputQueue.DispatchFirstDispatchable(location)
 	if err != nil {
-		s.loggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
+		s.LoggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
 		return false
 	}
 	if item == nil {
@@ -254,7 +254,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	if item.Source == protocol.InputQueueSourceIMDeliveryReply {
 		err := s.dispatchIMDeliveryReply(dispatchCtx, normalizedSessionKey, *item)
 		if err != nil {
-			s.loggerFor(ctx).Error("IM feedback dispatch requires attention", "reply_id", item.ID, "err", err)
+			s.LoggerFor(ctx).Error("IM feedback dispatch requires attention", "reply_id", item.ID, "err", err)
 			if s.imReplies != nil {
 				_, _ = s.imReplies.TransitionReply(dispatchCtx, item.OwnerUserID, item.ID, "accepted", "needs_attention")
 			}
@@ -301,8 +301,8 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}, chatExecutionInline)
 	if err == nil {
 		if trustedQueue {
-			if consumeErr := s.queueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
-				s.loggerFor(ctx).Error("收口 DM queue configuration admission 失败",
+			if consumeErr := s.QueueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
+				s.LoggerFor(ctx).Error("收口 DM queue configuration admission 失败",
 					"session_key", normalizedSessionKey,
 					"item_id", item.ID,
 					"err", consumeErr,
@@ -322,8 +322,8 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		return true
 	}
 	if trustedQueue {
-		if releaseErr := s.queueTrust.Release(dispatchCtx, claim); releaseErr != nil {
-			s.loggerFor(ctx).Error("释放 DM queue configuration admission 失败",
+		if releaseErr := s.QueueTrust.Release(dispatchCtx, claim); releaseErr != nil {
+			s.LoggerFor(ctx).Error("释放 DM queue configuration admission 失败",
 				"session_key", normalizedSessionKey,
 				"item_id", item.ID,
 				"err", releaseErr,
@@ -341,13 +341,13 @@ func (s *Service) restoreFailedInputQueueDispatch(
 	item protocol.InputQueueItem,
 	dispatchErr error,
 ) {
-	s.loggerFor(ctx).Error("派发 DM 待发送队列失败",
+	s.LoggerFor(ctx).Error("派发 DM 待发送队列失败",
 		"session_key", normalizedSessionKey,
 		"item_id", item.ID,
 		"err", dispatchErr,
 	)
 	if restored, restoreErr := s.inputQueue.Enqueue(location, item); restoreErr != nil {
-		s.loggerFor(ctx).Error("恢复 DM 待发送队列项失败",
+		s.LoggerFor(ctx).Error("恢复 DM 待发送队列项失败",
 			"session_key", normalizedSessionKey,
 			"item_id", item.ID,
 			"err", restoreErr,
@@ -380,7 +380,7 @@ func (s *Service) releaseUndeliveredInputQueueGuidance(
 ) {
 	items, err := s.inputQueue.Snapshot(location)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 DM 未消费引导失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 DM 未消费引导失败", "session_key", sessionKey, "err", err)
 		return
 	}
 	changed := false
@@ -394,7 +394,7 @@ func (s *Service) releaseUndeliveredInputQueueGuidance(
 		}
 		items, err = s.inputQueue.UpdateDeliveryPolicy(location, item.ID, protocol.ChatDeliveryPolicyQueue)
 		if err != nil {
-			s.loggerFor(ctx).Warn("恢复 DM 未消费引导失败", "session_key", sessionKey, "item_id", item.ID, "err", err)
+			s.LoggerFor(ctx).Warn("恢复 DM 未消费引导失败", "session_key", sessionKey, "item_id", item.ID, "err", err)
 			continue
 		}
 		changed = true

@@ -240,7 +240,7 @@ func (e *dmChatExecution) prepareRunner() error {
 	admissionBaseContext := e.ctx
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
-		e.service.admission,
+		e.service.Admission,
 	)
 	if err != nil {
 		return err
@@ -265,7 +265,7 @@ func (e *dmChatExecution) prepareRunner() error {
 }
 
 func (e *dmChatExecution) prepareRoundStart() error {
-	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
+	if err := e.service.EnsureQuotaAvailable(e.ctx); err != nil {
 		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
 			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
 		}
@@ -298,7 +298,7 @@ func (e *dmChatExecution) runAcceptedRound() {
 	admissionBaseContext := e.ctx
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
-		e.service.admission,
+		e.service.Admission,
 	)
 	if err != nil {
 		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
@@ -343,7 +343,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
 	}
-	expandedContent, err := e.service.expandRuntimeSlashPrompt(
+	expandedContent, err := e.service.ExpandRuntimeSlashPrompt(
 		runtimeCtx,
 		e.request.Content,
 	)
@@ -367,7 +367,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		e.request,
 	)
 	if err != nil {
-		e.service.loggerFor(runtimeCtx).Error("DM runtime client 初始化失败",
+		e.service.LoggerFor(runtimeCtx).Error("DM runtime client 初始化失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
 			"round_id", e.request.RoundID,
@@ -503,7 +503,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)
 	if len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		if err := client.RemoveMessages(runtimeCtx, e.request.RewriteRemoveMessageUUIDs); err != nil {
-			e.service.loggerFor(runtimeCtx).Error("DM rewrite 删除 runtime 历史失败",
+			e.service.LoggerFor(runtimeCtx).Error("DM rewrite 删除 runtime 历史失败",
 				"session_key", e.sessionKey,
 				"agent_id", e.agent.AgentID,
 				"round_id", e.request.RoundID,
@@ -527,7 +527,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 			_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
 			cancelClose()
 			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				e.service.loggerFor(runtimeCtx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
+				e.service.LoggerFor(runtimeCtx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
 					"session_key", e.sessionKey,
 					"agent_id", e.agent.AgentID,
 					"round_id", e.request.RoundID,
@@ -620,7 +620,7 @@ func (e *dmChatExecution) registerRunner() {
 }
 
 func (e *dmChatExecution) logAcceptance() {
-	e.service.loggerFor(e.ctx).Info("受理 DM 会话消息",
+	e.service.LoggerFor(e.ctx).Info("受理 DM 会话消息",
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
 		"round_id", e.request.RoundID,
@@ -669,7 +669,7 @@ func (e *dmChatExecution) persistRound() error {
 		); err != nil {
 			// round marker 已是 durable acceptance point，后续派生状态失败
 			// 不能把已受理输入变成永远不会执行的幽灵消息。
-			e.service.loggerFor(e.runtimeContext()).Warn(
+			e.service.LoggerFor(e.runtimeContext()).Warn(
 				"DM 已受理后写入 Room conversation 活动状态失败",
 				"session_key", e.sessionKey,
 				"agent_id", e.agent.AgentID,
@@ -684,7 +684,7 @@ func (e *dmChatExecution) persistRound() error {
 		e.session,
 	)
 	if err != nil {
-		e.service.loggerFor(e.runtimeContext()).Warn(
+		e.service.LoggerFor(e.runtimeContext()).Warn(
 			"DM 已受理后刷新会话元数据失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
@@ -747,7 +747,7 @@ func (e *dmChatExecution) failPersistence(err error, cancelReason, refreshWarnin
 	e.service.runtime.MarkRoundTerminal(e.sessionKey, e.request.RoundID)
 	defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 	if closeErr := e.service.refreshSessionMetaRuntimeStateByKey(e.ctx, e.sessionKey); closeErr != nil {
-		e.service.loggerFor(e.ctx).Warn(refreshWarning,
+		e.service.LoggerFor(e.ctx).Warn(refreshWarning,
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
 			"round_id", e.request.RoundID,
@@ -755,7 +755,7 @@ func (e *dmChatExecution) failPersistence(err error, cancelReason, refreshWarnin
 		)
 	}
 	e.service.permission.CancelRequestsForSession(e.sessionKey, cancelReason)
-	e.service.loggerFor(e.ctx).Error(errorMessage,
+	e.service.LoggerFor(e.ctx).Error(errorMessage,
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
 		"round_id", e.request.RoundID,

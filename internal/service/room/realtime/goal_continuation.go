@@ -55,19 +55,19 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
-			s.loggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
 		}
 		return false
 	}
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	if provider, ok := s.goals.(currentGoalProvider); ok {
 		currentGoal, goalErr := provider.CurrentOptional(ctx, sessionKey)
 		if goalErr != nil {
-			s.loggerFor(ctx).Warn("读取 Room Goal queue revision 失败", "session_key", sessionKey, "err", goalErr)
+			s.LoggerFor(ctx).Warn("读取 Room Goal queue revision 失败", "session_key", sessionKey, "err", goalErr)
 			return true
 		}
 		entries, err = s.pruneStaleGoalCollaborationQueueEntries(
@@ -78,7 +78,7 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 			currentGoal,
 		)
 		if err != nil {
-			s.loggerFor(ctx).Warn("清理过期 Room Goal queue 失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("清理过期 Room Goal queue 失败", "session_key", sessionKey, "err", err)
 			return true
 		}
 	}
@@ -139,7 +139,7 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	}
 	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, currentGoal)
@@ -188,7 +188,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 		},
 	)
 	if err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"读取 Room Goal collaboration fence 失败，延后自动续跑",
 			"conversation_id", contextValue.Conversation.ID,
 			"goal_id", goal.ID,
@@ -347,7 +347,7 @@ func (s *Service) currentRoomGoalForSession(ctx context.Context, sessionKey stri
 	}
 	goal, err := provider.CurrentOptional(ctx, sessionKey)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 负责人失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 负责人失败", "session_key", sessionKey, "err", err)
 		return nil
 	}
 	if goal == nil || protocol.NormalizeGoalStatus(goal.Status) != protocol.GoalStatusActive {
@@ -535,7 +535,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 				slot.AgentID,
 				binding.ObjectiveRevision,
 			); err != nil && !goalsvc.IsExpectedMutationError(err) {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"记录 Room Goal handoff 协作证据失败",
 					"session_key", roundValue.SessionKey,
 					"goal_id", binding.GoalID,
@@ -553,7 +553,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 		binding.ObjectiveRevision,
 	); err != nil {
 		if !goalsvc.IsExpectedMutationError(err) {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"恢复 Room Goal handoff 后续跑失败",
 				"session_key", roundValue.SessionKey,
 				"goal_id", binding.GoalID,
@@ -592,7 +592,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 			roundValue.ConversationID,
 			handoffID,
 		); err != nil {
-			s.loggerFor(context.Background()).Warn(
+			s.LoggerFor(context.Background()).Warn(
 				"记录 Room Goal handback 收口失败",
 				"conversation_id", roundValue.ConversationID,
 				"handoff_id", handoffID,
@@ -673,7 +673,7 @@ func (s *Service) dispatchGoalContinuationForSession(
 		if goalsvc.IsExpectedMutationError(err) {
 			return
 		}
-		s.loggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
+		s.LoggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
 			"session_key", sessionKey,
 			"round_id", causedByRoundID,
 			"err", err,
@@ -688,7 +688,7 @@ func (s *Service) dispatchGoalContinuationForSession(
 			return
 		}
 		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
-		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
+		s.LoggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
 			"session_key", sessionKey,
 			"round_id", plan.RoundID,
 			"goal_id", plan.Goal.ID,
@@ -707,7 +707,7 @@ func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, pla
 	}
 	if err := retryRoomGoalContinuationPlan(ctx, s.goals, plan, reason); err != nil &&
 		!goalsvc.IsExpectedMutationError(err) {
-		s.loggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
+		s.LoggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
 			"goal_id", plan.Goal.ID,
 			"round_id", plan.RoundID,
@@ -832,7 +832,7 @@ func (s *Service) goalContinuationDispatchTarget(
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
-			s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)
+			s.LoggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)
 		}
 		return nil, ""
 	}

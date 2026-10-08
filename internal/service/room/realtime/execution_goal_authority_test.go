@@ -8,6 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type roomExecutionGoalAuthorityProvider struct {
@@ -90,7 +91,7 @@ func TestRoomWorkAndReviewGoalAuthorityRequiresConfirmedCentralBinding(t *testin
 					},
 				}
 				service := &Service{
-					executionContext: provider,
+					Host: runtimehost.Host{ExecutionContext: provider},
 					goals: &fakeRoomGoalContextProvider{
 						runtimeContexts: map[string]string{
 							"room:group:conversation-1": "authoritative goal context",
@@ -155,7 +156,7 @@ func TestRoomWorkGoalAuthorityRejectsConfirmedExecutionMismatch(t *testing.T) {
 		},
 	}
 	service := &Service{
-		executionContext: provider,
+		Host: runtimehost.Host{ExecutionContext: provider},
 		goals: &fakeRoomGoalContextProvider{
 			runtimeContexts: map[string]string{"room:group:conversation-1": "goal"},
 			runtimeGoals: map[string]*protocol.Goal{
@@ -187,7 +188,7 @@ func TestRoomWorkGoalAuthorityFailsClosedWithoutCentralResolver(t *testing.T) {
 		},
 	}
 	service := &Service{
-		executionContext: provider,
+		Host: runtimehost.Host{ExecutionContext: provider},
 		goals: &fakeRoomGoalContextProvider{
 			runtimeContexts: map[string]string{"room:group:conversation-1": "goal"},
 			runtimeGoals: map[string]*protocol.Goal{

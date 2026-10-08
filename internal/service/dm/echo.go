@@ -33,7 +33,7 @@ func (e *dmChatExecution) cancelEchoForUserActivity() {
 		e.sessionKey,
 	)
 	if err != nil {
-		e.service.loggerFor(e.ctx).Warn("取消 Echo 尝试失败",
+		e.service.LoggerFor(e.ctx).Warn("取消 Echo 尝试失败",
 			"session_key", e.sessionKey,
 			"err", err,
 		)
@@ -42,7 +42,7 @@ func (e *dmChatExecution) cancelEchoForUserActivity() {
 	for _, roundID := range roundIDs {
 		if err = e.service.interruptExactRound(e.ctx, e.sessionKey, roundID); err != nil &&
 			!errors.Is(err, ErrTargetDMRoundNotRunning) {
-			e.service.loggerFor(e.ctx).Warn("中断 Echo round 失败",
+			e.service.LoggerFor(e.ctx).Warn("中断 Echo round 失败",
 				"session_key", e.sessionKey,
 				"round_id", roundID,
 				"err", err,
@@ -128,7 +128,7 @@ func (r *roundRunner) completeDeferredAssistant(outcome DeferredAssistantOutcome
 func (r *roundRunner) finishDeferredRuntime(preserveTranscript bool) {
 	if !preserveTranscript {
 		if err := r.discardDeferredRuntimeMessages(); err != nil {
-			r.service.loggerFor(context.Background()).Error("删除未投递后台 assistant runtime 历史失败",
+			r.service.LoggerFor(context.Background()).Error("删除未投递后台 assistant runtime 历史失败",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
 				"err", err,

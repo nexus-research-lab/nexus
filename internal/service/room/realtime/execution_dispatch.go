@@ -235,7 +235,7 @@ func (s *Service) enqueueExecutionDispatch(
 		delivery.SessionKey,
 		contextValue,
 	); err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"广播 Execution Dispatch 队列快照失败",
 			"dispatch_id",
 			delivery.Binding.DispatchID,
@@ -354,10 +354,10 @@ func (s *Service) authorizeManagedExecutionTarget(
 	if binding == nil {
 		return nil
 	}
-	if s.executionContext == nil || roundValue == nil {
+	if s.ExecutionContext == nil || roundValue == nil {
 		return errors.New("managed Execution target admission is unavailable")
 	}
-	authorizer, ok := s.executionContext.(executionTargetAuthorizer)
+	authorizer, ok := s.ExecutionContext.(executionTargetAuthorizer)
 	if !ok {
 		// 配置了 managed Execution context 却没有 admission 能力时 fail closed；
 		// 不能让 raw @ 绕过 WorkGraph。
@@ -380,10 +380,10 @@ func (e *slotExecution) activateBoundRoomAttempt(actor orchestrationsvc.ActorCon
 	if e == nil || e.slot == nil || e.slot.WorkBinding == nil {
 		return nil
 	}
-	if e.service == nil || e.service.executionContext == nil {
+	if e.service == nil || e.service.ExecutionContext == nil {
 		return errors.New("managed Execution Attempt activation is unavailable")
 	}
-	activator, ok := e.service.executionContext.(executionAttemptActivator)
+	activator, ok := e.service.ExecutionContext.(executionAttemptActivator)
 	if !ok {
 		return errors.New("managed Execution Attempt activator is unavailable")
 	}

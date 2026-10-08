@@ -39,7 +39,7 @@ func (r *roundRunner) failRoundAtPhase(
 		"err", err,
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
-	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	r.service.LoggerFor(context.Background()).Error("DM round 执行失败", fields...)
 	displayError := exec.RoundErrorDisplayMessage(err)
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
@@ -71,7 +71,7 @@ func (r *roundRunner) failRoundAtPhase(
 		r.session.SessionKey,
 		resultMessage,
 	); persistErr != nil {
-		r.service.loggerFor(context.Background()).Error("DM 错误结果持久化失败",
+		r.service.LoggerFor(context.Background()).Error("DM 错误结果持久化失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
 			"round_id", r.roundID,
@@ -84,7 +84,7 @@ func (r *roundRunner) failRoundAtPhase(
 			r.session,
 			resultMessage,
 		); updateErr != nil {
-			r.service.loggerFor(context.Background()).Error("DM 错误结果刷新 session meta 失败",
+			r.service.LoggerFor(context.Background()).Error("DM 错误结果刷新 session meta 失败",
 				"session_key", r.sessionKey,
 				"agent_id", r.agent.AgentID,
 				"round_id", r.roundID,
@@ -196,7 +196,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		return
 	}
 	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
-	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
+	r.service.LoggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
 		"round_id", r.roundID,
@@ -228,7 +228,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		r.session.SessionKey,
 		resultMessage,
 	); persistErr != nil {
-		r.service.loggerFor(context.Background()).Error("DM interrupted 结果持久化失败",
+		r.service.LoggerFor(context.Background()).Error("DM interrupted 结果持久化失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
 			"round_id", r.roundID,
@@ -241,7 +241,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 			r.session,
 			resultMessage,
 		); updateErr != nil {
-			r.service.loggerFor(context.Background()).Error("DM interrupted 刷新 session meta 失败",
+			r.service.LoggerFor(context.Background()).Error("DM interrupted 刷新 session meta 失败",
 				"session_key", r.sessionKey,
 				"agent_id", r.agent.AgentID,
 				"round_id", r.roundID,

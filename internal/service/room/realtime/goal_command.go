@@ -118,7 +118,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		e.conversationID,
 		e.userMessage,
 	); err != nil {
-		e.service.loggerFor(e.ctx).Error("Goal 已设置，但 Room 控制记录持久化失败",
+		e.service.LoggerFor(e.ctx).Error("Goal 已设置，但 Room 控制记录持久化失败",
 			"session_key", e.sessionKey,
 			"goal_id", item.ID,
 			"round_id", e.request.RoundID,
@@ -131,7 +131,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		e.conversationID,
 		roomMessageActivityTime(e.userMessage),
 	); err != nil {
-		e.service.loggerFor(e.ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
+		e.service.LoggerFor(e.ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
 			"session_key", e.sessionKey,
 			"goal_id", item.ID,
 			"err", err,

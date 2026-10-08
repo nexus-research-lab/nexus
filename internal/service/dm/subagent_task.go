@@ -28,10 +28,10 @@ func (r *roundRunner) startIdleSubagentNotificationDrain() {
 }
 
 func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
-	r.service.executionObserver().ObserveMessage(r.orchestrationActor(), incoming)
+	r.service.ExecutionObserver().ObserveMessage(r.orchestrationActor(), incoming)
 	events, durableMessages, _, _, err := r.mapper.Map(incoming)
 	if err != nil {
-		r.service.loggerFor(ctx).Warn("处理 DM idle subagent 通知失败",
+		r.service.LoggerFor(ctx).Warn("处理 DM idle subagent 通知失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
 			"err", err,
@@ -43,7 +43,7 @@ func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sd
 			continue
 		}
 		if err := r.handleDurableMessage(message); err != nil {
-			r.service.loggerFor(ctx).Warn("写入 DM idle subagent 通知失败",
+			r.service.LoggerFor(ctx).Warn("写入 DM idle subagent 通知失败",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
 				"err", err,
@@ -211,7 +211,7 @@ func (r *roundRunner) completeSubagentJoinAfterParentTerminal() bool {
 	case subagentParentTerminalFailed, subagentParentTerminalInterrupted:
 		if !r.finalizeCompletedGoalUsageAfterSubagents(context.Background()) {
 			r.startGoalUsageRetryWorker()
-			r.service.loggerFor(context.Background()).Warn(
+			r.service.LoggerFor(context.Background()).Warn(
 				"DM 异常终态 Goal usage 等待后续重试",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
@@ -228,7 +228,7 @@ func (r *roundRunner) dispatchPostRoundWorkAfterSubagents() bool {
 	}
 	if !r.finalizeCompletedGoalUsageAfterSubagents(context.Background()) {
 		r.startGoalUsageRetryWorker()
-		r.service.loggerFor(context.Background()).Warn(
+		r.service.LoggerFor(context.Background()).Warn(
 			"DM Goal usage 等待后续重试，暂不派发 post-round work",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,

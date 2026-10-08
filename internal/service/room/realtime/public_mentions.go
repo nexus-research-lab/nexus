@@ -242,7 +242,7 @@ func (s *Service) startQueuedPublicMentionWakesLocked(ctx context.Context, round
 		return false
 	}
 	if err := s.startPublicMentionRoundLocked(ctx, roundValue, wakes, true); err != nil {
-		s.loggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
+		s.LoggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
 			"root", roomRootRoundID(roundValue),
@@ -319,7 +319,7 @@ func (s *Service) startPublicMentionRoundLocked(
 					[]publicMentionWake{wake},
 					"interrupted",
 				)
-				s.loggerFor(ctx).Info(
+				s.LoggerFor(ctx).Info(
 					"拒绝过期的 Room Goal collaboration wake",
 					"goal_id", binding.GoalID,
 					"objective_revision", binding.ObjectiveRevision,
@@ -340,7 +340,7 @@ func (s *Service) startPublicMentionRoundLocked(
 					return err
 				}
 				s.terminalizeRejectedExecutionWake(parentRound, wake)
-				s.loggerFor(ctx).Info(
+				s.LoggerFor(ctx).Info(
 					"拒绝迟到的 Execution review return",
 					"review_dispatch_id",
 					wake.ReviewBinding.ReviewDispatchID,
@@ -364,7 +364,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				return err
 			}
 			s.terminalizeRejectedExecutionWake(parentRound, wake)
-			s.loggerFor(ctx).Info(
+			s.LoggerFor(ctx).Info(
 				"拒绝迟到的 Execution work dispatch",
 				"dispatch_id",
 				wake.WorkBinding.DispatchID,
@@ -400,7 +400,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			wakes,
 			"error",
 		)
-		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
+		s.LoggerFor(ctx).Warn("Room 唤醒达到跳数上限",
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
 			"root", roomRootRoundID(parentRound),
@@ -452,7 +452,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				parentRound.ConversationID,
 				handoffID,
 			); releaseErr != nil {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"释放未启动的 Room handoff claim 失败",
 					"handoff_id", handoffID,
 					"err", releaseErr,
@@ -484,7 +484,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			wake.HandoffID,
 			"error",
 		); err != nil {
-			s.loggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
+			s.LoggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
 		}
 	}
 	if len(pendingSlots) == 0 {
@@ -523,7 +523,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				wake.HandoffID,
 				roundID,
 			); err != nil {
-				s.loggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
+				s.LoggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
 			}
 		}
 	}
@@ -755,7 +755,7 @@ func (s *Service) terminalizePublicMentionWakes(
 			continue
 		}
 		if err := s.publicHandoffs.MarkTerminal(ownerUserID, conversationID, handoffID, status); err != nil {
-			s.loggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
+			s.LoggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
 				"conversation_id", conversationID,
 				"handoff_id", handoffID,
 				"status", status,
@@ -770,7 +770,7 @@ func (s *Service) logQueuedPublicMentionWakes(
 	parentRound *activeRoomRound,
 	sessionKey string,
 ) {
-	s.loggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
+	s.LoggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
 		"s", sessionKey,
 		"r", parentRound.Context.Room.ID,
 		"c", parentRound.Context.Conversation.ID,
@@ -815,7 +815,7 @@ func (s *Service) logMissingPublicMentionSlots(
 	contextValue *protocol.ConversationContextAggregate,
 	wakeCount int,
 ) {
-	s.loggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
+	s.LoggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
 		"c", contextValue.Conversation.ID,
@@ -915,7 +915,7 @@ func (s *Service) launchPublicMentionRound(
 		s.finishRound(activeRound)
 		return false
 	}
-	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
+	s.LoggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
 		"c", contextValue.Conversation.ID,
@@ -1095,7 +1095,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 		location, ok := locationsByAgentID[targetAgentID]
 		if !ok {
-			s.loggerFor(ctx).Warn("Room 公区 @ 目标正忙但缺少队列位置",
+			s.LoggerFor(ctx).Warn("Room 公区 @ 目标正忙但缺少队列位置",
 				"s", sessionKey,
 				"r", parentRound.RoomID,
 				"c", parentRound.ConversationID,
@@ -1194,7 +1194,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		if busySlot != nil {
 			activeAgentRoundID = busySlot.AgentRoundID
 		}
-		s.loggerFor(ctx).Info(roomWakeQueuedLogMessage(wake, participationPaused),
+		s.LoggerFor(ctx).Info(roomWakeQueuedLogMessage(wake, participationPaused),
 			"s", sessionKey,
 			"qs", location.Location.SessionKey,
 			"r", parentRound.RoomID,

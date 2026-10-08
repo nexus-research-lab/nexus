@@ -6,26 +6,9 @@ package dm
 import (
 	"context"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
-
-type quotaChecker interface {
-	EnsureQuotaAvailable(context.Context, string) error
-}
-
-// SetQuotaChecker 注入订阅额度检查器。
-func (s *Service) SetQuotaChecker(checker quotaChecker) {
-	s.quota = checker
-}
-
-func (s *Service) ensureQuotaAvailable(ctx context.Context) error {
-	if s.quota == nil {
-		return nil
-	}
-	return s.quota.EnsureQuotaAvailable(ctx, authctx.OwnerUserID(ctx))
-}
 
 func (s *Service) recordGoalQuotaLimit(ctx context.Context, sessionKey string, roundID string, quotaErr error) {
 	if s.goals == nil || quotaErr == nil {
@@ -37,7 +20,7 @@ func (s *Service) recordGoalQuotaLimit(ctx context.Context, sessionKey string, r
 	}
 	if _, err := s.goals.UsageLimitForSession(ctx, sessionKey, roundID, reason); err != nil &&
 		!goalsvc.IsInactive(err) {
-		s.loggerFor(ctx).Warn("标记 Goal 账号额度限制失败",
+		s.LoggerFor(ctx).Warn("标记 Goal 账号额度限制失败",
 			"session_key", sessionKey,
 			"round_id", roundID,
 			"err", err,

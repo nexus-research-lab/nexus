@@ -59,10 +59,10 @@ func (s *Service) handleIdleSubagentMessage(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
 		return false
 	}
-	s.executionObserver().ObserveMessage(roomOrchestrationActor(roundValue, slot), incoming)
+	s.ExecutionObserver().ObserveMessage(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
-		s.loggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
+		s.LoggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
 			"session_key", roundValue.SessionKey,
 			"round_id", roundValue.RoundID,
 			"agent_id", slot.AgentID,
@@ -78,7 +78,7 @@ func (s *Service) handleIdleSubagentMessage(
 			if s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err) {
 				return false
 			}
-			s.loggerFor(ctx).Warn("写入 Room idle subagent 通知失败",
+			s.LoggerFor(ctx).Warn("写入 Room idle subagent 通知失败",
 				"session_key", roundValue.SessionKey,
 				"round_id", roundValue.RoundID,
 				"agent_id", slot.AgentID,
@@ -108,7 +108,7 @@ func (s *Service) handleIdleSubagentMessage(
 	}
 	if !s.finalizeCompletedRoomGoalUsage(ctx, roundValue) &&
 		!roundValue.hasRunningSubagentTasks() {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"Room child drain 后 Goal usage 尚未完成最终结算",
 			"session_key", roundValue.SessionKey,
 			"round_id", roundValue.RoundID,
@@ -150,7 +150,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 			return err
 		}
-		s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+		s.ExecutionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		actor := roomOrchestrationActor(roundValue, slot)
 		s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 		return nil
@@ -177,7 +177,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
 	}
-	s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+	s.ExecutionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	actor := roomOrchestrationActor(roundValue, slot)
 	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 	return nil
@@ -264,7 +264,7 @@ func (s *Service) retryRoomSubagentUsage(
 					goalID,
 					goalSessionKey,
 				); err != nil {
-					s.loggerFor(ctx).Warn(
+					s.LoggerFor(ctx).Warn(
 						"后台重试 Room nxs 子任务 Goal usage 失败",
 						"session_key", goalSessionKey,
 						"goal_id", goalID,

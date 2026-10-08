@@ -30,7 +30,7 @@ func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundEx
 	snapshot, _ := r.finalGoalUsageSnapshot(result, finalAssistant)
 	version := r.rememberTerminalGoalUsageSnapshot(snapshot)
 	if !r.ensureSubagentGoalUsageRoundClaimed(ctx) {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM terminal Goal usage 等待 round-start child 回补",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
@@ -39,7 +39,7 @@ func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundEx
 	}
 	settled := r.settleTerminalGoalUsageSnapshotWithRetry(ctx, snapshot)
 	if !settled {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM terminal Goal usage 未能持久化",
 			"session_key", r.sessionKey,
 			"goal_id", r.goalIDForUsage,
@@ -103,7 +103,7 @@ func (r *roundRunner) recordGoalUsageLimit(result exec.RoundExecutionResult) {
 		_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
 	}
 	if err != nil && !goalsvc.IsInactive(err) {
-		r.service.loggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
+		r.service.LoggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
 			"round_id", r.roundID,
@@ -300,7 +300,7 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	}
 	receipts := r.consumeRuntimeCommandReceipts()
 	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		r.service.executionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
+		r.service.ExecutionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
@@ -452,7 +452,7 @@ func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() erro
 	}
 	baseFields = append(baseFields, fields...)
 	baseFields = append(baseFields, "err", err)
-	r.service.loggerFor(context.Background()).Warn(logMessage, baseFields...)
+	r.service.LoggerFor(context.Background()).Warn(logMessage, baseFields...)
 }
 
 func (r *roundRunner) rememberGoalToolProgress(progressed bool) {
@@ -757,7 +757,7 @@ func (r *roundRunner) persistGoalUsageDeltaLocked(
 		updated, err = r.service.goals.RecordUsageForSession(ctx, r.sessionKey, usage, r.roundID)
 	}
 	if err != nil && !goalsvc.IsAbsent(err) {
-		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
+		r.service.LoggerFor(context.Background()).Warn("记录 Goal usage 失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
 			"round_id", r.roundID,
@@ -793,7 +793,7 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 	_, goal, err := r.service.goals.RuntimeContext(ctx, r.sessionKey)
 	if err != nil {
 		if !goalsvc.IsAbsent(err) {
-			r.service.loggerFor(ctx).Warn(
+			r.service.LoggerFor(ctx).Warn(
 				"读取 model 创建后的 Goal 绑定失败",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
@@ -840,7 +840,7 @@ func (r *roundRunner) claimSubagentGoalUsageRound(ctx context.Context, goalID st
 	if r.ensureSubagentGoalUsageRoundClaimed(ctx) {
 		return
 	}
-	r.service.loggerFor(ctx).Warn(
+	r.service.LoggerFor(ctx).Warn(
 		"回补 model 创建前的 nxs 子任务 Goal usage 失败",
 		"session_key", r.sessionKey,
 		"goal_id", goalID,
@@ -947,7 +947,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 			}
 			if err != nil {
 				hadFailure = true
-				r.service.loggerFor(ctx).Warn("记录 nxs 子任务 Goal usage 失败",
+				r.service.LoggerFor(ctx).Warn("记录 nxs 子任务 Goal usage 失败",
 					"session_key", r.sessionKey,
 					"goal_id", currentGoalID,
 					"round_id", r.roundID,

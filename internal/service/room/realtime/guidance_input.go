@@ -124,7 +124,7 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 				}
 				ctx := contextWithExactQueueOwner(context.Background(), ownerUserID)
 				if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
-					e.service.loggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
+					e.service.LoggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
 				}
 			},
 		}
@@ -287,7 +287,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 	s.rounds.deleteGuidance(slot)
 	if roundValue != nil && roundValue.Context != nil {
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, roundValue.SessionKey, roundValue.Context); err != nil {
-			s.loggerFor(ctx).Warn("广播 Room 引导队列消费快照失败",
+			s.LoggerFor(ctx).Warn("广播 Room 引导队列消费快照失败",
 				"session_key", roundValue.SessionKey,
 				"room_id", roundValue.RoomID,
 				"conversation_id", roundValue.ConversationID,

@@ -175,7 +175,7 @@ func (s *Service) goalRuntimeSnapshot(
 		if goalsvc.IsAbsent(err) {
 			return "", nil, false
 		}
-		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
 		return "", nil, false
 	}
 	goalContext = strings.TrimSpace(goalContext)
@@ -304,7 +304,7 @@ func (s *Service) recordSlotGoalMutation(
 	}
 	baseFields = append(baseFields, fields...)
 	baseFields = append(baseFields, "err", err)
-	s.loggerFor(ctx).Warn(logMessage, baseFields...)
+	s.LoggerFor(ctx).Warn(logMessage, baseFields...)
 }
 
 func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
@@ -462,7 +462,7 @@ func (s *Service) finalizeGoalUsageForSlot(
 	settled := s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
 	slot.setGoalUsageTerminalSettled(settled)
 	if !settled {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"Room terminal Goal usage 未能持久化",
 			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", slot.goalIDForUsage(),
@@ -527,7 +527,7 @@ func (s *Service) recordGoalUsageLimitForSlot(
 		_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
 	}
 	if err != nil && !goalsvc.IsInactive(err) {
-		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
+		s.LoggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
 			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", goalID,
 			"round_id", slot.AgentRoundID,
@@ -565,7 +565,7 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	}
 	receipts := slot.consumeRuntimeCommandReceipts()
 	if actor != nil && nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		s.executionObserver().ObserveCommandReceipts(*actor, receipts)
+		s.ExecutionObserver().ObserveCommandReceipts(*actor, receipts)
 	}
 	if s.goals == nil || slot.goalRuntimeIgnored() {
 		return
@@ -973,7 +973,7 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 		updated, err = s.goals.RecordUsageForSession(ctx, goalSessionKey, usage, slot.AgentRoundID)
 	}
 	if err != nil && !goalsvc.IsAbsent(err) {
-		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
+		s.LoggerFor(ctx).Warn("记录 Room Goal usage 失败",
 			"session_key", goalSessionKey,
 			"goal_id", goalID,
 			"round_id", slot.AgentRoundID,
@@ -1130,7 +1130,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	_, goal, err := s.goals.RuntimeContext(ctx, goalSessionKey)
 	if err != nil {
 		if !goalsvc.IsAbsent(err) {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"读取 Room model 创建后的 Goal 绑定失败",
 				"session_key", goalSessionKey,
 				"round_id", slot.AgentRoundID,
@@ -1225,7 +1225,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 			goalID,
 			goalSessionKey,
 		) {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"回补 Room model 创建前的 nxs 子任务 Goal usage 失败",
 				"session_key", goalSessionKey,
 				"runtime_session_key", candidate.RuntimeSessionKey,
@@ -1331,7 +1331,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				}
 			}
 			if err != nil {
-				s.loggerFor(ctx).Warn("记录 Room nxs 子任务 Goal usage 失败",
+				s.LoggerFor(ctx).Warn("记录 Room nxs 子任务 Goal usage 失败",
 					"session_key", goalSessionKey,
 					"goal_id", goalID,
 					"scope_round_id", goalUsageScopeRoundIDForRoomSlot(slot),
@@ -1566,7 +1566,7 @@ func (s *Service) cancelActiveRoomGoalForUser(
 		return nil
 	}
 	if err == nil {
-		s.loggerFor(ctx).Info("用户取消 Room active Goal",
+		s.LoggerFor(ctx).Info("用户取消 Room active Goal",
 			"session_key", strings.TrimSpace(sessionKey),
 			"goal_id", strings.TrimSpace(goal.ID),
 			"content", strings.TrimSpace(content),
