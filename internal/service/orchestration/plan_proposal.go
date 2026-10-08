@@ -412,7 +412,7 @@ func (s *Service) validatePreparedPlanProposal(
 		if err := requireCoordinator(actor, snapshot); err != nil {
 			return err
 		}
-		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if !snapshot.Execution.Status.Current() {
 			return terminalExecutionError()
 		}
 		if strings.TrimSpace(document.ReplacementReason) != "" {

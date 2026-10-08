@@ -68,7 +68,7 @@ func (s *Service) FinishRoomAttempt(
 		// 身份已由 owner/session/Room 与 exact ExecutionID 校验；terminal aggregate
 		// 不再可变，因此迟到的物理终态只能幂等收口，不能因 active Plan 已移除
 		// 再制造一次 work_binding_mismatch。
-		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if !snapshot.Execution.Status.Current() {
 			s.invalidateSnapshot(ctx, snapshot)
 			return nil
 		}

@@ -59,7 +59,7 @@ func (s *Service) finishBoundRoomAttempt(
 		OwnerUserID:    roundValue.OwnerUserID,
 		SessionKey:     roundValue.SessionKey,
 		ExecutionID:    binding.ExecutionID,
-		WorkBinding:    cloneExecutionWorkBinding(binding),
+		WorkBinding:    binding.Clone(),
 		AgentID:        slot.AgentID,
 		Role:           roomExecutionActorRole(roundValue.CoordinatorAgentID, slot.AgentID),
 		ActorKind:      protocol.ExecutionActorAgent,

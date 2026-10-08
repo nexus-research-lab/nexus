@@ -169,7 +169,7 @@ func (s *Service) PromoteExecutionToGoal(
 			"promotion requires an objective and completion criteria",
 		), nil), nil
 	}
-	if !validGoalPromotionReason(input.ActivationReason) {
+	if !input.ActivationReason.Valid() {
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeInvalidInput,
 			"activation_reason must identify a supported persistence boundary",
@@ -210,9 +210,9 @@ func (s *Service) PromoteExecutionToGoal(
 	}
 	if strings.TrimSpace(binding.GoalID) == "" ||
 		binding.GoalObjectiveRevision <= 0 ||
-		binding.ActivationOrigin != goalPromotionOrigin(input.ActivationReason) ||
-		!validGoalPromotionReason(binding.ActivationReason) ||
-		goalPromotionOrigin(binding.ActivationReason) != binding.ActivationOrigin {
+		binding.ActivationOrigin != input.ActivationReason.PromotionOrigin() ||
+		!binding.ActivationReason.Valid() ||
+		binding.ActivationReason.PromotionOrigin() != binding.ActivationOrigin {
 		return MutationResult{}, errors.New("Goal promotion gateway returned an invalid binding")
 	}
 	updated, bindErr := s.repository.BindGoal(ctx, orchestrationstore.BindGoalCommand{
@@ -349,29 +349,6 @@ func requiredWorkRemaining(snapshot *protocol.ExecutionSnapshot) bool {
 		}
 	}
 	return false
-}
-
-func validGoalPromotionReason(reason protocol.GoalActivationReason) bool {
-	switch reason {
-	case protocol.GoalActivationReasonPersistenceRequested,
-		protocol.GoalActivationReasonObservedBoundary,
-		protocol.GoalActivationReasonRoomDependencyChain,
-		protocol.GoalActivationReasonExternalWait,
-		protocol.GoalActivationReasonScheduledRetry,
-		protocol.GoalActivationReasonContextBoundary,
-		protocol.GoalActivationReasonRecoveryRequired,
-		protocol.GoalActivationReasonSubstantialComplexity:
-		return true
-	default:
-		return false
-	}
-}
-
-func goalPromotionOrigin(reason protocol.GoalActivationReason) protocol.GoalActivationOrigin {
-	if reason == protocol.GoalActivationReasonPersistenceRequested {
-		return protocol.GoalActivationOriginUserExplicit
-	}
-	return protocol.GoalActivationOriginAdaptivePromoted
 }
 
 func adaptiveEvidenceFromSnapshot(

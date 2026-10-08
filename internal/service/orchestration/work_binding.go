@@ -130,7 +130,7 @@ func authorizeStructuredRoomWorkBinding(
 	if snapshot == nil {
 		return workBindingMismatch("structured Room WorkBinding has no active Execution Plan")
 	}
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		return domainError(
 			ErrorCodeExecutionTerminal,
 			"the bound Room work was superseded or closed; stop this old round and wait for a fresh Assignment",

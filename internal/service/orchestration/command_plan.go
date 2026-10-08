@@ -158,7 +158,7 @@ func (s *Service) PlanExecution(
 	if authErr := requireCoordinator(actor, snapshot); authErr != nil {
 		return RejectedResult(snapshot, authErr, nil), nil
 	}
-	terminal := !isCurrentExecutionStatus(snapshot.Execution.Status)
+	terminal := !snapshot.Execution.Status.Current()
 	if terminal && !input.ReplaceCurrentExecution {
 		return RejectedResult(snapshot, terminalExecutionError(), nil), nil
 	}
@@ -191,7 +191,7 @@ func (s *Service) PlanExecution(
 			}}
 			return result, nil
 		}
-		if isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if snapshot.Execution.Status.Current() {
 			if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
 				return MutationResult{}, &GoalBindingConfirmationPendingError{
 					Snapshot: snapshot,
@@ -279,7 +279,7 @@ func (s *Service) PlanExecution(
 		}}
 		return result, nil
 	}
-	if isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if snapshot.Execution.Status.Current() {
 		if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
 			return MutationResult{}, &GoalBindingConfirmationPendingError{
 				Snapshot: snapshot,

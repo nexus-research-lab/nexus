@@ -30,7 +30,7 @@ func (f *managedExecutionAdmissionFake) AuthorizeRoomRuntimeTarget(
 	binding *protocol.ExecutionWorkBinding,
 ) error {
 	f.actor = actor
-	f.binding = cloneExecutionWorkBinding(binding)
+	f.binding = binding.Clone()
 	return f.err
 }
 

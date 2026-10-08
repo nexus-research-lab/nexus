@@ -711,8 +711,8 @@ func validateProposalMaterializationReservation(
 			return fmt.Errorf("%w: Goal-free materialization carries Goal activation", ErrInvariant)
 		}
 	} else {
-		if !validProposalGoalActivationOrigin(command.GoalActivationOrigin) ||
-			!validProposalGoalActivationReason(command.GoalActivationReason) {
+		if !command.GoalActivationOrigin.Valid() ||
+			!command.GoalActivationReason.Valid() {
 			return fmt.Errorf("%w: Goal materialization requires valid activation origin and reason", ErrInvariant)
 		}
 		if item.GoalActivationOrigin != "" && item.GoalActivationOrigin != command.GoalActivationOrigin {

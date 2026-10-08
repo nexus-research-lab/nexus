@@ -202,7 +202,7 @@ func (s *Service) enqueueExecutionDispatch(
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 		OwnerUserID:     delivery.OwnerUserID,
 		RootRoundID:     roomRootRoundID(parentRound),
-		WorkBinding:     cloneExecutionWorkBinding(&delivery.Binding),
+		WorkBinding:     (&delivery.Binding).Clone(),
 	}
 	items, inserted, err := s.inputQueue.EnqueueBounded(location.Location, item, 0)
 	if err != nil {
@@ -391,7 +391,7 @@ func (e *slotExecution) activateBoundRoomAttempt(actor orchestrationsvc.ActorCon
 		return errors.New("managed Execution Attempt activator is unavailable")
 	}
 	return activator.ActivateRoomAttempt(e.ctx, actor, orchestrationsvc.RoomAttemptActivationInput{
-		Binding:           *cloneExecutionWorkBinding(e.slot.WorkBinding),
+		Binding:           *e.slot.WorkBinding.Clone(),
 		RuntimeSessionKey: e.slot.RuntimeSessionKey,
 		RoomSessionID:     e.slot.RoomSessionID,
 	})
@@ -506,24 +506,6 @@ func executionDispatchID(binding *protocol.ExecutionWorkBinding) string {
 		return ""
 	}
 	return strings.TrimSpace(binding.DispatchID)
-}
-
-func cloneExecutionWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneExecutionReviewBinding(
-	binding *protocol.ExecutionReviewBinding,
-) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }
 
 func roomCoordinatorAgentID(explicit string, contextValue *protocol.ConversationContextAggregate) string {

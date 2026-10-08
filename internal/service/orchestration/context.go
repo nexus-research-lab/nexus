@@ -878,7 +878,7 @@ func renderGoalPromotionBoundary(
 		output,
 		"\n  <goal_promotion eligible=\"%t\">",
 		snapshot != nil &&
-			isCurrentExecutionStatus(snapshot.Execution.Status) &&
+			snapshot.Execution.Status.Current() &&
 			strings.TrimSpace(snapshot.Execution.GoalID) == "" &&
 			len(blockers) == 0 &&
 			!options.PlanMode,
@@ -898,7 +898,7 @@ func renderExecutionTransitionBoundary(
 	role ExecutionActorRole,
 	options ExecutionContextOptions,
 ) {
-	current := snapshot != nil && isCurrentExecutionStatus(snapshot.Execution.Status)
+	current := snapshot != nil && snapshot.Execution.Status.Current()
 	transient := snapshot != nil && strings.TrimSpace(snapshot.Execution.GoalID) == ""
 	coordinator := role == ExecutionActorCoordinator
 	allowed := current && transient && coordinator
@@ -1025,7 +1025,7 @@ func renderActionBoundary(
 		allowed = append(allowed, "subagent/spawn")
 	}
 	forbidden := make([]string, 0)
-	current := isCurrentExecutionStatus(view.snapshot.Execution.Status)
+	current := view.snapshot.Execution.Status.Current()
 	transientCoordinator := role == ExecutionActorCoordinator &&
 		current &&
 		strings.TrimSpace(view.snapshot.Execution.GoalID) == ""

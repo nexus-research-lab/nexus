@@ -107,7 +107,7 @@ func (c *executionCoordinator) Create(
 			return nil, fmt.Errorf("read current Execution before create_goal: %w", readErr)
 		}
 		if snapshot != nil && strings.TrimSpace(snapshot.Execution.GoalID) == "" &&
-			!executionTerminalForGoalCreate(snapshot.Execution.Status) {
+			!snapshot.Execution.Status.Terminal() {
 			return nil, fmt.Errorf(
 				"current WorkGraph %s already owns this execution scope; use promote_execution_to_goal with activation_reason=persistence_requested instead of create_goal",
 				strings.TrimSpace(snapshot.Execution.ID),
@@ -152,18 +152,6 @@ func (c *executionCoordinator) Create(
 		return nil, errors.New("create_goal returned no Goal")
 	}
 	return created, nil
-}
-
-func executionTerminalForGoalCreate(status protocol.ExecutionStatus) bool {
-	switch status {
-	case protocol.ExecutionStatusCompleted,
-		protocol.ExecutionStatusFailed,
-		protocol.ExecutionStatusCancelled,
-		protocol.ExecutionStatusSuperseded:
-		return true
-	default:
-		return false
-	}
 }
 
 func reuseStandaloneExplicitGoalOrConflict(

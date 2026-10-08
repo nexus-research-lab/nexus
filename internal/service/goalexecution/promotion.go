@@ -173,7 +173,7 @@ func (g *promotionGateway) PromoteExecution(
 	}
 
 	criteria := append([]string(nil), execution.CompletionCriteria...)
-	activationOrigin := promotionOrigin(request.Proposal.ActivationReason)
+	activationOrigin := request.Proposal.ActivationReason.PromotionOrigin()
 	roundID := strings.TrimSpace(request.Actor.RootRoundID)
 	if roundID == "" {
 		roundID = strings.TrimSpace(execution.RootRoundID)
@@ -227,7 +227,7 @@ func bindingForExistingGoal(
 	fallbackReason protocol.GoalActivationReason,
 ) (orchestrationsvc.GoalPromotionBinding, error) {
 	bindingState := protocol.GoalExecutionBindingStateFromGoal(goal)
-	expectedOrigin := promotionOrigin(fallbackReason)
+	expectedOrigin := fallbackReason.PromotionOrigin()
 	if protocol.GoalMetadataString(goal.Metadata, protocol.GoalMetadataExecutionID) !=
 		strings.TrimSpace(executionID) ||
 		(bindingState != protocol.GoalExecutionBindingStateStandalone &&
@@ -256,13 +256,6 @@ func promotionBinding(
 		ActivationOrigin:      origin,
 		ActivationReason:      reason,
 	}
-}
-
-func promotionOrigin(reason protocol.GoalActivationReason) protocol.GoalActivationOrigin {
-	if reason == protocol.GoalActivationReasonPersistenceRequested {
-		return protocol.GoalActivationOriginUserExplicit
-	}
-	return protocol.GoalActivationOriginAdaptivePromoted
 }
 
 func mapPromotionError(err error) error {

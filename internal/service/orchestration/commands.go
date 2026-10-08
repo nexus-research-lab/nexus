@@ -98,7 +98,7 @@ func (s *Service) mutableSnapshot(
 		result := RejectedResult(nil, domainError(ErrorCodeInvalidInput, "execution was not found"), nil)
 		return nil, &result, nil
 	}
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		result := RejectedResult(snapshot, terminalExecutionError(), nil)
 		if snapshot.Execution.Status == protocol.ExecutionStatusSuperseded {
 			result = SupersededResult(snapshot, terminalExecutionError())

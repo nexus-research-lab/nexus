@@ -985,8 +985,8 @@ func buildPublicMentionSlot(
 		TimestampMS:           time.Now().UnixMilli(),
 		QueueSource:           normalizeWakeQueueSource(wake),
 		Trigger:               trigger,
-		WorkBinding:           cloneExecutionWorkBinding(wake.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(wake.ReviewBinding),
+		WorkBinding:           wake.WorkBinding.Clone(),
+		ReviewBinding:         wake.ReviewBinding.Clone(),
 	}
 	slot.setGoalCollaborationBinding(wake.GoalCollaborationBinding)
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
@@ -1152,8 +1152,8 @@ func (s *Service) queueBusyPublicMentionWakes(
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				wake.GoalCollaborationBinding,
 			),
-			WorkBinding:   cloneExecutionWorkBinding(wake.WorkBinding),
-			ReviewBinding: cloneExecutionReviewBinding(wake.ReviewBinding),
+			WorkBinding:   wake.WorkBinding.Clone(),
+			ReviewBinding: wake.ReviewBinding.Clone(),
 		}
 		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
 		if err != nil {
