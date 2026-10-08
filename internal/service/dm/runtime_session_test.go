@@ -347,7 +347,7 @@ func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *tes
 		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
 	})
 
-	sessionValue, _, err := service.files.ForOwner(ownerUserID).FindSession(
+	sessionValue, _, err := service.Files.ForOwner(ownerUserID).FindSession(
 		[]string{agentValue.WorkspacePath},
 		sessionKey,
 	)

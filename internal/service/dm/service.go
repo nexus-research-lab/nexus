@@ -21,7 +21,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -208,16 +207,9 @@ type Service struct {
 	imReplies          *imdelivery.Repository
 	imReplyValidate    func(context.Context, string, string) error
 
-	config       config.Config
-	agents       *agentsvc.Service
-	runtime      *runtimectx.Manager
-	permission   *permissionctx.Context
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
 	prefs        runtimePreferencesService
-	files        *workspacestore.SessionFileStore
-	history      *workspacestore.AgentHistoryStore
-	inputQueue   *workspacestore.InputQueueStore
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
@@ -317,14 +309,7 @@ func NewService(
 	permission *permissionctx.Context,
 ) *Service {
 	return &Service{
-		config:                    cfg,
-		agents:                    agentService,
-		runtime:                   runtimeManager,
-		permission:                permission,
-		files:                     workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:                   workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		inputQueue:                workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		Host:                      runtimehost.NewHost(),
+		Host:                      runtimehost.NewHost(cfg, agentService, runtimeManager, permission),
 		connectorPreparations:     make(map[string]*connectorRuntimePreparation),
 		connectorPreparationDelay: defaultConnectorPreparationDelay,
 	}
@@ -376,12 +361,12 @@ func (s *Service) SetConnectorRuntimeStateLoader(loader ConnectorRuntimeStateLoa
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
-	if errs := s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
+	if errs := s.Permission.BroadcastSessionStatus(ctx, sessionKey, s.Runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
 		s.LoggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
 }
 
 // SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
 func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
-	s.history.SetReplyPreviewRepository(repository)
+	s.History.SetReplyPreviewRepository(repository)
 }

@@ -67,7 +67,7 @@ func (s *Service) ensureClient(
 	if (forkSourceSessionID == "") != (forkMessageID == "") {
 		return dmClientPreparation{}, errors.New("fork source session id and message id must be provided together")
 	}
-	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
+	startup, err := s.Runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
@@ -85,7 +85,7 @@ func (s *Service) ensureClient(
 		}
 		latestSession = &current
 	} else {
-		latestSession, _, err = s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+		latestSession, _, err = s.Files.ForOwner(agentValue.OwnerUserID).FindSession(
 			[]string{agentValue.WorkspacePath},
 			sessionKey,
 		)
@@ -145,25 +145,25 @@ func (s *Service) ensureClient(
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
-			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
+			return s.Permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	var runtimeSkillNames, runtimeDisabledSkillNames []string
 	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
-		if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
+		if err := workspacepkg.EnsureUserSkillLibrary(s.Config, agentValue.OwnerUserID); err != nil {
 			return dmClientPreparation{}, err
 		}
-		if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
+		if err := workspacepkg.EnsureInitializedForAgent(s.Config, *agentValue); err != nil {
 			return dmClientPreparation{}, err
 		}
-		runtimeSkillNames, err = workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
+		runtimeSkillNames, err = workspacepkg.RuntimeSkillNamesForAgent(s.Config, *agentValue)
 		if err != nil {
 			return dmClientPreparation{}, err
 		}
 		runtimeDisabledSkillNames, err = workspacepkg.RuntimeDisabledSkillNamesForAgent(
-			s.config,
+			s.Config,
 			*agentValue,
 		)
 		if err != nil {
@@ -192,7 +192,7 @@ func (s *Service) ensureClient(
 			runtimeDisabledSkillNames = filteredDisabledSkillNames
 		}
 	}
-	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
+	dynamicSystemPrompt, err := s.Agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
@@ -326,7 +326,7 @@ func (s *Service) ensureClient(
 			mcpContext,
 			nexusmcp.RoundContext{
 				SessionKey: sessionKey, RoundID: request.RoundID, InputContent: request.Content,
-				SubagentControl:   s.runtime.BindSubagentControl(sessionKey, request.RoundID),
+				SubagentControl:   s.Runtime.BindSubagentControl(sessionKey, request.RoundID),
 				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
 				SourceContextLabel: agentValue.Name,
 				CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,
@@ -364,7 +364,7 @@ func (s *Service) ensureClient(
 			runtimeSelection.Model = fingerprint.model
 		}
 	}
-	if err = s.agents.EnsureRuntimeVisionSettingsProjection(
+	if err = s.Agents.EnsureRuntimeVisionSettingsProjection(
 		*agentValue,
 		runtimeSelection.VisionProvider,
 		runtimeSelection.VisionModel,
@@ -383,7 +383,7 @@ func (s *Service) ensureClient(
 	var scratchLease *runtimectx.SandboxResourceLease
 	var scratchInput runtimectx.SandboxResourceInput
 	scratchLeaseOwned := false
-	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
+	if strings.EqualFold(strings.TrimSpace(s.Config.AppMode), "desktop") &&
 		(runtimeSelection.RuntimeKind == "" || strings.EqualFold(runtimeSelection.RuntimeKind, "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchInput = runtimectx.SandboxResourceInput{
@@ -402,8 +402,8 @@ func (s *Service) ensureClient(
 		}()
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.Providers, clientopts.AgentClientOptionsInput{
-		AppMode:                    s.config.AppMode,
-		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled,
+		AppMode:                    s.Config.AppMode,
+		DesktopSandboxEnabled:      s.Config.DesktopSandboxEnabled,
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
 		IsMainAgent:                agentValue.IsMain,
@@ -420,7 +420,7 @@ func (s *Service) ensureClient(
 		DisallowedTools:            disallowedTools,
 		SkillIDs:                   runtimeSkillNames,
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
-		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
+		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.Config, agentValue.OwnerUserID),
 		AdditionalDirectories:      scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
@@ -437,15 +437,15 @@ func (s *Service) ensureClient(
 		AutoDreamDisabled:          runtimeSelection.AutoDreamDisabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
-		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
-		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
+		RuntimeIsolationMode:       s.Config.RuntimeIsolationMode,
+		RuntimeLauncherPath:        s.Config.RuntimeLauncherPath,
 		SandboxResources:           scratchLease.Resources(),
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
-	options = s.runtime.WithGuidanceHook(options, sessionKey)
-	options = s.runtime.WithSubagentAdmissionHooks(options, sessionKey)
+	options = s.Runtime.WithGuidanceHook(options, sessionKey)
+	options = s.Runtime.WithSubagentAdmissionHooks(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 		OwnerUserID:   agentValue.OwnerUserID,
 		Scope:         protocol.InputQueueScopeDM,
@@ -942,7 +942,7 @@ func (s *Service) resolveReusableSDKSessionID(
 		(!hasModelFingerprint || actualModel == expectedModel)
 	runtimeChanged := hasKindFingerprint && actualKind != expectedKind
 	decision := sessionresumesvc.NewPolicy(
-		s.history.ForOwner(authctx.OwnerUserID(ctx)),
+		s.History.ForOwner(authctx.OwnerUserID(ctx)),
 	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
 		if !runtimeChanged && sessionresumesvc.RequiresToolSurfaceFork(
@@ -1065,7 +1065,7 @@ func (s *Service) persistSDKSessionFingerprint(
 		)
 		return
 	}
-	if _, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
+	if _, err := s.Files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
 		workspacePath,
 		sessionItem,
 	); err != nil {

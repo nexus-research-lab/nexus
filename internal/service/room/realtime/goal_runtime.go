@@ -96,7 +96,7 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 				slot.adoptGoalObjectiveRevision(objectiveRevision)
 			}
 		}
-		queued, err := s.runtime.QueueContextualGuidanceInputOnConsumed(ctx, runtimeSessionKey, roundID, contextName, content, onConsumed)
+		queued, err := s.Runtime.QueueContextualGuidanceInputOnConsumed(ctx, runtimeSessionKey, roundID, contextName, content, onConsumed)
 		if err != nil {
 			if errors.Is(err, runtimectx.ErrNoRunningRound) {
 				continue
@@ -421,35 +421,35 @@ func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	if sessionKey == "" || roundID == "" {
 		return func() {}
 	}
-	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
+	s.Runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
-	s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
-	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
+	s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
+	s.Runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
 		clearGoalUsageForSlot(slot)
 	})
-	s.runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, func() bool {
+	s.Runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, func() bool {
 		if _, ok := s.goals.(roomGoalUsageFinalizationProvider); !ok {
 			return false
 		}
 		return slot.beginGoalUsageFinalizing()
 	})
-	s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context, goalID string) error {
+	s.Runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context, goalID string) error {
 		return s.activateGoalUsageForSlot(ctx, slot, goalID)
 	})
-	s.runtime.RegisterGoalAccountingCreateGuard(
+	s.Runtime.RegisterGoalAccountingCreateGuard(
 		sessionKey,
 		roundID,
 		goalUsageScopeRoundIDForRoomSlot(slot),
 		slot.mutable.goal.GoalUsageScopeConsumed,
 	)
 	return func() {
-		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingCreateGuard(sessionKey, roundID, "", nil)
+		s.Runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingCreateGuard(sessionKey, roundID, "", nil)
 	}
 }
 
@@ -1327,7 +1327,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	goalID := slot.childGoalIDForUsage()
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()
 	for _, child := range observations {
-		delta := s.runtime.ObserveSubagentUsage(
+		delta := s.Runtime.ObserveSubagentUsage(
 			slot.RuntimeSessionKey,
 			child.taskID,
 			child.observation.CumulativeTotal,

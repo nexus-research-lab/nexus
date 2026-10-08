@@ -86,7 +86,7 @@ func (s *Service) rollbackRoomQueueAdmissions(
 				_ = s.QueueTrust.Revoke(ctx, binding)
 			}
 		}
-		_, _ = s.inputQueue.Delete(entries[index].Location, items[index].ID)
+		_, _ = s.InputQueue.Delete(entries[index].Location, items[index].ID)
 	}
 }
 
@@ -139,7 +139,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 		if !roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
 			return queueadmissionstore.Claim{}, false, errors.New("queued Room target is no longer a member")
 		}
-		agentValue, targetErr := s.agents.GetAgent(ctx, targetAgentID)
+		agentValue, targetErr := s.Agents.GetAgent(ctx, targetAgentID)
 		if targetErr != nil {
 			return queueadmissionstore.Claim{}, false, targetErr
 		}

@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type cancellationProviderClient struct {
@@ -119,9 +120,8 @@ func TestExecutionCancellationUsesProviderForExactSoleRoomSlot(t *testing.T) {
 		t.Fatalf("failed to register exact Room runtime round: %v", err)
 	}
 	service := &Service{
-		rounds:     newRoomRoundRegistry(),
-		runtime:    runtimeManager,
-		permission: permissionctx.NewContext(),
+		rounds: newRoomRoundRegistry(),
+		Host:   runtimehost.Host{Runtime: runtimeManager, Permission: permissionctx.NewContext()},
 	}
 	binding := &protocol.ExecutionWorkBinding{
 		ExecutionID:  "execution-room",
@@ -191,9 +191,8 @@ func TestExecutionCancellationUsesProviderForExactSoleRoomSlot(t *testing.T) {
 
 func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 	service := &Service{
-		rounds:     newRoomRoundRegistry(),
-		runtime:    runtimectx.NewManager(),
-		permission: permissionctx.NewContext(),
+		rounds: newRoomRoundRegistry(),
+		Host:   runtimehost.Host{Runtime: runtimectx.NewManager(), Permission: permissionctx.NewContext()},
 	}
 	oldBinding := &protocol.ExecutionWorkBinding{
 		ExecutionID:  "execution-old",
@@ -235,7 +234,7 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 		oldCancelled++
 		oldSlot.setStatus("cancelled")
 		oldSlot.closeDone()
-		service.runtime.MarkRoundFinished(
+		service.Runtime.MarkRoundFinished(
 			oldSlot.RuntimeSessionKey,
 			oldSlot.AgentRoundID,
 		)
@@ -244,14 +243,14 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 		successorCancelled++
 		successorSlot.setStatus("cancelled")
 		successorSlot.closeDone()
-		service.runtime.MarkRoundFinished(
+		service.Runtime.MarkRoundFinished(
 			successorSlot.RuntimeSessionKey,
 			successorSlot.AgentRoundID,
 		)
 	}
 	oldSlot.setCancel(oldCancel)
 	successorSlot.setCancel(successorCancel)
-	if err := service.runtime.StartRound(
+	if err := service.Runtime.StartRound(
 		context.Background(),
 		oldSlot.RuntimeSessionKey,
 		oldSlot.AgentRoundID,
@@ -259,7 +258,7 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 	); err != nil {
 		t.Fatalf("failed to register old runtime round: %v", err)
 	}
-	if err := service.runtime.StartRound(
+	if err := service.Runtime.StartRound(
 		context.Background(),
 		successorSlot.RuntimeSessionKey,
 		successorSlot.AgentRoundID,
@@ -356,7 +355,7 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 			successorCancelled,
 		)
 	}
-	service.runtime.MarkRoundFinished(
+	service.Runtime.MarkRoundFinished(
 		successorSlot.RuntimeSessionKey,
 		successorSlot.AgentRoundID,
 	)

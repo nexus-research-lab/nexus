@@ -529,7 +529,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	if normalizedSessionKey != sessionKey {
 		t.Fatalf("normalized session key = %q, want %q", normalizedSessionKey, sessionKey)
 	}
-	if _, err = service.inputQueue.Enqueue(location, protocol.InputQueueItem{
+	if _, err = service.InputQueue.Enqueue(location, protocol.InputQueueItem{
 		Scope:          protocol.InputQueueScopeDM,
 		SessionKey:     sessionKey,
 		AgentID:        cfg.DefaultAgentID,
@@ -551,7 +551,7 @@ func TestServiceGoalContinuationDefersToQueuedUserInput(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("queued user input was not dispatched before Goal continuation")
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +574,7 @@ func TestServiceGoalContinuationDefersForSessionPlanOverride(t *testing.T) {
 	)
 	sessionKey := "agent:nexus:ws:dm:test-goal-session-plan"
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(
+	if _, err := service.Files.UpsertSession(
 		dmMainWorkspacePath(cfg),
 		protocol.Session{
 			SessionKey:   sessionKey,

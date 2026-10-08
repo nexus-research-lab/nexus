@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -232,7 +233,7 @@ func TestRoomFailureAfterRevocationIsSilentlyRetired(t *testing.T) {
 	service := &Service{
 		rooms:       store,
 		goals:       goalProvider,
-		history:     workspacestore.NewAgentHistoryStore(root),
+		Host:        runtimehost.Host{History: workspacestore.NewAgentHistoryStore(root)},
 		roomHistory: workspacestore.NewRoomHistoryStore(root),
 		broadcaster: broadcaster,
 	}
@@ -281,7 +282,7 @@ func TestRoomIdleSubagentDropsDurableAndEventsAfterRevocation(t *testing.T) {
 	broadcaster := &authorityFenceBroadcaster{}
 	service := &Service{
 		rooms:       store,
-		history:     workspacestore.NewAgentHistoryStore(root),
+		Host:        runtimehost.Host{History: workspacestore.NewAgentHistoryStore(root)},
 		roomHistory: workspacestore.NewRoomHistoryStore(root),
 		broadcaster: broadcaster,
 	}
@@ -420,7 +421,7 @@ func assertAuthorityFenceHistoriesEmpty(
 	if len(sharedMessages) != 0 {
 		t.Fatalf("revoked output reached shared history: %+v", sharedMessages)
 	}
-	privateMessages, err := service.history.ReadMessages(slot.WorkspacePath, protocol.Session{
+	privateMessages, err := service.History.ReadMessages(slot.WorkspacePath, protocol.Session{
 		SessionKey: slot.RuntimeSessionKey,
 		AgentID:    slot.AgentID,
 	}, nil)

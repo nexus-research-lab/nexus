@@ -14,9 +14,9 @@ func (s *Service) RequireWiring() error {
 		name  string
 		wired bool
 	}{
-		{"agents", s.agents != nil},
-		{"runtime", s.runtime != nil},
-		{"permission", s.permission != nil},
+		{"agents", s.Agents != nil},
+		{"runtime", s.Runtime != nil},
+		{"permission", s.Permission != nil},
 		{"providers", s.Providers != nil},
 		{"admission", s.Admission != nil},
 		{"preferences", s.prefs != nil},

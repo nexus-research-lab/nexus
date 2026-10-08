@@ -126,7 +126,7 @@ func (s *Service) writeUsage(
 	// Goal usage ownership is host-maintained even before a Goal mutation lane is
 	// granted; it may enrich scope but never grants capability back to the round.
 	goalBound = goalBound || strings.TrimSpace(slot.goalIDForUsage()) != ""
-	surface, observed := s.runtime.CacheSurface(slot.RuntimeSessionKey)
+	surface, observed := s.Runtime.CacheSurface(slot.RuntimeSessionKey)
 	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
 		surface.Input(),
 		observed,
@@ -221,7 +221,7 @@ func (s *Service) runSlot(
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
-	routeLease := s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
+	routeLease := s.Permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
 		RoomID:             roundValue.RoomID,
 		ConversationID:     roundValue.ConversationID,
@@ -230,7 +230,7 @@ func (s *Service) runSlot(
 		RoundID:            roundValue.RootRoundID,
 		AgentRoundID:       slot.AgentRoundID,
 	})
-	defer s.permission.UnbindSessionRoute(routeLease)
+	defer s.Permission.UnbindSessionRoute(routeLease)
 
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		execution.ctx,
@@ -248,7 +248,7 @@ func (s *Service) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return
 	}
-	if err := s.runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
+	if err := s.Runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
 		s.handleSlotFailure(
 			slotCtx,
 			roundValue,
@@ -263,7 +263,7 @@ func (s *Service) runSlot(
 	execution.ctx = slotCtx
 	admission.Release()
 	defer func() {
-		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
+		s.Runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	}()
 	defer execution.broadcastContextUsage(client)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
@@ -404,7 +404,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		inputOptions.SkipAutoMemory = false
 	}
 	if e.service.SubagentAdmission != nil {
-		e.service.runtime.SetSubagentHookCallbacks(
+		e.service.Runtime.SetSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 			orchestrationruntimehook.Callbacks(
@@ -418,7 +418,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 				},
 			),
 		)
-		defer e.service.runtime.ClearSubagentHookCallbacks(
+		defer e.service.Runtime.ClearSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 		)
@@ -431,9 +431,9 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		InputOptions:     inputOptions,
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
-		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
+		IdleTimeout:      e.service.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
-			return e.service.permission.PendingRequestState(e.slot.RuntimeSessionKey)
+			return e.service.Permission.PendingRequestState(e.slot.RuntimeSessionKey)
 		},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(e.slot)
@@ -499,13 +499,13 @@ func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
 }
 
 func (e *slotExecution) closeUncommittedForkRuntime(client runtimectx.Client, forkErr error) {
-	lease, ok := e.service.runtime.CaptureClientLease(e.slot.RuntimeSessionKey, client)
+	lease, ok := e.service.Runtime.CaptureClientLease(e.slot.RuntimeSessionKey, client)
 	if !ok {
 		return
 	}
 	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
-	_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
+	_, closeErr := e.service.Runtime.CloseSessionIfLease(closeCtx, lease)
 	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
 		e.logger.Warn("关闭未提交的 Room fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
 	}
@@ -565,13 +565,13 @@ func (e *slotExecution) observeIncomingMessage(incoming sdkprotocol.ReceivedMess
 	if !e.streamLogger.Enabled(e.ctx, slog.LevelDebug) {
 		return
 	}
-	if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !e.service.config.MessageDebugStreamEvent {
+	if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !e.service.Config.MessageDebugStreamEvent {
 		return
 	}
 	fields := trace.BuildSDKMessageLogFieldsWithOptions(
 		incoming,
 		trace.SDKMessageLogOptions{
-			IncludeStreamEvent:  e.service.config.MessageDebugStreamEvent,
+			IncludeStreamEvent:  e.service.Config.MessageDebugStreamEvent,
 			IncludeSnapshotData: true,
 		},
 	)
@@ -602,7 +602,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	}
 	e.service.startRoomSubagentUsageRetry(e.round, e.slot)
 	if e.slot.hasSubagentHistory() {
-		e.service.runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
+		e.service.Runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
 	}
 	if messageRole == "result" {
 		e.slot.setStatus(resultStatus(messageValue["subtype"]))
@@ -684,7 +684,7 @@ func (s *Service) runRound(
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
 ) {
-	defer s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
+	defer s.Runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
 	ctx = contextWithExactQueueOwner(ctx, roundValue.OwnerUserID)
 	logger := s.LoggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
@@ -825,7 +825,7 @@ func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *ac
 	options := roomRoundMarkerOptions(roundValue)
 	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
 	options.AgentRoundID = slot.AgentRoundID
-	return s.history.ForOwner(roundValue.OwnerUserID).AppendRoundMarkerWithOptions(
+	return s.History.ForOwner(roundValue.OwnerUserID).AppendRoundMarkerWithOptions(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		slot.AgentRoundID,
@@ -900,7 +900,7 @@ func (s *Service) persistPrivateOverlayMessage(slot *activeRoomSlot, message pro
 		"overlay_source":  "room_runtime",
 		"room_session_id": slot.RoomSessionID,
 	})
-	return s.history.ForOwner(slot.OwnerUserID).AppendOverlayMessage(
+	return s.History.ForOwner(slot.OwnerUserID).AppendOverlayMessage(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		privateMessage,

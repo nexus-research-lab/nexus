@@ -133,7 +133,7 @@ func (s *Service) prepareConnectorRuntime(
 	snapshot protocol.Session,
 ) error {
 	parsed := protocol.ParseSessionKey(snapshot.SessionKey)
-	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, parsed.AgentID)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (s *Service) prepareConnectorRuntime(
 		return nil
 	}
 	decision := sessionresumesvc.NewPolicy(
-		s.history.ForOwner(agentValue.OwnerUserID),
+		s.History.ForOwner(agentValue.OwnerUserID),
 	).CanResume(agentValue.WorkspacePath, sourceSessionID)
 	if !decision.Allowed {
 		if decision.Err != nil {

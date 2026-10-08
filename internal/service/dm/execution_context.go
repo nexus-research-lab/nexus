@@ -12,7 +12,7 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 	if e.request.Internal || e.request.RewriteTargetRoundID != "" {
 		return nil
 	}
-	history, err := e.service.history.ReadMessages(e.agent.WorkspacePath, e.session, nil)
+	history, err := e.service.History.ReadMessages(e.agent.WorkspacePath, e.session, nil)
 	if err != nil {
 		e.service.LoggerFor(e.ctx).Warn(
 			"读取 DM 上一轮失败上下文失败",

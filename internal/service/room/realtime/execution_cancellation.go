@@ -69,8 +69,8 @@ func (s *Service) DeliverExecutionCancellation(
 	}
 	interruptReason := normalizeRoomInterruptReason(delivery.Reason)
 	markRoomSlotInterrupted(slot, interruptReason)
-	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
-	result, err := s.runtime.InterruptRound(
+	s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
+	result, err := s.Runtime.InterruptRound(
 		ctx,
 		strings.TrimSpace(slot.RuntimeSessionKey),
 		strings.TrimSpace(slot.AgentRoundID),

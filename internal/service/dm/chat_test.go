@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	_ "modernc.org/sqlite"
 
@@ -31,7 +32,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 		done: make(chan struct{}),
 	}
 	permission.BindSession("session-1", sender)
-	service := &Service{permission: permission}
+	service := &Service{Host: runtimehost.Host{Permission: permission}}
 
 	startedAt := time.Now()
 	service.broadcastEventWithTimeout(context.Background(), "session-1", protocol.NewEvent(protocol.EventTypeMessage, map[string]any{}))

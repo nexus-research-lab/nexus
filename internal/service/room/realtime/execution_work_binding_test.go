@@ -82,8 +82,7 @@ func TestStructuredRoomSlotCompletionSettlesRootAttemptWithoutSemanticSubmission
 	binding := testRoomExecutionWorkBinding()
 	terminalizer := &roomAttemptTerminalizerFake{}
 	service := &Service{
-		Host:       runtimehost.Host{ExecutionContext: terminalizer},
-		permission: permissionctx.NewContext(),
+		Host: runtimehost.Host{ExecutionContext: terminalizer, Permission: permissionctx.NewContext()},
 	}
 	roundValue := &activeRoomRound{
 		SessionKey:         "room:group:conversation-1",
@@ -203,8 +202,7 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 	terminalizer := &roomAttemptTerminalizerFake{}
 	service := withConstructorDefaults(t, &Service{
-		Host:        runtimehost.Host{ExecutionContext: terminalizer},
-		permission:  permissionctx.NewContext(),
+		Host:        runtimehost.Host{ExecutionContext: terminalizer, Permission: permissionctx.NewContext()},
 		roomHistory: workspacestore.NewRoomHistoryStore(t.TempDir()),
 	})
 	roundValue := &activeRoomRound{

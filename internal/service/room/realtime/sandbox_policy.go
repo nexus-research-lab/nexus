@@ -16,8 +16,8 @@ func (s *Service) closeSlotForSandboxPolicyChange(ctx context.Context, slot *act
 	slot.setInterruptReason(reason)
 	slot.setStatus("cancelled")
 	slot.cancelRuntime()
-	if s.permission != nil {
-		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
+	if s.Permission != nil {
+		s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
 	}
 	client.Retire()
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)

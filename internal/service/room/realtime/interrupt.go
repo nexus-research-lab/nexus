@@ -249,7 +249,7 @@ func (s *Service) interruptActiveSlot(
 			)
 		}
 	}
-	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
+	s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
 	if shouldBroadcast {
 		s.LoggerFor(ctx).Warn("请求中断 Room slot",
 			"session_key", roundValue.SessionKey,
@@ -312,7 +312,7 @@ func (s *Service) interruptActiveRound(
 				)
 			}
 		}
-		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
+		s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
 	}
 	select {
 	case <-roundValue.Done:

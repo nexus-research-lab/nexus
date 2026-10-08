@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -96,7 +97,7 @@ func TestDMGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 	}
 	current := preparedDMGuidance{item: items[0], sourceRoundID: "new", targetRoundID: "round-1", content: "new batch"}
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		inputQueueGuidancePending: map[string][]preparedDMGuidance{
 			pendingDMGuidanceKey(location.SessionKey, "round-1"): {current},
 		},
@@ -180,7 +181,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析 DM 队列位置失败: %v", err)
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取 DM 引导队列失败: %v", err)
 	}
@@ -232,7 +233,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		!strings.Contains(additionalContext, "round-guide-2") {
 		t.Fatalf("PostToolUse hook 未注入引导: %q", additionalContext)
 	}
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取待确认 DM 引导队列失败: %v", err)
 	}
@@ -279,7 +280,7 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if got := activity.snapshot(); len(got) != 2 || got[1] != "test-guide" {
 		t.Fatalf("DM guide 物化为用户消息后应消费 draft: %+v", got)
 	}
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取已消费 DM 引导队列失败: %v", err)
 	}
@@ -383,7 +384,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 		return event.EventType == protocol.EventTypeMessage &&
 			event.Data["message_id"] == "assistant-before-guidance-ack"
 	})
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("assistant 输出不能代替 applied ACK: items=%+v err=%v", items, err)
 	}
@@ -410,7 +411,7 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 			event.Data["round_id"] == "round-ack-guidance-1" &&
 			event.Data["status"] == "finished"
 	})
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("result 与终态不能代替 applied ACK: items=%+v err=%v", items, err)
 	}
@@ -513,7 +514,7 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析 DM 队列位置失败: %v", err)
 	}
-	before, err := service.inputQueue.Snapshot(location)
+	before, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取预检前 DM 引导队列失败: %v", err)
 	}
@@ -533,7 +534,7 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 		t.Fatalf("预渲染失败不应向模型注入部分上下文: %+v", output)
 	}
 
-	after, err := service.inputQueue.Snapshot(location)
+	after, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取预检失败后的 DM 引导队列失败: %v", err)
 	}
@@ -617,7 +618,7 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	if err != nil || output.SpecificOutput == nil {
 		t.Fatalf("注册待确认 DM 引导失败: output=%+v err=%v", output, err)
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("控制响应确认前引导必须持久保留: items=%+v err=%v", items, err)
 	}
@@ -689,7 +690,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("解析 DM 队列位置失败: %v", err)
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取 DM 待发送队列失败: %v", err)
 	}
@@ -705,7 +706,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("标记 DM 引导队列失败: %v", err)
 	}
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取标记后的 DM 待发送队列失败: %v", err)
 	}
@@ -739,7 +740,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 		!strings.Contains(additionalContext, "queue_"+itemID) {
 		t.Fatalf("PostToolUse hook 未注入队列引导: %q", additionalContext)
 	}
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取待确认 DM 引导失败: %v", err)
 	}
@@ -774,7 +775,7 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	if strings.Contains(confirmationContext, "路径发给我吧") {
 		t.Fatalf("确认前次引导时不应在同一 round 重复注入: %q", confirmationContext)
 	}
-	items, err = service.inputQueue.Snapshot(location)
+	items, err = service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatalf("读取确认后的 DM 待发送队列失败: %v", err)
 	}

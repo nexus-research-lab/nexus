@@ -23,7 +23,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 	if sessionKey == "" {
 		return false
 	}
-	if len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
+	if len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0 {
 		return true
 	}
 	normalizedSessionKey, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
@@ -32,7 +32,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 		return false
 	}
 	ctx = contextWithExactOwner(ctx, location.OwnerUserID)
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
@@ -79,10 +79,10 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 ) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
-	if s.agents == nil || sessionKey == "" || agentID == "" {
+	if s.Agents == nil || sessionKey == "" || agentID == "" {
 		return false
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
@@ -230,7 +230,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 
 // shouldDeferGoalContinuationWithoutQueueDispatch 只读取最终启动条件，不在已持锁区间递归派发队列。
 func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Context, sessionKey string, agentID string) bool {
-	if len(s.runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0 {
+	if len(s.Runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0 {
 		return true
 	}
 	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
@@ -238,7 +238,7 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 		s.LoggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
 		return false

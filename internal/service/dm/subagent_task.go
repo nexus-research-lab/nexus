@@ -21,10 +21,10 @@ const (
 )
 
 func (r *roundRunner) startIdleSubagentNotificationDrain() {
-	if r == nil || r.service == nil || r.service.runtime == nil || !r.service.runtime.HasSubagentHistory(r.sessionKey) {
+	if r == nil || r.service == nil || r.service.Runtime == nil || !r.service.Runtime.HasSubagentHistory(r.sessionKey) {
 		return
 	}
-	r.service.runtime.StartIdleMessageDrain(r.sessionKey, r.handleIdleSubagentMessage)
+	r.service.Runtime.StartIdleMessageDrain(r.sessionKey, r.handleIdleSubagentMessage)
 }
 
 func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
@@ -109,8 +109,8 @@ func (r *roundRunner) rememberSubagentTaskMessage(message protocol.Message) {
 		}
 	}
 	r.Mu.Unlock()
-	if r.service != nil && r.service.runtime != nil {
-		r.service.runtime.MarkSubagentHistory(r.sessionKey)
+	if r.service != nil && r.service.Runtime != nil {
+		r.service.Runtime.MarkSubagentHistory(r.sessionKey)
 	}
 }
 

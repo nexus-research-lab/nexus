@@ -135,7 +135,7 @@ func (r *roundRunner) finishDeferredRuntime(preserveTranscript bool) {
 			)
 		}
 	}
-	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()
 	r.dispatchNextInputQueueItem()
 }

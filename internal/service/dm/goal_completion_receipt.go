@@ -33,10 +33,10 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		return
 	}
 	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
-	if !ok || r.service.history == nil {
+	if !ok || r.service.History == nil {
 		return
 	}
-	if err := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
+	if err := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.sessionKey,
 		message,
@@ -51,7 +51,7 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		return
 	}
 	r.MarkGoalCompletionReceiptStored(goalID, receipt)
-	if r.service.permission != nil {
+	if r.service.Permission != nil {
 		event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
 		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 	}

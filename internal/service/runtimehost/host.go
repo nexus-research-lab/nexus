@@ -10,18 +10,22 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
@@ -85,6 +89,14 @@ type ExecutionContextProvider interface {
 
 // Host 是 DM 与 Room realtime 共用的宿主依赖集合；两者的 Service 嵌入它。
 type Host struct {
+	Config     config.Config
+	Agents     *agentsvc.Service
+	Runtime    *runtimectx.Manager
+	Permission *permissionctx.Context
+	Files      *workspacestore.SessionFileStore
+	History    *workspacestore.AgentHistoryStore
+	InputQueue *workspacestore.InputQueueStore
+
 	Providers               clientopts.RuntimeConfigResolver
 	Admission               clientopts.AgentRuntimeAdmissionResolver
 	QueueTrust              QueueAdmissionStore
@@ -99,9 +111,23 @@ type Host struct {
 	RuntimeSlashExpander    RuntimeSlashExpander
 }
 
-// NewHost 返回带丢弃型日志的空依赖集合，其余依赖由 app 装配注入。
-func NewHost() Host {
-	return Host{Logger: logx.NewDiscardLogger()}
+// NewHost 创建会话宿主共用的基础依赖与 workspace 存储；其余依赖由 app 装配注入。
+func NewHost(
+	cfg config.Config,
+	agentService *agentsvc.Service,
+	runtimeManager *runtimectx.Manager,
+	permission *permissionctx.Context,
+) Host {
+	return Host{
+		Config:     cfg,
+		Agents:     agentService,
+		Runtime:    runtimeManager,
+		Permission: permission,
+		Files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		History:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		InputQueue: workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		Logger:     logx.NewDiscardLogger(),
+	}
 }
 
 // SetLogger 注入业务日志实例。

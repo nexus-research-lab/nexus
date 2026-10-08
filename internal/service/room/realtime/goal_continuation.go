@@ -34,12 +34,12 @@ func (s *Service) shouldDeferGoalContinuation(ctx context.Context, sessionKey st
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
-		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
+		return s.Runtime != nil && len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	if s.rooms == nil {
 		// Tests and reduced embeddings may not configure the Room repository. In
 		// that case the shared runtime is the only safe source of busy state.
-		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
+		return s.Runtime != nil && len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	lease := s.lockRoomDispatch(sessionKey, parsed.ConversationID)
 	defer lease.Unlock()
@@ -135,7 +135,7 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	) {
 		return true
 	}
-	if s.agents == nil {
+	if s.Agents == nil {
 		return false
 	}
 	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)

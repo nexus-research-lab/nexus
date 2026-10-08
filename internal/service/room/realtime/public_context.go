@@ -134,8 +134,8 @@ func (s *Service) publicCursorForSlot(roundValue *activeRoomRound, slot *activeR
 	coldStart := slot.contextColdStart()
 	cursorKnown := overrideKnown || (!coldStart &&
 		(strings.TrimSpace(cursor.LastMessageID) != "" || cursor.LastTimestamp > 0))
-	if !cursorKnown && !coldStart && s.history != nil {
-		stored, ok, err := s.history.ForOwner(roundValue.OwnerUserID).ReadRoomPublicCursor(
+	if !cursorKnown && !coldStart && s.History != nil {
+		stored, ok, err := s.History.ForOwner(roundValue.OwnerUserID).ReadRoomPublicCursor(
 			slot.WorkspacePath,
 			slot.RuntimeSessionKey,
 			roundValue.ConversationID,
@@ -217,7 +217,7 @@ func (s *Service) recordRoomPublicCursor(slot *activeRoomSlot, roundValue *activ
 	if messageID == "" && timestamp == 0 {
 		return nil
 	}
-	return s.history.ForOwner(roundValue.OwnerUserID).AppendRoomPublicCursor(
+	return s.History.ForOwner(roundValue.OwnerUserID).AppendRoomPublicCursor(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		workspacestore.RoomPublicCursor{

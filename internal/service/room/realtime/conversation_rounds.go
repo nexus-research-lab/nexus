@@ -556,8 +556,8 @@ func (s *Service) failClosedPermissionReload(ctx context.Context, slot *activeRo
 		interruptErr = client.Interrupt(ctx)
 	}
 	slot.cancelRuntime()
-	if s.permission != nil {
-		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
+	if s.Permission != nil {
+		s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
 	}
 	return interruptErr
 }
@@ -631,7 +631,7 @@ func (s *Service) finishRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
+	s.Runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
 	s.rounds.unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)

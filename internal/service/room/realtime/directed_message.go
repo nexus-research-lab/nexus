@@ -825,7 +825,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 				return err
 			}
 		}
-		items, _, enqueueErr := s.inputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
+		items, _, enqueueErr := s.InputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
 			ClientMessageID: message.MessageID,
 			Scope:           protocol.InputQueueScopeRoom,
 			SessionKey:      location.Location.SessionKey,

@@ -142,19 +142,12 @@ type Service struct {
 	externalReply      func(context.Context, string, string, string, protocol.Message) error
 	externalPrompt     func(context.Context, string, string, string) (string, error)
 	externalPermission func(context.Context, string, string, string) (sdkpermission.Handler, error)
-	config             config.Config
 	rooms              roomContextStore
-	agents             *agentsvc.Service
-	runtime            *runtimectx.Manager
-	permission         *permissionctx.Context
 	prefs              roomRuntimePreferencesService
-	files              *workspacestore.SessionFileStore
-	history            *workspacestore.AgentHistoryStore
 	roomHistory        *workspacestore.RoomHistoryStore
 	directedMessages   *workspacestore.RoomDirectedMessageStore
 	directedWakes      *workspacestore.RoomDirectedMessageWakeStore
 	publicHandoffs     *workspacestore.RoomPublicHandoffStore
-	inputQueue         *workspacestore.InputQueueStore
 	goals              goalContextProvider
 	factory            roomClientFactory
 	broadcaster        RoomBroadcaster
@@ -220,20 +213,13 @@ func NewServiceWithFactory(
 	factory roomClientFactory,
 ) *Service {
 	return &Service{
-		config:              cfg,
 		rooms:               roomService,
-		agents:              agentService,
-		runtime:             runtimeManager,
-		permission:          permission,
-		files:               workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:             workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:         workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages:    workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
 		directedWakes:       workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
 		publicHandoffs:      workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
-		inputQueue:          workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:             factory,
-		Host:                runtimehost.NewHost(),
+		Host:                runtimehost.NewHost(cfg, agentService, runtimeManager, permission),
 		rounds:              newRoomRoundRegistry(),
 		goalUsageScopeLocks: newRoomGoalUsageScopeLockRegistry(),
 		wakeTimers:          newRoomWakeTimerRegistry(),
@@ -243,8 +229,8 @@ func NewServiceWithFactory(
 // SetRoomBroadcaster 注入 Room 共享事件广播器。
 func (s *Service) SetRoomBroadcaster(broadcaster RoomBroadcaster) {
 	s.broadcaster = broadcaster
-	if s.permission != nil {
-		s.permission.SetRoomBroadcaster(broadcaster)
+	if s.Permission != nil {
+		s.Permission.SetRoomBroadcaster(broadcaster)
 	}
 }
 
@@ -323,10 +309,10 @@ func (s *Service) broadcastSharedEventWithTimeout(
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
 	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
 	defer cancel()
-	if errs := s.permission.BroadcastSessionStatus(
+	if errs := s.Permission.BroadcastSessionStatus(
 		broadcastCtx,
 		sessionKey,
-		s.runtime.GetRunningRoundIDs(sessionKey),
+		s.Runtime.GetRunningRoundIDs(sessionKey),
 	); len(errs) > 0 {
 		s.LoggerFor(broadcastCtx).Warn("广播 Room session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
@@ -339,7 +325,7 @@ func (s *Service) broadcastSharedEvent(ctx context.Context, sessionKey string, r
 		s.notifyRoomEventObserver(ctx, sessionKey, event)
 		return
 	}
-	s.permission.BroadcastEvent(ctx, sessionKey, event)
+	s.Permission.BroadcastEvent(ctx, sessionKey, event)
 }
 
 func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
@@ -372,5 +358,5 @@ func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) 
 
 // PendingAgentInteraction 只暴露成员执行会话的等待事实与变化信号，不暴露审批内容。
 func (s *Service) PendingAgentInteraction(conversationID, agentID string) (bool, <-chan struct{}) {
-	return s.permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
+	return s.Permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
 }

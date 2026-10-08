@@ -62,7 +62,7 @@ func (s *Service) HandleInputQueue(
 			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
-		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
+		enqueueResult, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
 			Scope:          protocol.InputQueueScopeDM,
 			SessionKey:     sessionKey,
 			AgentID:        inputQueueLocationAgentID(location),
@@ -98,7 +98,7 @@ func (s *Service) HandleInputQueue(
 		if s.hasInFlightInputQueueGuidance(request.ItemID) {
 			return protocol.InputQueueMutationResult{}, errors.New("该引导已发送给智能体，不能再删除")
 		}
-		currentItems, snapshotErr := s.inputQueue.Snapshot(location)
+		currentItems, snapshotErr := s.InputQueue.Snapshot(location)
 		if snapshotErr != nil {
 			return protocol.InputQueueMutationResult{}, snapshotErr
 		}
@@ -107,7 +107,7 @@ func (s *Service) HandleInputQueue(
 				return protocol.InputQueueMutationResult{}, err
 			}
 		}
-		items, err := s.inputQueue.Delete(location, request.ItemID)
+		items, err := s.InputQueue.Delete(location, request.ItemID)
 		if err != nil {
 			return protocol.InputQueueMutationResult{}, err
 		}
@@ -119,7 +119,7 @@ func (s *Service) HandleInputQueue(
 				return protocol.InputQueueMutationResult{}, errors.New("已发送给智能体的引导不能重排")
 			}
 		}
-		items, err := s.inputQueue.Reorder(location, request.OrderedIDs)
+		items, err := s.InputQueue.Reorder(location, request.OrderedIDs)
 		if err != nil {
 			return protocol.InputQueueMutationResult{}, err
 		}
@@ -144,7 +144,7 @@ func (s *Service) SendInputQueueSnapshot(ctx context.Context, sessionKey string,
 	if err != nil {
 		return err
 	}
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func (s *Service) guideInputQueueItem(
 	location workspacestore.InputQueueLocation,
 	itemID string,
 ) error {
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (s *Service) guideInputQueueItem(
 		return errors.New("IM 反馈必须按原会话队列独立处理")
 	}
 	if protocol.ShouldGuideRunningRound(selected.DeliveryPolicy) {
-		items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyQueue)
+		items, err = s.InputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyQueue)
 		if err != nil {
 			return err
 		}
@@ -191,13 +191,13 @@ func (s *Service) guideInputQueueItem(
 		})
 		return nil
 	}
-	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
 	targetRoundID := strings.TrimSpace(runningRoundIDs[0])
-	items, err = s.inputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide, targetRoundID)
+	items, err = s.InputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyGuide, targetRoundID)
 	if err != nil {
 		return err
 	}
@@ -220,10 +220,10 @@ func (s *Service) recoverStaleInputQueueGuidance(
 	targetRoundID string,
 	items []protocol.InputQueueItem,
 ) ([]protocol.InputQueueItem, bool, error) {
-	if slices.Contains(s.runtime.GetRunningRoundIDs(location.SessionKey), strings.TrimSpace(targetRoundID)) {
+	if slices.Contains(s.Runtime.GetRunningRoundIDs(location.SessionKey), strings.TrimSpace(targetRoundID)) {
 		return items, false, nil
 	}
-	recovered, err := s.inputQueue.UpdateDeliveryPolicy(location, itemID, protocol.ChatDeliveryPolicyQueue)
+	recovered, err := s.InputQueue.UpdateDeliveryPolicy(location, itemID, protocol.ChatDeliveryPolicyQueue)
 	return recovered, err == nil, err
 }
 
@@ -238,10 +238,10 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	}
 	defer s.inputQueueDispatchMu.Unlock()
 
-	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
+	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.Runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
 		return false
 	}
-	item, items, err := s.inputQueue.DispatchFirstDispatchable(location)
+	item, items, err := s.InputQueue.DispatchFirstDispatchable(location)
 	if err != nil {
 		s.LoggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
 		return false
@@ -309,7 +309,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 				)
 			}
 		}
-		if len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {
+		if len(s.Runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {
 			s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
 				s.dispatchNextInputQueueItemAtLocation(
 					taskCtx,
@@ -346,7 +346,7 @@ func (s *Service) restoreFailedInputQueueDispatch(
 		"item_id", item.ID,
 		"err", dispatchErr,
 	)
-	if restored, restoreErr := s.inputQueue.Enqueue(location, item); restoreErr != nil {
+	if restored, restoreErr := s.InputQueue.Enqueue(location, item); restoreErr != nil {
 		s.LoggerFor(ctx).Error("恢复 DM 待发送队列项失败",
 			"session_key", normalizedSessionKey,
 			"item_id", item.ID,
@@ -378,7 +378,7 @@ func (s *Service) releaseUndeliveredInputQueueGuidance(
 	location workspacestore.InputQueueLocation,
 	roundID string,
 ) {
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
 		s.LoggerFor(ctx).Warn("读取 DM 未消费引导失败", "session_key", sessionKey, "err", err)
 		return
@@ -392,7 +392,7 @@ func (s *Service) releaseUndeliveredInputQueueGuidance(
 		if rootRoundID != "" && rootRoundID != strings.TrimSpace(roundID) {
 			continue
 		}
-		items, err = s.inputQueue.UpdateDeliveryPolicy(location, item.ID, protocol.ChatDeliveryPolicyQueue)
+		items, err = s.InputQueue.UpdateDeliveryPolicy(location, item.ID, protocol.ChatDeliveryPolicyQueue)
 		if err != nil {
 			s.LoggerFor(ctx).Warn("恢复 DM 未消费引导失败", "session_key", sessionKey, "item_id", item.ID, "err", err)
 			continue
@@ -436,13 +436,13 @@ func (s *Service) resolveInputQueueAgent(
 ) (*protocol.Agent, error) {
 	agentID := textutil.FirstNonEmpty(parsed.AgentID, requestAgentID)
 	if agentID == "" {
-		defaultAgent, err := s.agents.GetDefaultAgent(ctx)
+		defaultAgent, err := s.Agents.GetDefaultAgent(ctx)
 		if err != nil {
 			return nil, err
 		}
 		agentID = defaultAgent.AgentID
 	}
-	return s.agents.GetAgent(ctx, agentID)
+	return s.Agents.GetAgent(ctx, agentID)
 }
 
 func (s *Service) broadcastInputQueueSnapshot(

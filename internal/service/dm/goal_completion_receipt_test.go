@@ -38,7 +38,7 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 		"content":     []map[string]any{{"type": "text", "text": "最终交付"}},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider, history: history},
+		service:        &Service{goals: provider, Host: runtimehost.Host{History: history}},
 		workspacePath:  workspacePath,
 		session:        protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
 		sessionKey:     sessionKey,

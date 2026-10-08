@@ -125,7 +125,7 @@ func (c *permissionModeTestClient) SessionID() string { return "" }
 func TestRoomUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
 	t.Parallel()
 	recorder := &fakeTokenUsageRecorder{}
-	service := &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()}
+	service := &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}}
 	roundValue := &activeRoomRound{OwnerUserID: "user-1", SessionKey: "room:session"}
 	slot := &activeRoomSlot{AgentID: "agent-1", AgentRoundID: "agent-round-1"}
 
@@ -197,8 +197,7 @@ func TestInterruptActiveSlotSeparatesControlAndDisplayReasons(t *testing.T) {
 			slot.setStatus("running")
 			slot.closeDone()
 			service := &Service{
-				permission: permission,
-				runtime:    runtimectx.NewManager(),
+				Host: runtimehost.Host{Permission: permission, Runtime: runtimectx.NewManager()},
 			}
 			if err := service.interruptActiveSlot(context.Background(), &activeRoomRound{
 				SessionKey:     sessionKey,
@@ -236,7 +235,7 @@ func TestSetPermissionModeForAgentInterruptsFailedSlotAndContinues(t *testing.T)
 	succeededSlot.setClient(succeeded)
 	succeededSlot.setStatus("running")
 	service := &Service{
-		permission: permissionctx.NewContext(),
+		Host: runtimehost.Host{Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"round-1": {
 				SessionKey: "room:session", RoomID: "room-1",

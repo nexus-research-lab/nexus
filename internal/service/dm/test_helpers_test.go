@@ -113,7 +113,7 @@ func mustFindDMSession(
 	sessionKey string,
 ) (protocol.Session, string) {
 	t.Helper()
-	item, workspacePath, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
+	item, workspacePath, err := service.Files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}

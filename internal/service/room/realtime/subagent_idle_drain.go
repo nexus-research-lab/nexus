@@ -17,7 +17,7 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 		return
 	}
 	for _, slot := range roundValue.Slots {
-		if slot == nil || !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
+		if slot == nil || !s.Runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
 			continue
 		}
 		mapper := roomdomain.NewSlotMessageMapper(
@@ -33,7 +33,7 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 		mapper.SetMessageDecorator(func(message protocol.Message) {
 			s.decorateRoomMessage(roundValue, slot, message)
 		})
-		s.runtime.StartIdleMessageDrain(
+		s.Runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
 				return s.handleIdleSubagentMessage(
@@ -136,7 +136,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	}
 	s.startRoomSubagentUsageRetry(roundValue, slot)
 	if slot.hasSubagentHistory() {
-		s.runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
+		s.Runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
 	}
 	if !roomSlotPublishesPublicOutput(slot) {
 		if !protocol.IsTranscriptNativeMessage(messageValue) {

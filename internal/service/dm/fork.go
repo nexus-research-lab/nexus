@@ -40,7 +40,7 @@ func (s *Service) prepareConversationFork(
 		return "", "", errors.New("target round id is required")
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, source.AgentID)
 	if err != nil {
 		return "", "", err
 	}
@@ -48,8 +48,8 @@ func (s *Service) prepareConversationFork(
 	if err != nil {
 		return "", "", err
 	}
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
-	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
+	activeRoundIDs := s.Runtime.GetRunningRoundIDs(sourceSessionKey)
 	page, err := ownerHistory.ReadMessagesPageContext(
 		ctx,
 		agentValue.WorkspacePath,
@@ -121,7 +121,7 @@ func (s *Service) forkConversationSession(
 		return errors.New("conversation fork target and transcript boundary are required")
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, source.AgentID)
 	if err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (s *Service) forkConversationSession(
 		targetSession.Options = map[string]any{}
 	}
 	runtimeFingerprintFromSession(sourceSession).apply(targetSession.Options)
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
 	if err = ownerHistory.ForkRoundMarkers(
 		agentValue.WorkspacePath,
 		sourceSessionKey,
@@ -185,7 +185,7 @@ func (s *Service) forkConversationSession(
 		return fmt.Errorf("读取 fork conversation 历史: %w", err)
 	}
 	targetSession.MessageCount = len(forkRows)
-	_, err = s.files.ForOwner(agentValue.OwnerUserID).PatchSessionRuntime(
+	_, err = s.Files.ForOwner(agentValue.OwnerUserID).PatchSessionRuntime(
 		agentValue.WorkspacePath,
 		targetSession,
 	)

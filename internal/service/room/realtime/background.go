@@ -27,8 +27,8 @@ func (s *Service) startSessionBackgroundTask(
 		}
 		task(ctx)
 	}
-	if s.runtime != nil {
-		s.runtime.StartBackgroundTaskForOwner(sessionKey, ownerUserID, run)
+	if s.Runtime != nil {
+		s.Runtime.StartBackgroundTaskForOwner(sessionKey, ownerUserID, run)
 		return
 	}
 	// 精简嵌入或单元测试没有 runtime manager 时，不再制造无法取消、

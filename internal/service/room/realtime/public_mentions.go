@@ -911,7 +911,7 @@ func (s *Service) launchPublicMentionRound(
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
-	if err := s.runtime.StartRound(roundCtx, sessionKey, roundID, cancel); err != nil {
+	if err := s.Runtime.StartRound(roundCtx, sessionKey, roundID, cancel); err != nil {
 		s.finishRound(activeRound)
 		return false
 	}
@@ -1152,7 +1152,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 			WorkBinding:   wake.WorkBinding.Clone(),
 			ReviewBinding: wake.ReviewBinding.Clone(),
 		}
-		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
+		queueItems, inserted, err := s.InputQueue.EnqueueBounded(location.Location, queuedItem, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1179,7 +1179,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 			}
 		}
 		if deliveryPolicy == protocol.ChatDeliveryPolicyGuide && !isActiveDeliverySlot(busySlot) {
-			if _, err := s.inputQueue.UpdateDeliveryPolicy(
+			if _, err := s.InputQueue.UpdateDeliveryPolicy(
 				location.Location,
 				queuedItemID,
 				protocol.ChatDeliveryPolicyQueue,
@@ -1237,6 +1237,6 @@ func (s *Service) queueBusyPublicMentionWakes(
 // nil runtime、旧 runtime 和未知能力都必须走持久化 queue，避免“已返回 hook
 // 但实际没有应用”的崩溃窗口造成消息丢失。
 func (s *Service) supportsRoomGuidanceAck(slot *activeRoomSlot) bool {
-	return s != nil && s.runtime != nil && slot != nil &&
-		s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
+	return s != nil && s.Runtime != nil && slot != nil &&
+		s.Runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
 }

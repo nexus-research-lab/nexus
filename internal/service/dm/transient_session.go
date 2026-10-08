@@ -41,7 +41,7 @@ func (s *Service) CreateTransientSession(
 		strings.TrimSpace(parsed.ChatType) != protocol.RoomTypeDM {
 		return nil, errors.New("transient internal Session identity is invalid")
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Service) CreateTransientSession(
 	if request.DisplayAfterUnixMilli > 0 {
 		targetSession.Options[protocol.OptionSessionDisplayAfterUnixMilli] = request.DisplayAfterUnixMilli
 	}
-	created, err := s.files.ForOwner(agentValue.OwnerUserID).UpsertSession(
+	created, err := s.Files.ForOwner(agentValue.OwnerUserID).UpsertSession(
 		agentValue.WorkspacePath,
 		targetSession,
 	)

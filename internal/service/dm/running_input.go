@@ -22,7 +22,7 @@ func (s *Service) queueRunningInput(
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
@@ -90,7 +90,7 @@ func (s *Service) guideRunningInput(
 ) (bool, error) {
 	content := strings.TrimSpace(request.Content)
 	attachments := s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+	runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey)
 	if len(runningRoundIDs) == 0 {
 		return false, runtimectx.ErrNoRunningRound
 	}
@@ -164,10 +164,10 @@ func (s *Service) enqueueRunningInput(
 	clientMessageID string,
 ) (protocol.InputQueueItem, []protocol.InputQueueItem, error) {
 	if strings.TrimSpace(clientMessageID) == "" {
-		items, err := s.inputQueue.Enqueue(location, item)
+		items, err := s.InputQueue.Enqueue(location, item)
 		return item, items, err
 	}
-	result, err := s.inputQueue.EnqueueIdempotent(location, item, clientMessageID)
+	result, err := s.InputQueue.EnqueueIdempotent(location, item, clientMessageID)
 	if err != nil {
 		return protocol.InputQueueItem{}, nil, err
 	}
