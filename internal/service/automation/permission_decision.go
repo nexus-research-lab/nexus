@@ -694,10 +694,6 @@ func (s *Service) queueResumedMainSessionRun(
 	return err
 }
 
-func (s *Service) failResumedPermissionRun(job automationdomain.ScheduledTask, runID string, runErr error) {
-	_ = s.commitFailedRunTerminal(backgroundContextForJobOwner(job), job, runID, runErr)
-}
-
 func (s *Service) finishDeniedPermissionRun(job automationdomain.ScheduledTask) {
 	// ResolvePermissionRequest already committed the exact run and task summary
 	// in one transaction. Reload that authority instead of issuing a broad

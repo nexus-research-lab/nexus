@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -62,28 +61,6 @@ func LoadRuntimeSettingsProjection(workspacePath string) (map[string]any, error)
 	}
 	defer root.Close()
 	return readRuntimeSettingsProjectionAt(root)
-}
-
-// RuntimeSettingsPath 返回指定 Agent 的 nxs project settings 路径。
-func RuntimeSettingsPath(workspacePath string) string {
-	workspacePath = strings.TrimSpace(workspacePath)
-	if workspacePath == "" {
-		return ""
-	}
-	return filepath.Join(workspacePath, filepath.FromSlash(runtimeSettingsRelativePath))
-}
-
-// EnsureRuntimeVisionSettingsProjection 把用户选择的非敏感视觉路由同步给 nxs。
-func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef string, model string) error {
-	if strings.TrimSpace(workspacePath) == "" {
-		return errors.New("Agent workspace 不能为空")
-	}
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return ensureRuntimeVisionSettingsProjectionAt(root, providerRef, model)
 }
 
 func ensureRuntimeVisionSettingsProjectionAt(

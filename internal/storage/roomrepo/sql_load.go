@@ -13,21 +13,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func (r *SQLRepository) getRoomAggregate(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomAggregate, error) {
-	roomValue, err := r.loadRoom(ctx, querier, ownerUserID, roomID)
-	if err != nil || roomValue == nil {
-		return nil, err
-	}
-	members, err := r.listMembers(ctx, querier, roomID)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.RoomAggregate{
-		Room:    *roomValue,
-		Members: members,
-	}, nil
-}
-
 func (r *SQLRepository) loadRoom(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomRecord, error) {
 	query := `
 SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, private_messages_enabled, is_contact_channel, configuration_version, authority_epoch, created_at, updated_at
@@ -47,17 +32,6 @@ WHERE id = ` + r.dialect.Bind(1)
 		return nil, err
 	}
 	return &roomValue, nil
-}
-
-func (r *SQLRepository) lookupRoomOwnerUserID(ctx context.Context, querier roomQueryer, roomID string) (string, error) {
-	row := querier.QueryRowContext(ctx, `SELECT owner_user_id FROM rooms WHERE id = `+r.dialect.Bind(1)+` LIMIT 1`, roomID)
-	var ownerUserID string
-	if err := row.Scan(&ownerUserID); errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	} else if err != nil {
-		return "", err
-	}
-	return ownerUserID, nil
 }
 
 // LookupConversationOwnerUserID 返回 conversation 所属用户，不加载完整 Room 聚合。

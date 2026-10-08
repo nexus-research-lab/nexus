@@ -254,15 +254,6 @@ func channelDeliveryTargetSummary(target channels.DeliveryTarget) string {
 	}
 }
 
-func deliveryAttempted(status string) bool {
-	switch strings.TrimSpace(status) {
-	case automationdomain.DeliveryStatusSucceeded, automationdomain.DeliveryStatusFailed:
-		return true
-	default:
-		return false
-	}
-}
-
 func deliveredAtForStatus(status string, at time.Time) *time.Time {
 	if strings.TrimSpace(status) != automationdomain.DeliveryStatusSucceeded {
 		return nil

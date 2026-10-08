@@ -445,11 +445,6 @@ func (f *runtimeClientSequenceFactory) New(agentclient.Options) Client {
 	return client
 }
 
-type runtimeClientResult struct {
-	client Client
-	err    error
-}
-
 type runtimeFactoryFunc func(agentclient.Options) Client
 
 func (f runtimeFactoryFunc) New(options agentclient.Options) Client {
@@ -1349,37 +1344,6 @@ func runtimeSessionStateForTest(manager *Manager, sessionKey string) *sessionSta
 	manager.mu.RLock()
 	defer manager.mu.RUnlock()
 	return manager.sessions[sessionKey]
-}
-
-func waitRuntimeSessionClient(t *testing.T, manager *Manager, sessionKey string, want Client) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if manager.SessionClient(sessionKey) == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("session client 未变为 %#v", want)
-}
-
-func waitRuntimeStartupGateRefs(t *testing.T, manager *Manager, sessionKey string, want int) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		manager.mu.RLock()
-		gate := manager.startupGates[sessionKey]
-		refs := 0
-		if gate != nil {
-			refs = gate.refs
-		}
-		manager.mu.RUnlock()
-		if refs == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("startup gate refs 未达到 %d", want)
 }
 
 func waitRuntimeStartupGateCloseBlocks(t *testing.T, manager *Manager, sessionKey string, want int) {

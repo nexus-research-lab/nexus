@@ -271,7 +271,3 @@ func (r *resolvedActor) isMain() bool {
 func (r *resolvedActor) isSelfDM() bool {
 	return r != nil && r.Authority == AuthorityAgentSelf
 }
-
-func (r *resolvedActor) isRoomHost() bool {
-	return r != nil && r.Authority == AuthorityRoomHost
-}

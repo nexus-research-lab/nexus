@@ -12,7 +12,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -32,33 +31,6 @@ func (r fakeRuntimeConfigResolver) ResolveRuntimeConfig(
 		*r.calls = *r.calls + 1
 	}
 	return r.config, r.err
-}
-
-type fakeRuntimeConfigForRuntimeResolver struct {
-	config      *RuntimeConfig
-	runtimeKind string
-	calls       int
-	legacyCalls int
-}
-
-func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfig(
-	context.Context,
-	string,
-	string,
-) (*RuntimeConfig, error) {
-	r.legacyCalls++
-	return r.config, nil
-}
-
-func (r *fakeRuntimeConfigForRuntimeResolver) ResolveRuntimeConfigForRuntime(
-	_ context.Context,
-	_ string,
-	_ string,
-	runtimeKind string,
-) (*RuntimeConfig, error) {
-	r.calls++
-	r.runtimeKind = runtimeKind
-	return r.config, nil
 }
 
 func TestBuildAgentClientOptionsUsesProviderRuntimeEnv(t *testing.T) {
@@ -752,23 +724,6 @@ func countTool(tools []string, expected string) int {
 		}
 	}
 	return count
-}
-
-func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
-	t.Helper()
-	for _, key := range []string{
-		runtimectx.AgentSDKDiagnosticsJSONLEnvName,
-		runtimectx.AgentSDKDiagnosticsStreamProgressEnvName,
-		runtimectx.AgentSDKProviderDebugBodyEnvName,
-		nexusCachedMicrocompactEnvName,
-		nexusOpenAIPromptCacheEnvName,
-		nexusOpenAIPromptCacheModeEnvName,
-		nexusOpenAIPromptCacheTTLEnvName,
-		nexusOpenAIPromptCacheRetentionEnvName,
-		nexusUsePowerShellToolEnvName,
-	} {
-		t.Setenv(key, "")
-	}
 }
 
 func TestRuntimePreauthorizationPreservesExplicitRules(t *testing.T) {

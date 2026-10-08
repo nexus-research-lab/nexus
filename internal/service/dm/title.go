@@ -48,15 +48,6 @@ func (s *Service) scheduleTitleGeneration(
 	})
 }
 
-func runtimeSelectionFromSession(sessionItem protocol.Session) (string, string) {
-	if sessionItem.Options == nil {
-		return "", ""
-	}
-	provider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
-	model, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
-	return strings.TrimSpace(provider), strings.TrimSpace(model)
-}
-
 func isExternalIMSession(parsed protocol.SessionKey, sessionItem protocol.Session) bool {
 	channel := protocol.NormalizeStoredChannelType(parsed.Channel)
 	if channel == "" {

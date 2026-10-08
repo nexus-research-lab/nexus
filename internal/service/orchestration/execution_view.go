@@ -805,17 +805,6 @@ func executionReviewGateNode(
 	}, true
 }
 
-func latestRootExecutionAttempt(
-	attempts []protocol.ExecutionAttemptView,
-) *protocol.ExecutionAttemptView {
-	for index := len(attempts) - 1; index >= 0; index-- {
-		if attempts[index].ParentAttemptID == "" {
-			return &attempts[index]
-		}
-	}
-	return nil
-}
-
 func projectExecutionWorkItemView(
 	snapshot *protocol.ExecutionSnapshot,
 	view executionContextView,

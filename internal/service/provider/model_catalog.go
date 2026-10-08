@@ -270,15 +270,3 @@ func modelIDMatchesFamily(modelID string, family string) bool {
 	version := suffix[1:]
 	return version == "latest" || version[0] >= '0' && version[0] <= '9'
 }
-
-// modelIDMatchesGeneration 匹配一个稳定代际及其点版本、变体和日期快照。
-func modelIDMatchesGeneration(modelID string, generation string) bool {
-	if modelID == generation {
-		return true
-	}
-	suffix, matched := strings.CutPrefix(modelID, generation)
-	if !matched || suffix == "" {
-		return false
-	}
-	return suffix[0] == '-' || suffix[0] == '.'
-}

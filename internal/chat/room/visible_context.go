@@ -48,8 +48,3 @@ func (trigger Trigger) WithPublicSource(messages []protocol.Message) Trigger {
 func BuildVisibleContext(input VisibleContextInput) string {
 	return BuildVisibleContextPlan(input).Text
 }
-
-// BuildGuidedPublicInputContext 构造运行中 round 的公区增量引导文本。
-func BuildGuidedPublicInputContext(input VisibleContextInput) string {
-	return BuildGuidedPublicInputContextPlan(input).Text
-}

@@ -213,17 +213,6 @@ func (s *AgentHistoryStore) ReadRoomPublicCursor(
 	return latest, found, nil
 }
 
-func (s *AgentHistoryStore) readOverlayRowsAndMarkers(
-	workspacePath string,
-	sessionKey string,
-) ([]protocol.Message, []transcriptRoundMarker, error) {
-	state, err := s.readOverlayHistoryState(workspacePath, sessionKey)
-	if err != nil {
-		return nil, nil, err
-	}
-	return state.MessageRows, state.RoundMarkers, nil
-}
-
 func (s *AgentHistoryStore) readOverlayHistoryState(
 	workspacePath string,
 	sessionKey string,

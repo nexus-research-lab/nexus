@@ -6,7 +6,6 @@ package connectors
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -21,20 +20,6 @@ type AuthorizationFlowStore struct {
 	driver     string
 	keyring    *credentials.Keyring
 	keyringErr error
-}
-
-// NewAuthorizationFlowStore 创建授权流程仓储。
-func NewAuthorizationFlowStore(
-	db *sql.DB,
-	driver string,
-	key []byte,
-) *AuthorizationFlowStore {
-	raw := ""
-	if len(key) > 0 {
-		raw = base64.StdEncoding.EncodeToString(key)
-	}
-	keyring, keyringErr := credentials.NewKeyring(raw, nil)
-	return NewAuthorizationFlowStoreWithKeyring(db, driver, keyring, keyringErr)
 }
 
 // NewAuthorizationFlowStoreWithKeyring 让持久授权流程读取显式 legacy key，并用 active key 写入。

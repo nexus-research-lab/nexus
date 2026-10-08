@@ -660,37 +660,6 @@ func explicitGoalActor(
 	}, objective, nil
 }
 
-func validateExplicitGoalExecutionCompatibility(
-	execution protocol.Execution,
-	actor orchestrationsvc.ActorContext,
-	objective string,
-) error {
-	if strings.TrimSpace(execution.SessionKey) != actor.SessionKey ||
-		execution.ScopeKind != actor.ScopeKind ||
-		(actor.ScopeKind == protocol.ExecutionScopeRoom &&
-			strings.TrimSpace(execution.ConversationID) != actor.ConversationID) {
-		return fmt.Errorf(
-			"%w: current Execution does not belong to the explicit Goal scope",
-			orchestrationsvc.ErrExplicitGoalScopeConflict,
-		)
-	}
-	if strings.TrimSpace(execution.Objective) != objective {
-		return fmt.Errorf(
-			"%w: current Execution objective %q does not match Goal objective %q",
-			orchestrationsvc.ErrExplicitGoalObjectiveConflict,
-			execution.Objective,
-			objective,
-		)
-	}
-	if strings.TrimSpace(execution.CoordinatorAgentID) != strings.TrimSpace(actor.AgentID) {
-		return fmt.Errorf(
-			"%w: only the current Execution coordinator may create its explicit Goal",
-			orchestrationsvc.ErrExplicitGoalBindingConflict,
-		)
-	}
-	return nil
-}
-
 func validateGoalForExplicitBinding(
 	goal protocol.Goal,
 	request orchestrationsvc.ExplicitGoalBindingRequest,
@@ -838,34 +807,6 @@ func explicitGoalCommandID(request protocol.CreateGoalRequest, objective string)
 		budget,
 	}, "\x00")))
 	return "explicit_goal_" + hex.EncodeToString(sum[:12])
-}
-
-func normalizeExplicitCriteria(values []string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
-func goalMetadataCriteria(metadata map[string]any) []string {
-	value := metadata[protocol.GoalMetadataCompletionCriteria]
-	switch typed := value.(type) {
-	case []string:
-		return normalizeExplicitCriteria(typed)
-	case []any:
-		result := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if text, ok := item.(string); ok {
-				result = append(result, text)
-			}
-		}
-		return normalizeExplicitCriteria(result)
-	default:
-		return nil
-	}
 }
 
 func goalTokenBudgetMatches(left *int64, right *int64) bool {

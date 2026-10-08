@@ -353,16 +353,3 @@ func planProposalAccessFor(item protocol.ExecutionPlanProposal) PlanProposalAcce
 		CoordinatorAgentID: item.CoordinatorAgentID,
 	}
 }
-
-func planProposalAccessMatches(
-	item protocol.ExecutionPlanProposal,
-	access PlanProposalAccess,
-) bool {
-	return item.ID == access.ProposalID &&
-		item.OwnerUserID == access.OwnerUserID &&
-		item.SessionKey == access.SessionKey &&
-		item.ScopeKind == access.ScopeKind &&
-		item.RoomID == access.RoomID &&
-		item.ConversationID == access.ConversationID &&
-		item.CoordinatorAgentID == access.CoordinatorAgentID
-}

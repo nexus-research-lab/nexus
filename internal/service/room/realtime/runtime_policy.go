@@ -15,8 +15,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 )
 
-const roomSendMessageTool = "mcp__nexus__send_message"
-
 func roomAllowedTools(values []string, _ bool) []string {
 	// Room policy is a lower layer: it may disable communication, but cannot
 	// widen an explicit Agent allowlist. An empty allowlist remains unrestricted.

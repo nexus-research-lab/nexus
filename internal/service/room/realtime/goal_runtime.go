@@ -1573,24 +1573,6 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 	slot.clearGoalUsage()
 }
 
-func (s *Service) clearRoomGoalUsage(sessionKey string) {
-	if s == nil {
-		return
-	}
-	sessionKey = strings.TrimSpace(sessionKey)
-	if sessionKey == "" {
-		return
-	}
-	for _, roundValue := range s.rounds.snapshot() {
-		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
-			continue
-		}
-		for _, slot := range roundValue.Slots {
-			clearGoalUsageForSlot(slot)
-		}
-	}
-}
-
 func (s *Service) beginRoomGoalUsageFinalizing(sessionKey string) {
 	if s == nil {
 		return

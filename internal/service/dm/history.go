@@ -98,19 +98,6 @@ func (s *Service) lookupRoomSession(
 	return s.roomStore.GetRoomSessionByKey(ctx, authctx.OwnerUserID(ctx), parsed)
 }
 
-func (s *Service) appendRuntimeHistoryMessage(
-	workspacePath string,
-	sessionValue protocol.Session,
-	message protocol.Message,
-) error {
-	return s.appendRuntimeHistoryMessageForOwner(
-		"",
-		workspacePath,
-		sessionValue,
-		message,
-	)
-}
-
 func (s *Service) appendRuntimeHistoryMessageForOwner(
 	ownerUserID string,
 	workspacePath string,
@@ -128,13 +115,6 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 		sessionValue.SessionKey,
 		message,
 	)
-}
-
-func (s *Service) refreshSessionMetaAfterRoundMarker(
-	workspacePath string,
-	current protocol.Session,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaAfterRoundMarkerForOwner("", workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
@@ -193,21 +173,6 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 		return nil, err
 	}
 	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
-}
-
-func (s *Service) preferPersistableMessageSessionID(
-	ctx context.Context,
-	workspacePath string,
-	current protocol.Session,
-	messageSessionID string,
-) *string {
-	return s.preferPersistableMessageSessionIDForOwner(
-		"",
-		ctx,
-		workspacePath,
-		current,
-		messageSessionID,
-	)
 }
 
 func (s *Service) preferPersistableMessageSessionIDForOwner(
@@ -286,23 +251,6 @@ func closePersistedSessionMeta(current protocol.Session) protocol.Session {
 	current.Status = "closed"
 	current.IsActive = false
 	return current
-}
-
-func (s *Service) recordRoundMarkerWithOptions(
-	workspacePath string,
-	sessionValue protocol.Session,
-	roundID string,
-	content string,
-	options workspacestore.RoundMarkerOptions,
-) error {
-	return s.recordRoundMarkerWithOptionsForOwner(
-		"",
-		workspacePath,
-		sessionValue,
-		roundID,
-		content,
-		options,
-	)
 }
 
 func (s *Service) recordRoundMarkerWithOptionsForOwner(
@@ -618,13 +566,6 @@ func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Se
 		return nil
 	}
 	return s.roomStore.UpdateRoomSessionRuntimeIdentity(ctx, roomSessionID, "", "")
-}
-
-func (s *Service) preservePersistedSessionTitle(
-	workspacePath string,
-	current protocol.Session,
-) (protocol.Session, error) {
-	return s.preservePersistedSessionTitleForOwner("", workspacePath, current)
 }
 
 func (s *Service) preservePersistedSessionTitleForOwner(

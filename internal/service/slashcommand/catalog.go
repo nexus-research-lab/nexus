@@ -141,11 +141,6 @@ func WorkGraphCommandDescriptor() protocol.CommandDescriptor {
 	)
 }
 
-// ExpandVisualizePrompt 仅在投递 runtime 时把 /visualize 展开为简短提示。
-func ExpandVisualizePrompt(content string) string {
-	return ExpandProductPrompt(content)
-}
-
 // ExpandProductPrompt 只在 runtime 投递边界展开 Nexus 固定产品提示型命令。
 func ExpandProductPrompt(content string) string {
 	name, arguments, ok := parseInvocation(content)

@@ -228,19 +228,6 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 	return resolved, nil
 }
 
-func (s *RoomHistoryStore) resolveTranscriptReference(
-	ownerUserID string,
-	row protocol.Message,
-	cache map[string]map[string]protocol.Message,
-) (protocol.Message, bool, error) {
-	return s.resolveTranscriptReferenceContext(
-		context.Background(),
-		ownerUserID,
-		row,
-		cache,
-	)
-}
-
 func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 	ctx context.Context,
 	ownerUserID string,
