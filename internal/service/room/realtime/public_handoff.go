@@ -107,7 +107,7 @@ func (s *Service) decorateRoomMessage(
 		return
 	}
 	if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
-		s.loggerFor(context.Background()).Warn("Room 公区 @ 标注写入 handoff ledger 失败",
+		s.LoggerFor(context.Background()).Warn("Room 公区 @ 标注写入 handoff ledger 失败",
 			"conversation_id", roundValue.ConversationID,
 			"message_id", strings.TrimSpace(anyString(message["message_id"])),
 			"err", err,
@@ -454,7 +454,7 @@ func (s *Service) markPublicHandoffTerminal(
 		hasSubstantiveOutput,
 		roomSlotPublishesPublicOutput(slot),
 	); err != nil {
-		s.loggerFor(ctx).Warn("记录 Room handoff 终态失败", "handoff_id", handoffID, "status", status, "err", err)
+		s.LoggerFor(ctx).Warn("记录 Room handoff 终态失败", "handoff_id", handoffID, "status", status, "err", err)
 	}
 }
 
@@ -473,7 +473,7 @@ func (s *Service) cancelSourcePublicHandoffs(
 		slot.AgentRoundID,
 		status,
 	); err != nil {
-		s.loggerFor(ctx).Warn("取消 Room source handoff 失败", "agent_round_id", slot.AgentRoundID, "err", err)
+		s.LoggerFor(ctx).Warn("取消 Room source handoff 失败", "agent_round_id", slot.AgentRoundID, "err", err)
 	}
 }
 
@@ -512,7 +512,7 @@ func (s *Service) cancelRootPublicHandoffs(
 		rootRoundID,
 	)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room root handoff 失败", "root", rootRoundID, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room root handoff 失败", "root", rootRoundID, "err", err)
 		return
 	}
 	if err = s.publicHandoffs.CancelForRoot(
@@ -521,7 +521,7 @@ func (s *Service) cancelRootPublicHandoffs(
 		rootRoundID,
 		status,
 	); err != nil {
-		s.loggerFor(ctx).Warn("取消 Room root handoff 失败", "root", rootRoundID, "err", err)
+		s.LoggerFor(ctx).Warn("取消 Room root handoff 失败", "root", rootRoundID, "err", err)
 		return
 	}
 	if roundValue.Context == nil || len(edges) == 0 {
@@ -535,7 +535,7 @@ func (s *Service) cancelRootPublicHandoffs(
 	}
 	entries, err := s.roomInputQueueEntries(ctx, roundValue.Context)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取待取消的 Room handoff queue 失败", "root", rootRoundID, "err", err)
+		s.LoggerFor(ctx).Warn("读取待取消的 Room handoff queue 失败", "root", rootRoundID, "err", err)
 		return
 	}
 	changed := false
@@ -549,14 +549,14 @@ func (s *Service) cancelRootPublicHandoffs(
 			continue
 		}
 		if _, err = s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
-			s.loggerFor(ctx).Warn("删除已取消的 Room handoff queue 失败", "item_id", entry.Item.ID, "err", err)
+			s.LoggerFor(ctx).Warn("删除已取消的 Room handoff queue 失败", "item_id", entry.Item.ID, "err", err)
 			continue
 		}
 		changed = true
 	}
 	if changed {
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, roundValue.SessionKey, roundValue.Context); err != nil {
-			s.loggerFor(ctx).Warn("广播取消后的 Room queue 快照失败", "root", rootRoundID, "err", err)
+			s.LoggerFor(ctx).Warn("广播取消后的 Room queue 快照失败", "root", rootRoundID, "err", err)
 		}
 	}
 }
@@ -581,7 +581,7 @@ func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), err
 	}
 	for _, handoff := range pending {
 		if err := s.reconcilePublicHandoff(ctx, handoff); err != nil {
-			s.loggerFor(ctx).Warn("恢复 Room handoff 失败",
+			s.LoggerFor(ctx).Warn("恢复 Room handoff 失败",
 				"conversation_id", handoff.ConversationID,
 				"handoff_id", handoff.HandoffID,
 				"err", err,

@@ -105,7 +105,7 @@ func (s *Service) runConnectorRuntimePreparation(
 		errors.Is(err, context.Canceled) {
 		return
 	}
-	s.loggerFor(preparation.ctx).Warn(
+	s.LoggerFor(preparation.ctx).Warn(
 		"后台预备 Connector runtime 失败，保留下一轮同步兜底",
 		"session_key", preparation.session.SessionKey,
 		"configuration_version", preparation.session.ConfigurationVersion,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -50,12 +51,13 @@ func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T)
 		WorkBinding:   binding,
 	}
 
-	permanent := withConstructorDefaults(t, &Service{executionContext: &managedExecutionAdmissionFake{
+	permanent := withConstructorDefaults(t, &Service{Host: runtimehost.Host{ExecutionContext: &managedExecutionAdmissionFake{
 		err: &orchestrationsvc.DomainError{
 			Code:    orchestrationsvc.ErrorCodeWorkBindingMismatch,
 			Message: "the bound Attempt was superseded",
 		},
-	}})
+	}},
+	})
 	if err := permanent.startPublicMentionRoundLocked(
 		context.Background(),
 		parent,
@@ -65,7 +67,7 @@ func TestStaleStructuredWorkWakeIsTerminalNotRetriedAsConversation(t *testing.T)
 	}
 
 	transientErr := errors.New("database temporarily unavailable")
-	transient := withConstructorDefaults(t, &Service{executionContext: &managedExecutionAdmissionFake{err: transientErr}})
+	transient := withConstructorDefaults(t, &Service{Host: runtimehost.Host{ExecutionContext: &managedExecutionAdmissionFake{err: transientErr}}})
 	if err := transient.startPublicMentionRoundLocked(
 		context.Background(),
 		parent,

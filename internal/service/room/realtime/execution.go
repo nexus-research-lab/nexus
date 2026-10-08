@@ -87,7 +87,7 @@ func (a roomRoundMapperAdapter) SessionID() string {
 }
 
 func (s *Service) recordUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "result" {
+	if s.Usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
 	if !usagesvc.MessageHasUsage(message) {
@@ -99,7 +99,7 @@ func (s *Service) recordUsage(roundValue *activeRoomRound, slot *activeRoomSlot,
 }
 
 func (s *Service) recordTerminalAssistantUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "assistant" {
+	if s.Usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
 	if slot.resultUsageWasWritten() || !usagesvc.MessageHasUsage(message) {
@@ -134,8 +134,8 @@ func (s *Service) writeUsage(
 		executionBound,
 		lane,
 	)
-	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
-		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
+	if err := s.Usage.RecordMessageUsage(context.Background(), input); err != nil {
+		s.LoggerFor(context.Background()).Error("Room token usage 写入失败",
 			"s", roundValue.SessionKey,
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -164,7 +164,7 @@ func (s *Service) runSlot(
 			"error",
 			"Room slot 缺少 agent 配置",
 		); settleErr != nil {
-			s.loggerFor(ctx).Error(
+			s.LoggerFor(ctx).Error(
 				"Room structured root Attempt 缺少 Agent 配置时收口失败",
 				"dispatch_id",
 				executionDispatchID(slot.currentWorkBinding()),
@@ -172,7 +172,7 @@ func (s *Service) runSlot(
 				settleErr,
 			)
 		}
-		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
+		s.LoggerFor(ctx).Error("Room slot 缺少 agent 配置",
 			"s", roundValue.SessionKey,
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -182,12 +182,12 @@ func (s *Service) runSlot(
 
 	slotCtx, cancel := context.WithCancel(ctx)
 	slot.setCancel(cancel)
-	logger := s.loggerFor(slotCtx).With(
+	logger := s.LoggerFor(slotCtx).With(
 		"s", roundValue.SessionKey,
 		"r", roundValue.RoomID,
 		"c", roundValue.ConversationID,
 	)
-	streamLogger := s.loggerFor(slotCtx).With(
+	streamLogger := s.LoggerFor(slotCtx).With(
 		"s", roundValue.SessionKey,
 		"a", slot.AgentID,
 	)
@@ -234,7 +234,7 @@ func (s *Service) runSlot(
 
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		execution.ctx,
-		s.admission,
+		s.Admission,
 	)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
@@ -395,7 +395,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	}
 	actor := e.orchestrationActor()
 	defer e.service.releaseExecutionCoordination(actor)
-	executionInputs, err := e.service.executionContextualInputs(e.ctx, actor)
+	executionInputs, err := e.service.ExecutionContextualInputs(e.ctx, actor)
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
@@ -403,18 +403,18 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if inputOptions.SkipAutoMemory && !runtimectx.SupportsMessageExecutionPolicy(client) {
 		inputOptions.SkipAutoMemory = false
 	}
-	if e.service.subagentAdmission != nil {
+	if e.service.SubagentAdmission != nil {
 		e.service.runtime.SetSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 			orchestrationruntimehook.Callbacks(
-				e.service.subagentAdmission,
+				e.service.SubagentAdmission,
 				orchestrationruntimehook.Context{
 					Actor:             actor,
 					ActorProvider:     e.orchestrationActor,
 					RuntimeSessionKey: e.slot.RuntimeSessionKey,
 					RoomSessionID:     e.slot.RoomSessionID,
-					Logger:            e.service.loggerFor(e.ctx),
+					Logger:            e.service.LoggerFor(e.ctx),
 				},
 			),
 		)
@@ -424,7 +424,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		)
 	}
 	e.slot.beginNoReplyCandidate()
-	e.service.executionObserver().Begin(actor)
+	e.service.ExecutionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
@@ -446,8 +446,8 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			currentActor := e.orchestrationActor()
-			e.service.executionObserver().ObserveMessage(currentActor, incoming)
-			e.service.executionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
+			e.service.ExecutionObserver().ObserveMessage(currentActor, incoming)
+			e.service.ExecutionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -466,7 +466,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	e.service.executionObserver().Finish(
+	e.service.ExecutionObserver().Finish(
 		e.orchestrationActor(),
 		result.TerminalStatus,
 		failureReason,
@@ -644,7 +644,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
-	e.service.executionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
+	e.service.ExecutionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
 	actor := e.orchestrationActor()
 	e.service.recordGoalUsageFromSlotAssistantMessageWithActor(e.ctx, e.slot, &actor, messageValue)
 	return nil
@@ -686,7 +686,7 @@ func (s *Service) runRound(
 ) {
 	defer s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
 	ctx = contextWithExactQueueOwner(ctx, roundValue.OwnerUserID)
-	logger := s.loggerFor(ctx).With(
+	logger := s.LoggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,

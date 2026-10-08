@@ -7,6 +7,7 @@
 //
 // 文件按业务内聚分组（一个业务一个文件，不按机械行数拆分）：
 //   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
+//   - Service 嵌入 runtimehost.Host：Provider/admission/队列信任/用量/额度/执行上下文/MCP 工厂等共用依赖、注入方法与共用阶段只在 runtimehost 实现一次。
 //   - sandbox_policy.go：桌面沙箱跨 Full Access 边界时取消精确 slot 与审批，等待旧 runtime 退出，不重放旧任务。
 //   - service.go / member_participation.go：服务装配、依赖接口、事件广播（round 注销后的终态仍交付自动化观察器），以及在 conversation 派发锁内以 Room CAS/authority epoch 持久化并暂停/恢复成员 queue、Goal 与 WorkGraph 调度。
 //   - chat.go / attachments.go：输入受理、/plan 本轮权限覆盖、显式目标优先与群主接管设置解析、共享消息持久化、把 Slash 原文留在共享时间线但将完整展开结果作为不经过公共上下文裁剪的原子 runtime 输入，以及直接或 queue/guide 物化用户消息的 draft 消费和活跃 slot 投递；附件归一化被 chat/execution/guidance 共用。

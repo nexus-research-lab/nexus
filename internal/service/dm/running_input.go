@@ -71,7 +71,7 @@ func (s *Service) queueRunningInput(
 		nil,
 	))
 	s.broadcastSessionStatus(ctx, sessionKey)
-	s.loggerFor(ctx).Info("持久化 DM 消息等待当前 round 结束后接力",
+	s.LoggerFor(ctx).Info("持久化 DM 消息等待当前 round 结束后接力",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,
@@ -145,7 +145,7 @@ func (s *Service) guideRunningInput(
 			s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, agentValue.AgentID, location)
 		})
 	}
-	s.loggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
+	s.LoggerFor(ctx).Info("登记 DM 引导消息等待 PostToolUse 注入",
 		"session_key", sessionKey,
 		"agent_id", agentValue.AgentID,
 		"round_id", request.RoundID,

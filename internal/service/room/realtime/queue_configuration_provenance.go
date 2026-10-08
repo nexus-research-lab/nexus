@@ -21,7 +21,7 @@ func (s *Service) recordTrustedRoomQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s.queueTrust == nil {
+	if !trusted || s.QueueTrust == nil {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -36,7 +36,7 @@ func (s *Service) recordTrustedRoomQueueAdmission(
 	if !ok {
 		return errors.New("trusted Room queue admission requires the authenticated owner principal")
 	}
-	return s.queueTrust.Record(ctx, queueadmissionstore.Admission{
+	return s.QueueTrust.Record(ctx, queueadmissionstore.Admission{
 		Binding: binding,
 		Principal: queueadmissionstore.PrincipalBinding{
 			UserID:     principal.UserID,
@@ -52,7 +52,7 @@ func (s *Service) recordTrustedRoomQueueAdmissions(
 	items []protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s.queueTrust == nil {
+	if !trusted || s.QueueTrust == nil {
 		return nil
 	}
 	if len(entries) != len(items) {
@@ -81,9 +81,9 @@ func (s *Service) rollbackRoomQueueAdmissions(
 			break
 		}
 		item, ok := authoritativeRoomQueueItem(entries[index].Location, items[index])
-		if ok && s.queueTrust != nil {
+		if ok && s.QueueTrust != nil {
 			if binding, err := queueadmissionstore.NewBinding(entries[index].Location, item); err == nil {
-				_ = s.queueTrust.Revoke(ctx, binding)
+				_ = s.QueueTrust.Revoke(ctx, binding)
 			}
 		}
 		_, _ = s.inputQueue.Delete(entries[index].Location, items[index].ID)
@@ -95,7 +95,7 @@ func (s *Service) revokeRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s.queueTrust == nil {
+	if s.QueueTrust == nil {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -106,7 +106,7 @@ func (s *Service) revokeRoomQueueAdmission(
 	if err != nil {
 		return err
 	}
-	return s.queueTrust.Revoke(ctx, binding)
+	return s.QueueTrust.Revoke(ctx, binding)
 }
 
 func (s *Service) claimTrustedRoomQueueAdmission(
@@ -115,7 +115,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.QueueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -151,7 +151,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}
-	return s.queueTrust.Claim(ctx, binding)
+	return s.QueueTrust.Claim(ctx, binding)
 }
 
 func authoritativeRoomQueueItem(

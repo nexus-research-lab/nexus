@@ -24,7 +24,6 @@ import (
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -187,13 +186,13 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if !snapshottedToolPolicy {
 		allowedTools = toolpolicy.WithManagedRuntimeAllowedTools(
 			allowedTools,
-			e.service.runtimeImagegenDefaultEnabled(e.ctx),
+			e.service.RuntimeImagegenDefaultEnabled(e.ctx),
 		)
 	}
 	disallowedTools = roomDisallowedTools(disallowedTools, e.round.Context.Room.PrivateMessagesEnabled)
 	configurationRuntimeEnv := map[string]string(nil)
-	if e.service.configurationRuntimeEnv != nil {
-		configurationRuntimeEnv, err = e.service.configurationRuntimeEnv(
+	if e.service.ConfigurationRuntimeEnv != nil {
+		configurationRuntimeEnv, err = e.service.ConfigurationRuntimeEnv(
 			e.runtimeBuilderContext(),
 			e.agent,
 			e.round.SessionKey,
@@ -207,8 +206,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	}
 	mcpContext := e.runtimeMCPContext()
 	mcpServers := e.runtimeMCPServers(mcpContext, permissionMode)
-	if e.service.nexusMCP != nil {
-		runtimeServers, runtimeErr := e.service.nexusMCP(
+	if e.service.NexusMCP != nil {
+		runtimeServers, runtimeErr := e.service.NexusMCP(
 			mcpContext,
 			e.runtimeCommandRoundContext(permissionMode),
 		)
@@ -242,7 +241,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			return preparedSlotRuntime{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
 		}
 	}
-	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
+	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.Providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    e.service.config.AppMode,
 		DesktopSandboxEnabled:      e.service.config.DesktopSandboxEnabled,
 		WorkspacePath:              e.agent.WorkspacePath,
@@ -444,10 +443,10 @@ func (e *slotExecution) runtimeMCPServers(
 	ctx context.Context,
 	permissionMode sdkpermission.Mode,
 ) map[string]sdkmcp.ServerConfig {
-	if e.service.mcpServers == nil {
+	if e.service.MCPServers == nil {
 		return nil
 	}
-	return e.service.mcpServers(
+	return e.service.MCPServers(
 		ctx,
 		e.agent,
 		e.round.SessionKey,
@@ -789,19 +788,6 @@ func (s *Service) roomRuntimeEnv(roundValue *activeRoomRound, slot *activeRoomSl
 	return env
 }
 
-type imagegenDefaultResolver interface {
-	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
-}
-
-func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {
-	resolver, ok := s.providers.(imagegenDefaultResolver)
-	if !ok || resolver == nil {
-		return false
-	}
-	_, err := resolver.ResolveImageConfig(ctx, "")
-	return err == nil
-}
-
 func (s *Service) resolveAgentRuntimeSelection(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -811,7 +797,7 @@ func (s *Service) resolveAgentRuntimeSelection(
 	if roundValue != nil {
 		ownerUserIDs = append(ownerUserIDs, roundValue.OwnerUserID)
 	}
-	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
+	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.Providers).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent:          agentValue,
 		OwnerUserIDs:   ownerUserIDs,
 		SessionOptions: roomAgentSessionOptions(roundValue, agentValue.AgentID),

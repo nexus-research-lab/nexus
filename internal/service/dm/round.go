@@ -128,7 +128,7 @@ type roundRunner struct {
 func (r *roundRunner) run(ctx context.Context) {
 	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
-	logger := r.service.loggerFor(ctx).With(
+	logger := r.service.LoggerFor(ctx).With(
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
 		"round_id", r.roundID,
@@ -157,7 +157,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		}
 	}
 
-	r.service.loggerFor(context.Background()).Info("DM round 结束",
+	r.service.LoggerFor(context.Background()).Info("DM round 结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
 		"round_id", r.roundID,
@@ -226,26 +226,26 @@ func (r *roundRunner) executeRound(
 	logger *slog.Logger,
 ) (exec.RoundExecutionResult, error) {
 	actor := r.orchestrationActor()
-	executionInputs, err := r.service.executionContextualInputs(ctx, actor)
+	executionInputs, err := r.service.ExecutionContextualInputs(ctx, actor)
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
-	if r.service.subagentAdmission != nil {
+	if r.service.SubagentAdmission != nil {
 		r.service.runtime.SetSubagentHookCallbacks(
 			r.sessionKey,
 			r.roundID,
 			orchestrationruntimehook.Callbacks(
-				r.service.subagentAdmission,
+				r.service.SubagentAdmission,
 				orchestrationruntimehook.Context{
 					Actor:             actor,
 					RuntimeSessionKey: r.sessionKey,
-					Logger:            r.service.loggerFor(ctx),
+					Logger:            r.service.LoggerFor(ctx),
 				},
 			),
 		)
 		defer r.service.runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
 	}
-	r.service.executionObserver().Begin(actor)
+	r.service.ExecutionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		AtomicInput:      r.atomicInput,
@@ -262,8 +262,8 @@ func (r *roundRunner) executeRound(
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			r.observeDeferredRuntimeMessage(incoming)
-			r.service.executionObserver().ObserveMessage(actor, incoming)
-			r.service.executionObserver().ObserveCompactBoundary(actor, r.sessionKey, r.agentRoundID, incoming)
+			r.service.ExecutionObserver().ObserveMessage(actor, incoming)
+			r.service.ExecutionObserver().ObserveCompactBoundary(actor, r.sessionKey, r.agentRoundID, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}
@@ -328,7 +328,7 @@ func (r *roundRunner) executeRound(
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	r.service.executionObserver().Finish(
+	r.service.ExecutionObserver().Finish(
 		actor,
 		result.TerminalStatus,
 		failureReason,
@@ -432,7 +432,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
-	r.service.executionObserver().ObserveArtifacts(r.orchestrationActor(), message)
+	r.service.ExecutionObserver().ObserveArtifacts(r.orchestrationActor(), message)
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {
@@ -538,7 +538,7 @@ func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
 		r.session,
 	)
 	if err != nil {
-		r.service.loggerFor(context.Background()).Error("DM round 结束后刷新 session meta 失败",
+		r.service.LoggerFor(context.Background()).Error("DM round 结束后刷新 session meta 失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
 			"round_id", r.roundID,
@@ -552,7 +552,7 @@ func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
 }
 
 func (r *roundRunner) recordUsage(message protocol.Message) {
-	if r.service.usage == nil || protocol.MessageRole(message) != "result" {
+	if r.service.Usage == nil || protocol.MessageRole(message) != "result" {
 		return
 	}
 	if !usagesvc.MessageHasUsage(message) {
@@ -564,7 +564,7 @@ func (r *roundRunner) recordUsage(message protocol.Message) {
 }
 
 func (r *roundRunner) recordTerminalAssistantUsage(message protocol.Message) {
-	if r.service.usage == nil || protocol.MessageRole(message) != "assistant" {
+	if r.service.Usage == nil || protocol.MessageRole(message) != "assistant" {
 		return
 	}
 	if r.resultUsageWritten || !usagesvc.MessageHasUsage(message) {
@@ -596,8 +596,8 @@ func (r *roundRunner) writeUsage(message protocol.Message) bool {
 		executionBound,
 		lane,
 	)
-	if err := r.service.usage.RecordMessageUsage(context.Background(), input); err != nil {
-		r.service.loggerFor(context.Background()).Error("DM token usage 写入失败",
+	if err := r.service.Usage.RecordMessageUsage(context.Background(), input); err != nil {
+		r.service.LoggerFor(context.Background()).Error("DM token usage 写入失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,
 			"round_id", r.roundID,

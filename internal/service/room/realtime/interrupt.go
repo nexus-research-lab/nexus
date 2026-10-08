@@ -238,7 +238,7 @@ func (s *Service) interruptActiveSlot(
 	shouldBroadcast := !slot.isTerminal()
 	if client := slot.getClient(); client != nil {
 		if err := client.Interrupt(ctx); err != nil {
-			s.loggerFor(ctx).Warn("Room slot 中断 client 失败，继续强制取消",
+			s.LoggerFor(ctx).Warn("Room slot 中断 client 失败，继续强制取消",
 				"session_key", roundValue.SessionKey,
 				"room_id", roundValue.RoomID,
 				"conversation_id", roundValue.ConversationID,
@@ -251,7 +251,7 @@ func (s *Service) interruptActiveSlot(
 	}
 	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
 	if shouldBroadcast {
-		s.loggerFor(ctx).Warn("请求中断 Room slot",
+		s.LoggerFor(ctx).Warn("请求中断 Room slot",
 			"session_key", roundValue.SessionKey,
 			"room_id", roundValue.RoomID,
 			"conversation_id", roundValue.ConversationID,
@@ -290,7 +290,7 @@ func (s *Service) interruptActiveRound(
 	s.cancelRootPublicHandoffs(ctx, roundValue, "interrupted")
 	interruptReason := normalizeRoomInterruptReason(message)
 	displayInterruptReason := roomInterruptDisplayReason(interruptReason)
-	s.loggerFor(ctx).Warn("请求中断 Room round",
+	s.LoggerFor(ctx).Warn("请求中断 Room round",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
@@ -301,7 +301,7 @@ func (s *Service) interruptActiveRound(
 		markRoomSlotInterrupted(slot, interruptReason)
 		if client := slot.getClient(); client != nil {
 			if err := client.Interrupt(ctx); err != nil {
-				s.loggerFor(ctx).Warn("Room round 中断 client 失败，继续强制取消",
+				s.LoggerFor(ctx).Warn("Room round 中断 client 失败，继续强制取消",
 					"session_key", roundValue.SessionKey,
 					"room_id", roundValue.RoomID,
 					"conversation_id", roundValue.ConversationID,

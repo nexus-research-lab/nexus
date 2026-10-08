@@ -112,7 +112,7 @@ func (s *Service) inputQueueGuidanceHook(
 				ackCtx := contextWithQueueOwner(context.Background(), ackOwnerUserID)
 				for _, roundID := range ackRoundIDs {
 					if ackErr := s.confirmPendingInputQueueGuidance(ackCtx, sessionKey, location, roundID, ackPending); ackErr != nil {
-						s.loggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
+						s.LoggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
 					}
 				}
 			},

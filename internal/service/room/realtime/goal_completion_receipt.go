@@ -91,7 +91,7 @@ func (s *Service) roomGoalCompletionReport(
 	report, err := provider.UsageByGoalID(ctx, goalID)
 	if err != nil {
 		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			s.loggerFor(ctx).Debug("读取 Room Goal 完成收据数据失败", "goal_id", goalID, "err", err)
+			s.LoggerFor(ctx).Debug("读取 Room Goal 完成收据数据失败", "goal_id", goalID, "err", err)
 		}
 		return nil, false
 	}
@@ -108,7 +108,7 @@ func (s *Service) logRoomGoalCompletionReceiptError(
 	goalID string,
 	err error,
 ) {
-	s.loggerFor(ctx).Warn(
+	s.LoggerFor(ctx).Warn(
 		"Room Goal 完成收据持久化失败",
 		"session_key", roundValue.SessionKey,
 		"goal_id", goalID,

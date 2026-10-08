@@ -53,7 +53,7 @@ func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRo
 		return true
 	}
 	if decision.Err != nil {
-		s.loggerFor(ctx).Warn("检查 Room SDK session transcript 失败，暂不持久化 resume",
+		s.LoggerFor(ctx).Warn("检查 Room SDK session transcript 失败，暂不持久化 resume",
 			"agent_id", slotAgentID(slot),
 			"agent_round_id", slotAgentRoundID(slot),
 			"runtime_session_key", slotRuntimeSessionKey(slot),
@@ -64,7 +64,7 @@ func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRo
 		)
 		return false
 	}
-	s.loggerFor(ctx).Warn("Room SDK session transcript 尚未落盘，暂不持久化 resume",
+	s.LoggerFor(ctx).Warn("Room SDK session transcript 尚未落盘，暂不持久化 resume",
 		"agent_id", slotAgentID(slot),
 		"agent_round_id", slotAgentRoundID(slot),
 		"runtime_session_key", slotRuntimeSessionKey(slot),
@@ -249,7 +249,7 @@ func (s *Service) handleSlotFailure(
 		"err", err,
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
-	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
+	s.LoggerFor(ctx).Error("Room slot 执行失败", fields...)
 	displayError := exec.RoundErrorDisplayMessage(err)
 	if settleErr := s.finishBoundRoomAttempt(
 		ctx,
@@ -258,7 +258,7 @@ func (s *Service) handleSlotFailure(
 		"error",
 		err.Error(),
 	); settleErr != nil {
-		s.loggerFor(ctx).Error(
+		s.LoggerFor(ctx).Error(
 			"Room structured root Attempt 失败收口失败",
 			"dispatch_id",
 			executionDispatchID(slot.currentWorkBinding()),
@@ -428,7 +428,7 @@ func (s *Service) handleSlotCancelled(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
 		return
 	}
-	s.loggerFor(ctx).Warn("Room slot 已取消",
+	s.LoggerFor(ctx).Warn("Room slot 已取消",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
@@ -444,7 +444,7 @@ func (s *Service) handleSlotCancelled(
 		"interrupted",
 		roomSlotInterruptReason(slot),
 	); settleErr != nil {
-		s.loggerFor(ctx).Error(
+		s.LoggerFor(ctx).Error(
 			"Room structured root Attempt 中断收口失败",
 			"dispatch_id",
 			executionDispatchID(slot.currentWorkBinding()),
@@ -529,7 +529,7 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 			roundValue.ConversationID,
 			resultMessage,
 		); err != nil {
-			s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
+			s.LoggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
 				"s", roundValue.SessionKey,
 				"r", roundValue.RoomID,
 				"c", roundValue.ConversationID,
@@ -556,7 +556,7 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 		}
 	}
 	if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey)); err != nil {
-		s.loggerFor(context.Background()).Error("Room interrupted 私有结果持久化失败",
+		s.LoggerFor(context.Background()).Error("Room interrupted 私有结果持久化失败",
 			"s", roundValue.SessionKey,
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,

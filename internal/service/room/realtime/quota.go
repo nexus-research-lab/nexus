@@ -25,7 +25,7 @@ func (s *Service) recordGoalQuotaLimit(
 	}
 	if _, err := s.goals.UsageLimitForSession(ctx, sessionKey, roundID, reason); err != nil &&
 		!goalsvc.IsInactive(err) {
-		s.loggerFor(ctx).Warn("标记 Room Goal 账号额度限制失败",
+		s.LoggerFor(ctx).Warn("标记 Room Goal 账号额度限制失败",
 			"session_key", sessionKey,
 			"round_id", roundID,
 			"err", err,

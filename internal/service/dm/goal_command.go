@@ -106,7 +106,7 @@ func (s *Service) persistGoalCommandRecord(
 		},
 	)
 	if err != nil {
-		s.loggerFor(ctx).Error("Goal 已设置，但 DM 控制记录持久化失败",
+		s.LoggerFor(ctx).Error("Goal 已设置，但 DM 控制记录持久化失败",
 			"session_key", execution.sessionKey,
 			"goal_id", item.ID,
 			"round_id", execution.request.RoundID,
@@ -116,7 +116,7 @@ func (s *Service) persistGoalCommandRecord(
 	}
 	if dmRoomConversationID(execution.parsed) != "" {
 		if err = s.markRoomConversationStarted(ctx, execution.sessionKey, now); err != nil {
-			s.loggerFor(ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
+			s.LoggerFor(ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
 				"session_key", execution.sessionKey,
 				"goal_id", item.ID,
 				"err", err,
@@ -128,7 +128,7 @@ func (s *Service) persistGoalCommandRecord(
 		execution.agent.WorkspacePath,
 		execution.session,
 	); err != nil {
-		s.loggerFor(ctx).Warn("Goal 控制记录已持久化，但 session meta 更新失败",
+		s.LoggerFor(ctx).Warn("Goal 控制记录已持久化，但 session meta 更新失败",
 			"session_key", execution.sessionKey,
 			"goal_id", item.ID,
 			"err", err,

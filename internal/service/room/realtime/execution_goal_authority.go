@@ -43,7 +43,7 @@ func (s *Service) resolveExecutionGoalMutationAuthority(
 		return "", roomGoalMutationAuthority{}, false, goalsvc.ErrGoalRevisionStale
 	}
 
-	resolver, ok := s.executionContext.(executionGoalBindingResolver)
+	resolver, ok := s.ExecutionContext.(executionGoalBindingResolver)
 	if !ok || resolver == nil {
 		return "", roomGoalMutationAuthority{}, false, fmt.Errorf(
 			"%w: central Goal Execution binding resolver is unavailable",

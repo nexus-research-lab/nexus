@@ -17,6 +17,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
@@ -124,7 +125,7 @@ func (c *permissionModeTestClient) SessionID() string { return "" }
 func TestRoomUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *testing.T) {
 	t.Parallel()
 	recorder := &fakeTokenUsageRecorder{}
-	service := &Service{usage: recorder, runtime: runtimectx.NewManager()}
+	service := &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()}
 	roundValue := &activeRoomRound{OwnerUserID: "user-1", SessionKey: "room:session"}
 	slot := &activeRoomSlot{AgentID: "agent-1", AgentRoundID: "agent-round-1"}
 

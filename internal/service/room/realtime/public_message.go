@@ -149,7 +149,7 @@ func (s *Service) handlePublicMessage(
 		contextValue.Room.ID,
 		roomdomain.WrapMessageEvent(contextValue.Room.ID, contextValue.Conversation.ID, message, roundID),
 	)
-	s.loggerFor(ctx).Info("Room public message 已发布",
+	s.LoggerFor(ctx).Info("Room public message 已发布",
 		"room_id", contextValue.Room.ID,
 		"conversation_id", contextValue.Conversation.ID,
 		"message_id", messageID,

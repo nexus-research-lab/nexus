@@ -70,7 +70,7 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		r.sessionKey,
 		message,
 	); err != nil {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM Goal 完成收据持久化失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
@@ -97,7 +97,7 @@ func (r *roundRunner) goalCompletionReport(
 	report, err := provider.UsageByGoalID(ctx, goalID)
 	if err != nil {
 		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			r.service.loggerFor(ctx).Debug("读取 DM Goal 完成收据数据失败", "goal_id", goalID, "err", err)
+			r.service.LoggerFor(ctx).Debug("读取 DM Goal 完成收据数据失败", "goal_id", goalID, "err", err)
 		}
 		return nil, false
 	}

@@ -173,7 +173,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		delivery.SessionKey,
 		contextValue,
 	); err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"广播 Execution Review Dispatch 队列快照失败",
 			"review_dispatch_id",
 			delivery.Binding.ReviewDispatchID,
@@ -269,10 +269,10 @@ func (s *Service) authorizeManagedExecutionReviewTarget(
 	targetAgentID string,
 	binding *protocol.ExecutionReviewBinding,
 ) error {
-	if s.executionContext == nil || roundValue == nil {
+	if s.ExecutionContext == nil || roundValue == nil {
 		return errors.New("managed Execution review admission is unavailable")
 	}
-	authorizer, ok := s.executionContext.(executionReviewTargetAuthorizer)
+	authorizer, ok := s.ExecutionContext.(executionReviewTargetAuthorizer)
 	if !ok {
 		return errors.New("managed Execution review target admission is unavailable")
 	}

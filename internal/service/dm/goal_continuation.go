@@ -27,13 +27,13 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 	}
 	normalizedSessionKey, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	ctx = contextWithExactOwner(ctx, location.OwnerUserID)
 	items, err := s.inputQueue.Snapshot(location)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	if len(items) == 0 {
@@ -83,7 +83,7 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 	}
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
 	}
 	permissionMode := agentValue.Options.PermissionMode
@@ -94,7 +94,7 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 		sessionKey,
 	)
 	if sessionErr != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"读取 Goal 续跑 Session plan mode 状态失败",
 			"session_key", sessionKey,
 			"agent_id", agentID,
@@ -125,7 +125,7 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 		if goalsvc.IsExpectedMutationError(err) {
 			return
 		}
-		r.service.loggerFor(ctx).Warn("准备 Goal 自动续跑失败",
+		r.service.LoggerFor(ctx).Warn("准备 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
 			"err", err,
@@ -141,7 +141,7 @@ func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
 			return
 		}
 		r.recordGoalContinuationDispatchFailure(ctx, *plan, err)
-		r.service.loggerFor(ctx).Warn("启动 Goal 自动续跑失败",
+		r.service.LoggerFor(ctx).Warn("启动 Goal 自动续跑失败",
 			"session_key", r.sessionKey,
 			"round_id", plan.RoundID,
 			"goal_id", plan.Goal.ID,
@@ -234,12 +234,12 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 	}
 	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	items, err := s.inputQueue.Snapshot(location)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(
@@ -259,7 +259,7 @@ func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context,
 	}
 	if err := retryGoalContinuationPlan(ctx, r.service.goals, plan, reason); err != nil &&
 		!goalsvc.IsExpectedMutationError(err) {
-		r.service.loggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
+		r.service.LoggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
 			"session_key", plan.Goal.SessionKey,
 			"goal_id", plan.Goal.ID,
 			"round_id", plan.RoundID,

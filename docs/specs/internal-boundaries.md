@@ -60,3 +60,8 @@ Team 同步服务不新增隐式重发或后台消费者。投影恢复继续使
 
 - 字符串在入口清洗一次：handler/WebSocket 解析、MCP parser、存储扫描与 `authctx` 身份读取负责 `strings.TrimSpace`，下游 service 信任已清洗值。
 - `tools/trimcheck`（`make check-normalization`）用类型信息证明哪些 `TrimSpace` 是冗余的：常量、返回值全部已裁剪的本模块函数、所有赋值均已裁剪的局部变量，以及本模块声明且所有写入均已裁剪的字段（带 tag、被取地址、经接口参数反射写入或被类型转换覆盖的字段除外）。分析分别在 linux/darwin/windows 下进行，只报告三者都成立的位置。
+
+## DM 与 Room 共用宿主
+
+- `service/runtimehost.Host` 持有 DM 与 Room realtime 共用的依赖（Provider、admission、队列信任、用量、额度、执行上下文、子智能体准入、日志、MCP 工厂、Slash 展开）及其注入方法与共用阶段；两个 Service 嵌入它。
+- runtimehost 不得依赖 dm 或 room/realtime；Room 的 slot、公私域输出与宿主锁仍只在 realtime 中实现。

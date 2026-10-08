@@ -9,6 +9,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -81,8 +82,8 @@ func TestStructuredRoomSlotCompletionSettlesRootAttemptWithoutSemanticSubmission
 	binding := testRoomExecutionWorkBinding()
 	terminalizer := &roomAttemptTerminalizerFake{}
 	service := &Service{
-		executionContext: terminalizer,
-		permission:       permissionctx.NewContext(),
+		Host:       runtimehost.Host{ExecutionContext: terminalizer},
+		permission: permissionctx.NewContext(),
 	}
 	roundValue := &activeRoomRound{
 		SessionKey:         "room:group:conversation-1",
@@ -159,7 +160,7 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			terminalizer := &roomAttemptTerminalizerFake{}
-			service := &Service{executionContext: terminalizer}
+			service := &Service{Host: runtimehost.Host{ExecutionContext: terminalizer}}
 			roundValue := &activeRoomRound{
 				SessionKey:         "room:group:conversation-1",
 				RoomID:             "room-1",
@@ -202,9 +203,9 @@ func TestStructuredRoomSlotFailureAndCancellationSettleRootAttempt(t *testing.T)
 func TestHandleStructuredRoomSlotFailureClosesBoundRootAttempt(t *testing.T) {
 	terminalizer := &roomAttemptTerminalizerFake{}
 	service := withConstructorDefaults(t, &Service{
-		executionContext: terminalizer,
-		permission:       permissionctx.NewContext(),
-		roomHistory:      workspacestore.NewRoomHistoryStore(t.TempDir()),
+		Host:        runtimehost.Host{ExecutionContext: terminalizer},
+		permission:  permissionctx.NewContext(),
+		roomHistory: workspacestore.NewRoomHistoryStore(t.TempDir()),
 	})
 	roundValue := &activeRoomRound{
 		SessionKey:         "room:group:conversation-1",

@@ -246,7 +246,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
 	attachments := s.normalizeChatAttachments(request.Attachments, request.AttachmentAgentID, roomID, conversationID)
 	recordStage("slash", nil)
-	expandedRuntimeContent, err := s.expandRuntimeSlashPrompt(ctx, request.Content)
+	expandedRuntimeContent, err := s.ExpandRuntimeSlashPrompt(ctx, request.Content)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +321,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 	}
 	recordStage("quota", nil)
 	if len(targetAgentIDs) > 0 {
-		if err = s.ensureQuotaAvailable(ctx); err != nil {
+		if err = s.EnsureQuotaAvailable(ctx); err != nil {
 			if request.Internal && strings.TrimSpace(request.GoalID) != "" {
 				s.recordGoalQuotaLimit(ctx, sessionKey, request.RoundID, err)
 			}
@@ -365,7 +365,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (_ *
 // roomChatStageRecorder 只记录慢阶段与失败，使用同一请求身份关联排队、准备和落盘。
 func (s *Service) roomChatStageRecorder(ctx context.Context, request ChatRequest, stage string) func(string, error) {
 	startedAt := time.Now()
-	logger := s.loggerFor(ctx).With(
+	logger := s.LoggerFor(ctx).With(
 		"session_key", request.SessionKey,
 		"conversation_id", cmp.Or(request.ConversationID, protocol.ParseRoomConversationID(request.SessionKey)),
 		"client_request_id", request.ClientRequestID,
@@ -440,7 +440,7 @@ func (s *Service) logPreparedRoomChat(
 	targetAgentIDs []string,
 	targetResolution string,
 ) {
-	s.loggerFor(ctx).Info("Room 会话输入路由完成",
+	s.LoggerFor(ctx).Info("Room 会话输入路由完成",
 		"session_key", sessionKey,
 		"room_id", roomID,
 		"conversation_id", conversationID,
@@ -551,7 +551,7 @@ func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
 	if e.request.Internal {
 		return true, errors.New("room internal continuation has no target agent")
 	}
-	e.service.loggerFor(e.ctx).Warn("Room 消息未命中任何目标成员",
+	e.service.LoggerFor(e.ctx).Warn("Room 消息未命中任何目标成员",
 		"session_key", e.sessionKey,
 		"room_id", e.roomID,
 		"conversation_id", e.conversationID,
@@ -835,7 +835,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 }
 
 func (e *roomChatExecution) reportUnavailableMembers() error {
-	e.service.loggerFor(e.ctx).Warn("Room 中没有可用成员会话",
+	e.service.LoggerFor(e.ctx).Warn("Room 中没有可用成员会话",
 		"session_key", e.sessionKey,
 		"room_id", e.roomID,
 		"conversation_id", e.conversationID,
@@ -1182,7 +1182,7 @@ func (s *Service) touchSharedConversationActivity(ctx context.Context, conversat
 		activityAt = time.Now().UTC()
 	}
 	if err := s.rooms.TouchConversationActivity(ctx, conversationID, activityAt); err != nil {
-		s.loggerFor(ctx).Error("更新 Room conversation 活动时间失败",
+		s.LoggerFor(ctx).Error("更新 Room conversation 活动时间失败",
 			"conversation_id", conversationID,
 			"activity_at", activityAt,
 			"err", err,
@@ -1335,7 +1335,7 @@ func (s *Service) enqueueForActiveAgentSlotsWithTrust(
 		agentID := entry.Item.AgentID
 		slot := slotsByAgentID[agentID]
 		queuedAgentIDs[agentID] = struct{}{}
-		s.loggerFor(ctx).Info("Room 公区消息写入目标 agent 待处理队列",
+		s.LoggerFor(ctx).Info("Room 公区消息写入目标 agent 待处理队列",
 			"session_key", sessionKey,
 			"conversation_id", conversationID,
 			"agent_id", agentID,
@@ -1405,7 +1405,7 @@ func (s *Service) enqueueForPausedAgentTargets(
 	}
 	for _, entry := range entries {
 		queuedAgentIDs[entry.Item.AgentID] = struct{}{}
-		s.loggerFor(ctx).Info(
+		s.LoggerFor(ctx).Info(
 			"Room 成员暂停参与，用户输入保留在目标队列",
 			"conversation_id", contextValue.Conversation.ID,
 			"agent_id", entry.Item.AgentID,
@@ -1590,7 +1590,7 @@ func (s *Service) guideActiveAgentSlots(
 		agentID := entry.Item.AgentID
 		slot := slotsByAgentID[agentID]
 		guidedAgentIDs[agentID] = struct{}{}
-		s.loggerFor(ctx).Info("持久化 Room 引导消息等待 PostToolUse 注入",
+		s.LoggerFor(ctx).Info("持久化 Room 引导消息等待 PostToolUse 注入",
 			"session_key", sessionKey,
 			"room_id", roomID,
 			"runtime_session_key", slot.RuntimeSessionKey,

@@ -67,7 +67,7 @@ func (s *Service) HandleDirectedMessage(
 		event := newRoomDirectedMessageEvent(*message)
 		s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
 	}
-	s.loggerFor(ctx).Info("Room directed message 已创建",
+	s.LoggerFor(ctx).Info("Room directed message 已创建",
 		"room_id", message.RoomID,
 		"conversation_id", message.ConversationID,
 		"message_id", message.MessageID,
@@ -81,7 +81,7 @@ func (s *Service) HandleDirectedMessage(
 		"content_chars", utf8.RuneCountInString(message.Content),
 	)
 	if err = s.startRoomDirectedMessageWake(ctx, contextValue, *message); err != nil {
-		s.loggerFor(ctx).Error("启动 Room directed message 唤醒失败",
+		s.LoggerFor(ctx).Error("启动 Room directed message 唤醒失败",
 			"room_id", message.RoomID,
 			"conversation_id", message.ConversationID,
 			"message_id", message.MessageID,
@@ -92,7 +92,7 @@ func (s *Service) HandleDirectedMessage(
 			"err", err,
 		)
 		if retryErr := s.scheduleRoomDirectedMessageWakeRetry(ctx, *message); retryErr != nil {
-			s.loggerFor(ctx).Error("持久化 Room directed message 唤醒重试失败",
+			s.LoggerFor(ctx).Error("持久化 Room directed message 唤醒重试失败",
 				"room_id", message.RoomID,
 				"conversation_id", message.ConversationID,
 				"message_id", message.MessageID,
@@ -868,7 +868,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 				handoffID,
 				queueItemID,
 			); err != nil {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"记录 Goal directed wake 排队状态失败，保留 source_finished 恢复边",
 					"conversation_id", message.ConversationID,
 					"handoff_id", handoffID,
@@ -1048,7 +1048,7 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(message.ConversationID)
 	s.broadcastSharedEventWithTimeout(ctx, sessionKey, message.RoomID, newRoomDirectedMessageScheduledWakeEvent(message))
-	s.loggerFor(ctx).Info("Room directed message 延迟唤醒已计划",
+	s.LoggerFor(ctx).Info("Room directed message 延迟唤醒已计划",
 		"room_id", message.RoomID,
 		"conversation_id", message.ConversationID,
 		"message_id", message.MessageID,
@@ -1169,7 +1169,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		); completeErr != nil {
 			err = completeErr
 		} else {
-			s.loggerFor(wakeCtx).Info(
+			s.LoggerFor(wakeCtx).Info(
 				"Room directed message 唤醒因持久权限真相终止",
 				"room_id", message.RoomID,
 				"conversation_id", message.ConversationID,
@@ -1180,7 +1180,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		}
 	}
 	if err != nil {
-		s.loggerFor(wakeCtx).Error("执行 Room directed message 唤醒失败，稍后重试",
+		s.LoggerFor(wakeCtx).Error("执行 Room directed message 唤醒失败，稍后重试",
 			"room_id", message.RoomID,
 			"conversation_id", message.ConversationID,
 			"message_id", message.MessageID,
@@ -1190,7 +1190,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		return
 	}
 	if err = s.directedWakes.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
-		s.loggerFor(wakeCtx).Error("记录 Room directed message 唤醒完成失败", "wake_id", wake.WakeID, "err", err)
+		s.LoggerFor(wakeCtx).Error("记录 Room directed message 唤醒完成失败", "wake_id", wake.WakeID, "err", err)
 	}
 }
 

@@ -25,7 +25,7 @@ func (r *roundRunner) broadcastContextUsage() {
 	defer cancel()
 	usage, available, err := runtimectx.ReadContextUsage(ctx, r.client)
 	if err != nil {
-		r.service.loggerFor(context.Background()).Debug(
+		r.service.LoggerFor(context.Background()).Debug(
 			"DM context usage 读取失败",
 			"session_key", r.sessionKey,
 			"agent_id", r.agent.AgentID,

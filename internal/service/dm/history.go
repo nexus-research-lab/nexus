@@ -489,7 +489,7 @@ func (s *Service) canPersistSDKSessionIDForOwner(
 		return true
 	}
 	if decision.Err != nil {
-		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
+		s.LoggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
 			"session_key", current.SessionKey,
 			"workspace_path", workspacePath,
 			"sdk_session_id", decision.SessionID,
@@ -498,7 +498,7 @@ func (s *Service) canPersistSDKSessionIDForOwner(
 		)
 		return false
 	}
-	s.loggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
+	s.LoggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
 		"session_key", current.SessionKey,
 		"workspace_path", workspacePath,
 		"sdk_session_id", decision.SessionID,
