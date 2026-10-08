@@ -67,7 +67,7 @@ func TestIMFeedbackQueuesAtOriginalSessionAndDispatchesOnlyOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	queued, err := service.inputQueue.Snapshot(location)
+	queued, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(queued) != 1 || queued[0].Source != protocol.InputQueueSourceIMDeliveryReply {
 		t.Fatalf("feedback not durably queued: %+v %v", queued, err)
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -84,8 +85,7 @@ func TestRoomSlotGuidanceHookUsesQueueOwnerForAttachment(t *testing.T) {
 	}
 
 	service := &Service{
-		config:     config.Config{WorkspacePath: appfs.UsersRoot()},
-		inputQueue: store,
+		Host: runtimehost.Host{Config: config.Config{WorkspacePath: appfs.UsersRoot()}, InputQueue: store},
 	}
 	slot := &activeRoomSlot{
 		OwnerUserID:       ownerUserID,
@@ -168,7 +168,7 @@ func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-ack"},
 		},
 	}}
-	service := &Service{inputQueue: store, runtime: runtimeManager, rooms: roomStore}
+	service := &Service{Host: runtimehost.Host{InputQueue: store, Runtime: runtimeManager}, rooms: roomStore}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-ack",
 		AgentRoundID:      "agent-round-ack",
@@ -259,8 +259,7 @@ func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 		},
 	}
 	service := &Service{
-		permission:  permissionctx.NewContext(),
-		inputQueue:  store,
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext(), InputQueue: store},
 		roomHistory: roomHistory,
 	}
 	roundValue := &activeRoomRound{
@@ -311,7 +310,7 @@ func TestRoomSlotGuidanceTransportFailureKeepsDurableInput(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
 	hook := service.roomSlotGuidanceHook(nil, slot, location)
 	if _, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1"); err != nil {
@@ -341,7 +340,7 @@ func TestRoomGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 	if err != nil || len(items) != 1 {
 		t.Fatalf("enqueue newer batch: items=%+v err=%v", items, err)
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
 	service.rememberRoomSlotGuidance(slot, location, items)
 	stale := pendingRoomGuidance{location: location, items: []protocol.InputQueueItem{{
@@ -377,7 +376,7 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active-a": {
 				SessionKey:     sharedSessionKey,
@@ -459,7 +458,7 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active": {
 				SessionKey:     sharedSessionKey,
@@ -545,7 +544,7 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey:     sharedSessionKey,
@@ -653,8 +652,7 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 		MemberAgents: []protocol.Agent{{AgentID: agentID, WorkspacePath: workspacePath}},
 	}
 	service := withConstructorDefaults(t, &Service{
-		inputQueue: store,
-		permission: permissionctx.NewContext(),
+		Host: runtimehost.Host{InputQueue: store, Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"replacement": {
 				SessionKey:     sharedSessionKey,
@@ -724,10 +722,8 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 	}
 
 	service := withConstructorDefaults(t, &Service{
-		permission:  permissionctx.NewContext(),
-		inputQueue:  store,
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext(), InputQueue: store, History: workspacestore.NewAgentHistoryStore(appfs.UsersRoot())},
 		roomHistory: roomHistory,
-		history:     workspacestore.NewAgentHistoryStore(appfs.UsersRoot()),
 	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: "room-1", OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},

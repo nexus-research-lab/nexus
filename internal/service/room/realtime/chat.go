@@ -77,7 +77,7 @@ func (s *Service) buildRuntimeAgentDirectory(
 	// ConversationContext.MemberAgents 是 Room 展示读模型，不是 runtime 配置
 	// 权威。每次准备 round 都以一个批量查询重新水合完整 Agent 配置，避免
 	// Skill、permission 或未来 runtime 字段在 Room 副本中静默漂移。
-	agents, err := s.agents.GetAgentsByIDs(ctx, memberIDs)
+	agents, err := s.Agents.GetAgentsByIDs(ctx, memberIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -871,7 +871,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(e.ctx))
 	activeRound.Cancel = cancel
 	e.service.registerRound(activeRound)
-	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
+	if err := e.service.Runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		e.service.finishRound(activeRound)
 		return err
 	}
@@ -882,7 +882,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 				if slot == nil {
 					continue
 				}
-				e.service.runtime.RegisterGoalAccountingIdentity(
+				e.service.Runtime.RegisterGoalAccountingIdentity(
 					e.sessionKey,
 					slot.AgentRoundID,
 					func() string { return goalID },
@@ -895,10 +895,10 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 				if slot == nil {
 					continue
 				}
-				e.service.runtime.RegisterGoalAccountingIdentity(e.sessionKey, slot.AgentRoundID, nil)
+				e.service.Runtime.RegisterGoalAccountingIdentity(e.sessionKey, slot.AgentRoundID, nil)
 				slot.closeDone()
 			}
-			e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+			e.service.Runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 			e.service.rounds.unregister(activeRound)
 			activeRound.doneOnce.Do(func() { close(activeRound.Done) })
 			return err
@@ -1311,7 +1311,7 @@ func (s *Service) enqueueForActiveAgentSlotsWithTrust(
 			RootRoundID:     strings.TrimSpace(roundID),
 		}))
 	}
-	committedItems, err := s.inputQueue.EnqueueBatchWithItems(entries)
+	committedItems, err := s.InputQueue.EnqueueBatchWithItems(entries)
 	if err != nil {
 		return queuedAgentIDs, err
 	}
@@ -1393,7 +1393,7 @@ func (s *Service) enqueueForPausedAgentTargets(
 			},
 		})
 	}
-	if err = s.inputQueue.EnqueueBatch(entries); err != nil {
+	if err = s.InputQueue.EnqueueBatch(entries); err != nil {
 		return nil, err
 	}
 	for _, entry := range entries {
@@ -1576,7 +1576,7 @@ func (s *Service) guideActiveAgentSlots(
 			HopIndex:        sourceItem.HopIndex,
 		}))
 	}
-	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+	if err := s.InputQueue.EnqueueBatch(entries); err != nil {
 		return guidedAgentIDs, err
 	}
 	for _, entry := range entries {

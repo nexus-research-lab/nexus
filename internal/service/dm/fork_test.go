@@ -196,7 +196,7 @@ func TestConversationForkPreparesAndMaterializesIndependentHistory(t *testing.T)
 	if err != nil {
 		t.Fatalf("读取 fork Agent 失败: %v", err)
 	}
-	if _, err = service.files.ForOwner(agentValue.OwnerUserID).DeleteSession(
+	if _, err = service.Files.ForOwner(agentValue.OwnerUserID).DeleteSession(
 		workspacePath,
 		sourceSessionKey,
 	); err != nil {
@@ -292,7 +292,7 @@ func TestEnsureClientForConversationForkUsesSourceBoundary(t *testing.T) {
 		}),
 		IsActive: true,
 	}
-	if _, err = service.files.UpsertSession(workspacePath, targetSession); err != nil {
+	if _, err = service.Files.UpsertSession(workspacePath, targetSession); err != nil {
 		t.Fatalf("写入 target session 失败: %v", err)
 	}
 

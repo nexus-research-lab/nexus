@@ -54,7 +54,7 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 		); err != nil {
 			return nil, err
 		}
-		if _, err := s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
+		if _, err := s.InputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
 			return nil, err
 		}
 		changed = true
@@ -115,7 +115,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	for _, candidate := range batch {
 		itemIDs = append(itemIDs, candidate.Item.ID)
 	}
-	if _, err = s.inputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
+	if _, err = s.InputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
 		s.LoggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
@@ -154,7 +154,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	invalidCapabilityEnvelope := errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope)
 	if !invalidCapabilityEnvelope {
 		for _, candidate := range batch {
-			if _, restoreErr := s.inputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
+			if _, restoreErr := s.InputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
 				s.LoggerFor(ctx).Error("恢复 Room 待发送队列项失败",
 					"session_key", sessionKey,
 					"item_id", candidate.Item.ID,
@@ -227,7 +227,7 @@ func (s *Service) releaseUndeliveredRoomGuidanceLocked(
 		if activeSlot != nil && (boundRoundID == "" || boundRoundID == strings.TrimSpace(activeSlot.AgentRoundID)) {
 			continue
 		}
-		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+		if _, err = s.InputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			s.LoggerFor(ctx).Error("恢复 Room 未消费引导失败", "session_key", sessionKey, "item_id", entry.Item.ID, "err", err)
 			continue
 		}
@@ -568,7 +568,7 @@ func (s *Service) canDispatchInputQueueItem(
 		}
 		return len(s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, participatingAgentIDs)) == 0
 	}
-	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
+	return len(s.Runtime.GetRunningRoundIDs(sessionKey)) == 0
 }
 
 func (s *Service) findDispatchableInputQueueEntry(

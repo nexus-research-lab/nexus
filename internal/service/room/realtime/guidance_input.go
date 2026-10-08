@@ -56,8 +56,8 @@ func (s *Service) roomSlotGuidanceHook(
 }
 
 func (s *Service) shouldConfirmRoomGuidanceByFallback(slot *activeRoomSlot) bool {
-	return s == nil || s.runtime == nil || slot == nil ||
-		!s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
+	return s == nil || s.Runtime == nil || slot == nil ||
+		!s.Runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
 }
 
 type roomGuidanceExecution struct {
@@ -197,7 +197,7 @@ func (s *Service) hasInFlightRoomGuidance(itemID string) bool {
 }
 
 func (e *roomGuidanceExecution) loadInputs() (bool, error) {
-	queueItems, err := e.service.inputQueue.SnapshotGuidance(e.location, e.slot.AgentRoundID)
+	queueItems, err := e.service.InputQueue.SnapshotGuidance(e.location, e.slot.AgentRoundID)
 	if err != nil {
 		return false, err
 	}
@@ -237,7 +237,7 @@ func (s *Service) acknowledgeRoomSlotGuidanceLocked(
 	if expected != nil && !reflect.DeepEqual(pending, *expected) {
 		return nil
 	}
-	claimed, _, err := s.inputQueue.DispatchPreparedGuidance(pending.location, pending.items, slot.AgentRoundID)
+	claimed, _, err := s.InputQueue.DispatchPreparedGuidance(pending.location, pending.items, slot.AgentRoundID)
 	if err != nil {
 		return err
 	}
@@ -307,7 +307,7 @@ func (s *Service) restoreRoomSlotGuidance(
 	for _, item := range items {
 		entries = append(entries, workspacestore.InputQueueEnqueue{Location: location, Item: item})
 	}
-	return s.inputQueue.EnqueueBatchWithItems(entries)
+	return s.InputQueue.EnqueueBatchWithItems(entries)
 }
 
 func (s *Service) forgetRoomSlotGuidance(slot *activeRoomSlot) {

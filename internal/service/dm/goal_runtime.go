@@ -920,14 +920,14 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	attributed := goalID != "" && !r.ignoreGoalRuntime()
 	r.Mu.Unlock()
 	for _, child := range observations {
-		if r.service.runtime == nil {
+		if r.service.Runtime == nil {
 			settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
 				taskID:      child.taskID,
 				observation: child.observation,
 			})
 			continue
 		}
-		delta := r.service.runtime.ObserveSubagentUsage(
+		delta := r.service.Runtime.ObserveSubagentUsage(
 			r.sessionKey,
 			child.taskID,
 			child.observation.CumulativeTotal,

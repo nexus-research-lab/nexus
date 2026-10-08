@@ -85,18 +85,18 @@ func TestTamperedDMQueuePayloadLosesConfigurationContextAndRevokesAdmission(t *t
 	_, location, err := service.resolveInputQueueLocation(
 		context.Background(),
 		sessionKey,
-		service.config.DefaultAgentID,
+		service.Config.DefaultAgentID,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("queued items = %+v, err=%v", items, err)
 	}
 	tampered := items[0]
 	tampered.Content = "tampered destructive request"
-	if _, err = service.inputQueue.Enqueue(location, tampered); err != nil {
+	if _, err = service.InputQueue.Enqueue(location, tampered); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,12 +150,12 @@ func TestDMQueueAdmissionFailureKeepsAndRecoversDurableUserInput(t *testing.T) {
 	_, location, err := service.resolveInputQueueLocation(
 		context.Background(),
 		sessionKey,
-		service.config.DefaultAgentID,
+		service.Config.DefaultAgentID,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestDMQueueAdmissionFailureKeepsAndRecoversDurableUserInput(t *testing.T) {
 		t.Fatalf("durable DM input was lost after admission failure: %+v", items)
 	}
 
-	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(service.config, db))
+	service.SetQueueAdmissionStore(queueadmissionstore.NewRepository(service.Config, db))
 	retry, err := service.HandleInputQueue(trustedDMQueueContext(), request)
 	if err != nil {
 		t.Fatalf("retry retained DM input: %v", err)

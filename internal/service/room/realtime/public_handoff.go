@@ -548,7 +548,7 @@ func (s *Service) cancelRootPublicHandoffs(
 		if _, ok := cancelledIDs[strings.TrimSpace(entry.Item.HandoffID)]; !ok {
 			continue
 		}
-		if _, err = s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
+		if _, err = s.InputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
 			s.LoggerFor(ctx).Warn("删除已取消的 Room handoff queue 失败", "item_id", entry.Item.ID, "err", err)
 			continue
 		}
@@ -871,7 +871,7 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		if present {
 			// 队列项仍然是 durable 真相；让正常队列恢复负责出队，
 			// 不在这里再创建一条 target round。
-			if s.inputQueue != nil {
+			if s.InputQueue != nil {
 				sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 				s.startSessionBackgroundTask(
 					sessionKey,
@@ -1187,7 +1187,7 @@ func (s *Service) publicHandoffQueueItemPresent(
 	if !ok {
 		return false, nil
 	}
-	items, err := s.inputQueue.Snapshot(location.Location)
+	items, err := s.InputQueue.Snapshot(location.Location)
 	if err != nil {
 		return false, err
 	}
@@ -1207,7 +1207,7 @@ func (s *Service) publicHandoffQueueItemPresent(
 		// The durable structured handoff owns this reserved identity. A row
 		// with the same ID but a different capability must not suppress
 		// recovery or be delivered as ordinary conversation.
-		if _, deleteErr := s.inputQueue.Delete(location.Location, item.ID); deleteErr != nil {
+		if _, deleteErr := s.InputQueue.Delete(location.Location, item.ID); deleteErr != nil {
 			return false, deleteErr
 		}
 	}
@@ -1234,7 +1234,7 @@ func (s *Service) deletePublicHandoffQueueItems(
 	if !ok {
 		return nil
 	}
-	items, err := s.inputQueue.Snapshot(location.Location)
+	items, err := s.InputQueue.Snapshot(location.Location)
 	if err != nil {
 		return err
 	}
@@ -1243,7 +1243,7 @@ func (s *Service) deletePublicHandoffQueueItems(
 			(strings.TrimSpace(handoff.QueueItemID) == "" || item.ID != handoff.QueueItemID) {
 			continue
 		}
-		if _, err = s.inputQueue.Delete(location.Location, item.ID); err != nil {
+		if _, err = s.InputQueue.Delete(location.Location, item.ID); err != nil {
 			return err
 		}
 	}

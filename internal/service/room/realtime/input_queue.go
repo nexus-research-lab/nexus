@@ -173,7 +173,7 @@ func (s *Service) HandleInputQueue(
 			); err != nil {
 				return protocol.InputQueueMutationResult{}, err
 			}
-			currentItems, snapshotErr := s.inputQueue.Snapshot(acceptedEntry.Location)
+			currentItems, snapshotErr := s.InputQueue.Snapshot(acceptedEntry.Location)
 			if snapshotErr != nil {
 				return protocol.InputQueueMutationResult{}, snapshotErr
 			}
@@ -215,7 +215,7 @@ func (s *Service) HandleInputQueue(
 		candidate.SessionKey = location.SessionKey
 		candidate.AgentID = inputQueueLocationAgentID(location)
 		candidate.TargetAgentIDs = targetAgentIDs
-		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, candidate, clientMessageID)
+		enqueueResult, err := s.InputQueue.EnqueueIdempotent(location, candidate, clientMessageID)
 		if err != nil {
 			return protocol.InputQueueMutationResult{}, err
 		}
@@ -343,7 +343,7 @@ func (s *Service) guideInputQueueItem(
 		return errors.New("Goal collaboration handoff must remain an independently attributable queued round")
 	}
 	if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
-		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+		if _, err = s.InputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			return err
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
@@ -371,7 +371,7 @@ func (s *Service) guideInputQueueItem(
 	if activeSlot == nil {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
-	if _, err = s.inputQueue.UpdateDeliveryPolicy(
+	if _, err = s.InputQueue.UpdateDeliveryPolicy(
 		entry.Location,
 		entry.Item.ID,
 		protocol.ChatDeliveryPolicyGuide,
@@ -746,7 +746,7 @@ func (s *Service) roomInputQueueLocationsByAgent(
 		if _, exists := agentsByID[agentID]; exists {
 			continue
 		}
-		agentValue, err := s.agents.GetAgent(ctx, agentID)
+		agentValue, err := s.Agents.GetAgent(ctx, agentID)
 		if err != nil {
 			return nil, err
 		}
@@ -793,7 +793,7 @@ func (s *Service) roomInputQueueEntries(ctx context.Context, contextValue *proto
 	}
 	entries := make([]roomInputQueueEntry, 0)
 	for _, location := range locations {
-		items, snapshotErr := s.inputQueue.Snapshot(location.Location)
+		items, snapshotErr := s.InputQueue.Snapshot(location.Location)
 		if snapshotErr != nil {
 			return nil, snapshotErr
 		}
@@ -853,7 +853,7 @@ func (s *Service) findAcceptedRoomInputQueueEnqueue(
 		return roomInputQueueEntry{}, false, err
 	}
 	for _, location := range locations {
-		item, accepted, findErr := s.inputQueue.FindAcceptedEnqueue(location.Location, clientMessageID)
+		item, accepted, findErr := s.InputQueue.FindAcceptedEnqueue(location.Location, clientMessageID)
 		if findErr != nil {
 			return roomInputQueueEntry{}, false, findErr
 		}
@@ -875,7 +875,7 @@ func (s *Service) deleteRoomInputQueueItem(ctx context.Context, contextValue *pr
 	if err = s.revokeRoomQueueAdmission(ctx, entry.Location, entry.Item); err != nil {
 		return err
 	}
-	_, err = s.inputQueue.Delete(entry.Location, itemID)
+	_, err = s.InputQueue.Delete(entry.Location, itemID)
 	return err
 }
 
@@ -907,7 +907,7 @@ func (s *Service) reorderRoomInputQueueItems(
 		}
 	}
 	for _, location := range locationByKey {
-		if _, err = s.inputQueue.Reorder(location, orderedIDs); err != nil {
+		if _, err = s.InputQueue.Reorder(location, orderedIDs); err != nil {
 			return err
 		}
 	}

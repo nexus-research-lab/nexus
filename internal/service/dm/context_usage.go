@@ -39,7 +39,7 @@ func (r *roundRunner) broadcastContextUsage() {
 	}
 	usageSnapshot := usage
 	r.session.ContextUsage = &usageSnapshot
-	r.service.runtime.RecordContextUsage(
+	r.service.Runtime.RecordContextUsage(
 		r.sessionKey,
 		r.agent.AgentID,
 		usage,

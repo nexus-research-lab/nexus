@@ -45,7 +45,7 @@ func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
 		}})
 	}
 	feishu := []string{"feishu-docx"}
-	current, err := service.files.UpsertSession(workspacePath, protocol.Session{
+	current, err := service.Files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:    sessionKey,
 		AgentID:       cfg.DefaultAgentID,
 		SessionID:     &oldSessionID,
@@ -227,7 +227,7 @@ func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T)
 	roomStore.sessions = map[string]protocol.Session{sessionKey: roomSnapshot}
 	workspaceSnapshot := roomSnapshot
 	workspaceSnapshot.Options = options
-	stored, err := service.files.UpsertSession(workspacePath, workspaceSnapshot)
+	stored, err := service.Files.UpsertSession(workspacePath, workspaceSnapshot)
 	if err != nil || stored == nil {
 		t.Fatalf("seed Session: item=%+v err=%v", stored, err)
 	}

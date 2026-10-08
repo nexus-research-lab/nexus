@@ -29,9 +29,9 @@ func TestRoomContinuationStartAdmissionCancelsRegisteredRootBeforeSlotsRun(t *te
 		startedErr: goalsvc.ErrGoalRevisionStale,
 	}
 	service := &Service{
-		goals:   provider,
-		runtime: runtimeManager,
-		rounds:  newRoomRoundRegistry(),
+		goals:  provider,
+		Host:   runtimehost.Host{Runtime: runtimeManager},
+		rounds: newRoomRoundRegistry(),
 	}
 	plan := protocol.GoalContinuation{
 		Goal: protocol.Goal{

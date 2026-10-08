@@ -10,15 +10,15 @@ import (
 // 生产路径不再为这些依赖做 nil 守卫，测试夹具必须满足同一不变量。
 func withConstructorDefaults(t *testing.T, s *Service) *Service {
 	t.Helper()
-	root := s.config.WorkspacePath
+	root := s.Config.WorkspacePath
 	if root == "" {
 		root = t.TempDir()
 	}
-	if s.files == nil {
-		s.files = workspacestore.NewSessionFileStore(root)
+	if s.Files == nil {
+		s.Files = workspacestore.NewSessionFileStore(root)
 	}
-	if s.history == nil {
-		s.history = workspacestore.NewAgentHistoryStore(root)
+	if s.History == nil {
+		s.History = workspacestore.NewAgentHistoryStore(root)
 	}
 	if s.roomHistory == nil {
 		s.roomHistory = workspacestore.NewRoomHistoryStore(root)
@@ -32,8 +32,8 @@ func withConstructorDefaults(t *testing.T, s *Service) *Service {
 	if s.publicHandoffs == nil {
 		s.publicHandoffs = workspacestore.NewRoomPublicHandoffStore(root)
 	}
-	if s.inputQueue == nil {
-		s.inputQueue = workspacestore.NewInputQueueStore(root)
+	if s.InputQueue == nil {
+		s.InputQueue = workspacestore.NewInputQueueStore(root)
 	}
 	return s
 }

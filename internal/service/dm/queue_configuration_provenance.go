@@ -64,7 +64,7 @@ func (s *Service) claimTrustedQueueAdmission(
 		strings.TrimSpace(location.SessionKey) != strings.TrimSpace(normalizedSessionKey) {
 		return queueadmissionstore.Claim{}, false, nil
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}

@@ -110,7 +110,7 @@ type roundRunner struct {
 }
 
 func (r *roundRunner) run(ctx context.Context) {
-	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	defer r.service.Runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.LoggerFor(ctx).With(
 		"session_key", r.sessionKey,
@@ -124,7 +124,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	result, err := r.executeRound(ctx, logger)
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
-			r.finishInterrupted(result, r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
+			r.finishInterrupted(result, r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID))
 			return
 		}
 		r.failRound(result, err)
@@ -161,7 +161,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
-	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.scheduleEchoAfterTerminal(result, finalAssistant)
 	r.broadcastContextUsage()
 	r.refreshSessionMetaAfterRoundFinished()
@@ -171,7 +171,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		terminalRoundStatusEvent(r, result),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
+	if r.service.Runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalNormal)
@@ -215,7 +215,7 @@ func (r *roundRunner) executeRound(
 		return exec.RoundExecutionResult{}, err
 	}
 	if r.service.SubagentAdmission != nil {
-		r.service.runtime.SetSubagentHookCallbacks(
+		r.service.Runtime.SetSubagentHookCallbacks(
 			r.sessionKey,
 			r.roundID,
 			orchestrationruntimehook.Callbacks(
@@ -227,7 +227,7 @@ func (r *roundRunner) executeRound(
 				},
 			),
 		)
-		defer r.service.runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
+		defer r.service.Runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
 	}
 	r.service.ExecutionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
@@ -237,24 +237,24 @@ func (r *roundRunner) executeRound(
 		InputOptions:     r.runtimeInputOptions(),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
-		IdleTimeout:      r.service.config.RuntimeRoundIdleTimeout(),
+		IdleTimeout:      r.service.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
-			return r.service.permission.PendingRequestState(r.sessionKey)
+			return r.service.Permission.PendingRequestState(r.sessionKey)
 		},
 		InterruptReason: func() string {
-			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
+			return r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			r.observeDeferredRuntimeMessage(incoming)
 			r.service.ExecutionObserver().ObserveMessage(actor, incoming)
 			r.service.ExecutionObserver().ObserveCompactBoundary(actor, r.sessionKey, r.agentRoundID, incoming)
-			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
+			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.Config.MessageDebugStreamEvent {
 				return
 			}
 			fields := trace.BuildSDKMessageLogFieldsWithOptions(
 				incoming,
 				trace.SDKMessageLogOptions{
-					IncludeStreamEvent:  r.service.config.MessageDebugStreamEvent,
+					IncludeStreamEvent:  r.service.Config.MessageDebugStreamEvent,
 					IncludeSnapshotData: true,
 				},
 			)
@@ -321,13 +321,13 @@ func (r *roundRunner) executeRound(
 }
 
 func (r *roundRunner) closeUncommittedForkRuntime(logger *slog.Logger, forkErr error) {
-	lease, ok := r.service.runtime.CaptureClientLease(r.sessionKey, r.client)
+	lease, ok := r.service.Runtime.CaptureClientLease(r.sessionKey, r.client)
 	if !ok {
 		return
 	}
 	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
-	_, closeErr := r.service.runtime.CloseSessionIfLease(closeCtx, lease)
+	_, closeErr := r.service.Runtime.CloseSessionIfLease(closeCtx, lease)
 	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
 		logger.Warn("关闭未提交的 fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
 	}
@@ -426,7 +426,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	r.recordGoalUsageFromAssistantMessage(message)
 	if message["role"] == "assistant" {
 		roomID, conversationID := dmRoomPermissionRoute(r.sessionKey, r.session)
-		r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
+		r.service.Permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
 			DispatchSessionKey: r.sessionKey,
 			RoomID:             roomID,
 			ConversationID:     conversationID,
@@ -449,7 +449,7 @@ func (r *roundRunner) confirmInputQueueGuidance(ctx context.Context) error {
 }
 
 func (r *roundRunner) confirmInputQueueGuidanceFallback(ctx context.Context) error {
-	if r.service.runtime != nil && r.service.runtime.SupportsHookResponseAck(r.sessionKey) {
+	if r.service.Runtime != nil && r.service.Runtime.SupportsHookResponseAck(r.sessionKey) {
 		return nil
 	}
 	return r.confirmInputQueueGuidance(ctx)
@@ -572,7 +572,7 @@ func (r *roundRunner) writeUsage(message protocol.Message) bool {
 			lane = string(authority.Lane)
 		}
 	}
-	surface, observed := r.service.runtime.CacheSurface(r.sessionKey)
+	surface, observed := r.service.Runtime.CacheSurface(r.sessionKey)
 	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
 		surface.Input(),
 		observed,

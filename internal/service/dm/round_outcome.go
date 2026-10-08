@@ -28,7 +28,7 @@ func (r *roundRunner) failRoundAtPhase(
 		r.finishDeferredFailure(echoDeferredStatusFailed, err)
 		return
 	}
-	if interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
+	if interruptReason := r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
 		r.finishInterrupted(result, interruptReason)
 		return
 	}
@@ -46,7 +46,7 @@ func (r *roundRunner) failRoundAtPhase(
 		TerminalStatus: "error",
 		ErrorMessage:   displayError,
 	})
-	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
@@ -66,7 +66,7 @@ func (r *roundRunner) failRoundAtPhase(
 		"failure_phase":   strings.TrimSpace(failurePhase),
 	}
 	durableErrorProjected := false
-	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
+	if persistErr := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,
 		resultMessage,
@@ -132,7 +132,7 @@ func (r *roundRunner) failRoundAtPhase(
 	roundStatus.AgentRoundID = r.agentRoundID
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, roundStatus)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
+	if r.service.Runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalFailed)
@@ -203,7 +203,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		"reason", resultText,
 	)
 	r.finalizeGoalUsage(context.Background(), result, r.LastGoalAssistantMessage())
-	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
@@ -223,7 +223,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
 		resultMessage["result"] = trimmedResult
 	}
-	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
+	if persistErr := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,
 		resultMessage,
@@ -266,7 +266,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
-	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
+	if r.service.Runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalInterrupted)

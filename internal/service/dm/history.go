@@ -24,7 +24,7 @@ func (s *Service) ensureSession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (protocol.Session, error) {
-	files := s.files.ForOwner(agentValue.OwnerUserID)
+	files := s.Files.ForOwner(agentValue.OwnerUserID)
 	item, _, err := files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
 	if err != nil {
 		return protocol.Session{}, err
@@ -108,10 +108,10 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 	metadata, _ := message["metadata"].(map[string]any)
 	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) &&
 		textutil.AnyString(metadata["source"]) != "echo" {
-		s.history.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
+		s.History.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
 		return nil
 	}
-	return s.history.ForOwner(ownerUserID).AppendOverlayMessage(
+	return s.History.ForOwner(ownerUserID).AppendOverlayMessage(
 		workspacePath,
 		sessionValue.SessionKey,
 		message,
@@ -131,7 +131,7 @@ func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterMessageForOwner(
@@ -165,7 +165,7 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) preferPersistableMessageSessionIDForOwner(
@@ -203,7 +203,7 @@ func (s *Service) refreshSessionMetaRuntimeStateForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessionKey string) error {
@@ -211,11 +211,11 @@ func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessi
 	if strings.TrimSpace(parsed.AgentID) == "" {
 		return nil
 	}
-	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, parsed.AgentID)
 	if err != nil {
 		return err
 	}
-	item, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+	item, _, err := s.Files.ForOwner(agentValue.OwnerUserID).FindSession(
 		[]string{agentValue.WorkspacePath},
 		sessionKey,
 	)
@@ -247,7 +247,7 @@ func (s *Service) recordRoundMarkerWithOptionsForOwner(
 	content string,
 	options workspacestore.RoundMarkerOptions,
 ) error {
-	return s.history.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
+	return s.History.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
 		workspacePath,
 		sessionValue.SessionKey,
 		roundID,
@@ -411,7 +411,7 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err = s.syncRoomSession(current); err != nil {
 		return protocol.Session{}, err
 	}
-	files := s.service.files.ForOwner(s.ownerUserID)
+	files := s.service.Files.ForOwner(s.ownerUserID)
 	var updated *protocol.Session
 	if s.expectedConfigurationVersion > 0 {
 		updated, err = files.PatchSessionRuntimeAtVersion(
@@ -483,7 +483,7 @@ func (s *Service) canPersistSDKSessionIDForOwner(
 	sessionID string,
 ) bool {
 	decision := sessionresumesvc.NewPolicy(
-		s.history.ForOwner(ownerUserID),
+		s.History.ForOwner(ownerUserID),
 	).CanPersist(workspacePath, sessionID)
 	if decision.Allowed {
 		return true
@@ -527,7 +527,7 @@ func (s *Service) clearReusableSDKSessionID(
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
+	updated, err := s.Files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
 		workspacePath,
 		current,
 	)
@@ -563,7 +563,7 @@ func (s *Service) preservePersistedSessionTitleForOwner(
 		strings.TrimSpace(current.SessionKey) == "" {
 		return current, nil
 	}
-	persisted, _, err := s.files.ForOwner(ownerUserID).FindSession(
+	persisted, _, err := s.Files.ForOwner(ownerUserID).FindSession(
 		[]string{workspacePath},
 		current.SessionKey,
 	)

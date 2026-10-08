@@ -65,7 +65,7 @@ func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &roundRunner{
-		service:       &Service{replies: dispatcher, history: history},
+		service:       &Service{replies: dispatcher, Host: runtimehost.Host{History: history}},
 		workspacePath: workspacePath,
 		session:       session,
 		agent:         &protocol.Agent{AgentID: "agent-1"},
@@ -244,7 +244,7 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 		"",
 	)
 	now := time.Now().UTC()
-	if _, err = service.files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+	if _, err = service.Files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      agentValue.AgentID,
 		ChannelType:  protocol.SessionChannelWeixinPersonal,
@@ -292,7 +292,7 @@ func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",
@@ -332,7 +332,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{Host: runtimehost.Host{Usage: recorder}, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",

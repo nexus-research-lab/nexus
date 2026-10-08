@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -177,8 +178,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 	service := withConstructorDefaults(t, &Service{
 		rooms:          rooms,
 		publicHandoffs: handoffs,
-		inputQueue:     workspacestore.NewInputQueueStore(root),
-		permission:     permissionctx.NewContext(),
+		Host:           runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"busy-round": {
 				SessionKey:     sharedSessionKey,
@@ -198,7 +198,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 	if rooms.systemCalls != 1 || rooms.userCalls != 0 {
 		t.Fatalf("room lookups = system:%d request:%d, want system-only", rooms.systemCalls, rooms.userCalls)
 	}
-	items, err := service.inputQueue.Snapshot(workspacestore.InputQueueLocation{
+	items, err := service.InputQueue.Snapshot(workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  workspacePath,
 		SessionKey:     runtimeSessionKey,
@@ -294,8 +294,8 @@ func TestPublicHandoffReconcilerRestoresGoalDirectedWakeAfterQueueDispatchCrash(
 	defer wakeTimers.Stop()
 	service := &Service{
 		rooms: rooms, directedMessages: directed, publicHandoffs: handoffs,
-		inputQueue: workspacestore.NewInputQueueStore(root),
-		permission: permissionctx.NewContext(), wakeTimers: wakeTimers,
+		Host:       runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
+		wakeTimers: wakeTimers,
 		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
 			sharedSessionKey: {
 				ID: "goal-room", SessionKey: sharedSessionKey, Status: protocol.GoalStatusActive,
@@ -319,7 +319,7 @@ func TestPublicHandoffReconcilerRestoresGoalDirectedWakeAfterQueueDispatchCrash(
 		SessionKey:    runtimeSessionKey,
 		RoomID:        roomID, ConversationID: conversationID,
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 || items[0].HandoffID != handoffID ||
 		items[0].GoalCollaborationBinding == nil ||
 		items[0].GoalCollaborationBinding.ObjectiveRevision != 4 {
@@ -791,7 +791,8 @@ func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 	}
 	service := withConstructorDefaults(t, &Service{
 		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
-		publicHandoffs: handoffs, inputQueue: queue,
+		publicHandoffs: handoffs, Host: runtimehost.Host{InputQueue: queue},
+
 		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
 			sessionKey: {
 				ID: "goal-reconcile-stale", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
@@ -833,7 +834,7 @@ func TestResolveRoomMessageCausalityUsesActiveRound(t *testing.T) {
 func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T) {
 	workspacePath := t.TempDir()
 	history := workspacestore.NewAgentHistoryStore(t.TempDir())
-	service := &Service{history: history}
+	service := &Service{Host: runtimehost.Host{History: history}}
 	roundValue := &activeRoomRound{ConversationID: "conversation-1"}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-1",
@@ -1077,9 +1078,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 		}
 	}
 	service := &Service{
-		inputQueue: store,
-		runtime:    runtimeManager,
-		permission: permissionctx.NewContext(),
+		Host: runtimehost.Host{InputQueue: store, Runtime: runtimeManager, Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey: sharedSessionKey, ConversationID: conversationID, RootRoundID: "root-a",
@@ -1248,9 +1247,8 @@ func TestQueueBusyPublicMentionWakesKeepsMultipleSourcesForOneTargetOrdered(t *t
 	}
 	busyHostSlot.setStatus("running")
 	service := &Service{
-		inputQueue:     workspacestore.NewInputQueueStore(root),
+		Host:           runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
 		publicHandoffs: handoffs,
-		permission:     permissionctx.NewContext(),
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"busy-host-round": {
 				SessionKey:     sharedSessionKey,
@@ -1296,7 +1294,7 @@ func TestQueueBusyPublicMentionWakesKeepsMultipleSourcesForOneTargetOrdered(t *t
 		RoomID:         roomID,
 		ConversationID: conversationID,
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1337,7 +1335,7 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 	history := workspacestore.NewRoomHistoryStore(root)
 	service := withConstructorDefaults(t, &Service{
 		roomHistory: history,
-		permission:  permissionctx.NewContext(),
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext()},
 	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},

@@ -20,7 +20,7 @@ func (s *Service) withBroadcastTimeout(ctx context.Context) (context.Context, co
 func (s *Service) broadcastEventWithTimeout(ctx context.Context, sessionKey string, event protocol.EventMessage) {
 	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
 	defer cancel()
-	s.permission.BroadcastEvent(broadcastCtx, sessionKey, event)
+	s.Permission.BroadcastEvent(broadcastCtx, sessionKey, event)
 }
 
 func (s *Service) broadcastUserRoundMarker(

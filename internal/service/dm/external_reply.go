@@ -83,7 +83,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 }
 
 func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, result ExternalReplyResult) {
-	if r == nil || r.service == nil || r.service.history == nil {
+	if r == nil || r.service == nil || r.service.History == nil {
 		return
 	}
 	if strings.TrimSpace(r.workspacePath) == "" || strings.TrimSpace(r.session.SessionKey) == "" {
@@ -100,7 +100,7 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		PlatformMessageIDs:       slices.Clone(result.PlatformMessageIDs),
 		Timestamp:                time.Now().UTC(),
 	}
-	if err := r.service.history.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
+	if err := r.service.History.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
 		r.workspacePath,
 		r.session.SessionKey,
 		receipt,

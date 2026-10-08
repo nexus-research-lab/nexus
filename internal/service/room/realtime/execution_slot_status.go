@@ -47,7 +47,7 @@ func (s *Service) syncSlotRuntimeIdentity(
 
 func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
 	workspacePath := slotWorkspacePath(slot)
-	history := s.history.ForOwner(slot.OwnerUserID)
+	history := s.History.ForOwner(slot.OwnerUserID)
 	decision := sessionresumesvc.NewPolicy(history).CanPersist(workspacePath, sessionID)
 	if decision.Allowed {
 		return true

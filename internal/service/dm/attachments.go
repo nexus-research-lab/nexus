@@ -35,9 +35,9 @@ func (s *Service) resolveRuntimeAttachmentPath(
 	ctx context.Context,
 	attachment protocol.ChatAttachment,
 ) (conversationsvc.ResolvedAttachment, error) {
-	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(attachment.WorkspaceAgentID))
+	agentValue, err := s.Agents.GetAgent(ctx, strings.TrimSpace(attachment.WorkspaceAgentID))
 	if err != nil {
 		return conversationsvc.ResolvedAttachment{}, err
 	}
-	return conversationsvc.OpenAgentWorkspaceAttachment(ctx, s.config.WorkspacePath, *agentValue, attachment.WorkspacePath)
+	return conversationsvc.OpenAgentWorkspaceAttachment(ctx, s.Config.WorkspacePath, *agentValue, attachment.WorkspacePath)
 }

@@ -78,8 +78,8 @@ func TestRoomGoalFinalizingHookDeclinesWithoutSharedFinalizer(t *testing.T) {
 	slot.setGoalBinding("room:group:no-shared-finalizer", "goal-no-shared-finalizer")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	service := &Service{
-		goals:   &fakeRoomGoalContextProvider{},
-		runtime: manager,
+		goals: &fakeRoomGoalContextProvider{},
+		Host:  runtimehost.Host{Runtime: manager},
 	}
 	cleanup := service.registerSlotGoalRuntime(slot)
 	defer cleanup()
@@ -172,7 +172,7 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 
 func TestRoomSlotsRecordNXSSubagentActualUsagePerRuntimeSession(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider, runtime: runtimectx.NewManager()}
+	service := &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}}
 	newSlot := func(sessionKey string, roundID string) *activeRoomSlot {
 		slot := &activeRoomSlot{RuntimeSessionKey: sessionKey, AgentRoundID: roundID}
 		slot.setRuntimeKind("nxs")
@@ -402,7 +402,7 @@ func TestRoomSubagentGoalUsageScopeFallsBackForManualSlot(t *testing.T) {
 
 func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	manager := runtimectx.NewManager()
-	service := &Service{runtime: manager}
+	service := &Service{Host: runtimehost.Host{Runtime: manager}}
 	slot := &activeRoomSlot{
 		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
 		AgentRoundID:      "room-round-1:agent-1",
@@ -454,7 +454,7 @@ func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testin
 	grantTestRoomGoalAuthority(lead, sessionKey, "goal-room")
 	grantTestRoomGoalAuthority(caller, sessionKey, "goal-room")
 	service := &Service{
-		runtime: manager,
+		Host: runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"round-root": {
 				SessionKey:  sessionKey,
@@ -530,7 +530,7 @@ func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T
 	grantTestRoomGoalAuthority(unavailable, sessionKey, "goal-room")
 	grantTestRoomGoalAuthority(active, sessionKey, "goal-room")
 	service := &Service{
-		runtime: manager,
+		Host: runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"round-root": {
 				SessionKey:  sessionKey,
@@ -1235,7 +1235,7 @@ func TestRoomGoalInputQueueBlockerClearsOnlyAfterConsumption(t *testing.T) {
 		}},
 		MemberAgents: []protocol.Agent{{AgentID: agentID, WorkspacePath: root}},
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 
 	blocker, err := service.roomGoalInputQueueBlocker(context.Background(), contextValue)
 	if err != nil || !strings.Contains(blocker, "queued-directed-message") {
@@ -1346,7 +1346,7 @@ func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing
 		}},
 		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
 	}
-	service := &Service{directedWakes: wakeStore, inputQueue: queueStore}
+	service := &Service{directedWakes: wakeStore, Host: runtimehost.Host{InputQueue: queueStore}}
 	if blocker, err := service.roomGoalInputQueueBlocker(
 		context.Background(), contextValue, goal,
 	); err != nil || blocker != "" {

@@ -204,7 +204,7 @@ func (s *Service) enqueueExecutionDispatch(
 		RootRoundID:     roomRootRoundID(parentRound),
 		WorkBinding:     (&delivery.Binding).Clone(),
 	}
-	items, inserted, err := s.inputQueue.EnqueueBounded(location.Location, item, 0)
+	items, inserted, err := s.InputQueue.EnqueueBounded(location.Location, item, 0)
 	if err != nil {
 		return receipt, err
 	}

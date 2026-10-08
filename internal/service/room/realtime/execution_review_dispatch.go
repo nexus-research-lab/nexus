@@ -138,7 +138,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		RootRoundID:     roomRootRoundID(parentRound),
 		ReviewBinding:   (&delivery.Binding).Clone(),
 	}
-	items, inserted, err := s.inputQueue.EnqueueBounded(
+	items, inserted, err := s.InputQueue.EnqueueBounded(
 		location.Location,
 		item,
 		0,

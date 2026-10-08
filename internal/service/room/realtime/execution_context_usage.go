@@ -52,7 +52,7 @@ func (e *slotExecution) broadcastContextUsage(client runtimectx.Client) {
 			"err", err,
 		)
 	}
-	e.service.runtime.RecordContextUsage(
+	e.service.Runtime.RecordContextUsage(
 		e.round.SessionKey,
 		e.slot.AgentID,
 		usage,
@@ -77,10 +77,10 @@ func (e *slotExecution) broadcastContextUsage(client runtimectx.Client) {
 func (e *slotExecution) persistContextUsage(
 	usage protocol.ContextUsageData,
 ) error {
-	if e.service.files == nil {
+	if e.service.Files == nil {
 		return nil
 	}
-	files := e.service.files.ForOwner(e.slot.OwnerUserID)
+	files := e.service.Files.ForOwner(e.slot.OwnerUserID)
 	current, _, err := files.FindSession(
 		[]string{e.slot.WorkspacePath},
 		e.slot.RuntimeSessionKey,

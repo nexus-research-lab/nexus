@@ -171,7 +171,7 @@ func TestDMRegisterRunnerGuardsConsumedScopeUntilRoundFinished(t *testing.T) {
 		},
 	}
 	runner := &roundRunner{
-		service:               &Service{runtime: manager, goals: provider},
+		service:               &Service{Host: runtimehost.Host{Runtime: manager}, goals: provider},
 		sessionKey:            sessionKey,
 		roundID:               roundID,
 		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
@@ -359,7 +359,7 @@ func TestDMGoalFinalizingHookDeclinesIgnoredOrUnboundRound(t *testing.T) {
 			)
 			manager := runtimectx.NewManager()
 			_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
-			service := &Service{runtime: manager}
+			service := &Service{Host: runtimehost.Host{Runtime: manager}}
 			if test.withFinalizer {
 				service.goals = &fakeDMGoalUsageFinalizer{
 					fakeGoalContextProvider: &fakeGoalContextProvider{},
@@ -574,7 +574,7 @@ func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T)
 func TestRoundRunnerRecordsNXSSubagentActualUsageWithoutDoubleCounting(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: goalProvider, runtime: runtimectx.NewManager()},
+		service:        &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "round-1",
 		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},

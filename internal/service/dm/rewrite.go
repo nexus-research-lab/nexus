@@ -46,14 +46,14 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		"client_request_id", request.ClientRequestID,
 		"client_message_id", request.ClientMessageID,
 	)
-	if runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey); len(runningRoundIDs) > 0 {
+	if runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey); len(runningRoundIDs) > 0 {
 		logger.Warn("拒绝 DM rewrite：已有运行中 round", "running_round_ids", runningRoundIDs)
 		return errors.New("cannot rewrite while a round is running")
 	}
 
 	agentID := textutil.FirstNonEmpty(parsed.AgentID, request.AgentID)
 	if agentID == "" {
-		defaultAgent, defaultErr := s.agents.GetDefaultAgent(ctx)
+		defaultAgent, defaultErr := s.Agents.GetDefaultAgent(ctx)
 		if defaultErr != nil {
 			logger.Warn("DM rewrite 读取默认 Agent 失败", "err", defaultErr)
 			return defaultErr
@@ -66,7 +66,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		"content_preview", logx.PreviewText(request.Content, 240),
 		"attachment_count", len(request.Attachments),
 	)
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		logger.Warn("DM rewrite 读取 Agent 失败", "err", err)
 		return err
@@ -76,7 +76,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		logger.Warn("DM rewrite 确保 session 失败", "err", err)
 		return err
 	}
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
 	rows, err := ownerHistory.ReadMessages(agentValue.WorkspacePath, sessionItem, nil)
 	if err != nil {
 		logger.Warn("DM rewrite 读取历史失败", "workspace_path", agentValue.WorkspacePath, "err", err)
@@ -252,7 +252,7 @@ func (s *Service) pruneHistoryRewriteTail(ctx context.Context, input rewritePrun
 	if len(roundIDs) == 0 {
 		roundIDs = []string{input.TargetRoundID}
 	}
-	removed, err := s.history.ForOwner(authctx.OwnerUserID(ctx)).RemoveOverlayRounds(
+	removed, err := s.History.ForOwner(authctx.OwnerUserID(ctx)).RemoveOverlayRounds(
 		input.WorkspacePath,
 		input.SessionKey,
 		roundIDs,

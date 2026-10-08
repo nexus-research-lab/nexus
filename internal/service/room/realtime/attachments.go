@@ -56,10 +56,10 @@ func (s *Service) appendRuntimeUserContext(
 	runtimeContent conversationsvc.RuntimeContent,
 	emotionEnabled bool,
 ) conversationsvc.RuntimeContent {
-	if agentValue == nil || runtimeContent.IsEmpty() || s.agents == nil || !emotionEnabled {
+	if agentValue == nil || runtimeContent.IsEmpty() || s.Agents == nil || !emotionEnabled {
 		return runtimeContent
 	}
-	return runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(
+	return runtimeContent.AppendText(s.Agents.BuildRuntimeUserMessageSuffixForContext(
 		ctx,
 		agentValue,
 		"room:"+strings.TrimSpace(conversationID),
@@ -76,7 +76,7 @@ func (s *Service) resolveRuntimeAttachmentPath(
 		if conversationID == "" {
 			return conversationsvc.ResolvedAttachment{}, errors.New("room attachment conversation_id is required")
 		}
-		absolutePath, file, err := workspacestore.New(s.config.WorkspacePath).OpenRoomConversationAssetFile(
+		absolutePath, file, err := workspacestore.New(s.Config.WorkspacePath).OpenRoomConversationAssetFile(
 			authctx.OwnerUserID(ctx),
 			conversationID,
 			attachment.WorkspacePath,
@@ -90,11 +90,11 @@ func (s *Service) resolveRuntimeAttachmentPath(
 		}, nil
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(attachment.WorkspaceAgentID))
+	agentValue, err := s.Agents.GetAgent(ctx, strings.TrimSpace(attachment.WorkspaceAgentID))
 	if err != nil {
 		return conversationsvc.ResolvedAttachment{}, err
 	}
-	return conversationsvc.OpenAgentWorkspaceAttachment(ctx, s.config.WorkspacePath, *agentValue, attachment.WorkspacePath)
+	return conversationsvc.OpenAgentWorkspaceAttachment(ctx, s.Config.WorkspacePath, *agentValue, attachment.WorkspacePath)
 }
 
 func (s *Service) renderRuntimeAttachmentMessages(

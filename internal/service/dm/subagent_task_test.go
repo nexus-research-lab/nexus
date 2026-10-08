@@ -5,11 +5,12 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) {
 	runner := &roundRunner{
-		service:     &Service{runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:  "agent:host:ws:dm:conversation-1",
 		runtimeKind: "nxs",
 	}
@@ -34,7 +35,7 @@ func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) 
 func TestDMIgnoresLocalShellTaskLifecycle(t *testing.T) {
 	runtimeManager := runtimectx.NewManager()
 	runner := &roundRunner{
-		service:    &Service{runtime: runtimeManager},
+		service:    &Service{Host: runtimehost.Host{Runtime: runtimeManager}},
 		sessionKey: "agent:host:ws:dm:conversation-shell",
 	}
 	runner.rememberSubagentTaskMessage(protocol.Message{

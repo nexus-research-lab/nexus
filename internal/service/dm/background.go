@@ -25,5 +25,5 @@ func (s *Service) startSessionBackgroundTask(
 		}
 		task(ctx)
 	}
-	s.runtime.StartBackgroundTaskForOwner(sessionKey, ownerUserID, run)
+	s.Runtime.StartBackgroundTaskForOwner(sessionKey, ownerUserID, run)
 }

@@ -97,7 +97,7 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 		},
 	})
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
+	if _, err := service.Files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:    sessionKey,
 		AgentID:       cfg.DefaultAgentID,
 		SessionID:     &staleResumeID,
@@ -237,7 +237,7 @@ func TestServiceEnsureClientRetriesFreshWhenAutomaticToolSurfaceForkCannotResume
 		},
 		IsActive: true,
 	}
-	if _, err = service.files.UpsertSession(workspacePath, sessionItem); err != nil {
+	if _, err = service.Files.UpsertSession(workspacePath, sessionItem); err != nil {
 		t.Fatalf("预写入自动工具面 fork 会话失败: %v", err)
 	}
 
@@ -413,7 +413,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 		protocol.OptionRuntimeProvider: "glm",
 		protocol.OptionRuntimeModel:    "glm-5.1",
 	}, protocol.SessionRuntimeSettings{ConnectorIDs: &connectorIDs})
-	if _, err := service.files.UpsertSession(workspacePath, protocol.Session{
+	if _, err := service.Files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
 		SessionID:    &oldSessionID,
@@ -502,7 +502,7 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	if got := protocol.SessionTranscriptIDs(sessionValue); len(got) != len(wantLineage) || got[0] != wantLineage[0] || got[1] != wantLineage[1] {
 		t.Fatalf("换代 transcript lineage = %+v, want %+v", got, wantLineage)
 	}
-	rows, err := service.history.ForOwner("__system__").ReadMessages(workspacePath, sessionValue, nil)
+	rows, err := service.History.ForOwner("__system__").ReadMessages(workspacePath, sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取换代后的统一历史失败: %v", err)
 	}
@@ -599,7 +599,7 @@ func TestSyncSDKSessionDoesNotCommitToolSurfaceBeforeForkTranscriptIsPersistable
 		},
 		IsActive: true,
 	}
-	stored, err := service.files.UpsertSession(workspacePath, current)
+	stored, err := service.Files.UpsertSession(workspacePath, current)
 	if err != nil || stored == nil {
 		t.Fatalf("预写入 Session 失败: stored=%+v err=%v", stored, err)
 	}
