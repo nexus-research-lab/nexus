@@ -465,15 +465,14 @@ type runtimeConfigurationController struct {
 }
 
 type runtimeConfigurationCommand struct {
-	Action    string                            `json:"action"`
-	Domains   []string                          `json:"domains,omitempty"`
-	Verify    bool                              `json:"verify,omitempty"`
-	Change    configurationsvc.ChangeRequest    `json:"change,omitempty"`
-	Confirmed bool                              `json:"confirmed,omitempty"`
-	Domain    string                            `json:"domain,omitempty"`
-	Limit     int                               `json:"limit,omitempty"`
-	RequestID string                            `json:"request_id,omitempty"`
-	Reconcile configurationsvc.ReconcileRequest `json:"reconcile,omitempty"`
+	Action    string                         `json:"action"`
+	Domains   []string                       `json:"domains,omitempty"`
+	Verify    bool                           `json:"verify,omitempty"`
+	Change    configurationsvc.ChangeRequest `json:"change,omitempty"`
+	Confirmed bool                           `json:"confirmed,omitempty"`
+	Domain    string                         `json:"domain,omitempty"`
+	Limit     int                            `json:"limit,omitempty"`
+	RequestID string                         `json:"request_id,omitempty"`
 }
 
 type runtimeConfigurationResponse struct {
