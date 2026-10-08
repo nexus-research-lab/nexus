@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,11 +16,14 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/app/runtimecheck"
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/desktopinstance"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/syslimit"
 	"github.com/nexus-research-lab/nexus/internal/migration"
@@ -220,6 +224,27 @@ func buildRootCommand() *cobra.Command {
 	return root
 }
 
+func buildRuntimeCheckCommand() *cobra.Command {
+	var binary string
+	command := &cobra.Command{
+		Use: "check-desktop-runtime", Short: "检查随包 nxs 与当前 App 的能力兼容性（不调用模型）",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 2*time.Minute)
+			defer cancel()
+			report, err := runtimecheck.Check(ctx, binary)
+			if err != nil {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), err)
+				return err
+			}
+			return json.NewEncoder(cmd.OutOrStdout()).Encode(report)
+		},
+	}
+	command.Flags().StringVar(&binary, "nxs", "", "安装包内 nxs 的绝对路径")
+	_ = command.MarkFlagRequired("nxs")
+	return command
+}
+
 func runServer() error {
 	// 先加载宿主环境并恢复显式版本化的旧布局，再读取 canonical 数据库与日志路径。
 	// 这一步必须早于 config.Load；否则 v0.1.30 迁移缺口会在 app/data 误建空数据库。
@@ -231,7 +256,7 @@ func runServer() error {
 	// 窗口进程的锁不能证明旧 sidecar 已退出。先由本进程持有 app 根锁，
 	// 再执行布局/数据库迁移；defer 晚于下面的服务 Close 执行。
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("NEXUS_APP_MODE")), "desktop") {
-		instance, err := acquireDesktopInstanceLock(stateRoot)
+		instance, err := desktopinstance.AcquireForPlatform(stateRoot)
 		if err != nil {
 			return fmt.Errorf("acquire desktop sidecar ownership: %w", err)
 		}
