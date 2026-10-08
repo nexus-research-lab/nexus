@@ -133,14 +133,6 @@ func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
 	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
-func (s *Service) refreshSessionMetaAfterMessage(
-	workspacePath string,
-	current protocol.Session,
-	message protocol.Message,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaAfterMessageForOwner("", workspacePath, current, message)
-}
-
 func (s *Service) refreshSessionMetaAfterMessageForOwner(
 	ownerUserID string,
 	workspacePath string,
@@ -196,13 +188,6 @@ func (s *Service) preferPersistableMessageSessionIDForOwner(
 		return current.SessionID
 	}
 	return &trimmedSessionID
-}
-
-func (s *Service) refreshSessionMetaRuntimeState(
-	workspacePath string,
-	current protocol.Session,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaRuntimeStateForOwner("", workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaRuntimeStateForOwner(

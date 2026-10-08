@@ -301,10 +301,6 @@ func int64PointerValue(value *int64) any {
 	return *value
 }
 
-func completionBudgetReport(item *protocol.Goal) string {
-	return completionUsageCheckpointReport(item)
-}
-
 func completionUsageCheckpointReport(item *protocol.Goal) string {
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusComplete {
 		return ""

@@ -123,3 +123,13 @@ func TestParseGoalIDResultReadsOnlyExplicitGoalIdentity(t *testing.T) {
 		})
 	}
 }
+
+// ParseMutationResultChanged extracts only the server-issued entity refs from
+// a mutation result. Callers must still resolve those refs against an
+// authoritative snapshot before treating them as WorkGraph identity.
+func ParseMutationResultChanged(values ...any) []string {
+	if result, ok := ParseMutationResultEnvelope(values...); ok {
+		return result.Changed
+	}
+	return nil
+}

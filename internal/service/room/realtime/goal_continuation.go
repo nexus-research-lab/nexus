@@ -105,19 +105,6 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	return true
 }
 
-func (s *Service) shouldDeferGoalContinuationForTargetState(
-	ctx context.Context,
-	sessionKey string,
-	contextValue *protocol.ConversationContextAggregate,
-) bool {
-	if contextValue == nil {
-		return false
-	}
-	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
-	defer lease.Unlock()
-	return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
-}
-
 func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	ctx context.Context,
 	sessionKey string,

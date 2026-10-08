@@ -160,15 +160,6 @@ func SetRuntimeEmotionBase(workspacePath string, update RuntimeEmotionBaseUpdate
 	return setRuntimeEmotionBaseAtVersion(workspacePath, update, nil)
 }
 
-// SetRuntimeEmotionBaseAtVersion 仅在 version 匹配时更新基础情绪。
-func SetRuntimeEmotionBaseAtVersion(
-	workspacePath string,
-	update RuntimeEmotionBaseUpdate,
-	expectedVersion int64,
-) (RuntimeEmotionView, error) {
-	return setRuntimeEmotionBaseAtVersion(workspacePath, update, &expectedVersion)
-}
-
 func setRuntimeEmotionBaseAtVersion(
 	workspacePath string,
 	update RuntimeEmotionBaseUpdate,
@@ -198,15 +189,6 @@ func setRuntimeEmotionBaseAtVersion(
 // SetRuntimeEmotionContext 更新当前会话/房间上下文情绪。
 func SetRuntimeEmotionContext(workspacePath string, update RuntimeEmotionContextUpdate) (RuntimeEmotionView, error) {
 	return setRuntimeEmotionContextAtVersion(workspacePath, update, nil)
-}
-
-// SetRuntimeEmotionContextAtVersion 仅在 version 匹配时更新指定上下文情绪。
-func SetRuntimeEmotionContextAtVersion(
-	workspacePath string,
-	update RuntimeEmotionContextUpdate,
-	expectedVersion int64,
-) (RuntimeEmotionView, error) {
-	return setRuntimeEmotionContextAtVersion(workspacePath, update, &expectedVersion)
 }
 
 func setRuntimeEmotionContextAtVersion(

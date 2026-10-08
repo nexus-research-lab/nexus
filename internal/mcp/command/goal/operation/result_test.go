@@ -325,3 +325,7 @@ func TestStructuredResultTextIncludesNullTokenBudget(t *testing.T) {
 		t.Fatalf("text content = %s, want %s", text, want)
 	}
 }
+
+func completionBudgetReport(item *protocol.Goal) string {
+	return completionUsageCheckpointReport(item)
+}

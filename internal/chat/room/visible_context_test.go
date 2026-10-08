@@ -617,3 +617,8 @@ func roomAssistantResultWithID(messageID string, agentID string, result string, 
 		},
 	}
 }
+
+// BuildVisibleContext 构建 Room 成员本轮动态输入。
+func BuildVisibleContext(input VisibleContextInput) string {
+	return BuildVisibleContextPlan(input).Text
+}

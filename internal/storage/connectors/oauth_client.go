@@ -6,7 +6,6 @@ package connectors
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -31,16 +30,6 @@ type OAuthClientStore struct {
 	driver     string
 	keyring    *credentials.Keyring
 	keyringErr error
-}
-
-// NewOAuthClientStore 创建 connector OAuth client 仓储。
-func NewOAuthClientStore(db *sql.DB, driver string, key []byte) *OAuthClientStore {
-	raw := ""
-	if len(key) > 0 {
-		raw = base64.StdEncoding.EncodeToString(key)
-	}
-	keyring, keyringErr := credentials.NewKeyring(raw, nil)
-	return NewOAuthClientStoreWithKeyring(db, driver, keyring, keyringErr)
 }
 
 // NewOAuthClientStoreWithKeyring 让 OAuth client 与 Connector connection 共享 active/legacy keyring。

@@ -37,11 +37,6 @@ type Lease struct {
 	once   sync.Once
 }
 
-// NewGate 创建 runtime admission gate。
-func NewGate() *Gate {
-	return &Gate{active: make(map[uint64]context.CancelFunc)}
-}
-
 // NewDetachedLease 创建不参与转场的 lease，供没有动态安全边界的调用方使用。
 func NewDetachedLease(ctx context.Context) *Lease {
 	leaseContext, cancel := context.WithCancel(ctx)

@@ -455,18 +455,6 @@ func (s *Service) reconcileAutomationDeadline(
 	return duework.Result{NextDueAt: nextDueAt}, nil
 }
 
-func (s *Service) runDueOnce() {
-	now := s.nowFn()
-	s.runDueOnceAt(now)
-	deliveryAt, err := s.loadDeliveryRetryDeadline(
-		context.Background(),
-		now,
-	)
-	if err == nil && deadlineReached(deliveryAt, now) {
-		s.startDeliveryRetryBatch(now)
-	}
-}
-
 func (s *Service) runDueOnceAt(now time.Time) {
 	s.recoverStaleRunningJobs(context.Background(), now)
 	work := s.collectDueAutomationWork(now)

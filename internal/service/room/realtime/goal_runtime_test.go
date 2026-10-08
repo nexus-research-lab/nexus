@@ -3,6 +3,12 @@ package realtime
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -15,11 +21,6 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"path/filepath"
-	"strings"
-	"sync"
-	"testing"
-	"time"
 )
 
 func TestRecordGoalUsageForRoomSlotUsesToolCompletionDelta(t *testing.T) {
@@ -2151,4 +2152,99 @@ func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	if report.Blocker != "" {
 		t.Fatalf("report = %#v, want single-Agent Room without dynamic requirement", report)
 	}
+}
+
+func (s *Service) resolveGoalRuntimeContextForSlot(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	appendSystemPrompt string,
+) (string, string, string, string, int64) {
+	defaultGoalSessionKey := ""
+	if roundValue != nil {
+		defaultGoalSessionKey = strings.TrimSpace(roundValue.SessionKey)
+	}
+	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
+		goalContext, goalID, objectiveRevision, ok := s.goalRuntimeContext(ctx, sessionKey)
+		if !ok {
+			continue
+		}
+		if slot != nil {
+			slot.ensureGoalObjectiveRevision(objectiveRevision)
+		}
+		return appendSystemPrompt, goalContext, goalID, sessionKey, objectiveRevision
+	}
+	return appendSystemPrompt, "", "", defaultGoalSessionKey, 0
+}
+
+func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
+	candidates := []string{}
+	if roundValue != nil {
+		roundSessionKey := strings.TrimSpace(roundValue.SessionKey)
+		if protocol.IsRoomSharedSessionKey(roundSessionKey) {
+			return []string{roundSessionKey}
+		}
+		candidates = append(candidates, roundSessionKey)
+	}
+	if slot != nil {
+		candidates = append(candidates, slot.RuntimeSessionKey)
+	}
+	result := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		sessionKey := strings.TrimSpace(candidate)
+		if sessionKey == "" {
+			continue
+		}
+		if _, exists := seen[sessionKey]; exists {
+			continue
+		}
+		seen[sessionKey] = struct{}{}
+		result = append(result, sessionKey)
+	}
+	return result
+}
+
+func (s *Service) recordGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result exec.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
+	if !ok {
+		return
+	}
+	_ = s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
+}
+
+func (s *Service) recordGoalUsageFromSlotAssistantMessage(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) {
+	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, nil, message)
+}
+
+func (s *Service) persistSubagentGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	taskID string,
+	cumulativeTotal int64,
+	goalID string,
+	goalSessionKey string,
+) (protocol.GoalUsageSourceResult, error) {
+	return s.persistSubagentGoalUsageObservationForSlot(
+		ctx,
+		slot,
+		taskID,
+		goalsvc.SubagentUsageObservation{
+			CumulativeTotal: cumulativeTotal,
+		},
+		goalID,
+		goalSessionKey,
+	)
 }

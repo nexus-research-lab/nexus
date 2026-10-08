@@ -32,40 +32,6 @@ const (
 	workspaceInitializationRevision = 1
 )
 
-// EnsureInitialized 保证 workspace 模板就绪，并确保平台 Skill 不落入 Agent workspace。
-func EnsureInitialized(
-	agentID string,
-	agentName string,
-	workspacePath string,
-	isMainAgent bool,
-	createdAt time.Time,
-) error {
-	root := strings.TrimSpace(workspacePath)
-	if root == "" {
-		return fmt.Errorf("workspace_path 不能为空")
-	}
-	if err := os.MkdirAll(root, workspaceDirectoryMode()); err != nil {
-		return err
-	}
-	rootFS, err := confinedfs.Open(root)
-	if err != nil {
-		return err
-	}
-	defer rootFS.Close()
-	return EnsureInitializedAt(rootFS, agentID, agentName, isMainAgent, createdAt)
-}
-
-// EnsureInitializedAt 在已验证的 workspace 根中完成初始化。
-func EnsureInitializedAt(
-	rootFS *confinedfs.Root,
-	agentID string,
-	agentName string,
-	isMainAgent bool,
-	createdAt time.Time,
-) error {
-	return ensureInitializedAt(rootFS, agentID, agentName, isMainAgent, createdAt, nil)
-}
-
 // EnsureInitializedOnceForAgentAt 使用宿主状态标记，仅在初始化版本或托管状态变化时执行完整初始化。
 //
 // 标记位于 owner state，和 workspace 结果分离；runtime 即使改写标记也不能

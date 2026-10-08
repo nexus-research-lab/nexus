@@ -3,6 +3,7 @@ package realtime
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 )
 
@@ -722,4 +724,75 @@ func TestHandleInterruptExactTargetIsIdempotentAfterNaturalCompletion(t *testing
 	if err != nil {
 		t.Fatalf("自然完成后的精确停止应幂等成功，实际 error = %v", err)
 	}
+}
+
+func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
+	if s == nil {
+		return 0
+	}
+	return s.mutable.goal.objectiveRevision.Load()
+}
+
+func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageAccumulator) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.usage = usage
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalUsageActive() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	defer slot.mutable.goal.mu.Unlock()
+	return slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active()
+}
+
+func (slot *activeRoomSlot) publicMessageWasPublished() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.delivery.mu.Lock()
+	defer slot.mutable.delivery.mu.Unlock()
+	return slot.mutable.delivery.publicMessagePublished
+}
+
+func (slot *activeRoomSlot) setPendingStream(events []protocol.EventMessage) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.delivery.mu.Lock()
+	slot.mutable.delivery.pendingStream = slices.Clone(events)
+	slot.mutable.delivery.mu.Unlock()
+}
+
+// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个 task
+// 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
+// task、后写 checkpoint 时被并发 finalization 穿透。
+func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
+	slot.markSubagentUsageObservationPending(goalsvc.SubagentUsageObservation{
+		CumulativeTotal: cumulativeTotal,
+	}, taskID)
+}
+
+// clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
+// 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
+func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
+	slot.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
+		CumulativeTotal:            settledTotal,
+		Terminal:                   true,
+		TerminalTokenUsageObserved: true,
+	})
+}
+
+func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.subagentTasks = tasks
+	slot.mutable.goal.mu.Unlock()
 }

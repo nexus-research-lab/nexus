@@ -35,14 +35,6 @@ func AgentDeletionCommitted(err error) bool {
 	return errors.As(err, &committed)
 }
 
-func (s *Service) deleteAgentPersistence(
-	ctx context.Context,
-	ownerUserID string,
-	agentID string,
-) error {
-	return s.deleteAgentPersistenceAtVersion(ctx, ownerUserID, agentID, nil)
-}
-
 func (s *Service) deleteAgentPersistenceAtVersion(
 	ctx context.Context,
 	ownerUserID string,

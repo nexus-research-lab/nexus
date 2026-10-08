@@ -793,15 +793,6 @@ func newSandboxLeaseMarker(owner, session, roundID, runtimeRoot string) (Sandbox
 	}, nil
 }
 
-func writeSandboxLeaseMarker(path string, marker SandboxLeaseMarker) error {
-	root, err := openSandboxDirectory(path)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return writeSandboxLeaseMarkerInRoot(root, marker)
-}
-
 func writeSandboxLeaseMarkerInRoot(root *confinedfs.Root, marker SandboxLeaseMarker) error {
 	payload, err := json.Marshal(marker)
 	if err != nil {
@@ -1100,23 +1091,6 @@ func sandboxResourceIsActive(path string) bool {
 	active := !resource.closed || resource.cleanupErr != nil || resource.refs > 0
 	resource.mu.Unlock()
 	return active
-}
-
-// ReleasePath is retained as a fail-closed compatibility helper. Cleanup of a
-// live resource must use the exact Lease handle; a path alone cannot identify
-// which runtime generation owns a reference.
-func ReleasePath(path string) error {
-	path = filepath.Clean(strings.TrimSpace(path))
-	if path == "." || path == "" {
-		return nil
-	}
-	registryMu.Lock()
-	resource := registry[path]
-	registryMu.Unlock()
-	if resource == nil {
-		return nil
-	}
-	return errors.New("sandbox lease cleanup requires its exact handle")
 }
 
 func removeStaleSandboxScratch(base, path string, expectedLeaf os.FileInfo, expectedLeaseID string) error {

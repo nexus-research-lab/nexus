@@ -385,13 +385,6 @@ func projectExecutionCoordinatorNode(view *protocol.ExecutionView) {
 	}
 }
 
-// projectExecutionGraphView 是只给无 Repository 单测使用的窄入口。
-func projectExecutionGraphView(
-	items []protocol.ExecutionWorkItemView,
-) protocol.ExecutionGraphView {
-	return projectExecutionGraphViewWithHistory(items, protocol.ExecutionWorkGraphHistory{})
-}
-
 func workGraphHistoryFromSnapshot(
 	snapshot *protocol.ExecutionSnapshot,
 ) protocol.ExecutionWorkGraphHistory {

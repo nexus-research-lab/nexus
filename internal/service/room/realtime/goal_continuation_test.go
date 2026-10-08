@@ -3,12 +3,13 @@ package realtime
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -1611,4 +1612,17 @@ func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvide
 	if len(goalProvider.collabEvidence) != 0 {
 		t.Fatalf("collaboration evidence = %#v, want no-reply ignored", goalProvider.collabEvidence)
 	}
+}
+
+func (s *Service) shouldDeferGoalContinuationForTargetState(
+	ctx context.Context,
+	sessionKey string,
+	contextValue *protocol.ConversationContextAggregate,
+) bool {
+	if contextValue == nil {
+		return false
+	}
+	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
+	defer lease.Unlock()
+	return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
 }

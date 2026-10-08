@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -492,4 +493,38 @@ func assertNoStaleScheduleWakeupGuidance(t *testing.T, content string) {
 			t.Fatalf("AGENTS.md 仍包含旧 ScheduleWakeup 规则 %q: %s", stale, content)
 		}
 	}
+}
+
+// EnsureInitialized 保证 workspace 模板就绪，并确保平台 Skill 不落入 Agent workspace。
+func EnsureInitialized(
+	agentID string,
+	agentName string,
+	workspacePath string,
+	isMainAgent bool,
+	createdAt time.Time,
+) error {
+	root := strings.TrimSpace(workspacePath)
+	if root == "" {
+		return fmt.Errorf("workspace_path 不能为空")
+	}
+	if err := os.MkdirAll(root, workspaceDirectoryMode()); err != nil {
+		return err
+	}
+	rootFS, err := confinedfs.Open(root)
+	if err != nil {
+		return err
+	}
+	defer rootFS.Close()
+	return EnsureInitializedAt(rootFS, agentID, agentName, isMainAgent, createdAt)
+}
+
+// EnsureInitializedAt 在已验证的 workspace 根中完成初始化。
+func EnsureInitializedAt(
+	rootFS *confinedfs.Root,
+	agentID string,
+	agentName string,
+	isMainAgent bool,
+	createdAt time.Time,
+) error {
+	return ensureInitializedAt(rootFS, agentID, agentName, isMainAgent, createdAt, nil)
 }

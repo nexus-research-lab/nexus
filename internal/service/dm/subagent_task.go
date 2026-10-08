@@ -137,16 +137,6 @@ func (r *roundRunner) hasRunningSubagentTask() bool {
 	return len(r.subagentTasks) > 0 || len(r.subagentUsagePending) > 0
 }
 
-// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个
-// task 最新的累计值。它与 runtime task 生命周期分开，防止终态消息先移除
-// task、后写 checkpoint 时被并发 finalization 穿透。
-func (r *roundRunner) markSubagentUsagePending(taskID string, totalTokens int64) {
-	r.markSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal: totalTokens,
-		ObservedAt:      time.Now().UTC(),
-	})
-}
-
 func (r *roundRunner) markSubagentUsageObservationPending(
 	taskID string,
 	observation goalsvc.SubagentUsageObservation,
@@ -171,16 +161,6 @@ func (r *roundRunner) markSubagentUsageObservationPendingLocked(
 	}
 	taskID = strings.TrimSpace(taskID)
 	r.subagentUsagePending[taskID] = r.subagentUsagePending[taskID].Merge(observation)
-}
-
-// clearSubagentUsagePending 只清除不新于已落库累计值的 pending。并发中的旧
-// checkpoint 成功不能覆盖随后到达、但仍未持久化的新累计值。
-func (r *roundRunner) clearSubagentUsagePending(taskID string, settledTotalTokens int64) {
-	r.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal:            settledTotalTokens,
-		Terminal:                   true,
-		TerminalTokenUsageObserved: true,
-	})
 }
 
 func (r *roundRunner) clearSubagentUsageObservationPending(

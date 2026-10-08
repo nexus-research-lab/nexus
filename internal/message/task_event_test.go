@@ -454,3 +454,12 @@ func TestSubagentTaskUsageSnapshotsCollectsMetadataAndAssistantBlocks(t *testing
 		t.Fatalf("snapshots = %#v, want %#v", got, want)
 	}
 }
+
+// SubagentTaskUsageSnapshot 保留单 task 调用方的兼容入口。
+func SubagentTaskUsageSnapshot(message protocol.Message) (string, int64, bool) {
+	snapshots := SubagentTaskUsageSnapshots(message)
+	if len(snapshots) == 0 {
+		return "", 0, false
+	}
+	return snapshots[0].TaskID, snapshots[0].TotalTokens, true
+}

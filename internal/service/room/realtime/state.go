@@ -304,13 +304,6 @@ func (s *activeRoomSlot) boundGoalAuthority() (runtimectx.GoalAuthority, bool) {
 	return state.LoadGoalAuthority()
 }
 
-func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
-	if s == nil {
-		return 0
-	}
-	return s.mutable.goal.objectiveRevision.Load()
-}
-
 func (s *activeRoomSlot) adoptGoalObjectiveRevision(revision int64) {
 	if revision <= 0 {
 		return
@@ -738,15 +731,6 @@ func (slot *activeRoomSlot) beginGoalUsage() {
 	slot.mutable.goal.mu.Unlock()
 }
 
-func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageAccumulator) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usage = usage
-	slot.mutable.goal.mu.Unlock()
-}
-
 func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot) {
 	if slot == nil {
 		return
@@ -758,15 +742,6 @@ func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot
 	slot.mutable.goal.usage.Reset(snapshot)
 	slot.mutable.goal.terminalSettled = false
 	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) goalUsageActive() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	return slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active()
 }
 
 func (slot *activeRoomSlot) goalUsageActiveForGoal(goalID string) bool {
@@ -969,24 +944,6 @@ func (slot *activeRoomSlot) suppressOutput() {
 	}
 	slot.mutable.delivery.mu.Lock()
 	slot.mutable.delivery.suppressOutput = true
-	slot.mutable.delivery.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) publicMessageWasPublished() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.delivery.mu.Lock()
-	defer slot.mutable.delivery.mu.Unlock()
-	return slot.mutable.delivery.publicMessagePublished
-}
-
-func (slot *activeRoomSlot) setPendingStream(events []protocol.EventMessage) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.delivery.mu.Lock()
-	slot.mutable.delivery.pendingStream = slices.Clone(events)
 	slot.mutable.delivery.mu.Unlock()
 }
 
@@ -1223,15 +1180,6 @@ func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
 		len(slot.mutable.goal.subagentUsagePending) > 0
 }
 
-// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个 task
-// 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
-// task、后写 checkpoint 时被并发 finalization 穿透。
-func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
-	slot.markSubagentUsageObservationPending(goalsvc.SubagentUsageObservation{
-		CumulativeTotal: cumulativeTotal,
-	}, taskID)
-}
-
 func (slot *activeRoomSlot) markSubagentUsageObservationPending(
 	observation goalsvc.SubagentUsageObservation,
 	taskID string,
@@ -1246,16 +1194,6 @@ func (slot *activeRoomSlot) markSubagentUsageObservationPending(
 	taskID = strings.TrimSpace(taskID)
 	slot.mutable.goal.subagentUsagePending[taskID] = slot.mutable.goal.subagentUsagePending[taskID].Merge(observation)
 	slot.mutable.goal.mu.Unlock()
-}
-
-// clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
-// 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
-func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
-	slot.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal:            settledTotal,
-		Terminal:                   true,
-		TerminalTokenUsageObserved: true,
-	})
 }
 
 func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
@@ -1344,15 +1282,6 @@ func (slot *activeRoomSlot) finishSubagentUsageRetry() bool {
 	needsRestart := len(slot.mutable.goal.subagentUsagePending) > 0
 	slot.mutable.goal.mu.Unlock()
 	return needsRestart
-}
-
-func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.subagentTasks = tasks
-	slot.mutable.goal.mu.Unlock()
 }
 
 func (slot *activeRoomSlot) markGoalToolProgress() {

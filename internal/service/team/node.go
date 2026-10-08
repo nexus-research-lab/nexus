@@ -81,10 +81,6 @@ type NodeRoomBinding struct {
 	ConversationID string `json:"conversation_id"`
 }
 
-func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([]NodeRoomBinding, error) {
-	return s.PrepareRooms(ctx, cookie, []string{roomID})
-}
-
 // PrepareRooms 汇总所有已加入群的执行资格，一次登记，避免逐群轮换节点。
 func (s *NodeService) PrepareRooms(ctx context.Context, cookie string, roomIDs []string) ([]NodeRoomBinding, error) {
 	if len(roomIDs) == 0 || len(roomIDs) > 256 {
