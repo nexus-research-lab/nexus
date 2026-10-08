@@ -24,8 +24,8 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 		roundID    = "round-parent-terminal-background-retry"
 	)
 	provider := newRetryingDMGoalUsageProvider(sessionKey, goalID, 0)
-	provider.claimFailuresRemaining = goalUsagePersistAttempts * 2
-	provider.finalizeFailuresRemaining = goalUsagePersistAttempts * 2
+	provider.claimFailuresRemaining = runtimehost.GoalUsagePersistAttempts * 2
+	provider.finalizeFailuresRemaining = runtimehost.GoalUsagePersistAttempts * 2
 	var dispatches atomic.Int64
 	runner := &roundRunner{
 		service:               &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
@@ -48,8 +48,8 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	// The first synchronous window exhausts while the parent is still running.
 	// A manually requested worker must not settle or dispatch before terminal.
 	runner.finalizeGoalUsage(context.Background(), result, nil)
-	if attempts := provider.claimAttemptCount(); attempts != goalUsagePersistAttempts {
-		t.Fatalf("claim attempts before parent terminal = %d, want %d", attempts, goalUsagePersistAttempts)
+	if attempts := provider.claimAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts {
+		t.Fatalf("claim attempts before parent terminal = %d, want %d", attempts, runtimehost.GoalUsagePersistAttempts)
 	}
 	runner.startGoalUsageRetryWorker()
 	waitForDMGoalUsageRetry(t, func() bool {
@@ -57,7 +57,7 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 		defer runner.Mu.Unlock()
 		return !runner.UsageRetrying
 	})
-	if attempts := provider.claimAttemptCount(); attempts != goalUsagePersistAttempts {
+	if attempts := provider.claimAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts {
 		t.Fatalf("parent-active retry advanced claim attempts to %d", attempts)
 	}
 	if got := dispatches.Load(); got != 0 {
@@ -83,13 +83,13 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 
 	waitForDMGoalUsageRetry(t, func() bool {
 		return dispatches.Load() == 1 &&
-			provider.finalizeCallCount() == goalUsagePersistAttempts*2+1 &&
+			provider.finalizeCallCount() == runtimehost.GoalUsagePersistAttempts*2+1 &&
 			dmGoalUsageRetryStopped(runner)
 	})
-	if attempts := provider.claimAttemptCount(); attempts != goalUsagePersistAttempts*2+1 {
+	if attempts := provider.claimAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
 		t.Fatalf("claim attempts = %d, want two failed windows plus one background success", attempts)
 	}
-	if calls := provider.finalizeCallCount(); calls != goalUsagePersistAttempts*2+1 {
+	if calls := provider.finalizeCallCount(); calls != runtimehost.GoalUsagePersistAttempts*2+1 {
 		t.Fatalf("finalization calls = %d, want two failed windows plus one background success", calls)
 	}
 	deltas := provider.finalizedDeltas()
@@ -113,7 +113,7 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 				roundID    = "round-abnormal-parent-terminal-retry"
 			)
 			provider := newRetryingDMGoalUsageProvider(sessionKey, goalID, 0)
-			provider.finalizeFailuresRemaining = goalUsagePersistAttempts * 2
+			provider.finalizeFailuresRemaining = runtimehost.GoalUsagePersistAttempts * 2
 			var dispatches atomic.Int64
 			runner := &roundRunner{
 				service:               &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
@@ -132,7 +132,7 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 			}
 
 			waitForDMGoalUsageRetry(t, func() bool {
-				return provider.finalizeCallCount() == goalUsagePersistAttempts*2+1
+				return provider.finalizeCallCount() == runtimehost.GoalUsagePersistAttempts*2+1
 			})
 			if got := dispatches.Load(); got != 0 {
 				t.Fatalf("abnormal parent post-round dispatches = %d, want 0", got)
@@ -199,7 +199,7 @@ func TestCompletedDMGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) 
 			SessionKey: sessionKey,
 			Status:     protocol.GoalStatusComplete,
 		},
-		claimFailuresRemaining: goalUsagePersistAttempts * 2,
+		claimFailuresRemaining: runtimehost.GoalUsagePersistAttempts * 2,
 	}
 	runner := &roundRunner{
 		service:                &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
@@ -233,8 +233,8 @@ func TestCompletedDMGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) 
 		t.Fatal("successful retry left the usage claim pending")
 	}
 	attempts := provider.claimAttemptCount()
-	if attempts != goalUsagePersistAttempts*2+1 {
-		t.Fatalf("claim attempts = %d, want %d failures plus one success", attempts, goalUsagePersistAttempts*2)
+	if attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
+		t.Fatalf("claim attempts = %d, want %d failures plus one success", attempts, runtimehost.GoalUsagePersistAttempts*2)
 	}
 	if successes := provider.claimSuccessCount(); successes != 1 {
 		t.Fatalf("successful claims after recovery = %d, want exactly 1", successes)

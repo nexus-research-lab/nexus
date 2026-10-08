@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
@@ -48,7 +49,7 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 			SessionKey: sessionKey,
 			Status:     protocol.GoalStatusComplete,
 		},
-		claimFailuresRemaining: goalUsagePersistAttempts * 2,
+		claimFailuresRemaining: runtimehost.GoalUsagePersistAttempts * 2,
 	}
 	service := &Service{
 		goals: provider,
@@ -86,8 +87,8 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 		t.Fatal("successful Room claim retry left the slot pending")
 	}
 	attempts := provider.claimAttemptCount()
-	if attempts != goalUsagePersistAttempts*2+1 {
-		t.Fatalf("Room claim attempts = %d, want %d failures plus one success", attempts, goalUsagePersistAttempts*2)
+	if attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
+		t.Fatalf("Room claim attempts = %d, want %d failures plus one success", attempts, runtimehost.GoalUsagePersistAttempts*2)
 	}
 	if successes := provider.claimSuccessCount(); successes != 1 {
 		t.Fatalf("successful Room claims after recovery = %d, want exactly 1", successes)
@@ -320,8 +321,8 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 				Status:     protocol.GoalStatusComplete,
 			},
 		},
-		failuresRemaining:         goalUsagePersistAttempts,
-		finalizeFailuresRemaining: goalUsagePersistAttempts,
+		failuresRemaining:         runtimehost.GoalUsagePersistAttempts,
+		finalizeFailuresRemaining: runtimehost.GoalUsagePersistAttempts,
 		persisted:                 make(chan struct{}),
 	}
 	service := withConstructorDefaults(t, &Service{
@@ -370,11 +371,11 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 	if got := provider.lastPersistedTotal(); got != 240 {
 		t.Fatalf("background persisted total = %d, want latest 240", got)
 	}
-	if attempts := provider.finalizeAttemptCount(); attempts != goalUsagePersistAttempts+1 {
+	if attempts := provider.finalizeAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts+1 {
 		t.Fatalf(
 			"background finalize attempts = %d, want %d failures plus one success",
 			attempts,
-			goalUsagePersistAttempts,
+			runtimehost.GoalUsagePersistAttempts,
 		)
 	}
 	if !service.finalizeCompletedRoomGoalUsage(context.Background(), roundValue) {
@@ -468,8 +469,8 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 				Status:     protocol.GoalStatusComplete,
 			},
 		},
-		parentUsageFailuresRemaining: goalUsagePersistAttempts * 2,
-		finalizeFailuresRemaining:    goalUsagePersistAttempts,
+		parentUsageFailuresRemaining: runtimehost.GoalUsagePersistAttempts * 2,
+		finalizeFailuresRemaining:    runtimehost.GoalUsagePersistAttempts,
 		parentUsagePersisted:         make(chan struct{}),
 	}
 	service := withConstructorDefaults(t, &Service{
@@ -532,18 +533,18 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 	if len(usages) != 1 || usages[0].ActualTokens() != 100 || usages[0].BudgetTokens() != 100 {
 		t.Fatalf("persisted parent usage = %#v, want exact 100 once", usages)
 	}
-	if attempts := provider.parentUsageAttemptCount(); attempts != goalUsagePersistAttempts*2+1 {
+	if attempts := provider.parentUsageAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
 		t.Fatalf(
 			"parent usage attempts = %d, want %d failures plus one background success",
 			attempts,
-			goalUsagePersistAttempts*2,
+			runtimehost.GoalUsagePersistAttempts*2,
 		)
 	}
-	if attempts := provider.finalizeAttemptCount(); attempts != goalUsagePersistAttempts+1 {
+	if attempts := provider.finalizeAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts+1 {
 		t.Fatalf(
 			"shared finalization attempts = %d, want %d failures plus one background success",
 			attempts,
-			goalUsagePersistAttempts,
+			runtimehost.GoalUsagePersistAttempts,
 		)
 	}
 

@@ -433,7 +433,7 @@ func TestRoomSlotRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 	base := &fakeRoomGoalContextProvider{}
 	provider := &failNRoomGoalUsageProvider{
 		fakeRoomGoalContextProvider: base,
-		failuresRemaining:           goalUsagePersistAttempts,
+		failuresRemaining:           runtimehost.GoalUsagePersistAttempts,
 	}
 	service := &Service{goals: provider, rounds: newRoomRoundRegistry()}
 	accelerateRoomGoalUsageRetry(service)

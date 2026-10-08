@@ -188,7 +188,7 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 	base := &fakeGoalContextProvider{}
 	provider := &failNDMGoalUsageProvider{
 		fakeGoalContextProvider: base,
-		failuresRemaining:       goalUsagePersistAttempts,
+		failuresRemaining:       runtimehost.GoalUsagePersistAttempts,
 	}
 	runner := &roundRunner{
 		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},

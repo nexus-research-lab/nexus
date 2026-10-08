@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
@@ -119,23 +120,9 @@ func (s *Service) flushRoomSubagentUsageBeforeExternalBind(
 		goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
 		for _, taskID := range taskIDs {
 			observation := pending[taskID]
-			var err error
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !runtimehost.WaitGoalUsagePersistRetry(ctx, s.goalUsageRetryBaseDelay, attempt) {
-					return ctx.Err()
-				}
-				_, err = s.persistSubagentGoalUsageObservationForSlot(
-					ctx,
-					slot,
-					taskID,
-					observation,
-					goalID,
-					goalSessionKey,
-				)
-				if err == nil {
-					break
-				}
-			}
+			_, err := runtimehost.RetryGoalUsage(ctx, s.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+				return s.persistSubagentGoalUsageObservationForSlot(ctx, slot, taskID, observation, goalID, goalSessionKey)
+			})
 			if err != nil {
 				return fmt.Errorf(
 					"flush Room child usage before external Goal bind: runtime=%q task=%q: %w",
