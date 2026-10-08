@@ -3,9 +3,10 @@ package dm
 import (
 	"context"
 	"encoding/json"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"path/filepath"
 	"testing"
+
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"

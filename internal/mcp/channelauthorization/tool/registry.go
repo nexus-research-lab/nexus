@@ -65,12 +65,12 @@ func authorization(svc contract.Service, sctx contract.ServerContext) sdktool.To
 					ctx, sctx.Actor(), stringArg(args, "flow_id"),
 				)
 			default:
-				return errorResult(errors.New("未知 Channel authorization action")), nil
+				return sdktool.ErrorResult(errors.New("未知 Channel authorization action")), nil
 			}
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

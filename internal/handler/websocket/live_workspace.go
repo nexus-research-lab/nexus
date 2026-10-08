@@ -3,7 +3,6 @@ package websocket
 import (
 	"context"
 	"errors"
-	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -14,7 +13,7 @@ func (h *Handler) handleSubscribeWorkspace(
 	sender *handlershared.WebSocketSender,
 	inbound map[string]any,
 ) {
-	agentID := strings.TrimSpace(textutil.AnyString(inbound["agent_id"]))
+	agentID := textutil.AnyString(inbound["agent_id"])
 	if agentID == "" {
 		h.sendGatewayError(
 			ctx,
@@ -46,7 +45,7 @@ func (h *Handler) handleUnsubscribeWorkspace(
 	if h.workspaceSubs == nil {
 		return
 	}
-	agentID := strings.TrimSpace(textutil.AnyString(inbound["agent_id"]))
+	agentID := textutil.AnyString(inbound["agent_id"])
 	if agentID == "" {
 		return
 	}

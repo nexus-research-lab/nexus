@@ -10,7 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // ResolvedAttachment 表示已经通过目录边界校验并固定 inode 的附件。
@@ -24,6 +26,38 @@ type ResolvedAttachment struct {
 
 // AttachmentPathResolver 把应用层附件解析成当前 runtime 可以读取的真实文件。
 type AttachmentPathResolver func(context.Context, protocol.ChatAttachment) (ResolvedAttachment, error)
+
+// OpenAgentWorkspaceAttachment 以附件所属 Agent 的 owner 打开其 workspace 内文件。
+//
+// Agent 有 owner 时当前真人必须是该 owner；最终 owner 为空时失败关闭。DM 与
+// Room 共用这一校验，避免两处副本的授权条件漂移。
+func OpenAgentWorkspaceAttachment(
+	ctx context.Context,
+	workspaceRoot string,
+	agentValue protocol.Agent,
+	relativePath string,
+) (ResolvedAttachment, error) {
+	ownerUserID := authctx.OwnerUserID(ctx)
+	if agentOwner := strings.TrimSpace(agentValue.OwnerUserID); agentOwner != "" {
+		if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
+			strings.TrimSpace(currentUserID) != agentOwner {
+			return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
+		}
+		ownerUserID = agentOwner
+	}
+	if strings.TrimSpace(ownerUserID) == "" {
+		return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
+	}
+	absolutePath, file, err := workspacestore.New(workspaceRoot).OpenOwnerWorkspaceFile(
+		ownerUserID,
+		agentValue.WorkspacePath,
+		relativePath,
+	)
+	if err != nil {
+		return ResolvedAttachment{}, err
+	}
+	return ResolvedAttachment{AbsolutePath: absolutePath, File: file}, nil
+}
 
 // RuntimeContent 是 Nexus 应用层投递给 SDK runtime 的用户输入。
 type RuntimeContent struct {

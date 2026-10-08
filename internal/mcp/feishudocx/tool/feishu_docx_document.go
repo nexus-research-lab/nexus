@@ -27,13 +27,13 @@ func feishuDocxRead(svc contract.Service, sctx contract.ServerContext) sdktool.T
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ExportMarkdown(ctx, strings.TrimSpace(stringValue(args["url"])), boolValue(args["with_block_ids"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -59,7 +59,7 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdktool
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.SearchDocuments(
 				ctx,
@@ -71,9 +71,9 @@ func feishuDocxSearch(svc contract.Service, sctx contract.ServerContext) sdktool
 				intValue(args["count"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -96,17 +96,17 @@ func feishuDocxCreateDocument(svc contract.Service, sctx contract.ServerContext)
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			title := strings.TrimSpace(stringValue(args["title"]))
 			if title == "" {
-				return errorResult(errors.New("title 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("title 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.CreateDocument(ctx, title, stringValue(args["markdown"]), stringValue(args["folder_token"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -128,21 +128,21 @@ func feishuDocxAppendMarkdown(svc contract.Service, sctx contract.ServerContext)
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			markdown := strings.TrimSpace(stringValue(args["markdown"]))
 			if markdown == "" {
-				return errorResult(errors.New("markdown 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("markdown 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			target, err := client.ResolveDocument(ctx, stringValue(args["url"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.AppendMarkdown(ctx, target.DocumentID, markdown)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(map[string]any{
+			return sdktool.JSONResult(map[string]any{
 				"document_id":    target.DocumentID,
 				"source_type":    target.SourceType,
 				"created_blocks": result.CreatedBlocks,
@@ -170,21 +170,21 @@ func feishuDocxUpdateBlock(svc contract.Service, sctx contract.ServerContext) sd
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			blockID := strings.TrimSpace(stringValue(args["block_id"]))
 			if blockID == "" {
-				return errorResult(errors.New("block_id 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("block_id 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			target, err := client.ResolveDocument(ctx, stringValue(args["url"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			block, err := client.UpdateTextBlock(ctx, target.DocumentID, blockID, stringValue(args["content"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(map[string]any{
+			return sdktool.JSONResult(map[string]any{
 				"document_id": target.DocumentID,
 				"block":       block,
 			}), nil

@@ -1,9 +1,10 @@
 package dm
 
 import (
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	"strings"
 	"testing"
+
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
 
 func TestConnectorRuntimeToolPromptGitHubMount(t *testing.T) {

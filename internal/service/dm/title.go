@@ -25,9 +25,9 @@ func (s *Service) scheduleTitleGeneration(
 	roomID := ""
 	conversationID := ""
 	if !isExternalIMSession(parsed, sessionItem) {
-		roomID = strings.TrimSpace(textutil.PointerValue(sessionItem.RoomID))
+		roomID = textutil.PointerValue(sessionItem.RoomID)
 		if roomID != "" {
-			conversationID = strings.TrimSpace(textutil.PointerValue(sessionItem.ConversationID))
+			conversationID = textutil.PointerValue(sessionItem.ConversationID)
 		}
 	}
 	conversationMessageCount := 0

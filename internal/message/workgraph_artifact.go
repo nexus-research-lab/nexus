@@ -141,7 +141,7 @@ func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {
 	if name != "Bash" && name != "PowerShell" {
 		return "", false
 	}
-	command := strings.TrimSpace(textutil.AnyString(input["command"]))
+	command := textutil.AnyString(input["command"])
 	if strings.ContainsAny(command, "\n\r|;<>`") || strings.Contains(command, "$(") {
 		return "", false
 	}

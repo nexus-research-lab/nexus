@@ -39,7 +39,7 @@ func BuildTools(
 		},
 		Handler: func(ctx context.Context, input map[string]any) (sdktool.ToolResult, error) {
 			if service == nil {
-				return errorResult(errors.New("Nexus Browser 未启用")), nil
+				return sdktool.ErrorResult(errors.New("Nexus Browser 未启用")), nil
 			}
 			action, _ := input["action"].(string)
 			allowCDP := false
@@ -47,12 +47,12 @@ func BuildTools(
 				var err error
 				allowCDP, err = resolveCDPAccess(ctx)
 				if err != nil {
-					return errorResult(err), nil
+					return sdktool.ErrorResult(err), nil
 				}
 			}
 			result, err := service.Execute(ctx, sessionKey, roundID, sessionLabel, action, input, allowCDP)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			return renderResult(strings.ToLower(strings.TrimSpace(action)), result), nil
 		},
@@ -318,7 +318,7 @@ func renderResult(action string, result map[string]any) sdktool.ToolResult {
 	case "save_as_pdf":
 		return binaryResult(result, "resource")
 	default:
-		return jsonResult(result)
+		return sdktool.StructuredJSONResult(result)
 	}
 }
 
@@ -326,13 +326,13 @@ func batchResult(result map[string]any) sdktool.ToolResult {
 	metadata := withoutKey(result, "final_snapshot")
 	payload, err := json.Marshal(metadata)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	text := string(payload)
 	if snapshot, ok := result["final_snapshot"].(map[string]any); ok {
 		snapshotText, err := compactModelText(snapshot, "snapshot", browsersvc.MaxSnapshotTextBytes)
 		if err != nil {
-			return errorResult(err)
+			return sdktool.ErrorResult(err)
 		}
 		text += "\n" + snapshotText
 	}
@@ -345,7 +345,7 @@ func batchResult(result map[string]any) sdktool.ToolResult {
 func compactTextResult(result map[string]any, bodyKey string, maxBytes int) sdktool.ToolResult {
 	text, err := compactModelText(result, bodyKey, maxBytes)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	return sdktool.ToolResult{
 		Content:           []map[string]any{{"type": "text", "text": text}},
@@ -398,7 +398,7 @@ func binaryResult(result map[string]any, contentType string) sdktool.ToolResult 
 	data, _ := result["data"].(string)
 	mimeType, _ := result["mime_type"].(string)
 	if strings.TrimSpace(data) == "" || strings.TrimSpace(mimeType) == "" {
-		return errorResult(errors.New("Browser 二进制结果缺少数据"))
+		return sdktool.ErrorResult(errors.New("Browser 二进制结果缺少数据"))
 	}
 	metadata := make(map[string]any, len(result)-1)
 	for key, value := range result {
@@ -408,7 +408,7 @@ func binaryResult(result map[string]any, contentType string) sdktool.ToolResult 
 	}
 	payload, err := json.Marshal(metadata)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	content := map[string]any{"type": "image", "data": data, "mimeType": mimeType}
 	if contentType == "resource" {
@@ -431,17 +431,10 @@ func binaryResult(result map[string]any, contentType string) sdktool.ToolResult 
 func jsonResult(result map[string]any) sdktool.ToolResult {
 	payload, err := json.Marshal(result)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	return sdktool.ToolResult{
 		Content:           []map[string]any{{"type": "text", "text": string(payload)}},
 		StructuredContent: result,
-	}
-}
-
-func errorResult(err error) sdktool.ToolResult {
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": err.Error()}},
-		IsError: true,
 	}
 }

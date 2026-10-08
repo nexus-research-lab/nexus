@@ -30,7 +30,7 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkt
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListDriveFiles(
 				ctx,
@@ -42,10 +42,10 @@ func feishuDocxDriveList(svc contract.Service, sctx contract.ServerContext) sdkt
 				stringValue(args["option"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result.Files = filterDriveFilesByType(result.Files, stringValue(args["file_type"]))
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -66,13 +66,13 @@ func feishuDocxWikiSpaces(svc contract.Service, sctx contract.ServerContext) sdk
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListWikiSpaces(ctx, stringValue(args["page_token"]), intValue(args["page_size"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -93,17 +93,17 @@ func feishuDocxWikiSpace(svc contract.Service, sctx contract.ServerContext) sdkt
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			spaceID := strings.TrimSpace(stringValue(args["space_id"]))
 			if spaceID == "" {
-				return errorResult(errors.New("space_id 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("space_id 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.GetWikiSpace(ctx, spaceID)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -127,11 +127,11 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkt
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			spaceID := strings.TrimSpace(stringValue(args["space_id"]))
 			if spaceID == "" {
-				return errorResult(errors.New("space_id 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("space_id 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListWikiNodes(
 				ctx,
@@ -141,9 +141,9 @@ func feishuDocxWikiNodes(svc contract.Service, sctx contract.ServerContext) sdkt
 				intValue(args["page_size"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -165,17 +165,17 @@ func feishuDocxWikiNode(svc contract.Service, sctx contract.ServerContext) sdkto
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			token := strings.TrimSpace(stringValue(args["token"]))
 			if token == "" {
-				return errorResult(errors.New("token 不能为空")), nil
+				return sdktool.ErrorResult(errors.New("token 不能为空")), nil
 			}
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.GetWikiNodeByToken(ctx, token, stringValue(args["obj_type"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

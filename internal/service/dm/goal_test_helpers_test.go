@@ -2,9 +2,10 @@ package dm
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync"
+
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"

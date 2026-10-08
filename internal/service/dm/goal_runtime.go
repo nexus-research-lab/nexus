@@ -102,7 +102,7 @@ func (r *roundRunner) recordGoalUsageLimit(result exec.RoundExecutionResult) {
 	} else {
 		_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
 	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
+	if err != nil && !goalsvc.IsInactive(err) {
 		r.service.loggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
@@ -756,7 +756,7 @@ func (r *roundRunner) persistGoalUsageDeltaLocked(
 	} else {
 		updated, err = r.service.goals.RecordUsageForSession(ctx, r.sessionKey, usage, r.roundID)
 	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+	if err != nil && !goalsvc.IsAbsent(err) {
 		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
@@ -792,7 +792,7 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 
 	_, goal, err := r.service.goals.RuntimeContext(ctx, r.sessionKey)
 	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+		if !goalsvc.IsAbsent(err) {
 			r.service.loggerFor(ctx).Warn(
 				"读取 model 创建后的 Goal 绑定失败",
 				"session_key", r.sessionKey,
@@ -1275,4 +1275,3 @@ func (r *roundRunner) ignoreGoalRuntime() bool {
 	}
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(r.permissionMode))
 }
-

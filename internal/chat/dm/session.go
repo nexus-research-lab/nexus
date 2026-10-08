@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -24,7 +23,7 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 	if current.LastActivity.After(merged.LastActivity) {
 		merged.LastActivity = current.LastActivity
 	}
-	if strings.TrimSpace(textutil.PointerValue(merged.SessionID)) == "" && current.SessionID != nil {
+	if textutil.PointerValue(merged.SessionID) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
 	}
 	merged.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(

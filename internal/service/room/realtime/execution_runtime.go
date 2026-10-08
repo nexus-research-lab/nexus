@@ -115,13 +115,6 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
-func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
-	if lease == nil {
-		return nil
-	}
-	return lease.Resources()
-}
-
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if e.round == nil {
 		return nil, errors.New("room round is required")
@@ -288,7 +281,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
-		SandboxResources:           sandboxResourcesFromLease(scratchLease),
+		SandboxResources:           scratchLease.Resources(),
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err

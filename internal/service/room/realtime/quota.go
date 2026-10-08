@@ -5,7 +5,6 @@ package realtime
 
 import (
 	"context"
-	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -25,9 +24,7 @@ func (s *Service) recordGoalQuotaLimit(
 		return
 	}
 	if _, err := s.goals.UsageLimitForSession(ctx, sessionKey, roundID, reason); err != nil &&
-		!errors.Is(err, goalsvc.ErrGoalDisabled) &&
-		!errors.Is(err, goalsvc.ErrGoalNotFound) &&
-		!errors.Is(err, goalsvc.ErrGoalInvalidState) {
+		!goalsvc.IsInactive(err) {
 		s.loggerFor(ctx).Warn("标记 Room Goal 账号额度限制失败",
 			"session_key", sessionKey,
 			"round_id", roundID,

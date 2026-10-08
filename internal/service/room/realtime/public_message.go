@@ -6,15 +6,16 @@ package realtime
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
+	"time"
+	"unicode/utf8"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"slices"
-	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 // HandlePublicMessage 处理 Room 成员通过受控工具主动发布的公区消息。

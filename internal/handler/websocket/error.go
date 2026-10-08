@@ -176,7 +176,7 @@ func (h *Handler) newGatewayErrorEvent(
 	}
 	event := protocol.NewEvent(protocol.EventTypeError, data)
 	event.SessionKey = sessionKey
-	if roundID := strings.TrimSpace(textutil.AnyString(details["round_id"])); roundID != "" {
+	if roundID := textutil.AnyString(details["round_id"]); roundID != "" {
 		event.RoundID = roundID
 	}
 	return event

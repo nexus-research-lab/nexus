@@ -552,15 +552,15 @@ func IsSubagentTaskMetadata(metadata map[string]any) bool {
 	if len(metadata) == 0 {
 		return false
 	}
-	taskType := strings.ToLower(strings.TrimSpace(textutil.AnyString(metadata["task_type"])))
+	taskType := strings.ToLower(textutil.AnyString(metadata["task_type"]))
 	if taskType == "local_shell" {
 		return false
 	}
 	if taskType != "" {
 		return taskType == "local_agent"
 	}
-	return strings.TrimSpace(textutil.AnyString(metadata["agent_id"])) != "" ||
-		strings.TrimSpace(textutil.AnyString(metadata["agent_type"])) != ""
+	return textutil.AnyString(metadata["agent_id"]) != "" ||
+		textutil.AnyString(metadata["agent_type"]) != ""
 }
 
 // IsTerminalSubagentTaskStatus 判断子任务是否已进入不可继续运行的终态。

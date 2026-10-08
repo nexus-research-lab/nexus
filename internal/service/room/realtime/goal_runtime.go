@@ -155,29 +155,6 @@ func (s *Service) GoalObjectiveRevisionState(
 	}
 	return target.ensureGoalObjectiveRevision(initial)
 }
-
-func goalContextualInputs(contextText string, goalID string, sessionKey string) []runtimectx.ContextualInputBlock {
-	contextText = strings.TrimSpace(contextText)
-	if contextText == "" {
-		return nil
-	}
-	metadata := map[string]string{}
-	if goalID = strings.TrimSpace(goalID); goalID != "" {
-		metadata["goal_id"] = goalID
-	}
-	if sessionKey = strings.TrimSpace(sessionKey); sessionKey != "" {
-		metadata["session_key"] = sessionKey
-	}
-	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(
-			runtimectx.ContextualInputNameGoal,
-			contextText,
-			runtimectx.ContextualInputPriorityGoal,
-			metadata,
-		),
-	}
-}
-
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64, bool) {
 	goalContext, goal, ok := s.goalRuntimeSnapshot(ctx, sessionKey)
 	if !ok {
@@ -201,7 +178,7 @@ func (s *Service) goalRuntimeSnapshot(
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
+		if goalsvc.IsAbsent(err) {
 			return "", nil, false
 		}
 		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
@@ -555,7 +532,7 @@ func (s *Service) recordGoalUsageLimitForSlot(
 	} else {
 		_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
 	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
+	if err != nil && !goalsvc.IsInactive(err) {
 		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
 			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", goalID,
@@ -1001,7 +978,7 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 	} else {
 		updated, err = s.goals.RecordUsageForSession(ctx, goalSessionKey, usage, slot.AgentRoundID)
 	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+	if err != nil && !goalsvc.IsAbsent(err) {
 		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
 			"session_key", goalSessionKey,
 			"goal_id", goalID,
@@ -1161,7 +1138,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	}
 	_, goal, err := s.goals.RuntimeContext(ctx, goalSessionKey)
 	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
+		if !goalsvc.IsAbsent(err) {
 			s.loggerFor(ctx).Warn(
 				"读取 Room model 创建后的 Goal 绑定失败",
 				"session_key", goalSessionKey,
