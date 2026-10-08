@@ -34,7 +34,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 服务 + 自动迁移，macOS 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
+cmd/        - 可执行入口（nexus-server 以单个 main.go 装配服务、自动迁移和 runtime 检查，平台实例锁由 internal/infra/desktopinstance 装配；macOS 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
 desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期（boot-bound audit identity 精确终止，旧格式存活/未知记录保留并拒绝并发启动）、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区并通过公开可见性生命周期随主窗口挂起或恢复，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展以代次化标签页引用、来源继承租约、round 收尾、命令截止/取消与执行阶段诊断和增量 AX 快照为 Browser 提供页面、标签页、历史、下载、可见 Agent 指针、交互与用户启用后的完整 CDP 操作）
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）

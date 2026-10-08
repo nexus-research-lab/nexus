@@ -223,7 +223,7 @@ function RoomHistoryItemActions({
             size="xs"
             stopPropagation
             tone={style.tone}
-            visibility={presentation.actionsPersistent ? "visible" : "hover"}
+            visibility="hover"
           >
             <Icon className="h-3 w-3" />
           </UiListActionButton>
@@ -240,7 +240,6 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
     : CONTENT_VIEWS[presentation.mode];
   return (
     <UiListRow
-      actions={<RoomHistoryItemActions {...props} />}
       active={presentation.state === "active" || Boolean(presentation.selection?.checked)}
       activeTone="sidebar"
       aria-current={presentation.state === "active" ? "page" : undefined}
@@ -250,7 +249,16 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
         : presentation.externalSessionLabel}
       density="dense"
       meta={Content ? undefined : (
-        <RoomHistoryActivity label={presentation.activityLabel} />
+        <div className="grid shrink-0 items-center justify-items-end">
+          <RoomHistoryActivity
+            className={cn("col-start-1 row-start-1", presentation.actions.length > 0
+              && "group-hover/item:invisible group-focus-within/item:invisible [@media(hover:none)]:invisible")}
+            label={presentation.activityLabel}
+          />
+          <div className="col-start-1 row-start-1">
+            <RoomHistoryItemActions {...props} />
+          </div>
+        </div>
       )}
       onClick={presentation.mode === "reading" ? props.onSelect : undefined}
       title={Content ? undefined : presentation.title}
