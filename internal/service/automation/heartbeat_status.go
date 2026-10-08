@@ -182,8 +182,8 @@ func (s *Service) wakeHeartbeat(
 	identity.intentDigest = strings.TrimSpace(identity.intentDigest)
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
 	if identity.ownerUserID == "" {
-		identity.ownerUserID = strings.TrimSpace(ownerUserID)
-	} else if scoped && strings.TrimSpace(ownerUserID) != identity.ownerUserID {
+		identity.ownerUserID = ownerUserID
+	} else if scoped && ownerUserID != identity.ownerUserID {
 		s.heartbeatControlMu.Unlock()
 		return nil, automationdomain.ErrHeartbeatWakeRequestConflict
 	}

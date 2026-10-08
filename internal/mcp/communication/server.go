@@ -206,7 +206,7 @@ func sendPrivateRoomMessage(
 	}
 	request := protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID:      sctx.Actor.AgentID,
-		SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+		SourceAgentRoundID: sctx.CurrentAgentRoundID,
 		RootRoundID:        sctx.Actor.RoundID,
 		CommandID:          commandID,
 		Recipients:         stringListArg(args, "recipients"),
@@ -251,7 +251,7 @@ func sendPublicRoomMessage(
 		sctx.Actor.ConversationID,
 		protocol.CreateRoomPublicMessageRequest{
 			SourceAgentID:      sctx.Actor.AgentID,
-			SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+			SourceAgentRoundID: sctx.CurrentAgentRoundID,
 			RootRoundID:        sctx.Actor.RoundID,
 			Content:            stringArg(args, "content"),
 			CorrelationID:      stringArg(args, "correlation_id"),
@@ -292,7 +292,7 @@ func requireRoomScope(sctx RuntimeContext) error {
 }
 
 func scopedToolContext(ctx context.Context, actor communicationsvc.Actor) context.Context {
-	ownerUserID := strings.TrimSpace(actor.OwnerUserID)
+	ownerUserID := actor.OwnerUserID
 	if ownerUserID == "" {
 		return ctx
 	}

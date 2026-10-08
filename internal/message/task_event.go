@@ -395,7 +395,7 @@ func (p *Processor) buildEphemeralTaskProgressMessage(
 	payload := protocol.Message(temporary.BuildAssistantMessage(p.ctx, p.sessionID, false))
 	delete(payload, "stop_reason")
 	payload["is_complete"] = false
-	if parentID := strings.TrimSpace(p.parentToolUseID); parentID != "" {
+	if parentID := p.parentToolUseID; parentID != "" {
 		payload["parent_id"] = parentID
 		payload["parent_tool_use_id"] = parentID
 	}

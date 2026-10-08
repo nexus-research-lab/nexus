@@ -104,7 +104,7 @@ func (s *channelLoginSession) setVerifyCode(code string) {
 func (s *channelLoginSession) takeVerifyCode() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	code := strings.TrimSpace(s.verifyCode)
+	code := s.verifyCode
 	s.verifyCode = ""
 	return code
 }

@@ -34,7 +34,6 @@ func IsNoReplyOutputMessage(message protocol.Message) bool {
 	default:
 		return false
 	}
-	text = strings.TrimSpace(text)
 	return text != "" && stripNoReplyMarker(text) == ""
 }
 

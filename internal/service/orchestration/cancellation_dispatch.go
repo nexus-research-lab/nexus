@@ -257,8 +257,8 @@ func (s *Service) deliverClaimedCancellation(
 		workerID,
 		resolutionStatus,
 		receipt.Outcome,
-		strings.TrimSpace(receipt.LimitationCode),
-		strings.TrimSpace(receipt.Detail),
+		receipt.LimitationCode,
+		receipt.Detail,
 	)
 	return resolutionStatus, err
 }

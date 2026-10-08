@@ -54,15 +54,15 @@ func executeGoalCommand(
 	executor GoalCommandExecutor,
 	invocation Invocation,
 ) (Result, error) {
-	objective := strings.TrimSpace(invocation.Arguments)
+	objective := invocation.Arguments
 	if objective == "" {
 		return Result{}, commandInputError{message: "用法：/goal <objective>"}
 	}
 	execution, err := executor.ExecuteGoalCommand(ctx, protocol.GoalCommandRequest{
-		SessionKey:      strings.TrimSpace(invocation.SessionKey),
-		AgentID:         strings.TrimSpace(invocation.AgentID),
+		SessionKey:      invocation.SessionKey,
+		AgentID:         invocation.AgentID,
 		Objective:       objective,
-		CommandContent:  strings.TrimSpace(invocation.Content),
+		CommandContent:  invocation.Content,
 		RoundID:         strings.TrimSpace(invocation.RoundID),
 		UserMessageID:   strings.TrimSpace(invocation.UserMessageID),
 		ClientRequestID: strings.TrimSpace(invocation.ClientRequestID),

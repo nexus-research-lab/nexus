@@ -28,8 +28,8 @@ func BuildAll(
 ) []sdktool.Tool {
 	if svc == nil ||
 		!sctx.IsMainAgent ||
-		strings.ToLower(strings.TrimSpace(sctx.ContextKind)) != configurationsvc.ContextKindAgent ||
-		strings.TrimSpace(sctx.ContextID) != strings.TrimSpace(sctx.CurrentAgentID) {
+		strings.ToLower(sctx.ContextKind) != configurationsvc.ContextKindAgent ||
+		sctx.ContextID != sctx.CurrentAgentID {
 		return nil
 	}
 	return []sdktool.Tool{authorization(svc, sctx)}

@@ -71,7 +71,7 @@ func (c cancellationConsumer) DeliverExecutionCancellation(
 			return orchestrationsvc.ExecutionCancellationReceipt{}, err
 		}
 		detail := strings.TrimSpace(result.Detail)
-		limitationCode := strings.TrimSpace(result.LimitationCode)
+		limitationCode := result.LimitationCode
 		switch result.Outcome {
 		case runtimectx.ExactRoundAlreadyEnded:
 			return orchestrationsvc.ExecutionCancellationReceipt{

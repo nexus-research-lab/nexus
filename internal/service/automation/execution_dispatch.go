@@ -50,8 +50,8 @@ func automationRunContext(
 		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}
 	if resumeAttempt != nil {
-		binding.ResumeToolName = strings.TrimSpace(resumeAttempt.toolName)
-		binding.ResumeResourceScope = strings.TrimSpace(resumeAttempt.resourceScope)
+		binding.ResumeToolName = resumeAttempt.toolName
+		binding.ResumeResourceScope = resumeAttempt.resourceScope
 	}
 	if !binding.Valid() {
 		return nil

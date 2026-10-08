@@ -405,7 +405,7 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 			"current_message_id", mapper.CurrentMessageID(),
 			"last_assistant_message_id", anyString(lastAssistant["message_id"]),
 			"last_assistant_complete", lastAssistant["is_complete"],
-			"last_assistant_chars", utf8.RuneCountInString(strings.TrimSpace(roomdomain.ExtractHistoryText(lastAssistant))),
+			"last_assistant_chars", utf8.RuneCountInString(roomdomain.ExtractHistoryText(lastAssistant)),
 		)
 	}
 	if client := slot.getClient(); client != nil {

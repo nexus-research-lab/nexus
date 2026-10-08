@@ -169,7 +169,7 @@ func (s *Service) BindExplicitExecution(
 			expectedVersion,
 			"execution_binding_pending",
 			protocol.GoalUpdateSourceSystem,
-			strings.TrimSpace(binding.RoundID),
+			binding.RoundID,
 			map[string]any{
 				"execution_id":      executionID,
 				"activation_origin": string(activationOrigin),

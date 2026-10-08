@@ -38,7 +38,7 @@ func (e *ExecutionProjectionLimitError) Error() string {
 	return fmt.Sprintf(
 		"%s: %s has %d items; maximum is %d",
 		ErrExecutionProjectionLimitExceeded,
-		strings.TrimSpace(e.Field),
+		e.Field,
 		e.Count,
 		e.Limit,
 	)

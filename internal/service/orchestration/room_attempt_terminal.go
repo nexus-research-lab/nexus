@@ -110,7 +110,7 @@ func (s *Service) FinishRoomAttempt(
 			terminal.RoomSessionID,
 		)
 		terminal.SDKSessionID = textutil.FirstNonEmpty(
-			strings.TrimSpace(input.SDKSessionID),
+			input.SDKSessionID,
 			terminal.SDKSessionID,
 		)
 		terminal.RuntimeRoundID = textutil.FirstNonEmpty(

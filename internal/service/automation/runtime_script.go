@@ -309,7 +309,7 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 	if workspaceRoot != nil {
 		defer workspaceRoot.Close()
 	}
-	if strings.TrimSpace(workspacePath) == "" {
+	if workspacePath == "" {
 		message := "automation script workspace is not configured"
 		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}, nil
 	}

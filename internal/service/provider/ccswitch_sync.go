@@ -167,7 +167,7 @@ func (s *Service) syncCCSwitchCandidate(
 		PresetKey:    presetCustom,
 		APIFormat:    candidate.preview.APIFormat,
 		DisplayName:  candidate.preview.Name,
-		AuthToken:    strings.TrimSpace(candidate.authToken),
+		AuthToken:    candidate.authToken,
 		BaseURL:      strings.TrimRight(strings.TrimSpace(candidate.preview.BaseURL), "/"),
 		ModelsPath:   ccSwitchModelsPath(candidate.preview.APIFormat),
 		Enabled:      true,

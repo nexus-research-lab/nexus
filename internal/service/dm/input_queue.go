@@ -44,18 +44,18 @@ func (s *Service) HandleInputQueue(
 	}
 	defer s.inputQueueDispatchMu.Unlock()
 
-	action := strings.TrimSpace(request.Action)
+	action := request.Action
 	if action == "" {
 		action = "enqueue"
 	}
 	switch action {
 	case "enqueue":
-		content := strings.TrimSpace(request.Content)
+		content := request.Content
 		attachments := protocol.NormalizeChatAttachments(request.Attachments, request.AgentID)
 		if !protocol.HasChatInput(content, attachments) {
 			return protocol.InputQueueMutationResult{}, errors.New("content is required")
 		}
-		clientMessageID := strings.TrimSpace(request.ClientMessageID)
+		clientMessageID := request.ClientMessageID
 		if clientMessageID == "" {
 			// 兼容尚未发送 ACK 关联字段的旧客户端；新客户端必须自行保持该 ID，
 			// 才能让同一条队列草稿在传输重试时保持单一队列项。

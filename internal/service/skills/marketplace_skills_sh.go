@@ -61,7 +61,7 @@ func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShIm
 	if slug == "." || slug == string(os.PathSeparator) {
 		slug = rawSlug
 	}
-	if strings.TrimSpace(slug) == "" {
+	if slug == "" {
 		return skillsShImportTarget{}, errors.New("skill_slug 不能为空")
 	}
 	identifier := sourceRef
@@ -73,7 +73,7 @@ func parseSkillsShImportTarget(packageSpec string, skillSlug string) (skillsShIm
 		SourceRef:     sourceRef,
 		Identifier:    identifier,
 		SkillPath:     filepath.ToSlash(cleanSkillPath),
-		SkillSlug:     strings.TrimSpace(slug),
+		SkillSlug:     slug,
 	}, nil
 }
 

@@ -16,7 +16,7 @@ func (r *Repository) RecordEvidence(
 	ctx context.Context,
 	command RecordEvidenceCommand,
 ) (*protocol.ExecutionSnapshot, error) {
-	key := strings.TrimSpace(command.MetadataKey)
+	key := command.MetadataKey
 	if key == "" {
 		return nil, fmt.Errorf("%w: evidence metadata key is required", ErrInvariant)
 	}

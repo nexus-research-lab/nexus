@@ -181,7 +181,7 @@ func (s *Service) wakeHeartbeatForSystemEvent(ctx context.Context, agentID strin
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
 	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {
-		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
+		if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
 			return true
 		}
 	}
@@ -199,7 +199,7 @@ func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automat
 	immediate := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	deferred := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(item.AgentID) != strings.TrimSpace(agentID) {
+		if item.AgentID != strings.TrimSpace(agentID) {
 			continue
 		}
 		switch item.WakeMode {

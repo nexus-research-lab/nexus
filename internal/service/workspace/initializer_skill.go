@@ -299,7 +299,7 @@ func normalizedSkillNameSet(names []string) map[string]struct{} {
 func canonicalRuntimeSkillName(reference string) string {
 	normalized := strings.TrimSpace(reference)
 	if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
-		return strings.TrimSpace(externalName)
+		return externalName
 	}
 	return normalized
 }

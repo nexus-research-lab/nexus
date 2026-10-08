@@ -73,12 +73,12 @@ func (s *Service) OnTerminal(ctx context.Context, terminal dmsvc.EchoTerminalRou
 	}
 	created, err := s.repository.InsertAttempt(ctx, echodomain.Attempt{
 		AttemptID:        newAttemptID(),
-		OwnerUserID:      strings.TrimSpace(terminal.OwnerUserID),
-		AgentID:          strings.TrimSpace(terminal.AgentID),
-		SessionKey:       strings.TrimSpace(terminal.SessionKey),
+		OwnerUserID:      terminal.OwnerUserID,
+		AgentID:          terminal.AgentID,
+		SessionKey:       terminal.SessionKey,
 		TriggerKind:      echodomain.TriggerConversationIdle,
 		AnchorRoundID:    strings.TrimSpace(terminal.RoundID),
-		AnchorMessageID:  strings.TrimSpace(terminal.AssistantID),
+		AnchorMessageID:  terminal.AssistantID,
 		AnchorFinishedAt: finishedAt,
 		DueAt:            dueAt,
 		ExpiresAt:        finishedAt.Add(echoAttemptMaxAge),
@@ -246,7 +246,7 @@ func (s *Service) admitMessage(
 		return nil, false, fmt.Errorf("Echo 生成失败: %s", textutil.FirstNonEmpty(candidate.ErrorMessage, candidate.ResultSubtype))
 	}
 	text := messageutil.ExtractAssistantDisplayText(candidate.Message)
-	if strings.TrimSpace(text) == echoNoReplyMarker || strings.TrimSpace(text) == "" {
+	if text == echoNoReplyMarker || text == "" {
 		err := s.repository.FinishWithoutDelivery(
 			ctx,
 			attempt.AttemptID,

@@ -81,7 +81,7 @@ func (s *Service) DeliverExecutionCancellation(
 	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	detail := strings.TrimSpace(result.Detail)
-	limitationCode := strings.TrimSpace(result.LimitationCode)
+	limitationCode := result.LimitationCode
 	switch result.Outcome {
 	case runtimectx.ExactRoundProviderInterrupted:
 		return orchestrationsvc.ExecutionCancellationReceipt{

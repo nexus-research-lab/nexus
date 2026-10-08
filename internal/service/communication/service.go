@@ -447,11 +447,11 @@ func resolveRoomConversationID(request SendRequest, trusted sendContext) (string
 		return conversationID, RoutingSourceExplicit, nil
 	}
 	targetRoomID := strings.TrimSpace(request.TargetID)
-	if trustedRoomID := strings.TrimSpace(trusted.RoomID); trustedRoomID != "" {
+	if trustedRoomID := trusted.RoomID; trustedRoomID != "" {
 		if targetRoomID != trustedRoomID {
 			return "", "", errors.New("从当前 Room 向其他 Room 发消息时必须显式指定 conversation_id")
 		}
-		if conversationID := strings.TrimSpace(trusted.ConversationID); conversationID != "" {
+		if conversationID := trusted.ConversationID; conversationID != "" {
 			return conversationID, RoutingSourceCurrentContext, nil
 		}
 		return "", "", errors.New("当前 Room runtime 缺少可信 conversation_id")
@@ -584,12 +584,10 @@ func (s *Service) authorize(
 	if s == nil || s.agents == nil || s.rooms == nil || s.realtime == nil || s.runtime == nil {
 		return nil, nil, errors.New("平台通讯服务未完整装配")
 	}
-	actor.OwnerUserID = strings.TrimSpace(actor.OwnerUserID)
 	actor.AgentID = strings.TrimSpace(actor.AgentID)
 	actor.SessionKey = strings.TrimSpace(actor.SessionKey)
 	actor.RoundID = strings.TrimSpace(actor.RoundID)
 	actor.LeaseSessionKey = strings.TrimSpace(actor.LeaseSessionKey)
-	actor.LeaseRoundID = strings.TrimSpace(actor.LeaseRoundID)
 	actor.ContextKind = strings.ToLower(strings.TrimSpace(actor.ContextKind))
 	actor.ContextID = strings.TrimSpace(actor.ContextID)
 	actor.RoomID = strings.TrimSpace(actor.RoomID)

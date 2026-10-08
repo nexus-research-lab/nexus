@@ -40,12 +40,12 @@ func OpenAgentWorkspaceAttachment(
 	ownerUserID := authctx.OwnerUserID(ctx)
 	if agentOwner := strings.TrimSpace(agentValue.OwnerUserID); agentOwner != "" {
 		if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
-			strings.TrimSpace(currentUserID) != agentOwner {
+			currentUserID != agentOwner {
 			return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
 		}
 		ownerUserID = agentOwner
 	}
-	if strings.TrimSpace(ownerUserID) == "" {
+	if ownerUserID == "" {
 		return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
 	}
 	absolutePath, file, err := workspacestore.New(workspaceRoot).OpenOwnerWorkspaceFile(

@@ -238,7 +238,7 @@ func (m *Manager) GetInterruptReason(sessionKey string, roundID string) string {
 	if round == nil {
 		return ""
 	}
-	return strings.TrimSpace(round.interruption)
+	return round.interruption
 }
 
 func waitRoundDoneSignals(

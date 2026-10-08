@@ -17,8 +17,8 @@ func terminalRoundResult(
 	startedAt time.Time,
 ) RoundExecutionResult {
 	result := RoundExecutionResult{
-		TerminalStatus:   strings.TrimSpace(mapResult.TerminalStatus),
-		ResultSubtype:    strings.TrimSpace(mapResult.ResultSubtype),
+		TerminalStatus:   mapResult.TerminalStatus,
+		ResultSubtype:    mapResult.ResultSubtype,
 		ErrorMessage:     terminalErrorMessage(mapResult),
 		TerminalCategory: sdkprotocol.TerminalCategoryUnknown,
 	}

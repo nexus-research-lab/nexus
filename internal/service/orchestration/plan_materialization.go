@@ -552,14 +552,14 @@ func proposalGoalActivationMatches(
 	if proposalReservedExecutionID == "" && activationReservedExecutionID != "" {
 		reservationMatches = true
 	}
-	return proposal.GoalID == strings.TrimSpace(activation.GoalID) &&
+	return proposal.GoalID == activation.GoalID &&
 		proposal.GoalObjectiveRevision == activation.GoalObjectiveRevision &&
-		proposal.Document.Objective == strings.TrimSpace(activation.Objective) &&
+		proposal.Document.Objective == activation.Objective &&
 		proposal.GoalActivationOrigin == activation.ActivationOrigin &&
 		proposal.GoalActivationReason == activation.ActivationReason &&
 		reservationMatches &&
 		proposal.ReplacesExecutionID ==
-			strings.TrimSpace(activation.ReplacesExecutionID)
+			activation.ReplacesExecutionID
 }
 
 func (s *Service) recordMaterializedPlanProposal(

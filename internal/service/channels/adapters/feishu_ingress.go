@@ -109,7 +109,7 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 		return callback, nil
 	}
 	if callback.Request != nil && callback.Request.AccountID == "" {
-		callback.Request.AccountID = strings.TrimSpace(callback.AppID)
+		callback.Request.AccountID = callback.AppID
 	}
 	return callback, nil
 }
@@ -122,7 +122,7 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 	message := payload.Event.Message
 	messageID := strings.TrimSpace(message.MessageID)
 	chatID := strings.TrimSpace(message.ChatID)
-	appID := strings.TrimSpace(callback.AppID)
+	appID := callback.AppID
 	if messageID == "" && chatID == "" {
 		callback.IgnoredReason = "empty_message"
 		return nil
@@ -191,7 +191,7 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 	}
 
 	chatID := strings.TrimSpace(payload.Event.ChatID)
-	appID := strings.TrimSpace(callback.AppID)
+	appID := callback.AppID
 	chatType := normalizeFeishuChatType(payload.Event.ChatType)
 	reactionText := fmt.Sprintf("[reacted with %s to message %s]", emoji, messageID)
 	ref, accountID := feishuReactionRef(chatID, senderID)

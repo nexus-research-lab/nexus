@@ -101,11 +101,11 @@ func (c *modelCommand) execute(
 	ctx context.Context,
 	invocation Invocation,
 ) (Result, error) {
-	agentID := strings.TrimSpace(invocation.AgentID)
+	agentID := invocation.AgentID
 	if agentID == "" {
 		return Result{}, errors.New("model command requires an agent")
 	}
-	argument := strings.TrimSpace(invocation.Arguments)
+	argument := invocation.Arguments
 	if argument == "" {
 		return Result{}, commandInputError{
 			message: "用法：/model <provider>/<model>",
@@ -301,7 +301,7 @@ func newModelChangedEvent(
 ) protocol.EventMessage {
 	timestamp := time.Now().UnixMilli()
 	messageID := protocol.NewAssistantMessageID()
-	agentID := strings.TrimSpace(invocation.AgentID)
+	agentID := invocation.AgentID
 	text := fmt.Sprintf(
 		"Set model to %s / %s",
 		selection.ProviderDisplayName,
@@ -309,7 +309,7 @@ func newModelChangedEvent(
 	)
 	event := protocol.NewEvent(protocol.EventTypeMessage, map[string]any{
 		"message_id":  messageID,
-		"session_key": strings.TrimSpace(invocation.SessionKey),
+		"session_key": invocation.SessionKey,
 		"agent_id":    agentID,
 		"round_id":    strings.TrimSpace(invocation.RoundID),
 		"role":        "assistant",
@@ -320,7 +320,7 @@ func newModelChangedEvent(
 			"text": text,
 		}},
 	})
-	event.SessionKey = strings.TrimSpace(invocation.SessionKey)
+	event.SessionKey = invocation.SessionKey
 	event.AgentID = agentID
 	event.MessageID = messageID
 	event.RoundID = strings.TrimSpace(invocation.RoundID)

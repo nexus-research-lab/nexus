@@ -137,7 +137,7 @@ func buildRoundStreamIdleTimeoutError(
 		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
 		LastMessageSummary: strings.TrimSpace(trace.BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
-		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+		LastMessageID:      receivedMessageID(lastMessage),
 		LastStreamStop:     lastStreamStop,
 	}
 }
@@ -161,7 +161,7 @@ func buildRoundStreamClosedError(
 		LastMessageType:    strings.TrimSpace(string(lastMessage.Type)),
 		LastMessageSummary: strings.TrimSpace(trace.BuildSDKMessageLogSummary(lastMessage)),
 		LastSessionID:      strings.TrimSpace(lastMessage.SessionID),
-		LastMessageID:      strings.TrimSpace(receivedMessageID(lastMessage)),
+		LastMessageID:      receivedMessageID(lastMessage),
 		LastStreamStop:     lastStreamStop,
 	}
 	if streamErrorer, ok := client.(clientStreamErrorer); ok {

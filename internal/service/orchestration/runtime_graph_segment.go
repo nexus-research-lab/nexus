@@ -291,10 +291,10 @@ func runtimeGraphAssignmentBoundarySource(operation string) string {
 func runtimeGraphAssignmentBoundaryOperationForNode(
 	node protocol.ExecutionRuntimeNodeRun,
 ) string {
-	operation := strings.TrimSpace(runtimeGraphMetadataString(
+	operation := runtimeGraphMetadataString(
 		node,
 		runtimeGraphCommandOperationMetadataKey,
-	))
+	)
 	if runtimeGraphAssignmentBoundaryOperation(operation) && runtimeGraphIsCommandTransport(node) {
 		return operation
 	}

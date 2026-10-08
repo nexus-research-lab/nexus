@@ -100,7 +100,7 @@ func addCredentialVersion(
 	preferences Preferences,
 ) {
 	provider := strings.ToLower(strings.TrimSpace(preferences.WebSearch.Provider))
-	apiKey := strings.TrimSpace(preferences.WebSearchAPIKey())
+	apiKey := preferences.WebSearchAPIKey()
 	if preferences.Version < 1 || provider == "" || apiKey == "" {
 		return
 	}

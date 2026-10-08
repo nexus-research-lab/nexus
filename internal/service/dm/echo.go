@@ -56,7 +56,7 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 	assistant protocol.Message,
 ) {
 	if r == nil || r.service.echoHooks.OnTerminal == nil || r.internal ||
-		strings.TrimSpace(r.executionOrigin) != "" || !result.CompletedByAssistant ||
+		r.executionOrigin != "" || !result.CompletedByAssistant ||
 		result.TerminalStatus != "finished" ||
 		(result.ResultSubtype != "" && result.ResultSubtype != "success") ||
 		protocol.NormalizeSessionKeyChannelSegment(protocol.ParseSessionKey(r.sessionKey).Channel) != protocol.SessionChannelWebSocketSegment ||
@@ -64,7 +64,7 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 		return
 	}
 	terminal := EchoTerminalRound{
-		OwnerUserID: strings.TrimSpace(r.ownerUserID),
+		OwnerUserID: r.ownerUserID,
 		AgentID:     strings.TrimSpace(r.agent.AgentID),
 		SessionKey:  r.sessionKey,
 		RoundID:     r.roundID,

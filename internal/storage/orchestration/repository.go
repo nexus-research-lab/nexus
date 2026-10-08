@@ -190,10 +190,10 @@ func (r *Repository) finishMutation(
 	event.Type = value.eventType
 	event.CommandID = value.commandID
 	event.ActorKind = meta.ActorKind
-	event.ActorID = strings.TrimSpace(meta.ActorID)
-	event.RootRoundID = strings.TrimSpace(meta.RootRoundID)
-	event.RuntimeRoundID = strings.TrimSpace(meta.RuntimeRoundID)
-	event.AgentRoundID = strings.TrimSpace(meta.AgentRoundID)
+	event.ActorID = meta.ActorID
+	event.RootRoundID = meta.RootRoundID
+	event.RuntimeRoundID = meta.RuntimeRoundID
+	event.AgentRoundID = meta.AgentRoundID
 	event.Payload = meta.Payload
 	event.CreatedAt = timeOr(meta.CreatedAt, r.currentTime())
 	if err := r.insertEvent(ctx, value.tx, event); err != nil {

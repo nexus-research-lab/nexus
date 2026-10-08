@@ -482,7 +482,7 @@ func (s *Service) broadcastSharedEvent(ctx context.Context, sessionKey string, r
 
 func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
 	roundID := eventRoundID(event)
-	if strings.TrimSpace(roundID) == "" {
+	if roundID == "" {
 		return
 	}
 	roundValue := s.rounds.findByRoundID(sessionKey, roundID)

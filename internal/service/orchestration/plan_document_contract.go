@@ -4,8 +4,6 @@
 package orchestration
 
 import (
-	"strings"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -108,7 +106,7 @@ func ExecutionPlanDocumentSchemaContract() PlanDocumentSchemaContract {
 			"goal_binding": "outer command input beside plan_document; never a Plan Document YAML root field",
 			"scopes":       "output_scopes or shared_output_scopes",
 		},
-		MinimalValidCreateExample: strings.TrimSpace(planDocumentMinimalCreateExample),
+		MinimalValidCreateExample: planDocumentMinimalCreateExample,
 	}
 }
 

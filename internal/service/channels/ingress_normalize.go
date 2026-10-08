@@ -128,7 +128,7 @@ func (s *IngressService) validateResolvedExternalIngress(
 
 func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Context {
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
-	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && strings.TrimSpace(currentUserID) == ownerUserID {
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && currentUserID == ownerUserID {
 		return ctx
 	}
 	return authctx.WithPrincipal(ctx, &authctx.Principal{

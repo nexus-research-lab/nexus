@@ -48,7 +48,7 @@ func NormalizeAndValidatePlanDraft(draft PlanDraft) (PlanDraft, error) {
 		return PlanDraft{}, err
 	}
 	normalized := PlanDraft{
-		RevisionReason: strings.TrimSpace(draft.RevisionReason),
+		RevisionReason: draft.RevisionReason,
 		Items:          make([]PlanWorkItemDraft, len(draft.Items)),
 	}
 	for index, raw := range draft.Items {

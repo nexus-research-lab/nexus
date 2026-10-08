@@ -524,7 +524,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 		}
 		lastAssistant := slot.lastGoalAssistantMessage()
 		if roomdomain.IsNoReplyAssistantMessage(lastAssistant) ||
-			strings.TrimSpace(messageutil.ExtractAssistantDisplayText(lastAssistant)) == "" {
+			messageutil.ExtractAssistantDisplayText(lastAssistant) == "" {
 			continue
 		}
 		if slot.getStatus() == "finished" && roomSlotPublishesPublicOutput(slot) {
@@ -583,7 +583,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 		if candidate == nil || *candidate != *binding {
 			continue
 		}
-		handoffID := strings.TrimSpace(slot.handoffID())
+		handoffID := slot.handoffID()
 		if handoffID == "" {
 			continue
 		}

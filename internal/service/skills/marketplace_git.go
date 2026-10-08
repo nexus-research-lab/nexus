@@ -57,7 +57,7 @@ func (s *Service) cloneGitRepository(ctx context.Context, repositoryURL string, 
 }
 
 func (s *Service) runGitCloneAttempt(ctx context.Context, repositoryURL string, destination string, options gitCloneOptions) (string, error) {
-	branch := strings.TrimSpace(options.Branch)
+	branch := options.Branch
 	if branch == "" {
 		branch = s.resolveGitDefaultBranch(ctx, repositoryURL, options)
 	}

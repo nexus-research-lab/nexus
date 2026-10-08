@@ -45,7 +45,7 @@ func (s *Service) finishBoundRoomAttempt(
 	case "cancelled", "interrupted":
 		attemptStatus = protocol.WorkAttemptStatusInterrupted
 		if reason == "" {
-			reason = strings.TrimSpace(roomSlotInterruptReason(slot))
+			reason = roomSlotInterruptReason(slot)
 		}
 		if reason == "" {
 			reason = "Room slot interrupted"

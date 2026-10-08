@@ -324,7 +324,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 			job.FailureCode = "execution_failed"
 		}
 	}
-	text := strings.TrimSpace(message.ExtractAssistantDisplayText(protocol.Message(event.Data)))
+	text := message.ExtractAssistantDisplayText(protocol.Message(event.Data))
 	if text == "" {
 		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
 	}

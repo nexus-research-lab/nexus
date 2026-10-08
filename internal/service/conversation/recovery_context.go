@@ -118,7 +118,7 @@ func normalizeRecoveryReason(outcome terminalOutcome) string {
 	if protocol.IsProviderContentFilterError(outcome.signals...) {
 		return protocol.ProviderFailureContentFiltered
 	}
-	reason := strings.ToLower(strings.TrimSpace(outcome.reason))
+	reason := strings.ToLower(outcome.reason)
 	switch reason {
 	case recoveryAuthenticationFailed,
 		recoveryBillingError,

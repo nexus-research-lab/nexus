@@ -6,7 +6,6 @@ package automation
 import (
 	"database/sql"
 	"encoding/json"
-	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
@@ -121,7 +120,7 @@ func scanScheduledTask(scanner interface {
 	item.Delivery.ThreadID = nullStringValue(deliveryThreadID)
 	item.Delivery.SessionKey = nullStringValue(deliverySessionKey)
 	item.Delivery.AgentID = nullStringValue(deliveryAgentID)
-	if raw := strings.TrimSpace(nullStringValue(invalidatedSessionKeysJSON)); raw != "" && raw != "[]" {
+	if raw := nullStringValue(invalidatedSessionKeysJSON); raw != "" && raw != "[]" {
 		if decodeErr := json.Unmarshal([]byte(raw), &item.InvalidatedSessionKeys); decodeErr != nil {
 			return automationdomain.ScheduledTask{}, decodeErr
 		}
@@ -134,7 +133,7 @@ func scanScheduledTask(scanner interface {
 	item.Source.SessionKey = nullStringValue(sourceSessionKey)
 	item.Source.SessionLabel = nullStringValue(sourceSessionLabel)
 	item.Source = item.Source.Normalized()
-	if raw := strings.TrimSpace(nullStringValue(deliveryGrantJSON)); raw != "" && raw != "{}" {
+	if raw := nullStringValue(deliveryGrantJSON); raw != "" && raw != "{}" {
 		if decodeErr := json.Unmarshal([]byte(raw), &item.DeliveryGrant); decodeErr != nil {
 			return automationdomain.ScheduledTask{}, decodeErr
 		}
@@ -155,7 +154,7 @@ func scanScheduledTask(scanner interface {
 	item.DeletionState = nullStringValue(deletionState)
 	item.DeletionToken = nullStringValue(deletionToken)
 	item.DeletionClaimedAt = nullTimePointer(deletionClaimedAt)
-	if raw := strings.TrimSpace(nullStringValue(permissionPolicyJSON)); raw != "" && raw != "{}" {
+	if raw := nullStringValue(permissionPolicyJSON); raw != "" && raw != "{}" {
 		storedRevision := item.PermissionPolicy.Revision
 		if decodeErr := json.Unmarshal([]byte(raw), &item.PermissionPolicy); decodeErr != nil {
 			return automationdomain.ScheduledTask{}, decodeErr
@@ -251,7 +250,7 @@ func scanScheduledTaskRun(scanner interface {
 	item.SessionID = nullStringToPointer(sessionID)
 	item.DeliveryMode = nullStringValue(deliveryMode)
 	item.DeliveryTo = nullStringValue(deliveryTo)
-	if raw := strings.TrimSpace(nullStringValue(deliveryTargetJSON)); raw != "" && raw != "{}" {
+	if raw := nullStringValue(deliveryTargetJSON); raw != "" && raw != "{}" {
 		var target automationdomain.DeliveryTarget
 		if decodeErr := json.Unmarshal([]byte(raw), &target); decodeErr != nil {
 			return automationdomain.ScheduledTaskRun{}, decodeErr

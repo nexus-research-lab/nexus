@@ -20,7 +20,7 @@ func (c *TelegramChannel) SendDeliveryMessage(
 	text string,
 ) (result channelcontract.DeliveryResult, err error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("telegram channel is not configured")
 	}
 	if normalized.To == "" {
@@ -82,7 +82,7 @@ func (c *TelegramChannel) SendDeliveryTyping(ctx context.Context, target channel
 	if !active {
 		return nil
 	}
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return fmt.Errorf("telegram channel is not configured")
 	}
 	normalized := target.Normalized()

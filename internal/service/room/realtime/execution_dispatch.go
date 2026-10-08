@@ -463,7 +463,7 @@ func renderExecutionDispatchInstruction(delivery orchestrationsvc.ExecutionDispa
 		fmt.Fprintf(
 			&output,
 			"\n  result_summary: %s",
-			strconv.Quote(strings.TrimSpace(dependency.ResultSummary)),
+			strconv.Quote(dependency.ResultSummary),
 		)
 		output.WriteString("\n  result_refs:")
 		for _, ref := range dependency.ResultRefs {

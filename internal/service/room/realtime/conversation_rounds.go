@@ -336,7 +336,6 @@ func (r *roomRoundRegistry) guidanceStateForSlot(slot *activeRoomSlot) *roomConv
 	if state != nil {
 		return state
 	}
-	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		conversationID = roomConversationIDFromSessionKey(slot.RuntimeSessionKey)
 	}

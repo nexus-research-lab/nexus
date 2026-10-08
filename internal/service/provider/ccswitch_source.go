@@ -102,7 +102,7 @@ func (s *Service) readCCSwitchSource(ctx context.Context, configuredPath string)
 }
 
 func isEmptyCCSwitchBuiltIn(row ccSwitchProviderRow, candidate ccSwitchCandidate) bool {
-	if strings.TrimSpace(candidate.authToken) != "" {
+	if candidate.authToken != "" {
 		return false
 	}
 	providerID := strings.ToLower(strings.TrimSpace(row.id))
@@ -347,7 +347,7 @@ func finalizeCCSwitchCandidate(candidate *ccSwitchCandidate, meta map[string]any
 		return
 	}
 	missing := make([]string, 0, 3)
-	if strings.TrimSpace(candidate.authToken) == "" || strings.EqualFold(strings.TrimSpace(candidate.authToken), "PROXY_MANAGED") {
+	if candidate.authToken == "" || strings.EqualFold(candidate.authToken, "PROXY_MANAGED") {
 		missing = append(missing, "API Key")
 	}
 	if strings.TrimSpace(preview.BaseURL) == "" {

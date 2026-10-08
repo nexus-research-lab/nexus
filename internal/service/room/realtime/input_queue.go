@@ -116,7 +116,7 @@ func (s *Service) HandleInputQueue(
 		return protocol.InputQueueMutationResult{}, err
 	}
 
-	action := strings.TrimSpace(request.Action)
+	action := request.Action
 	if action == "" {
 		action = "enqueue"
 	}
@@ -124,12 +124,12 @@ func (s *Service) HandleInputQueue(
 	defer lease.Unlock()
 	switch action {
 	case "enqueue":
-		content := strings.TrimSpace(request.Content)
+		content := request.Content
 		attachments := s.normalizeChatAttachments(request.Attachments, "", contextValue.Room.ID, contextValue.Conversation.ID)
 		if !protocol.HasChatInput(content, attachments) {
 			return protocol.InputQueueMutationResult{}, errors.New("content is required")
 		}
-		clientMessageID := strings.TrimSpace(request.ClientMessageID)
+		clientMessageID := request.ClientMessageID
 		if clientMessageID == "" {
 			// 兼容尚未发送 ACK 关联字段的旧客户端；只有新客户端提供并复用
 			// 稳定 ID 时，才能获得跨重试和即时派发后的持久幂等。

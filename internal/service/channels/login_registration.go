@@ -124,7 +124,7 @@ func (s *ControlService) runRegisteredChannelLogin(
 		case appregistration.StatusSucceeded:
 			accountID := channelRegistrationAccountID(row.ChannelType, result.Credentials)
 			if session.expectedAccountID != "" &&
-				session.expectedAccountID != strings.TrimSpace(accountID) {
+				session.expectedAccountID != accountID {
 				session.finish(
 					ChannelLoginStatusError,
 					"扫码返回账号与授权目标不匹配，未保存任何凭据",

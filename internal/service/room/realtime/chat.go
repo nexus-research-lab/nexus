@@ -511,7 +511,7 @@ func (e *roomChatExecution) persistInput() error {
 			}
 		}
 		realtimeUserMessage := protocol.Clone(e.userMessage)
-		if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+		if clientMessageID := e.request.ClientMessageID; clientMessageID != "" {
 			// client_message_id 只用于当前连接把 durable 广播原子替换到 optimistic
 			// 位置；它不是历史消息身份，不能写入持久化记录。
 			realtimeUserMessage["client_message_id"] = clientMessageID
@@ -766,7 +766,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		Internal:                          e.request.Internal,
 		AuthorityEpoch:                    e.contextValue.Room.AuthorityEpoch,
 		TrustedConfigurationContext:       e.request.TrustedConfigurationContext,
-		ExecutionOrigin:                   strings.TrimSpace(e.request.ExecutionOrigin),
+		ExecutionOrigin:                   e.request.ExecutionOrigin,
 		PublicContext:                     e.request.PublicContext,
 		PublicAgentDirectory:              e.request.PublicAgentDirectory,
 		trustedQueuedConfigurationContext: e.request.trustedQueuedConfigurationContext,
@@ -779,7 +779,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		GoalContext:                       strings.TrimSpace(e.request.GoalContext),
 		GoalID:                            strings.TrimSpace(e.request.GoalID),
 		GoalObjectiveRevision:             e.request.GoalObjectiveRevision,
-		ExecutionID:                       strings.TrimSpace(e.request.ExecutionID),
+		ExecutionID:                       e.request.ExecutionID,
 		Slots:                             make(map[string]*activeRoomSlot),
 		Done:                              make(chan struct{}),
 	}

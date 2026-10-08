@@ -37,7 +37,7 @@ func (r *roundRunner) safeCurrentIMTransport() (string, string, bool) {
 	if r == nil || !r.trustedExternalInteractive || r.agent == nil {
 		return "", "", false
 	}
-	parsed := protocol.ParseSessionKey(strings.TrimSpace(r.sessionKey))
+	parsed := protocol.ParseSessionKey(r.sessionKey)
 	if !parsed.IsStructured ||
 		parsed.Kind != protocol.SessionKeyKindAgent ||
 		strings.TrimSpace(parsed.AgentID) != strings.TrimSpace(r.agent.AgentID) ||

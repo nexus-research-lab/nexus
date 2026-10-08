@@ -69,7 +69,7 @@ func (c *DiscordChannel) SetIngress(ingress channelcontract.IngressAcceptor) {
 }
 
 func (c *DiscordChannel) Start(context.Context) error {
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return nil
 	}
 
@@ -117,7 +117,7 @@ func (c *DiscordChannel) Stop(context.Context) error {
 
 func (c *DiscordChannel) SendDeliveryMessage(ctx context.Context, target channelcontract.DeliveryTarget, text string) (result channelcontract.DeliveryResult, err error) {
 	normalized := target.Normalized()
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("discord channel is not configured")
 	}
 	targetID := textutil.FirstNonEmpty(target.ThreadID, target.To)
@@ -171,7 +171,7 @@ func (c *DiscordChannel) SendDeliveryTyping(ctx context.Context, target channelc
 	if !active {
 		return nil
 	}
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return fmt.Errorf("discord channel is not configured")
 	}
 	targetID := textutil.FirstNonEmpty(target.ThreadID, target.To)

@@ -80,7 +80,7 @@ func EvaluateAdaptiveGoalPromotion(evidence AdaptiveGoalEvidence) AdaptiveGoalDe
 	if strings.TrimSpace(evidence.ExistingGoalID) != "" {
 		decision.Blockers = append(decision.Blockers, "goal_already_active")
 	}
-	if strings.TrimSpace(evidence.ConflictingGoalID) != "" {
+	if evidence.ConflictingGoalID != "" {
 		decision.Blockers = append(decision.Blockers, "goal_conflict")
 	}
 	if len(decision.Blockers) > 0 {

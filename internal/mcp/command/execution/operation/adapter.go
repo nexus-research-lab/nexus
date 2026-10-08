@@ -88,7 +88,7 @@ func commandID(
 	parts := []string{
 		strings.TrimSpace(sctx.ScopeSessionKey),
 		strings.TrimSpace(sctx.RuntimeSessionKey),
-		strings.TrimSpace(sctx.RootRoundID),
+		sctx.RootRoundID,
 		strings.TrimSpace(sctx.AgentRoundID),
 		strings.TrimSpace(operationName),
 		string(canonical),

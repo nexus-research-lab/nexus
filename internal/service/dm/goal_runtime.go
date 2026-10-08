@@ -826,7 +826,7 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 func (r *roundRunner) claimSubagentGoalUsageRound(ctx context.Context, goalID string) {
 	if r == nil || r.service == nil || r.service.goals == nil ||
 		r.ignoreGoalRuntime() ||
-		!strings.EqualFold(strings.TrimSpace(r.runtimeKind), "nxs") {
+		!strings.EqualFold(r.runtimeKind, "nxs") {
 		return
 	}
 	goalID = strings.TrimSpace(goalID)
@@ -906,7 +906,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	message protocol.Message,
 ) []dmSubagentUsageSettlement {
 	if r == nil || r.service == nil ||
-		!strings.EqualFold(strings.TrimSpace(r.runtimeKind), "nxs") {
+		!strings.EqualFold(r.runtimeKind, "nxs") {
 		return nil
 	}
 	observations := dmSubagentUsageObservations(r, message)

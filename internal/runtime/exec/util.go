@@ -100,7 +100,7 @@ func disconnectUncleanRoundClient(client Client) {
 }
 
 func shouldTreatAsInterrupted(ctx context.Context, interruptReason func() string) bool {
-	return ctx.Err() != nil || strings.TrimSpace(resolveInterruptReason(interruptReason)) != ""
+	return ctx.Err() != nil || resolveInterruptReason(interruptReason) != ""
 }
 
 func resolveInterruptReason(interruptReason func() string) string {

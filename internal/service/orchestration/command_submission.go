@@ -342,7 +342,7 @@ func mergeSubmissionRuntime(
 	attempt.ExecutorAgentID = strings.TrimSpace(actor.AgentID)
 	attempt.RuntimeSessionKey = textutil.FirstNonEmpty(input.RuntimeSessionKey, actor.SessionKey)
 	attempt.RoomSessionID = strings.TrimSpace(input.RoomSessionID)
-	attempt.SDKSessionID = strings.TrimSpace(input.SDKSessionID)
+	attempt.SDKSessionID = input.SDKSessionID
 	attempt.RuntimeRoundID = strings.TrimSpace(actor.RuntimeRoundID)
 	attempt.RootRoundID = strings.TrimSpace(actor.RootRoundID)
 	attempt.AgentRoundID = strings.TrimSpace(actor.AgentRoundID)

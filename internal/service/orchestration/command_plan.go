@@ -216,7 +216,7 @@ func (s *Service) PlanExecution(
 		successorSnapshot.Execution.Version = 1
 		successorInput := input
 		successorInput.SnapshotRevision = 1
-		if strings.TrimSpace(draft.RevisionReason) == "" {
+		if draft.RevisionReason == "" {
 			draft.RevisionReason = strings.TrimSpace(input.ReplacementReason)
 		}
 		command, buildErr := s.buildPlanCommand(

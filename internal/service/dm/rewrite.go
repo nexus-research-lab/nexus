@@ -28,11 +28,6 @@ type rewritePruneInput struct {
 
 // HandleRewriteLastUserMessage 编辑最后一条用户消息，并基于新的上下文重新生成。
 func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request RewriteRequest) error {
-	request.SessionKey = strings.TrimSpace(request.SessionKey)
-	request.AgentID = strings.TrimSpace(request.AgentID)
-	request.TargetRoundID = strings.TrimSpace(request.TargetRoundID)
-	request.ClientRequestID = strings.TrimSpace(request.ClientRequestID)
-	request.ClientMessageID = strings.TrimSpace(request.ClientMessageID)
 	sessionKey, parsed, err := s.validateRewriteRequest(request)
 	if err != nil {
 		s.loggerFor(ctx).Warn("拒绝 DM rewrite 请求",
@@ -67,8 +62,8 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 	}
 	logger = logger.With("agent_id", agentID)
 	logger.Info("受理 DM rewrite 请求",
-		"content_chars", utf8.RuneCountInString(strings.TrimSpace(request.Content)),
-		"content_preview", logx.PreviewText(strings.TrimSpace(request.Content), 240),
+		"content_chars", utf8.RuneCountInString(request.Content),
+		"content_preview", logx.PreviewText(request.Content, 240),
 		"attachment_count", len(request.Attachments),
 	)
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
@@ -157,7 +152,7 @@ func resolveRewriteTail(
 ) (workspacestore.TranscriptRoundTail, bool, error) {
 	overlayOnlyCandidate := isUnmaterializedFailedRound(rows, targetRoundID)
 	sessionID := textutil.PointerValue(session.SessionID)
-	if strings.TrimSpace(sessionID) == "" {
+	if sessionID == "" {
 		if overlayOnlyCandidate {
 			return overlayOnlyRewriteTail(targetRoundID), true, nil
 		}
@@ -247,7 +242,7 @@ func (s *Service) validateRewriteRequest(request RewriteRequest) (string, protoc
 }
 
 func (s *Service) pruneHistoryRewriteTail(ctx context.Context, input rewritePruneInput) error {
-	if strings.TrimSpace(input.TargetRoundID) == "" {
+	if input.TargetRoundID == "" {
 		return nil
 	}
 	if strings.TrimSpace(input.ReplacementRoundID) == "" {

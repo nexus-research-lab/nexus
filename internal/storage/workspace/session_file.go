@@ -344,7 +344,7 @@ func (s *SessionFileStore) openWorkspaceRoot(
 	workspacePath string,
 	create bool,
 ) (*confinedfs.Root, error) {
-	if strings.TrimSpace(s.ownerUserID) != "" {
+	if s.ownerUserID != "" {
 		return s.paths.OpenOwnerWorkspacePath(
 			s.ownerUserID,
 			workspacePath,

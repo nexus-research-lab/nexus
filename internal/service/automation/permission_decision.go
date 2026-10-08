@@ -27,7 +27,7 @@ func (s *Service) ListPermissionRequests(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("automation permission requests require an owner scope")
 	}
 	if strings.TrimSpace(status) == "" {
@@ -46,7 +46,7 @@ func (s *Service) ResolvePermissionRequest(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("automation permission decision requires an owner scope")
 	}
 	request, err := s.repository.GetPermissionRequest(ctx, ownerUserID, strings.TrimSpace(requestID))
@@ -236,7 +236,7 @@ func (s *Service) ResumePermissionRun(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("automation run resume requires an owner scope")
 	}
 	job, err := s.repository.GetScheduledTask(ctx, ownerUserID, strings.TrimSpace(jobID))

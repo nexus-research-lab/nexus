@@ -320,7 +320,7 @@ func (s *Service) runSlot(
 	))
 	logger.Info("Room slot 结束",
 		"status", slot.getStatus(),
-		"result_subtype", strings.TrimSpace(result.ResultSubtype),
+		"result_subtype", result.ResultSubtype,
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
 }

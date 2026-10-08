@@ -77,7 +77,7 @@ func automationDeliveryContextualInput(row protocol.Message) (runtimectx.Context
 	metadata := mapValue(row["metadata"])
 	jobID := textutil.AnyString(metadata["job_id"])
 	runID := textutil.AnyString(metadata["run_id"])
-	result := strings.TrimSpace(message.ExtractAssistantDisplayText(row))
+	result := message.ExtractAssistantDisplayText(row)
 	if jobID == "" || runID == "" || result == "" {
 		return runtimectx.ContextualInputBlock{}, false
 	}

@@ -385,7 +385,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
 			runtimeCtx,
 			e.agent,
-			"dm:"+strings.TrimSpace(e.sessionKey),
+			"dm:"+e.sessionKey,
 			clientPreparation.emotionEnabled,
 		))
 	}
@@ -438,9 +438,9 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		internal:                   e.request.Internal,
 		trustedExternalInteractive: e.request.TrustedExternalInteractiveContext,
 		externalReplyTarget:        e.request.ExternalReplyTarget,
-		executionOrigin:            strings.TrimSpace(e.request.ExecutionOrigin),
+		executionOrigin:            e.request.ExecutionOrigin,
 		deferredAssistant:          e.request.DeferredAssistant,
-		executionID:                strings.TrimSpace(e.request.ExecutionID),
+		executionID:                e.request.ExecutionID,
 		goalObjectiveRevision:      &atomic.Int64{},
 		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
 		goalUsageStarted:           time.Now(),
@@ -478,10 +478,10 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
 	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
-		strings.TrimSpace(preparation.goalIDForUsage) != "",
+		preparation.goalIDForUsage != "",
 	)
 	r.goalUsageStarted = time.Now()
-	r.goalUsageScopeConsumed = strings.TrimSpace(preparation.goalIDForUsage) != ""
+	r.goalUsageScopeConsumed = preparation.goalIDForUsage != ""
 	r.permissionMode = preparation.permissionMode
 }
 
@@ -490,12 +490,12 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	if e.request.rewriteOverlayOnly && len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		return errors.New("overlay-only rewrite cannot remove runtime messages")
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" &&
+	if e.request.RewriteTargetRoundID != "" &&
 		!e.request.rewriteOverlayOnly &&
 		len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
+	if e.request.RewriteTargetRoundID != "" {
 		if err := e.service.history.ForOwner(e.agent.OwnerUserID).InvalidateReplyPreview(runtimeCtx, e.sessionKey); err != nil {
 			return err
 		}
@@ -803,7 +803,7 @@ func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 			e.request.Attachments,
 		)
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
+	if e.request.RewriteTargetRoundID != "" {
 		e.service.broadcastHistoryRewriteResync(
 			ctx,
 			e.sessionKey,

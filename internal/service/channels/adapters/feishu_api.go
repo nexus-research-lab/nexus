@@ -51,7 +51,7 @@ func (c *FeishuChannel) SendDeliveryMessage(ctx context.Context, target channelc
 			c.clearTenantAccessToken()
 			return channelcontract.DeliveryResult{}, err
 		}
-		if strings.TrimSpace(messageID) != "" {
+		if messageID != "" {
 			parts = append(parts, channelmessage.TextPart(messageID))
 		}
 	}
@@ -77,7 +77,7 @@ func (c *FeishuChannel) SendDeliveryTyping(ctx context.Context, target channelco
 		if err != nil {
 			return nil
 		}
-		if strings.TrimSpace(reactionID) == "" {
+		if reactionID == "" {
 			return nil
 		}
 		c.mu.Lock()

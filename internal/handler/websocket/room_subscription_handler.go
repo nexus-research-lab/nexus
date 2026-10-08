@@ -55,7 +55,7 @@ func (h *Handler) handleSubscribeRoom(
 			return
 		}
 	}
-	if h.roomRealtime != nil && strings.TrimSpace(conversationID) != "" {
+	if h.roomRealtime != nil && conversationID != "" {
 		event, err := h.roomRealtime.InputQueueSnapshotEvent(ctx, roomID, conversationID)
 		if err != nil {
 			h.sendGatewayError(ctx, sender, "", "input_queue_error", err, map[string]any{

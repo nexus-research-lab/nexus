@@ -13,6 +13,7 @@
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
 - `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
+- `make check-normalization`：拒绝对已被证明裁剪过的值再调用 `strings.TrimSpace`（linux/darwin/windows 取交集，约 1 分钟），已并入 `make check-go-full`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
 - `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；macOS/Windows 原生验收入口与必测项见 `docs/testing/desktop-sandbox-acceptance.md` 与 `docs/specs/desktop-sandbox-spec.md`。
 
@@ -85,6 +86,7 @@ cmd -> app -> handler -> service -> domain/storage
 - 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。
 - DM 是 Room 的一种：两者共用的运行阶段只实现一次，Room 只注入多成员 slot 与公私域策略。
 - 共享字符串原语只用 `internal/infra/textutil`，不得私有复制。
+- 字符串只在入口裁剪一次：handler/WebSocket 解析、MCP parser、存储扫描与 `authctx` 身份读取负责清洗，下游一律信任；不得在 service 内部对已清洗的值重复 `strings.TrimSpace`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。新增测试应覆盖尚未覆盖的分支，不重复已覆盖路径。
 - 数据影响只能由事务、revision、durable ACK 或领域回执证明；断线/超时进入 unknown 并先对账，禁止自动重放副作用（见 `docs/specs/failure-recovery-spec.md`）。
 

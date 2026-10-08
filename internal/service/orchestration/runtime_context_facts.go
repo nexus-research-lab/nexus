@@ -58,7 +58,7 @@ func renderRuntimeGraphFacts(
 		return
 	}
 	graph := options.RuntimeGraph
-	actorAgentID := strings.TrimSpace(options.ActorAgentID)
+	actorAgentID := options.ActorAgentID
 	visibleNodes := make([]protocol.ExecutionRuntimeNodeRun, 0)
 	visibleNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun)
 	for _, node := range graph.Nodes {

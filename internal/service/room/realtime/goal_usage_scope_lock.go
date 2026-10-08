@@ -113,7 +113,7 @@ func (s *Service) flushRoomSubagentUsageBeforeExternalBind(
 			taskIDs = append(taskIDs, taskID)
 		}
 		sort.Strings(taskIDs)
-		goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+		goalID := slot.childGoalIDForUsage()
 		goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
 		for _, taskID := range taskIDs {
 			observation := pending[taskID]

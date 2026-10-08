@@ -344,11 +344,11 @@ func (s *Service) ObserveSubagentStop(
 			terminal.SDKSessionID,
 		)
 		terminal.SDKTaskID = textutil.FirstNonEmpty(
-			strings.TrimSpace(input.SDKTaskID),
+			input.SDKTaskID,
 			terminal.SDKTaskID,
 		)
 		terminal.ChildSessionID = textutil.FirstNonEmpty(
-			strings.TrimSpace(input.ChildSessionID),
+			input.ChildSessionID,
 			terminal.ChildSessionID,
 		)
 		terminal.ExecutorAgentID = textutil.FirstNonEmpty(
@@ -357,7 +357,7 @@ func (s *Service) ObserveSubagentStop(
 		)
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
 		terminal.FailureReason = ""
-		errorMessage := strings.TrimSpace(input.Error)
+		errorMessage := input.Error
 		if input.Interrupted {
 			terminal.Status = protocol.WorkAttemptStatusInterrupted
 			terminal.FailureReason = textutil.FirstNonEmpty(errorMessage, "subagent interrupted")
@@ -418,9 +418,9 @@ func (s *Service) ObserveSubagentParentRoundExit(
 			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		lifecycle := SubagentLifecycleInput{
-			ToolUseID:    strings.TrimSpace(input.ToolUseID),
-			SDKSessionID: strings.TrimSpace(input.SDKSessionID),
-			SDKAgentID:   strings.TrimSpace(input.SDKAgentID),
+			ToolUseID:    input.ToolUseID,
+			SDKSessionID: input.SDKSessionID,
+			SDKAgentID:   input.SDKAgentID,
 		}
 		child, resolveErr := resolveActiveSubagentBinding(
 			snapshot,
@@ -913,7 +913,7 @@ func matchingTerminalSubagentAttempt(
 	input SubagentLifecycleInput,
 ) *protocol.WorkAttempt {
 	agentID = strings.TrimSpace(agentID)
-	toolUseID := strings.TrimSpace(input.ToolUseID)
+	toolUseID := input.ToolUseID
 	sdkAgentID := strings.TrimSpace(input.SDKAgentID)
 	for index := len(snapshot.Attempts) - 1; index >= 0; index-- {
 		attempt := snapshot.Attempts[index]

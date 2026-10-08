@@ -5,7 +5,6 @@ package realtime
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -254,7 +253,7 @@ func (s *Service) retryRoomSubagentUsage(
 		unlockScope := s.lockRoomGoalUsageScope(ctx, slot)
 		pending := slot.subagentUsageObservationPendingSnapshot()
 		if len(pending) > 0 {
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
 			for taskID, observation := range pending {
 				if _, err := s.persistSubagentGoalUsageObservationForSlot(

@@ -71,7 +71,7 @@ func (s *Service) SetGoalFromCommand(
 		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
 		protocol.CreateGoalRequest{
 			SessionKey:      execution.sessionKey,
-			Objective:       strings.TrimSpace(request.Objective),
+			Objective:       request.Objective,
 			TokenBudget:     request.Options.TokenBudget,
 			ReplaceExisting: replaceExisting,
 			CreatedBy:       "user",
@@ -110,7 +110,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 	// 普通 Room 消息的 client_message_id 只服务当前连接的 optimistic 替换，
 	// 但 goal_set 是 host command 的 durable acceptance receipt。ACK 丢失后，
 	// 原 Session 必须能用这个 exact identity 收口，而不能按正文或时间猜测。
-	if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+	if clientMessageID := e.request.ClientMessageID; clientMessageID != "" {
 		e.userMessage["client_message_id"] = clientMessageID
 	}
 	if err := e.service.persistSharedInlineMessage(

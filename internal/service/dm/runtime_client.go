@@ -202,12 +202,12 @@ func (s *Service) ensureClient(
 	}
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
-	executionID := strings.TrimSpace(request.ExecutionID)
+	executionID := request.ExecutionID
 	explicitGoalRevision := request.GoalObjectiveRevision
 	goalBoundRequest := request.Internal && explicitGoalID != "" && explicitGoalRevision > 0
 	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) && goalBoundRequest {
 		goalContext, goalIDForUsage, objectiveRevision = s.goalRuntimeContext(ctx, sessionKey)
-		if strings.TrimSpace(goalIDForUsage) != explicitGoalID || objectiveRevision != explicitGoalRevision {
+		if goalIDForUsage != explicitGoalID || objectiveRevision != explicitGoalRevision {
 			return dmClientPreparation{}, goalsvc.ErrGoalRevisionStale
 		}
 		goalIDForUsage = explicitGoalID
@@ -384,7 +384,7 @@ func (s *Service) ensureClient(
 	var scratchInput runtimectx.SandboxResourceInput
 	scratchLeaseOwned := false
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
-		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
+		(runtimeSelection.RuntimeKind == "" || strings.EqualFold(runtimeSelection.RuntimeKind, "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchInput = runtimectx.SandboxResourceInput{
 			OwnerUserID: agentValue.OwnerUserID,
@@ -531,7 +531,7 @@ func (s *Service) ensureClient(
 		append(clientopts.RuntimeStartupLogFields(options),
 			"session_key", sessionKey,
 			"agent_id", agentValue.AgentID,
-			"requested_runtime_kind", strings.TrimSpace(runtimeSelection.RuntimeKind),
+			"requested_runtime_kind", runtimeSelection.RuntimeKind,
 			"requested_provider", strings.TrimSpace(runtimeSelection.Provider),
 			"requested_model", strings.TrimSpace(runtimeSelection.Model),
 			"runtime_provider", runtimeProvider,
@@ -617,7 +617,7 @@ func (s *Service) ensureClient(
 	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())
-		if forkedSessionID == strings.TrimSpace(resumeID) {
+		if forkedSessionID == resumeID {
 			_, _ = retireDMRuntimeClient(ctx, startup)
 			return dmClientPreparation{}, errors.New("runtime fork 仍返回 source SDK session")
 		}
@@ -630,7 +630,7 @@ func (s *Service) ensureClient(
 			}
 			// Claude Code 只在首条 query 后通过 init 事件公布 fork identity；
 			// 在 round 收到该事件前保持旧 identity/工具面基线不变。
-			forkSourceSessionID = strings.TrimSpace(resumeID)
+			forkSourceSessionID = resumeID
 		} else {
 			syncArguments := []sdkSessionSyncConstraint(nil)
 			if request.runtimePreparationOnly {
@@ -657,13 +657,13 @@ func (s *Service) ensureClient(
 			}
 			sessionItem = updatedSession
 			if !forkSessionStateCommitted(sessionItem, forkedSessionID, toolSurfaceFingerprint) {
-				forkSourceSessionID = strings.TrimSpace(resumeID)
+				forkSourceSessionID = resumeID
 			}
 		}
 	}
 	if currentSessionID := strings.TrimSpace(client.SessionID()); currentSessionID != "" {
 		sdkSessionIdentity.Set(currentSessionID)
-	} else if strings.TrimSpace(forkSourceSessionID) != "" {
+	} else if forkSourceSessionID != "" {
 		sdkSessionIdentity.Set("")
 	} else {
 		sdkSessionIdentity.Set(textutil.PointerValue(sessionItem.SessionID))
@@ -709,7 +709,7 @@ func trustedDMGoalContinuationAuthority(
 		normalized.ScopeSessionKey == strings.TrimSpace(sessionKey) &&
 		normalized.GoalID == strings.TrimSpace(request.GoalID) &&
 		normalized.ObjectiveRevision == request.GoalObjectiveRevision &&
-		normalized.ExecutionID == strings.TrimSpace(request.ExecutionID) &&
+		normalized.ExecutionID == request.ExecutionID &&
 		normalized.RootRoundID == strings.TrimSpace(request.RoundID) &&
 		parsed.IsStructured && parsed.Kind == protocol.SessionKeyKindAgent &&
 		parsed.ChatType == protocol.RoomTypeDM &&
@@ -787,7 +787,7 @@ func retireExistingDMRuntimeClient(ctx context.Context, startup *runtimectx.Clie
 const dmToolSurfaceRetireTimeout = 2*runtimectx.RoundIdleAbortTimeout + time.Second
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
-	executionOrigin := strings.TrimSpace(request.ExecutionOrigin)
+	executionOrigin := request.ExecutionOrigin
 	if request.trustedQueuedConfigurationContext &&
 		executionOrigin == "queue" &&
 		trustedDMWebSocketSession(sessionKey, agentID) {

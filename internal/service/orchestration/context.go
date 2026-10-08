@@ -166,7 +166,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		&output,
 		snapshot,
 		role,
-		strings.TrimSpace(options.ActorAgentID),
+		options.ActorAgentID,
 		options.ObserveOnly,
 	)
 	renderRuntimeGraphFacts(&output, options)
@@ -1851,7 +1851,7 @@ func normalizeExecutionActorRole(
 		return options.Role
 	}
 	if execution.ScopeKind == protocol.ExecutionScopeDM ||
-		strings.TrimSpace(options.ActorAgentID) == strings.TrimSpace(execution.CoordinatorAgentID) {
+		options.ActorAgentID == strings.TrimSpace(execution.CoordinatorAgentID) {
 		return ExecutionActorCoordinator
 	}
 	return ExecutionActorMember

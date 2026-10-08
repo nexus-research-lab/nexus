@@ -134,7 +134,7 @@ func sameOriginRequest(request *http.Request) bool {
 
 // mountTeamRoutes 仅在 Web Control 与 Relay 均已装配时挂载多人 Team gateway。
 func (s *Server) mountTeamRoutes() {
-	if strings.TrimSpace(s.config.RelayURL) == "" || s.handlers.team == nil {
+	if s.config.RelayURL == "" || s.handlers.team == nil {
 		return
 	}
 	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)
