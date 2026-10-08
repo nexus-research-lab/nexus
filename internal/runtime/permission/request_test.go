@@ -493,12 +493,18 @@ func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
 	requestCtx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ids := make(map[string]string)
+	seen := make(map[string]bool)
 	for _, session := range []string{first, second} {
 		lease := c.BindSessionRoute(session, RouteContext{DispatchSessionKey: shared})
 		defer c.UnbindSessionRoute(lease)
 		go func() { _, _ = c.RequestPermission(requestCtx, session, sdkpermission.Request{ToolName: "Write"}) }()
-		event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-		ids[session], _ = event.Data["request_id"].(string)
+		// BindSession 的异步重放与实时下发是至少一次语义，同一 pending 可能到达两次；
+		// 只取尚未见过的 request_id 作为本成员的请求。
+		for ids[session] == "" || seen[ids[session]] {
+			event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+			ids[session], _ = event.Data["request_id"].(string)
+		}
+		seen[ids[session]] = true
 	}
 	if c.CountSessionPermissionRequests(shared, "") != 2 || c.CountSessionPermissionRequests(first, "") != 1 {
 		t.Fatal("成员权限计数必须与公区聚合隔离")
