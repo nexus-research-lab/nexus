@@ -15,6 +15,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -422,7 +423,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 		return nil
 	}
 	if role == "assistant" || (role == "result" && message["is_error"] != true &&
-		(dmdomain.NormalizeString(message["subtype"]) == "" || dmdomain.NormalizeString(message["subtype"]) == "success")) {
+		(textutil.AnyString(message["subtype"]) == "" || textutil.AnyString(message["subtype"]) == "success")) {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
 			return err
 		}
@@ -446,7 +447,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 			RoomID:             roomID,
 			ConversationID:     conversationID,
 			AgentID:            r.agent.AgentID,
-			MessageID:          dmdomain.NormalizeString(message["message_id"]),
+			MessageID:          textutil.AnyString(message["message_id"]),
 			RoundID:            r.roundID,
 			AgentRoundID:       r.agentRoundID,
 		})

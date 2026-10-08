@@ -1,6 +1,7 @@
 package room
 
 import (
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -29,7 +30,7 @@ func NewSlotMessageMapper(
 			RoomID:         roomID,
 			ConversationID: conversationID,
 			AgentID:        agentID,
-			WorkspacePath:  firstNonEmpty(workspacePath...),
+			WorkspacePath:  textutil.FirstNonEmpty(workspacePath...),
 			RoundID:        roundID,
 			AgentRoundID:   agentRoundID,
 			ParentID:       slotMessageID,

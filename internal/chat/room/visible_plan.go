@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -183,7 +184,7 @@ func buildPublicContextLines(input VisibleContextInput) []contextLine {
 	lines := make([]contextLine, 0, len(input.PublicMessages))
 	triggerMessageID := strings.TrimSpace(input.LatestTrigger.MessageID)
 	for _, message := range input.PublicMessages {
-		messageID := normalizeAnyString(message["message_id"])
+		messageID := textutil.AnyString(message["message_id"])
 		text := ""
 		if messageID == "" || messageID != triggerMessageID {
 			if isVisiblePublicInputMessage(message, input.TargetAgentID) {

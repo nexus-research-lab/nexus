@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -15,10 +16,10 @@ func normalizeInputQueueItem(
 	item.ID = strings.TrimSpace(item.ID)
 	// Location 是后端已解析的执行域，调用方携带的 item scope 只能作为无 location
 	// 的旧数据兜底，不能反向改变队列归属。
-	item.Scope = protocol.NormalizeInputQueueScope(string(firstNonEmpty(string(location.Scope), string(item.Scope))))
-	item.SessionKey = firstNonEmpty(item.SessionKey, location.SessionKey)
-	item.RoomID = firstNonEmpty(item.RoomID, location.RoomID)
-	item.ConversationID = firstNonEmpty(item.ConversationID, location.ConversationID)
+	item.Scope = protocol.NormalizeInputQueueScope(string(textutil.FirstNonEmpty(string(location.Scope), string(item.Scope))))
+	item.SessionKey = textutil.FirstNonEmpty(item.SessionKey, location.SessionKey)
+	item.RoomID = textutil.FirstNonEmpty(item.RoomID, location.RoomID)
+	item.ConversationID = textutil.FirstNonEmpty(item.ConversationID, location.ConversationID)
 	item.AgentID = strings.TrimSpace(item.AgentID)
 	item.AgentRoundID = strings.TrimSpace(item.AgentRoundID)
 	item.ClientMessageID = strings.TrimSpace(item.ClientMessageID)

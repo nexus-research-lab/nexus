@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/pelletier/go-toml/v2"
 )
 
@@ -260,7 +261,7 @@ func buildCCSwitchCandidate(row ccSwitchProviderRow) ccSwitchCandidate {
 	base := CCSwitchProviderPreview{
 		SourceKey: row.appType + ":" + strings.TrimSpace(row.id),
 		AppType:   strings.TrimSpace(row.appType),
-		Name:      firstNonEmpty(row.name, row.id),
+		Name:      textutil.FirstNonEmpty(row.name, row.id),
 		Provider:  ccSwitchProviderKey(row.appType, row.id, row.name),
 		Current:   row.isCurrent,
 		Models:    []CCSwitchModelPreview{},
@@ -284,7 +285,7 @@ func buildCCSwitchClaudeCandidate(
 	meta map[string]any,
 ) ccSwitchCandidate {
 	environment := jsonMap(settings["env"])
-	preview.BaseURL = firstNonEmpty(jsonString(environment["ANTHROPIC_BASE_URL"]), "https://api.anthropic.com")
+	preview.BaseURL = textutil.FirstNonEmpty(jsonString(environment["ANTHROPIC_BASE_URL"]), "https://api.anthropic.com")
 	preview.APIFormat = ccSwitchAPIFormat(jsonString(meta["apiFormat"]), "anthropic")
 	preview.Models, preview.DefaultModel = ccSwitchClaudeModels(environment)
 	keyField := strings.ToUpper(jsonString(meta["apiKeyField"]))
@@ -296,7 +297,7 @@ func buildCCSwitchClaudeCandidate(
 	}
 	return ccSwitchCandidate{
 		preview: preview,
-		authToken: firstNonEmpty(
+		authToken: textutil.FirstNonEmpty(
 			jsonString(environment["ANTHROPIC_AUTH_TOKEN"]),
 			jsonString(environment["ANTHROPIC_API_KEY"]),
 		),
@@ -318,15 +319,15 @@ func buildCCSwitchCodexCandidate(
 			providerConfig = item
 		}
 	}
-	preview.BaseURL = firstNonEmpty(providerConfig.BaseURL, "https://api.openai.com/v1")
+	preview.BaseURL = textutil.FirstNonEmpty(providerConfig.BaseURL, "https://api.openai.com/v1")
 	preview.APIFormat = ccSwitchAPIFormat(
 		jsonString(meta["apiFormat"]),
-		firstNonEmpty(providerConfig.WireAPI, "responses"),
+		textutil.FirstNonEmpty(providerConfig.WireAPI, "responses"),
 	)
 	preview.Models, preview.DefaultModel = ccSwitchCodexModels(settings, config.Model, meta)
 	return ccSwitchCandidate{
 		preview: preview,
-		authToken: firstNonEmpty(
+		authToken: textutil.FirstNonEmpty(
 			jsonString(auth["OPENAI_API_KEY"]),
 			providerConfig.ExperimentalBearerToken,
 			config.ExperimentalBearerToken,
@@ -458,7 +459,7 @@ func ccSwitchCodexModels(
 		item := jsonMap(raw)
 		add(
 			jsonString(item["model"]),
-			firstNonEmpty(jsonString(item["displayName"]), jsonString(item["display_name"])),
+			textutil.FirstNonEmpty(jsonString(item["displayName"]), jsonString(item["display_name"])),
 			jsonPositiveIntPointer(firstNonNil(item["contextWindow"], item["context_window"])),
 			jsonStringSlice(firstNonNil(item["inputModalities"], item["input_modalities"])),
 		)
@@ -489,7 +490,7 @@ func normalizeCCSwitchModelID(raw string) (string, *int) {
 func ccSwitchProviderKey(appType string, sourceID string, name string) string {
 	identity := strings.TrimSpace(appType) + ":" + strings.TrimSpace(sourceID)
 	digest := sha256.Sum256([]byte(identity))
-	slug, _ := NormalizeProvider(firstNonEmpty(name, sourceID), true)
+	slug, _ := NormalizeProvider(textutil.FirstNonEmpty(name, sourceID), true)
 	if slug == "" {
 		slug = "provider"
 	}
@@ -500,7 +501,7 @@ func ccSwitchProviderKey(appType string, sourceID string, name string) string {
 }
 
 func ccSwitchAPIFormat(metaFormat string, wireAPI string) string {
-	value := strings.ToLower(firstNonEmpty(metaFormat, wireAPI))
+	value := strings.ToLower(textutil.FirstNonEmpty(metaFormat, wireAPI))
 	switch value {
 	case "", "anthropic", "anthropic_messages", "messages":
 		return APIFormatAnthropicMessages

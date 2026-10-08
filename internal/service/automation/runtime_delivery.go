@@ -11,6 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -87,7 +88,7 @@ func initialRunDeliveryStatus(
 	if target.Mode == "" || target.Mode == automationdomain.DeliveryModeNone {
 		return automationdomain.DeliveryStatusNotRequired
 	}
-	if firstNonEmpty(observation.ResultText, observation.AssistantText) == "" {
+	if textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText) == "" {
 		return automationdomain.DeliveryStatusSkipped
 	}
 	if target.Mode == automationdomain.DeliveryModeExplicit &&
@@ -145,7 +146,7 @@ func (s *Service) deliverJobObservationToTarget(
 	}
 	// Agent 的正常结果必须原样进入 IM；任务来源保留在结构化 run/delivery 元数据中，
 	// 不能用固定可见前缀污染用户要求的输出格式。
-	text := firstNonEmpty(observation.ResultText, observation.AssistantText)
+	text := textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText)
 	if text == "" {
 		return jobDeliveryResult{Status: automationdomain.DeliveryStatusSkipped}
 	}
@@ -284,7 +285,7 @@ func (s *Service) deliverHeartbeatObservation(
 		return stringPointer("delivery router is not configured")
 	}
 	filtered := automationexec.FilterHeartbeatResponse(
-		firstNonEmpty(observation.ResultText, observation.AssistantText),
+		textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText),
 		configValue.AckMaxChars,
 	)
 	if !filtered.ShouldDeliver || strings.TrimSpace(filtered.Text) == "" {

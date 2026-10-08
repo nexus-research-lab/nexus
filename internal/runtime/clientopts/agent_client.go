@@ -19,6 +19,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
@@ -366,8 +367,8 @@ func backgroundModelRuntimeEnv(
 	mainModel := strings.TrimSpace(input.Model)
 	mainAPIFormat := ""
 	if mainConfig != nil {
-		mainProvider = firstNonEmptyRuntimeValue(mainConfig.Provider, mainProvider)
-		mainModel = firstNonEmptyRuntimeValue(mainConfig.Model, mainModel)
+		mainProvider = textutil.FirstNonEmpty(mainConfig.Provider, mainProvider)
+		mainModel = textutil.FirstNonEmpty(mainConfig.Model, mainModel)
 		mainAPIFormat = normalizedRuntimeAPIFormat(mainConfig.APIFormat)
 	}
 	selectedModel := mainModel
@@ -390,7 +391,7 @@ func backgroundModelRuntimeEnv(
 				selectedModel = backgroundModel
 			}
 		case normalizedRuntimeAPIFormat(backgroundConfig.APIFormat) == mainAPIFormat:
-			selectedModel = firstNonEmptyRuntimeValue(backgroundConfig.Model, backgroundModel)
+			selectedModel = textutil.FirstNonEmpty(backgroundConfig.Model, backgroundModel)
 		}
 	}
 	if selectedModel == "" {
@@ -411,15 +412,6 @@ func normalizedRuntimeAPIFormat(value string) string {
 		return apiFormatAnthropicMessages
 	}
 	return value
-}
-
-func firstNonEmptyRuntimeValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 // runtimePreauthorizedTools 默认授权网页检索；保留用户已有的工具及域名范围规则。

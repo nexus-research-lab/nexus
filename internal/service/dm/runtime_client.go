@@ -7,13 +7,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -231,7 +232,7 @@ func (s *Service) ensureClient(
 		nil,
 	)
 	sdkSessionIdentity := runtimectx.NewSDKSessionIdentityState(
-		dmdomain.StringPointerValue(sessionItem.SessionID),
+		textutil.PointerValue(sessionItem.SessionID),
 	)
 	commandReceipts := nexusmcp.NewCommandReceiptState()
 	goalObjectiveRevision := goalAuthority.ObjectiveRevisionState()
@@ -432,7 +433,7 @@ func (s *Service) ensureClient(
 		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,
 		AppendSystemPromptDynamic:  dynamicSystemPrompt,
-		ResumeSessionID:            dmdomain.FirstNonEmpty(forkSourceSessionID, dmdomain.StringPointerValue(sessionItem.SessionID)),
+		ResumeSessionID:            textutil.FirstNonEmpty(forkSourceSessionID, textutil.PointerValue(sessionItem.SessionID)),
 		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
@@ -672,7 +673,7 @@ func (s *Service) ensureClient(
 	} else if strings.TrimSpace(forkSourceSessionID) != "" {
 		sdkSessionIdentity.Set("")
 	} else {
-		sdkSessionIdentity.Set(dmdomain.StringPointerValue(sessionItem.SessionID))
+		sdkSessionIdentity.Set(textutil.PointerValue(sessionItem.SessionID))
 	}
 	preparation := dmClientPreparation{
 		client:                 client,
@@ -759,7 +760,7 @@ func forkSessionStateCommitted(
 	sessionID string,
 	toolSurfaceFingerprint string,
 ) bool {
-	currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.SessionID))
+	currentSessionID := strings.TrimSpace(textutil.PointerValue(sessionItem.SessionID))
 	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	return currentSessionID == strings.TrimSpace(sessionID) &&
 		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)

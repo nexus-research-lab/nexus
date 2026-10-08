@@ -11,6 +11,7 @@ import (
 
 	larkevent "github.com/larksuite/oapi-sdk-go/v3/event"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
@@ -86,7 +87,7 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 	callback := FeishuIngressCallback{
 		Challenge: strings.TrimSpace(payload.Challenge),
 		AppID:     strings.TrimSpace(payload.Header.AppID),
-		Token:     channelcontract.FirstNonEmpty(payload.Header.Token, payload.Token),
+		Token:     textutil.FirstNonEmpty(payload.Header.Token, payload.Token),
 	}
 	if callback.AppID == "" {
 		callback.AppID = strings.TrimSpace(payload.Event.AppID)
@@ -95,7 +96,7 @@ func DecodeFeishuIngressCallback(raw []byte) (FeishuIngressCallback, error) {
 		return callback, nil
 	}
 
-	eventType := channelcontract.FirstNonEmpty(payload.Header.EventType, payload.Type)
+	eventType := textutil.FirstNonEmpty(payload.Header.EventType, payload.Type)
 	switch eventType {
 	case "im.message.receive_v1":
 		callback.Request = decodeFeishuMessageIngress(payload, &callback)
@@ -137,8 +138,8 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 		callback.IgnoredReason = "empty_ref"
 		return nil
 	}
-	threadID := channelcontract.FirstNonEmpty(message.ThreadID, message.RootID)
-	reqID := channelcontract.FirstNonEmpty(messageID, payload.Header.EventID)
+	threadID := textutil.FirstNonEmpty(message.ThreadID, message.RootID)
+	reqID := textutil.FirstNonEmpty(messageID, payload.Header.EventID)
 	chatType := normalizeFeishuChatType(message.ChatType)
 	senderID, _ := feishuSenderRef(payload.Event.Sender.SenderID)
 
@@ -149,7 +150,7 @@ func decodeFeishuMessageIngress(payload feishuEventCallbackPayload, callback *Fe
 		Ref:          ref,
 		ThreadID:     threadID,
 		Content:      content,
-		RoundID:      channelcontract.FirstNonEmpty(payload.Header.EventID, messageID),
+		RoundID:      textutil.FirstNonEmpty(payload.Header.EventID, messageID),
 		ReqID:        reqID,
 		ExternalName: chatID,
 		Delivery: &channelcontract.DeliveryTarget{
@@ -199,12 +200,12 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 		return nil
 	}
 
-	threadID := channelcontract.FirstNonEmpty(payload.Event.ThreadID, payload.Event.RootID)
+	threadID := textutil.FirstNonEmpty(payload.Event.ThreadID, payload.Event.RootID)
 	reqID := strings.Join([]string{
 		messageID,
 		"reaction",
 		emoji,
-		channelcontract.FirstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
+		textutil.FirstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
 	}, ":")
 	return &channelcontract.IngressRequest{
 		Channel:      channelcontract.ChannelTypeFeishu,
@@ -213,7 +214,7 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 		Ref:          ref,
 		ThreadID:     threadID,
 		Content:      reactionText,
-		RoundID:      channelcontract.FirstNonEmpty(payload.Header.EventID, reqID),
+		RoundID:      textutil.FirstNonEmpty(payload.Header.EventID, reqID),
 		ReqID:        reqID,
 		ExternalName: chatID,
 		Delivery: &channelcontract.DeliveryTarget{
@@ -235,7 +236,7 @@ func decodeFeishuReactionIngress(payload feishuEventCallbackPayload, callback *F
 			ReplyToID:         messageID,
 			Metadata: map[string]string{
 				"reaction": emoji,
-				"event_id": channelcontract.FirstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
+				"event_id": textutil.FirstNonEmpty(payload.Header.EventID, payload.Event.ActionTime),
 			},
 		}),
 	}

@@ -5,11 +5,12 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func formatHistoryLine(message protocol.Message, agentNameByID map[string]string) string {
-	role := normalizeAnyString(message["role"])
+	role := textutil.AnyString(message["role"])
 	var content string
 	switch role {
 	case "user":
@@ -28,10 +29,10 @@ func formatHistoryLine(message protocol.Message, agentNameByID map[string]string
 
 	switch role {
 	case "user":
-		return formatHumanSource(normalizeAnyString(message["author_user_id"]), normalizeAnyString(message["author_username"]), normalizeAnyString(message["author_display_name"])) + ": " + content
+		return formatHumanSource(textutil.AnyString(message["author_user_id"]), textutil.AnyString(message["author_username"]), textutil.AnyString(message["author_display_name"])) + ": " + content
 	case "assistant":
-		agentID := normalizeAnyString(message["agent_id"])
-		return fmt.Sprintf("Assistant(%s): %s", firstNonEmpty(agentNameByID[agentID], agentID, "Assistant"), content)
+		agentID := textutil.AnyString(message["agent_id"])
+		return fmt.Sprintf("Assistant(%s): %s", textutil.FirstNonEmpty(agentNameByID[agentID], agentID, "Assistant"), content)
 	default:
 		return ""
 	}
@@ -42,7 +43,7 @@ func extractAssistantResultText(message protocol.Message) string {
 		if text := extractHistoryText(message); text != "" {
 			return text
 		}
-		return normalizeAnyString(summary["result"])
+		return textutil.AnyString(summary["result"])
 	}
 	if message["is_complete"] == true {
 		return extractHistoryText(message)
@@ -67,7 +68,7 @@ func extractHistoryText(message protocol.Message) string {
 
 	parts := make([]string, 0, len(items))
 	for _, payload := range items {
-		if text := normalizeAnyString(payload["text"]); text != "" {
+		if text := textutil.AnyString(payload["text"]); text != "" {
 			parts = append(parts, text)
 		}
 	}

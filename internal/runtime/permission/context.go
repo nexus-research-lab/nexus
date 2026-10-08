@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -389,7 +390,7 @@ func (c *Context) HandlePermissionResponse(
 	sessionKey string,
 	message map[string]any,
 ) bool {
-	requestID := normalizeString(message["request_id"])
+	requestID := textutil.AnyString(message["request_id"])
 	if requestID == "" {
 		return false
 	}

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
@@ -38,7 +38,7 @@ func weComBotProactiveMessageFrame(reqID string, chatID string, content string) 
 }
 
 func (h weComBotHeaders) requestID() string {
-	return channelcontract.FirstNonEmpty(h.ReqID, h.ReqIDCompat)
+	return textutil.FirstNonEmpty(h.ReqID, h.ReqIDCompat)
 }
 
 type weComBotCommandFrame struct {
@@ -78,7 +78,7 @@ func weComBotFrameRequestID(frame weComBotIncomingFrame) string {
 	if err := json.Unmarshal(frame.Body, &body); err != nil {
 		return ""
 	}
-	return channelcontract.FirstNonEmpty(
+	return textutil.FirstNonEmpty(
 		weComBotStringAt(body, "req_id"),
 		weComBotStringAt(body, "reqId"),
 		weComBotStringAt(body, "request_id"),
@@ -101,7 +101,7 @@ func weComBotFrameStatus(frame weComBotIncomingFrame, cmd string) (int, string, 
 	if !ok {
 		return 0, "", false
 	}
-	return errCode, channelcontract.FirstNonEmpty(
+	return errCode, textutil.FirstNonEmpty(
 		weComBotStringAt(body, "errmsg"),
 		weComBotStringAt(body, "err_msg"),
 		weComBotStringAt(body, "message"),

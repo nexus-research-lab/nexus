@@ -3,7 +3,6 @@ package dm
 import (
 	"context"
 	"errors"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"slices"
 	"strings"
 	"sync"
@@ -11,7 +10,9 @@ import (
 	"testing"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -774,7 +775,7 @@ func TestServiceGoalContinuationPauseAfterRuntimeRegistrationFailsAdmissionBefor
 		t.Fatalf("stale admission queried model %d times, want 0", got)
 	}
 	for _, message := range readDMSessionHistory(t, cfg, service, sessionKey) {
-		if dmdomain.NormalizeString(message["round_id"]) == plan.RoundID {
+		if textutil.AnyString(message["round_id"]) == plan.RoundID {
 			t.Fatalf("stale admission left a phantom continuation marker: %#v", message)
 		}
 	}

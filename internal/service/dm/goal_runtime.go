@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
@@ -263,7 +263,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 	snapshot := goalsvc.RuntimeUsageSnapshot{
 		Usage:          usage,
 		ElapsedSeconds: r.elapsedGoalUsageSeconds(),
-		TurnID:         dmdomain.NormalizeString(r.goalLastAssistant["message_id"]),
+		TurnID:         textutil.AnyString(r.goalLastAssistant["message_id"]),
 	}
 	r.goalIDForUsage = goalID
 	r.childGoalIDForUsage = goalID
@@ -374,7 +374,7 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 		if r.mapper != nil {
 			assistantText = messageutil.ExtractAssistantDisplayText(r.mapper.LastAssistantMessage())
 		}
-		reason := dmdomain.FirstNonEmpty(
+		reason := textutil.FirstNonEmpty(
 			strings.TrimSpace(result.ErrorMessage),
 			assistantText,
 			"Goal continuation runtime failed",

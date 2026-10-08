@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
@@ -691,7 +692,7 @@ func (c *AuthorizationControl) startDevice(
 	now := c.now()
 	return connectorstore.AuthorizationFlowActivation{
 		ExpectedConfigurationVersion: flow.StartConfigurationVersion,
-		Stage: connectorFirstNonEmpty(
+		Stage: textutil.FirstNonEmpty(
 			started.Stage, deviceAuthStageUserAuthorization,
 		),
 		SecretEncrypted:       encrypted,

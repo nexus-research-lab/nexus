@@ -10,6 +10,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
 
@@ -431,9 +432,9 @@ func sameSchedule(left automationdomain.Schedule, right automationdomain.Schedul
 	left = left.Normalized()
 	right = right.Normalized()
 	return strings.TrimSpace(left.Kind) == strings.TrimSpace(right.Kind) &&
-		anyStringPointer(left.RunAt) == anyStringPointer(right.RunAt) &&
+		textutil.PointerValue(left.RunAt) == textutil.PointerValue(right.RunAt) &&
 		anyIntPointer(left.IntervalSeconds) == anyIntPointer(right.IntervalSeconds) &&
-		anyStringPointer(left.CronExpression) == anyStringPointer(right.CronExpression) &&
+		textutil.PointerValue(left.CronExpression) == textutil.PointerValue(right.CronExpression) &&
 		strings.TrimSpace(left.Timezone) == strings.TrimSpace(right.Timezone)
 }
 

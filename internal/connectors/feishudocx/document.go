@@ -8,6 +8,7 @@ import (
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // Document 表示飞书 Docx 文档元数据。
@@ -223,7 +224,7 @@ func (c *Client) CreateDocument(ctx context.Context, title string, markdown stri
 	result := &CreateDocumentResult{
 		DocumentID: documentID,
 		URL:        c.docBaseURL + "/docx/" + documentID,
-		Title:      firstNonEmpty(larkcore.StringValue(document.Title), title),
+		Title:      textutil.FirstNonEmpty(larkcore.StringValue(document.Title), title),
 	}
 	if strings.TrimSpace(markdown) == "" {
 		return result, nil

@@ -15,6 +15,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
@@ -59,8 +60,8 @@ func (h *Handler) handleControlMessage(
 ) {
 	message := controlMessage{
 		handler: h, ctx: ctx, sender: sender, inbound: inbound,
-		sessionKey: handlershared.StringValue(inbound["session_key"]),
-		msgType:    handlershared.StringValue(inbound["type"]),
+		sessionKey: textutil.AnyString(inbound["session_key"]),
+		msgType:    textutil.AnyString(inbound["type"]),
 		receivedAt: time.Now(),
 	}
 	message.logControlStage("received", message.receivedAt)
@@ -68,7 +69,7 @@ func (h *Handler) handleControlMessage(
 	if !ok {
 		return
 	}
-	msgType := handlershared.StringValue(inbound["type"])
+	msgType := textutil.AnyString(inbound["type"])
 	if msgType == "permission_response" {
 		if !h.permission.IsBound(sessionKey, sender) {
 			h.sendGatewayError(
@@ -585,7 +586,7 @@ func (m *controlMessage) usesRoomRuntime() bool {
 }
 
 func (m *controlMessage) stringValue(key string) string {
-	return handlershared.StringValue(m.inbound[key])
+	return textutil.AnyString(m.inbound[key])
 }
 
 func (m *controlMessage) clientIDs() (string, string) {

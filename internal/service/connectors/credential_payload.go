@@ -126,12 +126,3 @@ func normalizeExtras(extras map[string]string) map[string]string {
 	}
 	return normalized
 }
-
-func connectorFirstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}

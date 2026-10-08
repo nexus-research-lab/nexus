@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
@@ -26,7 +27,7 @@ func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 	ref := parsed.FromUser
 	if parsed.ChatType == "group" || parsed.ChatID != "" {
 		chatType = "group"
-		ref = channelcontract.FirstNonEmpty(parsed.ChatID, parsed.FromUser)
+		ref = textutil.FirstNonEmpty(parsed.ChatID, parsed.FromUser)
 	}
 	streamID := channelcontract.NewID("stream")
 	metadata := map[string]string{
@@ -43,7 +44,7 @@ func (c *WeComBotChannel) ingressRequestFromParsed(parsed weComBotParsedMessage)
 		AccountID:    strings.TrimSpace(c.botID),
 		ChatType:     chatType,
 		Ref:          ref,
-		ExternalName: channelcontract.FirstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),
+		ExternalName: textutil.FirstNonEmpty(parsed.SenderName, parsed.FromUser, parsed.ChatID),
 		Content:      parsed.Content,
 		RoundID:      parsed.MsgID,
 		ReqID:        parsed.MsgID,
@@ -74,7 +75,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "", err
 	}
 	source := weComBotMessageSource(payload)
-	msgType := strings.ToLower(channelcontract.FirstNonEmpty(
+	msgType := strings.ToLower(textutil.FirstNonEmpty(
 		weComBotStringAt(source, "msgtype"),
 		weComBotStringAt(source, "msg_type"),
 		weComBotStringAt(source, "msgType"),
@@ -109,7 +110,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "empty_text", nil
 	}
 
-	fromUser := channelcontract.FirstNonEmpty(
+	fromUser := textutil.FirstNonEmpty(
 		weComBotStringAt(source, "from", "userid"),
 		weComBotStringAt(source, "from", "user_id"),
 		weComBotStringAt(source, "from", "userId"),
@@ -125,7 +126,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		return weComBotParsedMessage{}, "empty_from_user", nil
 	}
 
-	msgID := channelcontract.FirstNonEmpty(
+	msgID := textutil.FirstNonEmpty(
 		weComBotStringAt(source, "msgid"),
 		weComBotStringAt(source, "msg_id"),
 		weComBotStringAt(source, "msgId"),
@@ -141,20 +142,20 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 		MsgType:  msgType,
 		MsgID:    msgID,
 		FromUser: fromUser,
-		SenderName: channelcontract.FirstNonEmpty(
+		SenderName: textutil.FirstNonEmpty(
 			weComBotStringAt(source, "sender", "name"),
 			weComBotStringAt(source, "from", "name"),
 			weComBotStringAt(source, "sender_name"),
 			weComBotStringAt(source, "senderName"),
 			weComBotStringAt(source, "nickname"),
 		),
-		ChatType: strings.ToLower(channelcontract.FirstNonEmpty(
+		ChatType: strings.ToLower(textutil.FirstNonEmpty(
 			weComBotStringAt(source, "chattype"),
 			weComBotStringAt(source, "chat_type"),
 			weComBotStringAt(source, "chatType"),
 			"single",
 		)),
-		ChatID: channelcontract.FirstNonEmpty(
+		ChatID: textutil.FirstNonEmpty(
 			weComBotStringAt(source, "chatid"),
 			weComBotStringAt(source, "chat_id"),
 			weComBotStringAt(source, "chatId"),
@@ -162,7 +163,7 @@ func parseWeComBotInboundMessage(raw json.RawMessage, reqID string) (weComBotPar
 			weComBotStringAt(source, "conversationId"),
 		),
 		Content: content,
-		ReqID:   channelcontract.FirstNonEmpty(reqID, msgID),
+		ReqID:   textutil.FirstNonEmpty(reqID, msgID),
 	}, "", nil
 }
 
@@ -178,7 +179,7 @@ func weComBotMessageSource(payload map[string]any) map[string]any {
 		if candidate == nil {
 			continue
 		}
-		if channelcontract.FirstNonEmpty(
+		if textutil.FirstNonEmpty(
 			weComBotStringAt(candidate, "msgtype"),
 			weComBotStringAt(candidate, "msg_type"),
 			weComBotStringAt(candidate, "msgType"),
@@ -194,7 +195,7 @@ func weComBotMessageSource(payload map[string]any) map[string]any {
 }
 
 func weComBotTextContent(source map[string]any) string {
-	return channelcontract.FirstNonEmpty(
+	return textutil.FirstNonEmpty(
 		weComBotStringAt(source, "text", "content"),
 		weComBotStringAt(source, "text", "text"),
 		weComBotStringAt(source, "message", "text", "content"),
@@ -220,7 +221,7 @@ func weComBotMixedText(source map[string]any) string {
 		if !ok {
 			continue
 		}
-		itemType := strings.ToLower(channelcontract.FirstNonEmpty(
+		itemType := strings.ToLower(textutil.FirstNonEmpty(
 			weComBotStringAt(itemMap, "msgtype"),
 			weComBotStringAt(itemMap, "msg_type"),
 			weComBotStringAt(itemMap, "msgType"),
@@ -229,7 +230,7 @@ func weComBotMixedText(source map[string]any) string {
 		if itemType != "" && itemType != "text" {
 			continue
 		}
-		text := channelcontract.FirstNonEmpty(
+		text := textutil.FirstNonEmpty(
 			weComBotStringAt(itemMap, "text", "content"),
 			weComBotStringAt(itemMap, "content"),
 			weComBotStringAt(itemMap, "text"),

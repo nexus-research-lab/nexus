@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -181,7 +182,7 @@ func mergeRuntimeGraphArtifacts(
 			}
 			artifact.Path = path
 			artifact.Type = protocol.ContentBlockTypeWorkspaceFileArtifact
-			key := firstNonEmpty(strings.TrimSpace(artifact.ID), toolUseID+"\x00"+path)
+			key := textutil.FirstNonEmpty(strings.TrimSpace(artifact.ID), toolUseID+"\x00"+path)
 			if _, duplicate := seen[key]; duplicate {
 				continue
 			}

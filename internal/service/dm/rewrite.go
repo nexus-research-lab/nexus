@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -56,7 +56,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		return errors.New("cannot rewrite while a round is running")
 	}
 
-	agentID := dmdomain.FirstNonEmpty(parsed.AgentID, request.AgentID)
+	agentID := textutil.FirstNonEmpty(parsed.AgentID, request.AgentID)
 	if agentID == "" {
 		defaultAgent, defaultErr := s.agents.GetDefaultAgent(ctx)
 		if defaultErr != nil {
@@ -93,9 +93,9 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		return errors.New("cannot rewrite an empty conversation")
 	}
 	targetRoundID := request.TargetRoundID
-	if targetRoundID != dmdomain.NormalizeString(lastUser["round_id"]) {
+	if targetRoundID != textutil.AnyString(lastUser["round_id"]) {
 		logger.Warn("拒绝 DM rewrite：目标不是最后一条用户消息",
-			"last_user_round_id", dmdomain.NormalizeString(lastUser["round_id"]),
+			"last_user_round_id", textutil.AnyString(lastUser["round_id"]),
 		)
 		return fmt.Errorf("can only rewrite the last user message")
 	}
@@ -115,7 +115,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 	if err != nil {
 		logger.Warn("DM rewrite 解析 runtime 历史尾部失败",
 			"workspace_path", agentValue.WorkspacePath,
-			"session_id", dmdomain.StringPointerValue(sessionItem.SessionID),
+			"session_id", textutil.PointerValue(sessionItem.SessionID),
 			"err", err,
 		)
 		return fmt.Errorf("解析 DM rewrite transcript 尾部: %w", err)
@@ -156,7 +156,7 @@ func resolveRewriteTail(
 	targetRoundID string,
 ) (workspacestore.TranscriptRoundTail, bool, error) {
 	overlayOnlyCandidate := isUnmaterializedFailedRound(rows, targetRoundID)
-	sessionID := dmdomain.StringPointerValue(session.SessionID)
+	sessionID := textutil.PointerValue(session.SessionID)
 	if strings.TrimSpace(sessionID) == "" {
 		if overlayOnlyCandidate {
 			return overlayOnlyRewriteTail(targetRoundID), true, nil
@@ -211,7 +211,7 @@ func isUnmaterializedFailedRound(rows []protocol.Message, targetRoundID string) 
 			hasRuntimeAssistant = true
 		case "result":
 			hasTerminalError = row["is_error"] == true &&
-				strings.EqualFold(dmdomain.NormalizeString(row["subtype"]), "error")
+				strings.EqualFold(textutil.AnyString(row["subtype"]), "error")
 		}
 	}
 	return hasUser && hasTerminalError && !hasRuntimeAssistant
@@ -220,11 +220,11 @@ func isUnmaterializedFailedRound(rows []protocol.Message, targetRoundID string) 
 func isSyntheticTerminalErrorAssistant(row protocol.Message) bool {
 	summary, ok := row["result_summary"].(map[string]any)
 	if !ok || summary["is_error"] != true ||
-		!strings.EqualFold(dmdomain.NormalizeString(summary["subtype"]), "error") {
+		!strings.EqualFold(textutil.AnyString(summary["subtype"]), "error") {
 		return false
 	}
-	resultMessageID := strings.TrimSpace(dmdomain.NormalizeString(summary["message_id"]))
-	assistantMessageID := strings.TrimSpace(dmdomain.NormalizeString(row["message_id"]))
+	resultMessageID := strings.TrimSpace(textutil.AnyString(summary["message_id"]))
+	assistantMessageID := strings.TrimSpace(textutil.AnyString(row["message_id"]))
 	return resultMessageID != "" && assistantMessageID == "assistant_"+resultMessageID
 }
 
@@ -309,7 +309,7 @@ func lastVisibleUserMessage(rows []protocol.Message) (protocol.Message, bool) {
 		// Goal/control continuation and compatibility markers may be stored as
 		// user rows, but they are hidden from the conversation and cannot be the
 		// target of the visible message's edit/rerun action.
-		if dmdomain.NormalizeString(row["role"]) == "user" &&
+		if textutil.AnyString(row["role"]) == "user" &&
 			row["hidden_from_user"] != true &&
 			row["is_synthetic"] != true {
 			return row, true
@@ -325,7 +325,7 @@ func countHistoryRowsForRound(rows []protocol.Message, roundID string) int {
 	}
 	count := 0
 	for _, row := range rows {
-		if dmdomain.NormalizeString(row["round_id"]) == roundID {
+		if textutil.AnyString(row["round_id"]) == roundID {
 			count++
 		}
 	}

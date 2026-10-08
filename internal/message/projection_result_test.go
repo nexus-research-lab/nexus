@@ -3,6 +3,7 @@ package message
 import (
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -45,7 +46,7 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 				"is_error":        testCase.subtype == "error",
 			})
 
-			if normalizeString(synthetic["stop_reason"]) != testCase.expectedStopReason {
+			if textutil.AnyString(synthetic["stop_reason"]) != testCase.expectedStopReason {
 				t.Fatalf("stop_reason 不正确: got=%q want=%q synthetic=%+v", synthetic["stop_reason"], testCase.expectedStopReason, synthetic)
 			}
 			if !boolFromAny(synthetic["is_complete"]) {
@@ -56,7 +57,7 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 			if !ok {
 				t.Fatalf("synthetic assistant 应挂载 result_summary: %+v", synthetic)
 			}
-			if normalizeString(summary["subtype"]) != testCase.subtype {
+			if textutil.AnyString(summary["subtype"]) != testCase.subtype {
 				t.Fatalf("result_summary.subtype 不正确: got=%q want=%q summary=%+v", summary["subtype"], testCase.subtype, summary)
 			}
 		})
@@ -255,7 +256,7 @@ func TestBuildSyntheticAssistantFromResultPreservesExecutionIdentity(t *testing.
 		"parent_id":      "slot-message-1",
 		"model":          "kimi-for-coding",
 	} {
-		if actual := normalizeString(synthetic[key]); actual != expected {
+		if actual := textutil.AnyString(synthetic[key]); actual != expected {
 			t.Fatalf("synthetic assistant 未保留 %s: got=%q want=%q synthetic=%+v", key, actual, expected, synthetic)
 		}
 	}
@@ -289,7 +290,7 @@ func TestAttachResultSummaryMarksAssistantComplete(t *testing.T) {
 	if !boolFromAny(merged["is_complete"]) {
 		t.Fatalf("挂载 result_summary 后 assistant 必须变为完成态: %+v", merged)
 	}
-	if normalizeString(merged["stop_reason"]) != "end_turn" {
+	if textutil.AnyString(merged["stop_reason"]) != "end_turn" {
 		t.Fatalf("挂载 result_summary 后 stop_reason 不正确: %+v", merged)
 	}
 	if _, ok := merged["result_summary"].(map[string]any); !ok {

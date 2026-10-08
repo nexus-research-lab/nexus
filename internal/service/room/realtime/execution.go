@@ -18,6 +18,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -359,7 +360,7 @@ func roomOrchestrationActor(
 	actor := orchestration.ActorContext{
 		OwnerUserID: roundValue.OwnerUserID,
 		SessionKey:  roundValue.SessionKey,
-		ExecutionID: firstNonEmptyString(
+		ExecutionID: textutil.FirstNonEmpty(
 			executionIDFromRoomBindings(
 				slot.WorkBinding,
 				slot.ReviewBinding,

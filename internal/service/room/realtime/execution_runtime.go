@@ -7,10 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -392,7 +394,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 				SessionKey:        sessionKey,
 				GoalID:            explicitGoalID,
 				ObjectiveRevision: explicitRevision,
-				ExecutionID: firstNonEmptyString(
+				ExecutionID: textutil.FirstNonEmpty(
 					executionIDFromRoomBindings(
 						e.slot.WorkBinding,
 						e.slot.ReviewBinding,
@@ -424,7 +426,7 @@ func (e *slotExecution) runtimeMCPContext() context.Context {
 	goalAuthority := e.slot.ensureGoalAuthorityState()
 	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
 	if responsibilityAuthority != nil {
-		responsibilityAuthority.SeedExecution(firstNonEmptyString(
+		responsibilityAuthority.SeedExecution(textutil.FirstNonEmpty(
 			executionIDFromRoomBindings(e.slot.WorkBinding, e.slot.ReviewBinding),
 			e.round.ExecutionID,
 		))
@@ -469,7 +471,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 	goalAuthority := e.slot.ensureGoalAuthorityState()
 	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
 	if responsibilityAuthority != nil {
-		responsibilityAuthority.SeedExecution(firstNonEmptyString(
+		responsibilityAuthority.SeedExecution(textutil.FirstNonEmpty(
 			executionIDFromRoomBindings(e.slot.WorkBinding, e.slot.ReviewBinding),
 			e.round.ExecutionID,
 		))
@@ -478,7 +480,7 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 		Agent:             e.agent,
 		ScopeSessionKey:   e.round.SessionKey,
 		RuntimeSessionKey: e.slot.RuntimeSessionKey,
-		ExecutionID: firstNonEmptyString(
+		ExecutionID: textutil.FirstNonEmpty(
 			executionIDFromRoomBindings(
 				e.slot.WorkBinding,
 				e.slot.ReviewBinding,

@@ -14,6 +14,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -71,7 +72,7 @@ func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) erro
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": firstNonEmptyString(f.assistantText, f.resultText, "ok"),
+						"text": textutil.FirstNonEmpty(f.assistantText, f.resultText, "ok"),
 					},
 				},
 			},
@@ -87,7 +88,7 @@ func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) erro
 				"round_id":   request.RoundID,
 				"role":       "result",
 				"subtype":    "success",
-				"result":     firstNonEmptyString(f.resultText, "ok"),
+				"result":     textutil.FirstNonEmpty(f.resultText, "ok"),
 				"session_id": "sdk_" + request.RoundID,
 			},
 			Timestamp: time.Now().UnixMilli(),
@@ -135,7 +136,7 @@ func (f *fakeDMRunner) emitPermissionDenial(
 	toolName string,
 	decision sdkpermission.Decision,
 ) {
-	message := firstNonEmptyString(
+	message := textutil.FirstNonEmpty(
 		decision.Message,
 		"当前 Agent 未授权工具 "+toolName+"；请先在 Agent 允许工具中配置该工具，或把任务改为无需该工具",
 	)
@@ -259,7 +260,7 @@ func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomrealtime.Chat
 				"content": []map[string]any{
 					{
 						"type": "text",
-						"text": firstNonEmptyString(f.resultText, "room ok"),
+						"text": textutil.FirstNonEmpty(f.resultText, "room ok"),
 					},
 				},
 			},
@@ -275,7 +276,7 @@ func (f *fakeRoomRunner) HandleChat(_ context.Context, request roomrealtime.Chat
 				"round_id":   request.RoundID,
 				"role":       "result",
 				"subtype":    "success",
-				"result":     firstNonEmptyString(f.resultText, "room ok"),
+				"result":     textutil.FirstNonEmpty(f.resultText, "room ok"),
 				"session_id": "sdk_" + request.RoundID,
 			},
 			Timestamp: time.Now().UnixMilli(),
@@ -735,15 +736,6 @@ func permissionResumeInputForRequest(
 	}
 }
 
-func firstNonEmptyString(values ...string) string {
-	for _, item := range values {
-		if strings.TrimSpace(item) != "" {
-			return strings.TrimSpace(item)
-		}
-	}
-	return ""
-}
-
 func containsString(items []string, target string) bool {
 	target = strings.TrimSpace(target)
 	return slices.ContainsFunc(items, func(item string) bool {
@@ -810,7 +802,7 @@ func stringFromMessage(message protocol.Message, key string) string {
 func joinTextBlocks(items []map[string]any) string {
 	parts := make([]string, 0, len(items))
 	for _, item := range items {
-		if firstNonEmptyString(strings.TrimSpace(messageAnyString(item["type"]))) != "text" {
+		if textutil.FirstNonEmpty(strings.TrimSpace(messageAnyString(item["type"]))) != "text" {
 			continue
 		}
 		text := strings.TrimSpace(messageAnyString(item["text"]))

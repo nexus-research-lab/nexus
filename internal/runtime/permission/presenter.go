@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 var (
@@ -96,7 +97,7 @@ func resolveInteractionMode(toolName string) string {
 
 func summarizeInput(toolName string, input map[string]any) string {
 	if toolName == "Bash" {
-		if command := normalizeString(input["command"]); command != "" {
+		if command := textutil.AnyString(input["command"]); command != "" {
 			return command
 		}
 	}
@@ -112,21 +113,21 @@ func summarizeInput(toolName string, input map[string]any) string {
 		"result_summary",
 		"reason",
 	} {
-		if value := normalizeString(input[key]); value != "" {
+		if value := textutil.AnyString(input[key]); value != "" {
 			return value
 		}
 	}
 	if toolName == "AskUserQuestion" {
 		if questions, ok := input["questions"].([]any); ok && len(questions) > 0 {
 			if payload, ok := questions[0].(map[string]any); ok {
-				if question := normalizeString(payload["question"]); question != "" {
+				if question := textutil.AnyString(payload["question"]); question != "" {
 					return question
 				}
 			}
 		}
 	}
 	for _, key := range []string{"description", "task", "prompt"} {
-		if value := normalizeString(input[key]); value != "" {
+		if value := textutil.AnyString(input[key]); value != "" {
 			return value
 		}
 	}

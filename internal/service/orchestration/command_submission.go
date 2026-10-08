@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -339,7 +340,7 @@ func mergeSubmissionRuntime(
 ) protocol.WorkAttempt {
 	attempt.ExecutorKind = protocol.AttemptExecutorAgent
 	attempt.ExecutorAgentID = strings.TrimSpace(actor.AgentID)
-	attempt.RuntimeSessionKey = firstNonEmpty(input.RuntimeSessionKey, actor.SessionKey)
+	attempt.RuntimeSessionKey = textutil.FirstNonEmpty(input.RuntimeSessionKey, actor.SessionKey)
 	attempt.RoomSessionID = strings.TrimSpace(input.RoomSessionID)
 	attempt.SDKSessionID = strings.TrimSpace(input.SDKSessionID)
 	attempt.RuntimeRoundID = strings.TrimSpace(actor.RuntimeRoundID)

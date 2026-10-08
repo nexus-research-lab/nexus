@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
@@ -359,7 +360,7 @@ func (c *AuthorizationControl) completeOAuthCallback(
 		return nil, err
 	}
 	provider, err := providers.Get(
-		connectorFirstNonEmpty(entry.Provider, entry.ConnectorID),
+		textutil.FirstNonEmpty(entry.Provider, entry.ConnectorID),
 	)
 	if err != nil {
 		_, _ = c.flows.MarkTerminal(

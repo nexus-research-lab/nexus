@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -269,12 +270,12 @@ func newModelSelection(
 ) modelSelection {
 	return modelSelection{
 		Provider: provider.Provider,
-		ProviderDisplayName: firstModelCommandValue(
+		ProviderDisplayName: textutil.FirstNonEmpty(
 			provider.DisplayName,
 			provider.Provider,
 		),
 		Model: model.ModelID,
-		ModelDisplayName: firstModelCommandValue(
+		ModelDisplayName: textutil.FirstNonEmpty(
 			model.DisplayName,
 			model.ModelID,
 		),
@@ -292,15 +293,6 @@ func modelCommandValueMatches(target string, candidates ...string) bool {
 		}
 	}
 	return false
-}
-
-func firstModelCommandValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func newModelChangedEvent(

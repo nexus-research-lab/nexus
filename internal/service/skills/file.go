@@ -106,15 +106,6 @@ func defaultSkillScope(scope string) string {
 	return scopeAny
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
 func firstNonEmptySlice(candidates ...[]string) []string {
 	for _, item := range candidates {
 		if len(item) > 0 {

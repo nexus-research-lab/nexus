@@ -6,6 +6,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -90,7 +91,7 @@ func TestRoomBackedSessionSQLClearsMaterializedForkDependency(t *testing.T) {
 	if _, exists := merged.Options[protocol.OptionRuntimeForkMessageID]; exists {
 		t.Fatalf("SQL 已物化 fork 后不应恢复 message 边界: %+v", merged.Options)
 	}
-	if StringPointerValue(merged.SessionID) != targetSessionID {
+	if textutil.PointerValue(merged.SessionID) != targetSessionID {
 		t.Fatalf("SQL target SDK identity 未投影到 workspace: %+v", merged)
 	}
 	if _, exists := merged.Options[protocol.OptionRuntimeRetainedTranscriptSessionIDs]; exists {
@@ -121,7 +122,7 @@ func TestRoomBackedSessionKeepsMonotonicWorkspaceProgress(t *testing.T) {
 	if merged.MessageCount != 17 || !merged.LastActivity.Equal(newer) {
 		t.Fatalf("Room SQL 不应降低 workspace 运行进度: %+v", merged)
 	}
-	if StringPointerValue(merged.SessionID) != fileSessionID ||
+	if textutil.PointerValue(merged.SessionID) != fileSessionID ||
 		len(merged.TranscriptSessionIDs) != 1 ||
 		merged.TranscriptSessionIDs[0] != fileSessionID {
 		t.Fatalf("Room SQL 不应丢失 workspace transcript lineage: %+v", merged)

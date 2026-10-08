@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	usagestore "github.com/nexus-research-lab/nexus/internal/storage/usage"
 )
@@ -243,12 +244,12 @@ func MessageRecordInput(ownerUserID string, source string, message map[string]an
 	return RecordInput{
 		OwnerUserID:    ownerUserID,
 		Source:         source,
-		SessionKey:     stringValue(message["session_key"]),
-		MessageID:      stringValue(message["message_id"]),
-		RoundID:        stringValue(message["round_id"]),
-		AgentID:        stringValue(message["agent_id"]),
-		RoomID:         stringValue(message["room_id"]),
-		ConversationID: stringValue(message["conversation_id"]),
+		SessionKey:     textutil.AnyString(message["session_key"]),
+		MessageID:      textutil.AnyString(message["message_id"]),
+		RoundID:        textutil.AnyString(message["round_id"]),
+		AgentID:        textutil.AnyString(message["agent_id"]),
+		RoomID:         textutil.AnyString(message["room_id"]),
+		ConversationID: textutil.AnyString(message["conversation_id"]),
 		Usage:          usage,
 		OccurredAt:     timestampFromAny(message["timestamp"]),
 	}
@@ -265,12 +266,4 @@ func MessageHasUsage(message map[string]any) bool {
 		protocol.Int64FromAny(usage["cache_creation_input_tokens"]) > 0 ||
 		protocol.Int64FromAny(usage["cache_read_input_tokens"]) > 0 ||
 		protocol.Int64FromAny(usage["total_tokens"]) > 0
-}
-
-func stringValue(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
 }

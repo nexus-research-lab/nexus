@@ -9,6 +9,7 @@ import (
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -92,7 +93,7 @@ func projectTranscriptChainWithFilter(
 		case sdkprotocol.MessageTypeUser:
 			if isTranscriptToolResult(decoded) {
 				if processor == nil {
-					currentRoundID = firstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
+					currentRoundID = textutil.FirstNonEmpty(stringFromAny(entry.Data["parentUuid"]), strings.TrimSpace(decoded.UUID))
 					processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, "msg_user_"+currentRoundID, decoded.SessionID)
 				}
 				output := processor.Process(decoded)
@@ -108,7 +109,7 @@ func projectTranscriptChainWithFilter(
 			if !shouldMaterializeTranscriptUserTurn(entry.Data) && !transcriptRoundMarkerPresent(marker) {
 				continue
 			}
-			currentRoundPurpose = firstNonEmpty(
+			currentRoundPurpose = textutil.FirstNonEmpty(
 				strings.TrimSpace(marker.Purpose),
 				stringFromAny(entry.Data["purpose"]),
 			)
@@ -123,8 +124,8 @@ func projectTranscriptChainWithFilter(
 				) {
 				continue
 			}
-			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
-			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
+			currentRoundID = textutil.FirstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
+			currentParentID := textutil.FirstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
 			if marker.HiddenFromUser ||
 				boolValueAny(entry.Data["hidden_from_user"]) ||
@@ -209,7 +210,7 @@ func buildTranscriptUserMessage(
 	controlOnly bool,
 	timestamp int64,
 ) *protocol.Message {
-	content := firstNonEmpty(contentOverride, transcriptUserContent(entry))
+	content := textutil.FirstNonEmpty(contentOverride, transcriptUserContent(entry))
 	if content == "" {
 		return nil
 	}

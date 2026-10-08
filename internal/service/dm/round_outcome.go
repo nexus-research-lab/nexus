@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -97,7 +97,7 @@ func (r *roundRunner) failRoundAtPhase(
 			event := protocol.NewEvent(protocol.EventTypeMessage, projected)
 			event.SessionKey = r.sessionKey
 			event.AgentID = r.agent.AgentID
-			event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
+			event.MessageID = textutil.AnyString(event.Data["message_id"])
 			event.DeliveryMode = "durable"
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			durableErrorProjected = true
@@ -155,7 +155,7 @@ func (r *roundRunner) outcomeSessionID() string {
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
 	}
-	return dmdomain.FirstNonEmpty(runtimeSessionID, persistedSessionID)
+	return textutil.FirstNonEmpty(runtimeSessionID, persistedSessionID)
 }
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
@@ -254,7 +254,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 			event := protocol.NewEvent(protocol.EventTypeMessage, projected)
 			event.SessionKey = r.sessionKey
 			event.AgentID = r.agent.AgentID
-			event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
+			event.MessageID = textutil.AnyString(event.Data["message_id"])
 			event.DeliveryMode = "durable"
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 		}

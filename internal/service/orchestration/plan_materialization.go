@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -173,7 +174,7 @@ func (s *Service) materializeLoadedPlanProposal(
 			}
 			return RejectedResult(nil, domainError(
 				ErrorCodePlanProposalBlocked,
-				firstNonEmptyPlanProposalValue(
+				textutil.FirstNonEmpty(
 					proposal.LastError,
 					"proposal can no longer be committed against its sealed target fence",
 				),
@@ -328,7 +329,7 @@ func (s *Service) materializeAuthoritativePlan(
 	if result.Outcome == MutationRejected {
 		return s.blockPlanProposal(ctx, actor, proposal, domainError(
 			firstNonEmptyErrorCode(result.ReasonCode, ErrorCodePlanProposalStale),
-			firstNonEmptyPlanProposalValue(result.Message, "sealed proposal was rejected"),
+			textutil.FirstNonEmpty(result.Message, "sealed proposal was rejected"),
 		))
 	}
 	if result.Snapshot == nil || result.Snapshot.Plan == nil {
@@ -799,7 +800,7 @@ func (s *Service) blockPlanProposal(
 				"sealed Plan proposal changed concurrently and remains under materialization",
 			), nil
 		case protocol.ExecutionPlanProposalStatusBlocked:
-			message = firstNonEmptyPlanProposalValue(updated.LastError, message)
+			message = textutil.FirstNonEmpty(updated.LastError, message)
 		default:
 			return MutationResult{}, fmt.Errorf(
 				"proposal changed to %q while blocking",
@@ -916,15 +917,6 @@ func appendUniqueNextAction(actions []NextAction, candidate NextAction) []NextAc
 		}
 	}
 	return append(actions, candidate)
-}
-
-func firstNonEmptyPlanProposalValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func firstNonEmptyErrorCode(values ...ErrorCode) ErrorCode {

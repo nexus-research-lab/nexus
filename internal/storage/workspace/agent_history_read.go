@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -172,7 +173,7 @@ func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
 	if segmented {
 		return protocol.SessionTranscriptIDs(sessionValue)
 	}
-	current := stringPointerValue(sessionValue.SessionID)
+	current := textutil.PointerValue(sessionValue.SessionID)
 	if current == "" {
 		return nil
 	}

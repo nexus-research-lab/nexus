@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -42,7 +43,7 @@ func (p *Processor) processToolResultMessage(
 		return nil
 	}
 	for _, block := range content {
-		if normalizeString(block["type"]) != "tool_result" {
+		if textutil.AnyString(block["type"]) != "tool_result" {
 			return nil
 		}
 	}
@@ -66,12 +67,12 @@ func (p *Processor) processToolResultMessage(
 	return p.buildAssistantDurableMessage(
 		true,
 		true,
-		firstNonEmpty(normalizePointerString(user.ParentToolUseID), p.parentToolUseID),
+		firstNonEmpty(textutil.PointerValue(user.ParentToolUseID), p.parentToolUseID),
 	)
 }
 
 func (p *Processor) shouldKeepToolResultBlock(block map[string]any) bool {
-	toolUseID := normalizeString(block["tool_use_id"])
+	toolUseID := textutil.AnyString(block["tool_use_id"])
 	if p.segment.HasToolUse(toolUseID) {
 		return true
 	}
@@ -143,7 +144,7 @@ func (p *Processor) attachTaskToolStructuredOutput(
 	if len(structuredOutput) == 0 || block["structured_output"] != nil {
 		return
 	}
-	toolUseID := normalizeString(block["tool_use_id"])
+	toolUseID := textutil.AnyString(block["tool_use_id"])
 	if _, ok := taskListToolNames[p.segment.FindToolName(toolUseID)]; !ok {
 		return
 	}
@@ -185,21 +186,21 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 	}
 	toolNames := make(map[string]string)
 	for _, block := range blocks {
-		if normalizeString(block["type"]) != "tool_use" {
+		if textutil.AnyString(block["type"]) != "tool_use" {
 			continue
 		}
-		toolUseID := normalizeString(block["id"])
+		toolUseID := textutil.AnyString(block["id"])
 		if toolUseID == "" {
 			continue
 		}
-		toolNames[toolUseID] = normalizeString(block["name"])
+		toolNames[toolUseID] = textutil.AnyString(block["name"])
 	}
 	observations := make([]ToolResultObservation, 0)
 	for _, block := range blocks {
-		if normalizeString(block["type"]) != "tool_result" {
+		if textutil.AnyString(block["type"]) != "tool_result" {
 			continue
 		}
-		toolUseID := normalizeString(block["tool_use_id"])
+		toolUseID := textutil.AnyString(block["tool_use_id"])
 		if toolUseID == "" {
 			continue
 		}
@@ -207,9 +208,9 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 		observations = append(observations, ToolResultObservation{
 			ToolUseID:   toolUseID,
 			ToolName:    toolNames[toolUseID],
-			ErrorCode:   normalizeString(block["error_code"]),
+			ErrorCode:   textutil.AnyString(block["error_code"]),
 			IsError:     boolValue(block["is_error"]),
-			Recoverable: normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
+			Recoverable: textutil.AnyString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}
 	return observations

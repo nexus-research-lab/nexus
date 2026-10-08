@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode string, text *string) {
@@ -15,7 +16,7 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 		AgentID:    strings.TrimSpace(agentID),
 		SessionKey: sessionKey,
 		WakeMode:   strings.TrimSpace(wakeMode),
-		Text:       strings.TrimSpace(anyStringPointer(text)),
+		Text:       strings.TrimSpace(textutil.PointerValue(text)),
 	}
 	s.wakeRequests[sessionKey] = append(s.wakeRequests[sessionKey], request)
 	if state := s.heartbeatState[request.AgentID]; state != nil {

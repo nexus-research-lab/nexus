@@ -5,6 +5,8 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
@@ -242,7 +244,7 @@ func renderEmptyBlock(_ *markdownRenderer, _ Block, _ int) string {
 func mediaPlaceholder(kind string, block Block) string {
 	var token string
 	if raw, _ := block[kind].(map[string]any); raw != nil {
-		token = firstNonEmpty(stringField(raw, "token"), stringField(raw, "file_token"))
+		token = textutil.FirstNonEmpty(stringField(raw, "token"), stringField(raw, "file_token"))
 	}
 	if token == "" {
 		return "<!-- feishu-docx:" + kind + " -->"
@@ -362,10 +364,10 @@ func renderTextElement(element map[string]any) string {
 		return applyTextStyle(content, style)
 	}
 	if mention, _ := element["mention_user"].(map[string]any); mention != nil {
-		return "@" + firstNonEmpty(stringField(mention, "name"), stringField(mention, "user_id"))
+		return "@" + textutil.FirstNonEmpty(stringField(mention, "name"), stringField(mention, "user_id"))
 	}
 	if mention, _ := element["mention_doc"].(map[string]any); mention != nil {
-		title := firstNonEmpty(stringField(mention, "title"), "文档")
+		title := textutil.FirstNonEmpty(stringField(mention, "title"), "文档")
 		if urlValue := stringField(mention, "url"); urlValue != "" {
 			return "[" + title + "](" + urlValue + ")"
 		}
@@ -375,7 +377,7 @@ func renderTextElement(element map[string]any) string {
 		return "$" + stringField(equation, "content") + "$"
 	}
 	if preview, _ := element["link_preview"].(map[string]any); preview != nil {
-		return firstNonEmpty(stringField(preview, "url"), stringField(preview, "title"))
+		return textutil.FirstNonEmpty(stringField(preview, "url"), stringField(preview, "title"))
 	}
 	return ""
 }
@@ -427,7 +429,7 @@ func (r *markdownRenderer) renderTable(block Block) string {
 	for row := 0; row < rows; row++ {
 		var cells []string
 		for column := 0; column < columns; column++ {
-			cells = append(cells, firstNonEmpty(values[row*columns+column], " "))
+			cells = append(cells, textutil.FirstNonEmpty(values[row*columns+column], " "))
 		}
 		lines = append(lines, "| "+strings.Join(cells, " | ")+" |")
 		if row == 0 {

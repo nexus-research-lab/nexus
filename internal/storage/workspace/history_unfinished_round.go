@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -53,12 +54,12 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 			rounds[roundID] = snapshot
 			roundOrder = append(roundOrder, roundID)
 		}
-		snapshot.SessionKey = firstNonEmpty(snapshot.SessionKey, stringFromAny(row["session_key"]))
-		snapshot.RoomID = firstNonEmpty(snapshot.RoomID, stringFromAny(row["room_id"]))
-		snapshot.ConversationID = firstNonEmpty(snapshot.ConversationID, stringFromAny(row["conversation_id"]))
-		snapshot.AgentID = firstNonEmpty(snapshot.AgentID, stringFromAny(row["agent_id"]))
-		snapshot.SessionID = firstNonEmpty(snapshot.SessionID, stringFromAny(row["session_id"]))
-		snapshot.ParentID = firstNonEmpty(snapshot.ParentID, stringFromAny(row["parent_id"]))
+		snapshot.SessionKey = textutil.FirstNonEmpty(snapshot.SessionKey, stringFromAny(row["session_key"]))
+		snapshot.RoomID = textutil.FirstNonEmpty(snapshot.RoomID, stringFromAny(row["room_id"]))
+		snapshot.ConversationID = textutil.FirstNonEmpty(snapshot.ConversationID, stringFromAny(row["conversation_id"]))
+		snapshot.AgentID = textutil.FirstNonEmpty(snapshot.AgentID, stringFromAny(row["agent_id"]))
+		snapshot.SessionID = textutil.FirstNonEmpty(snapshot.SessionID, stringFromAny(row["session_id"]))
+		snapshot.ParentID = textutil.FirstNonEmpty(snapshot.ParentID, stringFromAny(row["parent_id"]))
 		if ts := messageTimestamp(row); ts > snapshot.LastTimestampMS {
 			snapshot.LastTimestampMS = ts
 		}

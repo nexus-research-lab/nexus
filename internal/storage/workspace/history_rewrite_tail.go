@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // ErrTranscriptRoundNotFound 表示目标 Nexus round 尚未物化进 SDK transcript。
@@ -138,7 +139,7 @@ func transcriptEntryRoundID(
 	if !shouldMaterializeTranscriptUserTurn(entry.Data) && !transcriptRoundMarkerPresent(marker) {
 		return ""
 	}
-	return firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
+	return textutil.FirstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 }
 
 func appendTranscriptTailUUID(tail *TranscriptRoundTail, seen map[string]struct{}, entry transcriptEntry) {

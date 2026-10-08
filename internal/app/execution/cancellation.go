@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -75,7 +76,7 @@ func (c cancellationConsumer) DeliverExecutionCancellation(
 		case runtimectx.ExactRoundAlreadyEnded:
 			return orchestrationsvc.ExecutionCancellationReceipt{
 				Outcome: protocol.ExecutionCancellationOutcomeAlreadyEnded,
-				Detail: firstNonEmptyString(
+				Detail: textutil.FirstNonEmpty(
 					result.Detail,
 					"exact runtime session/round is no longer active",
 				),
@@ -111,13 +112,4 @@ func (c cancellationConsumer) DeliverExecutionCancellation(
 				delivery.Binding.TargetKind,
 			)
 	}
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
