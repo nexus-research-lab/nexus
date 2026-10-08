@@ -146,7 +146,7 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	lastAssistant := e.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
 		e.service.recordTerminalAssistantUsage(e.round, e.slot, lastAssistant)
-		e.slot.rememberGoalCompletionAssistant(lastAssistant)
+		e.slot.mutable.goal.RememberGoalCompletionAssistant(lastAssistant)
 		e.service.persistRoomGoalCompletionReceipt(e.ctx, e.round, e.slot, false)
 	}
 	e.service.recordGoalUsageLimitForSlot(e.ctx, e.slot, result)
@@ -266,7 +266,7 @@ func (s *Service) handleSlotFailure(
 			settleErr,
 		)
 	}
-	lastAssistant := slot.lastGoalAssistantMessage()
+	lastAssistant := slot.mutable.goal.LastGoalAssistantMessage()
 	// durable assistant 已进入 slot 内存、但共享/私有历史持久化可能失败。
 	// failure 收口仍须用该快照结算并关闭 parent usage，不能只记录错误状态。
 	s.finalizeGoalUsageForSlot(ctx, slot, result, lastAssistant)
@@ -453,7 +453,7 @@ func (s *Service) handleSlotCancelled(
 		)
 	}
 	if mapper != nil {
-		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
+		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.mutable.goal.LastGoalAssistantMessage())
 	}
 	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)

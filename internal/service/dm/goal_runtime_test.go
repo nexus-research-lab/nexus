@@ -16,6 +16,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type dmSettlementBoundaryContext struct {
@@ -48,7 +49,7 @@ func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
 			name: "completion command miss",
 			run: func(runner *roundRunner) {
 				runner.inputOptions.Purpose = "goal_continuation"
-				runner.rememberGoalAssistantMessage(goalCompletionCommandMissAssistantMessage())
+				runner.RememberGoalAssistantMessage(goalCompletionCommandMissAssistantMessage())
 				runner.recordGoalContinuationProgress(exec.RoundExecutionResult{})
 			},
 		},
@@ -68,7 +69,7 @@ func TestRoundRunnerGoalMutationsUseBoundObjectiveRevision(t *testing.T) {
 				service:               &Service{goals: provider},
 				sessionKey:            "agent:nexus:ws:dm:revision",
 				roundID:               "round-revision",
-				goalIDForUsage:        "goal-revision",
+				GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: "goal-revision"},
 				goalObjectiveRevision: revision,
 			}
 
@@ -123,7 +124,7 @@ func TestDMGoalProgressRequiresConfirmedGoalExecutionAuthority(t *testing.T) {
 	)
 	runner := &roundRunner{
 		service:               &Service{goals: &fakeGoalContextProvider{}},
-		goalIDForUsage:        "goal-1",
+		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: "goal-1"},
 		goalObjectiveRevision: func() *atomic.Int64 { value := &atomic.Int64{}; value.Store(1); return value }(),
 		responsibilityState:   goalOnly,
 	}
@@ -173,9 +174,7 @@ func TestDMRegisterRunnerGuardsConsumedScopeUntilRoundFinished(t *testing.T) {
 		service:               &Service{runtime: manager, goals: provider},
 		sessionKey:            sessionKey,
 		roundID:               roundID,
-		goalIDForUsage:        goalID,
-		childGoalIDForUsage:   goalID,
-		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 		goalObjectiveRevision: &atomic.Int64{},
 	}
 	execution := &dmChatExecution{
@@ -197,9 +196,9 @@ func TestDMRegisterRunnerGuardsConsumedScopeUntilRoundFinished(t *testing.T) {
 	if conflicts := manager.GoalAccountingCreateConflicts(sessionKey, roundID); !slices.Equal(conflicts, []string{roundID}) {
 		t.Fatalf("model create conflicts = %#v, want same consumed scope", conflicts)
 	}
-	runner.goalUsageMu.Lock()
-	binding := runner.goalIDForUsage
-	runner.goalUsageMu.Unlock()
+	runner.Mu.Lock()
+	binding := runner.IDForUsage
+	runner.Mu.Unlock()
 	if binding != goalID {
 		t.Fatalf("preflight changed old Goal binding to %q, want %q", binding, goalID)
 	}
@@ -221,14 +220,11 @@ func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *tes
 		bindErr:                 bindConflict,
 	}
 	runner := &roundRunner{
-		service:                &Service{goals: provider},
-		ownerUserID:            "owner-bind-conflict",
-		sessionKey:             "agent:nexus:ws:dm:bind-conflict",
-		roundID:                "round-bind-conflict",
-		goalIDForUsage:         "goal-old",
-		childGoalIDForUsage:    "goal-old",
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
-		goalUsageScopeConsumed: true,
+		service:        &Service{goals: provider},
+		ownerUserID:    "owner-bind-conflict",
+		sessionKey:     "agent:nexus:ws:dm:bind-conflict",
+		roundID:        "round-bind-conflict",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", ChildIDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageScopeConsumed: true},
 	}
 	accelerateDMGoalUsageRetry(runner)
 	runner.recordGoalUsageFromAssistantMessage(
@@ -239,10 +235,10 @@ func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *tes
 	if !errors.Is(err, bindConflict) {
 		t.Fatalf("activateGoalUsage() error = %v, want durable bind conflict", err)
 	}
-	runner.goalUsageMu.Lock()
-	binding := runner.goalIDForUsage
-	consumed := runner.goalUsageScopeConsumed
-	runner.goalUsageMu.Unlock()
+	runner.Mu.Lock()
+	binding := runner.IDForUsage
+	consumed := runner.UsageScopeConsumed
+	runner.Mu.Unlock()
 	if binding != "goal-old" || !consumed {
 		t.Fatalf("binding/consumed = %q/%v, want old Goal retained and scope consumed", binding, consumed)
 	}
@@ -259,8 +255,8 @@ func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *tes
 	if err := runner.activateGoalUsage(context.Background(), "goal-new"); err != nil {
 		t.Fatalf("capability fallback activation error = %v", err)
 	}
-	if runner.goalIDForUsage != "goal-new" {
-		t.Fatalf("capability fallback binding = %q, want goal-new", runner.goalIDForUsage)
+	if runner.IDForUsage != "goal-new" {
+		t.Fatalf("capability fallback binding = %q, want goal-new", runner.IDForUsage)
 	}
 }
 
@@ -280,12 +276,12 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 		bindErr: bindConflict,
 	}
 	runner := &roundRunner{
-		service:     &Service{goals: provider},
-		ownerUserID: "owner-model-bind-window",
-		sessionKey:  sessionKey,
-		roundID:     roundID,
-		goalUsage:   goalsvc.NewRuntimeUsageAccumulator(false),
-		runtimeKind: "nxs",
+		service:        &Service{goals: provider},
+		ownerUserID:    "owner-model-bind-window",
+		sessionKey:     sessionKey,
+		roundID:        roundID,
+		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
+		runtimeKind:    "nxs",
 	}
 	accelerateDMGoalUsageRetry(runner)
 	runner.recordGoalUsageFromAssistantMessage(
@@ -295,11 +291,11 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 	if err := runner.activateGoalUsage(context.Background(), "goal-external"); !errors.Is(err, bindConflict) {
 		t.Fatalf("external activation error = %v, want durable model-scope conflict", err)
 	}
-	runner.goalUsageMu.Lock()
-	binding := runner.goalIDForUsage
-	consumed := runner.goalUsageScopeConsumed
-	active := runner.goalUsage.Active()
-	runner.goalUsageMu.Unlock()
+	runner.Mu.Lock()
+	binding := runner.IDForUsage
+	consumed := runner.UsageScopeConsumed
+	active := runner.Usage.Active()
+	runner.Mu.Unlock()
 	if binding != "" || consumed || active {
 		t.Fatalf(
 			"failed external bind mutated pre-result scope: binding=%q consumed=%v active=%v",
@@ -315,10 +311,10 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 	runner.recordGoalUsageFromAssistantMessage(
 		goalToolResultAssistantMessage("tool-create", "create_goal", false, 5, 1),
 	)
-	runner.goalUsageMu.Lock()
-	binding = runner.goalIDForUsage
-	consumed = runner.goalUsageScopeConsumed
-	runner.goalUsageMu.Unlock()
+	runner.Mu.Lock()
+	binding = runner.IDForUsage
+	consumed = runner.UsageScopeConsumed
+	runner.Mu.Unlock()
 	if binding != modelGoal || !consumed {
 		t.Fatalf("model result binding/consumed = %q/%v, want %q/true", binding, consumed, modelGoal)
 	}
@@ -380,8 +376,7 @@ func TestDMGoalFinalizingHookDeclinesIgnoredOrUnboundRound(t *testing.T) {
 				service:        service,
 				sessionKey:     sessionKey,
 				roundID:        roundID,
-				goalIDForUsage: test.goalID,
-				goalUsage:      goalsvc.NewRuntimeUsageAccumulator(test.active),
+				GoalRoundState: runtimehost.GoalRoundState{IDForUsage: test.goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(test.active)},
 				permissionMode: test.permissionMode,
 			}
 			execution := &dmChatExecution{
@@ -408,8 +403,7 @@ func TestRoundRunnerMarksUsageLimitAfterAccounting(t *testing.T) {
 		service:        &Service{goals: goalProvider},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "round-1",
-		goalIDForUsage: "goal-1",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 
 	runner.recordGoalUsage(context.Background(), exec.RoundExecutionResult{
@@ -442,8 +436,7 @@ func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testi
 		service:        &Service{goals: goalProvider},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "goal_continuation_1",
-		goalIDForUsage: "goal-1",
-		subagentTasks:  map[string]struct{}{"task-1": {}},
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", SubagentTasks: map[string]struct{}{"task-1": {}}},
 		inputOptions: sdkprotocol.OutboundMessageOptions{
 			Purpose: "goal_continuation",
 		},
@@ -465,12 +458,10 @@ func TestRoundRunnerSkipsEmptyGoalContinuationProgressWhileSubagentRuns(t *testi
 func TestRoundRunnerActivateSameGoalPreservesLowerExactTerminalCalibration(t *testing.T) {
 	goalProvider := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:             &Service{goals: goalProvider},
-		sessionKey:          "agent:nexus:ws:dm:same-goal-activate",
-		roundID:             "round-same-goal-activate",
-		goalIDForUsage:      "goal-same",
-		childGoalIDForUsage: "goal-same",
-		goalUsage:           goalsvc.NewRuntimeUsageAccumulator(true),
+		service:        &Service{goals: goalProvider},
+		sessionKey:     "agent:nexus:ws:dm:same-goal-activate",
+		roundID:        "round-same-goal-activate",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-same", ChildIDForUsage: "goal-same", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 	assistant := protocol.Message{
 		"message_id": "assistant-same-goal",
@@ -480,7 +471,7 @@ func TestRoundRunnerActivateSameGoalPreservesLowerExactTerminalCalibration(t *te
 			"output_tokens": int64(50),
 		},
 	}
-	runner.rememberGoalAssistantMessage(assistant)
+	runner.RememberGoalAssistantMessage(assistant)
 	runner.recordGoalUsageFromAssistantMessage(assistant)
 
 	if err := runner.activateGoalUsage(context.Background(), "goal-same"); err != nil {
@@ -509,10 +500,10 @@ func TestRoundRunnerResetsGoalUsageAfterCreateGoal(t *testing.T) {
 	t.Run("create_goal command", func(t *testing.T) {
 		goalProvider := &fakeGoalContextProvider{}
 		runner := &roundRunner{
-			service:    &Service{goals: goalProvider},
-			sessionKey: "agent:nexus:ws:dm:test",
-			roundID:    "round-1",
-			goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+			service:        &Service{goals: goalProvider},
+			sessionKey:     "agent:nexus:ws:dm:test",
+			roundID:        "round-1",
+			GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
 		}
 
 		stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "", "")
@@ -543,10 +534,10 @@ func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T)
 		runtimeGoal: &protocol.Goal{ID: "goal-created", SessionKey: sessionKey},
 	}
 	runner := &roundRunner{
-		service:    &Service{goals: goalProvider},
-		sessionKey: sessionKey,
-		roundID:    "round-1",
-		goalUsage:  goalsvc.NewRuntimeUsageAccumulator(false),
+		service:        &Service{goals: goalProvider},
+		sessionKey:     sessionKey,
+		roundID:        "round-1",
+		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
 	}
 
 	stageDMAppliedGoalCommand(runner, command.GoalOperationCreate, "goal-created", "")
@@ -561,8 +552,8 @@ func TestRoundRunnerBindsModelCreatedGoalThroughTerminalSettlement(t *testing.T)
 		},
 	}, nil)
 
-	if runner.goalIDForUsage != "goal-created" {
-		t.Fatalf("goalIDForUsage = %q, want fixed model-created Goal", runner.goalIDForUsage)
+	if runner.IDForUsage != "goal-created" {
+		t.Fatalf("goalIDForUsage = %q, want fixed model-created Goal", runner.IDForUsage)
 	}
 	if len(goalProvider.usageSessionKeys) != 0 {
 		t.Fatalf("session usage targets = %#v, want bound Goal-only terminal settlement", goalProvider.usageSessionKeys)
@@ -586,9 +577,8 @@ func TestRoundRunnerRecordsNXSSubagentActualUsageWithoutDoubleCounting(t *testin
 		service:        &Service{goals: goalProvider, runtime: runtimectx.NewManager()},
 		sessionKey:     "agent:nexus:ws:dm:test",
 		roundID:        "round-1",
-		goalIDForUsage: "goal-1",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-1", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 		runtimeKind:    "nxs",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 	}
 	taskMessage := func(total int64) protocol.Message {
 		return protocol.Message{"metadata": map[string]any{
@@ -615,12 +605,12 @@ func TestDMExternalActivationFlushesPendingChildBeforeBindAndSkipsStaleRetry(t *
 		fakeGoalContextProvider: &fakeGoalContextProvider{},
 	}
 	runner := &roundRunner{
-		service:     &Service{goals: provider},
-		sessionKey:  "agent:nexus:ws:dm:bind-pending",
-		roundID:     "round-bind-pending",
-		ownerUserID: "owner-bind-pending",
-		runtimeKind: "nxs",
-		goalUsage:   goalsvc.NewRuntimeUsageAccumulator(false),
+		service:        &Service{goals: provider},
+		sessionKey:     "agent:nexus:ws:dm:bind-pending",
+		roundID:        "round-bind-pending",
+		ownerUserID:    "owner-bind-pending",
+		runtimeKind:    "nxs",
+		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false)},
 	}
 	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
 		CumulativeTotal: 75,
@@ -651,7 +641,7 @@ func TestDMExternalActivationFlushesPendingChildBeforeBindAndSkipsStaleRetry(t *
 	if len(provider.snapshots) != 1 || provider.snapshots[0].GoalID != "" {
 		t.Fatalf("source snapshots = %#v, stale retry must not target new Goal", provider.snapshots)
 	}
-	if runner.hasRunningSubagentTask() {
+	if runner.HasRunningSubagentTask() {
 		t.Fatal("successfully flushed pending checkpoint still holds the in-memory join barrier")
 	}
 }
@@ -663,15 +653,12 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 		sourceErr:               sourceErr,
 	}
 	runner := &roundRunner{
-		service:                &Service{goals: provider},
-		sessionKey:             "agent:nexus:ws:dm:bind-pending-failure",
-		roundID:                "round-bind-pending-failure",
-		ownerUserID:            "owner-bind-pending-failure",
-		runtimeKind:            "nxs",
-		goalIDForUsage:         "goal-old",
-		childGoalIDForUsage:    "goal-old",
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
-		goalUsageScopeConsumed: true,
+		service:        &Service{goals: provider},
+		sessionKey:     "agent:nexus:ws:dm:bind-pending-failure",
+		roundID:        "round-bind-pending-failure",
+		ownerUserID:    "owner-bind-pending-failure",
+		runtimeKind:    "nxs",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", ChildIDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageScopeConsumed: true},
 	}
 	accelerateDMGoalUsageRetry(runner)
 	runner.markSubagentUsageObservationPending("task-pending", goalsvc.SubagentUsageObservation{
@@ -685,19 +672,19 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 	if len(provider.bindings) != 0 {
 		t.Fatalf("bindings = %#v, bind must not run after source failure", provider.bindings)
 	}
-	if runner.goalIDForUsage != "goal-old" ||
-		runner.childGoalIDForUsage != "goal-old" ||
-		!runner.goalUsageScopeConsumed ||
-		!runner.goalUsage.Active() {
+	if runner.IDForUsage != "goal-old" ||
+		runner.ChildIDForUsage != "goal-old" ||
+		!runner.UsageScopeConsumed ||
+		!runner.Usage.Active() {
 		t.Fatalf(
 			"failed activation mutated old state: goal=%q child=%q consumed=%v active=%v",
-			runner.goalIDForUsage,
-			runner.childGoalIDForUsage,
-			runner.goalUsageScopeConsumed,
-			runner.goalUsage.Active(),
+			runner.IDForUsage,
+			runner.ChildIDForUsage,
+			runner.UsageScopeConsumed,
+			runner.Usage.Active(),
 		)
 	}
-	if pending := runner.subagentUsagePending["task-pending"]; pending.CumulativeTotal != 75 {
+	if pending := runner.SubagentUsagePending["task-pending"]; pending.CumulativeTotal != 75 {
 		t.Fatalf("failed source checkpoint lost pending observation: %#v", pending)
 	}
 	if len(provider.snapshots) != goalUsagePersistAttempts {
@@ -730,13 +717,12 @@ func TestRoundRunnerClaimsPreCreateSubagentUsageAndKeepsChildBoundAfterTerminal(
 	}
 	provider := &fakePersistentDMGoalProvider{fakeGoalContextProvider: base}
 	runner := &roundRunner{
-		service:          &Service{goals: provider},
-		sessionKey:       sessionKey,
-		roundID:          "round-create",
-		ownerUserID:      "owner-dm",
-		runtimeKind:      "nxs",
-		goalUsage:        goalsvc.NewRuntimeUsageAccumulator(false),
-		goalUsageStarted: time.Now(),
+		service:        &Service{goals: provider},
+		sessionKey:     sessionKey,
+		roundID:        "round-create",
+		ownerUserID:    "owner-dm",
+		runtimeKind:    "nxs",
+		GoalRoundState: runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false), UsageStartedAt: time.Now()},
 	}
 	taskMessage := func(total int64) protocol.Message {
 		return protocol.Message{"metadata": map[string]any{

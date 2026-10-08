@@ -103,7 +103,7 @@ func (s *Service) handleIdleSubagentMessage(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
 		return false
 	}
-	if slot.hasRunningSubagentTask() {
+	if slot.mutable.goal.HasRunningSubagentTask() {
 		return true
 	}
 	if !s.finalizeCompletedRoomGoalUsage(ctx, roundValue) &&

@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -26,16 +27,13 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	provider.finalizeFailuresRemaining = goalUsagePersistAttempts * 2
 	var dispatches atomic.Int64
 	runner := &roundRunner{
-		service:                   &Service{goals: provider},
-		sessionKey:                sessionKey,
-		roundID:                   roundID,
-		ownerUserID:               "owner-parent-terminal-background-retry",
-		goalIDForUsage:            goalID,
-		childGoalIDForUsage:       goalID,
-		goalUsage:                 goalsvc.NewRuntimeUsageAccumulator(true),
-		runtimeKind:               "nxs",
-		subagentUsageClaimPending: true,
-		postRoundDispatchHook:     func() { dispatches.Add(1) },
+		service:               &Service{goals: provider},
+		sessionKey:            sessionKey,
+		roundID:               roundID,
+		ownerUserID:           "owner-parent-terminal-background-retry",
+		GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageClaimPending: true},
+		runtimeKind:           "nxs",
+		postRoundDispatchHook: func() { dispatches.Add(1) },
 	}
 	accelerateDMGoalUsageRetry(runner)
 	result := exec.RoundExecutionResult{
@@ -54,9 +52,9 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	}
 	runner.startGoalUsageRetryWorker()
 	waitForDMGoalUsageRetry(t, func() bool {
-		runner.goalUsageMu.Lock()
-		defer runner.goalUsageMu.Unlock()
-		return !runner.goalUsageRetryRunning
+		runner.Mu.Lock()
+		defer runner.Mu.Unlock()
+		return !runner.UsageRetrying
 	})
 	if attempts := provider.claimAttemptCount(); attempts != goalUsagePersistAttempts {
 		t.Fatalf("parent-active retry advanced claim attempts to %d", attempts)
@@ -120,9 +118,7 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 				service:               &Service{goals: provider},
 				sessionKey:            sessionKey,
 				roundID:               roundID,
-				goalIDForUsage:        goalID,
-				childGoalIDForUsage:   goalID,
-				goalUsage:             goalsvc.NewRuntimeUsageAccumulator(true),
+				GoalRoundState:        runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 				postRoundDispatchHook: func() { dispatches.Add(1) },
 			}
 			accelerateDMGoalUsageRetry(runner)
@@ -140,9 +136,9 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 			if got := dispatches.Load(); got != 0 {
 				t.Fatalf("abnormal parent post-round dispatches = %d, want 0", got)
 			}
-			runner.goalUsageMu.Lock()
+			runner.Mu.Lock()
 			dispatched := runner.subagentPostRoundDispatched
-			runner.goalUsageMu.Unlock()
+			runner.Mu.Unlock()
 			if dispatched {
 				t.Fatal("abnormal parent claimed normal post-round dispatch")
 			}
@@ -164,9 +160,7 @@ func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *t
 		sessionKey:             sessionKey,
 		roundID:                roundID,
 		ownerUserID:            "owner-finalize-background-retry",
-		goalIDForUsage:         goalID,
-		childGoalIDForUsage:    goalID,
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState:         runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 		runtimeKind:            "nxs",
 		goalTokenUsageObserved: true,
 		postRoundDispatchHook:  func() { dispatches.Add(1) },
@@ -211,9 +205,7 @@ func TestCompletedDMGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) 
 		sessionKey:             sessionKey,
 		roundID:                roundID,
 		ownerUserID:            "owner-claim-retry",
-		goalIDForUsage:         goalID,
-		childGoalIDForUsage:    goalID,
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState:         runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 		runtimeKind:            "nxs",
 		goalTokenUsageObserved: true,
 	}
@@ -286,14 +278,11 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 		},
 	}
 	runner := &roundRunner{
-		service:             &Service{goals: provider},
-		sessionKey:          sessionKey,
-		roundID:             roundID,
-		goalIDForUsage:      goalID,
-		childGoalIDForUsage: goalID,
-		goalUsage:           goalsvc.NewRuntimeUsageAccumulator(true),
-		subagentTasks:       map[string]struct{}{"child-task": {}},
-		runtimeKind:         "nxs",
+		service:        &Service{goals: provider},
+		sessionKey:     sessionKey,
+		roundID:        roundID,
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true), SubagentTasks: map[string]struct{}{"child-task": {}}},
+		runtimeKind:    "nxs",
 	}
 
 	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
@@ -326,7 +315,7 @@ func TestCompletedDMGoalFinalizesOnlyAfterRunningChildDrains(t *testing.T) {
 		runner.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
 	}
 	runner.rememberSubagentTaskMessage(childTerminal)
-	if runner.hasRunningSubagentTask() {
+	if runner.HasRunningSubagentTask() {
 		t.Fatal("child task map still contains completed task")
 	}
 	if !runner.finalizeCompletedGoalUsageAfterSubagents(context.Background()) {
@@ -360,9 +349,7 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 		ownerUserID:            "owner-child-unavailable",
 		sessionKey:             sessionKey,
 		roundID:                roundID,
-		goalIDForUsage:         goalID,
-		childGoalIDForUsage:    goalID,
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState:         runtimehost.GoalRoundState{IDForUsage: goalID, ChildIDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 		goalTokenUsageObserved: true,
 		runtimeKind:            "nxs",
 		postRoundDispatchHook:  func() { dispatches.Add(1) },
@@ -395,16 +382,16 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 	record(taskMessage("child-missing", "task_started", "running", nil))
 	record(taskMessage("child-missing", "task_progress", "running", int64(50)))
 	record(taskMessage("child-missing", "task_notification", "completed", int64(0)))
-	if runner.hasRunningSubagentTask() {
+	if runner.HasRunningSubagentTask() {
 		t.Fatal("terminal child evidence left a live in-memory join barrier")
 	}
 
 	runner.markSubagentParentTerminal(subagentParentTerminalNormal)
 	runner.startGoalUsageRetryWorker()
 	waitForDMGoalUsageRetry(t, func() bool {
-		runner.goalUsageMu.Lock()
-		running := runner.goalUsageRetryRunning
-		runner.goalUsageMu.Unlock()
+		runner.Mu.Lock()
+		running := runner.UsageRetrying
+		runner.Mu.Unlock()
 		return dispatches.Load() == 1 && !running
 	})
 	if calls := provider.finalizeCallCount(); calls != 1 {
@@ -427,9 +414,9 @@ func TestDMUnavailableChildEvidenceStopsWorkerAndReleasesPostRoundOnce(t *testin
 	// durable unavailable conclusion or dispatch downstream work twice.
 	runner.startGoalUsageRetryWorker()
 	waitForDMGoalUsageRetry(t, func() bool {
-		runner.goalUsageMu.Lock()
-		defer runner.goalUsageMu.Unlock()
-		return !runner.goalUsageRetryRunning
+		runner.Mu.Lock()
+		defer runner.Mu.Unlock()
+		return !runner.UsageRetrying
 	})
 	if calls := provider.finalizeCallCount(); calls != 1 {
 		t.Fatalf("stray worker retried unavailable finalization: %d calls", calls)
@@ -454,12 +441,10 @@ func TestCompletedDMGoalWithoutTokenUsageSettlesWithoutFinalizationFence(t *test
 		},
 	}
 	runner := &roundRunner{
-		service:          &Service{goals: provider},
-		sessionKey:       sessionKey,
-		roundID:          "round-missing-terminal-usage",
-		goalIDForUsage:   goalID,
-		goalUsage:        goalsvc.NewRuntimeUsageAccumulator(true),
-		goalUsageStarted: time.Now().Add(-2 * time.Second),
+		service:        &Service{goals: provider},
+		sessionKey:     sessionKey,
+		roundID:        "round-missing-terminal-usage",
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageStartedAt: time.Now().Add(-2 * time.Second)},
 	}
 
 	runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{}, nil)
@@ -478,7 +463,7 @@ func TestCompletedDMGoalWithoutTokenUsageSettlesWithoutFinalizationFence(t *test
 		usages[0].BudgetTokens() != 0 || usages[0].ActualTokens() != 0 {
 		t.Fatalf("persisted usage = %#v, want elapsed-only settlement", usages)
 	}
-	if runner.goalUsage.Active() {
+	if runner.Usage.Active() {
 		t.Fatal("missing-usage terminal settlement left accumulator active for infinite retry")
 	}
 }
@@ -519,8 +504,7 @@ func TestDMTerminalUsageDurableParentLedgerReplaysWithoutDoubleAttribution(t *te
 				ownerUserID:    "owner-durable-parent-replay",
 				sessionKey:     sessionKey,
 				roundID:        roundID,
-				goalIDForUsage: goalID,
-				goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+				GoalRoundState: runtimehost.GoalRoundState{IDForUsage: goalID, Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 			}
 			snapshot := goalsvc.RuntimeUsageSnapshot{
 				Usage: protocol.GoalUsage{
@@ -808,9 +792,9 @@ func dmGoalUsageRetryStopped(runner *roundRunner) bool {
 	if runner == nil {
 		return true
 	}
-	runner.goalUsageMu.Lock()
-	defer runner.goalUsageMu.Unlock()
-	return !runner.goalUsageRetryRunning
+	runner.Mu.Lock()
+	defer runner.Mu.Unlock()
+	return !runner.UsageRetrying
 }
 
 func (p *fakeDMGoalUsageFinalizer) UsageByGoalID(
@@ -884,7 +868,7 @@ func (p *fakeDMGoalUsageFinalizer) claimSuccessCount() int {
 }
 
 func (r *roundRunner) subagentGoalUsageClaimPending() bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return r.subagentUsageClaimPending
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	return r.UsageClaimPending
 }

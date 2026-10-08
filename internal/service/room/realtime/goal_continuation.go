@@ -523,7 +523,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 		if candidate == nil || *candidate != *binding {
 			continue
 		}
-		lastAssistant := slot.lastGoalAssistantMessage()
+		lastAssistant := slot.mutable.goal.LastGoalAssistantMessage()
 		if roomdomain.IsNoReplyAssistantMessage(lastAssistant) ||
 			messageutil.ExtractAssistantDisplayText(lastAssistant) == "" {
 			continue

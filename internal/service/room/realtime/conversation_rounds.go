@@ -704,7 +704,7 @@ func (r *activeRoomRound) hasRunningSubagentTasks() bool {
 		return false
 	}
 	for _, slot := range r.Slots {
-		if slot != nil && slot.hasRunningSubagentTask() {
+		if slot != nil && slot.mutable.goal.HasRunningSubagentTask() {
 			return true
 		}
 	}

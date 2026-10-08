@@ -11,6 +11,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -63,16 +64,14 @@ func TestFailRoundKeepsProviderUsageReturnedBeforeLocalFailure(t *testing.T) {
 					AgentID:       agentID,
 					WorkspacePath: cfg.WorkspacePath,
 				},
-				sessionKey:       sessionKey,
-				roundID:          roundID,
-				agentRoundID:     roundID,
-				client:           newFakeDMClient(),
-				mapper:           dmdomain.NewMessageMapper(sessionKey, agentID, roundID, roundID, "user-terminal-local-failure"),
-				goalIDForUsage:   "goal-terminal-local-failure",
-				goalUsage:        goalsvc.NewRuntimeUsageAccumulator(true),
-				goalUsageStarted: time.Now(),
+				sessionKey:     sessionKey,
+				roundID:        roundID,
+				agentRoundID:   roundID,
+				client:         newFakeDMClient(),
+				mapper:         dmdomain.NewMessageMapper(sessionKey, agentID, roundID, roundID, "user-terminal-local-failure"),
+				GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-terminal-local-failure", Usage: goalsvc.NewRuntimeUsageAccumulator(true), UsageStartedAt: time.Now()},
 			}
-			runner.rememberGoalAssistantMessage(protocol.Message{
+			runner.RememberGoalAssistantMessage(protocol.Message{
 				"message_id": "assistant-terminal-local-failure",
 				"role":       "assistant",
 				"usage": map[string]any{
@@ -94,7 +93,7 @@ func TestFailRoundKeepsProviderUsageReturnedBeforeLocalFailure(t *testing.T) {
 			if len(usages) > 0 && usages[0].ActualTokens() != testCase.wantActual {
 				t.Fatalf("failure-settled usage = %#v, want actual %d", usages, testCase.wantActual)
 			}
-			if runner.goalUsage.Active() {
+			if runner.Usage.Active() {
 				t.Fatal("Goal usage remains active after failure settlement")
 			}
 		})

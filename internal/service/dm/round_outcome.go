@@ -41,7 +41,7 @@ func (r *roundRunner) failRoundAtPhase(
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.LoggerFor(context.Background()).Error("DM round 执行失败", fields...)
 	displayError := exec.RoundErrorDisplayMessage(err)
-	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
+	r.finalizeGoalUsage(context.Background(), result, r.LastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ErrorMessage:   displayError,
@@ -136,7 +136,7 @@ func (r *roundRunner) failRoundAtPhase(
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalFailed)
-	if !r.hasRunningSubagentTask() {
+	if !r.HasRunningSubagentTask() {
 		r.completeSubagentJoinAfterParentTerminal()
 	}
 	r.dispatchNextInputQueueItem()
@@ -202,7 +202,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
+	r.finalizeGoalUsage(context.Background(), result, r.LastGoalAssistantMessage())
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
 	resultMessage := protocol.Message{
@@ -270,7 +270,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		r.startIdleSubagentNotificationDrain()
 	}
 	r.markSubagentParentTerminal(subagentParentTerminalInterrupted)
-	if !r.hasRunningSubagentTask() {
+	if !r.HasRunningSubagentTask() {
 		r.completeSubagentJoinAfterParentTerminal()
 	}
 	r.dispatchNextInputQueueItem()

@@ -13,39 +13,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
-func (r *roundRunner) rememberGoalCompletionAssistant(message protocol.Message) {
-	if r == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	r.goalUsageMu.Lock()
-	if r.goalCompletionCandidateID != "" {
-		r.goalCompletionAssistant = protocol.Clone(message)
-	}
-	r.goalUsageMu.Unlock()
-}
-
-func (r *roundRunner) goalCompletionReceiptSnapshot() (
-	string,
-	protocol.Message,
-	protocol.GoalCompletionReceipt,
-	bool,
-) {
-	if r == nil {
-		return "", nil, protocol.GoalCompletionReceipt{}, false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return strings.TrimSpace(r.goalCompletionCandidateID),
-		protocol.Clone(r.goalCompletionAssistant),
-		r.goalCompletionReceipt,
-		r.goalCompletionReceiptStored
-}
-
 func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh bool) {
 	if r == nil || r.service == nil {
 		return
 	}
-	goalID, assistant, previous, stored := r.goalCompletionReceiptSnapshot()
+	goalID, assistant, previous, stored := r.GoalCompletionReceiptSnapshot()
 	if goalID == "" || len(assistant) == 0 ||
 		strings.TrimSpace(r.workspacePath) == "" ||
 		r.sessionKey == "" ||
@@ -78,21 +50,10 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		)
 		return
 	}
-	r.markGoalCompletionReceiptStored(goalID, receipt)
+	r.MarkGoalCompletionReceiptStored(goalID, receipt)
 	if r.service.permission != nil {
 		event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
 		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 	}
 }
 
-func (r *roundRunner) markGoalCompletionReceiptStored(
-	goalID string,
-	receipt protocol.GoalCompletionReceipt,
-) {
-	r.goalUsageMu.Lock()
-	if strings.TrimSpace(r.goalCompletionCandidateID) == strings.TrimSpace(goalID) {
-		r.goalCompletionReceipt = receipt
-		r.goalCompletionReceiptStored = true
-	}
-	r.goalUsageMu.Unlock()
-}

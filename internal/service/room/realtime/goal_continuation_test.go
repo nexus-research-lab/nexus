@@ -263,7 +263,7 @@ func TestRealtimeServicePostRoundWorkRejectsStaleCollaborationAttribution(t *tes
 		GoalID:            "goal-room",
 		ObjectiveRevision: 1,
 	})
-	slot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+	slot.mutable.goal.RememberGoalAssistantMessage(roomGoalTextAssistantMessage(
 		"assistant-peer-stale",
 		"这是旧目标的结果。",
 	))
@@ -311,7 +311,7 @@ func TestRealtimeServicePostRoundWorkReturnsControlAfterNoReplyWithoutClaimingEv
 		GoalID:            "goal-room",
 		ObjectiveRevision: 1,
 	})
-	slot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+	slot.mutable.goal.RememberGoalAssistantMessage(roomGoalTextAssistantMessage(
 		"assistant-peer-no-reply",
 		"<nexus_room_no_reply/>",
 	))
@@ -364,7 +364,7 @@ func TestRealtimeServiceCollaborationCompletionReleasesLiveSourceBarrier(t *test
 		AgentRoundID: "room-mention-target",
 	}, "finished")
 	targetSlot.setGoalCollaborationBinding(binding)
-	targetSlot.rememberGoalAssistantMessage(roomGoalTextAssistantMessage(
+	targetSlot.mutable.goal.RememberGoalAssistantMessage(roomGoalTextAssistantMessage(
 		"assistant-target",
 		"协作结果已完成。",
 	))

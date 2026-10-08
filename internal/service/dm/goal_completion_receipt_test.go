@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -37,14 +38,12 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 		"content":     []map[string]any{{"type": "text", "text": "最终交付"}},
 	}
 	runner := &roundRunner{
-		service:                     &Service{goals: provider, history: history},
-		workspacePath:               workspacePath,
-		session:                     protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
-		sessionKey:                  sessionKey,
-		roundID:                     "round-1",
-		goalCompletionCandidateID:   "goal-1",
-		goalCompletionAssistant:     assistant,
-		goalCompletionReceiptStored: false,
+		service:        &Service{goals: provider, history: history},
+		workspacePath:  workspacePath,
+		session:        protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
+		sessionKey:     sessionKey,
+		roundID:        "round-1",
+		GoalRoundState: runtimehost.GoalRoundState{CompletionCandidateID: "goal-1", CompletionAssistant: assistant, CompletionReceiptStored: false},
 	}
 
 	runner.persistGoalCompletionReceipt(context.Background(), false)
@@ -85,8 +84,8 @@ func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
 		GoalStatus: string(protocol.GoalStatusComplete),
 	})
 	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
-	if runner.goalCompletionCandidateID != "goal-from-receipt" {
-		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.goalCompletionCandidateID)
+	if runner.CompletionCandidateID != "goal-from-receipt" {
+		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.CompletionCandidateID)
 	}
 }
 

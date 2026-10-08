@@ -46,7 +46,7 @@ func TestDMIgnoresLocalShellTaskLifecycle(t *testing.T) {
 			"task_type":  "local_shell",
 		},
 	})
-	if runner.hasRunningSubagentTask() || runtimeManager.HasSubagentHistory(runner.sessionKey) {
+	if runner.HasRunningSubagentTask() || runtimeManager.HasSubagentHistory(runner.sessionKey) {
 		t.Fatal("local_shell 不应保活 DM subagent runtime")
 	}
 }

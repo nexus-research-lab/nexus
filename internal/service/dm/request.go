@@ -435,8 +435,7 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		deferredAssistant:          e.request.DeferredAssistant,
 		executionID:                e.request.ExecutionID,
 		goalObjectiveRevision:      &atomic.Int64{},
-		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
-		goalUsageStarted:           time.Now(),
+		GoalRoundState:             runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false), UsageStartedAt: time.Now()},
 		permissionHandler:          e.request.PermissionHandler,
 		automationRun:              e.request.AutomationRun.NormalizedCopy(),
 	}
@@ -453,20 +452,20 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.runtimeModel = preparation.runtimeModel
 	r.toolSurfaceFingerprint = preparation.toolSurfaceFingerprint
 	r.forkSourceSessionID = preparation.forkSourceSessionID
-	r.goalContext = preparation.goalContext
-	r.goalIDForUsage = preparation.goalIDForUsage
-	r.childGoalIDForUsage = preparation.goalIDForUsage
+	r.Context = preparation.goalContext
+	r.IDForUsage = preparation.goalIDForUsage
+	r.ChildIDForUsage = preparation.goalIDForUsage
 	if preparation.goalObjectiveRevision != nil {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
 	r.responsibilityState = preparation.responsibilityState
 	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
-	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
+	r.Usage = goalsvc.NewRuntimeUsageAccumulator(
 		preparation.goalIDForUsage != "",
 	)
-	r.goalUsageStarted = time.Now()
-	r.goalUsageScopeConsumed = preparation.goalIDForUsage != ""
+	r.UsageStartedAt = time.Now()
+	r.UsageScopeConsumed = preparation.goalIDForUsage != ""
 	r.permissionMode = preparation.permissionMode
 }
 
@@ -599,7 +598,7 @@ func (e *dmChatExecution) registerRunner() {
 		e.sessionKey,
 		e.request.RoundID,
 		e.request.RoundID,
-		e.runner.goalUsageScopeWasConsumed,
+		e.runner.GoalUsageScopeConsumed,
 	)
 	e.service.runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
 }

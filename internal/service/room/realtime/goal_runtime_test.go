@@ -33,7 +33,7 @@ func TestRoomSlotMidRoundFlushDefersEstimatedActualUntilLowerExactTerminal(t *te
 	}
 	slot.setGoalBinding("", "goal-estimated-checkpoint")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-	slot.rememberGoalAssistantMessage(protocol.Message{
+	slot.mutable.goal.RememberGoalAssistantMessage(protocol.Message{
 		"message_id": "assistant-estimated-checkpoint",
 		"role":       "assistant",
 		"usage": map[string]any{
