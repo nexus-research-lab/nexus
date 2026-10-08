@@ -8,32 +8,15 @@ import (
 	"strings"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh bool) {
-	if r == nil || r.service == nil {
+	if strings.TrimSpace(r.workspacePath) == "" || r.sessionKey == "" {
 		return
 	}
-	goalID, assistant, previous, stored := r.GoalCompletionReceiptSnapshot()
-	if goalID == "" || len(assistant) == 0 ||
-		strings.TrimSpace(r.workspacePath) == "" ||
-		r.sessionKey == "" ||
-		(stored && !refresh) {
-		return
-	}
-	report, reportOK := runtimehost.GoalCompletionReport(ctx, r.service.goals, r.service.LoggerFor(ctx), goalID)
-	if !reportOK && stored {
-		return
-	}
-	receipt := messageutil.BuildGoalCompletionReceipt(goalID, r.roundID, report)
-	if stored && previous.Equal(receipt) {
-		return
-	}
-	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
-	if !ok || r.service.History == nil {
+	goalID, message, receipt, ok := r.PrepareGoalCompletionReceipt(ctx, r.service.goals, r.service.LoggerFor(ctx), r.roundID, refresh)
+	if !ok {
 		return
 	}
 	if err := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
@@ -51,8 +34,6 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		return
 	}
 	r.MarkGoalCompletionReceiptStored(goalID, receipt)
-	if r.service.Permission != nil {
-		event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
-		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
-	}
+	event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
+	r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 }

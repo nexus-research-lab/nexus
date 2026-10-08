@@ -8,6 +8,7 @@ import (
 
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
@@ -39,7 +40,7 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 		"content":     []map[string]any{{"type": "text", "text": "最终交付"}},
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history}},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history, Permission: permissionctx.NewContext()}},
 		workspacePath:  workspacePath,
 		session:        protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
 		sessionKey:     sessionKey,

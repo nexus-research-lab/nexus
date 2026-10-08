@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
-	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (s *Service) persistRoomGoalCompletionReceipts(
@@ -31,25 +29,10 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 	slot *activeRoomSlot,
 	refresh bool,
 ) {
-	if roundValue == nil || slot == nil {
+	if strings.TrimSpace(slot.WorkspacePath) == "" || strings.TrimSpace(slot.RuntimeSessionKey) == "" {
 		return
 	}
-	goalID, assistant, previous, stored := slot.mutable.goal.GoalCompletionReceiptSnapshot()
-	if goalID == "" || len(assistant) == 0 ||
-		strings.TrimSpace(slot.WorkspacePath) == "" ||
-		strings.TrimSpace(slot.RuntimeSessionKey) == "" ||
-		(stored && !refresh) {
-		return
-	}
-	report, reportOK := runtimehost.GoalCompletionReport(ctx, s.goals, s.LoggerFor(ctx), goalID)
-	if !reportOK && stored {
-		return
-	}
-	receipt := messageutil.BuildGoalCompletionReceipt(goalID, slot.AgentRoundID, report)
-	if stored && previous.Equal(receipt) {
-		return
-	}
-	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
+	goalID, message, receipt, ok := slot.mutable.goal.PrepareGoalCompletionReceipt(ctx, s.goals, s.LoggerFor(ctx), slot.AgentRoundID, refresh)
 	if !ok {
 		return
 	}
