@@ -93,19 +93,10 @@ func (c *Context) resolveRouteContext(sessionKey string) RouteContext {
 	return route
 }
 
-func (c *Context) replayPendingRequestsToSender(sessionKey string, sender Sender) {
+func (c *Context) replayPendingRequestsToSender(requests []*PendingRequest, sender Sender) {
 	if sender == nil || sender.IsClosed() {
 		return
 	}
-	dispatchSessionKey := c.ResolveDispatchSessionKey(sessionKey)
-	c.mu.RLock()
-	requests := make([]*PendingRequest, 0)
-	for _, pending := range c.pendingRequests {
-		if pending.DispatchSessionKey == dispatchSessionKey {
-			requests = append(requests, pending)
-		}
-	}
-	c.mu.RUnlock()
 
 	slices.SortFunc(requests, comparePendingRequests)
 	for _, pending := range requests {
@@ -150,14 +141,14 @@ func comparePendingRequests(left *PendingRequest, right *PendingRequest) int {
 	return strings.Compare(left.RequestID, right.RequestID)
 }
 
-func (c *Context) dispatchPendingRequest(pending *PendingRequest) {
+func (c *Context) dispatchPendingRequest(pending *PendingRequest, senders []Sender) {
 	if pending == nil {
 		return
 	}
 	event := buildPermissionEvent(pending)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c.broadcastPermissionEvent(ctx, pending, event)
+	c.broadcastPermissionEvent(ctx, pending, event, senders)
 }
 
 func (c *Context) dispatchPendingRequestToSender(pending *PendingRequest, sender Sender) {
@@ -311,13 +302,14 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c.broadcastPermissionEvent(ctx, pending, event)
+	c.broadcastPermissionEvent(ctx, pending, event, c.ResolveSessionSenders(pending.DispatchSessionKey))
 }
 
 func (c *Context) broadcastPermissionEvent(
 	ctx context.Context,
 	pending *PendingRequest,
 	event protocol.EventMessage,
+	senders []Sender,
 ) {
 	c.mu.RLock()
 	broadcaster := c.roomBroadcaster
@@ -327,7 +319,12 @@ func (c *Context) broadcastPermissionEvent(
 		roomEvent.DeliveryMode = protocol.DeliveryModeDurable
 		_ = broadcaster.Broadcast(ctx, pending.Route.RoomID, roomEvent)
 	}
-	_ = c.BroadcastEvent(ctx, pending.DispatchSessionKey, event)
+	event, _, _ = c.prepareRoutedEvent(pending.DispatchSessionKey, event)
+	for _, sender := range senders {
+		if !sender.IsClosed() {
+			_ = sender.SendEvent(ctx, event)
+		}
+	}
 }
 
 func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) map[string]string {

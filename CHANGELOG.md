@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
+
+- 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
+- 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
+- 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
+- Windows 原生沙箱 CI 使用专用 SDK 读取凭据，缺失时明确报告配置要求。
+
 - 修复 nexuscfg 全部 runtime 配置请求因携带多余 reconcile 字段而返回“请求参数错误”，恢复 inspect、plan、apply、history 与 review 的请求解析。修正配置 Skill 的排障指引，避免将通用接口错误或页面不可见直接归因于权限或版本缺失。
 
 - 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
