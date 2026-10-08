@@ -431,6 +431,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
+
+- 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
+- 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
+- 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
+- Windows 原生沙箱 CI 使用专用 SDK 读取凭据，缺失时明确报告配置要求。
+
 - Keep real MCP tool-use identities when integrating current main with desktop sandbox capabilities; pin the combined Bridge revision and verify the IM and sandbox contracts together.
 
 - Preserve runtime cleanup failures across reconnects, configuration replacement and repeated closes. Keep failed sessions fenced, report cleanup errors even alongside closed-pipe errors, and include host-only sandbox file/resource requirements in the process-policy fingerprint. This in-memory fence does not yet establish complete descendant or crash-recovery guarantees.

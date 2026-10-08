@@ -139,7 +139,8 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, historical); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err != nil {
+	// 153 保留历史回执表，但尚未引入 154 的进程绑定。
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 153); err != nil {
 		t.Fatal(err)
 	}
 	if err := goose.Up(r.db, "../../../db/migrations/sqlite"); err != nil {
@@ -163,7 +164,7 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, bound); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err == nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 153); err == nil {
 		t.Fatal("discarded process binding during rollback")
 	}
 	got, found, err = r.Get(ctx, bound.OwnerUserID, bound.SessionKey, bound.Generation)
