@@ -149,14 +149,14 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 		creator,
 		roomGoalToolResultAssistantMessage("tool-create", "Bash", 4, 1),
 	)
-	if creator.goalIDForUsage() != "goal-room-created" || peer.goalIDForUsage() != "goal-room-created" {
+	if creator.mutable.goal.UsageGoalID() != "goal-room-created" || peer.mutable.goal.UsageGoalID() != "goal-room-created" {
 		t.Fatalf("slot bindings = creator:%q peer:%q, want shared goal-room-created",
-			creator.goalIDForUsage(),
-			peer.goalIDForUsage(),
+			creator.mutable.goal.UsageGoalID(),
+			peer.mutable.goal.UsageGoalID(),
 		)
 	}
-	if unrelated.goalIDForUsage() != "" {
-		t.Fatalf("same-session unrelated root binding = %q, want empty", unrelated.goalIDForUsage())
+	if unrelated.mutable.goal.UsageGoalID() != "" {
+		t.Fatalf("same-session unrelated root binding = %q, want empty", unrelated.mutable.goal.UsageGoalID())
 	}
 	service.finalizeGoalUsageForSlot(context.Background(), peer, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
@@ -337,10 +337,10 @@ func TestRoomClaimsPreCreateSubagentUsageAndKeepsChildrenBoundAfterSlotTerminal(
 			peer.goalUsageClaimPending(),
 		)
 	}
-	if unrelated.goalIDForUsage() != "" || unrelated.goalUsageClaimPending() {
+	if unrelated.mutable.goal.UsageGoalID() != "" || unrelated.goalUsageClaimPending() {
 		t.Fatalf(
 			"unrelated root changed by model create: goal=%q claim_pending=%v",
-			unrelated.goalIDForUsage(),
+			unrelated.mutable.goal.UsageGoalID(),
 			unrelated.goalUsageClaimPending(),
 		)
 	}
@@ -423,8 +423,8 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	if roundIDs, err := manager.ActivateGoalAccounting(context.Background(), goalSessionKey, "goal-shared"); err != nil || len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
 		t.Fatalf("ActivateGoalAccounting() = %#v, %v, want slot accounting", roundIDs, err)
 	}
-	if slot.goalIDForUsage() != "goal-shared" {
-		t.Fatalf("slot goal binding = %q, want goal-shared", slot.goalIDForUsage())
+	if slot.mutable.goal.UsageGoalID() != "goal-shared" {
+		t.Fatalf("slot goal binding = %q, want goal-shared", slot.mutable.goal.UsageGoalID())
 	}
 	if _, err := manager.QueueGuidanceInput(context.Background(), goalSessionKey, "goal-event-1", "budget reached"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
 		t.Fatalf("shared Goal accounting 不应伪装 guidance runtime: %v", err)

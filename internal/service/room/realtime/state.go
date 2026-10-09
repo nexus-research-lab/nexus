@@ -1136,15 +1136,6 @@ func (slot *activeRoomSlot) goalContext() string {
 	return slot.mutable.goal.Context
 }
 
-func (slot *activeRoomSlot) goalIDForUsage() string {
-	if slot == nil {
-		return ""
-	}
-	slot.mutable.goal.Mu.RLock()
-	defer slot.mutable.goal.Mu.RUnlock()
-	return slot.mutable.goal.IDForUsage
-}
-
 func (slot *activeRoomSlot) childGoalIDForUsage() string {
 	if slot == nil {
 		return ""

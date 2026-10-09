@@ -51,7 +51,7 @@ type slotExecution struct {
 func (e *slotExecution) writeUsage(message protocol.Message) bool {
 	s, roundValue, slot := e.service, e.round, e.slot
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
-	if err := s.WriteRuntimeUsage(slot.RuntimeSessionKey, input, slot.ensureResponsibilityAuthorityState(), slot.goalIDForUsage(), ""); err != nil {
+	if err := s.WriteRuntimeUsage(slot.RuntimeSessionKey, input, slot.ensureResponsibilityAuthorityState(), slot.mutable.goal.UsageGoalID(), ""); err != nil {
 		s.LoggerFor(context.Background()).Error("Room token usage 写入失败",
 			"session_key", roundValue.SessionKey,
 			"room_id", roundValue.RoomID,

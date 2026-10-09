@@ -244,7 +244,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 		got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Fatalf("persistence/bind order = %#v, want %#v", got, want)
 	}
-	if got := slot.goalIDForUsage(); got != "goal-new" {
+	if got := slot.mutable.goal.UsageGoalID(); got != "goal-new" {
 		t.Fatalf("Goal binding = %q, want goal-new", got)
 	}
 }
@@ -275,7 +275,7 @@ func TestRoomExternalBindRequiresKnownChildPendingToFlush(t *testing.T) {
 	if bindCalls != 0 {
 		t.Fatalf("BindUsageScopeFromNow calls = %d, want 0 before child flush succeeds", bindCalls)
 	}
-	if got := slot.goalIDForUsage(); got != "" {
+	if got := slot.mutable.goal.UsageGoalID(); got != "" {
 		t.Fatalf("Goal binding = %q, want old unbound state after flush failure", got)
 	}
 	if pending := slot.subagentUsageObservationPendingSnapshot(); len(pending) != 1 {
@@ -351,11 +351,11 @@ func TestRoomChildResultBindsOnlyMatchingRootScope(t *testing.T) {
 		t.Fatalf("settled child snapshots = %#v, want one", settled)
 	}
 	for _, slot := range []*activeRoomSlot{origin, peer} {
-		if got := slot.goalIDForUsage(); got != provider.goal.ID {
+		if got := slot.mutable.goal.UsageGoalID(); got != provider.goal.ID {
 			t.Fatalf("%s Goal binding = %q, want %q", slot.AgentID, got, provider.goal.ID)
 		}
 	}
-	if got := unrelated.goalIDForUsage(); got != "" {
+	if got := unrelated.mutable.goal.UsageGoalID(); got != "" {
 		t.Fatalf("unrelated root Goal binding = %q, want empty", got)
 	}
 }
@@ -418,7 +418,7 @@ func TestRoomSlotSerializesUsageSettlementWithExternalGoalRebind(t *testing.T) {
 	if len(gotIDs) != 1 || gotIDs[0] != "goal-old" {
 		t.Fatalf("usage Goal IDs = %#v, want old delta fixed to goal-old", gotIDs)
 	}
-	if got := slot.goalIDForUsage(); got != "goal-new" {
+	if got := slot.mutable.goal.UsageGoalID(); got != "goal-new" {
 		t.Fatalf("Goal binding = %q, want goal-new after settlement", got)
 	}
 }

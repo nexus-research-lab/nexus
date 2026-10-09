@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- DM 与 Room 共享单 Agent 执行引擎：runtime 启动（含失效 resume 回退）、round 执行骨架、宿主 result 消息与 PostToolUse 引导协议只实现一次；中断收尾在各宿主内去重。
 - 后端按“DM 是 Room 的一种”收敛：每轮 Goal 状态、Goal 续跑、用量结算与重试、完成收据、`/goal` 建 Goal 与流诊断在 `service/runtimehost` 只实现一次；DM 与 Room realtime 装配不完整时启动即失败。
 - 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
 - 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。

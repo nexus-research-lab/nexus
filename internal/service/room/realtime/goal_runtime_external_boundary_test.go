@@ -71,7 +71,7 @@ func TestRoomExternalClearSettlesObservedActualBeforeBindingClear(t *testing.T) 
 		deleted.Usage.ActualTokensAreEstimated() {
 		t.Fatalf("deleted Goal usage = %#v, want settled observed actual 100", deleted)
 	}
-	if fixture.slot.goalIDForUsage() != "" || fixture.slot.goalUsageActive() {
+	if fixture.slot.mutable.goal.UsageGoalID() != "" || fixture.slot.goalUsageActive() {
 		t.Fatal("external clear left the Room slot Goal binding active")
 	}
 }
@@ -94,7 +94,7 @@ func TestRoomExternalCompleteKeepsBindingUntilTerminalThenFinalizes(t *testing.T
 	if completed.UsageFinalized {
 		t.Fatal("external completion finalized usage before the running Room slot terminal")
 	}
-	if fixture.slot.goalIDForUsage() != fixture.goal.ID || !fixture.slot.goalUsageActive() {
+	if fixture.slot.mutable.goal.UsageGoalID() != fixture.goal.ID || !fixture.slot.goalUsageActive() {
 		t.Fatal("external completion cleared the Room slot Goal binding before terminal usage")
 	}
 
@@ -189,7 +189,7 @@ func newRoomGoalBoundaryFixture(t *testing.T, suffix string) roomGoalBoundaryFix
 		cleanup()
 		t.Fatal(err)
 	}
-	if slot.goalIDForUsage() != created.ID || !slot.goalUsageActive() {
+	if slot.mutable.goal.UsageGoalID() != created.ID || !slot.goalUsageActive() {
 		cleanup()
 		t.Fatalf("external create did not activate Room slot Goal %q", created.ID)
 	}

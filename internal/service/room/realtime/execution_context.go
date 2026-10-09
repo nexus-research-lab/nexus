@@ -15,7 +15,7 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 	if e.slot == nil {
 		return nil
 	}
-	inputs := runtimectx.GoalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot))
+	inputs := runtimectx.GoalContextualInputs(e.slot.goalContext(), e.slot.mutable.goal.UsageGoalID(), goalSessionKeyForSlot(e.slot))
 	if e.round != nil {
 		inputs = append(runtimectx.AutomationRunContextualInputs(e.round.AutomationRun), inputs...)
 	}

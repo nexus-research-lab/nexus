@@ -588,7 +588,7 @@ func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string,
 }
 
 func (e *dmChatExecution) registerRunner() {
-	e.service.Runtime.RegisterGoalAccountingIdentity(e.sessionKey, e.request.RoundID, e.runner.goalIDForAccounting)
+	e.service.Runtime.RegisterGoalAccountingIdentity(e.sessionKey, e.request.RoundID, e.runner.UsageGoalID)
 	e.service.Runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
 	e.service.Runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
 	e.service.Runtime.RegisterGoalAccountingFinalize(e.sessionKey, e.request.RoundID, e.runner.beginGoalUsageFinalizing)

@@ -91,15 +91,6 @@ func (r *roundRunner) clearGoalUsage() {
 	r.goalTokenUsageObserved = false
 }
 
-func (r *roundRunner) goalIDForAccounting() string {
-	if r == nil {
-		return ""
-	}
-	r.Mu.Lock()
-	defer r.Mu.Unlock()
-	return strings.TrimSpace(r.IDForUsage)
-}
-
 // beginGoalUsageFinalizing 用于外部 complete：保留当前 Goal 固定绑定，
 // 让 provider terminal 与迟到 child usage 完成最终对账后再关闭。
 func (r *roundRunner) beginGoalUsageFinalizing() bool {
@@ -182,7 +173,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 	usage, _ := runtimectx.GoalUsageFromRaw(r.LastAssistant["usage"])
 	snapshot := goalsvc.RuntimeUsageSnapshot{
 		Usage:          usage,
-		ElapsedSeconds: r.elapsedGoalUsageSeconds(),
+		ElapsedSeconds: runtimehost.ElapsedSecondsSince(r.UsageStartedAt),
 		TurnID:         textutil.AnyString(r.LastAssistant["message_id"]),
 	}
 	r.IDForUsage = goalID
@@ -336,7 +327,7 @@ func (r *roundRunner) hasGoalToolProgress() bool {
 }
 
 func (r *roundRunner) finalGoalUsageSnapshot(result exec.RoundExecutionResult, finalAssistant protocol.Message) (goalsvc.RuntimeUsageSnapshot, bool) {
-	return goalruntimeusage.FinalSnapshot(result, finalAssistant, r.elapsedGoalUsageSeconds())
+	return goalruntimeusage.FinalSnapshot(result, finalAssistant, runtimehost.ElapsedSecondsSince(r.UsageStartedAt))
 }
 
 // rememberTerminalGoalUsageSnapshot 保留 provider terminal 快照，直到 claim、
@@ -394,7 +385,7 @@ func (r *roundRunner) closeGoalUsageIfNoTerminalSnapshotPending() bool {
 }
 
 func (r *roundRunner) assistantGoalUsageSnapshot(message protocol.Message) goalsvc.RuntimeUsageSnapshot {
-	return goalruntimeusage.AssistantSnapshot(message, r.elapsedGoalUsageSeconds())
+	return goalruntimeusage.AssistantSnapshot(message, runtimehost.ElapsedSecondsSince(r.UsageStartedAt))
 }
 
 func (r *roundRunner) recordGoalUsageSnapshot(ctx context.Context, snapshot goalsvc.RuntimeUsageSnapshot) {
@@ -1052,14 +1043,6 @@ func (r *roundRunner) stopGoalUsageRetryAfterSettlement() bool {
 	}
 	r.UsageRetrying = false
 	return true
-}
-
-func (r *roundRunner) elapsedGoalUsageSeconds() int64 {
-	if r.UsageStartedAt.IsZero() {
-		return 0
-	}
-	elapsed := int64(time.Since(r.UsageStartedAt).Seconds())
-	return max(elapsed, 0)
 }
 
 func (r *roundRunner) ignoreGoalRuntime() bool {
