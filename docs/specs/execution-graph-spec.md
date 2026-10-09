@@ -290,11 +290,8 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 
 **保存确认**
 
-- UI 用户确认后，preview save HTTP 只在 fresh 的目录隐藏内部 DM Session 调度 `HiddenFromUser + Synthetic + purpose=workgraph_distillation` 的 Agent round。
-- 该 Session 不 fork、resume 或续写源 transcript；只把宿主签发的 source session 和 exact preview 作为 round authority。
-- 从首个 pending slot、过程状态、工具调用到完成事件都保持隐藏：不写聊天消息、不改源 Composer、也不直接持久化。
-- 唯一模型持久化入口是该 round 内的 `execution-orchestrator` Skill 按 fresh contract 只提交 exact `preview_id` 给 `nexus.command` 的 `distill_workgraph` operation；宿主原样保存该预览，Agent 不重新读取或重写源图。
-- 该内部 round 的宿主 prompt、operation contract、schema 说明、过程摘要与自然语言回执固定使用简体中文；只有命令、Skill 名称和标识符保留原始形式。
+- UI 用户确认后，`POST /workgraph/previews/{preview_id}/save` 由宿主直接校验并原样保存该 preview 与元信息（`workgraphworkflow.ConfirmSave`），不调度模型轮次；成功响应即表示已提交。
+- `purpose=workgraph_distillation` 的隐藏 Session 与其中可见的 `distill_workgraph` operation 只为已存在的此类 Session 保留权限收敛，宿主不再创建新的蒸馏轮次。
 
 **目录、继续编辑与删除**
 
@@ -366,7 +363,7 @@ owner 可以把当前或历史图中的显式 Work Item 子图保存为命名工
 5. Snapshot 与同一 Execution 跨 Plan revision 的 append-only Assignment/Attempt/Submission/Review/Acceptance 画布历史必须在同一 read transaction 中读取；前端刷新或追加研究迭代不得让已出现的轮次短暂消失。
 6. 布局先建立全部非控制边，再判断 `retry`/`loop_back` 是进入新 Attempt 的前向边还是闭环回边；结果不能依赖 JSON 边顺序。
 7. 草图后续修改只接受 exact Session/Draft capability 的完整草图 mutation，不允许从 Runtime Graph、工具名、普通聊天正文或 UI 布局反推节点。
-8. `/workgraph`、普通对话 Draft authoring、`/<command>` 与 UI 内部 `distill_workgraph` 分别表示当前协作、提取/编辑/确认、复用命名图和隔离保存，权限与投影不得混用。
+8. `/workgraph`、普通对话 Draft authoring、`/<command>` 与 UI 确认保存分别表示当前协作、提取/编辑/确认、复用命名图和宿主直接保存，权限与投影不得混用。
 
 ## 10. 当前非目标
 
