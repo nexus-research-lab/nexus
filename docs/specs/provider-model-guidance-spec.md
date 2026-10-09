@@ -34,7 +34,7 @@ Catalog and recommendations:
 - Recommendations apply only to locally eligible, actually listed models. They never add or enable models, replace saved defaults or change selection.
 - Azure deployment names and custom endpoints receive no provider-specific recommendation from name matching.
 
-See [official evidence and provider coverage](../testing/provider-model-evidence.md) for the dated research snapshot, endpoints, exact plan distinctions and review gaps.
+The dated research snapshot, endpoint matrix and review gaps are maintained outside the public repository.
 
 ## Purpose eligibility
 

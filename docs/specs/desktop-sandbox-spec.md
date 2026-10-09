@@ -3,7 +3,7 @@
 This spec states implemented host wiring. It is not acceptance of a full App sandbox, and the feature must not be presented as fully accepted App isolation.
 
 - 开发计划、历史评估和实验记录保存在本地或 CI artifact，不随公开仓库发布。
-- 验收矩阵：[desktop sandbox acceptance](../testing/desktop-sandbox-acceptance.md)。
+- 验收记录由内部 CI 和本地维护，不随公开仓库发布。
 - MCP servers, Connectors and the desktop UI keep their separate authorization.
 
 ## Activation and scope
@@ -294,7 +294,7 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 - The fixed SDK checks Provider ownership before projecting ordinary settings. In host-managed mode, settings cannot supply Provider/main/fallback/background models, vision routes, credentials, custom headers, request-body overrides, proxy or certificate inputs. Explicit host Options/environment stay authoritative; ordinary task environment values stay available.
 - Background-model settings updates that cannot take effect in host-managed mode return an error. Standalone SDK settings keep their routing semantics.
 - Anthropic-compatible third-party models: host-owned `BaseURL` is projected as `ANTHROPIC_BASE_URL`. nxs projects host-owned `AuthToken` through the SDK's `ANTHROPIC_API_KEY` path for first-party and compatible endpoints (emitting `x-api-key` and the compatible-endpoint Bearer fallback). Claude keeps `ANTHROPIC_AUTH_TOKEN` for its native CLI semantics.
-- [Live-provider evidence](../testing/desktop-sandbox-acceptance.md#2026-09-27真实第三方模型与两种-macos-后端) covers one real gateway; arbitrary gateways and official account/OAuth compatibility are not established. Provider-specific custom headers have no Nexus field and are not accepted.
+- 真实 Provider 验收记录由内部 CI 和本地维护，不随公开仓库发布。
 - The nxs `Sandbox.Network` object governs command/tool execution (including shell network preflight), not the model Provider transport. Nexus does not add the resolved Provider host to `DesktopSandboxNetworkAdmission`. Provider reachability is an input-ownership guarantee only; an OS-level Provider egress boundary needs platform/Bridge evidence and is outside the receipt.
 - Command and hook environment builders remove known SDK main/auxiliary credentials after applying runtime environment values. Task values cannot disable an ownership declaration already in the host process. This is a versioned guarantee checked by the fixed-source baseline, not a wire capability inferred from settings-write acknowledgement.
 - HTTP hook header interpolation uses the task-visible environment even when the hook allowlist names a Provider credential. nxs MCP configuration interpolation treats such process credentials as missing (URL, argument, environment alias and header locations), keeping existing missing/fallback semantics.
@@ -490,7 +490,7 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 
 ### Historical main integration
 
-The pinned Bridge carries main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged; missing metadata stays empty; business arguments cannot supply this identity. Integration evidence: [acceptance matrix](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容).
+- 该集成验证记录由内部 CI 和本地维护。
 
 ### 宿主监督启动登记（显式装配）
 
@@ -577,4 +577,4 @@ The pinned Bridge carries main's MCP call-context contract: runtime `params._met
 
 ## 实现约束
 
-- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox` 是显式桌面沙箱基线：脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败。原生 macOS 完整入口见 [验收矩阵](../testing/desktop-sandbox-acceptance.md)。
+- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox` 是显式桌面沙箱基线：脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败。完整验收记录由内部 CI 和本地维护。

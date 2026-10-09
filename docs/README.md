@@ -14,7 +14,6 @@
 | Room Skill 编写 | [中文](./guides/room-skill-authoring.md) · [英文](./guides/room-skill-authoring.en.md) |
 | WorkGraph | [设计原则](./guides/workgraph-design-principles.zh-CN.md) · [实现方案](./guides/workgraph-implementation-design.zh-CN.md) · [代码解读](./guides/workgraph-code-reading-report.zh-CN.md) · [方法论模板](./guides/workgraph-methodology-templates.zh-CN.md) |
 | 运维 | [Linux Runtime 隔离](./operations/runtime-isolation.md) · [Control 部署与账号迁移](./operations/control-migration.md) |
-| 回归测试 | [回归测试总目录](./testing/nexus-regression-catalog.md) · [桌面沙箱验收](./testing/desktop-sandbox-acceptance.md) · [IM 投递回传验收](./testing/im-delivery-replies.md) · [Provider 模型资料核对](./testing/provider-model-evidence.md) |
 
 ## 规范
 
