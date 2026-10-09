@@ -610,27 +610,13 @@ func (r *roundRunner) persistGoalUsageDeltaLocked(
 	ctx context.Context,
 	usage protocol.GoalUsage,
 ) (*protocol.Goal, bool) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() || usage.IsZero() {
+	if r.ignoreGoalRuntime() {
 		return nil, false
 	}
 	goalID := strings.TrimSpace(r.IDForUsage)
-	var updated *protocol.Goal
-	var err error
-	if goalID != "" {
-		updated, err = r.service.goals.RecordUsageForGoal(ctx, goalID, usage, r.roundID)
-	} else {
-		updated, err = r.service.goals.RecordUsageForSession(ctx, r.sessionKey, usage, r.roundID)
-	}
-	if err != nil && !goalsvc.IsAbsent(err) {
-		r.service.LoggerFor(context.Background()).Warn("记录 Goal usage 失败",
-			"session_key", r.sessionKey,
-			"goal_id", goalID,
-			"round_id", r.roundID,
-			"err", err,
-		)
-	}
-	if err != nil || updated == nil {
-		return nil, err == nil
+	updated, ok := runtimehost.RecordGoalUsageDelta(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, goalID, r.roundID, usage)
+	if updated == nil {
+		return nil, ok
 	}
 	if goalID == "" && strings.TrimSpace(r.IDForUsage) == "" {
 		r.IDForUsage = strings.TrimSpace(updated.ID)

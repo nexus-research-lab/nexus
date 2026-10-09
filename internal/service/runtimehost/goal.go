@@ -424,3 +424,41 @@ func CreateGoalFromCommand(
 	}
 	return *item, nil
 }
+
+type goalUsageDeltaRecorder interface {
+	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
+}
+
+// RecordGoalUsageDelta 把用量增量记到 goalID；goalID 为空时记到 sessionKey 的当前 Goal。
+// 返回更新后的 Goal 与是否无错误；Goal 不存在不算失败也不记录日志。
+func RecordGoalUsageDelta(
+	ctx context.Context,
+	provider any,
+	logger *slog.Logger,
+	sessionKey string,
+	goalID string,
+	roundID string,
+	usage protocol.GoalUsage,
+) (*protocol.Goal, bool) {
+	recorder, ok := provider.(goalUsageDeltaRecorder)
+	if !ok || usage.IsZero() {
+		return nil, false
+	}
+	var (
+		updated *protocol.Goal
+		err     error
+	)
+	if goalID != "" {
+		updated, err = recorder.RecordUsageForGoal(ctx, goalID, usage, roundID)
+	} else {
+		updated, err = recorder.RecordUsageForSession(ctx, sessionKey, usage, roundID)
+	}
+	if err != nil && !goalsvc.IsAbsent(err) {
+		logger.Warn("记录 Goal usage 失败", "session_key", sessionKey, "goal_id", goalID, "round_id", roundID, "err", err)
+	}
+	if err != nil || updated == nil {
+		return nil, err == nil
+	}
+	return updated, true
+}
