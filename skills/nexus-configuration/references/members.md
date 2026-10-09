@@ -21,5 +21,5 @@
 - `remove`：target 为精确 `user_id`，input 为 `{}`。撤销当前部署访问、使现有 Session 失效，保留账号、组织关系、Agent、工作区和历史。重新启用使用 update status=active。
 - 平台 admin 仅能创建和管理普通 member；平台 owner 可管理 admin/member。不能通过此入口创建或修改 owner，也不能停用当前登录账号。
 - 修改或移除前展示目标用户名和精确 ID；实际权限由 Control 在执行时重新核验，不能通过改 target、scope 或角色字段提权。
-- 写后以 result/checks 及再次 inspect 的真实状态为准。旧部署未提供 members 时，明确告知需要升级，可在提供独立部署用户页的 Web 版本使用 设置 → 运营 → 部署用户；若该页也不存在，需要升级 Nexus/Control，不能用组织邀请冒充独立 Web 用户创建，不回退旧命令。
+- 写后以 result/checks 及再次 inspect 的真实状态为准。手动入口为 Web 设置 → 运营 → 部署用户，是否可见取决于当前登录身份与部署实现。接口报错或页面不可见本身不代表版本过旧；按主 Skill 的“配置请求失败”区分已知事实和待排查原因，仅在确认部署缺少对应能力后建议升级 Nexus/Control。不能用组织邀请冒充独立 Web 用户创建，不回退旧命令。
 - 若 inspect 返回 operation_forbidden，报告实际权限错误；不要据此推断平台 owner 必须加入组织，也不要绕过校验。独立 Web 用户管理要求 Nexus/Control 已部署对应实现，修改 Skill 本身不能改变服务端权限。

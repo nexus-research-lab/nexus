@@ -9,7 +9,7 @@ import type { TeamRoomInvitation } from "@/lib/api/conversation/team-api";
 import { useTeamInvitations } from "./use-team-invitations";
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
-const api = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), recover: vi.fn(), socket: vi.fn() }));
+const api = vi.hoisted(() => ({ list: vi.fn(), resolve: vi.fn(), recover: vi.fn(), socket: vi.fn(), enabled: true }));
 vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: api.socket}));
 vi.mock("@/lib/api/conversation/team-api", () => ({
   buildTeamStreamUrl: () => "ws://localhost/directory",
@@ -19,8 +19,21 @@ vi.mock("@/lib/api/conversation/team-api", () => ({
 }));
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
-  useAuth: () => ({ status: { authenticated: true, auth_method: "password", control_user_id: "owner", organization_id: "org" } }),
+  useAuth: () => ({ status: { authenticated: true, multiplayer_enabled: api.enabled, auth_method: "password", control_user_id: "owner", organization_id: "org" } }),
 }));
+
+it("does not request invitations when multiplayer is disabled despite organization membership", () => {
+  api.enabled = false;
+  api.list.mockClear();
+  api.socket.mockClear();
+  const view = renderHook(() => useTeamInvitations(vi.fn()));
+  expect(view.result.current.enabled).toBe(false);
+  expect(view.result.current.failed).toBe(false);
+  expect(api.list).not.toHaveBeenCalled();
+  expect(api.socket.mock.calls.every(([options]) => options.autoConnect === false)).toBe(true);
+  view.unmount();
+  api.enabled = true;
+});
 
 it("accepts the current invitation version and refreshes the Room directory", async () => {
   const invitation = { room: { id: "room-1", membership_version: 3 }, invited_by_user_id: "owner", created_at: "2026-09-14T00:00:00Z" } as TeamRoomInvitation;

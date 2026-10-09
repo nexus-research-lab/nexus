@@ -128,9 +128,20 @@ func (c *Context) BindSession(sessionKey string, sender Sender) {
 	sessions[sessionKey] = struct{}{}
 
 	c.pruneClosedBindingsLocked(sessionKey)
+	// 绑定与请求注册共用锁：旧请求只重放，新请求只走实时投递。
+	dispatchSessionKey := sessionKey
+	if route := c.sessionRoutes[sessionKey].route; route.DispatchSessionKey != "" {
+		dispatchSessionKey = route.DispatchSessionKey
+	}
+	requests := make([]*PendingRequest, 0)
+	for _, pending := range c.pendingRequests {
+		if pending.DispatchSessionKey == dispatchSessionKey {
+			requests = append(requests, pending)
+		}
+	}
 	c.mu.Unlock()
 
-	go c.replayPendingRequestsToSender(sessionKey, sender)
+	go c.replayPendingRequestsToSender(requests, sender)
 }
 
 // UnbindSession 解绑 sender 对指定 session 的绑定。
@@ -185,6 +196,10 @@ func (c *Context) IsBound(sessionKey string, sender Sender) bool {
 func (c *Context) ResolveSessionSenders(sessionKey string) []Sender {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.resolveSessionSendersLocked(sessionKey)
+}
+
+func (c *Context) resolveSessionSendersLocked(sessionKey string) []Sender {
 	c.pruneClosedBindingsLocked(sessionKey)
 	bindings := c.sessionBindings[sessionKey]
 	if len(bindings) == 0 {
@@ -364,10 +379,11 @@ func (c *Context) RequestPermissionWithID(
 	pending := c.newPendingRequest(sessionKey, request)
 	c.mu.Lock()
 	c.pendingRequests[pending.RequestID] = pending
+	senders := c.resolveSessionSendersLocked(pending.DispatchSessionKey)
 	c.notifyPendingRequestsChangedLocked()
 	c.mu.Unlock()
 
-	go c.dispatchPendingRequest(pending)
+	go c.dispatchPendingRequest(pending, senders)
 
 	select {
 	case decision := <-pending.ResponseCh:

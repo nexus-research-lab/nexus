@@ -49,7 +49,7 @@ function SwitchRoom() {
   return <button onClick={() => navigate("/team?room_id=other")}>Switch room</button>;
 }
 function page(organizationId = "organization", avatar?: string) {
-  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {organization_id: organizationId, auth_required: true, authenticated: true, auth_method: "password", password_login_enabled: true, user_id: "local-owner", control_user_id: "owner", username: "owner", avatar}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
+  return <I18N_CONTEXT.Provider value={{locale: "zh", setLocale: vi.fn(), t: (key) => key}}><AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {organization_id: organizationId, auth_required: true, authenticated: true, multiplayer_enabled: true, auth_method: "password", password_login_enabled: true, user_id: "local-owner", control_user_id: "owner", username: "owner", avatar}}}><MemoryRouter initialEntries={["/team?room_id=room"]}><TeamPage /><SwitchRoom /></MemoryRouter></AUTH_CONTEXT.Provider></I18N_CONTEXT.Provider>;
 }
 it("keeps the room avatar independent from members and resolves my remote avatar", () => {
   room.room!.room.avatar = "12";

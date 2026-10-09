@@ -14,4 +14,5 @@
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // 核心启动配置 handler 绑定宿主 ProjectPermission 服务，投影 ACL 可用性。
+// Team capabilities 在未部署时仍返回 enabled=false；显式关闭同时阻止 gateway、Desktop 代理与本机执行器装配。
 package server

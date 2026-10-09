@@ -384,8 +384,17 @@ test("history menus keep readable metadata, editing focus and reachable batch fe
   const history = page.getByRole("dialog", { name: copy(info, "历史", "History"), exact: true });
   await expectInsideViewport(page, history);
   const beta = history.getByRole("button", { name: /ResearchEvidenceAndVerification/ });
-  await beta.focus();
+  const activity = beta.getByText(copy(info, "刚刚", "Just now"), { exact: true });
   const rename = beta.getByRole("button", { name: copy(info, "重命名", "Rename"), exact: true });
+  await expect(activity).toBeVisible();
+  await expect(rename).toHaveCSS("opacity", "0");
+  const timeBounds = (await activity.boundingBox())!;
+  const rowBounds = (await beta.boundingBox())!;
+  expect(rowBounds.x + rowBounds.width - timeBounds.x - timeBounds.width).toBeLessThanOrEqual(13);
+  await beta.hover();
+  await expect(activity).toHaveCSS("visibility", "hidden");
+  await expect(rename).toHaveCSS("opacity", "1");
+  await beta.focus();
   await expect(rename).toHaveCSS("opacity", "1");
   await expect(beta.getByText(copy(info, "刚刚", "Just now"), { exact: true })).toHaveCSS("font-size", "12px");
   await rename.click();
@@ -1430,19 +1439,29 @@ test("loading stays still in reduced motion and keeps its footprint when animate
   expect(states.every((state) => state.animation === "none")).toBe(true);
   expect(states.filter((state) => state.opacity === "1")).toHaveLength(1);
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  const samples = await orb.evaluate((element) => new Promise<Array<{ glyph: string; width: number; height: number }>>((resolve) => {
-    const frames: Array<{ glyph: string; width: number; height: number }> = [];
-    const started = performance.now();
-    const sample = () => {
+  const { playStates, samples } = await orb.evaluate(async (element) => {
+    const animations = element.getAnimations({ subtree: true });
+    await Promise.all(animations.map((animation) => animation.ready));
+    const playStates = animations.map((animation) => animation.playState);
+    const duration = Number(animations[0]?.effect?.getTiming().duration);
+    if (!animations.length || !Number.isFinite(duration) || duration <= 0) {
+      throw new Error("加载指示器缺少有效动画");
+    }
+    // 直接推进真实 CSS 动画时间，避免 CI 帧调度影响采样覆盖。
+    animations.forEach((animation) => animation.pause());
+    const samples = animations.map((_, index) => {
+      const time = duration + (index + 0.5) * duration / animations.length;
+      animations.forEach((animation) => { animation.currentTime = time; });
       const bounds = element.getBoundingClientRect();
       const glyph = Array.from(element.children).filter((frame) => getComputedStyle(frame).opacity === "1").map((frame) => frame.textContent).join("");
-      frames.push({ glyph, width: bounds.width, height: bounds.height });
-      if (performance.now() - started >= 700) resolve(frames);
-      else requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-  }));
-  expect(new Set(samples.map((sample) => sample.glyph)).size).toBeGreaterThan(1);
+      return { glyph, width: bounds.width, height: bounds.height };
+    });
+    return { playStates, samples };
+  });
+  expect(playStates).toHaveLength(states.length);
+  expect(playStates.every((state) => state === "running")).toBe(true);
+  expect(new Set(samples.map((sample) => sample.glyph)).size).toBe(states.length);
+  expect(samples.every((sample) => sample.glyph.length > 0)).toBe(true);
   expect(new Set(samples.map((sample) => `${sample.width}x${sample.height}`)).size).toBe(1);
   expect(errors).toEqual([]);
 });

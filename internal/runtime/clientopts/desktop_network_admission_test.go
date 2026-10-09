@@ -127,6 +127,9 @@ func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 }
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	}
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		AppMode:       "desktop",
 		RuntimeKind:   runtimeKindNXS,
@@ -139,6 +142,9 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 }
 
 func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	}
 	t.Setenv("OPENAI_API_KEY", "inherited-host-secret")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
 		config: &RuntimeConfig{
