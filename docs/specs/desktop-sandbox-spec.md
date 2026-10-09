@@ -101,18 +101,18 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - Where a safe process-identity query exists, the marker also records `process_start_time_unix_nano`. Windows compares it with `GetProcessTimes` before treating an ordinary marker as stale, so a reused PID cannot authorize cleanup. Permission or query failure stays unknown; `cleanup_unknown` always wins. Older markers and platforms without this probe keep the conservative PID-liveness check.
 - Scratch allocation checks persisted markers through its fixed parent handle. The same owner/session's `cleanup_unknown` marker, including one under an older replacement path, and invalid markers at that scope's expected path block a new lease after restart. Unrelated sessions stay independent; concurrent preparation in one host cannot misread a half-written marker.
 - These are durable startup fences, not proof that detached descendants terminated. The Bridge Unix sweep only observes visible members of the original session.
-- Automatic crash sweep, complete supervision and safe reconciliation of uncertain execution are separate work.
+- On the macOS App, startup crash recovery covers supervised launches through their launch records ([process launch records and recovery](#process-launch-records-and-recovery)); marker deletion outside that path stays the explicit owner-scoped sweep. Other platforms have no supervised launch and no automatic crash recovery. Nothing reconciles uncertain task or tool outcomes, and nothing is replayed.
 
 ### Effective-policy receipts
 
 - Connect writes a receipt for each runtime generation to the host database and keeps a clone in memory for the connected session.
 - Fields: required/acknowledged Bridge capabilities, policy digest, session identity and (when present) exact scratch lease/round identity.
-- Lifecycle phases: `confirmed`, `retiring`, `retired`, `unknown`. Updates are monotonic: a late callback cannot reopen `retired` or `unknown` as `retiring`.
+- Lifecycle phases: `confirmed`, `retiring`, `retired`, `unknown`, plus the recovery-only terminal `reconciled`. Updates are monotonic: a late callback cannot reopen `retired` or `unknown` as `retiring`, and ordinary lifecycle callbacks cannot enter `reconciled`.
 - Within one owner/session/generation the payload and `confirmed_at` are immutable. A duplicate connect may refresh only `updated_at`; a terminal row ignores late payload retries.
 - A fresh Claude connection may not publish its session identity until the first user turn; its receipt is provisional until then.
 - After a restart the latest owner-scoped receipt is readable, but a persisted receipt never represents a connected runtime or grants permission.
 - A receipt is host diagnostic/admission evidence. It does not attest whole-SDK IO, OS descendants, network, secrets or native platform isolation.
-- There is no automatic or browser-triggered reconciliation to `reconciled`; an `unknown` receipt stays unknown until a control surface can prove the complete runtime boundary.
+- Only `ReconcileSandboxPolicy` moves a receipt to `reconciled`, and only a receipt bound to a supervised launch whose original process is `reaped` and whose scratch recovery (when a lease exists) is `complete`. On the macOS App, startup lifecycle recovery runs it automatically ([显式资源与策略恢复](#显式资源与策略恢复)); there is no browser-triggered path. A receipt without a process binding (historical or non-macOS) stays `unknown`.
 - The owner process reaper is part of the close boundary. If Bridge close reported `retired` but the owner-level reaper fails, the host downgrades that exact generation to `unknown` with a bounded reason, so a clean Bridge close never hides descendants the host could not prove collected.
 
 ### Recovery API
@@ -405,10 +405,10 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 
 ### Manager admission gates
 
-- For explicitly supervised DM/Room startup, `GetOrCreateWithLease` supplies the already acquired scratch handle before client creation. Required resources without a live matching owner/session/policy handle fail before the factory. Launch intents persist its exact lease ID.
-- Each supervised launch revalidates the original handle; a different handle cannot replace it at ownership transfer. Reading this identity does not transfer cleanup responsibility: the caller keeps it until `BindSandboxLease` succeeds. No resource is discovered by path. App default supervisor setup remains unconnected.
+- For supervised DM/Room startup, `GetOrCreateWithLease` supplies the already acquired scratch handle before client creation. Required resources without a live matching owner/session/policy handle fail before the factory. Launch intents persist its exact lease ID.
+- Each supervised launch revalidates the original handle; a different handle cannot replace it at ownership transfer. Reading this identity does not transfer cleanup responsibility: the caller keeps it until `BindSandboxLease` succeeds. No resource is discovered by path. The macOS App configures the supervisor by default (see [Bootstrap helper](#macos-appruntime-pairing-and-existing-data)); other platforms run unsupervised.
 - Fresh Manager creation checks launch records when the configured repository provides them. `prepared`, `registered` and `released` block the factory even without a policy receipt or when another backend is selected. `aborted` and properly evidenced `reaped` records feed the same generation lower bound. Read errors and malformed identity/evidence fail closed.
-- Current production startup does not yet write these records or launch the bootstrap helper, so storage and the read gate alone do not close the pre-execution crash window or reconcile old unknown receipts.
+- On the macOS App every supervised runtime or probe launch reserves its `prepared` record before the bootstrap helper starts, and startup recovery processes pending records before task admission. Other platforms write no launch records.
 - Fresh client creation also reads the latest receipt for the exact owner/session before the factory. A retired or explicitly reconciled receipt gives the generation lower bound, so clean App restart or idle-session recreation cannot reuse an old durable identity. Confirmed, retiring or unknown history without the original live client blocks recreation; read/identity failures stop startup.
 - This check runs before choosing the new runtime, so a backend or Full Access change cannot bypass unresolved execution. Absence of an in-memory client is not exit evidence, and requests are not replayed.
 
@@ -432,14 +432,14 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 - Requires `SandboxProcessRecoveryOwnership`, implemented by the macOS sidecar instance Guard. `WithOwnership` verifies the original lock and app-directory inodes, holds the lock handle through the whole callback (native recovery and durable terminal commit), and blocks concurrent Guard closure.
 - The Manager rejects a process directory outside that app root, linked traversal or a different directory inode before reading the original process.
 - Missing, closed or replaced ownership cannot reach native job revocation or clear a durable fence.
-- This only coordinates participating sidecars. Older uncoordinated hosts and automatic startup recovery remain separate integration requirements. Policy and scratch reconciliation are independent.
+- This only coordinates participating sidecars; older uncoordinated hosts are not covered. Policy and scratch reconciliation are independent steps.
 - `RecoverPendingSandboxProcesses` handles one ownership-protected batch of at most 256 pending records:
   - The scan uses immutable unique launch IDs as keyset cursors over an index limited to prepared/registered/released rows; retiring earlier rows does not shift later pages.
   - It lists original exact keys, and each recovery re-reads and validates the original intent/registration.
   - An item failure keeps its record pending, is returned on the item and in an aggregate error, and does not starve later items.
   - Cancellation stops before the next item and keeps the last attempted cursor.
   - Callers must inspect errors independently of `HasMore`; failed records can be revisited from their original keys or a new scan.
-  - Internal cross-owner query for the lock-holding host only; no user API. It does not replay tasks, reconcile tool outcomes or clear policy/scratch unknown records. Startup invocation remains unconnected.
+  - Internal cross-owner query for the lock-holding host only; no user API. It does not replay tasks, reconcile tool outcomes or clear policy/scratch unknown records. The macOS App runs every page at startup, before `RecoverPendingSandboxLifecycles`.
 
 ### Shutdown
 
@@ -552,7 +552,7 @@ The pinned Bridge carries main's MCP call-context contract: runtime `params._met
 
 ### 正常退出与终态后续扫描
 
-- 显式 macOS 监督在 client factory 前把正常最终 lease Release 绑定到原 supervisor、store、owner/session、资源身份及启动代次下界。
+- macOS 监督在 client factory 前把正常最终 lease Release 绑定到原 supervisor、store、owner/session、资源身份及启动代次下界。
   - 只有确认该资源从未登记启动时才沿用原句柄删除；存在启动记录时必须匹配原资源，并复用持久隔离删除阶段。
   - 阶段提交响应丢失时保留 owning handle，按原记录重试；不因目录已删除而重新猜测结果。
   - 此回调在资源锁内运行，不反向取得 Acquire gate。
