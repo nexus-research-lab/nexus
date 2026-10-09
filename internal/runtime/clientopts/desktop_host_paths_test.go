@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"testing"
 
@@ -64,6 +65,9 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 }
 
 func TestDesktopHostPathsIgnoreTaskStateRoot(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 启用；宿主路径规则由显式平台测试覆盖")
+	}
 	root := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, root)
 	got, err := BuildAgentClientOptions(context.Background(), nil, AgentClientOptionsInput{AppMode: "desktop", RuntimeKind: "nxs", WorkspacePath: t.TempDir(), OwnerUserID: "owner", ExtraEnv: map[string]string{appfs.NexusStateRootEnvName: "/task-controlled"}})

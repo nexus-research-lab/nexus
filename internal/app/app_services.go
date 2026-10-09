@@ -160,7 +160,7 @@ func NewAppServicesWithDesktopOwnership(cfg config.Config, logger *slog.Logger, 
 }
 
 func newOptionalRelayClient(cfg config.Config) (*relaysvc.Client, error) {
-	if cfg.RelayURL == "" {
+	if cfg.MultiplayerDisabled || cfg.RelayURL == "" {
 		return nil, nil
 	}
 	return relaysvc.NewClient(

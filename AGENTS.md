@@ -29,7 +29,7 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口：nexus-server（服务 + 自动迁移）、nexusctl 资源 CLI、nexuscfg 配置 CLI、Linux runtime launcher
+cmd/        - 可执行入口：nexus-server（单个 main.go 装配服务、自动迁移与 runtime 检查；平台实例锁由 infra/desktopinstance 装配）、nexusctl 资源 CLI、nexuscfg 配置 CLI、Linux runtime launcher
 web/        - React 前端（features / store / shared / lib，见 web/AGENTS.md）
 desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 Chromium browser-extension
 skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与参考资料）

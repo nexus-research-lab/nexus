@@ -57,7 +57,9 @@ func (s *Server) mountRemoteGateway() {
 		return
 	}
 	s.mountRemoteProxy(target, "/auth/v1", true)
-	s.mountRemoteProxy(target, s.prefixPath("/team"), false)
+	if !s.config.MultiplayerDisabled {
+		s.mountRemoteProxy(target, s.prefixPath("/team"), false)
+	}
 }
 
 func (s *Server) mountRemoteProxy(target *url.URL, path string, rewriteSessionCookie bool) {
@@ -134,7 +136,16 @@ func sameOriginRequest(request *http.Request) bool {
 
 // mountTeamRoutes 仅在 Web Control 与 Relay 均已装配时挂载多人 Team gateway。
 func (s *Server) mountTeamRoutes() {
-	if s.config.RelayURL == "" || s.handlers.team == nil {
+	// Desktop 由远端 Gateway 返回部署能力；本机显式关闭时不访问远端。
+	if !s.config.MultiplayerDisabled && strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") && strings.TrimSpace(s.config.RemoteURL) != "" {
+		return
+	}
+	enabled := !s.config.MultiplayerDisabled && s.config.RelayURL != "" && s.handlers.team != nil
+	s.router.Get(s.prefixPath("/team/capabilities"), func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Cache-Control", "no-store")
+		s.api.WriteSuccess(writer, map[string]bool{"enabled": enabled})
+	})
+	if !enabled {
 		return
 	}
 	s.router.Get(s.prefixPath("/team/rooms"), s.handlers.team.HandleListRooms)

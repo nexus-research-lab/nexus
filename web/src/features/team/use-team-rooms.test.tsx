@@ -23,13 +23,13 @@ vi.mock("@/lib/api/conversation/team-api", () => ({
 describe("useTeamRooms", () => {
   it("prepares joined Agents from the directory without opening a Room", async () => {
     listRoomsMock.mockResolvedValue({rooms: [{room: {id: "group", membership_version: 1}}, {room: {id: "dm", direct_user_id: "peer", membership_version: 1}}]});
-    const wrapper = ({children}: PropsWithChildren) => <AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {authenticated: true, auth_required: true, auth_method: "password", password_login_enabled: true, user_id: "owner", control_user_id: "owner", username: "owner", organization_id: "org"}}}>{children}</AUTH_CONTEXT.Provider>;
+    const wrapper = ({children}: PropsWithChildren) => <AUTH_CONTEXT.Provider value={{error: null, isBootstrapped: true, loading: false, login: vi.fn(), logout: vi.fn(), refreshStatus: vi.fn(), status: {authenticated: true, multiplayer_enabled: true, auth_required: true, auth_method: "password", password_login_enabled: true, user_id: "owner", control_user_id: "owner", username: "owner", organization_id: "org"}}}>{children}</AUTH_CONTEXT.Provider>;
     const view = renderHook(() => useTeamRooms(), {wrapper});
     await waitFor(() => expect(prepareMock).toHaveBeenCalledWith(["group"], expect.any(AbortSignal)));
     view.unmount();
     listRoomsMock.mockClear(); prepareMock.mockClear();
   });
-  it("does not open Relay for a local desktop user", () => {
+  it.each(["local", "password"])("does not open disabled Relay for a %s user", (authMethod) => {
     const wrapper = ({ children }: PropsWithChildren) => (
       <AUTH_CONTEXT.Provider value={{
         error: null,
@@ -39,7 +39,9 @@ describe("useTeamRooms", () => {
         logout: vi.fn(),
         refreshStatus: vi.fn(),
         status: {
-          auth_method: "local",
+          auth_method: authMethod,
+          multiplayer_enabled: false,
+          organization_id: "org",
           auth_required: false,
           authenticated: true,
           password_login_enabled: false,

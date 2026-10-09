@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { MessageCircle } from "lucide-react";
 import { listControlMemberDirectoryApi, type ControlMemberDirectoryEntry } from "@/lib/api/account/control-api";
 import { createTeamRoom } from "@/lib/api/conversation/team-api";
-import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { hasTeamAccess, useAuth } from "@/shared/auth/auth-context";
 import { captureAuthOwnerScopeGeneration, isAuthOwnerScopeGenerationCurrent } from "@/shared/auth/auth-owner-generation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
@@ -23,7 +23,7 @@ import { UiListRow } from "@/shared/ui/list/list-row";
 
 export function HumanContactsDirectory({sidebar = false, afterSearch}: {sidebar?: boolean; afterSearch?: ReactNode} = {}) {
   const { status } = useAuth();
-  if (!hasOrganizationAccess(status)) return null;
+  if (!hasTeamAccess(status)) return null;
   return <HumanContactsContent key={`${status?.organization_id}:${status?.control_user_id}`} currentUserId={status?.control_user_id ?? ""} sidebar={sidebar} afterSearch={afterSearch} />;
 }
 

@@ -6,7 +6,7 @@
 
 创建、修改和移除部署用户统一使用 `nexus-configuration` Skill 的 `members` 域，先执行 `"$NEXUSCFG_COMMAND_PATH" --json inspect --domain members`。`nexusctl` 不再提供 auth/user 子命令。
 
-仅有效平台 owner/admin 登录的主智能体私聊可操作，无需组织；新账号可登录 Web，不加入任何组织。组织角色不能授予平台权限。移除表示撤销部署访问权限，保留用户、组织关系和工作区数据。密码通过宿主确认卡片输入，不出现在命令或聊天里。手动入口为 Web 设置 → 运营 → 部署用户；若 members 或此页面不可用，需要升级 Nexus/Control，不能替换为组织邀请，不尝试旧二进制、数据库或隐藏 scope 参数。
+仅有效平台 owner/admin 登录的主智能体私聊可操作，无需组织；新账号可登录 Web，不加入任何组织。组织角色不能授予平台权限。移除表示撤销部署访问权限，保留用户、组织关系和工作区数据。密码通过宿主确认卡片输入，不出现在命令或聊天里。手动入口为 Web 设置 → 运营 → 部署用户。members 报错或页面不可见不能直接判定需要升级；按 nexus-configuration 的失败指引核对当前身份、请求和部署能力。不能替换为组织邀请，不尝试旧二进制、数据库或隐藏 scope 参数。
 
 ## Agent
 

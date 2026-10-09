@@ -47,6 +47,10 @@ tags: [nexus, configuration, settings, agent, room]
 
 回复简要说明真实变更、作用域、生效时机和验证结果；不要输出脱敏前配置、capability 或完整审计载荷。
 
+## 配置请求失败
+
+命令返回 `请求参数错误`、HTTP 400 或多个配置域同时失败时，先读取 [references/troubleshooting.md](references/troubleshooting.md)，不要直接归因于权限或版本。
+
 ## 管理用户
 
 平台管理员需要新增、修改或停用独立 Web 用户时，读取 [references/members.md](references/members.md)。不要调用旧 `nexusctl user/auth`，不要操作 Control 数据库或索取服务令牌。

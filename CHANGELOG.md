@@ -1,25 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Treat DM as a kind of Room in the backend: per-round Goal state, Goal continuation, usage settlement and retry, completion receipts, `/goal` creation and stream diagnostics are implemented once in `service/runtimehost`. Trim the specs and guides (about 14% smaller, migrated AGENTS.md blocks folded into their sections), fix broken doc links and rebuild `docs/README.md` as a single index.
-
-- Fail fast at startup when DM or Room realtime wiring is incomplete; share their host dependencies and duplicated runtime stages through `service/runtimehost`; remove 494 provably redundant `strings.TrimSpace` calls with `make check-normalization` to keep them out; slim AGENTS.md to the project constitution with product contracts moved into `docs/specs/`.
-
-- Room workspace attachments now reject an empty resolved owner, matching DM; both share one authorization path. Backend dead code, test-only wrappers and duplicated helpers are consolidated, and `make check-architecture` rejects new private copies of the shared string helpers.
-
-- Prune 1,025 Go tests and 41 web test files that add no unique statement coverage, keeping script- and doc-named, concurrency, platform-specific and subprocess-entry tests.
-
-- Render workspace images in Generative UI through authenticated host-side `nexus://workspace/` references instead of inaccessible local paths or model-carried image payloads.
-
-- Simplify the runtime settings sandbox section to keep support checks and residual-resource recovery without presenting a redundant sandbox toggle.
-
-- Add two non-normative macOS desktop sandbox records covering the end-to-end engineering model and a code-oriented call-chain reading guide.
-
-- Defer desktop sandbox policy installation on Windows until the native boundary is validated; macOS remains the only desktop platform that claims the sandbox contract.
-
-- Fix duplicate SQLite/PostgreSQL migration numbering in desktop sandbox builds.
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -27,472 +7,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- Defer desktop sandbox policy installation on Windows until the native boundary is validated; macOS remains the only desktop platform that claims the sandbox contract.
-- Add one-time sandbox escape approval for ordinary external Write/Edit actions and carry its one-shot scope on the exact tool result; approvals never create persistent directory or network rules.
-
-- Add one-time sandbox escape approval for ordinary external Write/Edit actions. The approval is bound to the exact file operation and never creates a persistent directory whitelist; protected paths remain denied.
-- Carry one-shot sandbox escape and network approval scope on the exact tool result so the model can distinguish temporary approval from a persistent policy change.
-
 ### Changed
 
-- Reject unsafe static MCP header names, control characters and oversized header maps before persisting or connecting remote servers.
-
-- Reject MCP and OAuth metadata URLs containing userinfo or fragments before they reach the desktop network contract.
-
-- Run the macOS App smoke test against an isolated state root by default, while allowing explicit roots for upgrade and recovery checks. This prevents stale or partially migrated user databases from producing false sandbox failures.
-
-- Complete the default macOS supervisor assembly: the bundled helper, protected `app/processes` root, two-phase process/resource recovery, and shutdown ordering now run through the desktop App startup path. Unresolved recovery still fails closed; macOS 14.0 compatibility and signed distribution remain separate release gates.
-
-- Interpret macOS exact-process signal return codes before consulting errno, so stale errno cannot hide permission failures or misclassify an already-absent process. Failed cleanup continues to retain the recovery record.
-
-- Persist macOS sidecar identity using its boot session and kernel audit token. Orphan cleanup and normal shutdown signal that exact identity, retain uncertain or malformed records and never signal a reused PID. Read legacy records without granting bare-PID termination authority; a still-running legacy sidecar requires closing the old app first. Restricted backends also protect the existing sidecar identity record from reads and writes.
-
-- Enable the macOS desktop process supervisor by default using the bundled, verified helper and sidecar ownership lock. Recover original process and resource records before serving requests; failed recovery preserves records and blocks startup. Keep supervision resources until runtime shutdown completes. Development builds now use a matching sidecar/helper bundle instead of `go run`.
-
-- Protect the host app state in restricted macOS runtime options: deny app-tree writes and private-store reads while retaining read-only Skill projections. nxs receives filesystem denies; Claude receives native sandbox denies and Read/Edit rules. Resolve lexical and physical roots from host state, ignoring task environment overrides. Keep Full Access outside this guarantee and state that exception explicitly in both UI languages.
-
-- Persist normal supervised macOS scratch cleanup through the same quarantine ledger as crash recovery. Add a separate bounded scan for terminal processes with unfinished resources or bound policies; failed items remain pending even when pagination ends. App startup invocation remains pending.
-
-- Add explicit macOS scratch and policy recovery under exclusive host ownership. Quarantine the original directory without replacing another entry, persist deletion stages, resume interrupted cleanup, and reconcile only receipts bound to the retired process. Pending recovery blocks new launches; historical unbound unknown receipts remain fenced. Native host-exit recovery passed, while default App startup integration remains pending.
-
-- Persist macOS scratch parent/leaf filesystem identities from the original host lease before supervised launch. Recheck them before every probe/runtime launch, reject replaced directories, and preserve the proof during process recovery. Writable lease markers cannot supply this proof; automatic scratch reconciliation remains pending.
-
-- Persist each supervised sandbox policy receipt against its original runtime launch, including warm client reuse across policy generations. Reject probe, scope, lease and immutable-binding mismatches; preserve historical unbound receipts and refuse rollback that would erase binding evidence. This provides recovery identity only; automatic policy/scratch reconciliation and default App supervision remain pending.
-
-- Add bounded pending-process recovery batches under verified host ownership, with stable launch-ID pagination and an indexed pending scan. Failed records remain fenced while later records can progress; cancellation preserves the continuation cursor. A real helper task is recovered from SQLite after its original host exits without cleanup. Automatic App invocation and policy/scratch reconciliation remain pending.
-
-- Require verified host ownership for explicit process recovery. Keep the macOS sidecar lock alive throughout recovery, reject another state root or replaced lock/process-directory identity, and retain unresolved process records on rejection. This is a recovery prerequisite; automatic startup reconciliation remains pending.
-
-- Pin Bridge `c994b19` and keep supervised sockets in the original protected state directory even when the absolute path exceeds the Unix socket address limit. Native directory-relative binding/connection leaves process cwd unchanged; long-root real nxs AutoDream lifecycle tests pass. This does not resolve the macOS 14.0 process-signal compatibility gap or enable default App supervision.
-
-- Route host AutoDream through the shared runtime Manager instead of opening an independent Bridge session. Bind maintenance to owner/Agent cancellation, supervised startup, scratch ownership and durable policy/process retirement; retain cleanup failures as startup fences. Native fixed-nxs control round trips pass with memory consolidation disabled; default App supervisor setup remains pending.
-
-- Bind supervised DM/Room process launches to the acquired scratch lease before client factory creation. Persist the exact lease ID on probe/runtime intents and reject missing, foreign, mismatched, released or cleanup-unknown resources before launch. Keep resource ownership transfer explicit; App default supervision and AutoDream wiring remain pending.
-
-- Package the macOS runtime bootstrap from the pinned Bridge dependency, sign it before recording its build identity and digest, and verify the manifest during assembly and packaging. Add a confined bundle loader anchored to the sidecar dependency identity. This does not yet enable default process supervision.
-
-- Acquire a macOS desktop sidecar state-root lock before layout/database migrations and keep it until all services close. Reject a second participating sidecar without signaling a stored PID; retain the lock inode and let kernel process exit release ownership. This adds a recovery prerequisite, not automatic sandbox recovery or proof that older uncoordinated hosts have exited.
-
-- Add explicit recovery of an original supervised process under the Manager session gate. Reject active clients, retain failed recovery records and leave policy/scratch reconciliation independent. Pin Bridge `5e6db3d`, whose native recovery test retires a still-running task after its original host exits without cleanup. Automatic App recovery still requires exclusive-instance wiring and exact lease/policy reconciliation.
-
-- Bind explicitly configured process supervision before runtime factory creation and preserve its identity across warm configuration updates. Record ordered admission probes and the runtime separately within one startup generation, retaining the single-active-launch fence. Migration 145 preserves existing records and rejects lossy rollback when a generation contains multiple launches. App default setup and crash reconciliation remain pending.
-
-- Pin Bridge `e8787a4` with an explicit supervised stdio transport for runtime and admission probes. JSON/exit/cleanup contracts are covered by native race tests; Nexus Manager activation and crash recovery remain pending.
-
-- Bind the explicit macOS supervisor to the host process registry and confined job files. Lost registration/release responses reconcile against the original record; invalid retirement evidence and unsafe file cleanup retain the startup fence. Pin Bridge `95b9616`; the default transport and crash recovery are not yet connected.
-
-- Add host-database process launch records bound to the existing owner/session/generation. Reserve one active launch, persist native registration before a once-only release claim, reject stale/cross-scope updates, and require exact collection-retirement evidence. Fresh runtime creation now rejects unresolved records even without a policy receipt. Production bootstrap writes and automatic recovery remain unconnected.
-
-- Pin macOS acceptance to sandboxed background transcript reads for Summary, AutoMemory and AutoDream. Keep large-log compact semantics while streaming, stop denied/canceled/incomplete reads before model execution, and remove host catalog fallback. Require native admission and late helper-failure regressions.
-
-- Pin macOS sandbox acceptance to controlled AutoMemory/AutoDream writer leases. Lock acquisition, completion markers and release run within the active file policy; cancellation and worker loss stop maintenance, unknown completion is not replayed, and replacement files and legacy data are preserved. Require native lifecycle and runtime regressions in the fixed baseline.
-
-- Preserve active or uncertain background-memory writer locks regardless of file age. A denied or unavailable process probe no longer implies that the holder exited; macOS acceptance requires these rejection and recovery regressions.
-
-- Pin macOS acceptance to confined AutoDream scheduling reads. Completion timestamps and historical transcript metadata use the current file sandbox; denied or canceled scans do not start maintenance or advance its scan interval.
-
-- Require sandboxed memory initialization and session-summary regressions in macOS acceptance. Initial files preserve existing and concurrent content, uncertain writes are not replayed, and read-only sessions start without creating memory files or scheduling persistent updates. Summary files, custom templates/prompts and compact input share the file sandbox.
-
-- Pin macOS acceptance to the memory-read sandbox fix and require native recall regressions in the baseline. Memory candidates, extraction manifests and selected contents now use the active file sandbox; denied files and replaced links cannot enter model context. Preserve bounded recall of large files and existing memory paths and budgets.
-
-- Keep a healthy WebSocket usable when an older request is canceled during reconnection or approval interruption. Drop already-canceled sends before touching the connection, and finish admitted frames under a bounded connection deadline so subsequent replies remain deliverable.
-
-- Include macOS workspace-root alias regressions in the mandatory sandbox gate and pin signing acceptance to the matching SDK fix. Returning from Claude to nxs no longer adds a file approval solely because the same workspace path uses `/private/var` instead of `/var`; explicit rules and descendant-link restrictions remain enforced.
-
-- Close all managed runtimes before closing the App database. Normal macOS App exit now persists sandbox cleanup results so the same conversation can continue after restart. Shutdown rejects new starts, rounds and background work, waits for pending receipt writes and late factories, and retains the database if the caller stops waiting before cleanup finishes.
-
-- Preserve desktop sandbox recovery fences across App restarts. Fresh runtime creation checks the exact session's persisted receipt before starting a process, continues generation numbers after confirmed cleanup, and blocks unresolved or unreadable history even when switching backends. New scratch allocation also rejects existing cleanup-unknown markers for that session, including older replacement directories; concurrent local preparation shares the same lease.
-
-- Add an artifact-only macOS sandbox acceptance workflow for Apple Silicon and Intel. Build the pinned SDK with the matching Nexus source, sign and notarize the test DMG, then verify a quarantined copy and its bundled runtime on a fresh runner. This workflow has read-only repository permissions and creates no release.
-
-- Restore persisted and Connector stdio MCP services on macOS through a separately negotiated nxs process contract. Include the requirement in process replacement and effective-policy receipts; verify actual nxs discovery, tool execution, explicit service credentials and results returning to the model. Native gates cover confinement, cancellation, replacement and bounded protocol output.
-
-- Restore configured MCP authentication helpers on macOS through a separately negotiated nxs execution contract. Helpers use the current command sandbox and filtered task environment, refresh authentication per request, stop on failure without stale-header fallback, and are canceled and awaited at session shutdown. Require the capability in runtime policy and test persisted HTTP and Connector SSE helper round trips.
-
-- Restore configured HTTP and legacy SSE MCP servers in macOS nxs sandbox sessions. Require the independent endpoint-network capability and explicit service configuration, keep command/image network permissions separate, preserve configured headers, and include the requirement in process replacement and effective-policy receipts. Add actual nxs tool round-trip acceptance for persisted HTTP and Connector SSE configuration.
-
-- Detect terminated Windows hosts through the process object's signaled state. A retained handle keeps a dead PID and creation timestamp queryable, and exit code 259 is a valid completed result; neither now prevents explicit stale-resource reconciliation. Permission/query failures and cleanup-unknown receipts remain protected.
-
-- Add an existing-session upgrade and rollback acceptance gate for the jointly released Nexus/nxs pair, preserving settings, memory and workspace files. Bundled macOS builds and packages run the actual sidecar/runtime handshake for workspace-write, read-only and Full Access as release self-checks and record the runtime hash and pinned Bridge version in package metadata. Runtime selection and user startup behavior stay unchanged.
-
-- Require the independent nxs remote-image network capability in desktop sessions. Image URLs are materialized through the task network policy, redirects are checked again, and ViewImage approvals expire on permission changes. Incompatible App/runtime combinations are rejected by the package gate before distribution.
-
-- Add a repeatable local Windows LogonW matrix with an isolated ordinary test account, exact inner-test verification and binary/log digests. Preserve the observed reference-token write escape and narrowed-token CLR IPC failure as failed P3 evidence; Windows execution remains unavailable. The fixture helper is test infrastructure, not the product installer.
-
-- Add an explicit macOS live-provider sandbox acceptance entry for nxs and Claude.
-  It reads only model credentials from a local `.env`, uses fresh fixture state,
-  and verifies real file/command execution, backend-specific file denials,
-  command network rejection, interruption and fixture-process termination.
-  Normal test runs do not make external model requests.
-
-- Pin the Bridge Windows suspended-start/Job cleanup fix and the SDK native settings writer fix. Extend the local Windows gate to require 53 native checks across process identity, host recovery/junction confinement, Bridge lifecycle, SDK components and settings crash recovery, alongside amd64/arm64 builds. Native Windows required execution and release acceptance remain disabled pending the complete isolation matrix and deployable backend.
-
-- Consolidate Nexus, SDK, and Bridge sandbox work on
-  `codex/desktop-sandbox-approvals`, with Windows continuation instructions and
-  replay-verified archives of older uncommitted SDK/Bridge drafts. Update the
-  Windows gate's exact SDK revision for this documentation-only handoff. Correct
-  the pinned Bridge module checksum to the remote Go module archive: all 145
-  files match the pinned Git commit byte for byte; the former local ZIP included
-  19 directory entries that changed its checksum and prevented clean downloads.
-
-- Add a fail-closed Windows native component gate alongside the existing
-  amd64/arm64 cross-build gate. `check-desktop-sandbox-windows-native` only runs
-  on Windows, requires a clean SDK checkout at
-  `9956def130da33af47accf799a9c27c16a551104`, and verifies 25 named
-  token/Job/private-desktop/pipe/runner lifecycle tests from the SDK with JSON
-  event evidence. The workflow now checks out that SDK revision and runs the
-  native gate and uploads its report/log directory; the report remains
-  `releaseAccepted=false` because this is still component evidence, not a
-  complete Nexus→Bridge→nxs backend or release acceptance.
-
-- Keep a durable cleanup fence usable when the exact lease handle that first
-  observed `cleanup_unknown` releases before its sibling handles. The fence is
-  transferred to one still-live handle over the same resource, so a later
-  reconciliation can still prove and remove the exact scratch lease. Make
-  sandbox policy receipt payloads and `confirmed_at` immutable within one
-  generation; duplicate observations may refresh only their observation time,
-  and late callbacks cannot overwrite a terminal receipt.
-
-- Record the owning process creation time in desktop nxs scratch markers when
-  the platform exposes it. Windows recovery now compares `GetProcessTimes`
-  before treating a marker as stale, so a reused PID cannot authorize cleanup;
-  older markers and platforms without a safe identity probe remain
-  fail-closed. Add a Windows sandbox gate that checks the installer contract,
-  Nexus runtime/clientopts/confinedfs test compilation, and nexus-server,
-  nexusctl, and nexuscfg builds for amd64 and arm64. On Windows the native
-  identity tests are pinned to the host Node architecture instead of inheriting
-  a caller's cross-build variables. The gate reports build evidence only
-  (`releaseAccepted=false`) until a real Windows host validates the native nxs
-  runner.
-
-- Route nxs Anthropic-compatible Provider credentials through the SDK API-key
-  path for both first-party and third-party endpoints. Compatible nxs requests
-  now support gateways that require `x-api-key` while retaining the SDK's
-  Bearer fallback; Claude keeps its native `ANTHROPIC_AUTH_TOKEN` projection.
-  Custom header authentication remains outside the declared Provider contract.
-
-- Downgrade an exact desktop sandbox receipt from `retired` to `unknown` when
-  the owner-level process reaper fails after Bridge close. The bounded reason
-  remains durable, so a clean Bridge acknowledgement cannot hide descendants
-  whose collection was not proven.
-
-- Apply the desktop nxs network admission check after typed MCP assembly, so
-  Connector-owned HTTP/SSE servers cannot bypass the host domain grant; reject
-  unmanaged `headersHelper` executables in every permission mode and keep the
-  round-scoped `ConfigurationEnv` capability to its two declared keys. Claude's
-  native restricted sandbox keeps its own network settings when no explicit
-  host grant is supplied, so third-party Anthropic-compatible endpoints are not
-  accidentally blocked by an empty Nexus allowlist.
-
-- Verify third-party Anthropic-compatible routing through the real nxs and
-  Claude request paths with a local mock SSE endpoint. Claude's custom BaseURL
-  plus AuthToken uses Bearer authorization; nxs now uses its API-key path for
-  compatible gateways. External provider and custom-header acceptance remain
-  separate evidence. The nxs `Sandbox.Network` setting still governs
-  command/tool execution rather than acting as a host-level Provider egress
-  firewall.
-
-- Add owner-scoped desktop sandbox recovery endpoints and a runtime settings
-  surface for marker inspection and explicit stale-resource reconcile. Inspection
-  is read-only; the page previews candidates before reconcile, which defaults to
-  dry-run and requires a positive age plus `apply=true` before any deletion,
-  while the runtime still retains `cleanup_unknown` and active or unverifiable
-  processes.
-
-- Keep the exact lease captured by an obsolete startup generation during
-  configuration or lifecycle races. Cleanup no longer releases the current
-  generation's lease, and an existing cleanup fence cannot receive the same
-  handle twice; startup retry and stale-session close now retain the host
-  resource boundary.
-
-- Persist `cleanup_unknown` and a bounded error summary in each desktop nxs
-  scratch marker when Bridge close or lease cleanup is not proven; fixed-handle
-  discovery exposes the state after restart, and even a dead recorded PID does
-  not delete that unknown resource. Connect now writes an owner/session/
-  generation-scoped effective-policy receipt to the host database and retains a
-  connected copy, including Bridge-negotiated capabilities, policy digest,
-  session and exact lease/round identity. Receipt lifecycle phases record
-  confirmed, retiring, retired or unknown cleanup facts; this is lifecycle
-  evidence only and does not change the native-platform release gates.
-
-- Expose the effective sandbox receipt through an owner-scoped, read-only
-  settings diagnostic. The endpoint prefers the connected generation and falls
-  back to the latest durable receipt after restart; missing, cross-owner or
-  unavailable sessions remain not found, and capability negotiation never
-  becomes an OS-isolation attestation.
-
-- Add a cross-process crash-recovery harness for scratch leases. A child host
-  can terminate without cleanup, a restarted host discovers the durable marker,
-  dry-run remains non-destructive, and only an explicit apply can remove a
-  confirmed stale Unix lease; `cleanup_unknown` remains protected even after a
-  recorded PID exits.
-
-- Give each desktop nxs scratch acquisition an independent lease handle over
-  the shared owner/session resource. DM and Room runtime generations transfer
-  the exact handle into Bridge cleanup, Room keys leases by each Agent runtime
-  session, and failed Bridge or AutoDream close fences the scope instead of
-  allowing a later preparation to reuse an uncertain resource.
-
-- Anchor desktop nxs scratch creation, marker access, scans, and cleanup to
-  confined directory handles. Replaced scratch parents and symlinked or
-  non-regular markers now fail closed and retain the lease for recovery instead
-  of being treated as a successful cleanup.
-
-- Serialize duplicate scratch-handle releases and keep Windows marker reads
-  behind a handle-backed hard-link check, so an unconsumed startup lease or a
-  marker redirected to another file cannot silently escape its owner scope.
-  Unclean-session discard also drains a bound lease when no Bridge session was
-  installed yet, and Claude clients reject Nexus leases before ownership moves.
-
-- Keep host-prepared nxs resource leases compatible with the Bridge contract:
-  resource-backed runtimes now force `allowUnsandboxedCommands=false`, reject
-  read-only leases with explicit write grants, and reject accidental nxs
-  resource injection into Claude's native sandbox. This closes a startup-time
-  contradiction that previously made real scratch-backed desktop sessions
-  fail before transport initialization; active owner/session leases also reject
-  write-scope changes instead of reusing a broader policy.
-
-- Pin the desktop sandbox Bridge to local commit `8e90ff5e35e3` and verify the
-  generated Claude native sandbox settings through the exact CLI's
-  `--settings <json> --help` parser path before a session starts. The fixed
-  SDK `9956def1` macOS archive baseline passes all 38 checks with 47 settings
-  writer events; Claude Code `2.1.273` accepts the settings entry point and
-  rejects both restricted bypass forms. This is still configuration and local
-  development evidence only: authenticated Claude command/network/credential
-  isolation, cleanup, Windows/Linux, clean-host, signed-package and production
-  acceptance remain pending (`releaseAccepted=false`).
-
-- Pin the desktop sandbox Bridge to local commit `436346420c2905907375cc63b8fee9b88bc07287` and scrub inherited Provider, bearer-token, secret, cookie, SSH-agent, and proxy-auth environment names at the final Claude/nxs process boundary. Typed host-resolved environment overrides remain available. Target/race/vet, Nexus runtime regression, and Windows/Linux cross-compilation checks pass; this does not prove secret-file, inherited-handle, network, Claude OS-sandbox, descendant-cleanup, or package acceptance.
-
-- Pin the desktop sandbox baseline to SDK `9956def130da33af47accf799a9c27c16a551104` and include cross-physical-root journal recovery in the required evidence script. The fixed archive-built nxs (`e004c631ec555df466c14e13fc091e53f29a0ca4e113e1cd81031c0a2bab0f84`) passes all 38 macOS development checks and 47 settings-writer events; full-old/full-new states close together, while mixed or unverifiable states retain every journal and fail closed. This does not close cross-root power-loss atomicity, domain receipts, Provider secret-file/handle/network isolation, or Windows/Linux/Claude/package acceptance.
-
-- Re-run the fixed SDK `9d60e166` and Bridge `02fbc0e5f6a6...` macOS arm64
-  no-model baseline after the runtime environment scrub. Host policy,
-  lifecycle, settings recovery, Provider environment, settings-writes and all
-  existing macOS capability groups passed; the report remains development
-  evidence only and does not change the Windows/Linux/Claude/signed-package
-  release gates.
-
-- Expand the desktop runtime inheritance scrub to clear SDK bootstrap
-  descriptors, Provider and auxiliary-request credentials, TLS client-key
-  inputs, telemetry headers, SSH-agent hooks, and Connector client secrets
-  before later host-resolved values are projected. Empty host variables do not
-  create synthetic overrides; this closes known environment-source leaks only,
-  and does not prove arbitrary secret-file, inherited-handle, descendant, or
-  network isolation.
-
-- Route restricted Claude desktop sessions through Claude Code's native command
-  sandbox settings (`enabled`, `failIfUnavailable`, and
-  `allowUnsandboxedCommands=false`) on macOS, preserving Bash/build commands and
-  failing closed when the native backend is unavailable. Full Access remains an
-  explicit exception; real command, network, credential, cleanup, and
-  cross-platform acceptance are still pending.
-
-- Preserve configuration revisions across host restarts with a private database
-  HMAC key while keeping plan approval digests process-local. Migration preserves
-  existing receipts; legacy revisions report an incomparable result, and missing
-  or corrupt key state fails closed. Review/reconcile never replays the write.
-
-- Clarify that the current Claude `--restricted` launch path removes code execution
-  tools. Native command sandbox integration and real command/network/cleanup
-  acceptance remain required before the Claude development workflow is complete.
-
-- Connect the Bridge's Claude restricted admission probe to Nexus. The exact
-  resolved CLI must accept `--restricted --help` before a stream-json session
-  starts; failures, timeouts, or missing help text fail closed, and common
-  Provider/proxy secrets are scrubbed from the probe environment. This closes
-  the Bridge launch preflight only; authenticated Claude, OS, Provider,
-  network, file, descendant cleanup, and platform acceptance remain pending.
-
-- Route restricted Claude Code sessions through a separate Bridge typed launch contract. Nexus now requests `RequireClaudeRestricted` without claiming nxs `required_sandbox_v1`; Bridge injects exactly one native `--restricted` argument and rejects nxs, bypass, dangerous-bypass, or untyped argument attempts. Claude Full Access remains an explicit exception and does not receive `--restricted`; this proves only the Bridge launch contract, while Claude CLI version, OS isolation, and clean-host acceptance remain pending.
-
-- Add a no-model-request Claude CLI probe that records the explicitly pinned local version, verifies `--restricted` in `--help`, and confirms Claude rejects both dangerous and permission-mode bypasses in restricted mode. The probe records cancellation, cleanup, Provider, network, file and platform isolation as separate pending evidence.
-
-- Make the desktop sandbox contract built in for `NEXUS_APP_MODE=desktop`; the legacy `NEXUS_DESKTOP_SANDBOX_ENABLED` environment opt-in no longer disables the default restricted path. Unsupported backend/platform contracts continue to fail closed.
-
-- Present the desktop restricted runtime as always on in Runtime settings. There is no sandbox enable/disable control; tool dependencies, tool discovery and web search remain independently configurable, and missing required capabilities fail closed.
-
-- Fail closed for persisted MCP `headersHelper` paths in desktop nxs sessions until the host supplies an independently attested helper capability; Full Access keeps the nxs lifecycle boundary and does not admit an arbitrary external helper.
-
-- Pin nxs long-term memory to the current Agent workspace after configuration capability merges, and pass the runtime-owned environment into MCP authentication helpers. Managed helpers cannot borrow known Provider credentials or redirect the memory root; external MCP process and OS-level file, handle, and network confinement remain pending.
-
-- Reject persisted Agent HTTP/SSE MCP servers in restricted desktop nxs sessions until the host supplies reviewed network-domain admission. Stdio and in-process MCP lifecycle confinement remain separate Bridge/launcher work.
-
-- Carry a host-prepared sandbox resource contract into desktop nxs options with copy-and-validate semantics; restricted sessions may use read-only or workspace-write scopes, while Full Access rejects a restricted resource contract. This is only the input boundary: Nexus scratch leases, runtime cleanup, durable receipts and native platform acceptance remain pending.
-
-- Pin the local Bridge dependency to the Windows Job Object cleanup commits `6bb7b495`/`162cc79` and wire host-owned scratch leases into desktop nxs DM, Room and AutoDream runtimes. A failed Bridge close keeps the lease and runtime fence for recovery; stale scratch sweeping and native platform acceptance remain pending.
-
-- Persist expired settings `applying` receipts as `reconcile_required` with `applied: "unknown"` across service/database restart. This provides a durable recovery primitive and does not infer whether the underlying write committed or automatically replay it.
-
-- Run durable settings unknown recovery during server startup and on a bounded periodic sweep. The process discovers stale `applying` receipts across owners, keeps the owner/request conditional update, and fails startup closed when the initial scan cannot run; it still leaves `reconcile_required` outcomes for an explicit inspect/reconcile action and never replays an unknown write.
-
-- Serialize SDK settings writes across runtime processes with a stable per-root lock, deterministic lock ordering, cancellable waits, post-lock snapshot checks, and parent-directory syncing after atomic replacement. The fixed SDK `ce136cfe` builds and passes the real Nexus → Bridge → nxs desktop gate; multi-document power-loss atomicity, durable SDK receipts and inspect/reconcile UI remain pending.
-
-- Add proven reverse-order rollback for runtime settings writes with SDK `9d60e166`: existing documents are restored and newly created documents are removed only after exact identity/content checks; unknown remains fail closed when rollback cannot be proven. The newest nxs binary passes the Nexus → Bridge → nxs desktop gate; power-loss recovery and durable receipts remain pending.
-
-- Persist a versioned owner/session/process marker beside every desktop nxs scratch lease and add owner-scoped `DiscoverSandboxResources` plus explicit `SweepStaleSandboxResources` recovery. Dry runs are the default; deletion requires a positive age and an explicit apply request, while active registry leases, live or uncheckable processes, malformed markers, and young leases remain untouched. This makes crash leftovers discoverable without silently adopting or deleting an unknown runtime; native descendant, handle, secret-file, network, and platform cleanup remain pending.
-
-- Add a host-prepared `DesktopSandboxNetworkAdmission` for desktop nxs. Restricted sessions serialize an explicit deny-all network policy by default; persisted HTTP/SSE MCP is admitted only for an exact approved HTTPS domain, and desktop WebSearch rejects private-network access without a host grant. Re-apply resolved Provider, vision and WebSearch environments after task/configuration merges so task-scoped variables cannot replace host credentials. This closes Nexus input admission only; env scrub is not OS process, secret-file, handle or network-exit isolation, and `releaseAccepted=false` remains.
-
-### Added
-
-- Add owner-scoped `nexuscfg review` and human-only `nexuscfg reconcile` for durable
-  settings receipts. Review re-reads the redacted source of truth and reports the
-  recorded/current revision relationship; reconcile records an explicit
-  `human_confirmation` decision without replaying the unknown write, while Agent
-  round capabilities can review but cannot submit it. Cross-process power-loss
-  transactions, stable cross-restart revision comparison, and settings-page UI remain
-  pending.
-
-- Require an independent nxs `sandbox_notebook_files_v1` capability for restricted desktop Notebook reads. Notebook content and cell outputs use the restricted file executor, and old command/file acknowledgements cannot substitute for it; Notebook execution, remote network policy and whole-SDK IO remain separate acceptance work.
-
-- Keep nxs Provider and background-wake ownership fixed after all runtime environment merges, and replace the process when ownership/scrub/wake declarations change. Extend the fixed-SDK sandbox gate to reject task settings that redirect host credentials, replace request bodies or leak known credentials into command/hook environments, while retaining standalone settings behavior. This validates environment ownership, not complete process/MCP/file credential isolation or release acceptance.
-
-- Include HTTP hook and MCP variable interpolation in Provider environment acceptance. Known host Provider credentials cannot be borrowed into request headers, URLs, arguments or renamed environment values; dedicated authentication variables retain their existing behavior.
-
-- Require an independent nxs settings-write capability before restricted desktop sessions start. Route Config and permission persistence through the checked settings binding, reject path-identity changes, use same-directory replacement, protect settings from task processes, and retire the runtime after an effective Config update. This remains a macOS development contract; cross-process transactions, durable receipts, provider credential separation and default product rollout remain pending.
-
-- Require independent nxs ordinary-settings confinement and snapshot integrity in the desktop development policy. Fixed sources, source filtering, checked startup and runtime controls prevent unknown settings from silently weakening restrictions. Include the requirement in process replacement and the fixed-SDK native gate. Credential separation, atomic permission persistence and default product rollout remain pending.
-
-- Require independent nxs managed-policy integrity in the desktop development policy. Freeze the policy source before task settings, reject invalid or changed rules before execution, and include the requirement in process replacement and fixed-SDK native validation. Ordinary configuration, persistence and default product rollout remain pending.
-
-- Require independent nxs project-definition file confinement before desktop development-policy task admission. Cover startup discovery and refresh of Agent, command, Skill and hook-setting files; block incomplete snapshots and replace runtimes when the requirement changes. Global configuration and hook execution remain pending.
-
-- Require independent nxs instruction and compact-file confinement in the desktop development policy. Pin the local Bridge contract, replace runtimes when the requirement changes, and extend the fixed-SDK native gate with allowed/denied startup sources, exclusion settings and reload recovery. Global configuration, background IO and default product rollout remain pending.
-
-- Require independent nxs Skill file confinement before experimental desktop task admission. Skill catalogs, bodies, dynamic discovery, Git ignore queries and remember-availability settings now share the file boundary. Include this requirement in process replacement identity and the fixed-SDK native gate; global startup settings, hooks, background IO and default product rollout remain pending.
-
-- Require independent nxs local-media confinement before experimental desktop task admission, covering ViewImage and model image preprocessing. Include the requirement in runtime replacement identity and extend the fixed-SDK gate with allowed/denied image paths, file URLs, symlinks and attachment references. Remote media networking and whole-SDK isolation remain pending.
-
-- Require separate nxs Glob/Grep sandbox acknowledgement before experimental desktop task admission, and include it in runtime replacement identity. Extend the fixed-SDK baseline to verify allowed searches, denied paths/symlinks and confined search auxiliaries; full SDK IO, descendant supervision and default product rollout remain pending.
-
-- Extend the fixed-SDK desktop sandbox development gate with native read-only/workspace-write, private scratch, environment override and link-write rejection checks. These SDK resource modes still require host scratch lifecycle integration before product use.
-
-- Require separate command and native Read/Write/Edit sandbox capabilities before experimental desktop tasks start; reject older nxs binaries that acknowledge only the command contract.
-
-- Add an opt-in desktop sandbox baseline gate with pinned Bridge checks, real nxs integration, fixed SDK source export for macOS tests, and reports that reject skipped or missing acceptance evidence. The native gate also verifies that a task PATH cannot replace the system Seatbelt executable or hide it, requiring both named execution scenarios.
-
-- Add an explicit runtime-settings sandbox support check with independent unknown, unsupported and dependency results; keep engine selection and permission modes unchanged.
-
-- Show mandatory sandbox network approvals as one pending connection, without command replay or persistent grants.
-- Align online group headers with Room conversation tabs and member avatar controls, keeping host authorization compact and accessible.
-
-- Reuse Room identity fields, two-column layout and fixed-height member directories for online group settings, with searchable people/Agent tabs and compact inline member actions.
-
-- Catch up group messages from durable stream watermarks during visible-page, focus and network refreshes, recovering missed notifications and temporary difference failures.
-
-- Refresh authentication status directly from Control so organization creation and membership changes appear immediately instead of reusing a stale identity lease.
-
-- Do not mislabel organization owners as leaving members when the backend omits their organization role; show a recovery notice and hide empty member-action columns.
-
-- Place organization actions and member search in one toolbar, with matching outlined action buttons.
-
-- Move organizations into account settings for all remote accounts, with organization creation, existing-account joining, rename, leave, ownership transfer and dissolution confirmations.
-- Separate organization permissions from platform operations; organization-less users retain personal/local capabilities without Relay access. Refresh remote identity on focus and scope online directories to the organization.
-
-- Remove page-header subtitles across Settings for consistent, simpler headings.
-
-- Create subscription plans in a dialog with name, quota, notes, and automatically generated identifiers; hide plan keys and preserve them when renaming.
-
-- Edit subscription plans directly in compact rows with shared column headings and inline save actions.
-
-- Widen the provider directory and reduce duplicated inner spacing to show longer service names.
-
-- Show a compact delete icon on provider row hover or keyboard focus, keeping it visible on touch devices and preserving deletion confirmation and usage checks.
-
-- Simplify user subscription management by removing top-level statistics and the routine refresh action.
-
-- Group invite and invitation-history actions on the left of the member toolbar, with history in a dialog and direct revoke/delete actions; remove the redundant member heading and routine refresh button while retaining recovery actions.
-
-- Show subscription account column headings once on desktop and retain inline field labels in narrow layouts.
-
-- Inset settings card separators and remove the tour-reset entry from General settings and settings search.
-
-- Remove redundant right-side labels from default model, message behavior, runtime, and web search settings while retaining accessible control names.
-
-- Refine operations pages with flatter directories, inline plan editing, and secondary row actions.
-
-- Center settings bodies within a 1200px limit while preserving full-width page headers and simplify organization directories with compact rows, separate action menus, and invitation counts.
-
-- Add deletion of accepted, revoked and expired organization invitation records, retaining revoke for active invitations.
-
-- Remove the organization role-description sidebar and let the member directory use the full content width; retain member role management.
-
-- Align plain dialog titles with close buttons and normalize the Room skill placeholder typography.
-
-- Reorganize the Room dialog into compact configuration and member columns, with skills beside the member list and stable member header/list heights when switching tabs.
-
-- Compact shared segmented controls and remove the outer tray and stacked selection borders.
-
-- Add explicit host authorization for online Agents, with encrypted durable credentials, exact registration/revocation recovery, and remote-account isolation. Desktop binds the local host; Web binds its Nexus server.
-- Add opt-in online Agent execution through native local Rooms, durable inbox/output recovery, exact lease cancellation, and local permission/question handling. Only complete replies reach remote members; existing grants remain execution-disabled and unknown interrupted runs never restart automatically.
-- Use the real runtime MCP tool-use identity preserved by Bridge for IM delivery; remove the content-hash workaround and report missing metadata as a runtime/Bridge integration error.
-
-- Track IM delivery origins and return human feedback to the original Session through the existing `list_targets` and `send_message` tools, with durable queue admission, pairing revocation and unchanged contact messaging.
-
-
-- Open generated files by clicking their card, remove the redundant Open badge, and distinguish the desktop Show in folder action.
-
-- Refresh the glass brand mark with generated PNG artwork across the Launcher, sign-in pages, and browser tabs; keep the desktop app icon separate.
+- 后端按“DM 是 Room 的一种”收敛：每轮 Goal 状态、Goal 续跑、用量结算与重试、完成收据、`/goal` 建 Goal 与流诊断在 `service/runtimehost` 只实现一次；DM 与 Room realtime 装配不完整时启动即失败。
+- 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
+- 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。
+- AGENTS.md 精简为项目宪法，产品合同迁入 `docs/specs/`；规范与指南去重瘦身约 14%，按实现修正规范内部矛盾，修复失效链接并重建 `docs/README.md` 索引。
 
 ### Fixed
 
-- Keep real MCP tool-use identities when integrating current main with desktop sandbox capabilities; pin the combined Bridge revision and verify the IM and sandbox contracts together.
+- 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
 
-- Preserve runtime cleanup failures across reconnects, configuration replacement and repeated closes. Keep failed sessions fenced, report cleanup errors even alongside closed-pipe errors, and include host-only sandbox file/resource requirements in the process-policy fingerprint. This in-memory fence does not yet establish complete descendant or crash-recovery guarantees.
+- 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
 
-- Extend the desktop sandbox development gate to require real Bash/Read denial under overlapping resource grants and symlink access, protected-directory movement rejection, and both background network lifecycle scenarios.
+- 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
 
-- Keep the configuration Skill entry below 5 KiB by moving Agent creation and behavior-template guidance into an on-demand reference.
+- 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
+- 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
+- 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
+- Windows 原生沙箱 CI 使用专用 SDK 读取凭据，缺失时明确报告配置要求。
 
-- Clarify the existing entry points for local Skill content editing, long-term memory editing and role-scoped configuration discovery.
-- Keep compact segmented text and icon options at the same 24px height by removing invisible borders; align component/browser checks and design guidance with the current dimensions and active-surface token.
+- 修复 nexuscfg 全部 runtime 配置请求因携带多余 reconcile 字段而返回“请求参数错误”，恢复 inspect、plan、apply、history 与 review 的请求解析。修正配置 Skill 的排障指引，避免将通用接口错误或页面不可见直接归因于权限或版本缺失。
 
-- Preserve online Agent author and delivery identities in message projections; render Agent replies independently from their human owners, without confirming human outbox intents or introducing remote token streaming.
+- 未部署 Relay 时自动隔离在线多人入口与请求；新增 `NEXUS_MULTIPLAYER_DISABLED=true` 显式关闭多人 Gateway、桌面代理及本机执行器，保留组织账号和本地 Room。
 
-- Persist exact online message intents before sending, recover them without automatic replay, reconcile lost receipts from snapshots, and remove revoked Room resources and connections.
-- Add Room settings, coordinator clearing, leave/dissolve confirmations, and organization-admin takeover of ownerless Rooms; refresh joined Rooms even when invitation acceptance loses its response.
+- 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
 
-- Keep online Room member snapshots and Agent mention choices in sync; preserve exact message intents across uncertain retries, refresh invitations while visible, and guard Agent publication and membership updates as one operation with visible errors.
+- IM 配对支持选择当前智能体已有的本地 DM 会话，复用原历史与执行 Session；改绑校验所属智能体，旧版本回信失效。
 
-- Wait for initial route and authentication placeholders to resolve before reporting desktop web readiness, preventing startup smoke navigation from interrupting lazy module loading.
-- Use an explicit HFS+ staging volume for macOS DMG packaging instead of inheriting the runner's APFS default.
+- 修复 IM 绑定群聊后误回传工具调用过程的问题：复用原成员会话，仅回传成功轮次的最终回答；修正群聊主动投递以公区 key 查询 Session 导致的 session not found。
 
-- Keep decision dialogs usable in short windows, restore source editor text metrics and mobile Organization identity, and improve light/rain action contrast with the matching light Windows native projection, and keep long task suggestions inside their cards on WebKit.
+- 配对会话目标改为固定高度的锚定浮层，展开与选群不再撑动卡片；群聊与会话双栏选择，支持搜索和完整路径预览，简化独立聊天与改绑说明。
 
-- Split the complete frontend browser test matrix across twelve CI jobs to avoid the previous single-job timeout while retaining the required frontend gate and per-shard failure evidence.
-- Move the collapsed sidebar control left, keep the macOS home canvas below the window controls, and align the Launcher spotlights over the wordmark.
+- 会话历史时间靠右对齐，悬浮或键盘聚焦时在原位置显示操作图标，消除隐藏按钮的空白占位。
 
+- 修复 IM 配对会话目标误用群聊类型值，导致符合条件的本地群聊全部被过滤、只显示独立 IM 会话。
 
-- Refresh ingress leases when reusing personal Weixin account connections so adding another account keeps both accounts able to submit tasks; log revoked ingress rejections for diagnosis.
-- Clarified where to edit Agent behavior templates and how to customize role fields or add rules while preserving the base template's Baseline Rules.
-- Included local Agent runtime logs and nested SDK diagnostics in macOS and Windows log exports, fixing missing recent runtime activity in exported archives.
+- 整理频道配对卡片的信息层级：身份与操作对齐，智能体和会话目标等宽排列，活动时间收进技术详情。
+
+- 优化部署用户目录与新建流程：创建改为独立弹窗，补齐焦点、字段校验、加载与未知结果核对反馈。
+
+- App 登录表单底部补充“返回”按钮，与“登录”按钮等宽并排，可取消登录并回到本地工作台。
+
+- 恢复“设置 → 运营 → 部署用户”和主智能体 members 的独立 Web 用户管理：平台 owner/admin 无需组织，新账号不自动入组；同步修正旧 Skill 指引。
+- Widen the model options dialog, align capability controls, and retain the simple Automatic label.
+- Verify seven Provider capabilities independently, including executed tool round trips and production image adapters; keep failed checks separate from confirmed evidence and preserve chat when auxiliary vision is unavailable.
+
+- Telegram 单条入站失败不再阻塞整个 Bot：仅派发前错误最多尝试三次，未知执行不自动重跑；失败提示保留原聊天/话题，通知失败不回退消费游标。
+
+- IM 已受理但回执未落盘的消息可由宿主后台核验恢复，无需等待平台重投；未知执行保持待核验。
+- 在线群成员与投递详情按 100 条分页读取；成员续页校验原版本，加载历史时同步补齐该页投递进度。
+
+- 在线群首次只读取最近 100 条消息，按需加载更早历史并保持阅读位置。
+- IM 入站重投区分准备中断和未知受理；保留原轮次，只凭已持久化用户输入恢复回执，避免静默丢失和重复执行。
+
+- Telegram 入站以 update_id 隔离聊天内消息编号，重试期间保持原轮询游标和执行轮次。
+- Telegram / Discord 分段回复逐段保存已确认回执，后续发送失败不丢失部分结果；未知发送不自动重放。明确 HTTP 429 按平台等待时间有限重试。
+
+- `app-run-onboarding` 隔离 WebView Cookie 与网站存储，首次初始化测试不再继承日常 App 的远程登录态。
+- 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
+
+### Added
+
+- IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
+
+- 在线群与真人私聊支持跨端持久已读水位及侧栏未读数；后台页面不会自动标记已读。
+- 群内公开展示 Agent 执行中或等待拥有者处理，审批正文及工具信息保留在本机。
+
+- 用户与 Agent 的原头像选择器增加 Humation 随机头像（含背景配色），新建 Agent 和 Subagent 使用同套素材；附带 Nexus 徽章与终端配件，源码与素材随应用分发，无外部头像服务依赖。
+
+## [0.2.3] - 2026-09-24
+
+### Added
+
+- Added online Agent-to-Agent mentions and configurable host Agent auto-replies, reusing native Room member hints and parsing without executing remote members locally.
+- Added the built-in `caixun-work-hours` Skill for reviewing and submitting personal RichPMS work-hour reports.
+- Added `glm-5.3-flashx` capabilities and exact-model capability defaults for custom Providers while preserving explicit overrides.
 
 ### Changed
 
-- Distinguish one-time sandbox escape approvals from ordinary tool permissions, retain review explanations, and reject persistent grants attached to an escape response.
+- Refined scheduled-task cards and inline editing, settings headers and scrolling, community Skill search, and connector menus.
+- Aligned online Room typography and spacing with local conversations.
+- Updated the bundled nxs runtime to v0.1.34.
 
-- Add an opt-in desktop command sandbox policy shared by DM, Room and memory maintenance. Switching across Full Access stops the old runtime and pending Room approvals; new requests use the new policy. The rollout remains disabled by default while the complete sandbox and approval integration is under development.
+### Fixed
 
-- Add Plan mode to the Composer action menu and `/plan` completion, showing a removable footer mode indicator instead of a command prefix, while sharing one request-scoped planning and approval flow without changing permission settings.
+- 侧栏固定会话改用对应 Agent 或群聊头像，移除下方标题并在悬浮时显示完整标题。
 
-- Matched the sidebar brand hover glow to the glass cover’s rounded rectangular outline.
-- Reorganize group-chat creation around a top-level local/online choice and separate online people from Agent selection.
-- Add online Room invitations and human member governance, including accept, reject, revoke, role changes, removal, and human owner transfer; selected people now join only after accepting an invitation.
-- Publish only selected local Agent identities to Control, verify their ownership at the Nexus Gateway, and support adding or removing them as online Room members; the human owner can select and replace the coordinator from active Agent members.
-- Let Agent owners pause or resume their online Room Agent from the shared member-management surface; pausing a coordinator clears that role before future delivery work.
-- Let online Room members explicitly select active Agents in the composer and submit structured mentions with the current membership-version fence.
-- Consolidate Organization identity, membership, role guidance, and invitations into one management surface, while removing deployment account creation from the Organization flow.
-- Prepare the optional Relay state directory for persistent single-node SQLite deployments.
+- Preserved structured mention targets per Agent output and surfaced online execution and collaboration-limit failures.
+- Kept pending automation confirmations accessible after conversation switches and history refreshes.
+- Continued conversations when image input has no usable vision route, with Agent guidance and visible invalid saved selections instead of stale routing.
+- Enabled Claude runtime diagnostic capture and prevented streamed code status labels from wrapping vertically.
+
+## [0.2.2] - 2026-09-21
+
+### Added
+
+- Added independent hosted-web access checks and clear App-only account guidance while preserving desktop organization collaboration.
+
+### Fixed
+
+- 恢复 macOS Launcher 装饰到交通灯中心位置，保持 Web 与其他桌面端的独立定位规则。
+
+- Aligned online human messages by the current remote account: own messages on the right and other members on the left.
+- Kept conversation delete actions aligned with the full sidebar row.
+- Unified human and Agent author avatar sizes and corner shapes in normal and compact message layouts.
+
+### Changed
+
+- Removed one-off audit records from public documentation and clarified which data Control migration preserves.
+
+## [0.2.1] - 2026-09-21
+
+### Added
+
+- Added online Agent execution through native Rooms, with structured mentions, local permission/questions, exact-round stopping, delivery status, and complete shared replies.
+- Added shared online Room files and explicit Agent file delivery while keeping private workspaces, tool traces, and memory local.
+- Added human direct messages, organization invitations and lifecycle management, and Room ownership, membership, pause/resume, leave, and dissolution controls.
+- Added request-scoped Plan mode in the Composer and nine reusable WorkGraph methodology templates with structured artifact contracts.
+
+### Changed
+
+- Reused native Room Threads, context budgets, execution panels, and message controls for online collaboration; joined local Agents are prepared automatically.
+- Replaced online metadata and delivery polling with scoped WebSocket events, durable recovery, and in-place device credential renewal.
+- Accelerated sidebar previews and Room history through persisted summaries, incremental ledger indexing, and validated transcript caches.
+- Unified model recommendations and capability labels, added explicit onboarding model selection, and separated Provider disable, replace-key, and clear-key actions.
+- Stabilized conversation scrolling, floating Goal/activity spacing, streamed content, generated UI, file cards, and narrow-window settings.
+- Updated the bundled nxs runtime to v0.1.33 and Bridge dependency to v0.1.34.
+
+### Fixed
+
+- 聊天列表删除与移出按钮相对整行垂直居中，不再贴着标题行；保留原有样式和悬浮显示。
+
+- Preserved exact online message and execution identities during uncertain responses, reconnects, revocation, and interrupted work without automatically replaying sends or executions.
+- Recovered half-open chat connections and renewed Node credentials without tying device execution to browser-session expiry.
+- Fenced stale IM QR login, pairing, delivery, and Session generations across rebinding, deletion, and Agent changes; returned delivery feedback to its original Session.
+- Restored DM Goal continuation authority, Room host selection for queued input, and non-object Automation query results.
+- Isolated scheduled-task execution locks so slow delivery cannot block unrelated task updates through hash collisions.
+- Removed empty floating-control spacing at the bottom of conversations.
+- Prevented duplicate migration versions and preserved reversible SQLite migrations, entitlement isolation, and organization-scoped access checks.
+- Improved model-limit errors, Echo Gate decision budgets, WebSocket failure diagnostics, and exported Agent runtime logs.
+- Waited for route/authentication readiness before desktop startup navigation and used explicit HFS+ staging for macOS packages.
 
 ### Security
 
-- Upgrade Vitest to 4.1.11 and refresh Browserslist, baseline-browser-mapping, and humanfs to fix known frontend test and build toolchain vulnerabilities.
-- Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
-- Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
-- Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
+- Hardened organization, Agent ownership, device authorization, and revocation boundaries and updated vulnerable frontend build/test dependencies.
 
 ## [0.2.0] - 2026-09-10
 
@@ -1498,4 +1157,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored message protocol boundaries by adding `StreamMessage` and unifying backend streaming messages, final messages, and frontend consumption models.
 - Adjusted WebSocket/IM sending layers to explicitly separate `message`, `stream`, and `event` transports.
 - Passed `include_partial_messages` to the SDK by default and removed invalid frontend streaming/round configuration options.
-- Raise the macOS desktop minimum to 14.2, the first Sonoma release whose XNU kernel includes the audit-token signal path required for race-free sidecar termination.

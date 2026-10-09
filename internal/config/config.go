@@ -60,6 +60,7 @@ type Config struct {
 	ControlPrincipalAudience         string
 	ControlRequestTimeoutSeconds     int
 	RelayURL                         string
+	MultiplayerDisabled              bool
 	RelayRequestTimeoutSeconds       int
 	BaseSystemPrompt                 string
 	MainAgentSystemPrompt            string
@@ -229,6 +230,7 @@ func Load() Config {
 		ControlPrincipalAudience:     getEnv("NEXUS_CONTROL_PRINCIPAL_AUDIENCE", "nexus-runtime"),
 		ControlRequestTimeoutSeconds: parseIntEnv(getEnv("NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS", "5"), 5),
 		RelayURL:                     strings.TrimSpace(getEnv("NEXUS_RELAY_URL", "")),
+		MultiplayerDisabled:          mustBool(getEnv("NEXUS_MULTIPLAYER_DISABLED", "false")),
 		RelayRequestTimeoutSeconds:   parseIntEnv(getEnv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "5"), 5),
 		BaseSystemPrompt:             getEnv("BASE_SYSTEM_PROMPT", ""),
 		MainAgentSystemPrompt:        getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),

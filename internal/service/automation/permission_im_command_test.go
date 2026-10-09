@@ -151,7 +151,12 @@ func TestPermissionIMSlashApprovesAndDoesNotEnterAgentRuntime(t *testing.T) {
 	if fixture.request.DeliverySessionKey != fixture.sessionKey {
 		t.Fatalf("审批请求没有保留原 IM 会话: %+v", fixture.request)
 	}
-	messages := fixture.delivery.Messages()
+	var messages []string
+	// 权限请求可见与 IM 通知送达是两个异步阶段（#298）：先等通知送达，再做数量与内容断言。
+	waitFor(t, 2*time.Second, func() bool {
+		messages = fixture.delivery.Messages()
+		return len(messages) >= 1
+	})
 	if len(messages) != 1 ||
 		!strings.Contains(messages[0], "【Nexus 定时任务 · 微信审批任务】") ||
 		!strings.Contains(messages[0], "/y：允许本次") ||

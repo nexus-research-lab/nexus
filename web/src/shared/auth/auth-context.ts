@@ -1,3 +1,6 @@
+// INPUT: 认证快照、独立多人部署能力和 Context。
+// OUTPUT: 认证消费 Hook 与在线 Team 准入判断。
+// POS: 共享认证投影；不以组织身份推断多人部署，不负责请求。
 /**
  * =====================================================
  * @File   : auth-context.ts
@@ -29,8 +32,8 @@ export function isRemoteAccountAuthenticated(status: AuthStatus | null): boolean
   return status?.authenticated === true && status.auth_method === "password";
 }
 
-export function hasOrganizationAccess(status: AuthStatus | null): boolean {
-  return isRemoteAccountAuthenticated(status) && Boolean(status?.organization_id);
+export function hasTeamAccess(status: AuthStatus | null): boolean {
+  return status?.multiplayer_enabled === true && isRemoteAccountAuthenticated(status) && Boolean(status.organization_id);
 }
 
 export function useAuth() {
