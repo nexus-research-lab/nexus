@@ -65,6 +65,7 @@ logs
 deploy/data/
 skills/werewolf-6p
 skills/room-playbook
+/docs/explorations/
 
 # Desktop sandbox raw evidence stays local; commit curated README/report/manifest files only.
 /docs/testing/evidence/**/*.log
@@ -76,5 +77,4 @@ skills/room-playbook
 /docs/testing/evidence/**/*.swift
 /docs/testing/evidence/**/*.source
 /docs/testing/evidence/**/*.c
-
 /docs/testing/evidence/
