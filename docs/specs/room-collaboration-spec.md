@@ -2,9 +2,14 @@
 
 ## 1. 定位
 
-本文是 Group Room 的当前通信协议。它只定义“谁能看到什么、谁何时运行、回复投到哪里”，不定义任何具体业务流程。
+本文是 Group Room 的当前通信协议：谁能看到什么、谁何时运行、回复投到哪里。它不定义任何具体业务流程。
 
-Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。好友与群通讯录、跨当前会话发送见 [Agent 平台通讯规范](./platform-communication-spec.md)。Plan、Work Item、Assignment、Submission 与 Acceptance 见 [Execution Orchestration 协议](./execution-orchestration-spec.md)；Room 只运输其可选 binding。本文不重复 Session Key、历史归一化和前端时间线规范；时间线的展示顺序与消息密度见 [消息处理规范](./message-processing-spec.md)。
+相关规范：
+
+- Room 对象、数据归属、路由键与侧栏活动：[Room 模块规范](./room-spec.md)。
+- 好友与群通讯录、跨当前会话发送：[Agent 平台通讯规范](./platform-communication-spec.md)。
+- Plan、Work Item、Assignment、Submission 与 Acceptance：[Execution Orchestration 协议](./execution-orchestration-spec.md)；Room 只运输其可选 binding。
+- Session Key、历史归一化、时间线展示顺序与消息密度：[消息处理规范](./message-processing-spec.md)。
 
 ## 2. 负责与不负责
 
@@ -20,8 +25,11 @@ Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。好友与群
 
 - 业务 Skill 的阶段、顺序、投票、胜负、任务分配或完成判定。
 - 自动决定谁汇总、何时交还主持人或何时结束讨论。
-- 把普通通信动作提升为额外业务原语或状态机。
+- 把普通通信动作提升为业务原语，或维护业务级流程状态（需要时由 Skill 自己持久化并通信）。
 - 将私域正文自动公开。
+- Goal、定时任务、subagent task 或 connector 的生命周期。
+- 多用户权限模型和跨 Room 协作。
+- 前端 CSS、组件和交互实现；时间线顺序、guide 展示和消息密度见 [消息处理规范](./message-processing-spec.md) 与 [Nexus Design System](../../design.md)。
 
 ## 3. 核心概念
 
@@ -44,13 +52,18 @@ Private context 是某个 Agent 可见的定向上下文，来源包括：
 - directed reply route 投影给它的结果。
 - 它自己的私域记录。
 
-Private context 不进入 public feed；checkpoint 只控制消费边界，不作为正文注入；其余权限边界不由本协议定义。
+Private context 不进入 public feed；checkpoint 只控制消费边界，不作为正文注入。
 
-前端可以在公区历史之外，根据 `agent_room_directed_message` 队列项与同来源的非终态 slot 投影一个 conversation 级协作状态。该状态只表示“等待协作”或“正在协作”，不展示参与者、数量或私域正文；派发时必须先发布新 slot 再移除队列投影，队列出队、slot 终态和重连权威快照共同决定其生命周期，前端不得用业务文案、计时器或 `correlation_id` 猜测。
+前端可投影一个 conversation 级协作状态：
+
+- 来源：`agent_room_directed_message` 队列项与同来源的非终态 slot。
+- 只表示“等待协作”或“正在协作”，不展示参与者、数量或私域正文。
+- 派发时必须先发布新 slot，再移除队列投影。
+- 生命周期由队列出队、slot 终态和重连权威快照共同决定；前端不得用业务文案、计时器或 `correlation_id` 猜测。
 
 ### 3.3 Wake
 
-Wake 是让目标 Agent 获得一次运行机会的调度动作。Wake 不是业务消息，也不改变已经写入的 public/private 事实。
+Wake 是让目标 Agent 获得一次运行机会的调度动作。它不是业务消息，也不改变已写入的 public/private 事实。
 
 ### 3.4 Reply route
 
@@ -60,46 +73,76 @@ Reply route 规定被唤醒 Agent 的单次 final reply 如何投影：
 - private：写入指定 Agent 的 private context，可选择是否立即唤醒下一跳。
 - none：不向其他成员投影。
 
-### 3.5 Correlation ID
+### 3.5 Correlation ID 与 command identity
 
-correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI 分组。它不表示阶段、请求状态、完成状态，也不驱动唤醒。
-
-副作用幂等不使用 correlation_id。宿主按 SDK `tool_use_id` 生成不可由模型覆盖的 command identity；bridge 未提供该字段时，使用 source session、Agent、round、工具名与规范化输入生成稳定回退。`send_message` 的当前 Room 私域分支将该身份派生为确定性 message_id，同一逻辑工具调用的 transport/model retry 只重放第一次持久结果；同 ID 不同语义 fail closed。
+- `correlation_id` 是可选的不透明关联值，只用于日志、诊断和 UI 分组；不表示阶段、请求状态或完成状态，不驱动唤醒，也不用于副作用幂等。
+- 副作用幂等使用宿主 command identity：按 SDK `tool_use_id` 生成，模型不可覆盖。
+- bridge 未提供 `tool_use_id` 时，用 source session、Agent、round、工具名与规范化输入生成稳定回退。
+- `send_message` 当前 Room 私域分支由该身份派生确定性 message_id；同一逻辑调用的 transport/model retry 只重放第一次持久结果；同 ID 不同语义 fail closed。
 
 ### 3.6 Initial empty state
 
-新 Room 的 public feed 为空时，前端可以静态展示协作建议。该空态不是 public fact，不写入 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。用户选择建议后生成普通公开输入；本地 group Room 服从下节目标解析；主持 Agent 身份本身不产生默认接管，必须同时启用自动接管设置。
+- 新 Room 的 public feed 为空时，前端可以静态展示协作建议。
+- 该空态不是 public fact：不写 ledger、不调用模型，也不创建 round、handoff、Goal 或 Execution。
+- 用户选择建议后生成普通公开输入，服从 §4.1 目标解析；主持 Agent 身份本身不产生默认接管。
 
 ## 4. 公区输入与 Agent handoff
 
 ### 4.1 用户输入的目标解析
 
-用户向本地 group Room 发送消息时，后端优先解析以下显式目标：
+目标解析顺序：
 
-1. 请求中的显式 target_agent_ids。
-2. 正文中可解析的 Agent @ 别名。
+1. 请求中的显式 `target_agent_ids`。
+2. 正文中可解析的 Agent `@` 别名。
+3. 没有显式目标时，仅当已保存有效成员 `host_agent_id` 且 `host_auto_reply_enabled=true`，才以 `room_host_default` 唤醒该群主。浏览器输入同样遵守此设置；暂停参与的群主仍受参与闸门限制。
+4. 未开启接管或群主无效时，保存并广播用户消息但不启动 Agent。
 
-没有显式目标时，仅当已保存有效成员 `host_agent_id` 且 `host_auto_reply_enabled=true`，才以 `room_host_default` 唤醒该群主；浏览器输入同样遵守此设置，暂停参与的群主仍受参与闸门限制。未开启接管或群主无效时，保存并广播用户消息但不启动 Agent；单 Agent DM 可以默认选择唯一成员。在线 Team/Relay 群聊继续只接受显式目标，不套用本地 Room 接管设置。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
+- 单 Agent DM 可以默认选择唯一成员。
+- 在线 Team/Relay 群聊只接受显式目标，不套用本地 Room 接管设置。
+- 用户定向消息无论 Room 是否存在 managed Execution 都进入 conversation round，不携带 WorkBinding/ReviewBinding。
+- 受管 work/review 不复用自然语言路由，由各自 durable outbox 按精确 binding 启动。
 
-### 4.2 Agent 的公开回复
+### 4.2 Agent 的公开回复与 `@` handoff
 
 普通公区发言直接使用当前 round 的 final reply，不调用 Room 工具。只有已收口的 final reply 才进入 public feed。
 
-公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与一次 conversation transport activation，但它不创建或激活 Work Item、Assignment、Submission 或 Acceptance。无论 Room 是否同时存在 active Execution，它都可邀请一个或多个成员聊天、讨论、投票、brainstorm 或提供不追踪的一次性结果；每个 target round 的 WorkBinding/ReviewBinding 都为空，source slot 即使有 binding 也不得传播。分工的唯一权威入口是 `assign_work`（接管是 `take_over_work`），由 durable Dispatch 另建 work-bound round；验收由 review-return outbox 另建 review-bound round。参与人数本身不触发 Plan，多个 mention 也不接受 WorkGraph fanout admission；只有要形成独立责任、依赖、验收或 Goal evidence 的产出才进入 Execution。只想展示或讨论成员、并不希望唤醒时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。成员名后的空白或标点只用于可读性，不是正确性条件；服务端按成员目录最长别名匹配，已知 ASCII 或中文别名都可直接衔接汉字正文（例如 `@Agent1以上为结果`、`@研究员请继续`）。ASCII 字母、数字、下划线或连字符后缀仍视为同一标识符，`@Agent10` 不会误命中 `Agent1`。目标重复时只唤醒一次，不能唤醒自己。
+**`@` 的语义**
 
-用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
+- 公区 final reply 中每个非代码 `@成员` 同时是可点击 mention 与一次 conversation transport activation。
+- 它不创建或激活 Work Item、Assignment、Submission 或 Acceptance；无论是否存在 active Execution，都只用于邀请成员聊天、讨论、投票、brainstorm 或提供不追踪的一次性结果。
+- 每个 target round 的 WorkBinding/ReviewBinding 都为空；source slot 即使有 binding 也不得传播。
+- 分工的唯一权威入口是 `assign_work`（接管是 `take_over_work`），由 durable Dispatch 另建 work-bound round；验收由 review-return outbox 另建 review-bound round。
+- 参与人数本身不触发 Plan；多个 mention 不接受 WorkGraph fanout admission。只有需要独立责任、依赖、验收或 Goal evidence 的产出才进入 Execution。
+- 只想提及而不唤醒成员时，必须写普通名字，不使用 `@`。
 
-平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
+**解析**
 
-公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容或 Execution capability 带给目标 Agent。目标 Agent 应输出新的对话贡献或一次性结果，而不是复述触发消息。目标 Agent 的 final reply 本身已由宿主关联回 source handoff；不得仅为称呼 source、确认交付或让 source 继续/收尾而写 `@source`。只有确实要求 source 产生一个独立的新增对话贡献时，才可发出 reciprocal `@source`，届时它是一条新的真实 handoff，而不是回执。只有在确实需要另一位参与者继续对话时才用带明确下一步的 `@成员`；managed work 完成后必须调用 `submit_work`，系统用 durable review outbox 自动回交 reviewer，正确性不依赖正文里的 `@协调者`。公开回复可以展示交付，但不能代替或事后转化为 Submission、Acceptance 或 Assignment。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
+- 源 Agent final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot。
+- 别名为成员 name、display name 或 agent id；反引号代码区域中的 `@` 不触发唤醒。
+- 服务端按成员目录最长别名匹配；成员名后的空白或标点不是正确性条件，已知 ASCII 或中文别名可直接衔接汉字（如 `@Agent1以上为结果`、`@研究员请继续`）。
+- ASCII 字母、数字、下划线或连字符后缀视为同一标识符：`@Agent10` 不会命中 `Agent1`。
+- 目标重复只唤醒一次；不能唤醒自己。
+- 用户消息按前端传入的 `target_agent_ids` 路由；Agent final reply 按服务端解析出的有效 mention 路由。
+- 多个不同目标拆成多个独立 handoff；书写顺序只决定创建顺序，不承诺回复顺序。
 
-若 source round 是精确授权的 Room Goal continuation，handoff 还会携带 host-only 的 Goal ID/objective revision 协作归因。它只把协作者终态回连到该 revision，绝不传播 `GoalAuthorityState`，因此 target 仍是普通 conversation round，不能调用 Goal mutation。同一物理 round 成功执行 `retarget_goal` 后，后续公区 `@`、带 wake 的 directed message 和 round 终态记账必须读取该服务端成功 mutation receipt 已确认的新 revision；仅消费另一个 round 的 objective steering 不得把 predecessor round 的协作归因升级到新 revision。归因在首次写入 handoff ledger 时固化，后续 wake、InputQueue 与恢复只能复用该快照，不能再次从 live state 推算。归因必须随 Room handoff ledger、directed-message record、InputQueue 和恢复重放保持；Goal-directed message 落盘后、任何 immediate/delayed 调度前即用确定性 ID 建立 handoff。启动恢复还会反向扫描带归因的 directed-message 事实，只为仍处于 active 的精确 Goal revision 补建被崩溃打断的 message→handoff 写入；旧 revision 不会复活。同一协作者继续 `@` 或私域回交时可传播归因，但每一轮仍不获得 mutation authority。Goal-attributed handoff 不得降级为既有 busy slot 的普通 guide，必须保留可单独收口的 queue/target round 身份。ledger 把 target terminal 与 Goal handback 记为两个独立 durable 阶段：即使进程在两者之间崩溃，启动恢复也必须先恢复公开证据（如有）、清除旧源 round 错写的 empty-progress 抑制，再交给新的有权限 continuation。handback 不重置 continuation count，不能绕过自动续跑上限。终态的公开实质回复可记录 Room-visible Goal evidence，但该证据只用于审计和展示，不参与 Goal complete 判定；私域回复只恢复续跑，不形成公开证据；no-reply、失败、中断或已过期 revision 不记录证据。对归因字段上线前遗留的终态 root，启动器只在当前 active Goal 的最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`、root 内全部边已终态、且同 root 存在非 Lead 的公开实质终态时补写精确当前 revision；不得从消息正文、目标措辞或相邻时间猜测旧归因。
+**拓扑**
 
-Room 成员数量不产生 Goal 协作门槛。complete 时宿主仍在同一 conversation 派发闸门内读取 active slot、queue、wake 与 attributed handoff，只阻止关闭后遗留真实运行中的 Room work；历史 `room_goal_collaboration_required` metadata 仅作兼容读取，不再影响任何新建或完成判定。
+- 平台不从通信方向推断业务拓扑，不用 visited/cycle 规则限制 reciprocal handoff：不同消息中的显式新 `@`（如 `A → B → A`、peer 间继续讨论、多人回交同一成员）都是真实 handoff。
+- 多个来源同时指向同一忙碌 Agent 时，每条 handoff 独立持久化，按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
+
+**目标 Agent 的行为**
+
+- 公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容或 Execution capability 带给目标。
+- 目标应输出新的对话贡献或一次性结果，不复述触发消息。
+- 目标 final reply 已由宿主关联回 source handoff；不得仅为称呼 source、确认交付或让 source 收尾而写 `@source`。只有要求 source 产生新的独立贡献时才可 `@source`，它是一条新 handoff，不是回执。
+- 只有确实需要另一位参与者继续对话时，才使用带明确下一步的 `@成员`。
+- managed work 完成后必须调用 `submit_work`；系统用 durable review outbox 回交 reviewer，正确性不依赖正文里的 `@协调者`。
+- 公开回复可以展示交付，但不能代替或事后转化为 Submission、Acceptance 或 Assignment。
+- 无需任何成员继续行动时使用 `<nexus_room_no_reply/>` 或不写 `@`；平台不写入空的公区回复。
 
 ### 4.3 @ mention 与消息注解
 
-解析成功的 `@` 必须同时写入消息注解，供历史恢复和前端渲染使用。注解不改变正文，不新增独立的 content block：
+解析成功的 `@` 必须同时写入消息注解，供历史恢复和前端渲染使用。注解不改变正文，不新增独立 content block：
 
 ```json
 {
@@ -116,11 +159,11 @@ Room 成员数量不产生 Goal 协作门槛。complete 时宿主仍在同一 co
 }
 ```
 
-- `start_rune/end_rune` 是半开区间，范围包含 `@`；普通字符串消息使用 `content_block_index=0`。
-- `handoff_id` 只在 Agent public handoff 上存在；用户消息的目标注解可以没有。
-- 用户消息或旧历史中没有 `handoff_id` 的 mention 只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与可点击链接。当前服务端生成的 Agent public final 中，每个有效 mention 都带独立 `handoff_id`。
-- `<nexus_room_fanout/>` 是旧版兼容标记，不再改变路由；服务端仍会剥离它，确保其不进入正文、历史、上下文或时间线。
-- 消息不持久化 avatar URL；前端按当前 Room agent directory 解析头像，找不到成员时使用 `label` 和 initials 兜底。
+- `start_rune/end_rune` 是包含 `@` 的半开区间；普通字符串消息使用 `content_block_index=0`。
+- 当前服务端生成的 Agent public final 中，每个有效 mention 都带独立 `handoff_id`。
+- 没有 `handoff_id` 的 mention（用户消息或旧历史）只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与链接。
+- `<nexus_room_fanout/>` 是旧版兼容标记，不再改变路由；服务端剥离它，不进入正文、历史、上下文或时间线。
+- 消息不持久化 avatar URL；前端按当前 Room agent directory 解析头像，找不到成员时用 `label` 和 initials 兜底。
 - 解析不明确、目标已移除或位于代码/链接 destination 中的 `@` 保留为普通文本，不创建 handoff。
 
 public mention 目标的公开实质终态还必须携带宿主派生的回复因果注解：
@@ -135,18 +178,55 @@ public mention 目标的公开实质终态还必须携带宿主派生的回复�
 }
 ```
 
-- `handoff_reply` 只能从当前 target slot 的可信 handoff identity 派生；runtime 输入的同名字段必须被清除。
-- 该注解是“此终态回应哪条公区交接”的非动作投影，不属于 `agent_mentions`，不改写正文或 `parent_id`，也不创建 wake、queue、capability 或 Goal handback。
-- runtime 的完整 assistant frame 早于 terminal result 时不得提前携带该注解；只有 slot 成功终态后，宿主才以同一 `message_id` 持久化并补发带注解的 durable message update。客户端按稳定消息身份单调合并，迟到或旧历史中缺失该字段的快照不得擦除已确认的回复因果。
-- 同一终态若正文又有真实 `@Lead`，它同时保留 `handoff_reply` 来源因果与新 `agent_mentions` action：前者回应上一跳，后者才启动下一跳。
-- 私域 reply、`<nexus_room_no_reply/>`、空输出、失败/中断与普通非 handoff round 不产生公区 `handoff_reply`。
-- 注解必须随实时 message event、Room transcript reference 和历史 turn 同构保留。它不包含 Goal ID/objective revision；Goal 归因、target terminal 与 handback settled 仍分别以 handoff/Goal ledger 为真相源，不得从该投影反推。
+- 只能从当前 target slot 的可信 handoff identity 派生；runtime 输入的同名字段必须被清除。
+- 它是非动作投影：不属于 `agent_mentions`，不改写正文或 `parent_id`，不创建 wake、queue、capability 或 Goal handback，也不取代 handoff ledger。
+- runtime 的完整 assistant frame 早于 terminal result 时不得提前携带该注解；slot 成功终态后，宿主以同一 `message_id` 持久化并补发带注解的 durable message update。
+- 客户端按稳定消息身份单调合并；迟到或旧历史中缺失该字段的快照不得擦除已确认的回复因果。
+- 同一终态若正文又有真实 `@Lead`，同时保留 `handoff_reply`（回应上一跳）与新的 `agent_mentions`（启动下一跳）。
+- 私域 reply、`<nexus_room_no_reply/>`、空输出、失败/中断与普通非 handoff round 不产生 `handoff_reply`。
+- 注解随实时 message event、Room transcript reference 和历史 turn 同构保留；它不含 Goal ID/objective revision，Goal 归因、target terminal 与 handback 仍以 handoff/Goal ledger 为真相源，不得从该投影反推。
 
 ### 4.4 主动公区广播
 
-`send_message(destination=current_room, visibility=public)` 仅在私域或 tool-driven
-流程需要额外广播一条独立公区事实时使用。工具成功后，当前 slot 的默认 final
-reply 被抑制，避免重复公区消息。
+`send_message(destination=current_room, visibility=public)` 仅在私域或 tool-driven 流程需要额外发布一条独立公区事实时使用。成功后当前 slot 的默认 final reply 被抑制，避免重复。
+
+### 4.5 Goal continuation 协作归因
+
+若 source round 是精确授权的 Room Goal continuation，其公区 `@` 与带 wake 的 directed message 携带 host-only 的 Goal ID/objective revision 协作归因。
+
+**用途与权限**
+
+- 归因只用于等待协作者终态、记录可见审计事实，并重新调度一轮有权限的 lead continuation。
+- 它绝不传播 `GoalAuthorityState`：target 仍是普通 conversation round，不能调用 Goal mutation。
+- 同一协作者继续 `@` 或私域回交时可传播归因，但每一轮都不获得 mutation authority。
+
+**revision 选择与固化**
+
+- 同一物理 round 成功执行 `retarget_goal` 后，后续公区 `@`、带 wake 的 directed message 和 round 终态记账必须读取该 mutation 服务端成功 receipt 确认的新 revision。
+- 仅消费另一个 round 的 objective steering，不得把 predecessor round 的归因升级到新 revision。
+- 归因在首次写入 handoff ledger 时固化；后续 wake、InputQueue 与恢复只复用该快照，不从 live state 重算。
+- 归因随 handoff ledger、directed-message record、InputQueue 和恢复重放保持。
+
+**持久化与恢复**
+
+- Goal-directed message 落盘后、任何 immediate/delayed 调度前，即用确定性 ID 建立 handoff。
+- 启动恢复反向扫描带归因的 directed-message 事实，只为仍 active 的精确 Goal revision 幂等补建被崩溃打断的 message→handoff 写入；旧 revision 不复活。
+- Goal-attributed handoff 不得降级为 busy slot 的普通 guide，必须保留可单独收口的 queue/target round 身份。
+- ledger 把 target terminal 与 Goal handback 记为两个独立 durable 阶段。两者之间崩溃时，启动恢复先恢复公开证据（如有）、清除旧 source round 的 empty-progress 抑制，再交给新的有权限 continuation。
+- handback 不重置 continuation count，不能绕过自动续跑上限。
+
+**证据**
+
+- 终态的公开实质回复可记录 Room-visible Goal evidence，只用于审计和展示，不参与 Goal complete 判定。
+- 公开非 Lead 实质回复可在同一 durable Goal ID 生命周期内单调记录为审计事实；objective revision 只 fence 迟到事件的写入归因。
+- 私域回复只恢复续跑，不形成公开证据；no-reply、失败、中断或已过期 revision 不记录证据。
+- 归因字段上线前遗留的终态 root，只在同时满足以下条件时补写精确当前 revision：当前 active Goal 的最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`；root 内全部边已终态；同 root 存在非 Lead 的公开实质终态。不得从正文、目标措辞或时间邻近猜测旧归因。
+
+**完成判定**
+
+- 当前负责人在 objective 满足且 Room/Execution readiness 通过后拥有 Goal 关闭决定权。
+- Room 成员数量与协作证据不构成完成门槛；历史 `room_goal_collaboration_required` metadata 仅作兼容读取，不影响新建或完成判定。
+- complete 时宿主在同一 conversation 派发闸门内读取 active slot、queue、wake 与 attributed handoff；已启动的 slot、handoff、queue、wake 或 WorkGraph work 必须先终态或显式取消。
 
 ## 5. Directed message
 
@@ -154,7 +234,8 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 
 ### 5.1 作用域
 
-- 只在 room_type=room 且 private_messages_enabled=true 时提供。
+- 通过 `send_message(destination=current_room, visibility=private)` 发送。
+- 只在 `room_type=room` 且 `private_messages_enabled=true` 时可用；该开关每次调用重新鉴权，不改变工具面。
 - recipients 必须是当前 conversation 的 Agent 成员。
 - 工具由受控 runtime 注入；Agent 不能通过普通 HTTP body 伪造 source 或 Room scope。
 
@@ -166,11 +247,11 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 | wake_targets[] | 实际要运行的 recipients 子集；触发唤醒时省略则默认为全部 recipients。wake_policy=none 时必须为空。 |
 | content | 私域正文，必填；不会自动进入 public feed。 |
 | wake_policy | none、immediate、delayed；默认 none。 |
-| delay_seconds | 仅 delayed 有效，必须为正数并受平台上限限制（当前上限为 24 小时）。 |
-| reply_route | 被唤醒成员 final reply 的投影路线，见下节。 |
+| delay_seconds | 仅 delayed 有效，必须为正数，上限 24 小时。 |
+| reply_route | 被唤醒成员 final reply 的投影路线，见 §5.3。 |
 | correlation_id | 可选、不透明关联值。 |
 
-平台绑定 room_id、conversation_id、source_agent_id、root_round_id、caused_by_round_id、hop_index 和时间戳。绑定值由后端生成或校验，Agent 不能自行覆盖。
+平台绑定 room_id、conversation_id、source_agent_id、root_round_id、caused_by_round_id、hop_index 和时间戳；这些值由后端生成或校验，Agent 不能覆盖。
 
 ### 5.3 Reply route 约束
 
@@ -180,9 +261,9 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
     private(recipients[], wake_policy=none|immediate, next_reply_route?)
     none
 
+- `reply_route` 由后端校验，并按成员范围归一化。
 - private 必须显式列出一个或多个 Agent recipients。
-- next_reply_route 只能挂在 private + wake_policy=immediate 上。
-- next_reply_route 继续遵守同一规则，并受平台嵌套深度限制。
+- next_reply_route 只能挂在 private + wake_policy=immediate 上，继续遵守同一规则，并受平台嵌套深度限制。
 - private + wake_policy=none 只写入私域，不创建下一轮。
 - none 表示本轮可以运行，但 final reply 不投影给任何成员。
 
@@ -200,47 +281,50 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 
 ### 5.5 私域回复投影
 
-当 reply_route=private 时，目标 Agent 的 final reply 会物化为一条新的 directed message：
+reply_route=private 时，目标 Agent 的 final reply 物化为一条新的 directed message：
 
-- 原始私域正文仍不会进入 public feed。
-- wake_policy=immediate 会唤醒 route recipients，并携带 next_reply_route；未声明时下一跳为 none。
+- 原始私域正文仍不进入 public feed。
+- wake_policy=immediate 唤醒 route recipients，并携带 next_reply_route；未声明时下一跳为 none。
 - wake_policy=none 只记录结果，不产生下一轮。
 
-只有 reply_route=public，或下一跳 route 明确为 public，才允许 final reply 进入公区。
+只有 reply_route=public，或下一跳 route 明确为 public，final reply 才进入公区。
 
 ## 6. Wake 与投递
 
 ### 6.1 目标空闲或忙碌
 
 - 目标空闲：创建新的 Agent slot。
-- 目标正在运行：普通 Agent handoff 默认不 interrupt；优先使用已有 slot 的 guide，只有 runtime 协商了可靠 applied ACK 才能使用 guide，否则直接进入持久化 queue。Goal-attributed handoff 始终进入 queue，等待独立 target round。
-- 同一 Agent 不因一次 handoff 并发创建第二个执行槽；未消费的输入留在持久化队列。
-- queue 是投递事实的唯一真相源；guide 只是对 queue item 的低延迟优化。guide 返回后在 applied ACK 前不得从 queue 删除，崩溃或无 ACK 时可安全重投。
-- guide 是投递策略，不是第二条业务消息；同一份正文只能在时间线出现一次。
+- 目标正在运行：普通 handoff 默认不 interrupt。只有 runtime 协商了可靠 applied ACK 才使用已有 slot 的 guide，否则直接进入持久化 queue。
+- Goal-attributed handoff 始终进入 queue，等待独立 target round。
+- 未消费的输入留在持久化队列。
+- queue 是投递事实的唯一真相源；guide 只是对 queue item 的低延迟优化。guide 返回后、applied ACK 前不得从 queue 删除；崩溃或无 ACK 时可安全重投。
+- guide 不是第二条业务消息；同一份正文只能在时间线出现一次。
 - 用户主动输入可以选择 queue、guide 或 interrupt；这是运行时投递策略，不是业务协议。
 
 ### 6.2 时序
 
-- 源 Agent 的 final reply 持久化后先记录 `detected` handoff；source slot 成功收口时立即激活该 slot 产生的 handoff，不等待 sibling slots。
-- source slot 失败或取消时，尚未激活的 handoff 必须取消；不能用失败或中断的半成品触发下一跳。
-- source public message 的实时事件必须先于由它触发的 target slot 状态事件；target 回复在展示上不能出现在 source 之前。
-- directed message 的 immediate wake 进入同一套队列和 slot 生命周期；Goal-attributed wake 在调度前已有 durable handoff fence。
-- immediate 与 delayed wake 都先写 append-only wake schedule，再交给队列；成功入队后写 complete。运行中派发失败会保留 pending schedule 并在线重试，进程重启则先修复缺失 handoff，再重放未完成 schedule。相同 wake_id 完成后的工具重试保持终态，不能再次唤醒 Agent。
+- 源 Agent final reply 持久化后先记录 `detected` handoff；source slot 成功收口时立即激活该 slot 产生的 handoff，不等待 sibling slots。
+- source slot 失败或取消时，尚未激活的 handoff 必须取消；不能用半成品触发下一跳。
+- source public message 的实时事件必须先于其 target slot 状态事件；target 回复在展示上不能出现在 source 之前；sibling slot 的快慢不改变这条因果关系。
+- directed message 的 immediate wake 进入同一套队列和 slot 生命周期。
+- immediate 与 delayed wake 都先写 append-only wake schedule，成功入队后写 complete。
+  - 运行中派发失败：保留 pending schedule 并在线重试。
+  - 进程重启：先修复缺失 handoff，再重放未完成 schedule。
+  - 相同 wake_id 完成后的工具重试保持终态，不能再次唤醒 Agent。
 - 唤醒链保留 root/cause/hop 关联，便于停止、去重和诊断。
-- Goal continuation 发起的协作在 target 终态前是 durable continuation fence；不能只依赖易失的 active slot 判断。target 终态后由宿主把控制权交回新的 lead continuation，而不是让 target 继承 Goal mutation authority；终态已写但 handback 未写的中间态必须在重启时恢复。
+- Goal continuation 发起的协作在 target 终态前是 durable continuation fence，不能只依赖易失的 active slot 判断；恢复规则见 §4.5。
 
 ### 6.3 护栏
 
-自动唤醒必须受平台护栏限制，包括：
+自动唤醒受以下运行时护栏限制：
 
-- root 链 hop 上限。
+- root 链 hop 上限（只作为最后一道资源保险）。
+- root 级批次 fanout、handoff 总量和取消传播。
 - 目标 Agent 的串行执行和队列容量/过期。
 - 重复 wake 的去重或合并。
 - 服务重启后的 pending wake 恢复。
 - 用户停止 root 链时收口派生任务。
 - Room handoff 的持久化日志、幂等 claim、启动失败回滚和 queue item 关联。
-- root 级批次 fanout、handoff 总量和取消传播；`hop` 上限只作为最后一道资源保险。
-- 显式 reciprocal handoff 不受 visited/cycle 业务拓扑限制；同一目标仍由 active slot 和持久队列强制串行。
 
 护栏只保护运行时资源，不推断业务完成。
 
@@ -249,27 +333,30 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 每次唤醒传给 Agent 的动态上下文由四部分组成：
 
 1. public_feed：该 Agent 公区 cursor 之后的已发布事实。
-2. latest_trigger：通过 `type` 属性标明本次为何唤醒，并携带源消息和 reply_route；类型只负责路由，不授予 authority。
+2. latest_trigger：用 `type` 属性标明唤醒原因，携带源消息和 reply_route；类型只负责路由，不授予 authority。
 3. room_directed_messages：该 Agent private cursor 之后可见的私域增量。
 4. public_anchor：冷启动时对较早公区历史的压缩锚点。
 
-当前 directed message 在私域增量中优先展示，但不能越过更早未消费消息推进 private cursor。任何不属于目标 Agent 的私域消息都不得进入上下文。
+- 当前 directed message 在私域增量中优先展示，但不能越过更早未消费消息推进 private cursor。
+- 不属于目标 Agent 的私域消息不得进入上下文。
 
 ### 7.1 公区事实筛选
 
-Agent 的公区上下文只接受用户消息和其他 Agent 的已完成 assistant 终态；自身正在生成的 stream、工具过程和失败中间态不算事实。已经作为 handoff source 发布的原文可以出现在 latest_trigger，但不应被目标 Agent 重复回显。
+- 公区上下文只接受用户消息和其他 Agent 已完成的 assistant 终态；自身 stream、工具过程和失败中间态不算事实。
+- 已作为 handoff source 发布的原文可以出现在 latest_trigger，目标 Agent 不应重复回显。
 
 ### 7.2 冷启动与预算
 
 - runtime 真正恢复成功时，从上次 cursor/checkpoint 之后继续。
 - 新建或 resume 失效时，忽略无法证明有效的旧 cursor，发送 public_anchor + recent public delta。
-- Room 附加上下文预算按当前模型窗口计算：clamp(context_window / 12, 2048, 12000)；该预算不包含系统提示词、runtime transcript、工具 schema 和输出空间。
-- 预算先保障当前消息与 latest_trigger，再在 public/private delta 间分配；没有可见私域增量时，未使用的 private 配额回流 public_feed，同时为冷启动保留 public_anchor 的最小空间。
-- 超出预算的消息只在自身优先级内截断，并保留截断提示；未实际消费的连续前缀不能标记为已读。
+- Room 附加上下文预算 = `clamp(context_window / 12, 2048, 12000)`，不含系统提示词、runtime transcript、工具 schema 和输出空间。
+- 预算先保障当前消息与 latest_trigger，再在 public/private delta 间分配；没有可见私域增量时，未用的 private 配额回流 public_feed，同时为冷启动保留 public_anchor 的最小空间。
+- 超出预算的消息只在自身优先级内截断并保留截断提示；未实际消费的连续前缀不能标记为已读。
 
 ### 7.3 Checkpoint
 
-Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-reply 的 round 可以推进；失败/取消的 round 默认不推进，除非平台能证明输入已安全消费。
+- Checkpoint 记录公区和私域的实际消费边界。
+- 成功完成或明确 no-reply 的 round 可以推进；失败/取消的 round 默认不推进，除非平台能证明输入已安全消费。
 
 ## 8. 持久化与事件
 
@@ -287,34 +374,13 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 | Input queue | 持久化队列 | 忙碌 Agent 的串行接力 |
 | WebSocket/事件 | 运行时投影 | 实时 UI、诊断和重同步 |
 
-事件是投影，不是消息、handoff、队列或 checkpoint 的真相源。`room_seq` 只保证实时订阅和重放顺序，不替代历史持久化顺序；`correlation_id` 只用于关联展示，不驱动业务状态。
+- 事件是投影，不是消息、handoff、队列或 checkpoint 的真相源。
+- `room_seq` 只保证实时订阅和重放顺序，不替代历史持久化顺序。
 
 ## 9. 稳定不变量
 
-- public 与 private 是两种可见性，不是同一消息的两个 UI 标签。
-- 只有明确的 public projection 才能写入 public feed。
+- public 与 private 是两种可见性，不是同一消息的两个 UI 标签；只有明确的 public projection 才能写入 public feed。
 - 同一 `source_message_id + target_agent_id` 只允许一个 public handoff；重试必须复用该 handoff 的 claim、queue item 或 target round。
 - 同一宿主 command identity 只允许一条 directed-message 事实和一个 wake schedule；完成态重试不得复活 wake。
-- 不同消息中的 reciprocal 或重复协作方向都是新 handoff；平台不得用 visited/cycle 规则限制 Agent 的业务通信拓扑。
-- 同一 root 只保留批次 fanout、handoff 总量、hop 和取消等纯资源护栏；达到 hop 上限时只作为最终保险拒绝。
 - 同一目标 Agent 的多个 handoff 必须由 claim、guide/queue 和 active-slot 检查串行化，不能并发启动第二个 slot。
-- source public message 必须先于其 handoff 的 target 状态和回复；sibling slot 的快慢不能改变这条因果关系。
 - 回复路线由消息记录携带，不能从自然语言或默认约定推断。
-- Room 平台不维护业务级流程状态；需要这些状态时由 Skill 自己持久化并通信。
-
-## 10. 非目标
-
-本文不规定：
-
-- Room Skill 的具体业务规则。
-- Goal、定时任务、subagent task 或 connector 的生命周期。
-- 前端具体 CSS、组件和交互实现；时间线的顺序、guide 展示和消息密度规则见 [消息处理规范](./message-processing-spec.md) 与 [Nexus Design System](../../design.md)。
-- 多用户权限模型和跨 Room 的协作。
-
-一句话：public feed 记录共享事实，directed message 记录定向事实，wake 决定何时运行，reply route 决定 final reply 去哪里；业务意义由 Skill 负责。
-
-## 宿主实现约束（自 AGENTS.md 迁入）
-
-以下条目原位于仓库根 AGENTS.md，现以本规范为唯一真相源。
-
-- Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见审计事实并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。当前负责人在 objective 满足且 Room/Execution readiness 通过后拥有 Goal 关闭决定权；成员数量与协作证据不构成完成门槛，但已启动的 slot、handoff、queue、wake 或 WorkGraph work 必须先终态或显式取消。公开非 Lead 实质回复仍可在同一 durable Goal ID 生命周期内单调记录为审计事实，objective revision 只 fence 迟到事件的写入归因。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。
