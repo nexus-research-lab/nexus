@@ -10,10 +10,13 @@
 - User、密码和 Session 的权威位于独立 `nexus-control`。
 - Nexus Web Shell 把 `/auth/v1` 的登录、登出、资料、改密、首次初始化和成员管理请求同源发送给 Control。
 - Nexus Server 只验证短期签名 Principal，用 `local_owner_bindings` 把 Control 身份确定性映射到本地 owner key；展示资料只投影到 `owner_profiles`。
-- 每个 Nexus 副本独立消费 Control 的持久身份失效序列：
-  - 登出只清 exact browser Session 与 WebSocket；
-  - 资料变更刷新 owner 连接，保留 Agent runtime；
-  - 角色变更或停用才关闭该 owner 的连接与 runtime。
+- Nexus 缓存短期签名 Principal 租约，有效期内本地验签；过期后重新向 Control 换取，Control 不可用则拒绝访问。
+- 每个 Nexus 副本独立按游标顺序消费 Control 的持久身份失效序列；未绑定本地 owner 的事件不产生本地动作：
+  - `session_revoked`（登出）只丢弃 exact browser Session 的租约并关闭该 Session 的 WebSocket；
+  - `profile_changed` 丢弃 owner 租约并关闭其 WebSocket 以重连刷新，保留 Agent runtime；
+  - `principal_changed`（角色变更或停用）丢弃 owner 租约、刷新本地角色/状态投影，并关闭该 owner 的全部 WebSocket 与 runtime；
+  - `entitlement_changed` 丢弃 owner 租约并刷新额度投影（见下文）；`organization_changed` 只丢弃 owner 租约，协作撤权由 Relay 执行；两者都不关闭连接或 runtime。
+- 失效序列持续不可读一分钟，或单个事件重试三次仍无法应用时，Nexus 把全部 entitlement 投影标为不可用、清空租约，并关闭全部 Control 身份连接与已绑定 owner 的 runtime（失败关闭）。
 - 旧 `users`/认证表只允许迁移代码读取，不再属于运行时账号系统。
 
 - Desktop 后端始终使用 `__system__` 本地主体。
