@@ -131,12 +131,12 @@ Room shared 历史由两类行组成：
 目标解析、handoff、directed message、公区广播和投递策略的细则见 [Room 协作协议](./room-collaboration-spec.md) §4–§6。主链顺序：
 
 1. Group Room 入口校验共享键 `room:group:<conversation_id>`；DM 的消息、队列和中断都走唯一 Agent session。
-2. 解析目标 Agent：显式 `target_agent_ids`、文本 `@`、单成员默认、host 默认接管；仍无目标时沿最近活跃 root round 的成员继续投递。
+2. 按 [Room 协作协议 §4.1](./room-collaboration-spec.md#41-用户输入的目标解析) 的唯一优先级解析目标 Agent。
 3. 用户消息写入 shared overlay 并广播实时事件；忙碌目标先登记持久化输入队列，派发时补齐或更新公区投影。
 4. 为目标 Agent 创建、复用或排队 round slot。
 5. 已收口的执行终态按 transcript 引用或合成 assistant 投影到 shared overlay。
 
-仍没有可解析目标时，消息可记录但不启动 Agent；平台只返回目标提示，不替业务规则猜测目标。
+没有可解析目标时的处理同样只由 Room 协作协议 §4.1 定义；平台不替业务规则猜测目标。
 
 ## 7. 路由键的职责
 

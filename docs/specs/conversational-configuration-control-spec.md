@@ -414,7 +414,7 @@ Connector 数据库与宿主 keyring 构成不可拆分的加密身份。
 
 ## 当前存储限制
 
-- Provider `auth_token`、私有 Skill 来源 Token 与 Agent 自定义 MCP（`mcp_servers`）中的秘密沿用各自现有存储模型，尚未进入统一加密存储；Channel 和 Connector 凭据使用既有加密仓储。控制面协议不得返回这些明文。
+- Provider `auth_token`、私有 Skill 来源 Token 与 Agent 自定义 MCP（`mcp_servers`）中的秘密沿用各自现有存储模型，尚未进入统一加密存储；其中私有 Skill 来源 Bearer Token 以明文保存在 `skill_sources.credentials_encrypted`，字段名不代表已加密。Channel 和 Connector 凭据使用既有加密仓储。控制面协议不得返回这些明文。
 - 包含外部副作用的秘密变更、OAuth 与 Channel 连接不承诺一键回滚；失败后使用重新授权、显式重配或 `reconcile_required` 收口。
 - 这些限制不改变服务端身份绑定、资源 CAS、幂等 apply、写后核对、输出栅栏和全链路脱敏要求。
 

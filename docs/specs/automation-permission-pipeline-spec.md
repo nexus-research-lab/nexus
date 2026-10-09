@@ -138,12 +138,14 @@ inspect / plan / apply：
 - 相同意图重放返回首次结果；不同意图冲突。
 - 命令已开始但未能持久化结果时进入 uncertain，禁止自动重放；调用方必须 inspect 权威状态后以新命令处理，不能冒险重复 run、wake 或外部投递。
 
-普通交互 runtime 的 create/update 只表达：
+普通交互 runtime 经 `nexus.command` 的 create/update 只表达：
 
 - `context_mode=current|isolated`
 - `deliver_result=true|false`
-- 可选 `delivery_session_key`，只能原样使用同一 Agent 的 `delivery_targets` 查询返回值
+- 可选 `delivery_session_key`，只能原样使用同一 Agent 的 `delivery_targets` 查询返回值；不得与 `reply_mode` 或 `deliver_result=false` 同时出现
 - 可选 `permission_mode`
+
+`delivery_session_key` 只属于 `nexus.command` 合同；HTTP 任务创建/更新接口不接受该字段，页面通过结构化 `delivery` 目标配置投递。
 
 投递目标选择：
 

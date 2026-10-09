@@ -121,17 +121,17 @@ Room 主 Feed：
 
 - 不渲染 thinking、工具详情、ToolResult、MCP/CLI 输入输出或可展开过程栏。
 - 当前工具头与“正在思考/正在回复”等 fallback 共用最新可见正文之后的同一个不可展开单行活动位置。
-- 存在未收口工具时，该位置复用 Thread 工具组头部的图标栈与当前工具标题，不读取 ToolUseSummary；工具收口后回退通用状态。
-- 运行文字使用中性低对比流光，不使用主色动画，不追加工具状态、数量、异常数或第二条尾随活动。
+- 该位置不读取 ToolUseSummary。存在未收口工具时复用 Thread 工具组头部的中性图标栈与当前工具标题，标题使用中性低对比流光，不附加加载指示器；工具收口后回退通用状态，以统一主色静态文案配共享加载指示器显示。
+- 不追加工具状态、数量、异常数或第二条尾随活动。
 - round 终态后不保留过程占位。
 
 Thread 与 DM：
 
-- 具体过程只在对应 Thread 中按 ToolUseSummary 展示。Thread 过程与工具组默认展开，子项目录默认展开；DM 工具组默认折叠。
+- Room 的具体过程只在对应 Thread 中展示。DM 与 Thread 的工具组（两条及以上连续活动或含 Thought）默认收起，收起标题优先显示匹配的 ToolUseSummary。
 - DM 没有公区/Thread 分层，按日志原序展示可展开过程。普通工具出现在正文之后时，该正文留在 direct 时间线并结束前一工具组，后续工具形成新组。
 - summary 到达后只替换相关折叠栏标题，不追加“已完成”或“正在执行”。
 - 收起的活跃工具组在最终回复开始前持续显示共享活动状态，按真实阶段复用“正在思考 / 执行 / 回复”等既有动效。
-- DM 首次点击过程栏只展开子项目录。Thought、Agent、MCP 与普通工具的详情由各自入口独立打开（Agent 可进入任务详情面板）；父级不得级联打开全部详情。
+- DM 与 Thread 首次点击过程栏都只展开子项目录。Thought、Agent、MCP 与普通工具的详情由各自入口独立打开（Agent 可进入任务详情面板）；父级不得级联打开全部详情。
 - Thread 与 DM 复用同一 Thought 明细字号和滚动机制；嵌套在工具组内时由唯一外层滚动窗口跟随流式内容，用户上滑后暂停。
 - 失败、拒绝和替换的详细状态只属于可展开过程。
 - round 终态清除 summary 后，durable 工具只保留中性的“执行过程”审计入口；归档过程的外层思路、动作、异常与最近动作摘要在展开前后保持不变，避免与内层工具组标题重复。
@@ -275,7 +275,7 @@ Room 增量：
 
 完整重建：
 
-- 当前任一 canonical source 变化都会触发一次完整 generation 重建。duplicate UUID、parent 主链、marker 对齐和 Room transcript_ref 都可能反向改变旧 round，因此在没有等价性证明前不得用 append-only 增量更新替代完整规范化。
+- 除上述通过校验的 Room ledger 追加外，任一 canonical source 变化都会触发一次完整 generation 重建；DM 没有增量路径，source 变化一律完整重建。duplicate UUID、parent 主链、marker 对齐和 Room transcript_ref 都可能反向改变旧 round，因此不满足 Room 增量条件的变化不得用 append-only 更新替代完整规范化。
 
 读取：
 
@@ -421,4 +421,4 @@ GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 
 ## 实现约束
 
-- Room 主 Feed 只在原活动位置以统一主色显示一条不可展开的 summary/fallback；具体过程进入 Thread 后才使用中文优先的可展开折叠栏。
+- Room 主 Feed 只在原活动位置显示一条不可展开的当前工具头或通用 fallback，不读取 ToolUseSummary（见 §2.6）；具体过程进入 Thread 后才使用中文优先的可展开折叠栏。

@@ -110,17 +110,20 @@ Echo 不是提醒器，也不是让 Agent 定时找话说：对话暂停后仍�
 ### 6.3 Attempt 状态
 
 ```text
-scheduled ──claim──> evaluating ──follow_up──> running ──commit──> delivered
-    │                    │                         │
-    │                    └──skip──────────────────> suppressed
-    │                                              │
-    ├──new activity / disabled / expired──────────> cancelled
-    └──infrastructure failure / restart───────────> failed
+scheduled ──claim──> evaluating ──follow_up──> running ──admit──> committing ──persisted──> delivered
+    ▲                    │                                            │
+    └────reschedule──────┘                                            └──persist error / restart──> failed
+
+evaluating / running ──skip / no-reply──────────────> suppressed
+evaluating / running ──ineligible / expired─────────> cancelled
+evaluating / running ──gate / runtime error / restart──> failed
+scheduled / evaluating / running ──new activity / disabled──> cancelled
 ```
 
 - `scheduled`：等待 `due_at`；
-- `evaluating`：worker 已通过数据库原子状态迁移领取，正在执行确定性检查或 gate；
+- `evaluating`：worker 已通过数据库原子状态迁移领取，正在执行确定性检查或 gate；不在活跃窗口时回到 `scheduled` 并改写 `due_at`；
 - `running`：稳定 Echo round ID 已写入，原 Agent 正在生成；
+- `committing`：最终提交闸门已通过，`delivered_message_id` 已写入，可见消息正在持久化；该状态不再被新活动或停用取消，持久化失败或进程重启只会收口为 `failed`；
 - `delivered`：可见 assistant message 已提交；
 - `suppressed`：gate 或 Agent 明确选择静默；
 - `cancelled`：新活动、配置变化、资源删除或过期使候选失效；

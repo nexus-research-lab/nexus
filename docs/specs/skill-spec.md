@@ -454,7 +454,7 @@ Content-Type: application/json
 | --- | --- |
 | `managed_by` | `system` 或 `user`；只有 `user` 来源可删除 |
 | `auth_type` | `none` 或 `bearer` |
-| `credentials_encrypted` | 服务端保存的 Bearer Token 明文（沿用旧字段名），空值表示无认证 |
+| `credentials_encrypted` | 服务端保存的 Bearer Token 明文；字段名不代表已加密，值未经 `CONNECTOR_CREDENTIALS_KEY` 或其他密钥加密。空值表示无认证 |
 
 `imported_skills` 增加：
 
