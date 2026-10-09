@@ -866,28 +866,7 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 	goalID string,
 	goalSessionKey string,
 ) (*protocol.Goal, bool) {
-	if s.goals == nil || slot == nil || usage.IsZero() {
-		return nil, false
-	}
-	var err error
-	var updated *protocol.Goal
-	if goalID != "" {
-		updated, err = s.goals.RecordUsageForGoal(ctx, goalID, usage, slot.AgentRoundID)
-	} else {
-		updated, err = s.goals.RecordUsageForSession(ctx, goalSessionKey, usage, slot.AgentRoundID)
-	}
-	if err != nil && !goalsvc.IsAbsent(err) {
-		s.LoggerFor(ctx).Warn("记录 Room Goal usage 失败",
-			"session_key", goalSessionKey,
-			"goal_id", goalID,
-			"round_id", slot.AgentRoundID,
-			"err", err,
-		)
-	}
-	if err != nil || updated == nil {
-		return nil, err == nil
-	}
-	return updated, true
+	return runtimehost.RecordGoalUsageDelta(ctx, s.goals, s.LoggerFor(ctx), goalSessionKey, goalID, slot.AgentRoundID, usage)
 }
 
 func (s *Service) bindRoomGoalUsage(sessionKey string, goalID string) {
