@@ -32,19 +32,6 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-func appendPromptSection(base string, section string) string {
-	base = strings.TrimSpace(base)
-	section = strings.TrimSpace(section)
-	switch {
-	case base == "":
-		return section
-	case section == "":
-		return base
-	default:
-		return base + "\n\n---\n\n" + section
-	}
-}
-
 // slotExecution 收拢单个 Room slot 的执行态，避免业务阶段之间传递成组参数。
 type slotExecution struct {
 	service                  *Service

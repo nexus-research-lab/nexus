@@ -197,7 +197,7 @@ func (s *Service) ensureClient(
 	}
 	staticSystemPrompt := orchestration.StablePrompt()
 	if scopedPolicyActive {
-		dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, scopedPolicy.SystemPrompt)
+		dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, scopedPolicy.SystemPrompt)
 	}
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
 	explicitGoalID := strings.TrimSpace(request.GoalID)
@@ -291,7 +291,7 @@ func (s *Service) ensureClient(
 	if scopedPolicyActive && scopedPolicy.DisableConnectors {
 		enabledConnectorIDs = []string{}
 	}
-	dynamicSystemPrompt = joinDMRuntimePrompts(
+	dynamicSystemPrompt = runtimehost.JoinPromptSections(
 		dynamicSystemPrompt,
 		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
 	)
@@ -342,7 +342,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
-	dynamicSystemPrompt = joinDMRuntimePrompts(dynamicSystemPrompt, connectorTurnContext)
+	dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, connectorTurnContext)
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(
 		ctx,
 		agentValue,
@@ -422,7 +422,7 @@ func (s *Service) ensureClient(
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.Config, agentValue.OwnerUserID),
 		AdditionalDirectories:      scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
 		SettingSources:             agentValue.Options.SettingSources,
-		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
+		AppendSystemPrompt:         runtimehost.JoinPromptSections(staticSystemPrompt, dynamicSystemPrompt),
 		AppendSystemPromptStatic:   staticSystemPrompt,
 		AppendSystemPromptDynamic:  dynamicSystemPrompt,
 		ResumeSessionID:            textutil.FirstNonEmpty(forkSourceSessionID, textutil.PointerValue(sessionItem.SessionID)),
@@ -758,16 +758,6 @@ func forkSessionStateCommitted(
 		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)
 }
 
-func joinDMRuntimePrompts(stable string, dynamic string) string {
-	parts := make([]string, 0, 2)
-	for _, prompt := range []string{stable, dynamic} {
-		if prompt = strings.TrimSpace(prompt); prompt != "" {
-			parts = append(parts, prompt)
-		}
-	}
-	return strings.Join(parts, "\n\n---\n\n")
-}
-
 func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
@@ -892,7 +882,7 @@ func (s *Service) resolveAgentRuntimeSelection(
 	agentValue *protocol.Agent,
 	sessionOptions map[string]any,
 ) (runtimeselectionsvc.Selection, error) {
-	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.Providers).Resolve(ctx, runtimeselectionsvc.Request{
+	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.Preferences, s.Providers).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent:          agentValue,
 		SessionOptions: sessionOptions,
 	})

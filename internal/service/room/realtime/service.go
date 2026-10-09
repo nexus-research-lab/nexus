@@ -20,7 +20,6 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -143,7 +142,6 @@ type Service struct {
 	externalPrompt     func(context.Context, string, string, string) (string, error)
 	externalPermission func(context.Context, string, string, string) (sdkpermission.Handler, error)
 	rooms              roomContextStore
-	prefs              roomRuntimePreferencesService
 	roomHistory        *workspacestore.RoomHistoryStore
 	directedMessages   *workspacestore.RoomDirectedMessageStore
 	directedWakes      *workspacestore.RoomDirectedMessageWakeStore
@@ -163,10 +161,6 @@ type Service struct {
 
 type roomTitleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
-}
-
-type roomRuntimePreferencesService interface {
-	Get(context.Context, string) (preferencessvc.Preferences, error)
 }
 
 type goalContextProvider interface {
@@ -232,11 +226,6 @@ func (s *Service) SetRoomBroadcaster(broadcaster RoomBroadcaster) {
 	if s.Permission != nil {
 		s.Permission.SetRoomBroadcaster(broadcaster)
 	}
-}
-
-// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
-func (s *Service) SetPreferences(prefs roomRuntimePreferencesService) {
-	s.prefs = prefs
 }
 
 // SetGoalContextProvider 注入 Goal runtime context provider。

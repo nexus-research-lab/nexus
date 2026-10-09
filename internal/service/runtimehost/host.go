@@ -100,6 +100,7 @@ type Host struct {
 	InputQueue *workspacestore.InputQueueStore
 
 	Providers               clientopts.RuntimeConfigResolver
+	Preferences             RuntimePreferences
 	Admission               clientopts.AgentRuntimeAdmissionResolver
 	QueueTrust              QueueAdmissionStore
 	Usage                   UsageRecorder

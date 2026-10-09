@@ -21,7 +21,7 @@ func (s *Service) RequireWiring() error {
 		{"permission", s.Permission != nil},
 		{"providers", s.Providers != nil},
 		{"admission", s.Admission != nil},
-		{"preferences", s.prefs != nil},
+		{"preferences", s.Preferences != nil},
 		{"queue admission store", s.QueueTrust != nil},
 		{"usage recorder", s.Usage != nil},
 		{"quota checker", s.Quota != nil},

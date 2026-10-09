@@ -18,7 +18,6 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
@@ -210,7 +209,6 @@ type Service struct {
 
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
-	prefs        runtimePreferencesService
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
@@ -280,10 +278,6 @@ type titleScheduler interface {
 	Schedule(context.Context, titlegen.Request)
 }
 
-type runtimePreferencesService interface {
-	Get(context.Context, string) (preferencessvc.Preferences, error)
-}
-
 type scopedSessionRuntimePolicyProvider interface {
 	RuntimeEditorPolicy(string, string) (protocol.ScopedSessionRuntimePolicy, bool, error)
 }
@@ -319,11 +313,6 @@ func NewService(
 // SetScopedSessionRuntimePolicyProvider 注入宿主签发的精确临时 Session 工具面与系统提示。
 func (s *Service) SetScopedSessionRuntimePolicyProvider(provider scopedSessionRuntimePolicyProvider) {
 	s.scopedSessionPolicy = provider
-}
-
-// SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
-func (s *Service) SetPreferences(prefs runtimePreferencesService) {
-	s.prefs = prefs
 }
 
 // SetGoalContextProvider 注入 Goal runtime context provider。
