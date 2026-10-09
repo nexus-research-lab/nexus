@@ -64,14 +64,12 @@
 每个 `owner_user_id` 对应一个产品用户、一个用户数据根和一个 runtime OS identity；同一用户的多个 Agent 复用该身份。当前不提供 Agent 级 UID 隔离。
 
 ```text
-UserScope
-  owner_user_id
-  surface                 # app | web，仅用于认证/展示，不参与授权
-  auth_subject
-  principal
-  user_root
-  workspace_root
-  runtime_root
+UserScope                 # 逻辑派生链，不是单一 Go 类型
+  principal               # authctx.Principal：认证适配器写入请求上下文；auth_method = local | password 等，不参与数据归属判定
+  owner_user_id           # authctx.OwnerUserID：principal.user_id，缺失时为 SystemUserID
+  user_root               # appfs.UserDataRoot(owner_user_id)
+  workspace_root          # appfs.UserWorkspaceRoot(owner_user_id)
+  runtime_root            # appfs.UserRuntimeRoot(owner_user_id)
 
 RuntimeIdentity
   owner_user_id
@@ -113,7 +111,7 @@ launcher 至少校验：
 - 两端都通过同一个 `UserScope` 进入业务层，不设两套租户模型。
 - Web：登录 Session、Bearer Token 等认证适配器解析出 `principal`，再得到 `owner_user_id`。
 - App：本地免登录适配器自动绑定现有 `SystemUserID` 对应的本地用户；它不是“无用户”或“全局 system scope”。
-- Handler、service、repository、runtime launcher、Hook 和 transcript store 只消费 `UserScope`/`owner_user_id`；`surface` 不得作为授权条件，禁止“桌面走 system scope、Web 走 owner scope”的双轨逻辑。
+- Handler、service、repository、runtime launcher、Hook 和 transcript store 只消费 `UserScope`/`owner_user_id`；数据归属不得按 `auth_method`（App/Web 端差异）分叉，禁止“桌面走 system scope、Web 走 owner scope”的双轨逻辑。
 - 两端差异仅限认证方式、进程部署和 UI；Agent、workspace、Room、DM、provider、connector、Skill、automation、quota 和审计使用同一套归属规则。
 - Web 后续增加组织/成员关系时，在 `owner_user_id` 之上增加 `tenant_id`；不引入 App 专属的第二套 owner 语义。
 - 未认证部署不等于全局管理员：没有认证主体的 HTTP/Web 请求只绑定 `SystemUserID`；只有显式标记的内部维护上下文才允许无 owner 查询。缺少 principal 不得回退为枚举所有用户。
@@ -425,7 +423,7 @@ OS 权限不能替代业务授权。以下入口必须按真实认证用户过�
 - 普通 Agent 的 `nexusctl` 管理命令被 Hook 拒绝，生产部署同时由 DAC 阻止 runtime UID 执行；普通 Agent 的 `nexuscfg` / `nexus` 只能使用当前 round capability，无法覆盖身份、作用域、job/run 或越权修改其他 Agent；
 - simple/bare 模式不能绕过 final guard；
 - runtime 环境中不存在 app DB、connector key 和 B 的 provider secret；
-- `/proc` 不应暴露其他用户受 DAC 保护的环境/文件；共享 `/tmp`、共享 cache 不作为用户 runtime 写入根。
+- `/proc` 不应暴露其他用户受 DAC 保护的环境/文件；共享 cache 不作为用户 runtime 写入根；共享 `/tmp` 中 B 的文件不能被 A 删除或覆盖。
 
 ### 13.2 正向测试
 

@@ -90,12 +90,12 @@ Reply route 规定被唤醒 Agent 的单次 final reply 如何投影：
 
 ### 4.1 用户输入的目标解析
 
-目标解析顺序：
+群聊浏览器输入（直接发送与输入队列）的目标解析顺序，前一级命中即停止：
 
 1. 请求中的显式 `target_agent_ids`。
 2. 正文中可解析的 Agent `@` 别名。
-3. 没有显式目标时，仅当已保存有效成员 `host_agent_id` 且 `host_auto_reply_enabled=true`，才以 `room_host_default` 唤醒该群主。浏览器输入同样遵守此设置；暂停参与的群主仍受参与闸门限制。
-4. 未开启接管或群主无效时，保存并广播用户消息但不启动 Agent。
+3. 没有显式目标时，仅当已保存有效成员 `host_agent_id` 且 `host_auto_reply_enabled=true`，才以 `room_host_default` 唤醒该群主；暂停参与的群主仍受参与闸门限制。
+4. 未开启接管或群主无效时不再回退：不按唯一成员默认，也不沿最近活跃 root round 的成员继续投递。直接发送保存并广播用户消息，写入“请使用 @AgentName 指定要对话的成员”提示后收口该 round，不启动 Agent；输入队列请求被拒绝，不入队。
 
 - 单 Agent DM 可以默认选择唯一成员。
 - 在线 Team/Relay 群聊只接受显式目标，不套用本地 Room 接管设置。
@@ -218,8 +218,9 @@ public mention 目标的公开实质终态还必须携带宿主派生的回复�
 **证据**
 
 - 终态的公开实质回复可记录 Room-visible Goal evidence，只用于审计和展示，不参与 Goal complete 判定。
-- 公开非 Lead 实质回复可在同一 durable Goal ID 生命周期内单调记录为审计事实；objective revision 只 fence 迟到事件的写入归因。
-- 私域回复只恢复续跑，不形成公开证据；no-reply、失败、中断或已过期 revision 不记录证据。
+- 写入时 objective revision 是 fence：只有归因 revision 等于 Goal 当前 revision、Goal 仍 active 且无待定 objective transition 时，才把非 Lead 公开实质回复记为审计事实；迟到的旧 revision 事件不写入。
+- 已写入的证据在同一 durable Goal ID 生命周期内单调保留：首个非 Lead 协作者的 Agent、round 与时间写入后不再覆盖，后续 objective revision 变更（含 `retarget_goal` 与同 ID 替换）不清除它。
+- 私域回复只恢复续跑，不形成公开证据；no-reply、失败或中断不记录证据。
 - 归因字段上线前遗留的终态 root，只在同时满足以下条件时补写精确当前 revision：当前 active Goal 的最新非 usage 审计事件是该 root source Agent round 的 `continuation_suppressed`；root 内全部边已终态；同 root 存在非 Lead 的公开实质终态。不得从正文、目标措辞或时间邻近猜测旧归因。
 
 **完成判定**

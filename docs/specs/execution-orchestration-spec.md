@@ -1116,7 +1116,7 @@ layer cannot enforce.
 
 ## 实现约束
 
-- exact Room conversation 的协作者只能读 Goal、共享 WorkGraph 的目标/拓扑/状态和交付证据；只读观察不得授予 Assignment、Review、Submission、Plan mutation、Goal 或 coordination capability。旧 round、旧 revision、后台/外部来源仍必须 fail closed。
+- exact Room conversation 的协作者只能读 Goal 标识、共享 WorkGraph 的目标/完成标准/拓扑/节点状态（§5.4）；观察视图不含 Assignment、Review、Submission 证据，只读观察不得授予 Assignment、Review、Submission、Plan mutation、Goal 或 coordination capability。旧 round、旧 revision、后台/外部来源仍必须 fail closed。
 - 完成态 WorkGraph 的抽取、durable Draft 版本、隐藏编辑 Session、保存确认与内置模板合同见 [Slash 命令规范](./slash-command-spec.md) 与 [执行图规范](./execution-graph-spec.md)。本规范只保留以下边界：
   - UI 确认保存直接把已生成草图与命令名/标题/描述交给宿主事务，不再启动后台模型 round；图结构只来自 exact durable Draft。
   - 命名图永不保存 Tool、运行身份、Assignment、Attempt、结果、Artifact、Submission、Review 或 Acceptance。
