@@ -1,10 +1,10 @@
 # WorkGraph 方法论模板与产物契约
 
-WorkGraph 模板是一套可复用的责任拓扑，不是把方法论名称贴在几个节点上。每个模板都要同时定义：问题如何被拆开、哪些判断必须有证据、什么条件才算通过，以及最后交付哪些可以复查的文件。
+WorkGraph 模板是可复用的责任拓扑。每个模板定义：问题如何拆开、哪些判断必须有证据、什么条件算通过、最后交付哪些可复查的文件。
 
 ## 产物的四层结构
 
-每个模板的终端节点都应产出一个交付包。交付包遵循同一套分层：
+每个模板的终端节点产出一个交付包，分层如下：
 
 | 层 | 默认格式 | 作用 | 是否可以作为唯一事实来源 |
 | --- | --- | --- | --- |
@@ -13,9 +13,9 @@ WorkGraph 模板是一套可复用的责任拓扑，不是把方法论名称贴�
 | 审计投影 | CSV | 方便筛选、对账、逐条检查关系与证据 | 否，是结构化真相的可审计投影 |
 | 可视化投影 | Mermaid/HTML | 帮助理解流程、关系和反馈回路 | 否，不能脱离结构化真相单独保存 |
 
-模板节点的 `deliverable` 要写清文件名、格式、必需章节、证据要求和验收条件。Markdown 负责解释，JSON/YAML 负责模型，CSV 负责审计，Mermaid 负责展示；四者不能互相冒充。
-
-这些模板不共用一条固定流水线。第一性原理的关键是从事实和反例回到约束，MECE 的关键是问题树审计与证据线汇合，双钻的关键是发散/收敛切换，OODA 的关键是快速反馈，本体论的关键是来源、治理和行动回写。WorkGraph 只提供依赖、交付和验收的宽松承载；方法本身决定分支、复核和回路，失败时可以在同一 Execution 追加下一轮节点。
+- 模板节点的 `deliverable` 要写清文件名、格式、必需章节、证据要求和验收条件。
+- 四层不能互相冒充。
+- 模板不共用固定流水线。WorkGraph 只承载依赖、交付和验收；分支、复核和回路由方法本身决定。失败时可以在同一 Execution 追加下一轮节点。
 
 ## 内置模板目录
 
@@ -98,11 +98,15 @@ WorkGraph 模板是一套可复用的责任拓扑，不是把方法论名称贴�
 - 结构：对象类型 → 属性/关系 → **来源一致性审计** → 动作/函数 → **权限治理复核** → 真实业务用例与结果回写。
 - 主要产物：`ontology.yaml`（canonical）、`ontology-model.md`、`object-link-matrix.csv`、`evidence-lineage.csv`、`action-governance.md`，以及可选 `ontology-map.mermaid`。
 - 验收：对象、属性、关系、动作和权限都有稳定 ID；每个重要字段可追溯到来源；动作说明输入、前置条件、副作用和审计；至少一个真实运营用例能从对象读到行动再回写结果。
-- 说明：该模板借鉴公开的 operational ontology / digital twin 思路，不声称复刻 Palantir Foundry 的私有实现。YAML/JSON 是权威模型，关系图只是投影。
+- 说明：借鉴公开的 operational ontology / digital twin 思路，不复刻 Palantir Foundry 的私有实现。YAML/JSON 是权威模型，关系图只是投影。
 
 ## 模板如何进入运行
 
-目录卡片只显示 Slash、名称、来源和节点数。打开详情后显示目标、责任拓扑、完成条件和产物契约；真正执行时，终端节点必须按契约写出交付包并提交证据，不能只返回一段总结。内置模板只读，owner 保存的模板可以继续编辑，但每次复用都会创建新的 Execution、Work Item、交付和验收身份。
+- 目录卡片只显示 Slash、名称、来源和节点数。
+- 详情显示目标、责任拓扑、完成条件和产物契约。
+- 执行时，终端节点必须按契约写出交付包并提交证据，不能只返回一段总结。
+- 内置模板只读；owner 保存的模板可以继续编辑。
+- 每次复用都创建新的 Execution、Work Item、交付和验收身份。
 
 ## 公开参考
 
@@ -111,4 +115,4 @@ WorkGraph 模板是一套可复用的责任拓扑，不是把方法论名称贴�
 - [Strategyzer · Business Model Canvas](https://www.strategyzer.com/library/the-business-model-canvas)：九块商业模式画布。
 - [Barbara Minto](https://www.barbaraminto.com/)：金字塔式结论、论点和证据组织。
 - [Donella Meadows · Leverage Points](https://donellameadows.org/archives/leverage-points-places-to-intervene-in-a-system/)：系统杠杆点与干预。
-- [Palantir Foundry · Ontology overview](https://www.palantir.com/docs/foundry/ontology/overview/) 与 [Core concepts](https://www.palantir.com/docs/foundry/ontology/core-concepts/)：对象、属性、关系、动作和治理的公开概念；本模板只借鉴公开思想。
+- [Palantir Foundry · Ontology overview](https://www.palantir.com/docs/foundry/ontology/overview/) 与 [Core concepts](https://www.palantir.com/docs/foundry/ontology/core-concepts/)：对象、属性、关系、动作和治理的公开概念。
