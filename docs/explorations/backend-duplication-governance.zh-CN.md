@@ -53,14 +53,33 @@
 - **AGENTS.md 瘦身**：60 段产品合同原文迁入对应 `docs/specs/`，新增 `online-team-spec.md`；AGENTS.md 从 50 KB 降到约 9 KB，只保留构建门禁、文档分层、依赖方向、工程原则和合同索引。
 - **依赖装配 fail fast**：DM 与 Room realtime 方法内 134 处接收者与构造器自有存储的 nil 守卫删除；`RequireWiring` 让 app 装配缺依赖时在启动前失败；测试夹具通过 `withConstructorDefaults` 补齐构造器不变量。`rooms`/`agents` 守卫保留，测试用它表达“宿主没有 Room 仓库”。
 - **入口规范化**：`tools/trimcheck` 用类型信息证明 494 处 `strings.TrimSpace` 冗余并删除（另有 48 处自赋值），三平台取交集保证可靠；`make check-normalization` 防回潮。剩余约 8,500 处多数作用于参数或带 tag/反射写入的字段，需要按领域在入口显式清洗后才能继续删除。
-- **DM/Room 共用宿主**：`service/runtimehost.Host` 承载 12 个共用依赖、12 个注入方法与额度、执行上下文、Slash 展开、生图默认、日志、Goal 续跑标记/结算、完成收据、额度标记、用量重试、投递策略和诊断日志等阶段；两个 Service 嵌入它。孪生函数从 44 对（DM 侧约 716 行）降到 30 对（约 515 行）。
-- **DM/Room 剩余重复**：多为 DM `roundRunner` 与 Room `activeRoomSlot` 上的每轮 Goal 状态访问（子任务、完成收据、用量 scope），两者加锁结构不同（`goalUsageMu` 与 `slot.mutable.goal.mu`）。下一步应先抽出共用的每轮 Goal 状态结构并统一加锁，再合并访问方法；用量写入与可信队列受理的差异属于产品语义（execution lane 归属、Room 宿主维护的 Goal 归属），需产品确认后再合并。
+- **DM/Room 共用宿主**：`service/runtimehost.Host` 承载共用依赖与注入方法；两个 Service 嵌入它。
+- **DM 是 Room 的一种（第三轮）**：每轮 Goal 状态统一为 `runtimehost.GoalRoundState`（一把 `Mu`），DM `roundRunner` 与 Room slot 都嵌入它。以下阶段各只实现一次：
+  - Goal 续跑准备、派发与启动前失败回写；`/goal` 命令建 Goal（Room 额外校验唯一 lead）。
+  - 用量增量、用量上限标记、from-now scope 绑定、子任务 round 认领，以及九处手写退避循环收敛成的 `RetryGoalUsage`。
+  - 子任务待落库观察的合并/清除、工具推进标记、命令回执游标、result/assistant token 用量去重、完成收据构造。
+  - SDK 消息映射适配、流关闭/空闲诊断字段（`exec.RoundStreamFailureLogFields`）、SDK session 可持久化判定、owner 后台任务。
+- **语义对齐**（按 DM 规则统一）：
+  - Room terminal 用量在只有结算边界时也会 flush，并把边界写入快照。
+  - Room 子任务观察缺少 `ObservedAt` 时补当前时间。
+  - DM 诊断日志补 `stream_read_error`，Room 补 `stream_last_summary`。
+  - Room 不再在缺 runtime manager 时同步执行后台任务（runtime 是必需装配）。
+- **结果**：相似度 ≥0.7 的 DM/Room 孪生函数从 30 对降到 21 对；生产 Go 代码在这一轮净减约 400 行。
+- **剩余差异**：多为宿主身份与落点不同的薄适配（`RequireWiring`、`writeUsage`、`NewService`、请求校验、附件解析中 Room 会话资产分支、上下文占用持久化），属于 Room 的 slot/公私域策略，不再合并。
+
+## 3.3 文档瘦身
+
+- 修复失效链接：`docs/guides/workgrpah/`（拼写错误目录）下的 WorkGraph 指南移回 `docs/guides/`，删除同内容的 zip（含 `__MACOSX`）；指向不存在文件的链接改指或删除。
+- `docs/README.md` 重写为单一索引，此前有若干规范、指南与测试记录无入口。
+- 规范与指南：AGENTS.md 迁入的“宿主实现约束”块按主题并入正文或删除重复；超过 400 字节的段落和表格单元拆成列表；历史叙述改为当前规则加证据链接；跨文档重复改为链接到唯一归属文档。`docs/specs`、`docs/guides` 与架构蓝图合计约 760 KB → 655 KB。
+- 按代码更正：`execution-graph-spec` 的 WorkGraph 保存不再调度隐藏模型轮次（`ConfirmSave` 直接保存）。
+- 瘦身中发现、需产品确认的规范内部矛盾见本文附录 A；没有擅自改语义。
 
 ## 4. 未处理热点与建议（按收益排序）
 
 1. **ingress 一次清洗，下游信任**。`protocol.ExecutionWorkBinding.Normalized` 的注释已经写明“清洗只发生在 ingress，下游一律信任已清洗的值”，但大部分领域没有执行这一原则。建议每个领域只在 handler/MCP parser/仓储扫描处裁剪，service 内部删除重复 `TrimSpace`；room/realtime（845 次）与 automation（839 次）收益最大。需逐领域推进并补齐 ingress 测试，不适合机械批量替换。
 2. **必需依赖在构造期校验**。DM/Room 大量 `if s == nil || s.goals == nil` 把“未装配”伪装成“功能关闭”。建议构造函数对必需依赖 fail fast，真正可选的依赖改为显式 no-op 实现，再删除方法内守卫。需先确认生产装配与测试夹具，属于跨包改动。
-3. **DM 与 Room realtime 的执行骨架**。两者有 14 个同名文件（goal_runtime、goal_continuation、input_queue、guidance_input、interrupt 等），Goal usage 结算、continuation 调度仍是两套。建议抽取共享的 round 执行骨架，只把 Room 的 slot/公私域差异作为策略注入；这是本次未触及的最大结构性重复。
+3. **DM 与 Room realtime 的执行骨架**：已在 3.2 落地。剩余可做的是把 DM 改为单成员 Room slot 直接复用 Room 的 round 注册与派发锁，这会改变 DM 的会话键与历史落点，需要迁移方案。
 4. **SQL 空值 helper**。`nullString`/`nullTimePointer` 等在各仓储包重复约 20 份。`internal/storage/time_value.go` 明确选择“普通 typed row scanner 保留在领域内”，本次尊重该决定；如需统一，应先修改该约定，再收敛到 `internal/storage`。
 5. **大文件**。`orchestration/context.go`（1,888 行）、`room/realtime/goal_runtime.go`（1,809 行）、`room/realtime/chat.go`（1,607 行）可在第 3 项落地后按业务阶段拆分。
 
@@ -74,3 +93,39 @@ make check-architecture           # 依赖方向 + textutil 私有副本
 ```
 
 已知基线问题：`internal/runtime/clientopts` 中 5 个用例（桌面沙箱不支持 Linux、视觉模型校验）与 `internal/storage/sandbox` 中 3 个进程迁移用例在本次改动前的基线提交上即于 Linux 失败，与本次治理无关；其余 `go vet ./...` 与 `go test ./...` 全部通过。
+
+## 附录 A：文档瘦身中发现的规范矛盾（待确认）
+
+### workgraph-design-principles
+- 收尾称"八类问题"，§1.1 表只有六类，§1.7 列十条要求。
+- 附录列了 Voyager，正文没有引用。
+- 摘要链条缺 Review，并写 "Plan" 而不是 "Plan revision"；§4.2 是完整链条。
+### workgraph guides vs execution-graph-spec
+- 已解决：execution-graph-spec 已按代码改为宿主直接保存；`distill_workgraph` 只为已存在的蒸馏 Session 保留。
+### message-processing-spec
+- Room 主 Feed 用"统一主色"展示摘要（AGENTS 迁入） vs "不使用主色动画"、不读 ToolUseSummary。
+- Room 历史索引：允许增量更新 vs 任何来源变化都全量重建。
+- Thread 首次点击：迁入文本说只显示折叠子项列表；正文说 Thread 列表默认展开。
+### workspace-isolation-spec
+- `/tmp` 是 runtime 共享读写根（L259） vs 负向测试（L428）说共享 `/tmp` 不是 runtime 写根。
+- 两处 `UserScope` 定义分别用 `auth_subject` 与 `principal`，合并后两者都列出。
+### automation-permission-pipeline-spec
+- 正文允许创建/更新时可选 `delivery_session_key`；迁入条目说 schema 不暴露 session 路由（保留正文）。
+### echo-spec
+- 使用了 `committing` 状态，但 §6.3 状态图与列表里没有。
+### skill-spec
+- §9.6 字段名 `credentials_encrypted` 实际存的是明文 Bearer token（与配置规范的存储限制一致，但命名误导）。
+### desktop-sandbox-spec（规范内部新旧状态并存）
+- “App 默认 supervisor 未接入” vs “macOS App 默认装配 supervisor”。
+- “生产启动不写 launch record、不启动 helper” vs “默认 Manager 使用已验证 helper”。
+- “启动恢复未接入/另行处理” vs “App 启动自动执行恢复”。
+- “没有自动对账到 reconciled” vs “ReconcileSandboxPolicy 已接入 App 启动”。
+- “自动 crash sweep 是后续工作” vs 生命周期扫描已存在。
+### execution-orchestration-spec
+- 迁入条目说 Room 协作者可读“交付证据”；正文说 Assignment/Review/Submission 证据不可见。
+### room-spec / room-collaboration-spec
+- 无目标输入：room-spec 说沿最近活跃 root round 的成员继续投递（代码 `latestActiveRootRoundAgentIDs` 支持）；room-collaboration 说不启动 Agent。
+- Goal 证据：“已过期 revision 不记录证据” vs “同一 Goal ID 生命周期内单调记录，revision 只 fence 迟到事件”。
+### nexus-architecture-blueprint
+- 身份事件（session_revoked/profile_changed/principal_changed）只在蓝图里，应归 online-team-spec。
+- 核对日期 2026-08-11 已过期。

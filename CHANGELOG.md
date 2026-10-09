@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Treat DM as a kind of Room in the backend: per-round Goal state, Goal continuation, usage settlement and retry, completion receipts, `/goal` creation and stream diagnostics are implemented once in `service/runtimehost`. Trim the specs and guides (about 14% smaller, migrated AGENTS.md blocks folded into their sections), fix broken doc links and rebuild `docs/README.md` as a single index.
+
 - Fail fast at startup when DM or Room realtime wiring is incomplete; share their host dependencies and duplicated runtime stages through `service/runtimehost`; remove 494 provably redundant `strings.TrimSpace` calls with `make check-normalization` to keep them out; slim AGENTS.md to the project constitution with product contracts moved into `docs/specs/`.
 
 - Room workspace attachments now reject an empty resolved owner, matching DM; both share one authorization path. Backend dead code, test-only wrappers and duplicated helpers are consolidated, and `make check-architecture` rejects new private copies of the shared string helpers.
