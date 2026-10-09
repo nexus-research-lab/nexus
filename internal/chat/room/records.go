@@ -114,30 +114,11 @@ func NormalizeOptionalText(value string) string {
 	return strings.TrimSpace(value)
 }
 
-// NormalizeOptionalPatch 归一化可选 patch 字段，并保留是否显式传入。
-func NormalizeOptionalPatch(value string) (string, bool) {
-	if value == "" {
-		return "", false
-	}
-	return strings.TrimSpace(value), true
-}
-
 // HasConversation 判断上下文集合里是否包含指定 conversation。
 func HasConversation(contexts []protocol.ConversationContextAggregate, conversationID string) bool {
 	return slices.ContainsFunc(contexts, func(contextValue protocol.ConversationContextAggregate) bool {
 		return contextValue.Conversation.ID == conversationID
 	})
-}
-
-// FindConversation 查找指定 conversation 记录。
-func FindConversation(contexts []protocol.ConversationContextAggregate, conversationID string) (protocol.ConversationRecord, bool) {
-	index := slices.IndexFunc(contexts, func(contextValue protocol.ConversationContextAggregate) bool {
-		return contextValue.Conversation.ID == conversationID
-	})
-	if index < 0 {
-		return protocol.ConversationRecord{}, false
-	}
-	return contexts[index].Conversation, true
 }
 
 // FindConversationContext 查找指定 conversation 上下文。

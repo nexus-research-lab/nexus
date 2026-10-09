@@ -144,7 +144,7 @@ func (s *Service) PreparePlanExecution(
 			// The active Goal owns the persistent objective. The provider may omit
 			// or paraphrase the transport field, but the sealed document and digest
 			// must carry the exact server-owned Goal boundary.
-			document.Objective = strings.TrimSpace(activation.Objective)
+			document.Objective = activation.Objective
 		}
 	}
 	if err = s.validatePreparedPlanProposal(actor, document, draft, snapshot); err != nil {
@@ -193,7 +193,7 @@ func (s *Service) PreparePlanExecution(
 			proposal.GoalActivationOrigin = activation.ActivationOrigin
 			proposal.GoalActivationReason = activation.ActivationReason
 			proposal.GoalReservedExecutionID = strings.TrimSpace(activation.ReservedExecutionID)
-			proposal.ReplacesExecutionID = strings.TrimSpace(activation.ReplacesExecutionID)
+			proposal.ReplacesExecutionID = activation.ReplacesExecutionID
 		}
 	}
 	if document.Operation == protocol.ExecutionPlanProposalReplace {
@@ -289,10 +289,7 @@ func (s *Service) resolveProposalGoalActivation(
 			"exact Goal authority disappeared during Plan preparation",
 		)
 	}
-	activation.GoalID = strings.TrimSpace(activation.GoalID)
 	activation.ReservedExecutionID = strings.TrimSpace(activation.ReservedExecutionID)
-	activation.ReplacesExecutionID = strings.TrimSpace(activation.ReplacesExecutionID)
-	activation.Objective = strings.TrimSpace(activation.Objective)
 	if activation.GoalID == "" || activation.GoalObjectiveRevision <= 0 ||
 		activation.Objective == "" ||
 		activation.ActivationOrigin == "" || activation.ActivationReason == "" ||
@@ -412,7 +409,7 @@ func (s *Service) validatePreparedPlanProposal(
 		if err := requireCoordinator(actor, snapshot); err != nil {
 			return err
 		}
-		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if !snapshot.Execution.Status.Current() {
 			return terminalExecutionError()
 		}
 		if strings.TrimSpace(document.ReplacementReason) != "" {

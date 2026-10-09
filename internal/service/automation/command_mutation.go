@@ -514,7 +514,7 @@ func (s *Service) runtimeCommandCreateInput(
 		return automationdomain.CreateJobInput{}, input, err
 	}
 	ownerUserID, err := s.resolveTaskOwnerUserID(ctx, createInput.AgentID)
-	if err != nil || strings.TrimSpace(ownerUserID) != strings.TrimSpace(actor.OwnerUserID) {
+	if err != nil || ownerUserID != strings.TrimSpace(actor.OwnerUserID) {
 		if err == nil {
 			err = errors.New("目标 Agent 不属于当前 owner")
 		}

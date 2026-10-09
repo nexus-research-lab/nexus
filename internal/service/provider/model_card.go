@@ -28,7 +28,7 @@ func defaultModelCard(modelID string, providerKind string) (ModelCapabilities, s
 }
 
 func (model remoteModel) modelCard(providerKind string) (ModelCapabilities, string, *int, *int) {
-	category := strings.TrimSpace(model.Category)
+	category := model.Category
 	if category == "" {
 		_, category, _, _ = defaultModelCard(model.ID, providerKind)
 	}

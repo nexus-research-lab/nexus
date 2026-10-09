@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -375,7 +376,7 @@ func projectExecutionCoordinatorNode(view *protocol.ExecutionView) {
 		if len(item.DependencyIDs) > 0 {
 			continue
 		}
-		targetNodeID := firstNonEmpty(entryNodeByWorkItemID[item.ID], item.ID)
+		targetNodeID := textutil.FirstNonEmpty(entryNodeByWorkItemID[item.ID], item.ID)
 		view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
 			ID:           "coordination:" + nodeID + ":" + targetNodeID,
 			Kind:         protocol.ExecutionGraphEdgeCoordination,
@@ -383,13 +384,6 @@ func projectExecutionCoordinatorNode(view *protocol.ExecutionView) {
 			TargetNodeID: targetNodeID,
 		})
 	}
-}
-
-// projectExecutionGraphView 是只给无 Repository 单测使用的窄入口。
-func projectExecutionGraphView(
-	items []protocol.ExecutionWorkItemView,
-) protocol.ExecutionGraphView {
-	return projectExecutionGraphViewWithHistory(items, protocol.ExecutionWorkGraphHistory{})
 }
 
 func workGraphHistoryFromSnapshot(
@@ -489,7 +483,7 @@ func projectExecutionGraphViewWithHistory(
 				}
 				rootNodeByAttemptID[attempt.ID] = nodeID
 				assignment := assignmentByID[attempt.AssignmentID]
-				agentID := firstNonEmpty(attempt.ExecutorAgentID, assignment.OwnerAgentID, item.OwnerAgentID)
+				agentID := textutil.FirstNonEmpty(attempt.ExecutorAgentID, assignment.OwnerAgentID, item.OwnerAgentID)
 				node := protocol.ExecutionGraphNodeView{
 					ID:           nodeID,
 					Kind:         protocol.ExecutionGraphNodeAgent,
@@ -624,8 +618,8 @@ func projectExecutionGraphViewWithHistory(
 
 	for _, item := range items {
 		for _, dependencyID := range item.DependencyIDs {
-			sourceNodeID := firstNonEmpty(exitNodeByWorkItemID[dependencyID], dependencyID)
-			targetNodeID := firstNonEmpty(entryNodeByWorkItemID[item.ID], item.ID)
+			sourceNodeID := textutil.FirstNonEmpty(exitNodeByWorkItemID[dependencyID], dependencyID)
+			targetNodeID := textutil.FirstNonEmpty(entryNodeByWorkItemID[item.ID], item.ID)
 			result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
 				ID:           fmt.Sprintf("dependency:%s:%s", sourceNodeID, targetNodeID),
 				Kind:         protocol.ExecutionGraphEdgeDependency,
@@ -709,7 +703,7 @@ func executionHistoryReviewGateNode(
 	dispatch protocol.ExecutionReviewDispatch,
 	acceptance protocol.WorkAcceptance,
 ) protocol.ExecutionGraphNodeView {
-	reviewerID := firstNonEmpty(acceptance.ReviewerID, dispatch.TargetAgentID, assignment.ReturnToAgentID)
+	reviewerID := textutil.FirstNonEmpty(acceptance.ReviewerID, dispatch.TargetAgentID, assignment.ReturnToAgentID)
 	status := "submitted"
 	resultSummary := strings.TrimSpace(submission.ResultSummary)
 	reviewerKind := protocol.WorkReviewerAgent
@@ -719,7 +713,7 @@ func executionHistoryReviewGateNode(
 	if strings.TrimSpace(acceptance.ID) != "" {
 		status = string(acceptance.Decision)
 		reviewerKind = acceptance.ReviewerKind
-		resultSummary = firstNonEmpty(acceptance.Feedback, resultSummary)
+		resultSummary = textutil.FirstNonEmpty(acceptance.Feedback, resultSummary)
 	}
 	return protocol.ExecutionGraphNodeView{
 		ID:               "review:" + submission.ID,
@@ -752,7 +746,7 @@ func executionAttemptRunView(
 		ID:           attempt.ID,
 		AttemptID:    attempt.ID,
 		AgentRoundID: attempt.AgentRoundID,
-		SubjectID:    firstNonEmpty(attempt.TaskID, attempt.ChildSessionID, attempt.ToolUseID),
+		SubjectID:    textutil.FirstNonEmpty(attempt.TaskID, attempt.ChildSessionID, attempt.ToolUseID),
 		Status:       string(attempt.Status),
 		ErrorSummary: attempt.FailureReason,
 		StartedAt:    startedAt,
@@ -773,7 +767,7 @@ func executionReviewGateNode(
 	if !formalReview {
 		return protocol.ExecutionGraphNodeView{}, false
 	}
-	identity := firstNonEmpty(item.AssignmentID, item.ReviewDispatchID)
+	identity := textutil.FirstNonEmpty(item.AssignmentID, item.ReviewDispatchID)
 	if identity == "" && item.Acceptance != nil {
 		identity = item.Acceptance.ID
 	}
@@ -803,17 +797,6 @@ func executionReviewGateNode(
 		ReviewerKind:     reviewerKind,
 		Position:         item.Position,
 	}, true
-}
-
-func latestRootExecutionAttempt(
-	attempts []protocol.ExecutionAttemptView,
-) *protocol.ExecutionAttemptView {
-	for index := len(attempts) - 1; index >= 0; index-- {
-		if attempts[index].ParentAttemptID == "" {
-			return &attempts[index]
-		}
-	}
-	return nil
 }
 
 func projectExecutionWorkItemView(
@@ -868,7 +851,7 @@ func projectExecutionWorkItemView(
 		); dispatch != nil {
 			item.ReviewDispatchID = dispatch.ID
 			item.ReviewStatus = string(dispatch.Status)
-			item.ReviewAgentID = firstNonEmpty(dispatch.TargetAgentID, item.ReviewAgentID)
+			item.ReviewAgentID = textutil.FirstNonEmpty(dispatch.TargetAgentID, item.ReviewAgentID)
 		}
 	}
 	item.Attempts = projectExecutionAttempts(snapshot, workItem.ID, spec.ID)

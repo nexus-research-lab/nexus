@@ -53,7 +53,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .PHONY: check-architecture help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs run-control install gen-protocol-types lint-web test-web test-web-browser test-web-browser-smoke check-web check-web-ui typecheck-web prepare-host-data \
 	prepare-dev-runtime-cli \
-	check-backend check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check-desktop-sandbox-windows-native check test run-web run-backend run-backend-go \
+	check-backend check-normalization check-go-vet check-go check-go-fresh check-go-full check-desktop-sandbox check-desktop-sandbox-windows check-desktop-sandbox-windows-native check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-check-ui app-check-ui-app app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
@@ -186,6 +186,9 @@ typecheck-web: ## Run frontend type check
 check-architecture: ## Check internal production dependency boundaries
 	go run ./scripts/check-architecture
 
+check-normalization: ## Reject strings.TrimSpace on values already proven trimmed on linux/darwin/windows
+	cd tools/trimcheck && go run . ../..
+
 check-go-vet: check-architecture ## Run Go static analysis checks
 	go vet -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
 
@@ -205,7 +208,7 @@ check-desktop-sandbox-windows: ## Check Windows sandbox contracts and amd64/arm6
 check-desktop-sandbox-windows-native: ## Check Windows sandbox components on a real Windows host (set NEXUS_SANDBOX_SDK_SOURCE)
 	node scripts/desktop/check-windows-sandbox.mjs --native
 
-check-go-full: check-go-vet ## Run explicit full Go checks without result cache
+check-go-full: check-go-vet check-normalization ## Run explicit full Go checks without result cache
 	go test -vet=off -p=$(GO_TEST_PACKAGE_PARALLELISM) -count=1 ./...
 
 check-backend: check-go ## Alias of Go backend checks

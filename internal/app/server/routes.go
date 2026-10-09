@@ -140,7 +140,7 @@ func (s *Server) mountTeamRoutes() {
 	if !s.config.MultiplayerDisabled && strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") && strings.TrimSpace(s.config.RemoteURL) != "" {
 		return
 	}
-	enabled := !s.config.MultiplayerDisabled && strings.TrimSpace(s.config.RelayURL) != "" && s.handlers.team != nil
+	enabled := !s.config.MultiplayerDisabled && s.config.RelayURL != "" && s.handlers.team != nil
 	s.router.Get(s.prefixPath("/team/capabilities"), func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Cache-Control", "no-store")
 		s.api.WriteSuccess(writer, map[string]bool{"enabled": enabled})

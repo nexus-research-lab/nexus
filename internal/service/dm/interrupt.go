@@ -33,7 +33,7 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 }
 
 func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, roundID string) error {
-	result, err := s.runtime.InterruptRound(
+	result, err := s.Runtime.InterruptRound(
 		ctx,
 		sessionKey,
 		roundID,
@@ -53,14 +53,14 @@ func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, ro
 	case runtimectx.ExactRoundProviderInterrupted, runtimectx.ExactRoundLocalCancelled:
 		// Permission requests are keyed only by session. Cancelling them while a
 		// successor is still running would widen an exact-round stop.
-		if len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0 {
-			s.permission.CancelRequestsForSession(sessionKey, "")
+		if len(s.Runtime.GetRunningRoundIDs(sessionKey)) == 0 {
+			s.Permission.CancelRequestsForSession(sessionKey, "")
 		}
 	default:
 		return fmt.Errorf("%w: unknown runtime outcome %q", ErrExactDMRoundInterruptUnsupported, result.Outcome)
 	}
 	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-		s.loggerFor(ctx).Warn("DM 精确中断后刷新 session meta 失败",
+		s.LoggerFor(ctx).Warn("DM 精确中断后刷新 session meta 失败",
 			"session_key", sessionKey,
 			"round_id", roundID,
 			"err", closeErr,
@@ -72,25 +72,25 @@ func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, ro
 
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
 	displayResultText := messagepkg.NormalizeInterruptDisplayText(resultText)
-	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
+	roundIDs, err := s.Runtime.InterruptSession(ctx, sessionKey, resultText)
 	if err != nil {
 		if len(roundIDs) == 0 {
 			return err
 		}
-		s.loggerFor(ctx).Warn("DM 中断运行态失败，按失效进程清理",
+		s.LoggerFor(ctx).Warn("DM 中断运行态失败，按失效进程清理",
 			"session_key", sessionKey,
 			"round_ids", roundIDs,
 			"err", err,
 		)
-		if closeErr := s.runtime.CloseSession(context.Background(), sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 清理失效运行态 client 失败",
+		if closeErr := s.Runtime.CloseSession(context.Background(), sessionKey); closeErr != nil {
+			s.LoggerFor(ctx).Warn("DM 清理失效运行态 client 失败",
 				"session_key", sessionKey,
 				"err", closeErr,
 			)
 		}
-		s.permission.CancelRequestsForSession(sessionKey, displayResultText)
+		s.Permission.CancelRequestsForSession(sessionKey, displayResultText)
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 中断失败后刷新 session meta 失败",
+			s.LoggerFor(ctx).Warn("DM 中断失败后刷新 session meta 失败",
 				"session_key", sessionKey,
 				"err", closeErr,
 			)
@@ -100,7 +100,7 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 	}
 	if len(roundIDs) == 0 {
 		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.loggerFor(ctx).Warn("DM 中断空闲会话后刷新 session meta 失败",
+			s.LoggerFor(ctx).Warn("DM 中断空闲会话后刷新 session meta 失败",
 				"session_key", sessionKey,
 				"err", closeErr,
 			)
@@ -108,14 +108,14 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 		s.broadcastSessionStatus(ctx, sessionKey)
 		return nil
 	}
-	s.loggerFor(ctx).Warn("中断 DM 会话运行轮次",
+	s.LoggerFor(ctx).Warn("中断 DM 会话运行轮次",
 		"session_key", sessionKey,
 		"round_count", len(roundIDs),
 		"reason", displayResultText,
 	)
-	s.permission.CancelRequestsForSession(sessionKey, displayResultText)
+	s.Permission.CancelRequestsForSession(sessionKey, displayResultText)
 	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-		s.loggerFor(ctx).Warn("DM 中断后刷新 session meta 失败",
+		s.LoggerFor(ctx).Warn("DM 中断后刷新 session meta 失败",
 			"session_key", sessionKey,
 			"err", closeErr,
 		)

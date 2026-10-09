@@ -87,7 +87,7 @@ func (r *Repository) recordUsageParentSnapshotOnce(
 
 	goalID := strings.TrimSpace(snapshot.GoalID)
 	if goalID == "" {
-		goalID = strings.TrimSpace(resolution.goalID)
+		goalID = resolution.goalID
 	}
 	if goalID == "" {
 		locked, lockErr := r.lockGoalUsageScope(ctx, tx, key)

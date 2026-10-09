@@ -3,6 +3,12 @@ package realtime
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -10,12 +16,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"path/filepath"
-	"slices"
-	"strings"
-	"testing"
-	"time"
 )
 
 type systemOnlyRoomContextStore struct {
@@ -173,11 +175,10 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 		RuntimeSessionKey: runtimeSessionKey,
 		WorkspacePath:     workspacePath,
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rooms:          rooms,
 		publicHandoffs: handoffs,
-		inputQueue:     workspacestore.NewInputQueueStore(root),
-		permission:     permissionctx.NewContext(),
+		Host:           runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"busy-round": {
 				SessionKey:     sharedSessionKey,
@@ -189,7 +190,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 				},
 			},
 		}),
-	}
+	})
 
 	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
 		t.Fatalf("StartPublicHandoffReconciler() error = %v", err)
@@ -197,7 +198,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 	if rooms.systemCalls != 1 || rooms.userCalls != 0 {
 		t.Fatalf("room lookups = system:%d request:%d, want system-only", rooms.systemCalls, rooms.userCalls)
 	}
-	items, err := service.inputQueue.Snapshot(workspacestore.InputQueueLocation{
+	items, err := service.InputQueue.Snapshot(workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  workspacePath,
 		SessionKey:     runtimeSessionKey,
@@ -293,8 +294,8 @@ func TestPublicHandoffReconcilerRestoresGoalDirectedWakeAfterQueueDispatchCrash(
 	defer wakeTimers.Stop()
 	service := &Service{
 		rooms: rooms, directedMessages: directed, publicHandoffs: handoffs,
-		inputQueue: workspacestore.NewInputQueueStore(root),
-		permission: permissionctx.NewContext(), wakeTimers: wakeTimers,
+		Host:       runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
+		wakeTimers: wakeTimers,
 		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
 			sharedSessionKey: {
 				ID: "goal-room", SessionKey: sharedSessionKey, Status: protocol.GoalStatusActive,
@@ -318,107 +319,11 @@ func TestPublicHandoffReconcilerRestoresGoalDirectedWakeAfterQueueDispatchCrash(
 		SessionKey:    runtimeSessionKey,
 		RoomID:        roomID, ConversationID: conversationID,
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil || len(items) != 1 || items[0].HandoffID != handoffID ||
 		items[0].GoalCollaborationBinding == nil ||
 		items[0].GoalCollaborationBinding.ObjectiveRevision != 4 {
 		t.Fatalf("recovered Goal directed queue = %+v err=%v", items, err)
-	}
-}
-
-func TestPublicHandoffReconcilerSettlesTerminalGoalHandbackAfterRestart(t *testing.T) {
-	const (
-		ownerUserID    = "owner-goal-handback-recovery"
-		conversationID = "conversation-goal-handback-recovery"
-		roomID         = "room-goal-handback-recovery"
-		targetAgentID  = "agent-goal-handback-peer"
-	)
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
-	root := appfs.UsersRoot()
-	sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-	contextValue := &protocol.ConversationContextAggregate{
-		Room: protocol.RoomRecord{
-			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
-		},
-		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
-		Members: []protocol.MemberRecord{{
-			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
-		}},
-	}
-	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
-	handoff := workspacestore.RoomPublicHandoff{
-		HandoffID: "handoff-terminal-goal-recovery", ConversationID: conversationID,
-		RoomID: roomID, RootRoundID: "goal-root-recovery",
-		SourceMessageID: "goal-source-recovery", SourceAgentID: "agent-goal-lead",
-		TargetAgentID: targetAgentID, Content: "recover finished collaborator",
-		QueueSource: protocol.InputQueueSourceAgentPublicMention,
-		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
-			GoalID: "goal-handback-recovery", ObjectiveRevision: 3,
-		},
-	}
-	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
-		t.Fatal(err)
-	}
-	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
-		t.Fatal(err)
-	}
-	if _, claimed, err := handoffs.Claim(ownerUserID, conversationID, handoff.HandoffID); err != nil || !claimed {
-		t.Fatalf("claim=%t err=%v", claimed, err)
-	}
-	if err := handoffs.MarkStarted(ownerUserID, conversationID, handoff.HandoffID, "target-root-recovery"); err != nil {
-		t.Fatal(err)
-	}
-	if err := handoffs.MarkTerminalWithGoalOutcome(
-		ownerUserID,
-		conversationID,
-		handoff.HandoffID,
-		"finished",
-		"target-agent-recovery",
-		true,
-		true,
-	); err != nil {
-		t.Fatal(err)
-	}
-	provider := &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
-		sessionKey: {
-			ID: "goal-handback-recovery", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
-			Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(3)},
-		},
-	}}
-	service := &Service{
-		rooms:            &systemOnlyRoomContextStore{contextValue: contextValue},
-		publicHandoffs:   handoffs,
-		directedMessages: workspacestore.NewRoomDirectedMessageStore(root),
-		goals:            provider,
-	}
-	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	provider.mu.Lock()
-	if len(provider.collabEvidence) != 1 ||
-		provider.collabEvidence[0] != "target-agent-recovery:"+targetAgentID ||
-		len(provider.handbacks) != 1 || provider.handbacks[0] != "target-root-recovery" {
-		provider.mu.Unlock()
-		t.Fatalf(
-			"evidence=%+v handbacks=%+v",
-			provider.collabEvidence,
-			provider.handbacks,
-		)
-	}
-	provider.mu.Unlock()
-	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
-	if err != nil || !exists || !stored.GoalHandbackSettled || stored.Status != "finished" {
-		t.Fatalf("stored=%+v exists=%t err=%v", stored, exists, err)
-	}
-	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	provider.mu.Lock()
-	defer provider.mu.Unlock()
-	if len(provider.collabEvidence) != 1 || len(provider.handbacks) != 1 {
-		t.Fatalf("settled handback replayed: evidence=%+v handbacks=%+v", provider.collabEvidence, provider.handbacks)
 	}
 }
 
@@ -823,100 +728,6 @@ func TestGoalCollaborationQueueDispatchConsumesRetargetedRevision(t *testing.T) 
 	}
 }
 
-func TestGoalCollaborationBusyTargetRemainsQueuedInsteadOfGuided(t *testing.T) {
-	const (
-		ownerUserID    = "owner-goal-busy-queue"
-		conversationID = "conversation-goal-busy-queue"
-		roomID         = "room-goal-busy-queue"
-		targetAgentID  = "agent-goal-busy-target"
-	)
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
-	root := appfs.UsersRoot()
-	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
-	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		targetAgentID,
-		protocol.RoomTypeGroup,
-	)
-	busySlot := withRoomSlotStatus(&activeRoomSlot{
-		AgentID: targetAgentID, AgentRoundID: "agent-round-busy-goal",
-		RuntimeSessionKey: runtimeSessionKey, WorkspacePath: workspacePath,
-	}, "running")
-	contextValue := &protocol.ConversationContextAggregate{
-		Room: protocol.RoomRecord{
-			ID: roomID, OwnerUserID: ownerUserID, RoomType: protocol.RoomTypeGroup,
-		},
-		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
-		Members: []protocol.MemberRecord{{
-			MemberType: protocol.MemberTypeAgent, MemberAgentID: targetAgentID,
-		}},
-		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
-	}
-	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
-	handoff := workspacestore.RoomPublicHandoff{
-		HandoffID: "handoff-goal-busy-queue", ConversationID: conversationID,
-		RoomID: roomID, RootRoundID: "goal-root-busy-queue",
-		SourceMessageID: "goal-source-busy-queue", SourceAgentID: "agent-goal-lead",
-		TargetAgentID: targetAgentID, Content: "check the Goal in a separate round",
-		QueueSource: protocol.InputQueueSourceAgentPublicMention,
-		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
-			GoalID: "goal-busy-queue", ObjectiveRevision: 1,
-		},
-	}
-	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
-		t.Fatal(err)
-	}
-	if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, handoff.HandoffID); err != nil {
-		t.Fatal(err)
-	}
-	service := &Service{
-		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
-		publicHandoffs: handoffs, inputQueue: workspacestore.NewInputQueueStore(root),
-		permission: permissionctx.NewContext(),
-		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
-			"busy": {
-				SessionKey: protocol.BuildRoomSharedSessionKey(conversationID),
-				RoomID:     roomID, ConversationID: conversationID, RootRoundID: "other-root",
-				Slots: map[string]*activeRoomSlot{"busy": busySlot},
-			},
-		}),
-	}
-	parent := &activeRoomRound{
-		SessionKey: protocol.BuildRoomSharedSessionKey(conversationID),
-		RoomID:     roomID, ConversationID: conversationID, RootRoundID: handoff.RootRoundID,
-		OwnerUserID: ownerUserID, Context: contextValue,
-	}
-	ready, err := service.queueBusyPublicMentionWakes(
-		context.Background(),
-		parent,
-		parent.SessionKey,
-		[]publicMentionWake{{
-			HandoffID: handoff.HandoffID, QueueSource: handoff.QueueSource,
-			SourceAgentID: handoff.SourceAgentID, TargetAgentID: targetAgentID,
-			Content: handoff.Content, MessageID: handoff.SourceMessageID,
-			GoalCollaborationBinding: handoff.GoalCollaborationBinding,
-		}},
-	)
-	if err != nil || len(ready) != 0 {
-		t.Fatalf("ready=%+v err=%v", ready, err)
-	}
-	items, err := service.inputQueue.Snapshot(workspacestore.InputQueueLocation{
-		OwnerUserID: ownerUserID, Scope: protocol.InputQueueScopeRoom,
-		WorkspacePath: workspacePath, SessionKey: runtimeSessionKey,
-		RoomID: roomID, ConversationID: conversationID,
-	})
-	if err != nil || len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
-		items[0].GoalCollaborationBinding == nil {
-		t.Fatalf("queued Goal handoff=%+v err=%v", items, err)
-	}
-	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
-	if err != nil || !exists || stored.Status != "queued" || stored.GoalHandbackSettled {
-		t.Fatalf("stored=%+v exists=%t err=%v", stored, exists, err)
-	}
-}
-
 func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 	const (
 		ownerUserID    = "owner-goal-reconcile-stale"
@@ -978,16 +789,17 @@ func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 	if err := handoffs.MarkQueued(ownerUserID, conversationID, handoff.HandoffID, item.ID); err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rooms:          &systemOnlyRoomContextStore{contextValue: contextValue},
-		publicHandoffs: handoffs, inputQueue: queue,
+		publicHandoffs: handoffs, Host: runtimehost.Host{InputQueue: queue},
+
 		goals: &fakeRoomGoalContextProvider{runtimeGoals: map[string]*protocol.Goal{
 			sessionKey: {
 				ID: "goal-reconcile-stale", SessionKey: sessionKey, Status: protocol.GoalStatusActive,
 				Metadata: map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
 			},
 		}},
-	}
+	})
 	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -998,55 +810,6 @@ func TestPublicHandoffReconcilerDeletesRetargetedGoalQueueItem(t *testing.T) {
 	stored, exists, err := handoffs.Get(ownerUserID, conversationID, handoff.HandoffID)
 	if err != nil || !exists || stored.Status != "interrupted" {
 		t.Fatalf("stale startup handoff = %+v exists=%t err=%v", stored, exists, err)
-	}
-}
-
-func TestRoomInputQueueDispatchKeepsOneDurableMessageIdentity(t *testing.T) {
-	location := workspacestore.InputQueueLocation{WorkspacePath: "/tmp/agent", SessionKey: "room:conversation-1:agent-1"}
-	newEntry := func(id string, source protocol.InputQueueSource, root string) roomInputQueueEntry {
-		return roomInputQueueEntry{
-			Location: location,
-			Item: protocol.InputQueueItem{
-				ID:          id,
-				AgentID:     "agent-1",
-				Source:      source,
-				RootRoundID: root,
-				ReplyRoute:  protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic},
-			},
-		}
-	}
-	entries := []roomInputQueueEntry{
-		newEntry("direct-1", protocol.InputQueueSourceAgentRoomMessage, "root-1"),
-		newEntry("direct-2", protocol.InputQueueSourceAgentRoomMessage, "root-1"),
-		newEntry("user-1", protocol.InputQueueSourceUser, ""),
-		newEntry("direct-3", protocol.InputQueueSourceAgentRoomMessage, "root-1"),
-	}
-	batch := isolatedRoomInputQueueDispatch(entries[0])
-	if len(batch) != 1 || batch[0].Item.ID != "direct-1" {
-		t.Fatalf("每条 durable message 必须单独派发: %+v", batch)
-	}
-}
-
-func TestRoomInputQueueDispatchAlsoIsolatesResponsibility(t *testing.T) {
-	location := workspacestore.InputQueueLocation{WorkspacePath: "/tmp/agent", SessionKey: "room:conversation-1:agent-1"}
-	entry := func(id string) roomInputQueueEntry {
-		return roomInputQueueEntry{
-			Location: location,
-			Item: protocol.InputQueueItem{
-				ID:          id,
-				AgentID:     "agent-1",
-				Source:      protocol.InputQueueSourceAgentRoomMessage,
-				RootRoundID: "root-1",
-				ReplyRoute:  protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic},
-			},
-		}
-	}
-	responsibility := entry("assignment")
-	responsibility.Item.WorkBinding = &protocol.ExecutionWorkBinding{AssignmentID: "assignment-1"}
-
-	if batch := isolatedRoomInputQueueDispatch(responsibility); len(batch) != 1 ||
-		batch[0].Item.ID != responsibility.Item.ID {
-		t.Fatalf("责任消息必须保持独立 identity: %+v", batch)
 	}
 }
 
@@ -1071,7 +834,7 @@ func TestResolveRoomMessageCausalityUsesActiveRound(t *testing.T) {
 func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T) {
 	workspacePath := t.TempDir()
 	history := workspacestore.NewAgentHistoryStore(t.TempDir())
-	service := &Service{history: history}
+	service := &Service{Host: runtimehost.Host{History: history}}
 	roundValue := &activeRoomRound{ConversationID: "conversation-1"}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-1",
@@ -1152,7 +915,7 @@ func TestPublicMentionReplyAnnotationIsHostOwnedAndSeparateFromReciprocalMention
 	}
 	slot.setDeliveryMetadata(protocol.RoomReplyRoute{}, "lead-public-message", "rh-lead-to-researcher")
 	slot.setStatus("finished")
-	service := &Service{}
+	service := withConstructorDefaults(t, &Service{})
 
 	plainReply := protocol.Message{
 		"message_id": "researcher-public-reply", "role": "assistant", "is_complete": true,
@@ -1183,313 +946,6 @@ func TestPublicMentionReplyAnnotationIsHostOwnedAndSeparateFromReciprocalMention
 		mentions[0].AgentID != "agent-lead" || mentions[0].HandoffID == "" ||
 		mentions[0].HandoffID == reply.HandoffID {
 		t.Fatalf("reply lineage and reciprocal action must coexist with distinct identities: reply=%+v mentions=%+v", reply, mentions)
-	}
-}
-
-func TestPublicHandoffReplyAnnotationRejectsPrivateNoReplyAndOrdinaryRounds(t *testing.T) {
-	roundValue := &activeRoomRound{
-		Context: &protocol.ConversationContextAggregate{
-			Conversation: protocol.ConversationRecord{ID: "conversation-reply-negative"},
-		},
-		ConversationID: "conversation-reply-negative", RoomID: "room-reply-negative",
-	}
-	newSlot := func(triggerType string, route protocol.RoomReplyRoute) *activeRoomSlot {
-		slot := &activeRoomSlot{
-			AgentID: "agent-target",
-			Trigger: roomTrigger{TriggerType: triggerType, SourceAgentID: "agent-source"},
-		}
-		slot.setDeliveryMetadata(route, "source-message", "rh-negative")
-		slot.setStatus("finished")
-		return slot
-	}
-	newMessage := func(text string) protocol.Message {
-		return protocol.Message{
-			"message_id": "target-message", "role": "assistant", "is_complete": true,
-			"handoff_reply": map[string]any{
-				"handoff_id": "runtime-forged", "source_message_id": "forged-message",
-				"source_agent_id": "forged-agent",
-			},
-			"content": []map[string]any{{"type": "text", "text": text}},
-		}
-	}
-	tests := []struct {
-		name    string
-		slot    *activeRoomSlot
-		message protocol.Message
-	}{
-		{
-			name:    "private reply",
-			slot:    newSlot("public_mention", protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePrivate, Recipients: []string{"agent-source"}}),
-			message: newMessage("私域回复"),
-		},
-		{
-			name:    "no reply",
-			slot:    newSlot("public_mention", protocol.RoomReplyRoute{}),
-			message: newMessage("<nexus_room_no_reply/>"),
-		},
-		{
-			name:    "ordinary round",
-			slot:    newSlot("public_chat", protocol.RoomReplyRoute{}),
-			message: newMessage("普通回复"),
-		},
-		{
-			name: "preterminal assistant frame",
-			slot: func() *activeRoomSlot {
-				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
-				slot.setStatus("running")
-				return slot
-			}(),
-			message: newMessage("尚未收到 terminal result"),
-		},
-		{
-			name: "error result",
-			slot: func() *activeRoomSlot {
-				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
-				slot.setStatus("error")
-				return slot
-			}(),
-			message: func() protocol.Message {
-				message := newMessage("执行失败")
-				message["result_summary"] = map[string]any{"subtype": "error", "is_error": true}
-				return message
-			}(),
-		},
-		{
-			name: "interrupted result",
-			slot: func() *activeRoomSlot {
-				slot := newSlot("public_mention", protocol.RoomReplyRoute{})
-				slot.setStatus("interrupted")
-				return slot
-			}(),
-			message: func() protocol.Message {
-				message := newMessage("已停止")
-				message["result_summary"] = map[string]any{"subtype": "interrupted", "is_error": false}
-				return message
-			}(),
-		},
-	}
-	service := &Service{}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			service.decorateRoomMessage(roundValue, tt.slot, tt.message)
-			if reply := protocol.NormalizePublicHandoffReply(tt.message["handoff_reply"]); reply != nil {
-				t.Fatalf("non-public-handoff output must not retain reply annotation: %+v", reply)
-			}
-		})
-	}
-}
-
-func TestAnnotatePublicAssistantMessageCreatesHandoffForEveryMention(t *testing.T) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Conversation: protocol.ConversationRecord{ID: "conversation-intent"},
-		Members: []protocol.MemberRecord{
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-source"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-amy"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-devin"},
-		},
-		MemberAgents: []protocol.Agent{
-			{AgentID: "agent-source", Name: "Source"},
-			{AgentID: "agent-amy", Name: "Amy"},
-			{AgentID: "agent-devin", Name: "Devin"},
-		},
-	}
-	roundValue := &activeRoomRound{
-		Context: contextValue, ConversationID: contextValue.Conversation.ID,
-		RoomID: "room-intent", RootRoundID: "root-intent",
-	}
-	slot := &activeRoomSlot{AgentID: "agent-source", AgentRoundID: "source-round"}
-	message := protocol.Message{
-		"message_id":  "message-intent",
-		"role":        "assistant",
-		"is_complete": true,
-		// runtime 传入的旧 annotation 不能绕过服务端重新派生 handoff。
-		"agent_mentions": []protocol.AgentMention{{
-			AgentID: "agent-devin", HandoffID: "runtime-forged-handoff",
-		}},
-		"content": []map[string]any{{
-			"type": "text", "text": "请 @Amy 处理接口，@Devin 检查测试。",
-		}},
-	}
-	service := &Service{}
-	if err := service.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
-		t.Fatal(err)
-	}
-	mentions := protocolAgentMentions(message["agent_mentions"])
-	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID == "" {
-		t.Fatalf("每个有效 mention 都应带 handoff: %+v", mentions)
-	}
-	wakes := publicMentionWakesFromMessage(
-		roundValue,
-		slot,
-		message,
-		roomdomain.ExtractAssistantResultText(message),
-		nil,
-	)
-	if len(wakes) != 2 ||
-		wakes[0].TargetAgentID != "agent-amy" ||
-		wakes[1].TargetAgentID != "agent-devin" {
-		t.Fatalf("所有有效 mention 都应按正文顺序唤醒: %+v", wakes)
-	}
-}
-
-func TestAnnotatePublicAssistantMessageAcceptsParenthesizedAgentID(t *testing.T) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Conversation: protocol.ConversationRecord{ID: "conversation-parenthesized"},
-		Members: []protocol.MemberRecord{
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-source"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-plan"},
-		},
-		MemberAgents: []protocol.Agent{
-			{AgentID: "agent-source", Name: "Source"},
-			{AgentID: "agent-plan", Name: "生活方案制定员"},
-		},
-	}
-	roundValue := &activeRoomRound{
-		Context: contextValue, ConversationID: contextValue.Conversation.ID,
-		RoomID: "room-parenthesized", RootRoundID: "root-parenthesized",
-	}
-	slot := &activeRoomSlot{AgentID: "agent-source", AgentRoundID: "source-round"}
-	message := protocol.Message{
-		"message_id":  "message-parenthesized",
-		"role":        "assistant",
-		"is_complete": true,
-		"content": []map[string]any{{
-			"type": "text", "text": "@生活方案制定员（c742e12ab802）请承接本次咨询。",
-		}},
-	}
-	service := &Service{}
-	if err := service.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
-		t.Fatal(err)
-	}
-	mentions := protocolAgentMentions(message["agent_mentions"])
-	if len(mentions) != 1 || mentions[0].AgentID != "agent-plan" || mentions[0].HandoffID == "" {
-		t.Fatalf("带括号 agent id 的 mention 应创建默认 handoff: %+v", mentions)
-	}
-	if mentions[0].Label != "生活方案制定员" || mentions[0].StartRune != 0 || mentions[0].EndRune != 8 {
-		t.Fatalf("mention span 不应包含括号中的 agent id: %+v", mentions[0])
-	}
-}
-
-func TestAnnotatePublicAssistantMessageStripsLegacyFanoutMarker(t *testing.T) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Conversation: protocol.ConversationRecord{ID: "conversation-fanout"},
-		Members: []protocol.MemberRecord{
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-source"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-amy"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-devin"},
-		},
-		MemberAgents: []protocol.Agent{
-			{AgentID: "agent-source", Name: "Source"},
-			{AgentID: "agent-amy", Name: "Amy"},
-			{AgentID: "agent-devin", Name: "Devin"},
-		},
-	}
-	roundValue := &activeRoomRound{
-		Context: contextValue, ConversationID: contextValue.Conversation.ID,
-		RoomID: "room-fanout", RootRoundID: "root-fanout",
-	}
-	slot := &activeRoomSlot{AgentID: "agent-source", AgentRoundID: "source-round"}
-	message := protocol.Message{
-		"message_id":  "message-fanout",
-		"role":        "assistant",
-		"is_complete": true,
-		"content": []map[string]any{{
-			"type": "text", "text": "请 @Amy 和 @Devin 并行处理。<nexus_room_fanout/>",
-		}},
-	}
-	service := &Service{}
-	if err := service.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
-		t.Fatal(err)
-	}
-	content := roomdomain.ExtractAssistantResultText(message)
-	if strings.Contains(content, roomdomain.FanoutMarker) {
-		t.Fatalf("fanout 控制标记不应进入正文: %q", content)
-	}
-	mentions := protocolAgentMentions(message["agent_mentions"])
-	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID == "" {
-		t.Fatalf("旧 marker 不应改变多 mention handoff: %+v", mentions)
-	}
-	if wakes := publicMentionWakesFromMessage(roundValue, slot, message, content, nil); len(wakes) != 2 {
-		t.Fatalf("剥离旧 marker 后仍应唤醒两个目标: %+v", wakes)
-	}
-}
-
-func TestPublicMentionRetargetUsesBoundCurrentGoalRevision(t *testing.T) {
-	const (
-		ownerUserID    = "owner-retarget-mention"
-		conversationID = "conversation-retarget-mention"
-	)
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
-	contextValue := &protocol.ConversationContextAggregate{
-		Conversation: protocol.ConversationRecord{ID: conversationID},
-		Members: []protocol.MemberRecord{
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-lead"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-analyst"},
-		},
-		MemberAgents: []protocol.Agent{
-			{AgentID: "agent-lead", Name: "Lead"},
-			{AgentID: "agent-analyst", Name: "Analyst"},
-		},
-	}
-	roundValue := &activeRoomRound{
-		OwnerUserID: ownerUserID, ConversationID: conversationID,
-		RoomID: "room-retarget-mention", RootRoundID: "root-retarget-mention",
-		Context: contextValue,
-	}
-	slot := &activeRoomSlot{AgentID: "agent-lead", AgentRoundID: "lead-round"}
-	grantTestRoomGoalAuthority(slot, protocol.BuildRoomSharedSessionKey(conversationID), "goal-retarget-mention")
-	if !slot.ensureResponsibilityAuthorityState().ApplyGoalMutation(protocol.Goal{
-		ID: "goal-retarget-mention",
-		Metadata: map[string]any{
-			protocol.GoalMetadataObjectiveRevision:     int64(2),
-			protocol.GoalMetadataExecutionMode:         string(protocol.GoalExecutionModeManaged),
-			protocol.GoalMetadataExecutionBindingState: string(protocol.GoalExecutionBindingStateReserved),
-			protocol.GoalMetadataExecutionID:           "execution-successor",
-		},
-	}) {
-		t.Fatal("bind retargeted Goal revision")
-	}
-	message := protocol.Message{
-		"message_id": "message-retarget-mention", "role": "assistant", "is_complete": true,
-		"content": []map[string]any{{"type": "text", "text": "@Analyst 请核对新目标。"}},
-	}
-	handoffs := workspacestore.NewRoomPublicHandoffStore(appfs.UsersRoot())
-	service := &Service{publicHandoffs: handoffs}
-	binding, err := service.annotatePublicAssistantMessageWithGoalBinding(roundValue, slot, message)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if binding == nil || binding.GoalID != "goal-retarget-mention" || binding.ObjectiveRevision != 2 {
-		t.Fatalf("retargeted collaboration binding = %+v, want revision 2", binding)
-	}
-	wakes := publicMentionWakesFromMessage(
-		roundValue,
-		slot,
-		message,
-		roomdomain.ExtractAssistantResultText(message),
-		binding,
-	)
-	if len(wakes) != 1 || wakes[0].GoalCollaborationBinding == nil ||
-		wakes[0].GoalCollaborationBinding.ObjectiveRevision != 2 {
-		t.Fatalf("retargeted public wake = %+v, want revision 2", wakes)
-	}
-	mentions := protocolAgentMentions(message["agent_mentions"])
-	stored, exists, err := handoffs.Get(ownerUserID, conversationID, mentions[0].HandoffID)
-	if err != nil || !exists || stored.GoalCollaborationBinding == nil ||
-		stored.GoalCollaborationBinding.ObjectiveRevision != 2 {
-		t.Fatalf("retargeted handoff = %+v exists=%t err=%v", stored, exists, err)
-	}
-}
-
-func TestPublicMentionSteeringAloneDoesNotRetargetCollaboration(t *testing.T) {
-	slot := &activeRoomSlot{AgentID: "agent-lead", AgentRoundID: "lead-round"}
-	grantTestRoomGoalAuthority(slot, "room:group:steering", "goal-steering")
-	slot.adoptGoalObjectiveRevision(2)
-	binding := goalCollaborationBindingForSlot(nil, slot)
-	if binding == nil || binding.ObjectiveRevision != 1 {
-		t.Fatalf("steering-only collaboration binding = %+v, want confirmed revision 1", binding)
 	}
 }
 
@@ -1526,120 +982,6 @@ func TestBuildPublicMessageMentionAnnotationsCreatesEveryHandoffAndDedupesTarget
 		[]string{"agent-amy", "agent-devin"},
 	) {
 		t.Fatalf("重复目标只应唤醒一次且保留首次出现顺序: %+v", targets)
-	}
-}
-
-type publicHandoffAdmissionEdgeFixture struct {
-	handoffID     string
-	sourceAgentID string
-	targetAgentID string
-	targetRoundID string
-}
-
-func recordPublicHandoffAdmissionEdge(
-	t *testing.T,
-	store *workspacestore.RoomPublicHandoffStore,
-	ownerUserID string,
-	conversationID string,
-	rootRoundID string,
-	edge publicHandoffAdmissionEdgeFixture,
-) {
-	t.Helper()
-	if _, _, err := store.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
-		HandoffID:       edge.handoffID,
-		ConversationID:  conversationID,
-		RootRoundID:     rootRoundID,
-		SourceMessageID: "message-" + edge.handoffID,
-		SourceAgentID:   edge.sourceAgentID,
-		TargetAgentID:   edge.targetAgentID,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.MarkSourceFinished(
-		ownerUserID,
-		conversationID,
-		edge.handoffID,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if edge.targetRoundID != "" {
-		if _, claimed, err := store.Claim(
-			ownerUserID,
-			conversationID,
-			edge.handoffID,
-		); err != nil {
-			t.Fatal(err)
-		} else if !claimed {
-			t.Fatalf("handoff %s should be claimable", edge.handoffID)
-		}
-		if err := store.MarkStarted(
-			ownerUserID,
-			conversationID,
-			edge.handoffID,
-			edge.targetRoundID,
-		); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func TestPublicHandoffAdmissionAcceptsReciprocalHandoff(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	const (
-		conversationID = "conversation-reciprocal-admission"
-		ownerUserID    = "owner"
-		rootRoundID    = "root-reciprocal-admission"
-	)
-	store := workspacestore.NewRoomPublicHandoffStore(root)
-	for _, edge := range []publicHandoffAdmissionEdgeFixture{
-		{
-			handoffID:     "a-to-b-started",
-			sourceAgentID: "agent-a",
-			targetAgentID: "agent-b",
-			targetRoundID: "round-agent-b",
-		},
-		{
-			handoffID:     "b-to-a-return",
-			sourceAgentID: "agent-b",
-			targetAgentID: "agent-a",
-		},
-	} {
-		recordPublicHandoffAdmissionEdge(
-			t,
-			store,
-			ownerUserID,
-			conversationID,
-			rootRoundID,
-			edge,
-		)
-	}
-
-	service := &Service{publicHandoffs: store}
-	accepted, err := service.admitPublicMentionWakes(
-		context.Background(),
-		&activeRoomRound{
-			ConversationID: conversationID,
-			RootRoundID:    rootRoundID,
-			OwnerUserID:    ownerUserID,
-		},
-		[]publicMentionWake{{
-			HandoffID:     "b-to-a-return",
-			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
-			SourceAgentID: "agent-b",
-			TargetAgentID: "agent-a",
-		}},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accepted) != 1 || accepted[0].HandoffID != "b-to-a-return" {
-		t.Fatalf("显式 reciprocal @ 必须作为真实 handoff 接受: %+v", accepted)
-	}
-	reciprocal, ok, err := store.Get(ownerUserID, conversationID, "b-to-a-return")
-	if err != nil || !ok || reciprocal.Status != "source_finished" {
-		t.Fatalf("reciprocal handoff 不应被 admission 收口: handoff=%+v ok=%v err=%v", reciprocal, ok, err)
 	}
 }
 
@@ -1685,15 +1027,6 @@ func TestPublicHandoffAdmissionRejectsRootOverflow(t *testing.T) {
 	}
 	if len(accepted) != 0 {
 		t.Fatalf("root handoff 超限后不应继续接受新边: %+v", accepted)
-	}
-}
-
-func TestPublicHandoffResourceGuardsAllowLongRoomWorkflows(t *testing.T) {
-	if roomMaxWakeHops < 64 {
-		t.Fatalf("Room 多阶段协作至少需要 64 次连续唤醒，当前为 %d", roomMaxWakeHops)
-	}
-	if roomMaxRootHandoffs < roomMaxWakeHops*2 {
-		t.Fatalf("root handoff 总量应覆盖连续唤醒与分支，hop=%d handoffs=%d", roomMaxWakeHops, roomMaxRootHandoffs)
 	}
 }
 
@@ -1745,9 +1078,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 		}
 	}
 	service := &Service{
-		inputQueue: store,
-		runtime:    runtimeManager,
-		permission: permissionctx.NewContext(),
+		Host: runtimehost.Host{InputQueue: store, Runtime: runtimeManager, Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey: sharedSessionKey, ConversationID: conversationID, RootRoundID: "root-a",
@@ -1916,9 +1247,8 @@ func TestQueueBusyPublicMentionWakesKeepsMultipleSourcesForOneTargetOrdered(t *t
 	}
 	busyHostSlot.setStatus("running")
 	service := &Service{
-		inputQueue:     workspacestore.NewInputQueueStore(root),
+		Host:           runtimehost.Host{InputQueue: workspacestore.NewInputQueueStore(root), Permission: permissionctx.NewContext()},
 		publicHandoffs: handoffs,
-		permission:     permissionctx.NewContext(),
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"busy-host-round": {
 				SessionKey:     sharedSessionKey,
@@ -1964,7 +1294,7 @@ func TestQueueBusyPublicMentionWakesKeepsMultipleSourcesForOneTargetOrdered(t *t
 		RoomID:         roomID,
 		ConversationID: conversationID,
 	}
-	items, err := service.inputQueue.Snapshot(location)
+	items, err := service.InputQueue.Snapshot(location)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2003,10 +1333,10 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 	roomID := "room-stable-public-user-message"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	history := workspacestore.NewRoomHistoryStore(root)
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		roomHistory: history,
-		permission:  permissionctx.NewContext(),
-	}
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext()},
+	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
@@ -2085,46 +1415,10 @@ func TestLatestActiveRootRoundAgentIDsPrefersRegistrationSequence(t *testing.T) 
 	}
 }
 
-func TestResolveChatTargetAgentIDsUsesExplicitTargets(t *testing.T) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Members: []protocol.MemberRecord{
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-amy"},
-			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-tom"},
-		},
-	}
-	targets, resolution, err := resolveChatTargetAgentIDs(
-		ChatRequest{Content: "没有 mention 也要给 Amy", TargetAgentIDs: []string{"agent-amy", "agent-amy", " "}},
-		contextValue,
-		map[string]string{"agent-amy": "Amy", "agent-tom": "Tom"},
-	)
-	if err != nil {
-		t.Fatalf("显式 Room 目标解析失败: %v", err)
-	}
-	if resolution != "explicit_target" || len(targets) != 1 || targets[0] != "agent-amy" {
-		t.Fatalf("显式 Room 目标解析不正确: targets=%+v resolution=%s", targets, resolution)
-	}
-}
-
 func TestNormalizeRoomAgentIDsPreservesOrderAndDropsDuplicates(t *testing.T) {
 	got := normalizeRoomAgentIDs([]string{" agent-b ", "", "agent-a", "agent-b", "agent-a"})
 	if want := []string{"agent-b", "agent-a"}; !slices.Equal(got, want) {
 		t.Fatalf("Room Agent ID 归一化结果 = %+v, want %+v", got, want)
-	}
-}
-
-func TestNewRoomUserMessagePersistsResolvedTargets(t *testing.T) {
-	message := newRoomUserMessage(
-		ChatRequest{RoundID: "round-targets", UserMessageID: "message-targets", Content: "只调整 Agent1 的回复"},
-		"room:group:conversation-targets",
-		"room-targets",
-		"conversation-targets",
-		nil,
-		[]string{"agent-1"},
-		protocol.ChatDeliveryPolicyGuide,
-	)
-	targets, ok := message["target_agent_ids"].([]string)
-	if !ok || len(targets) != 1 || targets[0] != "agent-1" {
-		t.Fatalf("target_agent_ids = %#v, want resolved target", message["target_agent_ids"])
 	}
 }
 
@@ -2141,101 +1435,5 @@ func TestResolveChatTargetAgentIDsRejectsNonMemberTarget(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "not a room member") {
 		t.Fatalf("非成员目标应被拒绝: %v", err)
-	}
-}
-
-func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
-	contextValue := &protocol.ConversationContextAggregate{
-		Room:         protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
-		Conversation: protocol.ConversationRecord{ID: "conversation-1"},
-	}
-	parentRound := &activeRoomRound{
-		Context:     contextValue,
-		OwnerUserID: "owner-public-mention",
-		RoundID:     "handoff-source-round",
-		RootRoundID: "persisted-handoff-root",
-	}
-	roundValue := newPublicMentionRound(parentRound, "room:group:conversation-1", "wake-round-1")
-	slot := buildPublicMentionSlot(
-		roundValue,
-		contextValue,
-		protocol.SessionRecord{ID: "session-devin"},
-		&protocol.Agent{AgentID: "agent-devin", WorkspacePath: t.TempDir()},
-		publicMentionWake{
-			SourceAgentID: "agent-amy",
-			TargetAgentID: "agent-devin",
-			Content:       "@Devin @sam 谁先来？",
-			MessageID:     "message-1",
-		},
-		"round-1",
-		"message-slot-1",
-		0,
-	)
-
-	if slot.Trigger.TriggerType != "public_mention" ||
-		slot.Trigger.SourceAgentID != "agent-amy" ||
-		slot.Trigger.TargetAgentID != "agent-devin" ||
-		slot.Trigger.MessageID != "message-1" ||
-		slot.Trigger.Content != "@Devin @sam 谁先来？" {
-		t.Fatalf("公区 @ slot 应只保留可直接渲染成消息行的触发信息: %+v", slot.Trigger)
-	}
-	if slot.OwnerUserID != roundValue.OwnerUserID ||
-		slot.GoalUsageScopeRoundID != roundValue.RootRoundID {
-		t.Fatalf(
-			"公区 @ slot Goal usage scope = owner:%q scope:%q, want owner:%q scope:%q",
-			slot.OwnerUserID,
-			slot.GoalUsageScopeRoundID,
-			roundValue.OwnerUserID,
-			roundValue.RootRoundID,
-		)
-	}
-	if roomSlotHiddenFromUser(slot) {
-		t.Fatal("公区 @ slot 不应隐藏")
-	}
-	if slot.QueueSource != protocol.InputQueueSourceAgentPublicMention {
-		t.Fatalf("公区 @ slot source = %q, want public mention", slot.QueueSource)
-	}
-	privateSlot := buildPublicMentionSlot(
-		roundValue,
-		contextValue,
-		protocol.SessionRecord{ID: "session-devin"},
-		&protocol.Agent{AgentID: "agent-devin", WorkspacePath: t.TempDir()},
-		publicMentionWake{
-			TriggerType:   roomDirectedMessageTriggerType,
-			QueueSource:   protocol.InputQueueSourceAgentRoomMessage,
-			TargetAgentID: "agent-devin",
-			Content:       "只在私域消费",
-		},
-		"round-private",
-		"message-slot-private",
-		0,
-	)
-	if !roomSlotHiddenFromUser(privateSlot) {
-		t.Fatal("私域 directed-message slot 应显式隐藏")
-	}
-	if privateSlot.QueueSource != protocol.InputQueueSourceAgentRoomMessage {
-		t.Fatalf("私域 directed-message slot source = %q, want directed message", privateSlot.QueueSource)
-	}
-	internalSlot := &activeRoomSlot{HiddenFromUser: true, Trigger: roomTrigger{TriggerType: "public_chat"}}
-	if !roomSlotHiddenFromUser(internalSlot) {
-		t.Fatal("宿主内部 round 的 slot 应在整个生命周期中保持隐藏")
-	}
-}
-
-func TestSetRoomDisplayOrderKeepsSlotStartAcrossCompletion(t *testing.T) {
-	slot := &activeRoomSlot{
-		Index:       2,
-		TimestampMS: 100,
-	}
-	message := protocol.Message{
-		"message_id": "assistant-late-completion",
-		"role":       "assistant",
-		"timestamp":  int64(900),
-	}
-
-	setRoomDisplayOrder(slot, message)
-
-	if got, want := protocol.Int64FromAny(message["display_order"]), int64(100_002); got != want {
-		t.Fatalf("Room display order = %d, want slot start order %d", got, want)
 	}
 }

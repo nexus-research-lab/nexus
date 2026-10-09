@@ -4,7 +4,6 @@
 //
 // 成员清单：
 //   - snapshot.go：DM/Room 共用的逐 turn、累计终态与子任务观察转换。
-//   - snapshot_test.go：显式零与缺失用量、assistant 回退、子任务身份与终态证据。
 //
 // 本包依赖 runtime、message 与 Goal；Goal 主包不依赖本包。
 // 宿主负责可信会话身份、锁、作用域绑定、持久化和重试；本包只转换观察值。

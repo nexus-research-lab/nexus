@@ -164,7 +164,7 @@ func (v *goalSessionOwnershipVerifier) VerifyGoalSessionOwnership(
 	if v == nil || v.agents == nil || v.rooms == nil {
 		return goalsvc.GoalSessionOwnershipProof{}, errors.New("Goal session ownership verifier is unavailable")
 	}
-	ownerUserID := strings.TrimSpace(request.OwnerUserID)
+	ownerUserID := request.OwnerUserID
 	if ownerUserID == "" {
 		return goalsvc.GoalSessionOwnershipProof{}, errors.New("Goal session owner is required")
 	}
@@ -250,7 +250,7 @@ func (v *goalSessionOwnershipVerifier) verifyRoomConversation(
 
 func goalSessionOwnerContext(ctx context.Context, ownerUserID string) (context.Context, error) {
 	if currentOwner, ok := authctx.CurrentUserID(ctx); ok {
-		if strings.TrimSpace(currentOwner) != ownerUserID {
+		if currentOwner != ownerUserID {
 			return nil, fmt.Errorf("authenticated owner %q does not match Goal owner", currentOwner)
 		}
 		return ctx, nil

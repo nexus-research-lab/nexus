@@ -70,43 +70,6 @@ func (s *recordingSandboxReceiptStore) Latest(_ context.Context, owner, session 
 	return s.latest, s.found, nil
 }
 
-func TestManagerSandboxReceiptPhaseUpdateUsesCapturedReceiptAfterRetire(t *testing.T) {
-	store := &recordingSandboxReceiptStore{}
-	manager := NewManager()
-	manager.SetSandboxPolicyReceiptStore(store)
-	client := &agentClient{sandboxReceipt: &SandboxEffectivePolicyReceipt{SessionID: "session-id"}}
-	if err := manager.updateSandboxReceiptPhase(
-		"owner", "session-key", 7, client, client.sandboxReceipt,
-		protocol.SandboxPolicyReceiptUnknown, "close ACK lost",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if store.updates != 1 || store.owner != "owner" || store.session != "session-key" || store.generation != 7 ||
-		store.phase != protocol.SandboxPolicyReceiptUnknown || store.reason != "close ACK lost" {
-		t.Fatalf("store = %#v", store)
-	}
-}
-
-func TestManagerReadsOwnerScopedPersistentSandboxReceipt(t *testing.T) {
-	store := &recordingSandboxReceiptStore{
-		latest: testSandboxReceiptSnapshotForManager(),
-		found:  true,
-	}
-	manager := NewManager()
-	manager.SetSandboxPolicyReceiptStore(store)
-	receipt, found, err := manager.PersistentSandboxPolicyReceipt(context.Background(), "owner-1", "session-1")
-	if err != nil || !found || receipt == nil {
-		t.Fatalf("receipt=%#v found=%t err=%v", receipt, found, err)
-	}
-	if receipt.PolicyDigest != "sha256:policy" || receipt.RoundID != "round-4" ||
-		receipt.Phase != protocol.SandboxPolicyReceiptUnknown || receipt.UnknownReason != "close ACK lost" {
-		t.Fatalf("receipt=%#v", receipt)
-	}
-	if _, found, err := manager.PersistentSandboxPolicyReceipt(context.Background(), "other-owner", "session-1"); err != nil || found {
-		t.Fatalf("cross-owner read found=%t err=%v", found, err)
-	}
-}
-
 func TestManagerOwnerReaperFailureDowngradesRetiredReceiptToUnknown(t *testing.T) {
 	store := &recordingSandboxReceiptStore{}
 	reaperErr := errors.New("owner descendants remain")

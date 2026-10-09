@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 后端按“DM 是 Room 的一种”收敛：每轮 Goal 状态、Goal 续跑、用量结算与重试、完成收据、`/goal` 建 Goal 与流诊断在 `service/runtimehost` 只实现一次；DM 与 Room realtime 装配不完整时启动即失败。
+- 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
+- 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。
+- AGENTS.md 精简为项目宪法，产品合同迁入 `docs/specs/`；规范与指南去重瘦身约 14%，按实现修正规范内部矛盾，修复失效链接并重建 `docs/README.md` 索引。
+
 ### Fixed
 
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。

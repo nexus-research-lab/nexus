@@ -158,22 +158,6 @@ func (s *Service) persistHeartbeatTimes(ctx context.Context, agentID string, las
 	return s.repository.PersistHeartbeatRuntimeState(ctx, s.idFactory("hb"), snapshot.Config, lastHeartbeatAt, lastAckAt)
 }
 
-func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode string, text *string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	sessionKey = strings.TrimSpace(sessionKey)
-	request := automationexec.HeartbeatWakeRequest{
-		AgentID:    strings.TrimSpace(agentID),
-		SessionKey: sessionKey,
-		WakeMode:   strings.TrimSpace(wakeMode),
-		Text:       strings.TrimSpace(anyStringPointer(text)),
-	}
-	s.wakeRequests[sessionKey] = append(s.wakeRequests[sessionKey], request)
-	if state := s.heartbeatState[request.AgentID]; state != nil {
-		state.PendingWake = true
-	}
-}
-
 // wakeHeartbeatForSystemEvent 只唤醒事件消费者，不额外生成一条通用 wake request。
 func (s *Service) wakeHeartbeatForSystemEvent(ctx context.Context, agentID string, mode string) error {
 	state, err := s.ensureHeartbeatState(ctx, strings.TrimSpace(agentID))
@@ -197,7 +181,7 @@ func (s *Service) wakeHeartbeatForSystemEvent(ctx context.Context, agentID strin
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
 	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {
-		if strings.TrimSpace(item.AgentID) == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
+		if item.AgentID == strings.TrimSpace(agentID) && item.WakeMode == automationdomain.WakeModeNow {
 			return true
 		}
 	}
@@ -215,7 +199,7 @@ func (s *Service) takeWakeRequests(agentID string, sessionKey string) ([]automat
 	immediate := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	deferred := make([]automationexec.HeartbeatWakeRequest, 0, len(items))
 	for _, item := range items {
-		if strings.TrimSpace(item.AgentID) != strings.TrimSpace(agentID) {
+		if item.AgentID != strings.TrimSpace(agentID) {
 			continue
 		}
 		switch item.WakeMode {

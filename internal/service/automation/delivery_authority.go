@@ -106,15 +106,6 @@ func validateConfigurableDeliveryTarget(target automationdomain.DeliveryTarget) 
 	return nil
 }
 
-// authorizedDeliveryJob 重读最新任务，再验证 Agent-origin 的 owner/self/Room 权限。
-// 运行开始后的配置更新或权限撤销因此不会使用旧 job 快照投递。
-func (s *Service) authorizedDeliveryJob(
-	ctx context.Context,
-	snapshot automationdomain.ScheduledTask,
-) (automationdomain.ScheduledTask, error) {
-	return s.authorizedDeliveryJobForTarget(ctx, snapshot, snapshot.Delivery)
-}
-
 // authorizedDeliveryJobForTarget 重读当前任务状态，但按 run 开始时冻结的逻辑目标
 // 复核权限。显式关闭任务投递会立即生效，普通路由编辑不会重定向已在运行的结果。
 func (s *Service) authorizedDeliveryJobForTarget(

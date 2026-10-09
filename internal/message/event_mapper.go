@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -71,7 +72,7 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 	if output.Err != nil {
 		return EventMapResult{}, output.Err
 	}
-	NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
+	NormalizeInterruptedOutput(&output, textutil.FirstNonEmpty(interruptReason...))
 	if output.ResultSubtype == "interrupted" {
 		if partial := m.processor.FinalizeInterruptedAssistant(); len(partial) > 0 {
 			output.DurableMessages = append([]protocol.Message{partial}, output.DurableMessages...)
@@ -136,7 +137,7 @@ func (m *EventMapper) appendDurableMessage(result *EventMapResult, messageValue 
 	if m.includeStreamLifecycle && isCompletedAssistantMessage(durable) {
 		result.Events = append(result.Events, m.wrapStreamLifecycleEvent(
 			protocol.EventTypeStreamEnd,
-			normalizeString(durable["message_id"]),
+			textutil.AnyString(durable["message_id"]),
 		))
 	}
 }
@@ -144,8 +145,8 @@ func (m *EventMapper) appendDurableMessage(result *EventMapResult, messageValue 
 func (m *EventMapper) appendSubagentTaskChanged(result *EventMapResult, message protocol.Message) {
 	changed := make(map[string]struct{})
 	metadata := mapValue(message["metadata"])
-	if taskID := normalizeString(metadata["task_id"]); taskID != "" && strings.HasPrefix(normalizeString(metadata["subtype"]), "task_") {
-		subtype := normalizeString(metadata["subtype"])
+	if taskID := textutil.AnyString(metadata["task_id"]); taskID != "" && strings.HasPrefix(textutil.AnyString(metadata["subtype"]), "task_") {
+		subtype := textutil.AnyString(metadata["subtype"])
 		if m.rememberSubagentTask(taskID, metadata, subtype == "task_progress") &&
 			m.subagentTaskSnapshotChanged("metadata:"+subtype+":"+taskID, metadata) {
 			changed[taskID] = struct{}{}
@@ -153,15 +154,15 @@ func (m *EventMapper) appendSubagentTaskChanged(result *EventMapResult, message 
 	}
 
 	for _, block := range normalizeMessageContentBlocks(message["content"]) {
-		switch normalizeString(block["type"]) {
+		switch textutil.AnyString(block["type"]) {
 		case "task_progress":
-			taskID := normalizeString(block["task_id"])
+			taskID := textutil.AnyString(block["task_id"])
 			if taskID != "" && m.rememberSubagentTask(taskID, block, true) &&
 				m.subagentTaskSnapshotChanged("progress:"+taskID, block) {
 				changed[taskID] = struct{}{}
 			}
 		case "tool_result":
-			toolUseID := normalizeString(block["tool_use_id"])
+			toolUseID := textutil.AnyString(block["tool_use_id"])
 			taskID := m.subagentTaskByToolUse[toolUseID]
 			if _, observed := m.subagentToolResults[toolUseID]; taskID != "" && !observed {
 				m.subagentToolResults[toolUseID] = struct{}{}
@@ -185,7 +186,7 @@ func (m *EventMapper) appendSubagentTaskChanged(result *EventMapResult, message 
 }
 
 func (m *EventMapper) rememberSubagentTask(taskID string, metadata map[string]any, legacyProgress bool) bool {
-	taskType := strings.ToLower(normalizeString(metadata["task_type"]))
+	taskType := strings.ToLower(textutil.AnyString(metadata["task_type"]))
 	if taskType == "local_shell" {
 		return false
 	}
@@ -194,11 +195,11 @@ func (m *EventMapper) rememberSubagentTask(taskID string, metadata map[string]an
 		if taskType != "local_agent" {
 			return false
 		}
-	} else if !known && !legacyProgress && normalizeString(metadata["agent_id"]) == "" && normalizeString(metadata["agent_type"]) == "" {
+	} else if !known && !legacyProgress && textutil.AnyString(metadata["agent_id"]) == "" && textutil.AnyString(metadata["agent_type"]) == "" {
 		return false
 	}
 	m.subagentTaskIDs[taskID] = struct{}{}
-	if toolUseID := normalizeString(metadata["tool_use_id"]); toolUseID != "" {
+	if toolUseID := textutil.AnyString(metadata["tool_use_id"]); toolUseID != "" {
 		m.subagentTaskByToolUse[toolUseID] = taskID
 	}
 	return true
@@ -304,7 +305,7 @@ func (m *EventMapper) wrapMessageEvent(
 	message protocol.Message,
 	deliveryMode string,
 ) protocol.EventMessage {
-	event := m.wrapEvent(protocol.EventTypeMessage, message, normalizeString(message["message_id"]))
+	event := m.wrapEvent(protocol.EventTypeMessage, message, textutil.AnyString(message["message_id"]))
 	event.DeliveryMode = deliveryMode
 	return event
 }
@@ -319,9 +320,9 @@ func (m *EventMapper) wrapEvent(
 	event.RoomID = m.ctx.RoomID
 	event.ConversationID = m.ctx.ConversationID
 	event.AgentID = m.ctx.AgentID
-	event.MessageID = normalizeString(messageID)
+	event.MessageID = textutil.AnyString(messageID)
 	event.RoundID = m.ctx.RoundID
 	event.AgentRoundID = m.ctx.AgentRoundID
-	event.SessionID = normalizeString(data["session_id"])
+	event.SessionID = textutil.AnyString(data["session_id"])
 	return event
 }

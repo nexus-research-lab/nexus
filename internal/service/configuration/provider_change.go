@@ -222,42 +222,6 @@ func (r providerUpdateRequest) patchInput() providersvc.PatchInput {
 	}
 }
 
-// serviceInput 保留给完整快照 API 的兼容测试；配置执行路径必须使用 patchInput。
-func (r providerUpdateRequest) serviceInput(current providersvc.Record) providersvc.UpdateInput {
-	input := providersvc.UpdateInput{
-		ProviderKind: current.ProviderKind,
-		PresetKey:    current.PresetKey,
-		APIFormat:    current.APIFormat,
-		DisplayName:  current.DisplayName,
-		BaseURL:      current.BaseURL,
-		ModelsPath:   current.ModelsPath,
-		Enabled:      current.Enabled,
-		AuthToken:    r.AuthToken,
-	}
-	if r.ProviderKind != nil {
-		input.ProviderKind = *r.ProviderKind
-	}
-	if r.PresetKey != nil {
-		input.PresetKey = *r.PresetKey
-	}
-	if r.APIFormat != nil {
-		input.APIFormat = *r.APIFormat
-	}
-	if r.DisplayName != nil {
-		input.DisplayName = *r.DisplayName
-	}
-	if r.BaseURL != nil {
-		input.BaseURL = *r.BaseURL
-	}
-	if r.ModelsPath != nil {
-		input.ModelsPath = *r.ModelsPath
-	}
-	if r.Enabled != nil {
-		input.Enabled = *r.Enabled
-	}
-	return input
-}
-
 type providerModelTarget struct {
 	ModelID string `json:"model_id"`
 }

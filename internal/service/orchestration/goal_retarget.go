@@ -79,9 +79,6 @@ func (s *Service) SupersedeGoalRevision(
 	if s == nil || s.repository == nil {
 		return nil, fmt.Errorf("orchestration repository is nil")
 	}
-	input.ActorID = strings.TrimSpace(input.ActorID)
-	input.RootRoundID = strings.TrimSpace(input.RootRoundID)
-	input.ExpectedOwnerUserID = strings.TrimSpace(input.ExpectedOwnerUserID)
 	input.GoalID = strings.TrimSpace(input.GoalID)
 	input.SuccessorExecutionID = strings.TrimSpace(input.SuccessorExecutionID)
 	executionID := strings.TrimSpace(input.ExecutionID)
@@ -155,7 +152,7 @@ func (s *Service) SupersedeGoalRevision(
 		OldGoalObjectiveRevision: input.OldGoalObjectiveRevision,
 		NewGoalObjectiveRevision: input.NewGoalObjectiveRevision,
 		SuccessorExecutionID:     input.SuccessorExecutionID,
-		Reason:                   strings.TrimSpace(input.Reason),
+		Reason:                   input.Reason,
 		Meta:                     s.commandMeta(actor, input.CommandID, "goal-retarget-supersede"),
 	})
 	if supersedeErr == nil {

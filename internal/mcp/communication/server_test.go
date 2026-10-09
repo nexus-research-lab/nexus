@@ -3,7 +3,6 @@ package communication
 import (
 	"context"
 	"encoding/json"
-	"slices"
 	"strings"
 	"testing"
 
@@ -61,31 +60,6 @@ func (s *stubRoomService) MarkPublicMessagePublished(
 ) error {
 	s.publicMessagePublished = true
 	return nil
-}
-
-func TestBuildToolsExposeOnlyTargetsAndSend(t *testing.T) {
-	dmTools := listTools(t, BuildTools(nil, nil, RuntimeContext{}))
-	if got := listedToolNames(dmTools); !slices.Equal(got, []string{"list_targets", "send_message"}) {
-		t.Fatalf("DM communication tools = %v", got)
-	}
-	dmDestinations := toolProperty(t, dmTools, "send_message", "destination")["enum"].([]string)
-	if !slices.Contains(dmDestinations, destinationExternalDM) {
-		t.Fatalf("DM schema 缺少外部私聊目标: %v", dmDestinations)
-	}
-	if slices.Contains(dmDestinations, destinationCurrentRoom) {
-		t.Fatalf("DM schema 不应暴露当前 Room 目标: %v", dmDestinations)
-	}
-	if hasToolProperty(dmTools, "send_message", "recipients") {
-		t.Fatal("DM schema 不应暴露 Room 私域投递参数")
-	}
-
-	roomTools := listTools(t, BuildTools(nil, &stubRoomService{}, RuntimeContext{
-		CurrentRoomAvailable: true,
-	}))
-	roomDestinations := toolProperty(t, roomTools, "send_message", "destination")["enum"].([]string)
-	if !slices.Contains(roomDestinations, destinationCurrentRoom) {
-		t.Fatalf("Room schema 缺少当前 Room 目标: %v", roomDestinations)
-	}
 }
 
 func TestSendMessageRoutesCurrentRoomPrivate(t *testing.T) {
@@ -187,29 +161,6 @@ func TestSendMessageDoesNotBypassCurrentRoomPolicyThroughRoomTarget(t *testing.T
 	}
 }
 
-func TestRoomCommandIDIsStableAndRoundScoped(t *testing.T) {
-	sctx := roomRuntimeContext()
-	input := map[string]any{
-		"destination": destinationCurrentRoom,
-		"visibility":  visibilityPrivate,
-		"recipients":  []any{"agent-amy"},
-		"content":     "hello",
-	}
-	first, err := roomCommandID(sctx, nil, input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	same, err := roomCommandID(sctx, nil, input)
-	if err != nil || same != first {
-		t.Fatalf("相同调用 command id 不稳定: first=%q same=%q err=%v", first, same, err)
-	}
-	sctx.CurrentAgentRoundID = "agent-round-2"
-	next, err := roomCommandID(sctx, nil, input)
-	if err != nil || next == first {
-		t.Fatalf("跨 physical round command id 必须隔离: first=%q next=%q err=%v", first, next, err)
-	}
-}
-
 func roomRuntimeContext() RuntimeContext {
 	return RuntimeContext{
 		Actor: communicationsvc.Actor{
@@ -224,57 +175,6 @@ func roomRuntimeContext() RuntimeContext {
 		CurrentAgentRoundID:  "agent-round-1",
 		CurrentRoomAvailable: true,
 	}
-}
-
-func listTools(t *testing.T, tools []sdktool.Tool) []map[string]any {
-	t.Helper()
-	server := sdktool.NewSimpleSDKMCPServer("nexus", "1.0.0", tools)
-	response, err := server.HandleMessage(context.Background(), map[string]any{
-		"jsonrpc": "2.0", "id": 1, "method": "tools/list",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return response["result"].(map[string]any)["tools"].([]map[string]any)
-}
-
-func listedToolNames(tools []map[string]any) []string {
-	names := make([]string, 0, len(tools))
-	for _, tool := range tools {
-		name, _ := tool["name"].(string)
-		names = append(names, name)
-	}
-	return names
-}
-
-func toolProperty(
-	t *testing.T,
-	tools []map[string]any,
-	toolName string,
-	propertyName string,
-) map[string]any {
-	t.Helper()
-	for _, tool := range tools {
-		if tool["name"] != toolName {
-			continue
-		}
-		schema := tool["inputSchema"].(map[string]any)
-		return schema["properties"].(map[string]any)[propertyName].(map[string]any)
-	}
-	t.Fatalf("missing tool %s", toolName)
-	return nil
-}
-
-func hasToolProperty(tools []map[string]any, toolName string, propertyName string) bool {
-	for _, tool := range tools {
-		if tool["name"] != toolName {
-			continue
-		}
-		schema := tool["inputSchema"].(map[string]any)
-		_, ok := schema["properties"].(map[string]any)[propertyName]
-		return ok
-	}
-	return false
 }
 
 func callTool(

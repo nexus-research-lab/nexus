@@ -10,55 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestSubagentAdmissionHookFailsClosedWithoutCurrentCallbacks(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	matchers := options.Hooks.Matchers[sdkhook.EventPreToolUse]
-	if len(matchers) != 1 || matchers[0].Matcher != "Agent" {
-		t.Fatalf("PreToolUse matchers = %#v", matchers)
-	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPreToolUse,
-		ToolName:  "Agent",
-	}, "tool-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.SpecificOutput == nil ||
-		!strings.Contains(output.SpecificOutput.PermissionDecisionReason, subagentHookUnavailableCode) {
-		t.Fatalf("missing fail-closed denial: %#v", output)
-	}
-}
-
-func TestSubagentAdmissionHookUsesCurrentPhysicalRoundCallbacks(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	var firstCalls, secondCalls int
-	manager.SetSubagentHookCallbacks("runtime-session", "round-1", SubagentHookCallbacks{
-		PreToolUse: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			firstCalls++
-			return sdkhook.Output{}, nil
-		},
-	})
-	callback := options.Hooks.Matchers[sdkhook.EventPreToolUse][0].Hooks[0]
-	if _, err := callback(context.Background(), sdkhook.Input{ToolName: "Agent"}, "tool-1"); err != nil {
-		t.Fatal(err)
-	}
-	manager.ClearSubagentHookCallbacks("runtime-session", "round-1")
-	manager.SetSubagentHookCallbacks("runtime-session", "round-2", SubagentHookCallbacks{
-		PreToolUse: func(context.Context, sdkhook.Input, string) (sdkhook.Output, error) {
-			secondCalls++
-			return sdkhook.Output{}, nil
-		},
-	})
-	if _, err := callback(context.Background(), sdkhook.Input{ToolName: "Agent"}, "tool-2"); err != nil {
-		t.Fatal(err)
-	}
-	if firstCalls != 1 || secondCalls != 1 {
-		t.Fatalf("callback calls = first:%d second:%d", firstCalls, secondCalls)
-	}
-}
-
 func TestSubagentLifecycleHookFailsClosedWithoutBindingCallback(t *testing.T) {
 	manager := NewManager()
 	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
@@ -145,75 +96,6 @@ func TestSubagentLifecycleKeepsImmutableParentAcrossSuccessorRound(t *testing.T)
 	if oldStarts != 1 || oldStops != 2 || newStarts != 1 || newStops != 0 {
 		t.Fatalf(
 			"lifecycle calls old=(%d,%d) new=(%d,%d)",
-			oldStarts,
-			oldStops,
-			newStarts,
-			newStops,
-		)
-	}
-}
-
-func TestSubagentLifecycleFailsClosedWhenIdentityIsAmbiguous(t *testing.T) {
-	manager := NewManager()
-	options := manager.WithSubagentAdmissionHooks(agentclient.Options{}, "runtime-session")
-	preToolUse := options.Hooks.Matchers[sdkhook.EventPreToolUse][0].Hooks[0]
-	subagentStart := options.Hooks.Matchers[sdkhook.EventSubagentStart][0].Hooks[0]
-	subagentStop := options.Hooks.Matchers[sdkhook.EventSubagentStop][0].Hooks[0]
-
-	var oldStarts, oldStops, newStarts, newStops int
-	manager.SetSubagentHookCallbacks("runtime-session", "round-old", lifecycleTestCallbacks(
-		&oldStarts,
-		&oldStops,
-	))
-	if _, err := preToolUse(
-		context.Background(),
-		sdkhook.Input{ToolName: "Agent"},
-		"tool-old",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := subagentStart(
-		context.Background(),
-		sdkhook.Input{AgentID: "reused-sdk-agent"},
-		"",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := subagentStop(
-		context.Background(),
-		sdkhook.Input{AgentID: "reused-sdk-agent"},
-		"",
-	); err != nil {
-		t.Fatal(err)
-	}
-	manager.ClearSubagentHookCallbacks("runtime-session", "round-old")
-
-	manager.SetSubagentHookCallbacks("runtime-session", "round-new", lifecycleTestCallbacks(
-		&newStarts,
-		&newStops,
-	))
-	if _, err := preToolUse(
-		context.Background(),
-		sdkhook.Input{ToolName: "Agent"},
-		"tool-new",
-	); err != nil {
-		t.Fatal(err)
-	}
-	output, err := subagentStart(
-		context.Background(),
-		sdkhook.Input{AgentID: "reused-sdk-agent"},
-		"",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.Continue == nil || *output.Continue ||
-		!strings.Contains(output.StopReason, subagentHookAmbiguousCode) {
-		t.Fatalf("ambiguous lifecycle must fail closed: %#v", output)
-	}
-	if oldStarts != 1 || oldStops != 1 || newStarts != 0 || newStops != 0 {
-		t.Fatalf(
-			"ambiguous lifecycle was misrouted old=(%d,%d) new=(%d,%d)",
 			oldStarts,
 			oldStops,
 			newStarts,

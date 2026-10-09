@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -35,10 +34,6 @@ type fakePreferencesService struct {
 
 func (f fakePreferencesService) Get(_ context.Context, _ string) (preferencessvc.Preferences, error) {
 	return f.prefs, nil
-}
-
-func fixedNow() time.Time {
-	return time.Date(2026, 5, 14, 8, 0, 0, 0, time.UTC)
 }
 
 func newImagegenWorkspace(t *testing.T) string {

@@ -12,6 +12,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -19,21 +20,21 @@ import (
 // ShouldDeferGoalContinuation 避免隐藏 Goal 续跑抢占显式输入，并按 Codex 语义跳过 Plan 模式续跑。
 func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey string, agentID string) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false
 	}
-	if len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0 {
+	if len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0 {
 		return true
 	}
 	normalizedSessionKey, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("解析 Goal 续跑待发送队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	ctx = contextWithExactOwner(ctx, location.OwnerUserID)
-	items, err := s.inputQueue.Snapshot(location)
+	ctx = runtimehost.ContextWithExactOwner(ctx, location.OwnerUserID)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	if len(items) == 0 {
@@ -50,7 +51,7 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 // GoalContinuationTargetMissing 判断隐藏续跑目标 Agent 是否已被删除。
 func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey string, agentID string) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false, nil
 	}
 	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
@@ -66,7 +67,7 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 		return true, nil
 	}
 	if err == nil && agentValue != nil {
-		ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+		ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 	}
 	return false, err
 }
@@ -78,12 +79,12 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 ) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
-	if s == nil || s.agents == nil || sessionKey == "" || agentID == "" {
+	if s.Agents == nil || sessionKey == "" || agentID == "" {
 		return false
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
 	}
 	permissionMode := agentValue.Options.PermissionMode
@@ -94,7 +95,7 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 		sessionKey,
 	)
 	if sessionErr != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"读取 Goal 续跑 Session plan mode 状态失败",
 			"session_key", sessionKey,
 			"agent_id", agentID,
@@ -109,51 +110,19 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
-	if r.service.goals == nil || r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID) {
+	shouldDefer := func(protocol.GoalContinuation) bool {
+		return r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID)
+	}
+	if shouldDefer(protocol.GoalContinuation{}) {
 		return
 	}
-	plan, err := goalsvc.PrepareContinuationForDispatch(
-		ctx,
-		r.service.goals,
-		r.sessionKey,
-		r.roundID,
-		func(protocol.GoalContinuation) bool {
-			return r.service.ShouldDeferGoalContinuation(ctx, r.sessionKey, r.agent.AgentID)
-		},
-	)
-	if err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		r.service.loggerFor(ctx).Warn("准备 Goal 自动续跑失败",
-			"session_key", r.sessionKey,
-			"round_id", r.roundID,
-			"err", err,
-		)
-		return
-	}
-	if plan == nil {
-		return
-	}
-
-	if err = r.service.DispatchGoalContinuation(ctx, *plan); err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		r.recordGoalContinuationDispatchFailure(ctx, *plan, err)
-		r.service.loggerFor(ctx).Warn("启动 Goal 自动续跑失败",
-			"session_key", r.sessionKey,
-			"round_id", plan.RoundID,
-			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-	}
+	runtimehost.RunGoalContinuation(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, r.roundID, shouldDefer, r.service.DispatchGoalContinuation)
 }
 
 // DispatchGoalContinuation 在同一启动边界内重新校验 prepared plan 并注册 runtime round。
 // 自动续跑和进程恢复共享此入口，避免恢复路径绕过显式用户输入。
 func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
-	if s == nil || s.goals == nil {
+	if s.goals == nil {
 		return errors.New("dm goal continuation provider is not configured")
 	}
 	sessionKey := strings.TrimSpace(plan.Goal.SessionKey)
@@ -169,7 +138,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if agentValue == nil || strings.TrimSpace(agentValue.OwnerUserID) == "" {
 		return errors.New("dm goal continuation target agent has no owner")
 	}
-	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 
 	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return err
@@ -215,7 +184,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				RootRoundID:       strings.TrimSpace(validated.RoundID),
 			},
 			continuationStartAdmission: func(admissionCtx context.Context) error {
-				return markGoalContinuationStarted(admissionCtx, s.goals, *validated)
+				return runtimehost.MarkGoalContinuationStarted(admissionCtx, s.goals, *validated)
 			},
 		}, chatExecutionInline)
 	}
@@ -229,17 +198,17 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 
 // shouldDeferGoalContinuationWithoutQueueDispatch 只读取最终启动条件，不在已持锁区间递归派发队列。
 func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Context, sessionKey string, agentID string) bool {
-	if len(s.runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0 {
+	if len(s.Runtime.GetRunningRoundIDs(strings.TrimSpace(sessionKey))) > 0 {
 		return true
 	}
 	_, location, err := s.resolveInputQueueLocation(ctx, sessionKey, agentID)
 	if err != nil {
-		s.loggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("解析 Goal 续跑最终队列位置失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	items, err := s.inputQueue.Snapshot(location)
+	items, err := s.InputQueue.Snapshot(location)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(
@@ -247,54 +216,4 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 		sessionKey,
 		agentID,
 	)
-}
-
-func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
-	if r == nil || r.service == nil || r.service.goals == nil || dispatchErr == nil {
-		return
-	}
-	reason := strings.TrimSpace(dispatchErr.Error())
-	if reason == "" {
-		reason = "Goal continuation dispatch failed before runtime start"
-	}
-	if err := retryGoalContinuationPlan(ctx, r.service.goals, plan, reason); err != nil &&
-		!goalsvc.IsExpectedMutationError(err) {
-		r.service.loggerFor(ctx).Warn("记录 Goal 续跑投递失败原因失败",
-			"session_key", plan.Goal.SessionKey,
-			"goal_id", plan.Goal.ID,
-			"round_id", plan.RoundID,
-			"err", err,
-		)
-	}
-}
-
-type durableGoalContinuationLauncher interface {
-	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
-	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
-}
-
-type durableGoalContinuationSettler interface {
-	SettleContinuationPlan(context.Context, string, string, int64) error
-}
-
-func settleGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
-	if durable, ok := provider.(durableGoalContinuationSettler); ok {
-		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
-	}
-	return nil
-}
-
-func markGoalContinuationStarted(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation) error {
-	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
-		return durable.MarkContinuationPlanStarted(ctx, plan)
-	}
-	return nil
-}
-
-func retryGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
-	if durable, ok := provider.(durableGoalContinuationLauncher); ok {
-		return durable.RetryContinuationPlan(ctx, plan, reason)
-	}
-	_, err := provider.RecordContinuationFailure(ctx, plan.Goal.ID, plan.RoundID, reason, plan.Goal.ObjectiveRevision())
-	return err
 }

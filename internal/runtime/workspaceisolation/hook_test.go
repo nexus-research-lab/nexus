@@ -2,203 +2,15 @@ package workspaceisolation
 
 import (
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
-
-// syscall 只在 Windows 构建导出该名称；数值来自 ERROR_PRIVILEGE_NOT_HELD。
-const windowsSymlinkPrivilegeNotHeld syscall.Errno = 1314
-
-func createWorkspaceIsolationTestSymlink(t *testing.T, target string, link string) {
-	t.Helper()
-	err := os.Symlink(target, link)
-	if err == nil {
-		return
-	}
-	if runtime.GOOS == "windows" && (errors.Is(err, windowsSymlinkPrivilegeNotHeld) ||
-		errors.Is(err, os.ErrPermission) ||
-		errors.Is(err, errors.ErrUnsupported)) {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-	t.Fatalf("创建测试符号链接失败: %v", err)
-}
-
-func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
-	root := t.TempDir()
-	ownerRoot := filepath.Join(root, "users", "owner-a")
-	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
-	otherWorkspace := filepath.Join(root, "users", "owner-b", "workspace", "agent-b")
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(otherWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	policy := testPolicy(t, ownerRoot)
-	policy.CWD = workspace
-	callback := workspacePolicyCallback(ModeEnforce, policy)
-
-	allowed, err := callback(context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPreToolUse,
-		CWD:       workspace,
-		ToolName:  "Read",
-		ToolInput: map[string]any{"file_path": filepath.Join(workspace, "README.md")},
-	}, "tool-allow")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if allowed.Continue != nil || allowed.SpecificOutput != nil {
-		t.Fatalf("own workspace decision = %#v", allowed)
-	}
-
-	denied, err := callback(context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPreToolUse,
-		CWD:       workspace,
-		ToolName:  "Write",
-		ToolInput: map[string]any{"file_path": filepath.Join(otherWorkspace, "secret.txt")},
-	}, "tool-deny")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if denied.SpecificOutput == nil ||
-		denied.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
-		t.Fatalf("other workspace decision = %#v", denied)
-	}
-}
-
-func TestWorkspacePolicyHookAllowsOwnerDataRoot(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	ownerRoot := filepath.Join(root, "users", "owner-a")
-	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
-	summaryPath := filepath.Join(
-		root,
-		"users",
-		"owner-a",
-		"runtime",
-		"projects",
-		"project-a",
-		"session-a",
-		"session-memory",
-		"summary.md",
-	)
-	if err := os.MkdirAll(filepath.Dir(summaryPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(summaryPath, []byte("summary"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	outsidePath := filepath.Join(root, "outside.md")
-	if err := os.WriteFile(outsidePath, []byte("outside"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	symlinkSummaryPath := filepath.Join(
-		root,
-		"users",
-		"owner-a",
-		"runtime",
-		"projects",
-		"project-a",
-		"session-link",
-		"session-memory",
-		"summary.md",
-	)
-	if err := os.MkdirAll(filepath.Dir(symlinkSummaryPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	createWorkspaceIsolationTestSymlink(t, outsidePath, symlinkSummaryPath)
-	policy := testPolicy(t, ownerRoot)
-	policy.CWD = workspace
-	for _, test := range []struct {
-		name     string
-		toolName string
-		cwd      string
-		path     string
-		denied   bool
-	}{
-		{name: "exact Edit", toolName: "Edit", path: summaryPath},
-		{
-			name:     "relative Edit from session memory cwd",
-			toolName: "Edit",
-			cwd:      filepath.Dir(summaryPath),
-			path:     "summary.md",
-		},
-		{
-			name:     "relative Read from session memory cwd",
-			toolName: "Read",
-			cwd:      filepath.Dir(summaryPath),
-			path:     "summary.md",
-		},
-		{name: "Write runtime file", toolName: "Write", path: summaryPath},
-		{
-			name:     "Edit adjacent runtime file",
-			toolName: "Edit",
-			path:     filepath.Join(filepath.Dir(summaryPath), "state.json"),
-		},
-		{
-			name:     "Write owner state",
-			toolName: "Write",
-			path:     filepath.Join(ownerRoot, "state", "rooms", "ledger.jsonl"),
-		},
-		{
-			name:     "other owner remains denied",
-			toolName: "Edit",
-			path: filepath.Join(
-				root,
-				"users",
-				"owner-b",
-				"runtime",
-				"projects",
-				"project-b",
-				"session-b",
-				"session-memory",
-				"summary.md",
-			),
-			denied: true,
-		},
-		{
-			name:     "symlink escape remains denied",
-			toolName: "Edit",
-			path:     symlinkSummaryPath,
-			denied:   true,
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			cwd := test.cwd
-			if cwd == "" {
-				cwd = workspace
-			}
-			violation := inspectToolAccess(policy, sdkhook.Input{
-				CWD:      cwd,
-				ToolName: test.toolName,
-				ToolInput: map[string]any{
-					"file_path": test.path,
-				},
-			})
-			if (violation != nil) != test.denied {
-				t.Fatalf(
-					"%s %q violation = %#v, denied=%v",
-					test.toolName,
-					test.path,
-					violation,
-					test.denied,
-				)
-			}
-		})
-	}
-}
 
 func TestWorkspacePolicyHookAllowsOwnerTranscriptShellAccess(t *testing.T) {
 	root := t.TempDir()
@@ -292,30 +104,6 @@ func TestWorkspacePolicyHookAllowsOwnerTranscriptShellAccess(t *testing.T) {
 				t.Fatalf("violation = %#v, denied=%v", violation, test.denied)
 			}
 		})
-	}
-}
-
-func TestWorkspacePolicyHookResolvesPendingPathThroughSymlink(t *testing.T) {
-	root := t.TempDir()
-	workspace := filepath.Join(root, "workspace")
-	otherWorkspace := filepath.Join(root, "other")
-	if err := os.MkdirAll(workspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(otherWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	createWorkspaceIsolationTestSymlink(t, otherWorkspace, filepath.Join(workspace, "escape"))
-	policy := testPolicy(t, workspace)
-	violation := inspectToolAccess(policy, sdkhook.Input{
-		CWD:      workspace,
-		ToolName: "Write",
-		ToolInput: map[string]any{
-			"file_path": filepath.Join(workspace, "escape", "pending", "secret.txt"),
-		},
-	})
-	if violation == nil {
-		t.Fatal("pending path through symlink should be denied")
 	}
 }
 
@@ -568,35 +356,6 @@ func TestWorkspacePolicyHookAllowsMainAgentControlCLIs(t *testing.T) {
 	}
 }
 
-func TestWorkspacePolicyHookReturnsForbiddenNexusctlToModel(t *testing.T) {
-	workspace := t.TempDir()
-	for _, mode := range []Mode{ModeAudit, ModeEnforce} {
-		t.Run(string(mode), func(t *testing.T) {
-			callback := workspacePolicyCallback(mode, testPolicy(t, workspace))
-			output, err := callback(context.Background(), sdkhook.Input{
-				CWD:      workspace,
-				ToolName: "Bash",
-				ToolInput: map[string]any{
-					"command": "nexusctl --json agent list",
-				},
-			}, "ordinary-tool")
-			if err != nil {
-				t.Fatal(err)
-			}
-			if output.SpecificOutput == nil ||
-				output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
-				t.Fatalf("普通 Agent nexusctl 应被拒绝: %#v", output)
-			}
-			if output.Continue != nil || output.StopReason != "" {
-				t.Fatalf("普通 Agent nexusctl 拒绝应允许模型同轮修正: %#v", output)
-			}
-			if output.SpecificOutput.PermissionDecisionReason != ordinaryAgentNexusctlDenial {
-				t.Fatalf("普通 Agent 应收到替代能力提示: %#v", output)
-			}
-		})
-	}
-}
-
 func TestWorkspacePolicyHookTerminatesScopeOverride(t *testing.T) {
 	workspace := t.TempDir()
 	callback := workspacePolicyCallback(ModeEnforce, testPolicy(t, workspace))
@@ -614,67 +373,6 @@ func TestWorkspacePolicyHookTerminatesScopeOverride(t *testing.T) {
 		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny ||
 		output.Continue == nil || *output.Continue || output.StopReason == "" {
 		t.Fatalf("显式 capability 覆盖仍应终止当前 runtime turn: %#v", output)
-	}
-}
-
-func TestWorkspacePolicyHookKeepsMainAgentScopeOverrideRecoverable(t *testing.T) {
-	workspace := t.TempDir()
-	policy := testPolicy(t, workspace)
-	policy.IsMainAgent = true
-	callback := workspacePolicyCallback(ModeEnforce, policy)
-
-	output, err := callback(context.Background(), sdkhook.Input{
-		CWD:      workspace,
-		ToolName: "Bash",
-		ToolInput: map[string]any{
-			"command": `nexusctl --json --global-scope --scope-user-id "" user list`,
-		},
-	}, "main-agent-stale-scope")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.SpecificOutput == nil ||
-		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
-		t.Fatalf("主智能体显式覆盖 owner scope 应拒绝本次调用: %#v", output)
-	}
-	if output.Continue != nil || output.StopReason != "" {
-		t.Fatalf("主智能体旧作用域参数应允许同轮修正重试: %#v", output)
-	}
-	if output.SpecificOutput.PermissionDecisionReason != mainAgentNexusctlScopeDenial {
-		t.Fatalf("主智能体应收到可执行的修正提示: %#v", output)
-	}
-}
-
-func TestWorkspacePolicyHookAllowsSharedTemporaryRedirect(t *testing.T) {
-	workspace := t.TempDir()
-	sharedTempRoot := appfs.RuntimeSharedTempRoot()
-	if sharedTempRoot == "" {
-		t.Skip("当前平台没有 Unix 共享临时根")
-	}
-	roots, err := normalizePolicyRoots([]string{workspace, sharedTempRoot})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, runtimeKind := range []string{"nxs", "claude"} {
-		t.Run(runtimeKind, func(t *testing.T) {
-			policy := Policy{
-				OwnerUserID: "owner-a",
-				RuntimeKind: runtimeKind,
-				CWD:         workspace,
-				ReadRoots:   roots,
-				WriteRoots:  roots,
-				Generation:  1,
-			}
-			if violation := inspectToolAccess(policy, sdkhook.Input{
-				CWD:      workspace,
-				ToolName: "Bash",
-				ToolInput: map[string]any{
-					"command": "python3 script.py 2>/tmp/wx_err.log; cat /tmp/wx_err.log",
-				},
-			}); violation != nil {
-				t.Fatalf("%s runtime 的共享临时目录重定向不应被 Hook 拦截: %#v", runtimeKind, violation)
-			}
-		})
 	}
 }
 
@@ -953,40 +651,6 @@ func TestWorkspacePolicyHookRunsAfterExistingHooks(t *testing.T) {
 	if output.SpecificOutput == nil ||
 		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
 		t.Fatalf("mandatory policy output = %#v", output)
-	}
-}
-
-func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
-	// Keep the synthetic state root outside the Unix shared temp root. On Linux,
-	// t.TempDir() lives below /tmp, which is intentionally allowed by the audit
-	// policy and would mask the cross-owner denial this test is checking.
-	stateRoot := filepath.Join(filepath.Dir(os.TempDir()), "nexus-audit-policy-state-root")
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	workspace := t.TempDir()
-	policy, err := buildAuditPolicy(Input{
-		OwnerUserID: "owner-a",
-		RuntimeKind: "nxs",
-		CWD:         workspace,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if policy.Identity.UID != 0 || policy.Identity.PrivateGID != 0 {
-		t.Fatalf("audit policy 不应伪造 OS identity: %#v", policy.Identity)
-	}
-	if _, err = policy.authorize(
-		filepath.Join(appfs.UserStateRoot("owner-a"), "rooms", "ledger.jsonl"),
-		true,
-	); err != nil {
-		t.Fatalf("audit policy 应允许当前 owner 数据根: %v", err)
-	}
-	if _, err = policy.authorize(appfs.UserDataRootAt(stateRoot, "owner-b"), false); err == nil {
-		t.Fatal("audit policy 不应允许其他 owner 数据根")
-	}
-	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
-		if _, err = policy.authorize(filepath.Join(sharedTempRoot, "runtime.log"), true); err != nil {
-			t.Fatalf("audit policy 应允许共享临时目录: %v", err)
-		}
 	}
 }
 

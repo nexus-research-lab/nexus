@@ -113,7 +113,7 @@ func (c *TelegramChannel) SetLogger(logger *slog.Logger) {
 }
 
 func (c *TelegramChannel) Start(ctx context.Context) error {
-	if strings.TrimSpace(c.token) == "" {
+	if c.token == "" {
 		return nil
 	}
 
@@ -162,7 +162,7 @@ func (c *TelegramChannel) redactError(err error) error {
 		return nil
 	}
 	text := strings.TrimSpace(err.Error())
-	token := strings.TrimSpace(c.token)
+	token := c.token
 	if token != "" {
 		text = strings.ReplaceAll(text, "/bot"+token+"/", "/bot<redacted>/")
 		text = strings.ReplaceAll(text, "bot"+token, "bot<redacted>")

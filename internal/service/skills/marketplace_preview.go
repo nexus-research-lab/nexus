@@ -152,7 +152,7 @@ func extractPreviewMarkdown(html string) string {
 		}
 		remaining = rest
 	}
-	return strings.TrimSpace(best)
+	return best
 }
 
 func normalizePreviewHTMLFragment(fragment string) string {

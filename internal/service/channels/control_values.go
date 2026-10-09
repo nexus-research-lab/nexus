@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
@@ -100,7 +101,7 @@ func nullStringValue(value sql.NullString) string {
 }
 
 func firstNonEmpty(values ...string) string {
-	return channelcontract.FirstNonEmpty(values...)
+	return textutil.FirstNonEmpty(values...)
 }
 
 func normalizeStringMap(values map[string]string) map[string]string {

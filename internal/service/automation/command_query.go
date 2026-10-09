@@ -451,7 +451,7 @@ func (s *Service) runtimeCommandReport(
 	}
 	timezone := strings.TrimSpace(input.Timezone)
 	if timezone == "" {
-		timezone = strings.TrimSpace(actor.DefaultTimezone)
+		timezone = actor.DefaultTimezone
 	}
 	return s.GetDailyReport(ctx, automationdomain.ScheduledTaskDailyReportInput{
 		Date: strings.TrimSpace(input.Date), Timezone: timezone, AgentID: agentID, JobID: jobID,

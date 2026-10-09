@@ -2,9 +2,11 @@ package dm
 
 import (
 	"context"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"strings"
 	"sync"
+
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -95,7 +97,7 @@ func (p *fakeGoalContextProvider) RecordContinuationProgress(_ context.Context, 
 	return nil, nil
 }
 
-func (p *fakeGoalContextProvider) RecordContinuationFailure(_ context.Context, _ string, _ string, reason string, revisions ...int64) (*protocol.Goal, error) {
+func (p *fakeGoalContextProvider) RecordContinuationRuntimeFailure(_ context.Context, _ string, _ goalsvc.ContinuationRuntimeIdentity, reason string, revisions ...int64) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))
@@ -215,29 +217,11 @@ func (p *fakeGoalContextProvider) recordedProgress() []bool {
 	return append([]bool(nil), p.progress...)
 }
 
-func (p *fakeGoalContextProvider) recordedFailures() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]string(nil), p.failures...)
-}
-
-func (p *fakeGoalContextProvider) recordedCompletionMisses() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]string(nil), p.completionMisses...)
-}
-
 func firstTestRevision(revisions []int64) int64 {
 	if len(revisions) == 0 {
 		return 0
 	}
 	return revisions[0]
-}
-
-func (p *fakeGoalContextProvider) runtimeContextCallCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.runtimeCalls
 }
 
 func goalToolResultAssistantMessage(
@@ -258,18 +242,6 @@ func goalToolResultAssistantMessage(
 		"content": []map[string]any{
 			{"type": "tool_use", "id": toolUseID, "name": toolName},
 			{"type": "tool_result", "tool_use_id": toolUseID, "is_error": isError},
-		},
-	}
-}
-
-func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.Message {
-	return protocol.Message{
-		"message_id": "assistant-final",
-		"role":       "assistant",
-		"usage": map[string]any{
-			"input_tokens":  inputTokens,
-			"output_tokens": outputTokens,
-			"total_tokens":  inputTokens + outputTokens,
 		},
 	}
 }

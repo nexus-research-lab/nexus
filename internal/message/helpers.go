@@ -9,30 +9,13 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
 	noContentMessage          = "(no content)"
 	interruptedToolUseMessage = "[Request interrupted by user for tool use]"
 )
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func normalizeString(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
-}
 
 func rawString(value any) string {
 	typed, ok := value.(string)
@@ -155,7 +138,7 @@ func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any 
 		payload := cloneMapOrEmpty(block.RawPayload())
 		sourceType := string(block.Type())
 		payload["type"] = normalizeBlockType(sourceType)
-		if normalizedType := normalizeString(payload["type"]); sourceType != normalizedType {
+		if normalizedType := textutil.AnyString(payload["type"]); sourceType != normalizedType {
 			payload["source_type"] = sourceType
 		}
 		mergeNormalizedBlockPayload(payload, block)
@@ -174,7 +157,7 @@ func hasPublicAssistantContent(blocks []map[string]any) bool {
 		return true
 	}
 	block := blocks[0]
-	if normalizeString(block["type"]) != "text" {
+	if textutil.AnyString(block["type"]) != "text" {
 		return true
 	}
 	text := strings.TrimSpace(rawString(block["text"]))
@@ -187,7 +170,7 @@ func normalizeContentBlock(raw any) map[string]any {
 		return nil
 	}
 	result := maps.Clone(payload)
-	if value := normalizeString(result["type"]); value != "" {
+	if value := textutil.AnyString(result["type"]); value != "" {
 		result["type"] = normalizeBlockType(value)
 		if result["type"] != value {
 			result["source_type"] = value

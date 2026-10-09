@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -113,9 +114,9 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 
 func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {
 	if scope.isMainAgent {
-		return firstNonEmptyPrompt(b.config.MainAgentSystemPrompt, defaultMainAgentSystemPrompt)
+		return textutil.FirstNonEmpty(b.config.MainAgentSystemPrompt, defaultMainAgentSystemPrompt)
 	}
-	return firstNonEmptyPrompt(b.config.BaseSystemPrompt, defaultBaseSystemPrompt)
+	return textutil.FirstNonEmpty(b.config.BaseSystemPrompt, defaultBaseSystemPrompt)
 }
 
 func (scope promptBuildScope) workspacePromptFiles() []string {
@@ -131,15 +132,6 @@ func appendPromptSection(sections []string, section string) []string {
 		return sections
 	}
 	return append(sections, section)
-}
-
-func firstNonEmptyPrompt(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func isMainAgentPrompt(agentValue *protocol.Agent, defaultAgentID string) bool {
@@ -265,7 +257,7 @@ func readOptionalWorkspacePromptFile(
 }
 
 func openPromptWorkspace(scope promptBuildScope) (*confinedfs.Root, error) {
-	if strings.TrimSpace(scope.ownerUserID) != "" {
+	if scope.ownerUserID != "" {
 		return workspacestore.New(scope.workspaceRoot).OpenOwnerWorkspacePath(
 			scope.ownerUserID,
 			scope.workspacePath,
@@ -327,7 +319,7 @@ func loadRuntimeEmotionViewForScope(
 }
 
 func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionView) string {
-	name := strings.TrimSpace(agentValueName(agentValue))
+	name := agentValueName(agentValue)
 	if name == "" {
 		name = "Nexus"
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 // roomSlotRuntimeState 只负责 runtime 生命周期，不持有 Goal 或 delivery 数据。
@@ -132,35 +133,18 @@ func cloneGoalCollaborationBinding(
 
 // roomSlotGoalState 负责 Goal accounting、固定起始 capability、服务端确认 revision 与协作进度。
 type roomSlotGoalState struct {
-	mu                      sync.RWMutex
-	sessionKey              string
-	context                 string
-	idForUsage              string
-	childIDForUsage         string
-	collaborationBinding    *protocol.GoalCollaborationBinding
-	mutationAuthority       roomGoalMutationAuthority
-	authorityOnce           sync.Once
-	authorityState          *runtimectx.GoalAuthorityState
-	objectiveRevision       atomic.Int64
-	runtimeIgnored          bool
-	usage                   *goalsvc.RuntimeUsageAccumulator
-	usageStartedAt          time.Time
-	lastAssistant           protocol.Message
-	completionCandidateID   string
-	completionAssistant     protocol.Message
-	completionReceipt       protocol.GoalCompletionReceipt
-	completionReceiptStored bool
-	toolProgress            bool
-	commandReceiptSequence  uint64
-	pendingCollaboration    bool
-	subagentTasks           map[string]struct{}
-	subagentUsagePending    map[string]goalsvc.SubagentUsageObservation
-	usageRetrying           bool
-	subagentHistory         bool
-	usageClaimPending       bool
-	usageScopeConsumed      bool
-	terminalSettled         bool
-	resultUsageWritten      bool
+	// GoalRoundState 是与 DM/Room 共用的每轮 Goal 状态；其 Mu 保护全部 Goal 字段。
+	runtimehost.GoalRoundState
+	sessionKey           string
+	collaborationBinding *protocol.GoalCollaborationBinding
+	mutationAuthority    roomGoalMutationAuthority
+	authorityOnce        sync.Once
+	authorityState       *runtimectx.GoalAuthorityState
+	objectiveRevision    atomic.Int64
+	runtimeIgnored       bool
+	pendingCollaboration bool
+	subagentHistory      bool
+	terminalSettled      bool
 }
 
 // roomSlotCursorState 负责 public/private context 的消费边界。
@@ -302,13 +286,6 @@ func (s *activeRoomSlot) boundGoalAuthority() (runtimectx.GoalAuthority, bool) {
 		return runtimectx.GoalAuthority{}, false
 	}
 	return state.LoadGoalAuthority()
-}
-
-func (s *activeRoomSlot) currentGoalObjectiveRevision() int64 {
-	if s == nil {
-		return 0
-	}
-	return s.mutable.goal.objectiveRevision.Load()
 }
 
 func (s *activeRoomSlot) adoptGoalObjectiveRevision(revision int64) {
@@ -469,7 +446,7 @@ func (slot *activeRoomSlot) getErrorMessage() string {
 	}
 	slot.mutable.runtime.mu.RLock()
 	defer slot.mutable.runtime.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.runtime.errorMessage)
+	return slot.mutable.runtime.errorMessage
 }
 
 func (slot *activeRoomSlot) isTerminal() bool {
@@ -634,24 +611,6 @@ func (slot *activeRoomSlot) getClient() runtimectx.Client {
 	return slot.mutable.runtime.client
 }
 
-func (slot *activeRoomSlot) setResultUsageWritten() {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.resultUsageWritten = true
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) resultUsageWasWritten() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.resultUsageWritten
-}
-
 func (slot *activeRoomSlot) setCancel(cancel context.CancelFunc) {
 	if slot == nil {
 		return
@@ -688,7 +647,7 @@ func (slot *activeRoomSlot) runtimeKind() string {
 	}
 	slot.mutable.runtime.mu.RLock()
 	defer slot.mutable.runtime.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.runtime.runtimeKind)
+	return slot.mutable.runtime.runtimeKind
 }
 
 func (slot *activeRoomSlot) setContextWindow(window int) {
@@ -731,129 +690,82 @@ func (slot *activeRoomSlot) beginGoalUsage() {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.mutable.goal.idForUsage) != "")
-	slot.mutable.goal.usageStartedAt = time.Now()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.Usage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.mutable.goal.IDForUsage) != "")
+	slot.mutable.goal.UsageStartedAt = time.Now()
 	slot.mutable.goal.terminalSettled = false
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageAccumulator) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usage = usage
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) startGoalUsageFromRoundStartIfInactive() (protocol.GoalUsage, bool) {
-	if slot == nil {
-		return protocol.GoalUsage{}, false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active() {
-		return protocol.GoalUsage{}, false
-	}
-	if slot.mutable.goal.usage == nil {
-		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
-	}
-	// 模型在本轮创建 Goal 时，当前 slot 的整轮工作都属于这个 Goal。
-	return slot.mutable.goal.usage.ActivateFromRoundStart()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	if slot.mutable.goal.usage == nil {
-		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
+	slot.mutable.goal.Mu.Lock()
+	if slot.mutable.goal.Usage == nil {
+		slot.mutable.goal.Usage = goalsvc.NewRuntimeUsageAccumulator(false)
 	}
-	slot.mutable.goal.usage.Reset(snapshot)
+	slot.mutable.goal.Usage.Reset(snapshot)
 	slot.mutable.goal.terminalSettled = false
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) goalUsageDelta(snapshot goalsvc.RuntimeUsageSnapshot) (protocol.GoalUsage, bool, bool) {
-	if slot == nil {
-		return protocol.GoalUsage{}, false, false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usage == nil {
-		return protocol.GoalUsage{}, false, false
-	}
-	usage, ok := slot.mutable.goal.usage.Delta(snapshot)
-	return usage, ok, true
-}
-
-func (slot *activeRoomSlot) goalUsageActive() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	return slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalUsageActiveForGoal(goalID string) bool {
 	if slot == nil || strings.TrimSpace(goalID) == "" {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.goal.idForUsage) == strings.TrimSpace(goalID) &&
-		slot.mutable.goal.usage != nil &&
-		slot.mutable.goal.usage.Active()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return strings.TrimSpace(slot.mutable.goal.IDForUsage) == strings.TrimSpace(goalID) &&
+		slot.mutable.goal.Usage != nil &&
+		slot.mutable.goal.Usage.Active()
 }
 
 func (slot *activeRoomSlot) closeGoalUsage() {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	if slot.mutable.goal.usage != nil {
-		slot.mutable.goal.usage.Close()
+	slot.mutable.goal.Mu.Lock()
+	if slot.mutable.goal.Usage != nil {
+		slot.mutable.goal.Usage.Close()
 	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) clearGoalUsage() {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	if slot.mutable.goal.usage != nil {
-		slot.mutable.goal.usage.Close()
+	slot.mutable.goal.Mu.Lock()
+	if slot.mutable.goal.Usage != nil {
+		slot.mutable.goal.Usage.Close()
 	}
-	slot.mutable.goal.idForUsage = ""
-	slot.mutable.goal.childIDForUsage = ""
+	slot.mutable.goal.IDForUsage = ""
+	slot.mutable.goal.ChildIDForUsage = ""
 	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
-	slot.mutable.goal.usageClaimPending = false
+	slot.mutable.goal.UsageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
 	if authority := slot.ensureResponsibilityAuthorityState(); authority != nil {
 		authority.ClearGoalAuthority()
 	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) setGoalUsageTerminalSettled(settled bool) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.terminalSettled = settled
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalUsageTerminalSettled() bool {
 	if slot == nil {
 		return true
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.terminalSettled
 }
 
@@ -861,43 +773,43 @@ func (slot *activeRoomSlot) goalUsageSettlementRequired() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.usage != nil ||
-		strings.TrimSpace(slot.mutable.goal.idForUsage) != "" ||
-		strings.TrimSpace(slot.mutable.goal.childIDForUsage) != ""
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.Usage != nil ||
+		strings.TrimSpace(slot.mutable.goal.IDForUsage) != "" ||
+		strings.TrimSpace(slot.mutable.goal.ChildIDForUsage) != ""
 }
 
 func (slot *activeRoomSlot) setGoalUsageClaimPending(pending bool) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usageClaimPending = pending
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.UsageClaimPending = pending
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalUsageClaimPending() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.usageClaimPending
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.UsageClaimPending
 }
 
 func (slot *activeRoomSlot) beginGoalUsageFinalizing() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usage == nil ||
-		!slot.mutable.goal.usage.Active() ||
-		strings.TrimSpace(slot.mutable.goal.idForUsage) == "" {
+	slot.mutable.goal.Mu.Lock()
+	defer slot.mutable.goal.Mu.Unlock()
+	if slot.mutable.goal.Usage == nil ||
+		!slot.mutable.goal.Usage.Active() ||
+		strings.TrimSpace(slot.mutable.goal.IDForUsage) == "" {
 		return false
 	}
-	slot.mutable.goal.usage.BeginFinalizing()
+	slot.mutable.goal.Usage.BeginFinalizing()
 	return true
 }
 
@@ -905,9 +817,9 @@ func (slot *activeRoomSlot) goalUsageStartedAt() time.Time {
 	if slot == nil {
 		return time.Time{}
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.usageStartedAt
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.UsageStartedAt
 }
 
 func (slot *activeRoomSlot) setInterruptReason(reason string) {
@@ -1001,24 +913,6 @@ func (slot *activeRoomSlot) suppressOutput() {
 	slot.mutable.delivery.mu.Unlock()
 }
 
-func (slot *activeRoomSlot) publicMessageWasPublished() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.delivery.mu.Lock()
-	defer slot.mutable.delivery.mu.Unlock()
-	return slot.mutable.delivery.publicMessagePublished
-}
-
-func (slot *activeRoomSlot) setPendingStream(events []protocol.EventMessage) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.delivery.mu.Lock()
-	slot.mutable.delivery.pendingStream = slices.Clone(events)
-	slot.mutable.delivery.mu.Unlock()
-}
-
 func (slot *activeRoomSlot) markPublicMessagePublished() {
 	if slot == nil {
 		return
@@ -1090,230 +984,52 @@ func (slot *activeRoomSlot) markCancelled() bool {
 	return true
 }
 
-func (slot *activeRoomSlot) rememberGoalAssistantMessage(message protocol.Message) {
-	if slot == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.lastAssistant = protocol.Clone(message)
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) lastGoalAssistantMessage() protocol.Message {
-	if slot == nil {
-		return nil
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return protocol.Clone(slot.mutable.goal.lastAssistant)
-}
-
 func (slot *activeRoomSlot) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
-	if slot == nil {
-		return nil
-	}
-	state := slot.ensureCommandReceiptState()
-	slot.mutable.goal.mu.Lock()
-	receipts, sequence := state.Since(slot.mutable.goal.commandReceiptSequence)
-	slot.mutable.goal.commandReceiptSequence = sequence
-	slot.mutable.goal.mu.Unlock()
-	return receipts
+	return slot.mutable.goal.ConsumeCommandReceipts(slot.ensureCommandReceiptState())
 }
 
 func (slot *activeRoomSlot) markGoalCompletionCandidate(goalID string) {
 	if slot == nil || strings.TrimSpace(goalID) == "" {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.completionCandidateID = strings.TrimSpace(goalID)
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) hasGoalCompletionCandidate() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.goal.completionCandidateID) != ""
-}
-
-func (slot *activeRoomSlot) rememberGoalCompletionAssistant(message protocol.Message) {
-	if slot == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	if slot.mutable.goal.completionCandidateID != "" {
-		slot.mutable.goal.completionAssistant = protocol.Clone(message)
-	}
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) goalCompletionReceiptSnapshot() (
-	string,
-	protocol.Message,
-	protocol.GoalCompletionReceipt,
-	bool,
-) {
-	if slot == nil {
-		return "", nil, protocol.GoalCompletionReceipt{}, false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return strings.TrimSpace(slot.mutable.goal.completionCandidateID),
-		protocol.Clone(slot.mutable.goal.completionAssistant),
-		slot.mutable.goal.completionReceipt,
-		slot.mutable.goal.completionReceiptStored
-}
-
-func (slot *activeRoomSlot) markGoalCompletionReceiptStored(
-	goalID string,
-	receipt protocol.GoalCompletionReceipt,
-) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	if strings.TrimSpace(slot.mutable.goal.completionCandidateID) == strings.TrimSpace(goalID) {
-		slot.mutable.goal.completionReceipt = receipt
-		slot.mutable.goal.completionReceiptStored = true
-	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.CompletionCandidateID = strings.TrimSpace(goalID)
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) rememberSubagentTaskMessage(message protocol.Message) {
-	if slot == nil {
-		return
-	}
-	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(anyString(metadata["task_id"]))
-	if taskID == "" {
-		return
-	}
-	subtype := strings.TrimSpace(anyString(metadata["subtype"]))
-	status := strings.TrimSpace(anyString(metadata["status"]))
-	if !messagepkg.IsSubagentTaskMetadata(metadata) && !slot.knowsSubagentTask(taskID) {
+	if slot == nil || !slot.mutable.goal.RememberSubagentTaskMessage(message) {
 		return
 	}
 	runtimeKind := slot.runtimeKind()
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if runtimeKind != "" {
+	slot.mutable.goal.Mu.Lock()
+	defer slot.mutable.goal.Mu.Unlock()
+	if metadata, _ := message["metadata"].(map[string]any); metadata != nil && runtimeKind != "" {
 		metadata["runtime_kind"] = runtimeKind
 	}
 	slot.mutable.goal.subagentHistory = true
-	if slot.mutable.goal.subagentTasks == nil {
-		slot.mutable.goal.subagentTasks = map[string]struct{}{}
-	}
-	switch subtype {
-	case "task_started", "task_progress", "task_updated":
-		if messagepkg.IsTerminalSubagentTaskStatus(status) {
-			delete(slot.mutable.goal.subagentTasks, taskID)
-			return
-		}
-		slot.mutable.goal.subagentTasks[taskID] = struct{}{}
-	case "task_notification":
-		if messagepkg.IsTerminalSubagentTaskStatus(status) {
-			delete(slot.mutable.goal.subagentTasks, taskID)
-		}
-	}
-}
-
-func (slot *activeRoomSlot) knowsSubagentTask(taskID string) bool {
-	if slot == nil || strings.TrimSpace(taskID) == "" {
-		return false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	taskID = strings.TrimSpace(taskID)
-	if _, ok := slot.mutable.goal.subagentTasks[taskID]; ok {
-		return true
-	}
-	_, ok := slot.mutable.goal.subagentUsagePending[taskID]
-	return ok
 }
 
 func (slot *activeRoomSlot) hasSubagentHistory() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.subagentHistory
-}
-
-func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return len(slot.mutable.goal.subagentTasks) > 0 ||
-		len(slot.mutable.goal.subagentUsagePending) > 0
-}
-
-// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个 task
-// 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
-// task、后写 checkpoint 时被并发 finalization 穿透。
-func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
-	slot.markSubagentUsageObservationPending(goalsvc.SubagentUsageObservation{
-		CumulativeTotal: cumulativeTotal,
-	}, taskID)
-}
-
-func (slot *activeRoomSlot) markSubagentUsageObservationPending(
-	observation goalsvc.SubagentUsageObservation,
-	taskID string,
-) {
-	if slot == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	if slot.mutable.goal.subagentUsagePending == nil {
-		slot.mutable.goal.subagentUsagePending = make(map[string]goalsvc.SubagentUsageObservation)
-	}
-	taskID = strings.TrimSpace(taskID)
-	slot.mutable.goal.subagentUsagePending[taskID] = slot.mutable.goal.subagentUsagePending[taskID].Merge(observation)
-	slot.mutable.goal.mu.Unlock()
-}
-
-// clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
-// 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
-func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
-	slot.clearSubagentUsageObservationPending(taskID, goalsvc.SubagentUsageObservation{
-		CumulativeTotal:            settledTotal,
-		Terminal:                   true,
-		TerminalTokenUsageObserved: true,
-	})
-}
-
-func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
-	taskID string,
-	settled goalsvc.SubagentUsageObservation,
-) {
-	if slot == nil || strings.TrimSpace(taskID) == "" {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	taskID = strings.TrimSpace(taskID)
-	if pending, ok := slot.mutable.goal.subagentUsagePending[taskID]; ok &&
-		pending.CoveredBy(settled) {
-		delete(slot.mutable.goal.subagentUsagePending, taskID)
-	}
-	slot.mutable.goal.mu.Unlock()
 }
 
 func (slot *activeRoomSlot) subagentUsagePendingSnapshot() map[string]int64 {
 	if slot == nil {
 		return nil
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	if len(slot.mutable.goal.subagentUsagePending) == 0 {
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	if len(slot.mutable.goal.SubagentUsagePending) == 0 {
 		return nil
 	}
-	pending := make(map[string]int64, len(slot.mutable.goal.subagentUsagePending))
-	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
+	pending := make(map[string]int64, len(slot.mutable.goal.SubagentUsagePending))
+	for taskID, observation := range slot.mutable.goal.SubagentUsagePending {
 		pending[taskID] = observation.CumulativeTotal
 	}
 	return pending
@@ -1323,13 +1039,13 @@ func (slot *activeRoomSlot) subagentUsageObservationPendingSnapshot() map[string
 	if slot == nil {
 		return nil
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	if len(slot.mutable.goal.subagentUsagePending) == 0 {
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	if len(slot.mutable.goal.SubagentUsagePending) == 0 {
 		return nil
 	}
-	pending := make(map[string]goalsvc.SubagentUsageObservation, len(slot.mutable.goal.subagentUsagePending))
-	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
+	pending := make(map[string]goalsvc.SubagentUsageObservation, len(slot.mutable.goal.SubagentUsagePending))
+	for taskID, observation := range slot.mutable.goal.SubagentUsagePending {
 		pending[taskID] = observation
 	}
 	return pending
@@ -1339,13 +1055,13 @@ func (slot *activeRoomSlot) tryStartSubagentUsageRetry() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usageRetrying ||
-		len(slot.mutable.goal.subagentUsagePending) == 0 {
+	slot.mutable.goal.Mu.Lock()
+	defer slot.mutable.goal.Mu.Unlock()
+	if slot.mutable.goal.UsageRetrying ||
+		len(slot.mutable.goal.SubagentUsagePending) == 0 {
 		return false
 	}
-	slot.mutable.goal.usageRetrying = true
+	slot.mutable.goal.UsageRetrying = true
 	return true
 }
 
@@ -1355,12 +1071,12 @@ func (slot *activeRoomSlot) tryStartGoalUsageRetry() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
-	defer slot.mutable.goal.mu.Unlock()
-	if slot.mutable.goal.usageRetrying {
+	slot.mutable.goal.Mu.Lock()
+	defer slot.mutable.goal.Mu.Unlock()
+	if slot.mutable.goal.UsageRetrying {
 		return false
 	}
-	slot.mutable.goal.usageRetrying = true
+	slot.mutable.goal.UsageRetrying = true
 	return true
 }
 
@@ -1368,46 +1084,28 @@ func (slot *activeRoomSlot) finishSubagentUsageRetry() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.usageRetrying = false
-	needsRestart := len(slot.mutable.goal.subagentUsagePending) > 0
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.UsageRetrying = false
+	needsRestart := len(slot.mutable.goal.SubagentUsagePending) > 0
+	slot.mutable.goal.Mu.Unlock()
 	return needsRestart
-}
-
-func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.subagentTasks = tasks
-	slot.mutable.goal.mu.Unlock()
-}
-
-func (slot *activeRoomSlot) markGoalToolProgress() {
-	if slot == nil {
-		return
-	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.toolProgress = true
-	slot.mutable.goal.mu.Unlock()
 }
 
 func (slot *activeRoomSlot) markPendingGoalCollaboration() {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.pendingCollaboration = true
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) hasPendingGoalCollaboration() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.pendingCollaboration
 }
 
@@ -1415,56 +1113,56 @@ func (slot *activeRoomSlot) clearPendingGoalCollaboration() {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.pendingCollaboration = false
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) hasGoalToolProgress() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.toolProgress
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.ToolProgress
 }
 
 func (slot *activeRoomSlot) goalContext() string {
 	if slot == nil {
 		return ""
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.context
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.Context
 }
 
 func (slot *activeRoomSlot) goalIDForUsage() string {
 	if slot == nil {
 		return ""
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.idForUsage
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	return slot.mutable.goal.IDForUsage
 }
 
 func (slot *activeRoomSlot) childGoalIDForUsage() string {
 	if slot == nil {
 		return ""
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	if goalID := strings.TrimSpace(slot.mutable.goal.childIDForUsage); goalID != "" {
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
+	if goalID := strings.TrimSpace(slot.mutable.goal.ChildIDForUsage); goalID != "" {
 		return goalID
 	}
-	return strings.TrimSpace(slot.mutable.goal.idForUsage)
+	return strings.TrimSpace(slot.mutable.goal.IDForUsage)
 }
 
 func (slot *activeRoomSlot) goalSessionKey() string {
 	if slot == nil {
 		return ""
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.sessionKey
 }
 
@@ -1472,23 +1170,23 @@ func (slot *activeRoomSlot) setGoalContext(contextText string) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
-	slot.mutable.goal.context = contextText
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Lock()
+	slot.mutable.goal.Context = contextText
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) setGoalBinding(sessionKey string, goalID string) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.sessionKey = strings.TrimSpace(sessionKey)
-	slot.mutable.goal.idForUsage = strings.TrimSpace(goalID)
-	slot.mutable.goal.childIDForUsage = strings.TrimSpace(goalID)
+	slot.mutable.goal.IDForUsage = strings.TrimSpace(goalID)
+	slot.mutable.goal.ChildIDForUsage = strings.TrimSpace(goalID)
 	if strings.TrimSpace(goalID) != "" {
-		slot.mutable.goal.usageScopeConsumed = true
+		slot.mutable.goal.UsageScopeConsumed = true
 	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 // grantGoalMutationAuthority binds one exact Goal objective revision to this
@@ -1503,14 +1201,13 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 	authority.SessionKey = strings.TrimSpace(authority.SessionKey)
 	authority.GoalID = strings.TrimSpace(authority.GoalID)
 	authority.ExecutionID = strings.TrimSpace(authority.ExecutionID)
-	authority.RootRoundID = strings.TrimSpace(authority.RootRoundID)
 	if !authority.valid() {
 		return false
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	current := slot.mutable.goal.mutationAuthority
 	if current.valid() && current != authority {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return false
 	}
 	shared := slot.ensureResponsibilityAuthorityState()
@@ -1519,15 +1216,15 @@ func (slot *activeRoomSlot) grantGoalMutationAuthority(
 		authority.ObjectiveRevision,
 		authority.ExecutionID,
 	) {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return false
 	}
 	slot.mutable.goal.mutationAuthority = authority
 	slot.mutable.goal.sessionKey = authority.SessionKey
-	slot.mutable.goal.idForUsage = authority.GoalID
-	slot.mutable.goal.childIDForUsage = authority.GoalID
-	slot.mutable.goal.usageScopeConsumed = true
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.IDForUsage = authority.GoalID
+	slot.mutable.goal.ChildIDForUsage = authority.GoalID
+	slot.mutable.goal.UsageScopeConsumed = true
+	slot.mutable.goal.Mu.Unlock()
 	slot.ensureGoalObjectiveRevision(authority.ObjectiveRevision)
 	return true
 }
@@ -1536,8 +1233,8 @@ func (slot *activeRoomSlot) goalMutationAuthority() roomGoalMutationAuthority {
 	if slot == nil {
 		return roomGoalMutationAuthority{}
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.mutationAuthority
 }
 
@@ -1547,45 +1244,34 @@ func (slot *activeRoomSlot) setGoalCollaborationBinding(
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.collaborationBinding = cloneGoalCollaborationBinding(binding)
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalCollaborationBinding() *protocol.GoalCollaborationBinding {
 	if slot == nil {
 		return nil
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return cloneGoalCollaborationBinding(slot.mutable.goal.collaborationBinding)
-}
-
-// goalUsageScopeConsumed 是 slot/root scope 生命周期内的单调事实。清理或
-// finalization 会关闭当前 accumulator，但不会允许同一 live scope 再消费新 Goal。
-func (slot *activeRoomSlot) goalUsageScopeConsumed() bool {
-	if slot == nil {
-		return false
-	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
-	return slot.mutable.goal.usageScopeConsumed
 }
 
 func (slot *activeRoomSlot) setGoalRuntimeIgnored(ignored bool) {
 	if slot == nil {
 		return
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	slot.mutable.goal.runtimeIgnored = ignored
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 }
 
 func (slot *activeRoomSlot) goalRuntimeIgnored() bool {
 	if slot == nil {
 		return false
 	}
-	slot.mutable.goal.mu.RLock()
-	defer slot.mutable.goal.mu.RUnlock()
+	slot.mutable.goal.Mu.RLock()
+	defer slot.mutable.goal.Mu.RUnlock()
 	return slot.mutable.goal.runtimeIgnored
 }

@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -83,11 +85,10 @@ func TestRoundRunnerSerializesUsageSettlementWithExternalGoalRebind(t *testing.T
 		release:                 make(chan struct{}),
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:rebind",
 		roundID:        "round-old",
-		goalIDForUsage: "goal-old",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-old", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 
 	recorded := make(chan struct{})
@@ -134,9 +135,9 @@ func TestRoundRunnerSerializesUsageSettlementWithExternalGoalRebind(t *testing.T
 	if len(gotIDs) != 1 || gotIDs[0] != "goal-old" {
 		t.Fatalf("usage Goal IDs = %#v, want old delta fixed to goal-old", gotIDs)
 	}
-	runner.goalUsageMu.Lock()
-	gotBinding := runner.goalIDForUsage
-	runner.goalUsageMu.Unlock()
+	runner.Mu.Lock()
+	gotBinding := runner.IDForUsage
+	runner.Mu.Unlock()
 	if gotBinding != "goal-new" {
 		t.Fatalf("Goal binding = %q, want goal-new after settlement", gotBinding)
 	}
@@ -149,11 +150,10 @@ func TestRoundRunnerRetriesUncommittedUsageAtTerminal(t *testing.T) {
 		failNext:                true,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:retry",
 		roundID:        "round-retry",
-		goalIDForUsage: "goal-retry",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 	accelerateDMGoalUsageRetry(runner)
 
@@ -188,14 +188,13 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 	base := &fakeGoalContextProvider{}
 	provider := &failNDMGoalUsageProvider{
 		fakeGoalContextProvider: base,
-		failuresRemaining:       goalUsagePersistAttempts,
+		failuresRemaining:       runtimehost.GoalUsagePersistAttempts,
 	}
 	runner := &roundRunner{
-		service:        &Service{goals: provider},
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:retry-window",
 		roundID:        "round-retry-window",
-		goalIDForUsage: "goal-retry-window",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-retry-window", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 	accelerateDMGoalUsageRetry(runner)
 	snapshot := goalsvc.RuntimeUsageSnapshot{
@@ -216,13 +215,13 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 			TotalTokens:  150,
 		},
 	}, nil)
-	if !runner.goalUsage.Active() {
+	if !runner.Usage.Active() {
 		t.Fatal("terminal persistence failure closed the accumulator")
 	}
 	if !runner.finalizeCompletedGoalUsageAfterSubagents(context.Background()) {
 		t.Fatal("retained terminal delta did not settle on the later retry")
 	}
-	if runner.goalUsage.Active() {
+	if runner.Usage.Active() {
 		t.Fatal("settled terminal accumulator remains active")
 	}
 	usages := base.recordedUsage()
@@ -235,11 +234,10 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 func TestRoundRunnerNewerTerminalSnapshotPreventsOlderSettlementFromClosing(t *testing.T) {
 	base := &fakeGoalContextProvider{}
 	runner := &roundRunner{
-		service:        &Service{goals: base},
+		service:        &Service{goals: base, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		sessionKey:     "agent:nexus:ws:dm:terminal-version-handoff",
 		roundID:        "round-terminal-version-handoff",
-		goalIDForUsage: "goal-terminal-version-handoff",
-		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
+		GoalRoundState: runtimehost.GoalRoundState{IDForUsage: "goal-terminal-version-handoff", Usage: goalsvc.NewRuntimeUsageAccumulator(true)},
 	}
 	first := goalsvc.RuntimeUsageSnapshot{
 		Usage: protocol.GoalUsage{
@@ -273,7 +271,7 @@ func TestRoundRunnerNewerTerminalSnapshotPreventsOlderSettlementFromClosing(t *t
 	if runner.closeGoalUsageIfNoTerminalSnapshotPending() {
 		t.Fatal("older settlement closed accounting while a newer terminal snapshot was pending")
 	}
-	if !runner.goalUsage.Active() {
+	if !runner.Usage.Active() {
 		t.Fatal("newer terminal handoff did not keep the accumulator active")
 	}
 
@@ -286,7 +284,7 @@ func TestRoundRunnerNewerTerminalSnapshotPreventsOlderSettlementFromClosing(t *t
 	if !runner.closeGoalUsageIfNoTerminalSnapshotPending() {
 		t.Fatal("accounting did not close after the newest terminal snapshot settled")
 	}
-	if runner.goalUsage.Active() {
+	if runner.Usage.Active() {
 		t.Fatal("accumulator remained active after the newest terminal settlement")
 	}
 

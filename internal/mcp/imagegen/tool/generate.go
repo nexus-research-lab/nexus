@@ -21,11 +21,11 @@ func generate(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		Annotations: &sdktool.ToolAnnotations{OpenWorld: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			if svc == nil {
-				return errorResult(errImagegenServiceMissing), nil
+				return sdktool.ErrorResult(errImagegenServiceMissing), nil
 			}
 			workspacePath, err := requireWorkspacePath(sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, payload, err := svc.GenerateImage(scopedToolContext(ctx, sctx), imagegensvc.GenerateInput{
 				Prompt:            stringArg(args, "prompt"),
@@ -38,7 +38,7 @@ func generate(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 				FileName:          stringArg(args, "file_name"),
 			})
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			return imageResult("generate_image", result, len(payload)), nil
 		},

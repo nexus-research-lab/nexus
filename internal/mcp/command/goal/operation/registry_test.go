@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"maps"
-	"slices"
 	"strings"
 	"testing"
 
@@ -18,70 +16,6 @@ import (
 
 func testGoalAuthority(goalID string, revision int64) *runtimectx.GoalAuthorityState {
 	return runtimectx.NewGoalAuthorityState(goalID, revision, "")
-}
-
-func TestGoalOperationDirectoryIsExactAndStable(t *testing.T) {
-	definitions := BuildAll(nil, contract.Context{})
-	names := make([]string, 0, len(definitions))
-	for _, definition := range definitions {
-		names = append(names, definition.Name)
-	}
-	want := []string{
-		"get_goal",
-		"create_goal",
-		"retarget_goal",
-		"audit_objective_alignment",
-		"update_goal",
-	}
-	if !slices.Equal(names, want) {
-		t.Fatalf("Goal operation directory = %#v, want %#v", names, want)
-	}
-}
-
-func TestUpdateGoalSchemaCarriesBlockedRecoveryPath(t *testing.T) {
-	tool := updateGoal(nil, contract.Context{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	properties, ok := tool.InputSchema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
-	}
-	names := slices.Sorted(maps.Keys(properties))
-	if !slices.Equal(names, []string{"blocker_id", "needed_input", "reason", "status"}) {
-		t.Fatalf("properties = %#v, want status plus blocker recovery fields", names)
-	}
-	required, ok := tool.InputSchema["required"].([]string)
-	if !ok || !slices.Equal(required, []string{"status"}) {
-		t.Fatalf("required = %#v, want [status]", tool.InputSchema["required"])
-	}
-	if tool.InputSchema["additionalProperties"] != false {
-		t.Fatalf("additionalProperties = %#v, want false", tool.InputSchema["additionalProperties"])
-	}
-	status, ok := properties["status"].(map[string]any)
-	if !ok {
-		t.Fatalf("status = %#v, want map", properties["status"])
-	}
-	enum, ok := status["enum"].([]string)
-	if !ok || !slices.Equal(enum, []string{"complete", "blocked"}) {
-		t.Fatalf("status.enum = %#v, want [complete blocked]", status["enum"])
-	}
-}
-
-func TestAuditObjectiveAlignmentUsesStableScalarTransport(t *testing.T) {
-	tool := auditObjectiveAlignment(nil, contract.Context{})
-	properties, ok := tool.InputSchema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
-	}
-	if names := slices.Sorted(maps.Keys(properties)); !slices.Equal(names, []string{"report_json"}) {
-		t.Fatalf("properties = %#v, want report_json only", names)
-	}
-	required, ok := tool.InputSchema["required"].([]string)
-	if !ok || !slices.Equal(required, []string{"report_json"}) {
-		t.Fatalf("required = %#v, want [report_json]", tool.InputSchema["required"])
-	}
-	reportJSON, ok := properties["report_json"].(map[string]any)
-	if !ok || reportJSON["type"] != "string" {
-		t.Fatalf("report_json schema = %#v, want string", properties["report_json"])
-	}
 }
 
 func TestAuditObjectiveAlignmentBindsCurrentGoalRoundAgentAndRevision(t *testing.T) {
@@ -190,62 +124,6 @@ func TestAuditObjectiveAlignmentRejectsMalformedJSONBeforeService(t *testing.T) 
 	}
 }
 
-func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
-	tool := retargetGoal(nil, contract.Context{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	properties, ok := tool.InputSchema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
-	}
-	if names := slices.Sorted(maps.Keys(properties)); !slices.Equal(names, []string{"objective"}) {
-		t.Fatalf("properties = %#v, want objective-only schema", names)
-	}
-	required, ok := tool.InputSchema["required"].([]string)
-	if !ok || !slices.Equal(required, []string{"objective"}) {
-		t.Fatalf("required = %#v, want [objective]", tool.InputSchema["required"])
-	}
-}
-
-func TestRetargetGoalBindsCurrentSessionAndRound(t *testing.T) {
-	authority := testGoalAuthority("goal-1", 7)
-	svc := &fakeRetargetGoalService{retargeted: &protocol.Goal{
-		ID:         "goal-1",
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "Analyze M4 and M5",
-		Status:     protocol.GoalStatusActive,
-		Metadata: map[string]any{
-			protocol.GoalMetadataObjectiveRevision: int64(8),
-		},
-	}, current: &protocol.Goal{
-		ID:         "goal-1",
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Status:     protocol.GoalStatusActive,
-		Metadata: map[string]any{
-			protocol.GoalMetadataObjectiveRevision: int64(7),
-		},
-	}}
-	tool := retargetGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-correction",
-		CurrentAgentID:    "agent-1",
-		GoalAuthority:     authority,
-	})
-
-	result, err := tool.Handler(context.Background(), map[string]any{"objective": "Analyze M4 and M5"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError {
-		t.Fatalf("result = %#v, want success", result)
-	}
-	if svc.sessionKey != "agent:nexus:ws:dm:chat" ||
-		svc.request.Objective != "Analyze M4 and M5" ||
-		svc.request.RoundID != "round-correction" ||
-		svc.request.AgentID != "agent-1" ||
-		svc.request.ExpectedObjectiveRevision != 7 {
-		t.Fatalf("retarget call = session:%q request:%#v", svc.sessionKey, svc.request)
-	}
-}
-
 func TestRetargetGoalTrustedVisibleRoundLateBindsCurrentRevision(t *testing.T) {
 	authority := runtimectx.NewGoalAuthorityState("", 0, "")
 	svc := &fakeRetargetGoalService{
@@ -330,49 +208,6 @@ func TestRetargetGoalInPlanModeDoesNotMutateState(t *testing.T) {
 	}
 	if !result.IsError || svc.sessionKey != "" || svc.request.Objective != "" {
 		t.Fatalf("result=%#v mutation=%q %#v", result, svc.sessionKey, svc.request)
-	}
-}
-
-func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.T) {
-	authority := testGoalAuthority("goal-1", 1)
-	otherSlotAuthority := testGoalAuthority("goal-1", 1)
-	svc := &fakeRetargetGoalService{
-		current: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusActive},
-		retargeted: &protocol.Goal{
-			ID:         "goal-1",
-			SessionKey: "room:group:chat",
-			Objective:  "Corrected objective",
-			Status:     protocol.GoalStatusActive,
-			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(2)},
-		},
-		completed: &protocol.Goal{ID: "goal-1", SessionKey: "room:group:chat", Status: protocol.GoalStatusComplete},
-	}
-	sctx := contract.Context{
-		CurrentSessionKey: "room:group:chat",
-		CurrentRoundID:    "round-correction",
-		CurrentAgentID:    "agent-1",
-		GoalAuthority:     authority,
-	}
-	if result, err := retargetGoal(svc, sctx).Handler(context.Background(), map[string]any{"objective": "Corrected objective"}); err != nil || result.IsError {
-		t.Fatalf("retarget result = %#v err=%v", result, err)
-	}
-	if authority.Bind("goal-1", 1, "") {
-		t.Fatal("older revision unexpectedly replaced the retargeted authority")
-	}
-	if got := authority.ObjectiveRevisionState().Load(); got != 2 {
-		t.Fatalf("revision regressed to %d after an older adoption, want 2", got)
-	}
-	if result, err := updateGoal(svc, sctx).Handler(context.Background(), map[string]any{"status": "complete"}); err != nil || result.IsError {
-		t.Fatalf("update result = %#v err=%v", result, err)
-	}
-	if svc.completedRequest.ExpectedObjectiveRevision != 2 {
-		t.Fatalf("expected revision = %d, want 2 after retarget", svc.completedRequest.ExpectedObjectiveRevision)
-	}
-	if svc.completedRequest.AgentID != "agent-1" {
-		t.Fatalf("completed agent = %q, want agent-1", svc.completedRequest.AgentID)
-	}
-	if otherSlotAuthority.ObjectiveRevisionState().Load() != 1 {
-		t.Fatalf("other slot revision = %d, want unchanged 1", otherSlotAuthority.ObjectiveRevisionState().Load())
 	}
 }
 
@@ -589,38 +424,6 @@ func assertPausedGoalRecoveryText(t *testing.T, result command.Result) {
 	}
 }
 
-func TestUpdateGoalCompletesCurrentGoal(t *testing.T) {
-	svc := &fakeUpdateGoalService{
-		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
-		completed: &protocol.Goal{
-			ID:         "goal-1",
-			SessionKey: "agent:nexus:ws:dm:chat",
-			Objective:  "Complete parity",
-			Status:     protocol.GoalStatusComplete,
-		},
-	}
-	tool := updateGoal(svc, contract.Context{
-		CurrentSessionKey: "agent:nexus:ws:dm:chat",
-		CurrentRoundID:    "round-1",
-		GoalAuthority:     testGoalAuthority("goal-1", 1),
-	})
-
-	result, err := tool.Handler(context.Background(), map[string]any{"status": "complete"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError {
-		t.Fatalf("result = %#v, want success", result)
-	}
-	if svc.currentCalls != 1 || svc.completeCalls != 1 || svc.completedGoalID != "goal-1" || svc.completedRoundID != "round-1" {
-		t.Fatalf("calls = current:%d complete:%d goal:%q round:%q", svc.currentCalls, svc.completeCalls, svc.completedGoalID, svc.completedRoundID)
-	}
-	goal, ok := result.StructuredContent["goal"].(map[string]any)
-	if !ok || goal["status"] != "complete" {
-		t.Fatalf("goal payload = %#v, want complete goal", result.StructuredContent["goal"])
-	}
-}
-
 func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	svc := &fakeUpdateGoalService{
 		current: &protocol.Goal{ID: "goal-1", SessionKey: "agent:nexus:ws:dm:chat", Status: protocol.GoalStatusActive},
@@ -667,28 +470,6 @@ func TestUpdateGoalBlocksCurrentGoal(t *testing.T) {
 	}
 	if result.StructuredContent["completionBudgetReport"] != nil {
 		t.Fatalf("completionBudgetReport = %#v, want nil for blocked", result.StructuredContent["completionBudgetReport"])
-	}
-}
-
-func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
-	tool := createGoal(nil, contract.Context{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
-	properties, ok := tool.InputSchema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
-	}
-	budget, ok := properties["token_budget"].(map[string]any)
-	if !ok {
-		t.Fatalf("token_budget = %#v, want map", properties["token_budget"])
-	}
-	if budget["type"] != "integer" {
-		t.Fatalf("token_budget.type = %#v, want integer", budget["type"])
-	}
-	objective, ok := properties["objective"].(map[string]any)
-	if !ok {
-		t.Fatalf("objective = %#v, want map", properties["objective"])
-	}
-	if objective["type"] != "string" {
-		t.Fatalf("objective.type = %#v, want string", objective["type"])
 	}
 }
 

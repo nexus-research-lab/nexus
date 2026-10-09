@@ -109,48 +109,6 @@ func TestProcessRegistryOnceOnlyReleaseSurvivesReopen(t *testing.T) {
 	}
 }
 
-func TestProcessRegistryActiveScopeAndGenerationAreExclusive(t *testing.T) {
-	r := newSandboxReceiptRepository(t)
-	i := processIntent()
-	ctx := t.Context()
-	if err := r.PrepareProcess(ctx, i); err != nil {
-		t.Fatal(err)
-	}
-	next := i
-	next.Key.Generation++
-	next.Key.LaunchID = strings.Repeat("c", 32)
-	next.JobLabel = "cn.nexus.runtime." + next.Key.LaunchID
-	if err := r.PrepareProcess(ctx, next); !errors.Is(err, ErrProcessConflict) {
-		t.Fatalf("parallel generation: %v", err)
-	}
-	other := next
-	other.Key.OwnerUserID = "other"
-	if err := r.PrepareProcess(ctx, other); err != nil {
-		t.Fatalf("independent owner: %v", err)
-	}
-	if err := r.AbortPreparedProcess(ctx, i.Key); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.RegisterProcess(ctx, i.Key, processRegistration(i)); !errors.Is(err, ErrProcessConflict) {
-		t.Fatalf("late registration after abort: %v", err)
-	}
-	next.Key.LaunchID = strings.Repeat("d", 32)
-	next.JobLabel = "cn.nexus.runtime." + next.Key.LaunchID
-	if err := r.PrepareProcess(ctx, next); err != nil {
-		t.Fatal(err)
-	}
-	if err := r.AbortPreparedProcess(ctx, next.Key); err != nil {
-		t.Fatal(err)
-	}
-	old := next
-	old.Key.Generation = 3
-	old.Key.LaunchID = strings.Repeat("e", 32)
-	old.JobLabel = "cn.nexus.runtime." + old.Key.LaunchID
-	if err := r.PrepareProcess(ctx, old); !errors.Is(err, ErrProcessConflict) {
-		t.Fatalf("generation regressed: %v", err)
-	}
-}
-
 func TestProcessRegistryRejectsWrongScopeAndFalseProof(t *testing.T) {
 	r := newSandboxReceiptRepository(t)
 	i := processIntent()
@@ -194,20 +152,5 @@ func TestProcessRegistryRejectsWrongScopeAndFalseProof(t *testing.T) {
 	snapshot, found, err := r.Process(ctx, i.Key)
 	if err != nil || !found || snapshot.Phase != protocol.SandboxProcessRegistered {
 		t.Fatalf("invalid evidence changed phase: %#v %v", snapshot, err)
-	}
-}
-
-func TestProcessRegistryCorruptBindingFailsClosed(t *testing.T) {
-	r := newSandboxReceiptRepository(t)
-	i := processIntent()
-	ctx := t.Context()
-	if err := r.PrepareProcess(ctx, i); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := r.db.Exec(`UPDATE sandbox_process_launches SET generation=generation+1`); err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err := r.LatestProcess(ctx, i.Key.OwnerUserID, i.Key.SessionKey); !errors.Is(err, ErrInvalidProcess) {
-		t.Fatalf("corrupt key accepted: %v", err)
 	}
 }

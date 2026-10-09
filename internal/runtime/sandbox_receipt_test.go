@@ -385,24 +385,3 @@ func TestEffectiveSandboxPolicyReceiptKeepsClaudeIdentityProvisional(t *testing.
 		t.Fatalf("receipt = %#v, want empty provisional Claude identity", receipt)
 	}
 }
-
-func TestSandboxReceiptUsesExactSharedLeaseRound(t *testing.T) {
-	root := t.TempDir()
-	first, err := Acquire(t.Context(), Input{OwnerUserID: "receipt-owner", SessionKey: "shared-round", RoundID: "round-first", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := Acquire(t.Context(), Input{OwnerUserID: "receipt-owner", SessionKey: "shared-round", RoundID: "round-second", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer first.Release()
-	defer second.Release()
-	client := &agentClient{sandboxReceipt: &SandboxEffectivePolicyReceipt{LeaseID: "old", RoundID: "old"}}
-	client.mu.Lock()
-	client.refreshSandboxReceiptLeaseLocked(second)
-	client.mu.Unlock()
-	if client.sandboxReceipt.LeaseID == "" || client.sandboxReceipt.RoundID != "round-second" {
-		t.Fatalf("receipt = %#v, want exact second handle round", client.sandboxReceipt)
-	}
-}

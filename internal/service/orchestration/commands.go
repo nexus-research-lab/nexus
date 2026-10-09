@@ -98,7 +98,7 @@ func (s *Service) mutableSnapshot(
 		result := RejectedResult(nil, domainError(ErrorCodeInvalidInput, "execution was not found"), nil)
 		return nil, &result, nil
 	}
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		result := RejectedResult(snapshot, terminalExecutionError(), nil)
 		if snapshot.Execution.Status == protocol.ExecutionStatusSuperseded {
 			result = SupersededResult(snapshot, terminalExecutionError())
@@ -350,15 +350,6 @@ func logicalWork(snapshot *protocol.ExecutionSnapshot, workID string) protocol.W
 		}
 	}
 	return protocol.WorkItem{}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func resultOrZero(result *MutationResult) MutationResult {

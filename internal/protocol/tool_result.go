@@ -195,16 +195,6 @@ func ParseMutationResultEnvelope(values ...any) (MutationResultEnvelope, bool) {
 	return MutationResultEnvelope{}, false
 }
 
-// ParseMutationResultChanged extracts only the server-issued entity refs from
-// a mutation result. Callers must still resolve those refs against an
-// authoritative snapshot before treating them as WorkGraph identity.
-func ParseMutationResultChanged(values ...any) []string {
-	if result, ok := ParseMutationResultEnvelope(values...); ok {
-		return result.Changed
-	}
-	return nil
-}
-
 func parseMutationResultEnvelope(value any, depth int) (MutationResultEnvelope, bool) {
 	if value == nil || depth > 3 {
 		return MutationResultEnvelope{}, false

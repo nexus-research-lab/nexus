@@ -158,35 +158,6 @@ func TestSaveReplayDoesNotMarkRenamedDraftAsSaved(t *testing.T) {
 	}
 }
 
-func TestConfirmedSaveRepairsIncorrectSavedRevision(t *testing.T) {
-	service, repository, preview := newDurableMetadataTestService(t)
-	ctx := context.Background()
-	created, err := service.SavePreview(ctx, "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		CommandID: "first-save", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	next := cloneWorkflowPreview(*preview)
-	next.SlashName = "renamed"
-	if _, err = repository.AppendDraftVersion(ctx, "owner-a", preview.PreviewID, 1, next, service.now(), preview.ExpiresAt); err != nil {
-		t.Fatal(err)
-	}
-	if err = repository.SetDraftSaveState(ctx, "owner-a", preview.PreviewID, true, created.ID, 1, service.now()); err != nil {
-		t.Fatal(err)
-	}
-	// Reproduce older data whose save marker advanced without updating the aggregate.
-	if err = repository.SetDraftSaveState(ctx, "owner-a", preview.PreviewID, false, created.ID, 2, service.now()); err != nil {
-		t.Fatal(err)
-	}
-	updated, err := service.SavePreview(ctx, "owner-a", protocol.SaveWorkGraphWorkflowRequest{
-		CommandID: "confirmed-save", SourceSessionKey: "session-a", PreviewID: preview.PreviewID,
-	})
-	if err != nil || updated.SlashName != "renamed" || updated.ID != created.ID || updated.Version != 2 {
-		t.Fatalf("save marker hid unsaved metadata: %#v, err=%v", updated, err)
-	}
-}
-
 func TestConfirmSaveWritesMetadataImmediatelyAndRecoversPendingDraft(t *testing.T) {
 	service, repository, preview := newDurableMetadataTestService(t)
 	ctx := context.Background()

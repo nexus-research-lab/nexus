@@ -225,7 +225,7 @@ func (s *Service) preferences(
 
 func ownerUserIDFromRequest(ctx context.Context, request Request) string {
 	if currentUserID, ok := authctx.CurrentUserID(ctx); ok {
-		if ownerUserID := strings.TrimSpace(currentUserID); ownerUserID != "" {
+		if ownerUserID := currentUserID; ownerUserID != "" {
 			return ownerUserID
 		}
 	}

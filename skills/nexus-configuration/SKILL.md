@@ -49,7 +49,7 @@ tags: [nexus, configuration, settings, agent, room]
 
 ## 配置请求失败
 
-`请求参数错误` / HTTP 400 本身不能证明权限不足、配置 API 缺失或需要升级。先核对宿主入口、子命令和参数；若多个配置域的只读 inspect 都同样失败，报告共同的配置请求链路异常及尚未确定的原因，提供失败命令、错误码和发生时间供维护者查日志。只有接口定义、版本或日志明确证明能力缺失时才建议升级；不要把 nexusctl 正常视为 nexuscfg 正常，也不要编造成功的 inspection。
+命令返回 `请求参数错误`、HTTP 400 或多个配置域同时失败时，先读取 [references/troubleshooting.md](references/troubleshooting.md)，不要直接归因于权限或版本。
 
 ## 管理用户
 

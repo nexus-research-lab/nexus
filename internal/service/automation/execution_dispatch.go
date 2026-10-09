@@ -10,6 +10,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
@@ -49,8 +50,8 @@ func automationRunContext(
 		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}
 	if resumeAttempt != nil {
-		binding.ResumeToolName = strings.TrimSpace(resumeAttempt.toolName)
-		binding.ResumeResourceScope = strings.TrimSpace(resumeAttempt.resourceScope)
+		binding.ResumeToolName = resumeAttempt.toolName
+		binding.ResumeResourceScope = resumeAttempt.resourceScope
 	}
 	if !binding.Valid() {
 		return nil
@@ -111,7 +112,7 @@ func (s *Service) dispatchJobToSession(
 	}
 	return s.dm.HandleChat(jobCtx, dmsvc.Request{
 		SessionKey:        sessionKey,
-		AgentID:           firstNonEmpty(job.AgentID, parsed.AgentID),
+		AgentID:           textutil.FirstNonEmpty(job.AgentID, parsed.AgentID),
 		Content:           job.Instruction,
 		ExecutionOrigin:   "automation",
 		RoundID:           roundID,

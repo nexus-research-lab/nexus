@@ -6,19 +6,9 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 )
-
-func (s *Service) observeJobRun(
-	job automationdomain.ScheduledTask,
-	runID string,
-	roundID string,
-	sessionKey string,
-	sink *automationexec.ExecutionSink,
-	cleanup func(),
-) {
-	s.observeJobRunWithCompletion(job, runID, roundID, sessionKey, sink, cleanup, nil, nil)
-}
 
 func (s *Service) observeJobRunWithCompletion(
 	job automationdomain.ScheduledTask,
@@ -72,7 +62,7 @@ func (s *Service) observeJobRunWithCompletion(
 			"status", status,
 			"delivery_status", deliveryStatus,
 			"message_count", observation.MessageCount,
-			"session_id", anyStringPointer(observation.SessionID),
+			"session_id", textutil.PointerValue(observation.SessionID),
 			"err", *errorMessage,
 		)
 	} else {
@@ -80,10 +70,10 @@ func (s *Service) observeJobRunWithCompletion(
 			"status", status,
 			"delivery_status", deliveryStatus,
 			"message_count", observation.MessageCount,
-			"session_id", anyStringPointer(observation.SessionID),
+			"session_id", textutil.PointerValue(observation.SessionID),
 		)
 	}
-	resultSummary := stringPointer(firstNonEmpty(observation.ResultText, observation.AssistantText))
+	resultSummary := stringPointer(textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText))
 	assistantText := stringPointer(observation.AssistantText)
 	resultText := stringPointer(observation.ResultText)
 	artifactPath := s.writeRunArtifact(jobCtx, job, runID, roundID, sessionKey, finishedAt, status, observation, errorMessage, deliveryStatus, nil, deliveryTo)

@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -44,7 +45,7 @@ func (s *AssistantSegment) Reset() {
 // Start 开始新的 assistant 段。
 func (s *AssistantSegment) Start(messageID string, model string, usage map[string]any, timestamp int64) {
 	s.Reset()
-	s.messageID = firstNonEmpty(messageID, fmt.Sprintf("assistant_%d", time.Now().UnixMilli()))
+	s.messageID = textutil.FirstNonEmpty(messageID, fmt.Sprintf("assistant_%d", time.Now().UnixMilli()))
 	s.model = strings.TrimSpace(model)
 	s.usage = cloneMap(usage)
 	if timestamp <= 0 {
@@ -55,7 +56,7 @@ func (s *AssistantSegment) Start(messageID string, model string, usage map[strin
 
 // EnsureStarted 确保段已经初始化。
 func (s *AssistantSegment) EnsureStarted() {
-	if strings.TrimSpace(s.messageID) != "" {
+	if s.messageID != "" {
 		return
 	}
 	s.Start("", "", nil, 0)
@@ -63,20 +64,20 @@ func (s *AssistantSegment) EnsureStarted() {
 
 // IsStarted 表示当前段是否已经初始化。
 func (s *AssistantSegment) IsStarted() bool {
-	return strings.TrimSpace(s.messageID) != ""
+	return s.messageID != ""
 }
 
 // ApplyBlock 按索引设置内容块。
 func (s *AssistantSegment) ApplyBlock(index int, block map[string]any) int {
 	s.EnsureStarted()
 	clonedBlock := cloneMap(block)
-	logicalIndex := s.resolveLogicalIndex(index, normalizeString(clonedBlock["type"]))
+	logicalIndex := s.resolveLogicalIndex(index, textutil.AnyString(clonedBlock["type"]))
 	logicalIndex = s.resolveStreamBlockConflict(index, logicalIndex, clonedBlock)
 	for len(s.content) <= logicalIndex {
 		s.content = append(s.content, map[string]any{"type": "text", "text": ""})
 	}
 	s.content[logicalIndex] = clonedBlock
-	if normalizeString(clonedBlock["type"]) == "tool_use" {
+	if textutil.AnyString(clonedBlock["type"]) == "tool_use" {
 		if s.toolInputJSON == nil {
 			s.toolInputJSON = map[int]string{}
 		}
@@ -101,8 +102,8 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 		s.content = append(s.content, emptyAssistantBlock(blockType))
 	}
 	block := s.content[logicalIndex]
-	blockType := normalizeString(block["type"])
-	deltaType := normalizeString(delta["type"])
+	blockType := textutil.AnyString(block["type"])
+	deltaType := textutil.AnyString(delta["type"])
 
 	switch {
 	case blockType == "text" && deltaType == "text_delta":
@@ -131,7 +132,7 @@ func applyToolInputProjection(block map[string]any, partial string) {
 		block["input"] = input
 		return
 	}
-	if isVisualizeShowWidgetTool(normalizeString(block["name"])) {
+	if isVisualizeShowWidgetTool(textutil.AnyString(block["name"])) {
 		for _, field := range []string{"title", "widget_code"} {
 			if value, ok := decodePartialJSONStringField(partial, field); ok {
 				input[field] = value
@@ -282,11 +283,11 @@ func (s *AssistantSegment) HasContent() bool {
 // FindToolName 根据 tool_use_id 在已累积的 content 中反查工具名称。
 func (s *AssistantSegment) FindToolName(toolUseID string) string {
 	for _, block := range s.content {
-		if normalizeString(block["type"]) != "tool_use" {
+		if textutil.AnyString(block["type"]) != "tool_use" {
 			continue
 		}
-		if normalizeString(block["id"]) == toolUseID {
-			return normalizeString(block["name"])
+		if textutil.AnyString(block["id"]) == toolUseID {
+			return textutil.AnyString(block["name"])
 		}
 	}
 	return ""
@@ -294,15 +295,15 @@ func (s *AssistantSegment) FindToolName(toolUseID string) string {
 
 // FindToolUse 返回指定 tool_use 的完整内容块。
 func (s *AssistantSegment) FindToolUse(toolUseID string) map[string]any {
-	trimmedToolUseID := normalizeString(toolUseID)
+	trimmedToolUseID := textutil.AnyString(toolUseID)
 	if trimmedToolUseID == "" {
 		return nil
 	}
 	for _, block := range s.content {
-		if normalizeString(block["type"]) != "tool_use" {
+		if textutil.AnyString(block["type"]) != "tool_use" {
 			continue
 		}
-		if normalizeString(block["id"]) == trimmedToolUseID {
+		if textutil.AnyString(block["id"]) == trimmedToolUseID {
 			return cloneMap(block)
 		}
 	}
@@ -311,15 +312,15 @@ func (s *AssistantSegment) FindToolUse(toolUseID string) map[string]any {
 
 // HasToolUse 表示当前段是否包含指定工具调用。
 func (s *AssistantSegment) HasToolUse(toolUseID string) bool {
-	trimmedToolUseID := normalizeString(toolUseID)
+	trimmedToolUseID := textutil.AnyString(toolUseID)
 	if trimmedToolUseID == "" {
 		return false
 	}
 	for _, block := range s.content {
-		if normalizeString(block["type"]) != "tool_use" {
+		if textutil.AnyString(block["type"]) != "tool_use" {
 			continue
 		}
-		if normalizeString(block["id"]) == trimmedToolUseID {
+		if textutil.AnyString(block["id"]) == trimmedToolUseID {
 			return true
 		}
 	}
@@ -387,7 +388,7 @@ func (s *AssistantSegment) normalizedContent() []map[string]any {
 
 	thinkingIndex := -1
 	for index, block := range content {
-		if normalizeString(block["type"]) == "thinking" {
+		if textutil.AnyString(block["type"]) == "thinking" {
 			thinkingIndex = index
 			break
 		}
@@ -405,7 +406,7 @@ func (s *AssistantSegment) normalizedContent() []map[string]any {
 }
 
 func redactConfigurationToolBlock(block map[string]any) map[string]any {
-	if normalizeString(block["type"]) != "tool_use" {
+	if textutil.AnyString(block["type"]) != "tool_use" {
 		return block
 	}
 	input, ok := block["input"].(map[string]any)
@@ -413,7 +414,7 @@ func redactConfigurationToolBlock(block map[string]any) map[string]any {
 		return block
 	}
 	block["input"] = secretinput.RedactConfigurationToolInput(
-		normalizeString(block["name"]),
+		textutil.AnyString(block["name"]),
 		input,
 	)
 	return block
@@ -424,8 +425,8 @@ type assistantBlockMatcher func(map[string]any, map[string]any) bool
 var assistantBlockMatchers = map[string]assistantBlockMatcher{
 	"thinking": func(map[string]any, map[string]any) bool { return true },
 	"tool_use": func(current map[string]any, incoming map[string]any) bool {
-		currentID := normalizeString(current["id"])
-		incomingID := normalizeString(incoming["id"])
+		currentID := textutil.AnyString(current["id"])
+		incomingID := textutil.AnyString(incoming["id"])
 		// 无 content_block_start 时，流式 input_json_delta 会先留下无 ID
 		// 占位；最终 assistant 快照到达后应替换它，而不是生成孤儿工具块。
 		return currentID == "" || incomingID == "" || currentID == incomingID
@@ -447,20 +448,20 @@ var assistantBlockMatchers = map[string]assistantBlockMatcher{
 
 func blockFieldMatcher(field string) assistantBlockMatcher {
 	return func(current map[string]any, incoming map[string]any) bool {
-		return normalizeString(current[field]) == normalizeString(incoming[field])
+		return textutil.AnyString(current[field]) == textutil.AnyString(incoming[field])
 	}
 }
 
 func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 	block := cloneMap(incoming)
-	incomingType := normalizeString(block["type"])
+	incomingType := textutil.AnyString(block["type"])
 	matcher := assistantBlockMatchers[incomingType]
 	if matcher == nil {
 		s.content = append(s.content, block)
 		return
 	}
 	for index, current := range s.content {
-		currentType := normalizeString(current["type"])
+		currentType := textutil.AnyString(current["type"])
 		if currentType != incomingType || !matcher(current, block) {
 			continue
 		}
@@ -471,11 +472,11 @@ func (s *AssistantSegment) upsertBlock(incoming map[string]any) {
 }
 
 func workspaceFileArtifactKey(block map[string]any) string {
-	if id := normalizeString(block["id"]); id != "" {
+	if id := textutil.AnyString(block["id"]); id != "" {
 		return id
 	}
-	sourceToolUseID := normalizeString(block["source_tool_use_id"])
-	path := normalizeString(block["path"])
+	sourceToolUseID := textutil.AnyString(block["source_tool_use_id"])
+	path := textutil.AnyString(block["path"])
 	if sourceToolUseID == "" || path == "" {
 		return ""
 	}
@@ -488,7 +489,7 @@ func (s *AssistantSegment) resolveLogicalIndex(rawIndex int, blockType string) i
 	}
 	if logicalIndex, exists := s.streamSlot[rawIndex]; exists {
 		if logicalIndex >= 0 && logicalIndex < len(s.content) {
-			currentType := normalizeString(s.content[logicalIndex]["type"])
+			currentType := textutil.AnyString(s.content[logicalIndex]["type"])
 			if currentType == "" || currentType == blockType {
 				return logicalIndex
 			}
@@ -519,11 +520,11 @@ func (s *AssistantSegment) resolveStreamBlockConflict(rawIndex int, logicalIndex
 }
 
 func isConflictingStreamToolUse(current map[string]any, incoming map[string]any) bool {
-	if normalizeString(current["type"]) != "tool_use" || normalizeString(incoming["type"]) != "tool_use" {
+	if textutil.AnyString(current["type"]) != "tool_use" || textutil.AnyString(incoming["type"]) != "tool_use" {
 		return false
 	}
-	currentID := normalizeString(current["id"])
-	incomingID := normalizeString(incoming["id"])
+	currentID := textutil.AnyString(current["id"])
+	incomingID := textutil.AnyString(incoming["id"])
 	return currentID != "" && incomingID != "" && currentID != incomingID
 }
 
@@ -539,7 +540,7 @@ func (s *AssistantSegment) resolveExistingLogicalIndex(rawIndex int) int {
 }
 
 func inferBlockTypeFromDelta(delta map[string]any) string {
-	switch normalizeString(delta["type"]) {
+	switch textutil.AnyString(delta["type"]) {
 	case "thinking_delta", "signature_delta":
 		return "thinking"
 	case "text_delta":

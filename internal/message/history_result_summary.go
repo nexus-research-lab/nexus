@@ -5,6 +5,8 @@ package message
 
 import (
 	"encoding/json"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -171,5 +173,5 @@ func historyIdentity(value any) string {
 	if number, ok := value.(json.Number); ok {
 		return number.String()
 	}
-	return normalizeString(value)
+	return textutil.AnyString(value)
 }

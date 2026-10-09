@@ -17,6 +17,7 @@ import (
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
 	larksheets "github.com/larksuite/oapi-sdk-go/v3/service/sheets/v3"
 	larkwiki "github.com/larksuite/oapi-sdk-go/v3/service/wiki/v2"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
@@ -44,7 +45,7 @@ func NewClient(baseURL string, accessToken string, httpClient *http.Client) *Cli
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 20 * time.Second}
 	}
-	baseURL = strings.TrimRight(firstNonEmpty(baseURL, defaultAPIBaseURL), "/")
+	baseURL = strings.TrimRight(textutil.FirstNonEmpty(baseURL, defaultAPIBaseURL), "/")
 	config := newSDKConfig(baseURL, httpClient)
 	return &Client{
 		apiBaseURL:  baseURL,

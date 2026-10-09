@@ -7,6 +7,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -24,7 +25,7 @@ func (s *Service) ActivateRuntimeCoordination(
 		return err
 	}
 	// Historical reads must not replace this round's current coordination scope.
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		return nil
 	}
 	if !roomConversationCoordinator(actor, snapshot) &&
@@ -95,7 +96,7 @@ func (s *Service) activateReviewContinuationResult(
 	if actor.PlanMode ||
 		result.Snapshot == nil ||
 		(result.Outcome != MutationApplied && result.Outcome != MutationNoOp) ||
-		!isCurrentExecutionStatus(result.Snapshot.Execution.Status) {
+		!result.Snapshot.Execution.Status.Current() {
 		return result
 	}
 	if !reviewBindingResolved(actor, result.Snapshot) &&
@@ -257,7 +258,7 @@ func runtimeCoordinationRoundKey(actor ActorContext) string {
 		normalizeActorKind(actor.ActorKind) != protocol.ExecutionActorAgent {
 		return ""
 	}
-	roundID := firstCoordinationValue(
+	roundID := textutil.FirstNonEmpty(
 		actor.RuntimeRoundID,
 		actor.AgentRoundID,
 		actor.RootRoundID,
@@ -271,13 +272,4 @@ func runtimeCoordinationRoundKey(actor ActorContext) string {
 		strings.TrimSpace(actor.AgentID),
 		roundID,
 	}, "\x00")
-}
-
-func firstCoordinationValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }

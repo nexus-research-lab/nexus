@@ -91,7 +91,7 @@ func ValidateControlConfig(cfg config.Config) error {
 	if endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
 		return errors.New("NEXUS_CONTROL_URL 不能包含凭据、查询参数或 fragment")
 	}
-	if len(strings.TrimSpace(cfg.ControlServiceToken)) < 32 {
+	if len(cfg.ControlServiceToken) < 32 {
 		return errors.New("NEXUS_CONTROL_SERVICE_TOKEN 至少需要 32 个字符")
 	}
 	verifier := controlPrincipalVerifier{
@@ -316,7 +316,7 @@ func (a *ControlAuthority) call(
 	if a == nil || a.baseURL == "" {
 		return errors.New("NEXUS_CONTROL_URL 未配置")
 	}
-	if len(strings.TrimSpace(a.config.ControlServiceToken)) < 32 {
+	if len(a.config.ControlServiceToken) < 32 {
 		return errors.New("NEXUS_CONTROL_SERVICE_TOKEN 至少需要 32 个字符")
 	}
 	endpoint, err := url.Parse(a.baseURL + controlAPIBase + path)
@@ -335,7 +335,7 @@ func (a *ControlAuthority) call(
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(a.config.ControlServiceToken))
+	request.Header.Set("Authorization", "Bearer "+a.config.ControlServiceToken)
 	request.Header.Set("Accept", "application/json")
 	if input != nil {
 		request.Header.Set("Content-Type", "application/json")

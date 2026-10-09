@@ -272,7 +272,7 @@ func (s *Service) finishFlow(
 		ResolvedAccountID:       strings.TrimSpace(resolvedAccountID),
 		CommittedControlVersion: committedVersion,
 		OutcomeCode:             strings.TrimSpace(outcome.Code),
-		OutcomeMessage:          strings.TrimSpace(outcome.Message),
+		OutcomeMessage:          outcome.Message,
 		FinishedAt:              s.now(),
 		AuditID:                 auditID,
 	})

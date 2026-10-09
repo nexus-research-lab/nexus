@@ -15,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
@@ -259,7 +261,7 @@ func (s *Service) ObserveEvent(clientID uint64, event string, data map[string]an
 		return false
 	}
 	event = strings.TrimSpace(event)
-	sessionKey := stringValue(data["session"])
+	sessionKey := textutil.AnyString(data["session"])
 	if sessionKey == "" {
 		return false
 	}
@@ -276,7 +278,7 @@ func (s *Service) ObserveEvent(clientID uint64, event string, data map[string]an
 
 	switch event {
 	case "tab_created":
-		sourceTab, exists := state.tabs[stringValue(data["source_tab_ref"])]
+		sourceTab, exists := state.tabs[textutil.AnyString(data["source_tab_ref"])]
 		tab, valid := eventTab(data["tab"])
 		if !exists || !valid {
 			return false
@@ -297,7 +299,7 @@ func (s *Service) ObserveEvent(clientID uint64, event string, data map[string]an
 			state.activeTabRef = tab.ref
 		}
 	case "tab_removed":
-		tabRef := stringValue(data["tab_ref"])
+		tabRef := textutil.AnyString(data["tab_ref"])
 		if _, exists := state.tabs[tabRef]; !exists {
 			return false
 		}
@@ -440,7 +442,7 @@ func parseBatchActions(value any) ([]map[string]any, []string, error) {
 	}
 	names := make([]string, len(actions))
 	for index, action := range actions {
-		name := strings.ToLower(stringValue(action["action"]))
+		name := strings.ToLower(textutil.AnyString(action["action"]))
 		if !isBatchAction(name) {
 			return nil, nil, fmt.Errorf("batch 第 %d 个 action 不支持: %s", index+1, name)
 		}
@@ -529,13 +531,13 @@ func (s *Service) ObserveProgress(clientID uint64, requestID string, data map[st
 	if s.client == nil || s.client.id != clientID || s.pending[requestID] == nil {
 		return false
 	}
-	stage := stringValue(data["stage"])
+	stage := textutil.AnyString(data["stage"])
 	switch stage {
 	case "queued", "running", "api_start", "api_end", "api_error", "completed", "cancelled", "unknown":
 	default:
 		return false
 	}
-	method := stringValue(data["method"])
+	method := textutil.AnyString(data["method"])
 	if len(method) > 96 || strings.IndexFunc(method, func(r rune) bool { return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r == '.') }) >= 0 {
 		return false
 	}
@@ -558,7 +560,7 @@ func (s *Service) ObserveHealth(clientID uint64, data map[string]any) bool {
 	if s.client == nil || s.client.id != clientID {
 		return false
 	}
-	state := stringValue(data["execution_state"])
+	state := textutil.AnyString(data["execution_state"])
 	switch state {
 	case "ready", "busy", "recovery_required":
 	default:
@@ -700,7 +702,7 @@ func (s *Service) prepareParams(
 	input map[string]any,
 ) (map[string]any, map[string]any, error) {
 	params := cloneMap(input)
-	requestedTabRef := stringValue(params["tab_ref"])
+	requestedTabRef := textutil.AnyString(params["tab_ref"])
 	for _, key := range []string{
 		"action", "owned", "session", "group_title", "round_id", "tab_id", "tab_ids", "tab_ref", "tab_refs",
 	} {
@@ -721,7 +723,7 @@ func (s *Service) prepareParams(
 	switch action {
 	case "list_tabs":
 		delete(params, "tab_id")
-		scope := strings.ToLower(stringValue(params["scope"]))
+		scope := strings.ToLower(textutil.AnyString(params["scope"]))
 		if scope == "" {
 			scope = "session"
 		}
@@ -745,13 +747,13 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		mark := strings.ToLower(stringValue(params["mark"]))
+		mark := strings.ToLower(textutil.AnyString(params["mark"]))
 		if mark != "none" && mark != "deliverable" && mark != "handoff" {
 			return nil, nil, errors.New("mark_tab 的 mark 必须是 none、deliverable 或 handoff")
 		}
 		params["mark"] = mark
 	case "navigate":
-		if stringValue(params["url"]) == "" {
+		if textutil.AnyString(params["url"]) == "" {
 			return nil, nil, errors.New("navigate 需要非空 url")
 		}
 		newTab, err := optionalBool(params, "new_tab")
@@ -763,7 +765,7 @@ func (s *Service) prepareParams(
 			setActiveTab(params, state)
 		}
 	case "find_tab":
-		if stringValue(params["url"]) == "" {
+		if textutil.AnyString(params["url"]) == "" {
 			return nil, nil, errors.New("find_tab 需要非空 url")
 		}
 		if _, err := optionalBool(params, "active"); err != nil {
@@ -789,7 +791,7 @@ func (s *Service) prepareParams(
 			return nil, nil, err
 		}
 	case "download":
-		if stringValue(params["url"]) == "" {
+		if textutil.AnyString(params["url"]) == "" {
 			return nil, nil, errors.New("download 需要非空 url")
 		}
 		if err := optionalString(params, "file_name"); err != nil {
@@ -799,7 +801,7 @@ func (s *Service) prepareParams(
 			return nil, nil, err
 		}
 	case "downloads":
-		command := strings.ToLower(stringValue(params["cmd"]))
+		command := strings.ToLower(textutil.AnyString(params["cmd"]))
 		if command != "list" && command != "wait" && command != "show" {
 			return nil, nil, errors.New("downloads 的 cmd 必须是 list、wait 或 show")
 		}
@@ -808,7 +810,7 @@ func (s *Service) prepareParams(
 			if err := optionalString(params, "query"); err != nil {
 				return nil, nil, err
 			}
-			state := strings.ToLower(stringValue(params["download_state"]))
+			state := strings.ToLower(textutil.AnyString(params["download_state"]))
 			if state != "" && state != "in_progress" && state != "complete" && state != "interrupted" {
 				return nil, nil, errors.New("downloads 的 download_state 无效")
 			}
@@ -847,7 +849,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		if stringValue(params["code"]) == "" {
+		if textutil.AnyString(params["code"]) == "" {
 			return nil, nil, errors.New("evaluate 需要非空 code")
 		}
 		if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
@@ -857,7 +859,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		format := strings.ToLower(stringValue(params["page_format"]))
+		format := strings.ToLower(textutil.AnyString(params["page_format"]))
 		if format == "" {
 			format = "text"
 		}
@@ -881,7 +883,7 @@ func (s *Service) prepareParams(
 		if err := normalizeSelector(params, action); err != nil {
 			return nil, nil, err
 		}
-		waitState := strings.ToLower(stringValue(params["state"]))
+		waitState := strings.ToLower(textutil.AnyString(params["state"]))
 		if waitState == "" {
 			waitState = "visible"
 		}
@@ -899,7 +901,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		if stringValue(params["url"]) == "" {
+		if textutil.AnyString(params["url"]) == "" {
 			return nil, nil, errors.New("wait_for_url 需要非空 url")
 		}
 		if err := optionalBoundedInteger(params, "timeout_ms", 100, 80000); err != nil {
@@ -909,12 +911,12 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		command := strings.ToLower(stringValue(params["cmd"]))
+		command := strings.ToLower(textutil.AnyString(params["cmd"]))
 		if command != "start" && command != "stop" && command != "list" && command != "detail" {
 			return nil, nil, errors.New("network 的 cmd 必须是 start、stop、list 或 detail")
 		}
 		params["cmd"] = command
-		if command == "detail" && stringValue(params["request_id"]) == "" {
+		if command == "detail" && textutil.AnyString(params["request_id"]) == "" {
 			return nil, nil, errors.New("network detail 需要 request_id")
 		}
 		if value, exists := params["filter"]; exists {
@@ -926,7 +928,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		command := strings.ToLower(stringValue(params["cmd"]))
+		command := strings.ToLower(textutil.AnyString(params["cmd"]))
 		if command != "start" && command != "stop" && command != "list" {
 			return nil, nil, errors.New("console 的 cmd 必须是 start、stop 或 list")
 		}
@@ -941,7 +943,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		command := strings.ToLower(stringValue(params["cmd"]))
+		command := strings.ToLower(textutil.AnyString(params["cmd"]))
 		if command != "get" && command != "accept" && command != "dismiss" {
 			return nil, nil, errors.New("dialog 的 cmd 必须是 get、accept 或 dismiss")
 		}
@@ -994,7 +996,7 @@ func (s *Service) prepareParams(
 		if err := normalizePointer(params, action, "x", "y"); err != nil {
 			return nil, nil, err
 		}
-		button := strings.ToLower(stringValue(params["button"]))
+		button := strings.ToLower(textutil.AnyString(params["button"]))
 		if button != "" && button != "left" && button != "middle" && button != "right" && button != "back" && button != "forward" {
 			return nil, nil, fmt.Errorf("%s 的 button 无效", action)
 		}
@@ -1016,7 +1018,7 @@ func (s *Service) prepareParams(
 			return nil, nil, err
 		}
 		selector := selectorValue(params)
-		targetSelector := stringValue(params["target_selector"])
+		targetSelector := textutil.AnyString(params["target_selector"])
 		if selector != "" || targetSelector != "" {
 			if selector == "" || targetSelector == "" {
 				return nil, nil, errors.New("drag 需要同时提供 selector 和 target_selector")
@@ -1059,7 +1061,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		if stringValue(params["method"]) == "" {
+		if textutil.AnyString(params["method"]) == "" {
 			return nil, nil, errors.New("cdp 需要非空 method")
 		}
 		if value, exists := params["params"]; exists {
@@ -1071,7 +1073,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		command := strings.ToLower(stringValue(params["cmd"]))
+		command := strings.ToLower(textutil.AnyString(params["cmd"]))
 		if command != "read" && command != "write" {
 			return nil, nil, errors.New("clipboard 的 cmd 必须是 read 或 write")
 		}
@@ -1092,10 +1094,10 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		if action == "press_key" && stringValue(params["keys"]) == "" {
+		if action == "press_key" && textutil.AnyString(params["keys"]) == "" {
 			params["keys"] = params["key"]
 		}
-		if stringValue(params["keys"]) == "" {
+		if textutil.AnyString(params["keys"]) == "" {
 			return nil, nil, fmt.Errorf("%s 需要非空 keys", action)
 		}
 		if repeat, exists := params["repeat"]; exists {
@@ -1109,7 +1111,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		format := strings.ToLower(stringValue(params["format"]))
+		format := strings.ToLower(textutil.AnyString(params["format"]))
 		if format != "" && format != "png" && format != "jpeg" {
 			return nil, nil, errors.New("screenshot 的 format 必须是 png 或 jpeg")
 		}
@@ -1133,7 +1135,7 @@ func (s *Service) prepareParams(
 		if err := requireActiveTab(&params, state, hasSession, action); err != nil {
 			return nil, nil, err
 		}
-		if format := strings.ToLower(stringValue(params["paper_format"])); format != "" {
+		if format := strings.ToLower(textutil.AnyString(params["paper_format"])); format != "" {
 			if format != "letter" && format != "legal" && format != "a4" && format != "a3" && format != "tabloid" {
 				return nil, nil, errors.New("save_as_pdf 不支持该 paper_format")
 			}
@@ -1186,7 +1188,7 @@ func (s *Service) updateSession(
 	switch action {
 	case "attach_active", "attach_tab", "navigate", "find_tab":
 		tabID, valid := integerValue(result["tab_id"])
-		tabRef := stringValue(result["tab_ref"])
+		tabRef := textutil.AnyString(result["tab_ref"])
 		if !valid || tabID <= 0 || tabRef == "" {
 			return
 		}
@@ -1200,21 +1202,21 @@ func (s *Service) updateSession(
 		s.sessions[sessionKey] = state
 	case "list_tabs":
 		items, _ := result["tabs"].([]any)
-		if stringValue(result["scope"]) != "session" || items == nil {
+		if textutil.AnyString(result["scope"]) != "session" || items == nil {
 			return
 		}
 		next := make(map[string]browserTab, len(items))
 		for _, item := range items {
 			value, _ := item.(map[string]any)
 			tabID, valid := integerValue(value["tab_id"])
-			tabRef := stringValue(value["tab_ref"])
+			tabRef := textutil.AnyString(value["tab_ref"])
 			if valid && tabID > 0 && tabRef != "" {
 				next[tabRef] = browserTab{
 					id:      tabID,
 					ref:     tabRef,
 					owned:   boolValue(value["owned"]),
-					roundID: stringValue(value["round_id"]),
-					mark:    stringValue(value["mark"]),
+					roundID: textutil.AnyString(value["round_id"]),
+					mark:    textutil.AnyString(value["mark"]),
 				}
 			}
 		}
@@ -1232,7 +1234,7 @@ func (s *Service) updateSession(
 		}
 		s.sessions[sessionKey] = state
 	case "close_tab", "close":
-		tabRef := stringValue(params["tab_ref"])
+		tabRef := textutil.AnyString(params["tab_ref"])
 		delete(state.tabs, tabRef)
 		remaining := orderedTabs(state.tabs)
 		if len(remaining) == 0 {
@@ -1244,20 +1246,20 @@ func (s *Service) updateSession(
 	case "close_session":
 		delete(s.sessions, sessionKey)
 	case "mark_tab":
-		tabRef := stringValue(params["tab_ref"])
+		tabRef := textutil.AnyString(params["tab_ref"])
 		tab, exists := state.tabs[tabRef]
 		if !exists {
 			return
 		}
 		tab.roundID = roundID
-		tab.mark = stringValue(params["mark"])
+		tab.mark = textutil.AnyString(params["mark"])
 		if tab.mark == "none" {
 			tab.mark = ""
 		}
 		state.tabs[tabRef] = tab
 		s.sessions[sessionKey] = state
 	default:
-		tabRef := stringValue(params["tab_ref"])
+		tabRef := textutil.AnyString(params["tab_ref"])
 		tab, exists := state.tabs[tabRef]
 		if !exists {
 			return
@@ -1308,7 +1310,7 @@ func boolValue(value any) bool {
 func eventTab(value any) (browserTab, bool) {
 	tabValue, _ := value.(map[string]any)
 	tabID, valid := integerValue(tabValue["tab_id"])
-	tabRef := stringValue(tabValue["tab_ref"])
+	tabRef := textutil.AnyString(tabValue["tab_ref"])
 	return browserTab{id: tabID, ref: tabRef}, valid && tabID > 0 && tabRef != ""
 }
 
@@ -1322,10 +1324,10 @@ func normalizeSelector(params map[string]any, action string) error {
 }
 
 func selectorValue(params map[string]any) string {
-	if selector := stringValue(params["selector"]); selector != "" {
+	if selector := textutil.AnyString(params["selector"]); selector != "" {
 		return selector
 	}
-	return stringValue(params["ref"])
+	return textutil.AnyString(params["ref"])
 }
 
 func optionalBool(params map[string]any, key string) (bool, error) {
@@ -1459,7 +1461,7 @@ func validStringList(value any) bool {
 			return false
 		}
 		for _, item := range list {
-			if stringValue(item) == "" {
+			if textutil.AnyString(item) == "" {
 				return false
 			}
 		}
@@ -1553,11 +1555,6 @@ func numberValue(value any) (float64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-func stringValue(value any) string {
-	result, _ := value.(string)
-	return strings.TrimSpace(result)
 }
 
 func missingTabError(action string) error {

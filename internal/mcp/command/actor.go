@@ -40,16 +40,11 @@ func (a Actor) normalized() Actor {
 	result := a
 	result.OwnerUserID = strings.TrimSpace(result.OwnerUserID)
 	result.AgentID = strings.TrimSpace(result.AgentID)
-	result.AgentName = strings.TrimSpace(result.AgentName)
 	result.SessionKey = strings.TrimSpace(result.SessionKey)
-	result.SessionLabel = strings.TrimSpace(result.SessionLabel)
-	result.RoundID = strings.TrimSpace(result.RoundID)
 	result.LeaseSessionKey = strings.TrimSpace(result.LeaseSessionKey)
-	result.LeaseRoundID = strings.TrimSpace(result.LeaseRoundID)
 	result.SourceContextType = strings.ToLower(strings.TrimSpace(result.SourceContextType))
 	result.SourceContextID = strings.TrimSpace(result.SourceContextID)
 	result.SourceContextLabel = strings.TrimSpace(result.SourceContextLabel)
-	result.DefaultTimezone = strings.TrimSpace(result.DefaultTimezone)
 	result.CurrentJobID = strings.TrimSpace(result.CurrentJobID)
 	result.CurrentRunID = strings.TrimSpace(result.CurrentRunID)
 	return result

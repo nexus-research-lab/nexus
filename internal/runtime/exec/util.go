@@ -100,7 +100,7 @@ func disconnectUncleanRoundClient(client Client) {
 }
 
 func shouldTreatAsInterrupted(ctx context.Context, interruptReason func() string) bool {
-	return ctx.Err() != nil || strings.TrimSpace(resolveInterruptReason(interruptReason)) != ""
+	return ctx.Err() != nil || resolveInterruptReason(interruptReason) != ""
 }
 
 func resolveInterruptReason(interruptReason func() string) string {
@@ -108,15 +108,6 @@ func resolveInterruptReason(interruptReason func() string) string {
 		return ""
 	}
 	return strings.TrimSpace(interruptReason())
-}
-
-func resolveSessionID(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func messageString(value any) string {

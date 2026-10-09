@@ -251,7 +251,7 @@ func (r *Repository) finalizeScheduledTaskDeletionOnce(ctx context.Context, inpu
 		ownerUserID,
 		jobID,
 		token,
-		strings.TrimSpace(input.ExpectedDeletionState),
+		input.ExpectedDeletionState,
 		input.ExpectedConfigurationVersion,
 	); err != nil {
 		return TaskDeleteFinalizationResult{}, err
@@ -312,7 +312,7 @@ func (r *Repository) finalizeScheduledTaskDeletionOnce(ctx context.Context, inpu
 WHERE owner_user_id = ` + r.bind(1) + ` AND job_id = ` + r.bind(2) + `
 	  AND deletion_state <> '' AND deletion_token = ` + r.bind(3)
 	deleteArgs := []any{ownerUserID, jobID, token}
-	if expectedState := strings.TrimSpace(input.ExpectedDeletionState); expectedState != "" {
+	if expectedState := input.ExpectedDeletionState; expectedState != "" {
 		deleteArgs = append(deleteArgs, expectedState)
 		deleteQuery += ` AND deletion_state = ` + r.bind(len(deleteArgs))
 	}
@@ -417,8 +417,8 @@ SET status = CASE WHEN status IN ('pending', 'running', 'queued_to_main_session'
     block_state = '', blocked_request_id = NULL, updated_at = CURRENT_TIMESTAMP
 WHERE owner_user_id = `+r.bind(7)+` AND job_id = `+r.bind(8)+`
   AND (status IN ('pending', 'running', 'queued_to_main_session') OR block_state <> '')`,
-		automationdomain.RunStatusCancelled, input.FinishedAt.UTC(), nullString(strings.TrimSpace(input.ActiveRunMessage)),
-		automationdomain.DeliveryStatusNotAttempted, nullString(strings.TrimSpace(input.PendingDeliveryError)), input.DeliveryDeadLetter.UTC(),
+		automationdomain.RunStatusCancelled, input.FinishedAt.UTC(), nullString(input.ActiveRunMessage),
+		automationdomain.DeliveryStatusNotAttempted, nullString(input.PendingDeliveryError), input.DeliveryDeadLetter.UTC(),
 		strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
 	return err
 }
@@ -437,7 +437,7 @@ SET delivery_status = `+r.bind(1)+`, delivery_error = `+r.bind(2)+`, delivered_a
     delivery_next_attempt_at = NULL, delivery_dead_letter_at = `+r.bind(3)+`, updated_at = CURRENT_TIMESTAMP
 WHERE owner_user_id = `+r.bind(4)+` AND job_id = `+r.bind(5)+`
   AND delivery_dead_letter_at IS NULL AND delivery_status = 'failed'`,
-		automationdomain.DeliveryStatusFailed, nullString(strings.TrimSpace(input.DeliveryError)), input.DeliveryDeadLetter.UTC(),
+		automationdomain.DeliveryStatusFailed, nullString(input.DeliveryError), input.DeliveryDeadLetter.UTC(),
 		strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
 	if err != nil {
 		return err
@@ -448,7 +448,7 @@ SET delivery_error = `+r.bind(1)+`, delivery_next_attempt_at = NULL,
     delivery_attempt_started_at = NULL, updated_at = CURRENT_TIMESTAMP
 WHERE owner_user_id = `+r.bind(3)+` AND job_id = `+r.bind(4)+`
   AND delivery_dead_letter_at IS NULL AND delivery_status = 'retrying'`,
-		nullString(strings.TrimSpace(input.UnconfirmedDeliveryError)), input.DeliveryDeadLetter.UTC(),
+		nullString(input.UnconfirmedDeliveryError), input.DeliveryDeadLetter.UTC(),
 		strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
 	if err != nil {
 		return err
@@ -459,7 +459,7 @@ SET delivery_status = `+r.bind(1)+`, delivery_error = `+r.bind(2)+`, delivered_a
 WHERE owner_user_id = `+r.bind(4)+` AND job_id = `+r.bind(5)+`
   AND delivery_dead_letter_at IS NULL AND delivery_status = 'pending'
   AND status NOT IN ('pending', 'running', 'queued_to_main_session')`,
-		automationdomain.DeliveryStatusNotAttempted, nullString(strings.TrimSpace(input.PendingDeliveryError)),
+		automationdomain.DeliveryStatusNotAttempted, nullString(input.PendingDeliveryError),
 		input.DeliveryDeadLetter.UTC(), strings.TrimSpace(input.OwnerUserID), strings.TrimSpace(input.JobID))
 	return err
 }

@@ -1,6 +1,7 @@
 package room
 
 import (
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -29,7 +30,7 @@ func NewSlotMessageMapper(
 			RoomID:         roomID,
 			ConversationID: conversationID,
 			AgentID:        agentID,
-			WorkspacePath:  firstNonEmpty(workspacePath...),
+			WorkspacePath:  textutil.FirstNonEmpty(workspacePath...),
 			RoundID:        roundID,
 			AgentRoundID:   agentRoundID,
 			ParentID:       slotMessageID,
@@ -42,19 +43,11 @@ func (m *SlotMessageMapper) Map(
 	incoming sdkprotocol.ReceivedMessage,
 	interruptReason ...string,
 ) ([]protocol.EventMessage, []protocol.Message, string, error) {
-	result, err := m.MapResult(incoming, interruptReason...)
+	result, err := m.EventMapper.Map(incoming, interruptReason...)
 	if err != nil {
 		return nil, nil, "", err
 	}
 	return result.Events, result.DurableMessages, result.TerminalStatus, nil
-}
-
-// MapResult 保留完整终态信息，供 Room 执行器把 error subtype 传到 slot 收口。
-func (m *SlotMessageMapper) MapResult(
-	incoming sdkprotocol.ReceivedMessage,
-	interruptReason ...string,
-) (message.EventMapResult, error) {
-	return m.EventMapper.Map(incoming, interruptReason...)
 }
 
 // SetMessageDecorator 为 Room durable 消息及其最终 assistant 投影补充场景字段。

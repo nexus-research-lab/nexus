@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -40,7 +40,7 @@ func (s *Service) prepareConversationFork(
 		return "", "", errors.New("target round id is required")
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, source.AgentID)
 	if err != nil {
 		return "", "", err
 	}
@@ -48,8 +48,8 @@ func (s *Service) prepareConversationFork(
 	if err != nil {
 		return "", "", err
 	}
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
-	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
+	activeRoundIDs := s.Runtime.GetRunningRoundIDs(sourceSessionKey)
 	page, err := ownerHistory.ReadMessagesPageContext(
 		ctx,
 		agentValue.WorkspacePath,
@@ -121,7 +121,7 @@ func (s *Service) forkConversationSession(
 		return errors.New("conversation fork target and transcript boundary are required")
 	}
 
-	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, source.AgentID)
 	if err != nil {
 		return err
 	}
@@ -133,14 +133,14 @@ func (s *Service) forkConversationSession(
 	if err != nil {
 		return err
 	}
-	if dmdomain.StringPointerValue(targetSession.SessionID) != "" {
+	if textutil.PointerValue(targetSession.SessionID) != "" {
 		return errors.New("target conversation already has an SDK session")
 	}
 	if targetSession.Options == nil {
 		targetSession.Options = map[string]any{}
 	}
 	runtimeFingerprintFromSession(sourceSession).apply(targetSession.Options)
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
 	if err = ownerHistory.ForkRoundMarkers(
 		agentValue.WorkspacePath,
 		sourceSessionKey,
@@ -185,7 +185,7 @@ func (s *Service) forkConversationSession(
 		return fmt.Errorf("读取 fork conversation 历史: %w", err)
 	}
 	targetSession.MessageCount = len(forkRows)
-	_, err = s.files.ForOwner(agentValue.OwnerUserID).PatchSessionRuntime(
+	_, err = s.Files.ForOwner(agentValue.OwnerUserID).PatchSessionRuntime(
 		agentValue.WorkspacePath,
 		targetSession,
 	)
@@ -215,7 +215,7 @@ func resolveConversationForkBoundary(
 	sourceSession protocol.Session,
 	targetRoundID string,
 ) (string, string, error) {
-	sessionIDs := []string{dmdomain.StringPointerValue(sourceSession.SessionID)}
+	sessionIDs := []string{textutil.PointerValue(sourceSession.SessionID)}
 	if segmented, _ := sourceSession.Options[protocol.OptionRuntimeSegmentedTranscript].(bool); segmented {
 		sessionIDs = protocol.SessionTranscriptIDs(sourceSession)
 	}
@@ -322,24 +322,6 @@ func completedAssistantRound(rows []protocol.Message, roundID string, activeRoun
 		}
 	}
 	return hasAssistant && !hasNonSuccessfulTerminal
-}
-
-func latestCompletedAssistantRound(rows []protocol.Message, activeRoundIDs []string) string {
-	seen := make(map[string]struct{})
-	for index := len(rows) - 1; index >= 0; index-- {
-		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
-		if roundID == "" {
-			continue
-		}
-		if _, duplicate := seen[roundID]; duplicate {
-			continue
-		}
-		seen[roundID] = struct{}{}
-		if completedAssistantRound(rows, roundID, activeRoundIDs) {
-			return roundID
-		}
-	}
-	return ""
 }
 
 func successfulForkResult(value any) bool {

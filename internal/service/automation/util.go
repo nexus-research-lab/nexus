@@ -33,13 +33,6 @@ func errorPointer(err error) *string {
 	return &message
 }
 
-func anyStringPointer(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
 func anyString(value any) string {
 	switch typed := value.(type) {
 	case string:
@@ -47,15 +40,6 @@ func anyString(value any) string {
 	default:
 		return ""
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, item := range values {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func contextForJobOwner(ctx context.Context, job automationdomain.ScheduledTask) context.Context {

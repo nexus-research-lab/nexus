@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -269,33 +270,6 @@ func (s *RoomHistoryStore) readCanonicalRoundIndexContext(
 	)
 }
 
-func readRoundIndexFromJSONLAt(
-	rootPath string,
-	path string,
-	activeRoundIDs map[string]struct{},
-	collapseRoomAgentRounds bool,
-	defaultAgentID string,
-) (protocol.SessionRoundIndex, error) {
-	root, relative, err := relativeStorePath(rootPath, path)
-	if err != nil {
-		return protocol.SessionRoundIndex{}, err
-	}
-	defer root.Close()
-	return readRoundIndexFromRoot(root, relative, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
-}
-
-func readRoundIndexFromRoot(
-	root *confinedfs.Root,
-	relative string,
-	activeRoundIDs map[string]struct{},
-	collapseRoomAgentRounds bool,
-	defaultAgentID string,
-) (protocol.SessionRoundIndex, error) {
-	return readRoundIndexFromRootContext(
-		context.Background(), root, relative, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID,
-	)
-}
-
 func readRoundIndexFromRootContext(
 	ctx context.Context,
 	root *confinedfs.Root,
@@ -453,7 +427,7 @@ func addRoundIndexAgentID(
 	agentID string,
 	defaultAgentID string,
 ) {
-	normalizedAgentID := firstNonEmpty(agentID, defaultAgentID)
+	normalizedAgentID := textutil.FirstNonEmpty(agentID, defaultAgentID)
 	if normalizedAgentID == "" {
 		return
 	}

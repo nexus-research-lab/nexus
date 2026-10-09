@@ -175,7 +175,6 @@ WHERE execution_id = `+r.bind(2)+`
 // 它不会复活 Block 已终止的 Attempt 或 Dispatch。
 func (r *Repository) Resume(ctx context.Context, command ResumeCommand) (*protocol.ExecutionSnapshot, error) {
 	state := command.State
-	command.Resolution = strings.TrimSpace(command.Resolution)
 	if err := protocol.ValidateExecutionProjectionLimit(
 		"resume_evidence",
 		len(command.Evidence),

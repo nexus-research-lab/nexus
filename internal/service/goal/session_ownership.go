@@ -55,7 +55,7 @@ func (s *Service) verifyGoalSessionOwnership(
 		return ownerUserID, trustedAgentID, "", nil
 	}
 	if authenticatedOwner, ok := authctx.CurrentUserID(ctx); ok &&
-		strings.TrimSpace(authenticatedOwner) != ownerUserID {
+		authenticatedOwner != ownerUserID {
 		return "", "", "", fmt.Errorf(
 			"%w: Goal owner does not match the authenticated owner",
 			ErrGoalForbidden,

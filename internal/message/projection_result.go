@@ -6,6 +6,7 @@ package message
 import (
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -81,11 +82,11 @@ func AttachGoalCompletionReceipt(
 	if protocol.MessageRole(assistant) != "assistant" ||
 		strings.TrimSpace(receipt.GoalID) == "" ||
 		strings.TrimSpace(receipt.RoundID) == "" ||
-		normalizeString(assistant["message_id"]) == "" {
+		textutil.AnyString(assistant["message_id"]) == "" {
 		return nil, false
 	}
 	messageRoundID := protocol.MessageRoundID(assistant)
-	agentRoundID := normalizeString(assistant["agent_round_id"])
+	agentRoundID := textutil.AnyString(assistant["agent_round_id"])
 	if receipt.RoundID != messageRoundID && receipt.RoundID != agentRoundID {
 		return nil, false
 	}
@@ -109,15 +110,15 @@ func ProjectResultMessage(assistant protocol.Message, result protocol.Message) p
 }
 
 func resultNeedsAssistantProjection(result protocol.Message) bool {
-	if boolFromAny(result["is_error"]) || NormalizeResultSubtype(normalizeString(result["subtype"])) == "error" {
+	if boolFromAny(result["is_error"]) || NormalizeResultSubtype(textutil.AnyString(result["subtype"])) == "error" {
 		return true
 	}
 	// Room 的空 interrupted result 是 Agent 槽位的终态卡片，不是聊天气泡。
 	// 保留它的身份，让实时态和历史态都能稳定展示“已停止”，同时不回显
 	// runtime 的默认停止文案。
-	if NormalizeResultSubtype(normalizeString(result["subtype"])) == "interrupted" &&
-		normalizeString(result["room_id"]) != "" &&
-		normalizeString(result["agent_round_id"]) != "" {
+	if NormalizeResultSubtype(textutil.AnyString(result["subtype"])) == "interrupted" &&
+		textutil.AnyString(result["room_id"]) != "" &&
+		textutil.AnyString(result["agent_round_id"]) != "" {
 		return true
 	}
 	return NormalizeDisplayText(resultProjectionText(result)) != ""
@@ -125,8 +126,8 @@ func resultNeedsAssistantProjection(result protocol.Message) bool {
 
 // BuildAssistantResultSummary 只保留 assistant 终态需要的结果摘要。
 func BuildAssistantResultSummary(result protocol.Message, assistantText string) map[string]any {
-	resultMessageID := normalizeString(result["message_id"])
-	resultSubtype := normalizeString(result["subtype"])
+	resultMessageID := textutil.AnyString(result["message_id"])
+	resultSubtype := textutil.AnyString(result["subtype"])
 	resultValue := resultProjectionText(result)
 	summary := map[string]any{
 		"message_id":      resultMessageID,
@@ -164,8 +165,8 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 }
 
 func resultProjectionText(result protocol.Message) string {
-	resultText := normalizeString(result["result"])
-	if NormalizeResultSubtype(normalizeString(result["subtype"])) == "interrupted" {
+	resultText := textutil.AnyString(result["result"])
+	if NormalizeResultSubtype(textutil.AnyString(result["subtype"])) == "interrupted" {
 		return NormalizeInterruptDisplayText(resultText)
 	}
 	return resultText
@@ -210,10 +211,10 @@ func ExtractAssistantDisplayText(message protocol.Message) string {
 
 	texts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		if normalizeString(block["type"]) != "text" {
+		if textutil.AnyString(block["type"]) != "text" {
 			continue
 		}
-		text := normalizeString(block["text"])
+		text := textutil.AnyString(block["text"])
 		if text == "" {
 			continue
 		}
@@ -231,8 +232,8 @@ func ExtractAssistantFinalText(message protocol.Message) string {
 	start := len(blocks)
 	for start > 0 {
 		block := blocks[start-1]
-		kind := normalizeString(block["type"])
-		if kind != "workspace_file_artifact" && (kind != "text" || normalizeString(block["text"]) == "") {
+		kind := textutil.AnyString(block["type"])
+		if kind != "workspace_file_artifact" && (kind != "text" || textutil.AnyString(block["text"]) == "") {
 			break
 		}
 		start--
@@ -285,23 +286,23 @@ func IsInternalExplicitSkillPrompt(content string) bool {
 func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message {
 	synthetic := protocol.Message{
 		"message_id":  buildSyntheticAssistantMessageID(result),
-		"session_key": normalizeString(result["session_key"]),
-		"agent_id":    normalizeString(result["agent_id"]),
-		"round_id":    normalizeString(result["round_id"]),
+		"session_key": textutil.AnyString(result["session_key"]),
+		"agent_id":    textutil.AnyString(result["agent_id"]),
+		"round_id":    textutil.AnyString(result["round_id"]),
 		"role":        "assistant",
 		"timestamp":   messageTimestamp(result),
 		"is_complete": true,
 	}
-	if roomID := normalizeString(result["room_id"]); roomID != "" {
+	if roomID := textutil.AnyString(result["room_id"]); roomID != "" {
 		synthetic["room_id"] = roomID
 	}
-	if conversationID := normalizeString(result["conversation_id"]); conversationID != "" {
+	if conversationID := textutil.AnyString(result["conversation_id"]); conversationID != "" {
 		synthetic["conversation_id"] = conversationID
 	}
-	if sessionID := normalizeString(result["session_id"]); sessionID != "" {
+	if sessionID := textutil.AnyString(result["session_id"]); sessionID != "" {
 		synthetic["session_id"] = sessionID
 	}
-	if parentID := normalizeString(result["parent_id"]); parentID != "" {
+	if parentID := textutil.AnyString(result["parent_id"]); parentID != "" {
 		synthetic["parent_id"] = parentID
 	}
 	copySyntheticAssistantIdentity(synthetic, result, "agent_round_id")
@@ -326,22 +327,22 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 }
 
 func sameOptionalIdentity(left protocol.Message, right protocol.Message, key string) bool {
-	leftValue := normalizeString(left[key])
-	rightValue := normalizeString(right[key])
+	leftValue := textutil.AnyString(left[key])
+	rightValue := textutil.AnyString(right[key])
 	return leftValue == "" || rightValue == "" || leftValue == rightValue
 }
 
 func copySyntheticAssistantIdentity(target protocol.Message, source protocol.Message, key string) {
-	if value := normalizeString(source[key]); value != "" {
+	if value := textutil.AnyString(source[key]); value != "" {
 		target[key] = value
 	}
 }
 
 func stopReasonFromResult(result protocol.Message) string {
-	if stopReason := normalizeString(result["stop_reason"]); stopReason != "" {
+	if stopReason := textutil.AnyString(result["stop_reason"]); stopReason != "" {
 		return stopReason
 	}
-	switch NormalizeResultSubtype(normalizeString(result["subtype"])) {
+	switch NormalizeResultSubtype(textutil.AnyString(result["subtype"])) {
 	case "interrupted":
 		return "cancelled"
 	case "error":
@@ -436,10 +437,10 @@ func normalizeMessageContentBlocks(raw any) []map[string]any {
 }
 
 func buildSyntheticAssistantMessageID(result protocol.Message) string {
-	if messageID := normalizeString(result["message_id"]); messageID != "" {
+	if messageID := textutil.AnyString(result["message_id"]); messageID != "" {
 		return "assistant_" + messageID
 	}
-	if roundID := normalizeString(result["round_id"]); roundID != "" {
+	if roundID := textutil.AnyString(result["round_id"]); roundID != "" {
 		return "assistant_result_" + roundID
 	}
 	return "assistant_result"
@@ -453,13 +454,13 @@ func LatestReplyPreview(messages []protocol.Message) string {
 			continue
 		}
 		resultSummary, _ := item["result_summary"].(map[string]any)
-		if replySummaryString(resultSummary["subtype"]) == "interrupted" {
+		if textutil.AnyString(resultSummary["subtype"]) == "interrupted" {
 			continue
 		}
 
 		text := ExtractAssistantFinalText(item)
 		if text == "" {
-			text = replySummaryString(resultSummary["result"])
+			text = textutil.AnyString(resultSummary["result"])
 		}
 		if preview := compactReplyPreview(text); preview != "" {
 			return preview
@@ -478,9 +479,4 @@ func compactReplyPreview(value string) string {
 		return normalized
 	}
 	return string(runes[:160-1]) + "…"
-}
-
-func replySummaryString(value any) string {
-	text, _ := value.(string)
-	return strings.TrimSpace(text)
 }

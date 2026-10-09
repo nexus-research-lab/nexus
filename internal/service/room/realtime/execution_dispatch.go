@@ -46,7 +46,7 @@ func (s *Service) AuthorizeAssignmentTarget(
 	ctx context.Context,
 	request orchestrationsvc.AssignmentTargetRequest,
 ) error {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return errors.New("Room context store is unavailable")
 	}
 	contextValue, err := s.rooms.GetConversationContextForSystem(ctx, strings.TrimSpace(request.ConversationID))
@@ -170,7 +170,7 @@ func (s *Service) enqueueExecutionDispatch(
 	content string,
 ) (orchestrationsvc.ExecutionDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionDispatchReceipt
-	if s == nil || s.inputQueue == nil || contextValue == nil || parentRound == nil {
+	if contextValue == nil || parentRound == nil {
 		return receipt, errors.New("durable Room input queue is unavailable")
 	}
 	delivery.TargetAgentID = strings.TrimSpace(delivery.TargetAgentID)
@@ -202,9 +202,9 @@ func (s *Service) enqueueExecutionDispatch(
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 		OwnerUserID:     delivery.OwnerUserID,
 		RootRoundID:     roomRootRoundID(parentRound),
-		WorkBinding:     cloneExecutionWorkBinding(&delivery.Binding),
+		WorkBinding:     (&delivery.Binding).Clone(),
 	}
-	items, inserted, err := s.inputQueue.EnqueueBounded(location.Location, item, 0)
+	items, inserted, err := s.InputQueue.EnqueueBounded(location.Location, item, 0)
 	if err != nil {
 		return receipt, err
 	}
@@ -235,7 +235,7 @@ func (s *Service) enqueueExecutionDispatch(
 		delivery.SessionKey,
 		contextValue,
 	); err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"广播 Execution Dispatch 队列快照失败",
 			"dispatch_id",
 			delivery.Binding.DispatchID,
@@ -248,7 +248,7 @@ func (s *Service) enqueueExecutionDispatch(
 		delivery.ConversationID,
 		[]string{delivery.TargetAgentID},
 	)) == 0 {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			delivery.SessionKey,
 			delivery.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -273,9 +273,6 @@ func (s *Service) ensureExecutionDispatchHandoff(
 	content string,
 ) (bool, orchestrationsvc.ExecutionDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionDispatchReceipt
-	if s == nil || s.publicHandoffs == nil {
-		return false, receipt, errors.New("durable Room handoff store is unavailable")
-	}
 	binding := delivery.Binding
 	handoff, inserted, err := s.publicHandoffs.Detect(
 		delivery.OwnerUserID,
@@ -357,10 +354,10 @@ func (s *Service) authorizeManagedExecutionTarget(
 	if binding == nil {
 		return nil
 	}
-	if s == nil || s.executionContext == nil || roundValue == nil {
+	if s.ExecutionContext == nil || roundValue == nil {
 		return errors.New("managed Execution target admission is unavailable")
 	}
-	authorizer, ok := s.executionContext.(executionTargetAuthorizer)
+	authorizer, ok := s.ExecutionContext.(executionTargetAuthorizer)
 	if !ok {
 		// 配置了 managed Execution context 却没有 admission 能力时 fail closed；
 		// 不能让 raw @ 绕过 WorkGraph。
@@ -383,15 +380,15 @@ func (e *slotExecution) activateBoundRoomAttempt(actor orchestrationsvc.ActorCon
 	if e == nil || e.slot == nil || e.slot.WorkBinding == nil {
 		return nil
 	}
-	if e.service == nil || e.service.executionContext == nil {
+	if e.service == nil || e.service.ExecutionContext == nil {
 		return errors.New("managed Execution Attempt activation is unavailable")
 	}
-	activator, ok := e.service.executionContext.(executionAttemptActivator)
+	activator, ok := e.service.ExecutionContext.(executionAttemptActivator)
 	if !ok {
 		return errors.New("managed Execution Attempt activator is unavailable")
 	}
 	return activator.ActivateRoomAttempt(e.ctx, actor, orchestrationsvc.RoomAttemptActivationInput{
-		Binding:           *cloneExecutionWorkBinding(e.slot.WorkBinding),
+		Binding:           *e.slot.WorkBinding.Clone(),
 		RuntimeSessionKey: e.slot.RuntimeSessionKey,
 		RoomSessionID:     e.slot.RoomSessionID,
 	})
@@ -466,7 +463,7 @@ func renderExecutionDispatchInstruction(delivery orchestrationsvc.ExecutionDispa
 		fmt.Fprintf(
 			&output,
 			"\n  result_summary: %s",
-			strconv.Quote(strings.TrimSpace(dependency.ResultSummary)),
+			strconv.Quote(dependency.ResultSummary),
 		)
 		output.WriteString("\n  result_refs:")
 		for _, ref := range dependency.ResultRefs {
@@ -506,24 +503,6 @@ func executionDispatchID(binding *protocol.ExecutionWorkBinding) string {
 		return ""
 	}
 	return strings.TrimSpace(binding.DispatchID)
-}
-
-func cloneExecutionWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneExecutionReviewBinding(
-	binding *protocol.ExecutionReviewBinding,
-) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }
 
 func roomCoordinatorAgentID(explicit string, contextValue *protocol.ConversationContextAggregate) string {

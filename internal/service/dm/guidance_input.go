@@ -13,8 +13,10 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -34,7 +36,7 @@ func (s *Service) inputQueueGuidanceHook(
 	location workspacestore.InputQueueLocation,
 ) sdkhook.Callback {
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
-		ctx = contextWithExactOwner(ctx, location.OwnerUserID)
+		ctx = runtimehost.ContextWithExactOwner(ctx, location.OwnerUserID)
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
@@ -42,11 +44,11 @@ func (s *Service) inputQueueGuidanceHook(
 			return sdkhook.Output{}, err
 		}
 		defer s.inputQueueDispatchMu.Unlock()
-		runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
+		runningRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey)
 		if len(runningRoundIDs) == 0 {
 			return sdkhook.Output{}, nil
 		}
-		supportsAppliedAck := s.runtime != nil && s.runtime.SupportsHookResponseAck(sessionKey)
+		supportsAppliedAck := s.Runtime != nil && s.Runtime.SupportsHookResponseAck(sessionKey)
 		if supportsAppliedAck {
 			if s.hasPendingInputQueueGuidance(sessionKey, runningRoundIDs...) {
 				return sdkhook.Output{}, nil
@@ -58,7 +60,7 @@ func (s *Service) inputQueueGuidanceHook(
 				}
 			}
 		}
-		items, err := s.inputQueue.SnapshotGuidance(location, runningRoundIDs...)
+		items, err := s.InputQueue.SnapshotGuidance(location, runningRoundIDs...)
 		if err != nil {
 			return sdkhook.Output{}, err
 		}
@@ -71,7 +73,7 @@ func (s *Service) inputQueueGuidanceHook(
 		prepared := make(map[string]preparedDMGuidance, len(items))
 		for _, item := range items {
 			sourceRoundID := inputQueueItemRoundID(item)
-			targetRoundID := dmdomain.FirstNonEmpty(item.RootRoundID, runningRoundIDs[0])
+			targetRoundID := textutil.FirstNonEmpty(item.RootRoundID, runningRoundIDs[0])
 			runtimeContent, renderErr := s.renderRuntimeContentWithAttachments(ctx, item.Content, item.Attachments)
 			if renderErr != nil {
 				return sdkhook.Output{}, renderErr
@@ -87,7 +89,7 @@ func (s *Service) inputQueueGuidanceHook(
 		if len(pending) == 0 {
 			return sdkhook.Output{}, nil
 		}
-		if activeRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey); !slices.Equal(activeRoundIDs, runningRoundIDs) {
+		if activeRoundIDs := s.Runtime.GetRunningRoundIDs(sessionKey); !slices.Equal(activeRoundIDs, runningRoundIDs) {
 			for _, guidance := range pending {
 				s.clearPendingInputQueueGuidance(sessionKey, guidance.targetRoundID)
 			}
@@ -111,7 +113,7 @@ func (s *Service) inputQueueGuidanceHook(
 				ackCtx := contextWithQueueOwner(context.Background(), ackOwnerUserID)
 				for _, roundID := range ackRoundIDs {
 					if ackErr := s.confirmPendingInputQueueGuidance(ackCtx, sessionKey, location, roundID, ackPending); ackErr != nil {
-						s.loggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
+						s.LoggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
 					}
 				}
 			},
@@ -217,7 +219,7 @@ func (s *Service) confirmPendingInputQueueGuidance(
 		items = append(items, guidance.item)
 		prepared[guidance.item.ID] = guidance
 	}
-	claimed, snapshot, err := s.inputQueue.DispatchPreparedGuidance(location, items, roundID)
+	claimed, snapshot, err := s.InputQueue.DispatchPreparedGuidance(location, items, roundID)
 	if err != nil {
 		return err
 	}
@@ -236,7 +238,7 @@ func (s *Service) confirmPendingInputQueueGuidance(
 			guidance.targetRoundID,
 		)
 		if persistErr != nil {
-			restored, restoreErr := s.restorePendingInputQueueGuidance(location, claimed)
+			restored, restoreErr := s.RestoreInputQueueItems(location, claimed)
 			if restoreErr == nil {
 				restoredByID := make(map[string]protocol.InputQueueItem, len(restored))
 				for _, restoredItem := range restored {
@@ -268,17 +270,6 @@ func (s *Service) setPendingInputQueueGuidanceLocked(key string, pending []prepa
 	s.inputQueueGuidancePending[key] = pending
 }
 
-func (s *Service) restorePendingInputQueueGuidance(
-	location workspacestore.InputQueueLocation,
-	items []protocol.InputQueueItem,
-) ([]protocol.InputQueueItem, error) {
-	entries := make([]workspacestore.InputQueueEnqueue, 0, len(items))
-	for _, item := range items {
-		entries = append(entries, workspacestore.InputQueueEnqueue{Location: location, Item: item})
-	}
-	return s.inputQueue.EnqueueBatchWithItems(entries)
-}
-
 func (s *Service) clearPendingInputQueueGuidance(sessionKey string, roundID string) {
 	s.inputQueueGuidanceMu.Lock()
 	defer s.inputQueueGuidanceMu.Unlock()
@@ -308,7 +299,7 @@ func (s *Service) currentGuidanceSession(
 	location workspacestore.InputQueueLocation,
 	sessionKey string,
 ) (protocol.Session, error) {
-	item, _, err := s.files.ForOwner(location.OwnerUserID).FindSession(
+	item, _, err := s.Files.ForOwner(location.OwnerUserID).FindSession(
 		[]string{location.WorkspacePath},
 		sessionKey,
 	)
@@ -348,7 +339,7 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 	if agentRoundID := strings.TrimSpace(item.AgentRoundID); agentRoundID != "" {
 		messageValue["agent_round_id"] = agentRoundID
 	}
-	if err := s.history.ForOwner(location.OwnerUserID).AppendOverlayMessage(
+	if err := s.History.ForOwner(location.OwnerUserID).AppendOverlayMessage(
 		location.WorkspacePath,
 		sessionItem.SessionKey,
 		messageValue,

@@ -72,7 +72,7 @@ func resolveHostKeys(
 		if fileErr != nil && !errors.Is(fileErr, os.ErrNotExist) {
 			return HostKeys{}, fileErr
 		}
-		if strings.TrimSpace(fileKey) == "" {
+		if fileKey == "" {
 			return HostKeys{}, fmt.Errorf("Connector credentials fallback key 不存在: %w", fileErr)
 		}
 		return selectHostKeys(

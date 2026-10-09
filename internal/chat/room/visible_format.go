@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -23,7 +24,7 @@ func displayAgentName(agentID string, agentNameByID map[string]string) string {
 }
 
 func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string {
-	triggerType := strings.TrimSpace(trigger.TriggerType)
+	triggerType := trigger.TriggerType
 	content := strings.TrimSpace(trigger.Content)
 	if triggerType == "goal_continuation" {
 		return "Continue the active Room Goal from the hidden Goal context."
@@ -31,7 +32,7 @@ func formatRoomTrigger(trigger Trigger, agentNameByID map[string]string) string 
 	if triggerType == "" && content == "" {
 		return "(No trigger message.)"
 	}
-	sourceName := firstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
+	sourceName := textutil.FirstNonEmpty(agentNameByID[trigger.SourceAgentID], trigger.SourceAgentID)
 	if sourceName == "" {
 		sourceName = formatHumanSource(trigger.SourceUserID, trigger.SourceUsername, trigger.SourceDisplayName)
 	}

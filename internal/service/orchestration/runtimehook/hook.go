@@ -7,9 +7,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
@@ -68,7 +68,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			toolUseID string,
 		) (sdkhook.Output, error) {
 			result, err := provider.AdmitSubagentLaunch(ctx, value.currentActor(), orchestration.SubagentLaunchInput{
-				ToolUseID:         firstValue(toolUseID, input.ToolUseID),
+				ToolUseID:         textutil.FirstNonEmpty(toolUseID, input.ToolUseID),
 				RuntimeSessionKey: value.RuntimeSessionKey,
 				RoomSessionID:     value.RoomSessionID,
 				SDKSessionID:      input.SessionID,
@@ -81,12 +81,12 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			toolUseID string,
 		) (sdkhook.Output, error) {
 			result, err := provider.ObserveSubagentStop(ctx, value.currentActor(), orchestration.SubagentLifecycleInput{
-				ToolUseID:    firstValue(toolUseID, input.ToolUseID),
+				ToolUseID:    textutil.FirstNonEmpty(toolUseID, input.ToolUseID),
 				SDKSessionID: input.SessionID,
 				SDKAgentID:   input.AgentID,
 				AgentType:    input.AgentType,
 				Interrupted:  input.IsInterrupt,
-				Error:        firstValue(input.Error, input.ErrorDetails, "Agent tool failed before subagent completion"),
+				Error:        textutil.FirstNonEmpty(input.Error, input.ErrorDetails, "Agent tool failed before subagent completion"),
 			})
 			return admissionOutput(ctx, value.Logger, sdkhook.EventPostToolUseFailure, result, err), nil
 		},
@@ -114,7 +114,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 				AgentTranscriptPath:  input.AgentTranscriptPath,
 				LastAssistantMessage: input.LastAssistantMessage,
 				Interrupted:          input.IsInterrupt,
-				Error:                firstValue(input.Error, input.ErrorDetails),
+				Error:                textutil.FirstNonEmpty(input.Error, input.ErrorDetails),
 			})
 			return admissionOutput(ctx, value.Logger, sdkhook.EventSubagentStop, result, err), nil
 		},
@@ -178,13 +178,4 @@ func admissionOutput(
 		return runtimectx.DenySubagentHookOutput(event, reasonCode, message)
 	}
 	return sdkhook.Output{}
-}
-
-func firstValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }

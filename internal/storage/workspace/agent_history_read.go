@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -124,23 +125,6 @@ func (s *AgentHistoryStore) readHistoryRowsContext(
 	return rows, nil
 }
 
-func (s *AgentHistoryStore) readSegmentedTranscriptMessages(
-	workspacePath string,
-	sessionKey string,
-	agentID string,
-	sessionIDs []string,
-	roundMarkers []transcriptRoundMarker,
-) ([]protocol.Message, error) {
-	return s.readSegmentedTranscriptMessagesContext(
-		context.Background(),
-		workspacePath,
-		sessionKey,
-		agentID,
-		sessionIDs,
-		roundMarkers,
-	)
-}
-
 func (s *AgentHistoryStore) readSegmentedTranscriptMessagesContext(
 	ctx context.Context,
 	workspacePath string,
@@ -189,7 +173,7 @@ func historyTranscriptSessionIDs(sessionValue protocol.Session) []string {
 	if segmented {
 		return protocol.SessionTranscriptIDs(sessionValue)
 	}
-	current := stringPointerValue(sessionValue.SessionID)
+	current := textutil.PointerValue(sessionValue.SessionID)
 	if current == "" {
 		return nil
 	}
@@ -287,25 +271,6 @@ func materializeRoundMarkerMessages(
 		rows = append(rows, row)
 	}
 	return rows
-}
-
-func (s *AgentHistoryStore) readTranscriptMessages(
-	workspacePath string,
-	sessionKey string,
-	agentID string,
-	sessionID string,
-	roundMarkers []transcriptRoundMarker,
-	throughMessageID string,
-) ([]protocol.Message, error) {
-	return s.readTranscriptMessagesContext(
-		context.Background(),
-		workspacePath,
-		sessionKey,
-		agentID,
-		sessionID,
-		roundMarkers,
-		throughMessageID,
-	)
 }
 
 func (s *AgentHistoryStore) readTranscriptMessagesContext(

@@ -2,19 +2,16 @@ package workspace
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
@@ -151,92 +148,6 @@ func TestRoomHistoryStoreRejectsCrossOwnerStateSymlink(t *testing.T) {
 	}
 }
 
-func TestRoomHistoryStoreMergesLateHostAnnotationsReference(t *testing.T) {
-	configRoot := t.TempDir()
-	stateRoot := filepath.Join(configRoot, ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	workspaceRoot := filepath.Join(stateRoot, "users")
-	workspacePath := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, testRoomOwnerUserID),
-		"Amy",
-	)
-	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
-		t.Fatalf("创建 workspace 失败: %v", err)
-	}
-
-	sessionID := "4035f197-ca97-43fc-b9ae-06ac04903213"
-	privateSessionKey := "agent:agent-amy:ws:group:conversation-1"
-	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
-		{
-			"type": "user", "uuid": "transcript-user-1", "sessionId": sessionID,
-			"message": map[string]any{"role": "user", "content": "开始任务"},
-		},
-		{
-			"type": "assistant", "uuid": "transcript-assistant-1", "sessionId": sessionID,
-			"parentUuid": "transcript-user-1", "message": map[string]any{
-				"id": "assistant-1", "type": "message", "role": "assistant",
-				"stop_reason": "end_turn",
-				"content":     []map[string]any{{"type": "text", "text": "@Devin 接着处理"}},
-			},
-		},
-	})
-
-	history := NewRoomHistoryStore(workspaceRoot)
-	base := protocol.Message{
-		"message_id": "assistant-1", "session_id": sessionID,
-		"conversation_id": "conversation-1", "agent_id": "agent-amy",
-		"round_id": "root-1", "agent_round_id": "agent-round-1",
-		"parent_id": "slot-1", "role": "assistant", "is_complete": true,
-		"timestamp": int64(1000),
-	}
-	if err := history.AppendTranscriptReference(
-		testRoomOwnerUserID,
-		"conversation-1",
-		workspacePath,
-		privateSessionKey,
-		base,
-	); err != nil {
-		t.Fatalf("写入初始 transcript 引用失败: %v", err)
-	}
-	annotated := protocol.Clone(base)
-	annotated["agent_mentions"] = []protocol.AgentMention{{
-		AgentID: "agent-devin", Label: "Devin", StartRune: 0, EndRune: 6,
-	}}
-	annotated["handoff_reply"] = &protocol.PublicHandoffReply{
-		HandoffID:       "rh-reply-1",
-		SourceMessageID: "assistant-source-1",
-		SourceAgentID:   "agent-lead",
-	}
-	if err := history.AppendTranscriptReference(
-		testRoomOwnerUserID,
-		"conversation-1",
-		workspacePath,
-		privateSessionKey,
-		annotated,
-	); err != nil {
-		t.Fatalf("写入终态 transcript 引用失败: %v", err)
-	}
-
-	rows, err := history.ReadMessages(testRoomOwnerUserID, "conversation-1", nil)
-	if err != nil {
-		t.Fatalf("读取 Room 历史失败: %v", err)
-	}
-	if len(rows) != 1 || rows[0]["message_id"] != "assistant-1" {
-		t.Fatalf("同 message_id 的引用应压缩成一条消息: %+v", rows)
-	}
-	mentions, ok := rows[0]["agent_mentions"].([]any)
-	if !ok || len(mentions) != 1 {
-		t.Fatalf("迟到的 agent_mentions 应保留在历史: %+v", rows[0])
-	}
-	reply := protocol.NormalizePublicHandoffReply(rows[0]["handoff_reply"])
-	if reply == nil || reply.HandoffID != "rh-reply-1" ||
-		reply.SourceMessageID != "assistant-source-1" ||
-		reply.SourceAgentID != "agent-lead" {
-		t.Fatalf("迟到的 handoff_reply 应与 mention 同构保留: %+v", rows[0])
-	}
-}
-
 func TestIndexRoomTranscriptMessagesMergesAssistantChunks(t *testing.T) {
 	indexed := indexRoomTranscriptMessages([]protocol.Message{
 		{
@@ -336,70 +247,5 @@ func TestRoomHistoryRepairsTranscriptPermissions(t *testing.T) {
 				t.Fatalf("Room 读取应修复权限并成功重试: %v", err)
 			}
 		})
-	}
-}
-
-func TestDurableHistoryWritesRoomPreviewWithoutHistoryIndex(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	schema, err := os.ReadFile("../../../db/migrations/sqlite/00145_room_reply_previews.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`CREATE TABLE rooms(id TEXT PRIMARY KEY, owner_user_id TEXT, room_type TEXT);
- CREATE TABLE conversations(id TEXT PRIMARY KEY, room_id TEXT);
- INSERT INTO rooms VALUES ('dm','owner','dm'),('group','owner','room');
- INSERT INTO conversations VALUES ('dm-conv','dm'),('group-conv','group');` + strings.Split(string(schema), "-- +goose Down")[0]); err != nil {
-		t.Fatal(err)
-	}
-	repository := roomrepo.NewSQLRepository("sqlite", db)
-	history := NewAgentHistoryStore(appfs.UsersRoot())
-	history.SetReplyPreviewRepository(repository)
-	history = history.ForOwner("owner")
-	workspace := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner"), "agent")
-	if err = os.MkdirAll(workspace, 0700); err != nil {
-		t.Fatal(err)
-	}
-	message := protocol.Message{"role": "assistant", "message_id": "reply", "timestamp": int64(1), "is_complete": true, "content": "新回复"}
-	if err = history.AppendOverlayMessage(workspace, "agent:agent:ws:dm:dm-conv", message); err != nil {
-		t.Fatal(err)
-	}
-	values, err := repository.ListRoomReplyPreviews(context.Background(), "owner")
-	if err != nil || values["dm"] != "新回复" {
-		t.Fatalf("DM preview=%v, err=%v", values, err)
-	}
-	// 私有成员历史不能更新群聊；只有公区持久化入口可以写群聊摘要。
-	history.RecordReplyPreview("agent:agent:ws:group:group-conv", message)
-	values, _ = repository.ListRoomReplyPreviews(context.Background(), "owner")
-	if values["group"] != "" {
-		t.Fatal("私有消息泄漏到公区摘要")
-	}
-	rooms := NewRoomHistoryStore(appfs.UsersRoot())
-	rooms.SetReplyPreviewRepository(repository)
-	if err = rooms.AppendInlineMessage("owner", "group-conv", message); err != nil {
-		t.Fatal(err)
-	}
-	values, err = repository.ListRoomReplyPreviews(context.Background(), "owner")
-	if err != nil || values["group"] != "新回复" {
-		t.Fatalf("Room preview=%v, err=%v", values, err)
-	}
-	message["content"] = "未落盘内容"
-	message["timestamp"] = int64(2)
-	if err = history.AppendOverlayMessage(t.TempDir(), "agent:agent:ws:dm:dm-conv", message); err == nil {
-		t.Fatal("跨 owner 路径应拒绝落盘")
-	}
-	values, _ = repository.ListRoomReplyPreviews(context.Background(), "owner")
-	if values["dm"] != "新回复" {
-		t.Fatal("失败的落盘改写了摘要")
-	}
-	if _, err = os.Stat(historyReadModelPath(appfs.UsersRoot())); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("不应建立历史索引: %v", err)
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -67,7 +68,7 @@ func (s *Service) FinishRoomAttempt(
 		// 身份已由 owner/session/Room 与 exact ExecutionID 校验；terminal aggregate
 		// 不再可变，因此迟到的物理终态只能幂等收口，不能因 active Plan 已移除
 		// 再制造一次 work_binding_mismatch。
-		if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if !snapshot.Execution.Status.Current() {
 			s.invalidateSnapshot(ctx, snapshot)
 			return nil
 		}
@@ -100,27 +101,27 @@ func (s *Service) FinishRoomAttempt(
 				terminal.FailureReason = "Room runtime failed"
 			}
 		}
-		terminal.RuntimeSessionKey = firstNonEmpty(
+		terminal.RuntimeSessionKey = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.RuntimeSessionKey),
 			terminal.RuntimeSessionKey,
 		)
-		terminal.RoomSessionID = firstNonEmpty(
+		terminal.RoomSessionID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.RoomSessionID),
 			terminal.RoomSessionID,
 		)
-		terminal.SDKSessionID = firstNonEmpty(
-			strings.TrimSpace(input.SDKSessionID),
+		terminal.SDKSessionID = textutil.FirstNonEmpty(
+			input.SDKSessionID,
 			terminal.SDKSessionID,
 		)
-		terminal.RuntimeRoundID = firstNonEmpty(
+		terminal.RuntimeRoundID = textutil.FirstNonEmpty(
 			strings.TrimSpace(actor.RuntimeRoundID),
 			terminal.RuntimeRoundID,
 		)
-		terminal.RootRoundID = firstNonEmpty(
+		terminal.RootRoundID = textutil.FirstNonEmpty(
 			strings.TrimSpace(actor.RootRoundID),
 			terminal.RootRoundID,
 		)
-		terminal.AgentRoundID = firstNonEmpty(
+		terminal.AgentRoundID = textutil.FirstNonEmpty(
 			strings.TrimSpace(actor.AgentRoundID),
 			terminal.AgentRoundID,
 		)
@@ -133,7 +134,7 @@ func (s *Service) FinishRoomAttempt(
 				Meta: s.commandMeta(
 					actor,
 					"room-attempt-terminal:"+
-						firstNonEmpty(binding.DispatchID, binding.AttemptID)+":"+
+						textutil.FirstNonEmpty(binding.DispatchID, binding.AttemptID)+":"+
 						string(input.Status),
 					"room-attempt-terminal",
 				),

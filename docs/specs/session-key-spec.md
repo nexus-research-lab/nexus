@@ -1,192 +1,92 @@
 # Session Key 统一规范
 
-## 1. 文档目标
+定义 `session_key` 的格式、各类 key 的语义，以及哪些字段可作路由主键。以 Go 后端实现为准。
 
-本文档定义 Nexus 当前有效的 `session_key` 协议。
+## 1. 相关标识
 
-它只回答三件事：
+| 标识 | 含义 | 边界 |
+| --- | --- | --- |
+| `session_key` | Gateway、WebSocket、权限运行时、runtime 复用的统一会话键 | 必须可解析，业务层不得手拼 |
+| `conversation_id` | Room 页面和 HTTP Room API 的主路由键，定位一条共享对话 | 不是 SDK resume id，也不是 `session_key` |
+| `sdk_session_id` | runtime（nxs 与 Claude Code 均经 bridge）返回的 transcript / resume 标识，用于恢复单个 agent 私有运行时 | 不承担 UI 路由语义 |
+| `room_session_id` | SQL `sessions` 记录主键 | 仅限数据库内部，不对外暴露为会话协议 |
 
-- `session_key` 长什么样
-- 不同类型的 key 分别服务什么语义
-- 哪些字段可以当路由主键，哪些不可以
+## 2. 协议族
 
-当前实现以 Go 后端为准，不再描述旧 Python 链路。
+只有两族。
 
-## 2. 相关概念
-
-### 2.1 `session_key`
-
-- Gateway、WebSocket、权限运行时、runtime 复用的统一会话键
-- 必须可解析，不允许业务层手拼
-
-### 2.2 `conversation_id`
-
-- Room 页面和 HTTP Room API 的主要路由键
-- 用于定位一条共享对话
-- 不是 SDK resume id，也不是 `session_key`
-
-### 2.3 `sdk_session_id`
-
-- runtime 返回的 transcript / resume 标识
-- 用于恢复单个 agent 私有运行时
-- 当前 nxs 与 Claude Code runtime 都通过 bridge 返回该标识
-- 不对外承担 UI 路由语义
-
-### 2.4 `room_session_id`
-
-- SQL `sessions` 记录主键
-- 只属于数据库内部
-- 不对外暴露为会话协议
-
-## 3. 当前协议族
-
-当前只保留两族：
-
-### 3.1 Agent 私有会话
-
-格式：
+### 2.1 Agent 私有会话
 
 ```text
 agent:<agent_id>:<channel>:<chat_type>[:acct:<account_id>]:<ref>[:topic:<thread_id>]
 ```
 
-用途：
+- 用途：普通 DM；Room 内某个 agent 的私有 runtime；外部通道映射到某个 agent 的私有会话。
+- 可绑定一个 `sdk_session_id`。
+- 历史真相源是 runtime transcript + Nexus overlay：`assistant` 来自 transcript，`result` 来自 overlay。
 
-- 普通 DM
-- Room 内某个 agent 的私有 runtime
-- 外部通道映射到某个 agent 的私有会话
-
-特点：
-
-- 可以绑定一个 `sdk_session_id`
-- 历史真相源是 `runtime transcript + Nexus overlay`
-- 其中 `assistant` 来自 transcript，`result` 来自 overlay
-
-### 3.2 Room 共享会话
-
-格式：
+### 2.2 Room 共享会话
 
 ```text
 room:group:<conversation_id>
 ```
 
-用途：
+- 用途：Room / DM 页面主聊天面板的共享消息流。
+- 不直接绑定任何单个 agent 的 `sdk_session_id`。
+- 历史真相源是 Room shared overlay：只直接保存 user/result/synthetic，assistant 通过 `transcript_ref` 回指成员 transcript。
+- `group` 是冻结协议段，表示“共享流”，不表示多人群聊。
+- `group` 不是 DM 的执行类型，不能据此选择或复用任何 SDK resume。DM 页面同时订阅共享流时，仍由 `agent:<agent_id>:ws:dm:<conversation_id>` 的 DM runtime 独占 resume。
 
-- Room / DM 页面主聊天面板的共享消息流
+## 3. Agent Key 字段
 
-特点：
+- `agent_id`：目标 agent 的稳定业务标识，不能复用为展示名。
+- `channel` 保留值：`ws`、`dg`、`tg`、`dt`、`wx`、`weixin-personal`、`fs`、`internal`。
+- `chat_type` 保留值：`dm`（agent 直接会话）、`group`（agent 运行在某个 room conversation 语境中）。
+- `account_id`：外部通道配置多个账号时，用 `acct:<account_id>` 把同一联系人或群聊隔离到具体连接账号。位于 `chat_type` 与 `ref` 之间；无多账号歧义时不添加。
+- `thread_id`：需要区分通道内 thread/topic 时，在末尾追加 `topic:<thread_id>`。`ref` 可含冒号，但不能跨过保留的 `:topic:` 边界。
 
-- 不直接绑定某个单独 agent 的 `sdk_session_id`
-- 历史真相源是 Room shared overlay
-- Room shared overlay 只直接保存 user/result/synthetic，assistant 通过 `transcript_ref` 回指成员 transcript
-- 当前 `group` 是冻结协议段，表示“共享流”，不是严格的多人群聊字面义
-- `group` 不是 DM 的执行类型，也不能据此选择或复用任何 SDK resume；DM 页面若同时订阅共享流，仍由 `agent:<agent_id>:ws:dm:<conversation_id>` 的 DM runtime 独占 resume
+`ref` 是该通道内的唯一定位：
 
-## 4. Agent Key 字段语义
+| channel + chat_type | `ref` |
+| --- | --- |
+| `ws + dm` | 浏览器会话 uuid |
+| `ws + group` | `conversation_id` |
+| `dg + dm` | discord user id |
+| `dg + group` | `guild_id:channel_id` |
+| `tg + dm` | telegram user id |
+| `tg + group` | telegram chat id |
+| `dt + dm` | 钉钉 conversation_id 或 sender id |
+| `dt + group` | 钉钉 openConversationId / conversationId |
+| `wx + dm` | 企业微信 user id |
+| `weixin-personal + dm` | 个人微信 iLink `from_user_id`；`context_token` 只进入 remembered delivery target，不参与 session_key 主键 |
+| `fs + dm` | 飞书 open_id / user_id / union_id |
+| `fs + group` | 飞书 chat_id |
+| `internal + dm` | 内部保留值 |
 
-### 4.1 `agent_id`
+## 4. 路由主键与禁止项
 
-- 指向目标 agent
-- 必须是稳定业务标识
-- 不能复用为展示名
+- Room 页面主路由：`room_id + conversation_id`。
+- Agent runtime：`session_key`。
+- 冷恢复：`sdk_session_id`。
 
-### 4.2 `channel`
+禁止：
 
-当前保留值：
+- 用 `conversation_id` 充当 agent 私有 `session_key`。
+- 用 `sdk_session_id` 替代 `session_key`。
+- 用 `room_session_id` 充当前端路由键。
+- 从 `session_key` 反推数据库主键。
 
-- `ws`
-- `dg`
-- `tg`
-- `dt`
-- `wx`
-- `weixin-personal`
-- `fs`
-- `internal`
+## 5. Builder / Parser
 
-### 4.3 `chat_type`
+前后端都不得手拼 `session_key`，统一使用协议 builder / parser：
 
-当前保留值：
+- 普通 Agent key：`BuildAgentSessionKey`。
+- 多账号外部通道：`BuildAgentAccountSessionKey`。
+- Room 共享流 / 成员运行时：`BuildRoomSharedSessionKey` / `BuildRoomAgentSessionKey`。
+- 解析与校验：`ParseSessionKey`、`RequireStructuredSessionKey`。
 
-- `dm`
-- `group`
+## 6. 实现约束
 
-语义：
-
-- `dm`：agent 直接会话
-- `group`：agent 运行在某个 room conversation 语境中
-
-### 4.4 `ref`
-
-表示该通道内唯一定位方式。
-
-约定：
-
-- `ws + dm`：浏览器会话 uuid
-- `ws + group`：`conversation_id`
-- `dg + dm`：discord user id
-- `dg + group`：`guild_id:channel_id`
-- `tg + dm`：telegram user id
-- `tg + group`：telegram chat id
-- `dt + dm`：钉钉 conversation_id 或 sender id
-- `dt + group`：钉钉 openConversationId / conversationId
-- `wx + dm`：企业微信 user id
-- `weixin-personal + dm`：个人微信 iLink `from_user_id`；微信 `context_token` 只进入 remembered delivery target，不参与 session_key 主键
-- `fs + dm`：飞书 open_id / user_id / union_id
-- `fs + group`：飞书 chat_id
-- `internal + dm`：内部保留值
-
-### 4.5 `account_id`
-
-外部通道同时配置多个账号时，使用 `acct:<account_id>` 把同一联系人或群聊隔离到
-具体连接账号。该段位于 `chat_type` 与 `ref` 之间；没有多账号歧义的会话不添加。
-
-### 4.6 `thread_id`
-
-需要区分通道内 thread/topic 时，在末尾追加 `topic:<thread_id>`。`ref` 允许包含冒号，
-但不能跨过保留的 `:topic:` 边界。
-
-## 5. 真相源与边界
-
-### 5.1 路由主键
-
-- Room 页面主路由：`room_id + conversation_id`
-- Agent runtime：`session_key`
-- 冷恢复：`sdk_session_id`
-
-### 5.2 明确禁止
-
-- 用 `conversation_id` 充当 agent 私有 `session_key`
-- 用 `sdk_session_id` 替代 `session_key`
-- 用 `room_session_id` 充当前端路由键
-- 从 `session_key` 反推出数据库主键
-
-## 6. Builder / Parser 规则
-
-`session_key` 必须统一由协议 builder / parser 处理。
-
-约束：
-
-- 前端不手拼
-- 后端不手拼
-- 普通 Agent key 使用 `BuildAgentSessionKey`
-- 多账号外部通道使用 `BuildAgentAccountSessionKey`
-- Room 共享流和成员运行时分别使用 `BuildRoomSharedSessionKey`、`BuildRoomAgentSessionKey`
-- 解析和校验统一使用 `ParseSessionKey`、`RequireStructuredSessionKey`
-
-## 7. 当前实现约束
-
-- 浏览器入口必须显式传结构化 `session_key`
-- Room 历史接口已经切到：
-
-```text
-/nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
-```
-
-- 不再保留旧的 `/nexus/v1/sessions/{session_key}/messages` HTTP 读取链
-
-## 8. 一句话总结
-
-- `session_key` 负责运行时和协议路由
-- `conversation_id` 负责 Room 共享会话路由
-- `sdk_session_id` 负责 agent 私有 runtime 恢复
-- 三者各司其职，禁止混用
+- 浏览器入口必须显式传结构化 `session_key`。
+- Room 历史接口：`/nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages`。
+- 不提供 `/nexus/v1/sessions/{session_key}/messages` HTTP 读取链。

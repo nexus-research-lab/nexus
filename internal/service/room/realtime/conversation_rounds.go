@@ -44,16 +44,6 @@ func newRoomRoundRegistry() roomRoundRegistry {
 	}
 }
 
-func newRoomRoundRegistryFromRounds(rounds map[string]*activeRoomRound) roomRoundRegistry {
-	registry := &roomRoundRegistry{
-		conversations: make(map[string]*roomConversationState),
-	}
-	for _, roundValue := range rounds {
-		registry.register(roundValue)
-	}
-	return roomRoundRegistry{conversations: registry.conversations}
-}
-
 func newRoomConversationState() *roomConversationState {
 	return &roomConversationState{
 		rounds:         make(map[string]*activeRoomRound),
@@ -346,7 +336,6 @@ func (r *roomRoundRegistry) guidanceStateForSlot(slot *activeRoomSlot) *roomConv
 	if state != nil {
 		return state
 	}
-	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		conversationID = roomConversationIDFromSessionKey(slot.RuntimeSessionKey)
 	}
@@ -414,20 +403,6 @@ func (r *roomRoundRegistry) deleteGuidance(slot *activeRoomSlot) {
 		slot.clearConversationState(state)
 		r.prune(conversationID, state)
 	}
-}
-
-func (r *roomRoundRegistry) updateGuidance(slot *activeRoomSlot, update func(*pendingRoomGuidance) bool) bool {
-	state := r.guidanceStateForSlot(slot)
-	if state == nil {
-		return false
-	}
-	state.mu.Lock()
-	pending, ok := state.guidance[slot]
-	if ok && update(&pending) {
-		state.guidance[slot] = pending
-	}
-	state.mu.Unlock()
-	return ok
 }
 
 func (r *roomRoundRegistry) enqueuePublicMention(roundValue *activeRoomRound, wake publicMentionWake) bool {
@@ -581,8 +556,8 @@ func (s *Service) failClosedPermissionReload(ctx context.Context, slot *activeRo
 		interruptErr = client.Interrupt(ctx)
 	}
 	slot.cancelRuntime()
-	if s.permission != nil {
-		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
+	if s.Permission != nil {
+		s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
 	}
 	return interruptErr
 }
@@ -656,7 +631,7 @@ func (s *Service) finishRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
+	s.Runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
 	s.rounds.unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)
@@ -729,7 +704,7 @@ func (r *activeRoomRound) hasRunningSubagentTasks() bool {
 		return false
 	}
 	for _, slot := range r.Slots {
-		if slot != nil && slot.hasRunningSubagentTask() {
+		if slot != nil && slot.mutable.goal.HasRunningSubagentTask() {
 			return true
 		}
 	}

@@ -8,17 +8,11 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
-
-type goalCommandProvider interface {
-	Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error)
-}
 
 // SetGoalFromCommand 设置共享 Goal，并把用户控制记录写入 Room 公共历史。
 func (s *Service) SetGoalFromCommand(
@@ -58,41 +52,13 @@ func (s *Service) SetGoalFromCommand(
 	if len(execution.targetAgentIDs) != 1 {
 		return protocol.GoalCommandResult{}, errors.New("Room Goal requires exactly one lead Agent")
 	}
-	provider, ok := s.goals.(goalCommandProvider)
-	if !ok || provider == nil {
-		return protocol.GoalCommandResult{}, errors.New("Goal service is unavailable")
-	}
-	replaceExisting := true
-	if request.Options.ReplaceExisting != nil {
-		replaceExisting = *request.Options.ReplaceExisting
-	}
-	leadAgentID := execution.targetAgentIDs[0]
-	item, err := provider.Create(
-		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
-		protocol.CreateGoalRequest{
-			SessionKey:      execution.sessionKey,
-			Objective:       strings.TrimSpace(request.Objective),
-			TokenBudget:     request.Options.TokenBudget,
-			ReplaceExisting: replaceExisting,
-			CreatedBy:       "user",
-			RoundID:         execution.request.RoundID,
-			OwnerUserID:     authctx.OwnerUserID(ctx),
-			RoomLeadAgentID: leadAgentID,
-			Metadata:        request.Options.Metadata,
-		},
-	)
+	item, err := runtimehost.CreateGoalFromCommand(ctx, s.goals, request, execution.sessionKey, execution.request.RoundID, execution.targetAgentIDs[0])
 	if err != nil {
 		return protocol.GoalCommandResult{}, err
 	}
-	if item == nil || strings.TrimSpace(item.ID) == "" {
-		return protocol.GoalCommandResult{}, errors.New("Goal service returned an invalid Goal")
-	}
-	if goalsvc.RoomLeadAgentID(*item) != leadAgentID {
-		return protocol.GoalCommandResult{}, errors.New("Goal service returned inconsistent Room command state")
-	}
-	committed := execution.persistGoalCommandRecord(*item)
+	committed := execution.persistGoalCommandRecord(item)
 	return protocol.GoalCommandResult{
-		Goal:                 *item,
+		Goal:                 item,
 		UserMessageCommitted: committed,
 	}, nil
 }
@@ -110,7 +76,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 	// 普通 Room 消息的 client_message_id 只服务当前连接的 optimistic 替换，
 	// 但 goal_set 是 host command 的 durable acceptance receipt。ACK 丢失后，
 	// 原 Session 必须能用这个 exact identity 收口，而不能按正文或时间猜测。
-	if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+	if clientMessageID := e.request.ClientMessageID; clientMessageID != "" {
 		e.userMessage["client_message_id"] = clientMessageID
 	}
 	if err := e.service.persistSharedInlineMessage(
@@ -118,7 +84,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		e.conversationID,
 		e.userMessage,
 	); err != nil {
-		e.service.loggerFor(e.ctx).Error("Goal 已设置，但 Room 控制记录持久化失败",
+		e.service.LoggerFor(e.ctx).Error("Goal 已设置，但 Room 控制记录持久化失败",
 			"session_key", e.sessionKey,
 			"goal_id", item.ID,
 			"round_id", e.request.RoundID,
@@ -131,7 +97,7 @@ func (e *roomChatExecution) persistGoalCommandRecord(item protocol.Goal) bool {
 		e.conversationID,
 		roomMessageActivityTime(e.userMessage),
 	); err != nil {
-		e.service.loggerFor(e.ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
+		e.service.LoggerFor(e.ctx).Warn("Goal 控制记录已持久化，但 conversation draft 状态更新失败",
 			"session_key", e.sessionKey,
 			"goal_id", item.ID,
 			"err", err,

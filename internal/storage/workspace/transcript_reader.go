@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 )
 
@@ -68,10 +69,6 @@ func (s *AgentHistoryStore) openTranscriptReadFile(root *confinedfs.Root, relati
 	return withRuntimePermissionRepair(s, func() (*os.File, error) {
 		return root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	})
-}
-
-func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {
-	return readTranscriptEntriesFileContext(context.Background(), file)
 }
 
 func readTranscriptEntriesFileContext(ctx context.Context, file *os.File) ([]transcriptEntry, error) {
@@ -296,8 +293,8 @@ func includeParallelSubagentAttachment(
 		return false
 	}
 	data, _ := attachment["data"].(map[string]any)
-	agentID := firstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
-	toolUseID := firstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
+	agentID := textutil.FirstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
+	toolUseID := textutil.FirstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
 	if agentID == "" || toolUseID == "" {
 		return false
 	}

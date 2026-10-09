@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -82,9 +83,9 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 	metadata := normalizeAPIRetryMetadata(message.Data)
 	return p.buildSystemEventMessage(
 		"system_api_retry_"+p.ctx.RoundID,
-		firstNonEmpty(
-			normalizeString(metadata["error_details"]),
-			normalizeString(metadata["message"]),
+		textutil.FirstNonEmpty(
+			textutil.AnyString(metadata["error_details"]),
+			textutil.AnyString(metadata["message"]),
 			apiRetryDefaultMessage(metadata),
 		),
 		metadata,
@@ -94,7 +95,7 @@ func (p *Processor) projectAPIRetrySystemMessage(message sdkprotocol.SystemMessa
 func (p *Processor) projectCompactBoundarySystemMessage(message sdkprotocol.SystemMessage) *protocol.Message {
 	return p.buildSystemEventMessage(
 		"system_compact_boundary_"+p.ctx.RoundID,
-		firstNonEmpty(normalizeString(message.Data["content"]), "上下文已压缩"),
+		textutil.FirstNonEmpty(textutil.AnyString(message.Data["content"]), "上下文已压缩"),
 		normalizeCompactBoundaryMetadata(message.Data),
 	)
 }
@@ -162,7 +163,7 @@ func normalizeAPIRetryMetadata(data map[string]any) map[string]any {
 }
 
 func apiRetryDefaultMessage(metadata map[string]any) string {
-	if normalizeString(metadata["error"]) == "rate_limit" {
+	if textutil.AnyString(metadata["error"]) == "rate_limit" {
 		return "模型请求暂时受限，正在自动重试。"
 	}
 	return "API 请求失败，正在自动重试。"
@@ -182,7 +183,7 @@ func normalizeAPIRetryError(value string) string {
 	case strings.Contains(normalized, "connection") || strings.Contains(normalized, "connect"):
 		return "connection"
 	default:
-		return firstNonEmpty(normalized, "api_error")
+		return textutil.FirstNonEmpty(normalized, "api_error")
 	}
 }
 
@@ -217,14 +218,14 @@ func NewGuidedInputMessage(input GuidedInputMessageInput) protocol.Message {
 		"message_id":  strings.TrimSpace(input.MessageID),
 		"session_key": strings.TrimSpace(input.SessionKey),
 		"agent_id":    strings.TrimSpace(input.AgentID),
-		"round_id":    strings.TrimSpace(input.RoundID),
+		"round_id":    input.RoundID,
 		"role":        "system",
-		"content":     strings.TrimSpace(input.Content),
+		"content":     input.Content,
 		"timestamp":   input.Timestamp,
 		"metadata": map[string]any{
 			"subtype":         SystemMessageSubtypeGuidedInput,
 			"delivery_policy": string(protocol.ChatDeliveryPolicyGuide),
-			"source_round_id": strings.TrimSpace(input.SourceRoundID),
+			"source_round_id": input.SourceRoundID,
 		},
 	}
 	if sessionID := strings.TrimSpace(input.SessionID); sessionID != "" {
@@ -239,13 +240,13 @@ func (p *Processor) projectPermissionReviewSystemMessage(message sdkprotocol.Sys
 	if !ok {
 		return nil
 	}
-	rationale := normalizeString(review["rationale"])
-	toolID := normalizeString(message.Data["tool_use_id"])
+	rationale := textutil.AnyString(review["rationale"])
+	toolID := textutil.AnyString(message.Data["tool_use_id"])
 	if rationale == "" || toolID == "" {
 		return nil
 	}
 	title := "需要你批准："
-	if normalizeString(review["status"]) == "approved" {
+	if textutil.AnyString(review["status"]) == "approved" {
 		title = "已自动批准："
 	}
 	metadata := cloneMapOrEmpty(message.Data)

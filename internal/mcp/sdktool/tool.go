@@ -7,6 +7,7 @@ package sdktool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	sdktools "github.com/nexus-research-lab/nexus-agent-sdk-bridge/tools"
@@ -26,6 +27,32 @@ type Tool struct {
 
 // ToolResult 表示 MCP 工具调用结果。
 type ToolResult = sdktools.Result
+
+// ErrorResult 把错误投影为单段文本的失败结果。
+func ErrorResult(err error) ToolResult {
+	return ToolResult{
+		Content: []map[string]any{{"type": "text", "text": err.Error()}},
+		IsError: true,
+	}
+}
+
+// JSONResult 把值编码为单段 JSON 文本；编码失败时返回 ErrorResult。
+func JSONResult(value any) ToolResult {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return ErrorResult(err)
+	}
+	return ToolResult{Content: []map[string]any{{"type": "text", "text": string(payload)}}}
+}
+
+// StructuredJSONResult 在 JSONResult 之外同时返回 StructuredContent。
+func StructuredJSONResult(value map[string]any) ToolResult {
+	result := JSONResult(value)
+	if !result.IsError {
+		result.StructuredContent = value
+	}
+	return result
+}
 
 // ToolAnnotations 表示工具元数据。
 type ToolAnnotations = sdktools.Annotations

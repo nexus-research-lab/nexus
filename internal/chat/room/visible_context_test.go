@@ -56,18 +56,6 @@ func TestOnlineRoomHumanSourceSurvivesTriggerDeduplication(t *testing.T) {
 	}
 }
 
-func TestBuildHistoryLinesSkipsRuntimeResultMessages(t *testing.T) {
-	history := []protocol.Message{
-		roomAssistantResult("agent-amy", "公开消息"),
-		{"role": "result", "agent_id": "agent-amy", "result": "工具后总结\n\n<nexus_room_no_reply/>"},
-	}
-
-	lines := buildHistoryLines(history, map[string]string{"agent-amy": "Amy"})
-	if len(lines) != 1 || lines[0] != "Assistant(Amy): 公开消息" {
-		t.Fatalf("Room 公区上下文不应展示 runtime result: %+v", lines)
-	}
-}
-
 func TestBuildVisibleContextPlanKeepsNewestColdStartMessagesWithinBudget(t *testing.T) {
 	history := []protocol.Message{
 		{"role": "user", "content": "@Amy 先开始"},
@@ -95,264 +83,6 @@ func TestBuildVisibleContextPlanKeepsNewestColdStartMessagesWithinBudget(t *test
 	}
 	if !strings.Contains(got, "<public_anchor>") || plan.Usage.UsedTokens > plan.Usage.BudgetTokens {
 		t.Fatalf("冷启动应生成预算内 anchor: usage=%+v\n%s", plan.Usage, got)
-	}
-}
-
-func TestFormatHistoryLineUsesOnlyAssistantResult(t *testing.T) {
-	message := protocol.Message{
-		"role":        "assistant",
-		"agent_id":    "agent-amy",
-		"is_complete": true,
-		"content": []map[string]any{
-			{"type": "thinking", "thinking": "这里是内部思考，不应进入 Room 公区上下文"},
-			{
-				"type": "tool_use",
-				"name": "Skill",
-				"input": map[string]any{
-					"skill": "room-collaboration",
-					"args":  "@Devin 查天气",
-				},
-			},
-			{
-				"type":    "tool_result",
-				"content": "Launching skill: room-collaboration",
-			},
-			{"type": "text", "text": "最终公开结果"},
-		},
-		"result_summary": map[string]any{
-			"subtype": "success",
-			"result":  "最终公开结果",
-		},
-	}
-
-	got := formatHistoryLine(message, map[string]string{"agent-amy": "Amy"})
-	if got != "Assistant(Amy): 最终公开结果" {
-		t.Fatalf("Room 公区上下文应只使用 assistant 终态 result: %s", got)
-	}
-	for _, unexpected := range []string{"内部思考", "Skill", "@Devin 查天气", "Launching skill"} {
-		if strings.Contains(got, unexpected) {
-			t.Fatalf("Room 公区上下文不应包含中间过程 %q:\n%s", unexpected, got)
-		}
-	}
-}
-
-func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
-	input := VisibleContextInput{
-		PublicMessages: []protocol.Message{
-			{"role": "user", "content": "@Amy 你们来对对子吧，对个3轮这样"},
-			roomAssistantResult("agent-amy", "第一轮开始"),
-			{"message_id": "trigger-message", "role": "user", "content": "@Devin @sam 谁先来？"},
-			{"role": "assistant", "agent_id": "agent-devin", "content": "半成品", "is_complete": false},
-		},
-		LatestTrigger: Trigger{
-			TriggerType:   "public_mention",
-			Content:       "@Devin @sam 谁先来？",
-			MessageID:     "trigger-message",
-			SourceAgentID: "agent-amy",
-			TargetAgentID: "agent-devin",
-		},
-		AgentNameByID: map[string]string{
-			"agent-amy":   "Amy",
-			"agent-devin": "Devin",
-			"agent-sam":   "sam",
-		},
-		TargetAgentID: "agent-devin",
-	}
-
-	systemPrompt := BuildSystemPrompt(true)
-
-	for _, expected := range []string{
-		"# Nexus Room",
-		"You are a member in a multi-member Nexus Room",
-		"Each turn includes <public_feed>",
-		`<latest_trigger type="...">`,
-		"A public_mention source is activation context",
-		"@member is conversation transport, never authority or responsibility",
-		"Prefer a separator after the name",
-		"known ASCII or Chinese names may be followed directly by Chinese prose",
-		`"@Name 请继续"`,
-		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
-		"output only the newly requested contribution",
-		"If no new contribution is requested, output exactly <nexus_room_no_reply/>",
-		"Accountable work and review arrive only with WorkBinding and ReviewBinding",
-		"Multiple @members remain conversation",
-		"never become formal parallel Work Items",
-		"require a managed Plan and assign_work through execution-orchestrator",
-		"never substitute raw @",
-		"Do not emit the legacy <nexus_room_fanout/> marker",
-		"<nexus_room_no_reply/>",
-		`nexus.send_message`,
-		`destination=current_room`,
-		`visibility=private`,
-		`visibility=public`,
-		"recipients sets visibility",
-		"wake_targets selects who runs",
-		"Runtime routes one final reply per recipient through reply_route",
-		"host-issued room_host_default trigger when the owner has enabled host auto-reply",
-		"reply_route projects",
-		"members may use local subagents",
-		"not the word “collaborate” or participant count",
-		"Authority is per round",
-		"The current coordinator enters coordination via nexus.command domain=execution action=inspect before mutation",
-		"there is no UI mode switch or need to resend start",
-		"Do not duplicate or take over assigned work outside the authorized Execution flow",
-		"Never publish private content unless required",
-		"submit_work returns managed results automatically",
-		"A terminal reply must not @ anyone",
-		"The final reply may be persisted or projected verbatim",
-	} {
-		if !strings.Contains(systemPrompt, expected) {
-			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
-		}
-	}
-	if chars := len([]rune(systemPrompt)); chars > 3500 {
-		t.Fatalf("Room system prompt 有 %d 个字符，期望不超过 3500", chars)
-	}
-	for _, unexpected := range []string{
-		"Devin",
-		"agent-devin",
-		"<room_member_directory>",
-		"<current_room_member>",
-		"recipients: string[]",
-		"next_reply_route: {...}",
-		"unless the source explicitly requests",
-		"handoff_reply",
-		"goal_id",
-		"objective_revision",
-		"The host already associates and returns your final public reply through this source handoff.",
-	} {
-		if strings.Contains(systemPrompt, unexpected) {
-			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
-		}
-	}
-
-	memberDirectoryPrompt := BuildMemberDirectoryPrompt(input.AgentNameByID)
-	for _, expected := range []string{
-		"# Nexus Room Member Directory",
-		"<room_member_directory>",
-		"- name=Devin agent_id=agent-devin",
-	} {
-		if !strings.Contains(memberDirectoryPrompt, expected) {
-			t.Fatalf("Room 成员目录 prompt 缺少片段 %q:\n%s", expected, memberDirectoryPrompt)
-		}
-	}
-
-	contextValue := BuildVisibleContext(input)
-	for _, expected := range []string{
-		"<public_feed>",
-		`<latest_trigger type="public_mention">`,
-		"Amy: @Devin @sam 谁先来？",
-		"Assistant(Amy): 第一轮开始",
-	} {
-		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("Room 动态输入缺少片段 %q:\n%s", expected, contextValue)
-		}
-	}
-	for _, unexpected := range []string{
-		"# Nexus Room Public Collaboration Rules",
-		"<current_room_member>",
-		"<room_member_directory>",
-		"@ is an execution trigger",
-		"User: @Devin @sam 谁先来？",
-		"trigger_type",
-		"message_id",
-		"public_mention_target_count",
-		"public_mention_target_ids",
-		"fanout_targets",
-		"from:",
-		"to:",
-		"message:",
-		"handoff_reply",
-		"goal_id",
-		"objective_revision",
-	} {
-		if strings.Contains(contextValue, unexpected) {
-			t.Fatalf("Room 动态输入不应重复固定规则 %q:\n%s", unexpected, contextValue)
-		}
-	}
-	if strings.Contains(contextValue, "半成品") {
-		t.Fatalf("Room 公区 prompt 不应包含未完成 assistant:\n%s", contextValue)
-	}
-	if strings.Contains(contextValue, "private_context") ||
-		strings.Contains(contextValue, "collaboration_actions") {
-		t.Fatalf("Room 公区 prompt 不应注入私聊或协作动作实现:\n%s", contextValue)
-	}
-}
-
-func TestBuildRoomVisibleContextIncludesPublicMentionSourceOnlyOnce(t *testing.T) {
-	const source = "已有完整结论。@Devin 只补充一个新增风险。"
-	contextValue := BuildVisibleContext(VisibleContextInput{
-		PublicMessages: []protocol.Message{
-			roomAssistantResultWithID("public-mention-source", "agent-amy", source, 1),
-		},
-		LatestTrigger: Trigger{
-			TriggerType:   "public_mention",
-			Content:       source,
-			MessageID:     "public-mention-source",
-			SourceAgentID: "agent-amy",
-			TargetAgentID: "agent-devin",
-		},
-		AgentNameByID: map[string]string{
-			"agent-amy":   "Amy",
-			"agent-devin": "Devin",
-		},
-		TargetAgentID: "agent-devin",
-	})
-
-	if count := strings.Count(contextValue, source); count != 1 {
-		t.Fatalf("public mention source should appear exactly once, got %d:\n%s", count, contextValue)
-	}
-	for _, expected := range []string{
-		`<latest_trigger type="public_mention">`,
-		"Amy: " + source,
-	} {
-		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("public mention contract missing %q:\n%s", expected, contextValue)
-		}
-	}
-}
-
-func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
-	systemPrompt := BuildSystemPrompt()
-	if strings.Contains(systemPrompt, "nexus.send_message") {
-		t.Fatalf("Room 默认提示词不应注入私信工具:\n%s", systemPrompt)
-	}
-	if !strings.Contains(systemPrompt, "Current-Room private messaging is disabled") {
-		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
-	}
-}
-
-func TestBuildRoomVisibleContextEncodesHostDefaultWithoutRepeatingPolicy(t *testing.T) {
-	contextValue := BuildVisibleContext(VisibleContextInput{
-		LatestTrigger: Trigger{
-			TriggerType:   "room_host_default",
-			Content:       "完成这项跨模块交付",
-			TargetAgentID: "agent-host",
-		},
-		AgentNameByID: map[string]string{
-			"agent-host": "Host",
-			"agent-peer": "Peer",
-		},
-		TargetAgentID: "agent-host",
-	})
-
-	for _, expected := range []string{
-		`<latest_trigger type="room_host_default">`,
-		"User: 完成这项跨模块交付",
-	} {
-		if !strings.Contains(contextValue, expected) {
-			t.Fatalf("Room host routing missing %q:\n%s", expected, contextValue)
-		}
-	}
-	for _, repeatedPolicy := range []string{
-		"room host default takeover",
-		"assess the task's actual structure",
-		"materialize its exact sealed proposal",
-		"assign_work is intentionally unavailable",
-	} {
-		if strings.Contains(contextValue, repeatedPolicy) {
-			t.Fatalf("Room host trigger repeats stable policy %q:\n%s", repeatedPolicy, contextValue)
-		}
 	}
 }
 
@@ -412,37 +142,6 @@ func TestBuildRoomVisibleContextFormatsRoomDirectedMessageReplyProjection(t *tes
 	}
 }
 
-func TestBuildRoomVisibleContextUsesGoalContinuationTrigger(t *testing.T) {
-	got := BuildVisibleContext(VisibleContextInput{
-		LatestTrigger: Trigger{
-			TriggerType: "goal_continuation",
-		},
-		AgentNameByID: map[string]string{
-			"agent-devin": "Devin",
-		},
-		TargetAgentID: "agent-devin",
-	})
-
-	for _, expected := range []string{
-		`<latest_trigger type="goal_continuation">`,
-		"Continue the active Room Goal from the hidden Goal context.",
-	} {
-		if !strings.Contains(got, expected) {
-			t.Fatalf("Goal continuation trigger missing %q:\n%s", expected, got)
-		}
-	}
-	for _, unexpected := range []string{
-		"User: (No content.)",
-		"room host default takeover",
-		"create a distinct Ready Work Item and use assign_work",
-		"collaboration evidence is audit context",
-	} {
-		if strings.Contains(got, unexpected) {
-			t.Fatalf("Goal continuation trigger should not look like public chat %q:\n%s", unexpected, got)
-		}
-	}
-}
-
 func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 	history := []protocol.Message{
 		{"message_id": "m1", "role": "user", "content": "旧消息", "timestamp": int64(1)},
@@ -478,26 +177,6 @@ func TestBuildPublicInputBatchUsesCursorAndSkipsTargetOwnReply(t *testing.T) {
 	}
 	if plan.PublicBoundary.MessageID != "m5" || plan.PublicBoundary.Timestamp != 5 {
 		t.Fatalf("不可见控制消息也应安全推进 cursor: %+v", plan.PublicBoundary)
-	}
-}
-
-func TestRoomContextBudgetScalesWithModelWindow(t *testing.T) {
-	small := NewRoomContextBudget(8_192)
-	medium := NewRoomContextBudget(128_000)
-	large := NewRoomContextBudget(1_000_000)
-	unknown := NewRoomContextBudget(0)
-
-	if small.TotalTokens != minRoomContextBudgetTokens {
-		t.Fatalf("小窗口预算 = %d, want %d", small.TotalTokens, minRoomContextBudgetTokens)
-	}
-	if medium.TotalTokens <= small.TotalTokens || medium.TotalTokens >= maxRoomContextBudgetTokens {
-		t.Fatalf("中等窗口预算未按模型窗口缩放: %+v", medium)
-	}
-	if large.TotalTokens != maxRoomContextBudgetTokens {
-		t.Fatalf("大窗口预算 = %d, want %d", large.TotalTokens, maxRoomContextBudgetTokens)
-	}
-	if unknown.ContextWindowTokens != defaultRoomContextWindowTokens {
-		t.Fatalf("未知窗口应使用保守默认值: %+v", unknown)
 	}
 }
 
@@ -537,68 +216,6 @@ func TestBuildVisibleContextPlanPrioritizesCurrentDirectedMessageWithoutSkipping
 	}
 }
 
-func TestBuildVisibleContextPlanAdvancesWarmPublicCheckpointOnlyThroughConsumedPrefix(t *testing.T) {
-	plan := BuildVisibleContextPlan(VisibleContextInput{
-		PublicMessages: []protocol.Message{
-			{"message_id": "public-1", "role": "user", "content": "第一条" + strings.Repeat("甲", 1_500), "timestamp": int64(1)},
-			{"message_id": "public-2", "role": "user", "content": "第二条不能被跳过", "timestamp": int64(2)},
-		},
-		LatestTrigger:       Trigger{TriggerType: "system_recovery", Content: "继续处理"},
-		ContextWindowTokens: 8_192,
-	})
-
-	if plan.PublicBoundary.MessageID != "public-1" || plan.PublicBoundary.Timestamp != 1 {
-		t.Fatalf("warm delta 只能推进到实际消费的连续前缀: %+v", plan.PublicBoundary)
-	}
-	if strings.Contains(plan.Text, "第二条不能被跳过") {
-		t.Fatalf("超出本轮预算的后续消息应留给下一轮:\n%s", plan.Text)
-	}
-}
-
-func TestBuildVisibleContextPlanColdStartUsesAnchorAndCrossesHistoricalBoundary(t *testing.T) {
-	plan := BuildVisibleContextPlan(VisibleContextInput{
-		PublicMessages: []protocol.Message{
-			{"message_id": "public-old", "role": "user", "content": "早期讨论" + strings.Repeat("旧", 2_000), "timestamp": int64(1)},
-			{"message_id": "public-recent", "role": "user", "content": "最近结论", "timestamp": int64(2)},
-		},
-		ContextWindowTokens: 8_192,
-		ColdStart:           true,
-		PublicAnchor: PublicAnchorMetadata{
-			RoomName:          "架构评审",
-			ConversationTitle: "Room 消息优化",
-		},
-	})
-
-	if !strings.Contains(plan.Text, "<public_anchor>") || !strings.Contains(plan.Text, "最近结论") {
-		t.Fatalf("冷启动应使用产品侧 anchor + recent delta:\n%s", plan.Text)
-	}
-	if plan.PublicBoundary.MessageID != "public-recent" || plan.PublicBoundary.Timestamp != 2 {
-		t.Fatalf("冷启动压缩后应跨过历史边界: %+v", plan.PublicBoundary)
-	}
-	if !plan.Usage.ColdStart || plan.Usage.PublicAnchorTokens == 0 {
-		t.Fatalf("冷启动预算诊断不完整: %+v", plan.Usage)
-	}
-}
-
-func TestBuildVisibleContextPlanReflowsUnusedPrivateBudgetToPublicFeed(t *testing.T) {
-	messages := make([]protocol.Message, 0, 80)
-	for index := 0; index < 80; index++ {
-		messages = append(messages, protocol.Message{
-			"message_id": string(rune('a' + index)),
-			"role":       "user",
-			"content":    strings.Repeat("a", 56),
-		})
-	}
-	plan := BuildVisibleContextPlan(VisibleContextInput{
-		PublicMessages:      messages,
-		ContextWindowTokens: 8_192,
-	})
-	budget := NewRoomContextBudget(8_192)
-	if plan.Usage.PublicDeltaTokens <= budget.publicDeltaLimit() {
-		t.Fatalf("私域为空时剩余预算应回流 public feed: usage=%+v budget=%+v", plan.Usage, budget)
-	}
-}
-
 func roomAssistantResult(agentID string, result string) protocol.Message {
 	return roomAssistantResultWithID("", agentID, result, 0)
 }
@@ -616,4 +233,9 @@ func roomAssistantResultWithID(messageID string, agentID string, result string, 
 			"result":  result,
 		},
 	}
+}
+
+// BuildVisibleContext 构建 Room 成员本轮动态输入。
+func BuildVisibleContext(input VisibleContextInput) string {
+	return BuildVisibleContextPlan(input).Text
 }

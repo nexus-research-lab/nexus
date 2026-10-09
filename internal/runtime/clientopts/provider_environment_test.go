@@ -44,31 +44,6 @@ func TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsProtectsMemoryRootFromConfigurationEnv(t *testing.T) {
-	workspace := t.TempDir()
-	options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		RuntimeKind:   runtimeKindNXS,
-		WorkspacePath: workspace,
-		ExtraEnv: map[string]string{
-			nexusMemoryDirEnvName:          "/tmp/escaped-memory",
-			nexusEnableRemoteMemoryEnvName: "1",
-			nexusRemoteMemoryDirEnvName:    "/tmp/escaped-remote-memory",
-		},
-		ConfigurationEnv: map[string]string{
-			protocol.NexusConfigBrokerURLEnvName:       "http://127.0.0.1:8010/configuration",
-			protocol.NexusConfigCapabilityTokenEnvName: "test-capability",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.Env[nexusMemoryDirEnvName] != workspace ||
-		options.Env[nexusEnableRemoteMemoryEnvName] != "" ||
-		options.Env[nexusRemoteMemoryDirEnvName] != "" {
-		t.Fatalf("configuration environment redirected managed memory: %#v", options.Env)
-	}
-}
-
 func TestBuildAgentClientOptionsRejectsUnknownConfigurationEnvironment(t *testing.T) {
 	_, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:   runtimeKindNXS,

@@ -70,7 +70,7 @@ func (s *Service) buildSlotGuidedPublicContext(
 ) (string, error) {
 	publicCursorID, publicCursorTS := slot.publicCursor()
 	baseCursor := roomdomain.PublicCursor{
-		LastMessageID: strings.TrimSpace(publicCursorID),
+		LastMessageID: publicCursorID,
 		LastTimestamp: publicCursorTS,
 	}
 	batch, err := s.publicInputBatchForSlot(ctx, roundValue, slot, publicHistory, baseCursor, true)
@@ -90,7 +90,7 @@ func (s *Service) buildSlotGuidedPublicContext(
 		ColdStart:           batch.ColdStart,
 		PublicAnchor:        roomPublicAnchorMetadata(roundValue),
 	})
-	if strings.TrimSpace(plan.PublicBoundary.MessageID) != "" || plan.PublicBoundary.Timestamp > 0 {
+	if plan.PublicBoundary.MessageID != "" || plan.PublicBoundary.Timestamp > 0 {
 		_, _, messageCursorID, messageCursorTS := slot.cursorSnapshot()
 		slot.setCursors(plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp, messageCursorID, messageCursorTS)
 		if err = s.recordRoomPublicCursor(slot, roundValue, plan.PublicBoundary.MessageID, plan.PublicBoundary.Timestamp); err != nil {
@@ -134,8 +134,8 @@ func (s *Service) publicCursorForSlot(roundValue *activeRoomRound, slot *activeR
 	coldStart := slot.contextColdStart()
 	cursorKnown := overrideKnown || (!coldStart &&
 		(strings.TrimSpace(cursor.LastMessageID) != "" || cursor.LastTimestamp > 0))
-	if !cursorKnown && !coldStart && s.history != nil {
-		stored, ok, err := s.history.ForOwner(roundValue.OwnerUserID).ReadRoomPublicCursor(
+	if !cursorKnown && !coldStart && s.History != nil {
+		stored, ok, err := s.History.ForOwner(roundValue.OwnerUserID).ReadRoomPublicCursor(
 			slot.WorkspacePath,
 			slot.RuntimeSessionKey,
 			roundValue.ConversationID,
@@ -192,7 +192,7 @@ func (s *Service) logRoomContextUsage(
 	if roundValue == nil || slot == nil {
 		return
 	}
-	s.loggerFor(ctx).Debug("Room 可见上下文预算已应用",
+	s.LoggerFor(ctx).Debug("Room 可见上下文预算已应用",
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
 		"agent_id", slot.AgentID,
@@ -210,14 +210,14 @@ func (s *Service) logRoomContextUsage(
 }
 
 func (s *Service) recordRoomPublicCursor(slot *activeRoomSlot, roundValue *activeRoomRound, messageID string, timestamp int64) error {
-	if s.history == nil || slot == nil || roundValue == nil {
+	if slot == nil || roundValue == nil {
 		return nil
 	}
 	messageID = strings.TrimSpace(messageID)
 	if messageID == "" && timestamp == 0 {
 		return nil
 	}
-	return s.history.ForOwner(roundValue.OwnerUserID).AppendRoomPublicCursor(
+	return s.History.ForOwner(roundValue.OwnerUserID).AppendRoomPublicCursor(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		workspacestore.RoomPublicCursor{
@@ -236,11 +236,10 @@ func (s *Service) recordRoomDirectedMessageCursor(
 	slot *activeRoomSlot,
 	roundValue *activeRoomRound,
 ) (workspacestore.RoomDirectedMessageCursor, bool, error) {
-	if s.directedMessages == nil || slot == nil || roundValue == nil {
+	if slot == nil || roundValue == nil {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
 	messageID, messageTimestamp := slot.messageCursor()
-	messageID = strings.TrimSpace(messageID)
 	if messageID == "" && messageTimestamp == 0 {
 		return workspacestore.RoomDirectedMessageCursor{}, false, nil
 	}
@@ -263,7 +262,7 @@ func (s *Service) roomDirectedMessagesForSlot(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) ([]protocol.RoomDirectedMessageRecord, error) {
-	if s.directedMessages == nil || roundValue == nil || slot == nil {
+	if roundValue == nil || slot == nil {
 		return nil, nil
 	}
 	cursor, _, err := s.directedMessages.ReadMessageCursor(

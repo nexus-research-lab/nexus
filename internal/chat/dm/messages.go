@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -47,8 +48,8 @@ func WrapSessionMessageEvent(sessionValue protocol.Session, messageValue protoco
 	event.DeliveryMode = strings.TrimSpace(deliveryMode)
 	event.SessionKey = sessionValue.SessionKey
 	event.AgentID = sessionValue.AgentID
-	event.MessageID = NormalizeString(messageValue["message_id"])
-	event.RoundID = FirstNonEmpty(roundID, NormalizeString(messageValue["round_id"]))
-	event.AgentRoundID = NormalizeString(messageValue["agent_round_id"])
+	event.MessageID = textutil.AnyString(messageValue["message_id"])
+	event.RoundID = textutil.FirstNonEmpty(roundID, textutil.AnyString(messageValue["round_id"]))
+	event.AgentRoundID = textutil.AnyString(messageValue["agent_round_id"])
 	return event
 }

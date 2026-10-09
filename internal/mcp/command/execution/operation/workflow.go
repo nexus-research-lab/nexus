@@ -263,7 +263,7 @@ func BuildWorkGraphDistillation(
 	svc contract.WorkflowService,
 	sctx contract.Context,
 ) []command.Operation {
-	if svc == nil || strings.TrimSpace(sctx.WorkGraphPreviewID) == "" {
+	if svc == nil || sctx.WorkGraphPreviewID == "" {
 		return nil
 	}
 	return []command.Operation{distillWorkGraphWorkflow(svc, sctx)}
@@ -366,7 +366,7 @@ func distillWorkGraphWorkflow(
 			if err := decodeInput(input, &parsed); err != nil {
 				return transportErrorResult(err), nil
 			}
-			if strings.TrimSpace(parsed.PreviewID) != strings.TrimSpace(sctx.WorkGraphPreviewID) {
+			if strings.TrimSpace(parsed.PreviewID) != sctx.WorkGraphPreviewID {
 				return transportErrorResult(errors.New("preview_id does not match the host-bound WorkGraph save request")), nil
 			}
 			commandID, err := commandID(sctx, call, operationName, input, 0)

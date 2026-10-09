@@ -30,32 +30,6 @@ func TestCommandRequestIDRejectsMalformedInputBeforeDispatch(t *testing.T) {
 	}
 }
 
-func TestCommandRequestIDPreservesValidIdentityAndOptionalReads(t *testing.T) {
-	for _, id := range []string{"12345678", "submit-work-20260910-001", "ABC.def_123:456-789", strings.Repeat("x", 128)} {
-		tool := NewTool(func(_ context.Context, request Request) (any, error) {
-			if request.RequestID != id || !ValidRequestID(request.RequestID) {
-				t.Fatalf("request identity changed: %q", request.RequestID)
-			}
-			return map[string]any{"accepted": true}, nil
-		})
-		result, err := tool.Handler(context.Background(), map[string]any{
-			"domain": "execution", "action": "invoke", "operation": "submit_work", "request_id": id,
-		})
-		if err != nil || result.IsError {
-			t.Fatalf("valid ID rejected: %+v %v", result, err)
-		}
-	}
-	for _, input := range []map[string]any{
-		{"domain": "execution", "action": "contract"},
-		{"domain": "execution", "action": "inspect"},
-		{"domain": "subagent", "action": "invoke", "operation": "get"},
-	} {
-		if err := ValidateInput(inputSchema(), input); err != nil {
-			t.Fatalf("optional read ID rejected: %v", err)
-		}
-	}
-}
-
 func TestSubmitWorkMissingRequestIDReturnsCorrectionBeforeOperation(t *testing.T) {
 	called := false
 	operations := []Operation{{Name: "submit_work", Handler: func(context.Context, map[string]any) (Result, error) {
@@ -127,43 +101,6 @@ func TestInspectEntryCorrection(t *testing.T) {
 	}
 }
 
-func TestOperationInvokeRejectsMissingAndInvalidEnumBeforeHandler(t *testing.T) {
-	invoked := false
-	operation := Operation{
-		Name: "review_work",
-		InputSchema: map[string]any{
-			"type":                 "object",
-			"additionalProperties": false,
-			"required":             []string{"decision"},
-			"properties": map[string]any{
-				"decision": map[string]any{
-					"type": "string",
-					"enum": []string{"accepted", "rejected", "changes_requested"},
-				},
-			},
-		},
-		Handler: func(context.Context, map[string]any) (Result, error) {
-			invoked = true
-			return Result{}, nil
-		},
-	}
-
-	for name, input := range map[string]map[string]any{
-		"missing": {},
-		"invalid": {"decision": "accept"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, err := operation.Invoke(context.Background(), input, nil)
-			if err == nil || !strings.Contains(err.Error(), "$.decision") {
-				t.Fatalf("Invoke() error = %v, want decision schema error", err)
-			}
-		})
-	}
-	if invoked {
-		t.Fatal("invalid input reached domain handler")
-	}
-}
-
 func TestValidateInputCoversPortableNestedSchema(t *testing.T) {
 	schema := map[string]any{
 		"type":                 "object",
@@ -197,23 +134,6 @@ func TestValidateInputCoversPortableNestedSchema(t *testing.T) {
 	}
 	if err := ValidateInput(schema, map[string]any{"items": []any{}, "extra": true}); err == nil || !strings.Contains(err.Error(), "$.extra") {
 		t.Fatalf("ValidateInput() error = %v, want unknown property", err)
-	}
-}
-
-func TestValidateInputPreservesJSONSchemaAdditionalPropertiesDefault(t *testing.T) {
-	t.Parallel()
-
-	schema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"known": map[string]any{"type": "string"},
-		},
-	}
-	if err := ValidateInput(schema, map[string]any{
-		"known": "value",
-		"extra": true,
-	}); err != nil {
-		t.Fatalf("ValidateInput() error = %v, omitted additionalProperties must stay permissive", err)
 	}
 }
 

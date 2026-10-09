@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 )
@@ -25,9 +25,9 @@ func (s *Service) scheduleTitleGeneration(
 	roomID := ""
 	conversationID := ""
 	if !isExternalIMSession(parsed, sessionItem) {
-		roomID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.RoomID))
+		roomID = textutil.PointerValue(sessionItem.RoomID)
 		if roomID != "" {
-			conversationID = strings.TrimSpace(dmdomain.StringPointerValue(sessionItem.ConversationID))
+			conversationID = textutil.PointerValue(sessionItem.ConversationID)
 		}
 	}
 	conversationMessageCount := 0
@@ -46,15 +46,6 @@ func (s *Service) scheduleTitleGeneration(
 		ConversationRoomID:       roomID,
 		ConversationMessageCount: conversationMessageCount,
 	})
-}
-
-func runtimeSelectionFromSession(sessionItem protocol.Session) (string, string) {
-	if sessionItem.Options == nil {
-		return "", ""
-	}
-	provider, _ := sessionItem.Options[protocol.OptionRuntimeProvider].(string)
-	model, _ := sessionItem.Options[protocol.OptionRuntimeModel].(string)
-	return strings.TrimSpace(provider), strings.TrimSpace(model)
 }
 
 func isExternalIMSession(parsed protocol.SessionKey, sessionItem protocol.Session) bool {

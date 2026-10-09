@@ -9,6 +9,7 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -65,7 +66,7 @@ func (h *Handler) handleBindSession(
 		return
 	}
 	if parsed.Kind == protocol.SessionKeyKindAgent && h.dm != nil {
-		if err := h.dm.SendInputQueueSnapshot(ctx, sessionKey, handlershared.StringValue(inbound["agent_id"])); err != nil {
+		if err := h.dm.SendInputQueueSnapshot(ctx, sessionKey, textutil.AnyString(inbound["agent_id"])); err != nil {
 			h.sendGatewayError(ctx, sender, sessionKey, "input_queue_error", err, map[string]any{"type": "bind_session"})
 		}
 	}
@@ -185,14 +186,14 @@ func (h *Handler) validateSessionKey(
 	sender *handlershared.WebSocketSender,
 	inbound map[string]any,
 ) (string, protocol.SessionKey, bool) {
-	sessionKey := handlershared.StringValue(inbound["session_key"])
+	sessionKey := textutil.AnyString(inbound["session_key"])
 	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
 	if err != nil {
 		errorType := "invalid_session_key"
 		if err.Error() == "session_key is required" {
 			errorType = "validation_error"
 		}
-		h.sendGatewayError(ctx, sender, sessionKey, errorType, err, map[string]any{"type": handlershared.StringValue(inbound["type"])})
+		h.sendGatewayError(ctx, sender, sessionKey, errorType, err, map[string]any{"type": textutil.AnyString(inbound["type"])})
 		return "", protocol.SessionKey{}, false
 	}
 	return normalized, protocol.ParseSessionKey(normalized), true

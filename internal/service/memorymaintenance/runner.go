@@ -54,13 +54,6 @@ func NewCoordinator(
 	return newCoordinator(cfg.MemoryMaintenance, agents, preferences, runner)
 }
 
-func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
-	if lease == nil {
-		return nil
-	}
-	return lease.Resources()
-}
-
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (result agentclient.AutoDreamResult, err error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
 	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
@@ -145,7 +138,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		WebSearch:             selection.WebSearch,
 		RuntimeIsolationMode:  r.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:   r.config.RuntimeLauncherPath,
-		SandboxResources:      sandboxResourcesFromLease(scratchLease),
+		SandboxResources:      scratchLease.Resources(),
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",

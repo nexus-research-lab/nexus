@@ -15,6 +15,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -37,7 +38,7 @@ func (s *Service) writeRunArtifact(
 		s.loggerFor(ctx).Warn("解析自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
-	if strings.TrimSpace(workspacePath) == "" {
+	if workspacePath == "" {
 		return nil
 	}
 	defer confinedRoot.Close()
@@ -138,7 +139,7 @@ func renderRunArtifact(
 	writeArtifactField(&builder, "Finished At", finishedAt.UTC().Format(time.RFC3339))
 	writeArtifactField(&builder, "Session Key", strings.TrimSpace(sessionKey))
 	writeArtifactField(&builder, "Round ID", strings.TrimSpace(roundID))
-	writeArtifactField(&builder, "Runtime Session", anyStringPointer(observation.SessionID))
+	writeArtifactField(&builder, "Runtime Session", textutil.PointerValue(observation.SessionID))
 	writeArtifactField(&builder, "Message Count", fmt.Sprintf("%d", observation.MessageCount))
 	writeArtifactField(&builder, "Delivery Status At Completion", strings.TrimSpace(deliveryStatus))
 	writeArtifactField(&builder, "Frozen Delivery Target", strings.TrimSpace(deliveryTo))

@@ -15,6 +15,7 @@ import (
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -261,7 +262,7 @@ func (s *Service) commitScriptObservation(
 	deliveryTo := deliveryTargetSummary(runDelivery)
 	finishedAt := s.nowFn()
 	artifactPath := s.writeRunArtifact(jobCtx, job, runID, "", "", finishedAt, status, observation, errorMessage, deliveryStatus, nil, deliveryTo)
-	resultSummary := stringPointer(firstNonEmpty(observation.ResultText, observation.AssistantText))
+	resultSummary := stringPointer(textutil.FirstNonEmpty(observation.ResultText, observation.AssistantText))
 	updated, committed, finishErr := s.commitObservedRunTerminal(jobCtx, job, automationstore.RunFinishInput{
 		RunID:          runID,
 		Status:         status,
@@ -308,7 +309,7 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 	if workspaceRoot != nil {
 		defer workspaceRoot.Close()
 	}
-	if strings.TrimSpace(workspacePath) == "" {
+	if workspacePath == "" {
 		message := "automation script workspace is not configured"
 		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}, nil
 	}

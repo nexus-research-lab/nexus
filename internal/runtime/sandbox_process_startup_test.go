@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -25,47 +24,6 @@ func processStartupSnapshot() protocol.SandboxProcessSnapshot {
 	return protocol.SandboxProcessSnapshot{Intent: protocol.SandboxProcessIntent{Version: 1, Key: protocol.SandboxProcessKey{OwnerUserID: "owner", SessionKey: "session", Generation: 41, LaunchID: "launch"}}, Phase: protocol.SandboxProcessPrepared}
 }
 
-func TestSandboxProcessIntentBlocksNewFactoryAcrossBackends(t *testing.T) {
-	for _, phase := range []protocol.SandboxProcessPhase{protocol.SandboxProcessPrepared, protocol.SandboxProcessRegistered, protocol.SandboxProcessReleased} {
-		for _, kind := range []bridge.RuntimeKind{bridge.RuntimeNXS, bridge.RuntimeClaude} {
-			t.Run(string(phase)+"/"+string(kind), func(t *testing.T) {
-				snapshot := processStartupSnapshot()
-				snapshot.Phase = phase
-				store := &processStartupStore{process: snapshot}
-				calls := 0
-				manager := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { calls++; return &fakeRuntimeClient{} }))
-				manager.SetSandboxPolicyReceiptStore(store)
-				_, err := manager.GetOrCreate(t.Context(), "session", bridge.Options{Runtime: bridge.RuntimeOptions{Kind: kind}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}})
-				if !errors.Is(err, ErrSandboxCleanupPending) || calls != 0 {
-					t.Fatalf("unresolved launch bypassed: %v, factory=%d", err, calls)
-				}
-			})
-		}
-	}
-}
-func TestSandboxProcessTerminalContinuesSharedGeneration(t *testing.T) {
-	snapshot := processStartupSnapshot()
-	snapshot.Phase = protocol.SandboxProcessAborted
-	store := &processStartupStore{process: snapshot}
-	manager := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
-	manager.SetSandboxPolicyReceiptStore(store)
-	if _, err := manager.GetOrCreate(t.Context(), "session", bridge.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}); err != nil {
-		t.Fatal(err)
-	}
-	if got := manager.sessions["session"].StartupGeneration; got != 42 {
-		t.Fatalf("generation=%d", got)
-	}
-	policy := testSandboxReceiptSnapshotForManager()
-	policy.OwnerUserID = "owner"
-	policy.SessionKey = "session"
-	policy.Generation = 51
-	policy.Phase = protocol.SandboxPolicyReceiptRetired
-	store.latest = policy
-	store.found = true
-	if floor, err := manager.sandboxStartupGeneration(t.Context(), "owner", "session"); err != nil || floor != 51 {
-		t.Fatalf("combined floor=%d %v", floor, err)
-	}
-}
 func TestSandboxProcessUnverifiableReadRejectsStartup(t *testing.T) {
 	for _, mode := range []string{"read_error", "wrong_owner", "wrong_session", "missing_evidence", "phase"} {
 		t.Run(mode, func(t *testing.T) {

@@ -98,7 +98,7 @@ func (s *Service) setRoomMemberParticipation(
 	paused bool,
 	expectedVersion *int64,
 ) (*protocol.ConversationContextAggregate, error) {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil, errors.New("Room participation store is unavailable")
 	}
 	store, ok := s.rooms.(roomMemberParticipationStore)
@@ -169,7 +169,7 @@ func (s *Service) setRoomMemberParticipation(
 		)
 		cancel()
 		if interruptErr != nil {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"暂停 Room 成员后收口活跃任务失败，持久调度闸门保持关闭",
 				"room_id", normalizedRoomID,
 				"agent_id", normalizedAgentID,
@@ -194,7 +194,7 @@ func (s *Service) resumeRoomMemberWork(
 			continue
 		}
 		sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			contextValue.Room.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -217,7 +217,7 @@ func (s *Service) dispatchResumedRoomGoal(ctx context.Context, sessionKey string
 	}
 	goal, err := provider.CurrentOptional(ctx, sessionKey)
 	if err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"恢复 Room 成员后读取 active Goal 失败",
 			"session_key", sessionKey,
 			"err", err,

@@ -13,6 +13,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestRoomActiveGoalUpdateDoesNotResetDeferredActual(t *testing.T) {
@@ -141,7 +142,7 @@ type roomGoalBoundaryFixture struct {
 
 func (f roomGoalBoundaryFixture) recordAssistantUsage(inputTokens int64, outputTokens int64) {
 	message := roomGoalAssistantUsageMessage(inputTokens, outputTokens)
-	f.slot.rememberGoalAssistantMessage(message)
+	f.slot.mutable.goal.RememberGoalAssistantMessage(message)
 	f.room.recordGoalUsageFromSlotAssistantMessage(context.Background(), f.slot, message)
 }
 
@@ -172,8 +173,8 @@ func newRoomGoalBoundaryFixture(t *testing.T, suffix string) roomGoalBoundaryFix
 	goalService := goalsvc.NewService(config.Config{GoalEnabled: true}, repo)
 	goalService.SetExternalMutationAccountant(manager)
 	roomService := &Service{
-		goals:   goalService,
-		runtime: manager,
+		goals: goalService,
+		Host:  runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),

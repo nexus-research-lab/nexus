@@ -16,6 +16,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -356,7 +357,7 @@ func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 	detail := Detail{
 		Info: Info{
 			Name:         skillName,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
+			Title:        textutil.FirstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
@@ -384,15 +385,15 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 	detail := Detail{
 		Info: Info{
 			Name:         skillName,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
+			Title:        textutil.FirstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
-			CategoryKey:  firstNonEmpty(curated["category_key"], parsed.CategoryKey, "builtin-misc"),
-			CategoryName: firstNonEmpty(curated["category_name"], parsed.CategoryName, "扩展能力"),
+			CategoryKey:  textutil.FirstNonEmpty(curated["category_key"], parsed.CategoryKey, "builtin-misc"),
+			CategoryName: textutil.FirstNonEmpty(curated["category_name"], parsed.CategoryName, "扩展能力"),
 			SourceType:   sourceTypeBuiltin,
 			SourceRef:    sourceDir,
-			Version:      firstNonEmpty(parsed.Version, "builtin"),
+			Version:      textutil.FirstNonEmpty(parsed.Version, "builtin"),
 			Locked:       false,
 			Deletable:    false,
 			SourceKind:   sourceKind,
@@ -400,7 +401,7 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 			OriginKind:   builtinOriginKind(sourceKind),
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
+		Recommendation: textutil.FirstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -418,13 +419,13 @@ func buildWorkspaceRecordAt(
 	skillName := filepath.Base(relativeSourceDir)
 	sourceDir := filepath.Join(workspacePath, filepath.FromSlash(relativeSourceDir))
 	parsed := parseSkillFrontmatter(content, skillName)
-	categoryKey := firstNonEmpty(parsed.CategoryKey, "agent-workspace")
-	categoryName := firstNonEmpty(parsed.CategoryName, "智能体工作区")
-	recommendation := firstNonEmpty(parsed.Recommendation, "当前 Agent 工作区的本地 Skill，仅对当前 Agent 可见并默认启用。")
+	categoryKey := textutil.FirstNonEmpty(parsed.CategoryKey, "agent-workspace")
+	categoryName := textutil.FirstNonEmpty(parsed.CategoryName, "智能体工作区")
+	recommendation := textutil.FirstNonEmpty(parsed.Recommendation, "当前 Agent 工作区的本地 Skill，仅对当前 Agent 可见并默认启用。")
 	detail := Detail{
 		Info: Info{
 			Name:         skillName,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
+			Title:        textutil.FirstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
@@ -432,7 +433,7 @@ func buildWorkspaceRecordAt(
 			CategoryName: categoryName,
 			SourceType:   sourceTypeWorkspace,
 			SourceRef:    sourceDir,
-			Version:      firstNonEmpty(parsed.Version, "workspace"),
+			Version:      textutil.FirstNonEmpty(parsed.Version, "workspace"),
 			Locked:       false,
 			Deletable:    true,
 			StorageScope: storageScopeAgent,

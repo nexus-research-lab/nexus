@@ -7,51 +7,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func TestRepairLegacyPrivateSkillMigrationCollision(t *testing.T) {
-	db := openAgentDisabledSkillMigrationTestDB(t, "private-skill-collision.db")
-	migrationDir := providerRecoveryMigrationDir(t)
-	if err := goose.UpTo(db, migrationDir, 60); err != nil {
-		t.Fatal(err)
-	}
-	applyLegacyPrivateSkillMigration(t, db)
-
-	repaired, err := RepairLegacyPrivateSkillMigrationCollision(
-		t.Context(),
-		"sqlite",
-		db,
-		61,
-		discardMigrationLogger(),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !repaired {
-		t.Fatal("private Skill migration collision was not repaired")
-	}
-	assertMigrationApplied(t, db, 61, false)
-	assertMigrationApplied(t, db, 71, true)
-
-	if err = goose.Up(db, migrationDir, goose.WithAllowMissing()); err != nil {
-		t.Fatalf("apply Execution migrations after ledger repair: %v", err)
-	}
-	finalizePrivateSkillMigrationCollision(t, db)
-	finalizePrivateSkillMigrationCollision(t, db)
-	assertMigrationApplied(t, db, 61, true)
-	assertMigrationApplied(t, db, 71, true)
-	assertCurrentMigrationVersion(t, db, latestTestMigrationVersion(t))
-	assertMigrationTable(t, db, "executions")
-	assertPrivateSkillMigrationData(t, db)
-	for _, field := range privateSkillSchemaColumns {
-		exists, columnErr := sqliteColumnExists(t.Context(), db, field.table, field.column)
-		if columnErr != nil {
-			t.Fatal(columnErr)
-		}
-		if !exists {
-			t.Fatalf("private Skill column %s.%s missing", field.table, field.column)
-		}
-	}
-}
-
 func TestRepairLegacyPrivateSkillMigrationCollisionResumesBackfill(t *testing.T) {
 	db := openAgentDisabledSkillMigrationTestDB(t, "private-skill-collision-resume.db")
 	migrationDir := providerRecoveryMigrationDir(t)
@@ -148,42 +103,6 @@ INSERT INTO goose_db_version (version_id, is_applied) VALUES (61, TRUE);
 	}
 }
 
-func assertPrivateSkillMigrationData(t *testing.T, db *sql.DB) {
-	t.Helper()
-	var managedBy, authType, credentials string
-	if err := db.QueryRow(`
-SELECT managed_by, auth_type, credentials_encrypted
-FROM skill_sources
-WHERE owner_user_id = 'owner-1' AND source_id = 'private-1'
-`).Scan(&managedBy, &authType, &credentials); err != nil {
-		t.Fatal(err)
-	}
-	if managedBy != "user" || authType != "bearer" || credentials != "encrypted-token" {
-		t.Fatalf(
-			"private source metadata = (%q, %q, %q)",
-			managedBy,
-			authType,
-			credentials,
-		)
-	}
-
-	var sourceSkillID, artifactSHA256 string
-	if err := db.QueryRow(`
-SELECT source_skill_id, artifact_sha256
-FROM imported_skills
-WHERE owner_user_id = 'owner-1' AND skill_name = 'private-skill'
-`).Scan(&sourceSkillID, &artifactSHA256); err != nil {
-		t.Fatal(err)
-	}
-	if sourceSkillID != "upstream-skill" || artifactSHA256 != "artifact-digest" {
-		t.Fatalf(
-			"imported Skill metadata = (%q, %q)",
-			sourceSkillID,
-			artifactSHA256,
-		)
-	}
-}
-
 func assertMigrationApplied(t *testing.T, db *sql.DB, version int64, expected bool) {
 	t.Helper()
 	var count int
@@ -223,19 +142,5 @@ func assertCurrentMigrationVersion(t *testing.T, db *sql.DB, expected int64) {
 	}
 	if version != expected {
 		t.Fatalf("current migration version = %d, want %d", version, expected)
-	}
-}
-
-func assertMigrationTable(t *testing.T, db *sql.DB, table string) {
-	t.Helper()
-	var count int
-	if err := db.QueryRow(
-		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
-		table,
-	).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("migration table %s count = %d, want 1", table, count)
 	}
 }

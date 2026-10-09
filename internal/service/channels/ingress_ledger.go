@@ -91,7 +91,7 @@ func (s *ControlService) finishIngressMessage(ctx context.Context, input ingress
 	if normalized.OwnerUserID == "" || normalized.Channel == "" || normalized.ReqID == "" {
 		return nil
 	}
-	status := strings.TrimSpace(input.Status)
+	status := input.Status
 	if status == "" {
 		status = ingressMessageStatusAccepted
 	}

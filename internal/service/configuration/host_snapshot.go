@@ -41,7 +41,7 @@ func hostStartupConfigurationSnapshot(cfg config.Config) map[string]any {
 			"url":    secretConfigured(cfg.DatabaseURL),
 		},
 		"auth": map[string]any{
-			"session_cookie_name": cfg.AuthSessionCookieName,
+			"session_cookie_name":   cfg.AuthSessionCookieName,
 			"desktop_session_token": secretConfigured(cfg.DesktopSessionToken),
 		},
 		"memory_maintenance": map[string]any{

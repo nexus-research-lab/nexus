@@ -11,6 +11,7 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -423,8 +424,8 @@ func (s *Service) hydrateRoomHistorySession(
 	}
 
 	merged := dmdomain.MergeRoomBackedSession(*fileSession, roomSession)
-	roomSessionID := stringPointerValue(roomSession.SessionID)
-	fileSessionID := stringPointerValue(fileSession.SessionID)
+	roomSessionID := textutil.PointerValue(roomSession.SessionID)
+	fileSessionID := textutil.PointerValue(fileSession.SessionID)
 	if roomSessionID == "" && fileSessionID != "" {
 		merged.SessionID = fileSession.SessionID
 		if merged.RoomSessionID != nil && strings.TrimSpace(*merged.RoomSessionID) != "" {

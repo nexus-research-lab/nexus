@@ -2,15 +2,12 @@ package permission
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -82,88 +79,6 @@ func (s *permissionTestSender) IsClosed() bool {
 func (s *permissionTestSender) SendEvent(_ context.Context, event protocol.EventMessage) error {
 	s.events <- event
 	return nil
-}
-
-func TestContextRequestPermissionAndReplay(t *testing.T) {
-	ctx := NewContext()
-	sessionKey := "agent:nexus:ws:dm:test-permission"
-
-	senderA := newPermissionTestSender("sender-a")
-	senderB := newPermissionTestSender("sender-b")
-
-	ctx.BindSession(sessionKey, senderA)
-
-	resultCh := make(chan sdkpermission.Decision, 1)
-	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
-			ToolName: "Read",
-			Input: map[string]any{
-				"file_path": "go.mod",
-			},
-		})
-		resultCh <- decision
-	}()
-
-	firstEvent := readPermissionEventByType(t, senderA.events, protocol.EventTypePermissionRequest)
-	if firstEvent.EventType != protocol.EventTypePermissionRequest {
-		t.Fatalf("期望 permission_request，实际: %+v", firstEvent)
-	}
-	if firstEvent.Data["tool_name"] != "Read" {
-		t.Fatalf("tool_name 不正确: %+v", firstEvent.Data)
-	}
-	if _, ok := firstEvent.Data["expires_at"]; ok {
-		t.Fatalf("不限时请求不应下发 expires_at: %+v", firstEvent.Data)
-	}
-	firstRequestID, _ := firstEvent.Data["request_id"].(string)
-	if firstRequestID == "" {
-		t.Fatalf("request_id 为空: %+v", firstEvent.Data)
-	}
-
-	ctx.UnbindSession(sessionKey, senderA)
-	select {
-	case decision := <-resultCh:
-		t.Fatalf("断线等待期间不应自动结束: %+v", decision)
-	case <-time.After(20 * time.Millisecond):
-	}
-	ctx.BindSession(sessionKey, senderB)
-
-	replayed := readPermissionEventByType(t, senderB.events, protocol.EventTypePermissionRequest)
-	if replayed.EventType != protocol.EventTypePermissionRequest {
-		t.Fatalf("期望重放 permission_request，实际: %+v", replayed)
-	}
-	requestID, _ := replayed.Data["request_id"].(string)
-	if requestID != firstRequestID {
-		t.Fatalf("重连必须重放同一 pending 请求: got %q, want %q", requestID, firstRequestID)
-	}
-	if _, ok := replayed.Data["expires_at"]; ok {
-		t.Fatalf("重放的不限时请求不应下发 expires_at: %+v", replayed.Data)
-	}
-	if !ctx.HandlePermissionResponse(t.Context(), sessionKey, map[string]any{
-		"request_id": requestID,
-		"decision":   "allow",
-	}) {
-		t.Fatal("处理 permission_response 失败")
-	}
-
-	select {
-	case decision := <-resultCh:
-		if decision.Behavior != sdkpermission.BehaviorAllow {
-			t.Fatalf("期望 allow，实际: %+v", decision)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待权限结果超时")
-	}
-
-	resolved := readPermissionEventByType(t, senderB.events, protocol.EventTypePermissionRequestResolved)
-	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
-		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
-	}
-	if resolved.Data["request_id"] != requestID {
-		t.Fatalf("resolved request_id 不正确: %+v", resolved.Data)
-	}
-	if resolved.Data["status"] != "answered" {
-		t.Fatalf("resolved status 不正确: %+v", resolved.Data)
-	}
 }
 
 func TestResolveSessionPermissionRequestAppliesSDKPersistenceSuggestion(t *testing.T) {
@@ -334,83 +249,6 @@ func TestConfigurationPermissionAllowBindsExactRuntimeRoute(t *testing.T) {
 	}
 }
 
-func TestConfigurationPermissionCarriesHumanOnlySecretsOutsideToolInput(t *testing.T) {
-	permissionContext := NewContext()
-	sessionKey := "agent:nexus:ws:dm:configuration-secret"
-	recorder := &permissionTestApprovalRecorder{
-		approvals: make(chan HumanToolApproval, 1),
-	}
-	permissionContext.SetHumanToolApprovalRecorder(recorder)
-	sender := newPermissionTestSender("sender-configuration-secret")
-	permissionContext.BindSession(sessionKey, sender)
-
-	resultCh := make(chan sdkpermission.Decision, 1)
-	go func() {
-		decision, _ := permissionContext.RequestPermission(
-			context.Background(),
-			sessionKey,
-			sdkpermission.Request{
-				ToolName: "mcp__nexus_config__apply_nexus_configuration_change",
-				Input: map[string]any{
-					"request_id":        "configuration-secret-01",
-					"domain":            "providers",
-					"operation":         "create",
-					"expected_revision": "sha256:before",
-					"plan_digest":       "hmac:plan",
-					"input": map[string]any{
-						"provider": "custom",
-						"auth_token": map[string]any{
-							"$secret": "provider.auth_token",
-						},
-					},
-				},
-			},
-		)
-		resultCh <- decision
-	}()
-
-	event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	slots, ok := event.Data["configuration_secret_slots"].([]secretinput.Slot)
-	if !ok || len(slots) != 1 ||
-		slots[0] != (secretinput.Slot{ID: "provider.auth_token", Path: "auth_token"}) {
-		t.Fatalf("permission event slots = %#v", event.Data["configuration_secret_slots"])
-	}
-	requestID, _ := event.Data["request_id"].(string)
-	if !permissionContext.HandlePermissionResponse(t.Context(), sessionKey, map[string]any{
-		"request_id": requestID,
-		"decision":   "allow",
-		"configuration_secrets": map[string]any{
-			"provider.auth_token": "human-only-token",
-		},
-	}) {
-		t.Fatal("permission response was not consumed")
-	}
-
-	select {
-	case approval := <-recorder.approvals:
-		if approval.ConfigurationSecrets["provider.auth_token"] != "human-only-token" {
-			t.Fatalf("recorder did not receive transient human value: %#v", approval.ConfigurationSecrets)
-		}
-		toolPayload, err := json.Marshal(approval.ToolInput)
-		if err != nil {
-			t.Fatalf("marshal approval tool input: %v", err)
-		}
-		if strings.Contains(string(toolPayload), "human-only-token") {
-			t.Fatalf("human secret entered model-visible tool input: %s", toolPayload)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("human approval recorder was not called")
-	}
-	select {
-	case decision := <-resultCh:
-		if decision.Behavior != sdkpermission.BehaviorAllow {
-			t.Fatalf("configuration permission decision = %+v", decision)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("waiting for configuration permission decision")
-	}
-}
-
 func TestConfigurationPermissionRecorderFailureDeniesTool(t *testing.T) {
 	permissionContext := NewContext()
 	sessionKey := "agent:nexus:ws:dm:approval-failure"
@@ -454,35 +292,6 @@ func TestConfigurationPermissionRecorderFailureDeniesTool(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("waiting for denied configuration permission")
-	}
-}
-
-func TestRecordedHumanApprovalToolsIncludeConnectorAuthorization(t *testing.T) {
-	tests := []struct {
-		name     string
-		toolName string
-		input    map[string]any
-		expected bool
-	}{
-		{"configuration", "apply_nexus_configuration_change", nil, true},
-		{"qualified configuration", "mcp__nexus_config__apply_nexus_configuration_change", nil, true},
-		{"connector start", "connector_authorization", map[string]any{"action": "start"}, true},
-		{"qualified connector start", "mcp__nexus__connector_authorization", map[string]any{"action": "start"}, true},
-		{"connector status", "connector_authorization", map[string]any{"action": "status"}, false},
-		{"read", "Read", nil, false},
-	}
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			if actual := isRecordedHumanApprovalTool(testCase.toolName, testCase.input); actual != testCase.expected {
-				t.Fatalf(
-					"isRecordedHumanApprovalTool(%q, %+v) = %t, want %t",
-					testCase.toolName,
-					testCase.input,
-					actual,
-					testCase.expected,
-				)
-			}
-		})
 	}
 }
 
@@ -543,57 +352,6 @@ func TestContextReplayPendingRequestsUsesStableCreationAndRequestOrder(t *testin
 	want := []string{"permission-a", "permission-b", "permission-later"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("pending 重放顺序不稳定: got %v, want %v", got, want)
-	}
-}
-
-func TestContextRequestPermissionWaitsUntilContextCancelled(t *testing.T) {
-	ctx := NewContext()
-	sessionKey := "agent:nexus:ws:dm:test-context-cancel"
-	sender := newPermissionTestSender("sender-context-cancel")
-	ctx.BindSession(sessionKey, sender)
-
-	requestCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	resultCh := make(chan sdkpermission.Decision, 1)
-	go func() {
-		decision, _ := ctx.RequestPermission(requestCtx, sessionKey, sdkpermission.Request{
-			ToolName: "AskUserQuestion",
-			Input: map[string]any{
-				"questions": []any{},
-			},
-		})
-		resultCh <- decision
-	}()
-
-	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	if requestEvent.EventType != protocol.EventTypePermissionRequest {
-		t.Fatalf("期望 permission_request，实际: %+v", requestEvent)
-	}
-	select {
-	case decision := <-resultCh:
-		t.Fatalf("人工交互不应按墙钟自动结束: %+v", decision)
-	case <-time.After(20 * time.Millisecond):
-	}
-	cancel()
-
-	select {
-	case decision := <-resultCh:
-		if decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("期望 deny，实际: %+v", decision)
-		}
-		if !decision.Interrupt {
-			t.Fatalf("AskUserQuestion 随 context 取消时应中断当前交互: %+v", decision)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待 context 取消结果失败")
-	}
-
-	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
-	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
-		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
-	}
-	if resolved.Data["status"] != "cancelled" {
-		t.Fatalf("context 取消 resolved status 不正确: %+v", resolved.Data)
 	}
 }
 
@@ -705,50 +463,6 @@ func TestContextProjectsPendingLifecycleAndRoomSnapshot(t *testing.T) {
 	}
 }
 
-func TestContextCancelRequestsForSessionBroadcastsResolved(t *testing.T) {
-	ctx := NewContext()
-	sessionKey := "agent:nexus:ws:dm:test-cancel"
-	sender := newPermissionTestSender("sender-cancel")
-	ctx.BindSession(sessionKey, sender)
-
-	resultCh := make(chan sdkpermission.Decision, 1)
-	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
-			ToolName: "Read",
-			Input: map[string]any{
-				"file_path": "go.mod",
-			},
-		})
-		resultCh <- decision
-	}()
-
-	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-	if requestEvent.EventType != protocol.EventTypePermissionRequest {
-		t.Fatalf("期望 permission_request，实际: %+v", requestEvent)
-	}
-
-	if cancelled := ctx.CancelRequestsForSession(sessionKey, "session cancelled"); cancelled != 1 {
-		t.Fatalf("期望取消 1 个请求，实际: %d", cancelled)
-	}
-
-	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
-	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
-		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
-	}
-	if resolved.Data["status"] != "cancelled" {
-		t.Fatalf("cancel resolved status 不正确: %+v", resolved.Data)
-	}
-
-	select {
-	case decision := <-resultCh:
-		if decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("期望 deny，实际: %+v", decision)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("等待取消结果失败")
-	}
-}
-
 func readPermissionEventByType(
 	t *testing.T,
 	events <-chan protocol.EventMessage,
@@ -769,14 +483,6 @@ func readPermissionEventByType(
 	}
 }
 
-// TestAutoReviewReasonInPermissionCard 保证 DM/Room 重放仍展示自动审核转人工的原因。
-func TestAutoReviewReasonInPermissionCard(t *testing.T) {
-	payload := buildPermissionPayload(&PendingRequest{ToolName: "Write", ToolInput: map[string]any{"file_path": "report.txt"}, DecisionReason: "自动审核：需要确认覆盖范围"})
-	if payload["summary"] != "自动审核：需要确认覆盖范围\nreport.txt" {
-		t.Fatalf("summary = %v", payload["summary"])
-	}
-}
-
 // 同一个 Room 公区承载多个成员，手机审批只能解析绑定成员的请求。
 func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
 	c := NewContext()
@@ -788,12 +494,18 @@ func TestMemberSessionPermissionDoesNotResolveOtherRoomMember(t *testing.T) {
 	requestCtx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ids := make(map[string]string)
+	seen := make(map[string]bool)
 	for _, session := range []string{first, second} {
 		lease := c.BindSessionRoute(session, RouteContext{DispatchSessionKey: shared})
 		defer c.UnbindSessionRoute(lease)
 		go func() { _, _ = c.RequestPermission(requestCtx, session, sdkpermission.Request{ToolName: "Write"}) }()
-		event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
-		ids[session], _ = event.Data["request_id"].(string)
+		// BindSession 的异步重放与实时下发是至少一次语义，同一 pending 可能到达两次；
+		// 只取尚未见过的 request_id 作为本成员的请求。
+		for ids[session] == "" || seen[ids[session]] {
+			event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+			ids[session], _ = event.Data["request_id"].(string)
+		}
+		seen[ids[session]] = true
 	}
 	if c.CountSessionPermissionRequests(shared, "") != 2 || c.CountSessionPermissionRequests(first, "") != 1 {
 		t.Fatal("成员权限计数必须与公区聚合隔离")

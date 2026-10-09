@@ -107,7 +107,7 @@ func WithRuntimeRoundLease(ctx context.Context, sessionKey string, roundID strin
 // RuntimeRoundLeaseFromContext 读取服务内部注入的真实 runtime lease。
 func RuntimeRoundLeaseFromContext(ctx context.Context) (RuntimeRoundLease, bool) {
 	lease, ok := ctx.Value(runtimeRoundLeaseContextKey{}).(RuntimeRoundLease)
-	if !ok || strings.TrimSpace(lease.SessionKey) == "" || strings.TrimSpace(lease.RoundID) == "" {
+	if !ok || lease.SessionKey == "" || lease.RoundID == "" {
 		return RuntimeRoundLease{}, false
 	}
 	return lease, true

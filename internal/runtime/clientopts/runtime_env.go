@@ -98,7 +98,6 @@ const nexusMaxOutputTokensEnvName = "NEXUS_MAX_OUTPUT_TOKENS"
 const nexusModelSupportsVisionEnvName = "NEXUS_MODEL_SUPPORTS_VISION"
 const nexusMultimodalUserContentEnvName = "NEXUS_MULTIMODAL_USER_CONTENT"
 const nexusMultimodalToolResultEnvName = "NEXUS_MULTIMODAL_TOOL_RESULT"
-const nexusRemoteImageURLEnvName = "NEXUS_REMOTE_IMAGE_URL"
 const nexusUsePowerShellToolEnvName = "NEXUS_USE_POWERSHELL_TOOL"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。

@@ -50,9 +50,9 @@ func resultStatus(subtype any) string {
 
 // roomSlotTerminalStatus 同时兼容 mapper 终态 subtype 和旧 runtime 的 status 字段。
 func roomSlotTerminalStatus(result exec.RoundExecutionResult) string {
-	subtype := strings.TrimSpace(result.ResultSubtype)
+	subtype := result.ResultSubtype
 	if subtype == "" {
-		subtype = strings.TrimSpace(result.TerminalStatus)
+		subtype = result.TerminalStatus
 	}
 	return resultStatus(subtype)
 }

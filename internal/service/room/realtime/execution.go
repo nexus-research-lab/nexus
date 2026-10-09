@@ -18,6 +18,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -26,6 +27,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -61,83 +63,14 @@ type slotExecution struct {
 	runtimeIdentityCommitted bool
 }
 
-type roomRoundMapperAdapter struct {
-	mapper *roomdomain.SlotMessageMapper
-}
-
-func (a roomRoundMapperAdapter) Map(
-	incoming sdkprotocol.ReceivedMessage,
-	interruptReason ...string,
-) (exec.RoundMapResult, error) {
-	result, err := a.mapper.MapResult(incoming, interruptReason...)
-	if err != nil {
-		return exec.RoundMapResult{}, err
-	}
-	return exec.RoundMapResult{
-		Events:          result.Events,
-		DurableMessages: result.DurableMessages,
-		TerminalStatus:  result.TerminalStatus,
-		ResultSubtype:   result.ResultSubtype,
-	}, nil
-}
-
-func (a roomRoundMapperAdapter) SessionID() string {
-	return a.mapper.SessionID()
-}
-
-func (s *Service) recordUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "result" {
-		return
-	}
-	if !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	if s.writeUsage(roundValue, slot, message) {
-		slot.setResultUsageWritten()
-	}
-}
-
-func (s *Service) recordTerminalAssistantUsage(roundValue *activeRoomRound, slot *activeRoomSlot, message protocol.Message) {
-	if s.usage == nil || roundValue == nil || slot == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	if slot.resultUsageWasWritten() || !usagesvc.MessageHasUsage(message) {
-		return
-	}
-	s.writeUsage(roundValue, slot, message)
-}
-
-func (s *Service) writeUsage(
-	roundValue *activeRoomRound,
-	slot *activeRoomSlot,
-	message protocol.Message,
-) bool {
+func (e *slotExecution) writeUsage(message protocol.Message) bool {
+	s, roundValue, slot := e.service, e.round, e.slot
 	input := usagesvc.MessageRecordInput(roundValue.OwnerUserID, "room_runtime", message)
-	goalBound, executionBound := false, false
-	lane := string(runtimectx.ResponsibilityLaneUnbound)
-	if authorityState := slot.ensureResponsibilityAuthorityState(); authorityState != nil {
-		if authority, ok := authorityState.Load(); ok {
-			goalBound = strings.TrimSpace(authority.GoalID) != ""
-			executionBound = strings.TrimSpace(authority.ExecutionID) != ""
-			lane = string(authority.Lane)
-		}
-	}
-	// Goal usage ownership is host-maintained even before a Goal mutation lane is
-	// granted; it may enrich scope but never grants capability back to the round.
-	goalBound = goalBound || strings.TrimSpace(slot.goalIDForUsage()) != ""
-	surface, observed := s.runtime.CacheSurface(slot.RuntimeSessionKey)
-	input.CacheAttribution = usagesvc.RuntimeCacheAttribution(
-		surface.Input(),
-		observed,
-		goalBound,
-		executionBound,
-		lane,
-	)
-	if err := s.usage.RecordMessageUsage(context.Background(), input); err != nil {
-		s.loggerFor(context.Background()).Error("Room token usage 写入失败",
-			"s", roundValue.SessionKey,
-			"r", roundValue.RoomID,
-			"c", roundValue.ConversationID,
+	if err := s.WriteRuntimeUsage(slot.RuntimeSessionKey, input, slot.ensureResponsibilityAuthorityState(), slot.goalIDForUsage(), ""); err != nil {
+		s.LoggerFor(context.Background()).Error("Room token usage 写入失败",
+			"session_key", roundValue.SessionKey,
+			"room_id", roundValue.RoomID,
+			"conversation_id", roundValue.ConversationID,
 			"err", err,
 		)
 		return false
@@ -163,7 +96,7 @@ func (s *Service) runSlot(
 			"error",
 			"Room slot 缺少 agent 配置",
 		); settleErr != nil {
-			s.loggerFor(ctx).Error(
+			s.LoggerFor(ctx).Error(
 				"Room structured root Attempt 缺少 Agent 配置时收口失败",
 				"dispatch_id",
 				executionDispatchID(slot.currentWorkBinding()),
@@ -171,7 +104,7 @@ func (s *Service) runSlot(
 				settleErr,
 			)
 		}
-		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
+		s.LoggerFor(ctx).Error("Room slot 缺少 agent 配置",
 			"s", roundValue.SessionKey,
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -181,12 +114,12 @@ func (s *Service) runSlot(
 
 	slotCtx, cancel := context.WithCancel(ctx)
 	slot.setCancel(cancel)
-	logger := s.loggerFor(slotCtx).With(
+	logger := s.LoggerFor(slotCtx).With(
 		"s", roundValue.SessionKey,
 		"r", roundValue.RoomID,
 		"c", roundValue.ConversationID,
 	)
-	streamLogger := s.loggerFor(slotCtx).With(
+	streamLogger := s.LoggerFor(slotCtx).With(
 		"s", roundValue.SessionKey,
 		"a", slot.AgentID,
 	)
@@ -220,7 +153,7 @@ func (s *Service) runSlot(
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
-	routeLease := s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
+	routeLease := s.Permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
 		RoomID:             roundValue.RoomID,
 		ConversationID:     roundValue.ConversationID,
@@ -229,11 +162,11 @@ func (s *Service) runSlot(
 		RoundID:            roundValue.RootRoundID,
 		AgentRoundID:       slot.AgentRoundID,
 	})
-	defer s.permission.UnbindSessionRoute(routeLease)
+	defer s.Permission.UnbindSessionRoute(routeLease)
 
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		execution.ctx,
-		s.admission,
+		s.Admission,
 	)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
@@ -247,7 +180,7 @@ func (s *Service) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return
 	}
-	if err := s.runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
+	if err := s.Runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
 		s.handleSlotFailure(
 			slotCtx,
 			roundValue,
@@ -262,7 +195,7 @@ func (s *Service) runSlot(
 	execution.ctx = slotCtx
 	admission.Release()
 	defer func() {
-		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
+		s.Runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	}()
 	defer execution.broadcastContextUsage(client)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
@@ -319,7 +252,7 @@ func (s *Service) runSlot(
 	))
 	logger.Info("Room slot 结束",
 		"status", slot.getStatus(),
-		"result_subtype", strings.TrimSpace(result.ResultSubtype),
+		"result_subtype", result.ResultSubtype,
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
 }
@@ -331,8 +264,8 @@ func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
 		authority.SeedExecution(actor.ExecutionID)
 		snapshot, _ := authority.Load()
 		actor.ExecutionID = snapshot.ExecutionID
-		actor.WorkBinding = cloneExecutionWorkBinding(snapshot.WorkBinding)
-		actor.ReviewBinding = cloneExecutionReviewBinding(snapshot.ReviewBinding)
+		actor.WorkBinding = snapshot.WorkBinding.Clone()
+		actor.ReviewBinding = snapshot.ReviewBinding.Clone()
 	}
 	return actor
 }
@@ -359,15 +292,15 @@ func roomOrchestrationActor(
 	actor := orchestration.ActorContext{
 		OwnerUserID: roundValue.OwnerUserID,
 		SessionKey:  roundValue.SessionKey,
-		ExecutionID: firstNonEmptyString(
+		ExecutionID: textutil.FirstNonEmpty(
 			executionIDFromRoomBindings(
 				slot.WorkBinding,
 				slot.ReviewBinding,
 			),
 			roundValue.ExecutionID,
 		),
-		WorkBinding:           cloneExecutionWorkBinding(slot.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(slot.ReviewBinding),
+		WorkBinding:           slot.WorkBinding.Clone(),
+		ReviewBinding:         slot.ReviewBinding.Clone(),
 		GoalID:                strings.TrimSpace(goalAuthority.GoalID),
 		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,
 		AgentID:               slot.AgentID,
@@ -394,7 +327,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	}
 	actor := e.orchestrationActor()
 	defer e.service.releaseExecutionCoordination(actor)
-	executionInputs, err := e.service.executionContextualInputs(e.ctx, actor)
+	executionInputs, err := e.service.ExecutionContextualInputs(e.ctx, actor)
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
@@ -402,37 +335,37 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if inputOptions.SkipAutoMemory && !runtimectx.SupportsMessageExecutionPolicy(client) {
 		inputOptions.SkipAutoMemory = false
 	}
-	if e.service.subagentAdmission != nil {
-		e.service.runtime.SetSubagentHookCallbacks(
+	if e.service.SubagentAdmission != nil {
+		e.service.Runtime.SetSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 			orchestrationruntimehook.Callbacks(
-				e.service.subagentAdmission,
+				e.service.SubagentAdmission,
 				orchestrationruntimehook.Context{
 					Actor:             actor,
 					ActorProvider:     e.orchestrationActor,
 					RuntimeSessionKey: e.slot.RuntimeSessionKey,
 					RoomSessionID:     e.slot.RoomSessionID,
-					Logger:            e.service.loggerFor(e.ctx),
+					Logger:            e.service.LoggerFor(e.ctx),
 				},
 			),
 		)
-		defer e.service.runtime.ClearSubagentHookCallbacks(
+		defer e.service.Runtime.ClearSubagentHookCallbacks(
 			e.slot.RuntimeSessionKey,
 			e.slot.AgentRoundID,
 		)
 	}
 	e.slot.beginNoReplyCandidate()
-	e.service.executionObserver().Begin(actor)
+	e.service.ExecutionObserver().Begin(actor)
 	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
 		InputOptions:     inputOptions,
 		Client:           client,
-		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
-		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
+		Mapper:           runtimehost.RoundMapper{EventMapper: e.mapper.EventMapper},
+		IdleTimeout:      e.service.Config.RuntimeRoundIdleTimeout(),
 		IdlePauseState: func() (bool, <-chan struct{}) {
-			return e.service.permission.PendingRequestState(e.slot.RuntimeSessionKey)
+			return e.service.Permission.PendingRequestState(e.slot.RuntimeSessionKey)
 		},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(e.slot)
@@ -445,8 +378,8 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
 			currentActor := e.orchestrationActor()
-			e.service.executionObserver().ObserveMessage(currentActor, incoming)
-			e.service.executionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
+			e.service.ExecutionObserver().ObserveMessage(currentActor, incoming)
+			e.service.ExecutionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
 			e.observeIncomingMessage(incoming)
 		},
 		SyncSessionID: func(sessionID string) error {
@@ -459,13 +392,13 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		executeErr = errors.New("Room runtime fork 未提交可恢复的独立 SDK session")
 	}
 	if executeErr != nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
-		e.closeUncommittedForkRuntime(client, executeErr)
+		e.service.CloseUncommittedForkRuntime(e.slot.RuntimeSessionKey, client, e.logger, executeErr)
 	}
 	failureReason := ""
 	if executeErr != nil {
 		failureReason = executeErr.Error()
 	}
-	e.service.executionObserver().Finish(
+	e.service.ExecutionObserver().Finish(
 		e.orchestrationActor(),
 		result.TerminalStatus,
 		failureReason,
@@ -495,19 +428,6 @@ func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
 		e.runtimeIdentityCommitted = true
 	}
 	return nil
-}
-
-func (e *slotExecution) closeUncommittedForkRuntime(client runtimectx.Client, forkErr error) {
-	lease, ok := e.service.runtime.CaptureClientLease(e.slot.RuntimeSessionKey, client)
-	if !ok {
-		return
-	}
-	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
-	defer cancel()
-	_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
-	if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-		e.logger.Warn("关闭未提交的 Room fork runtime 失败", "fork_err", forkErr, "close_err", closeErr)
-	}
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
@@ -564,13 +484,13 @@ func (e *slotExecution) observeIncomingMessage(incoming sdkprotocol.ReceivedMess
 	if !e.streamLogger.Enabled(e.ctx, slog.LevelDebug) {
 		return
 	}
-	if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !e.service.config.MessageDebugStreamEvent {
+	if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !e.service.Config.MessageDebugStreamEvent {
 		return
 	}
 	fields := trace.BuildSDKMessageLogFieldsWithOptions(
 		incoming,
 		trace.SDKMessageLogOptions{
-			IncludeStreamEvent:  e.service.config.MessageDebugStreamEvent,
+			IncludeStreamEvent:  e.service.Config.MessageDebugStreamEvent,
 			IncludeSnapshotData: true,
 		},
 	)
@@ -597,18 +517,18 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	settledSubagentUsage := e.service.recordSubagentGoalUsageForSlot(e.ctx, e.slot, messageValue)
 	e.slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		e.slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+		e.slot.mutable.goal.ClearSubagentUsagePending(settlement.TaskID, settlement.Observation)
 	}
 	e.service.startRoomSubagentUsageRetry(e.round, e.slot)
 	if e.slot.hasSubagentHistory() {
-		e.service.runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
+		e.service.Runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
 	}
 	if messageRole == "result" {
 		e.slot.setStatus(resultStatus(messageValue["subtype"]))
-		e.service.recordUsage(e.round, e.slot, messageValue)
+		e.slot.mutable.goal.RecordResultUsage(messageValue, e.writeUsage)
 	}
 	if messageRole == "assistant" {
-		e.slot.rememberGoalAssistantMessage(messageValue)
+		e.slot.mutable.goal.RememberGoalAssistantMessage(messageValue)
 	}
 	if roomdomain.IsNoReplyOutputMessage(messageValue) {
 		e.slot.suppressOutput()
@@ -643,7 +563,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
-	e.service.executionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
+	e.service.ExecutionObserver().ObserveArtifacts(e.orchestrationActor(), messageValue)
 	actor := e.orchestrationActor()
 	e.service.recordGoalUsageFromSlotAssistantMessageWithActor(e.ctx, e.slot, &actor, messageValue)
 	return nil
@@ -683,9 +603,9 @@ func (s *Service) runRound(
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
 ) {
-	defer s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
-	ctx = contextWithExactQueueOwner(ctx, roundValue.OwnerUserID)
-	logger := s.loggerFor(ctx).With(
+	defer s.Runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, roundValue.OwnerUserID)
+	logger := s.LoggerFor(ctx).With(
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
@@ -700,7 +620,7 @@ func (s *Service) runRound(
 			s.runSlot(ctx, roundValue, currentSlot, history, agentNameByID, agentByID[currentSlot.AgentID])
 			// 每个 Agent 独立串行。当前 slot 已终态且 runtime 清理完成后，
 			// 立即释放它错过的 guide 并派发其队列，不等待同 root 的其他成员。
-			dispatchCtx := contextWithExactQueueOwner(context.Background(), roundValue.OwnerUserID)
+			dispatchCtx := runtimehost.ContextWithExactOwner(context.Background(), roundValue.OwnerUserID)
 			s.releaseUndeliveredRoomGuidance(dispatchCtx, roundValue.SessionKey, roundValue.Context)
 			s.dispatchNextInputQueueItem(dispatchCtx, roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID)
 		}(slot)
@@ -756,7 +676,7 @@ func (s *Service) runRound(
 	// Round 已经结束后，所有仍可能写 queue/workspace 或启动后续 runtime 的工作
 	// 必须先登记到 session 生命周期，再执行。否则 CloseSession 可能在
 	// round 进入终态与这些写盘操作之间返回，迟到 goroutine 会重新创建已清理目录。
-	s.startSessionBackgroundTask(
+	s.StartSessionBackgroundTask(
 		roundValue.SessionKey,
 		roundValue.OwnerUserID,
 		func(taskCtx context.Context) {
@@ -782,7 +702,7 @@ func (s *Service) settleCompletedRoomGoalUsage(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) bool {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return true
 	}
 	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
@@ -821,13 +741,10 @@ func (s *Service) settleCompletedRoomGoalUsage(
 }
 
 func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *activeRoomSlot, dispatchPrompt string) error {
-	if s.history == nil {
-		return nil
-	}
 	options := roomRoundMarkerOptions(roundValue)
 	// 私有会话内 slot 自成一轮，round 与 agent round 同源。
 	options.AgentRoundID = slot.AgentRoundID
-	return s.history.ForOwner(roundValue.OwnerUserID).AppendRoundMarkerWithOptions(
+	return s.History.ForOwner(roundValue.OwnerUserID).AppendRoundMarkerWithOptions(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		slot.AgentRoundID,
@@ -884,9 +801,6 @@ func roomRoundMarkerOptions(roundValue *activeRoomRound) workspacestore.RoundMar
 }
 
 func (s *Service) persistPrivateOverlayMessage(slot *activeRoomSlot, message protocol.Message) error {
-	if s.history == nil {
-		return nil
-	}
 	privateMessage := normalizePrivateOverlayMessage(cloneMessageWithSessionKey(message, slot.RuntimeSessionKey))
 	privateMessage["session_key"] = slot.RuntimeSessionKey
 	// 私有会话内 slot 自成一轮：round 对齐私有 round marker（= agent_round_id），
@@ -905,7 +819,7 @@ func (s *Service) persistPrivateOverlayMessage(slot *activeRoomSlot, message pro
 		"overlay_source":  "room_runtime",
 		"room_session_id": slot.RoomSessionID,
 	})
-	return s.history.ForOwner(slot.OwnerUserID).AppendOverlayMessage(
+	return s.History.ForOwner(slot.OwnerUserID).AppendOverlayMessage(
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
 		privateMessage,

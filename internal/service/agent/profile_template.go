@@ -30,15 +30,6 @@ func DefaultProfileTemplate() string {
 	return normalizeProfileTemplate(defaultAgentProfileTemplate)
 }
 
-func writeProfileTemplate(workspacePath string, requested string) error {
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return writeProfileTemplateAt(root, requested)
-}
-
 func writeProfileTemplateAt(root *confinedfs.Root, requested string) error {
 	content := normalizeProfileTemplate(requested)
 	if strings.TrimSpace(requested) == "" {

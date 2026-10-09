@@ -5,13 +5,9 @@ package realtime
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 func (s *Service) persistRoomGoalCompletionReceipts(
@@ -19,7 +15,7 @@ func (s *Service) persistRoomGoalCompletionReceipts(
 	roundValue *activeRoomRound,
 	refresh bool,
 ) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	for _, slot := range roundValue.Slots {
@@ -33,25 +29,10 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 	slot *activeRoomSlot,
 	refresh bool,
 ) {
-	if s == nil || roundValue == nil || slot == nil {
+	if strings.TrimSpace(slot.WorkspacePath) == "" || strings.TrimSpace(slot.RuntimeSessionKey) == "" {
 		return
 	}
-	goalID, assistant, previous, stored := slot.goalCompletionReceiptSnapshot()
-	if goalID == "" || len(assistant) == 0 ||
-		strings.TrimSpace(slot.WorkspacePath) == "" ||
-		strings.TrimSpace(slot.RuntimeSessionKey) == "" ||
-		(stored && !refresh) {
-		return
-	}
-	report, reportOK := s.roomGoalCompletionReport(ctx, goalID)
-	if !reportOK && stored {
-		return
-	}
-	receipt := messageutil.BuildGoalCompletionReceipt(goalID, slot.AgentRoundID, report)
-	if stored && previous.Equal(receipt) {
-		return
-	}
-	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
+	goalID, message, receipt, ok := slot.mutable.goal.PrepareGoalCompletionReceipt(ctx, s.goals, s.LoggerFor(ctx), slot.AgentRoundID, refresh)
 	if !ok {
 		return
 	}
@@ -59,9 +40,6 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		return
 	}
 	if roomSlotPublishesPublicOutput(slot) {
-		if s.roomHistory == nil {
-			return
-		}
 		if err := s.persistSharedInlineMessage(roundValue.OwnerUserID, roundValue.ConversationID, message); err != nil {
 			s.logRoomGoalCompletionReceiptError(ctx, roundValue, slot, goalID, err)
 			return
@@ -71,7 +49,7 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 		s.logRoomGoalCompletionReceiptError(ctx, roundValue, slot, goalID, err)
 		return
 	}
-	slot.markGoalCompletionReceiptStored(goalID, receipt)
+	slot.mutable.goal.MarkGoalCompletionReceiptStored(goalID, receipt)
 	if roomSlotPublishesPublicOutput(slot) {
 		event := roomdomain.WrapMessageEvent(
 			roundValue.RoomID,
@@ -83,27 +61,6 @@ func (s *Service) persistRoomGoalCompletionReceipt(
 	}
 }
 
-func (s *Service) roomGoalCompletionReport(
-	ctx context.Context,
-	goalID string,
-) (*protocol.GoalUsageReport, bool) {
-	provider, ok := s.goals.(roomGoalUsageFinalizationProvider)
-	if !ok {
-		return nil, false
-	}
-	report, err := provider.UsageByGoalID(ctx, goalID)
-	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			s.loggerFor(ctx).Debug("读取 Room Goal 完成收据数据失败", "goal_id", goalID, "err", err)
-		}
-		return nil, false
-	}
-	if !goalsvc.IsCompletionUsageReport(report, goalID) {
-		return nil, false
-	}
-	return report, true
-}
-
 func (s *Service) logRoomGoalCompletionReceiptError(
 	ctx context.Context,
 	roundValue *activeRoomRound,
@@ -111,7 +68,7 @@ func (s *Service) logRoomGoalCompletionReceiptError(
 	goalID string,
 	err error,
 ) {
-	s.loggerFor(ctx).Warn(
+	s.LoggerFor(ctx).Warn(
 		"Room Goal 完成收据持久化失败",
 		"session_key", roundValue.SessionKey,
 		"goal_id", goalID,

@@ -11,6 +11,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -132,7 +133,7 @@ func runtimeTaskMatchesCurrentContext(
 	job automationdomain.ScheduledTask,
 	current runtimeCurrentTaskContext,
 ) bool {
-	if strings.TrimSpace(current.sessionKey) == "" {
+	if current.sessionKey == "" {
 		return false
 	}
 	if strings.TrimSpace(job.Source.SessionKey) == current.sessionKey ||
@@ -339,7 +340,7 @@ func (s *Service) runtimeCurrentConversationReport(
 		return nil, true, err
 	}
 	jobs = runtimeFilterTasksByCurrentContext(jobs, current)
-	timezone := firstNonEmpty(input.Timezone, actor.DefaultTimezone)
+	timezone := textutil.FirstNonEmpty(input.Timezone, actor.DefaultTimezone)
 	result := &automationdomain.ScheduledTaskDailyReport{
 		Timezone: timezone, AgentID: agentID, Tasks: []automationdomain.ScheduledTaskDailyReportItem{},
 	}

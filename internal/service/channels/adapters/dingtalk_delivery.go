@@ -40,7 +40,7 @@ func (c *DingTalkChannel) SendDeliveryMessage(ctx context.Context, target channe
 		}
 		return channelcontract.NewDeliveryResult(normalized, nil), nil
 	}
-	if strings.TrimSpace(c.robotCode) == "" {
+	if c.robotCode == "" {
 		return channelcontract.DeliveryResult{}, fmt.Errorf("dingtalk delivery requires robot_code")
 	}
 	token, err := c.accessTokenForDelivery(ctx)

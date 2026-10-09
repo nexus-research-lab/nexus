@@ -9,6 +9,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 const (
@@ -52,7 +54,7 @@ func (s *Service) bindDeviceAuthAttempt(
 		Version:     deviceAuthAttemptVersion,
 		OwnerUserID: ownerUserID,
 		ConnectorID: strings.TrimSpace(entry.ConnectorID),
-		Stage: connectorFirstNonEmpty(
+		Stage: textutil.FirstNonEmpty(
 			started.Stage,
 			deviceAuthStageUserAuthorization,
 		),

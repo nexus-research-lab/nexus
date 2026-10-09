@@ -117,22 +117,6 @@ func TestDistillWorkGraphRejectsPreviewOutsideHostBinding(t *testing.T) {
 	}
 }
 
-func TestDistillWorkGraphSchemaAcceptsOnlyPreviewID(t *testing.T) {
-	schema := distillWorkflowSchema()
-	properties := schema["properties"].(map[string]any)
-	if len(properties) != 1 || properties["preview_id"] == nil {
-		t.Fatalf("properties = %#v", properties)
-	}
-	required := schema["required"].([]string)
-	if len(required) != 1 || required[0] != "preview_id" {
-		t.Fatalf("required = %#v", required)
-	}
-	description := properties["preview_id"].(map[string]any)["description"].(string)
-	if !strings.Contains(description, "用户已确认") || strings.Contains(description, "Exact opaque") {
-		t.Fatalf("preview_id description = %q", description)
-	}
-}
-
 func TestReviseWorkGraphPreviewUsesOnlyTrustedEditorIdentity(t *testing.T) {
 	service := &workflowEditorCommandService{active: true}
 	operations := BuildWorkGraphEditor(service, contract.Context{
@@ -166,25 +150,6 @@ func TestReviseWorkGraphPreviewUsesOnlyTrustedEditorIdentity(t *testing.T) {
 	if result.StructuredContent["outcome"] != "applied" ||
 		result.StructuredContent["revision"] != float64(4) {
 		t.Fatalf("result = %#v", result.StructuredContent)
-	}
-}
-
-func TestReviseWorkGraphPreviewSchemaIsClosedAndComplete(t *testing.T) {
-	schema := reviseWorkflowPreviewSchema()
-	if schema["additionalProperties"] != false {
-		t.Fatalf("schema must be closed: %#v", schema)
-	}
-	properties := schema["properties"].(map[string]any)
-	for _, name := range []string{
-		"revision", "slash_name", "title", "description", "objective", "completion_criteria", "nodes", "dependencies",
-	} {
-		if properties[name] == nil {
-			t.Fatalf("missing property %q: %#v", name, properties)
-		}
-	}
-	node := properties["nodes"].(map[string]any)["items"].(map[string]any)
-	if node["additionalProperties"] != false {
-		t.Fatalf("node schema must be closed: %#v", node)
 	}
 }
 

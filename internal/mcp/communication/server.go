@@ -90,9 +90,9 @@ func sendMessageTool(
 		) (sdktool.ToolResult, error) {
 			result, err := sendMessage(ctx, svc, room, sctx, args, callContext)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -206,7 +206,7 @@ func sendPrivateRoomMessage(
 	}
 	request := protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID:      sctx.Actor.AgentID,
-		SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+		SourceAgentRoundID: sctx.CurrentAgentRoundID,
 		RootRoundID:        sctx.Actor.RoundID,
 		CommandID:          commandID,
 		Recipients:         stringListArg(args, "recipients"),
@@ -251,7 +251,7 @@ func sendPublicRoomMessage(
 		sctx.Actor.ConversationID,
 		protocol.CreateRoomPublicMessageRequest{
 			SourceAgentID:      sctx.Actor.AgentID,
-			SourceAgentRoundID: strings.TrimSpace(sctx.CurrentAgentRoundID),
+			SourceAgentRoundID: sctx.CurrentAgentRoundID,
 			RootRoundID:        sctx.Actor.RoundID,
 			Content:            stringArg(args, "content"),
 			CorrelationID:      stringArg(args, "correlation_id"),
@@ -292,7 +292,7 @@ func requireRoomScope(sctx RuntimeContext) error {
 }
 
 func scopedToolContext(ctx context.Context, actor communicationsvc.Actor) context.Context {
-	ownerUserID := strings.TrimSpace(actor.OwnerUserID)
+	ownerUserID := actor.OwnerUserID
 	if ownerUserID == "" {
 		return ctx
 	}
@@ -551,13 +551,7 @@ func intArg(args map[string]any, key string) int {
 func jsonResult(value any) sdktool.ToolResult {
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	return sdktool.ToolResult{Content: []map[string]any{{"type": "text", "text": string(payload)}}}
-}
-
-func errorResult(err error) sdktool.ToolResult {
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": err.Error()}}, IsError: true,
-	}
 }

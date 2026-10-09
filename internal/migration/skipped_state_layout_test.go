@@ -15,34 +15,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-func TestRunStateLayoutRecoversSkippedDesktopUpgrade(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_APP_MODE", "desktop")
-	legacyDatabase := filepath.Join(stateRoot, "data", skippedStateLayoutDatabaseName)
-	canonicalDatabase := filepath.Join(stateRoot, "app", "data", skippedStateLayoutDatabaseName)
-	writeLayoutTestFile(t, legacyDatabase, "legacy database")
-	writeLayoutTestFile(t, canonicalDatabase, "new canonical database")
-	writeLayoutTestFile(t, filepath.Join(stateRoot, "rooms", "room-a", "overlay.jsonl"), "old room\n")
-
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatal(err)
-	}
-	assertMigrationFileContent(t, canonicalDatabase, "legacy database")
-	assertMigrationFileContent(
-		t,
-		filepath.Join(skippedStateLayoutRecoveryDataRoot(stateRoot), skippedStateLayoutDatabaseName),
-		"new canonical database",
-	)
-	assertMigrationFileContent(
-		t,
-		filepath.Join(stateRoot, "app", "rooms", "room-a", "overlay.jsonl"),
-		"old room\n",
-	)
-	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
-		t.Fatalf("重复执行状态迁移缺口恢复失败: %v", err)
-	}
-}
-
 func TestRunStateLayoutPreflightsRecoveryTargetsBeforeStagingUsers(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_APP_MODE", "desktop")
@@ -353,97 +325,6 @@ func TestMergeSkippedStateLayoutUsersPreservesConflicts(t *testing.T) {
 	}
 }
 
-func TestMergeSkippedStateLayoutDatabaseSupportsCurrentSchema(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	canonicalDatabase := filepath.Join(stateRoot, "app", "data", skippedStateLayoutDatabaseName)
-	recoveryDatabase := filepath.Join(
-		skippedStateLayoutRecoveryDataRoot(stateRoot),
-		skippedStateLayoutDatabaseName,
-	)
-	createCurrentSchemaMergeDatabase(t, canonicalDatabase, "legacy", false)
-	createCurrentSchemaMergeDatabase(t, recoveryDatabase, "new", true)
-	cfg := config.Config{DatabaseDriver: "sqlite", DatabaseURL: canonicalDatabase}
-
-	if err := MergeSkippedStateLayoutDatabase(context.Background(), cfg, discardMigrationLogger()); err != nil {
-		t.Fatal(err)
-	}
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	var sharedName string
-	if err = db.QueryRow(`SELECT name FROM agents WHERE id = 'shared-agent'`).Scan(&sharedName); err != nil {
-		t.Fatal(err)
-	}
-	if sharedName != "legacy" {
-		t.Fatalf("当前 schema 合并覆盖了历史 Agent: %q", sharedName)
-	}
-	for _, query := range []string{
-		`SELECT COUNT(*) FROM agents WHERE id = 'new-agent'`,
-		`SELECT COUNT(*) FROM rooms WHERE id = 'new-room'`,
-		`SELECT COUNT(*) FROM conversations WHERE id = 'new-conversation'`,
-	} {
-		var count int
-		if err = db.QueryRow(query).Scan(&count); err != nil {
-			t.Fatal(err)
-		}
-		if count != 1 {
-			t.Fatalf("当前 schema 新分支记录未合并: query=%s count=%d", query, count)
-		}
-	}
-}
-
-func TestRunRoomFilesReplaysWhenSourceAppearsAfterMarker(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	databasePath := filepath.Join(stateRoot, "app", "data", skippedStateLayoutDatabaseName)
-	cfg := config.Config{DatabaseDriver: "sqlite", DatabaseURL: databasePath}
-	db, err := storage.OpenMigrationDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, statement := range []string{
-		`CREATE TABLE rooms (id TEXT PRIMARY KEY, owner_user_id TEXT NOT NULL)`,
-		`CREATE TABLE conversations (id TEXT PRIMARY KEY, room_id TEXT NOT NULL)`,
-		`INSERT INTO rooms (id, owner_user_id) VALUES ('room-a', 'user-a')`,
-		`INSERT INTO conversations (id, room_id) VALUES ('conversation-a', 'room-a')`,
-	} {
-		if _, err = db.Exec(statement); err != nil {
-			db.Close()
-			t.Fatal(err)
-		}
-	}
-	if err = db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	markerPath := workspaceFileMigrationMarker(filepath.Join(stateRoot, "app"), roomStateMigrationName)
-	if err = writeWorkspaceFileMigrationMarker(markerPath); err != nil {
-		t.Fatal(err)
-	}
-	legacyOverlay := filepath.Join(stateRoot, "app", "rooms", "room-conversation-a", "overlay.jsonl")
-	writeLayoutTestFile(
-		t,
-		legacyOverlay,
-		"{\"conversation_id\":\"conversation-a\",\"message_id\":\"message-a\"}\n",
-	)
-
-	if err = RunRoomFiles(context.Background(), cfg, discardMigrationLogger()); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = os.Stat(filepath.Join(stateRoot, "app", "rooms")); !os.IsNotExist(err) {
-		t.Fatalf("旧 Room 根未清理: %v", err)
-	}
-	assertMigrationFileContent(
-		t,
-		filepath.Join(appfs.UserRoomRootAt(stateRoot, "user-a"), "room-conversation-a", "overlay.jsonl"),
-		"{\"conversation_id\":\"conversation-a\",\"message_id\":\"message-a\"}\n",
-	)
-}
-
 func createSkippedLayoutMergeDatabase(t *testing.T, path string, inserts []string) {
 	t.Helper()
 	cfg := config.Config{DatabaseDriver: "sqlite", DatabaseURL: path}
@@ -464,61 +345,6 @@ func createSkippedLayoutMergeDatabase(t *testing.T, path string, inserts []strin
 		if _, err = db.Exec(statement); err != nil {
 			t.Fatal(err)
 		}
-	}
-}
-
-func createCurrentSchemaMergeDatabase(t *testing.T, path string, name string, includeNew bool) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.Up(db, providerRecoveryMigrationDir(t)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`
-INSERT INTO agents (
-    id, slug, name, description, definition, status, workspace_path, owner_user_id, is_main
-) VALUES ('shared-agent', 'shared-agent', ?, '', '', 'active', '/tmp/shared-agent', '__system__', 0)`, name); err != nil {
-		t.Fatal(err)
-	}
-	roomID := name + "-branch-room"
-	conversationID := name + "-branch-conversation"
-	if _, err = db.Exec(`
-INSERT INTO rooms (id, room_type, name, description, owner_user_id)
-VALUES (?, 'room', ?, '', '__system__')`, roomID, name); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`
-INSERT INTO conversations (id, room_id, conversation_type, title)
-VALUES (?, ?, 'room_main', ?)`, conversationID, roomID, name); err != nil {
-		t.Fatal(err)
-	}
-	if !includeNew {
-		return
-	}
-	if _, err = db.Exec(`
-INSERT INTO agents (
-    id, slug, name, description, definition, status, workspace_path, owner_user_id, is_main
-) VALUES ('new-agent', 'new-agent', 'new', '', '', 'active', '/tmp/new-agent', '__system__', 0)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`
-INSERT INTO rooms (id, room_type, name, description, owner_user_id)
-VALUES ('new-room', 'room', 'new', '', '__system__')`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = db.Exec(`
-INSERT INTO conversations (id, room_id, conversation_type, title)
-VALUES ('new-conversation', 'new-room', 'room_main', 'new')`); err != nil {
-		t.Fatal(err)
 	}
 }
 

@@ -16,8 +16,7 @@ import (
 	"sync"
 	"time"
 
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
-
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 )
 
@@ -91,10 +90,10 @@ func NewPersonalWeixinIlinkClient(config PersonalWeixinClientConfig, client *htt
 	}
 	return &PersonalWeixinIlinkClient{
 		baseURL:            normalizePersonalWeixinBaseURL(config.BaseURL),
-		token:              strings.TrimSpace(config.Token),
-		botAgent:           channelcontract.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
-		ilinkAppID:         channelcontract.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
-		ilinkClientVersion: channelcontract.FirstNonEmpty(config.IlinkClientVersion, DefaultPersonalWeixinClientVersion),
+		token:              config.Token,
+		botAgent:           textutil.FirstNonEmpty(config.BotAgent, defaultPersonalWeixinBotAgent),
+		ilinkAppID:         textutil.FirstNonEmpty(config.IlinkAppID, defaultPersonalWeixinAppID),
+		ilinkClientVersion: textutil.FirstNonEmpty(config.IlinkClientVersion, DefaultPersonalWeixinClientVersion),
 		client:             client,
 		configCache:        make(map[string]personalWeixinConfigCacheEntry),
 	}
@@ -187,12 +186,12 @@ func (c *PersonalWeixinIlinkClient) TypingTicket(ctx context.Context, ilinkUserI
 	now := time.Now()
 	c.configMu.Lock()
 	if entry, ok := c.configCache[ilinkUserID]; ok {
-		if strings.TrimSpace(entry.typingTicket) != "" && now.Before(entry.expiresAt) {
+		if entry.typingTicket != "" && now.Before(entry.expiresAt) {
 			ticket := entry.typingTicket
 			c.configMu.Unlock()
 			return ticket, nil
 		}
-		if strings.TrimSpace(entry.typingTicket) == "" && now.Before(entry.nextRetryAt) {
+		if entry.typingTicket == "" && now.Before(entry.nextRetryAt) {
 			c.configMu.Unlock()
 			return "", nil
 		}
@@ -285,8 +284,8 @@ func (c *PersonalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth
 	if withAuth {
 		request.Header.Set("AuthorizationType", "ilink_bot_token")
 		request.Header.Set("X-WECHAT-UIN", randomPersonalWeixinUIN())
-		if strings.TrimSpace(c.token) != "" {
-			request.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.token))
+		if c.token != "" {
+			request.Header.Set("Authorization", "Bearer "+c.token)
 		}
 	}
 }
@@ -294,7 +293,7 @@ func (c *PersonalWeixinIlinkClient) applyHeaders(request *http.Request, withAuth
 func (c *PersonalWeixinIlinkClient) baseInfo() map[string]string {
 	return map[string]string{
 		"channel_version": "nexus",
-		"bot_agent":       channelcontract.FirstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
+		"bot_agent":       textutil.FirstNonEmpty(c.botAgent, defaultPersonalWeixinBotAgent),
 	}
 }
 

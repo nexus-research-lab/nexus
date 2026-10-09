@@ -69,7 +69,7 @@ func (s *Service) PreviewSavedWorkflow(
 		SourceExecutionID: workflow.SourceExecutionID, SourceSessionKey: workflow.SourceSessionKey,
 		Objective: workflow.Objective, CompletionCriteria: append([]string(nil), workflow.CompletionCriteria...),
 		ArtifactContract: cloneArtifactContract(workflow.ArtifactContract),
-		Nodes: cloneWorkflowNodes(workflow.Nodes), Dependencies: append([]protocol.WorkGraphWorkflowDependency(nil), workflow.Dependencies...),
+		Nodes:            cloneWorkflowNodes(workflow.Nodes), Dependencies: append([]protocol.WorkGraphWorkflowDependency(nil), workflow.Dependencies...),
 		ExpiresAt: now.Add(workflowPreviewTTL),
 	}
 	created, err := drafts.CreateDraft(ctx, protocol.WorkGraphWorkflowDraft{

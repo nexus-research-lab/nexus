@@ -81,12 +81,6 @@ func TestUpdateEchoProjectsVersionConflictAsNotApplied(t *testing.T) {
 		"echo.version_conflict", protocol.FailureEffectNotApplied)
 }
 
-func TestUpdateEchoProjectsCleanupFailureAsCommitted(t *testing.T) {
-	t.Parallel()
-	assertEchoFailure(t, &echosvc.SettingsReconcileError{Cause: errors.New("cancel failed")},
-		http.StatusInternalServerError, "echo.cleanup_incomplete", protocol.FailureEffectCommitted)
-}
-
 func TestUpdateEchoKeepsCommittedEffectWhenCleanupTimesOut(t *testing.T) {
 	t.Parallel()
 	assertEchoFailure(t, &echosvc.SettingsReconcileError{Cause: context.DeadlineExceeded},

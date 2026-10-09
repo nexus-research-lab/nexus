@@ -97,7 +97,7 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 	if err != nil {
 		return "", protocol.SessionKey{}, "", err
 	}
-	if strings.TrimSpace(pairedSessionKey) != "" {
+	if pairedSessionKey != "" {
 		parsed := protocol.ParseSessionKey(pairedSessionKey)
 		return pairedSessionKey, parsed, agentID, nil
 	}
@@ -112,11 +112,6 @@ func (s *IngressService) buildIngressSession(ctx context.Context, request Ingres
 	)
 	parsed := protocol.ParseSessionKey(sessionKey)
 	return sessionKey, parsed, agentID, nil
-}
-
-func (s *IngressService) resolveIngressAgent(ctx context.Context, request IngressRequest) (string, error) {
-	agentID, _, err := s.resolveIngressSession(ctx, request)
-	return agentID, err
 }
 
 func (s *IngressService) resolveIngressSession(ctx context.Context, request IngressRequest) (string, string, error) {

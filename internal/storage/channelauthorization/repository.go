@@ -278,10 +278,10 @@ WHERE flow_id = `+r.dialect.Bind(8)+`
   AND process_generation = `+r.dialect.Bind(11)+`
   AND status IN ('starting', 'running', 'verify_code_required')`,
 		update.Status,
-		strings.TrimSpace(update.ResolvedAccountID),
+		update.ResolvedAccountID,
 		nullableVersion(update.CommittedControlVersion),
-		strings.TrimSpace(update.OutcomeCode),
-		strings.TrimSpace(update.OutcomeMessage),
+		update.OutcomeCode,
+		update.OutcomeMessage,
 		r.dialect.TimestampValue(finishedAt),
 		r.dialect.TimestampValue(finishedAt),
 		flow.FlowID,

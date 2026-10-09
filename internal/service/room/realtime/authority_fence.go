@@ -35,7 +35,7 @@ func (s *Service) ensureSlotOutputAuthorized(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) error {
-	if s == nil || s.rooms == nil || roundValue == nil || slot == nil {
+	if s.rooms == nil || roundValue == nil || slot == nil {
 		return errRoomSlotAuthorityRevoked
 	}
 	// Interrupt 会先取消 slotCtx；权限复核仍必须带着原 context values
@@ -95,7 +95,7 @@ func (s *Service) retireSlotAfterOutputRevocation(
 		slot.setErrorMessage("")
 		slot.setStatus("cancelled")
 	}
-	s.loggerFor(ctx).Warn(
+	s.LoggerFor(ctx).Warn(
 		"Room slot 输出因权限世代变化被静默丢弃",
 		"room_id", roomIDForAuthorityFence(roundValue),
 		"conversation_id", conversationIDForAuthorityFence(roundValue),

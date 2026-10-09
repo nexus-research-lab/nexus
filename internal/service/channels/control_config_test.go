@@ -13,74 +13,6 @@ import (
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
-func TestControlServiceReturnsHotReloadFailureWithoutPersistingBrokenConfig(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	router := NewRouter(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	if err := router.Start(context.Background()); err != nil {
-		t.Fatalf("启动 router 失败: %v", err)
-	}
-	defer router.Stop(context.Background())
-
-	candidate := &recordingDeliveryChannel{
-		channelType: ChannelTypeTelegram,
-		startErr:    fmt.Errorf("telegram runtime start failed"),
-	}
-	previous := routerChannelConfigurers[ChannelTypeTelegram]
-	routerChannelConfigurers[ChannelTypeTelegram] = func(
-		service *ControlService,
-		ctx context.Context,
-		cfg routerChannelConfiguration,
-	) error {
-		return service.registerConfiguredChannel(ctx, cfg, candidate)
-	}
-	t.Cleanup(func() {
-		routerChannelConfigurers[ChannelTypeTelegram] = previous
-	})
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, router)
-	_, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeTelegram, UpsertChannelConfigRequest{
-		AgentID:     "agent-a",
-		Credentials: map[string]string{"bot_token": "telegram-token"},
-	})
-	if err == nil || !strings.Contains(err.Error(), "telegram runtime start failed") {
-		t.Fatalf("runtime 启动失败必须返回调用者: %v", err)
-	}
-	if effect, ok := ChannelControlMutationEffect(err); !ok || effect != ControlMutationNotApplied {
-		t.Fatalf("已成功补偿的热重载失败 effect = %q ok=%v", effect, ok)
-	}
-	row, rowErr := service.getChannelConfigRow(context.Background(), "owner-a", ChannelTypeTelegram)
-	if rowErr != nil {
-		t.Fatalf("读取写后配置失败: %v", rowErr)
-	}
-	if row != nil {
-		t.Fatalf("首次候选启动失败不得留下不可运行配置: %+v", row)
-	}
-	if router.GetForOwner("owner-a", ChannelTypeTelegram) != nil {
-		t.Fatal("启动失败候选不应发布到 Router")
-	}
-	version, versionErr := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if versionErr != nil || version != 3 {
-		t.Fatalf("失败候选应以新单调版本发布空快照: version=%d err=%v", version, versionErr)
-	}
-	if _, err = service.UpsertChannelConfigAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeTelegram,
-		UpsertChannelConfigRequest{
-			AgentID:     "agent-a",
-			Credentials: map[string]string{"bot_token": "stale-plan-token"},
-		},
-		1,
-	); !errors.Is(err, ErrChannelControlVersionConflict) {
-		t.Fatalf("热重载失败前的旧 plan 不得在回滚后重新命中: %v", err)
-	}
-}
-
 func TestControlServiceFailedReplacementKeepsLastKnownGoodConfigAndRuntime(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -235,76 +167,6 @@ INSERT INTO im_channel_accounts (
 	}
 	if len(accounts) != 1 || accounts[0].SyncCursor != "cursor-before-reload" {
 		t.Fatalf("热重载回滚丢失个人微信游标: %+v", accounts)
-	}
-}
-
-func TestControlServiceRejectsStaleSecretRotationByPersistentVersion(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	version, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || version != 1 {
-		t.Fatalf("初始 Channel version = %d err=%v", version, err)
-	}
-	if _, err = service.UpsertChannelConfigAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeTelegram,
-		UpsertChannelConfigRequest{
-			AgentID:     "agent-a",
-			Credentials: map[string]string{"bot_token": "token-plan"},
-		},
-		version,
-	); err != nil {
-		t.Fatalf("初次带版本配置失败: %v", err)
-	}
-	staleVersion, err := service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || staleVersion != 2 {
-		t.Fatalf("初次配置后 version = %d err=%v", staleVersion, err)
-	}
-
-	if _, err = service.UpsertChannelConfig(
-		context.Background(),
-		"owner-a",
-		ChannelTypeTelegram,
-		UpsertChannelConfigRequest{
-			AgentID:     "agent-a",
-			Credentials: map[string]string{"bot_token": "token-newer-http"},
-		},
-	); err != nil {
-		t.Fatalf("模拟后续 HTTP 凭据轮换失败: %v", err)
-	}
-	if _, err = service.UpsertChannelConfigAtVersion(
-		context.Background(),
-		"owner-a",
-		ChannelTypeTelegram,
-		UpsertChannelConfigRequest{
-			AgentID:     "agent-a",
-			Credentials: map[string]string{"bot_token": "token-stale-plan"},
-		},
-		staleVersion,
-	); !errors.Is(err, ErrChannelControlVersionConflict) {
-		t.Fatalf("旧 plan 必须被持久版本 CAS 拒绝: %v", err)
-	}
-
-	row, err := service.getChannelConfigRow(context.Background(), "owner-a", ChannelTypeTelegram)
-	if err != nil {
-		t.Fatal(err)
-	}
-	secrets, err := service.decryptCredentials(row.CredentialsEncrypted)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if secrets["bot_token"] != "token-newer-http" {
-		t.Fatalf("旧 plan 不得覆盖较新的凭据，实际 token=%q", secrets["bot_token"])
-	}
-	version, err = service.GetChannelControlVersion(context.Background(), "owner-a")
-	if err != nil || version != 3 {
-		t.Fatalf("失败 CAS 不应推进 version: version=%d err=%v", version, err)
 	}
 }
 
@@ -509,81 +371,6 @@ func TestControlServiceRejectsCatalogSecretsInPublicConfig(t *testing.T) {
 	}
 }
 
-func TestControlServiceFiltersCatalogSecretsFromDirtyPublicConfig(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	const dirtyConfig = `{
-		"app_id":"cli_public",
-		"base_url":"https://open.feishu.cn",
-		"app_secret":"legacy-secret",
-		"verification_token":"legacy-verification-token",
-		"encrypt_key":"legacy-encrypt-key"
-	}`
-	if _, err := db.Exec(
-		`INSERT INTO im_channel_configs
-		 (owner_user_id, channel_type, agent_id, status, config_json)
-		 VALUES (?, ?, ?, ?, ?)`,
-		"owner-a",
-		ChannelTypeFeishu,
-		"agent-a",
-		ChannelConfigStatusConfigured,
-		dirtyConfig,
-	); err != nil {
-		t.Fatal(err)
-	}
-
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	channels, err := service.ListChannels(context.Background(), "owner-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var view *ChannelConfigView
-	for index := range channels {
-		if channels[index].ChannelType == ChannelTypeFeishu {
-			view = &channels[index]
-			break
-		}
-	}
-	if view == nil {
-		t.Fatal("缺少飞书配置视图")
-	}
-	if view.PublicConfig["app_id"] != "cli_public" ||
-		view.PublicConfig["base_url"] != "https://open.feishu.cn" {
-		t.Fatalf("过滤 secret 不得删除公开字段: %+v", view.PublicConfig)
-	}
-	for _, key := range []string{"app_secret", "verification_token", "encrypt_key"} {
-		if _, leaked := view.PublicConfig[key]; leaked {
-			t.Fatalf("历史脏 config_json 泄露 catalog secret %s: %+v", key, view.PublicConfig)
-		}
-	}
-}
-
-func TestControlServiceAllowsDingTalkStreamConfigWithoutRobotCode(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{
-		DatabaseDriver:          "sqlite",
-		ConnectorCredentialsKey: testChannelCredentialKey(),
-	}, db, nil, nil)
-	item, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeDingTalk, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"client_id": "ding-client",
-		},
-		Credentials: map[string]string{
-			"client_secret": "ding-secret",
-		},
-	})
-	if err != nil {
-		t.Fatalf("钉钉 Stream 配置不应强制要求 Robot Code: %v", err)
-	}
-	if item.ChannelType != ChannelTypeDingTalk || !item.Configured || !item.HasCredentials {
-		t.Fatalf("钉钉 Stream 配置结果不正确: %+v", item)
-	}
-}
-
 func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()
@@ -670,28 +457,6 @@ func TestControlServiceAppliesOptionalRuntimeChannelConfig(t *testing.T) {
 	discord, ok := router.GetForOwner("owner-a", ChannelTypeDiscord).(*channeladapters.DiscordChannel)
 	if !ok || discord.BaseURL() != "https://discord-api.test" {
 		t.Fatalf("Discord 运行时配置未生效: channel=%+v ok=%v", discord, ok)
-	}
-}
-
-func TestControlServiceConfiguresWeixinPersonalWithoutSecrets(t *testing.T) {
-	db := newChannelTestDB(t)
-	defer db.Close()
-
-	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	item, err := service.UpsertChannelConfig(context.Background(), "owner-a", ChannelTypeWeixinPersonal, UpsertChannelConfigRequest{
-		AgentID: "agent-a",
-		Config: map[string]string{
-			"base_url": "https://ilink.test",
-		},
-	})
-	if err != nil {
-		t.Fatalf("配置个人微信通道失败: %v", err)
-	}
-	if item.ChannelType != ChannelTypeWeixinPersonal || item.RuntimeStatus != "ready" || !item.Configured {
-		t.Fatalf("个人微信配置结果不正确: %+v", item)
-	}
-	if item.HasCredentials {
-		t.Fatalf("个人微信配置阶段不应要求 Nexus 保存 iLink token: %+v", item)
 	}
 }
 

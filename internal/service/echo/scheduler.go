@@ -15,6 +15,7 @@ import (
 	echodomain "github.com/nexus-research-lab/nexus/internal/echo"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/duework"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -72,12 +73,12 @@ func (s *Service) OnTerminal(ctx context.Context, terminal dmsvc.EchoTerminalRou
 	}
 	created, err := s.repository.InsertAttempt(ctx, echodomain.Attempt{
 		AttemptID:        newAttemptID(),
-		OwnerUserID:      strings.TrimSpace(terminal.OwnerUserID),
-		AgentID:          strings.TrimSpace(terminal.AgentID),
-		SessionKey:       strings.TrimSpace(terminal.SessionKey),
+		OwnerUserID:      terminal.OwnerUserID,
+		AgentID:          terminal.AgentID,
+		SessionKey:       terminal.SessionKey,
 		TriggerKind:      echodomain.TriggerConversationIdle,
 		AnchorRoundID:    strings.TrimSpace(terminal.RoundID),
-		AnchorMessageID:  strings.TrimSpace(terminal.AssistantID),
+		AnchorMessageID:  terminal.AssistantID,
 		AnchorFinishedAt: finishedAt,
 		DueAt:            dueAt,
 		ExpiresAt:        finishedAt.Add(echoAttemptMaxAge),
@@ -242,10 +243,10 @@ func (s *Service) admitMessage(
 ) (protocol.Message, bool, error) {
 	if candidate.TerminalStatus != "finished" ||
 		(candidate.ResultSubtype != "" && candidate.ResultSubtype != "success") {
-		return nil, false, fmt.Errorf("Echo 生成失败: %s", firstNonEmpty(candidate.ErrorMessage, candidate.ResultSubtype))
+		return nil, false, fmt.Errorf("Echo 生成失败: %s", textutil.FirstNonEmpty(candidate.ErrorMessage, candidate.ResultSubtype))
 	}
 	text := messageutil.ExtractAssistantDisplayText(candidate.Message)
-	if strings.TrimSpace(text) == echoNoReplyMarker || strings.TrimSpace(text) == "" {
+	if text == echoNoReplyMarker || text == "" {
 		err := s.repository.FinishWithoutDelivery(
 			ctx,
 			attempt.AttemptID,
@@ -264,7 +265,7 @@ func (s *Service) admitMessage(
 		return nil, false, err
 	}
 	if check.status != "" || check.rescheduleAt != nil {
-		status := firstNonEmpty(check.status, echodomain.StatusSuppressed)
+		status := textutil.FirstNonEmpty(check.status, echodomain.StatusSuppressed)
 		if finishErr := s.repository.FinishWithoutDelivery(ctx, attempt.AttemptID, status, check.reason, ""); finishErr != nil {
 			return nil, false, finishErr
 		}
@@ -320,7 +321,7 @@ func (s *Service) completeAttempt(
 	if outcome.Status == echodomain.StatusDelivered {
 		err = s.repository.FinishCommit(ctx, attemptID, nil)
 	} else {
-		reason := firstNonEmpty(outcome.Status, echodomain.StatusFailed)
+		reason := textutil.FirstNonEmpty(outcome.Status, echodomain.StatusFailed)
 		errorCode := ""
 		if outcome.Error != nil {
 			errorCode = "runtime_failed"
@@ -699,13 +700,4 @@ func newAttemptID() string {
 func messageString(message map[string]any, key string) string {
 	value, _ := message[key].(string)
 	return strings.TrimSpace(value)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }

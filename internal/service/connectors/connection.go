@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // LoadActiveConnection 读取已连接 connector 的 token 快照。
@@ -65,7 +66,7 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 	if err != nil {
 		return nil, err
 	}
-	token := connectorFirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"], parsed["api_key"])
+	token := textutil.FirstNonEmpty(parsed["access_token"], parsed["token"], parsed["bearer_token"], parsed["api_key"])
 	if token == "" {
 		return nil, errors.New("connector 未获取到 access token")
 	}
@@ -73,7 +74,7 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 	delete(parsed, "token")
 	delete(parsed, "bearer_token")
 	delete(parsed, "api_key")
-	shop := connectorFirstNonEmpty(parsed["shop"], parsed["shop_domain"])
+	shop := textutil.FirstNonEmpty(parsed["shop"], parsed["shop_domain"])
 	return &connectordomain.ConnectionSnapshot{
 		ConnectorID: record.ConnectorID,
 		AuthType:    record.AuthType,
@@ -153,13 +154,13 @@ func normalizeDirectCredentials(entry CatalogEntry, raw map[string]string) (map[
 	}
 	switch entry.AuthType {
 	case "api_key":
-		apiKey := connectorFirstNonEmpty(normalized["api_key"], normalized["key"])
+		apiKey := textutil.FirstNonEmpty(normalized["api_key"], normalized["key"])
 		if apiKey == "" {
 			return nil, fmt.Errorf("%s API Key 不能为空", entry.Title)
 		}
 		return map[string]string{"api_key": apiKey}, nil
 	case "token":
-		token := connectorFirstNonEmpty(normalized["token"], normalized["access_token"], normalized["bearer_token"])
+		token := textutil.FirstNonEmpty(normalized["token"], normalized["access_token"], normalized["bearer_token"])
 		if token == "" {
 			return nil, fmt.Errorf("%s Token 不能为空", entry.Title)
 		}

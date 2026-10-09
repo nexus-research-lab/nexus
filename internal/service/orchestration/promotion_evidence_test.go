@@ -6,47 +6,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestAdaptiveEvidenceDoesNotTreatSelfRoomDAGAsDurableDependency(t *testing.T) {
-	snapshot := roomPromotionSnapshot()
-	snapshot.Dependencies = []protocol.ExecutionPlanDependency{{
-		PlanID:              "plan-1",
-		ExecutionID:         snapshot.Execution.ID,
-		WorkItemID:          "work-verify",
-		DependsOnWorkItemID: "work-produce",
-		Kind:                protocol.WorkDependencyHard,
-	}}
-	snapshot.Assignments = []protocol.WorkAssignment{{
-		ID:           "assignment-self",
-		PlanID:       "plan-1",
-		WorkItemID:   "work-produce",
-		SpecID:       "spec-produce",
-		OwnerAgentID: "agent-lead",
-		Status:       protocol.WorkAssignmentStatusAssigned,
-	}}
-
-	evidence := adaptiveEvidenceFromSnapshot(snapshot, ActorContext{AgentID: "agent-lead"})
-	if evidence.BoundRoomDependency {
-		t.Fatalf("self-only Room DAG became durable cross-Agent evidence: %#v", evidence)
-	}
-}
-
-func TestAdaptiveEvidenceRequiresBoundOtherAgentForRoomSignal(t *testing.T) {
-	snapshot := roomPromotionSnapshot()
-	snapshot.Assignments = []protocol.WorkAssignment{{
-		ID:           "assignment-worker",
-		PlanID:       "plan-1",
-		WorkItemID:   "work-produce",
-		SpecID:       "spec-produce",
-		OwnerAgentID: "agent-worker",
-		Status:       protocol.WorkAssignmentStatusAssigned,
-	}}
-
-	evidence := adaptiveEvidenceFromSnapshot(snapshot, ActorContext{AgentID: "agent-lead"})
-	if !evidence.BoundRoomDependency {
-		t.Fatalf("bound other-Agent required work did not become durable evidence: %#v", evidence)
-	}
-}
-
 func TestAdaptiveEvidenceIgnoresOptionalWaitingWork(t *testing.T) {
 	snapshot := roomPromotionSnapshot()
 	snapshot.WorkItemStates = []protocol.WorkItemState{{

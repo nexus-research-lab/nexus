@@ -6,30 +6,22 @@ package dm
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"sync"
-	"sync/atomic"
 	"time"
 
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/imdelivery"
-	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -201,75 +193,30 @@ type InterruptRequest struct {
 	RoundID    string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
-// 用 string 形参避免 dm 包反向依赖 automation 子包，防止 import cycle。
-type MCPServerBuilder func(
-	ctx context.Context,
-	agentValue *protocol.Agent,
-	sessionKey string,
-	roundID string,
-	sourceContextType string,
-	sourceContextID string,
-	sourceContextLabel string,
-	goalObjectiveRevision *atomic.Int64,
-	permissionMode sdkpermission.Mode,
-) map[string]sdkmcp.ServerConfig
-
-// ConfigurationRuntimeEnvironmentBuilder 由宿主为当前 runtime round 签发 nexuscfg 环境。
-type ConfigurationRuntimeEnvironmentBuilder func(
-	context.Context,
-	*protocol.Agent,
-	string,
-	string,
-	string,
-	string,
-) (map[string]string, error)
-
-// NexusMCPServerBuilder 为当前 physical round 构造唯一 Nexus 内建 MCP server。
-type NexusMCPServerBuilder func(
-	context.Context,
-	nexusmcp.RoundContext,
-) (map[string]sdkmcp.ServerConfig, error)
-
-// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 WorkGraph 沉淀展开为 runtime prompt。
-type RuntimeSlashExpander interface {
-	ExpandRuntimePrompt(context.Context, string, string) (string, error)
-}
+// 共用宿主依赖类型统一定义在 runtimehost；以下别名保持本包既有 API 名称。
+type (
+	MCPServerBuilder                       = runtimehost.MCPServerBuilder
+	ConfigurationRuntimeEnvironmentBuilder = runtimehost.ConfigurationRuntimeEnvironmentBuilder
+	NexusMCPServerBuilder                  = runtimehost.NexusMCPServerBuilder
+	RuntimeSlashExpander                   = runtimehost.RuntimeSlashExpander
+)
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
+	runtimehost.Host
 	imAutomationPolicy func(context.Context, imdelivery.Source) (*protocol.RuntimeToolPolicy, error)
 	imReplies          *imdelivery.Repository
 	imReplyValidate    func(context.Context, string, string) error
 
-	config       config.Config
-	agents       *agentsvc.Service
-	runtime      *runtimectx.Manager
-	permission   *permissionctx.Context
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
-	providers    clientopts.RuntimeConfigResolver
-	admission    clientopts.AgentRuntimeAdmissionResolver
 	prefs        runtimePreferencesService
-	files        *workspacestore.SessionFileStore
-	history      *workspacestore.AgentHistoryStore
-	inputQueue   *workspacestore.InputQueueStore
-	queueTrust   queueAdmissionStore
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
 	inputQueueGuidanceMu      sync.Mutex
 	inputQueueGuidancePending map[string][]preparedDMGuidance
-	usage                     usageRecorder
-	quota                     quotaChecker
 	goals                     goalContextProvider
-	executionContext          executionContextProvider
-	subagentAdmission         orchestrationruntimehook.Provider
-	logger                    *slog.Logger
-	mcpServers                MCPServerBuilder
-	configurationRuntimeEnv   ConfigurationRuntimeEnvironmentBuilder
-	nexusMCP                  NexusMCPServerBuilder
-	runtimeSlashExpander      RuntimeSlashExpander
 	scopedSessionPolicy       scopedSessionRuntimePolicyProvider
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
@@ -341,25 +288,13 @@ type scopedSessionRuntimePolicyProvider interface {
 	RuntimeEditorPolicy(string, string) (protocol.ScopedSessionRuntimePolicy, bool, error)
 }
 
-type queueAdmissionStore interface {
-	Record(context.Context, queueadmissionstore.Admission) error
-	Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error)
-	Release(context.Context, queueadmissionstore.Claim) error
-	Consume(context.Context, queueadmissionstore.Claim) error
-	Revoke(context.Context, queueadmissionstore.Binding) error
-}
-
-type usageRecorder interface {
-	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
-}
-
 type goalContextProvider interface {
 	RuntimeContext(context.Context, string) (string, *protocol.Goal, error)
 	RecordUsageForSession(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	RecordUsageForGoal(context.Context, string, protocol.GoalUsage, string) (*protocol.Goal, error)
 	UsageLimitForSession(context.Context, string, string, string) (*protocol.Goal, error)
 	RecordContinuationProgress(context.Context, string, string, bool, ...int64) (*protocol.Goal, error)
-	RecordContinuationFailure(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
+	RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error)
 	RecordCompletionCommandMiss(context.Context, string, string, string, ...int64) (*protocol.Goal, error)
 	RecordGoalActivity(context.Context, string, string, ...int64) (*protocol.Goal, error)
 	PlanContinuationForSession(context.Context, string, string) (*protocol.GoalContinuation, error)
@@ -375,51 +310,10 @@ func NewService(
 	permission *permissionctx.Context,
 ) *Service {
 	return &Service{
-		config:                    cfg,
-		agents:                    agentService,
-		runtime:                   runtimeManager,
-		permission:                permission,
-		files:                     workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:                   workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		inputQueue:                workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		logger:                    logx.NewDiscardLogger(),
+		Host:                      runtimehost.NewHost(cfg, agentService, runtimeManager, permission),
 		connectorPreparations:     make(map[string]*connectorRuntimePreparation),
 		connectorPreparationDelay: defaultConnectorPreparationDelay,
 	}
-}
-
-// SetLogger 注入业务日志实例。
-func (s *Service) SetLogger(logger *slog.Logger) {
-	if logger == nil {
-		s.logger = logx.NewDiscardLogger()
-		return
-	}
-	s.logger = logger
-}
-
-// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
-// 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
-func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
-	s.mcpServers = builder
-}
-
-// SetConfigurationRuntimeEnvironmentBuilder 注入可信 nexuscfg capability 签发器。
-func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
-	builder ConfigurationRuntimeEnvironmentBuilder,
-) {
-	s.configurationRuntimeEnv = builder
-}
-
-// SetNexusMCPServerBuilder 注入可信的 Nexus 内建 MCP server 工厂。
-func (s *Service) SetNexusMCPServerBuilder(
-	builder NexusMCPServerBuilder,
-) {
-	s.nexusMCP = builder
-}
-
-// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。
-func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
-	s.runtimeSlashExpander = expander
 }
 
 // SetScopedSessionRuntimePolicyProvider 注入宿主签发的精确临时 Session 工具面与系统提示。
@@ -427,31 +321,9 @@ func (s *Service) SetScopedSessionRuntimePolicyProvider(provider scopedSessionRu
 	s.scopedSessionPolicy = provider
 }
 
-// SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
-func (s *Service) SetSubagentAdmissionProvider(provider orchestrationruntimehook.Provider) {
-	s.subagentAdmission = provider
-}
-
-// SetProviderResolver 注入 Provider 运行时解析器。
-func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
-	s.providers = resolver
-}
-
-// SetRuntimeAdmissionResolver 注入认证转场与动态强隔离 admission。
-func (s *Service) SetRuntimeAdmissionResolver(
-	resolver clientopts.AgentRuntimeAdmissionResolver,
-) {
-	s.admission = resolver
-}
-
 // SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
 func (s *Service) SetPreferences(prefs runtimePreferencesService) {
 	s.prefs = prefs
-}
-
-// SetUsageRecorder 注入 token usage 持久化 ledger。
-func (s *Service) SetUsageRecorder(recorder usageRecorder) {
-	s.usage = recorder
 }
 
 // SetGoalContextProvider 注入 Goal runtime context provider。
@@ -474,11 +346,6 @@ func (s *Service) SetRoomConversationActivityStore(store roomConversationActivit
 	s.roomActivity = store
 }
 
-// SetQueueAdmissionStore 注入宿主 DB 中不可由 Agent workspace 伪造的队列信任根。
-func (s *Service) SetQueueAdmissionStore(store queueAdmissionStore) {
-	s.queueTrust = store
-}
-
 // SetTitleGenerator 注入会话标题生成器。
 func (s *Service) SetTitleGenerator(generator titleScheduler) {
 	s.titles = generator
@@ -495,16 +362,12 @@ func (s *Service) SetConnectorRuntimeStateLoader(loader ConnectorRuntimeStateLoa
 }
 
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
-	if errs := s.permission.BroadcastSessionStatus(ctx, sessionKey, s.runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
-		s.loggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+	if errs := s.Permission.BroadcastSessionStatus(ctx, sessionKey, s.Runtime.GetRunningRoundIDs(sessionKey)); len(errs) > 0 {
+		s.LoggerFor(ctx).Warn("广播 session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
-}
-
-func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
-	return logx.Resolve(ctx, s.logger)
 }
 
 // SetReplyPreviewRepository 注入消息落盘后的独立摘要投影。
 func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) {
-	s.history.SetReplyPreviewRepository(repository)
+	s.History.SetReplyPreviewRepository(repository)
 }

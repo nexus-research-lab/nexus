@@ -10,6 +10,7 @@ import (
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkbitable "github.com/larksuite/oapi-sdk-go/v3/service/bitable/v1"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // BitableTarget 是从 URL 或 token 里解析出的多维表格目标。
@@ -71,7 +72,7 @@ func ParseBitableTarget(raw string) (BitableTarget, error) {
 		if segment == "base" && index+1 < len(segments) {
 			target.AppToken = strings.TrimSpace(segments[index+1])
 			query := parsed.Query()
-			target.TableID = firstNonEmpty(query.Get("table"), query.Get("table_id"))
+			target.TableID = textutil.FirstNonEmpty(query.Get("table"), query.Get("table_id"))
 			return target, nil
 		}
 	}
@@ -122,7 +123,7 @@ func (c *Client) ListBitableFields(ctx context.Context, raw string, tableID stri
 	if err != nil {
 		return nil, err
 	}
-	tableID = firstNonEmpty(tableID, target.TableID)
+	tableID = textutil.FirstNonEmpty(tableID, target.TableID)
 	if tableID == "" {
 		return nil, errors.New("table_id 不能为空；可传 base URL 或显式传 table_id")
 	}
@@ -169,7 +170,7 @@ func (c *Client) ListBitableRecords(ctx context.Context, raw string, tableID str
 	if err != nil {
 		return nil, err
 	}
-	tableID = firstNonEmpty(tableID, target.TableID)
+	tableID = textutil.FirstNonEmpty(tableID, target.TableID)
 	if tableID == "" {
 		return nil, errors.New("table_id 不能为空；可传 base URL 或显式传 table_id")
 	}

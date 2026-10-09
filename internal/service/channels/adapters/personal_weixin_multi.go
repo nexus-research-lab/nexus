@@ -102,7 +102,7 @@ func (c *PersonalWeixinMultiAccountChannel) AdoptReplacedChannel(replaced channe
 			continue
 		}
 		current := c.accounts[key]
-		if current == nil || strings.TrimSpace(current.token) != strings.TrimSpace(account.token) {
+		if current == nil || current.token != account.token {
 			staleOld = append(staleOld, account)
 			continue
 		}
@@ -212,8 +212,8 @@ func personalWeixinAccountKey(account *PersonalWeixinChannel) string {
 	if account == nil {
 		return ""
 	}
-	if key := strings.TrimSpace(account.accountID); key != "" {
+	if key := account.accountID; key != "" {
 		return key
 	}
-	return strings.TrimSpace(account.userID)
+	return account.userID
 }

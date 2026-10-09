@@ -17,6 +17,7 @@ import (
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
@@ -26,18 +27,12 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 const (
-	goalUsagePersistAttempts   = 5
 	roomGoalUsageRetryMaxDelay = 5 * time.Second
 )
-
-type roomSubagentUsageSettlement struct {
-	taskID          string
-	cumulativeTotal int64
-	observation     goalsvc.SubagentUsageObservation
-}
 
 type roomGoalUsageSourceRecorder interface {
 	RecordUsageSourceSnapshot(context.Context, protocol.GoalUsageSourceSnapshot) (protocol.GoalUsageSourceResult, error)
@@ -45,10 +40,6 @@ type roomGoalUsageSourceRecorder interface {
 
 type roomGoalUsageParentRecorder interface {
 	RecordUsageParentSnapshot(context.Context, protocol.GoalUsageParentSnapshot) (protocol.GoalUsageParentResult, error)
-}
-
-type roomGoalUsageScopeBinder interface {
-	BindUsageScopeFromNow(context.Context, protocol.GoalUsageScopeBinding) (protocol.GoalUsageScopeBindResult, error)
 }
 
 // QueueRoomContextualGuidanceInput 把共享 Goal steering 分发到每个活跃 slot，并排除产生 retarget 的 caller。
@@ -61,9 +52,6 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 	excludedAgentID string,
 	objectiveRevision int64,
 ) ([]string, error) {
-	if s == nil || s.runtime == nil {
-		return nil, runtimectx.ErrNoRunningRound
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	excludedAgentID = strings.TrimSpace(excludedAgentID)
 	targets := map[string]*activeRoomSlot{}
@@ -97,7 +85,7 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 				slot.adoptGoalObjectiveRevision(objectiveRevision)
 			}
 		}
-		queued, err := s.runtime.QueueContextualGuidanceInputOnConsumed(ctx, runtimeSessionKey, roundID, contextName, content, onConsumed)
+		queued, err := s.Runtime.QueueContextualGuidanceInputOnConsumed(ctx, runtimeSessionKey, roundID, contextName, content, onConsumed)
 		if err != nil {
 			if errors.Is(err, runtimectx.ErrNoRunningRound) {
 				continue
@@ -125,9 +113,6 @@ func (s *Service) GoalObjectiveRevisionState(
 	agentID string,
 	initial int64,
 ) *atomic.Int64 {
-	if s == nil {
-		return nil
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
 	agentID = strings.TrimSpace(agentID)
@@ -154,80 +139,6 @@ func (s *Service) GoalObjectiveRevisionState(
 	}
 	return target.ensureGoalObjectiveRevision(initial)
 }
-
-func goalContextualInputs(contextText string, goalID string, sessionKey string) []runtimectx.ContextualInputBlock {
-	contextText = strings.TrimSpace(contextText)
-	if contextText == "" {
-		return nil
-	}
-	metadata := map[string]string{}
-	if goalID = strings.TrimSpace(goalID); goalID != "" {
-		metadata["goal_id"] = goalID
-	}
-	if sessionKey = strings.TrimSpace(sessionKey); sessionKey != "" {
-		metadata["session_key"] = sessionKey
-	}
-	return []runtimectx.ContextualInputBlock{
-		runtimectx.NewContextualInputBlock(
-			runtimectx.ContextualInputNameGoal,
-			contextText,
-			runtimectx.ContextualInputPriorityGoal,
-			metadata,
-		),
-	}
-}
-
-func (s *Service) resolveGoalRuntimeContextForSlot(
-	ctx context.Context,
-	roundValue *activeRoomRound,
-	slot *activeRoomSlot,
-	appendSystemPrompt string,
-) (string, string, string, string, int64) {
-	defaultGoalSessionKey := ""
-	if roundValue != nil {
-		defaultGoalSessionKey = strings.TrimSpace(roundValue.SessionKey)
-	}
-	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
-		goalContext, goalID, objectiveRevision, ok := s.goalRuntimeContext(ctx, sessionKey)
-		if !ok {
-			continue
-		}
-		if slot != nil {
-			slot.ensureGoalObjectiveRevision(objectiveRevision)
-		}
-		return appendSystemPrompt, goalContext, goalID, sessionKey, objectiveRevision
-	}
-	return appendSystemPrompt, "", "", defaultGoalSessionKey, 0
-}
-
-func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
-	candidates := []string{}
-	if roundValue != nil {
-		roundSessionKey := strings.TrimSpace(roundValue.SessionKey)
-		if protocol.IsRoomSharedSessionKey(roundSessionKey) {
-			return []string{roundSessionKey}
-		}
-		candidates = append(candidates, roundSessionKey)
-	}
-	if slot != nil {
-		candidates = append(candidates, slot.RuntimeSessionKey)
-	}
-	result := make([]string, 0, len(candidates))
-	seen := map[string]struct{}{}
-	for _, candidate := range candidates {
-		sessionKey := strings.TrimSpace(candidate)
-		if sessionKey == "" {
-			continue
-		}
-		if _, exists := seen[sessionKey]; exists {
-			continue
-		}
-		seen[sessionKey] = struct{}{}
-		result = append(result, sessionKey)
-	}
-	return result
-}
-
 func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (string, string, int64, bool) {
 	goalContext, goal, ok := s.goalRuntimeSnapshot(ctx, sessionKey)
 	if !ok {
@@ -251,10 +162,10 @@ func (s *Service) goalRuntimeSnapshot(
 	}
 	goalContext, goal, err := s.goals.RuntimeContext(ctx, sessionKey)
 	if err != nil {
-		if errors.Is(err, goalsvc.ErrGoalDisabled) || errors.Is(err, goalsvc.ErrGoalNotFound) {
+		if goalsvc.IsAbsent(err) {
 			return "", nil, false
 		}
-		s.loggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal runtime context 失败", "session_key", sessionKey, "err", err)
 		return "", nil, false
 	}
 	goalContext = strings.TrimSpace(goalContext)
@@ -293,7 +204,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		receiptRoundID = roomRootRoundID(roundValue)
 	}
 	settleContinuationReceipt := func() error {
-		return settleRoomGoalContinuationAfterRuntime(
+		return runtimehost.SettleGoalContinuationAfterRuntime(
 			ctx,
 			s.goals,
 			goalID,
@@ -327,7 +238,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		return
 	}
 	if messageutil.AssistantMissedGoalCompletionCommand(
-		finalAssistant, slot.hasGoalCompletionCandidate(),
+		finalAssistant, slot.mutable.goal.HasGoalCompletionCandidate(),
 	) {
 		reason := "assistant claimed goal completion without an applied nexus.command update_goal receipt"
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成命令漏调用失败", func() error {
@@ -339,7 +250,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		return
 	}
 	hasProgress := slotHasGoalToolProgress(slot)
-	if !hasProgress && (slot.hasRunningSubagentTask() ||
+	if !hasProgress && (slot.mutable.goal.HasRunningSubagentTask() ||
 		slotHasPendingGoalCollaboration(slot, finalAssistant)) {
 		s.recordSlotGoalMutation(ctx, slot, "结算已启动 Room Goal 续跑回执失败", func() error {
 			return settleContinuationReceipt()
@@ -372,18 +283,7 @@ func (s *Service) recordSlotGoalMutation(
 	mutation func() error,
 	fields ...any,
 ) {
-	err := mutation()
-	if err == nil || goalsvc.IsExpectedMutationError(err) {
-		return
-	}
-	baseFields := []any{
-		"session_key", goalSessionKeyForSlot(slot),
-		"goal_id", slot.goalIDForUsage(),
-		"round_id", slot.AgentRoundID,
-	}
-	baseFields = append(baseFields, fields...)
-	baseFields = append(baseFields, "err", err)
-	s.loggerFor(ctx).Warn(logMessage, baseFields...)
+	runtimehost.LogGoalMutationFailure(s.LoggerFor(ctx), logMessage, mutation(), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, fields...)
 }
 
 func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
@@ -391,7 +291,7 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	slot *activeRoomSlot,
 	finalAssistant protocol.Message,
 ) {
-	if s == nil || s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
+	if s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
 		return
 	}
 	authority := slot.goalMutationAuthority()
@@ -403,20 +303,13 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	if roomdomain.IsNoReplyAssistantMessage(finalAssistant) {
 		return
 	}
-	if strings.TrimSpace(messageutil.ExtractAssistantDisplayText(finalAssistant)) == "" {
+	if messageutil.ExtractAssistantDisplayText(finalAssistant) == "" {
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 协作证据失败", func() error {
 		_, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, authority.GoalID, slot.AgentRoundID, slot.AgentID, currentAuthority.ObjectiveRevision)
 		return err
 	}, "agent_id", slot.AgentID)
-}
-
-func rememberGoalToolProgressForSlot(slot *activeRoomSlot, progressed bool) {
-	if slot == nil || !progressed {
-		return
-	}
-	slot.markGoalToolProgress()
 }
 
 func slotHasGoalToolProgress(slot *activeRoomSlot) bool {
@@ -491,7 +384,7 @@ func beginGoalUsageForSlot(slot *activeRoomSlot) {
 }
 
 func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
-	if s.runtime == nil || slot == nil || slot.goalRuntimeIgnored() {
+	if slot == nil || slot.goalRuntimeIgnored() {
 		return func() {}
 	}
 	sessionKey := goalSessionKeyForSlot(slot)
@@ -499,52 +392,36 @@ func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	if sessionKey == "" || roundID == "" {
 		return func() {}
 	}
-	s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
+	s.Runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
-	s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
-	s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
+	s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
+	s.Runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
 		clearGoalUsageForSlot(slot)
 	})
-	s.runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, func() bool {
+	s.Runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, func() bool {
 		if _, ok := s.goals.(roomGoalUsageFinalizationProvider); !ok {
 			return false
 		}
 		return slot.beginGoalUsageFinalizing()
 	})
-	s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context, goalID string) error {
+	s.Runtime.RegisterGoalAccountingActivate(sessionKey, roundID, func(ctx context.Context, goalID string) error {
 		return s.activateGoalUsageForSlot(ctx, slot, goalID)
 	})
-	s.runtime.RegisterGoalAccountingCreateGuard(
+	s.Runtime.RegisterGoalAccountingCreateGuard(
 		sessionKey,
 		roundID,
 		goalUsageScopeRoundIDForRoomSlot(slot),
-		slot.goalUsageScopeConsumed,
+		slot.mutable.goal.GoalUsageScopeConsumed,
 	)
 	return func() {
-		s.runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
-		s.runtime.RegisterGoalAccountingCreateGuard(sessionKey, roundID, "", nil)
+		s.Runtime.RegisterGoalAccountingFlush(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingClear(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingFinalize(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingActivate(sessionKey, roundID, nil)
+		s.Runtime.RegisterGoalAccountingCreateGuard(sessionKey, roundID, "", nil)
 	}
-}
-
-func (s *Service) recordGoalUsageForSlot(
-	ctx context.Context,
-	slot *activeRoomSlot,
-	result exec.RoundExecutionResult,
-	finalAssistant protocol.Message,
-) {
-	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
-		return
-	}
-	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
-	if !ok {
-		return
-	}
-	_ = s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
 }
 
 func (s *Service) finalizeGoalUsageForSlot(
@@ -554,10 +431,10 @@ func (s *Service) finalizeGoalUsageForSlot(
 	finalAssistant protocol.Message,
 ) {
 	snapshot, _ := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
-	settled := s.settleTerminalGoalUsageSnapshotForSlotWithRetry(ctx, slot, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool { return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) })
 	slot.setGoalUsageTerminalSettled(settled)
 	if !settled {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"Room terminal Goal usage 未能持久化",
 			"session_key", goalSessionKeyForSlot(slot),
 			"goal_id", slot.goalIDForUsage(),
@@ -568,38 +445,6 @@ func (s *Service) finalizeGoalUsageForSlot(
 	closeGoalUsageForSlot(slot)
 }
 
-func (s *Service) settleTerminalGoalUsageSnapshotForSlotWithRetry(
-	ctx context.Context,
-	slot *activeRoomSlot,
-	snapshot goalsvc.RuntimeUsageSnapshot,
-) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Service) waitRoomGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	baseDelay := 20 * time.Millisecond
-	if s != nil && s.goalUsageRetryBaseDelay > 0 {
-		baseDelay = s.goalUsageRetryBaseDelay
-	}
-	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
-}
-
 func (s *Service) recordGoalUsageLimitForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
@@ -608,50 +453,23 @@ func (s *Service) recordGoalUsageLimitForSlot(
 	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || !result.UsageLimitReached {
 		return
 	}
-	goalID := strings.TrimSpace(slot.goalIDForUsage())
-	var err error
-	if goalID != "" {
-		if provider, ok := s.goals.(interface {
-			UsageLimitForGoal(context.Context, string, string, string) (*protocol.Goal, error)
-		}); ok {
-			_, err = provider.UsageLimitForGoal(ctx, goalID, slot.AgentRoundID, result.UsageLimitReason)
-		} else {
-			_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
-		}
-	} else {
-		_, err = s.goals.UsageLimitForSession(ctx, goalSessionKeyForSlot(slot), slot.AgentRoundID, result.UsageLimitReason)
-	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
-		s.loggerFor(ctx).Warn("标记 Room Goal usage limit 失败",
-			"session_key", goalSessionKeyForSlot(slot),
-			"goal_id", goalID,
-			"round_id", slot.AgentRoundID,
-			"err", err,
-		)
-	}
+	runtimehost.RecordGoalUsageLimit(ctx, s.goals, s.LoggerFor(ctx), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, result.UsageLimitReason)
 }
 
 func (s *Service) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
-	snapshot, ok := slotFinalGoalUsageSnapshot(slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
-	if !ok {
+	snapshot, ok := slotFinalGoalUsageSnapshot(slot, exec.RoundExecutionResult{}, slot.mutable.goal.LastGoalAssistantMessage())
+	settlementBoundary := goalsvc.RuntimeUsageSettlementBoundary(ctx)
+	if !ok && !settlementBoundary {
 		return nil
 	}
-	// Goal mutation flush 是 mid-round checkpoint，不得提前把 estimated actual
-	// 当成 terminal 真值，否则后续 provider exact total 无法向下校准。
+	// Goal mutation flush 是 round 中途的检查点，不是 provider terminal；estimated actual
+	// 必须等真正终态，否则 exact total 无法向下校准。结算边界即使没有新用量也要落一次。
 	snapshot.Terminal = false
-	snapshot.SettlementBoundary = goalsvc.RuntimeUsageSettlementBoundary(ctx)
+	snapshot.SettlementBoundary = settlementBoundary
 	if s.tryRecordGoalUsageSnapshotForSlot(ctx, slot, snapshot) {
 		return nil
 	}
 	return errors.New("persist Room Goal usage checkpoint")
-}
-
-func (s *Service) recordGoalUsageFromSlotAssistantMessage(
-	ctx context.Context,
-	slot *activeRoomSlot,
-	message protocol.Message,
-) {
-	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, nil, message)
 }
 
 func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
@@ -668,12 +486,12 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	}
 	receipts := slot.consumeRuntimeCommandReceipts()
 	if actor != nil && nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		s.executionObserver().ObserveCommandReceipts(*actor, receipts)
+		s.ExecutionObserver().ObserveCommandReceipts(*actor, receipts)
 	}
 	if s.goals == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	rememberGoalToolProgressForSlot(slot, nexusmcp.HasGoalProgress(receipts))
+	slot.mutable.goal.RememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
 	snapshot := slotAssistantGoalUsageSnapshot(slot, message)
 	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
 		receipts, command.DomainGoal, command.GoalOperationCreate,
@@ -735,40 +553,40 @@ func (s *Service) tryRecordGoalUsageSnapshotForSlotInScope(
 	if s.goals == nil || slot == nil {
 		return true
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	if slot.mutable.goal.runtimeIgnored {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
-	goalID := strings.TrimSpace(slot.mutable.goal.idForUsage)
+	goalID := strings.TrimSpace(slot.mutable.goal.IDForUsage)
 	goalSessionKey := strings.TrimSpace(slot.mutable.goal.sessionKey)
 	if goalSessionKey == "" {
 		goalSessionKey = strings.TrimSpace(slot.RuntimeSessionKey)
 	}
-	if slot.mutable.goal.usage != nil {
-		usage, ok := slot.mutable.goal.usage.PrepareDelta(snapshot)
+	if slot.mutable.goal.Usage != nil {
+		usage, ok := slot.mutable.goal.Usage.PrepareDelta(snapshot)
 		if ok {
 			updated, persisted := s.persistGoalUsageDeltaForSlotTarget(ctx, slot, usage, goalID, goalSessionKey)
 			if persisted {
-				slot.mutable.goal.usage.CommitDelta(usage)
+				slot.mutable.goal.Usage.CommitDelta(usage)
 			}
-			slot.mutable.goal.mu.Unlock()
+			slot.mutable.goal.Mu.Unlock()
 			if updated != nil && goalID == "" {
 				s.bindRecordedRoomGoalUsage(scopeOrigin, updated)
 			}
 			return persisted
 		}
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
-	if isZeroRoomGoalUsage(usage) {
-		slot.mutable.goal.mu.Unlock()
+	if usage.IsZero() {
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
 	updated, persisted := s.persistGoalUsageDeltaForSlotTarget(ctx, slot, usage, goalID, goalSessionKey)
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 	if updated != nil && goalID == "" {
 		s.bindRecordedRoomGoalUsage(scopeOrigin, updated)
 	}
@@ -798,9 +616,9 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		return true
 	}
 	snapshot.Terminal = true
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	if slot.mutable.goal.runtimeIgnored {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
 
@@ -810,16 +628,16 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		unboundTerminalEligible bool
 		tokenUsageObserved      = snapshot.TokenUsageObserved
 	)
-	if slot.mutable.goal.usage != nil {
-		unboundTerminalEligible = slot.mutable.goal.usage.EligibleForUnboundTerminal()
-		usage, hasDelta = slot.mutable.goal.usage.PrepareDelta(snapshot)
-		tokenUsageObserved = slot.mutable.goal.usage.TokenUsageObserved()
+	if slot.mutable.goal.Usage != nil {
+		unboundTerminalEligible = slot.mutable.goal.Usage.EligibleForUnboundTerminal()
+		usage, hasDelta = slot.mutable.goal.Usage.PrepareDelta(snapshot)
+		tokenUsageObserved = slot.mutable.goal.Usage.TokenUsageObserved()
 	} else {
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroRoomGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
-	goalID := strings.TrimSpace(slot.mutable.goal.idForUsage)
+	goalID := strings.TrimSpace(slot.mutable.goal.IDForUsage)
 	goalSessionKey := strings.TrimSpace(slot.mutable.goal.sessionKey)
 	if goalSessionKey == "" {
 		goalSessionKey = strings.TrimSpace(slot.RuntimeSessionKey)
@@ -830,7 +648,7 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		// Reset/Close 的 accumulator 不具备该资格，避免 settlement 后整轮重算。
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroRoomGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
 
 	recorder, durable := s.goals.(roomGoalUsageParentRecorder)
@@ -845,14 +663,14 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 			TokenUsageObserved: tokenUsageObserved,
 		})
 		if err != nil && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
-			slot.mutable.goal.mu.Unlock()
+			slot.mutable.goal.Mu.Unlock()
 			return false
 		}
 		if err == nil {
-			if slot.mutable.goal.usage != nil && hasDelta {
-				slot.mutable.goal.usage.CommitDelta(usage)
+			if slot.mutable.goal.Usage != nil && hasDelta {
+				slot.mutable.goal.Usage.CommitDelta(usage)
 			}
-			slot.mutable.goal.mu.Unlock()
+			slot.mutable.goal.Mu.Unlock()
 			if result.Goal != nil {
 				s.bindRoomGoalUsageForScope(slot, result.Goal.SessionKey, result.Goal.ID)
 			}
@@ -862,11 +680,11 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		// repository 没有 durable ledger capability 时继续走 legacy delta。
 	}
 	if goalID == "" && !unboundTerminalEligible {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
 	if !hasDelta {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return true
 	}
 	if _, persisted := s.persistGoalUsageDeltaForSlotTarget(
@@ -876,13 +694,13 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlot(
 		goalID,
 		goalSessionKey,
 	); !persisted {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return false
 	}
-	if slot.mutable.goal.usage != nil {
-		slot.mutable.goal.usage.CommitDelta(usage)
+	if slot.mutable.goal.Usage != nil {
+		slot.mutable.goal.Usage.CommitDelta(usage)
 	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 	return true
 }
 
@@ -897,7 +715,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 	ctx context.Context,
 	anchor *activeRoomRound,
 ) (settled bool) {
-	if s == nil || s.goals == nil || anchor == nil {
+	if s.goals == nil || anchor == nil {
 		return true
 	}
 	defer func() {
@@ -911,7 +729,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 		if slot == nil {
 			continue
 		}
-		goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+		goalID := slot.childGoalIDForUsage()
 		if goalID == "" {
 			continue
 		}
@@ -945,7 +763,7 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 			if slot == nil {
 				continue
 			}
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			if _, belongsToAnchorGoal := goalRounds[goalID]; !belongsToAnchorGoal {
 				continue
 			}
@@ -959,15 +777,13 @@ func (s *Service) finalizeCompletedRoomGoalUsage(
 					return false
 				}
 			}
-			if !slot.isTerminal() || slot.hasRunningSubagentTask() {
+			if !slot.isTerminal() || slot.mutable.goal.HasRunningSubagentTask() {
 				return false
 			}
 			if !slot.goalUsageTerminalSettled() {
-				if !s.settleTerminalGoalUsageSnapshotForSlotWithRetry(
-					ctx,
-					slot,
-					goalsvc.RuntimeUsageSnapshot{Terminal: true},
-				) {
+				if !runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool {
+					return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, goalsvc.RuntimeUsageSnapshot{Terminal: true})
+				}) {
 					return false
 				}
 				slot.setGoalUsageTerminalSettled(true)
@@ -993,52 +809,37 @@ func (s *Service) finalizeCompletedRoomGoalWithRetry(
 	goalID string,
 	roundID string,
 ) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
+	return runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool {
 		report, err := finalizer.UsageByGoalID(ctx, goalID)
 		if err != nil {
-			continue
+			return false
 		}
-		if report == nil || protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete {
+		if report == nil || protocol.NormalizeGoalStatus(report.Status) != protocol.GoalStatusComplete || report.UsageFinalized {
 			return true
 		}
-		if report.UsageFinalized {
-			return true
-		}
-		if _, err = finalizer.FinalizeUsageForGoal(
-			ctx,
-			goalID,
-			protocol.GoalUsage{},
-			roundID,
-		); err == nil {
-			return true
-		} else if errors.Is(err, goalsvc.ErrGoalUsageUnavailable) {
-			// Durable parent ledger 已证明 provider usage 缺失。这是终态真相，
-			// 不是可恢复写失败：保留 usage_finalized=false 并释放业务收尾。
-			return true
-		}
-	}
-	return false
+		_, err = finalizer.FinalizeUsageForGoal(ctx, goalID, protocol.GoalUsage{}, roundID)
+		// ErrGoalUsageUnavailable 表示 durable parent ledger 已证明 provider usage 缺失，
+		// 这是终态而非可恢复写失败：保留 usage_finalized=false 并释放业务收尾。
+		return err == nil || errors.Is(err, goalsvc.ErrGoalUsageUnavailable)
+	})
 }
 
 func (s *Service) recordGoalUsageDeltaForSlot(ctx context.Context, slot *activeRoomSlot, usage protocol.GoalUsage) *protocol.Goal {
-	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
+	if s.goals == nil || slot == nil || usage.IsZero() {
 		return nil
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	if slot.mutable.goal.runtimeIgnored {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return nil
 	}
-	goalID := strings.TrimSpace(slot.mutable.goal.idForUsage)
+	goalID := strings.TrimSpace(slot.mutable.goal.IDForUsage)
 	goalSessionKey := strings.TrimSpace(slot.mutable.goal.sessionKey)
 	if goalSessionKey == "" {
 		goalSessionKey = strings.TrimSpace(slot.RuntimeSessionKey)
 	}
 	updated := s.recordGoalUsageDeltaForSlotTarget(ctx, slot, usage, goalID, goalSessionKey)
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 	if updated != nil && goalID == "" {
 		s.bindRoomGoalUsageForScope(slot, updated.SessionKey, updated.ID)
 	}
@@ -1065,34 +866,10 @@ func (s *Service) persistGoalUsageDeltaForSlotTarget(
 	goalID string,
 	goalSessionKey string,
 ) (*protocol.Goal, bool) {
-	if s.goals == nil || slot == nil || isZeroRoomGoalUsage(usage) {
-		return nil, false
-	}
-	var err error
-	var updated *protocol.Goal
-	if goalID != "" {
-		updated, err = s.goals.RecordUsageForGoal(ctx, goalID, usage, slot.AgentRoundID)
-	} else {
-		updated, err = s.goals.RecordUsageForSession(ctx, goalSessionKey, usage, slot.AgentRoundID)
-	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
-		s.loggerFor(ctx).Warn("记录 Room Goal usage 失败",
-			"session_key", goalSessionKey,
-			"goal_id", goalID,
-			"round_id", slot.AgentRoundID,
-			"err", err,
-		)
-	}
-	if err != nil || updated == nil {
-		return nil, err == nil
-	}
-	return updated, true
+	return runtimehost.RecordGoalUsageDelta(ctx, s.goals, s.LoggerFor(ctx), goalSessionKey, goalID, slot.AgentRoundID, usage)
 }
 
 func (s *Service) bindRoomGoalUsage(sessionKey string, goalID string) {
-	if s == nil {
-		return
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	goalID = strings.TrimSpace(goalID)
 	if sessionKey == "" || goalID == "" {
@@ -1114,7 +891,7 @@ func (s *Service) roomGoalUsageSlotsForScope(
 	origin *activeRoomSlot,
 	goalSessionKey string,
 ) []*activeRoomSlot {
-	if s == nil || origin == nil {
+	if origin == nil {
 		return nil
 	}
 	scopeRoundID := goalUsageScopeRoundIDForRoomSlot(origin)
@@ -1188,36 +965,36 @@ func (s *Service) startGoalUsageFromRoundStartForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 ) *protocol.Goal {
-	if s == nil || s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil {
 		return nil
 	}
-	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.Mu.Lock()
 	if slot.mutable.goal.runtimeIgnored {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return nil
 	}
-	if slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active() {
-		slot.mutable.goal.mu.Unlock()
+	if slot.mutable.goal.Usage != nil && slot.mutable.goal.Usage.Active() {
+		slot.mutable.goal.Mu.Unlock()
 		return nil
 	}
-	if slot.mutable.goal.usage == nil {
-		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
+	if slot.mutable.goal.Usage == nil {
+		slot.mutable.goal.Usage = goalsvc.NewRuntimeUsageAccumulator(false)
 	}
-	backlog, ok := slot.mutable.goal.usage.PrepareActivationFromRoundStart()
+	backlog, ok := slot.mutable.goal.Usage.PrepareActivationFromRoundStart()
 	if !ok {
-		slot.mutable.goal.mu.Unlock()
+		slot.mutable.goal.Mu.Unlock()
 		return nil
 	}
-	goalID := strings.TrimSpace(slot.mutable.goal.idForUsage)
+	goalID := strings.TrimSpace(slot.mutable.goal.IDForUsage)
 	goalSessionKey := strings.TrimSpace(slot.mutable.goal.sessionKey)
 	if goalSessionKey == "" {
 		goalSessionKey = strings.TrimSpace(slot.RuntimeSessionKey)
 	}
 	updated, persisted := s.persistGoalUsageDeltaForSlotTarget(ctx, slot, backlog, goalID, goalSessionKey)
 	if persisted {
-		slot.mutable.goal.usage.CommitDelta(backlog)
+		slot.mutable.goal.Usage.CommitDelta(backlog)
 	}
-	slot.mutable.goal.mu.Unlock()
+	slot.mutable.goal.Mu.Unlock()
 	return updated
 }
 
@@ -1225,7 +1002,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	ctx context.Context,
 	slot *activeRoomSlot,
 ) (string, string) {
-	if s == nil || s.goals == nil || slot == nil {
+	if s.goals == nil || slot == nil {
 		return "", ""
 	}
 	goalID := strings.TrimSpace(slot.goalIDForUsage())
@@ -1235,8 +1012,8 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	}
 	_, goal, err := s.goals.RuntimeContext(ctx, goalSessionKey)
 	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			s.loggerFor(ctx).Warn(
+		if !goalsvc.IsAbsent(err) {
+			s.LoggerFor(ctx).Warn(
 				"读取 Room model 创建后的 Goal 绑定失败",
 				"session_key", goalSessionKey,
 				"round_id", slot.AgentRoundID,
@@ -1280,7 +1057,7 @@ func (s *Service) grantRoomGoalMutationAuthorityForScope(
 	executionID string,
 	source roomGoalAuthoritySource,
 ) {
-	if s == nil || origin == nil {
+	if origin == nil {
 		return
 	}
 	goalSessionKey = goalUsageSessionKeyForRoomSlot(origin, goalSessionKey)
@@ -1293,7 +1070,7 @@ func (s *Service) grantRoomGoalMutationAuthorityForScope(
 			SessionKey:        goalSessionKey,
 			GoalID:            goalID,
 			ObjectiveRevision: objectiveRevision,
-			ExecutionID: firstNonEmptyString(
+			ExecutionID: textutil.FirstNonEmpty(
 				executionIDFromRoomBindings(
 					candidate.WorkBinding,
 					candidate.ReviewBinding,
@@ -1312,7 +1089,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 	goalID string,
 	goalSessionKey string,
 ) {
-	if s == nil || s.goals == nil || origin == nil || origin.goalRuntimeIgnored() {
+	if s.goals == nil || origin == nil || origin.goalRuntimeIgnored() {
 		return
 	}
 	goalID = strings.TrimSpace(goalID)
@@ -1322,7 +1099,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 	}
 	for _, candidate := range s.roomGoalUsageSlotsForScope(origin, goalSessionKey) {
 		if candidate.goalRuntimeIgnored() ||
-			!strings.EqualFold(strings.TrimSpace(candidate.runtimeKind()), "nxs") {
+			!strings.EqualFold(candidate.runtimeKind(), "nxs") {
 			continue
 		}
 		if !s.claimSubagentGoalUsageForRoomSlot(
@@ -1331,7 +1108,7 @@ func (s *Service) claimSubagentGoalUsageForRoomScope(
 			goalID,
 			goalSessionKey,
 		) {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"回补 Room model 创建前的 nxs 子任务 Goal usage 失败",
 				"session_key", goalSessionKey,
 				"runtime_session_key", candidate.RuntimeSessionKey,
@@ -1349,16 +1126,6 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 	goalID string,
 	goalSessionKey string,
 ) bool {
-	if s == nil || s.goals == nil || slot == nil {
-		return true
-	}
-	claimer, ok := s.goals.(interface {
-		ClaimUsageSourceRound(context.Context, protocol.GoalUsageSourceRoundClaim) (protocol.GoalUsageSourceResult, error)
-	})
-	if !ok {
-		slot.setGoalUsageClaimPending(false)
-		return true
-	}
 	slot.setGoalUsageClaimPending(true)
 	claim := protocol.GoalUsageSourceRoundClaim{
 		OwnerUserID:       goalUsageOwnerUserIDForRoomSlot(ctx, slot),
@@ -1369,33 +1136,27 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 		GoalID:            strings.TrimSpace(goalID),
 		GoalSessionKey:    goalUsageSessionKeyForRoomSlot(slot, goalSessionKey),
 	}
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
-			continue
-		}
-		slot.setGoalUsageClaimPending(false)
-		return true
+	if !runtimehost.ClaimGoalUsageSourceRound(ctx, s.goals, s.goalUsageRetryBaseDelay, claim) {
+		return false
 	}
-	return false
+	slot.setGoalUsageClaimPending(false)
+	return true
 }
 
 func (s *Service) recordSubagentGoalUsageForSlot(
 	ctx context.Context,
 	slot *activeRoomSlot,
 	message protocol.Message,
-) []roomSubagentUsageSettlement {
-	if s == nil || slot == nil ||
-		!strings.EqualFold(strings.TrimSpace(slot.runtimeKind()), "nxs") {
+) []runtimehost.SubagentUsageSettlement {
+	if slot == nil ||
+		!strings.EqualFold(slot.runtimeKind(), "nxs") {
 		return nil
 	}
-	observations := roomSubagentUsageObservations(slot, message)
+	observations := slot.mutable.goal.SubagentUsageObservations(message)
 	if len(observations) == 0 {
 		return nil
 	}
-	settled := make([]roomSubagentUsageSettlement, 0, len(observations))
+	settled := make([]runtimehost.SubagentUsageSettlement, 0, len(observations))
 	_, persistent := s.goals.(roomGoalUsageSourceRecorder)
 	if persistent {
 		unlockScope := s.lockRoomGoalUsageScope(ctx, slot)
@@ -1403,56 +1164,38 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 		// pending 的建立本身也属于 scope 临界区。若 activation 已先拿到锁，
 		// 此消息线性化在 bind 之后；若此处先拿到锁，它一定会在 bind 前落库。
 		for _, child := range observations {
-			slot.markSubagentUsageObservationPending(child.observation, child.taskID)
+			slot.mutable.goal.MarkSubagentUsagePending(child.TaskID, child.Observation)
 		}
 		for _, child := range observations {
 			pending := slot.subagentUsageObservationPendingSnapshot()
-			observation, exists := pending[child.taskID]
+			observation, exists := pending[child.TaskID]
 			if !exists {
 				// external activation 已在同一 scope 临界区内完成了 pre-bind
 				// flush；调用方的 conditional clear 仍可安全 no-op。
 				settled = append(settled, child)
 				continue
 			}
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
-			var (
-				result protocol.GoalUsageSourceResult
-				err    error
-			)
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-					break
-				}
-				result, err = s.persistSubagentGoalUsageObservationForSlot(
-					ctx,
-					slot,
-					child.taskID,
-					observation,
-					goalID,
-					goalSessionKey,
-				)
-				if err == nil {
-					break
-				}
-			}
+			result, err := runtimehost.RetryGoalUsage(ctx, s.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+				return s.persistSubagentGoalUsageObservationForSlot(ctx, slot, child.TaskID, observation, goalID, goalSessionKey)
+			})
 			if err != nil {
-				s.loggerFor(ctx).Warn("记录 Room nxs 子任务 Goal usage 失败",
+				s.LoggerFor(ctx).Warn("记录 Room nxs 子任务 Goal usage 失败",
 					"session_key", goalSessionKey,
 					"goal_id", goalID,
 					"scope_round_id", goalUsageScopeRoundIDForRoomSlot(slot),
 					"source_round_id", slot.AgentRoundID,
-					"task_id", child.taskID,
+					"task_id", child.TaskID,
 					"err", err,
 				)
 				continue
 			}
-			settled = append(settled, roomSubagentUsageSettlement{
-				taskID:          child.taskID,
-				cumulativeTotal: observation.CumulativeTotal,
-				observation:     observation,
+			settled = append(settled, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: observation,
 			})
-			slot.clearSubagentUsageObservationPending(child.taskID, observation)
+			slot.mutable.goal.ClearSubagentUsagePending(child.TaskID, observation)
 			if result.Goal != nil {
 				s.bindRoomGoalUsageForScope(slot, result.Goal.SessionKey, result.Goal.ID)
 			}
@@ -1461,69 +1204,27 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 	}
 
 	for _, child := range observations {
-		slot.markSubagentUsageObservationPending(child.observation, child.taskID)
+		slot.mutable.goal.MarkSubagentUsagePending(child.TaskID, child.Observation)
 	}
-	goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+	goalID := slot.childGoalIDForUsage()
 	attributed := goalID != "" && !slot.goalRuntimeIgnored()
 	for _, child := range observations {
-		if s.runtime == nil {
-			settled = append(settled, roomSubagentUsageSettlement{
-				taskID:          child.taskID,
-				cumulativeTotal: child.observation.CumulativeTotal,
-				observation:     child.observation,
-			})
-			continue
-		}
-		delta := s.runtime.ObserveSubagentUsage(
+		delta := s.Runtime.ObserveSubagentUsage(
 			slot.RuntimeSessionKey,
-			child.taskID,
-			child.observation.CumulativeTotal,
+			child.TaskID,
+			child.Observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && s.goals != nil {
 			// 兼容测试/非 SQL provider：每个 slot 按 runtime session 去重，
 			// 再把 child provider actual 汇总到共享 Goal。
 			s.recordGoalUsageDeltaForSlot(ctx, slot, protocol.GoalUsage{ActualTotalTokens: delta})
 		}
-		settled = append(settled, roomSubagentUsageSettlement{
-			taskID:          child.taskID,
-			cumulativeTotal: child.observation.CumulativeTotal,
-			observation:     child.observation,
+		settled = append(settled, runtimehost.SubagentUsageSettlement{
+			TaskID:      child.TaskID,
+			Observation: child.Observation,
 		})
 	}
 	return settled
-}
-
-func roomSubagentUsageObservations(slot *activeRoomSlot, message protocol.Message) []roomSubagentUsageSettlement {
-	var knowsTask func(string) bool
-	if slot != nil {
-		knowsTask = slot.knowsSubagentTask
-	}
-	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
-	result := make([]roomSubagentUsageSettlement, 0, len(observations))
-	for _, item := range observations {
-		result = append(result, roomSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage, cumulativeTotal: item.Usage.CumulativeTotal})
-	}
-	return result
-}
-
-func (s *Service) persistSubagentGoalUsageForSlot(
-	ctx context.Context,
-	slot *activeRoomSlot,
-	taskID string,
-	cumulativeTotal int64,
-	goalID string,
-	goalSessionKey string,
-) (protocol.GoalUsageSourceResult, error) {
-	return s.persistSubagentGoalUsageObservationForSlot(
-		ctx,
-		slot,
-		taskID,
-		goalsvc.SubagentUsageObservation{
-			CumulativeTotal: cumulativeTotal,
-		},
-		goalID,
-		goalSessionKey,
-	)
 }
 
 func (s *Service) persistSubagentGoalUsageObservationForSlot(
@@ -1573,28 +1274,7 @@ func clearGoalUsageForSlot(slot *activeRoomSlot) {
 	slot.clearGoalUsage()
 }
 
-func (s *Service) clearRoomGoalUsage(sessionKey string) {
-	if s == nil {
-		return
-	}
-	sessionKey = strings.TrimSpace(sessionKey)
-	if sessionKey == "" {
-		return
-	}
-	for _, roundValue := range s.rounds.snapshot() {
-		if roundValue == nil || strings.TrimSpace(roundValue.SessionKey) != sessionKey {
-			continue
-		}
-		for _, slot := range roundValue.Slots {
-			clearGoalUsageForSlot(slot)
-		}
-	}
-}
-
 func (s *Service) beginRoomGoalUsageFinalizing(sessionKey string) {
-	if s == nil {
-		return
-	}
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
 		return
@@ -1628,7 +1308,7 @@ func (s *Service) activateGoalUsageForSlot(
 			// 边界；否则 retry 会在 bind 后把旧累计误归新 Goal。
 			return err
 		}
-		if binder, ok := s.goals.(roomGoalUsageScopeBinder); ok {
+		if binder, ok := s.goals.(runtimehost.GoalUsageScopeBinder); ok {
 			binding := protocol.GoalUsageScopeBinding{
 				OwnerUserID:    goalUsageOwnerUserIDForRoomSlot(ctx, slot),
 				GoalSessionKey: goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot)),
@@ -1637,22 +1317,7 @@ func (s *Service) activateGoalUsageForSlot(
 				GoalID:         goalID,
 				BoundAt:        time.Now().UTC(),
 			}
-			var err error
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
-					return ctx.Err()
-				}
-				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
-					break
-				}
-				if errors.Is(err, goalsvc.ErrGoalInvalidState) {
-					// 非 SQL provider 没有 durable scope capability；保留原有
-					// in-memory accounting 路径，不把能力缺失当成瞬时写失败。
-					err = nil
-					break
-				}
-			}
-			if err != nil {
+			if err := runtimehost.BindGoalUsageScopeFromNow(ctx, binder, s.goalUsageRetryBaseDelay, binding); err != nil {
 				// durable bind 是 Reset 的前置条件。失败时保持旧 Goal/baseline，
 				// 由 Goal service 把错误表面化并回滚新建 Goal。
 				return err
@@ -1673,7 +1338,7 @@ func activateGoalUsageForSlot(_ context.Context, slot *activeRoomSlot, goalID st
 	}
 	slot.setGoalBinding(goalSessionKeyForSlot(slot), goalID)
 	slot.setGoalUsageClaimPending(false)
-	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.lastGoalAssistantMessage())
+	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.mutable.goal.LastGoalAssistantMessage())
 	slot.resetGoalUsage(snapshot)
 }
 
@@ -1684,18 +1349,6 @@ func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
 	}
 	elapsed := int64(time.Since(startedAt).Seconds())
 	return max(elapsed, 0)
-}
-
-func isZeroRoomGoalUsage(usage protocol.GoalUsage) bool {
-	return usage.InputTokens == 0 &&
-		usage.OutputTokens == 0 &&
-		usage.CacheCreationInputTokens == 0 &&
-		usage.CacheReadInputTokens == 0 &&
-		usage.ReasoningTokens == 0 &&
-		usage.TotalTokens == 0 &&
-		usage.BudgetTotalTokens == 0 &&
-		usage.ActualTotalTokens == 0 &&
-		usage.RuntimeSeconds == 0
 }
 
 // goalCancellationProvider 是用户取消当前 Room Goal 所需的最小 Goal 能力。
@@ -1711,7 +1364,7 @@ func (s *Service) cancelActiveRoomGoalForUser(
 	sessionKey string,
 	content string,
 ) error {
-	if s == nil || !isGoalCancellationRequest(content) {
+	if !isGoalCancellationRequest(content) {
 		return nil
 	}
 	provider, ok := s.goals.(goalCancellationProvider)
@@ -1733,7 +1386,7 @@ func (s *Service) cancelActiveRoomGoalForUser(
 		return nil
 	}
 	if err == nil {
-		s.loggerFor(ctx).Info("用户取消 Room active Goal",
+		s.LoggerFor(ctx).Info("用户取消 Room active Goal",
 			"session_key", strings.TrimSpace(sessionKey),
 			"goal_id", strings.TrimSpace(goal.ID),
 			"content", strings.TrimSpace(content),
@@ -1789,7 +1442,7 @@ func (s *Service) RoomGoalCompletionReport(
 	callerRoundID string,
 ) (goalsvc.RoomGoalCompletionReport, error) {
 	var report goalsvc.RoomGoalCompletionReport
-	if s == nil || !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
+	if !protocol.IsRoomSharedSessionKey(goal.SessionKey) {
 		return report, nil
 	}
 	parsed := protocol.ParseSessionKey(goal.SessionKey)
@@ -1867,7 +1520,7 @@ func (s *Service) activeRoomGoalBlocker(
 				(roomRootRoundID(roundValue) == callerRoundID ||
 					strings.TrimSpace(roundValue.RoundID) == callerRoundID ||
 					strings.TrimSpace(slot.AgentRoundID) == callerRoundID)
-			if slot.hasRunningSubagentTask() {
+			if slot.mutable.goal.HasRunningSubagentTask() {
 				if isCallerSlot {
 					return fmt.Sprintf("caller agent %s still has running subagent work", callerAgentID)
 				}
@@ -1896,7 +1549,7 @@ func (s *Service) roomGoalInputQueueBlocker(
 	contextValue *protocol.ConversationContextAggregate,
 	goals ...*protocol.Goal,
 ) (string, error) {
-	if s.inputQueue == nil || contextValue == nil {
+	if contextValue == nil {
 		return "", nil
 	}
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
@@ -1928,9 +1581,6 @@ func (s *Service) roomGoalDirectedWakeBlocker(
 	conversationID string,
 	goals ...*protocol.Goal,
 ) (string, error) {
-	if s.directedWakes == nil {
-		return "", nil
-	}
 	pending, err := s.directedWakes.Pending(ownerUserID)
 	if err != nil {
 		return "", err

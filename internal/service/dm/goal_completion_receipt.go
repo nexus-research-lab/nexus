@@ -5,72 +5,26 @@ package dm
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
-	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
-func (r *roundRunner) rememberGoalCompletionAssistant(message protocol.Message) {
-	if r == nil || protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	r.goalUsageMu.Lock()
-	if r.goalCompletionCandidateID != "" {
-		r.goalCompletionAssistant = protocol.Clone(message)
-	}
-	r.goalUsageMu.Unlock()
-}
-
-func (r *roundRunner) goalCompletionReceiptSnapshot() (
-	string,
-	protocol.Message,
-	protocol.GoalCompletionReceipt,
-	bool,
-) {
-	if r == nil {
-		return "", nil, protocol.GoalCompletionReceipt{}, false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return strings.TrimSpace(r.goalCompletionCandidateID),
-		protocol.Clone(r.goalCompletionAssistant),
-		r.goalCompletionReceipt,
-		r.goalCompletionReceiptStored
-}
-
 func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh bool) {
-	if r == nil || r.service == nil {
+	if strings.TrimSpace(r.workspacePath) == "" || r.sessionKey == "" {
 		return
 	}
-	goalID, assistant, previous, stored := r.goalCompletionReceiptSnapshot()
-	if goalID == "" || len(assistant) == 0 ||
-		strings.TrimSpace(r.workspacePath) == "" ||
-		strings.TrimSpace(r.sessionKey) == "" ||
-		(stored && !refresh) {
+	goalID, message, receipt, ok := r.PrepareGoalCompletionReceipt(ctx, r.service.goals, r.service.LoggerFor(ctx), r.roundID, refresh)
+	if !ok {
 		return
 	}
-	report, reportOK := r.goalCompletionReport(ctx, goalID)
-	if !reportOK && stored {
-		return
-	}
-	receipt := messageutil.BuildGoalCompletionReceipt(goalID, r.roundID, report)
-	if stored && previous.Equal(receipt) {
-		return
-	}
-	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
-	if !ok || r.service.history == nil {
-		return
-	}
-	if err := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
+	if err := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.sessionKey,
 		message,
 	); err != nil {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM Goal 完成收据持久化失败",
 			"session_key", r.sessionKey,
 			"goal_id", goalID,
@@ -79,42 +33,7 @@ func (r *roundRunner) persistGoalCompletionReceipt(ctx context.Context, refresh 
 		)
 		return
 	}
-	r.markGoalCompletionReceiptStored(goalID, receipt)
-	if r.service.permission != nil {
-		event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
-		r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
-	}
-}
-
-func (r *roundRunner) goalCompletionReport(
-	ctx context.Context,
-	goalID string,
-) (*protocol.GoalUsageReport, bool) {
-	provider, ok := r.service.goals.(dmGoalUsageFinalizationProvider)
-	if !ok {
-		return nil, false
-	}
-	report, err := provider.UsageByGoalID(ctx, goalID)
-	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			r.service.loggerFor(ctx).Debug("读取 DM Goal 完成收据数据失败", "goal_id", goalID, "err", err)
-		}
-		return nil, false
-	}
-	if !goalsvc.IsCompletionUsageReport(report, goalID) {
-		return nil, false
-	}
-	return report, true
-}
-
-func (r *roundRunner) markGoalCompletionReceiptStored(
-	goalID string,
-	receipt protocol.GoalCompletionReceipt,
-) {
-	r.goalUsageMu.Lock()
-	if strings.TrimSpace(r.goalCompletionCandidateID) == strings.TrimSpace(goalID) {
-		r.goalCompletionReceipt = receipt
-		r.goalCompletionReceiptStored = true
-	}
-	r.goalUsageMu.Unlock()
+	r.MarkGoalCompletionReceiptStored(goalID, receipt)
+	event := dmdomain.WrapSessionMessageEvent(r.session, message, protocol.DeliveryModeDurable, r.roundID)
+	r.service.broadcastEventWithTimeout(ctx, r.sessionKey, event)
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 	dingchatbot "github.com/open-dingtalk/dingtalk-stream-sdk-go/chatbot"
@@ -68,11 +69,11 @@ func (c *DingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	}
 
 	chatType := normalizeDingTalkConversationType(data.ConversationType)
-	ref := channelcontract.FirstNonEmpty(data.ConversationId, data.SenderStaffId, data.SenderId)
+	ref := textutil.FirstNonEmpty(data.ConversationId, data.SenderStaffId, data.SenderId)
 	if ref == "" {
 		return nil, nil
 	}
-	deliveryTo := channelcontract.FirstNonEmpty(data.SessionWebhook, data.ConversationId, ref)
+	deliveryTo := textutil.FirstNonEmpty(data.SessionWebhook, data.ConversationId, ref)
 	delivery := &channelcontract.DeliveryTarget{
 		Mode:      channelcontract.DeliveryModeExplicit,
 		Channel:   channelcontract.ChannelTypeDingTalk,
@@ -86,19 +87,19 @@ func (c *DingTalkChannel) handleStreamMessage(ctx context.Context, data *dingcha
 	if _, err := ingress.Accept(requestCtx, channelcontract.IngressRequest{
 		Channel:      channelcontract.ChannelTypeDingTalk,
 		OwnerUserID:  c.ownerUserID,
-		AccountID:    strings.TrimSpace(c.clientID),
+		AccountID:    c.clientID,
 		ChatType:     chatType,
 		Ref:          ref,
 		Content:      content,
 		RoundID:      messageID,
 		ReqID:        messageID,
-		ExternalName: channelcontract.FirstNonEmpty(data.ConversationTitle, data.SenderNick),
+		ExternalName: textutil.FirstNonEmpty(data.ConversationTitle, data.SenderNick),
 		Delivery:     delivery,
 		Message: channelmessage.NewInbound(channelmessage.InboundParams{
 			Channel:           channelcontract.ChannelTypeDingTalk,
 			Target:            ref,
 			PlatformMessageID: messageID,
-			SenderID:          channelcontract.FirstNonEmpty(data.SenderStaffId, data.SenderId),
+			SenderID:          textutil.FirstNonEmpty(data.SenderStaffId, data.SenderId),
 			SenderName:        strings.TrimSpace(data.SenderNick),
 			ChatType:          chatType,
 			Text:              content,

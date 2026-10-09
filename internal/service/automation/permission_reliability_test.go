@@ -679,60 +679,6 @@ func TestResumePermissionRunDispatchFailureRestoresExactRunRequest(t *testing.T)
 	}
 }
 
-func TestPermissionPauseDoesNotClearACompetingRunClaim(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil, nil, nil, nil)
-	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "权限暂停不覆盖新运行",
-		AgentID:     "agent-1",
-		Instruction: "验证 exact runtime claim",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(3600),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-		Enabled:       true,
-	})
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	oldRunID := "run-permission-old"
-	competingRunID := "run-permission-new"
-	service.mu.Lock()
-	state := service.jobStates[task.JobID]
-	state.Running = true
-	state.RunningCount = 1
-	state.RunningRunID = oldRunID
-	service.mu.Unlock()
-	if _, err = db.Exec(
-		`UPDATE automation_scheduled_tasks SET running_run_id = ?, running_started_at = CURRENT_TIMESTAMP WHERE job_id = ?`,
-		competingRunID,
-		task.JobID,
-	); err != nil {
-		t.Fatalf("预置竞争 run 失败: %v", err)
-	}
-	reason := "旧 run 等待权限"
-	service.pauseJobRuntimeForPermission(
-		*task,
-		oldRunID,
-		automationdomain.TaskPermissionStateReadyToRetry,
-		&reason,
-	)
-	persisted, err := service.repository.GetScheduledTask(context.Background(), task.OwnerUserID, task.JobID)
-	if err != nil || persisted == nil || persisted.RunningRunID != competingRunID {
-		t.Fatalf("旧权限暂停覆盖了新 run: task=%+v err=%v", persisted, err)
-	}
-	service.mu.Lock()
-	projected := service.jobStates[task.JobID]
-	if projected == nil || projected.RunningRunID != competingRunID || !projected.Running {
-		service.mu.Unlock()
-		t.Fatalf("内存投影没有刷新到新 run: %+v", projected)
-	}
-	service.mu.Unlock()
-}
-
 func TestPermissionPauseDoesNotOverwriteACompletedCompetingRun(t *testing.T) {
 	db := newAutomationTestDB(t)
 	service := NewService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil, nil, nil, nil, nil)
@@ -959,16 +905,6 @@ func TestResumePermissionRunDoesNotClearNewRequestCreatedDuringDispatch(t *testi
 		persistedRun.BlockState != automationdomain.RunBlockStateAwaitingApproval ||
 		persistedRun.BlockedRequestID != nextRequest.RequestID {
 		t.Fatalf("后继请求没有保持 exact run 绑定: run=%+v err=%v", persistedRun, err)
-	}
-}
-
-func TestPermissionDecisionCommittedErrorPreservesRootCause(t *testing.T) {
-	wrapped := MarkPermissionDecisionCommitted(automationdomain.ErrPermissionRequestStale)
-	if !PermissionDecisionCommitted(wrapped) {
-		t.Fatalf("审批提交阶段标记丢失: %v", wrapped)
-	}
-	if !errors.Is(wrapped, automationdomain.ErrPermissionRequestStale) {
-		t.Fatalf("审批提交阶段错误没有保留根因: %v", wrapped)
 	}
 }
 

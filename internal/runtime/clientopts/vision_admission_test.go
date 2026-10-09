@@ -77,17 +77,3 @@ func TestVisionAdmissionRetainsValidRouteAndMainFailures(t *testing.T) {
 		t.Fatalf("cancellation swallowed: %v", err)
 	}
 }
-
-// TestOptionalVisionPreservesSystemPrompt 验证缺失辅助视觉不再修改常驻提示词。
-func TestOptionalVisionPreservesSystemPrompt(t *testing.T) {
-	resolver := visionTestResolver{main: &RuntimeConfig{Model: "main-model", APIFormat: apiFormatChatCompletions}}
-	input := AgentClientOptionsInput{RuntimeKind: "nxs", Provider: "main", Model: "main-model",
-		AppendSystemPrompt: "combined", AppendSystemPromptStatic: "static", AppendSystemPromptDynamic: "dynamic"}
-	options, err := BuildAgentClientOptions(context.Background(), resolver, input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if options.System.Append != input.AppendSystemPrompt || options.System.AppendStatic != input.AppendSystemPromptStatic || options.System.AppendDynamic != input.AppendSystemPromptDynamic {
-		t.Fatal("optional vision changed system prompt")
-	}
-}

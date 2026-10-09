@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -150,15 +151,15 @@ func (s *Service) mergeRuntimeGraphSubagentToolHistory(
 		node := protocol.ExecutionRuntimeNodeRun{
 			ID: stableRuntimeGraphID(
 				"runtime_node",
-				firstNonEmpty(parent.OwnerUserID, ownerUserID),
-				firstNonEmpty(parent.SessionKey, sessionKey),
+				textutil.FirstNonEmpty(parent.OwnerUserID, ownerUserID),
+				textutil.FirstNonEmpty(parent.SessionKey, sessionKey),
 				parent.AgentRoundID,
 				string(protocol.ExecutionRuntimeNodeTool),
 				toolUseID,
 			),
 			GraphID:         parent.GraphID,
-			OwnerUserID:     firstNonEmpty(parent.OwnerUserID, ownerUserID),
-			SessionKey:      firstNonEmpty(parent.SessionKey, sessionKey),
+			OwnerUserID:     textutil.FirstNonEmpty(parent.OwnerUserID, ownerUserID),
+			SessionKey:      textutil.FirstNonEmpty(parent.SessionKey, sessionKey),
 			ExecutionID:     parent.ExecutionID,
 			Kind:            protocol.ExecutionRuntimeNodeTool,
 			SubjectID:       toolUseID,
@@ -166,7 +167,7 @@ func (s *Service) mergeRuntimeGraphSubagentToolHistory(
 			RootRoundID:     parent.RootRoundID,
 			RuntimeRoundID:  parent.RuntimeRoundID,
 			AgentRoundID:    parent.AgentRoundID,
-			AgentID:         firstNonEmpty(strings.TrimSpace(item.AgentID), parent.AgentID),
+			AgentID:         textutil.FirstNonEmpty(strings.TrimSpace(item.AgentID), parent.AgentID),
 			Name:            name,
 			Status:          runtimeGraphHistoryStatus(item.Status),
 			StartedAt:       startedAt,
@@ -220,7 +221,7 @@ func recoverRuntimeGraphSubagentTasks(
 	for _, task := range tasks {
 		launchToolUseID := strings.TrimSpace(task.ToolUseID)
 		launch, exists := subagentByLaunchToolUseID[launchToolUseID]
-		subjectID := firstNonEmpty(
+		subjectID := textutil.FirstNonEmpty(
 			strings.TrimSpace(task.TaskID),
 			strings.TrimSpace(task.AgentID),
 		)
@@ -247,15 +248,15 @@ func recoverRuntimeGraphSubagentTasks(
 		node := protocol.ExecutionRuntimeNodeRun{
 			ID: stableRuntimeGraphID(
 				"runtime_node",
-				firstNonEmpty(launch.OwnerUserID, ownerUserID),
-				firstNonEmpty(launch.SessionKey, sessionKey),
+				textutil.FirstNonEmpty(launch.OwnerUserID, ownerUserID),
+				textutil.FirstNonEmpty(launch.SessionKey, sessionKey),
 				launch.AgentRoundID,
 				string(protocol.ExecutionRuntimeNodeSubagent),
 				subjectID,
 			),
 			GraphID:         launch.GraphID,
-			OwnerUserID:     firstNonEmpty(launch.OwnerUserID, ownerUserID),
-			SessionKey:      firstNonEmpty(launch.SessionKey, sessionKey),
+			OwnerUserID:     textutil.FirstNonEmpty(launch.OwnerUserID, ownerUserID),
+			SessionKey:      textutil.FirstNonEmpty(launch.SessionKey, sessionKey),
 			ExecutionID:     launch.ExecutionID,
 			Kind:            protocol.ExecutionRuntimeNodeSubagent,
 			SubjectID:       subjectID,
@@ -263,13 +264,13 @@ func recoverRuntimeGraphSubagentTasks(
 			RootRoundID:     launch.RootRoundID,
 			RuntimeRoundID:  launch.RuntimeRoundID,
 			AgentRoundID:    launch.AgentRoundID,
-			AgentID:         firstNonEmpty(strings.TrimSpace(task.AgentID), launch.AgentID),
-			Name: firstNonEmpty(
+			AgentID:         textutil.FirstNonEmpty(strings.TrimSpace(task.AgentID), launch.AgentID),
+			Name: textutil.FirstNonEmpty(
 				strings.TrimSpace(task.Name),
 				strings.TrimSpace(task.AgentType),
 				"Subagent",
 			),
-			Description: firstNonEmpty(
+			Description: textutil.FirstNonEmpty(
 				strings.TrimSpace(task.Description),
 				strings.TrimSpace(task.Summary),
 			),

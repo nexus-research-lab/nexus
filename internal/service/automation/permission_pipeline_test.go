@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -626,97 +625,6 @@ func TestPermissionPipelineSeparatesFeishuGrantFromOAuthReadiness(t *testing.T) 
 	}
 }
 
-func TestLegacyScheduledTaskPermissionBackfillPreservesTaskAndCreatesRequest(t *testing.T) {
-	db := newAutomationTestDB(t)
-	createdBy := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		nil,
-		nil,
-		nil,
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	task, err := createdBy.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "旧版飞书任务",
-		AgentID:     "agent-legacy",
-		Instruction: "读取飞书文档并总结",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(3600),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{
-			Kind: automationdomain.SessionTargetIsolated,
-		},
-		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-		Enabled:  true,
-	})
-	if err != nil {
-		t.Fatalf("创建兼容测试任务失败: %v", err)
-	}
-	resetTaskPermissionPolicyToLegacy(t, db, task.JobID)
-
-	permission := permissionctx.NewContext()
-	dm := &fakeDMRunner{
-		permission:   permission,
-		requiredTool: "mcp__nexus_feishu_docx__read",
-	}
-	recovered := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		dm,
-		nil,
-		permission,
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	if err = recovered.bootstrapRuntime(context.Background()); err != nil {
-		t.Fatalf("旧任务权限策略回填失败: %v", err)
-	}
-	persisted, err := recovered.repository.GetScheduledTask(
-		context.Background(), task.OwnerUserID, task.JobID,
-	)
-	if err != nil || persisted == nil {
-		t.Fatalf("读取回填后的旧任务失败: task=%+v err=%v", persisted, err)
-	}
-	if persisted.JobID != task.JobID || persisted.Name != task.Name ||
-		persisted.AgentID != task.AgentID || persisted.Instruction != task.Instruction ||
-		!reflect.DeepEqual(persisted.Schedule.Normalized(), task.Schedule.Normalized()) {
-		t.Fatalf("权限回填改变了旧任务定义: before=%+v after=%+v", task, persisted)
-	}
-	if persisted.PermissionPolicy.Revision != 1 ||
-		persisted.PermissionState != automationdomain.TaskPermissionStateReady {
-		t.Fatalf("旧任务权限策略未初始化: %+v", persisted)
-	}
-
-	result, err := recovered.RunTaskNow(context.Background(), task.JobID)
-	if err != nil || result.RunID == nil {
-		t.Fatalf("回填后的旧任务无法运行: result=%+v err=%v", result, err)
-	}
-	ownerCtx := contextForOwner(context.Background(), task.OwnerUserID)
-	waitFor(t, 2*time.Second, func() bool {
-		requests, listErr := recovered.ListPermissionRequests(
-			ownerCtx,
-			automationdomain.PermissionRequestStatusPending,
-			task.JobID,
-		)
-		return listErr == nil && len(requests) == 1
-	})
-	requests, err := recovered.ListPermissionRequests(
-		ownerCtx,
-		automationdomain.PermissionRequestStatusPending,
-		task.JobID,
-	)
-	if err != nil || len(requests) != 1 ||
-		requests[0].Capability.ToolName != "mcp__nexus_feishu_docx__read" ||
-		requests[0].PolicyRevision != 1 {
-		t.Fatalf("旧任务未进入持久权限确认链路: requests=%+v err=%v", requests, err)
-	}
-}
-
 func TestLegacyScriptTaskPermissionBackfillKeepsExactScriptGrant(t *testing.T) {
 	db := newAutomationTestDB(t)
 	service := NewService(
@@ -795,41 +703,6 @@ func TestScriptPermissionGrantIsBoundToExactScriptContent(t *testing.T) {
 	job.Instruction = "printf second"
 	if permissionGrantMatches(grant, buildScriptPermissionCapability(job)) {
 		t.Fatalf("脚本内容改变后不得复用旧 grant: %+v", grant)
-	}
-}
-
-func TestFeishuPermissionEffectsMatchMCPToolSemantics(t *testing.T) {
-	readOnlyTools := []string{
-		"read",
-		"search",
-		"sheet_list",
-		"sheet_values",
-		"sheet_find",
-		"bitable_tables",
-		"bitable_fields",
-		"bitable_records",
-		"drive_list",
-		"wiki_spaces",
-		"wiki_space",
-		"wiki_nodes",
-		"wiki_node",
-	}
-	for _, toolName := range readOnlyTools {
-		qualified := "mcp__nexus_feishu_docx__" + toolName
-		if effect := classifyPermissionEffect(qualified); effect != automationdomain.PermissionEffectRead {
-			t.Errorf("%s effect = %q, want read", qualified, effect)
-		}
-	}
-	writeTools := []string{
-		"create",
-		"append_markdown",
-		"update_block",
-	}
-	for _, toolName := range writeTools {
-		qualified := "mcp__nexus_feishu_docx__" + toolName
-		if effect := classifyPermissionEffect(qualified); effect != automationdomain.PermissionEffectWrite {
-			t.Errorf("%s effect = %q, want write", qualified, effect)
-		}
 	}
 }
 

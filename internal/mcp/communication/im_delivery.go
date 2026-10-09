@@ -23,24 +23,24 @@ func listTargetsTool(svc *communicationsvc.Service, actor communicationsvc.Actor
 		"limit":       map[string]any{"type": "integer", "minimum": 1, "maximum": 50},
 	}, nil), Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 		if svc == nil {
-			return errorResult(errors.New("平台通讯服务未装配")), nil
+			return sdktool.ErrorResult(errors.New("平台通讯服务未装配")), nil
 		}
 		q, lookup, err := parseDeliveryQuery(args)
 		if err != nil {
-			return errorResult(err), nil
+			return sdktool.ErrorResult(err), nil
 		}
 		if lookup {
 			v, e := svc.ListDeliverySources(ctx, actor, q)
 			if e != nil {
-				return errorResult(e), nil
+				return sdktool.ErrorResult(e), nil
 			}
-			return jsonResult(v), nil
+			return sdktool.JSONResult(v), nil
 		}
 		v, e := svc.ListAddressBook(ctx, actor)
 		if e != nil {
-			return errorResult(e), nil
+			return sdktool.ErrorResult(e), nil
 		}
-		return jsonResult(v), nil
+		return sdktool.JSONResult(v), nil
 	}}
 }
 func parseDeliveryQuery(args map[string]any) (communicationsvc.DeliverySourceQuery, bool, error) {

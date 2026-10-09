@@ -462,7 +462,7 @@ func isNexusControlPlaneShellRequest(request sdkpermission.Request) bool {
 	if !MatchesItem(request.ToolName, "Bash") {
 		return false
 	}
-	command := strings.ToLower(strings.TrimSpace(stringInput(request.Input, "command")))
+	command := strings.ToLower(stringInput(request.Input, "command"))
 	if command == "" {
 		return false
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -105,7 +106,7 @@ func (s *Service) runConnectorRuntimePreparation(
 		errors.Is(err, context.Canceled) {
 		return
 	}
-	s.loggerFor(preparation.ctx).Warn(
+	s.LoggerFor(preparation.ctx).Warn(
 		"后台预备 Connector runtime 失败，保留下一轮同步兜底",
 		"session_key", preparation.session.SessionKey,
 		"configuration_version", preparation.session.ConfigurationVersion,
@@ -133,11 +134,11 @@ func (s *Service) prepareConnectorRuntime(
 	snapshot protocol.Session,
 ) error {
 	parsed := protocol.ParseSessionKey(snapshot.SessionKey)
-	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, parsed.AgentID)
 	if err != nil {
 		return err
 	}
-	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, agentValue.OwnerUserID)
 	expectedSelection := protocol.SessionConnectorSelectionFromOptions(snapshot.Options)
 	current, err := s.ensureSession(ctx, agentValue, parsed, snapshot.SessionKey)
 	if err != nil {
@@ -157,7 +158,7 @@ func (s *Service) prepareConnectorRuntime(
 		return nil
 	}
 	decision := sessionresumesvc.NewPolicy(
-		s.history.ForOwner(agentValue.OwnerUserID),
+		s.History.ForOwner(agentValue.OwnerUserID),
 	).CanResume(agentValue.WorkspacePath, sourceSessionID)
 	if !decision.Allowed {
 		if decision.Err != nil {

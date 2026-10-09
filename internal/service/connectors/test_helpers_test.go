@@ -1,7 +1,6 @@
 package connectors
 
 import (
-	"net/http"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -11,12 +10,6 @@ import (
 
 	_ "modernc.org/sqlite"
 )
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
-	return f(request)
-}
 
 func newConnectorsTestConfig(t *testing.T) config.Config {
 	t.Helper()
@@ -43,10 +36,6 @@ func newConnectorsTestConfig(t *testing.T) config.Config {
 		ConnectorShopifyClientID:     "shopify-client-id",
 		ConnectorShopifyClientSecret: "shopify-client-secret",
 	}
-}
-
-func testConnectorCredentialKey() string {
-	return "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 }
 
 func migrateConnectorsSQLite(t *testing.T, databaseURL string) {

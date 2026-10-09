@@ -44,7 +44,7 @@ func VerifyFeishuCallbackToken(callback FeishuIngressCallback, verificationToken
 	if expected == "" {
 		return nil
 	}
-	actual := strings.TrimSpace(callback.Token)
+	actual := callback.Token
 	if actual == "" {
 		return fmt.Errorf("%w: missing feishu verification token", ErrFeishuCallbackUnauthorized)
 	}

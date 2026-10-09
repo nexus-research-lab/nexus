@@ -160,7 +160,7 @@ func NewAppServicesWithDesktopOwnership(cfg config.Config, logger *slog.Logger, 
 }
 
 func newOptionalRelayClient(cfg config.Config) (*relaysvc.Client, error) {
-	if cfg.MultiplayerDisabled || strings.TrimSpace(cfg.RelayURL) == "" {
+	if cfg.MultiplayerDisabled || cfg.RelayURL == "" {
 		return nil, nil
 	}
 	return relaysvc.NewClient(
@@ -502,6 +502,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	core.Session.SetRuntimeSettingsPreparationScheduler(dmService)
 
 	warnIfProviderMissing(providerService, logger)
+	if err := errors.Join(dmService.RequireWiring(), roomRealtime.RequireWiring()); err != nil {
+		// 装配缺失是程序错误；在接受任何请求前失败，而不是让业务方法静默降级。
+		panic(err)
+	}
 
 	return &AppServices{
 		DB:                     db,

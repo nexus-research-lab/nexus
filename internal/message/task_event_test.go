@@ -403,18 +403,6 @@ func TestProcessorPreservesTypedSubagentThreadMetadata(t *testing.T) {
 	}
 }
 
-func TestSubagentTaskUsageSnapshot(t *testing.T) {
-	taskID, totalTokens, ok := SubagentTaskUsageSnapshot(protocol.Message{
-		"metadata": map[string]any{
-			"task_id": "task-1",
-			"usage":   map[string]any{"total_tokens": int64(150)},
-		},
-	})
-	if !ok || taskID != "task-1" || totalTokens != 150 {
-		t.Fatalf("snapshot = %q/%d/%v, want task-1/150/true", taskID, totalTokens, ok)
-	}
-}
-
 func TestSubagentTaskUsageSnapshotsCollectsMetadataAndAssistantBlocks(t *testing.T) {
 	message := protocol.Message{
 		"metadata": map[string]any{
@@ -453,4 +441,13 @@ func TestSubagentTaskUsageSnapshotsCollectsMetadataAndAssistantBlocks(t *testing
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("snapshots = %#v, want %#v", got, want)
 	}
+}
+
+// SubagentTaskUsageSnapshot 保留单 task 调用方的兼容入口。
+func SubagentTaskUsageSnapshot(message protocol.Message) (string, int64, bool) {
+	snapshots := SubagentTaskUsageSnapshots(message)
+	if len(snapshots) == 0 {
+		return "", 0, false
+	}
+	return snapshots[0].TaskID, snapshots[0].TotalTokens, true
 }

@@ -190,6 +190,19 @@ type GoalUsage struct {
 	ActualTotalKnown bool `json:"-"`
 }
 
+// IsZero 表示所有计量字段（含 budget/actual 总量与运行时长）都为零。
+func (u GoalUsage) IsZero() bool {
+	return u.InputTokens == 0 &&
+		u.OutputTokens == 0 &&
+		u.CacheCreationInputTokens == 0 &&
+		u.CacheReadInputTokens == 0 &&
+		u.ReasoningTokens == 0 &&
+		u.TotalTokens == 0 &&
+		u.BudgetTotalTokens == 0 &&
+		u.ActualTotalTokens == 0 &&
+		u.RuntimeSeconds == 0
+}
+
 // Total 返回旧版预算口径总量。
 // Deprecated: 新代码应显式调用 BudgetTokens 或 ActualTokens。
 func (u GoalUsage) Total() int64 {

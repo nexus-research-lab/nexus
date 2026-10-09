@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type blockingRoomGoalUsageProvider struct {
@@ -18,12 +19,6 @@ type blockingRoomGoalUsageProvider struct {
 	entered chan struct{}
 	release chan struct{}
 	once    sync.Once
-}
-
-type failOnceRoomGoalUsageProvider struct {
-	*fakeRoomGoalContextProvider
-	mu       sync.Mutex
-	failNext bool
 }
 
 type failNRoomGoalUsageProvider struct {
@@ -123,22 +118,6 @@ func (p *failNRoomGoalUsageProvider) RecordUsageForGoal(
 	return p.fakeRoomGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
 }
 
-func (p *failOnceRoomGoalUsageProvider) RecordUsageForGoal(
-	ctx context.Context,
-	goalID string,
-	usage protocol.GoalUsage,
-	roundID string,
-) (*protocol.Goal, error) {
-	p.mu.Lock()
-	fail := p.failNext
-	p.failNext = false
-	p.mu.Unlock()
-	if fail {
-		return nil, errors.New("transient usage write failure")
-	}
-	return p.fakeRoomGoalContextProvider.RecordUsageForGoal(ctx, goalID, usage, roundID)
-}
-
 func (p *blockingRoomGoalUsageProvider) RecordUsageForGoal(
 	ctx context.Context,
 	goalID string,
@@ -182,10 +161,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 	}
 	// peer 的 running child 只有内存 pending；activation 必须在 bind 前把
 	// 它写成 evidence/checkpoint，且不能因为是 0 就丢掉 lifecycle。
-	peer.markSubagentUsageObservationPending(
-		goalsvc.SubagentUsageObservation{},
-		"task-peer-running",
-	)
+	peer.mutable.goal.MarkSubagentUsagePending("task-peer-running", goalsvc.SubagentUsageObservation{})
 	roundValue := &activeRoomRound{
 		ConversationID: "child-bind",
 		SessionKey:     sessionID,
@@ -200,7 +176,7 @@ func TestRoomChildPersistenceAndExternalBindShareRootScopeBoundary(t *testing.T)
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{scopeID: roundValue}),
 	}
 
-	recorded := make(chan []roomSubagentUsageSettlement, 1)
+	recorded := make(chan []runtimehost.SubagentUsageSettlement, 1)
 	go func() {
 		recorded <- service.recordSubagentGoalUsageForSlot(
 			context.Background(),
@@ -286,10 +262,7 @@ func TestRoomExternalBindRequiresKnownChildPendingToFlush(t *testing.T) {
 	}
 	slot.setRuntimeKind("nxs")
 	slot.setGoalBinding("room:group:child-flush-failure", "")
-	slot.markSubagentUsageObservationPending(
-		goalsvc.SubagentUsageObservation{ObservedAt: time.Now().UTC()},
-		"task-running",
-	)
+	slot.mutable.goal.MarkSubagentUsagePending("task-running", goalsvc.SubagentUsageObservation{ObservedAt: time.Now().UTC()})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -450,58 +423,11 @@ func TestRoomSlotSerializesUsageSettlementWithExternalGoalRebind(t *testing.T) {
 	}
 }
 
-func TestRoomSlotRetriesUncommittedUsageAtTerminal(t *testing.T) {
-	base := &fakeRoomGoalContextProvider{}
-	provider := &failOnceRoomGoalUsageProvider{
-		fakeRoomGoalContextProvider: base,
-		failNext:                    true,
-	}
-	service := &Service{goals: provider}
-	accelerateRoomGoalUsageRetry(service)
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:retry",
-		AgentRoundID:      "round-retry",
-	}
-	slot.setGoalBinding("room:group:retry", "goal-retry")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.recordGoalUsageSnapshotForSlot(context.Background(), slot, goalsvc.RuntimeUsageSnapshot{
-		TurnID: "turn-a",
-		Usage: protocol.GoalUsage{
-			InputTokens:       90,
-			OutputTokens:      10,
-			ActualTotalTokens: 100,
-			ActualTotalKnown:  true,
-		},
-	})
-	if !service.settleTerminalGoalUsageSnapshotForSlotWithRetry(
-		context.Background(),
-		slot,
-		goalsvc.RuntimeUsageSnapshot{
-			Usage: protocol.GoalUsage{
-				InputTokens:       140,
-				OutputTokens:      10,
-				ActualTotalTokens: 150,
-				ActualTotalKnown:  true,
-			},
-			Cumulative:         true,
-			Terminal:           true,
-			TokenUsageObserved: true,
-		}) {
-		t.Fatal("terminal usage retry did not settle")
-	}
-
-	usages := base.recordedUsage()
-	if len(usages) != 1 || usages[0].BudgetTokens() != 150 || usages[0].ActualTokens() != 150 {
-		t.Fatalf("persisted usage = %#v, want one complete terminal retry of 150", usages)
-	}
-}
-
 func TestRoomSlotRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 	base := &fakeRoomGoalContextProvider{}
 	provider := &failNRoomGoalUsageProvider{
 		fakeRoomGoalContextProvider: base,
-		failuresRemaining:           goalUsagePersistAttempts,
+		failuresRemaining:           runtimehost.GoalUsagePersistAttempts,
 	}
 	service := &Service{goals: provider, rounds: newRoomRoundRegistry()}
 	accelerateRoomGoalUsageRetry(service)

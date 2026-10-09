@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
@@ -184,8 +185,8 @@ func buildBootstrapConversations(
 ) []BootstrapConversation {
 	items := make([]BootstrapConversation, 0, len(sessions))
 	for _, item := range sessions {
-		roomID := stringPointerValue(item.RoomID)
-		conversationID := stringPointerValue(item.ConversationID)
+		roomID := textutil.PointerValue(item.RoomID)
+		conversationID := textutil.PointerValue(item.ConversationID)
 		agentID := strings.TrimSpace(item.AgentID)
 		roomType := normalizeBootstrapConversationRoomType(item.ChatType, roomTypeByID[roomID])
 
@@ -252,11 +253,4 @@ func firstRoomAgentID(roomValue protocol.RoomAggregate) string {
 		}
 	}
 	return ""
-}
-
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }

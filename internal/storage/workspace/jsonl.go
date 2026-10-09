@@ -11,17 +11,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
-	root, relative, err := s.openStorePath(path, true)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return appendJSONLAtRoot(root, relative, row)
-}
-
 func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[string]any) error {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.appendOwnerWorkspaceJSONL(ownerUserID, rootPath, path, row)
 	}
 	root, relative, err := relativeStorePath(rootPath, path)
@@ -71,35 +62,8 @@ func appendJSONLAtRootWithMode(
 	return nil
 }
 
-func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) error {
-	root, relative, err := s.openStorePath(path, true)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	if err = root.MkdirAll(filepath.Dir(relative), storageDirectoryMode()); err != nil {
-		return err
-	}
-
-	var builder strings.Builder
-	writer := bufio.NewWriter(&builder)
-	for _, row := range rows {
-		payload, err := json.Marshal(row)
-		if err != nil {
-			return err
-		}
-		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
-			return err
-		}
-	}
-	if err = writer.Flush(); err != nil {
-		return err
-	}
-	return root.WriteFileAtomic(relative, []byte(builder.String()), storageFileMode(0o644))
-}
-
 func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []map[string]any) error {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.replaceOwnerWorkspaceJSONL(ownerUserID, rootPath, path, rows)
 	}
 	root, relative, err := relativeStorePath(rootPath, path)
@@ -124,17 +88,8 @@ func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []m
 	return root.WriteFileAtomic(relative, []byte(builder.String()), storageFileMode(0o644))
 }
 
-func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
-	root, relative, err := s.openStorePath(path, false)
-	if err != nil {
-		return nil, err
-	}
-	defer root.Close()
-	return readJSONLAtRoot(root, relative)
-}
-
 func (s *SessionFileStore) readJSONLAt(rootPath string, path string) ([]map[string]any, error) {
-	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+	if ownerUserID := s.ownerUserID; ownerUserID != "" {
 		return s.readOwnerWorkspaceJSONL(ownerUserID, rootPath, path)
 	}
 	root, relative, err := relativeStorePathWithCreate(rootPath, path, false)

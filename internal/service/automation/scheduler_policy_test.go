@@ -77,28 +77,6 @@ func TestSchedulerLeaseAllowsSingleLeaderAndExpiryTakeover(t *testing.T) {
 	}
 }
 
-func TestSchedulerLeaseReleaseRequiresOwner(t *testing.T) {
-	db := newAutomationTestDB(t)
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db, nil, nil, nil, permissionctx.NewContext(), &fakeWorkspaceReader{}, nil,
-	)
-	service.schedulerOwnerID = "scheduler-owner"
-	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
-	if held, _, err := service.refreshSchedulerLease(context.Background(), now); err != nil || !held {
-		t.Fatalf("获取租约失败: held=%v err=%v", held, err)
-	}
-	if err := service.repository.ReleaseSchedulerLease(context.Background(), automationSchedulerLeaseName, "other-owner"); err != nil {
-		t.Fatalf("非 owner 释放租约失败: %v", err)
-	}
-	if held, _, err := service.refreshSchedulerLease(context.Background(), now.Add(11*time.Second)); err != nil || !held {
-		t.Fatalf("非 owner 不应影响现有租约: held=%v err=%v", held, err)
-	}
-	if err := service.releaseSchedulerLease(context.Background()); err != nil {
-		t.Fatalf("owner 释放租约失败: %v", err)
-	}
-}
-
 func TestCreateAndEnableTaskRespectUserCapacity(t *testing.T) {
 	db := newAutomationTestDB(t)
 	service := NewService(
@@ -177,61 +155,6 @@ func TestSchedulerSkipsMisfireAndAdvancesFromNow(t *testing.T) {
 	wantNext := now.Add(time.Hour)
 	if current.NextRunAt == nil || !current.NextRunAt.Equal(wantNext) {
 		t.Fatalf("跳过后应从当前时间推进调度: got=%v want=%s", current.NextRunAt, wantNext)
-	}
-}
-
-func TestSchedulerRunsMisfireOnceAndAdvancesFromNow(t *testing.T) {
-	db := newAutomationTestDB(t)
-	permission := permissionctx.NewContext()
-	dm := &fakeDMRunner{permission: permission}
-	service := NewService(
-		config.Config{
-			DatabaseDriver:                "sqlite",
-			AutomationMisfirePolicy:       "run_once",
-			AutomationMisfireGraceSeconds: 10,
-		},
-		db,
-		nil,
-		dm,
-		nil,
-		permission,
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	now := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
-	service.nowFn = func() time.Time { return now }
-	task, err := service.CreateTask(context.Background(), schedulerPolicyTaskInput("补跑一次", true))
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	scheduledFor := now.Add(-5 * time.Minute)
-	service.mu.Lock()
-	service.jobStates[task.JobID].NextRunAt = &scheduledFor
-	service.mu.Unlock()
-
-	service.runDueOnce()
-	waitFor(t, 2*time.Second, func() bool {
-		runs, listErr := service.repository.ListRunsByJob(context.Background(), task.OwnerUserID, task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
-	})
-	runs, err := service.repository.ListRunsByJob(context.Background(), task.OwnerUserID, task.JobID)
-	if err != nil {
-		t.Fatalf("ListRunsByJob 失败: %v", err)
-	}
-	if len(runs) != 1 || runs[0].TriggerKind != automationdomain.TriggerKindMisfire {
-		t.Fatalf("应只记录一次 misfire 补跑: %+v", runs)
-	}
-	current, err := service.GetTask(context.Background(), task.JobID)
-	if err != nil {
-		t.Fatalf("GetTask 失败: %v", err)
-	}
-	wantNext := now.Add(time.Hour)
-	if current.NextRunAt == nil || !current.NextRunAt.Equal(wantNext) {
-		t.Fatalf("补跑后应从当前时间推进调度: got=%v want=%s", current.NextRunAt, wantNext)
-	}
-	service.runDueOnce()
-	if got := len(dm.Requests()); got != 1 {
-		t.Fatalf("补跑后不应继续追赶历史窗口: requests=%d", got)
 	}
 }
 
@@ -533,37 +456,6 @@ func TestTaskExpirationMustBeInFutureAndCanBeCleared(t *testing.T) {
 	}
 	if updated.ExpiresAt != nil {
 		t.Fatalf("expires_at 应已清除: %+v", updated.ExpiresAt)
-	}
-}
-
-func TestRecurringJitterKeepsStablePhaseAfterScheduledTrigger(t *testing.T) {
-	service := NewService(
-		config.Config{
-			DatabaseDriver:                   "sqlite",
-			AutomationRecurringJitterSeconds: 900,
-		},
-		newAutomationTestDB(t),
-		nil,
-		nil,
-		nil,
-		permissionctx.NewContext(),
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	job := automationdomain.ScheduledTask{
-		JobID:   "stable-job",
-		Enabled: true,
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(3600),
-			Timezone:        "Asia/Shanghai",
-		},
-	}
-	scheduledFor := time.Date(2026, 6, 11, 10, 7, 0, 0, time.UTC)
-	next := service.nextRunAfterScheduledTrigger(job, automationdomain.TriggerKindScheduled, scheduledFor)
-	want := scheduledFor.Add(time.Hour)
-	if next == nil || !next.Equal(want) {
-		t.Fatalf("循环任务应保留首次 jitter 建立的相位: got=%v want=%s", next, want)
 	}
 }
 

@@ -21,10 +21,8 @@ func (r *Repository) SupersedeGoalRevision(
 	command SupersedeGoalRevisionCommand,
 ) (*protocol.ExecutionSnapshot, error) {
 	command.ExecutionID = strings.TrimSpace(command.ExecutionID)
-	command.ExpectedOwnerUserID = strings.TrimSpace(command.ExpectedOwnerUserID)
 	command.GoalID = strings.TrimSpace(command.GoalID)
 	command.SuccessorExecutionID = strings.TrimSpace(command.SuccessorExecutionID)
-	command.Reason = strings.TrimSpace(command.Reason)
 	if command.ExecutionID == "" || command.GoalID == "" ||
 		command.SuccessorExecutionID == "" || command.SuccessorExecutionID == command.ExecutionID ||
 		command.OldGoalObjectiveRevision <= 0 ||
@@ -87,8 +85,8 @@ func (r *Repository) SupersedeGoalRevision(
 		return nil, fmt.Errorf("%w: old Execution belongs to another owner", ErrInvariant)
 	}
 	now := r.currentTime()
-	if !currentExecutionStatus(current.Status) {
-		if !terminalExecutionStatus(current.Status) {
+	if !current.Status.Current() {
+		if !current.Status.Terminal() {
 			return nil, fmt.Errorf("%w: Goal revision predecessor status is invalid", ErrInvariant)
 		}
 		existingReservation, reservationErr := r.findGoalRevisionSupersedeEvent(
@@ -263,7 +261,7 @@ func (r *Repository) validateGoalRevisionSuccessor(
 	if predecessor == nil {
 		return fmt.Errorf("%w: Goal revision predecessor does not exist", ErrInvariant)
 	}
-	if !terminalExecutionStatus(predecessor.Status) ||
+	if !predecessor.Status.Terminal() ||
 		predecessor.GoalID != successor.GoalID ||
 		predecessor.GoalObjectiveRevision <= 0 ||
 		successor.GoalObjectiveRevision != predecessor.GoalObjectiveRevision+1 ||
@@ -298,18 +296,6 @@ func (r *Repository) validateGoalRevisionSuccessor(
 		)
 	}
 	return nil
-}
-
-func terminalExecutionStatus(status protocol.ExecutionStatus) bool {
-	switch status {
-	case protocol.ExecutionStatusCompleted,
-		protocol.ExecutionStatusFailed,
-		protocol.ExecutionStatusCancelled,
-		protocol.ExecutionStatusSuperseded:
-		return true
-	default:
-		return false
-	}
 }
 
 func (r *Repository) findGoalRevisionSupersedeEvent(

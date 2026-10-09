@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelmanagement "github.com/nexus-research-lab/nexus/internal/service/channels/management"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -37,7 +38,7 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		return normalizedIngressRequest{}, errors.New("content is required")
 	}
 
-	ownerUserID := normalizeChannelOwnerUserID(firstNonEmptyIngress(request.OwnerUserID, authctx.OwnerUserID(ctx)))
+	ownerUserID := normalizeChannelOwnerUserID(textutil.FirstNonEmpty(request.OwnerUserID, authctx.OwnerUserID(ctx)))
 	ownerCtx := contextWithIngressOwner(ctx, ownerUserID)
 	sessionKey, parsed, agentID, err := s.resolveSession(ownerCtx, request)
 	if err != nil {
@@ -81,8 +82,8 @@ func (s *IngressService) normalizeRequest(ctx context.Context, request IngressRe
 		}
 		targetRoomType = target.Room.RoomType
 	}
-	roundID := firstNonEmptyIngress(request.RoundID, s.idFactory("ingress_round"))
-	reqID := firstNonEmptyIngress(request.ReqID, request.RoundID, roundID)
+	roundID := textutil.FirstNonEmpty(request.RoundID, s.idFactory("ingress_round"))
+	reqID := textutil.FirstNonEmpty(request.ReqID, request.RoundID, roundID)
 	message := migrateIngressMessage(request, channelStored, parsed, content, reqID)
 
 	return normalizedIngressRequest{
@@ -127,7 +128,7 @@ func (s *IngressService) validateResolvedExternalIngress(
 
 func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Context {
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
-	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && strings.TrimSpace(currentUserID) == ownerUserID {
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok && currentUserID == ownerUserID {
 		return ctx
 	}
 	return authctx.WithPrincipal(ctx, &authctx.Principal{
@@ -136,13 +137,4 @@ func contextWithIngressOwner(ctx context.Context, ownerUserID string) context.Co
 		Role:       authctx.RoleOwner,
 		AuthMethod: authctx.AuthMethodLocal,
 	})
-}
-
-func firstNonEmptyIngress(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

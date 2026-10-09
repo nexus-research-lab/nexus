@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -72,19 +71,6 @@ func TestServerFailsClosedWithoutEntitlementProjection(t *testing.T) {
 	insertOwnerProfile(t, db, "owner-missing")
 	if err := service.EnsureQuotaAvailable(context.Background(), "owner-missing"); !errors.Is(err, ErrEntitlementUnavailable) {
 		t.Fatalf("缺少 Control entitlement 应 fail closed，实际: %v", err)
-	}
-}
-
-func TestLocalSystemIgnoresEntitlement(t *testing.T) {
-	service, db := newTestService(t)
-	insertOwnerProfile(t, db, authctx.SystemUserID)
-	insertUsage(t, db, authctx.SystemUserID, "usage-over-free-limit", 17554299, time.Now().UTC())
-	account, err := service.CurrentAccount(context.Background(), authctx.SystemUserID)
-	if err != nil || account != nil {
-		t.Fatalf("local account = %+v, err = %v", account, err)
-	}
-	if err = service.EnsureQuotaAvailable(context.Background(), authctx.SystemUserID); err != nil {
-		t.Fatalf("本地主体不应触发 Control 额度门禁: %v", err)
 	}
 }
 

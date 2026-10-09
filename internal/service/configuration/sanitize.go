@@ -144,15 +144,6 @@ func secretPresence(value any) map[string]any {
 	return map[string]any{"configured": configured, "redacted": true}
 }
 
-func revisionFor(value any) (string, error) {
-	payload, err := json.Marshal(sanitizeValue(value))
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(payload)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
-}
-
 func integrityRevisionFor(value any, key []byte) (string, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // GetAuthURL 生成 OAuth 授权地址。
@@ -102,7 +103,7 @@ func availableOAuthProvider(connectorID string) (CatalogEntry, providers.Provide
 	if entry.Status != "available" {
 		return CatalogEntry{}, nil, errors.New("连接器暂不可用")
 	}
-	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	providerID := textutil.FirstNonEmpty(entry.Provider, entry.ConnectorID)
 	provider, err := providers.Get(providerID)
 	return entry, provider, err
 }
@@ -118,7 +119,7 @@ func validatedOAuthExtras(provider providers.Provider, extras map[string]string)
 }
 
 func (s *Service) resolveOAuthRedirectURI(raw string) (string, error) {
-	resolved := connectorFirstNonEmpty(strings.TrimSpace(raw), s.config.ConnectorOAuthRedirectURI)
+	resolved := textutil.FirstNonEmpty(strings.TrimSpace(raw), s.config.ConnectorOAuthRedirectURI)
 	if err := s.validateRedirectURI(resolved); err != nil {
 		return "", err
 	}
@@ -156,7 +157,7 @@ func (s *Service) CompleteOAuthCallback(ctx context.Context, ownerUserID string,
 	if err != nil {
 		return nil, err
 	}
-	provider, err := providers.Get(connectorFirstNonEmpty(entry.Provider, entry.ConnectorID))
+	provider, err := providers.Get(textutil.FirstNonEmpty(entry.Provider, entry.ConnectorID))
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +210,7 @@ func (s *Service) validateOAuthCallbackRedirect(state stateRow, raw string) erro
 	if requestRedirectURI != "" && state.RedirectURI != "" && requestRedirectURI != state.RedirectURI {
 		return errors.New("redirect URI 不匹配")
 	}
-	return s.validateRedirectURI(connectorFirstNonEmpty(requestRedirectURI, state.RedirectURI))
+	return s.validateRedirectURI(textutil.FirstNonEmpty(requestRedirectURI, state.RedirectURI))
 }
 
 func (s *Service) insertState(ctx context.Context, row stateRow) error {
@@ -235,7 +236,7 @@ func (s *Service) insertState(ctx context.Context, row stateRow) error {
 		row.ConnectorID,
 		emptyStringAsNil(row.CodeVerifier),
 		row.RedirectURI,
-		connectorFirstNonEmpty(row.RedirectKind, oauthRedirectKind(row.RedirectURI)),
+		textutil.FirstNonEmpty(row.RedirectKind, oauthRedirectKind(row.RedirectURI)),
 		emptyStringAsNil(row.ShopDomain),
 		emptyStringAsNil(row.ExtraJSON),
 		emptyStringAsNil(row.ControlFlowID),
@@ -289,7 +290,7 @@ func (s *Service) consumeState(ctx context.Context, ownerUserID string, state st
 		return nil, err
 	}
 	row.CodeVerifier = codeVerifier.String
-	row.RedirectKind = connectorFirstNonEmpty(redirectKind.String, oauthRedirectKind(row.RedirectURI))
+	row.RedirectKind = textutil.FirstNonEmpty(redirectKind.String, oauthRedirectKind(row.RedirectURI))
 	row.ShopDomain = shopDomain.String
 	row.ExtraJSON = extraJSON.String
 	row.ControlFlowID = controlFlowID.String

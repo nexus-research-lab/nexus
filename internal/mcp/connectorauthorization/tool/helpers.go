@@ -65,16 +65,9 @@ func stringMapArg(args map[string]any, key string) map[string]string {
 func jsonResult(value any) sdktool.ToolResult {
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return errorResult(err)
+		return sdktool.ErrorResult(err)
 	}
 	return sdktool.ToolResult{
 		Content: []map[string]any{{"type": "text", "text": string(payload)}},
-	}
-}
-
-func errorResult(err error) sdktool.ToolResult {
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": err.Error()}},
-		IsError: true,
 	}
 }

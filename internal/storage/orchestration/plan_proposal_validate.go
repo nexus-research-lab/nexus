@@ -143,10 +143,10 @@ func validateSealedProposalGoal(item protocol.ExecutionPlanProposal) error {
 	if item.GoalActivationOrigin == "" || item.GoalActivationReason == "" {
 		return fmt.Errorf("%w: Goal proposal requires sealed activation origin and reason", ErrInvariant)
 	}
-	if !validProposalGoalActivationOrigin(item.GoalActivationOrigin) {
+	if !item.GoalActivationOrigin.Valid() {
 		return fmt.Errorf("%w: invalid Goal activation origin %q", ErrInvariant, item.GoalActivationOrigin)
 	}
-	if !validProposalGoalActivationReason(item.GoalActivationReason) {
+	if !item.GoalActivationReason.Valid() {
 		return fmt.Errorf("%w: invalid Goal activation reason %q", ErrInvariant, item.GoalActivationReason)
 	}
 	return nil
@@ -305,7 +305,7 @@ func normalizeProposalItem(
 			item.LogicalKey,
 		)
 	}
-	if !validProposalWorkItemKind(item.Kind) {
+	if !item.Kind.Valid() {
 		return protocol.ExecutionPlanProposalItem{}, fmt.Errorf(
 			"%w: invalid Work Item kind %q for %q",
 			ErrInvariant,
@@ -544,45 +544,6 @@ func proposalItemError(logicalKey string, err error) error {
 	return fmt.Errorf("%w: Work Item %q: %v", ErrInvariant, logicalKey, err)
 }
 
-func validProposalWorkItemKind(kind protocol.WorkItemKind) bool {
-	switch kind {
-	case protocol.WorkItemKindProduce,
-		protocol.WorkItemKindReview,
-		protocol.WorkItemKindVerify,
-		protocol.WorkItemKindIntegrate:
-		return true
-	default:
-		return false
-	}
-}
-
 func validProposalDependencyKind(kind protocol.WorkDependencyKind) bool {
 	return kind == protocol.WorkDependencyHard || kind == protocol.WorkDependencySoft
-}
-
-func validProposalGoalActivationOrigin(origin protocol.GoalActivationOrigin) bool {
-	switch origin {
-	case protocol.GoalActivationOriginUserExplicit,
-		protocol.GoalActivationOriginAdaptiveInitial,
-		protocol.GoalActivationOriginAdaptivePromoted:
-		return true
-	default:
-		return false
-	}
-}
-
-func validProposalGoalActivationReason(reason protocol.GoalActivationReason) bool {
-	switch reason {
-	case protocol.GoalActivationReasonPersistenceRequested,
-		protocol.GoalActivationReasonObservedBoundary,
-		protocol.GoalActivationReasonRoomDependencyChain,
-		protocol.GoalActivationReasonExternalWait,
-		protocol.GoalActivationReasonScheduledRetry,
-		protocol.GoalActivationReasonContextBoundary,
-		protocol.GoalActivationReasonRecoveryRequired,
-		protocol.GoalActivationReasonSubstantialComplexity:
-		return true
-	default:
-		return false
-	}
 }

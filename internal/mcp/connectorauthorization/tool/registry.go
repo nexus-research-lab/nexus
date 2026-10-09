@@ -27,9 +27,9 @@ func BuildAll(
 ) []sdktool.Tool {
 	if svc == nil ||
 		!sctx.IsMainAgent ||
-		strings.ToLower(strings.TrimSpace(sctx.ContextKind)) != "agent" ||
-		strings.TrimSpace(sctx.OwnerUserID) == "" ||
-		strings.TrimSpace(sctx.CurrentAgentID) == "" {
+		strings.ToLower(sctx.ContextKind) != "agent" ||
+		sctx.OwnerUserID == "" ||
+		sctx.CurrentAgentID == "" {
 		return nil
 	}
 	return []sdktool.Tool{authorization(svc, sctx)}
@@ -62,12 +62,12 @@ func authorization(
 			case actionCancel:
 				result, err = svc.Cancel(ctx, sctx.Actor(), flowRef(args))
 			default:
-				return errorResult(errors.New("未知 Connector authorization action")), nil
+				return sdktool.ErrorResult(errors.New("未知 Connector authorization action")), nil
 			}
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

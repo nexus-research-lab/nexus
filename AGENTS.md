@@ -1,23 +1,21 @@
 # AGENTS.md
 
-- 远程账号可无组织；平台 `role` 与 `organization_role` 独立。组织入口位于账户设置，非运营管理员专属。Relay 必须同时具有远程登录与组织身份；组织变更不能切换或清空 App 本地用户数据目录。
+`nexus` — 用户运行的多 agent 桌面/网页应用；Go 后端 + React web。
+技术栈：Go + net/http + WebSocket + SQLite/goose + React19 + Vite + Zustand。
 
-- 在线 Room 元数据轮询由 `web/src/features/team/use-team-refresh.ts` 统一管理；成员治理新快照回传聊天资源，消息未知结果保留完整幂等意图，不随快照刷新更换目标或版本。
-- 在线消息发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键，恢复不自动重发，快照按本人精确回执对账。Room 明确撤权立即清除聊天资源和连接。群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权，Nexus 不本地猜测治理权限。
+本文件只保存项目宪法：构建门禁、文档分层、依赖方向与工程原则。产品合同一律写在 `docs/specs/`，见文末索引；不得在本文件追加产品行为细节。
 
 ## Build & Validation Commands
 - `make dev`：同时启动同级 Nexus Control（8020）、Go 后端（8010）和前端（3000）
-- `make check-architecture`：检查生产导入方向；集成测试可继续通过 app 装配。
+- `make check-architecture`：检查生产导入方向与 textutil 私有副本；集成测试可继续通过 app 装配。
 - `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
 - `make check-go-fresh`：对上述变化包禁用测试结果缓存
-- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败；原生 macOS 完整入口见 docs/testing/desktop-sandbox-acceptance.md
-- macOS 固定源码基线还必须覆盖工作区根别名的文件免审与 ask/deny、子链接和受保护写入反例；界面菜单切换不能替代实际工具与生效策略验证。
-- macOS 捆绑构建/打包由实际 sidecar 的 `check-desktop-runtime` 检查随包 nxs，作为配套发布的构建自检。升级数据兼容性入口为 `scripts/desktop/check-runtime-upgrade.mjs`，必须显式提供已发布和候选二进制。
-- Windows 本机组件入口为 `node scripts/desktop/check-windows-sandbox.mjs --native`，指定本地 SDK 后要求每个必测项真实通过；进程退出必须看内核信号，残留句柄、可查询 PID/创建时间或退出码 259 均不能单独证明存活。组件门禁不授予 Windows 后端发布验收。
 - `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
 - `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
 - `make check-backend`：Go 后端增量校验，等价于 `make check-go`
+- `make check-normalization`：拒绝对已被证明裁剪过的值再调用 `strings.TrimSpace`（linux/darwin/windows 取交集，约 1 分钟），已并入 `make check-go-full`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
+- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox`：显式桌面沙箱基线；macOS/Windows 原生验收入口与必测项见 `docs/testing/desktop-sandbox-acceptance.md` 与 `docs/specs/desktop-sandbox-spec.md`。
 
 日常修改先跑目标包测试或 `make check-go`。Agent 不得默认执行 `go test ./...` 或 `make check-go-full`；只有发布、共享协议/基础设施变更、增量范围无法可靠判断，或用户明确要求全量时才执行。
 
@@ -27,34 +25,28 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 ## L1 — 文档地图
 
 代码是机器相，注释是语义相，两相必须同构：任一相变化必须在另一相显现，否则视为未完成。
-本仓采用三层分形文档：**L1**（本节，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、`nexus.command` MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
-
-`nexus` — 用户运行的多 agent 桌面/网页应用；Go 后端 + React web。
-技术栈: Go + net/http + WebSocket + SQLite/goose + React19 + Vite + Zustand
+本仓采用三层分形文档：**L1**（本文件，项目宪法）→ **L2**（各 Go 包 `doc.go` 的 `L2` 头，成员清单 + 暴露接口）→ **L3**（业务文件顶部 `INPUT/OUTPUT/POS` 契约）。跨包产品语义只在 `docs/specs/` 保留一份当前规范；`internal/protocol` 类型、`nexus.command` MCP schema 与 parser 是线格式真相，Skill 只说明模型决策，API Reference 只说明 transport。未来方案、交付计划和未实现字段必须明确标为 non-normative，不能混入当前规范或由多份文档重复定义。
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 以单个 main.go 装配服务、自动迁移和 runtime 检查，平台实例锁由 internal/infra/desktopinstance 装配；macOS 桌面在迁移前持有 app/sidecar.lock 内核实例锁直至服务关闭；nexusctl 资源控制 CLI；nexuscfg 配置 CLI；Linux runtime launcher）
-web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
-desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 browser-extension（窗口 chrome、bridge、sidecar 生命周期（boot-bound audit identity 精确终止，旧格式存活/未知记录保留并拒绝并发启动）、状态根整体迁移与重启、本机 workspace 文件打开与 macOS 关联应用发现；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区并通过公开可见性生命周期随主窗口挂起或恢复，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗；Chromium 扩展以代次化标签页引用、来源继承租约、round 收尾、命令截止/取消与执行阶段诊断和增量 AX 快照为 Browser 提供页面、标签页、历史、下载、可见 Agent 指针、交互与用户启用后的完整 CDP 操作）
-skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
+cmd/        - 可执行入口：nexus-server（单个 main.go 装配服务、自动迁移与 runtime 检查；平台实例锁由 infra/desktopinstance 装配）、nexusctl 资源 CLI、nexuscfg 配置 CLI、Linux runtime launcher
+web/        - React 前端（features / store / shared / lib，见 web/AGENTS.md）
+desktop/    - macOS AppKit/WKWebView、Windows WPF/WebView2 宿主与 Chromium browser-extension
+skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
-  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 与命名工作图模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
-  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook；实验桌面执行策略由 clientopts 分项要求普通配置读取/受控写入及快照、托管策略完整性、命令、原生文件、搜索、本地媒体与远程图片网络、macOS 显式 MCP 端点网络、Skill、指令上下文及项目定义文件能力，策略回执持久绑定原监督进程身份、warm 策略代次独立，macOS 启动前保存宿主原 scratch 目录身份，显式持锁恢复以回收区和持久阶段收口资源与关联策略；正常最终 Release 复用同一持久清理，独立终态扫描发现进程回收后的资源/策略待办，跨 Full Access 边界退休旧 runtime，清理失败保留会话启动栅栏；重建前读取持久回执及宿主数据库启动登记，prepared/registered/released 在 factory 前阻断重建；显式监督 Host 已适配数据库和受保护目录句柄；Manager 可在 factory 前冻结启动代次，探测与主进程按同代次独立顺序登记；显式恢复在会话锁内只收口原进程记录，App 默认装配/自动恢复仍待接入，终态沿用 owner/session/generation 的代次，同 scope 的 cleanup_unknown scratch 不得被重启绕过；显式 MCP 的端点网络、认证 helper 与 stdio 进程分别协商，当前覆盖范围见 docs/specs/desktop-sandbox-spec.md）
-  service/    - 业务服务（auth 的 Desktop Local 与服务端 Control adapter / relay 的可选 typed HTTP client / agent / communication / dm / echo / room / room/realtime / configuration / session / workspace / skills / connectors / automation / llm ...）
-  service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
+  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源与 TS codegen 输入
+  runtime/    - nxs/Claude Code 共用宿主主链：bridge client、manager 生命周期、workspace isolation Hook、桌面沙箱资源
+  service/    - 业务服务；service/room 只持久化 Room，实时编排在 service/room/realtime；DM 与 Room realtime 共用的宿主依赖和阶段在 service/runtimehost
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
-  relay/      - Relay 独立跨仓合同；service/relay 只负责 HTTP/WSS 客户端，service/team 负责远端结果与本地投影的同步流程
-  message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
-  echo/       - 用户级 DM 主动跟进策略、attempt 状态与会话覆盖领域模型
-  automation/ - 定时任务调度域（任务级 capability grant、持久审批、主会话事件派发、run 阻塞与安全恢复）
-  service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器，通过共享 runtime Manager 启动一次性 AutoDream 并统一监督、取消与回收
-  cli/        - nexusctl / nexuscfg 本地命令行装配（按领域文件组织）；模型侧命令不经过 CLI
-  app/        - HTTP 与 CLI 共用的显式服务装配和资源所有权；退出先停止 runtime 准入并等待终态落盘，再关闭数据库；server 只负责 HTTP/WS 与后台启停；macOS 桌面入口将迁移前实例锁交给 App，以随包 helper 和 app/processes 完成两阶段恢复后才开放任务，goal / execution / workgraph / runtime 承载宿主适配，runtimecheck 负责安装包内核配套检查；Goal/Execution 跨域业务归 service/goalexecution，身份失效消费策略归 service/auth
-  mcp/ connectors/ workspace/ - 能力域；mcp 根包持有 physical-round 共用可信上下文与 command receipt，mcp/command 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下，各业务包只构建工具定义与固定上下文；模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON；mcp/communication 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯，IM 场景用宿主数据库保存投递来源并把人类反馈交回原 Session，好友私聊保持独立语义，不再设独立 Room MCP 工具包，mcp/browser 通过单个 browser 工具提供完整浏览器操作，mcp/visualize 只暴露 show_widget，skills/visualize 承载生成规范；mcp/artifact 通过 deliver_files 登记 Skill/脚本等最终文件交付，由 workspace 服务校验后随产出 Agent 的精确轮次消息持久化；第三方、用户自定义和 Connector 动态 MCP（包括独立的 `nexus_feishu_docx`）保持各自 server 身份、授权与生命周期，支持原生 MCP 的 Provider 直接挂载自身 server，不提供通用 REST 路由；owner 资源管理复用 nexus-manager / nexusctl，配置管理复用全 Agent 内置 nexus-configuration Skill 与 round-scoped nexuscfg，不再挂载 manager 或 configuration MCP
-  config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/desktopinstance 承载 macOS sidecar 的状态根独占锁（无 PID 推断，旧版未持锁宿主仍须单独核验），infra/duework 承载后台 durable work 的合并唤醒、精确 deadline timer 与低频审计，infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界，infra/runtimebootstrap 校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要
-docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与作者，images/ 保存图片与导出 SVG，operations/ 面向运维，testing/ 保存维护者回归清单与证据，specs/ 保存当前维护者合同，explorations/ 保存明确标记 non-normative 的在研专题及历史证据，architecture-html/ 保存可独立打开的图解页面
+  relay/      - Relay 独立跨仓合同；service/relay 是客户端，service/team 负责远端结果与本地投影同步
+  message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的投影
+  echo/ automation/ - 主动跟进与定时任务领域模型
+  mcp/        - 宿主自有工具统一挂在单一 `nexus` MCP server；`nexus.command` 承载 Goal/Execution/Automation/Subagent
+  cli/        - nexusctl / nexuscfg 本地命令行装配；模型侧命令不经过 CLI
+  app/        - HTTP 与 CLI 共用的显式服务装配、资源所有权与进程生命周期
+  config/ storage/ infra/ migration/ version/ - 装配、持久化、基础设施与版本化迁移；infra/textutil 是只依赖标准库的字符串原语叶子包
+docs/       - README.md 是索引；guides/ 面向用户与作者，operations/ 面向运维，testing/ 保存回归清单与证据，specs/ 保存当前维护者合同，explorations/ 保存 non-normative 在研专题
 </directory>
 ```
 
@@ -62,20 +54,10 @@ docs/       - 开源文档入口；README.md 是索引，guides/ 面向用户与
 
 ## 状态根契约
 
-- `.nexus` 是统一 `NEXUS_STATE_ROOT`；Nexus 宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，供 Nexus 读取的公钥镜像位于 `.nexus/control-public`。
-- 服务端 Web 的 User、密码和 Session 权威位于独立 `nexus-control`；同一套 Nexus Web Shell 将 `/auth/v1` 的登录、登出、资料、改密、首次初始化和成员管理请求同源发送给 Control，Nexus Server 只验证短期签名 Principal，并用 `local_owner_bindings` 将 Control 身份确定性映射到本地 owner key，展示资料只投影到 `owner_profiles`。每个 Nexus 副本独立消费 Control 的持久身份失效序列：登出只清 exact browser Session 与 WebSocket，资料变更刷新 owner 连接但保留 Agent runtime，角色变更或停用才关闭该 owner 的连接与 runtime。Desktop 后端始终使用 `__system__` 本地主体；App 默认把账号 `/auth/v1` 与多人 `/nexus/v1/team` 同源代理到 `NEXUS_REMOTE_URL`（正式环境为 `https://app.nexusos.cn`），由线上 Gateway 访问 Control 与 Relay，不能把 Control 服务凭据或 internal API 暴露给安装包。登录只增加在线能力，不切换本地数据目录。旧 `users`/认证表只允许迁移代码读取，不再属于运行时账号系统。
-- 多人 Team 浏览器 API 固定使用 `/nexus/v1/team/...` 产品路径，只接收现有 HttpOnly Session。Nexus 从认证上下文读取已验证且带当前 Organization 的 Control Principal，经 `/internal/humans/verify` 换取固定 `nexus-relay-user` 短令牌后访问 Relay；浏览器正文、查询和 Header 都不能指定 user、deployment、organization 或 audience。同一 Organization 的成员才能创建和访问彼此的在线 Room；创建和后续邀请都先由 Nexus Gateway 向 Control 校验目标真人，Relay 中 selected member 先成为 invited，接受后才获得 active 访问权。在线 Room 由用户显式创建，创建者是唯一真人群主；群主可改角色和原子移交真人群主，管理员按层级邀请、撤销和移除成员，全部成员命令携带幂等键和 `membership_version`。在线建群或后续添加 Agent 时，浏览器先把选中的本地 Agent 公开身份幂等发布到 Control，Nexus Gateway 再校验这些 Agent 均属于当前真人和 Organization；Relay 只保存 Control Agent ID 与 owner 投影。Agent coordinator 只负责分发任务，不能取得真人治理权。在线 Team 群聊消息只有显式 `@Agent` 或结构化目标才启动 Agent，未指定目标只持久化和广播；DM 保留唯一 Agent 回退。非零同步游标和快照续页必须原样传递 Relay 返回的 `stream_epoch`，世代失配由 WSS `stream.reset_required` 或 difference 触发全量快照。`NEXUS_RELAY_URL` 留空时不挂载 Team 路由；已挂载的 Team 路由仍只接受有效 Control 远程 Session，Desktop 本地主体返回 403。WSS 只转发提交水位，正文由 difference/snapshot 恢复。同一 deployment 的 Conversation/Message 和 `room_seq` 在 Nexus 原数据库只保存一份，各 owner 仅保存独立 `relay_seq` 恢复游标；共享消息与当前 owner 游标在同一事务中提交。Room 创建/列表、snapshot 与 difference 只有在本地投影成功后才确认；Relay 已提交的 message mutation 保持成功，Browser 必须从原 cursor 走 difference 补齐后再推进。
-- 服务端 Web 的订阅套餐与成员 entitlement 写权威也位于 `nexus-control`。Nexus 只保存 `owner_entitlements` 本地投影、持久 Control 事件游标和自身 token 用量，并在新 runtime 请求前按投影校验额度；`entitlement_changed` 只刷新投影，不中断正在执行的 Agent。旧 `subscription_plans`/`user_subscriptions` 只允许迁移读取。运营页中的公共 Provider 与项目 ACL 仍属于 Nexus 运行资源，不迁入 Control。
-- 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；启动提交阶段必须先重映射持久路径与路径派生的 Session 删除恢复文件名，再通过健康检查提交新根；业务进程不支持拆分或在线迁移局部子树。
-- 用户数据位于 `.nexus/users/<owner>/`，该 owner 的 runtime 对整棵用户数据根拥有读写权限，跨 owner 访问仍拒绝；`workspace/` 保存 Agent 工作目录与 `.rooms/` 公共附件，`runtime/` 同时作为 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，Room ledger 固定写入 `state/rooms/`。
-- nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
-- 配套 nxs 的记忆召回/manifest、store 初始化、Summary 文件/模板/提示词和 compact 摘要输入使用当前文件执行器；初始文件独占创建且不覆盖已有数据，未知结果不重放。只读资源会话保留已有记忆读取，不初始化或调度持久写入。AutoDream 完成时间和历史 transcript 目录/元数据也使用当前文件执行器，失败不启动整理或推进扫描节流。macOS 记忆写入租约由同策略 worker 持有固定目录句柄和内核锁，完成只尝试一次且核对退出，释放不删除路径；旧活动记录只有明确死亡才允许继续。后台内容替换记录只沿当前 recorder 路径经文件执行器流式读取，完整响应和成功退出后才交给模型，拒绝/取消不回退宿主目录。大日志保留原 compact 后缀与保留段语义；该实现不扩大能力协商范围，普通会话录制/恢复、其余 SDK IO 与任意后代监督仍独立收口。
-- Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
-- 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过 `internal/migration/state_layout.go` 与 `workspace_layout.go` 这类明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局；迁移不能因版本发布而提前移除，必须允许用户跨版本直接升级。
-- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`；所有交互 Agent 通过宿主签发的 round capability 调用 `nexuscfg`，权限仍由 configuration 角色矩阵收口。
-- 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
-
-- 本地 Room 保存有效群主并开启 `host_auto_reply_enabled` 后，未指定目标的浏览器消息由该群主接管；显式目标优先，暂停参与仍受闸门限制。在线 Team/Relay 不复用此回退。
+- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，公钥镜像位于 `.nexus/control-public`，用户数据位于 `.nexus/users/<owner>/`。
+- 启动只把当前 canonical 布局作为运行时读写路径；历史数据只能经 `internal/migration` 中版本化、可重试、不提供旧路径回读的迁移进入 canonical 布局，迁移必须允许跨版本直接升级。
+- 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`。
+- 账号、组织、订阅与在线 Team 的权威位于 `nexus-control`/Relay，Nexus 只保存本地投影；细节见 `docs/specs/online-team-spec.md`。目录布局与隔离细节见 `docs/specs/workspace-isolation-spec.md`。
 
 ## 后端依赖方向
 
@@ -86,68 +68,43 @@ cmd -> app -> handler -> service -> domain/storage
 
 - `app` 只负责装配、路由和进程生命周期，不承载业务规则。
 - `handler` 在消费侧定义小接口，只依赖当前端点需要的操作；实现返回具体类型。
-- `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`。
-- `service/configuration` 按领域聚合操作输入、校验、执行与核对，共用授权、批准、CAS 和审计；`service/orchestration` 命令在同包内按业务归组，`runtimehook.Observer` 统一 DM/Room 运行观察，可信会话身份仍由各宿主提供。
-- 配置 revision 使用宿主数据库中的独立持久密钥绑定 domain/scope/target/state version；plan digest 仍随进程失效。旧格式 receipt 明确报告不可比较，禁止通过重算历史 revision 或自动重放来猜测结果；完整合同见 `docs/specs/conversational-configuration-control-spec.md`。
-- Goal 持有目标状态、续跑租约与用量结算规则，Execution 持有责任图及 binding 真相，DM/Room 持有输入优先级、运行身份和输出权限；Goal 用量转换共用 `goal/runtimeusage`，子任务 pending 的合并与确认共用 Goal 观察值，禁止把宿主锁或 Room 公私输出策略下沉为通用流程。
-- `service/room` 只持有 Room 的持久化管理；实时聊天与 runtime 编排位于 `service/room/realtime`，依赖方向只能从 realtime 指向 room。
-- `service/room/realtime` 测试按 package 与行为聚合：内部状态、Goal、协作测试分别归组，外部交付、生命周期和共享夹具集中管理；queue、guidance、session、directed message 等大场景保持独立。
-- 内置 Loops 模板目录已移除；能力入口保留 Skills、Connectors、Channels、定时任务与工作图，Composer 通过普通 Goal 或已保存工作图发起任务。
-- `service/configuration` 测试按身份授权、输入与风险、脱敏、审批、审计及业务集成归组；共享装配与审批辅助集中在现有集成测试文件，重复成功路径复用完整场景，独立保留越权、CAS、凭据和删除恢复边界。
-- `storage` 负责持久化与数据库方言，不保留没有行为的方言门面；共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
+- `service` 负责业务阶段和事务边界，不依赖 `handler` 或 `app`；`service/room/realtime` 只能依赖 `service/room`，不能反向。
+- `storage` 负责持久化与数据库方言，共享 SQL 分叉统一进入 `SQLDialect`，领域查询留在各自 repository。
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
-- macOS 受限模式在统一 clientopts 装配中拒绝写入整个 app 树及读取其私有目录，保留 Skill 投影读取及词法/物理路径；新私有文件必须位于 desktop_host_paths 的已保护目录或先扩展该表；nxs 复用自身文件沙箱，Claude 复用命令沙箱和 Read/Edit 规则。Full Access 按用户明确选择访问当前用户本机文件，不提供沙箱隔离保证，不要求额外隔离身份；不得把残留能力握手或生命周期回执当作隔离证据。
-- `runtime/clientopts` 在所有环境合并后固定 nxs Provider 与 AutoDream 唤醒的宿主所有权；任务 settings 和附加环境不能撤销该声明。Provider 环境隔离不代表整个 SDK 的文件、网络、MCP 或进程秘密隔离，当前范围见 `docs/specs/desktop-sandbox-spec.md`。
-- Nexus 只生产按 priority/name/content/metadata 确定性排序的内部上下文块；bridge 将它们绑定到下一条 user 消息，nxs 在 user 落盘前提取为当前 live model history 的隐藏 reminder，Claude Code 通过 `UserPromptSubmit` hook 生成同语义 attachment；两者后续请求继续携带但不进入 transcript。workspace `AGENTS.md` 只由 SDK 启动加载器读取，产品 prompt builder 不再重复拼接。
-- 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
-- 侧栏的聊天执行态与待确认人工交互只按 Room ID 输出；容器内部必须按精确 Conversation/Session source 隔离后取并集，空快照或终态不得清除其他 source。Room 活动快照必须携带捕获时 `room_seq` 作重放栅栏；持久 Assistant 历史只表达结构和终态，不得独立复活执行态。DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
-- Conversation reliability 必须把 transport retry、Provider retry、请求受理和 Agent round 失败按稳定 `failure_code` 与 exact Session/request/round/Agent-round 身份隔离。WebSocket 首次 error 不是终态；重连先重放 Session binding，再拉 durable Session，Room 额外恢复 room_seq replay 与 subscription snapshot。旧请求取消不能让已重连的健康 sender 失效；发送前拒绝已取消的事件，接纳后的帧由连接独立超时收口。客户端只对账、不自动重发 prompt、工具或其他副作用命令；正向 ACK/stream/message/round status 只能清除精确匹配的故障。带 Agent round 的 Room 错误不得污染 root 或其他成员。用户界面只在 Composer 状态栈显示可执行文案，不暴露内部详情或 ID，不写入 Feed、历史、未读或滚动几何；完整当前合同见 `docs/specs/message-processing-spec.md`。
-- 普通 HTTP 失败可显式携带最小 `FailureCore v1`（version/code/category/effect/可选 transport request ID），但旧 `WriteFailure` 与各领域既有身份默认不变；协议不携带恢复动作、重试等待或用户文案，Web 使用当前界面的本地化标题、一句影响/下一步说明和至多一个动作。`failure.transport_request_id` 只复用经过限长和字符校验的当前 `X-Request-ID` 做诊断，不得变成幂等、授权、路由、缓存或业务身份；Agent 创建的 owner-scoped `creation_request_id`、密码修改的 user-scoped `request_id`、Conversation `client_request_id/client_message_id`、Configuration/Automation/Goal/Execution 的既有 `request_id` 与 run/round/resource identity 继续各自拥有真相。Agent 创建回执只保存 intent digest、保留的 Agent identity/path 和阶段，不保存完整请求或秘密；密码终态回执只保存 request identity、`committed|not_applied` 与收口时间，committed 必须和凭据 CAS 同事务，not_applied 必须阻止同 request 的迟到写入，浏览器不得持久密码草稿。Agent/Profile/Runtime 与 committed receipt 同事务，删除与 receipt 墓碑同事务，lease 到期不把 pending 猜成 not_applied，也不触发后台重放。数据影响只能由事务、revision、durable ACK 或领域回执证明；断线/超时必须进入 unknown 并先对账，禁止自动重放副作用。浏览器不维护通用 mutation journal 或 Web Lock 正确性边界；页面内可临时防重，重载与多窗口状态直接服从服务端 revision/receipt。Subscription 未对账 mutation 锁独立于可见 feedback，dismiss 或读失败不得解锁。读取辅助数据失败不能摧毁仍有权限的主快照。完整合同见 `docs/specs/failure-recovery-spec.md`。
-- Automation 的运行领取、执行结束、首次投递、人工重投、任务删除和 Heartbeat wake 是六个独立的持久阶段。人工运行必须先按 exact owner/job/configuration/permission/request identity 把 runtime claim 与初始 run 单事务提交，之后才 dispatch；terminal run 与 task runtime 也必须先按 exact owner/job/run 单事务提交，之后才能以内部 attempt token 领取外投。router 已调用但结果未知时保持 `retrying`，后台永不自动补投，只有用户核对接收端后才能用配置版本和 delivery attempts 显式领取新 attempt。任务删除必须先持久 claim、禁用新运行并推进配置版本，再中断 exact 本地 attempt、原子收口 run/权限/投递/审计并删除定义；无法证明原执行实例已停止时进入 `review_required`，保留任务与历史且禁止按超时猜测。删除中的迟到 terminal 只能走 exact deletion token 的独立 suppressed commit，强制 `not_attempted` 且不得投递或改写 task runtime。Heartbeat wake 必须在配置事务栅栏内先写 durable outbox，未领取项可恢复，已经开始但结果未知的 claim 不得自动重投。查询不得隐式写策略或调度状态；deadline 由索引、合并唤醒和低频审计驱动，不做 per-task 轮询。完整合同见 `docs/specs/failure-recovery-spec.md`。
-- Composer 加号菜单的计划模式与 `/plan` 共用 Slash 草稿及 DM/Room 请求链路，不新增设置入口或独立执行协议；当前合同见 `docs/specs/slash-command-spec.md`。
-- Goal Composer 的“设定 Goal”和文本 `/goal` 必须进入同一个宿主控制命令：先写 Goal，再持久化一条完成态、用户可见但不进入模型的 `/goal <objective>` 控制记录，最后才启动 Goal continuation。该控制记录必须保留 exact `client_message_id` 作为 ACK 丢失后的 durable acceptance 证据；不得按正文或时间邻近猜测。不得把 Goal objective 当普通 chat prompt 直接执行；新会话标题与 started/message count 必须由 Goal/控制记录独立建立，不能依赖首个模型回复。WebSocket 入口完成同步 scope/owner 校验并受理 `set_goal` 后，必须按原连接顺序在有界 detached context 中完成；切页或断连只能失去 ACK 投影，不能取消已受理的 Goal、控制记录、目录失效或 continuation。
-- 模型通过 Goal command 创建的 Goal 必须把经服务端验证的当前 Agent 持久化为负责人；后续新物理 round 只为该负责人解析启动时的 exact Goal/objective revision，并且该快照只进入 round-scoped Goal command authority，不得泄漏为 ambient Execution/WorkGraph authority。Goal read model 必须同时投影当前 objective revision 与服务端权威 completion criteria，完成审计不得从 transcript、旧 Plan 或聊天正文重建。exact Room conversation 的协作者只能读 Goal、共享 WorkGraph 的目标/拓扑/状态和交付证据；只读观察不得授予 Assignment、Review、Submission、Plan mutation、Goal 或 coordination capability。旧 round、旧 revision、后台/外部来源仍必须 fail closed。
-- Room Lead 自己执行 Work Item 时，必须由宿主在 self Assignment 持久化后签发 exact WorkBinding，并在同一物理 round 内供 Execution command、Runtime Graph 与 subagent admission 动态读取；Room 成员或 coordinator 身份不得替代该显式 capability。DM 的同轮责任分段保持独立，不得反向成为 Room 的隐式授权条件。
-- Runtime Graph 必须把当前 `nexus.command` 的 exact tool identity 识别为 Goal/Execution 控制面，只持久化 `domain + action + operation + request_id` 分类而不持久化业务 `input`；这些控制调用始终作为 direct owner 的 `detail` 审计事实，不因失败、重试、Artifact 或控制边进入主画布。读取历史运行记录时，旧 Goal/Execution CLI、旧 MCP 工具身份与 canonical staging 路径归入同一 transport 语义，但不得恢复旧路由或授权。控制节点只能按 exact Execution ID + Execution root round 读取，并由宿主 typed receipt 的 `domain + operation + request_id + changed refs` 核验；同一 exact request 的 provider Tool lifecycle 与 host receipt 是一个语义边界，不能重复切段。DM 同一物理 round 内每个成功 self `assign_work` 或 `take_over_work` 必须据此建立独立 Work Item/Assignment/Attempt 执行段；首个 Assignment 在 block/release 前尚无 round identity 时，只能由同 coordinator、同 exact request、唯一生命周期区间恢复，其他缺失、冲突或跨 scope 引用必须清空边界而非沿用上一段。画布必须用同一 read transaction 读取当前 Snapshot 与 append-only Assignment/Attempt/Submission/Review/Acceptance 历史，每个 root Attempt 和 immutable Submission Gate 保留独立轮次；Acceptance 只更新对应 Submission Gate 的结论，不能因 current Assignment 清空再补建第二个 Gate。运行工具优先按 exact Attempt/Submission/round 归属，不能被最新 Work Item 头像吞并。Work Item/Attempt/Review/Gate 继续表达权威图变化；普通成功 Bash、`MEMORY.md`/`memory/` 维护与无 Artifact/显式重要性的本地文件操作只留在详情，运行中、失败/取消/中断、业务 Artifact、显式可见 hint、retry/loop-back 或失败后的恢复才提升为关键画布节点，外部可观察动作仍按语义展示。
-- Goal/Execution/Automation/Subagent 的模型入口统一是内置 Skill 与 round-scoped `nexus.command`。宿主在 SDK MCP server 实例中固定 owner、Agent、Session、round、Goal/Execution authority 与 Automation route，模型只提交 closed structured input；不创建 `input.json`，不授予临时写目录，也不经过 shell、环境变量、loopback broker 或 capability token。每轮 server 由 bridge 原地替换，因此 authority 更新不要求 runtime 重启。mutation 前必须读取 fresh exact contract，领域 parser 在任何状态读取前校验 schema；同轮 Goal mutation 推进的动态 authority 必须被后续 Execution command 原子读取。`get_goal` 固定映射零输入 Goal inspect，`get_execution` 固定映射 current/指定 Execution 状态读取，读操作不得绕回 invoke。所有模型可见 Execution context 只投影当前运行、异常、Artifact 与控制回连，不回放成功工具历史；mutation 结果裁掉 Runtime Graph 观察事实并可裁掉 graph digest，但不得清空当前 responsibility/review/action/blocker context、伪造 refresh 状态或结束 physical round；只有服务状态机明确返回 `round_refresh_required` 才能换轮。完成态 WorkGraph 的提取、编辑和保存统一为 owner/source-session-scoped durable Draft：同一 exact source Execution 只抽取一次，完整 source logical-key、父子结构与依赖全部交给默认对话模型，required/terminal、拓扑引用、验证/复核和协作边界默认强制保留；模型主要抽象具体任务语义。Draft 在数据库保存不可变完整版本，`head_revision` 是 CAS，`selected_revision` 是用户偏好，选择旧版不删除新版；一个 Session 可按 exact execution_id/preview_id 查询多张来源图、Draft 和已保存命名图。普通 DM/Room 通过 `execution-orchestrator` Skill 与 `nexus.command` 的 WorkGraph operation 共享同一 service，即使当前没有 active Execution 也可查询；保存只接受本轮明确确认。每个成功 authoring 结果把最后一份完整图快照持久化为当前回复的 `workgraph_artifact`，默认只展示当前草图卡片；用户按需打开来源对照时才以 exact source session/execution 读取原图并与草图双栏或窄屏切换展示。已保存命名图从能力页继续编辑时恢复原 Draft、selected revision 和隐藏编辑 Session，旧数据按命名图 identity 建立一次初始 Draft，同源历史命名图由 immutable origin_workflow_id 隔离；再次保存更新同一命名图 aggregate 并追加版本，不重复抽取或创建同名副本。Draft 使用可续期的空闲 lease，读取、列举或恢复编辑会续期，页面关闭不能使其丢失。UI 编辑统一由 owner 的 Nexus 主智能体在目录隐藏专用 DM 中承载，不 fork 或继承来源 DM/Room transcript、Connector、workspace 或权限，来源只通过 Draft 和 source WorkGraph 事实提供；关闭 UI 不删除 Session，再次打开继续同一对话。该 Session 只加载 `execution-orchestrator`，只暴露 bound revise/select operation，每次 mutation 提交完整草图并校验 logical key、kind、父子结构、DAG、key 主路径和 terminal 交付。UI 确认保存直接把已生成草图与命令名/标题/描述交给宿主事务，不再启动后台模型 round；图结构只来自 exact durable Draft，草图版本、命名图和保存标记必须同事务提交，并以 head/selected/saved identity 与 aggregate version 拒绝迟到覆盖。前端只在提交成功后显示“已保存”并刷新 Slash 目录，模型抽取与对话编辑继续保持既有边界。普通对话保存只回复当前请求所在会话，不向来源或其他 Session 透传。初始抽取失败、虚构源节点、缺关键路径/terminal、跨 owner/session 或 revision 冲突时失败关闭；命名图永不保存 Tool、运行身份、Assignment、Attempt、结果、Artifact、Submission、Review 或 Acceptance。固定 `/workgraph` 只启用当前请求协作；动态 Slash 每次复用都创建 fresh Execution/Plan/Work Item identity，不新增通用 WorkGraph MCP。
-- 系统内置 WorkGraph 模板由 `internal/service/workgraphworkflow` 版本化维护，只读进入能力目录、Composer 与动态 Slash 展开，不写 owner 数据或伪造来源 Execution；升级前已存在的同名 owner 命名图优先，避免改变用户命令语义。内置模板与 owner 命名图每次复用都必须创建 fresh Execution/Plan/Work Item identity。
-- 初始 WorkGraph 草图抽取必须把完整 source logical-key 节点、父子层级和依赖传给默认对话模型；宿主把 required/terminal、拓扑引用、验证/复核与协作边界标为必须保留并在模型输出后强制校验。模型默认保留节点，只抽象具体课题、路径、章节和一次性任务语义；仅未标记且移除后不损失任何结构语义的孤立非关键节点可省略，无法确定时保留。
-- WorkGraph 编辑小页固定为左侧标准 DM、右侧实时草图预览的扁平双栏；左侧以 Nexus 主智能体身份展示不进入 transcript 或模型上下文的本地接待说明，再展示隐藏专用 Session 自身的持续编辑消息。首次进入以接待说明为顶部锚点，短内容向下增长；恢复既有对话或溢出后复用 FOLLOW，用户上滚后复用 READING。右侧展示不可变版本目录和当前 selected revision；关闭只隐藏页面，显式应用才把所选版本投影回确认页，任何编辑或保存消息都不合并回源会话。
-- Goal 与 Execution command domain 的同名近义操作不得混用：`execution/audit_execution_alignment` 只是 current Execution 的可选 Gate，不能作为 Goal 完成证据，terminal Execution 必须拒绝；确认绑定 WorkGraph 的最终 Acceptance 自动完成无 blocker 的 Execution 后，exact coordinator receipt 必须把同一 physical round 路由到 `goal/audit_objective_alignment`，其 aligned receipt 再路由到 `goal/update_goal`。Goal completion 拒绝必须返回 domain-qualified recovery action，缺对齐证据回 Goal audit，未完成图责任回 Execution inspect；不得靠模型猜测相似 operation 名称。
-- Subagent 复用 `nexus.command` 的 subagent domain 与按需 Skill reference，bridge 协商 `subagent_control_v1` 后按 SDK 可信 tool-use identity 回连当前父 runtime；固定隐藏原生 Agent schema，复用已有准入与 task 生命周期。精确 Assignment 下建立 child Attempt，缺少唯一责任时只记 runtime observation，不授予递归派生或父责任验收权限。
-- 活跃 Nexus Session 的 MCP 工具面只由稳定会话拓扑和用户显式 MCP/Connector 选择决定；内部唤醒、私域回传、Room 角色、WorkBinding/ReviewBinding、Goal authority 与通讯开关只改变逐轮执行权限，不得通过卸载 schema 鉴权。无权轮次必须保留工具定义并在 service 真相源 fail closed；`ToolSearch` 只是默认关闭的 schema 传递优化，不参与挂载或鉴权。
-- Room Goal continuation 发出的公区 `@` 或带 wake 的 directed message 必须携带宿主持有的精确 Goal ID/objective revision 协作归因，跨 directed-message fact、handoff ledger、InputQueue 和重启恢复保持；私域消息与 handoff 的两阶段写入必须可从前者按当前 revision 幂等修复。副作用工具重试使用 host-only command identity；immediate/delayed wake 都必须先 schedule、成功入队后 complete，并可在线及重启恢复。该归因只用于等待协作者终态、记录可见审计事实并重新调度一轮有权限的 continuation，绝不能授予目标 conversation round Goal mutation authority。Goal-attributed handoff 不得折叠为 busy slot 的普通 guide；target terminal 与 Goal handback 必须作为两个 durable 阶段恢复，handback 只解除旧 source 的空进展抑制，不重置 continuation 次数上限。当前负责人在 objective 满足且 Room/Execution readiness 通过后拥有 Goal 关闭决定权；成员数量与协作证据不构成完成门槛，但已启动的 slot、handoff、queue、wake 或 WorkGraph work 必须先终态或显式取消。公开非 Lead 实质回复仍可在同一 durable Goal ID 生命周期内单调记录为审计事实，objective revision 只 fence 迟到事件的写入归因。历史无归因数据只能由当前 Goal 的精确 suppression 审计事件、完整终态 root 与同 root 公开证据联合修复，禁止从正文或时间邻近猜测。
-- Room-backed Session 中，SQL 只拥有 Room 身份、标题与配置，workspace/Room ledger 拥有运行历史进度；统一读模型必须单调合并。旧 SQL `messages` 计数只能作为兼容下限，禁止覆盖 canonical Goal 控制记录、标题、最近活动、消息数、上下文占用或 transcript lineage。
-- Room 与 DM 的会话内滚动只保留统一“回到底部”动作，不再把侧栏未读状态注入 Feed、自动定位首条未读或渲染“新消息”边界；当前窗口打开精确 Conversation 后立即确认该目标，其他 Conversation 的侧栏未读与系统通知继续隔离保留。
-- 首次 DM 与新 Room 的介绍只由前端在 canonical timeline 为空时渲染为静态建议面板，不写入消息、不调用模型、不创建 runtime round；历史 `conversation_welcome` 在 timeline 根入口统一隐藏。Provider `ToolUseSummary` 在执行中收到非空内容即投影为同 Agent round 原位替换的 ephemeral `progress_update`，不设长任务、耗时或工具数门槛；Room 主 Feed 只在原活动位置以统一主色显示一条不可展开的 summary/fallback，不渲染 thinking、普通工具、MCP/CLI 调用、计数或异常，具体过程进入 Thread 后才使用中文优先的可展开折叠栏。DM 没有公区/Thread 分层，继续保留同一可展开过程；DM/Thread 首次展开过程栏只显示仍然收起的子项目录，Thought、Agent、MCP 与普通工具详情必须由各自的第二次点击独立打开（Agent 可进入任务详情面板），父级不得级联展开。最终回复始终由独立 final surface 保持可见，权限、用户提问和生成式 UI 保持唯一交互面。终态清除 summary，且 summary 不得进入历史、未读、计数或最终 assistant。
-- 定时任务创建时，有复用执行 Session 就复制该 Session 的有效 permission mode，否则取执行 Agent；同时复制执行 Agent 工具 allow/deny 为独立任务快照。执行与投递的页面层级统一按真实会话身份选择：DM 都先选 Agent、再选该 Agent 的 DM/active-paired IM Session；Room 都先选真实 Room、再选共享 Room Session、最后选该 Session 的有效成员 Agent，不选成员时在保存阶段解析为当前房主。Room 的执行 Agent 与结果回复/署名 Agent 是两个独立、持久化且在运行/重试时重新验证的身份。来源 Session 只作 provenance，不参与权限继承。后续修改任务不回写 Agent，Agent 配置变化也不隐式改写任务。单个 Session 删除时，引用任务必须保留、停用并进入 `rebind_required`，只有执行与投递的全部失效绑定被替换后才能重新启用；Agent/Room 整体删除仍级联删除任务，删除恢复必须重放同一失效投影。
-- IM 来源的定时任务只持久化结构化会话键与可长期复用的通道上下文；创建 `Source` 只作不可变 provenance，最近一次明确配置投递的可信 Agent/页面/CLI 授权必须独立保存在非公开 `DeliveryGrant`，旧任务升级时从 Source 精确复制而不改写来源。callback `req_id`/stream 只用于当前即时回复。执行 Agent 与结果接收 Session 相互独立：结果先以 run_id 幂等投影到接收 Agent 所属的真实 Nexus/Room/IM Session，另存 producer Agent metadata，再发送外部 IM 并关联平台回执；新建与改绑必须引用结构化且已存在的真实 Session，不得只保存裸 channel/chat ID 或创建合成“定时任务收件箱”，旧裸路由与该内部 key 只保留历史读取/投递兼容，编辑时必须重绑。真实 Session 以统一读模型为准：数据库拥有的 Room-backed DM/成员 Session 与 workspace/IM Session 都是合法候选；首次投递可基于该已验证身份物化 workspace 投影，不得以 `room_id` 或 workspace meta 是否已生成作为可投递性边界。普通 Agent 的 Automation command 只表达 `context_mode=current|isolated` 与 `deliver_result`，tool schema 不暴露 channel/account/target/thread/session 等宿主路由；create/update 必须从 round actor 自动绑定，模型伪造字段必须被严格解码或 service 拒绝。owner main 高级控制也只能选择已存在且可验证的真实 Session。所有 Automation mutation 固定走 `inspect -> plan -> apply`、revision/digest 栅栏和当前 Session 原生真人确认；后台 scheduled run authority 只读并绑定 exact job/run。每个 run 固化开始时的投递目标，首次投递使用该快照；用户修正通道后重试使用任务最新目标。正文不承担来源或授权语义。创建、执行投递、审批与重试都必须重新验证 active pairing。持久权限请求创建时冻结唯一审批 Session：优先该 run 的结果接收 Session，没有接收目标时可退到来源 Session；实时投影、重连重放、Composer 决策与 IM Slash 此后只认该冻结身份。企业微信延迟结果使用主动消息命令；IM 权限通知只向用户展示 session-scoped `/y`（本次允许）、`/a`（持续允许）、`/d`（拒绝），历史 `/approve`、`/always`、`/deny` 只作兼容别名，内部请求 ID 不属于用户协议；无 ID 命令只有在当前会话跨普通 runtime 与 Automation 合计恰有一个待确认请求时才执行，多个请求必须 fail closed，且命令不进入 Agent 对话。catalog 中所有外部 IM 的 active-paired 私聊都是同一 Agent 的 transport：共享该 Agent 的 Skill、当前 permission mode、工具 allow/deny 和同 Agent Automation CRUD；普通 runtime 工具确认也通过同一 session 的无 ID Slash 回到唯一 pending request。浏览器查看外部 IM session 可以订阅并处理绑定 exact request 的 Automation 持久权限卡片，但不得注入 Web host Slash 或覆盖 IM 投递 route；群聊、失效配对及跨 Agent/owner 控制继续 fail closed。
-
-长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。
-
-自动审核产品预设为 `permission_mode=auto`，实现边界见 `docs/auto-review.md`。SDK 负责独立模型审核，bridge 协商 auto_review_v1，产品保留人工审批与任务持久恢复。
-
-用户账号的对话管理统一通过 nexuscfg members，由 runtime broker 展示绑定当前真人 Session 的确认卡片，再调用 Control 内部成员 API。只向有效管理员的主智能体 DM 开放；不恢复 nexusctl auth/user，不传递 Control 服务凭据给命令参数。members.remove 撤销部署访问并保留数据。
-
-个人设置用量由 usage ledger 提供累计汇总与最近 365 个 UTC 自然日的 daily 聚合；前端图表和明细表共用该数据，不增加另一套记账来源。
 
 ## 内部依赖门禁
 
-在线 Agent 完整回复保留 `author_agent_id/delivery_id/output_kind` 到共享消息投影；`author_user_id` 只表示真人所有者。UI 只有 `author_type=user` 才进入本人消息与发件箱确认路径，Agent 显示独立成员身份。Node 授权和投递租约属于 Control/Relay；`service/team/node_executor.go` 主动领取并复用 Room runtime，不能把 pending/leased 直接显示为执行成功。
+当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入并拒绝按形状识别的 textutil 私有副本，并接入增量 Go 检查与全量 vet 入口。
 
-`/nexus/v1/team-node` 是本机授权入口，不在 Desktop 的 `/team` 远程代理内。服务端以当前远程 Cookie 验证账号/组织，再将本人已发布 Agent 与本机 owner Agent 目录取交集；设备凭据使用现有宿主 keyring 加密后先落盘，Cookie 只留哈希。未知注册只重试原意图，撤销先冻结本机授权，精确回执更新本地状态；不能以未知注册的 404 当作撤销证明。授权只代表设备已登记，不表示 worker 已上线。
-
-Node 执行另需显式开启，旧授权默认关闭。机器凭据固定原 Control 地址，后台无浏览器 Cookie；最多八个并行本机 Agent。`storage/teamrelay/jobs.go` 持久 inbox/outbox，ready→running CAS 与撤销共锁授权行；未知 running 不自动重跑。`room/relay_execution.go` 按 owner/在线作用域/Room/本机 Agent 绑定独立执行会话，复用原生权限、问答与 exact round 中断。`node_runtime.go` 只转发 durable 且 is_complete 的 assistant 文本，单条 64 KiB、单任务 1 MiB；final 和本机 draining 原子落盘，重试只重放原 output ID。真实双节点模型、未知运行人工解锁和远程产物尚未验收/实现。
-
-当前边界与验收见 `docs/specs/internal-boundaries.md`，由 `scripts/check-architecture` 检查生产导入，并接入增量 Go 检查与全量 vet 入口。
-
-- protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol，并通过 `internal/infra/confinedfs` 使用固定目录句柄完成宿主沙箱资源的创建、标记和回收；除该明确文件边界外不得引入其他 infra/service 依赖。
+- protocol 与 relay 合同不依赖其他 internal 包；runtime 根包只消费 protocol，并通过 `internal/infra/confinedfs` 使用固定目录句柄完成宿主沙箱资源的创建、标记和回收；除该明确文件边界与只依赖标准库的 `internal/infra/textutil` 叶子包外不得引入其他 infra/service 依赖；textutil 自身不得依赖任何 internal 包。
 - service 不依赖 app/handler；storage、infra、message 不依赖 app/handler/service，message 也不依赖 storage。
 - orchestration 核心不依赖 MCP，协议转换进入 runtimehook；app 共享装配不反向依赖 app/server。
 - Session 跨表清理使用调用方持有的同一事务，SQL 归本领域仓储，不能由各服务分别提交。
 
-- macOS 显式监督的 socket 保留在原宿主状态目录；Bridge 用专用原生线程的父目录句柄与文件名绑定/连接，不改进程 cwd，不创建短路径别名或共享临时控制目录。
+## 工程原则
 
-- macOS 进程恢复必须持有经核验的 sidecar 实例所有权，回收目录须属于同一个 app 根且 inode 未替换；锁必须覆盖整个原生回收和持久终态提交，不能仅在入口检查后释放。
+- 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。
+- DM 是 Room 的一种：两者共用的运行阶段只实现一次，Room 只注入多成员 slot 与公私域策略。
+- 共享字符串原语只用 `internal/infra/textutil`，不得私有复制。
+- 字符串只在入口裁剪一次：handler/WebSocket 解析、MCP parser、存储扫描与 `authctx` 身份读取负责清洗，下游一律信任；不得在 service 内部对已清洗的值重复 `strings.TrimSpace`。
+- 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。新增测试应覆盖尚未覆盖的分支，不重复已覆盖路径。
+- 数据影响只能由事务、revision、durable ACK 或领域回执证明；断线/超时进入 unknown 并先对账，禁止自动重放副作用（见 `docs/specs/failure-recovery-spec.md`）。
 
-- 启动恢复按持久 launch ID 分页读取未收口记录，每批最多 256 条；失败记录保留并单独报告，游标继续以免阻塞其他条目。该内部跨 owner 扫描只供持锁宿主，不提供用户 API，不重放任务，不把进程回收等同于业务结果已知。
+## 产品合同索引
+
+| 主题 | 唯一规范 |
+| --- | --- |
+| 账号、组织、订阅、在线 Team、Node | `docs/specs/online-team-spec.md` |
+| 状态根布局、Linux 隔离、宿主文件边界 | `docs/specs/workspace-isolation-spec.md` |
+| 桌面沙箱、macOS 进程恢复、记忆写入 | `docs/specs/desktop-sandbox-spec.md` |
+| Goal / Execution / WorkGraph / Subagent | `docs/specs/execution-orchestration-spec.md` · `docs/specs/execution-graph-spec.md` |
+| Room 持久化、侧栏活动、Room-backed Session | `docs/specs/room-spec.md` · `docs/specs/room-collaboration-spec.md` |
+| 消息链路、上下文块、会话 UI 呈现 | `docs/specs/message-processing-spec.md` |
+| 失败协议、Automation 持久阶段 | `docs/specs/failure-recovery-spec.md` |
+| 定时任务绑定与 IM 投递权限 | `docs/specs/automation-permission-pipeline-spec.md` |
+| 运行时人工交互与 MCP 工具面 | `docs/specs/permission-runtime-spec.md` |
+| 对话式配置、revision 密钥 | `docs/specs/conversational-configuration-control-spec.md` |
+| Slash 与计划模式 | `docs/specs/slash-command-spec.md` |
+| 能力页 | `docs/specs/capability-page-design-spec.md` |
+| 自动审核 | `docs/auto-review.md` |
+| 包边界、MCP 能力域、测试组织 | `docs/specs/internal-boundaries.md` |

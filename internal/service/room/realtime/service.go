@@ -6,30 +6,22 @@ package realtime
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
-	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
-	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -127,41 +119,6 @@ type InterruptRequest struct {
 	AgentRoundID string
 }
 
-// MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
-// 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
-type MCPServerBuilder func(
-	ctx context.Context,
-	agentValue *protocol.Agent,
-	sessionKey string,
-	roundID string,
-	sourceContextType string,
-	sourceContextID string,
-	sourceContextLabel string,
-	goalObjectiveRevision *atomic.Int64,
-	permissionMode sdkpermission.Mode,
-) map[string]sdkmcp.ServerConfig
-
-// ConfigurationRuntimeEnvironmentBuilder 由宿主为当前 Room Agent slot 签发 nexuscfg 环境。
-type ConfigurationRuntimeEnvironmentBuilder func(
-	context.Context,
-	*protocol.Agent,
-	string,
-	string,
-	string,
-	string,
-) (map[string]string, error)
-
-// NexusMCPServerBuilder 为当前 Room Agent slot 构造唯一 Nexus 内建 MCP server。
-type NexusMCPServerBuilder func(
-	context.Context,
-	nexusmcp.RoundContext,
-) (map[string]sdkmcp.ServerConfig, error)
-
-// RuntimeSlashExpander 把 Nexus 产品 Slash 或 owner 的命名 WorkGraph 沉淀展开为 runtime prompt。
-type RuntimeSlashExpander interface {
-	ExpandRuntimePrompt(context.Context, string, string) (string, error)
-}
-
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
 type roomContextStore interface {
 	GetConversationContext(context.Context, string) (*protocol.ConversationContextAggregate, error)
@@ -172,39 +129,29 @@ type roomContextStore interface {
 	BuildRoomSkillPrompt(context.Context, []string) (string, error)
 }
 
+// 共用宿主依赖类型统一定义在 runtimehost；以下别名保持本包既有 API 名称。
+type (
+	MCPServerBuilder                       = runtimehost.MCPServerBuilder
+	ConfigurationRuntimeEnvironmentBuilder = runtimehost.ConfigurationRuntimeEnvironmentBuilder
+	NexusMCPServerBuilder                  = runtimehost.NexusMCPServerBuilder
+	RuntimeSlashExpander                   = runtimehost.RuntimeSlashExpander
+)
+
 type Service struct {
-	externalReply           func(context.Context, string, string, string, protocol.Message) error
-	externalPrompt          func(context.Context, string, string, string) (string, error)
-	externalPermission      func(context.Context, string, string, string) (sdkpermission.Handler, error)
-	config                  config.Config
-	rooms                   roomContextStore
-	agents                  *agentsvc.Service
-	runtime                 *runtimectx.Manager
-	permission              *permissionctx.Context
-	providers               clientopts.RuntimeConfigResolver
-	admission               clientopts.AgentRuntimeAdmissionResolver
-	prefs                   roomRuntimePreferencesService
-	files                   *workspacestore.SessionFileStore
-	history                 *workspacestore.AgentHistoryStore
-	roomHistory             *workspacestore.RoomHistoryStore
-	directedMessages        *workspacestore.RoomDirectedMessageStore
-	directedWakes           *workspacestore.RoomDirectedMessageWakeStore
-	publicHandoffs          *workspacestore.RoomPublicHandoffStore
-	inputQueue              *workspacestore.InputQueueStore
-	queueTrust              queueAdmissionStore
-	usage                   usageRecorder
-	quota                   quotaChecker
-	goals                   goalContextProvider
-	executionContext        executionContextProvider
-	subagentAdmission       orchestrationruntimehook.Provider
-	factory                 roomClientFactory
-	broadcaster             RoomBroadcaster
-	logger                  *slog.Logger
-	mcpServers              MCPServerBuilder
-	configurationRuntimeEnv ConfigurationRuntimeEnvironmentBuilder
-	nexusMCP                NexusMCPServerBuilder
-	runtimeSlashExpander    RuntimeSlashExpander
-	titles                  roomTitleScheduler
+	runtimehost.Host
+	externalReply      func(context.Context, string, string, string, protocol.Message) error
+	externalPrompt     func(context.Context, string, string, string) (string, error)
+	externalPermission func(context.Context, string, string, string) (sdkpermission.Handler, error)
+	rooms              roomContextStore
+	prefs              roomRuntimePreferencesService
+	roomHistory        *workspacestore.RoomHistoryStore
+	directedMessages   *workspacestore.RoomDirectedMessageStore
+	directedWakes      *workspacestore.RoomDirectedMessageWakeStore
+	publicHandoffs     *workspacestore.RoomPublicHandoffStore
+	goals              goalContextProvider
+	factory            roomClientFactory
+	broadcaster        RoomBroadcaster
+	titles             roomTitleScheduler
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
@@ -220,22 +167,6 @@ type roomTitleScheduler interface {
 
 type roomRuntimePreferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
-}
-
-type queueAdmissionStore interface {
-	Record(context.Context, queueadmissionstore.Admission) error
-	Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error)
-	Release(context.Context, queueadmissionstore.Claim) error
-	Consume(context.Context, queueadmissionstore.Claim) error
-	Revoke(context.Context, queueadmissionstore.Binding) error
-}
-
-type usageRecorder interface {
-	RecordMessageUsage(context.Context, usagesvc.RecordInput) error
-}
-
-type quotaChecker interface {
-	EnsureQuotaAvailable(context.Context, string) error
 }
 
 type goalContextProvider interface {
@@ -282,20 +213,13 @@ func NewServiceWithFactory(
 	factory roomClientFactory,
 ) *Service {
 	return &Service{
-		config:              cfg,
 		rooms:               roomService,
-		agents:              agentService,
-		runtime:             runtimeManager,
-		permission:          permission,
-		files:               workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:             workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:         workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages:    workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
 		directedWakes:       workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
 		publicHandoffs:      workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
-		inputQueue:          workspacestore.NewInputQueueStore(cfg.WorkspacePath),
 		factory:             factory,
-		logger:              logx.NewDiscardLogger(),
+		Host:                runtimehost.NewHost(cfg, agentService, runtimeManager, permission),
 		rounds:              newRoomRoundRegistry(),
 		goalUsageScopeLocks: newRoomGoalUsageScopeLockRegistry(),
 		wakeTimers:          newRoomWakeTimerRegistry(),
@@ -305,30 +229,9 @@ func NewServiceWithFactory(
 // SetRoomBroadcaster 注入 Room 共享事件广播器。
 func (s *Service) SetRoomBroadcaster(broadcaster RoomBroadcaster) {
 	s.broadcaster = broadcaster
-	if s.permission != nil {
-		s.permission.SetRoomBroadcaster(broadcaster)
+	if s.Permission != nil {
+		s.Permission.SetRoomBroadcaster(broadcaster)
 	}
-}
-
-// SetLogger 注入业务日志实例。
-func (s *Service) SetLogger(logger *slog.Logger) {
-	if logger == nil {
-		s.logger = logx.NewDiscardLogger()
-		return
-	}
-	s.logger = logger
-}
-
-// SetProviderResolver 注入 Provider 运行时解析器。
-func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver) {
-	s.providers = resolver
-}
-
-// SetRuntimeAdmissionResolver 注入认证转场与动态强隔离 admission。
-func (s *Service) SetRuntimeAdmissionResolver(
-	resolver clientopts.AgentRuntimeAdmissionResolver,
-) {
-	s.admission = resolver
 }
 
 // SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
@@ -336,69 +239,14 @@ func (s *Service) SetPreferences(prefs roomRuntimePreferencesService) {
 	s.prefs = prefs
 }
 
-// SetQueueAdmissionStore 注入宿主 DB 中不可由 Agent workspace 伪造的队列信任根。
-func (s *Service) SetQueueAdmissionStore(store queueAdmissionStore) {
-	s.queueTrust = store
-}
-
-// SetUsageRecorder 注入 token usage 持久化 ledger。
-func (s *Service) SetUsageRecorder(recorder usageRecorder) {
-	s.usage = recorder
-}
-
-// SetQuotaChecker 注入订阅额度检查器。
-func (s *Service) SetQuotaChecker(checker quotaChecker) {
-	s.quota = checker
-}
-
-func (s *Service) ensureQuotaAvailable(ctx context.Context) error {
-	if s.quota == nil {
-		return nil
-	}
-	return s.quota.EnsureQuotaAvailable(ctx, authctx.OwnerUserID(ctx))
-}
-
 // SetGoalContextProvider 注入 Goal runtime context provider。
 func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 	s.goals = provider
 }
 
-// SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
-func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
-	s.mcpServers = builder
-}
-
-// SetConfigurationRuntimeEnvironmentBuilder 注入可信 nexuscfg capability 签发器。
-func (s *Service) SetConfigurationRuntimeEnvironmentBuilder(
-	builder ConfigurationRuntimeEnvironmentBuilder,
-) {
-	s.configurationRuntimeEnv = builder
-}
-
-// SetNexusMCPServerBuilder 注入可信的 Nexus 内建 MCP server 工厂。
-func (s *Service) SetNexusMCPServerBuilder(
-	builder NexusMCPServerBuilder,
-) {
-	s.nexusMCP = builder
-}
-
-// SetRuntimeSlashExpander 注入 owner-scoped WorkGraph 沉淀 prompt 展开器。
-func (s *Service) SetRuntimeSlashExpander(expander RuntimeSlashExpander) {
-	s.runtimeSlashExpander = expander
-}
-
-// SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
-func (s *Service) SetSubagentAdmissionProvider(provider orchestrationruntimehook.Provider) {
-	s.subagentAdmission = provider
-}
-
 // SetTitleGenerator 注入会话标题生成器。
 func (s *Service) SetTitleGenerator(generator roomTitleScheduler) {
 	s.titles = generator
-}
-
-func (s *Service) loggerFor(ctx context.Context) *slog.Logger {
-	return logx.Resolve(ctx, s.logger)
 }
 
 // INPUT: Room conversation ID 与调用方身份。
@@ -461,12 +309,12 @@ func (s *Service) broadcastSharedEventWithTimeout(
 func (s *Service) broadcastSessionStatus(ctx context.Context, sessionKey string) {
 	broadcastCtx, cancel := s.withBroadcastTimeout(ctx)
 	defer cancel()
-	if errs := s.permission.BroadcastSessionStatus(
+	if errs := s.Permission.BroadcastSessionStatus(
 		broadcastCtx,
 		sessionKey,
-		s.runtime.GetRunningRoundIDs(sessionKey),
+		s.Runtime.GetRunningRoundIDs(sessionKey),
 	); len(errs) > 0 {
-		s.loggerFor(broadcastCtx).Warn("广播 Room session 状态失败", "session_key", sessionKey, "error_count", len(errs))
+		s.LoggerFor(broadcastCtx).Warn("广播 Room session 状态失败", "session_key", sessionKey, "error_count", len(errs))
 	}
 }
 
@@ -477,12 +325,12 @@ func (s *Service) broadcastSharedEvent(ctx context.Context, sessionKey string, r
 		s.notifyRoomEventObserver(ctx, sessionKey, event)
 		return
 	}
-	s.permission.BroadcastEvent(ctx, sessionKey, event)
+	s.Permission.BroadcastEvent(ctx, sessionKey, event)
 }
 
 func (s *Service) notifyRoomEventObserver(ctx context.Context, sessionKey string, event protocol.EventMessage) {
 	roundID := eventRoundID(event)
-	if strings.TrimSpace(roundID) == "" {
+	if roundID == "" {
 		return
 	}
 	roundValue := s.rounds.findByRoundID(sessionKey, roundID)
@@ -510,5 +358,5 @@ func (s *Service) SetReplyPreviewRepository(repository *roomrepo.SQLRepository) 
 
 // PendingAgentInteraction 只暴露成员执行会话的等待事实与变化信号，不暴露审批内容。
 func (s *Service) PendingAgentInteraction(conversationID, agentID string) (bool, <-chan struct{}) {
-	return s.permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
+	return s.Permission.PendingRequestState(protocol.BuildRoomAgentSessionKey(conversationID, agentID, "group"))
 }

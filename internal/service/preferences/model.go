@@ -110,12 +110,12 @@ var webSearchProviderRequirements = map[string]webSearchProviderRequirement{
 
 // WebSearchAPIKey 返回当前用户的 WebSearch 凭据，仅供服务端 runtime 装配使用。
 func (p Preferences) WebSearchAPIKey() string {
-	return strings.TrimSpace(p.WebSearch.apiKey)
+	return p.WebSearch.apiKey
 }
 
 // WebSearchAPIKey 返回 WebSearchSettings 中的服务端凭据。
 func (s WebSearchSettings) WebSearchAPIKey() string {
-	return strings.TrimSpace(s.apiKey)
+	return s.apiKey
 }
 
 // WithWebSearchAPIKey 为服务端 runtime 装配构造带凭据的配置副本。
@@ -201,7 +201,7 @@ func normalizePreferences(item Preferences) Preferences {
 	}
 	webSearch := normalizeWebSearchSettings(item.WebSearch)
 	if webSearchProviderAcceptsAPIKey(webSearch.Provider) {
-		webSearch.apiKey = strings.TrimSpace(item.WebSearch.apiKey)
+		webSearch.apiKey = item.WebSearch.apiKey
 	}
 	webSearch.APIKeyConfigured = webSearch.apiKey != ""
 	webSearch.APIKeyMasked = maskWebSearchAPIKey(webSearch.apiKey)

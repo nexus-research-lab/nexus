@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -143,7 +144,7 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
 		"round_id":    roundID,
-		"session_id":  stringPointerValue(sessionValue.SessionID),
+		"session_id":  textutil.PointerValue(sessionValue.SessionID),
 		"role":        "assistant",
 		"timestamp":   now.UnixMilli(),
 		"content":     []map[string]any{{"type": "text", "text": strings.TrimSpace(text)}},
@@ -156,7 +157,7 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		"session_key":     sessionKey,
 		"agent_id":        parsed.AgentID,
 		"round_id":        roundID,
-		"session_id":      stringPointerValue(sessionValue.SessionID),
+		"session_id":      textutil.PointerValue(sessionValue.SessionID),
 		"parent_id":       assistantID,
 		"role":            "result",
 		"timestamp":       now.UnixMilli(),

@@ -66,7 +66,7 @@ func (s *Service) connectorRuntimeStatePrompt(
 	}
 	states, err := s.connectorRuntimeStates(ctx, strings.TrimSpace(ownerUserID))
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Connector runtime 状态失败", "err", err)
+		s.LoggerFor(ctx).Warn("读取 Connector runtime 状态失败", "err", err)
 		states = nil
 	}
 	configured := make(map[string]bool, len(states))
@@ -115,7 +115,7 @@ func (s *Service) connectorRuntimeStatePrompt(
 	}
 	payload, marshalErr := json.Marshal(map[string]any{"connectors": promptStates})
 	if marshalErr != nil {
-		s.loggerFor(ctx).Warn("编码 Connector runtime 状态失败", "err", marshalErr)
+		s.LoggerFor(ctx).Warn("编码 Connector runtime 状态失败", "err", marshalErr)
 		return ""
 	}
 	return `<connector_runtime_state>

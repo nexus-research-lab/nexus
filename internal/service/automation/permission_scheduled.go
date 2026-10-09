@@ -11,6 +11,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
@@ -191,8 +192,8 @@ func (s *Service) decideScheduledTaskPermission(
 			automationdomain.PermissionRequestKindTool,
 			automationdomain.TaskPermissionStateAwaitingApproval,
 			automationdomain.RunBlockStateAwaitingApproval,
-			firstNonEmpty(strings.TrimSpace(request.Title), strings.TrimSpace(request.DisplayName), defaultTitle),
-			firstNonEmpty(strings.TrimSpace(request.Description), defaultDescription),
+			textutil.FirstNonEmpty(strings.TrimSpace(request.Title), strings.TrimSpace(request.DisplayName), defaultTitle),
+			textutil.FirstNonEmpty(strings.TrimSpace(request.Description), defaultDescription),
 			automationPermissionRequiredCode,
 		)
 	}

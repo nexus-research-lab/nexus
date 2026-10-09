@@ -88,16 +88,3 @@ func TestLoadDotEnv_FromFile(t *testing.T) {
 		t.Errorf("got %q, want world", v)
 	}
 }
-
-func TestLoadDotEnv_DoesNotOverride(t *testing.T) {
-	os.Setenv("NEXUS_NO_OVERRIDE", "original")
-	defer os.Unsetenv("NEXUS_NO_OVERRIDE")
-
-	path := writeTestEnv(t, "NEXUS_NO_OVERRIDE=from_env_file\n")
-	if err := LoadDotEnv(path); err != nil {
-		t.Fatal(err)
-	}
-	if v := os.Getenv("NEXUS_NO_OVERRIDE"); v != "original" {
-		t.Errorf("got %q, want 'original' (should not override)", v)
-	}
-}

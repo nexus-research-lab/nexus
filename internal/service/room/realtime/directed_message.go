@@ -9,16 +9,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
-	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const roomDirectedMessageMaxDelaySeconds = 86400
@@ -41,9 +44,6 @@ func (s *Service) HandleDirectedMessage(
 	}
 	if s.roomDirectedReplyUsesAutomaticRoute(request.SourceAgentRoundID, *message) {
 		return nil, roomsvc.ErrDirectedReplyAutoRouted
-	}
-	if s.directedMessages == nil {
-		return nil, errors.New("room directed message store is not configured")
 	}
 	stored, inserted, err := s.directedMessages.AppendMessageIfAbsent(
 		contextValue.Room.OwnerUserID,
@@ -68,7 +68,7 @@ func (s *Service) HandleDirectedMessage(
 		event := newRoomDirectedMessageEvent(*message)
 		s.broadcastSharedEventWithTimeout(ctx, protocol.BuildRoomSharedSessionKey(message.ConversationID), message.RoomID, event)
 	}
-	s.loggerFor(ctx).Info("Room directed message 已创建",
+	s.LoggerFor(ctx).Info("Room directed message 已创建",
 		"room_id", message.RoomID,
 		"conversation_id", message.ConversationID,
 		"message_id", message.MessageID,
@@ -82,7 +82,7 @@ func (s *Service) HandleDirectedMessage(
 		"content_chars", utf8.RuneCountInString(message.Content),
 	)
 	if err = s.startRoomDirectedMessageWake(ctx, contextValue, *message); err != nil {
-		s.loggerFor(ctx).Error("启动 Room directed message 唤醒失败",
+		s.LoggerFor(ctx).Error("启动 Room directed message 唤醒失败",
 			"room_id", message.RoomID,
 			"conversation_id", message.ConversationID,
 			"message_id", message.MessageID,
@@ -93,7 +93,7 @@ func (s *Service) HandleDirectedMessage(
 			"err", err,
 		)
 		if retryErr := s.scheduleRoomDirectedMessageWakeRetry(ctx, *message); retryErr != nil {
-			s.loggerFor(ctx).Error("持久化 Room directed message 唤醒重试失败",
+			s.LoggerFor(ctx).Error("持久化 Room directed message 唤醒重试失败",
 				"room_id", message.RoomID,
 				"conversation_id", message.ConversationID,
 				"message_id", message.MessageID,
@@ -136,7 +136,7 @@ func (s *Service) roomDirectedReplyUsesAutomaticRoute(
 		for _, slot := range roundValue.Slots {
 			if slot == nil || strings.TrimSpace(slot.AgentRoundID) != sourceAgentRoundID ||
 				strings.TrimSpace(slot.AgentID) != strings.TrimSpace(message.SourceAgentID) ||
-				strings.TrimSpace(slot.replySourceMessage()) == "" {
+				slot.replySourceMessage() == "" {
 				continue
 			}
 			route := roomSlotReplyRoute(slot)
@@ -160,7 +160,7 @@ func (s *Service) markActiveGoalCollaborationPending(
 	binding *protocol.GoalCollaborationBinding,
 ) {
 	normalizedBinding := protocol.NormalizeGoalCollaborationBinding(binding)
-	if s == nil || normalizedBinding == nil {
+	if normalizedBinding == nil {
 		return
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
@@ -198,8 +198,9 @@ func (s *Service) ensureGoalDirectedMessageHandoffs(
 	binding := protocol.NormalizeGoalCollaborationBinding(
 		message.GoalCollaborationBinding,
 	)
-	if s == nil || s.publicHandoffs == nil || contextValue == nil ||
-		binding == nil || message.WakePolicy == protocol.RoomWakePolicyNone {
+	if contextValue == nil ||
+		binding == nil ||
+		message.WakePolicy == protocol.RoomWakePolicyNone {
 		return nil
 	}
 	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
@@ -219,8 +220,8 @@ func (s *Service) ensureGoalDirectedMessageHandoffs(
 				HandoffID:          handoffID,
 				ConversationID:     message.ConversationID,
 				RoomID:             message.RoomID,
-				RootRoundID:        firstNonEmptyString(message.RootRoundID, message.MessageID),
-				SourceAgentRoundID: firstNonEmptyString(message.CausedByRoundID, message.RootRoundID, message.MessageID),
+				RootRoundID:        textutil.FirstNonEmpty(message.RootRoundID, message.MessageID),
+				SourceAgentRoundID: textutil.FirstNonEmpty(message.CausedByRoundID, message.RootRoundID, message.MessageID),
 				SourceMessageID:    message.MessageID,
 				SourceAgentID:      message.SourceAgentID,
 				TargetAgentID:      targetAgentID,
@@ -259,8 +260,7 @@ func (s *Service) terminalizeGoalDirectedMessageHandoffsForOwner(
 	message protocol.RoomDirectedMessageRecord,
 	status string,
 ) error {
-	if s == nil || s.publicHandoffs == nil ||
-		protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil {
+	if protocol.NormalizeGoalCollaborationBinding(message.GoalCollaborationBinding) == nil {
 		return nil
 	}
 	for _, targetAgentID := range roomDirectedMessageWakeTargetAgentIDs(message) {
@@ -672,7 +672,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	slot *activeRoomSlot,
 	assistantMessage protocol.Message,
 ) error {
-	if s.directedMessages == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.replySourceMessage()) == "" {
+	if roundValue == nil || slot == nil || slot.replySourceMessage() == "" {
 		return nil
 	}
 	replyRoute := roomSlotReplyRoute(slot)
@@ -686,7 +686,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 	if len(recipients) == 0 {
 		return nil
 	}
-	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(assistantMessage))
+	content := roomdomain.ExtractAssistantResultText(assistantMessage)
 	if content == "" {
 		return nil
 	}
@@ -826,7 +826,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 				return err
 			}
 		}
-		items, _, enqueueErr := s.inputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
+		items, _, enqueueErr := s.InputQueue.EnqueueBounded(location.Location, protocol.InputQueueItem{
 			ClientMessageID: message.MessageID,
 			Scope:           protocol.InputQueueScopeRoom,
 			SessionKey:      location.Location.SessionKey,
@@ -842,7 +842,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 			ReplyRoute:      message.ReplyRoute,
 			OwnerUserID:     authctx.OwnerUserID(ctx),
-			RootRoundID:     firstNonEmptyString(message.RootRoundID, message.MessageID),
+			RootRoundID:     textutil.FirstNonEmpty(message.RootRoundID, message.MessageID),
 			HopIndex:        message.HopIndex,
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				message.GoalCollaborationBinding,
@@ -869,7 +869,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 				handoffID,
 				queueItemID,
 			); err != nil {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"记录 Goal directed wake 排队状态失败，保留 source_finished 恢复边",
 					"conversation_id", message.ConversationID,
 					"handoff_id", handoffID,
@@ -888,7 +888,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 		return err
 	}
 	s.scheduleRoomDirectedQueueDispatch(
-		contextWithExactQueueOwner(context.Background(), authctx.OwnerUserID(ctx)),
+		runtimehost.ContextWithExactOwner(context.Background(), authctx.OwnerUserID(ctx)),
 		sessionKey,
 		message.RoomID,
 		message.ConversationID,
@@ -908,7 +908,7 @@ func (s *Service) scheduleRoomDirectedQueueDispatch(
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
 	s.wakeTimers.ScheduleDispatch(key, roomDirectedWakeBatchWindow, func() {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			ownerUserID,
 			func(taskCtx context.Context) {
@@ -916,15 +916,6 @@ func (s *Service) scheduleRoomDirectedQueueDispatch(
 			},
 		)
 	})
-}
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if normalized := strings.TrimSpace(value); normalized != "" {
-			return normalized
-		}
-	}
-	return ""
 }
 
 const roomDirectedMessageTriggerType = "room_directed_message"
@@ -952,9 +943,6 @@ func (s *Service) runPersistedImmediateRoomDirectedMessageWake(
 	contextValue *protocol.ConversationContextAggregate,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
-	if s.directedWakes == nil {
-		return errors.New("room directed wake store is not configured")
-	}
 	wake := workspacestore.RoomDirectedMessageWake{
 		WakeID:      strings.TrimSpace(message.MessageID),
 		OwnerUserID: authctx.OwnerUserID(ctx),
@@ -985,7 +973,7 @@ func (s *Service) goalDirectedMessageHandoffInFlight(
 	binding *protocol.GoalCollaborationBinding,
 ) bool {
 	binding = protocol.NormalizeGoalCollaborationBinding(binding)
-	if s == nil || s.publicHandoffs == nil || binding == nil {
+	if binding == nil {
 		return false
 	}
 	inFlight, err := s.publicHandoffs.GoalCollaborationInFlight(
@@ -1041,9 +1029,6 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 	if delay <= 0 {
 		return errors.New("delay_seconds must be positive")
 	}
-	if s.directedWakes == nil {
-		return errors.New("room directed wake store is not configured")
-	}
 	wake := workspacestore.RoomDirectedMessageWake{
 		WakeID:      strings.TrimSpace(message.MessageID),
 		OwnerUserID: authctx.OwnerUserID(ctx),
@@ -1064,7 +1049,7 @@ func (s *Service) scheduleRoomDirectedMessageWake(ctx context.Context, message p
 	}
 	sessionKey := protocol.BuildRoomSharedSessionKey(message.ConversationID)
 	s.broadcastSharedEventWithTimeout(ctx, sessionKey, message.RoomID, newRoomDirectedMessageScheduledWakeEvent(message))
-	s.loggerFor(ctx).Info("Room directed message 延迟唤醒已计划",
+	s.LoggerFor(ctx).Info("Room directed message 延迟唤醒已计划",
 		"room_id", message.RoomID,
 		"conversation_id", message.ConversationID,
 		"message_id", message.MessageID,
@@ -1078,7 +1063,7 @@ func (s *Service) scheduleRoomDirectedMessageWakeRetry(
 	ctx context.Context,
 	message protocol.RoomDirectedMessageRecord,
 ) error {
-	if message.WakePolicy == protocol.RoomWakePolicyNone || s.directedWakes == nil {
+	if message.WakePolicy == protocol.RoomWakePolicyNone {
 		return nil
 	}
 	dueAt := time.Now().Add(roomDirectedMessageWakeRetryDelay)
@@ -1132,9 +1117,6 @@ func (s *Service) roomDirectedMessageWakePending(ownerUserID string, wakeID stri
 // StartDelayedWakeScheduler 恢复宕机前未完成的 Room immediate/delayed wake。
 // 名称保留兼容，语义已经覆盖两类持久唤醒。
 func (s *Service) StartDelayedWakeScheduler(context.Context) (func(), error) {
-	if s.directedWakes == nil {
-		return nil, nil
-	}
 	pending, err := s.directedWakes.PendingAll()
 	if err != nil {
 		return nil, err
@@ -1188,7 +1170,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		); completeErr != nil {
 			err = completeErr
 		} else {
-			s.loggerFor(wakeCtx).Info(
+			s.LoggerFor(wakeCtx).Info(
 				"Room directed message 唤醒因持久权限真相终止",
 				"room_id", message.RoomID,
 				"conversation_id", message.ConversationID,
@@ -1199,7 +1181,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		}
 	}
 	if err != nil {
-		s.loggerFor(wakeCtx).Error("执行 Room directed message 唤醒失败，稍后重试",
+		s.LoggerFor(wakeCtx).Error("执行 Room directed message 唤醒失败，稍后重试",
 			"room_id", message.RoomID,
 			"conversation_id", message.ConversationID,
 			"message_id", message.MessageID,
@@ -1209,7 +1191,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		return
 	}
 	if err = s.directedWakes.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
-		s.loggerFor(wakeCtx).Error("记录 Room directed message 唤醒完成失败", "wake_id", wake.WakeID, "err", err)
+		s.LoggerFor(wakeCtx).Error("记录 Room directed message 唤醒完成失败", "wake_id", wake.WakeID, "err", err)
 	}
 }
 

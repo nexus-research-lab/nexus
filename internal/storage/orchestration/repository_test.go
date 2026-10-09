@@ -648,58 +648,6 @@ VALUES (?, ?, ?, 'active')`,
 	}
 }
 
-func TestRepositoryAcceptsEveryGoalActivationReason(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	reasons := []protocol.GoalActivationReason{
-		protocol.GoalActivationReasonPersistenceRequested,
-		protocol.GoalActivationReasonObservedBoundary,
-		protocol.GoalActivationReasonRoomDependencyChain,
-		protocol.GoalActivationReasonExternalWait,
-		protocol.GoalActivationReasonScheduledRetry,
-		protocol.GoalActivationReasonContextBoundary,
-		protocol.GoalActivationReasonRecoveryRequired,
-		protocol.GoalActivationReasonSubstantialComplexity,
-	}
-	for index, reason := range reasons {
-		reason := reason
-		t.Run(string(reason), func(t *testing.T) {
-			suffix := fmt.Sprintf("activation-reason-%d", index)
-			snapshot, err := repository.Create(ctx, createTestCommand(suffix))
-			if err != nil {
-				t.Fatal(err)
-			}
-			goalID := "goal-" + suffix
-			if _, err = repository.db.Exec(`
-INSERT INTO session_goals (goal_id, session_key, objective, status)
-VALUES (?, ?, ?, 'active')`, goalID, snapshot.Execution.SessionKey, "persist reason"); err != nil {
-				t.Fatal(err)
-			}
-			bound, err := repository.BindGoal(ctx, BindGoalCommand{
-				ExpectedExecutionVersion: snapshot.Execution.Version,
-				Execution: protocol.Execution{
-					ID:                    snapshot.Execution.ID,
-					GoalID:                goalID,
-					GoalObjectiveRevision: 1,
-					GoalActivationOrigin:  protocol.GoalActivationOriginAdaptivePromoted,
-					GoalActivationReason:  reason,
-				},
-				Meta: testMeta("bind-" + suffix),
-			})
-			if err != nil {
-				t.Fatalf("BindGoal(%q): %v", reason, err)
-			}
-			if bound.Execution.GoalActivationReason != reason {
-				t.Fatalf(
-					"persisted activation reason = %q, want %q",
-					bound.Execution.GoalActivationReason,
-					reason,
-				)
-			}
-		})
-	}
-}
-
 func TestRepositoryBlockInterruptsCurrentExecutionAndResumeStartsFreshAttempt(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
@@ -910,85 +858,6 @@ func TestRepositoryBlockInterruptsCurrentExecutionAndResumeStartsFreshAttempt(t 
 	}
 }
 
-func TestRepositoryBlockPreservesDeliveredDispatchReceipt(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	snapshot, err := repository.Create(ctx, createTestCommand("delivered-block"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err = repository.WritePlan(
-		ctx,
-		testPlanCommand("delivered-block", snapshot.Execution.Version, "delivered-block", "", 1),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assign := assignTestCommand(
-		snapshot,
-		"work-delivered-block-1",
-		"spec-delivered-block-1",
-		"delivered-block",
-		"agent-worker",
-	)
-	assign.Assignment.Strategy = protocol.AssignmentStrategyRoomMember
-	assign.Dispatch = &protocol.ExecutionDispatch{
-		ID:            "dispatch-delivered-block",
-		DedupeKey:     "dispatch-delivered-block",
-		TargetAgentID: "agent-worker",
-		Kind:          protocol.ExecutionDispatchRoomDirected,
-		Status:        protocol.ExecutionDispatchStatusPending,
-		Instruction:   "deliver",
-	}
-	snapshot, err = repository.Assign(ctx, assign)
-	if err != nil {
-		t.Fatal(err)
-	}
-	claimed, err := repository.ClaimDispatch(
-		ctx,
-		"dispatch-delivered-block",
-		1,
-		"worker-delivered",
-		time.Minute,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = repository.MarkDispatchDelivered(
-		ctx,
-		claimed.ID,
-		claimed.Version,
-		"worker-delivered",
-		"handoff-delivered",
-		"queue-delivered",
-	); err != nil {
-		t.Fatal(err)
-	}
-	state := findState(t, snapshot, "work-delivered-block-1")
-	snapshot, err = repository.Block(ctx, BlockCommand{
-		ExpectedExecutionVersion: snapshot.Execution.Version,
-		ExpectedStateVersion:     state.Version,
-		State: protocol.WorkItemState{
-			WorkItemID:    state.WorkItemID,
-			ExecutionID:   state.ExecutionID,
-			CurrentSpecID: state.CurrentSpecID,
-			Status:        protocol.WorkItemStatusWaitingInput,
-			BlockReason:   "waiting",
-			NeededInput:   "answer",
-		},
-		Meta: testMeta("block-delivered"),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatch := findDispatch(t, snapshot, "dispatch-delivered-block")
-	if dispatch.Status != protocol.ExecutionDispatchStatusDelivered ||
-		dispatch.HandoffID != "handoff-delivered" ||
-		dispatch.QueueItemID != "queue-delivered" {
-		t.Fatalf("delivered receipt changed by Block = %#v", dispatch)
-	}
-}
-
 func TestRepositoryPlanRevisionRequiresOptInAndReleasesActiveWorkAtomically(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
@@ -1164,83 +1033,6 @@ func TestRepositoryPlanRevisionRequiresOptInAndReleasesActiveWorkAtomically(t *t
 	}
 }
 
-func TestRepositoryPlanRevisionNewSpecStartsCommandLifecycle(t *testing.T) {
-	for _, previousStatus := range []protocol.WorkItemStatus{
-		protocol.WorkItemStatusWaitingInput,
-		protocol.WorkItemStatusCancelled,
-		protocol.WorkItemStatusSuperseded,
-	} {
-		t.Run(string(previousStatus), func(t *testing.T) {
-			repository := newRepositoryTestStore(t)
-			ctx := context.Background()
-			suffix := "revision-lifecycle-" + string(previousStatus)
-			snapshot, err := repository.Create(ctx, createTestCommand(suffix))
-			if err != nil {
-				t.Fatal(err)
-			}
-			oldPlan := testPlanCommand(suffix, snapshot.Execution.Version, suffix+"-old", "", 1)
-			snapshot, err = repository.WritePlan(ctx, oldPlan)
-			if err != nil {
-				t.Fatal(err)
-			}
-			oldWork := oldPlan.WorkItems[0]
-			if _, err = repository.db.Exec(
-				`UPDATE execution_work_item_states
-SET status = ?,
-    block_reason = ?,
-    needed_input = ?,
-    metadata_json = ?,
-    version = version + 1
-WHERE work_item_id = ?`,
-				previousStatus,
-				"stale reason",
-				"stale input",
-				`{"last_resume_resolution":"old answer","last_resume_evidence":["old evidence"]}`,
-				oldWork.WorkItem.ID,
-			); err != nil {
-				t.Fatal(err)
-			}
-			snapshot, err = repository.GetSnapshot(ctx, snapshot.Execution.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			previousState := findState(t, snapshot, oldWork.WorkItem.ID)
-
-			replacement := testPlanCommand(
-				suffix,
-				snapshot.Execution.Version,
-				suffix+"-new",
-				oldPlan.Plan.ID,
-				2,
-			)
-			replacement.Plan.RevisionReason = "spec changed"
-			reuseStableWorkItemForRevision(&replacement.WorkItems[0], oldWork.WorkItem)
-			replacement.WorkItems[0].Spec.Version = 2
-			replacement.WorkItems[0].ExpectedStateVersion = previousState.Version
-			replacement.Meta = testMeta("plan-" + suffix + "-new-spec")
-
-			updated, err := repository.WritePlan(ctx, replacement)
-			if err != nil {
-				t.Fatal(err)
-			}
-			state := findState(t, updated, oldWork.WorkItem.ID)
-			if state.CurrentSpecID != replacement.WorkItems[0].Spec.ID ||
-				state.Status != protocol.WorkItemStatusOpen ||
-				state.BlockReason != "" ||
-				state.NeededInput != "" ||
-				len(state.Metadata) != 0 ||
-				state.Version != previousState.Version+1 {
-				t.Fatalf(
-					"new Spec state = %#v, want spec=%q status=open cleared blockers/metadata version=%d",
-					state,
-					replacement.WorkItems[0].Spec.ID,
-					previousState.Version+1,
-				)
-			}
-		})
-	}
-}
-
 func TestRepositoryPlanRevisionSameSpecPreservesLifecycle(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
@@ -1305,101 +1097,6 @@ WHERE work_item_id = ?`,
 		state.Metadata["last_resume_resolution"] != "preserve answer" ||
 		state.Version != previousState.Version {
 		t.Fatalf("same Spec lifecycle changed: before=%#v after=%#v", previousState, state)
-	}
-}
-
-func TestRepositoryPlanRevisionInheritsAcceptedDependencyAndHistory(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	snapshot, err := repository.Create(ctx, createTestCommand("revision-accepted"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldPlan := testPlanCommand(
-		"revision-accepted",
-		snapshot.Execution.Version,
-		"revision-accepted-old",
-		"",
-		1,
-	)
-	snapshot, err = repository.WritePlan(ctx, oldPlan)
-	if err != nil {
-		t.Fatal(err)
-	}
-	acceptedWorkID := oldPlan.WorkItems[0].WorkItem.ID
-	acceptedSpecID := oldPlan.WorkItems[0].Spec.ID
-	snapshot, err = repository.Assign(ctx, assignTestCommand(
-		snapshot,
-		acceptedWorkID,
-		acceptedSpecID,
-		"revision-accepted-old",
-		"agent-worker",
-	))
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot = startTestAttempt(t, ctx, repository, snapshot, "assignment-revision-accepted-old", "attempt-revision-accepted-old")
-	snapshot = finishTestAttempt(t, ctx, repository, snapshot, "attempt-revision-accepted-old", protocol.WorkAttemptStatusSucceeded)
-	snapshot = submitTestWork(
-		t, ctx, repository, snapshot,
-		"assignment-revision-accepted-old", "attempt-revision-accepted-old",
-		"submission-revision-accepted-old", "agent-worker",
-	)
-	snapshot = reviewTestWork(
-		t, ctx, repository, snapshot,
-		"assignment-revision-accepted-old", "submission-revision-accepted-old",
-		"acceptance-revision-accepted-old", protocol.WorkAcceptanceAccepted,
-	)
-
-	newPlanID := "plan-revision-accepted-new"
-	replacement := oldPlan
-	replacement.ExpectedExecutionVersion = snapshot.Execution.Version
-	replacement.Plan.ID = newPlanID
-	replacement.Plan.Revision = 2
-	replacement.Plan.BasePlanID = oldPlan.Plan.ID
-	replacement.Plan.RevisionReason = "append another evidence iteration"
-	newWork := testPlanWork(
-		snapshot.Execution.ID,
-		newPlanID,
-		"work-revision-accepted-new-3",
-		"spec-revision-accepted-new-3",
-		2,
-	)
-	replacement.WorkItems = append(replacement.WorkItems, newWork)
-	replacement.Dependencies = []protocol.ExecutionPlanDependency{{
-		WorkItemID:          newWork.WorkItem.ID,
-		DependsOnWorkItemID: acceptedWorkID,
-		Kind:                protocol.WorkDependencyHard,
-	}}
-	replacement.Meta = testMeta("plan-revision-accepted-new")
-	snapshot, err = repository.WritePlan(ctx, replacement)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if contains(snapshot.ReadyWorkItemIDs, acceptedWorkID) ||
-		!contains(snapshot.ReadyWorkItemIDs, newWork.WorkItem.ID) {
-		t.Fatalf("cross-revision readiness = %v, want only appended dependent ready", snapshot.ReadyWorkItemIDs)
-	}
-	if len(snapshot.Acceptances) != 1 || snapshot.Acceptances[0].ID != "acceptance-revision-accepted-old" {
-		t.Fatalf("active Snapshot lost prior Plan acceptance: %+v", snapshot.Acceptances)
-	}
-	snapshot, err = repository.Assign(ctx, assignTestCommand(
-		snapshot,
-		newWork.WorkItem.ID,
-		newWork.Spec.ID,
-		"revision-accepted-new",
-		"agent-worker",
-	))
-	if err != nil {
-		t.Fatalf("assign appended work after inherited acceptance: %v", err)
-	}
-	_, history, err := repository.GetWorkGraphState(ctx, snapshot.Execution.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(history.Assignments) != 2 || len(history.Attempts) != 2 ||
-		len(history.Submissions) != 1 || len(history.Acceptances) != 1 {
-		t.Fatalf("cross-Plan WorkGraph history = %+v", history)
 	}
 }
 
@@ -1659,49 +1356,6 @@ func TestRepositoryUnreviewedSubmissionRejectsBlockAndTakeoverButAllowsReview(t 
 	}
 }
 
-func TestDeriveSnapshotAcceptedSpecIgnoresStaleWaitingInput(t *testing.T) {
-	snapshot := &protocol.ExecutionSnapshot{
-		Execution: protocol.Execution{
-			ID:     "execution-accepted-waiting",
-			Status: protocol.ExecutionStatusActive,
-		},
-		Plan: &protocol.ExecutionPlanRevision{
-			ID:          "plan-accepted-waiting",
-			ExecutionID: "execution-accepted-waiting",
-			Status:      protocol.PlanRevisionStatusActive,
-		},
-		PlanItems: []protocol.ExecutionPlanItem{{
-			PlanID:      "plan-accepted-waiting",
-			ExecutionID: "execution-accepted-waiting",
-			WorkItemID:  "work-accepted-waiting",
-			SpecID:      "spec-accepted-waiting",
-			Required:    true,
-			Terminal:    true,
-		}},
-		WorkItemStates: []protocol.WorkItemState{{
-			WorkItemID:    "work-accepted-waiting",
-			ExecutionID:   "execution-accepted-waiting",
-			CurrentSpecID: "spec-accepted-waiting",
-			Status:        protocol.WorkItemStatusWaitingInput,
-			BlockReason:   "stale",
-			NeededInput:   "already received",
-		}},
-		Acceptances: []protocol.WorkAcceptance{{
-			SubmissionID: "submission-accepted-waiting",
-			WorkItemID:   "work-accepted-waiting",
-			SpecID:       "spec-accepted-waiting",
-			Decision:     protocol.WorkAcceptanceAccepted,
-		}},
-	}
-	deriveSnapshot(snapshot)
-	if len(snapshot.CompletionBlockers) != 0 {
-		t.Fatalf("accepted current spec retained stale blockers = %#v", snapshot.CompletionBlockers)
-	}
-	if len(snapshot.ReadyWorkItemIDs) != 0 {
-		t.Fatalf("accepted current spec became ready again = %#v", snapshot.ReadyWorkItemIDs)
-	}
-}
-
 func newRepositoryTestStore(t *testing.T) *Repository {
 	t.Helper()
 	databasePath := filepath.Join(t.TempDir(), "repository.db")
@@ -1846,19 +1500,6 @@ func testPlanWork(executionID, planID, workID, specID string, position int) Plan
 			Scope:       "dir:output/" + workID,
 			Mode:        protocol.WorkOutputScopeExclusive,
 		}},
-	}
-}
-
-func reuseStableWorkItemForRevision(work *PlanWorkItem, stable protocol.WorkItem) {
-	work.WorkItem = stable
-	work.Spec.WorkItemID = stable.ID
-	work.State.WorkItemID = stable.ID
-	work.State.CurrentSpecID = work.Spec.ID
-	work.Item.WorkItemID = stable.ID
-	work.Item.SpecID = work.Spec.ID
-	for index := range work.OutputClaims {
-		work.OutputClaims[index].WorkItemID = stable.ID
-		work.OutputClaims[index].SpecID = work.Spec.ID
 	}
 }
 

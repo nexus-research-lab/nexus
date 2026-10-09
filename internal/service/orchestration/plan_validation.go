@@ -42,19 +42,13 @@ type PlanDependencyDraft struct {
 	Kind       protocol.WorkDependencyKind
 }
 
-// ValidatePlanDraft 检查结构完整性、DAG 与已声明 output scope 冲突。
-func ValidatePlanDraft(draft PlanDraft) error {
-	_, err := NormalizeAndValidatePlanDraft(draft)
-	return err
-}
-
 // NormalizeAndValidatePlanDraft 返回服务端可安全持久化的规范化副本，不修改调用方输入。
 func NormalizeAndValidatePlanDraft(draft PlanDraft) (PlanDraft, error) {
 	if err := newProjectionLimitError("items", len(draft.Items), ""); err != nil {
 		return PlanDraft{}, err
 	}
 	normalized := PlanDraft{
-		RevisionReason: strings.TrimSpace(draft.RevisionReason),
+		RevisionReason: draft.RevisionReason,
 		Items:          make([]PlanWorkItemDraft, len(draft.Items)),
 	}
 	for index, raw := range draft.Items {
@@ -124,7 +118,7 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 				"",
 			)
 		}
-		if !validWorkItemKind(item.Kind) {
+		if !item.Kind.Valid() {
 			return newDomainError(
 				ErrorCodeInvalidInput,
 				"unknown work item kind; expected produce, review, verify, or integrate",
@@ -259,18 +253,6 @@ func normalizeNonEmptyStrings(input []string) []string {
 		result = append(result, strings.TrimSpace(value))
 	}
 	return result
-}
-
-func validWorkItemKind(kind protocol.WorkItemKind) bool {
-	switch kind {
-	case protocol.WorkItemKindProduce,
-		protocol.WorkItemKindReview,
-		protocol.WorkItemKindVerify,
-		protocol.WorkItemKindIntegrate:
-		return true
-	default:
-		return false
-	}
 }
 
 func firstDependencyCycle(graph map[string][]string) []string {

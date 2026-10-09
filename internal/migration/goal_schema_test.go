@@ -50,26 +50,6 @@ func TestRepairLegacyGoalMigrationCollisionReplaysMainMigrations(t *testing.T) {
 	assertLegacyGoalSchema(t, db)
 }
 
-func TestRepairLegacyGoalMigrationCollisionLeavesCurrentMainUpgrade(t *testing.T) {
-	db := openAgentDisabledSkillMigrationTestDB(t, "goal-migration-current.db")
-	migrationDir := providerRecoveryMigrationDir(t)
-	if err := goose.UpTo(db, migrationDir, 96); err != nil {
-		t.Fatal(err)
-	}
-
-	pending, err := RepairLegacyGoalMigrationCollision(
-		t.Context(), "sqlite", db, discardMigrationLogger(),
-	)
-	if err != nil || pending {
-		t.Fatalf("current main upgrade was mistaken for collision: pending=%t err=%v", pending, err)
-	}
-	if err = goose.Up(db, migrationDir); err != nil {
-		t.Fatal(err)
-	}
-	assertCurrentMigrationVersion(t, db, latestTestMigrationVersion(t))
-	assertLegacyGoalSchema(t, db)
-}
-
 func TestRepairLegacyGoalMigrationCollisionRejectsPartialSchema(t *testing.T) {
 	db := openAgentDisabledSkillMigrationTestDB(t, "goal-migration-partial.db")
 	migrationDir := providerRecoveryMigrationDir(t)

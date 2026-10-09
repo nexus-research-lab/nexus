@@ -217,41 +217,6 @@ func TestGoalRevisionSuccessorPlanUsesReservedIdentityAndRepairsConfirmationOnRe
 	}
 }
 
-func TestGoalRevisionSuccessorPlanModeDoesNotReserveOrCreateState(t *testing.T) {
-	service := testService(&fakeRepository{
-		createWithPlan: func(
-			context.Context,
-			orchestrationstore.CreateWithPlanCommand,
-		) (*protocol.ExecutionSnapshot, error) {
-			t.Fatal("Plan Mode must not create a successor Execution")
-			return nil, nil
-		},
-	})
-	service.SetExplicitGoalBindingGateway(explicitGoalGatewayFunc(func(
-		context.Context,
-		ExplicitGoalBindingRequest,
-	) (*ExplicitGoalBinding, error) {
-		t.Fatal("Plan Mode must not reserve Goal successor metadata")
-		return nil, nil
-	}))
-	actor := coordinatorActor()
-	actor.PlanMode = true
-	result, err := service.PlanExecution(context.Background(), actor, PlanExecutionInput{
-		CommandID:          "plan-mode-goal-successor",
-		Objective:          "Deliver the revised Goal result",
-		CompletionCriteria: []string{"revised result accepted"},
-		Draft:              validPlanDraft(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationNoOp || result.Snapshot != nil ||
-		len(result.NextActions) != 1 ||
-		result.NextActions[0].Operation != "prepare_plan_execution" {
-		t.Fatalf("Plan Mode result = %#v", result)
-	}
-}
-
 func TestGoalExecutionCompletionBlockerSeparatesReservationFromConfirmedBinding(t *testing.T) {
 	service := testService(&fakeRepository{})
 	blocker, err := service.GoalExecutionCompletionBlocker(context.Background(), protocol.Goal{

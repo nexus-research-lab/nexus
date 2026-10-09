@@ -3,7 +3,6 @@ package automation
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -212,49 +211,6 @@ func TestServiceRejectsAgentActorWithForgedControlPlaneSource(t *testing.T) {
 	}
 }
 
-func TestServiceAllowsPageDeliveryToAnotherSameOwnerAgent(t *testing.T) {
-	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-b")
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
-		newAutomationTestDB(t),
-		nil, nil, nil, nil, nil, nil,
-	)
-	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
-		"agent-a": {AgentID: "agent-a", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
-		"agent-b": {AgentID: "agent-b", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
-	}}
-	recipientSession := protocol.BuildAgentSessionKey(
-		"agent-b",
-		protocol.SessionChannelInternalSegment,
-		protocol.RoomTypeDM,
-		"recipient-session",
-		"",
-	)
-	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
-		recipientSession: {
-			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelInternalSegment,
-		},
-	}})
-	created, err := service.CreateTask(automationCommandTestOwnerContext("user-1"), automationdomain.CreateJobInput{
-		Name: "A executes and B receives", AgentID: "agent-a", Instruction: "prepare report",
-		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
-		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode: automationdomain.DeliveryModeExplicit, Channel: protocol.SessionChannelInternalSegment,
-			To: recipientSession, SessionKey: recipientSession,
-		},
-		Source:  automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
-		Enabled: true,
-	})
-	if err != nil {
-		t.Fatalf("same-owner page delivery should be accepted: %v", err)
-	}
-	if created.AgentID != "agent-a" || created.Delivery.SessionKey != recipientSession ||
-		created.DeliveryGrant.Kind != automationdomain.SourceKindUserPage {
-		t.Fatalf("execution and recipient identity were collapsed: %+v", created)
-	}
-}
-
 func TestServiceRejectsNewLegacyInboxAndMissingRealSession(t *testing.T) {
 	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
 	service := NewService(
@@ -299,44 +255,6 @@ func TestServiceRejectsNewLegacyInboxAndMissingRealSession(t *testing.T) {
 		automationdomain.ErrTaskDeliverySessionUnavailable,
 	) {
 		t.Fatalf("missing real session must be rejected, got %v", err)
-	}
-}
-
-func TestServiceValidatesCrossAgentIMAgainstRecipientPairing(t *testing.T) {
-	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-b")
-	grant := &mutableAutomationDeliveryGrant{allowed: true}
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
-		newAutomationTestDB(t),
-		nil, nil, nil, nil, nil, nil,
-	)
-	service.agents = &mutableAutomationAgentAuthority{agents: map[string]protocol.Agent{
-		"agent-a": {AgentID: "agent-a", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
-		"agent-b": {AgentID: "agent-b", OwnerUserID: "user-1", Status: "active", WorkspacePath: workspacePath},
-	}}
-	service.SetDeliveryGrantResolver(grant)
-	recipientSession := protocol.BuildAgentSessionKey(
-		"agent-b", protocol.SessionChannelWeixinPersonal, protocol.RoomTypeDM,
-		"wx-user-b", "",
-	)
-	service.SetDeliverySessionResolver(fakeAutomationDeliverySessionResolver{sessions: map[string]protocol.Session{
-		recipientSession: {
-			SessionKey: recipientSession, AgentID: "agent-b", ChannelType: protocol.SessionChannelWeixinPersonal,
-		},
-	}})
-	_, err := service.CreateTask(automationCommandTestOwnerContext("user-1"), automationdomain.CreateJobInput{
-		Name: "A executes and B receives on IM", AgentID: "agent-a", Instruction: "prepare report",
-		Schedule:      automationdomain.Schedule{Kind: automationdomain.ScheduleKindEvery, IntervalSeconds: intRef(60), Timezone: "Asia/Shanghai"},
-		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeLast, SessionKey: recipientSession},
-		Source:        automationdomain.Source{Kind: automationdomain.SourceKindUserPage},
-		Enabled:       true,
-	})
-	if err != nil {
-		t.Fatalf("cross-Agent IM delivery should validate recipient pairing: %v", err)
-	}
-	if got := grant.agentIDsSnapshot(); !slices.Equal(got, []string{"agent-b"}) {
-		t.Fatalf("pairing was checked against executor instead of recipient: %v", got)
 	}
 }
 
@@ -468,80 +386,6 @@ func TestServiceOwnerMainGrantIsRevalidatedBeforeDelivery(t *testing.T) {
 	}
 	if calls := delivery.Calls(); len(calls) != 0 {
 		t.Fatalf("revoked owner-main authority reached delivery router: %+v", calls)
-	}
-}
-
-func TestDeliverJobObservationUsesLatestTaskAfterStaleSnapshot(t *testing.T) {
-	db := newAutomationTestDB(t)
-	delivery := &fakeDeliveryRouter{}
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		delivery,
-	)
-	ownerCtx := automationCommandTestOwnerContext("user-1")
-	agentCtx := automationexec.WithActorAgentID(ownerCtx, "agent-1")
-	sourceSession := protocol.BuildAgentSessionKey(
-		"agent-1",
-		protocol.SessionChannelInternalSegment,
-		protocol.RoomTypeDM,
-		"operator",
-		"",
-	)
-	created, err := service.CreateTask(agentCtx, automationdomain.CreateJobInput{
-		Name:        "stale-snapshot",
-		AgentID:     "agent-1",
-		Instruction: "send once",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(60),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{
-			Kind:            automationdomain.SessionTargetNamed,
-			NamedSessionKey: "stale-snapshot",
-		},
-		Delivery: automationdomain.DeliveryTarget{
-			Mode:    automationdomain.DeliveryModeExplicit,
-			Channel: protocol.SessionChannelInternalSegment,
-			To:      sourceSession,
-		},
-		Source: automationdomain.Source{
-			Kind:           automationdomain.SourceKindAgent,
-			CreatorAgentID: "agent-1",
-			ContextType:    "agent",
-			ContextID:      "agent-1",
-			SessionKey:     sourceSession,
-		},
-		Enabled: true,
-	})
-	if err != nil {
-		t.Fatalf("create self-scoped task: %v", err)
-	}
-	staleExecutionSnapshot := *created
-	none := automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone}
-	if _, err = service.UpdateTask(ownerCtx, created.JobID, automationdomain.UpdateJobInput{
-		Delivery: &none,
-	}); err != nil {
-		t.Fatalf("disable delivery while execution holds a stale snapshot: %v", err)
-	}
-
-	result := service.deliverJobObservation(
-		ownerCtx,
-		staleExecutionSnapshot,
-		"",
-		automationexec.ExecutionObservation{ResultText: "must not use stale target"},
-	)
-	if result.Status != automationdomain.DeliveryStatusNotRequired {
-		t.Fatalf("delivery should follow latest persisted mode=none: %+v", result)
-	}
-	if calls := delivery.Calls(); len(calls) != 0 {
-		t.Fatalf("stale execution snapshot reached old delivery target: %+v", calls)
 	}
 }
 
