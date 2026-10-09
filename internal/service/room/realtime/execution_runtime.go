@@ -124,6 +124,10 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
+		// connectRuntime 在交给 RuntimeConnect 前失败时，scratch 仍归这里释放。
+		if runtimeValue.scratchLease != nil {
+			_ = runtimeValue.scratchLease.Release()
+		}
 		return nil, err
 	}
 	e.logger.Info("Room runtime 启动成功",
@@ -577,10 +581,13 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		)
 	}
 
+	// RuntimeConnect 接管 scratch：成功时交给 runtime，失败时由它释放。
+	scratch := runtimeValue.scratchLease
+	runtimeValue.scratchLease = nil
 	client, err := runtimehost.RuntimeConnect{
 		Startup:      startup,
 		Options:      &runtimeValue.options,
-		Scratch:      runtimeValue.scratchLease,
+		Scratch:      scratch,
 		ScratchInput: e.scratchInput(),
 		Logger:       e.logger.With(roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...),
 		Attempt:      e.connectRuntimeOnce,

@@ -21,10 +21,8 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
-	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -151,44 +149,9 @@ func (s *Service) ensureClient(
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	var runtimeSkillNames, runtimeDisabledSkillNames []string
 	if !scopedPolicyActive || !scopedPolicy.DisableSkills {
-		if err := workspacepkg.EnsureUserSkillLibrary(s.Config, agentValue.OwnerUserID); err != nil {
-			return dmClientPreparation{}, err
-		}
-		if err := workspacepkg.EnsureInitializedForAgent(s.Config, *agentValue); err != nil {
-			return dmClientPreparation{}, err
-		}
-		runtimeSkillNames, err = workspacepkg.RuntimeSkillNamesForAgent(s.Config, *agentValue)
+		runtimeSkillNames, runtimeDisabledSkillNames, err = s.AgentRuntimeSkills(*agentValue, scopedPolicy.AllowedSkillNames)
 		if err != nil {
 			return dmClientPreparation{}, err
-		}
-		runtimeDisabledSkillNames, err = workspacepkg.RuntimeDisabledSkillNamesForAgent(
-			s.Config,
-			*agentValue,
-		)
-		if err != nil {
-			return dmClientPreparation{}, err
-		}
-		if scopedPolicyActive && len(scopedPolicy.AllowedSkillNames) > 0 {
-			allowedSkillNames := make(map[string]struct{}, len(scopedPolicy.AllowedSkillNames))
-			for _, skillName := range scopedPolicy.AllowedSkillNames {
-				skillName = strings.TrimSpace(skillName)
-				if skillName != "" {
-					allowedSkillNames[skillName] = struct{}{}
-				}
-			}
-			filteredDisabledSkillNames := make([]string, 0, len(runtimeDisabledSkillNames)+len(runtimeSkillNames))
-			for _, skillName := range runtimeDisabledSkillNames {
-				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
-					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
-				}
-			}
-			for _, skillName := range runtimeSkillNames {
-				if _, allowed := allowedSkillNames[strings.TrimSpace(skillName)]; !allowed {
-					filteredDisabledSkillNames = append(filteredDisabledSkillNames, skillName)
-				}
-			}
-			runtimeSkillNames = append([]string(nil), scopedPolicy.AllowedSkillNames...)
-			runtimeDisabledSkillNames = filteredDisabledSkillNames
 		}
 	}
 	dynamicSystemPrompt, err := s.Agents.BuildRuntimePrompt(ctx, agentValue)
@@ -321,33 +284,20 @@ func (s *Service) ensureClient(
 	if (!scopedPolicyActive || sourceContextType == protocol.SessionPurposeWorkGraphEditor ||
 		sourceContextType == protocol.SessionPurposeWorkGraphDistillation) &&
 		s.NexusMCP != nil {
-		runtimeServers, runtimeErr := s.NexusMCP(
-			mcpContext,
-			nexusmcp.RoundContext{
-				SessionKey: sessionKey, RoundID: request.RoundID, InputContent: request.Content,
-				SubagentControl:   s.Runtime.BindSubagentControl(sessionKey, request.RoundID),
-				SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
-				SourceContextLabel: agentValue.Name,
-				CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,
-			},
-		)
-		if runtimeErr != nil {
-			return dmClientPreparation{}, runtimeErr
-		}
-		if len(runtimeServers) > 0 && mcpServers == nil {
-			mcpServers = make(map[string]sdkmcp.ServerConfig, len(runtimeServers))
-		}
-		for name, server := range runtimeServers {
-			mcpServers[name] = server
+		mcpServers, err = s.MergeNexusMCPServers(mcpContext, mcpServers, nexusmcp.RoundContext{
+			SessionKey: sessionKey, RoundID: request.RoundID, InputContent: request.Content,
+			SubagentControl:   s.Runtime.BindSubagentControl(sessionKey, request.RoundID),
+			SourceContextType: sourceContextType, SourceContextID: agentValue.AgentID,
+			SourceContextLabel: agentValue.Name,
+			CommandContext:     runtimeCommandContext, CommandReceipts: commandReceipts,
+		})
+		if err != nil {
+			return dmClientPreparation{}, err
 		}
 	}
 	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
 	dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, connectorTurnContext)
-	runtimeSelection, err := s.resolveAgentRuntimeSelection(
-		ctx,
-		agentValue,
-		sessionItem.Options,
-	)
+	runtimeSelection, err := s.ResolveAgentRuntimeSelection(ctx, agentValue, sessionItem.Options)
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
@@ -379,79 +329,52 @@ func (s *Service) ensureClient(
 		toolPolicy,
 		s.RuntimeImagegenDefaultEnabled(ctx),
 	)
-	var scratchLease *runtimectx.SandboxResourceLease
-	var scratchInput runtimectx.SandboxResourceInput
-	scratchLeaseOwned := false
-	if strings.EqualFold(strings.TrimSpace(s.Config.AppMode), "desktop") &&
-		(runtimeSelection.RuntimeKind == "" || strings.EqualFold(runtimeSelection.RuntimeKind, "nxs")) &&
-		permissionMode != sdkpermission.ModeBypassPermissions {
-		scratchInput = runtimectx.SandboxResourceInput{
-			OwnerUserID: agentValue.OwnerUserID,
-			SessionKey:  sessionKey,
-			RoundID:     request.RoundID,
-		}
-		scratchLease, err = runtimectx.AcquireSandboxResource(ctx, scratchInput)
-		if err != nil {
-			return dmClientPreparation{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
-		}
-		defer func() {
-			if !scratchLeaseOwned {
-				_ = scratchLease.Release()
-			}
-		}()
+	scratchInput := runtimectx.SandboxResourceInput{
+		OwnerUserID: agentValue.OwnerUserID,
+		SessionKey:  sessionKey,
+		RoundID:     request.RoundID,
 	}
-	options, err := clientopts.BuildAgentClientOptions(ctx, s.Providers, clientopts.AgentClientOptionsInput{
-		AppMode:                    s.Config.AppMode,
-		DesktopSandboxEnabled:      s.Config.DesktopSandboxEnabled,
-		WorkspacePath:              agentValue.WorkspacePath,
-		OwnerUserID:                agentValue.OwnerUserID,
-		IsMainAgent:                agentValue.IsMain,
-		RuntimeKind:                runtimeSelection.RuntimeKind,
-		Provider:                   runtimeSelection.Provider,
-		Model:                      runtimeSelection.Model,
-		BackgroundProvider:         runtimeSelection.BackgroundProvider,
-		BackgroundModel:            runtimeSelection.BackgroundModel,
-		VisionProvider:             runtimeSelection.VisionProvider,
-		VisionModel:                runtimeSelection.VisionModel,
-		PermissionMode:             permissionMode,
-		PermissionHandler:          permissionHandler,
-		AllowedTools:               allowedTools,
-		DisallowedTools:            disallowedTools,
-		SkillIDs:                   runtimeSkillNames,
-		DisabledSkillIDs:           runtimeDisabledSkillNames,
-		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.Config, agentValue.OwnerUserID),
-		AdditionalDirectories:      scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
-		SettingSources:             agentValue.Options.SettingSources,
-		AppendSystemPrompt:         runtimehost.JoinPromptSections(staticSystemPrompt, dynamicSystemPrompt),
-		AppendSystemPromptStatic:   staticSystemPrompt,
-		AppendSystemPromptDynamic:  dynamicSystemPrompt,
-		ResumeSessionID:            textutil.FirstNonEmpty(forkSourceSessionID, textutil.PointerValue(sessionItem.SessionID)),
-		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
-		MaxTurns:                   agentValue.Options.MaxTurns,
-		MCPServers:                 mcpServers,
-		AgentMCPServers:            agentValue.Options.MCPServers,
-		ConfigurationEnv:           configurationRuntimeEnv,
-		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
-		AutoMemoryDisabled:         runtimeSelection.AutoMemoryDisabled,
-		AutoDreamDisabled:          runtimeSelection.AutoDreamDisabled,
-		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
-		WebSearch:                  runtimeSelection.WebSearch,
-		RuntimeIsolationMode:       s.Config.RuntimeIsolationMode,
-		RuntimeLauncherPath:        s.Config.RuntimeLauncherPath,
-		SandboxResources:           scratchLease.Resources(),
+	scratchLease, err := s.AcquireRuntimeScratch(ctx, runtimeSelection, permissionMode, scratchInput)
+	if err != nil {
+		return dmClientPreparation{}, err
+	}
+	// 交给 RuntimeConnect 前的任何返回都由这里释放 scratch。
+	defer func() {
+		if scratchLease != nil {
+			_ = scratchLease.Release()
+		}
+	}()
+	options, _, err := s.BuildAgentRuntimeOptions(ctx, runtimehost.AgentRuntimeOptionsInput{
+		Agent:                 agentValue,
+		Selection:             runtimeSelection,
+		PermissionMode:        permissionMode,
+		PermissionHandler:     permissionHandler,
+		AllowedTools:          allowedTools,
+		DisallowedTools:       disallowedTools,
+		SkillIDs:              runtimeSkillNames,
+		DisabledSkillIDs:      runtimeDisabledSkillNames,
+		AdditionalDirectories: scopedSessionAdditionalDirectories(sessionItem, scopedPolicyActive),
+		StablePrompt:          staticSystemPrompt,
+		DynamicPrompt:         dynamicSystemPrompt,
+		ResumeSessionID:       textutil.FirstNonEmpty(forkSourceSessionID, textutil.PointerValue(sessionItem.SessionID)),
+		MCPServers:            mcpServers,
+		ConfigurationEnv:      configurationRuntimeEnv,
+		Scratch:               scratchLease,
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
-	options = s.Runtime.WithGuidanceHook(options, sessionKey)
-	options = s.Runtime.WithSubagentAdmissionHooks(options, sessionKey)
-	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
-		OwnerUserID:   agentValue.OwnerUserID,
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: agentValue.WorkspacePath,
-		SessionKey:    sessionKey,
-	})
-	options = runtimehost.WithRuntimeDiagnosticsLogger(options, s.LoggerFor(context.Background()).With("session_key", sessionKey, "agent_id", agentValue.AgentID))
+	options = s.WithAgentRuntimeHooks(options, sessionKey,
+		s.LoggerFor(context.Background()).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
+		func(options agentclient.Options) agentclient.Options {
+			return s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
+				OwnerUserID:   agentValue.OwnerUserID,
+				Scope:         protocol.InputQueueScopeDM,
+				WorkspacePath: agentValue.WorkspacePath,
+				SessionKey:    sessionKey,
+			})
+		},
+	)
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(runtimeSelection.Provider, options)
 	toolSurfaceFingerprint, toolSurfaceComplete, err := runtimectx.ModelToolSurfaceFingerprint(ctx, options)
 	if err != nil {
@@ -536,93 +459,40 @@ func (s *Service) ensureClient(
 			"runtime_provider", runtimeProvider,
 		)...,
 	)
-	client, sandboxLeaseTransferred, err := s.acquireRuntimeClient(ctx, startup, options, scratchLease)
-	scratchLeaseOwned = sandboxLeaseTransferred
-	if err != nil {
-		retired, closeErr := retireDMRuntimeClient(ctx, startup)
-		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			s.LoggerFor(ctx).Warn("清理启动失败的 DM runtime 返回错误",
-				"session_key", sessionKey,
-				"agent_id", agentValue.AgentID,
-				"startup_err", err,
-				"cleanup_err", closeErr,
-			)
-		}
-		if conversationFork {
-			return dmClientPreparation{}, err
-		}
-		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
-			return dmClientPreparation{}, err
-		}
-		s.LoggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
-			"session_key", sessionKey,
-			"agent_id", agentValue.AgentID,
-			"sdk_session_id", options.Session.ResumeID,
-			"err", err,
-		)
-		if !retired {
-			return dmClientPreparation{}, err
-		}
-		if _, clearErr := s.clearReusableSDKSessionID(
-			ctx,
-			agentValue.WorkspacePath,
-			sessionItem,
-		); clearErr != nil {
-			return dmClientPreparation{}, clearErr
+	clearResume := func() error {
+		if _, err := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); err != nil {
+			return err
 		}
 		sdkSessionIdentity.Set("")
-		options.Session.ResumeID = ""
-		options.Session.ResumeAt = ""
-		options.Session.Fork = false
-		forking = false
-		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
-			return dmClientPreparation{}, err
-		}
-		if scratchLease != nil {
-			// A failed GetOrCreate/Bind attempt never transferred ownership to
-			// the runtime manager. Release that exact handle before replacing it;
-			// otherwise the retry would strand the old scratch directory while
-			// the new lease becomes the only handle reachable by this function.
-			if !scratchLeaseOwned {
-				if releaseErr := scratchLease.Release(); releaseErr != nil {
-					return dmClientPreparation{}, fmt.Errorf("清理失效 resume 的 desktop sandbox scratch: %w", releaseErr)
-				}
-				scratchLease = nil
-			}
-			nextLease, acquireErr := runtimectx.AcquireSandboxResource(ctx, scratchInput)
-			if acquireErr != nil {
-				err = acquireErr
-				return dmClientPreparation{}, fmt.Errorf("重新准备 desktop sandbox scratch: %w", err)
-			}
-			scratchLease = nextLease
-			scratchLeaseOwned = false
-		}
-		client, sandboxLeaseTransferred, err = s.acquireRuntimeClient(ctx, startup, options, scratchLease)
-		scratchLeaseOwned = sandboxLeaseTransferred
-		if err != nil {
-			if _, cleanupErr := retireDMRuntimeClient(ctx, startup); cleanupErr != nil &&
-				!runtimectx.IsRuntimeTransportClosedError(cleanupErr) {
-				s.LoggerFor(ctx).Warn("清理重试失败的 DM runtime 返回错误",
-					"session_key", sessionKey,
-					"agent_id", agentValue.AgentID,
-					"startup_err", err,
-					"cleanup_err", cleanupErr,
-				)
-			}
-			return dmClientPreparation{}, err
-		}
+		return nil
 	}
-	scratchLeaseOwned = sandboxLeaseTransferred
+	if conversationFork {
+		// 用户发起的 fork 不能静默退化为全新 SDK session。
+		clearResume = nil
+	}
+	connectScratch := scratchLease
+	scratchLease = nil
+	client, err := runtimehost.RuntimeConnect{
+		Startup:      startup,
+		Options:      &options,
+		Scratch:      connectScratch,
+		ScratchInput: scratchInput,
+		Logger:       s.LoggerFor(ctx).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
+		Attempt: func(startup *runtimectx.ClientStartup, options agentclient.Options, scratch *runtimectx.SandboxResourceLease) (runtimectx.Client, bool, error) {
+			return s.acquireRuntimeClient(ctx, startup, options, scratch)
+		},
+		ClearResume: clearResume,
+	}.Run(ctx)
+	if err != nil {
+		return dmClientPreparation{}, err
+	}
+	forking = options.Session.Fork
 	forkSourceSessionID = ""
 	if forking {
 		forkedSessionID := strings.TrimSpace(client.SessionID())
-		if forkedSessionID == resumeID {
-			_, _ = retireDMRuntimeClient(ctx, startup)
-			return dmClientPreparation{}, errors.New("runtime fork 仍返回 source SDK session")
-		}
 		if forkedSessionID == "" {
 			if request.runtimePreparationOnly {
-				_, _ = retireDMRuntimeClient(ctx, startup)
+				_, _ = runtimehost.RetireRuntimeClient(startup)
 				// Claude Code 等 runtime 直到真实 query 才公布 fork identity；后台预备
 				// 不发送隐藏消息，保持下一轮同步 fork 作为正确性边界。
 				return dmClientPreparation{}, nil
@@ -651,7 +521,7 @@ func (s *Service) ensureClient(
 				syncArguments...,
 			)
 			if syncErr != nil {
-				_, _ = retireDMRuntimeClient(ctx, startup)
+				_, _ = runtimehost.RetireRuntimeClient(startup)
 				return dmClientPreparation{}, fmt.Errorf("提交 fork SDK session: %w", syncErr)
 			}
 			sessionItem = updatedSession
@@ -756,12 +626,6 @@ func forkSessionStateCommitted(
 	storedToolSurface, _ := sessionItem.Options[protocol.OptionRuntimeToolSurfaceFingerprint].(string)
 	return currentSessionID == strings.TrimSpace(sessionID) &&
 		strings.TrimSpace(storedToolSurface) == strings.TrimSpace(toolSurfaceFingerprint)
-}
-
-func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
-	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
-	defer cancel()
-	return startup.RetireCurrent(closeCtx)
 }
 
 func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
@@ -875,17 +739,6 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 		return "", goalID, objectiveRevision
 	}
 	return strings.TrimSpace(goalContext), goalID, objectiveRevision
-}
-
-func (s *Service) resolveAgentRuntimeSelection(
-	ctx context.Context,
-	agentValue *protocol.Agent,
-	sessionOptions map[string]any,
-) (runtimeselectionsvc.Selection, error) {
-	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.Preferences, s.Providers).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent:          agentValue,
-		SessionOptions: sessionOptions,
-	})
 }
 
 func (s *Service) resolveReusableSDKSessionID(
