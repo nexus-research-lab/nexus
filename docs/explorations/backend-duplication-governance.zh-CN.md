@@ -94,38 +94,21 @@ make check-architecture           # 依赖方向 + textutil 私有副本
 
 已知基线问题：`internal/runtime/clientopts` 中 5 个用例（桌面沙箱不支持 Linux、视觉模型校验）与 `internal/storage/sandbox` 中 3 个进程迁移用例在本次改动前的基线提交上即于 Linux 失败，与本次治理无关；其余 `go vet ./...` 与 `go test ./...` 全部通过。
 
-## 附录 A：文档瘦身中发现的规范矛盾（待确认）
+## 附录 A：规范矛盾的处理（按实现修正）
 
-### workgraph-design-principles
-- 收尾称"八类问题"，§1.1 表只有六类，§1.7 列十条要求。
-- 附录列了 Voyager，正文没有引用。
-- 摘要链条缺 Review，并写 "Plan" 而不是 "Plan revision"；§4.2 是完整链条。
-### workgraph guides vs execution-graph-spec
-- 已解决：execution-graph-spec 已按代码改为宿主直接保存；`distill_workgraph` 只为已存在的蒸馏 Session 保留。
-### message-processing-spec
-- Room 主 Feed 用"统一主色"展示摘要（AGENTS 迁入） vs "不使用主色动画"、不读 ToolUseSummary。
-- Room 历史索引：允许增量更新 vs 任何来源变化都全量重建。
-- Thread 首次点击：迁入文本说只显示折叠子项列表；正文说 Thread 列表默认展开。
-### workspace-isolation-spec
-- `/tmp` 是 runtime 共享读写根（L259） vs 负向测试（L428）说共享 `/tmp` 不是 runtime 写根。
-- 两处 `UserScope` 定义分别用 `auth_subject` 与 `principal`，合并后两者都列出。
-### automation-permission-pipeline-spec
-- 正文允许创建/更新时可选 `delivery_session_key`；迁入条目说 schema 不暴露 session 路由（保留正文）。
-### echo-spec
-- 使用了 `committing` 状态，但 §6.3 状态图与列表里没有。
-### skill-spec
-- §9.6 字段名 `credentials_encrypted` 实际存的是明文 Bearer token（与配置规范的存储限制一致，但命名误导）。
-### desktop-sandbox-spec（规范内部新旧状态并存）
-- “App 默认 supervisor 未接入” vs “macOS App 默认装配 supervisor”。
-- “生产启动不写 launch record、不启动 helper” vs “默认 Manager 使用已验证 helper”。
-- “启动恢复未接入/另行处理” vs “App 启动自动执行恢复”。
-- “没有自动对账到 reconciled” vs “ReconcileSandboxPolicy 已接入 App 启动”。
-- “自动 crash sweep 是后续工作” vs 生命周期扫描已存在。
-### execution-orchestration-spec
-- 迁入条目说 Room 协作者可读“交付证据”；正文说 Assignment/Review/Submission 证据不可见。
-### room-spec / room-collaboration-spec
-- 无目标输入：room-spec 说沿最近活跃 root round 的成员继续投递（代码 `latestActiveRootRoundAgentIDs` 支持）；room-collaboration 说不启动 Agent。
-- Goal 证据：“已过期 revision 不记录证据” vs “同一 Goal ID 生命周期内单调记录，revision 只 fence 迟到事件”。
-### nexus-architecture-blueprint
-- 身份事件（session_revoked/profile_changed/principal_changed）只在蓝图里，应归 online-team-spec。
-- 核对日期 2026-08-11 已过期。
+瘦身中发现的规范内部矛盾已逐条对照代码修正，只保留与实现一致的表述：
+
+| 文档 | 结论（依据） |
+| --- | --- |
+| desktop-sandbox-spec | macOS App 默认装配 supervisor、写 launch record、启动前执行进程与生命周期恢复，并对受监督启动的策略回执对账到 `reconciled`；非 darwin 构建均不装配（`internal/app/desktop_sandbox_darwin.go`）。scratch 标记清理仍只有显式 HTTP sweep。 |
+| message-processing-spec | Room 主 Feed 活动行不读 ToolUseSummary：运行中工具为中性 shimmer，否则为静态主色文案加 spinner；Room 历史索引对已校验的 ledger 追加做尾部增量刷新，DM 全量重建；DM 与 Thread 工具组首次都折叠。 |
+| workspace-isolation-spec | Unix 上 `/tmp` 是 runtime 读写根（`policy_linux.go`）；身份推导按 `authctx.Principal` 与 `appfs` 根目录，不存在 `UserScope` 类型。 |
+| automation-permission-pipeline-spec | `delivery_session_key` 只由 `nexus.command` create/update 接受，HTTP 用结构化 `delivery`。 |
+| echo-spec | 状态图补 `committing` 与 `evaluating→scheduled`（`internal/echo/model.go`）。 |
+| skill-spec / 对话配置规范 | `credentials_encrypted` 存的是明文 Bearer token。 |
+| execution-orchestration-spec | Room 观察者视图只有 Goal、目标、完成标准、图摘要与节点状态，不含 Assignment/Review/Submission 证据。 |
+| room-spec / room-collaboration-spec | 浏览器群聊无目标输入：显式目标 → @ → 开启自动回复的群主 → 不启动 Agent（`chat.go`）；Goal 证据只在归属 revision 等于当前 revision 时写入，首条非 Lead 记录保留。 |
+| online-team-spec / 蓝图 | 身份失效事件规则迁入 online-team-spec；蓝图失效代码路径已更正。 |
+| frontend / capability 规范 | Room 导航偏好规则移出测试章节；能力页为 技能、工作图、连接器、定时任务、频道、配对。 |
+| execution-graph-spec | WorkGraph 确认保存由宿主直接写入，不调度模型轮次。 |
+| workgraph-design-principles | 计数与 §1 列表一致，摘要链条与 §4.2 一致，删除未引用的文献。 |
