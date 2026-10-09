@@ -149,7 +149,7 @@ func (g *GoalRoundState) SubagentUsageObservations(message protocol.Message) []S
 // 返回 true 表示消息属于本轮子任务，调用方据此记录宿主侧的子任务历史。
 func (g *GoalRoundState) RememberSubagentTaskMessage(message protocol.Message) bool {
 	metadata, _ := message["metadata"].(map[string]any)
-	taskID := strings.TrimSpace(textutil.AnyString(metadata["task_id"]))
+	taskID := textutil.AnyString(metadata["task_id"])
 	if taskID == "" {
 		return false
 	}
