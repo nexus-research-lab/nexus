@@ -9,7 +9,7 @@
 - WorkGraph 把长期任务拆成两条线：责任图保存责任和验收，Runtime Graph 记录实际运行。
 - 与普通 planner 的区别：节点还记录谁负责、做过哪次尝试、提交了什么、是否通过验收。
 - 与 runtime trace 的区别：责任图决定哪些工作可以解锁、哪些结果还不能算完成。
-- 对象链：`Goal → Execution → Plan → Work Item → Assignment → Attempt → Submission → Acceptance`。Draft/Workflow 保存可复用的责任结构。
+- 对象链（同 §4.2）：`Goal → Execution → Plan revision → Work Item → Assignment → Attempt → Submission → Review / Acceptance`。Draft/Workflow 保存可复用的责任结构。
 - 稳定性来自持久责任、明确身份、追加历史、有限重试、投递对账和 Goal continuation。
 - 分工：Agent 负责理解问题、选择工具、拆分工作和决定返工；宿主负责身份、权限、状态转换、幂等、验收和恢复。
 
@@ -546,7 +546,7 @@ ReviewBinding 把“判断交付”与“产生交付”分开。Reviewer 能看
 
 | 贡献 | 内容 |
 | --- | --- |
-| 问题 | 把分散的长程失败归并为方向性、连续性、可恢复性、环境可靠性、协作归属、可证伪交付、成本和安全八类；前三类对应三个基础事实（§1） |
+| 问题 | 把分散的长程失败归并为六类问题（§1.1），收敛为三个基础事实与四类控制事实（§1.2–1.6），并推出十条设计要求（§1.7） |
 | 结构模型 | 持久责任链 + 只作观察投影的 Runtime Graph（§4.2） |
 | 系统 | CAS、幂等 request、outbox、receipt、lease、unknown、reconciliation 组成的恢复回路（§4.3–4.4） |
 | 协作 | parent-child admission、WorkBinding、ReviewBinding（§4.6） |
@@ -564,7 +564,6 @@ ReviewBinding 把“判断交付”与“产生交付”分开。Reviewer 能看
 - [τ-bench: A Benchmark for Tool-Agent-User Interaction in Real-World Domains](https://arxiv.org/abs/2406.12045)
 - [AgentDojo: A Dynamic Environment to Evaluate Prompt Injection Attacks and Defenses for LLM Agents](https://arxiv.org/abs/2406.13352)
 - [Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)
-- [Voyager: An Open-Ended Embodied Agent with Large Language Models](https://arxiv.org/abs/2305.16291)
 - [AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation](https://arxiv.org/abs/2308.08155)
 - [Large Language Model based Multi-Agents: A Survey of Progress and Challenges](https://arxiv.org/abs/2402.01680)
 - [Measuring AI Ability to Complete Long Software Tasks](https://arxiv.org/abs/2503.14499)
