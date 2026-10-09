@@ -5,20 +5,14 @@ package dm
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
-
-type goalCommandProvider interface {
-	Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error)
-}
 
 // SetGoalFromCommand 设置 Goal 并持久化一条不进入 runtime 的用户控制记录。
 func (s *Service) SetGoalFromCommand(
@@ -43,36 +37,13 @@ func (s *Service) SetGoalFromCommand(
 	if err != nil {
 		return protocol.GoalCommandResult{}, err
 	}
-	provider, ok := s.goals.(goalCommandProvider)
-	if !ok || provider == nil {
-		return protocol.GoalCommandResult{}, errors.New("Goal service is unavailable")
-	}
-	replaceExisting := true
-	if request.Options.ReplaceExisting != nil {
-		replaceExisting = *request.Options.ReplaceExisting
-	}
-	item, err := provider.Create(
-		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
-		protocol.CreateGoalRequest{
-			SessionKey:      execution.sessionKey,
-			Objective:       request.Objective,
-			TokenBudget:     request.Options.TokenBudget,
-			ReplaceExisting: replaceExisting,
-			CreatedBy:       "user",
-			RoundID:         execution.request.RoundID,
-			OwnerUserID:     authctx.OwnerUserID(ctx),
-			Metadata:        request.Options.Metadata,
-		},
-	)
+	item, err := runtimehost.CreateGoalFromCommand(ctx, s.goals, request, execution.sessionKey, execution.request.RoundID, "")
 	if err != nil {
 		return protocol.GoalCommandResult{}, err
 	}
-	if item == nil || strings.TrimSpace(item.ID) == "" {
-		return protocol.GoalCommandResult{}, errors.New("Goal service returned an invalid Goal")
-	}
-	committed := s.persistGoalCommandRecord(ctx, execution, *item)
+	committed := s.persistGoalCommandRecord(ctx, execution, item)
 	return protocol.GoalCommandResult{
-		Goal:                 *item,
+		Goal:                 item,
 		UserMessageCommitted: committed,
 	}, nil
 }
