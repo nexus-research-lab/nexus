@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
@@ -48,23 +47,10 @@ func (r *roundRunner) failRoundAtPhase(
 	})
 	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + r.roundID,
-		"session_key":     r.sessionKey,
-		"agent_id":        r.agent.AgentID,
-		"round_id":        r.roundID,
-		"session_id":      r.outcomeSessionID(),
-		"role":            "result",
-		"timestamp":       time.Now().UnixMilli(),
-		"subtype":         "error",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"usage":           map[string]any{},
-		"result":          displayError,
-		"is_error":        true,
-		"failure_phase":   strings.TrimSpace(failurePhase),
-	}
+	resultMessage := protocol.NewHostResultMessage("result_"+r.roundID, r.sessionKey, r.agent.AgentID, r.roundID, "error", displayError, true)
+	resultMessage["session_id"] = r.outcomeSessionID()
+	resultMessage["usage"] = map[string]any{}
+	resultMessage["failure_phase"] = strings.TrimSpace(failurePhase)
 	durableErrorProjected := false
 	if persistErr := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
@@ -181,24 +167,9 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 	r.finalizeGoalUsage(context.Background(), result, r.LastGoalAssistantMessage())
 	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + r.roundID,
-		"session_key":     r.sessionKey,
-		"agent_id":        r.agent.AgentID,
-		"round_id":        r.roundID,
-		"session_id":      r.outcomeSessionID(),
-		"role":            "result",
-		"timestamp":       time.Now().UnixMilli(),
-		"subtype":         "interrupted",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"usage":           map[string]any{},
-		"is_error":        false,
-	}
-	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
-		resultMessage["result"] = trimmedResult
-	}
+	resultMessage := protocol.NewHostResultMessage("result_"+r.roundID, r.sessionKey, r.agent.AgentID, r.roundID, "interrupted", resultText, false)
+	resultMessage["session_id"] = r.outcomeSessionID()
+	resultMessage["usage"] = map[string]any{}
 	if persistErr := r.service.History.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,

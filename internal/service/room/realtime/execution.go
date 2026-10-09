@@ -24,9 +24,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -312,85 +310,39 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
-	actor := e.orchestrationActor()
-	defer e.service.releaseExecutionCoordination(actor)
-	executionInputs, err := e.service.ExecutionContextualInputs(e.ctx, actor)
-	if err != nil {
-		return exec.RoundExecutionResult{}, err
-	}
+	defer e.service.releaseExecutionCoordination(e.orchestrationActor())
 	inputOptions := roomSlotRuntimeInputOptions(e.round, e.slot)
 	if inputOptions.SkipAutoMemory && !runtimectx.SupportsMessageExecutionPolicy(client) {
 		inputOptions.SkipAutoMemory = false
 	}
-	if e.service.SubagentAdmission != nil {
-		e.service.Runtime.SetSubagentHookCallbacks(
-			e.slot.RuntimeSessionKey,
-			e.slot.AgentRoundID,
-			orchestrationruntimehook.Callbacks(
-				e.service.SubagentAdmission,
-				orchestrationruntimehook.Context{
-					Actor:             actor,
-					ActorProvider:     e.orchestrationActor,
-					RuntimeSessionKey: e.slot.RuntimeSessionKey,
-					RoomSessionID:     e.slot.RoomSessionID,
-					Logger:            e.service.LoggerFor(e.ctx),
-				},
-			),
-		)
-		defer e.service.Runtime.ClearSubagentHookCallbacks(
-			e.slot.RuntimeSessionKey,
-			e.slot.AgentRoundID,
-		)
-	}
 	e.slot.beginNoReplyCandidate()
-	e.service.ExecutionObserver().Begin(actor)
-	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
-		Content:          payload,
-		ContextualInputs: append(executionInputs, e.contextualInputs()...),
-		InputOptions:     inputOptions,
-		Client:           client,
-		Mapper:           runtimehost.RoundMapper{EventMapper: e.mapper.EventMapper},
-		IdleTimeout:      e.service.Config.RuntimeRoundIdleTimeout(),
-		IdlePauseState: func() (bool, <-chan struct{}) {
-			return e.service.Permission.PendingRequestState(e.slot.RuntimeSessionKey)
-		},
+	return e.service.ExecuteAgentRound(e.ctx, runtimehost.AgentRound{
+		Actor:             e.orchestrationActor,
+		RuntimeSessionKey: e.slot.RuntimeSessionKey,
+		HookRoundID:       e.slot.AgentRoundID,
+		AgentRoundID:      e.slot.AgentRoundID,
+		RoomSessionID:     e.slot.RoomSessionID,
+		Client:            client,
+		Mapper:            runtimehost.RoundMapper{EventMapper: e.mapper.EventMapper},
+		Content:           payload,
+		ContextualInputs:  e.contextualInputs(),
+		InputOptions:      inputOptions,
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(e.slot)
 		},
 		AfterQuery: func() error {
-			if err := e.activateBoundRoomAttempt(actor); err != nil {
+			if err := e.activateBoundRoomAttempt(e.orchestrationActor()); err != nil {
 				return err
 			}
 			return e.sendQueuedInputs(client)
 		},
-		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			currentActor := e.orchestrationActor()
-			e.service.ExecutionObserver().ObserveMessage(currentActor, incoming)
-			e.service.ExecutionObserver().ObserveCompactBoundary(currentActor, e.slot.RuntimeSessionKey, e.slot.AgentRoundID, incoming)
-			e.observeIncomingMessage(incoming)
-		},
-		SyncSessionID: func(sessionID string) error {
-			return e.syncRuntimeIdentity(sessionID)
-		},
+		SyncSessionID:        e.syncRuntimeIdentity,
 		HandleDurableMessage: e.handleDurableMessage,
 		EmitEvent:            e.emitEvent,
+		ForkPending:          func() bool { return strings.TrimSpace(e.forkSourceSessionID) != "" },
+		Logger:               e.logger,
+		StreamLogger:         e.streamLogger,
 	})
-	if executeErr == nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
-		executeErr = errors.New("Room runtime fork 未提交可恢复的独立 SDK session")
-	}
-	if executeErr != nil && strings.TrimSpace(e.forkSourceSessionID) != "" {
-		e.service.CloseUncommittedForkRuntime(e.slot.RuntimeSessionKey, client, e.logger, executeErr)
-	}
-	failureReason := ""
-	if executeErr != nil {
-		failureReason = executeErr.Error()
-	}
-	e.service.ExecutionObserver().Finish(
-		e.orchestrationActor(),
-		result.TerminalStatus,
-		failureReason,
-	)
-	return result, executeErr
 }
 
 func (e *slotExecution) syncRuntimeIdentity(sessionID string) error {
@@ -467,36 +419,12 @@ func (e *slotExecution) sendQueuedInputs(client runtimectx.Client) error {
 	return nil
 }
 
-func (e *slotExecution) observeIncomingMessage(incoming sdkprotocol.ReceivedMessage) {
-	if !e.streamLogger.Enabled(e.ctx, slog.LevelDebug) {
-		return
-	}
-	if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !e.service.Config.MessageDebugStreamEvent {
-		return
-	}
-	fields := trace.BuildSDKMessageLogFieldsWithOptions(
-		incoming,
-		trace.SDKMessageLogOptions{
-			IncludeStreamEvent:  e.service.Config.MessageDebugStreamEvent,
-			IncludeSnapshotData: true,
-		},
-	)
-	if len(fields) == 0 {
-		return
-	}
-	e.streamLogger.Debug("Room slot 收到 SDK 消息", fields...)
-}
-
 func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) error {
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
 	messageRole := protocol.MessageRole(messageValue)
-	resultSubtype, _ := messageValue["subtype"].(string)
-	resultSubtype = strings.TrimSpace(resultSubtype)
-	if e.service.shouldConfirmRoomGuidanceByFallback(e.slot) &&
-		(messageRole == "assistant" || (messageRole == "result" && messageValue["is_error"] != true &&
-			(resultSubtype == "" || resultSubtype == "success"))) {
+	if e.service.shouldConfirmRoomGuidanceByFallback(e.slot) && runtimehost.ConfirmsGuidance(messageValue) {
 		if err := e.service.acknowledgeRoomSlotGuidance(e.ctx, e.round, e.slot, nil); err != nil {
 			return err
 		}

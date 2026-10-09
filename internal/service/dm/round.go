@@ -21,11 +21,9 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
-	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -185,60 +183,21 @@ func (r *roundRunner) executeRound(
 	ctx context.Context,
 	logger *slog.Logger,
 ) (exec.RoundExecutionResult, error) {
-	actor := r.orchestrationActor()
-	executionInputs, err := r.service.ExecutionContextualInputs(ctx, actor)
-	if err != nil {
-		return exec.RoundExecutionResult{}, err
-	}
-	if r.service.SubagentAdmission != nil {
-		r.service.Runtime.SetSubagentHookCallbacks(
-			r.sessionKey,
-			r.roundID,
-			orchestrationruntimehook.Callbacks(
-				r.service.SubagentAdmission,
-				orchestrationruntimehook.Context{
-					Actor:             actor,
-					RuntimeSessionKey: r.sessionKey,
-					Logger:            r.service.LoggerFor(ctx),
-				},
-			),
-		)
-		defer r.service.Runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
-	}
-	r.service.ExecutionObserver().Begin(actor)
-	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
-		Content:          r.runtimeContent.Payload(),
-		AtomicInput:      r.atomicInput,
-		ContextualInputs: append(executionInputs, r.contextualInputs()...),
-		InputOptions:     r.runtimeInputOptions(),
-		Client:           r.client,
-		Mapper:           runtimehost.RoundMapper{EventMapper: r.mapper.EventMapper},
-		IdleTimeout:      r.service.Config.RuntimeRoundIdleTimeout(),
-		IdlePauseState: func() (bool, <-chan struct{}) {
-			return r.service.Permission.PendingRequestState(r.sessionKey)
-		},
+	return r.service.ExecuteAgentRound(ctx, runtimehost.AgentRound{
+		Actor:             r.orchestrationActor,
+		RuntimeSessionKey: r.sessionKey,
+		HookRoundID:       r.roundID,
+		AgentRoundID:      r.agentRoundID,
+		Client:            r.client,
+		Mapper:            runtimehost.RoundMapper{EventMapper: r.mapper.EventMapper},
+		Content:           r.runtimeContent.Payload(),
+		AtomicInput:       r.atomicInput,
+		ContextualInputs:  r.contextualInputs(),
+		InputOptions:      r.runtimeInputOptions(),
 		InterruptReason: func() string {
 			return r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
-		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
-			r.observeDeferredRuntimeMessage(incoming)
-			r.service.ExecutionObserver().ObserveMessage(actor, incoming)
-			r.service.ExecutionObserver().ObserveCompactBoundary(actor, r.sessionKey, r.agentRoundID, incoming)
-			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.Config.MessageDebugStreamEvent {
-				return
-			}
-			fields := trace.BuildSDKMessageLogFieldsWithOptions(
-				incoming,
-				trace.SDKMessageLogOptions{
-					IncludeStreamEvent:  r.service.Config.MessageDebugStreamEvent,
-					IncludeSnapshotData: true,
-				},
-			)
-			if len(fields) == 0 {
-				return
-			}
-			logger.Debug("Agent ", fields...)
-		},
+		ObserveMessage: r.observeDeferredRuntimeMessage,
 		SyncSessionID: func(sessionID string) error {
 			if sourceSessionID := r.forkSourceSessionID; sourceSessionID != "" &&
 				strings.TrimSpace(sessionID) == sourceSessionID {
@@ -267,9 +226,7 @@ func (r *roundRunner) executeRound(
 			}
 			return nil
 		},
-		HandleDurableMessage: func(message protocol.Message) error {
-			return r.handleDurableMessage(message)
-		},
+		HandleDurableMessage: r.handleDurableMessage,
 		EmitEvent: func(event protocol.EventMessage) error {
 			if r.deferredAssistant != nil {
 				return nil
@@ -277,23 +234,10 @@ func (r *roundRunner) executeRound(
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 			return nil
 		},
+		ForkPending:  func() bool { return r.forkSourceSessionID != "" },
+		Logger:       logger,
+		StreamLogger: logger,
 	})
-	if executeErr == nil && r.forkSourceSessionID != "" {
-		executeErr = errors.New("runtime fork 未提交可恢复的独立 SDK session")
-	}
-	if executeErr != nil && r.forkSourceSessionID != "" {
-		r.service.CloseUncommittedForkRuntime(r.sessionKey, r.client, logger, executeErr)
-	}
-	failureReason := ""
-	if executeErr != nil {
-		failureReason = executeErr.Error()
-	}
-	r.service.ExecutionObserver().Finish(
-		actor,
-		result.TerminalStatus,
-		failureReason,
-	)
-	return result, executeErr
 }
 
 func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
@@ -369,8 +313,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 		}
 		return nil
 	}
-	if role == "assistant" || (role == "result" && message["is_error"] != true &&
-		(textutil.AnyString(message["subtype"]) == "" || textutil.AnyString(message["subtype"]) == "success")) {
+	if runtimehost.ConfirmsGuidance(message) {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
 			return err
 		}
