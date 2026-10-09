@@ -2,9 +2,8 @@
 
 This spec states implemented host wiring. It is not acceptance of a full App sandbox, and the feature must not be presented as fully accepted App isolation.
 
-- Remaining design and delivery work: [development plan](../explorations/desktop-sandbox/development-plan.md).
-- Verified SDK baseline and remaining IO paths: [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md).
-- Evidence and history: [acceptance matrix](../testing/desktop-sandbox-acceptance.md), [documentation index](../explorations/desktop-sandbox/README.md).
+- 开发计划、历史评估和实验记录保存在本地或 CI artifact，不随公开仓库发布。
+- 验收矩阵：[desktop sandbox acceptance](../testing/desktop-sandbox-acceptance.md)。
 - MCP servers, Connectors and the desktop UI keep their separate authorization.
 
 ## Activation and scope

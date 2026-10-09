@@ -50,10 +50,7 @@
 
 ## 在研资料（non-normative）
 
-- [桌面沙箱：现状评估、Codex 对照、开发计划与验收](./explorations/desktop-sandbox/README.md)
-- [WorkGraph 模板参数化与 Room 自适应](./explorations/workgraph-template-adaptation/README.md)
-- [IM 投递来源记录与按需回传（历史提案）](./explorations/im-delivery-replies.md)
-- [Go 后端重复与防御性代码治理审计](./explorations/backend-duplication-governance.zh-CN.md)
+在研计划、历史审计和实验记录只保留在本地或 CI artifact，不随公开仓库发布。
 
 ## API
 
