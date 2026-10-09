@@ -76,3 +76,5 @@ skills/room-playbook
 /docs/testing/evidence/**/*.swift
 /docs/testing/evidence/**/*.source
 /docs/testing/evidence/**/*.c
+
+/docs/testing/evidence/
