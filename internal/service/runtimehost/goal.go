@@ -11,6 +11,7 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -377,4 +378,49 @@ func RunGoalContinuation(
 		RecordGoalContinuationDispatchFailure(ctx, provider, logger, *plan, err)
 		LogGoalMutationFailure(logger, "启动 Goal 自动续跑失败", err, sessionKey, plan.Goal.ID, plan.RoundID)
 	}
+}
+
+type goalCommandCreator interface {
+	Create(context.Context, protocol.CreateGoalRequest) (*protocol.Goal, error)
+}
+
+// CreateGoalFromCommand 按 /goal 命令为 sessionKey 创建用户 Goal，不触发同轮续跑；
+// leadAgentID 非空时它是 Room 的唯一 lead，返回的 Goal 必须携带同一 lead。
+func CreateGoalFromCommand(
+	ctx context.Context,
+	provider any,
+	request protocol.GoalCommandRequest,
+	sessionKey string,
+	roundID string,
+	leadAgentID string,
+) (protocol.Goal, error) {
+	creator, ok := provider.(goalCommandCreator)
+	if !ok {
+		return protocol.Goal{}, errors.New("Goal service is unavailable")
+	}
+	replaceExisting := true
+	if request.Options.ReplaceExisting != nil {
+		replaceExisting = *request.Options.ReplaceExisting
+	}
+	item, err := creator.Create(goalsvc.WithActiveGoalContinuationSuppressed(ctx), protocol.CreateGoalRequest{
+		SessionKey:      sessionKey,
+		Objective:       request.Objective,
+		TokenBudget:     request.Options.TokenBudget,
+		ReplaceExisting: replaceExisting,
+		CreatedBy:       "user",
+		RoundID:         roundID,
+		OwnerUserID:     authctx.OwnerUserID(ctx),
+		RoomLeadAgentID: leadAgentID,
+		Metadata:        request.Options.Metadata,
+	})
+	if err != nil {
+		return protocol.Goal{}, err
+	}
+	if item == nil || strings.TrimSpace(item.ID) == "" {
+		return protocol.Goal{}, errors.New("Goal service returned an invalid Goal")
+	}
+	if leadAgentID != "" && goalsvc.RoomLeadAgentID(*item) != leadAgentID {
+		return protocol.Goal{}, errors.New("Goal service returned inconsistent Room command state")
+	}
+	return *item, nil
 }
