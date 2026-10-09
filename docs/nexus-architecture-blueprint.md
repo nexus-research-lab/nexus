@@ -3,7 +3,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 文档状态 | 当前实现基线 |
-| 核对日期 | 2026-08-11 |
+| 核对日期 | 2026-10-09 |
 | 覆盖范围 | Nexus Product、Agent SDK Bridge、Agent Runtime 边界 |
 | 适用读者 | 架构师、后端与前端工程师、桌面端工程师、运维与安全评审人员 |
 
@@ -206,11 +206,7 @@ Agent 工作区内由产品使用的文件：
 - 登录 Session 由 Nexus Control 签发，Control 只保存 Token 哈希。
 - 浏览器的登录、登出、资料与密码写入直接进入同源 `/auth/v1`。
 - Nexus 缓存短期签名 Principal，lease 有效期内本地验签；过期后若 Control 不可用则拒绝访问。
-- Control 在同一事务追加持久身份事件：
-  - `session_revoked` 只撤销 exact browser Session；
-  - `profile_changed` 刷新 owner 连接但保留 Agent runtime；
-  - `principal_changed` 才关闭该 owner 的全部 WebSocket 与 runtime。
-- 每个 Nexus 副本独立按游标消费失效流；失效流持续不可用一分钟时，Nexus 关闭全部 Control 身份会话并失败关闭。
+- Control 在身份写事务内追加持久失效事件，Nexus 副本按游标消费并撤销租约、连接或 runtime；各事件的处理与失败关闭规则见 [online-team](./specs/online-team-spec.md#账号组织与订阅)。
 
 桌面与通用入口：
 
@@ -280,7 +276,7 @@ Agent 可用的宿主能力都按 runtime round 签发，owner、Agent、DM/Room
 | HTTP、WebSocket 或前端事件 | `internal/protocol`、`internal/handler`、`web/src/lib/api` |
 | Product 共享依赖装配 / HTTP 启动 | `internal/app` / `internal/app/server` |
 | DM 和 Room 行为 | `internal/chat`、`internal/service/room`、`internal/service/runtimehost` |
-| Goal 与 Execution | `internal/service/goal`、`internal/service/execution`、`internal/service/room/realtime` |
+| Goal 与 Execution | `internal/service/goal`、`internal/service/orchestration`、`internal/service/goalexecution`、`internal/service/room/realtime` |
 | Runtime Session 和 Round | `internal/runtime` |
 | Runtime 消息到产品事件 | `internal/message` |
 | Runtime Wire 和 Capability | [Agent SDK Bridge `client` 与 `protocol`](https://github.com/nexus-research-lab/nexus-agent-sdk-bridge) |
