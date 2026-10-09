@@ -29,7 +29,7 @@ func (s *Service) roomSlotGuidanceHook(
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
 		hookMu.Lock()
 		defer hookMu.Unlock()
-		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
+		if !runtimehost.IsGuidanceHookEvent(input) {
 			return sdkhook.Output{}, nil
 		}
 		if s.shouldConfirmRoomGuidanceByFallback(slot) {
@@ -113,22 +113,12 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 			return
 		}
 		pending := e.service.rememberRoomSlotGuidance(e.slot, e.location, e.queueItems)
-		output = sdkhook.Output{
-			SpecificOutput: &sdkhook.SpecificOutput{
-				HookEventName:     sdkhook.EventPostToolUse,
-				AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(e.inputs),
-			},
-			OnApplied: func(sdkhook.AppliedAck) {
-				ownerUserID := ""
-				if e.round != nil {
-					ownerUserID = e.round.OwnerUserID
-				}
-				ctx := runtimehost.ContextWithExactOwner(context.Background(), ownerUserID)
-				if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
-					e.service.LoggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
-				}
-			},
-		}
+		output = runtimehost.GuidanceHookOutput(e.inputs, func() {
+			ctx := runtimehost.ContextWithExactOwner(context.Background(), roomRoundOwnerUserID(e.round))
+			if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
+				e.service.LoggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
+			}
+		})
 	}()
 	return output, runErr
 }

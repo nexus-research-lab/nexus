@@ -59,24 +59,17 @@ func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, ro
 	default:
 		return fmt.Errorf("%w: unknown runtime outcome %q", ErrExactDMRoundInterruptUnsupported, result.Outcome)
 	}
-	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-		s.LoggerFor(ctx).Warn("DM 精确中断后刷新 session meta 失败",
-			"session_key", sessionKey,
-			"round_id", roundID,
-			"err", closeErr,
-		)
-	}
-	s.broadcastSessionStatus(ctx, sessionKey)
+	s.finishInterrupt(ctx, sessionKey, roundID)
 	return nil
 }
 
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
 	displayResultText := messagepkg.NormalizeInterruptDisplayText(resultText)
 	roundIDs, err := s.Runtime.InterruptSession(ctx, sessionKey, resultText)
-	if err != nil {
-		if len(roundIDs) == 0 {
-			return err
-		}
+	switch {
+	case err != nil && len(roundIDs) == 0:
+		return err
+	case err != nil:
 		s.LoggerFor(ctx).Warn("DM 中断运行态失败，按失效进程清理",
 			"session_key", sessionKey,
 			"round_ids", roundIDs,
@@ -89,37 +82,26 @@ func (s *Service) interruptSession(ctx context.Context, sessionKey string, resul
 			)
 		}
 		s.Permission.CancelRequestsForSession(sessionKey, displayResultText)
-		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.LoggerFor(ctx).Warn("DM 中断失败后刷新 session meta 失败",
-				"session_key", sessionKey,
-				"err", closeErr,
-			)
-		}
-		s.broadcastSessionStatus(ctx, sessionKey)
-		return nil
+	case len(roundIDs) > 0:
+		s.LoggerFor(ctx).Warn("中断 DM 会话运行轮次",
+			"session_key", sessionKey,
+			"round_count", len(roundIDs),
+			"reason", displayResultText,
+		)
+		s.Permission.CancelRequestsForSession(sessionKey, displayResultText)
 	}
-	if len(roundIDs) == 0 {
-		if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
-			s.LoggerFor(ctx).Warn("DM 中断空闲会话后刷新 session meta 失败",
-				"session_key", sessionKey,
-				"err", closeErr,
-			)
-		}
-		s.broadcastSessionStatus(ctx, sessionKey)
-		return nil
-	}
-	s.LoggerFor(ctx).Warn("中断 DM 会话运行轮次",
-		"session_key", sessionKey,
-		"round_count", len(roundIDs),
-		"reason", displayResultText,
-	)
-	s.Permission.CancelRequestsForSession(sessionKey, displayResultText)
-	if closeErr := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); closeErr != nil {
+	s.finishInterrupt(ctx, sessionKey, "")
+	return nil
+}
+
+// finishInterrupt 在中断后刷新 session meta 的运行态并广播会话状态。
+func (s *Service) finishInterrupt(ctx context.Context, sessionKey string, roundID string) {
+	if err := s.refreshSessionMetaRuntimeStateByKey(ctx, sessionKey); err != nil {
 		s.LoggerFor(ctx).Warn("DM 中断后刷新 session meta 失败",
 			"session_key", sessionKey,
-			"err", closeErr,
+			"round_id", roundID,
+			"err", err,
 		)
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
-	return nil
 }

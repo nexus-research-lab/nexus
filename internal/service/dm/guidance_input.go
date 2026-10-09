@@ -37,7 +37,7 @@ func (s *Service) inputQueueGuidanceHook(
 ) sdkhook.Callback {
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
 		ctx = runtimehost.ContextWithExactOwner(ctx, location.OwnerUserID)
-		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
+		if !runtimehost.IsGuidanceHookEvent(input) {
 			return sdkhook.Output{}, nil
 		}
 		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
@@ -104,20 +104,14 @@ func (s *Service) inputQueueGuidanceHook(
 		ackOwnerUserID := pending[0].item.OwnerUserID
 		ackPending := slices.Clone(pending)
 
-		return sdkhook.Output{
-			SpecificOutput: &sdkhook.SpecificOutput{
-				HookEventName:     sdkhook.EventPostToolUse,
-				AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(inputs),
-			},
-			OnApplied: func(sdkhook.AppliedAck) {
-				ackCtx := contextWithQueueOwner(context.Background(), ackOwnerUserID)
-				for _, roundID := range ackRoundIDs {
-					if ackErr := s.confirmPendingInputQueueGuidance(ackCtx, sessionKey, location, roundID, ackPending); ackErr != nil {
-						s.LoggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
-					}
+		return runtimehost.GuidanceHookOutput(inputs, func() {
+			ackCtx := contextWithQueueOwner(context.Background(), ackOwnerUserID)
+			for _, roundID := range ackRoundIDs {
+				if ackErr := s.confirmPendingInputQueueGuidance(ackCtx, sessionKey, location, roundID, ackPending); ackErr != nil {
+					s.LoggerFor(ackCtx).Warn("确认 DM 引导 applied ACK 失败，保留为后续队列输入", "round_id", roundID, "err", ackErr)
 				}
-			},
-		}, nil
+			}
+		}), nil
 	}
 }
 

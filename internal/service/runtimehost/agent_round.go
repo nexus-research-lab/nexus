@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -138,4 +139,20 @@ func ConfirmsGuidance(message protocol.Message) bool {
 		return message["is_error"] != true && (subtype == "" || subtype == "success")
 	}
 	return false
+}
+
+// IsGuidanceHookEvent 判断 hook 事件是否可以注入引导输入；只有 PostToolUse（或未标注事件）可以。
+func IsGuidanceHookEvent(input sdkhook.Input) bool {
+	return input.EventName == "" || input.EventName == sdkhook.EventPostToolUse
+}
+
+// GuidanceHookOutput 把引导输入作为 PostToolUse 附加上下文返回；runtime 确认已应用后调用 onApplied。
+func GuidanceHookOutput(inputs []runtimectx.GuidedInput, onApplied func()) sdkhook.Output {
+	return sdkhook.Output{
+		SpecificOutput: &sdkhook.SpecificOutput{
+			HookEventName:     sdkhook.EventPostToolUse,
+			AdditionalContext: runtimectx.FormatGuidanceAdditionalContext(inputs),
+		},
+		OnApplied: func(sdkhook.AppliedAck) { onApplied() },
+	}
 }
