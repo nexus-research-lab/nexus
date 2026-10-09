@@ -6,7 +6,6 @@ package realtime
 import (
 	"context"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -264,24 +263,7 @@ func (s *Service) handleSlotFailure(
 		return
 	}
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + slot.AgentRoundID,
-		"session_key":     roundValue.SessionKey,
-		"room_id":         roundValue.RoomID,
-		"conversation_id": roundValue.ConversationID,
-		"agent_id":        slot.AgentID,
-		"round_id":        roundValue.RootRoundID,
-		"agent_round_id":  slot.AgentRoundID,
-		"parent_id":       slot.MsgID,
-		"role":            "result",
-		"subtype":         "error",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"result":          displayError,
-		"is_error":        true,
-		"timestamp":       time.Now().UnixMilli(),
-	}
+	resultMessage := roomSlotResultMessage(roundValue, slot, "error", displayError, true)
 	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
 		return
@@ -450,26 +432,7 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 	if roundValue == nil || slot == nil {
 		return
 	}
-	resultMessage := protocol.Message{
-		"message_id":      "result_" + slot.AgentRoundID,
-		"session_key":     roundValue.SessionKey,
-		"room_id":         roundValue.RoomID,
-		"conversation_id": roundValue.ConversationID,
-		"agent_id":        slot.AgentID,
-		"round_id":        roundValue.RootRoundID,
-		"agent_round_id":  slot.AgentRoundID,
-		"parent_id":       slot.MsgID,
-		"role":            "result",
-		"subtype":         "interrupted",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"is_error":        false,
-		"timestamp":       time.Now().UnixMilli(),
-	}
-	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
-		resultMessage["result"] = trimmedResult
-	}
+	resultMessage := roomSlotResultMessage(roundValue, slot, "interrupted", resultText, false)
 	if client := slot.getClient(); client != nil {
 		if sessionID := strings.TrimSpace(client.SessionID()); sessionID != "" {
 			resultMessage["session_id"] = sessionID
@@ -515,4 +478,14 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 			"err", err,
 		)
 	}
+}
+
+// roomSlotResultMessage 构造 slot 级宿主 result：message_id 按 Agent 轮次，round_id 是 root round。
+func roomSlotResultMessage(roundValue *activeRoomRound, slot *activeRoomSlot, subtype string, text string, isError bool) protocol.Message {
+	message := protocol.NewHostResultMessage("result_"+slot.AgentRoundID, roundValue.SessionKey, slot.AgentID, roundValue.RootRoundID, subtype, text, isError)
+	message["room_id"] = roundValue.RoomID
+	message["conversation_id"] = roundValue.ConversationID
+	message["agent_round_id"] = slot.AgentRoundID
+	message["parent_id"] = slot.MsgID
+	return message
 }

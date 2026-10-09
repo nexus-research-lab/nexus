@@ -152,25 +152,13 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		"is_complete": true,
 		"metadata":    metadata,
 	}
-	resultMessage := protocol.Message{
-		"message_id":      resultID,
-		"session_key":     sessionKey,
-		"agent_id":        parsed.AgentID,
-		"round_id":        roundID,
-		"session_id":      textutil.PointerValue(sessionValue.SessionID),
-		"parent_id":       assistantID,
-		"role":            "result",
-		"timestamp":       now.UnixMilli(),
-		"subtype":         "success",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"usage":           map[string]any{},
-		"total_cost_usd":  0.0,
-		"result":          strings.TrimSpace(text),
-		"is_error":        false,
-		"metadata":        metadata,
-	}
+	resultMessage := protocol.NewHostResultMessage(resultID, sessionKey, parsed.AgentID, roundID, "success", text, false)
+	resultMessage["session_id"] = textutil.PointerValue(sessionValue.SessionID)
+	resultMessage["parent_id"] = assistantID
+	resultMessage["timestamp"] = now.UnixMilli()
+	resultMessage["usage"] = map[string]any{}
+	resultMessage["total_cost_usd"] = 0.0
+	resultMessage["metadata"] = metadata
 	history := c.history.ForOwner(ownerUserID)
 	alreadyProjected, err := automationMessageExists(history, workspacePath, *sessionValue, assistantID)
 	if err != nil {

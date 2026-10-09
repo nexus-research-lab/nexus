@@ -707,7 +707,7 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(
 		return errors.New("room goal continuation requires a room session key")
 	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
-	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
+	goalContext := runtimehost.JoinPromptSections(plan.Prompt, collaborationContext)
 	return s.handleChatLocked(ctx, ChatRequest{
 		SessionKey:            sessionKey,
 		ConversationID:        parsed.ConversationID,

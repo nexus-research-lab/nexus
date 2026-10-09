@@ -234,22 +234,8 @@ func (s *Service) interruptActiveSlot(
 	}
 	interruptReason := normalizeRoomInterruptReason(message)
 	displayInterruptReason := roomInterruptDisplayReason(interruptReason)
-	markRoomSlotInterrupted(slot, interruptReason)
 	shouldBroadcast := !slot.isTerminal()
-	if client := slot.getClient(); client != nil {
-		if err := client.Interrupt(ctx); err != nil {
-			s.LoggerFor(ctx).Warn("Room slot 中断 client 失败，继续强制取消",
-				"session_key", roundValue.SessionKey,
-				"room_id", roundValue.RoomID,
-				"conversation_id", roundValue.ConversationID,
-				"agent_id", slot.AgentID,
-				"round_id", slot.AgentRoundID,
-				"msg_id", slot.MsgID,
-				"err", err,
-			)
-		}
-	}
-	s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
+	s.interruptSlotRuntime(ctx, roundValue, slot, interruptReason)
 	if shouldBroadcast {
 		s.LoggerFor(ctx).Warn("请求中断 Room slot",
 			"session_key", roundValue.SessionKey,
@@ -261,17 +247,8 @@ func (s *Service) interruptActiveSlot(
 			"reason", displayInterruptReason,
 		)
 	}
-	select {
-	case <-slot.doneChannel():
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(interruptForceCancelDelay):
-		slot.cancelRuntime()
-		select {
-		case <-slot.doneChannel():
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	if err := awaitInterrupted(ctx, slot.doneChannel(), slot.cancelRuntime); err != nil {
+		return err
 	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	return nil
@@ -298,36 +275,53 @@ func (s *Service) interruptActiveRound(
 		"reason", displayInterruptReason,
 	)
 	for _, slot := range roundValue.Slots {
-		markRoomSlotInterrupted(slot, interruptReason)
-		if client := slot.getClient(); client != nil {
-			if err := client.Interrupt(ctx); err != nil {
-				s.LoggerFor(ctx).Warn("Room round 中断 client 失败，继续强制取消",
-					"session_key", roundValue.SessionKey,
-					"room_id", roundValue.RoomID,
-					"conversation_id", roundValue.ConversationID,
-					"agent_id", slot.AgentID,
-					"round_id", slot.AgentRoundID,
-					"msg_id", slot.MsgID,
-					"err", err,
-				)
-			}
-		}
-		s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
+		s.interruptSlotRuntime(ctx, roundValue, slot, interruptReason)
 	}
-	select {
-	case <-roundValue.Done:
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(interruptForceCancelDelay):
+	cancel := func() {
 		if roundValue.Cancel != nil {
 			roundValue.Cancel()
 		}
-		select {
-		case <-roundValue.Done:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+	}
+	if err := awaitInterrupted(ctx, roundValue.Done, cancel); err != nil {
+		return err
 	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	return nil
+}
+
+// interruptSlotRuntime 标记 slot 中断、请求 runtime 停止并取消其待处理的人工交互；client 中断失败时由调用方强制取消兜底。
+func (s *Service) interruptSlotRuntime(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, interruptReason string) {
+	markRoomSlotInterrupted(slot, interruptReason)
+	if client := slot.getClient(); client != nil {
+		if err := client.Interrupt(ctx); err != nil {
+			s.LoggerFor(ctx).Warn("Room slot 中断 client 失败，继续强制取消",
+				"session_key", roundValue.SessionKey,
+				"room_id", roundValue.RoomID,
+				"conversation_id", roundValue.ConversationID,
+				"agent_id", slot.AgentID,
+				"round_id", slot.AgentRoundID,
+				"msg_id", slot.MsgID,
+				"err", err,
+			)
+		}
+	}
+	s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, roomInterruptDisplayReason(interruptReason))
+}
+
+// awaitInterrupted 等待 done；超过 interruptForceCancelDelay 仍未结束时调用 cancel 强制取消后继续等待。
+func awaitInterrupted(ctx context.Context, done <-chan struct{}, cancel func()) error {
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(interruptForceCancelDelay):
+		cancel()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

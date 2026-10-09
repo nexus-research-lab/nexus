@@ -19,7 +19,7 @@ func (s *Service) RequireWiring() error {
 		{"permission", s.Permission != nil},
 		{"providers", s.Providers != nil},
 		{"admission", s.Admission != nil},
-		{"preferences", s.prefs != nil},
+		{"preferences", s.Preferences != nil},
 		{"room session store", s.roomStore != nil},
 		{"room activity store", s.roomActivity != nil},
 		{"queue admission store", s.QueueTrust != nil},

@@ -283,7 +283,7 @@ func (s *Service) recordSlotGoalMutation(
 	mutation func() error,
 	fields ...any,
 ) {
-	runtimehost.LogGoalMutationFailure(s.LoggerFor(ctx), logMessage, mutation(), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, fields...)
+	runtimehost.LogGoalMutationFailure(s.LoggerFor(ctx), logMessage, mutation(), goalSessionKeyForSlot(slot), slot.mutable.goal.UsageGoalID(), slot.AgentRoundID, fields...)
 }
 
 func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
@@ -395,7 +395,7 @@ func (s *Service) registerSlotGoalRuntime(slot *activeRoomSlot) func() {
 	s.Runtime.RegisterGoalAccountingFlush(sessionKey, roundID, func(ctx context.Context) error {
 		return s.flushGoalUsageForSlot(ctx, slot)
 	})
-	s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.goalIDForUsage)
+	s.Runtime.RegisterGoalAccountingIdentity(sessionKey, roundID, slot.mutable.goal.UsageGoalID)
 	s.Runtime.RegisterGoalAccountingClear(sessionKey, roundID, func() {
 		clearGoalUsageForSlot(slot)
 	})
@@ -437,7 +437,7 @@ func (s *Service) finalizeGoalUsageForSlot(
 		s.LoggerFor(ctx).Warn(
 			"Room terminal Goal usage 未能持久化",
 			"session_key", goalSessionKeyForSlot(slot),
-			"goal_id", slot.goalIDForUsage(),
+			"goal_id", slot.mutable.goal.UsageGoalID(),
 			"round_id", slot.AgentRoundID,
 		)
 		return
@@ -453,7 +453,7 @@ func (s *Service) recordGoalUsageLimitForSlot(
 	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || !result.UsageLimitReached {
 		return
 	}
-	runtimehost.RecordGoalUsageLimit(ctx, s.goals, s.LoggerFor(ctx), goalSessionKeyForSlot(slot), slot.goalIDForUsage(), slot.AgentRoundID, result.UsageLimitReason)
+	runtimehost.RecordGoalUsageLimit(ctx, s.goals, s.LoggerFor(ctx), goalSessionKeyForSlot(slot), slot.mutable.goal.UsageGoalID(), slot.AgentRoundID, result.UsageLimitReason)
 }
 
 func (s *Service) flushGoalUsageForSlot(ctx context.Context, slot *activeRoomSlot) error {
@@ -510,7 +510,7 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 	if hasSuccessfulUpdate {
 		if goalID := nexusmcp.SuccessfulGoalCompletionID(
 			receipts,
-			slot.goalIDForUsage(),
+			slot.mutable.goal.UsageGoalID(),
 		); goalID != "" {
 			slot.markGoalCompletionCandidate(goalID)
 		}
@@ -521,11 +521,11 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessageWithActor(
 }
 
 func slotFinalGoalUsageSnapshot(slot *activeRoomSlot, result exec.RoundExecutionResult, finalAssistant protocol.Message) (goalsvc.RuntimeUsageSnapshot, bool) {
-	return goalruntimeusage.FinalSnapshot(result, finalAssistant, slotGoalUsageElapsedSeconds(slot))
+	return goalruntimeusage.FinalSnapshot(result, finalAssistant, runtimehost.ElapsedSecondsSince(slot.goalUsageStartedAt()))
 }
 
 func slotAssistantGoalUsageSnapshot(slot *activeRoomSlot, message protocol.Message) goalsvc.RuntimeUsageSnapshot {
-	return goalruntimeusage.AssistantSnapshot(message, slotGoalUsageElapsedSeconds(slot))
+	return goalruntimeusage.AssistantSnapshot(message, runtimehost.ElapsedSecondsSince(slot.goalUsageStartedAt()))
 }
 
 func (s *Service) recordGoalUsageSnapshotForSlot(
@@ -1005,7 +1005,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	if s.goals == nil || slot == nil {
 		return "", ""
 	}
-	goalID := strings.TrimSpace(slot.goalIDForUsage())
+	goalID := slot.mutable.goal.UsageGoalID()
 	goalSessionKey := goalSessionKeyForSlot(slot)
 	if goalID != "" {
 		return goalID, goalSessionKey
@@ -1340,15 +1340,6 @@ func activateGoalUsageForSlot(_ context.Context, slot *activeRoomSlot, goalID st
 	slot.setGoalUsageClaimPending(false)
 	snapshot := slotAssistantGoalUsageSnapshot(slot, slot.mutable.goal.LastGoalAssistantMessage())
 	slot.resetGoalUsage(snapshot)
-}
-
-func slotGoalUsageElapsedSeconds(slot *activeRoomSlot) int64 {
-	startedAt := slot.goalUsageStartedAt()
-	if startedAt.IsZero() {
-		return 0
-	}
-	elapsed := int64(time.Since(startedAt).Seconds())
-	return max(elapsed, 0)
 }
 
 // goalCancellationProvider 是用户取消当前 Room Goal 所需的最小 Goal 能力。

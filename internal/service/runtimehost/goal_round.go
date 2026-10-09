@@ -283,3 +283,18 @@ func (g *GoalRoundState) PrepareGoalCompletionReceipt(
 	message, ok := messageutil.AttachGoalCompletionReceipt(assistant, receipt)
 	return goalID, message, receipt, ok
 }
+
+// UsageGoalID 返回本轮用量当前归属的 Goal。
+func (g *GoalRoundState) UsageGoalID() string {
+	g.Mu.RLock()
+	defer g.Mu.RUnlock()
+	return strings.TrimSpace(g.IDForUsage)
+}
+
+// ElapsedSecondsSince 返回从 startedAt 到现在的整秒数；未开始或时钟回拨时为 0。
+func ElapsedSecondsSince(startedAt time.Time) int64 {
+	if startedAt.IsZero() {
+		return 0
+	}
+	return max(int64(time.Since(startedAt).Seconds()), 0)
+}

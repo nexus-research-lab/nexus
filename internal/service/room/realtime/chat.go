@@ -552,22 +552,9 @@ func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
 	)
 	e.broadcastAck(nil, true)
 
-	hintMessage := protocol.Message{
-		"message_id":      "result_" + e.request.RoundID,
-		"session_key":     e.sessionKey,
-		"room_id":         e.roomID,
-		"conversation_id": e.conversationID,
-		"agent_id":        "",
-		"round_id":        e.request.RoundID,
-		"role":            "result",
-		"subtype":         "success",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"result":          "请使用 @AgentName 指定要对话的成员",
-		"is_error":        false,
-		"timestamp":       time.Now().UnixMilli(),
-	}
+	hintMessage := protocol.NewHostResultMessage("result_"+e.request.RoundID, e.sessionKey, "", e.request.RoundID, "success", "请使用 @AgentName 指定要对话的成员", false)
+	hintMessage["room_id"] = e.roomID
+	hintMessage["conversation_id"] = e.conversationID
 	if err := e.service.persistSharedInlineMessage(
 		e.contextValue.Room.OwnerUserID,
 		e.conversationID,

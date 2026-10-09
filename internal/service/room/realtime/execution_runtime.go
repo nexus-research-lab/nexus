@@ -27,7 +27,6 @@ import (
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
-	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -38,14 +37,13 @@ const (
 )
 
 type preparedSlotRuntime struct {
-	options                 agentclient.Options
-	selection               runtimeselectionsvc.Selection
-	provider                string
-	toolSurfaceFingerprint  string
-	toolSurfaceComplete     bool
-	forkLegacyToolSurface   bool
-	scratchLease            *runtimectx.SandboxResourceLease
-	scratchLeaseTransferred bool
+	options                agentclient.Options
+	selection              runtimeselectionsvc.Selection
+	provider               string
+	toolSurfaceFingerprint string
+	toolSurfaceComplete    bool
+	forkLegacyToolSurface  bool
+	scratchLease           *runtimectx.SandboxResourceLease
 }
 
 type roomRuntimePrompt struct {
@@ -120,19 +118,14 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if err := requireGroupRoomContext(e.round.Context); err != nil {
 		return nil, err
 	}
-	if err := workspacepkg.EnsureUserSkillLibrary(e.service.Config, e.agent.OwnerUserID); err != nil {
-		return nil, err
-	}
-	if err := workspacepkg.EnsureInitializedForAgent(e.service.Config, *e.agent); err != nil {
-		return nil, err
-	}
 	runtimeValue, err := e.prepareRuntime()
 	if err != nil {
 		return nil, err
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
-		if runtimeValue.scratchLease != nil && !runtimeValue.scratchLeaseTransferred {
+		// connectRuntime 在交给 RuntimeConnect 前失败时，scratch 仍归这里释放。
+		if runtimeValue.scratchLease != nil {
 			_ = runtimeValue.scratchLease.Release()
 		}
 		return nil, err
@@ -151,13 +144,19 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 }
 
 func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
+	// Skill 库与 Agent workspace 初始化必须早于 prompt 构建，prompt 会读取其中的文件。
+	skillIDs, disabledSkillIDs, err := e.service.AgentRuntimeSkills(*e.agent, nil)
+	if err != nil {
+		return preparedSlotRuntime{}, err
+	}
 	prompt, permissionMode, err := e.buildRuntimePrompt()
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
 	beginGoalUsageForSlot(e.slot)
 
-	selection, err := e.service.resolveAgentRuntimeSelection(e.ctx, e.round, e.agent)
+	sessionOptions := roomAgentSessionOptions(e.round, e.agent.AgentID)
+	selection, err := e.service.ResolveAgentRuntimeSelection(e.ctx, e.agent, sessionOptions, e.round.OwnerUserID)
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
@@ -167,17 +166,6 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		selection.VisionProvider,
 		selection.VisionModel,
 	); err != nil {
-		return preparedSlotRuntime{}, err
-	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(e.service.Config, *e.agent)
-	if err != nil {
-		return preparedSlotRuntime{}, err
-	}
-	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
-		e.service.Config,
-		*e.agent,
-	)
-	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
 	allowedTools, disallowedTools, snapshottedToolPolicy := roomRoundToolPolicy(e.round, e.agent)
@@ -206,80 +194,38 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	mcpContext := e.runtimeMCPContext()
 	mcpServers := e.runtimeMCPServers(mcpContext, permissionMode)
 	if e.service.NexusMCP != nil {
-		runtimeServers, runtimeErr := e.service.NexusMCP(
-			mcpContext,
-			e.runtimeCommandRoundContext(permissionMode),
-		)
-		if runtimeErr != nil {
-			return preparedSlotRuntime{}, runtimeErr
-		}
-		if len(runtimeServers) > 0 && mcpServers == nil {
-			mcpServers = make(map[string]sdkmcp.ServerConfig, len(runtimeServers))
-		}
-		for name, server := range runtimeServers {
-			mcpServers[name] = server
+		mcpServers, err = e.service.MergeNexusMCPServers(mcpContext, mcpServers, e.runtimeCommandRoundContext(permissionMode))
+		if err != nil {
+			return preparedSlotRuntime{}, err
 		}
 	}
-	extraEnv := e.service.roomRuntimeEnv(e.round, e.slot)
-	var scratchLease *runtimectx.SandboxResourceLease
+	scratchLease, err := e.service.AcquireRuntimeScratch(e.ctx, selection, permissionMode, e.scratchInput())
+	if err != nil {
+		return preparedSlotRuntime{}, err
+	}
 	scratchLeaseOwned := false
 	defer func() {
 		if scratchLease != nil && !scratchLeaseOwned {
 			_ = scratchLease.Release()
 		}
 	}()
-	if strings.EqualFold(strings.TrimSpace(e.service.Config.AppMode), "desktop") &&
-		(selection.RuntimeKind == "" || strings.EqualFold(selection.RuntimeKind, "nxs")) &&
-		permissionMode != sdkpermission.ModeBypassPermissions {
-		scratchLease, err = runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
-			OwnerUserID: e.agent.OwnerUserID,
-			SessionKey:  e.slot.RuntimeSessionKey,
-			RoundID:     e.round.RootRoundID,
-		})
-		if err != nil {
-			return preparedSlotRuntime{}, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
-		}
-	}
-	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.Providers, clientopts.AgentClientOptionsInput{
-		AppMode:                    e.service.Config.AppMode,
-		DesktopSandboxEnabled:      e.service.Config.DesktopSandboxEnabled,
-		WorkspacePath:              e.agent.WorkspacePath,
-		OwnerUserID:                e.agent.OwnerUserID,
-		IsMainAgent:                e.agent.IsMain,
-		RuntimeKind:                selection.RuntimeKind,
-		Provider:                   selection.Provider,
-		Model:                      selection.Model,
-		BackgroundProvider:         selection.BackgroundProvider,
-		BackgroundModel:            selection.BackgroundModel,
-		VisionProvider:             selection.VisionProvider,
-		VisionModel:                selection.VisionModel,
-		PermissionMode:             permissionMode,
-		PermissionHandler:          e.runtimePermissionHandler(),
-		AllowedTools:               allowedTools,
-		DisallowedTools:            disallowedTools,
-		SkillIDs:                   runtimeSkillNames,
-		DisabledSkillIDs:           runtimeDisabledSkillNames,
-		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.Config, e.agent.OwnerUserID),
-		AdditionalDirectories:      protocol.SessionAdditionalDirectoriesFromOptions(roomAgentSessionOptions(e.round, e.agent.AgentID)),
-		SettingSources:             e.agent.Options.SettingSources,
-		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
-		AppendSystemPromptStatic:   prompt.stable,
-		AppendSystemPromptDynamic:  prompt.dynamic,
-		ResumeSessionID:            e.slot.getSDKSessionID(),
-		MaxThinkingTokens:          e.agent.Options.MaxThinkingTokens,
-		MaxTurns:                   e.agent.Options.MaxTurns,
-		MCPServers:                 mcpServers,
-		AgentMCPServers:            e.agent.Options.MCPServers,
-		ExtraEnv:                   extraEnv,
-		ConfigurationEnv:           configurationRuntimeEnv,
-		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
-		AutoMemoryDisabled:         selection.AutoMemoryDisabled,
-		AutoDreamDisabled:          selection.AutoDreamDisabled,
-		ToolSearchEnabled:          selection.ToolSearchEnabled,
-		WebSearch:                  selection.WebSearch,
-		RuntimeIsolationMode:       e.service.Config.RuntimeIsolationMode,
-		RuntimeLauncherPath:        e.service.Config.RuntimeLauncherPath,
-		SandboxResources:           scratchLease.Resources(),
+	options, runtimeConfig, err := e.service.BuildAgentRuntimeOptions(e.ctx, runtimehost.AgentRuntimeOptionsInput{
+		Agent:                 e.agent,
+		Selection:             selection,
+		PermissionMode:        permissionMode,
+		PermissionHandler:     e.runtimePermissionHandler(),
+		AllowedTools:          allowedTools,
+		DisallowedTools:       disallowedTools,
+		SkillIDs:              skillIDs,
+		DisabledSkillIDs:      disabledSkillIDs,
+		AdditionalDirectories: protocol.SessionAdditionalDirectoriesFromOptions(sessionOptions),
+		StablePrompt:          prompt.stable,
+		DynamicPrompt:         prompt.dynamic,
+		ResumeSessionID:       e.slot.getSDKSessionID(),
+		MCPServers:            mcpServers,
+		ExtraEnv:              e.service.roomRuntimeEnv(e.round, e.slot),
+		ConfigurationEnv:      configurationRuntimeEnv,
+		Scratch:               scratchLease,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -305,9 +251,17 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		scratchLease:           scratchLease,
 		forkLegacyToolSurface: len(protocol.EffectiveSessionConnectorIDs(
 			e.agent.Options.ConnectorIDs,
-			roomAgentSessionOptions(e.round, e.agent.AgentID),
+			sessionOptions,
 		)) > 0,
 	}, nil
+}
+
+func (e *slotExecution) scratchInput() runtimectx.SandboxResourceInput {
+	return runtimectx.SandboxResourceInput{
+		OwnerUserID: e.agent.OwnerUserID,
+		SessionKey:  e.slot.RuntimeSessionKey,
+		RoundID:     e.round.RootRoundID,
+	}
 }
 
 func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.Mode, error) {
@@ -315,7 +269,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if err != nil {
 		return roomRuntimePrompt{}, "", err
 	}
-	stablePrompt := appendPromptSection(
+	stablePrompt := runtimehost.JoinPromptSections(
 		orchestration.StablePrompt(),
 		roomdomain.BuildSystemPrompt(e.round.Context.Room.PrivateMessagesEnabled),
 	)
@@ -323,12 +277,12 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if err != nil {
 		return roomRuntimePrompt{}, "", err
 	}
-	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
+	stablePrompt = runtimehost.JoinPromptSections(stablePrompt, roomSkillPrompt)
 	directory := e.agentNameByID
 	if e.round.ExecutionOrigin == "relay" && len(e.round.PublicAgentDirectory) > 0 {
 		directory = e.round.PublicAgentDirectory
 	}
-	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(directory))
+	stablePrompt = runtimehost.JoinPromptSections(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(directory))
 
 	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
 		roomAgentSessionOptions(e.round, e.agent.AgentID),
@@ -408,7 +362,7 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		if err != nil {
 			return roomRuntimePrompt{}, "", err
 		}
-		dynamicPrompt = appendPromptSection(dynamicPrompt, prompt)
+		dynamicPrompt = runtimehost.JoinPromptSections(dynamicPrompt, prompt)
 	}
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
@@ -561,20 +515,22 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 }
 
 func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclient.Options {
-	options = e.service.Runtime.WithGuidanceHook(options, e.slot.RuntimeSessionKey)
-	options = e.service.Runtime.WithSubagentAdmissionHooks(options, e.slot.RuntimeSessionKey)
-	if goalSessionKey := goalSessionKeyForSlot(e.slot); goalSessionKey != "" && goalSessionKey != e.slot.RuntimeSessionKey {
-		options = e.service.Runtime.WithGuidanceHook(options, goalSessionKey)
-	}
-	options = runtimectx.WithPostToolUseGuidanceHook(options, e.service.roomSlotGuidanceHook(e.round, e.slot, workspacestore.InputQueueLocation{
-		OwnerUserID:    e.round.OwnerUserID,
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  e.agent.WorkspacePath,
-		SessionKey:     e.slot.RuntimeSessionKey,
-		RoomID:         e.round.RoomID,
-		ConversationID: e.round.ConversationID,
-	}))
-	return runtimehost.WithRuntimeDiagnosticsLogger(options, e.logger.With("agent_id", e.slot.AgentID, "agent_round_id", e.slot.AgentRoundID))
+	return e.service.WithAgentRuntimeHooks(options, e.slot.RuntimeSessionKey,
+		e.logger.With("agent_id", e.slot.AgentID, "agent_round_id", e.slot.AgentRoundID),
+		func(options agentclient.Options) agentclient.Options {
+			if goalSessionKey := goalSessionKeyForSlot(e.slot); goalSessionKey != "" && goalSessionKey != e.slot.RuntimeSessionKey {
+				options = e.service.Runtime.WithGuidanceHook(options, goalSessionKey)
+			}
+			return runtimectx.WithPostToolUseGuidanceHook(options, e.service.roomSlotGuidanceHook(e.round, e.slot, workspacestore.InputQueueLocation{
+				OwnerUserID:    e.round.OwnerUserID,
+				Scope:          protocol.InputQueueScopeRoom,
+				WorkspacePath:  e.agent.WorkspacePath,
+				SessionKey:     e.slot.RuntimeSessionKey,
+				RoomID:         e.round.RoomID,
+				ConversationID: e.round.ConversationID,
+			}))
+		},
+	)
 }
 
 func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runtimectx.Client, error) {
@@ -625,70 +581,30 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		)
 	}
 
-	client, err := e.connectRuntimeOnce(startup, runtimeValue)
-	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
-		e.logger.Warn("Room SDK session resume 失效，清除后重试",
-			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
-				"sdk_session_id", strings.TrimSpace(runtimeValue.options.Session.ResumeID),
-			)...,
-		)
-		retired, closeErr := retireRoomRuntimeClient(startup)
-		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			e.logger.Warn("清理失效 resume 的 Room runtime 返回错误",
-				"startup_err", err,
-				"cleanup_err", closeErr,
-			)
-		}
-		if retired {
-			if clearErr := e.service.clearSlotSDKSessionID(e.ctx, e.slot); clearErr != nil {
-				return nil, clearErr
+	// RuntimeConnect 接管 scratch：成功时交给 runtime，失败时由它释放。
+	scratch := runtimeValue.scratchLease
+	runtimeValue.scratchLease = nil
+	client, err := runtimehost.RuntimeConnect{
+		Startup:      startup,
+		Options:      &runtimeValue.options,
+		Scratch:      scratch,
+		ScratchInput: e.scratchInput(),
+		Logger:       e.logger.With(roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...),
+		Attempt:      e.connectRuntimeOnce,
+		ClearResume: func() error {
+			if err := e.service.clearSlotSDKSessionID(e.ctx, e.slot); err != nil {
+				return err
 			}
 			e.forkSourceSessionID = ""
 			e.runtimeIdentityCommitted = false
-			runtimeValue.options.Session.ResumeID = ""
-			runtimeValue.options.Session.ResumeAt = ""
-			runtimeValue.options.Session.Fork = false
-			if runtimeValue.scratchLease != nil {
-				// GetOrCreate/Bind can fail before ownership reaches the
-				// runtime manager. Drop that exact unbound handle before a
-				// resume retry replaces the pointer, or the first scratch leaf
-				// remains registered forever.
-				if !runtimeValue.scratchLeaseTransferred {
-					if releaseErr := runtimeValue.scratchLease.Release(); releaseErr != nil {
-						return nil, fmt.Errorf("清理失效 resume 的 Room desktop sandbox scratch: %w", releaseErr)
-					}
-					runtimeValue.scratchLease = nil
-				}
-				nextLease, acquireErr := runtimectx.AcquireSandboxResource(e.ctx, runtimectx.SandboxResourceInput{
-					OwnerUserID: e.agent.OwnerUserID,
-					SessionKey:  e.slot.RuntimeSessionKey,
-					RoundID:     e.round.RootRoundID,
-				})
-				if acquireErr != nil {
-					err = acquireErr
-					return nil, fmt.Errorf("重新准备 Room desktop sandbox scratch: %w", err)
-				}
-				runtimeValue.scratchLease = nextLease
-				runtimeValue.scratchLeaseTransferred = false
-			}
-			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
-				client, err = e.connectRuntimeOnce(startup, runtimeValue)
-			}
-		}
+			return nil
+		},
+	}.Run(e.ctx)
+	if err != nil {
+		e.logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err)...)
+		return nil, err
 	}
-	if err == nil {
-		if sourceID := strings.TrimSpace(e.forkSourceSessionID); sourceID != "" &&
-			strings.TrimSpace(client.SessionID()) == sourceID {
-			_, _ = retireRoomRuntimeClient(startup)
-			return nil, errors.New("Room runtime fork 仍返回 source SDK session")
-		}
-		return client, nil
-	}
-	if _, closeErr := retireRoomRuntimeClient(startup); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-		e.logger.Warn("清理启动失败的 Room runtime 返回错误", "err", closeErr)
-	}
-	e.logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err)...)
-	return nil, err
+	return client, nil
 }
 
 func (e *slotExecution) reloadSlotRuntimeIdentity() (string, string, error) {
@@ -720,43 +636,30 @@ func (e *slotExecution) reloadSlotRuntimeIdentity() (string, string, error) {
 	return cached, "", nil
 }
 
-func retireRoomRuntimeClient(startup *runtimectx.ClientStartup) (bool, error) {
-	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
-	defer cancel()
-	return startup.RetireCurrent(closeCtx)
-}
-
 func (e *slotExecution) connectRuntimeOnce(
 	startup *runtimectx.ClientStartup,
-	runtimeValue *preparedSlotRuntime,
-) (runtimectx.Client, error) {
-	e.logger.Info("准备启动 Room runtime",
-		roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...,
-	)
+	options agentclient.Options,
+	scratchLease *runtimectx.SandboxResourceLease,
+) (runtimectx.Client, bool, error) {
+	e.logger.Info("准备启动 Room runtime", clientopts.RuntimeStartupLogFields(options)...)
 	previousClient := e.service.Runtime.SessionClient(e.slot.RuntimeSessionKey)
 	hadWarmSession := e.service.Runtime.HasSession(e.slot.RuntimeSessionKey)
-	client, err := startup.GetOrCreateWithLease(
-		e.ctx,
-		runtimeValue.options,
-		e.service.factory,
-		runtimeValue.scratchLease,
-	)
+	client, err := startup.GetOrCreateWithLease(e.ctx, options, e.service.factory, scratchLease)
 	if err != nil {
-		return client, err
+		return client, false, err
 	}
-	transferred, err := startup.BindSandboxLease(runtimeValue.scratchLease)
-	runtimeValue.scratchLeaseTransferred = transferred
+	transferred, err := startup.BindSandboxLease(scratchLease)
 	if err != nil {
-		return client, err
+		return client, transferred, err
 	}
 	e.slot.setRuntimeKind(string(e.service.Runtime.RuntimeKind(e.slot.RuntimeSessionKey)))
 	e.slot.setClient(client)
 	if err = startup.Connect(e.ctx); err != nil {
-		return client, err
+		return client, transferred, err
 	}
 	reusedWarmSession := hadWarmSession && previousClient == client
-	e.slot.setContextColdStart(roomContextColdStart(runtimeValue.options.Session.ResumeID, reusedWarmSession))
-	return client, nil
+	e.slot.setContextColdStart(roomContextColdStart(options.Session.ResumeID, reusedWarmSession))
+	return client, transferred, nil
 }
 
 // roomContextColdStart 只把首次创建且没有可用 resume 的 slot 视为冷启动。
@@ -775,22 +678,6 @@ func (s *Service) roomRuntimeEnv(roundValue *activeRoomRound, slot *activeRoomSl
 		nexusRoomAgentIDEnvName:        strings.TrimSpace(slot.AgentID),
 	}
 	return env
-}
-
-func (s *Service) resolveAgentRuntimeSelection(
-	ctx context.Context,
-	roundValue *activeRoomRound,
-	agentValue *protocol.Agent,
-) (runtimeselectionsvc.Selection, error) {
-	ownerUserIDs := []string(nil)
-	if roundValue != nil {
-		ownerUserIDs = append(ownerUserIDs, roundValue.OwnerUserID)
-	}
-	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.Providers).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent:          agentValue,
-		OwnerUserIDs:   ownerUserIDs,
-		SessionOptions: roomAgentSessionOptions(roundValue, agentValue.AgentID),
-	})
 }
 
 func roomAgentSessionOptions(

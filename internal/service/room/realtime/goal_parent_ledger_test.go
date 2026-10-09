@@ -177,10 +177,10 @@ func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) 
 			t.Fatalf("external scope binding = %#v", binding)
 		}
 	}
-	if !slot.goalUsageActiveForGoal("goal-old") || slot.goalIDForUsage() != "goal-old" {
+	if !slot.goalUsageActiveForGoal("goal-old") || slot.mutable.goal.UsageGoalID() != "goal-old" {
 		t.Fatalf(
 			"failed durable activation changed old Goal/baseline: goal=%q active_old=%v",
-			slot.goalIDForUsage(),
+			slot.mutable.goal.UsageGoalID(),
 			slot.goalUsageActiveForGoal("goal-old"),
 		)
 	}
