@@ -2,18 +2,24 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 	const serviceToken = "control-service-token-32-characters"
+	payload, _ := json.Marshal(map[string]int64{"exp": time.Now().Add(time.Minute).Unix()})
+	relayToken := "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
+	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		calls++
 		if request.URL.Path != controlAPIBase+"/internal/humans/verify" {
 			http.NotFound(writer, request)
 			return
@@ -35,7 +41,7 @@ func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 		}
 		_ = json.NewEncoder(writer).Encode(map[string]any{
 			"code": "0000",
-			"data": map[string]string{"principal_token": "relay-principal-token"},
+			"data": map[string]string{"principal_token": relayToken},
 		})
 	}))
 	t.Cleanup(server.Close)
@@ -46,19 +52,27 @@ func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 		ControlRequestTimeoutSeconds: 2,
 	}, nil, nil)
 	sessionID := "session-1"
-	token, err := authority.ExchangeRelayUserToken(context.Background(), &Principal{
+	principal := &Principal{
 		UserID:         "owner-local",
 		ControlUserID:  "control-user",
 		DeploymentID:   "deployment-1",
 		OrganizationID: "organization-1",
 		AuthMethod:     AuthMethodPassword,
 		SessionID:      &sessionID,
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
-	if token != "relay-principal-token" {
-		t.Fatalf("token = %q", token)
+	for range 2 {
+		token, err := authority.ExchangeRelayUserToken(context.Background(), principal)
+		if err != nil || token != relayToken {
+			t.Fatalf("token = %q err = %v", token, err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("有效期内重复换取令牌: calls=%d", calls)
+	}
+	// Session 失效事件必须立即丢弃缓存令牌。
+	authority.deleteSessionLeases(sessionID)
+	if _, err := authority.ExchangeRelayUserToken(context.Background(), principal); err != nil || calls != 2 {
+		t.Fatalf("失效后仍复用缓存: calls=%d err=%v", calls, err)
 	}
 }
 

@@ -35,6 +35,7 @@ type ControlAuthority struct {
 	humanSessionMu   sync.RWMutex
 	leaseMu          sync.RWMutex
 	leases           map[string]controlCachedLease
+	relayTokens      map[string]cachedRelayUserToken
 }
 
 type controlCachedLease struct {
@@ -67,6 +68,7 @@ func NewControlAuthority(
 		bindings:         newControlBindingStore(cfg.DatabaseDriver, db),
 		runtimeAdmission: runtimeAdmission,
 		leases:           make(map[string]controlCachedLease),
+		relayTokens:      make(map[string]cachedRelayUserToken),
 		verifier: controlPrincipalVerifier{
 			encodedKey: cfg.ControlPrincipalPublicKey,
 			keyFile:    cfg.ControlPrincipalPublicKeyFile,
@@ -279,6 +281,11 @@ func (a *ControlAuthority) deleteOwnerLeases(localOwnerKey string) {
 			delete(a.leases, key)
 		}
 	}
+	for key, token := range a.relayTokens {
+		if token.localOwnerKey == localOwnerKey {
+			delete(a.relayTokens, key)
+		}
+	}
 }
 
 func (a *ControlAuthority) deleteSessionLeases(sessionID string) {
@@ -294,6 +301,11 @@ func (a *ControlAuthority) deleteSessionLeases(sessionID string) {
 		}
 		if strings.TrimSpace(*lease.principal.SessionID) == sessionID {
 			delete(a.leases, key)
+		}
+	}
+	for key, token := range a.relayTokens {
+		if token.sessionID == sessionID {
+			delete(a.relayTokens, key)
 		}
 	}
 }
