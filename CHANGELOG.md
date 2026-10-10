@@ -17,12 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
-
 - 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
-
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
-
 - 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
 - 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
 - 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。

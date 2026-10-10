@@ -11,6 +11,8 @@ import { moveKeyboardFocus } from "./keyboard";
 const localLottieWasm = createRequire(__filename).resolve("@lottiefiles/dotlottie-web/dotlottie-player.wasm");
 
 test("real Launcher navigates to a readable responsive workbench and pins survive reload", async ({ page, context }, info) => {
+  // 该流程跨两个页面并多次重新加载 App，单独保留完整启动预算。
+  test.setTimeout(60_000);
   const errors: string[] = [];
   const rejected: string[] = [];
   const reads: string[] = [];
