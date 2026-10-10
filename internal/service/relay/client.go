@@ -140,7 +140,8 @@ func (c *Client) watch(ctx context.Context, token, path string, query url.Values
 	} else {
 		parsed.Scheme = "ws"
 	}
-	parsed.Path = path
+	// 与 HTTP 一致保留部署前缀，例如 https://host/relay。
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + path
 	parsed.RawQuery = query.Encode()
 	header := http.Header{"Authorization": {"Bearer " + token}}
 	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
@@ -257,12 +258,8 @@ func (c *Client) CreateRoom(
 	idempotencyKey string,
 	input relaycontract.CreateRoomInput,
 ) (relaycontract.RoomView, error) {
-	idempotencyKey = strings.TrimSpace(idempotencyKey)
-	if !validCommandID(idempotencyKey) {
-		return relaycontract.RoomView{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
-	}
 	var result relaycontract.RoomView
-	err := c.do(ctx, http.MethodPost, "/rooms", nil, token, idempotencyKey, input, &result)
+	err := c.command(ctx, http.MethodPost, "/rooms", token, idempotencyKey, input, &result)
 	if err == nil {
 		result.Conversation.StreamEpoch, err = responseStreamEpoch(
 			result.Conversation.StreamEpoch, "",
@@ -283,16 +280,11 @@ func (c *Client) PostMessage(
 	if err != nil {
 		return relaycontract.MessageCommit{}, err
 	}
-	idempotencyKey = strings.TrimSpace(idempotencyKey)
-	if !validCommandID(idempotencyKey) {
-		return relaycontract.MessageCommit{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
-	}
 	var result relaycontract.MessageCommit
-	err = c.do(
+	err = c.command(
 		ctx,
 		http.MethodPost,
 		"/conversations/"+url.PathEscape(conversationID)+"/messages",
-		nil,
 		token,
 		idempotencyKey,
 		input,
@@ -399,6 +391,14 @@ func (c *Client) Difference(
 		result.StreamEpoch, err = responseStreamEpoch(result.StreamEpoch, streamEpoch)
 	}
 	return result, err
+}
+
+// command 发送必须携带调用方幂等键的写命令；重放同一键由 Relay 返回原结果。
+func (c *Client) command(ctx context.Context, method, path, token, idempotencyKey string, input, output any) error {
+	if !validCommandID(idempotencyKey) {
+		return errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
+	}
+	return c.do(ctx, method, path, nil, token, idempotencyKey, input, output)
 }
 
 func (c *Client) do(

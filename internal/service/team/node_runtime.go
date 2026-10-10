@@ -42,7 +42,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 		return err
 	}
 	job.State = "running"
-	if err = e.nodes.store.SaveNodeJob(ctx, job, "ready", nil); err != nil {
+	if err = e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
 		return err
 	}
 	e.logger.Info("在线 Agent 开始本机执行", nodeJobLogAttrs(grant, job)...)
@@ -70,14 +70,14 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 				current.State = "review_required"
 			}
 			e.logFailure(stopCtx, "stop_execution", grant, *current, stopErr)
-			saveErr := e.nodes.store.SaveNodeJob(stopCtx, *current, from, nil)
+			saveErr := e.nodes.store.SaveNodeJob(stopCtx, current, from, nil)
 			e.logFailure(stopCtx, "cleanup_save_job", grant, *current, saveErr)
 			if saveErr == nil {
 				e.logger.Info("在线 Agent 执行收尾", nodeJobLogAttrs(grant, *current)...)
 			}
 		}
 		if current.State == "failed" || current.State == "cancelled" || current.State == "review_required" {
-			_, settleErr := e.relay.SettleDelivery(stopCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, true, current.FailureCode)
+			_, settleErr := e.relay.FailDelivery(stopCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, current.FailureCode)
 			e.logFailure(stopCtx, "fail_delivery", grant, *current, settleErr)
 		}
 	}()
@@ -100,7 +100,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			return err
 		}
 		token = fresh
-		if _, err = e.relay.SettleDelivery(admissionCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, false); err != nil {
+		if _, err = e.relay.RenewDelivery(admissionCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
 			return err
 		}
 		_, err = e.activeGrant(admissionCtx, grant)
@@ -277,7 +277,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	if event.EventType == protocol.EventTypeError {
 		job.Failed = true
 		job.FailureCode = "execution_failed"
-		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 	}
 	if event.EventType == protocol.EventTypeRoundStatus {
 		terminal, _ := event.Data["is_terminal"].(bool)
@@ -295,9 +295,9 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		}
 		if status == "finished" && !job.Failed && !job.CandidateSent && job.CandidateText != "" {
 			job.State = "draining"
-			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution, job.CandidateMentions))
+			err = o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution, job.CandidateMentions))
 		} else {
-			err = o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+			err = o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 		}
 		if err == nil {
 			o.executor.logger.Info("在线 Agent 收到执行终态", append(nodeJobLogAttrs(teamstore.NodeGrant{NodeID: job.NodeID, OwnerUserID: job.OwnerUserID}, *job), "runtime_status", status, "failed", job.Failed, "has_candidate", job.CandidateText != "", "candidate_sent", job.CandidateSent)...)
@@ -312,7 +312,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	}
 	if err := o.captureFiles(ctx, job, event); err != nil {
 		job.FailureCode = "artifact_delivery_failed"
-		return errors.Join(err, o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil))
+		return errors.Join(err, o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil))
 	}
 	if event.Data["is_complete"] != true {
 		return nil
@@ -326,7 +326,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	}
 	text := message.ExtractAssistantDisplayText(protocol.Message(event.Data))
 	if text == "" {
-		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 	}
 	if len(text) > 64<<10 {
 		return errors.New("单条在线回复超过 64 KiB")
@@ -339,14 +339,12 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		return errors.New("完整回复缺少持久消息身份")
 	}
 	if job.CandidateID == id && job.CandidateSent {
-		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 	}
 	if job.CandidateID != "" && job.CandidateID != id && !job.CandidateSent {
-		if err := o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution, job.CandidateMentions)); err != nil {
+		if err := o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution, job.CandidateMentions)); err != nil {
 			return err
 		}
-		job.Sequence++
-		job.OutputBytes += len(job.CandidateText)
 	}
 	// 仅解码白名单统计；整份 runtime 消息含私人执行内容，不能直接透传。
 	encoded, err := json.Marshal(event.Data)
@@ -378,9 +376,9 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	job.CandidateID, job.CandidateText = id, text
 	job.CandidateSent = event.Data["stop_reason"] == "tool_use"
 	if job.CandidateSent {
-		return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution, job.CandidateMentions))
+		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution, job.CandidateMentions))
 	}
-	return o.executor.nodes.store.SaveNodeJob(ctx, *job, "running", nil)
+	return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 }
 
 func relayMentions(value any, sourceAgentID string) []relaycontract.MessageMention {
@@ -456,7 +454,7 @@ func (e *NodeExecutor) prepareDeliveryAttachments(ctx context.Context, job teams
 		}
 		for _, file := range message.Content.Attachments {
 			// 下载受租约约束；每个文件前续租，最终仍由原生 admission 复核。
-			if _, err := e.relay.SettleDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, false); err != nil {
+			if _, err := e.relay.RenewDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
 				return nil, err
 			}
 			readCtx, cancel := context.WithTimeout(ctx, 20*time.Second)

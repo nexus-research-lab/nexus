@@ -20,7 +20,8 @@ import (
 func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
 	const token = "relay-user-token"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/ws/relay" || request.Header.Get("Authorization") != "Bearer "+token ||
+		// WSS 与 HTTP 一样保留部署前缀。
+		if request.URL.Path != "/relay/ws/relay" || request.Header.Get("Authorization") != "Bearer "+token ||
 			request.URL.Query().Get("stream_id") != "stream-1" ||
 			request.URL.Query().Get("stream_epoch") != "epoch-1" {
 			http.Error(writer, "invalid websocket request", http.StatusBadRequest)
@@ -39,7 +40,7 @@ func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL, time.Second)
+	client, err := NewClient(server.URL+"/relay/", time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

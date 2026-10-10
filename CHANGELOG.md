@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Relay 在线协作加固：WSS 订阅保留 Relay 部署路径前缀；写命令统一校验幂等键；投递续期与失败拆成独立方法；取消投递按 Relay 错误码映射而非一律 409。
+- 加 Agent 与邀请成员先校验远程登录再请求 Control，未登录返回 401 而非 502。
+- Desktop 准备群执行时翻完全部成员页，不再只看首屏成员；同一请求只查询一次 Control 身份与 Agent 目录，登记与撤销串行执行。
+- 本机节点领取为空时不再留下无来源的“已完成”任务；Control 拒绝设备凭据后本地授权转为已撤销，不再无限重试；输出序号由存储层统一推进。服务端节点执行复用应用级 Relay 客户端与超时配置。
+
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
 
 - 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。

@@ -169,6 +169,16 @@ func (e *NodeExecutor) reconcileJobs(ctx context.Context, grants []teamstore.Nod
 		// 本机撤销同时取消订阅和执行，不等下一次租约维护才停止原生 round。
 		ownerCtx := authctx.WithPrincipal(watchers[grant.NodeID].ctx, &authctx.Principal{UserID: grant.OwnerUserID})
 		token, err := e.cachedToken(ownerCtx, grant)
+		if errors.Is(err, ErrNodeCredentialRejected) {
+			// Control 已撤销设备或其父登录；本地授权随之收口，等本人下次入群重新登记，不再无限重试。
+			e.logFailure(ctx, "machine_token", grant, teamstore.NodeJob{}, err)
+			if err = e.nodes.store.SetNodeState(ctx, grant, "authorized", "revoked"); err == nil {
+				e.loop.Notify()
+			} else if !errors.Is(err, teamstore.ErrNodeConflict) {
+				resultErr = err
+			}
+			continue
+		}
 		if err != nil {
 			e.logFailure(ctx, "machine_token", grant, teamstore.NodeJob{}, err)
 			resultErr = err
@@ -277,7 +287,12 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 		if err != nil {
 			return err
 		}
-		job.State = "completed"
+		if item == nil && from == "claiming" {
+			// 提示与领取之间投递已被他处处理；空 claim 没有来源，不能留下"已完成"任务。
+			stage = "discard_empty_claim"
+			return e.nodes.store.DiscardClaimingNodeJob(ctx, job)
+		}
+		job.State = "failed"
 		if item != nil {
 			if item.NodeID != job.NodeID || item.AgentID != job.AgentID || item.ID == "" || item.LeaseID == "" {
 				return ErrNodeUnavailable
@@ -285,12 +300,10 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 			job.Delivery = item
 			if item.State == "leased" {
 				job.State = "ready"
-			} else {
-				job.State = "failed"
 			}
 		}
 		stage = "persist_claim"
-		if err = e.nodes.store.SaveNodeJob(ctx, job, from, nil); err != nil {
+		if err = e.nodes.store.SaveNodeJob(ctx, &job, from, nil); err != nil {
 			return err
 		}
 		e.logger.Info("在线 Agent 领取完成", nodeJobLogAttrs(grant, job)...)
@@ -317,7 +330,7 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 	if _, err = e.activeGrant(ctx, grant); err != nil {
 		return err
 	}
-	if _, err = e.relay.SettleDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, false); err != nil {
+	if _, err = e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
 		return err
 	}
 	stage = "execute"
@@ -337,7 +350,7 @@ func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job
 				current, err := e.nodes.store.NodeJob(ctx, job.OwnerUserID, job.ID)
 				if err == nil && current != nil {
 					current.FailureCode = "artifact_delivery_failed"
-					err = e.nodes.store.SaveNodeJob(ctx, *current, current.State, nil)
+					err = e.nodes.store.SaveNodeJob(ctx, current, current.State, nil)
 				}
 				resultErr = errors.Join(resultErr, err)
 			}
@@ -347,10 +360,10 @@ func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job
 		if stage == "publish_files" {
 			job.FailureCode = "artifact_delivery_failed"
 		}
-		if err := e.nodes.store.SaveNodeJob(ctx, job, "draining", nil); err != nil {
+		if err := e.nodes.store.SaveNodeJob(ctx, &job, "draining", nil); err != nil {
 			resultErr = errors.Join(resultErr, err)
 		}
-		_, settleErr := e.relay.SettleDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, true, job.FailureCode)
+		_, settleErr := e.relay.FailDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, job.FailureCode)
 		e.logFailure(ctx, "fail_delivery", grant, job, settleErr)
 	}()
 	for {
@@ -367,7 +380,7 @@ func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job
 		// 最终回执可能已提交，不能先 renew completed 租约而挡住原 output 重放。
 		if job.State == "draining" && output.Input.Kind != "final" {
 			stage = "renew_output_lease"
-			if _, err = e.relay.SettleDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, false); err != nil {
+			if _, err = e.relay.RenewDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
 				return err
 			}
 		}
@@ -399,7 +412,7 @@ func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job
 	if job.State == "draining" {
 		job.State = "completed"
 		stage = "complete_job"
-		if err := e.nodes.store.SaveNodeJob(ctx, job, "draining", nil); err != nil {
+		if err := e.nodes.store.SaveNodeJob(ctx, &job, "draining", nil); err != nil {
 			return err
 		}
 		e.logger.Info("在线 Agent 任务完成", nodeJobLogAttrs(grant, job)...)

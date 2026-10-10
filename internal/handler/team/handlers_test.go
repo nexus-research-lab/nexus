@@ -688,6 +688,16 @@ func TestTeamHandlersFailClosedWithoutAuthenticatedPrincipal(t *testing.T) {
 		tokens.calls != 0 || relay.messageCalls != 0 {
 		t.Fatalf("status=%d failure=%+v token calls=%d relay calls=%d body=%s", recorder.Code, failure, tokens.calls, relay.messageCalls, recorder.Body.String())
 	}
+	// 未登录请求不能先触达 Control 归属校验，否则会被误报为上游 502。
+	for path, body := range map[string]string{
+		"/nexus/v1/team/rooms/room-1/agents":      `{"agent_id":"agent-1","expected_membership_version":1}`,
+		"/nexus/v1/team/rooms/room-1/invitations": `{"user_id":"user-2","expected_membership_version":1}`,
+	} {
+		recorder = teamRequest(t, router, http.MethodPost, path, body, true)
+		if recorder.Code != http.StatusUnauthorized || tokens.verifyCalls != 0 || relay.membershipCalls != 0 {
+			t.Fatalf("%s status=%d verify calls=%d body=%s", path, recorder.Code, tokens.verifyCalls, recorder.Body.String())
+		}
+	}
 }
 
 func TestTeamHandlersRequireStreamEpochForNonzeroCursor(t *testing.T) {
@@ -888,6 +898,7 @@ func newTeamTestRouterWithProjector(
 	router.Get("/nexus/v1/team/invitations", handler.HandleListInvitations)
 	router.Get("/nexus/v1/team/rooms/{room_id}", handler.HandleGetRoom)
 	router.Patch("/nexus/v1/team/rooms/{room_id}", handler.HandleUpdateRoom)
+	router.Post("/nexus/v1/team/rooms/{room_id}/agents", handler.HandleAddAgent)
 	router.Patch("/nexus/v1/team/rooms/{room_id}/agents/{agent_id}", handler.HandleUpdateAgent)
 	router.Post("/nexus/v1/team/rooms/{room_id}/invitations", handler.HandleInviteMember)
 	router.Post("/nexus/v1/team/rooms/{room_id}/invitations/accept", handler.HandleAcceptInvitation)
@@ -949,7 +960,7 @@ func decodeTeamFailure(t *testing.T, recorder *httptest.ResponseRecorder) protoc
 
 type relayClient interface {
 	teamsvc.RelayClient
-	relayStream
+	relayGateway
 }
 
 func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
@@ -971,6 +982,18 @@ func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
 			t.Fatalf("DM not forwarded: %d %+v", response.Code, relay.roomInput)
 		}
 	}
+}
+
+func (stub *teamRelayStub) CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error) {
+	return relaycontract.Delivery{}, nil
+}
+
+func (stub *teamRelayStub) MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error) {
+	return relaycontract.ReadState{}, nil
+}
+
+func (stub *teamRelayStub) RoomFiles(context.Context, string, string, string, string, http.Header, int64, io.Reader) (*http.Response, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (stub *teamRelayStub) RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error) {

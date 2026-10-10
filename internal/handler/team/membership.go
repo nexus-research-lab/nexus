@@ -37,11 +37,12 @@ func (h *Handlers) verifyOwnedAgents(writer http.ResponseWriter, request *http.R
 func (h *Handlers) HandleAddAgent(writer http.ResponseWriter, request *http.Request) {
 	var input relaycontract.AddRoomAgentInput
 	roomID, key, ok := h.membershipMutationInput(writer, request, &input)
-	if !ok || h.verifyOwnedAgents(writer, request, []string{input.AgentID}) != nil {
+	if !ok {
 		return
 	}
+	// 先确认远程身份，未登录请求不应触达 Control 的归属校验。
 	token, ok := h.exchangeToken(writer, request, true)
-	if !ok {
+	if !ok || h.verifyOwnedAgents(writer, request, []string{input.AgentID}) != nil {
 		return
 	}
 	result, err := h.team.AddAgent(request.Context(), teamAccess(request, token), roomID, key, input)
@@ -150,6 +151,10 @@ func (h *Handlers) HandleInviteMember(writer http.ResponseWriter, request *http.
 	if !ok {
 		return
 	}
+	token, ok := h.exchangeToken(writer, request, true)
+	if !ok {
+		return
+	}
 	principal := authsvc.PrincipalFromContext(request.Context())
 	if err := h.tokens.VerifyOrganizationMembers(request.Context(), principal, []string{input.UserID}); err != nil {
 		if errors.Is(err, authsvc.ErrOrganizationMemberInvalid) {
@@ -163,10 +168,6 @@ func (h *Handlers) HandleInviteMember(writer http.ResponseWriter, request *http.
 			Code: "team.organization_check_failed", Category: protocol.FailureCategoryUnavailable,
 			Effect: protocol.FailureEffectNotApplied, Detail: "暂时无法确认成员的组织归属", Cause: err,
 		})
-		return
-	}
-	token, ok := h.exchangeToken(writer, request, true)
-	if !ok {
 		return
 	}
 	result, err := h.team.InviteUser(request.Context(), teamAccess(request, token), roomID, key, input)

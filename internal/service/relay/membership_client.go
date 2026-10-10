@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
@@ -66,12 +65,8 @@ func (c *Client) UpdateRoom(ctx context.Context, token, roomID, key string, inpu
 	if err != nil {
 		return relaycontract.RoomConfigurationMutation{}, err
 	}
-	key = strings.TrimSpace(key)
-	if !validCommandID(key) {
-		return relaycontract.RoomConfigurationMutation{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
-	}
 	var result relaycontract.RoomConfigurationMutation
-	err = c.do(ctx, http.MethodPatch, "/rooms/"+url.PathEscape(roomID), nil, token, key, input, &result)
+	err = c.command(ctx, http.MethodPatch, "/rooms/"+url.PathEscape(roomID), token, key, input, &result)
 	return result, err
 }
 
@@ -121,12 +116,8 @@ func (c *Client) membershipMutation(
 	if err != nil {
 		return relaycontract.RoomMembershipMutation{}, err
 	}
-	key = strings.TrimSpace(key)
-	if !validCommandID(key) {
-		return relaycontract.RoomMembershipMutation{}, errors.New("Idempotency-Key 必须为 1-128 字节的可见 ASCII")
-	}
 	var result relaycontract.RoomMembershipMutation
-	err = c.do(ctx, method, "/rooms/"+url.PathEscape(roomID)+suffix, nil, token, key, input, &result)
+	err = c.command(ctx, method, "/rooms/"+url.PathEscape(roomID)+suffix, token, key, input, &result)
 	return result, err
 }
 
@@ -180,8 +171,15 @@ func (c *Client) GetRoomWithMembers(ctx context.Context, token, roomID string) (
 	if err != nil {
 		return result, err
 	}
+	return CollectRoomMembers(result, func(cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error) {
+		return c.RoomMembers(ctx, token, roomID, cursor, epoch, version)
+	})
+}
+
+// CollectRoomMembers 用首屏的世代与成员版本作为栅栏翻完剩余成员页；Desktop 经远程 Gateway 时复用同一规则。
+func CollectRoomMembers(result relaycontract.RoomDetails, next func(cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error)) (relaycontract.RoomDetails, error) {
 	for result.NextMemberCursor != "" {
-		page, err := c.RoomMembers(ctx, token, roomID, result.NextMemberCursor, result.Conversation.StreamEpoch, result.Room.MembershipVersion)
+		page, err := next(result.NextMemberCursor, result.Conversation.StreamEpoch, result.Room.MembershipVersion)
 		if err != nil {
 			return relaycontract.RoomDetails{}, err
 		}

@@ -104,7 +104,9 @@ func (c *Client) RoomFiles(ctx context.Context, token, roomID, fileID, method st
 	r.ContentLength = size
 	r.Header.Set("Authorization", "Bearer "+token)
 	for _, name := range []string{"Content-Type", "X-File-Name", "X-File-SHA256", "Idempotency-Key"} {
-		r.Header.Set(name, headers.Get(name))
+		if value := headers.Get(name); value != "" {
+			r.Header.Set(name, value)
+		}
 	}
 	return c.wsClient.Do(r)
 }

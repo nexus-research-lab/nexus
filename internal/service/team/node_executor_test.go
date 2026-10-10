@@ -211,6 +211,21 @@ func TestNodeExecutorWakesFromWebSocketWithoutTaskPolling(t *testing.T) {
 	if claims.Load() != 2 {
 		t.Fatalf("claim count = %d", claims.Load())
 	}
+	// 空 claim 没有来源投递，不能在任务面板留下"已完成"记录。
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		jobs, err := repo.NodeJobs(t.Context(), "local-owner", "scope")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(jobs) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("空 claim 留下任务: %+v", jobs)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err = nodes.setNodeState(t.Context(), *grant, "authorized", "revoked"); err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +236,41 @@ func TestNodeExecutorWakesFromWebSocketWithoutTaskPolling(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if reads.Load() != before || claims.Load() != 2 {
 		t.Fatal("revoked node continued reading or claiming")
+	}
+}
+
+func TestRejectedNodeCredentialRevokesLocalGrant(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, newNodeTestDB(t))
+	nodes, err := NewNodeService(cfg, repo, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := nodes.keys.EncryptEnvelope([]byte("machine"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(t.Context(), teamstore.NodeGrant{Scope: "scope", OwnerUserID: "local-owner", NodeID: "node", State: "pending", RemoteURL: server.URL, CredentialEncrypted: credential, AgentIDs: []string{"online"}, ExecutionEnabled: true})
+	if err == nil {
+		err = repo.SetNodeState(t.Context(), *grant, "pending", "authorized")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant.State = "authorized"
+	executor := &NodeExecutor{nodes: nodes, logger: slog.New(slog.NewTextHandler(io.Discard, nil)), active: map[string]string{}, loop: duework.New(duework.Options{})}
+	nodes.executor = executor
+	var workers sync.WaitGroup
+	if _, err = executor.reconcileJobs(t.Context(), []teamstore.NodeGrant{*grant}, map[string]nodeWatch{"node": {ctx: t.Context()}}, &workers); err != nil {
+		t.Fatal(err)
+	}
+	current, err := repo.NodeGrant(t.Context(), "scope", "local-owner")
+	if err != nil || current == nil || current.State != "revoked" || current.CredentialEncrypted != "" {
+		t.Fatalf("Control 拒绝凭据后本地授权未收口: %+v %v", current, err)
 	}
 }
 
@@ -477,7 +527,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		job.State = "ready"
 		job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_"+id
 		job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", Messages: []relaycontract.Message{{ID: "message", AuthorType: "user", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "处理任务"}}}}}}
-		if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+		if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 			t.Fatal(err)
 		}
 		return *job
@@ -556,11 +606,11 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	for _, status := range []int{http.StatusServiceUnavailable, http.StatusUnauthorized, http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusConflict} {
 		pending := prepare(fmt.Sprintf("renew-%d", status), fmt.Sprintf("local-%d", status))
 		pending.State = "running"
-		if err := repo.SaveNodeJob(ctx, pending, "ready", nil); err != nil {
+		if err := repo.SaveNodeJob(ctx, &pending, "ready", nil); err != nil {
 			t.Fatal(err)
 		}
 		pending.State = "draining"
-		if err := repo.SaveNodeJob(ctx, pending, "running", outputText("lease", "assistant", "待交付结果", nil)); err != nil {
+		if err := repo.SaveNodeJob(ctx, &pending, "running", outputText("lease", "assistant", "待交付结果", nil)); err != nil {
 			t.Fatal(err)
 		}
 		renewStatus = status
@@ -587,7 +637,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	var wait sync.WaitGroup
 	for range 2 {
 		wait.Add(1)
-		go func() { defer wait.Done(); results <- repo.SaveNodeJob(ctx, concurrent, "ready", nil) }()
+		go func(item teamstore.NodeJob) { defer wait.Done(); results <- repo.SaveNodeJob(ctx, &item, "ready", nil) }(concurrent)
 	}
 	wait.Wait()
 	close(results)
@@ -605,7 +655,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	// 明确交付文件冻结到原 outbox，重复快照不再交付，普通工作文件不外发。
 	filesJob := prepare("files", "file-agent")
 	filesJob.State = "running"
-	if err = repo.SaveNodeJob(ctx, filesJob, "ready", nil); err != nil {
+	if err = repo.SaveNodeJob(ctx, &filesJob, "ready", nil); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "result.txt")
@@ -645,7 +695,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		t.Fatal("接受其他轮次产物")
 	}
 	filesJob.State = "draining"
-	if err = repo.SaveNodeJob(ctx, filesJob, "running", outputText("lease", "final", "完成", nil)); err != nil {
+	if err = repo.SaveNodeJob(ctx, &filesJob, "running", outputText("lease", "final", "完成", nil)); err != nil {
 		t.Fatal(err)
 	}
 	if err = executor.drain(ctx, *grant, filesJob, "machine"); err != nil {
@@ -659,7 +709,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	unstarted.State = "running"
-	if err = repo.SaveNodeJob(ctx, unstarted, "ready", nil); !errors.Is(err, teamstore.ErrNodeConflict) {
+	if err = repo.SaveNodeJob(ctx, &unstarted, "ready", nil); !errors.Is(err, teamstore.ErrNodeConflict) {
 		t.Fatalf("revoked start: %v", err)
 	}
 	if active, err := repo.ActiveNodeJob(ctx, "local-owner", "cancel-local"); err != nil || active != nil {
@@ -679,7 +729,7 @@ func TestNodeCandidateMentionsStayWithTheirMessage(t *testing.T) {
 	}
 	job.State = "running"
 	job.Delivery = &relaycontract.Delivery{LeaseID: "lease"}
-	if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 		t.Fatal(err)
 	}
 	observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
@@ -715,7 +765,7 @@ func TestNodeTerminalStatusDistinguishesInterruption(t *testing.T) {
 				t.Fatal(err)
 			}
 			job.State = "running"
-			if err := repo.SaveNodeJob(t.Context(), *job, "claiming", nil); err != nil {
+			if err := repo.SaveNodeJob(t.Context(), job, "claiming", nil); err != nil {
 				t.Fatal(err)
 			}
 			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}

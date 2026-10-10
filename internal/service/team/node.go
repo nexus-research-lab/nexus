@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
+	relaysvc "github.com/nexus-research-lab/nexus/internal/service/relay"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
@@ -81,6 +83,63 @@ type NodeRoomBinding struct {
 	ConversationID string `json:"conversation_id"`
 }
 
+// nodeSession 是一次请求内的远程身份与 Agent 快照；同一请求内的多步授权共享它，不反复往返 Control。
+type nodeSession struct {
+	cookie, scope, owner string
+	online               []nodeAgent
+	local                []protocol.Agent
+	agentsLoaded         bool
+}
+
+func (s *NodeService) session(ctx context.Context, cookie string) (*nodeSession, error) {
+	owner, ok := authctx.CurrentUserID(ctx)
+	if !ok || cookie == "" {
+		return nil, ErrNodeLogin
+	}
+	var identity nodeIdentity
+	if err := s.callControl(ctx, cookie, http.MethodGet, "/status", nil, &identity); err != nil {
+		return nil, err
+	}
+	if !identity.Authenticated || identity.UserID == "" || identity.OrganizationID == "" {
+		return nil, ErrNodeLogin
+	}
+	scope := nodeDigest([]string{owner, s.remoteURL, identity.UserID, identity.OrganizationID})
+	return &nodeSession{cookie: cookie, scope: scope, owner: owner}, nil
+}
+
+// agents 读取一次远程已发布 Agent 与本机 Agent，供候选、入群映射和任务检查共用。
+func (s *NodeService) agents(ctx context.Context, session *nodeSession) error {
+	if session.agentsLoaded {
+		return nil
+	}
+	if err := s.callControl(ctx, session.cookie, http.MethodGet, "/agents", nil, &session.online); err != nil {
+		return err
+	}
+	local, err := s.listAgents(ctx)
+	if err != nil {
+		return err
+	}
+	session.local, session.agentsLoaded = local, true
+	return nil
+}
+
+func (s *NodeService) candidates(ctx context.Context, session *nodeSession) ([]NodeCandidate, error) {
+	if err := s.agents(ctx, session); err != nil {
+		return nil, err
+	}
+	owned := make(map[string]string, len(session.local))
+	for _, agent := range session.local {
+		owned[agent.AgentID] = agent.Name
+	}
+	result := make([]NodeCandidate, 0)
+	for _, agent := range session.online {
+		if name, ok := owned[agent.SourceAgentID]; ok {
+			result = append(result, NodeCandidate{ID: agent.AgentID, Name: name})
+		}
+	}
+	return result, nil
+}
+
 // PrepareRooms 汇总所有已加入群的执行资格，一次登记，避免逐群轮换节点。
 func (s *NodeService) PrepareRooms(ctx context.Context, cookie string, roomIDs []string) ([]NodeRoomBinding, error) {
 	if len(roomIDs) == 0 || len(roomIDs) > 256 {
@@ -89,22 +148,17 @@ func (s *NodeService) PrepareRooms(ctx context.Context, cookie string, roomIDs [
 	if s.executor == nil {
 		return nil, ErrNodeUnavailable
 	}
-	scope, _, err := s.scope(ctx, cookie)
+	session, err := s.session(ctx, cookie)
 	if err != nil {
 		return nil, err
 	}
-	var online []nodeAgent
-	if err = s.callControl(ctx, cookie, http.MethodGet, "/agents", nil, &online); err != nil {
-		return nil, err
-	}
-	local, err := s.listAgents(ctx)
-	if err != nil {
+	if err = s.agents(ctx, session); err != nil {
 		return nil, err
 	}
 	bindings := make([]NodeRoomBinding, 0)
 	var executable []string
 	for _, roomID := range slices.Compact(slices.Sorted(slices.Values(roomIDs))) {
-		items, agents, err := s.prepareRoom(ctx, cookie, scope, roomID, online, local)
+		items, agents, err := s.prepareRoom(ctx, session, roomID)
 		if err != nil {
 			return nil, err
 		}
@@ -114,76 +168,84 @@ func (s *NodeService) PrepareRooms(ctx context.Context, cookie string, roomIDs [
 	if len(executable) > 0 {
 		slices.Sort(executable)
 		executable = slices.Compact(executable)
-		if err := s.ensureRoomExecution(ctx, cookie, executable); err != nil {
+		s.provisionMu.Lock()
+		defer s.provisionMu.Unlock()
+		if err := s.ensureRoomExecution(ctx, session, executable); err != nil {
 			return nil, err
 		}
 	}
 	return bindings, nil
 }
 
-func (s *NodeService) prepareRoom(ctx context.Context, cookie, scope, roomID string, online []nodeAgent, local []protocol.Agent) ([]NodeRoomBinding, []string, error) {
+func (s *NodeService) prepareRoom(ctx context.Context, session *nodeSession, roomID string) ([]NodeRoomBinding, []string, error) {
 	if roomID == "" || len(roomID) > 128 || strings.ContainsAny(roomID, "/?#") {
 		return nil, nil, ErrNodeInput
 	}
-	var err error
-	var details relaycontract.RoomDetails
-	if s.readRoom != nil {
-		details, err = s.readRoom(ctx, cookie, roomID)
-	} else {
-		// Desktop 只向固定远程 Gateway 发送 Cookie，不从请求体接收服务地址。
-		err = s.remoteRequest(ctx, cookie, "", http.MethodGet, "/nexus/v1/team/rooms/"+url.PathEscape(roomID), nil, &details)
-	}
+	details, err := s.readRoomMembers(ctx, session.cookie, roomID)
 	if err != nil {
 		return nil, nil, err
 	}
 	bindings := make([]NodeRoomBinding, 0)
 	var executable []string
-	for _, agent := range online {
-		if !slices.ContainsFunc(local, func(value protocol.Agent) bool {
+	for _, agent := range session.online {
+		if !slices.ContainsFunc(session.local, func(value protocol.Agent) bool {
 			return value.AgentID == agent.SourceAgentID && value.Status == "active" && !value.IsMain
 		}) {
 			continue
 		}
-		if !slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
+		index := slices.IndexFunc(details.Members, func(member relaycontract.RoomMember) bool {
 			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active"
-		}) {
+		})
+		if index < 0 {
 			continue
 		}
-		room, err := s.executor.prepare(ctx, scope+":"+roomID, agent.SourceAgentID)
+		room, err := s.executor.prepare(ctx, session.scope+":"+roomID, agent.SourceAgentID)
 		if err != nil {
 			return nil, nil, err
 		}
 		bindings = append(bindings, NodeRoomBinding{AgentID: agent.AgentID, LocalAgentID: agent.SourceAgentID, RoomID: room.Room.ID, ConversationID: room.Conversation.ID})
-		if slices.ContainsFunc(details.Members, func(member relaycontract.RoomMember) bool {
-			return member.Type == "agent" && member.ID == agent.AgentID && member.State == "active" && !member.AgentPaused
-		}) {
+		if !details.Members[index].AgentPaused {
 			executable = append(executable, agent.AgentID)
 		}
 	}
 	return bindings, executable, nil
 }
 
-// 只消费已由 PrepareRoom 校验的本人入群成员；凭据未知写入复用原意图，失效恢复仍须有效真人登录。
-func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, agentIDs []string) error {
-	s.provisionMu.Lock()
-	defer s.provisionMu.Unlock()
-	scope, owner, err := s.scope(ctx, cookie)
-	if err != nil {
-		return err
+// readRoomMembers 读取完整成员集合；Desktop 只向固定远程 Gateway 发送 Cookie，不从请求体接收服务地址。
+func (s *NodeService) readRoomMembers(ctx context.Context, cookie, roomID string) (relaycontract.RoomDetails, error) {
+	if s.readRoom != nil {
+		return s.readRoom(ctx, cookie, roomID)
 	}
-	record, err := s.store.NodeGrant(ctx, scope, owner)
+	path := "/nexus/v1/team/rooms/" + url.PathEscape(roomID)
+	var details relaycontract.RoomDetails
+	if err := s.remoteRequest(ctx, cookie, "", http.MethodGet, path, nil, &details); err != nil {
+		return details, err
+	}
+	return relaysvc.CollectRoomMembers(details, func(cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error) {
+		query := url.Values{"after": {cursor}, "stream_epoch": {epoch}, "membership_version": {strconv.FormatInt(version, 10)}}
+		var page relaycontract.RoomMemberPage
+		err := s.remoteRequest(ctx, cookie, "", http.MethodGet, path+"/members?"+query.Encode(), nil, &page)
+		return page, err
+	})
+}
+
+// ensureRoomExecution 只消费已由 prepareRoom 校验的本人入群成员；调用方持有 provisionMu。
+// 凭据未知写入复用原意图，失效恢复仍须有效真人登录。
+func (s *NodeService) ensureRoomExecution(ctx context.Context, session *nodeSession, agentIDs []string) error {
+	record, err := s.store.NodeGrant(ctx, session.scope, session.owner)
 	if err != nil {
 		return err
 	}
 	if record == nil || record.State == "revoked" {
-		return s.Connect(ctx, cookie, NodeConnectInput{Name: "Nexus", AgentIDs: agentIDs, EnableExecution: true})
+		return s.connect(ctx, session, NodeConnectInput{Name: "Nexus", AgentIDs: agentIDs, EnableExecution: true})
 	}
+	cookieHash := nodeDigest(session.cookie)
 	// 未确认登记先重放原请求，不换凭据、不以 404 推断未提交。
-	if record.State == "pending" && record.CookieHash == nodeDigest(cookie) {
-		if err = s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: record.AgentIDs, EnableExecution: true}); err != nil {
+	if record.State == "pending" && record.CookieHash == cookieHash {
+		if err = s.connect(ctx, session, NodeConnectInput{Name: record.Name, AgentIDs: record.AgentIDs, EnableExecution: true}); err != nil {
 			return err
 		}
-		record, err = s.store.NodeGrant(ctx, scope, owner)
+		record, err = s.store.NodeGrant(ctx, session.scope, session.owner)
 		if err != nil {
 			return err
 		}
@@ -192,7 +254,7 @@ func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, ag
 		}
 	}
 	ids := slices.Clone(agentIDs)
-	candidates, err := s.candidates(ctx, cookie)
+	candidates, err := s.candidates(ctx, session)
 	if err != nil {
 		return err
 	}
@@ -203,7 +265,7 @@ func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, ag
 	}
 	slices.Sort(ids)
 	ids = slices.Compact(ids)
-	if record.State == "authorized" && record.CookieHash == nodeDigest(cookie) && slices.Equal(record.AgentIDs, ids) {
+	if record.State == "authorized" && record.CookieHash == cookieHash && slices.Equal(record.AgentIDs, ids) {
 		wasEnabled := record.ExecutionEnabled
 		record.ExecutionEnabled = true
 		_, err = s.executor.machineToken(ctx, *record)
@@ -218,12 +280,8 @@ func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, ag
 		}
 	}
 	// 变更设备范围前先等待现有任务收尾，不能因新增成员打断其他群的执行。
-	local, err := s.listAgents(ctx)
-	if err != nil {
-		return err
-	}
-	for _, agent := range local {
-		job, err := s.store.ActiveNodeJob(ctx, owner, agent.AgentID)
+	for _, agent := range session.local {
+		job, err := s.store.ActiveNodeJob(ctx, session.owner, agent.AgentID)
 		if err != nil {
 			return err
 		}
@@ -231,10 +289,10 @@ func (s *NodeService) ensureRoomExecution(ctx context.Context, cookie string, ag
 			return ErrNodeUnavailable
 		}
 	}
-	if err = s.Revoke(ctx, cookie); err != nil {
+	if err = s.revoke(ctx, session); err != nil {
 		return err
 	}
-	return s.Connect(ctx, cookie, NodeConnectInput{Name: record.Name, AgentIDs: ids, EnableExecution: true})
+	return s.connect(ctx, session, NodeConnectInput{Name: record.Name, AgentIDs: ids, EnableExecution: true})
 }
 
 func nodeDigest(value any) string {
@@ -248,12 +306,13 @@ func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
 	if s.executor == nil {
 		return ErrNodeUnavailable
 	}
-	s.provisionMu.Lock()
-	defer s.provisionMu.Unlock()
-	scope, owner, err := s.scope(ctx, cookie)
+	session, err := s.session(ctx, cookie)
 	if err != nil {
 		return err
 	}
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	scope, owner := session.scope, session.owner
 	job, err := s.store.NodeJob(ctx, owner, id)
 	if err != nil {
 		return err
@@ -282,13 +341,13 @@ func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
 	if grant == nil || grant.NodeID != job.NodeID {
 		return ErrNodeUnavailable
 	}
-	if err = s.reconcile(ctx, cookie, grant); err != nil {
+	if err = s.reconcile(ctx, session, grant); err != nil {
 		return err
 	}
 	if grant.State == "revoked" {
 		from := job.State
 		job.State = "failed"
-		return s.store.SaveNodeJob(ctx, *job, from, nil)
+		return s.store.SaveNodeJob(ctx, job, from, nil)
 	}
 	token, err := s.executor.cachedToken(ctx, *grant)
 	if err != nil {
@@ -305,7 +364,7 @@ func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
 		return teamstore.ErrNodeConflict
 	}
 	if remote.State == "leased" {
-		if _, err = s.executor.relay.SettleDelivery(ctx, token.Token, remote.ID, remote.LeaseID, true); err != nil {
+		if _, err = s.executor.relay.FailDelivery(ctx, token.Token, remote.ID, remote.LeaseID, ""); err != nil {
 			return err
 		}
 	}
@@ -314,48 +373,11 @@ func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
 	if remote.State == "completed" {
 		job.State = "completed"
 	}
-	if err = s.store.SaveNodeJob(ctx, *job, from, nil); err != nil {
+	if err = s.store.SaveNodeJob(ctx, job, from, nil); err != nil {
 		return err
 	}
 	s.executor.loop.Notify()
 	return nil
-}
-
-func (s *NodeService) scope(ctx context.Context, cookie string) (string, string, error) {
-	owner, ok := authctx.CurrentUserID(ctx)
-	if !ok || cookie == "" {
-		return "", "", ErrNodeLogin
-	}
-	var identity nodeIdentity
-	if err := s.callControl(ctx, cookie, http.MethodGet, "/status", nil, &identity); err != nil {
-		return "", "", err
-	}
-	if !identity.Authenticated || identity.UserID == "" || identity.OrganizationID == "" {
-		return "", "", ErrNodeLogin
-	}
-	return nodeDigest([]string{owner, s.remoteURL, identity.UserID, identity.OrganizationID}), owner, nil
-}
-
-func (s *NodeService) candidates(ctx context.Context, cookie string) ([]NodeCandidate, error) {
-	local, err := s.listAgents(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var online []nodeAgent
-	if err = s.callControl(ctx, cookie, http.MethodGet, "/agents", nil, &online); err != nil {
-		return nil, err
-	}
-	owned := make(map[string]string, len(local))
-	for _, agent := range local {
-		owned[agent.AgentID] = agent.Name
-	}
-	result := make([]NodeCandidate, 0)
-	for _, agent := range online {
-		if name, ok := owned[agent.SourceAgentID]; ok {
-			result = append(result, NodeCandidate{ID: agent.AgentID, Name: name})
-		}
-	}
-	return result, nil
 }
 
 type NodeJobQuery struct {
@@ -368,18 +390,19 @@ func (s *NodeService) View(ctx context.Context, cookie string, queries ...NodeJo
 	if len(queries) > 1 {
 		return NodeView{}, ErrNodeInput
 	}
-	scope, owner, err := s.scope(ctx, cookie)
+	session, err := s.session(ctx, cookie)
 	if err != nil {
 		return NodeView{}, err
 	}
+	scope, owner := session.scope, session.owner
 	record, err := s.store.NodeGrant(ctx, scope, owner)
 	if err != nil {
 		return NodeView{}, err
 	}
-	if err = s.reconcile(ctx, cookie, record); err != nil {
+	if err = s.reconcile(ctx, session, record); err != nil {
 		return NodeView{}, err
 	}
-	candidates, err := s.candidates(ctx, cookie)
+	candidates, err := s.candidates(ctx, session)
 	if err != nil {
 		return NodeView{}, err
 	}
@@ -425,7 +448,18 @@ func (s *NodeService) View(ctx context.Context, cookie string, queries ...NodeJo
 	return view, nil
 }
 
+// Connect 以当前登录登记本机节点；与入群授权、撤销串行，避免并发轮换凭据。
 func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConnectInput) error {
+	session, err := s.session(ctx, cookie)
+	if err != nil {
+		return err
+	}
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	return s.connect(ctx, session, input)
+}
+
+func (s *NodeService) connect(ctx context.Context, session *nodeSession, input NodeConnectInput) error {
 	if input.EnableExecution && (s.executor == nil || !s.executor.ready.Load()) {
 		return ErrNodeUnavailable
 	}
@@ -436,11 +470,7 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 	input.AgentIDs = slices.Clone(input.AgentIDs)
 	slices.Sort(input.AgentIDs)
 	input.AgentIDs = slices.Compact(input.AgentIDs)
-	scope, owner, err := s.scope(ctx, cookie)
-	if err != nil {
-		return err
-	}
-	candidates, err := s.candidates(ctx, cookie)
+	candidates, err := s.candidates(ctx, session)
 	if err != nil {
 		return err
 	}
@@ -461,11 +491,12 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 	if err != nil {
 		return err
 	}
-	record, err := s.store.PrepareNodeGrant(ctx, teamstore.NodeGrant{Scope: scope, OwnerUserID: owner, NodeID: "node_" + nodeDigest(credential)[:32], State: "pending", Name: input.Name, CookieHash: nodeDigest(cookie), CredentialEncrypted: encrypted, AgentIDs: input.AgentIDs, RemoteURL: s.remoteURL, ExecutionEnabled: input.EnableExecution})
+	cookieHash := nodeDigest(session.cookie)
+	record, err := s.store.PrepareNodeGrant(ctx, teamstore.NodeGrant{Scope: session.scope, OwnerUserID: session.owner, NodeID: "node_" + nodeDigest(credential)[:32], State: "pending", Name: input.Name, CookieHash: cookieHash, CredentialEncrypted: encrypted, AgentIDs: input.AgentIDs, RemoteURL: s.remoteURL, ExecutionEnabled: input.EnableExecution})
 	if err != nil {
 		return err
 	}
-	if record == nil || record.CookieHash != nodeDigest(cookie) || record.Name != input.Name || !slices.Equal(record.AgentIDs, input.AgentIDs) || (record.State != "pending" && record.State != "authorized") {
+	if record == nil || record.CookieHash != cookieHash || record.Name != input.Name || !slices.Equal(record.AgentIDs, input.AgentIDs) || (record.State != "pending" && record.State != "authorized") {
 		return teamstore.ErrNodeConflict
 	}
 	plain, err := s.keys.DecryptEnvelope(record.CredentialEncrypted)
@@ -473,7 +504,7 @@ func (s *NodeService) Connect(ctx context.Context, cookie string, input NodeConn
 		return err
 	}
 	var result nodeStatus
-	err = s.callControl(ctx, cookie, http.MethodPost, "/nodes", map[string]any{"node_id": record.NodeID, "name": record.Name, "credential": string(plain), "agent_ids": record.AgentIDs}, &result)
+	err = s.callControl(ctx, session.cookie, http.MethodPost, "/nodes", map[string]any{"node_id": record.NodeID, "name": record.Name, "credential": string(plain), "agent_ids": record.AgentIDs}, &result)
 	if err != nil {
 		return err
 	}
@@ -502,12 +533,12 @@ type NodeJobView struct {
 }
 
 // reconcile 只用精确节点回执推进状态；未知注册的 404 不能证明迟到请求不会提交。
-func (s *NodeService) reconcile(ctx context.Context, cookie string, record *teamstore.NodeGrant) error {
+func (s *NodeService) reconcile(ctx context.Context, session *nodeSession, record *teamstore.NodeGrant) error {
 	if record == nil || record.State == "revoked" {
 		return nil
 	}
 	var result nodeStatus
-	err := s.callControl(ctx, cookie, http.MethodGet, "/nodes/"+url.PathEscape(record.NodeID), nil, &result)
+	err := s.callControl(ctx, session.cookie, http.MethodGet, "/nodes/"+url.PathEscape(record.NodeID), nil, &result)
 	var remote *nodeRemoteError
 	missing := errors.As(err, &remote) && remote.status == http.StatusNotFound
 	if err != nil && !missing {
@@ -535,16 +566,23 @@ func (s *NodeService) reconcile(ctx context.Context, cookie string, record *team
 	return nil
 }
 
+// Revoke 撤销当前登录下的本机节点；与登记串行。
 func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
-	scope, owner, err := s.scope(ctx, cookie)
+	session, err := s.session(ctx, cookie)
 	if err != nil {
 		return err
 	}
-	record, err := s.store.NodeGrant(ctx, scope, owner)
+	s.provisionMu.Lock()
+	defer s.provisionMu.Unlock()
+	return s.revoke(ctx, session)
+}
+
+func (s *NodeService) revoke(ctx context.Context, session *nodeSession) error {
+	record, err := s.store.NodeGrant(ctx, session.scope, session.owner)
 	if err != nil || record == nil {
 		return err
 	}
-	if err = s.reconcile(ctx, cookie, record); err != nil {
+	if err = s.reconcile(ctx, session, record); err != nil {
 		return err
 	}
 	if record.State == "revoked" {
@@ -555,7 +593,7 @@ func (s *NodeService) Revoke(ctx context.Context, cookie string) error {
 			return err
 		}
 	}
-	err = s.callControl(ctx, cookie, http.MethodDelete, "/nodes/"+url.PathEscape(record.NodeID), nil, nil)
+	err = s.callControl(ctx, session.cookie, http.MethodDelete, "/nodes/"+url.PathEscape(record.NodeID), nil, nil)
 	if err != nil {
 		return err
 	}

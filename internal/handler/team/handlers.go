@@ -41,16 +41,9 @@ func (h *Handlers) HandleCancelDelivery(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	client, ok := h.relay.(interface {
-		CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error)
-	})
-	if !ok {
-		h.api.WriteFailure(w, http.StatusServiceUnavailable, "投递服务不可用")
-		return
-	}
-	result, err := client.CancelPendingDelivery(r.Context(), token, roomID, id)
+	result, err := h.relay.CancelPendingDelivery(r.Context(), token, roomID, id)
 	if err != nil {
-		h.api.WriteFailure(w, http.StatusConflict, "取消未确认，请刷新状态后重试")
+		h.writeRelayError(w, r, err, true)
 		return
 	}
 	h.api.WriteSuccess(w, result)
@@ -82,8 +75,12 @@ type relayTokenExchanger interface {
 	VerifyOwnedAgents(context.Context, *authsvc.Principal, []string) error
 }
 
-type relayStream interface {
+// relayGateway 是不经本地投影、直接转发给 Relay 的调用。
+type relayGateway interface {
 	Watch(context.Context, string, string, string, func(relaycontract.StreamUpdated) error) error
+	CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error)
+	MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error)
+	RoomFiles(context.Context, string, string, string, string, http.Header, int64, io.Reader) (*http.Response, error)
 }
 
 type streamResetRequired struct {
@@ -96,7 +93,7 @@ type streamResetRequired struct {
 type Handlers struct {
 	api    *handlershared.API
 	tokens relayTokenExchanger
-	relay  relayStream
+	relay  relayGateway
 	team   *teamsvc.Service
 }
 
@@ -105,7 +102,7 @@ func New(
 	api *handlershared.API,
 	tokens relayTokenExchanger,
 	service *teamsvc.Service,
-	relay relayStream,
+	relay relayGateway,
 ) *Handlers {
 	return &Handlers{api: api, tokens: tokens, relay: relay, team: service}
 }
@@ -709,14 +706,7 @@ func (h *Handlers) HandleMarkRead(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	client, ok := h.relay.(interface {
-		MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error)
-	})
-	if !ok {
-		h.api.WriteFailure(w, http.StatusServiceUnavailable, "阅读状态服务不可用")
-		return
-	}
-	result, err := client.MarkRead(r.Context(), token, roomID, input)
+	result, err := h.relay.MarkRead(r.Context(), token, roomID, input)
 	if err != nil {
 		h.writeRelayError(w, r, err, true)
 		return

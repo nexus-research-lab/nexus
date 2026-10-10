@@ -3,7 +3,7 @@
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - handlers.go：同源校验、Control 短令牌交换、Team service 调用、本人已读水位转发、产品提示型 Slash 目录、WSS 转发、stream 换代提示与稳定失败映射；提交和投影顺序归 service/team。
+//   - handlers.go：同源校验、先换远程身份再做 Control 归属校验、Team service 调用、经显式 relayGateway 直连 Relay 的取消投递/已读/文件、本人已读水位转发、产品提示型 Slash 目录、WSS 转发、stream 换代提示与稳定失败映射；提交和投影顺序归 service/team。
 //   - membership.go：Room 管理快照、版本栅栏成员续页、按消息 ID 限量读取公开投递、真人邀请、角色、移除与群主移交入口。
 //   - files.go：有界共享文件流式 gateway，仅向固定 Relay 服务转发当前用户令牌。
 //   - node.go：独立 /team-node 本机授权入口，要求远程 Cookie 与同源变更；不进入 Desktop 的 /team 代理。
