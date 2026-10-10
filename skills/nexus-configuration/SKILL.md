@@ -1,7 +1,7 @@
 ---
 name: nexus-configuration
 title: Nexus 配置
-description: 在当前 Nexus 私聊或 Room 中读取、规划、确认并验证调用者有权管理的产品配置，包括管理员的用户账号、Agent、Room、Provider、偏好、Channel、Connector、Skill、Session、模型、工具和 MCP 设置。
+description: 在 Nexus 私聊或 Room 中检查和管理已授权配置，包括用户账号、Agent、Room、Provider、偏好、Channel、Connector、Skill、Session、模型、工具和 MCP。
 scope: any
 tags: [nexus, configuration, settings, agent, room]
 ---
@@ -22,7 +22,7 @@ tags: [nexus, configuration, settings, agent, room]
 
    PowerShell 使用 `& "${env:NEXUSCFG_COMMAND_PATH}" ...`，不要混用 shell 变量语法。
 
-2. 以顶层 `inspection` 中的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 与 checks 为准。操作列表已按当前身份和 DM/Room 场景过滤，只描述本次调用者可用的配置能力；其他身份或专用入口按 [references/roles-and-domains.md](references/roles-and-domains.md) 分流。不要根据 Skill 猜 operation、target 或 input。
+2. 以顶层 `inspection` 中的 `authority`、`access.allowed_operations`、`definition.operations`、`revision` 与 checks 为准。操作已按当前身份和 DM/Room 过滤；其他入口见 [references/roles-and-domains.md](references/roles-and-domains.md) 分流。不要猜 operation、target 或 input。
 3. mutation 先用同一 domain/operation/target/input 执行 plan。输入必须是一个不含秘密的 JSON object：
 
    ```bash
@@ -49,7 +49,7 @@ tags: [nexus, configuration, settings, agent, room]
 
 ## 配置请求失败
 
-命令返回 `请求参数错误`、HTTP 400 或多个配置域同时失败时，先读取 [references/troubleshooting.md](references/troubleshooting.md)，不要直接归因于权限或版本。
+`请求参数错误` / HTTP 400 不等于权限不足、API 缺失或需要升级。先核对宿主入口、子命令和参数；多个域的只读 inspect 同样失败时，报告配置请求链路异常，附命令、错误码和时间供查日志。仅在接口、版本或日志证实能力缺失后建议升级；nexusctl 正常不代表 nexuscfg 正常，不得编造 inspection。
 
 ## 管理用户
 
@@ -62,6 +62,5 @@ tags: [nexus, configuration, settings, agent, room]
 长期记忆的内容位于 Agent workspace 的 `MEMORY.md` 与 `memory/`。自己的记忆使用原生文件工具读写；主智能体修改其他 Agent 的记忆按 `nexus-manager` 的 workspace 入口读取、编辑并读回。用户也可在联系人 → 选择智能体 → 记忆中编辑，页面保存携带读取 revision。修改前读取当前内容并保留无关信息；文件保存与运行中模型的记忆加载分别核对。
 
 ## Agent 创建与行为模板
-
 
 创建 Agent 或修改已有 Agent 的角色职责、工作方式时，先读取 [references/agent-profile-template.md](references/agent-profile-template.md)，按创建或编辑流程处理 workspace 根级 `AGENTS.md`，保留基础规则并读回核对。名称、头像、目录摘要与 runtime 配置使用 `agents` 配置域。

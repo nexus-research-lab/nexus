@@ -34,13 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 共享文件上传有 2 分钟上限并接受任意 2xx；下载强制 `attachment`、`nosniff` 与 `sandbox` CSP，不再按远端 Content-Type 内联渲染。成员分页检测任意游标成环。
 - 重试与连接韧性：后台 duework 与浏览器 WebSocket 重连改为等量抖动退避，服务重启后不再同刻重连；稳定运行的节点长连接断开后从最小退避重连；Relay 429/503 的 `Retry-After`（含网关非 JSON 页）被后台重试服从，浏览器 Team 请求透传 429 与 `Retry-After`。
 - 同一 Session 并发换取 Relay 令牌合并为一次 Control 往返；身份失效期间完成的换票不再写回缓存。入口 `X-Request-ID` 透传至 Relay 与 Control，跨服务日志可按同一 ID 关联。
-
+- 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
-
 - 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
-
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
-
 - 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
 - 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
 - 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
