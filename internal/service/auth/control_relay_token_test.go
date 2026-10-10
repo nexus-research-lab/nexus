@@ -7,6 +7,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,9 +20,13 @@ func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 	const serviceToken = "control-service-token-32-characters"
 	payload, _ := json.Marshal(map[string]int64{"exp": time.Now().Add(time.Minute).Unix()})
 	relayToken := "header." + base64.RawURLEncoding.EncodeToString(payload) + ".signature"
-	calls := 0
+	var calls atomic.Int32
+	var gate atomic.Pointer[chan struct{}]
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		calls++
+		calls.Add(1)
+		if wait := gate.Load(); wait != nil {
+			<-*wait
+		}
 		if request.URL.Path != controlAPIBase+"/internal/humans/verify" {
 			http.NotFound(writer, request)
 			return
@@ -66,13 +73,40 @@ func TestControlAuthorityExchangesFixedAudienceRelayUserToken(t *testing.T) {
 			t.Fatalf("token = %q err = %v", token, err)
 		}
 	}
-	if calls != 1 {
-		t.Fatalf("有效期内重复换取令牌: calls=%d", calls)
+	if calls.Load() != 1 {
+		t.Fatalf("有效期内重复换取令牌: calls=%d", calls.Load())
 	}
-	// Session 失效事件必须立即丢弃缓存令牌。
+	// Session 失效事件必须立即丢弃缓存令牌；同一 Session 的并发未命中只往返一次。
 	authority.deleteSessionLeases(sessionID)
-	if _, err := authority.ExchangeRelayUserToken(context.Background(), principal); err != nil || calls != 2 {
-		t.Fatalf("失效后仍复用缓存: calls=%d err=%v", calls, err)
+	exchangeConcurrently := func(count int, beforeRelease func()) {
+		release := make(chan struct{})
+		gate.Store(&release)
+		defer gate.Store(nil)
+		want := calls.Load() + 1
+		var group sync.WaitGroup
+		for range count {
+			group.Go(func() {
+				if token, err := authority.ExchangeRelayUserToken(context.Background(), principal); err != nil || token != relayToken {
+					t.Errorf("token = %q err = %v", token, err)
+				}
+			})
+		}
+		for calls.Load() < want {
+			runtime.Gosched()
+		}
+		beforeRelease()
+		close(release)
+		group.Wait()
+	}
+	exchangeConcurrently(8, func() { time.Sleep(20 * time.Millisecond) })
+	if calls.Load() != 2 {
+		t.Fatalf("并发未命中没有合并: calls=%d", calls.Load())
+	}
+	// 失效发生在换票途中时，结果仍返回给调用方但不得写回缓存。
+	authority.deleteSessionLeases(sessionID)
+	exchangeConcurrently(1, func() { authority.deleteSessionLeases(sessionID) })
+	if _, err := authority.ExchangeRelayUserToken(context.Background(), principal); err != nil || calls.Load() != 4 {
+		t.Fatalf("失效期间的换票结果被缓存: calls=%d err=%v", calls.Load(), err)
 	}
 }
 

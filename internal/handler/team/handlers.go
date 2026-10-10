@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -434,6 +435,10 @@ func (h *Handlers) writeRelayError(
 	mutation bool,
 ) {
 	status, failure := relayFailure(err, mutation)
+	var remote *relaycontract.RemoteError
+	if errors.As(err, &remote) && remote.RetryAfter > 0 {
+		writer.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(remote.RetryAfter.Seconds()))))
+	}
 	h.api.WriteError(writer, request, status, failure)
 }
 
@@ -450,6 +455,13 @@ func relayFailure(err error, mutation bool) (int, handlershared.FailureSpec) {
 		return http.StatusBadGateway, spec
 	}
 
+	if remote.StatusCode == http.StatusTooManyRequests {
+		spec.Code = "team.rate_limited"
+		spec.Category = protocol.FailureCategoryRateLimited
+		spec.Effect = requestEffect(mutation, true)
+		spec.Detail = "团队请求过于频繁，请稍后再试"
+		return http.StatusTooManyRequests, spec
+	}
 	switch remote.Code {
 	case "request_invalid":
 		spec.Code = "team.request_invalid"

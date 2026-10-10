@@ -13,7 +13,7 @@
 // node_files.go 仅消费当前轮次 deliverable 凭据，复用安全文件读取与 Relay 目录；冻结字节后重试，不扫描工作区。
 // PrepareRooms 从常驻目录批量准备入群 Agent；RecoverJob 仅在精确 round 已停止且远端回执确认后结束未知任务。
 // 消息附件凭精确投递租约下载并核验摘要，复用 Room.UploadConversationAttachment 与 ChatRequest.Attachments；Slash 原文进入同一原生展开入口。
-// node_watch.go 使用独立 Node Principal 订阅 Relay WS；复用 duework 合并唤醒和退避，无固定领取轮询。
+// node_watch.go 使用独立 Node Principal 订阅 Relay WS；复用 duework 合并唤醒和退避，无固定领取轮询；稳定超过 1 分钟的连接断开从最小退避重连，授权停用时每 30 秒复查。
 // 启动、连接初始提示、重连、授权变化和槽位释放触发持久待办对账；未知 running 不重跑，失败只重放原 claim/output。
 // 领取为空时删除该 claiming 记录，不留下无来源的完成任务；Control 以 401 拒绝设备凭据时本地授权转 revoked，等本人下次入群重新登记。
 // pending 返回的 next_due_at 交给 duework 一次性定时器，覆盖其他节点崩溃后的租约到期；空闲无任务不设定时扫描。

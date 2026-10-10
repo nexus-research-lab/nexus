@@ -11,6 +11,7 @@
 //
 // 暴露接口：Client、NewClient、CollectRoomMembers；方法消费 internal/relay 的独立合同。
 // WS 复用原生 Ping/Pong 检测半开连接，失败交由调用方恢复；不在 transport 重放业务命令。
+// 透传入口 X-Request-ID；429/503（含非 JSON 网关页）的 Retry-After 写入 RemoteError，由 duework 退避服从。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package relay

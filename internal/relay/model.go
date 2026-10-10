@@ -355,6 +355,16 @@ type RemoteError struct {
 	Code       string
 	Message    string
 	RequestID  string
+	// RetryAfter 来自 429/503 的 Retry-After；零表示远端未要求等待。
+	RetryAfter time.Duration
+}
+
+// RetryDelay 让通用重试循环服从远端要求的最短等待。
+func (e *RemoteError) RetryDelay() time.Duration {
+	if e == nil {
+		return 0
+	}
+	return e.RetryAfter
 }
 
 func (e *RemoteError) Error() string {

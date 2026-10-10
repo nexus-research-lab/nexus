@@ -53,7 +53,25 @@ func (a *ControlAuthority) ExchangeRelayUserToken(
 	if ok && now.Add(relayUserTokenMargin).Before(cached.expiresAt) {
 		return cached.token, nil
 	}
+	// 同一 Session 的并发未命中合并为一次 Control 往返；共享调用不随首个请求取消，由 HTTP 超时兜底。
+	flight := a.relayTokenFlights.DoChan(key, func() (any, error) {
+		return a.fetchRelayUserToken(context.WithoutCancel(ctx), principal.UserID, controlUserID, sessionID)
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case result := <-flight:
+		if result.Err != nil {
+			return "", result.Err
+		}
+		return result.Val.(string), nil
+	}
+}
 
+func (a *ControlAuthority) fetchRelayUserToken(ctx context.Context, localOwnerKey, controlUserID, sessionID string) (string, error) {
+	a.leaseMu.RLock()
+	epoch := a.relayTokenEpoch
+	a.leaseMu.RUnlock()
 	var response struct {
 		PrincipalToken string `json:"principal_token"`
 	}
@@ -69,14 +87,17 @@ func (a *ControlAuthority) ExchangeRelayUserToken(
 		return "", errors.New("Control 返回的 Relay Principal token 无效")
 	}
 	// Relay 负责验签；这里只读 exp 决定缓存时长，解析失败或超出 Control 上限时不缓存。
+	now := a.verifier.now().UTC()
 	if expiresAt, ok := principalTokenExpiry(token); ok && expiresAt.Sub(now) <= 5*time.Minute {
 		a.leaseMu.Lock()
-		for id, item := range a.relayTokens {
-			if !now.Before(item.expiresAt) {
-				delete(a.relayTokens, id)
+		if epoch == a.relayTokenEpoch {
+			for id, item := range a.relayTokens {
+				if !now.Before(item.expiresAt) {
+					delete(a.relayTokens, id)
+				}
 			}
+			a.relayTokens[controlUserID+"\x00"+sessionID] = cachedRelayUserToken{localOwnerKey: localOwnerKey, sessionID: sessionID, token: token, expiresAt: expiresAt}
 		}
-		a.relayTokens[key] = cachedRelayUserToken{localOwnerKey: principal.UserID, sessionID: sessionID, token: token, expiresAt: expiresAt}
 		a.leaseMu.Unlock()
 	}
 	return token, nil

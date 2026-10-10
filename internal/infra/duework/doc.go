@@ -5,7 +5,10 @@
 //
 // Members:
 //   - loop.go: coalesced wake, one-shot deadline timer, optional audit and
-//     bounded error retry lifecycle.
+//     bounded error retry lifecycle. Error retries use equal jitter, honor a
+//     RetryDelayer (HTTP Retry-After, capped at 5 minutes) over Notify, and
+//     restart from the minimum delay when Result.ResetBackoff marks a failure
+//     after a healthy run. ParseRetryAfter is the shared RFC 9110 parser.
 //
 // The package is deliberately unaware of databases and business states. A
 // durable domain row plus claim/CAS remains the source of truth. Coordinators

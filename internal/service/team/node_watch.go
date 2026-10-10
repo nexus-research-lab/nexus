@@ -13,7 +13,10 @@ import (
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
-const inactiveWatchRecheck = 30 * time.Second
+const (
+	inactiveWatchRecheck  = 30 * time.Second
+	stableWatchConnection = time.Minute
+)
 
 type nodeWatch struct {
 	credential string
@@ -65,6 +68,7 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 			return duework.Result{}, err
 		}
 		// Relay 提前请求换票，保持原 WS 和任务不变；每次仍重验本机授权。
+		connectedAt := time.Now()
 		err = e.relay.WatchDeliveries(ctx, token.Token, func(ctx context.Context) (string, error) {
 			current, err := e.activeGrant(ctx, grant)
 			if err != nil {
@@ -79,7 +83,8 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 		if errors.Is(err, ErrNodeInactive) {
 			return e.inactiveWatch(), nil
 		}
-		return duework.Result{}, err
+		// 稳定运行过的长连接断开是新故障，从最小退避重连，不继承历史失败的长等待。
+		return duework.Result{ResetBackoff: time.Since(connectedAt) >= stableWatchConnection}, err
 	})
 }
 

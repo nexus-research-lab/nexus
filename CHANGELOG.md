@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除只写不读的本地 Team 投影（迁移 00158 删除 `team_relay_*` 三张表）：Room 读写直连 Relay，Relay 是唯一权威，投影失败不再造成永久 503。
 - 本机节点执行：runtime 启动前的上下文、附件与续租拒绝统一本地失败并释放远端租约，不再卡在 ready；附件在启动 runtime 前准备；清理阶段不再把已完成任务改回失败；原节点被替换后的遗留任务可恢复；授权停用后恢复同一凭据时投递订阅不再永久空闲。
 - 共享文件上传有 2 分钟上限并接受任意 2xx；下载强制 `attachment`、`nosniff` 与 `sandbox` CSP，不再按远端 Content-Type 内联渲染。成员分页检测任意游标成环。
+- 重试与连接韧性：后台 duework 与浏览器 WebSocket 重连改为等量抖动退避，服务重启后不再同刻重连；稳定运行的节点长连接断开后从最小退避重连；Relay 429/503 的 `Retry-After`（含网关非 JSON 页）被后台重试服从，浏览器 Team 请求透传 429 与 `Retry-After`。
+- 同一 Session 并发换取 Relay 令牌合并为一次 Control 往返；身份失效期间完成的换票不再写回缓存。入口 `X-Request-ID` 透传至 Relay 与 Control，跨服务日志可按同一 ID 关联。
 
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
 

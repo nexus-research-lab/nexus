@@ -112,5 +112,6 @@ func (c *Client) RoomFiles(ctx context.Context, token, roomID, fileID, method st
 			r.Header.Set(name, value)
 		}
 	}
+	setRequestID(ctx, r.Header)
 	return c.wsClient.Do(r)
 }

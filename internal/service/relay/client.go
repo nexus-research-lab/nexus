@@ -19,6 +19,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
@@ -144,6 +146,7 @@ func (c *Client) watch(ctx context.Context, token, path string, query url.Values
 	parsed.Path = strings.TrimRight(parsed.Path, "/") + path
 	parsed.RawQuery = query.Encode()
 	header := http.Header{"Authorization": {"Bearer " + token}}
+	setRequestID(ctx, header)
 	connection, response, err := websocket.Dial(ctx, parsed.String(), &websocket.DialOptions{
 		HTTPClient: c.wsClient,
 		HTTPHeader: header,
@@ -223,14 +226,30 @@ func readRemoteError(response *http.Response) error {
 	}
 	var envelope responseEnvelope
 	if err = json.Unmarshal(payload, &envelope); err != nil {
+		if response.StatusCode == http.StatusTooManyRequests || response.StatusCode == http.StatusServiceUnavailable {
+			return remoteError(response, responseEnvelope{})
+		}
 		return fmt.Errorf("连接 Nexus Relay WSS: HTTP %d", response.StatusCode)
 	}
+	return remoteError(response, envelope)
+}
+
+func remoteError(response *http.Response, envelope responseEnvelope) *relaycontract.RemoteError {
 	return &relaycontract.RemoteError{
 		StatusCode: response.StatusCode,
 		Code:       strings.TrimSpace(envelope.Code),
 		Message:    strings.TrimSpace(envelope.Message),
 		RequestID:  strings.TrimSpace(envelope.RequestID),
+		RetryAfter: retryAfter(response),
 	}
+}
+
+// retryAfter 只在限流与暂不可用时有意义。
+func retryAfter(response *http.Response) time.Duration {
+	if response.StatusCode != http.StatusTooManyRequests && response.StatusCode != http.StatusServiceUnavailable {
+		return 0
+	}
+	return duework.ParseRetryAfter(response.Header.Get("Retry-After"))
 }
 
 // ListRooms 返回当前真人已加入的在线 Room。
@@ -442,6 +461,7 @@ func (c *Client) do(
 	if idempotencyKey != "" {
 		request.Header.Set("Idempotency-Key", idempotencyKey)
 	}
+	setRequestID(ctx, request.Header)
 	response, err := c.httpClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("调用 Nexus Relay: %w", err)
@@ -457,15 +477,14 @@ func (c *Client) do(
 	}
 	var envelope responseEnvelope
 	if err = json.Unmarshal(payload, &envelope); err != nil {
+		// 网关层限流/维护页通常不是 JSON，仍保留状态与 Retry-After 供退避使用。
+		if response.StatusCode == http.StatusTooManyRequests || response.StatusCode == http.StatusServiceUnavailable {
+			return remoteError(response, responseEnvelope{})
+		}
 		return fmt.Errorf("解析 Nexus Relay 响应: %w", err)
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices || envelope.Code != "0000" {
-		return &relaycontract.RemoteError{
-			StatusCode: response.StatusCode,
-			Code:       strings.TrimSpace(envelope.Code),
-			Message:    strings.TrimSpace(envelope.Message),
-			RequestID:  strings.TrimSpace(envelope.RequestID),
-		}
+		return remoteError(response, envelope)
 	}
 	if output == nil {
 		return nil
@@ -477,6 +496,13 @@ func (c *Client) do(
 		return fmt.Errorf("解析 Nexus Relay data: %w", err)
 	}
 	return nil
+}
+
+// setRequestID 透传入口请求的诊断 ID，让 Nexus、Relay 日志可按同一 ID 关联。
+func setRequestID(ctx context.Context, header http.Header) {
+	if requestID := logx.RequestID(ctx); requestID != "" {
+		header.Set("X-Request-ID", requestID)
+	}
 }
 
 func requireResourceID(value string, name string) (string, error) {
