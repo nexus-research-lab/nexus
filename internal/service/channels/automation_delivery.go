@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -143,7 +144,7 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
 		"round_id":    roundID,
-		"session_id":  stringPointerValue(sessionValue.SessionID),
+		"session_id":  textutil.PointerValue(sessionValue.SessionID),
 		"role":        "assistant",
 		"timestamp":   now.UnixMilli(),
 		"content":     []map[string]any{{"type": "text", "text": strings.TrimSpace(text)}},
@@ -151,25 +152,13 @@ func (c *sessionDeliveryChannel) projectAutomationAgentResult(
 		"is_complete": true,
 		"metadata":    metadata,
 	}
-	resultMessage := protocol.Message{
-		"message_id":      resultID,
-		"session_key":     sessionKey,
-		"agent_id":        parsed.AgentID,
-		"round_id":        roundID,
-		"session_id":      stringPointerValue(sessionValue.SessionID),
-		"parent_id":       assistantID,
-		"role":            "result",
-		"timestamp":       now.UnixMilli(),
-		"subtype":         "success",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"usage":           map[string]any{},
-		"total_cost_usd":  0.0,
-		"result":          strings.TrimSpace(text),
-		"is_error":        false,
-		"metadata":        metadata,
-	}
+	resultMessage := protocol.NewHostResultMessage(resultID, sessionKey, parsed.AgentID, roundID, "success", text, false)
+	resultMessage["session_id"] = textutil.PointerValue(sessionValue.SessionID)
+	resultMessage["parent_id"] = assistantID
+	resultMessage["timestamp"] = now.UnixMilli()
+	resultMessage["usage"] = map[string]any{}
+	resultMessage["total_cost_usd"] = 0.0
+	resultMessage["metadata"] = metadata
 	history := c.history.ForOwner(ownerUserID)
 	alreadyProjected, err := automationMessageExists(history, workspacePath, *sessionValue, assistantID)
 	if err != nil {

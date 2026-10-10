@@ -3,7 +3,10 @@
 // POS: 会话消息协议及其持久化来源边界。
 package protocol
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 const GoalCompletionReceiptField = "goal_completion_receipt"
 
@@ -163,4 +166,26 @@ type SessionRoundIndexItem struct {
 	IsLive         bool     `json:"is_live,omitempty"`
 	HasUserMessage bool     `json:"has_user_message,omitempty"`
 	AgentIDs       []string `json:"agent_ids,omitempty"`
+}
+
+// NewHostResultMessage 构造宿主补写的 result 消息：没有 SDK 计时与轮数；text 为空时不写 result。
+// 调用方按场景追加 room、parent、usage 等字段。
+func NewHostResultMessage(messageID, sessionKey, agentID, roundID, subtype, text string, isError bool) Message {
+	message := Message{
+		"message_id":      messageID,
+		"session_key":     sessionKey,
+		"agent_id":        agentID,
+		"round_id":        roundID,
+		"role":            "result",
+		"subtype":         subtype,
+		"duration_ms":     0,
+		"duration_api_ms": 0,
+		"num_turns":       0,
+		"is_error":        isError,
+		"timestamp":       time.Now().UnixMilli(),
+	}
+	if text = strings.TrimSpace(text); text != "" {
+		message["result"] = text
+	}
+	return message
 }

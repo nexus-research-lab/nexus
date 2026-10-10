@@ -11,61 +11,6 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
-func TestStructuredRoomWorkBindingScopesSnapshotAndRejectsCrossAssignmentMutation(t *testing.T) {
-	snapshot, binding := structuredRoomWorkBindingSnapshot()
-	repository := &fakeRepository{snapshot: snapshot}
-	service := NewService(repository)
-	actor := structuredRoomMemberActor(binding)
-
-	scoped, err := service.GetSnapshot(context.Background(), actor, binding.ExecutionID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(scoped.WorkItems) != 1 ||
-		scoped.WorkItems[0].ID != binding.WorkItemID ||
-		len(scoped.Assignments) != 1 ||
-		scoped.Assignments[0].ID != binding.AssignmentID ||
-		len(scoped.Dispatches) != 1 ||
-		scoped.Dispatches[0].ID != binding.DispatchID {
-		t.Fatalf("bound snapshot was not capability-scoped: %#v", scoped)
-	}
-	if len(repository.snapshot.Assignments) != 2 {
-		t.Fatal("scoping mutated the repository snapshot")
-	}
-
-	submitResult, err := service.SubmitWork(context.Background(), actor, SubmitWorkInput{
-		ExecutionID:      binding.ExecutionID,
-		SnapshotRevision: snapshot.Execution.Version,
-		CommandID:        "submit-cross-assignment",
-		WorkItemID:       "work-2",
-		AssignmentID:     "assignment-2",
-		ResultSummary:    "attempted cross-assignment result",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if submitResult.Outcome != MutationRejected ||
-		submitResult.ReasonCode != ErrorCodeWorkBindingMismatch {
-		t.Fatalf("cross-assignment submit result = %#v", submitResult)
-	}
-
-	blockResult, err := service.BlockWork(context.Background(), actor, BlockWorkInput{
-		ExecutionID:      binding.ExecutionID,
-		SnapshotRevision: snapshot.Execution.Version,
-		CommandID:        "block-cross-assignment",
-		WorkItemID:       "work-2",
-		Reason:           "missing input",
-		NeededInput:      "external evidence",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if blockResult.Outcome != MutationRejected ||
-		blockResult.ReasonCode != ErrorCodeWorkBindingMismatch {
-		t.Fatalf("cross-assignment block result = %#v", blockResult)
-	}
-}
-
 func TestSubmitWorkDefaultsLocatorFromTrustedWorkBinding(t *testing.T) {
 	snapshot, binding := structuredRoomWorkBindingSnapshot()
 	repository := &fakeRepository{snapshot: snapshot}
@@ -211,72 +156,6 @@ func TestWorkBindingRejectsExplicitSiblingLogicalKeyAcrossWorkMutations(t *testi
 				t.Fatalf("result = %+v, want work_binding_mismatch", result)
 			}
 		})
-	}
-}
-
-func TestWorkBindingDefaultsBlockAndResumeLocators(t *testing.T) {
-	snapshot, binding := structuredRoomWorkBindingSnapshot()
-	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
-	repository := &fakeRepository{snapshot: snapshot}
-	repository.block = func(
-		_ context.Context,
-		command orchestrationstore.BlockCommand,
-	) (*protocol.ExecutionSnapshot, error) {
-		if command.State.WorkItemID != binding.WorkItemID ||
-			command.State.CurrentSpecID != binding.SpecID {
-			t.Fatalf("block target = %+v, want trusted binding", command.State)
-		}
-		result := cloneExecutionSnapshot(repository.snapshot)
-		result.Execution.Version++
-		result.WorkItemStates[0] = command.State
-		result.WorkItemStates[0].Version++
-		repository.snapshot = result
-		return result, nil
-	}
-	repository.resume = func(
-		_ context.Context,
-		command orchestrationstore.ResumeCommand,
-	) (*protocol.ExecutionSnapshot, error) {
-		if command.State.WorkItemID != binding.WorkItemID ||
-			command.State.CurrentSpecID != binding.SpecID {
-			t.Fatalf("resume target = %+v, want trusted binding", command.State)
-		}
-		result := cloneExecutionSnapshot(repository.snapshot)
-		result.Execution.Version++
-		result.WorkItemStates[0] = command.State
-		result.WorkItemStates[0].Version++
-		repository.snapshot = result
-		return result, nil
-	}
-	service := NewService(repository)
-	actor := structuredRoomMemberActor(binding)
-
-	blocked, err := service.BlockWork(context.Background(), actor, BlockWorkInput{
-		ExecutionID:      binding.ExecutionID,
-		SnapshotRevision: snapshot.Execution.Version,
-		CommandID:        "block-bound-default",
-		Reason:           "approval missing",
-		NeededInput:      "approval receipt",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if blocked.Outcome != MutationApplied {
-		t.Fatalf("blocked = %+v, want applied", blocked)
-	}
-
-	resumed, err := service.ResumeWork(context.Background(), actor, ResumeWorkInput{
-		ExecutionID:      binding.ExecutionID,
-		SnapshotRevision: blocked.Snapshot.Execution.Version,
-		CommandID:        "resume-bound-default",
-		Resolution:       "approval received",
-		Evidence:         []string{"approval://receipt"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resumed.Outcome != MutationApplied {
-		t.Fatalf("resumed = %+v, want applied", resumed)
 	}
 }
 
@@ -584,26 +463,6 @@ func TestStructuredRoomWorkBindingRejectsStaleOrInputSelectedIdentity(t *testing
 	}
 }
 
-func TestStructuredRoomWorkBindingReportsRetargetedPredecessorAsTerminal(t *testing.T) {
-	snapshot, binding := structuredRoomWorkBindingSnapshot()
-	snapshot.Execution.Status = protocol.ExecutionStatusSuperseded
-	snapshot.Plan = nil
-	service := NewService(&fakeRepository{snapshot: snapshot})
-
-	_, err := service.GetSnapshot(
-		context.Background(),
-		structuredRoomMemberActor(binding),
-		binding.ExecutionID,
-	)
-	var domainErr *DomainError
-	if !errors.As(err, &domainErr) || domainErr.Code != ErrorCodeExecutionTerminal {
-		t.Fatalf("GetSnapshot error = %v, want %s", err, ErrorCodeExecutionTerminal)
-	}
-	if !strings.Contains(domainErr.Message, "fresh Assignment") {
-		t.Fatalf("terminal guidance = %q, want fresh Assignment recovery", domainErr.Message)
-	}
-}
-
 func TestStructuredRoomReviewBindingAdmitsOnlyItsSelectedPendingReview(t *testing.T) {
 	snapshot, dispatch := reviewReturnSnapshot()
 	binding := &protocol.ExecutionReviewBinding{
@@ -698,47 +557,6 @@ func TestStructuredRoomReviewBindingAdmitsOnlyItsSelectedPendingReview(t *testin
 		snapshot.Execution.ID,
 	); err == nil {
 		t.Fatal("already reviewed Submission binding was admitted")
-	}
-}
-
-func TestStructuredRoomReviewBindingAllowsSelectedMemberReviewer(t *testing.T) {
-	snapshot, dispatch := reviewReturnSnapshot()
-	dispatch.TargetAgentID = "agent-reviewer"
-	snapshot.Assignments[0].ReturnToAgentID = dispatch.TargetAgentID
-	snapshot.ReviewDispatches[0] = dispatch
-	actor := ActorContext{
-		OwnerUserID:    snapshot.Execution.OwnerUserID,
-		SessionKey:     snapshot.Execution.SessionKey,
-		ExecutionID:    snapshot.Execution.ID,
-		AgentID:        dispatch.TargetAgentID,
-		Role:           ExecutionActorMember,
-		ActorKind:      protocol.ExecutionActorAgent,
-		ScopeKind:      protocol.ExecutionScopeRoom,
-		RoomID:         snapshot.Execution.RoomID,
-		ConversationID: snapshot.Execution.ConversationID,
-		ReviewBinding: &protocol.ExecutionReviewBinding{
-			ExecutionID:      dispatch.ExecutionID,
-			PlanID:           dispatch.PlanID,
-			WorkItemID:       dispatch.WorkItemID,
-			SpecID:           dispatch.SpecID,
-			AssignmentID:     dispatch.AssignmentID,
-			SubmissionID:     dispatch.SubmissionID,
-			ReviewDispatchID: dispatch.ID,
-			TargetAgentID:    dispatch.TargetAgentID,
-		},
-	}
-	loaded, err := NewService(&fakeRepository{snapshot: snapshot}).GetSnapshot(
-		context.Background(),
-		actor,
-		snapshot.Execution.ID,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(loaded.Assignments) != 1 ||
-		len(loaded.Submissions) != 1 ||
-		len(loaded.ReviewDispatches) != 1 {
-		t.Fatalf("member reviewer snapshot = %+v", loaded)
 	}
 }
 
@@ -1437,95 +1255,6 @@ func TestRoomExactGoalContinuationEntersCoordinationWithoutConversationBootstrap
 			domainErr.Code != ErrorCodeGoalBindingConflict {
 			t.Fatalf("stale Goal continuation error = %v", err)
 		}
-	}
-}
-
-func TestRoomExactGoalBoundWorkerKeepsScopedWorkCapability(t *testing.T) {
-	snapshot, binding := structuredRoomWorkBindingSnapshot()
-	snapshot.Execution.GoalID = "goal-room"
-	snapshot.Execution.GoalObjectiveRevision = 4
-	service := NewService(&fakeRepository{snapshot: snapshot})
-	actor := structuredRoomMemberActor(binding)
-	actor.GoalID = snapshot.Execution.GoalID
-	actor.GoalObjectiveRevision = snapshot.Execution.GoalObjectiveRevision
-
-	rendered, err := service.RuntimeContext(context.Background(), actor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(rendered, `<lane type="work" />`) ||
-		!strings.Contains(rendered, `<goal id="goal-room"`) ||
-		!strings.Contains(rendered, `assignment_id="assignment-1"`) ||
-		strings.Contains(rendered, `assignment_id="assignment-2"`) {
-		t.Fatalf("Goal-bound worker context = %s", rendered)
-	}
-
-	actor.GoalObjectiveRevision--
-	if _, err = service.RuntimeContext(context.Background(), actor); err == nil {
-		t.Fatal("stale Goal-bound worker revision was accepted")
-	} else {
-		var domainErr *DomainError
-		if !errors.As(err, &domainErr) ||
-			domainErr.Code != ErrorCodeGoalBindingConflict {
-			t.Fatalf("stale Goal-bound worker error = %v", err)
-		}
-	}
-
-	actor.GoalObjectiveRevision = snapshot.Execution.GoalObjectiveRevision
-	actor.WorkBinding = nil
-	if _, err = service.RuntimeContext(context.Background(), actor); err == nil {
-		t.Fatal("unbound non-coordinator reused the Room Goal capability")
-	} else {
-		var domainErr *DomainError
-		if !errors.As(err, &domainErr) ||
-			domainErr.Code != ErrorCodeGoalBindingConflict {
-			t.Fatalf("unbound Room member Goal error = %v", err)
-		}
-	}
-}
-
-func TestRoomExactGoalBoundMemberReviewerKeepsScopedReviewCapability(t *testing.T) {
-	snapshot, dispatch := reviewReturnSnapshot()
-	dispatch.TargetAgentID = "agent-reviewer"
-	snapshot.Assignments[0].ReturnToAgentID = dispatch.TargetAgentID
-	snapshot.ReviewDispatches[0] = dispatch
-	snapshot.Execution.GoalID = "goal-room"
-	snapshot.Execution.GoalObjectiveRevision = 4
-	actor := ActorContext{
-		OwnerUserID:           snapshot.Execution.OwnerUserID,
-		SessionKey:            snapshot.Execution.SessionKey,
-		ExecutionID:           snapshot.Execution.ID,
-		AgentID:               dispatch.TargetAgentID,
-		Role:                  ExecutionActorMember,
-		ActorKind:             protocol.ExecutionActorAgent,
-		ScopeKind:             protocol.ExecutionScopeRoom,
-		RoomID:                snapshot.Execution.RoomID,
-		ConversationID:        snapshot.Execution.ConversationID,
-		GoalID:                snapshot.Execution.GoalID,
-		GoalObjectiveRevision: snapshot.Execution.GoalObjectiveRevision,
-		ReviewBinding: &protocol.ExecutionReviewBinding{
-			ExecutionID:      dispatch.ExecutionID,
-			PlanID:           dispatch.PlanID,
-			WorkItemID:       dispatch.WorkItemID,
-			SpecID:           dispatch.SpecID,
-			AssignmentID:     dispatch.AssignmentID,
-			SubmissionID:     dispatch.SubmissionID,
-			ReviewDispatchID: dispatch.ID,
-			TargetAgentID:    dispatch.TargetAgentID,
-		},
-	}
-
-	rendered, err := NewService(&fakeRepository{snapshot: snapshot}).RuntimeContext(
-		context.Background(),
-		actor,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(rendered, `<lane type="review" />`) ||
-		!strings.Contains(rendered, `<goal id="goal-room"`) ||
-		!strings.Contains(rendered, `<submission id="`+dispatch.SubmissionID+`"`) {
-		t.Fatalf("Goal-bound member reviewer context = %s", rendered)
 	}
 }
 

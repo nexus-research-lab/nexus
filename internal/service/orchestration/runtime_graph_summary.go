@@ -13,6 +13,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/toolpolicy"
 )
@@ -64,7 +65,7 @@ func runtimeGraphLifecycleEvents(
 			continue
 		}
 		result = append(result, sdkprotocol.RuntimeLifecycleEvent{
-			EventID:     firstNonEmpty(message.UUID, message.SessionID, "runtime") + ":tool:summary:" + toolUseID,
+			EventID:     textutil.FirstNonEmpty(message.UUID, message.SessionID, "runtime") + ":tool:summary:" + toolUseID,
 			NodeKind:    sdkprotocol.RuntimeLifecycleNodeTool,
 			Phase:       sdkprotocol.RuntimeLifecycleProgress,
 			SubjectID:   toolUseID,
@@ -90,7 +91,7 @@ func runtimeGraphSubagentToolEvents(
 	if !ok {
 		return nil
 	}
-	parentToolUseID := firstNonEmpty(
+	parentToolUseID := textutil.FirstNonEmpty(
 		strings.TrimSpace(message.Attachment.ToolUseID),
 		mapString(data, "toolUseId"),
 		mapString(data, "tool_use_id"),
@@ -188,7 +189,7 @@ func runtimeGraphEvidenceForEvent(
 	event sdkprotocol.RuntimeLifecycleEvent,
 ) runtimeGraphNodeEvidence {
 	evidence := runtimeGraphNodeEvidence{
-		retryOfSubjectID: firstNonEmpty(
+		retryOfSubjectID: textutil.FirstNonEmpty(
 			strings.TrimSpace(event.Metadata["retry_of_subject_id"]),
 			strings.TrimSpace(event.Metadata["retry_of_tool_use_id"]),
 			strings.TrimSpace(event.Metadata["retry_of_task_id"]),
@@ -256,7 +257,7 @@ func applyRuntimeToolResultEvidence(
 		); ok {
 			evidence.commandIdentity = identity
 		}
-		evidence.errorCode = firstNonEmpty(
+		evidence.errorCode = textutil.FirstNonEmpty(
 			mutationResult.ReasonCode,
 			mapString(raw, "error_code"),
 			mapString(raw, "code"),

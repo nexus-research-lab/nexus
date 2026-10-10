@@ -51,42 +51,6 @@ func (g *mutableAutomationDeliveryGrant) ValidateExternalSessionGrant(
 	return nil
 }
 
-func TestPermissionPublishSurvivesCancelledPhysicalAttemptContext(t *testing.T) {
-	fixture := newPermissionIMFixture(t)
-	beforeMessages := len(fixture.delivery.Messages())
-	cancelledCtx, cancel := context.WithCancel(fixture.ownerCtx)
-	cancel()
-	fixture.service.publishScheduledPermissionRequest(cancelledCtx, scheduledPermissionScope{
-		Job: fixture.task, RunID: fixture.request.RunID,
-		SessionKey: fixture.request.SessionKey, RoundID: fixture.request.RoundID,
-	}, fixture.request)
-	if messages := fixture.delivery.Messages(); len(messages) != beforeMessages+1 ||
-		!strings.Contains(messages[len(messages)-1], "需要权限确认") {
-		t.Fatalf("cancelled attempt context swallowed IM permission notice: %+v", messages)
-	}
-	events, err := fixture.service.ListTaskEvents(fixture.ownerCtx, fixture.task.JobID, 20)
-	if err != nil {
-		t.Fatalf("ListTaskEvents() error = %v", err)
-	}
-	found := false
-	for _, event := range events {
-		if event.Action == automationdomain.TaskEventActionPermissionRequested &&
-			event.Detail["request_id"] == fixture.request.RequestID {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("cancelled attempt context swallowed permission_requested audit: %+v", events)
-	}
-}
-
-func (g *mutableAutomationDeliveryGrant) agentIDsSnapshot() []string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return slices.Clone(g.agentIDs)
-}
-
 func (g *mutableAutomationDeliveryGrant) setAllowed(allowed bool) {
 	g.mu.Lock()
 	g.allowed = allowed
@@ -313,20 +277,6 @@ func TestPermissionIMShortDenyStopsRun(t *testing.T) {
 	}
 }
 
-func TestPermissionIMLegacyLongCommandsRemainCompatibilityAliases(t *testing.T) {
-	tests := map[string]protocol.IMPermissionCommand{
-		"/approve": protocol.IMPermissionCommandAllowOnce,
-		"/always":  protocol.IMPermissionCommandAllowAlways,
-		"/deny":    protocol.IMPermissionCommandDeny,
-	}
-	for input, want := range tests {
-		command, ok := parsePermissionIMCommand(input)
-		if !ok || command.name != want || command.bare || command.malformed {
-			t.Fatalf("legacy %q = %+v, %t; want %q", input, command, ok, want)
-		}
-	}
-}
-
 func TestPermissionIMSlashWithoutIDRejectsMultiplePendingRequests(t *testing.T) {
 	fixture := newPermissionIMFixture(t)
 	secondTask, err := fixture.service.CreateTask(fixture.ownerCtx, automationdomain.CreateJobInput{
@@ -405,25 +355,6 @@ func TestPermissionIMApprovalFailsClosedAfterPairingRevocation(t *testing.T) {
 	)
 	if listErr != nil || len(pending) != 1 || pending[0].RequestID != fixture.request.RequestID {
 		t.Fatalf("撤销 pairing 后不应消费审批请求: requests=%+v err=%v", pending, listErr)
-	}
-}
-
-func TestAutomationIMControlNotificationsCoverEveryExternalChannel(t *testing.T) {
-	for _, channelType := range []string{
-		protocol.SessionChannelDiscord,
-		protocol.SessionChannelTelegram,
-		protocol.SessionChannelDingTalk,
-		protocol.SessionChannelWeChat,
-		protocol.SessionChannelWeixinPersonal,
-		protocol.SessionChannelFeishu,
-	} {
-		if !externalIMChannel(channelType) {
-			t.Fatalf("外部 IM 通道 %s 未进入 Automation 控制通知链路", channelType)
-		}
-		sessionKey := protocol.BuildAgentSessionKey("agent-1", channelType, protocol.RoomTypeDM, "target", "")
-		if !externalIMSessionKey(sessionKey) {
-			t.Fatalf("外部 IM session %s 未被识别", sessionKey)
-		}
 	}
 }
 

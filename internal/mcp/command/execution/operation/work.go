@@ -313,11 +313,7 @@ func applyMutationResponsibilityAuthority(
 		changed = applyMutationWorkBindingTransition(sctx, result) || changed
 	}
 	if sctx.ResponsibilityAuthority != nil && result.Snapshot != nil {
-		switch result.Snapshot.Execution.Status {
-		case protocol.ExecutionStatusCompleted,
-			protocol.ExecutionStatusFailed,
-			protocol.ExecutionStatusCancelled,
-			protocol.ExecutionStatusSuperseded:
+		if result.Snapshot.Execution.Status.Terminal() {
 			changed = sctx.ResponsibilityAuthority.RevokeExecution(
 				result.Snapshot.Execution.ID,
 			) || changed

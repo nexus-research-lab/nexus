@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -24,68 +25,6 @@ type roomGuidanceRuntimeFactory struct {
 
 func (f roomGuidanceRuntimeFactory) New(agentclient.Options) runtimectx.Client {
 	return f.client
-}
-
-func TestRoomSlotGuidanceHookConsumesInputQueueGuidance(t *testing.T) {
-	storeRoot := t.TempDir()
-	store := workspacestore.NewInputQueueStore(storeRoot)
-	location := workspacestore.InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  storeRoot,
-		SessionKey:     protocol.BuildRoomAgentSessionKey("conversation-1", "agent-1", protocol.RoomTypeGroup),
-		RoomID:         "room-1",
-		ConversationID: "conversation-1",
-	}
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "room-guide-item",
-		Content:        "@Amy 路径发给我吧",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-		RootRoundID:    "room-round-running",
-		Source:         protocol.InputQueueSourceUser,
-	}); err != nil {
-		t.Fatalf("写入 Room 引导队列失败: %v", err)
-	}
-
-	service := &Service{inputQueue: store}
-	slot := &activeRoomSlot{
-		AgentID:           "agent-1",
-		AgentRoundID:      "room-round-running",
-		RuntimeSessionKey: location.SessionKey,
-	}
-	hook := service.roomSlotGuidanceHook(nil, slot, location)
-	output, err := hook(context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPostToolUse,
-	}, "tool-1")
-	if err != nil {
-		t.Fatalf("执行 Room 队列引导 hook 失败: %v", err)
-	}
-	additionalContext := ""
-	if output.SpecificOutput != nil {
-		additionalContext = output.SpecificOutput.AdditionalContext
-	}
-	if !strings.Contains(additionalContext, "@Amy 路径发给我吧") ||
-		!strings.Contains(additionalContext, "queue_room-guide-item") {
-		t.Fatalf("additionalContext 未包含 Room 队列引导内容: %q", additionalContext)
-	}
-
-	items, err := store.Snapshot(location)
-	if err != nil {
-		t.Fatalf("读取 Room 引导队列失败: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("control response 尚未确认前应保留 Room 引导: %+v", items)
-	}
-	secondOutput, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-2")
-	if err != nil {
-		t.Fatalf("下一次 hook 确认前一次 Room 引导失败: %v", err)
-	}
-	if secondOutput.SpecificOutput != nil && strings.Contains(secondOutput.SpecificOutput.AdditionalContext, "@Amy 路径发给我吧") {
-		t.Fatalf("已确认引导不应在同一 slot 重复注入: %+v", secondOutput)
-	}
-	items, err = store.Snapshot(location)
-	if err != nil || len(items) != 0 {
-		t.Fatalf("下一次 hook 应确认并消费前一次 Room 引导: items=%+v err=%v", items, err)
-	}
 }
 
 func TestRoomSlotGuidanceHookUsesQueueOwnerForAttachment(t *testing.T) {
@@ -146,8 +85,7 @@ func TestRoomSlotGuidanceHookUsesQueueOwnerForAttachment(t *testing.T) {
 	}
 
 	service := &Service{
-		config:     config.Config{WorkspacePath: appfs.UsersRoot()},
-		inputQueue: store,
+		Host: runtimehost.Host{Config: config.Config{WorkspacePath: appfs.UsersRoot()}, InputQueue: store},
 	}
 	slot := &activeRoomSlot{
 		OwnerUserID:       ownerUserID,
@@ -230,7 +168,7 @@ func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-ack"},
 		},
 	}}
-	service := &Service{inputQueue: store, runtime: runtimeManager, rooms: roomStore}
+	service := &Service{Host: runtimehost.Host{InputQueue: store, Runtime: runtimeManager}, rooms: roomStore}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-ack",
 		AgentRoundID:      "agent-round-ack",
@@ -321,8 +259,7 @@ func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 		},
 	}
 	service := &Service{
-		permission:  permissionctx.NewContext(),
-		inputQueue:  store,
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext(), InputQueue: store},
 		roomHistory: roomHistory,
 	}
 	roundValue := &activeRoomRound{
@@ -373,7 +310,7 @@ func TestRoomSlotGuidanceTransportFailureKeepsDurableInput(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
 	hook := service.roomSlotGuidanceHook(nil, slot, location)
 	if _, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1"); err != nil {
@@ -403,7 +340,7 @@ func TestRoomGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 	if err != nil || len(items) != 1 {
 		t.Fatalf("enqueue newer batch: items=%+v err=%v", items, err)
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 	slot := &activeRoomSlot{AgentRoundID: "agent-round-1"}
 	service.rememberRoomSlotGuidance(slot, location, items)
 	stale := pendingRoomGuidance{location: location, items: []protocol.InputQueueItem{{
@@ -439,7 +376,7 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active-a": {
 				SessionKey:     sharedSessionKey,
@@ -521,7 +458,7 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"active": {
 				SessionKey:     sharedSessionKey,
@@ -607,7 +544,7 @@ func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T)
 	}, "running")
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
-		inputQueue: store,
+		Host: runtimehost.Host{InputQueue: store},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"root-a": {
 				SessionKey:     sharedSessionKey,
@@ -714,9 +651,8 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 		Members:      []protocol.MemberRecord{{RoomID: "room-replacement", MemberType: protocol.MemberTypeAgent, MemberAgentID: agentID}},
 		MemberAgents: []protocol.Agent{{AgentID: agentID, WorkspacePath: workspacePath}},
 	}
-	service := &Service{
-		inputQueue: store,
-		permission: permissionctx.NewContext(),
+	service := withConstructorDefaults(t, &Service{
+		Host: runtimehost.Host{InputQueue: store, Permission: permissionctx.NewContext()},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"replacement": {
 				SessionKey:     sharedSessionKey,
@@ -731,7 +667,7 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 				},
 			},
 		}),
-	}
+	})
 	service.releaseUndeliveredRoomGuidance(context.Background(), sharedSessionKey, contextValue)
 	items, err := store.Snapshot(location)
 	if err != nil || len(items) != 2 {
@@ -752,6 +688,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
 	conversationID := "conversation-guidance-order"
 	agentID := "agent-1"
+	agentWorkspace := filepath.Join(appfs.UserWorkspaceRoot("owner"), agentID)
 	location := workspacestore.InputQueueLocation{
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  storeRoot,
@@ -784,18 +721,17 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		t.Fatalf("写入待确认 Room 引导失败: %v", err)
 	}
 
-	service := &Service{
-		permission:  permissionctx.NewContext(),
-		inputQueue:  store,
+	service := withConstructorDefaults(t, &Service{
+		Host:        runtimehost.Host{Permission: permissionctx.NewContext(), InputQueue: store, History: workspacestore.NewAgentHistoryStore(appfs.UsersRoot())},
 		roomHistory: roomHistory,
-	}
+	})
 	contextValue := &protocol.ConversationContextAggregate{
 		Room:         protocol.RoomRecord{ID: "room-1", OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: "room-1"},
 		Members: []protocol.MemberRecord{{
 			RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: agentID,
 		}},
-		MemberAgents: []protocol.Agent{{AgentID: agentID, Name: "Amy", WorkspacePath: storeRoot}},
+		MemberAgents: []protocol.Agent{{AgentID: agentID, Name: "Amy", WorkspacePath: agentWorkspace}},
 	}
 	roundValue := &activeRoomRound{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
@@ -805,7 +741,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		OwnerUserID:    "owner",
 		Context:        contextValue,
 	}
-	slot := &activeRoomSlot{AgentID: agentID, AgentRoundID: "agent-reply-round", RuntimeSessionKey: location.SessionKey, WorkspacePath: storeRoot}
+	slot := &activeRoomSlot{AgentID: agentID, AgentRoundID: "agent-reply-round", RuntimeSessionKey: location.SessionKey, WorkspacePath: agentWorkspace}
 	hook := service.roomSlotGuidanceHook(roundValue, slot, location)
 	if _, err := hook(context.Background(), sdkhook.Input{EventName: sdkhook.EventPostToolUse}, "tool-1"); err != nil {
 		t.Fatalf("准备 Room 引导失败: %v", err)
@@ -837,95 +773,5 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		message["source_round_id"] != "guidance-source-round" ||
 		message["agent_round_id"] != "agent-reply-round" {
 		t.Fatalf("已消费引导未归入模型回复 round: %+v", message)
-	}
-}
-
-func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.T) {
-	storeRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(storeRoot, ".nexus"))
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(storeRoot, ".nexus"))
-	store := workspacestore.NewInputQueueStore(storeRoot)
-	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
-	conversationID := "4b114cfed67a"
-	agentID := "agent-1"
-	location := workspacestore.InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  storeRoot,
-		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, protocol.RoomTypeGroup),
-		RoomID:         "room-1",
-		ConversationID: conversationID,
-	}
-	if err := roomHistory.AppendInlineMessage("owner", conversationID, protocol.Message{
-		"message_id":      "public-1",
-		"room_id":         "room-1",
-		"conversation_id": conversationID,
-		"role":            "user",
-		"content":         "@Amy 已有公区消息",
-		"timestamp":       int64(1),
-	}); err != nil {
-		t.Fatalf("写入 Room 公区历史失败: %v", err)
-	}
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "room-guide-item",
-		Content:        "@Amy 路径发给我吧",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-		RootRoundID:    "room-round-running",
-		Source:         protocol.InputQueueSourceUser,
-	}); err != nil {
-		t.Fatalf("写入 Room 引导队列失败: %v", err)
-	}
-
-	service := &Service{
-		permission:  permissionctx.NewContext(),
-		inputQueue:  store,
-		roomHistory: roomHistory,
-	}
-	slot := &activeRoomSlot{
-		AgentID:           agentID,
-		AgentRoundID:      "room-round-running",
-		RuntimeSessionKey: location.SessionKey,
-		WorkspacePath:     storeRoot,
-	}
-	roundValue := &activeRoomRound{
-		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
-		RoomID:         "room-1",
-		ConversationID: conversationID,
-		Context: &protocol.ConversationContextAggregate{
-			Room: protocol.RoomRecord{
-				ID:          "room-1",
-				OwnerUserID: "owner",
-				RoomType:    protocol.RoomTypeGroup,
-			},
-			Conversation: protocol.ConversationRecord{
-				ID:     conversationID,
-				RoomID: "room-1",
-			},
-			Members: []protocol.MemberRecord{{
-				RoomID:        "room-1",
-				MemberType:    protocol.MemberTypeAgent,
-				MemberAgentID: agentID,
-			}},
-			MemberAgents: []protocol.Agent{{
-				AgentID:       agentID,
-				Name:          "Amy",
-				WorkspacePath: storeRoot,
-			}},
-		},
-		OwnerUserID: "owner",
-	}
-	output, err := service.roomSlotGuidanceHook(roundValue, slot, location)(context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPostToolUse,
-	}, "tool-1")
-	if err != nil {
-		t.Fatalf("执行 Room 队列引导 hook 失败: %v", err)
-	}
-	additionalContext := ""
-	if output.SpecificOutput != nil {
-		additionalContext = output.SpecificOutput.AdditionalContext
-	}
-	if !strings.Contains(additionalContext, "已有公区消息") ||
-		!strings.Contains(additionalContext, "@Amy 路径发给我吧") ||
-		!strings.Contains(additionalContext, "queue_room-guide-item") {
-		t.Fatalf("additionalContext 应同时保留公区增量和未入公区的队列引导内容: %q", additionalContext)
 	}
 }

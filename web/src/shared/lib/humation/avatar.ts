@@ -1,6 +1,7 @@
 // INPUT: 版本化头像短标识或显式部件和颜色。
 // OUTPUT: 经白名单校验的头像配置和本地 SVG 图片地址。
 // POS: 内置 Humation 的唯一持久化与渲染适配，不接受外部 SVG。
+import { generateUuid } from "@/lib/uuid";
 import { manifest } from "./assets";
 import { createAvatar, fnv1a } from "./create-avatar";
 import { nexusParts } from "./nexus-parts";
@@ -63,7 +64,7 @@ export function getHumationAvatarSrc(value: string): string | null {
 
 /** 随机组合只在用户操作或创建草稿时生成，保存后保持身份稳定。 */
 export function getRandomHumationAvatar(): string {
-  return encodeAvatar(createAvatarState(crypto.randomUUID()));
+  return encodeAvatar(createAvatarState(generateUuid()));
 }
 
 /** 子智能体按精确工具/任务身份生成，不随名称和执行状态变化。 */

@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -28,17 +29,17 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 
 func (s *Service) shouldDeferGoalContinuation(ctx context.Context, sessionKey string, dispatchQueuedInput bool) bool {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false
 	}
 	parsed := protocol.ParseSessionKey(sessionKey)
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
-		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
+		return s.Runtime != nil && len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	if s.rooms == nil {
 		// Tests and reduced embeddings may not configure the Room repository. In
 		// that case the shared runtime is the only safe source of busy state.
-		return s.runtime != nil && len(s.runtime.GetRunningRoundIDs(sessionKey)) > 0
+		return s.Runtime != nil && len(s.Runtime.GetRunningRoundIDs(sessionKey)) > 0
 	}
 	lease := s.lockRoomDispatch(sessionKey, parsed.ConversationID)
 	defer lease.Unlock()
@@ -55,19 +56,19 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
-			s.loggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("解析 Room Goal 续跑待发送队列上下文失败", "session_key", sessionKey, "err", err)
 		}
 		return false
 	}
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 续跑待发送队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
 	if provider, ok := s.goals.(currentGoalProvider); ok {
 		currentGoal, goalErr := provider.CurrentOptional(ctx, sessionKey)
 		if goalErr != nil {
-			s.loggerFor(ctx).Warn("读取 Room Goal queue revision 失败", "session_key", sessionKey, "err", goalErr)
+			s.LoggerFor(ctx).Warn("读取 Room Goal queue revision 失败", "session_key", sessionKey, "err", goalErr)
 			return true
 		}
 		entries, err = s.pruneStaleGoalCollaborationQueueEntries(
@@ -78,7 +79,7 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 			currentGoal,
 		)
 		if err != nil {
-			s.loggerFor(ctx).Warn("清理过期 Room Goal queue 失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("清理过期 Room Goal queue 失败", "session_key", sessionKey, "err", err)
 			return true
 		}
 	}
@@ -96,7 +97,7 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	}
 	if dispatchQueuedInput {
 		s.dispatchNextInputQueueItemLocked(
-			contextWithExactQueueOwner(ctx, entry.Item.OwnerUserID),
+			runtimehost.ContextWithExactOwner(ctx, entry.Item.OwnerUserID),
 			sessionKey,
 			contextValue.Room.ID,
 			contextValue.Conversation.ID,
@@ -105,25 +106,12 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	return true
 }
 
-func (s *Service) shouldDeferGoalContinuationForTargetState(
-	ctx context.Context,
-	sessionKey string,
-	contextValue *protocol.ConversationContextAggregate,
-) bool {
-	if contextValue == nil {
-		return false
-	}
-	lease := s.lockRoomDispatch(sessionKey, contextValue.Conversation.ID)
-	defer lease.Unlock()
-	return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
-}
-
 func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	ctx context.Context,
 	sessionKey string,
 	contextValue *protocol.ConversationContextAggregate,
 ) bool {
-	if s == nil || contextValue == nil {
+	if contextValue == nil {
 		return false
 	}
 	activeBlocker := s.activeRoomGoalBlocker(sessionKey, contextValue.Conversation.ID, "", "")
@@ -147,12 +135,12 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	) {
 		return true
 	}
-	if s.agents == nil {
+	if s.Agents == nil {
 		return false
 	}
 	agentNameByID, agentByID, err := s.buildRuntimeAgentDirectory(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
 	}
 	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, currentGoal)
@@ -190,7 +178,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 	contextValue *protocol.ConversationContextAggregate,
 	goal protocol.Goal,
 ) bool {
-	if s == nil || s.publicHandoffs == nil || contextValue == nil {
+	if contextValue == nil {
 		return false
 	}
 	inFlight, err := s.publicHandoffs.GoalCollaborationInFlightAll(
@@ -201,7 +189,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 		},
 	)
 	if err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"读取 Room Goal collaboration fence 失败，延后自动续跑",
 			"conversation_id", contextValue.Conversation.ID,
 			"goal_id", goal.ID,
@@ -215,7 +203,7 @@ func (s *Service) roomGoalCollaborationInFlight(
 // GoalContinuationTargetMissing 判断共享 Room Goal 的 conversation 是否已被删除。
 func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey string) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
-	if s == nil || sessionKey == "" {
+	if sessionKey == "" {
 		return false, nil
 	}
 	normalized, err := protocol.RequireStructuredSessionKey(sessionKey)
@@ -232,7 +220,7 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 // GoalContinuationConversationMissing 判断 Room conversation 是否已不存在。
 func (s *Service) GoalContinuationConversationMissing(ctx context.Context, conversationID string) (bool, error) {
 	conversationID = strings.TrimSpace(conversationID)
-	if s == nil || s.rooms == nil || conversationID == "" {
+	if s.rooms == nil || conversationID == "" {
 		return false, nil
 	}
 	_, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
@@ -360,7 +348,7 @@ func (s *Service) currentRoomGoalForSession(ctx context.Context, sessionKey stri
 	}
 	goal, err := provider.CurrentOptional(ctx, sessionKey)
 	if err != nil {
-		s.loggerFor(ctx).Warn("读取 Room Goal 负责人失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Warn("读取 Room Goal 负责人失败", "session_key", sessionKey, "err", err)
 		return nil
 	}
 	if goal == nil || protocol.NormalizeGoalStatus(goal.Status) != protocol.GoalStatusActive {
@@ -498,7 +486,8 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) (*protocol.Goal, bool) {
-	if s == nil || s.goals == nil || roundValue == nil ||
+	if s.goals == nil ||
+		roundValue == nil ||
 		!protocol.IsRoomSharedSessionKey(roundValue.SessionKey) {
 		return nil, false
 	}
@@ -534,9 +523,9 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 		if candidate == nil || *candidate != *binding {
 			continue
 		}
-		lastAssistant := slot.lastGoalAssistantMessage()
+		lastAssistant := slot.mutable.goal.LastGoalAssistantMessage()
 		if roomdomain.IsNoReplyAssistantMessage(lastAssistant) ||
-			strings.TrimSpace(messageutil.ExtractAssistantDisplayText(lastAssistant)) == "" {
+			messageutil.ExtractAssistantDisplayText(lastAssistant) == "" {
 			continue
 		}
 		if slot.getStatus() == "finished" && roomSlotPublishesPublicOutput(slot) {
@@ -547,7 +536,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 				slot.AgentID,
 				binding.ObjectiveRevision,
 			); err != nil && !goalsvc.IsExpectedMutationError(err) {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"记录 Room Goal handoff 协作证据失败",
 					"session_key", roundValue.SessionKey,
 					"goal_id", binding.GoalID,
@@ -565,7 +554,7 @@ func (s *Service) reconcileRoomGoalCollaborationRound(
 		binding.ObjectiveRevision,
 	); err != nil {
 		if !goalsvc.IsExpectedMutationError(err) {
-			s.loggerFor(ctx).Warn(
+			s.LoggerFor(ctx).Warn(
 				"恢复 Room Goal handoff 后续跑失败",
 				"session_key", roundValue.SessionKey,
 				"goal_id", binding.GoalID,
@@ -583,7 +572,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 	roundValue *activeRoomRound,
 	binding *protocol.GoalCollaborationBinding,
 ) {
-	if s == nil || s.publicHandoffs == nil || roundValue == nil ||
+	if roundValue == nil ||
 		protocol.NormalizeGoalCollaborationBinding(binding) == nil {
 		return
 	}
@@ -595,7 +584,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 		if candidate == nil || *candidate != *binding {
 			continue
 		}
-		handoffID := strings.TrimSpace(slot.handoffID())
+		handoffID := slot.handoffID()
 		if handoffID == "" {
 			continue
 		}
@@ -604,7 +593,7 @@ func (s *Service) markRoomGoalCollaborationRoundHandbackSettled(
 			roundValue.ConversationID,
 			handoffID,
 		); err != nil {
-			s.loggerFor(context.Background()).Warn(
+			s.LoggerFor(context.Background()).Warn(
 				"记录 Room Goal handback 收口失败",
 				"conversation_id", roundValue.ConversationID,
 				"handoff_id", handoffID,
@@ -622,7 +611,7 @@ func (s *Service) releaseActiveGoalCollaborationSources(
 	roundValue *activeRoomRound,
 	binding *protocol.GoalCollaborationBinding,
 ) {
-	if s == nil || roundValue == nil || binding == nil {
+	if roundValue == nil || binding == nil {
 		return
 	}
 	for _, candidateRound := range s.rounds.snapshot() {
@@ -665,74 +654,16 @@ func (s *Service) dispatchGoalContinuationForSession(
 	sessionKey string,
 	causedByRoundID string,
 ) {
-	if s == nil || strings.TrimSpace(sessionKey) == "" || s.goals == nil {
-		return
-	}
-	planner, ok := s.goals.(goalContinuationProvider)
-	if !ok {
-		return
-	}
-	plan, err := goalsvc.PrepareContinuationForDispatch(
-		ctx,
-		planner,
-		sessionKey,
-		causedByRoundID,
+	runtimehost.RunGoalContinuation(ctx, s.goals, s.LoggerFor(ctx), strings.TrimSpace(sessionKey), causedByRoundID,
 		func(plan protocol.GoalContinuation) bool {
 			return s.ShouldDeferGoalContinuation(ctx, plan.Goal.SessionKey)
 		},
+		s.DispatchGoalContinuation,
 	)
-	if err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		s.loggerFor(ctx).Warn("准备 Room Goal 自动续跑失败",
-			"session_key", sessionKey,
-			"round_id", causedByRoundID,
-			"err", err,
-		)
-		return
-	}
-	if plan == nil {
-		return
-	}
-	if err := s.DispatchGoalContinuation(ctx, *plan); err != nil {
-		if goalsvc.IsExpectedMutationError(err) {
-			return
-		}
-		s.recordGoalContinuationDispatchFailure(ctx, *plan, err)
-		s.loggerFor(ctx).Warn("启动 Room Goal 自动续跑失败",
-			"session_key", sessionKey,
-			"round_id", plan.RoundID,
-			"goal_id", plan.Goal.ID,
-			"err", err,
-		)
-	}
-}
-
-func (s *Service) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {
-	if s == nil || s.goals == nil || dispatchErr == nil {
-		return
-	}
-	reason := strings.TrimSpace(dispatchErr.Error())
-	if reason == "" {
-		reason = "Goal continuation dispatch failed before runtime start"
-	}
-	if err := retryRoomGoalContinuationPlan(ctx, s.goals, plan, reason); err != nil &&
-		!goalsvc.IsExpectedMutationError(err) {
-		s.loggerFor(ctx).Warn("记录 Room Goal 续跑投递失败原因失败",
-			"session_key", plan.Goal.SessionKey,
-			"goal_id", plan.Goal.ID,
-			"round_id", plan.RoundID,
-			"err", err,
-		)
-	}
 }
 
 // DispatchGoalContinuation 把共享 Room Goal 的隐藏续跑交给 Room 运行链路。
 func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.GoalContinuation) error {
-	if s == nil {
-		return errors.New("room goal continuation dispatcher is not configured")
-	}
 	planner, ok := s.goals.(goalContinuationProvider)
 	if !ok {
 		return errors.New("room goal continuation provider is not configured")
@@ -764,46 +695,6 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	return nil
 }
 
-type durableRoomGoalContinuationLauncher interface {
-	MarkContinuationPlanStarted(context.Context, protocol.GoalContinuation) error
-	RetryContinuationPlan(context.Context, protocol.GoalContinuation, string) error
-}
-
-type durableRoomGoalContinuationSettler interface {
-	SettleContinuationPlan(context.Context, string, string, int64) error
-}
-
-func settleRoomGoalContinuationAfterRuntime(ctx context.Context, provider goalContextProvider, goalID, roundID string, objectiveRevision int64) error {
-	if durable, ok := provider.(durableRoomGoalContinuationSettler); ok {
-		return durable.SettleContinuationPlan(ctx, goalID, roundID, objectiveRevision)
-	}
-	return nil
-}
-
-func markRoomGoalContinuationStarted(ctx context.Context, provider goalContinuationProvider, plan protocol.GoalContinuation) error {
-	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
-		return durable.MarkContinuationPlanStarted(ctx, plan)
-	}
-	return nil
-}
-
-func retryRoomGoalContinuationPlan(ctx context.Context, provider goalContextProvider, plan protocol.GoalContinuation, reason string) error {
-	if durable, ok := provider.(durableRoomGoalContinuationLauncher); ok {
-		return durable.RetryContinuationPlan(ctx, plan, reason)
-	}
-	_, err := provider.RecordContinuationRuntimeFailure(
-		ctx,
-		plan.Goal.ID,
-		goalsvc.ContinuationRuntimeIdentity{
-			ReceiptRoundID: plan.RoundID,
-			AuditRoundID:   plan.RoundID,
-		},
-		reason,
-		plan.Goal.ObjectiveRevision(),
-	)
-	return err
-}
-
 // dispatchPreparedGoalContinuationLocked 在 conversation 派发闸门内启动续跑。
 func (s *Service) dispatchPreparedGoalContinuationLocked(
 	ctx context.Context,
@@ -816,7 +707,7 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(
 		return errors.New("room goal continuation requires a room session key")
 	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
-	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
+	goalContext := runtimehost.JoinPromptSections(plan.Prompt, collaborationContext)
 	return s.handleChatLocked(ctx, ChatRequest{
 		SessionKey:            sessionKey,
 		ConversationID:        parsed.ConversationID,
@@ -831,7 +722,7 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
 		continuationStartAdmission: func(admissionCtx context.Context) error {
-			return markRoomGoalContinuationStarted(admissionCtx, planner, plan)
+			return runtimehost.MarkGoalContinuationStarted(admissionCtx, planner, plan)
 		},
 	})
 }
@@ -841,13 +732,13 @@ func (s *Service) goalContinuationDispatchTarget(
 	conversationID string,
 	goal protocol.Goal,
 ) ([]string, string) {
-	if s == nil || s.rooms == nil {
+	if s.rooms == nil {
 		return nil, ""
 	}
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil || contextValue == nil {
 		if err != nil {
-			s.loggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)
+			s.LoggerFor(ctx).Warn("读取 Room Goal 续跑目标失败", "conversation_id", conversationID, "err", err)
 		}
 		return nil, ""
 	}

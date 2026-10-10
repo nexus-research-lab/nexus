@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
@@ -33,7 +33,7 @@ func (e *dmChatExecution) cancelEchoForUserActivity() {
 		e.sessionKey,
 	)
 	if err != nil {
-		e.service.loggerFor(e.ctx).Warn("取消 Echo 尝试失败",
+		e.service.LoggerFor(e.ctx).Warn("取消 Echo 尝试失败",
 			"session_key", e.sessionKey,
 			"err", err,
 		)
@@ -42,7 +42,7 @@ func (e *dmChatExecution) cancelEchoForUserActivity() {
 	for _, roundID := range roundIDs {
 		if err = e.service.interruptExactRound(e.ctx, e.sessionKey, roundID); err != nil &&
 			!errors.Is(err, ErrTargetDMRoundNotRunning) {
-			e.service.loggerFor(e.ctx).Warn("中断 Echo round 失败",
+			e.service.LoggerFor(e.ctx).Warn("中断 Echo round 失败",
 				"session_key", e.sessionKey,
 				"round_id", roundID,
 				"err", err,
@@ -56,7 +56,7 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 	assistant protocol.Message,
 ) {
 	if r == nil || r.service.echoHooks.OnTerminal == nil || r.internal ||
-		strings.TrimSpace(r.executionOrigin) != "" || !result.CompletedByAssistant ||
+		r.executionOrigin != "" || !result.CompletedByAssistant ||
 		result.TerminalStatus != "finished" ||
 		(result.ResultSubtype != "" && result.ResultSubtype != "success") ||
 		protocol.NormalizeSessionKeyChannelSegment(protocol.ParseSessionKey(r.sessionKey).Channel) != protocol.SessionChannelWebSocketSegment ||
@@ -64,14 +64,14 @@ func (r *roundRunner) scheduleEchoAfterTerminal(
 		return
 	}
 	terminal := EchoTerminalRound{
-		OwnerUserID: strings.TrimSpace(r.ownerUserID),
+		OwnerUserID: r.ownerUserID,
 		AgentID:     strings.TrimSpace(r.agent.AgentID),
 		SessionKey:  r.sessionKey,
 		RoundID:     r.roundID,
-		AssistantID: dmdomain.NormalizeString(assistant["message_id"]),
+		AssistantID: textutil.AnyString(assistant["message_id"]),
 		FinishedAt:  time.Now().UTC(),
 	}
-	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
+	r.service.StartSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.echoHooks.OnTerminal(ctx, terminal)
 	})
 }
@@ -104,7 +104,7 @@ func (r *roundRunner) finishDeferredAssistant(result exec.RoundExecutionResult) 
 		err = r.persistMessage(message)
 	}
 	if err == nil {
-		r.recordTerminalAssistantUsage(message)
+		r.RecordTerminalAssistantUsage(message, r.writeUsage)
 		r.broadcastDeferredAssistant(message)
 		r.completeDeferredAssistant(DeferredAssistantOutcome{Status: echoDeferredStatusDelivered})
 	} else {
@@ -128,14 +128,14 @@ func (r *roundRunner) completeDeferredAssistant(outcome DeferredAssistantOutcome
 func (r *roundRunner) finishDeferredRuntime(preserveTranscript bool) {
 	if !preserveTranscript {
 		if err := r.discardDeferredRuntimeMessages(); err != nil {
-			r.service.loggerFor(context.Background()).Error("删除未投递后台 assistant runtime 历史失败",
+			r.service.LoggerFor(context.Background()).Error("删除未投递后台 assistant runtime 历史失败",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
 				"err", err,
 			)
 		}
 	}
-	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.service.Runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()
 	r.dispatchNextInputQueueItem()
 }
@@ -163,7 +163,7 @@ func (r *roundRunner) broadcastDeferredAssistant(message protocol.Message) {
 	event.AgentID = r.agent.AgentID
 	event.RoundID = r.roundID
 	event.AgentRoundID = r.agentRoundID
-	event.MessageID = dmdomain.NormalizeString(message["message_id"])
+	event.MessageID = textutil.AnyString(message["message_id"])
 	event.DeliveryMode = protocol.DeliveryModeDurable
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 }

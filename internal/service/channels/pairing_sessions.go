@@ -226,10 +226,10 @@ func pairingSessionTargetFromIngress(ownerUserID string, request ingressPairingT
 	return pairingSessionTarget{
 		OwnerUserID: strings.TrimSpace(ownerUserID),
 		ChannelType: normalizeIMChannelType(request.channelType),
-		AccountID:   strings.TrimSpace(request.accountID),
+		AccountID:   request.accountID,
 		ChatType:    protocol.NormalizeSessionChatType(request.chatType),
-		ExternalRef: strings.TrimSpace(request.externalRef),
-		ThreadID:    strings.TrimSpace(request.threadID),
+		ExternalRef: request.externalRef,
+		ThreadID:    request.threadID,
 	}
 }
 

@@ -67,14 +67,10 @@ func (s *Service) DeliverExecutionCancellation(
 			Detail:  "exact Room slot is already terminal",
 		}, nil
 	}
-	if s.runtime == nil {
-		return orchestrationsvc.ExecutionCancellationReceipt{},
-			errors.New("Room runtime manager is unavailable")
-	}
 	interruptReason := normalizeRoomInterruptReason(delivery.Reason)
 	markRoomSlotInterrupted(slot, interruptReason)
-	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
-	result, err := s.runtime.InterruptRound(
+	s.Permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
+	result, err := s.Runtime.InterruptRound(
 		ctx,
 		strings.TrimSpace(slot.RuntimeSessionKey),
 		strings.TrimSpace(slot.AgentRoundID),
@@ -85,7 +81,7 @@ func (s *Service) DeliverExecutionCancellation(
 	}
 	s.broadcastSessionStatus(ctx, roundValue.SessionKey)
 	detail := strings.TrimSpace(result.Detail)
-	limitationCode := strings.TrimSpace(result.LimitationCode)
+	limitationCode := result.LimitationCode
 	switch result.Outcome {
 	case runtimectx.ExactRoundProviderInterrupted:
 		return orchestrationsvc.ExecutionCancellationReceipt{

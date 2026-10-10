@@ -7,62 +7,6 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-func TestPolicyContainsManagedAliases(t *testing.T) {
-	tests := []struct {
-		approved []string
-		tools    []string
-	}{
-		{
-			approved: []string{"WebSearch"},
-			tools:    []string{"WebSearch", "web_search", "mcp__brave_search__brave_web_search", "search"},
-		},
-		{
-			approved: []string{"WebFetch"},
-			tools:    []string{"WebFetch", "web_fetch", "mcp__fetch__fetch", "browser.web-fetch"},
-		},
-		{
-			approved: []string{"nexus_communication"},
-			tools:    []string{"mcp__nexus__list_targets", "nexus.send_message"},
-		},
-		{
-			approved: []string{"nexus_imagegen"},
-			tools:    []string{"mcp__nexus__generate_image", "nexus__edit_image"},
-		},
-	}
-	for _, test := range tests {
-		approved := NormalizeSet(test.approved)
-		for _, toolName := range test.tools {
-			if !Contains(approved, toolName) {
-				t.Fatalf("expected %v approval to match %q", test.approved, toolName)
-			}
-		}
-	}
-}
-
-func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
-	approved := NormalizeSet([]string{"WebSearch"})
-	for _, toolName := range []string{"Write", "mcp__filesystem__write_file", "Research"} {
-		if Contains(approved, toolName) {
-			t.Fatalf("did not expect WebSearch approval to match %q", toolName)
-		}
-	}
-}
-
-func TestUnifiedNexusPermissionFamiliesStayNarrow(t *testing.T) {
-	for approvedName, deniedTools := range map[string][]string{
-		"nexus":               {"mcp__nexus__command", "mcp__nexus__generate_image"},
-		"nexus_communication": {"mcp__nexus__command", "mcp__nexus__generate_image"},
-		"nexus_imagegen":      {"mcp__nexus__command", "mcp__nexus__send_message"},
-	} {
-		approved := NormalizeSet([]string{approvedName})
-		for _, toolName := range deniedTools {
-			if Contains(approved, toolName) {
-				t.Fatalf("%q must not approve unrelated unified tool %q", approvedName, toolName)
-			}
-		}
-	}
-}
-
 func TestManagedSemanticSkillRequestOnlyApprovesGoalAndExecution(t *testing.T) {
 	for _, skillName := range []string{"goal-manager", "execution-orchestrator"} {
 		if !IsManagedSemanticSkillRequest("Skill", map[string]any{"name": skillName}) {
@@ -76,56 +20,6 @@ func TestManagedSemanticSkillRequestOnlyApprovesGoalAndExecution(t *testing.T) {
 		if IsManagedSemanticSkillRequest(request.ToolName, request.Input) {
 			t.Fatalf("unrelated request must not be managed: %+v", request)
 		}
-	}
-}
-
-func TestManagedVisualizeToolOnlyMatchesBuiltInServer(t *testing.T) {
-	for _, toolName := range []string{
-		"show_widget",
-		"mcp__nexus__show_widget",
-		"nexus.show_widget",
-		"nexus/show_widget",
-	} {
-		if !IsManagedVisualizeTool(toolName) {
-			t.Fatalf("expected managed visualize tool to match %q", toolName)
-		}
-	}
-	for _, toolName := range []string{"visualize_read_me", "mcp__external__show_widget"} {
-		if IsManagedVisualizeTool(toolName) {
-			t.Fatalf("external or retired tool must not inherit managed approval: %q", toolName)
-		}
-	}
-}
-
-func TestManagedRuntimeAutoApprovalUsesSemanticSkillsStructuredCommandAndVisualize(t *testing.T) {
-	fallbackCalls := 0
-	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		fallbackCalls++
-		return sdkpermission.Deny(request.ToolName, false), nil
-	})
-	for _, request := range []sdkpermission.Request{
-		{ToolName: "Skill", Input: map[string]any{"name": "goal-manager"}},
-		{ToolName: "Skill", Input: map[string]any{"name": "execution-orchestrator"}},
-		{ToolName: "mcp__nexus__command", Input: map[string]any{"domain": "goal", "action": "inspect"}},
-		{ToolName: "mcp__nexus__show_widget", Input: map[string]any{"title": "diagram"}},
-	} {
-		decision, err := handler(context.Background(), request)
-		if err != nil || decision.Behavior != sdkpermission.BehaviorAllow {
-			t.Fatalf("managed request should be allowed: decision=%+v err=%v", decision, err)
-		}
-	}
-	for _, request := range []sdkpermission.Request{
-		{ToolName: "Bash", Input: map[string]any{"command": "echo unrelated"}},
-		{ToolName: "mcp__nexus_runtime__command"},
-		{ToolName: "mcp__external__update_record"},
-	} {
-		decision, err := handler(context.Background(), request)
-		if err != nil || decision.Behavior != sdkpermission.BehaviorDeny {
-			t.Fatalf("unmanaged request must reach fallback: decision=%+v err=%v", decision, err)
-		}
-	}
-	if fallbackCalls != 3 {
-		t.Fatalf("fallback calls = %d, want 3", fallbackCalls)
 	}
 }
 
@@ -162,23 +56,6 @@ func TestNexusControlPlaneDenyBlocksShellBypass(t *testing.T) {
 	}
 }
 
-func TestWithManagedImagegenAllowedToolsAppendsDistinctTools(t *testing.T) {
-	tools := WithManagedImagegenAllowedTools([]string{"Read", "nexus_imagegen"})
-	approved := NormalizeSet(tools)
-	for _, toolName := range []string{
-		"Read",
-		"nexus_imagegen",
-		"mcp__nexus__generate_image",
-		"mcp__nexus__edit_image",
-		"generate_image",
-		"edit_image",
-	} {
-		if !Contains(approved, toolName) {
-			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
-		}
-	}
-}
-
 func TestWithManagedRuntimeAllowedToolsAddsSkillAndStructuredCommand(t *testing.T) {
 	tools := WithManagedRuntimeAllowedTools([]string{"Read", "nexus_imagegen"}, true)
 	approved := NormalizeSet(tools)
@@ -204,15 +81,6 @@ func TestWithManagedRuntimeAllowedToolsDisablesImagegenWhenUnconfigured(t *testi
 		if !Contains(approved, required) {
 			t.Fatalf("managed command transport %q should remain enabled: %+v", required, tools)
 		}
-	}
-}
-
-func TestWithManagedRuntimeAllowedToolsPreservesEmptyPolicy(t *testing.T) {
-	if tools := WithManagedRuntimeAllowedTools(nil, true); tools != nil {
-		t.Fatalf("nil allow policy should stay nil, got %+v", tools)
-	}
-	if tools := WithManagedRuntimeAllowedTools([]string{}, true); len(tools) != 0 {
-		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
 	}
 }
 

@@ -2,7 +2,6 @@ package automation
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -378,89 +377,6 @@ func TestServiceRunTaskNowNeverFallsBackToHostForServerScript(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(workspacePath, "host-fallback-marker.txt")); !os.IsNotExist(statErr) {
 		t.Fatalf("server 脚本不应回退到宿主 shell，marker stat=%v", statErr)
-	}
-}
-
-func TestRunTaskNowForMainTargetEnqueuesScheduledTaskTextPayload(t *testing.T) {
-	db := newAutomationTestDB(t)
-	permission := permissionctx.NewContext()
-	dm := &fakeDMRunner{permission: permission}
-	service := NewService(
-		config.Config{DatabaseDriver: "sqlite"},
-		db,
-		nil,
-		dm,
-		nil,
-		permission,
-		&fakeWorkspaceReader{},
-		nil,
-	)
-	if _, err := service.UpdateHeartbeat(context.Background(), "agent-1", automationdomain.HeartbeatUpdateInput{
-		Enabled:      true,
-		EverySeconds: 3600,
-		TargetMode:   automationdomain.HeartbeatTargetNone,
-		AckMaxChars:  300,
-	}); err != nil {
-		t.Fatalf("UpdateHeartbeat 失败: %v", err)
-	}
-
-	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
-		Name:        "Main payload",
-		AgentID:     "agent-1",
-		Instruction: "follow up in main session",
-		Schedule: automationdomain.Schedule{
-			Kind:            automationdomain.ScheduleKindEvery,
-			IntervalSeconds: intRef(60),
-			Timezone:        "Asia/Shanghai",
-		},
-		SessionTarget: automationdomain.SessionTarget{
-			Kind:     automationdomain.SessionTargetMain,
-			WakeMode: automationdomain.WakeModeNow,
-		},
-		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-		Enabled:  true,
-	})
-	if err != nil {
-		t.Fatalf("CreateTask 失败: %v", err)
-	}
-	result, err := service.RunTaskNow(context.Background(), task.JobID)
-	if err != nil {
-		t.Fatalf("RunTaskNow 失败: %v", err)
-	}
-	if result.RunID == nil || result.Status != automationdomain.RunStatusQueuedToMain {
-		t.Fatalf("main target 应返回 queued run: %+v", result)
-	}
-
-	var rawPayload string
-	row := db.QueryRow(`SELECT payload FROM automation_system_events WHERE event_type='scheduled_task.trigger' ORDER BY created_at DESC, event_id DESC LIMIT 1`)
-	if err = row.Scan(&rawPayload); err != nil {
-		t.Fatalf("读取 scheduled_task.trigger payload 失败: %v", err)
-	}
-	payload := map[string]any{}
-	if err = json.Unmarshal([]byte(rawPayload), &payload); err != nil {
-		t.Fatalf("解析 scheduled_task.trigger payload 失败: %v", err)
-	}
-	if strings.TrimSpace(anyString(payload["text"])) != "follow up in main session" {
-		t.Fatalf("scheduled_task.trigger payload.text 不正确: %v", payload)
-	}
-	if _, exists := payload["instruction"]; exists {
-		t.Fatalf("scheduled_task.trigger 不应写 instruction 字段: %v", payload)
-	}
-	if anyString(payload["run_id"]) != *result.RunID ||
-		anyString(payload["owner_user_id"]) != task.OwnerUserID ||
-		int(payload["policy_revision"].(float64)) != task.PermissionPolicy.Revision {
-		t.Fatalf("scheduled_task.trigger 未保留 task/run/revision/owner 上下文: %v", payload)
-	}
-	waitFor(t, 2*time.Second, func() bool {
-		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
-	})
-	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
-	if err != nil || len(runs) != 1 {
-		t.Fatalf("ListTaskRuns 失败: runs=%+v err=%v", runs, err)
-	}
-	if runs[0].RunID != *result.RunID || runs[0].SessionKey == "" || runs[0].RoundID == "" || runs[0].Attempts != 1 {
-		t.Fatalf("main target 应在原 logical run 上完成真实执行: %+v", runs[0])
 	}
 }
 

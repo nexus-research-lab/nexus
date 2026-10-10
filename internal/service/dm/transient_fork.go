@@ -31,9 +31,6 @@ func (s *Service) CreateTransientFork(
 	ctx context.Context,
 	request TransientForkRequest,
 ) (*protocol.Session, error) {
-	if s == nil {
-		return nil, errors.New("DM service is unavailable")
-	}
 	source, target, err := validateTransientForkKeys(
 		request.SourceSessionKey,
 		request.TargetSessionKey,
@@ -45,7 +42,7 @@ func (s *Service) CreateTransientFork(
 		request.DisplayAfterUnixMilli <= 0 {
 		return nil, errors.New("transient fork boundary is incomplete")
 	}
-	agentValue, err := s.agents.GetAgent(ctx, source.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, source.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +94,7 @@ func (s *Service) CreateTransientFork(
 	targetSession.Options[protocol.OptionSessionHiddenFromDirectory] = true
 	targetSession.Options[protocol.OptionSessionPurpose] = strings.TrimSpace(request.Purpose)
 	targetSession.Options[protocol.OptionSessionDisplayAfterUnixMilli] = request.DisplayAfterUnixMilli
-	created, err := s.files.ForOwner(agentValue.OwnerUserID).UpsertSession(
+	created, err := s.Files.ForOwner(agentValue.OwnerUserID).UpsertSession(
 		agentValue.WorkspacePath,
 		targetSession,
 	)
@@ -116,7 +113,7 @@ func (s *Service) CreateTransientFork(
 		sourceMessageID,
 		validateTransientForkKeys,
 	); err != nil {
-		_, cleanupErr := s.files.ForOwner(agentValue.OwnerUserID).DeleteSession(
+		_, cleanupErr := s.Files.ForOwner(agentValue.OwnerUserID).DeleteSession(
 			agentValue.WorkspacePath,
 			target.Raw,
 		)
@@ -135,8 +132,8 @@ func (s *Service) resolveLatestCompletedForkRound(
 	sourceSession protocol.Session,
 	sourceSessionKey string,
 ) (string, error) {
-	activeRoundIDs := s.runtime.GetRunningRoundIDs(sourceSessionKey)
-	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	activeRoundIDs := s.Runtime.GetRunningRoundIDs(sourceSessionKey)
+	ownerHistory := s.History.ForOwner(agentValue.OwnerUserID)
 	query := workspacestore.HistoryPageQuery{Limit: 32}
 	for {
 		page, err := ownerHistory.ReadMessagesPageContext(
@@ -207,7 +204,7 @@ func latestForkableAssistantRound(
 ) (string, error) {
 	seen := make(map[string]struct{})
 	for index := len(rows) - 1; index >= 0; index-- {
-		roundID := strings.TrimSpace(protocol.MessageRoundID(rows[index]))
+		roundID := protocol.MessageRoundID(rows[index])
 		if roundID == "" {
 			continue
 		}

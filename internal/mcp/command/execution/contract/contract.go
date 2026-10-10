@@ -107,13 +107,13 @@ type Context struct {
 // Actor 把 nexus.command 的可信身份投影到应用服务权限边界。
 func (c Context) Actor() orchestration.ActorContext {
 	goalAuthority := runtimectx.GoalAuthority{}
-	workBinding := cloneExecutionWorkBinding(c.WorkBinding)
-	reviewBinding := cloneExecutionReviewBinding(c.ReviewBinding)
+	workBinding := c.WorkBinding.Clone()
+	reviewBinding := c.ReviewBinding.Clone()
 	executionID := strings.TrimSpace(c.ExecutionID)
 	if c.ResponsibilityAuthority != nil {
 		authority, _ := c.ResponsibilityAuthority.Load()
-		workBinding = cloneExecutionWorkBinding(authority.WorkBinding)
-		reviewBinding = cloneExecutionReviewBinding(authority.ReviewBinding)
+		workBinding = authority.WorkBinding.Clone()
+		reviewBinding = authority.ReviewBinding.Clone()
 		executionID = strings.TrimSpace(authority.ExecutionID)
 		goalAuthority.GoalID = authority.GoalID
 		goalAuthority.ObjectiveRevision = authority.ObjectiveRevision
@@ -142,31 +142,11 @@ func (c Context) Actor() orchestration.ActorContext {
 		Role:                  c.Role,
 		ActorKind:             c.ActorKind,
 		ScopeKind:             c.ScopeKind,
-		RoomID:                strings.TrimSpace(c.RoomID),
-		ConversationID:        strings.TrimSpace(c.ConversationID),
-		RootRoundID:           strings.TrimSpace(c.RootRoundID),
-		RuntimeRoundID:        strings.TrimSpace(c.RuntimeRoundID),
+		RoomID:                c.RoomID,
+		ConversationID:        c.ConversationID,
+		RootRoundID:           c.RootRoundID,
+		RuntimeRoundID:        c.RuntimeRoundID,
 		AgentRoundID:          strings.TrimSpace(c.AgentRoundID),
 		PlanMode:              c.PlanMode,
 	}
-}
-
-func cloneExecutionReviewBinding(
-	binding *protocol.ExecutionReviewBinding,
-) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneExecutionWorkBinding(
-	binding *protocol.ExecutionWorkBinding,
-) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }

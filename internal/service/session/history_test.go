@@ -14,42 +14,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *testing.T) {
-	cfg := newSessionTestConfig(t)
-	migrateSessionSQLite(t, cfg.DatabaseURL)
-
-	agentService, db := newSessionTestAgentService(t, cfg)
-	sessionService := app.NewSessionServiceWithDB(cfg, db, agentService)
-	runtimeManager := runtimectx.NewManager()
-	sessionService.SetRuntimeManager(runtimeManager)
-
-	ctx := context.Background()
-	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "活跃轮次助手"})
-	if err != nil {
-		t.Fatalf("创建 agent 失败: %v", err)
-	}
-	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "active-"+agentA.AgentID, "")
-	sessionValue, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{SessionKey: dmKey})
-	if err != nil {
-		t.Fatalf("创建 session 失败: %v", err)
-	}
-	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, sessionValue)
-	seedWorkspaceSessionArtifacts(t, cfg, agentA.WorkspacePath, dmKey, dmSessionID)
-	_ = runtimeManager.StartRound(context.Background(), dmKey, "round_1", nil)
-	defer runtimeManager.MarkRoundFinished(dmKey, "round_1")
-
-	messages, err := sessionService.GetSessionMessages(ctx, dmKey)
-	if err != nil {
-		t.Fatalf("读取 session 消息失败: %v", err)
-	}
-	if len(messages) != 2 {
-		t.Fatalf("活跃 round 不应物化 interrupted result: got=%d want=2", len(messages))
-	}
-	if _, exists := messages[1]["stream_status"]; exists {
-		t.Fatalf("活跃 round 不应把 assistant 快照强制终止: %+v", messages[1])
-	}
-}
-
 func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)

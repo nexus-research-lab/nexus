@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -100,11 +101,11 @@ func (c *modelCommand) execute(
 	ctx context.Context,
 	invocation Invocation,
 ) (Result, error) {
-	agentID := strings.TrimSpace(invocation.AgentID)
+	agentID := invocation.AgentID
 	if agentID == "" {
 		return Result{}, errors.New("model command requires an agent")
 	}
-	argument := strings.TrimSpace(invocation.Arguments)
+	argument := invocation.Arguments
 	if argument == "" {
 		return Result{}, commandInputError{
 			message: "用法：/model <provider>/<model>",
@@ -269,12 +270,12 @@ func newModelSelection(
 ) modelSelection {
 	return modelSelection{
 		Provider: provider.Provider,
-		ProviderDisplayName: firstModelCommandValue(
+		ProviderDisplayName: textutil.FirstNonEmpty(
 			provider.DisplayName,
 			provider.Provider,
 		),
 		Model: model.ModelID,
-		ModelDisplayName: firstModelCommandValue(
+		ModelDisplayName: textutil.FirstNonEmpty(
 			model.DisplayName,
 			model.ModelID,
 		),
@@ -294,22 +295,13 @@ func modelCommandValueMatches(target string, candidates ...string) bool {
 	return false
 }
 
-func firstModelCommandValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
 func newModelChangedEvent(
 	invocation Invocation,
 	selection modelSelection,
 ) protocol.EventMessage {
 	timestamp := time.Now().UnixMilli()
 	messageID := protocol.NewAssistantMessageID()
-	agentID := strings.TrimSpace(invocation.AgentID)
+	agentID := invocation.AgentID
 	text := fmt.Sprintf(
 		"Set model to %s / %s",
 		selection.ProviderDisplayName,
@@ -317,7 +309,7 @@ func newModelChangedEvent(
 	)
 	event := protocol.NewEvent(protocol.EventTypeMessage, map[string]any{
 		"message_id":  messageID,
-		"session_key": strings.TrimSpace(invocation.SessionKey),
+		"session_key": invocation.SessionKey,
 		"agent_id":    agentID,
 		"round_id":    strings.TrimSpace(invocation.RoundID),
 		"role":        "assistant",
@@ -328,7 +320,7 @@ func newModelChangedEvent(
 			"text": text,
 		}},
 	})
-	event.SessionKey = strings.TrimSpace(invocation.SessionKey)
+	event.SessionKey = invocation.SessionKey
 	event.AgentID = agentID
 	event.MessageID = messageID
 	event.RoundID = strings.TrimSpace(invocation.RoundID)

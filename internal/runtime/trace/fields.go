@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 type streamEventFieldBuilder func([]any, map[string]any) []any
@@ -147,7 +148,7 @@ func appendContentBlockStartFields(fields []any, event map[string]any) []any {
 			fields = append(fields, "stream_text", text)
 		}
 	case "tool_use":
-		toolName := FirstNonEmpty(RawString(block["name"]), RawString(block["id"]))
+		toolName := textutil.FirstNonEmpty(RawString(block["name"]), RawString(block["id"]))
 		if toolName != "" {
 			fields = append(fields, "tool", toolName)
 		}
@@ -165,7 +166,7 @@ func appendContentBlockDeltaFields(fields []any, event map[string]any) []any {
 		key, text = "delta", RawString(delta["text"])
 	case "thinking_delta":
 		key = "thinking"
-		text = FirstNonEmpty(RawString(delta["thinking"]), RawString(delta["text"]))
+		text = textutil.FirstNonEmpty(RawString(delta["thinking"]), RawString(delta["text"]))
 	}
 	if preview := streamDebugText(text); key != "" && preview != "" {
 		fields = append(fields, key, preview)

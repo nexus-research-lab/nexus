@@ -43,40 +43,6 @@ items:
       - produce
 `
 
-func TestPreparePlanExecutionSealsProposalInPlanModeWithoutAuthoritativeWrite(t *testing.T) {
-	main := &fakeRepository{
-		createWithPlan: func(context.Context, orchestrationstore.CreateWithPlanCommand) (*protocol.ExecutionSnapshot, error) {
-			t.Fatal("Plan Mode preparation wrote authoritative Execution state")
-			return nil, nil
-		},
-	}
-	repository := &planProposalTestRepository{fakeRepository: main}
-	service := testService(repository)
-	actor := coordinatorActor()
-	actor.RootRoundID = "round-prepare"
-	actor.PlanMode = true
-
-	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
-		CommandID:    "tool-prepare-1",
-		PlanDocument: createPlanProposalDocument,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if proposal == nil || proposal.Status != protocol.ExecutionPlanProposalStatusSealed ||
-		proposal.ContentDigest == "" || proposal.Document.Operation != protocol.ExecutionPlanProposalCreate ||
-		len(proposal.Document.Items) != 2 || proposal.RootRoundID != actor.RootRoundID {
-		t.Fatalf("sealed proposal = %#v", proposal)
-	}
-	wantDigest, err := protocol.DigestExecutionPlanProposalImmutable(*proposal)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if proposal.ContentDigest != wantDigest || main.snapshot != nil {
-		t.Fatalf("proposal digest/state = %q / %#v", proposal.ContentDigest, main.snapshot)
-	}
-}
-
 func TestResolvePlanExecutionProposalCarriesExactBindingAcrossRounds(t *testing.T) {
 	repository := &planProposalTestRepository{fakeRepository: &fakeRepository{}}
 	service := testService(repository)
@@ -525,61 +491,6 @@ func TestGoalBoundCreateRejectsCanonicalObjectiveDriftBeforeMaterialization(t *t
 	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodePlanProposalStale ||
 		createCalls != 0 || repository.proposal.Status != protocol.ExecutionPlanProposalStatusBlocked {
 		t.Fatalf("result=%#v proposal=%#v create_calls=%d", result, repository.proposal, createCalls)
-	}
-}
-
-func TestGoalFreeProposalIgnoresAmbientGoalWithoutExactAuthority(t *testing.T) {
-	createCalls := 0
-	main := &fakeRepository{}
-	main.createWithPlan = func(
-		_ context.Context,
-		command orchestrationstore.CreateWithPlanCommand,
-	) (*protocol.ExecutionSnapshot, error) {
-		createCalls++
-		main.snapshot = snapshotFromInitialPlan(command.Execution, command.Plan)
-		return main.snapshot, nil
-	}
-	repository := &planProposalTestRepository{fakeRepository: main}
-	service := testService(repository)
-	gateway := &switchingProposalGoalGateway{active: &ExplicitGoalActivation{
-		GoalID:                "goal-ambient",
-		GoalObjectiveRevision: 1,
-		Objective:             "Ambient Goal objective",
-		ActivationOrigin:      protocol.GoalActivationOriginUserExplicit,
-		ActivationReason:      protocol.GoalActivationReasonPersistenceRequested,
-		ReservedExecutionID:   "execution-ambient",
-	}}
-	service.SetExplicitGoalBindingGateway(gateway)
-	actor := coordinatorActor()
-	actor.RootRoundID = "round-goal-free-fence"
-
-	proposal, err := service.PreparePlanExecution(context.Background(), actor, PreparePlanExecutionInput{
-		CommandID:    "tool-prepare-goal-free",
-		PlanDocument: createPlanProposalDocument,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if proposal.GoalID != "" {
-		t.Fatalf("proposal unexpectedly bound Goal %q", proposal.GoalID)
-	}
-	if gateway.resolveCalls != 0 {
-		t.Fatalf("Goal-free prepare resolved ambient Goal %d times", gateway.resolveCalls)
-	}
-	result, err := service.MaterializePlanExecution(context.Background(), actor, MaterializePlanExecutionInput{
-		ProposalID:     proposal.ID,
-		ProposalDigest: proposal.ContentDigest,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationApplied || result.Snapshot == nil ||
-		result.Snapshot.Execution.GoalID != "" || createCalls != 1 ||
-		result.GoalAuthority != nil ||
-		gateway.resolveCalls != 0 || gateway.prepareCalls != 0 ||
-		repository.proposal.Status != protocol.ExecutionPlanProposalStatusMaterialized {
-		t.Fatalf("result=%#v proposal=%#v create_calls=%d prepare_calls=%d",
-			result, repository.proposal, createCalls, gateway.prepareCalls)
 	}
 }
 

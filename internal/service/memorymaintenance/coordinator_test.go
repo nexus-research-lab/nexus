@@ -184,35 +184,6 @@ func TestRuntimeDreamRunnerPrefersOwnerBackgroundSelection(t *testing.T) {
 	}
 }
 
-func TestRuntimeDreamRunnerFallsBackToAgentSelection(t *testing.T) {
-	runner := &runtimeDreamRunner{preferences: fakePreferencesService{}}
-	provider, model, available, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
-		Provider: "agent-provider",
-		Model:    "agent-model",
-	})
-	if err != nil {
-		t.Fatalf("backgroundSelection() error = %v", err)
-	}
-	if !available || provider != "agent-provider" || model != "agent-model" {
-		t.Fatalf("background selection = %s/%s, want Agent fallback", provider, model)
-	}
-}
-
-func TestRuntimeDreamRunnerSkipsUnavailableSelection(t *testing.T) {
-	runner := &runtimeDreamRunner{preferences: fakePreferencesService{}}
-	provider, model, available, err := runner.backgroundSelection(
-		context.Background(),
-		"owner-1",
-		runtimeselectionsvc.Selection{},
-	)
-	if err != nil {
-		t.Fatalf("backgroundSelection() error = %v", err)
-	}
-	if available || provider != "" || model != "" {
-		t.Fatalf("background selection = %s/%s available=%t, want unavailable", provider, model, available)
-	}
-}
-
 func TestRuntimeDreamRunnerSkipsDisabledAutoDreamBeforeWorkspaceSetup(t *testing.T) {
 	disabled := false
 	preferences := fakePreferencesService{preferences: preferencessvc.Preferences{

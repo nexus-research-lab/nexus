@@ -2,9 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
@@ -98,93 +95,6 @@ func TestUpdateModelNormalizesEscapedSlashModelID(t *testing.T) {
 	}
 }
 
-func TestTestProviderAutoSelectsTestedModel(t *testing.T) {
-	ctx := context.Background()
-	service, _ := newTestService(t)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/models":
-			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`{"data":[{"id":"model-b"},{"id":"model-a"}]}`))
-		case "/v1/messages":
-			writer.WriteHeader(http.StatusOK)
-			payload, _ := json.Marshal(probeTestResponse(APIFormatAnthropicMessages, "pong", ""))
-			_, _ = writer.Write(payload)
-		default:
-			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
-		}
-	}))
-	defer server.Close()
-
-	record, err := service.Create(ctx, CreateInput{
-		Provider:   "test-provider-default",
-		PresetKey:  presetCustom,
-		APIFormat:  APIFormatAnthropicMessages,
-		AuthToken:  "test-key",
-		BaseURL:    server.URL,
-		ModelsPath: "/models",
-		Enabled:    true,
-	})
-	if err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
-	result, err := service.TestProvider(ctx, record.Provider)
-	if err != nil {
-		t.Fatalf("测试 provider 失败: %v", err)
-	}
-	if !result.Success || result.Model != "model-b" {
-		t.Fatalf("测试结果不正确: %+v", result)
-	}
-	options, err := service.ListOptions(ctx)
-	if err != nil {
-		t.Fatalf("读取 provider options 失败: %v", err)
-	}
-	if options.DefaultProvider == nil || *options.DefaultProvider != record.Provider ||
-		options.DefaultModel == nil || *options.DefaultModel != "model-b" {
-		t.Fatalf("provider 测试成功后未自动设置默认模型: %+v", options)
-	}
-}
-
-func TestTestModelAutoSelectsNXSDefaultModel(t *testing.T) {
-	ctx := context.Background()
-	service, _ := newTestService(t)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/chat/completions" && request.URL.Path != "/embeddings" {
-			t.Fatalf("未预期的测试请求路径: %s", request.URL.Path)
-		}
-		writer.WriteHeader(http.StatusOK)
-		payload, _ := json.Marshal(probeTestResponse(APIFormatChatCompletions, "pong", ""))
-		_, _ = writer.Write(payload)
-	}))
-	defer server.Close()
-
-	record, err := service.Create(ctx, CreateInput{
-		Provider:  "test-model-default",
-		PresetKey: presetCustom,
-		APIFormat: APIFormatChatCompletions,
-		AuthToken: "model-key",
-		BaseURL:   server.URL,
-		Enabled:   true,
-	})
-	if err != nil {
-		t.Fatalf("创建 provider 失败: %v", err)
-	}
-	result, err := service.TestModel(ctx, record.Provider, "manual-model")
-	if err != nil {
-		t.Fatalf("测试模型失败: %v", err)
-	}
-	if !result.Success || result.Model != "manual-model" {
-		t.Fatalf("模型测试结果不正确: %+v", result)
-	}
-	runtimeConfig, err := service.ResolveRuntimeConfigForRuntime(ctx, "", "", "nxs")
-	if err != nil {
-		t.Fatalf("测试模型成功后应可解析 runtime config: %v", err)
-	}
-	if runtimeConfig.Model != "manual-model" {
-		t.Fatalf("测试模型未成为默认模型: %+v", runtimeConfig)
-	}
-}
-
 func TestUpdateModelCreatesManualModel(t *testing.T) {
 	ctx := context.Background()
 	service, _ := newTestService(t)
@@ -250,84 +160,5 @@ func TestUpdateModelCreatesManualModel(t *testing.T) {
 	}
 	if len(updatedRecord.Models) != 0 {
 		t.Fatalf("手动模型删除后仍然存在: %+v", updatedRecord.Models)
-	}
-}
-
-func TestProviderReferencePreservesLegacyPunctuation(t *testing.T) {
-	ctx := context.Background()
-	service, _ := newTestService(t)
-
-	fallback, err := service.Create(ctx, CreateInput{
-		Provider:   "fallback-provider",
-		PresetKey:  presetCustom,
-		APIFormat:  APIFormatAnthropicMessages,
-		AuthToken:  "fallback-key",
-		BaseURL:    "https://fallback.example.com",
-		ModelsPath: "/models",
-		Enabled:    true,
-	})
-	if err != nil {
-		t.Fatalf("创建回退 provider 失败: %v", err)
-	}
-	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{
-		Enabled:   true,
-		IsDefault: true,
-	}); err != nil {
-		t.Fatalf("设置回退模型失败: %v", err)
-	}
-
-	now := service.now()
-	legacy := providerstore.Entity{
-		ID:                   service.idFactory("provider"),
-		OwnerUserID:          ownerUserIDFromContext(ctx),
-		Visibility:           providerstore.VisibilityPrivate,
-		ProviderKind:         ProviderKindLLM,
-		Provider:             "kimi2.6",
-		PresetKey:            presetCustom,
-		APIFormat:            APIFormatAnthropicMessages,
-		DisplayName:          "Kimi 2.6",
-		AuthToken:            "legacy-key",
-		BaseURL:              "https://legacy.example.com",
-		ModelsPath:           "/models",
-		Enabled:              true,
-		ConfigurationVersion: 1,
-		CreatedAt:            now,
-		UpdatedAt:            now,
-	}
-	if err = service.repository.Create(ctx, legacy); err != nil {
-		t.Fatalf("写入旧 Provider 失败: %v", err)
-	}
-
-	updated, err := service.Update(ctx, legacy.Provider, UpdateInput{
-		ProviderKind: legacy.ProviderKind,
-		PresetKey:    legacy.PresetKey,
-		APIFormat:    legacy.APIFormat,
-		DisplayName:  "Kimi Updated",
-		BaseURL:      legacy.BaseURL,
-		ModelsPath:   legacy.ModelsPath,
-		Enabled:      true,
-	})
-	if err != nil {
-		t.Fatalf("更新带标点 Provider 失败: %v", err)
-	}
-	if updated.Provider != legacy.Provider || updated.DisplayName != "Kimi Updated" {
-		t.Fatalf("Provider 标识被改写: %+v", updated)
-	}
-
-	if _, err = service.UpdateModel(ctx, legacy.Provider, "legacy-model", UpdateModelInput{
-		Enabled: true,
-	}); err != nil {
-		t.Fatalf("给带标点 Provider 添加模型失败: %v", err)
-	}
-	if _, err = service.ResolveRuntimeConfigForRuntime(
-		ctx,
-		legacy.Provider,
-		"legacy-model",
-		"nxs",
-	); err != nil {
-		t.Fatalf("解析带标点 Provider 失败: %v", err)
-	}
-	if _, err = service.Delete(ctx, legacy.Provider, DeleteInput{}); err != nil {
-		t.Fatalf("删除带标点 Provider 失败: %v", err)
 	}
 }

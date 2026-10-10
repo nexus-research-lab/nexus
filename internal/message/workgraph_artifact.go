@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -26,7 +27,7 @@ func (p *Processor) workGraphArtifactForToolResult(
 	if boolValue(toolResult["is_error"]) {
 		return nil
 	}
-	toolUseID := normalizeString(toolResult["tool_use_id"])
+	toolUseID := textutil.AnyString(toolResult["tool_use_id"])
 	toolUse := p.segment.FindToolUse(toolUseID)
 	commandOperation, native := managedExecutionCommandOperation(toolUse)
 	if toolUseID == "" || len(toolUse) == 0 || commandOperation == "" {
@@ -36,9 +37,9 @@ func (p *Processor) workGraphArtifactForToolResult(
 	data := nativeWorkGraphArtifactData(operation, toolResult, structuredOutput)
 	if !native {
 		payload := firstWorkGraphArtifactPayload(toolResultContentText(toolResult["content"]))
-		operation = normalizeString(payload["operation"])
-		if normalizeString(payload["domain"]) != "execution" ||
-			normalizeString(payload["action"]) != "invoke" || boolValue(payload["is_error"]) {
+		operation = textutil.AnyString(payload["operation"])
+		if textutil.AnyString(payload["domain"]) != "execution" ||
+			textutil.AnyString(payload["action"]) != "invoke" || boolValue(payload["is_error"]) {
 			return nil
 		}
 		data = mapValue(payload["data"])
@@ -122,14 +123,14 @@ func workGraphArtifactDataMatchesOperation(operation string, data map[string]any
 }
 
 func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {
-	name := normalizeString(toolUse["name"])
+	name := textutil.AnyString(toolUse["name"])
 	input := mapValue(toolUse["input"])
 	if name == "mcp__nexus__command" || name == "nexus__command" ||
 		name == "nexus.command" || name == "nexus/command" {
-		operation := normalizeString(input["operation"])
-		if normalizeString(input["domain"]) != "execution" ||
-			normalizeString(input["action"]) != "invoke" ||
-			normalizeString(input["request_id"]) == "" {
+		operation := textutil.AnyString(input["operation"])
+		if textutil.AnyString(input["domain"]) != "execution" ||
+			textutil.AnyString(input["action"]) != "invoke" ||
+			textutil.AnyString(input["request_id"]) == "" {
 			return "", false
 		}
 		if _, ok := workGraphArtifactOperations[operation]; !ok {
@@ -140,7 +141,7 @@ func managedExecutionCommandOperation(toolUse map[string]any) (string, bool) {
 	if name != "Bash" && name != "PowerShell" {
 		return "", false
 	}
-	command := strings.TrimSpace(normalizeString(input["command"]))
+	command := textutil.AnyString(input["command"])
 	if strings.ContainsAny(command, "\n\r|;<>`") || strings.Contains(command, "$(") {
 		return "", false
 	}
@@ -203,7 +204,7 @@ func firstWorkGraphArtifactPayload(content string) map[string]any {
 	for _, candidate := range imagegenJSONCandidates(content) {
 		var payload map[string]any
 		if json.Unmarshal([]byte(candidate), &payload) == nil &&
-			normalizeString(payload["domain"]) == "execution" {
+			textutil.AnyString(payload["domain"]) == "execution" {
 			return payload
 		}
 	}

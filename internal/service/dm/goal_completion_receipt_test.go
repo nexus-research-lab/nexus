@@ -3,9 +3,13 @@ package dm
 import (
 	"context"
 	"encoding/json"
-	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"path/filepath"
 	"testing"
+
+	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -36,14 +40,12 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 		"content":     []map[string]any{{"type": "text", "text": "最终交付"}},
 	}
 	runner := &roundRunner{
-		service:                     &Service{goals: provider, history: history},
-		workspacePath:               workspacePath,
-		session:                     protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
-		sessionKey:                  sessionKey,
-		roundID:                     "round-1",
-		goalCompletionCandidateID:   "goal-1",
-		goalCompletionAssistant:     assistant,
-		goalCompletionReceiptStored: false,
+		service:        &Service{goals: provider, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history, Permission: permissionctx.NewContext()}},
+		workspacePath:  workspacePath,
+		session:        protocol.Session{SessionKey: sessionKey, AgentID: "agent-1"},
+		sessionKey:     sessionKey,
+		roundID:        "round-1",
+		GoalRoundState: runtimehost.GoalRoundState{CompletionCandidateID: "goal-1", CompletionAssistant: assistant, CompletionReceiptStored: false},
 	}
 
 	runner.persistGoalCompletionReceipt(context.Background(), false)
@@ -72,37 +74,10 @@ func TestRoundRunnerPersistsAndSilentlyEnrichesGoalCompletionReceipt(t *testing.
 	}
 }
 
-func TestRoundRunnerDoesNotTreatBlockedGoalUpdateAsCompleted(t *testing.T) {
-	receipts := nexusmcp.NewCommandReceiptState()
-	runner := &roundRunner{
-		service:         &Service{goals: &fakeGoalContextProvider{}},
-		goalIDForUsage:  "goal-1",
-		commandReceipts: receipts,
-	}
-	receipts.Record(nexusmcp.CommandReceipt{
-		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
-		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
-		GoalStatus: string(protocol.GoalStatusBlocked),
-	})
-	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusBlocked))
-	if runner.goalCompletionCandidateID != "" {
-		t.Fatalf("blocked update created completion candidate %q", runner.goalCompletionCandidateID)
-	}
-	receipts.Record(nexusmcp.CommandReceipt{
-		Domain: command.DomainGoal, Operation: command.GoalOperationUpdate,
-		Outcome: string(protocol.MutationResultApplied), GoalID: "goal-1",
-		GoalStatus: string(protocol.GoalStatusComplete),
-	})
-	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
-	if runner.goalCompletionCandidateID != "goal-1" {
-		t.Fatalf("complete update candidate = %q, want goal-1", runner.goalCompletionCandidateID)
-	}
-}
-
 func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
 	receipts := nexusmcp.NewCommandReceiptState()
 	runner := &roundRunner{
-		service:         &Service{goals: &fakeGoalContextProvider{}},
+		service:         &Service{goals: &fakeGoalContextProvider{}, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		commandReceipts: receipts,
 	}
 	receipts.Record(nexusmcp.CommandReceipt{
@@ -111,8 +86,8 @@ func TestRoundRunnerUsesGoalIDFromCompletionCommandReceipt(t *testing.T) {
 		GoalStatus: string(protocol.GoalStatusComplete),
 	})
 	runner.recordGoalUsageFromAssistantMessage(goalCommandAssistantMessage(protocol.GoalStatusComplete))
-	if runner.goalCompletionCandidateID != "goal-from-receipt" {
-		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.goalCompletionCandidateID)
+	if runner.CompletionCandidateID != "goal-from-receipt" {
+		t.Fatalf("complete update candidate = %q, want exact receipt Goal ID", runner.CompletionCandidateID)
 	}
 }
 

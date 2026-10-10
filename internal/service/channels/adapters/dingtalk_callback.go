@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
@@ -30,15 +31,15 @@ func DecodeDingTalkIngressCallback(raw []byte) (*channelcontract.IngressRequest,
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, "", err
 	}
-	content := channelcontract.FirstNonEmpty(payload.Text.Content, dingTalkContentText(payload.Content))
+	content := textutil.FirstNonEmpty(payload.Text.Content, dingTalkContentText(payload.Content))
 	if content == "" {
 		return nil, "empty_text", nil
 	}
-	ref := channelcontract.FirstNonEmpty(payload.OpenConversationID, payload.ConversationID, payload.SenderStaffID, payload.SenderID)
+	ref := textutil.FirstNonEmpty(payload.OpenConversationID, payload.ConversationID, payload.SenderStaffID, payload.SenderID)
 	if ref == "" {
 		return nil, "empty_ref", nil
 	}
-	deliveryTo := channelcontract.FirstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
+	deliveryTo := textutil.FirstNonEmpty(payload.SessionWebhook, payload.OpenConversationID, payload.ConversationID, ref)
 	accountID := strings.TrimSpace(payload.ChatbotCorpID)
 	messageID := strings.TrimSpace(payload.MsgID)
 	chatType := normalizeDingTalkConversationType(payload.ConversationType)
@@ -52,7 +53,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*channelcontract.IngressRequest,
 		Content:      content,
 		RoundID:      messageID,
 		ReqID:        messageID,
-		ExternalName: channelcontract.FirstNonEmpty(payload.ConversationTitle, payload.SenderNick),
+		ExternalName: textutil.FirstNonEmpty(payload.ConversationTitle, payload.SenderNick),
 		Delivery: &channelcontract.DeliveryTarget{
 			Mode:      channelcontract.DeliveryModeExplicit,
 			Channel:   channelcontract.ChannelTypeDingTalk,
@@ -63,7 +64,7 @@ func DecodeDingTalkIngressCallback(raw []byte) (*channelcontract.IngressRequest,
 			Channel:           channelcontract.ChannelTypeDingTalk,
 			Target:            ref,
 			PlatformMessageID: messageID,
-			SenderID:          channelcontract.FirstNonEmpty(payload.SenderStaffID, payload.SenderID),
+			SenderID:          textutil.FirstNonEmpty(payload.SenderStaffID, payload.SenderID),
 			SenderName:        senderName,
 			ChatType:          chatType,
 			Text:              content,

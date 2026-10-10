@@ -37,7 +37,7 @@ func (s *Service) AcceptIMDeliveryReply(ctx context.Context, d imdelivery.Delive
 	if err = s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return err
 	}
-	result, err := s.inputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
+	result, err := s.InputQueue.EnqueueIdempotent(location, protocol.InputQueueItem{
 		ID: reply.ID, Scope: protocol.InputQueueScopeDM, SessionKey: session, AgentID: d.Source.AgentID,
 		ClientMessageID: reply.ID, SourceMessageID: "im_feedback_" + reply.ID, Source: protocol.InputQueueSourceIMDeliveryReply,
 		Content: reply.ForwardedContent, DeliveryPolicy: protocol.ChatDeliveryPolicyQueue, OwnerUserID: reply.OwnerUserID,
@@ -51,7 +51,7 @@ func (s *Service) AcceptIMDeliveryReply(ctx context.Context, d imdelivery.Delive
 	}
 	if _, pending := inputQueueItemByID(result.Items, result.Item.ID); pending {
 		s.broadcastInputQueueSnapshot(ctx, session, result.Items)
-		s.startSessionBackgroundTask(session, reply.OwnerUserID, func(taskCtx context.Context) {
+		s.StartSessionBackgroundTask(session, reply.OwnerUserID, func(taskCtx context.Context) {
 			s.dispatchNextInputQueueItemAtLocation(taskCtx, session, d.Source.AgentID, location)
 		})
 	} else {

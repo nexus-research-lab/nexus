@@ -78,7 +78,7 @@ func (r *Repository) ClaimRunDeliveryAttempt(ctx context.Context, input RunDeliv
 		(input.ExpectedConfigurationVersion != nil && *input.ExpectedConfigurationVersion < 1) {
 		return automationdomain.ErrDeliveryRetryConflict
 	}
-	expectedStatus := strings.TrimSpace(input.ExpectedStatus)
+	expectedStatus := input.ExpectedStatus
 	if expectedStatus == "" {
 		expectedStatus = automationdomain.DeliveryStatusFailed
 	}
@@ -192,9 +192,9 @@ WHERE owner_user_id = %s
 	result, err := tx.ExecContext(
 		ctx,
 		query,
-		nullString(strings.TrimSpace(input.DeliveryMode)),
+		nullString(input.DeliveryMode),
 		nullString(strings.TrimSpace(input.DeliveryTo)),
-		nullString(strings.TrimSpace(input.DeliveryStatus)),
+		nullString(input.DeliveryStatus),
 		nullableString(input.DeliveryError),
 		nullableTime(input.DeliveredAt),
 		nullableTime(input.DeliveryNextAttemptAt),
@@ -465,7 +465,7 @@ LIMIT ` + r.bind(7)
 }
 
 func initialRunDeliveryStatus(input RunPendingInput) string {
-	if deliveryStatus := strings.TrimSpace(input.DeliveryStatus); deliveryStatus != "" {
+	if deliveryStatus := input.DeliveryStatus; deliveryStatus != "" {
 		return deliveryStatus
 	}
 	switch strings.TrimSpace(input.DeliveryMode) {

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
 
@@ -237,7 +238,7 @@ func (s *Service) preparePrivateSkillSourceUpdate(
 		entity.Enabled = *request.Enabled
 	}
 	authChanged := request.AuthType != nil || request.Token != nil
-	authType := firstNonEmpty(entity.AuthType, externalSourceAuthNone)
+	authType := textutil.FirstNonEmpty(entity.AuthType, externalSourceAuthNone)
 	if request.AuthType != nil {
 		var normalizeErr error
 		authType, normalizeErr = normalizePrivateSourceAuthType(*request.AuthType)
@@ -443,7 +444,7 @@ func (s *Service) importPrivateRegistrySkill(
 	}
 	return s.importSourceDirAtVersion(ctx, sourceDir, externalManifest{
 		Name:           row.Name,
-		Title:          firstNonEmpty(row.Title, row.Name),
+		Title:          textutil.FirstNonEmpty(row.Title, row.Name),
 		Description:    row.Description,
 		Tags:           normalizeStringSlice(row.Tags),
 		Version:        row.Version,
@@ -456,7 +457,7 @@ func (s *Service) importPrivateRegistrySkill(
 		SourceSkillID:  row.ID,
 		ArtifactSHA256: row.SHA256,
 		ImportMode:     externalSourceKindPrivateRegistry,
-		Recommendation: firstNonEmpty(row.Description, "私有来源导入能力。"),
+		Recommendation: textutil.FirstNonEmpty(row.Description, "私有来源导入能力。"),
 		RawURL:         row.DownloadURL,
 		DetailURL:      source.URL,
 	}, expectedVersion)
@@ -520,7 +521,7 @@ func (s *Service) checkPrivateRegistrySkillUpdate(ctx context.Context, manifest 
 	if err != nil {
 		return false, err
 	}
-	row, err := s.privateRegistrySkillByID(ctx, source, firstNonEmpty(manifest.SourceSkillID, manifest.SourceRef))
+	row, err := s.privateRegistrySkillByID(ctx, source, textutil.FirstNonEmpty(manifest.SourceSkillID, manifest.SourceRef))
 	if err != nil {
 		return false, err
 	}
@@ -674,7 +675,7 @@ func normalizePrivateRegistrySkill(baseURL string, item privateRegistrySkill) (p
 func privateRegistrySearchItem(source externalSkillSource, row privateRegistrySkill) ExternalSkillSearchItem {
 	return ExternalSkillSearchItem{
 		Name:           row.Name,
-		Title:          firstNonEmpty(row.Title, row.Name),
+		Title:          textutil.FirstNonEmpty(row.Title, row.Name),
 		Description:    row.Description,
 		Source:         source.URL,
 		PackageSpec:    row.ID,
@@ -731,7 +732,7 @@ func privateRegistryRequest(ctx context.Context, source externalSkillSource, met
 		return nil, err
 	}
 	if source.AuthType == externalSourceAuthBearer {
-		if strings.TrimSpace(source.Credential) == "" {
+		if source.Credential == "" {
 			return nil, errors.New("私有来源缺少 Bearer Token")
 		}
 		request.Header.Set("Authorization", "Bearer "+source.Credential)

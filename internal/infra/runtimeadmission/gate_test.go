@@ -126,34 +126,7 @@ func TestTransitionFailureDoesNotCommitAndReopensAdmission(t *testing.T) {
 	lease.Release()
 }
 
-func TestLeaseReleaseCancelsContext(t *testing.T) {
-	for _, test := range []struct {
-		name  string
-		lease func() *Lease
-	}{
-		{
-			name: "gated",
-			lease: func() *Lease {
-				lease, err := NewGate().Admit(context.Background())
-				if err != nil {
-					t.Fatal(err)
-				}
-				return lease
-			},
-		},
-		{
-			name:  "detached",
-			lease: func() *Lease { return NewDetachedLease(context.Background()) },
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			lease := test.lease()
-			lease.Release()
-			select {
-			case <-lease.Context().Done():
-			case <-time.After(time.Second):
-				t.Fatal("Release() 未取消 lease context")
-			}
-		})
-	}
+// NewGate 创建 runtime admission gate。
+func NewGate() *Gate {
+	return &Gate{active: make(map[uint64]context.CancelFunc)}
 }

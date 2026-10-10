@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 
-	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func firstStringValue(values ...any) string {
 	for _, value := range values {
-		if text := handlershared.StringValue(value); text != "" {
+		if text := textutil.AnyString(value); text != "" {
 			return text
 		}
 	}
@@ -28,7 +28,7 @@ func stringSliceValue(value any) []string {
 	}
 	result := make([]string, 0, len(rawItems))
 	for _, item := range rawItems {
-		text := handlershared.StringValue(item)
+		text := textutil.AnyString(item)
 		if text != "" {
 			result = append(result, text)
 		}

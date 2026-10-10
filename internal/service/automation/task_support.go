@@ -79,7 +79,7 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(workspacePath) == "" {
+	if workspacePath == "" {
 		return nil
 	}
 	ownerUserID := strings.TrimSpace(job.OwnerUserID)

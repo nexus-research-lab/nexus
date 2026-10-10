@@ -57,10 +57,10 @@ func ResolveCommandContext(
 		ActorKind: protocol.ExecutionActorAgent, ScopeKind: scopeKind,
 		ScopeSessionKey:         scopeSessionKey,
 		RuntimeSessionKey:       strings.TrimSpace(runtimeContext.RuntimeSessionKey),
-		ExecutionID:             strings.TrimSpace(runtimeContext.ExecutionID),
-		WorkBinding:             cloneWorkBinding(runtimeContext.WorkBinding),
+		ExecutionID:             runtimeContext.ExecutionID,
+		WorkBinding:             runtimeContext.WorkBinding.Clone(),
 		WorkBindingState:        runtimeContext.WorkBindingState,
-		ReviewBinding:           cloneReviewBinding(runtimeContext.ReviewBinding),
+		ReviewBinding:           runtimeContext.ReviewBinding.Clone(),
 		GoalAuthority:           runtimeContext.GoalAuthority,
 		ResponsibilityAuthority: runtimeContext.ResponsibilityAuthority,
 		RootRoundID:             strings.TrimSpace(runtimeContext.RootRoundID),
@@ -119,7 +119,7 @@ func validGoalContinuationContext(
 	if normalized.OwnerUserID != ownerUserID || normalized.AgentID != agentID ||
 		normalized.ScopeSessionKey != scopeSessionKey ||
 		normalized.RootRoundID != strings.TrimSpace(runtimeContext.RootRoundID) ||
-		normalized.ExecutionID != strings.TrimSpace(runtimeContext.ExecutionID) ||
+		normalized.ExecutionID != runtimeContext.ExecutionID ||
 		strings.TrimSpace(runtimeContext.SourceContextID) != agentID ||
 		strings.TrimSpace(runtimeContext.RuntimeSessionKey) != scopeSessionKey {
 		return false
@@ -154,20 +154,4 @@ func cloneGoalContinuationAuthority(
 		return runtimectx.GoalContinuationAuthority{}
 	}
 	return authority.Normalized()
-}
-
-func cloneReviewBinding(binding *protocol.ExecutionReviewBinding) *protocol.ExecutionReviewBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
-}
-
-func cloneWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }

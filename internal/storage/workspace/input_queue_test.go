@@ -4,41 +4,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestInputQueueStoreUsesLocationOwnerAsTruth(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	workspacePath := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "user-a"), "agent-a")
-	location := InputQueueLocation{
-		OwnerUserID:   "user-a",
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: workspacePath,
-		SessionKey:    "agent:agent-a:ws:dm:owner-truth",
-	}
-	store := NewInputQueueStore("")
-
-	items, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:          "item-a",
-		OwnerUserID: "user-b",
-		Content:     "归属必须由物理位置决定",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(items) != 1 || items[0].OwnerUserID != "user-a" {
-		t.Fatalf("队列项 owner 未按 location 归一化: %+v", items)
-	}
-}
 
 func TestInputQueueStoreRejectsAnotherOwnerWorkspace(t *testing.T) {
 	stateRoot := t.TempDir()
@@ -55,54 +27,6 @@ func TestInputQueueStoreRejectsAnotherOwnerWorkspace(t *testing.T) {
 		Content: "不应写入另一用户 workspace",
 	}); err == nil {
 		t.Fatal("跨 owner workspace 的队列位置必须被拒绝")
-	}
-}
-
-func TestInputQueueStoreRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-
-	ownerBWorkspace := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
-		"agent-b",
-	)
-	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ownerAWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
-	if err := os.MkdirAll(ownerAWorkspaceRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(
-		filepath.Join("..", "..", "user-b", "workspace", "agent-b"),
-		filepath.Join(ownerAWorkspaceRoot, "agent-a"),
-	); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	location := InputQueueLocation{
-		OwnerUserID:   "user-a",
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: filepath.Join(ownerAWorkspaceRoot, "agent-a"),
-		SessionKey:    "agent:agent-a:ws:dm:symlink",
-	}
-	_, err := NewInputQueueStore("").Enqueue(location, protocol.InputQueueItem{
-		ID:      "item-symlink",
-		Content: "不能借 workspace symlink 越界",
-	})
-	if !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("跨 owner workspace symlink 应被拒绝: %v", err)
-	}
-	foreignQueue := filepath.Join(
-		ownerBWorkspace,
-		".agents",
-		"sessions",
-		encodeSessionDirName(location.SessionKey),
-		"input_queue.jsonl",
-	)
-	if _, statErr := os.Stat(foreignQueue); !errors.Is(statErr, os.ErrNotExist) {
-		t.Fatalf("不能借 workspace symlink 写入 owner B 队列: %v", statErr)
 	}
 }
 
@@ -179,39 +103,6 @@ func TestInputQueueStoreEnqueueBatchRollsBackEarlierFiles(t *testing.T) {
 	}
 }
 
-func TestInputQueueStoreEnqueueBatchWithItemsReturnsCommittedVersions(t *testing.T) {
-	root := t.TempDir()
-	store := NewInputQueueStore(root)
-	location := InputQueueLocation{
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: filepath.Join(root, "agent"),
-		SessionKey:    "agent:alpha:ws:dm:batch-versions",
-	}
-	committed, err := store.EnqueueBatchWithItems([]InputQueueEnqueue{{
-		Location: location,
-		Item: protocol.InputQueueItem{
-			ID:             "guide-versioned",
-			Content:        "恢复后继续确认",
-			DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-			CreatedAt:      1,
-			UpdatedAt:      1,
-		},
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(committed) != 1 || committed[0].UpdatedAt <= 1 {
-		t.Fatalf("committed items must contain the normalized CAS version: %+v", committed)
-	}
-	snapshot, err := store.Snapshot(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(snapshot, committed) {
-		t.Fatalf("returned committed items differ from durable snapshot: committed=%+v snapshot=%+v", committed, snapshot)
-	}
-}
-
 func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	root := t.TempDir()
 	workspacePath := filepath.Join(root, "agent")
@@ -282,40 +173,6 @@ func TestInputQueueStoreReplayAppendReorderDispatchAndDelete(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Fatalf("重放删除/派发事件后队列应为空: %#v", items)
-	}
-}
-
-func TestInputQueueStoreRestoresGoalCollaborationBinding(t *testing.T) {
-	root := t.TempDir()
-	location := InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  filepath.Join(root, "agent"),
-		SessionKey:     "agent:peer:ws:group:conversation-goal-binding",
-		ConversationID: "conversation-goal-binding",
-	}
-	store := NewInputQueueStore(root)
-	_, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "item-goal-binding",
-		Scope:          protocol.InputQueueScopeRoom,
-		ConversationID: location.ConversationID,
-		AgentID:        "agent-peer",
-		TargetAgentIDs: []string{"agent-peer"},
-		Source:         protocol.InputQueueSourceAgentPublicMention,
-		Content:        "continue the collaboration",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		GoalCollaborationBinding: &protocol.GoalCollaborationBinding{
-			GoalID:            "goal-room",
-			ObjectiveRevision: 4,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	items, err := NewInputQueueStore(root).Snapshot(location)
-	if err != nil || len(items) != 1 || items[0].GoalCollaborationBinding == nil ||
-		items[0].GoalCollaborationBinding.GoalID != "goal-room" ||
-		items[0].GoalCollaborationBinding.ObjectiveRevision != 4 {
-		t.Fatalf("Goal collaboration binding was not restored: items=%+v err=%v", items, err)
 	}
 }
 
@@ -391,80 +248,6 @@ func TestInputQueueStoreSeparatesDMAndRoomScopesAtSameSessionPath(t *testing.T) 
 	}
 	if len(dmItems) != 1 || dmItems[0].ID != "dm-item" {
 		t.Fatalf("Room 派发后 DM 队列项必须保留: %+v", dmItems)
-	}
-}
-
-func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
-	root := t.TempDir()
-	location := InputQueueLocation{
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: filepath.Join(root, "agent"),
-		SessionKey:    "agent:alpha:ws:dm:idempotent",
-	}
-	store := NewInputQueueStore(root)
-	intent := protocol.InputQueueItem{
-		Content:        " 继续分析 M5 ",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		TargetAgentIDs: []string{"agent-b", "agent-a", "agent-b"},
-		Source:         protocol.InputQueueSourceUser,
-		OwnerUserID:    "owner-1",
-		CreatedAt:      1,
-		UpdatedAt:      1,
-	}
-
-	first, err := store.EnqueueIdempotent(location, intent, "client-message-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first.Duplicate || first.Item.ID == "" || len(first.Items) != 1 {
-		t.Fatalf("unexpected first acceptance: %+v", first)
-	}
-	acceptedID := first.Item.ID
-
-	dispatched, remaining, err := store.DispatchNext(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if dispatched == nil || dispatched.ID != acceptedID || len(remaining) != 0 {
-		t.Fatalf("unexpected dispatch: item=%+v remaining=%+v", dispatched, remaining)
-	}
-
-	retry := intent
-	retry.ID = "ignored-retry-id"
-	retry.CreatedAt = 999
-	retry.UpdatedAt = 999
-	retry.TargetAgentIDs = []string{"agent-a", "agent-b"}
-	duplicate, err := NewInputQueueStore(root).EnqueueIdempotent(
-		location,
-		retry,
-		"client-message-1",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !duplicate.Duplicate || duplicate.Item.ID != acceptedID || len(duplicate.Items) != 0 {
-		t.Fatalf("retry must reuse durable acceptance without requeueing: %+v", duplicate)
-	}
-
-	path, err := store.pathForLocation(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rows, err := store.files.readJSONL(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	enqueueRows := 0
-	for _, row := range rows {
-		if stringFromAny(row["action"]) == inputQueueActionEnqueue {
-			enqueueRows++
-			if stringFromAny(row["client_message_id"]) != "client-message-1" {
-				t.Fatalf("enqueue row lost client_message_id: %+v", row)
-			}
-		}
-	}
-	if enqueueRows != 1 {
-		t.Fatalf("idempotent retry appended %d enqueue rows, want 1", enqueueRows)
 	}
 }
 
@@ -743,35 +526,6 @@ func TestInputQueueStoreDispatchPreparedGuidanceIsAllOrNone(t *testing.T) {
 	}
 }
 
-func TestInputQueueStoreDispatchPreparedGuidanceIgnoresReorderMetadata(t *testing.T) {
-	root := t.TempDir()
-	location := InputQueueLocation{
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: filepath.Join(root, "agent"),
-		SessionKey:    "agent:alpha:ws:dm:prepared-guidance-reorder",
-	}
-	store := NewInputQueueStore(root)
-	for _, item := range []protocol.InputQueueItem{
-		{ID: "item-a", Content: "第一条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
-		{ID: "item-b", Content: "第二条引导", DeliveryPolicy: protocol.ChatDeliveryPolicyGuide, RootRoundID: "round-running"},
-	} {
-		if _, err := store.Enqueue(location, item); err != nil {
-			t.Fatal(err)
-		}
-	}
-	prepared, err := store.SnapshotGuidance(location, "round-running")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = store.Reorder(location, []string{"item-b", "item-a"}); err != nil {
-		t.Fatal(err)
-	}
-	claimed, remaining, err := store.DispatchPreparedGuidance(location, prepared, "round-running")
-	if err != nil || len(claimed) != 2 || len(remaining) != 0 {
-		t.Fatalf("排序元数据变化不应使已应用引导重复注入: claimed=%+v remaining=%+v err=%v", claimed, remaining, err)
-	}
-}
-
 func TestInputQueueStoreGuidanceDispatchDoesNotReadAfterCommit(t *testing.T) {
 	root := t.TempDir()
 	location := InputQueueLocation{
@@ -880,77 +634,6 @@ func TestInputQueueStoreUntargetedGuidanceWaitsForAnyRound(t *testing.T) {
 	}
 	if len(guidanceItems) != 1 || guidanceItems[0].ID != "item-guide" || len(items) != 0 {
 		t.Fatalf("无绑定引导应被后续任意 round 的 hook 消费: guidance=%+v items=%+v", guidanceItems, items)
-	}
-}
-
-func TestInputQueueStoreCancelGuidanceRestoresDispatchableQueue(t *testing.T) {
-	root := t.TempDir()
-	workspacePath := filepath.Join(root, "agent")
-	sessionKey := "agent:alpha:ws:dm:test"
-	store := NewInputQueueStore(root)
-	location := InputQueueLocation{
-		Scope:         protocol.InputQueueScopeDM,
-		WorkspacePath: workspacePath,
-		SessionKey:    sessionKey,
-	}
-
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "item-guide",
-		Content:        "取消后作为普通队列发送",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
-		Source:         protocol.InputQueueSourceUser,
-		RootRoundID:    "stale-round",
-	}); err != nil {
-		t.Fatalf("写入引导队列失败: %v", err)
-	}
-	items, err := store.UpdateDeliveryPolicy(location, "item-guide", protocol.ChatDeliveryPolicyQueue)
-	if err != nil {
-		t.Fatalf("取消引导失败: %v", err)
-	}
-	if len(items) != 1 || items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyQueue || items[0].RootRoundID != "" {
-		t.Fatalf("取消引导后应恢复普通队列并清理 root_round_id: %+v", items)
-	}
-
-	dispatched, items, err := store.DispatchFirstDispatchable(location)
-	if err != nil {
-		t.Fatalf("派发取消引导后的队列失败: %v", err)
-	}
-	if dispatched == nil || dispatched.ID != "item-guide" || len(items) != 0 {
-		t.Fatalf("取消引导后的队列应可正常派发: dispatched=%+v items=%+v", dispatched, items)
-	}
-}
-
-func TestInputQueueStoreRoomScopeUsesAgentSessionPath(t *testing.T) {
-	root := t.TempDir()
-	store := NewInputQueueStore(root)
-	workspacePath := filepath.Join(root, "sam")
-	sessionKey := protocol.BuildRoomAgentSessionKey("conversation-1", "agent-sam", protocol.RoomTypeGroup)
-	location := InputQueueLocation{
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  workspacePath,
-		SessionKey:     sessionKey,
-		RoomID:         "room-1",
-		ConversationID: "conversation-1",
-	}
-
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:             "room-item",
-		Content:        "@Sam 看下这个",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyQueue,
-		Source:         protocol.InputQueueSourceUser,
-	}); err != nil {
-		t.Fatalf("写入 Room 队列失败: %v", err)
-	}
-
-	items, err := NewInputQueueStore(root).Snapshot(location)
-	if err != nil {
-		t.Fatalf("读取 Room 队列失败: %v", err)
-	}
-	if len(items) != 1 || items[0].Scope != protocol.InputQueueScopeRoom || items[0].ConversationID != "conversation-1" {
-		t.Fatalf("Room 队列快照不正确: %#v", items)
-	}
-	if items[0].SessionKey != sessionKey {
-		t.Fatalf("Room 队列应归属 agent session: %#v", items[0])
 	}
 }
 

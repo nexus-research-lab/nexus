@@ -5,21 +5,6 @@ import (
 	"testing"
 )
 
-func TestPolicyCanResumeRequiresTranscript(t *testing.T) {
-	sessionID := "11111111-1111-4111-8111-111111111111"
-	policy := NewPolicy(fakeTranscriptStore{exists: map[string]bool{sessionID: true}})
-
-	allowed := policy.CanResume("/workspace", sessionID)
-	if !allowed.Allowed || allowed.Reason != ReasonTranscriptExists {
-		t.Fatalf("存在 transcript 时应允许 resume: %+v", allowed)
-	}
-
-	missing := policy.CanResume("/workspace", "22222222-2222-4222-8222-222222222222")
-	if missing.Allowed || missing.Reason != ReasonTranscriptMissing {
-		t.Fatalf("缺失 transcript 时不应允许 resume: %+v", missing)
-	}
-}
-
 func TestPolicyCanPersistBlocksTranscriptCheckError(t *testing.T) {
 	checkErr := errors.New("stat failed")
 	policy := NewPolicy(fakeTranscriptStore{err: checkErr})

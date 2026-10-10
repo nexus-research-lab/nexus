@@ -8,6 +8,7 @@
 //   - workspace_path.go：部署环境 workspace 根规范化。
 //
 // 暴露接口：Config、Load、LoadDotEnv。
+// NEXUS_MULTIPLAYER_DISABLED 显式关闭在线多人；未配置 Relay 的 Web 服务自动不开放多人能力。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 // DesktopSandboxEnabled 是桌面运行时内部的沙箱合同标记；桌面模式默认启用，

@@ -11,6 +11,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	connectorstore "github.com/nexus-research-lab/nexus/internal/storage/connectors"
 )
 
@@ -327,7 +328,7 @@ func (s *Service) feishuRegistrationClient(entry CatalogEntry) appregistration.C
 }
 
 func (s *Service) deviceProvider(entry CatalogEntry) (providers.DeviceProvider, error) {
-	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	providerID := textutil.FirstNonEmpty(entry.Provider, entry.ConnectorID)
 	provider, err := providers.Get(providerID)
 	if err != nil {
 		return nil, err

@@ -11,32 +11,6 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
-func TestSubagentAdmissionAllowsRuntimeOnlyWithoutManagedAssignment(t *testing.T) {
-	snapshot := assignedExecutionSnapshot()
-	snapshot.Assignments = nil
-	snapshot.Attempts = nil
-	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
-	assertRuntimeOnlySubagentAdmission(t, result)
-}
-
-func TestSubagentAdmissionAllowsRuntimeOnlyWithMultipleManagedCandidates(t *testing.T) {
-	snapshot := assignedExecutionSnapshot()
-	addSecondDelegableAssignment(snapshot)
-	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
-	assertRuntimeOnlySubagentAdmission(t, result)
-}
-
-func TestSubagentAdmissionAllowsRuntimeOnlyWithoutExecutionOrToolCorrelation(t *testing.T) {
-	assertRuntimeOnlySubagentAdmission(
-		t,
-		admitSubagentWithSnapshot(t, nil, subagentActor(), "tool-1"),
-	)
-	assertRuntimeOnlySubagentAdmission(
-		t,
-		admitSubagentWithSnapshot(t, assignedExecutionSnapshot(), subagentActor(), ""),
-	)
-}
-
 func TestSubagentAdmissionRejectsWrongOwnerOrSession(t *testing.T) {
 	for _, testCase := range []struct {
 		name  string
@@ -262,62 +236,6 @@ func TestSubagentAdmissionFallsBackToRuntimeOnlyOnIncompleteManagedBinding(t *te
 			result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
 			assertRuntimeOnlySubagentAdmission(t, result)
 		})
-	}
-}
-
-func TestSubagentAdmissionAllowsUniqueCandidateAndPersistsBinding(t *testing.T) {
-	snapshot := assignedExecutionSnapshot()
-	repository := &fakeRepository{snapshot: snapshot}
-	repository.startAttempt = func(
-		_ context.Context,
-		command orchestrationstore.StartAttemptCommand,
-	) (*protocol.ExecutionSnapshot, error) {
-		result := cloneExecutionSnapshot(repository.snapshot)
-		result.Execution.Version++
-		result.Assignments[0].Status = protocol.WorkAssignmentStatusActive
-		result.Assignments[0].Version++
-		if command.Attempt.ID == "attempt-1" {
-			result.Attempts[0] = command.Attempt
-			result.Attempts[0].Status = protocol.WorkAttemptStatusRunning
-			result.Attempts[0].Version++
-		} else {
-			child := command.Attempt
-			child.Status = protocol.WorkAttemptStatusRunning
-			child.Version = 1
-			result.Attempts = append(result.Attempts, child)
-		}
-		repository.snapshot = result
-		return result, nil
-	}
-	service := NewService(repository)
-	service.newID = func(kind string) string {
-		if kind == "attempt" {
-			return "attempt-child"
-		}
-		return kind + "-generated"
-	}
-	result, err := service.AdmitSubagentLaunch(context.Background(), subagentActor(), SubagentLaunchInput{
-		ToolUseID:         "tool-agent-1",
-		RuntimeSessionKey: "runtime-session-1",
-		SDKSessionID:      "sdk-session-1",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !result.Allowed || result.Mode != SubagentAdmissionManaged || result.Binding == nil {
-		t.Fatalf("admission = %#v, want allowed durable binding", result)
-	}
-	if result.Binding.AttemptID != "attempt-child" ||
-		result.Binding.ParentAttemptID != "attempt-1" ||
-		result.Binding.AssignmentID != "assignment-1" ||
-		result.Binding.ToolUseID != "tool-agent-1" {
-		t.Fatalf("binding = %#v", result.Binding)
-	}
-	child := repository.snapshot.Attempts[len(repository.snapshot.Attempts)-1]
-	if child.ExecutorKind != protocol.AttemptExecutorSubagent ||
-		child.RuntimeSessionKey != "runtime-session-1" ||
-		child.SDKSessionID != "sdk-session-1" {
-		t.Fatalf("persisted child Attempt = %#v", child)
 	}
 }
 

@@ -384,8 +384,17 @@ test("history menus keep readable metadata, editing focus and reachable batch fe
   const history = page.getByRole("dialog", { name: copy(info, "历史", "History"), exact: true });
   await expectInsideViewport(page, history);
   const beta = history.getByRole("button", { name: /ResearchEvidenceAndVerification/ });
-  await beta.focus();
+  const activity = beta.getByText(copy(info, "刚刚", "Just now"), { exact: true });
   const rename = beta.getByRole("button", { name: copy(info, "重命名", "Rename"), exact: true });
+  await expect(activity).toBeVisible();
+  await expect(rename).toHaveCSS("opacity", "0");
+  const timeBounds = (await activity.boundingBox())!;
+  const rowBounds = (await beta.boundingBox())!;
+  expect(rowBounds.x + rowBounds.width - timeBounds.x - timeBounds.width).toBeLessThanOrEqual(13);
+  await beta.hover();
+  await expect(activity).toHaveCSS("visibility", "hidden");
+  await expect(rename).toHaveCSS("opacity", "1");
+  await beta.focus();
   await expect(rename).toHaveCSS("opacity", "1");
   await expect(beta.getByText(copy(info, "刚刚", "Just now"), { exact: true })).toHaveCSS("font-size", "12px");
   await rename.click();

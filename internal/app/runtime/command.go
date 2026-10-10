@@ -178,8 +178,8 @@ func buildNexusCommandMCPTool(
 	}
 	agentID := strings.TrimSpace(agentValue.AgentID)
 	lease, hasLease := runtimectx.RuntimeRoundLeaseFromContext(ctx)
-	if agentID == "" || !hasLease || strings.TrimSpace(lease.SessionKey) == "" ||
-		strings.TrimSpace(lease.RoundID) == "" {
+	if agentID == "" || !hasLease || lease.SessionKey == "" ||
+		lease.RoundID == "" {
 		return sdktool.Tool{}, false, nil
 	}
 	if round.CommandAttempts == nil {
@@ -194,7 +194,7 @@ func buildNexusCommandMCPTool(
 		OwnerUserID: strings.TrimSpace(record.OwnerUserID),
 		AgentID:     agentID, AgentName: strings.TrimSpace(record.Name),
 		SessionKey: strings.TrimSpace(round.SessionKey), RoundID: strings.TrimSpace(round.RoundID),
-		LeaseSessionKey: strings.TrimSpace(lease.SessionKey), LeaseRoundID: strings.TrimSpace(lease.RoundID),
+		LeaseSessionKey: lease.SessionKey, LeaseRoundID: lease.RoundID,
 		SourceContextType:  strings.ToLower(strings.TrimSpace(round.SourceContextType)),
 		SourceContextID:    strings.TrimSpace(round.SourceContextID),
 		SourceContextLabel: strings.TrimSpace(round.SourceContextLabel),
@@ -284,7 +284,7 @@ func trustedCommandActor(ctx context.Context, agent *protocol.Agent, actor comma
 			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
 			actor.SourceContextID == actor.AgentID &&
 			strings.TrimSpace(actor.Round.CommandContext.ScopeSessionKey) != "" &&
-			strings.TrimSpace(actor.Round.CommandContext.WorkGraphPreviewID) != ""
+			actor.Round.CommandContext.WorkGraphPreviewID != ""
 	case "agent":
 		if _, _, _, ok := trustedPrincipal(ctx, actor.OwnerUserID); !ok {
 			return false
@@ -335,8 +335,8 @@ func trustedGoalContinuationCommandActor(actor command.Actor) bool {
 	if normalized.OwnerUserID != strings.TrimSpace(actor.OwnerUserID) ||
 		normalized.AgentID != strings.TrimSpace(actor.AgentID) ||
 		normalized.ScopeSessionKey != strings.TrimSpace(actor.SessionKey) ||
-		normalized.RootRoundID != strings.TrimSpace(actor.RoundID) ||
-		normalized.RootRoundID != strings.TrimSpace(actor.LeaseRoundID) {
+		normalized.RootRoundID != actor.RoundID ||
+		normalized.RootRoundID != actor.LeaseRoundID {
 		return false
 	}
 	goal, goalOK := actor.Round.CommandContext.GoalAuthority.Load()
@@ -524,7 +524,7 @@ func HandleExecutionCommand(
 			RuntimeRoundID:     actor.LeaseRoundID,
 			AgentRoundID:       strings.TrimSpace(roundContext.AgentRoundID),
 			CommandAttempts:    actor.Round.CommandAttempts,
-			WorkGraphPreviewID: strings.TrimSpace(roundContext.WorkGraphPreviewID),
+			WorkGraphPreviewID: roundContext.WorkGraphPreviewID,
 		}
 		return command.HandleSemantic(
 			ctx,

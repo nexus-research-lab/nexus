@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
@@ -200,7 +201,7 @@ func (s *Service) AdmitSubagentLaunch(
 			ParentAttemptID: parent.ID,
 			ExecutorKind:    protocol.AttemptExecutorSubagent,
 			ParentAgentID:   strings.TrimSpace(actor.AgentID),
-			RuntimeSessionKey: firstNonEmpty(
+			RuntimeSessionKey: textutil.FirstNonEmpty(
 				strings.TrimSpace(input.RuntimeSessionKey),
 				strings.TrimSpace(actor.SessionKey),
 			),
@@ -338,28 +339,28 @@ func (s *Service) ObserveSubagentStop(
 			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		terminal := *child
-		terminal.SDKSessionID = firstNonEmpty(
+		terminal.SDKSessionID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.SDKSessionID),
 			terminal.SDKSessionID,
 		)
-		terminal.SDKTaskID = firstNonEmpty(
-			strings.TrimSpace(input.SDKTaskID),
+		terminal.SDKTaskID = textutil.FirstNonEmpty(
+			input.SDKTaskID,
 			terminal.SDKTaskID,
 		)
-		terminal.ChildSessionID = firstNonEmpty(
-			strings.TrimSpace(input.ChildSessionID),
+		terminal.ChildSessionID = textutil.FirstNonEmpty(
+			input.ChildSessionID,
 			terminal.ChildSessionID,
 		)
-		terminal.ExecutorAgentID = firstNonEmpty(
+		terminal.ExecutorAgentID = textutil.FirstNonEmpty(
 			strings.TrimSpace(input.SDKAgentID),
 			terminal.ExecutorAgentID,
 		)
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
 		terminal.FailureReason = ""
-		errorMessage := strings.TrimSpace(input.Error)
+		errorMessage := input.Error
 		if input.Interrupted {
 			terminal.Status = protocol.WorkAttemptStatusInterrupted
-			terminal.FailureReason = firstNonEmpty(errorMessage, "subagent interrupted")
+			terminal.FailureReason = textutil.FirstNonEmpty(errorMessage, "subagent interrupted")
 		} else if errorMessage != "" {
 			terminal.Status = protocol.WorkAttemptStatusFailed
 			terminal.FailureReason = errorMessage
@@ -417,9 +418,9 @@ func (s *Service) ObserveSubagentParentRoundExit(
 			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		lifecycle := SubagentLifecycleInput{
-			ToolUseID:    strings.TrimSpace(input.ToolUseID),
-			SDKSessionID: strings.TrimSpace(input.SDKSessionID),
-			SDKAgentID:   strings.TrimSpace(input.SDKAgentID),
+			ToolUseID:    input.ToolUseID,
+			SDKSessionID: input.SDKSessionID,
+			SDKAgentID:   input.SDKAgentID,
 		}
 		child, resolveErr := resolveActiveSubagentBinding(
 			snapshot,
@@ -870,7 +871,7 @@ func mergeSubagentRuntime(
 	actor ActorContext,
 	input SubagentLaunchInput,
 ) protocol.WorkAttempt {
-	attempt.RuntimeSessionKey = firstNonEmpty(
+	attempt.RuntimeSessionKey = textutil.FirstNonEmpty(
 		strings.TrimSpace(input.RuntimeSessionKey),
 		strings.TrimSpace(actor.SessionKey),
 	)
@@ -912,7 +913,7 @@ func matchingTerminalSubagentAttempt(
 	input SubagentLifecycleInput,
 ) *protocol.WorkAttempt {
 	agentID = strings.TrimSpace(agentID)
-	toolUseID := strings.TrimSpace(input.ToolUseID)
+	toolUseID := input.ToolUseID
 	sdkAgentID := strings.TrimSpace(input.SDKAgentID)
 	for index := len(snapshot.Attempts) - 1; index >= 0; index-- {
 		attempt := snapshot.Attempts[index]
@@ -935,9 +936,9 @@ func matchingTerminalSubagentAttempt(
 
 func actorForAttempt(actor ActorContext, attempt protocol.WorkAttempt) ActorContext {
 	result := actor
-	result.RootRoundID = firstNonEmpty(attempt.RootRoundID, actor.RootRoundID)
-	result.RuntimeRoundID = firstNonEmpty(attempt.RuntimeRoundID, actor.RuntimeRoundID)
-	result.AgentRoundID = firstNonEmpty(attempt.AgentRoundID, actor.AgentRoundID)
+	result.RootRoundID = textutil.FirstNonEmpty(attempt.RootRoundID, actor.RootRoundID)
+	result.RuntimeRoundID = textutil.FirstNonEmpty(attempt.RuntimeRoundID, actor.RuntimeRoundID)
+	result.AgentRoundID = textutil.FirstNonEmpty(attempt.AgentRoundID, actor.AgentRoundID)
 	return result
 }
 

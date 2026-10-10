@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"slices"
-	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -23,7 +23,7 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 	if current.LastActivity.After(merged.LastActivity) {
 		merged.LastActivity = current.LastActivity
 	}
-	if strings.TrimSpace(StringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
+	if textutil.PointerValue(merged.SessionID) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
 	}
 	merged.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
@@ -70,10 +70,10 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 	return left.SessionKey == right.SessionKey &&
 		left.AgentID == right.AgentID &&
-		StringPointerValue(left.SessionID) == StringPointerValue(right.SessionID) &&
-		StringPointerValue(left.RoomSessionID) == StringPointerValue(right.RoomSessionID) &&
-		StringPointerValue(left.RoomID) == StringPointerValue(right.RoomID) &&
-		StringPointerValue(left.ConversationID) == StringPointerValue(right.ConversationID) &&
+		textutil.PointerValue(left.SessionID) == textutil.PointerValue(right.SessionID) &&
+		textutil.PointerValue(left.RoomSessionID) == textutil.PointerValue(right.RoomSessionID) &&
+		textutil.PointerValue(left.RoomID) == textutil.PointerValue(right.RoomID) &&
+		textutil.PointerValue(left.ConversationID) == textutil.PointerValue(right.ConversationID) &&
 		left.ChannelType == right.ChannelType &&
 		left.ChatType == right.ChatType &&
 		left.Status == right.Status &&
@@ -92,31 +92,4 @@ func equivalentJSONValue(left any, right any) bool {
 		return reflect.DeepEqual(left, right)
 	}
 	return bytes.Equal(leftJSON, rightJSON)
-}
-
-// StringPointerValue 返回字符串指针的去空白值。
-func StringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
-// NormalizeString 返回 any 中的字符串值。
-func NormalizeString(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
-}
-
-// FirstNonEmpty 返回首个非空字符串。
-func FirstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

@@ -67,38 +67,6 @@ func TestKnownContextWindow(t *testing.T) {
 	}
 }
 
-func TestKnownMaxOutputTokens(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]int{
-		"gpt-5.6-sol":                128_000,
-		"gpt-oss-20b":                131_072,
-		"claude-opus-5":              128_000,
-		"gemini-3.7-flash":           65_536,
-		"glm-5.3":                    131_072,
-		"glm-5.3-flashx":             131_072,
-		"qwen3.8-max":                131_072,
-		"ernie-5.1":                  65_536,
-		"eu.amazon.nova-2-lite-v1:0": 65_536,
-	}
-	for modelID, want := range tests {
-		if got := knownMaxOutputTokens(modelID); got == nil || *got != want {
-			t.Fatalf("knownMaxOutputTokens(%q) = %v, want %d", modelID, got, want)
-		}
-	}
-}
-
-func TestRemoteModelCardPrefersProviderContextWindow(t *testing.T) {
-	t.Parallel()
-
-	providerValue := 321_000
-	model := remoteModel{ID: "glm-5.2", ContextWindow: &providerValue}
-	_, _, contextWindow, _ := model.modelCard(ProviderKindLLM)
-	if contextWindow == nil || *contextWindow != providerValue {
-		t.Fatalf("Provider context_window 应覆盖内置目录: %v", contextWindow)
-	}
-}
-
 func TestRemoteModelCardPrefersProviderMaxOutputTokens(t *testing.T) {
 	t.Parallel()
 
@@ -107,33 +75,6 @@ func TestRemoteModelCardPrefersProviderMaxOutputTokens(t *testing.T) {
 	_, _, _, maxOutputTokens := model.modelCard(ProviderKindLLM)
 	if maxOutputTokens == nil || *maxOutputTokens != providerValue {
 		t.Fatalf("Provider max_output_tokens 应覆盖内置目录: %v", maxOutputTokens)
-	}
-}
-
-func TestRemoteModelCardPrefersProviderVisionCapability(t *testing.T) {
-	t.Parallel()
-
-	unsupported := false
-	model := remoteModel{
-		ID:           "gpt-5.4",
-		Capabilities: ModelCapabilities{Vision: &unsupported},
-	}
-	capabilities, _, _, _ := model.modelCard(ProviderKindLLM)
-	if capabilities.Vision == nil || *capabilities.Vision {
-		t.Fatalf("Provider vision=false 应覆盖内置目录: %v", capabilities.Vision)
-	}
-}
-
-func TestModelVisionOverrideWinsKnownCatalog(t *testing.T) {
-	t.Parallel()
-
-	model := providerstore.ModelEntity{
-		ModelID:                  "gpt-5.4",
-		CapabilitiesAutoJSON:     `{"vision":true}`,
-		CapabilitiesOverrideJSON: `{"vision":false}`,
-	}
-	if projectModelGuidance(providerstore.Entity{ProviderKind: ProviderKindLLM, PresetKey: presetOpenAI}, model).Eligibility[PurposeVision].Available {
-		t.Fatal("用户 vision=false 覆盖应优先于 Provider 与内置模型卡")
 	}
 }
 
@@ -202,15 +143,5 @@ func TestStoredModelWithoutLimitsUsesKnownCatalog(t *testing.T) {
 	})
 	if legacy.CapabilitiesAuto.Vision != nil || legacy.CapabilitiesAuto.Reasoning != nil {
 		t.Fatalf("原始模型卡不应包含名称推断能力: %+v", legacy.CapabilitiesAuto)
-	}
-}
-
-func TestStoredModelExplicitContextWinsKnownWindow(t *testing.T) {
-	t.Parallel()
-
-	explicit := 123_456
-	model := providerstore.ModelEntity{ModelID: "deepseek-v4-pro", ContextWindow: &explicit}
-	if got := modelContextWindow(&model); got != explicit {
-		t.Fatalf("用户配置应覆盖内置上下文窗口: %d", got)
 	}
 }

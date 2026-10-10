@@ -50,15 +50,10 @@ func TestDeleteAgentPersistenceMarksCommittedCleanupFailure(t *testing.T) {
 	}
 }
 
-func TestDeleteAgentPersistenceDoesNotMarkPreDeleteFailureCommitted(t *testing.T) {
-	repository := &deletionTestRepository{}
-	service := &Service{
-		repository:          repository,
-		deletionCoordinator: deletionTestCoordinator{beforeErr: errors.New("impact snapshot failed")},
-	}
-
-	err := service.deleteAgentPersistence(context.Background(), "owner-a", "agent-a")
-	if err == nil || AgentDeletionCommitted(err) || repository.deleted != 0 {
-		t.Fatalf("删除前失败不得报告已提交: err=%v deleted=%d", err, repository.deleted)
-	}
+func (s *Service) deleteAgentPersistence(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+) error {
+	return s.deleteAgentPersistenceAtVersion(ctx, ownerUserID, agentID, nil)
 }

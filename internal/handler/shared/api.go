@@ -232,24 +232,6 @@ func IsStructuredSessionKeyError(err error) bool {
 	return errors.As(err, &target)
 }
 
-// StringValue 读取 map[string]any 中的字符串值。
-func StringValue(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
-}
-
-// BoolValue 读取 map[string]any 中的布尔值。
-func BoolValue(value any) (bool, bool) {
-	typed, ok := value.(bool)
-	if ok {
-		return typed, true
-	}
-	return false, false
-}
-
 // Int64Value 读取 map[string]any 中的整数值。
 func Int64Value(value any) int64 {
 	switch typed := value.(type) {

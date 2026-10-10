@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -65,7 +66,7 @@ func BuildVisibleContextPlan(input VisibleContextInput) VisibleContextPlan {
 
 // BuildGuidedPublicInputContextPlan 构造运行中 round 的预算化公区增量。
 func BuildGuidedPublicInputContextPlan(input VisibleContextInput) VisibleContextPlan {
-	if len(input.PublicMessages) == 0 && strings.TrimSpace(input.LatestTrigger.TriggerType) == "" &&
+	if len(input.PublicMessages) == 0 && input.LatestTrigger.TriggerType == "" &&
 		strings.TrimSpace(input.LatestTrigger.Content) == "" {
 		budget := NewRoomContextBudget(input.ContextWindowTokens)
 		return VisibleContextPlan{Usage: RoomContextUsage{
@@ -183,7 +184,7 @@ func buildPublicContextLines(input VisibleContextInput) []contextLine {
 	lines := make([]contextLine, 0, len(input.PublicMessages))
 	triggerMessageID := strings.TrimSpace(input.LatestTrigger.MessageID)
 	for _, message := range input.PublicMessages {
-		messageID := normalizeAnyString(message["message_id"])
+		messageID := textutil.AnyString(message["message_id"])
 		text := ""
 		if messageID == "" || messageID != triggerMessageID {
 			if isVisiblePublicInputMessage(message, input.TargetAgentID) {
@@ -430,7 +431,7 @@ func renderVisibleContext(
 	if strings.TrimSpace(trigger) == "" {
 		trigger = "(No trigger message.)"
 	}
-	triggerType := strings.TrimSpace(input.LatestTrigger.TriggerType)
+	triggerType := input.LatestTrigger.TriggerType
 	triggerOpen := "<latest_trigger>"
 	if triggerType != "" {
 		triggerOpen = fmt.Sprintf(`<latest_trigger type="%s">`, html.EscapeString(triggerType))

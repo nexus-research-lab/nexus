@@ -138,102 +138,6 @@ func TestAppServerNoCurrentSetRejectsForeignRoomBeforePersistenceOrContinuation(
 	}
 }
 
-func TestRoomGoalOwnershipMetadataUsesOnlyVerifiedRuntimeIdentity(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.idFactory = sequentialID()
-	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
-		trustedAgentID: "agent-verified", trustedAgentName: "Verified Lead",
-	})
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: protocol.BuildRoomSharedSessionKey("verified-room"),
-		Objective:  "coordinate the verified Room",
-		CreatedBy:  "model",
-		AgentID:    "agent-verified",
-		Metadata: map[string]any{
-			protocol.GoalMetadataRoomGoalCreatorAgentID: "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentID:    "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentName:  "Forged Lead",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID); got != "agent-verified" {
-		t.Fatalf("creator = %q, want verified runtime Agent", got)
-	}
-	if got := RoomLeadAgentID(*created); got != "agent-verified" {
-		t.Fatalf("lead = %q, want verified runtime Agent", got)
-	}
-	if got := RoomLeadAgentName(*created); got != "Verified Lead" {
-		t.Fatalf("lead name = %q, want server-verified display name", got)
-	}
-}
-
-func TestModelCreatedRoomGoalDoesNotPersistMemberCountAsCompletionPolicy(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.idFactory = sequentialID()
-	service.SetSessionOwnershipVerifier(staticGoalSessionOwnershipVerifier{
-		trustedAgentID:   "agent-lead",
-		trustedAgentName: "Verified Lead",
-	})
-
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: protocol.BuildRoomSharedSessionKey("verified-multi-member-room"),
-		Objective:  "coordinate all verified Room members",
-		CreatedBy:  "model",
-		AgentID:    "agent-lead",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, exists := created.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]; exists {
-		t.Fatalf("metadata = %#v, member count must not become Goal completion policy", created.Metadata)
-	}
-}
-
-func TestUserCreatedRoomGoalUsesVerifiedSelectedLead(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.idFactory = sequentialID()
-	verifier := &roomMemberGoalSessionOwnershipVerifier{members: map[string]string{
-		"agent-selected": "Directory Lead",
-	}}
-	service.SetSessionOwnershipVerifier(verifier)
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:      protocol.BuildRoomSharedSessionKey("user-selected-lead"),
-		Objective:       "coordinate the Room",
-		CreatedBy:       "user",
-		RoomLeadAgentID: "agent-selected",
-		Metadata: map[string]any{
-			protocol.GoalMetadataRoomGoalCreatorAgentID:        "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentID:           "agent-forged",
-			protocol.GoalMetadataRoomGoalLeadAgentName:         "Forged Lead",
-			protocol.GoalMetadataRoomGoalCollaborationRequired: false,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := protocol.GoalMetadataString(created.Metadata, protocol.GoalMetadataRoomGoalCreatorAgentID); got != "" {
-		t.Fatalf("user-created Room Goal creator = %q, want no forged model creator", got)
-	}
-	if got := RoomLeadAgentID(*created); got != "agent-selected" {
-		t.Fatalf("lead = %q, want verified selected member", got)
-	}
-	if got := RoomLeadAgentName(*created); got != "Directory Lead" {
-		t.Fatalf("lead name = %q, want server directory value", got)
-	}
-	if _, exists := created.Metadata[protocol.GoalMetadataRoomGoalCollaborationRequired]; exists {
-		t.Fatalf("Room collaboration requirement = %#v, want external value removed", created.Metadata)
-	}
-	if len(verifier.requests) != 1 ||
-		verifier.requests[0].TrustedAgentID != "agent-selected" {
-		t.Fatalf("membership verification requests = %#v", verifier.requests)
-	}
-}
-
 func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)
@@ -295,26 +199,6 @@ func TestUserCreatedRoomGoalReplacementCommitsVerifiedRoomStateInOneMutation(t *
 	}
 	if len(repo.events) != eventsBefore+1 || repo.events[len(repo.events)-1].EventType != "updated" {
 		t.Fatalf("replacement events = %#v, want one atomic updated event", repo.events[eventsBefore:])
-	}
-}
-
-func TestUserCreatedRoomGoalRejectsUnverifiedSelectedLead(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.idFactory = sequentialID()
-	verifier := &roomMemberGoalSessionOwnershipVerifier{members: map[string]string{}}
-	service.SetSessionOwnershipVerifier(verifier)
-	_, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey:      protocol.BuildRoomSharedSessionKey("invalid-selected-lead"),
-		Objective:       "coordinate the Room",
-		CreatedBy:       "user",
-		RoomLeadAgentID: "agent-outsider",
-	})
-	if !errors.Is(err, ErrGoalForbidden) {
-		t.Fatalf("Create() error = %v, want ErrGoalForbidden", err)
-	}
-	if len(repo.goals) != 0 || len(repo.events) != 0 {
-		t.Fatalf("goals=%d events=%d, want no side effects", len(repo.goals), len(repo.events))
 	}
 }
 

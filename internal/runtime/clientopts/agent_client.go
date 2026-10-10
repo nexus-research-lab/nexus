@@ -19,6 +19,7 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
@@ -144,7 +145,7 @@ func BuildAgentClientOptionsWithConfig(
 ) (agentclient.Options, *RuntimeConfig, error) {
 	ownerUserID := strings.TrimSpace(input.OwnerUserID)
 	if contextOwner, ok := authctx.CurrentUserID(ctx); ok &&
-		ownerUserID != "" && ownerUserID != strings.TrimSpace(contextOwner) {
+		ownerUserID != "" && ownerUserID != contextOwner {
 		return agentclient.Options{}, nil, errors.New("runtime owner 与认证上下文不一致")
 	}
 	if ownerUserID == "" {
@@ -374,13 +375,13 @@ func backgroundModelRuntimeEnv(
 	mainModel := strings.TrimSpace(input.Model)
 	mainAPIFormat := ""
 	if mainConfig != nil {
-		mainProvider = firstNonEmptyRuntimeValue(mainConfig.Provider, mainProvider)
-		mainModel = firstNonEmptyRuntimeValue(mainConfig.Model, mainModel)
+		mainProvider = textutil.FirstNonEmpty(mainConfig.Provider, mainProvider)
+		mainModel = textutil.FirstNonEmpty(mainConfig.Model, mainModel)
 		mainAPIFormat = normalizedRuntimeAPIFormat(mainConfig.APIFormat)
 	}
 	selectedModel := mainModel
-	backgroundProvider := strings.TrimSpace(input.BackgroundProvider)
-	backgroundModel := strings.TrimSpace(input.BackgroundModel)
+	backgroundProvider := input.BackgroundProvider
+	backgroundModel := input.BackgroundModel
 	if backgroundProvider != "" && backgroundModel != "" &&
 		strings.EqualFold(backgroundProvider, mainProvider) {
 		backgroundConfig, err := resolveRuntimeConfig(
@@ -398,7 +399,7 @@ func backgroundModelRuntimeEnv(
 				selectedModel = backgroundModel
 			}
 		case normalizedRuntimeAPIFormat(backgroundConfig.APIFormat) == mainAPIFormat:
-			selectedModel = firstNonEmptyRuntimeValue(backgroundConfig.Model, backgroundModel)
+			selectedModel = textutil.FirstNonEmpty(backgroundConfig.Model, backgroundModel)
 		}
 	}
 	if selectedModel == "" {
@@ -419,15 +420,6 @@ func normalizedRuntimeAPIFormat(value string) string {
 		return apiFormatAnthropicMessages
 	}
 	return value
-}
-
-func firstNonEmptyRuntimeValue(values ...string) string {
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 // runtimePreauthorizedTools 默认授权网页检索；保留用户已有的工具及域名范围规则。
@@ -472,8 +464,8 @@ func resolveVisionRuntimeConfig(
 	if !runtimeProfileForKind(runtimeKind).isNXS() {
 		return nil, nil
 	}
-	providerName := strings.TrimSpace(input.VisionProvider)
-	model := strings.TrimSpace(input.VisionModel)
+	providerName := input.VisionProvider
+	model := input.VisionModel
 	if providerName == "" && model == "" {
 		return nil, nil
 	}

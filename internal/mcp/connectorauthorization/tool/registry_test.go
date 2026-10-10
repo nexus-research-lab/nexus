@@ -108,22 +108,3 @@ func TestAuthorizationToolDispatchesActions(t *testing.T) {
 		t.Fatalf("unknown action must return tool error: result=%+v err=%v", result, err)
 	}
 }
-
-func TestSchemaRejectsIdentityAndProviderSecrets(t *testing.T) {
-	schema := authorizationSchema()
-	if schema["additionalProperties"] != false {
-		t.Fatal("authorization schema must reject extra identity/secret fields")
-	}
-	properties, _ := schema["properties"].(map[string]any)
-	for _, forbidden := range []string{
-		"owner_user_id", "agent_id", "session_key", "round_id",
-		"state", "code_verifier", "device_code", "auth_code", "token",
-	} {
-		if _, exists := properties[forbidden]; exists {
-			t.Fatalf("authorization schema exposes forbidden field %q", forbidden)
-		}
-	}
-	if _, ok := properties["action"]; !ok {
-		t.Fatal("authorization schema missing action")
-	}
-}

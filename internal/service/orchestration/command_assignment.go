@@ -465,7 +465,7 @@ func latestAssignmentForCurrentSpec(
 	if snapshot == nil {
 		return nil
 	}
-	if !isCurrentExecutionStatus(snapshot.Execution.Status) {
+	if !snapshot.Execution.Status.Current() {
 		return nil
 	}
 	var latest *protocol.WorkAssignment

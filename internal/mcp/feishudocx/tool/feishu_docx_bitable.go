@@ -25,13 +25,13 @@ func feishuDocxBitableTables(svc contract.Service, sctx contract.ServerContext) 
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListBitableTables(ctx, stringValue(args["url"]), stringValue(args["page_token"]), intValue(args["page_size"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -56,7 +56,7 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListBitableFields(
 				ctx,
@@ -67,9 +67,9 @@ func feishuDocxBitableFields(svc contract.Service, sctx contract.ServerContext) 
 				intValue(args["page_size"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -98,7 +98,7 @@ func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext)
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListBitableRecords(
 				ctx,
@@ -113,9 +113,9 @@ func feishuDocxBitableRecords(svc contract.Service, sctx contract.ServerContext)
 				boolValue(args["automatic_fields"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

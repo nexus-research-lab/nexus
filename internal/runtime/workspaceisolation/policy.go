@@ -41,10 +41,10 @@ func (p *Policy) validate(expected Input, requireTicket bool) error {
 	if p == nil {
 		return errors.New("workspace policy 为空")
 	}
-	if strings.TrimSpace(p.OwnerUserID) != strings.TrimSpace(expected.OwnerUserID) {
+	if strings.TrimSpace(p.OwnerUserID) != expected.OwnerUserID {
 		return errors.New("launcher 返回了不匹配的 owner")
 	}
-	if !strings.EqualFold(strings.TrimSpace(p.RuntimeKind), strings.TrimSpace(expected.RuntimeKind)) {
+	if !strings.EqualFold(strings.TrimSpace(p.RuntimeKind), expected.RuntimeKind) {
 		return errors.New("launcher 返回了不匹配的 runtime")
 	}
 	expectedCWD, err := canonicalPolicyPath(expected.CWD)

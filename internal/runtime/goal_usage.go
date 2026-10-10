@@ -12,12 +12,6 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// GoalUsageFromTokenUsage 把 SDK usage 转成 Goal accounting 口径。
-func GoalUsageFromTokenUsage(usage sdkprotocol.TokenUsage) protocol.GoalUsage {
-	goalUsage, _ := GoalUsageFromTokenUsageWithPresence(usage)
-	return goalUsage
-}
-
 // GoalUsageFromTokenUsageWithPresence 转换 SDK usage，并区分“显式零用量”
 // 与“结果没有 usage”。provider total 或 breakdown 字段即使全为 0，也表示
 // terminal 累计快照存在，调用方不得回退到较早的 assistant usage。

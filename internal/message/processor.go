@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -84,7 +85,7 @@ func (p *Processor) CurrentMessageID() string {
 
 // SessionID 返回当前 SDK session_id。
 func (p *Processor) SessionID() string {
-	return strings.TrimSpace(p.sessionID)
+	return p.sessionID
 }
 
 // FinalizeInterruptedAssistant 把中断前已流出的内容补成可持久化终态。
@@ -252,9 +253,9 @@ func (p *Processor) processStreamEvent(
 	if !ok {
 		payload = stream.Data
 	}
-	eventType := normalizeString(payload["type"])
+	eventType := textutil.AnyString(payload["type"])
 	if parentToolUseID != nil || eventType == "message_start" {
-		p.parentToolUseID = normalizePointerString(parentToolUseID)
+		p.parentToolUseID = textutil.PointerValue(parentToolUseID)
 	}
 	handler := streamEventHandlers[eventType]
 	if handler == nil {
@@ -267,8 +268,8 @@ func handleMessageStartStream(p *Processor, payload map[string]any, output Outpu
 	messagePayload, _ := payload["message"].(map[string]any)
 	usage, _ := messagePayload["usage"].(map[string]any)
 	p.segment.Start(
-		normalizeString(messagePayload["id"]),
-		normalizeString(messagePayload["model"]),
+		textutil.AnyString(messagePayload["id"]),
+		textutil.AnyString(messagePayload["model"]),
 		usage,
 		time.Now().UnixMilli(),
 	)
@@ -318,7 +319,7 @@ func handleContentBlockStopStream(p *Processor, payload map[string]any, output O
 func handleMessageDeltaStream(p *Processor, payload map[string]any, output Output) Output {
 	delta, _ := payload["delta"].(map[string]any)
 	usage, _ := payload["usage"].(map[string]any)
-	p.segment.UpdateMeta("", usage, normalizeString(delta["stop_reason"]))
+	p.segment.UpdateMeta("", usage, textutil.AnyString(delta["stop_reason"]))
 	output.StreamEvents = append(output.StreamEvents, p.buildMessageMetaStreamPayload("message_delta"))
 	if !p.segment.HasContent() || strings.TrimSpace(p.segment.StopReason()) == "" {
 		return output
@@ -365,8 +366,8 @@ func (p *Processor) processAssistantMessage(assistant sdkprotocol.AssistantMessa
 		p.lastDurableAssistantSnapshot = nil
 		// 历史回放没有 message_start；新段必须以 assistant 自身的父工具
 		// 标识为真源，避免沿用上一段子 Agent 的 parent。
-		p.parentToolUseID = normalizePointerString(assistant.ParentToolUseID)
-	} else if incomingParentID := normalizePointerString(assistant.ParentToolUseID); incomingParentID != "" {
+		p.parentToolUseID = textutil.PointerValue(assistant.ParentToolUseID)
+	} else if incomingParentID := textutil.PointerValue(assistant.ParentToolUseID); incomingParentID != "" {
 		// 实时流先建立段、assistant 快照后到达时，用更完整的快照补齐 parent。
 		p.parentToolUseID = incomingParentID
 	}
@@ -382,8 +383,8 @@ func (p *Processor) processAssistantMessage(assistant sdkprotocol.AssistantMessa
 	}
 	includeStopReason := !p.streamStarted || p.streamTerminalObserved
 	isComplete := includeStopReason && strings.TrimSpace(p.segment.StopReason()) != ""
-	parentID := firstNonEmpty(
-		normalizePointerString(assistant.ParentToolUseID),
+	parentID := textutil.FirstNonEmpty(
+		textutil.PointerValue(assistant.ParentToolUseID),
 		p.parentToolUseID,
 	)
 	durable := p.buildAssistantDurableMessage(isComplete, includeStopReason, parentID)
@@ -420,7 +421,7 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 }
 
 func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (string, error) {
-	currentSessionID := strings.TrimSpace(p.sessionID)
+	currentSessionID := p.sessionID
 	incomingSessionID := strings.TrimSpace(message.SessionID)
 	if incomingSessionID == "" {
 		return "", nil
@@ -500,13 +501,13 @@ func assistantMessagesEqual(previous protocol.Message, current protocol.Message)
 	if len(previous) == 0 || len(current) == 0 {
 		return false
 	}
-	return normalizeString(previous["message_id"]) == normalizeString(current["message_id"]) &&
-		normalizeString(previous["parent_id"]) == normalizeString(current["parent_id"]) &&
-		normalizeString(previous["parent_tool_use_id"]) == normalizeString(current["parent_tool_use_id"]) &&
-		normalizeString(previous["model"]) == normalizeString(current["model"]) &&
-		normalizeString(previous["stop_reason"]) == normalizeString(current["stop_reason"]) &&
-		normalizeString(previous["session_id"]) == normalizeString(current["session_id"]) &&
-		normalizeString(previous["round_id"]) == normalizeString(current["round_id"]) &&
+	return textutil.AnyString(previous["message_id"]) == textutil.AnyString(current["message_id"]) &&
+		textutil.AnyString(previous["parent_id"]) == textutil.AnyString(current["parent_id"]) &&
+		textutil.AnyString(previous["parent_tool_use_id"]) == textutil.AnyString(current["parent_tool_use_id"]) &&
+		textutil.AnyString(previous["model"]) == textutil.AnyString(current["model"]) &&
+		textutil.AnyString(previous["stop_reason"]) == textutil.AnyString(current["stop_reason"]) &&
+		textutil.AnyString(previous["session_id"]) == textutil.AnyString(current["session_id"]) &&
+		textutil.AnyString(previous["round_id"]) == textutil.AnyString(current["round_id"]) &&
 		boolValue(previous["is_complete"]) == boolValue(current["is_complete"]) &&
 		reflect.DeepEqual(previous["usage"], current["usage"]) &&
 		reflect.DeepEqual(previous["recalled_memories"], current["recalled_memories"]) &&
@@ -534,11 +535,4 @@ func mapValue(value any) map[string]any {
 		return nil
 	}
 	return cloneMap(typed)
-}
-
-func normalizePointerString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }

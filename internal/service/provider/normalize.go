@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
 
@@ -83,7 +84,7 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 		Visibility:   strings.TrimSpace(input.Visibility),
 		PresetKey:    preset.PresetKey,
 		APIFormat:    apiFormat,
-		DisplayName:  firstNonEmpty(input.DisplayName, preset.DisplayName, provider),
+		DisplayName:  textutil.FirstNonEmpty(input.DisplayName, preset.DisplayName, provider),
 		AuthToken:    strings.TrimSpace(input.AuthToken),
 		BaseURL:      baseURL,
 		ModelsPath:   modelsPath,
@@ -99,17 +100,17 @@ func normalizeCreateInput(input CreateInput) (CreateInput, error) {
 }
 
 func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (providerstore.Entity, error) {
-	preset := resolvePreset(firstNonEmpty(input.PresetKey, current.PresetKey))
-	apiFormat := normalizeAPIFormat(firstNonEmpty(input.APIFormat, current.APIFormat))
+	preset := resolvePreset(textutil.FirstNonEmpty(input.PresetKey, current.PresetKey))
+	apiFormat := normalizeAPIFormat(textutil.FirstNonEmpty(input.APIFormat, current.APIFormat))
 	if apiFormat == "" {
 		apiFormat = preset.DefaultFormat
 	}
 	format := preset.Format(apiFormat)
-	providerKind := providerKindForFormat(preset, format, firstNonEmpty(input.ProviderKind, current.ProviderKind))
-	displayName := firstNonEmpty(input.DisplayName, preset.DisplayName, current.Provider)
+	providerKind := providerKindForFormat(preset, format, textutil.FirstNonEmpty(input.ProviderKind, current.ProviderKind))
+	displayName := textutil.FirstNonEmpty(input.DisplayName, preset.DisplayName, current.Provider)
 	baseURL, err := normalizePresetBaseURL(
 		preset,
-		firstNonEmpty(input.BaseURL, current.BaseURL),
+		textutil.FirstNonEmpty(input.BaseURL, current.BaseURL),
 		format.BaseURL,
 	)
 	if err != nil {
@@ -181,7 +182,7 @@ func normalizePresetBaseURL(preset Preset, inputBaseURL string, fallbackBaseURL 
 	endpointMode := normalizeEndpointMode(preset.EndpointMode)
 	baseURL := strings.TrimSpace(fallbackBaseURL)
 	if endpointMode != EndpointModeFixed {
-		baseURL = firstNonEmpty(inputBaseURL, fallbackBaseURL)
+		baseURL = textutil.FirstNonEmpty(inputBaseURL, fallbackBaseURL)
 	}
 	if preset.PresetKey == presetAzure && baseURL != "" {
 		return normalizeAzureOpenAIBaseURL(baseURL)
@@ -236,15 +237,6 @@ func isImageGenerationAPIFormat(apiFormat string) bool {
 	default:
 		return false
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }
 
 func boolPointer(value bool) *bool {

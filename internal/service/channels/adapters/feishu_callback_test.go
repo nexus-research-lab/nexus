@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-
-	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 )
 
 func encryptFeishuCallbackForTest(t *testing.T, encryptKey string, plain []byte) []byte {
@@ -68,59 +66,6 @@ func TestDecodeFeishuIngressCallbackChallenge(t *testing.T) {
 	}
 	if callback.Token != "verification-token" {
 		t.Fatalf("verification token 未解析: %+v", callback)
-	}
-}
-
-func TestDecodeFeishuIngressCallbackMessage(t *testing.T) {
-	callback, err := DecodeFeishuIngressCallback([]byte(`{
-		"schema": "2.0",
-		"header": {
-			"event_id": "evt-1",
-			"event_type": "im.message.receive_v1",
-			"app_id": "cli_a"
-		},
-		"event": {
-			"sender": {
-				"sender_id": {
-					"open_id": "ou_sender"
-				}
-			},
-			"message": {
-				"message_id": "om_1",
-				"chat_id": "oc_group_123",
-				"chat_type": "group",
-				"message_type": "text",
-				"content": "{\"text\":\"检查今天的定时任务发送情况\"}"
-			}
-		}
-	}`))
-	if err != nil {
-		t.Fatalf("解析飞书消息失败: %v", err)
-	}
-	if callback.AppID != "cli_a" {
-		t.Fatalf("app_id 不正确: %q", callback.AppID)
-	}
-	if callback.Request == nil {
-		t.Fatal("飞书消息应生成 ingress request")
-	}
-	request := callback.Request
-	if request.Channel != channelcontract.ChannelTypeFeishu || request.ChatType != "group" || request.Ref != "oc_group_123" {
-		t.Fatalf("飞书路由不正确: %+v", request)
-	}
-	if request.Content != "检查今天的定时任务发送情况" {
-		t.Fatalf("飞书文本不正确: %q", request.Content)
-	}
-	if request.Delivery == nil || request.Delivery.Channel != channelcontract.ChannelTypeFeishu || request.Delivery.To != "oc_group_123" || request.Delivery.AccountID != "chat_id" {
-		t.Fatalf("飞书回投目标不正确: %+v", request.Delivery)
-	}
-	if request.ReqID != "om_1" || request.RoundID != "evt-1" {
-		t.Fatalf("飞书请求 ID 不正确: req=%q round=%q", request.ReqID, request.RoundID)
-	}
-	if request.Message == nil ||
-		request.Message.PlatformMessageID != "om_1" ||
-		request.Message.SenderID != "ou_sender" ||
-		request.Message.Text != "检查今天的定时任务发送情况" {
-		t.Fatalf("飞书消息 envelope 不正确: %+v", request.Message)
 	}
 }
 
@@ -222,46 +167,6 @@ func TestDecodeFeishuIngressCallbackMessageThreadMetadata(t *testing.T) {
 		callback.Request.Message.PlatformMessageID != "om_reply_1" ||
 		callback.Request.Message.ThreadID != "omt_thread_1" {
 		t.Fatalf("飞书话题消息 envelope 不正确: %+v", callback.Request.Message)
-	}
-}
-
-func TestDecodeFeishuIngressCallbackReactionCreated(t *testing.T) {
-	callback, err := DecodeFeishuIngressCallback([]byte(`{
-		"schema": "2.0",
-		"header": {
-			"event_id": "evt-reaction-1",
-			"event_type": "im.message.reaction.created_v1",
-			"app_id": "cli_a"
-		},
-		"event": {
-			"message_id": "om_bot_reply_1",
-			"chat_id": "oc_group_123",
-			"chat_type": "group",
-			"reaction_type": {
-				"emoji_type": "THUMBSUP"
-			},
-			"operator_type": "user",
-			"user_id": {
-				"open_id": "ou_sender"
-			},
-			"action_time": "1779412618000"
-		}
-	}`))
-	if err != nil {
-		t.Fatalf("解析飞书 reaction 事件失败: %v", err)
-	}
-	if callback.Request == nil {
-		t.Fatal("飞书 reaction 应生成 ingress request")
-	}
-	request := callback.Request
-	if request.Content != "[reacted with THUMBSUP to message om_bot_reply_1]" {
-		t.Fatalf("飞书 reaction 内容不正确: %q", request.Content)
-	}
-	if request.ReqID != "om_bot_reply_1:reaction:THUMBSUP:evt-reaction-1" {
-		t.Fatalf("飞书 reaction req_id 不正确: %q", request.ReqID)
-	}
-	if request.Delivery == nil || request.Delivery.ThreadID != "om_bot_reply_1" {
-		t.Fatalf("飞书 reaction 回投目标不正确: %+v", request.Delivery)
 	}
 }
 

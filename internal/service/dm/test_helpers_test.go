@@ -106,12 +106,6 @@ func newDMTestConfig(t *testing.T) config.Config {
 	}
 }
 
-func isolateDMRuntimeKindEnv(t *testing.T) {
-	t.Helper()
-	t.Setenv("NEXUS_AGENT_RUNTIME_KIND", "")
-	t.Setenv("NEXUS_AGENT_RUNTIME", "")
-}
-
 func mustFindDMSession(
 	t *testing.T,
 	service *Service,
@@ -119,7 +113,7 @@ func mustFindDMSession(
 	sessionKey string,
 ) (protocol.Session, string) {
 	t.Helper()
-	item, workspacePath, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
+	item, workspacePath, err := service.Files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}
@@ -215,32 +209,6 @@ func writeTranscriptFixtureAt(
 			t.Fatalf("写入 transcript fixture 失败: %v", err)
 		}
 	}
-}
-
-func dmTranscriptHash(value string) string {
-	var hash int32
-	for _, character := range value {
-		hash = hash*31 + int32(character)
-	}
-
-	number := int64(hash)
-	if number < 0 {
-		number = -number
-	}
-	if number == 0 {
-		return "0"
-	}
-
-	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-	result := make([]byte, 0, 8)
-	for number > 0 {
-		result = append(result, digits[number%36])
-		number /= 36
-	}
-	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
-		result[left], result[right] = result[right], result[left]
-	}
-	return string(result)
 }
 
 func stringPointer(t *testing.T, value *string) string {

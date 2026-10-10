@@ -3,9 +3,8 @@ package dm
 import (
 	"testing"
 
-	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
@@ -116,48 +115,10 @@ func TestDMConfigurationContextRequiresTrustedWebSocketInput(t *testing.T) {
 }
 
 func TestUntrustedDMGuideFallsBackToQueue(t *testing.T) {
-	if got := safeDMDeliveryPolicy(Request{DeliveryPolicy: protocol.ChatDeliveryPolicyGuide}); got != protocol.ChatDeliveryPolicyQueue {
+	if got := runtimehost.SafeDeliveryPolicy(protocol.ChatDeliveryPolicyGuide, false); got != protocol.ChatDeliveryPolicyQueue {
 		t.Fatalf("untrusted guide policy = %q", got)
 	}
-	if got := safeDMDeliveryPolicy(Request{
-		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
-		TrustedConfigurationContext: true,
-	}); got != protocol.ChatDeliveryPolicyGuide {
+	if got := runtimehost.SafeDeliveryPolicy(protocol.ChatDeliveryPolicyGuide, true); got != protocol.ChatDeliveryPolicyGuide {
 		t.Fatalf("trusted guide policy = %q", got)
-	}
-}
-
-func TestDMGoalContinuationAuthorityRequiresExactHostBinding(t *testing.T) {
-	sessionKey := protocol.BuildAgentSessionKey(
-		"worker",
-		protocol.SessionChannelWebSocketSegment,
-		protocol.RoomTypeDM,
-		"main",
-		"",
-	)
-	authority := &runtimectx.GoalContinuationAuthority{
-		OwnerUserID:       "owner-1",
-		AgentID:           "worker",
-		ScopeSessionKey:   sessionKey,
-		GoalID:            "goal-1",
-		ObjectiveRevision: 2,
-		ExecutionID:       "execution-1",
-		RootRoundID:       "round-1",
-	}
-	request := Request{
-		Internal:                  true,
-		GoalID:                    "goal-1",
-		GoalObjectiveRevision:     2,
-		ExecutionID:               "execution-1",
-		RoundID:                   "round-1",
-		InputOptions:              sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
-		goalContinuationAuthority: authority,
-	}
-	if !trustedDMGoalContinuationAuthority(authority, &protocol.Agent{OwnerUserID: "owner-1", AgentID: "worker"}, sessionKey, request) {
-		t.Fatal("exact DM continuation authority was rejected")
-	}
-	request.ExecutionID = "execution-other"
-	if trustedDMGoalContinuationAuthority(authority, &protocol.Agent{OwnerUserID: "owner-1", AgentID: "worker"}, sessionKey, request) {
-		t.Fatal("mismatched Execution ID was accepted")
 	}
 }

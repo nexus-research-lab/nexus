@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -21,14 +22,14 @@ func assertDeliveredAgentMessage(t *testing.T, workspacePath string, session pro
 	if len(messages) != 1 {
 		t.Fatalf("期望%s写入 1 条消息，实际 %d", label, len(messages))
 	}
-	if firstNonEmptyString(stringFromMessage(messages[0], "content")) != expectedText {
+	if textutil.FirstNonEmpty(stringFromMessage(messages[0], "content")) != expectedText {
 		t.Fatalf("%s正文不正确: %+v", label, messages[0])
 	}
 	summary, ok := messages[0]["result_summary"].(map[string]any)
 	if !ok {
 		t.Fatalf("%s应挂载 result_summary: %+v", label, messages[0])
 	}
-	if firstNonEmptyString(stringFromMessage(summary, "subtype")) != "success" {
+	if textutil.FirstNonEmpty(stringFromMessage(summary, "subtype")) != "success" {
 		t.Fatalf("%s投递终态不正确: %+v", label, messages[0])
 	}
 }

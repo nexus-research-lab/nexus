@@ -48,14 +48,14 @@ func (s *WorkBindingState) Load() (*protocol.ExecutionWorkBinding, bool) {
 		if !authority.WorkBinding.Complete() {
 			return nil, false
 		}
-		return cloneRuntimeWorkBinding(authority.WorkBinding), true
+		return authority.WorkBinding.Clone(), true
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if !s.binding.Complete() {
 		return nil, false
 	}
-	return cloneRuntimeWorkBinding(s.binding), true
+	return s.binding.Clone(), true
 }
 
 // Bind 消费宿主签发的 exact receipt。重复绑定幂等；未释放的责任不能切换。
@@ -100,13 +100,4 @@ func (s *WorkBindingState) Clear() {
 // sameRuntimeWorkBinding 比较两个已清洗的 binding 是否同一身份。
 func sameRuntimeWorkBinding(left, right *protocol.ExecutionWorkBinding) bool {
 	return left != nil && right != nil && *left == *right
-}
-
-// cloneRuntimeWorkBinding 浅拷贝快照所有权；字段清洗已在 ingress 完成。
-func cloneRuntimeWorkBinding(binding *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
-	if binding == nil {
-		return nil
-	}
-	result := *binding
-	return &result
 }

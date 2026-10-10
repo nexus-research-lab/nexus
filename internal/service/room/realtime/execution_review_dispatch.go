@@ -104,7 +104,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 	content string,
 ) (orchestrationsvc.ExecutionReviewDispatchReceipt, error) {
 	var receipt orchestrationsvc.ExecutionReviewDispatchReceipt
-	if s == nil || s.inputQueue == nil || contextValue == nil || parentRound == nil {
+	if contextValue == nil || parentRound == nil {
 		return receipt, errors.New("durable Room input queue is unavailable")
 	}
 	delivery.TargetAgentID = strings.TrimSpace(delivery.TargetAgentID)
@@ -136,9 +136,9 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 		OwnerUserID:     delivery.OwnerUserID,
 		RootRoundID:     roomRootRoundID(parentRound),
-		ReviewBinding:   cloneExecutionReviewBinding(&delivery.Binding),
+		ReviewBinding:   (&delivery.Binding).Clone(),
 	}
-	items, inserted, err := s.inputQueue.EnqueueBounded(
+	items, inserted, err := s.InputQueue.EnqueueBounded(
 		location.Location,
 		item,
 		0,
@@ -173,7 +173,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		delivery.SessionKey,
 		contextValue,
 	); err != nil {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"广播 Execution Review Dispatch 队列快照失败",
 			"review_dispatch_id",
 			delivery.Binding.ReviewDispatchID,
@@ -186,7 +186,7 @@ func (s *Service) enqueueExecutionReviewDispatch(
 		delivery.ConversationID,
 		[]string{delivery.TargetAgentID},
 	)) == 0 {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			delivery.SessionKey,
 			delivery.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -215,9 +215,6 @@ func (s *Service) ensureExecutionReviewDispatchHandoff(
 	error,
 ) {
 	var receipt orchestrationsvc.ExecutionReviewDispatchReceipt
-	if s == nil || s.publicHandoffs == nil {
-		return false, receipt, errors.New("durable Room handoff store is unavailable")
-	}
 	binding := delivery.Binding
 	handoff, inserted, err := s.publicHandoffs.Detect(
 		delivery.OwnerUserID,
@@ -272,10 +269,10 @@ func (s *Service) authorizeManagedExecutionReviewTarget(
 	targetAgentID string,
 	binding *protocol.ExecutionReviewBinding,
 ) error {
-	if s == nil || s.executionContext == nil || roundValue == nil {
+	if s.ExecutionContext == nil || roundValue == nil {
 		return errors.New("managed Execution review admission is unavailable")
 	}
-	authorizer, ok := s.executionContext.(executionReviewTargetAuthorizer)
+	authorizer, ok := s.ExecutionContext.(executionReviewTargetAuthorizer)
 	if !ok {
 		return errors.New("managed Execution review target admission is unavailable")
 	}
@@ -285,7 +282,7 @@ func (s *Service) authorizeManagedExecutionReviewTarget(
 			OwnerUserID:    roundValue.OwnerUserID,
 			SessionKey:     roundValue.SessionKey,
 			ExecutionID:    executionIDFromReviewBinding(binding),
-			ReviewBinding:  cloneExecutionReviewBinding(binding),
+			ReviewBinding:  binding.Clone(),
 			AgentID:        strings.TrimSpace(targetAgentID),
 			ActorKind:      protocol.ExecutionActorAgent,
 			ScopeKind:      protocol.ExecutionScopeRoom,

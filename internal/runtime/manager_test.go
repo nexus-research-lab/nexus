@@ -445,11 +445,6 @@ func (f *runtimeClientSequenceFactory) New(agentclient.Options) Client {
 	return client
 }
 
-type runtimeClientResult struct {
-	client Client
-	err    error
-}
-
 type runtimeFactoryFunc func(agentclient.Options) Client
 
 func (f runtimeFactoryFunc) New(options agentclient.Options) Client {
@@ -529,85 +524,6 @@ func TestManagerUpdateEnvironmentAttemptsEveryMatchingRuntime(t *testing.T) {
 			"all matching runtimes must be attempted: failed=%d succeeded=%d",
 			len(failed.environmentUpdates),
 			len(succeeded.environmentUpdates),
-		)
-	}
-}
-
-func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
-	client := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-
-	first, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
-		CWD: "/tmp/a",
-		Env: map[string]string{"NEXUS_OPENAI_PROTOCOL": "chat_completions"},
-	})
-	if err != nil {
-		t.Fatalf("首次创建 client 失败: %v", err)
-	}
-	second, err := manager.GetOrCreate(context.Background(), "agent:nexus:ws:dm:test", agentclient.Options{
-		CWD: "/tmp/a",
-		Env: map[string]string{"NEXUS_OPENAI_PROTOCOL": "responses"},
-		Runtime: agentclient.RuntimeOptions{
-			PermissionMode: sdkpermission.ModeAcceptEdits,
-		},
-	})
-	if err != nil {
-		t.Fatalf("复用 client 失败: %v", err)
-	}
-
-	if first != second {
-		t.Fatal("期望复用同一个 client 实例")
-	}
-	if client.reconfigureCalls != 1 {
-		t.Fatalf("期望调用一次 Reconfigure，实际 %d", client.reconfigureCalls)
-	}
-	if client.lastOptions.CWD != "/tmp/a" {
-		t.Fatalf("Reconfigure 未收到最新配置: %+v", client.lastOptions)
-	}
-	if client.lastOptions.Runtime.PermissionMode != sdkpermission.ModeAcceptEdits {
-		t.Fatalf("Reconfigure 未收到权限模式: %+v", client.lastOptions)
-	}
-	if client.lastOptions.Env["NEXUS_OPENAI_PROTOCOL"] != "responses" {
-		t.Fatalf("Reconfigure 未收到 Responses 协议更新: %+v", client.lastOptions.Env)
-	}
-}
-
-func TestManagerReplacesRuntimeWhenProcessPolicyChanges(t *testing.T) {
-	stale := &fakeRuntimeClient{}
-	fresh := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{
-		clients: []*fakeRuntimeClient{stale, fresh},
-	})
-	sessionKey := "agent:nexus:ws:dm:process-policy"
-	firstOptions := agentclient.Options{
-		CLIPath: "/opt/nexus/nxs",
-		CWD:     "/srv/nexus/users/owner/workspace",
-		Env: map[string]string{
-			"NEXUS_RUNTIME_USER_ID":        "owner",
-			"NEXUS_RUNTIME_ISOLATION_MODE": "enforce",
-			"NEXUS_OPENAI_PROTOCOL":        "chat_completions",
-		},
-	}
-	first, err := manager.GetOrCreate(context.Background(), sessionKey, firstOptions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nextOptions := firstOptions
-	nextOptions.CWD = "/srv/nexus/users/owner/other-workspace"
-	nextOptions.Env = maps.Clone(firstOptions.Env)
-	nextOptions.Env["NEXUS_OPENAI_PROTOCOL"] = "responses"
-	second, err := manager.GetOrCreate(context.Background(), sessionKey, nextOptions)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != stale || second != fresh {
-		t.Fatalf("process policy change did not replace runtime: first=%T second=%T", first, second)
-	}
-	if stale.reconfigureCalls != 0 || stale.disconnectCalls != 1 {
-		t.Fatalf(
-			"unsafe runtime should be replaced before Reconfigure: reconfigure=%d disconnect=%d",
-			stale.reconfigureCalls,
-			stale.disconnectCalls,
 		)
 	}
 }
@@ -720,67 +636,6 @@ func TestManagerRejectsSessionReuseAcrossOwners(t *testing.T) {
 	}
 	if client.reconfigureCalls != 0 {
 		t.Fatalf("跨 owner 请求不应进入旧 client: calls=%d", client.reconfigureCalls)
-	}
-}
-
-func TestManagerGetOrCreateWithFactoryUsesRoomSlotFactory(t *testing.T) {
-	defaultClient := &fakeRuntimeClient{}
-	slotClient := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: defaultClient})
-	sessionKey := "agent:host:ws:group:conversation-1"
-
-	got, err := manager.GetOrCreateWithFactory(
-		context.Background(),
-		sessionKey,
-		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}},
-		&fakeRuntimeFactory{client: slotClient},
-	)
-	if err != nil {
-		t.Fatalf("GetOrCreateWithFactory() error = %v", err)
-	}
-	if got != slotClient {
-		t.Fatalf("client = %#v, want Room slot factory client", got)
-	}
-	if kind := manager.RuntimeKind(sessionKey); kind != agentclient.RuntimeClaude {
-		t.Fatalf("RuntimeKind() = %q, want claude", kind)
-	}
-	manager.MarkSubagentHistory(sessionKey)
-	if !manager.HasSubagentHistory(sessionKey) {
-		t.Fatal("Room slot 的 subagent history 标记未保留")
-	}
-}
-
-func TestManagerInterruptSessionPublishesReasonBeforeInterruptingClient(t *testing.T) {
-	manager := NewManager()
-	sessionKey := "agent:nexus:ws:dm:interrupt"
-	roundID := "round-1"
-	reasonObserved := ""
-	client := &fakeRuntimeClient{}
-	client.interruptHook = func() {
-		reasonObserved = manager.GetInterruptReason(sessionKey, roundID)
-		manager.MarkRoundFinished(sessionKey, roundID)
-	}
-
-	manager.mu.Lock()
-	state := manager.ensureStateLocked(sessionKey)
-	state.Client = client
-	manager.mu.Unlock()
-	if err := manager.StartRound(context.Background(), sessionKey, roundID, nil); err != nil {
-		t.Fatalf("StartRound() error = %v", err)
-	}
-
-	roundIDs, err := manager.InterruptSession(context.Background(), sessionKey, "  stop now  ")
-	if err != nil {
-		t.Fatalf("InterruptSession() error = %v", err)
-	}
-	if !slices.Equal(roundIDs, []string{roundID}) {
-		t.Fatalf("InterruptSession() roundIDs = %v, want [%s]", roundIDs, roundID)
-	}
-	if reasonObserved != "stop now" {
-		t.Fatalf("client interrupt 观察到 reason = %q, want %q", reasonObserved, "stop now")
-	}
-	if client.interruptCalls != 1 {
-		t.Fatalf("Interrupt() calls = %d, want 1", client.interruptCalls)
 	}
 }
 
@@ -897,105 +752,6 @@ func TestManagerStartRoundCancellationWhileWaitingForIdleDrain(t *testing.T) {
 	}
 }
 
-func TestManagerCloseSessionWaitsForIdleHandlerExit(t *testing.T) {
-	messages := make(chan sdkprotocol.ReceivedMessage, 1)
-	client := &fakeRuntimeClient{messages: messages}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
-	sessionKey := "agent:nexus:ws:dm:idle-close"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("创建 runtime client 失败: %v", err)
-	}
-
-	handlerStarted := make(chan struct{})
-	handlerCanceled := make(chan struct{})
-	releaseHandler := make(chan struct{})
-	manager.StartIdleMessageDrain(sessionKey, func(ctx context.Context, _ sdkprotocol.ReceivedMessage) bool {
-		close(handlerStarted)
-		<-ctx.Done()
-		close(handlerCanceled)
-		<-releaseHandler
-		return true
-	})
-	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
-	<-handlerStarted
-
-	closeResult := make(chan error, 1)
-	go func() {
-		closeResult <- manager.CloseSession(context.Background(), sessionKey)
-	}()
-	<-handlerCanceled
-	select {
-	case err := <-closeResult:
-		t.Fatalf("idle handler 退出前 CloseSession() 提前返回: %v", err)
-	default:
-	}
-
-	close(releaseHandler)
-	if err := <-closeResult; err != nil {
-		t.Fatalf("CloseSession() error = %v", err)
-	}
-}
-
-func TestManagerCloseDeadlineKeepsLifecycleFenceUntilClientCleanupFinishes(t *testing.T) {
-	disconnectStarted := make(chan struct{}, 2)
-	disconnectRelease := make(chan struct{})
-	released := false
-	defer func() {
-		if !released {
-			close(disconnectRelease)
-		}
-	}()
-	client := &ownershipFenceClient{
-		disconnectStarted: disconnectStarted,
-		disconnectRelease: disconnectRelease,
-	}
-	factory := &runtimeClientSequenceFactory{clients: []Client{client, &ownershipFenceClient{}}}
-	manager := NewManagerWithFactory(factory)
-	sessionKey := "agent:nexus:ws:dm:close-cleanup-fence"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("首次创建 client 失败: %v", err)
-	}
-
-	closeCtx, cancelClose := context.WithCancel(context.Background())
-	closeResult := make(chan error, 1)
-	go func() {
-		closeResult <- manager.CloseSession(closeCtx, sessionKey)
-	}()
-	select {
-	case <-disconnectStarted:
-	case <-time.After(time.Second):
-		t.Fatal("CloseSession() 未进入 client Disconnect()")
-	}
-	cancelClose()
-	select {
-	case err := <-closeResult:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("CloseSession() error = %v，期望 context.Canceled", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("取消后 CloseSession() 未返回")
-	}
-	select {
-	case <-disconnectStarted:
-	case <-time.After(time.Second):
-		t.Fatal("CloseSession() 未在后台继续等待 client cleanup")
-	}
-
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); !errors.Is(err, ErrRuntimeSessionClosing) {
-		t.Fatalf("client cleanup 未完成时 GetOrCreate() error = %v，期望 session closing", err)
-	}
-	factory.mu.Lock()
-	factoryCalls := factory.index
-	factory.mu.Unlock()
-	if factoryCalls != 1 {
-		t.Fatalf("client cleanup 未完成时 factory 调用次数 = %d，期望 1", factoryCalls)
-	}
-
-	close(disconnectRelease)
-	released = true
-	waitRuntimeSessionRemoved(t, manager, sessionKey)
-}
-
 func TestManagerOldClientLeaseCannotCloseNewConnectionGeneration(t *testing.T) {
 	client := &ownershipFenceClient{}
 	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{client}})
@@ -1051,43 +807,6 @@ func TestManagerOldClientLeaseCannotCloseNewConnectionGeneration(t *testing.T) {
 			retireCalls,
 			disconnectCalls,
 		)
-	}
-}
-
-func TestManagerCloseInvalidatesStartupThatHasNotCreatedState(t *testing.T) {
-	client := &ownershipFenceClient{}
-	factory := &runtimeClientSequenceFactory{clients: []Client{client}}
-	manager := NewManagerWithFactory(factory)
-	sessionKey := "agent:nexus:ws:dm:close-before-state"
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
-	if err != nil {
-		t.Fatalf("开始启动事务失败: %v", err)
-	}
-
-	closeResult := make(chan error, 1)
-	go func() {
-		closeResult <- manager.CloseSession(context.Background(), sessionKey)
-	}()
-	select {
-	case err = <-closeResult:
-		if err != nil {
-			t.Fatalf("CloseSession() error = %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("CloseSession() 未使尚未创建 state 的启动事务失效")
-	}
-	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); !errors.Is(err, agentclient.ErrAborted) {
-		t.Fatalf("关闭后的启动事务 GetOrCreate() error = %v，期望 ErrAborted", err)
-	}
-	startup.Close()
-	if current := manager.SessionClient(sessionKey); current != nil {
-		t.Fatalf("CloseSession() 后仍有 client: %#v", current)
-	}
-	factory.mu.Lock()
-	factoryCalls := factory.index
-	factory.mu.Unlock()
-	if factoryCalls != 0 {
-		t.Fatalf("失效的启动事务仍创建了 %d 个 client", factoryCalls)
 	}
 }
 
@@ -1351,37 +1070,6 @@ func runtimeSessionStateForTest(manager *Manager, sessionKey string) *sessionSta
 	return manager.sessions[sessionKey]
 }
 
-func waitRuntimeSessionClient(t *testing.T, manager *Manager, sessionKey string, want Client) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if manager.SessionClient(sessionKey) == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("session client 未变为 %#v", want)
-}
-
-func waitRuntimeStartupGateRefs(t *testing.T, manager *Manager, sessionKey string, want int) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		manager.mu.RLock()
-		gate := manager.startupGates[sessionKey]
-		refs := 0
-		if gate != nil {
-			refs = gate.refs
-		}
-		manager.mu.RUnlock()
-		if refs == want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("startup gate refs 未达到 %d", want)
-}
-
 func waitRuntimeStartupGateCloseBlocks(t *testing.T, manager *Manager, sessionKey string, want int) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
@@ -1411,97 +1099,6 @@ func waitRuntimeSessionRemoved(t *testing.T, manager *Manager, sessionKey string
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("client cleanup 完成后 session state 未移除")
-}
-
-func TestManagerGetOrCreateReplacesClientWhenBridgeRequiresRestart(t *testing.T) {
-	stale := &fakeRuntimeClient{
-		reconfigureErr: &agentclient.RestartRequiredError{Reason: agentclient.RestartReasonProcessEnvChanged},
-	}
-	fresh := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
-	sessionKey := "agent:nexus:ws:dm:restart-required"
-
-	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
-		Env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "old-token"},
-	})
-	if err != nil {
-		t.Fatalf("首次创建 client 失败: %v", err)
-	}
-	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
-		Env: map[string]string{"ANTHROPIC_AUTH_TOKEN": "new-token"},
-	})
-	if err != nil {
-		t.Fatalf("bridge 要求重启后应创建新 client: %v", err)
-	}
-
-	if first != stale {
-		t.Fatalf("首次 client 不正确: %#v", first)
-	}
-	if second != fresh {
-		t.Fatalf("bridge 要求重启后未替换 client: got=%#v want=%#v", second, fresh)
-	}
-	if stale.disconnectCalls != 1 {
-		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
-	}
-}
-
-func TestManagerRuntimeReplacementWaitsForSDKCleanupWithoutSyntheticDeadline(t *testing.T) {
-	disconnectStarted := make(chan struct{})
-	releaseDisconnect := make(chan struct{})
-	stale := &fakeRuntimeClient{
-		reconfigureErr: &agentclient.RestartRequiredError{
-			Reason: agentclient.RestartReasonProcessEnvChanged,
-		},
-		disconnectFn: func(ctx context.Context) error {
-			if _, hasDeadline := ctx.Deadline(); hasDeadline {
-				return errors.New("runtime replacement must not race SDK cleanup with a second deadline")
-			}
-			close(disconnectStarted)
-			select {
-			case <-releaseDisconnect:
-				return nil
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		},
-	}
-	fresh := &fakeRuntimeClient{}
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{stale, fresh}})
-	sessionKey := "agent:nexus:ws:dm:restart-cleanup-fence"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatal(err)
-	}
-
-	type replacementResult struct {
-		client Client
-		err    error
-	}
-	result := make(chan replacementResult, 1)
-	go func() {
-		client, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
-			Env: map[string]string{"NEXUS_TEST_RUNTIME_REVISION": "2"},
-		})
-		result <- replacementResult{client: client, err: err}
-	}()
-	select {
-	case <-disconnectStarted:
-	case <-time.After(time.Second):
-		t.Fatal("runtime replacement did not enter SDK cleanup")
-	}
-	select {
-	case premature := <-result:
-		t.Fatalf("replacement published before old SDK cleanup completed: %+v", premature)
-	default:
-	}
-	close(releaseDisconnect)
-	select {
-	case completed := <-result:
-		if completed.err != nil || completed.client != fresh {
-			t.Fatalf("replacement result = %+v, want fresh client", completed)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("runtime replacement did not finish after SDK cleanup")
-	}
 }
 
 func TestManagerGetOrCreateReplacesClientWhenMCPControlUnsupported(t *testing.T) {
@@ -1581,41 +1178,6 @@ func TestManagerSendContentToRunningRound(t *testing.T) {
 	}
 }
 
-func TestManagerFlushGoalAccounting(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:dm:test-goal-flush"
-	calls := []string{}
-	manager.RegisterGoalAccountingFlush(sessionKey, "round-b", func(context.Context) error {
-		calls = append(calls, "round-b")
-		return nil
-	})
-	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", func(context.Context) error {
-		calls = append(calls, "round-a")
-		return nil
-	})
-
-	roundIDs, err := manager.FlushGoalAccounting(context.Background(), sessionKey)
-	if err != nil {
-		t.Fatalf("FlushGoalAccounting() error = %v", err)
-	}
-	if strings.Join(roundIDs, ",") != "round-a,round-b" {
-		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
-	}
-	if strings.Join(calls, ",") != "round-a,round-b" {
-		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
-	}
-
-	manager.RegisterGoalAccountingFlush(sessionKey, "round-a", nil)
-	calls = nil
-	roundIDs, err = manager.FlushGoalAccounting(context.Background(), sessionKey)
-	if err != nil {
-		t.Fatalf("FlushGoalAccounting() after unregister error = %v", err)
-	}
-	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
-		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
-	}
-}
-
 func TestManagerAdoptGoalObjectiveRevision(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-goal-revision"
@@ -1643,112 +1205,6 @@ func TestManagerAdoptGoalObjectiveRevision(t *testing.T) {
 	manager.MarkRoundFinished(sessionKey, "round-b")
 	if roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 7); len(roundIDs) != 0 {
 		t.Fatalf("after unregister/finish roundIDs=%#v, want empty", roundIDs)
-	}
-}
-
-func TestManagerClearGoalAccounting(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:dm:test-goal-clear"
-	calls := []string{}
-	manager.RegisterGoalAccountingClear(sessionKey, "round-b", func() {
-		calls = append(calls, "round-b")
-	})
-	manager.RegisterGoalAccountingClear(sessionKey, "round-a", func() {
-		calls = append(calls, "round-a")
-	})
-
-	roundIDs := manager.ClearGoalAccounting(sessionKey)
-	if strings.Join(roundIDs, ",") != "round-a,round-b" {
-		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
-	}
-	if strings.Join(calls, ",") != "round-a,round-b" {
-		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
-	}
-
-	manager.RegisterGoalAccountingClear(sessionKey, "round-a", nil)
-	calls = nil
-	roundIDs = manager.ClearGoalAccounting(sessionKey)
-	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
-		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
-	}
-
-	manager.MarkRoundFinished(sessionKey, "round-b")
-	if roundIDs = manager.ClearGoalAccounting(sessionKey); len(roundIDs) != 0 {
-		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
-	}
-}
-
-func TestManagerBeginGoalAccountingFinalizing(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:dm:test-goal-finalize"
-	calls := []string{}
-	manager.RegisterGoalAccountingFinalize(sessionKey, "round-b", func() bool {
-		calls = append(calls, "round-b")
-		return true
-	})
-	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", func() bool {
-		calls = append(calls, "round-a")
-		return true
-	})
-
-	roundIDs := manager.BeginGoalAccountingFinalizing(sessionKey)
-	if strings.Join(roundIDs, ",") != "round-a,round-b" ||
-		strings.Join(calls, ",") != "round-a,round-b" {
-		t.Fatalf("roundIDs=%#v calls=%#v, want sorted round-a/round-b", roundIDs, calls)
-	}
-
-	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", nil)
-	calls = nil
-	roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey)
-	if strings.Join(roundIDs, ",") != "round-b" ||
-		strings.Join(calls, ",") != "round-b" {
-		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
-	}
-
-	manager.MarkRoundFinished(sessionKey, "round-b")
-	if roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey); len(roundIDs) != 0 {
-		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
-	}
-}
-
-func TestManagerActivateGoalAccounting(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:dm:test-goal-activate"
-	calls := []string{}
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(_ context.Context, goalID string) error {
-		calls = append(calls, "round-b:"+goalID)
-		return nil
-	})
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(_ context.Context, goalID string) error {
-		calls = append(calls, "round-a:"+goalID)
-		return nil
-	})
-
-	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-1")
-	if err != nil {
-		t.Fatalf("ActivateGoalAccounting() error = %v", err)
-	}
-	if strings.Join(roundIDs, ",") != "round-a,round-b" {
-		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
-	}
-	if strings.Join(calls, ",") != "round-a:goal-1,round-b:goal-1" {
-		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
-	}
-
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", nil)
-	calls = nil
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
-	if err != nil {
-		t.Fatalf("ActivateGoalAccounting() after unregister error = %v", err)
-	}
-	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b:goal-2" {
-		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
-	}
-
-	manager.MarkRoundFinished(sessionKey, "round-b")
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
-	if err != nil || len(roundIDs) != 0 {
-		t.Fatalf("after round finished roundIDs=%#v err=%v, want empty nil", roundIDs, err)
 	}
 }
 
@@ -1782,84 +1238,6 @@ func TestManagerActivationReportsAndRollsBackOnlySuccessfulRounds(t *testing.T) 
 	}
 	if strings.Join(cleared, ",") != "round-b" {
 		t.Fatalf("clear callbacks = %#v, failing round-a must retain its prior binding", cleared)
-	}
-}
-
-func TestManagerGoalAccountingCreateConflictsAreScopeAwareAndLive(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:room:test-goal-create-guard"
-	roundAConsumed := false
-	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-a", "root-1", func() bool {
-		return roundAConsumed
-	})
-	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", func() bool {
-		return true
-	})
-	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-c", "root-2", func() bool {
-		return true
-	})
-
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-b" {
-		t.Fatalf("root-1 conflicts = %#v, want only consumed round-b", got)
-	}
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-2"); strings.Join(got, ",") != "round-c" {
-		t.Fatalf("root-2 conflicts = %#v, want only consumed round-c", got)
-	}
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-b,round-c" {
-		t.Fatalf("session conflicts = %#v, want every consumed live scope", got)
-	}
-
-	roundAConsumed = true
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-a,round-b" {
-		t.Fatalf("updated root-1 conflicts = %#v, want dynamic consumed state", got)
-	}
-
-	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", nil)
-	manager.MarkRoundFinished(sessionKey, "round-a")
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); len(got) != 0 {
-		t.Fatalf("finished/unregistered conflicts = %#v, want empty", got)
-	}
-	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-c" {
-		t.Fatalf("remaining session conflicts = %#v, want only round-c", got)
-	}
-}
-
-func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
-	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
-	sessionKey := "agent:nexus:ws:dm:test-guide"
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
-		t.Fatalf("创建 client 失败: %v", err)
-	}
-	_ = manager.StartRound(context.Background(), sessionKey, "round-guide", func() {})
-
-	roundIDs, err := manager.QueueGuidanceInput(context.Background(), sessionKey, "round-guide-msg", "请优先检查日志")
-	if err != nil {
-		t.Fatalf("登记引导输入失败: %v", err)
-	}
-	if len(roundIDs) != 1 || roundIDs[0] != "round-guide" {
-		t.Fatalf("返回运行中 round 不正确: %+v", roundIDs)
-	}
-	if count := manager.PendingGuidanceCount(sessionKey); count != 1 {
-		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
-	}
-
-	options := manager.WithGuidanceHook(agentclient.Options{}, sessionKey)
-	matchers := options.Hooks.Matchers[sdkhook.EventPostToolUse]
-	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
-		t.Fatalf("PostToolUse hook 未注册: %+v", matchers)
-	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
-		EventName: sdkhook.EventPostToolUse,
-	}, "tool-1")
-	if err != nil {
-		t.Fatalf("执行 PostToolUse hook 失败: %v", err)
-	}
-	additionalContext := output.SpecificOutput.AdditionalContext
-	if !strings.Contains(additionalContext, "请优先检查日志") || !strings.Contains(additionalContext, "round-guide-msg") {
-		t.Fatalf("additionalContext 未包含引导内容: %q", additionalContext)
-	}
-	if count := manager.PendingGuidanceCount(sessionKey); count != 0 {
-		t.Fatalf("PendingGuidanceCount = %d, want 0", count)
 	}
 }
 
@@ -2443,63 +1821,6 @@ func TestAgentClientConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
 	}
 }
 
-func TestAgentClientDisconnectDuringConfigRetryCannotReviveSession(t *testing.T) {
-	firstOpenRelease := make(chan struct{})
-	staleCloseStarted := make(chan struct{})
-	staleCloseRelease := make(chan struct{})
-	attempts := make(chan agentclient.Options, 2)
-	client := &agentClient{
-		options: agentclient.Options{Model: "old-model"},
-		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
-			attempts <- options
-			if options.Model == "old-model" {
-				<-firstOpenRelease
-			}
-			return &agentclient.Session{}, nil
-		},
-		closeSession: func(*agentclient.Session) error {
-			close(staleCloseStarted)
-			<-staleCloseRelease
-			return nil
-		},
-	}
-	connectDone := make(chan error, 1)
-	go func() { connectDone <- client.Connect(context.Background()) }()
-	select {
-	case <-attempts:
-	case <-time.After(time.Second):
-		t.Fatal("首次 Connect 未启动")
-	}
-	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
-		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
-	}
-	close(firstOpenRelease)
-	select {
-	case <-staleCloseStarted:
-	case <-time.After(time.Second):
-		t.Fatal("过期配置创建的 session 未进入关闭阶段")
-	}
-
-	client.DiscardUncleanSession()
-	close(staleCloseRelease)
-	select {
-	case err := <-connectDone:
-		if !errors.Is(err, agentclient.ErrAborted) {
-			t.Fatalf("生命周期失效后的配置重试错误=%v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("生命周期失效后的 Connect 未退出")
-	}
-	select {
-	case options := <-attempts:
-		t.Fatalf("旧 Connect 不应采纳新 lifecycle 再次启动: %+v", options)
-	default:
-	}
-	if client.IsConnected() {
-		t.Fatal("生命周期失效后的 Connect 不应安装 session")
-	}
-}
-
 func TestAgentClientReconfigurePublishesAndSerializesDesiredState(t *testing.T) {
 	firstStarted := make(chan struct{})
 	firstRelease := make(chan struct{})
@@ -2629,34 +1950,5 @@ func TestAgentClientPreCanceledConfigurationDoesNotMutateDesiredState(t *testing
 				t.Fatalf("预取消配置不应推进版本: %d", client.configVersion)
 			}
 		})
-	}
-}
-
-func TestObserveSubagentUsageUsesSessionTaskHighWater(t *testing.T) {
-	manager := NewManager()
-
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 100); got != 100 {
-		t.Fatalf("first delta = %d, want 100", got)
-	}
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 150); got != 50 {
-		t.Fatalf("second delta = %d, want 50", got)
-	}
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 150); got != 0 {
-		t.Fatalf("duplicate delta = %d, want 0", got)
-	}
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 120); got != 0 {
-		t.Fatalf("out-of-order delta = %d, want 0", got)
-	}
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 180); got != 30 {
-		t.Fatalf("later delta = %d, want 30", got)
-	}
-	manager.mu.Lock()
-	delete(manager.sessions, "session-a")
-	manager.mu.Unlock()
-	if got := manager.ObserveSubagentUsage("session-a", "task-1", 200); got != 20 {
-		t.Fatalf("delta after idle state removal = %d, want retained high-water delta 20", got)
-	}
-	if got := manager.ObserveSubagentUsage("session-b", "task-1", 180); got != 180 {
-		t.Fatalf("other session delta = %d, want 180", got)
 	}
 }

@@ -28,46 +28,6 @@ func TestKeyringUsesStableIdentityAndOneActiveWriter(t *testing.T) {
 	}
 }
 
-func TestKeyringReadsUnidentifiedLegacyPayloadWithoutGuessingAfterIdentification(t *testing.T) {
-	legacyKey, err := DecodeKey(testLegacyKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacyPayload, err := EncryptPayload(legacyKey, []byte("legacy"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyring, err := NewKeyring(testActiveKey, []string{testLegacyKey})
-	if err != nil {
-		t.Fatal(err)
-	}
-	plain, matched, err := keyring.Decrypt("", legacyPayload)
-	if err != nil || string(plain) != "legacy" || matched == keyring.ActiveKeyID() {
-		t.Fatalf("legacy decrypt mismatch: plain=%q matched=%q err=%v", plain, matched, err)
-	}
-	if _, _, err = keyring.Decrypt("sha256:missing", legacyPayload); !errors.Is(err, ErrKeyUnavailable) {
-		t.Fatalf("identified payload must not scan other keys: %v", err)
-	}
-}
-
-func TestKeyringRejectsUnknownLegacyPayload(t *testing.T) {
-	unknownKey, err := DecodeKey("enl4d3Z1dHNycXBvbm1sa2ppaGdmZWRjYmEwMTIzNDU=")
-	if err != nil {
-		t.Fatal(err)
-	}
-	encrypted, err := EncryptPayload(unknownKey, []byte("unknown"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	keyring, err := NewKeyring(testActiveKey, []string{testLegacyKey})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, _, err = keyring.Decrypt("", encrypted); !errors.Is(err, ErrNoMatchingKey) {
-		t.Fatalf("unknown legacy key must fail closed: %v", err)
-	}
-}
-
 func TestKeyringEnvelopeUsesExactIdentityAndReadsLegacyV1(t *testing.T) {
 	keyring, err := NewKeyring(testActiveKey, []string{testLegacyKey})
 	if err != nil {

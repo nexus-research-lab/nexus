@@ -238,18 +238,6 @@ func (s *Service) runAutoResumeLoop(ctx context.Context, dispatcher Continuation
 	}
 }
 
-func (s *Service) runAndObserveAutoResume(
-	ctx context.Context,
-	dispatcher ContinuationDispatcher,
-	trigger string,
-) {
-	err := s.RunAutoResumeOnce(ctx, dispatcher)
-	if err == nil || ctx.Err() != nil {
-		return
-	}
-	s.logAutoResumeError(ctx, trigger, err)
-}
-
 func (s *Service) logAutoResumeError(ctx context.Context, trigger string, err error, attrs ...any) {
 	if s == nil || s.logger == nil || err == nil {
 		return

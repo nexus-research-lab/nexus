@@ -105,7 +105,7 @@ func (s *ControlService) ListAgentExternalSessions(
 			strings.TrimSpace(stored.AgentID) != strings.TrimSpace(agentID) {
 			continue
 		}
-		label := strings.TrimSpace(nullStringValue(row.ExternalName))
+		label := nullStringValue(row.ExternalName)
 		if label == "" {
 			label = strings.TrimSpace(stored.Title)
 		}

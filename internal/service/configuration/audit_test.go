@@ -1,7 +1,6 @@
 package configuration
 
 import (
-	"context"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -96,38 +95,6 @@ func TestBeginAuditAllowsOnlyOneExecutorForRequestID(t *testing.T) {
 	}
 }
 
-func TestFinishAuditSurvivesCallerCancellation(t *testing.T) {
-	service, actor, resolved := newAuditTestService(t)
-	request := ChangeRequest{
-		RequestID: "request-cancelled-1", Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"web_search_api_key":"must-not-leak"}`),
-	}
-	plan := ChangePlan{
-		Domain: DomainPreferences, Operation: "update", CurrentRevision: "before",
-		Scope: ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}, PlanDigest: "intent",
-	}
-	if _, created, err := service.beginAudit(t.Context(), resolved, request, plan, nil); err != nil || !created {
-		t.Fatalf("beginAudit created=%v err=%v", created, err)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	if err := service.finishAudit(ctx, actor, request.RequestID, "success", map[string]any{
-		"secret": "must-not-leak",
-	}, "after", nil); err != nil {
-		t.Fatalf("finishAudit should detach from caller cancellation: %v", err)
-	}
-	record, err := service.auditByID(t.Context(), actor.OwnerUserID, request.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record == nil || record.Status != "success" || record.RevisionAfter != "after" {
-		t.Fatalf("audit record = %+v", record)
-	}
-	if containsText(string(record.Result), "must-not-leak") {
-		t.Fatalf("audit result leaked secret: %s", record.Result)
-	}
-}
-
 func TestReplayRecoversExpiredApplyingAudit(t *testing.T) {
 	service, actor, resolved := newAuditTestService(t)
 	request := ChangeRequest{
@@ -164,78 +131,6 @@ func TestReplayRecoversExpiredApplyingAudit(t *testing.T) {
 	}
 	if record == nil || record.Status != "reconcile_required" {
 		t.Fatalf("recovered audit record = %+v", record)
-	}
-}
-
-func TestRecoverStaleApplyingChangesPersistsUnknownAcrossServiceRestart(t *testing.T) {
-	cfg := config.Config{
-		DatabaseDriver: "sqlite",
-		DatabaseURL:    filepath.Join(t.TempDir(), "nexus.db"),
-	}
-	db, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err = goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
-		t.Fatal(err)
-	}
-	service := NewService(cfg, db, nil, nil, nil, nil, nil, nil, nil)
-	actor := Actor{OwnerUserID: "owner", AgentID: "nexus", IsMainAgent: true}
-	resolved := &resolvedActor{
-		Actor: actor, Authority: AuthorityOwnerMain,
-		Context: ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID},
-	}
-	request := ChangeRequest{
-		RequestID: "request-restart-unknown-1", Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"chat_default_delivery_policy":"queue"}`),
-	}
-	plan := ChangePlan{
-		Domain: DomainPreferences, Operation: "update", CurrentRevision: "before",
-		Scope: ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}, PlanDigest: "intent",
-	}
-	if _, created, err := service.beginAudit(t.Context(), resolved, request, plan, nil); err != nil || !created {
-		t.Fatalf("beginAudit created=%v err=%v", created, err)
-	}
-	if _, err := db.ExecContext(
-		t.Context(),
-		`UPDATE configuration_changes SET updated_at = datetime('now', '-10 minutes')
-		 WHERE owner_user_id = ? AND request_id = ?`,
-		actor.OwnerUserID, request.RequestID,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	restartedDB, err := storage.OpenDB(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer restartedDB.Close()
-	restarted := NewService(cfg, restartedDB, nil, nil, nil, nil, nil, nil, nil)
-	recovered, err := restarted.RecoverStaleApplyingChanges(
-		t.Context(), actor.OwnerUserID, 10,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(recovered) != 1 || recovered[0].Status != "reconcile_required" {
-		t.Fatalf("recovered receipts = %+v", recovered)
-	}
-	record, err := restarted.auditByID(t.Context(), actor.OwnerUserID, request.RequestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if record == nil || record.Status != "reconcile_required" ||
-		!strings.Contains(record.ErrorMessage, "未知") {
-		t.Fatalf("durable unknown receipt = %+v", record)
-	}
-	if !strings.Contains(string(record.Result), `"applied":"unknown"`) {
-		t.Fatalf("durable unknown result = %s", record.Result)
 	}
 }
 

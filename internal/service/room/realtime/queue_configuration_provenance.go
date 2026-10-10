@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -21,29 +20,14 @@ func (s *Service) recordTrustedRoomQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil {
+	if !trusted {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
-	if !ok || item.Source != protocol.InputQueueSourceUser {
+	if !ok {
 		return nil
 	}
-	binding, err := queueadmissionstore.NewBinding(location, item)
-	if err != nil {
-		return err
-	}
-	principal, ok := authctx.DirectHumanPrincipalBindingFromContext(ctx, binding.OwnerUserID)
-	if !ok {
-		return errors.New("trusted Room queue admission requires the authenticated owner principal")
-	}
-	return s.queueTrust.Record(ctx, queueadmissionstore.Admission{
-		Binding: binding,
-		Principal: queueadmissionstore.PrincipalBinding{
-			UserID:     principal.UserID,
-			AuthMethod: principal.AuthMethod,
-			SessionID:  principal.SessionID,
-		},
-	})
+	return s.RecordTrustedQueueAdmission(ctx, location, item)
 }
 
 func (s *Service) recordTrustedRoomQueueAdmissions(
@@ -52,7 +36,7 @@ func (s *Service) recordTrustedRoomQueueAdmissions(
 	items []protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil {
+	if !trusted || s.QueueTrust == nil {
 		return nil
 	}
 	if len(entries) != len(items) {
@@ -81,12 +65,12 @@ func (s *Service) rollbackRoomQueueAdmissions(
 			break
 		}
 		item, ok := authoritativeRoomQueueItem(entries[index].Location, items[index])
-		if ok && s.queueTrust != nil {
+		if ok && s.QueueTrust != nil {
 			if binding, err := queueadmissionstore.NewBinding(entries[index].Location, item); err == nil {
-				_ = s.queueTrust.Revoke(ctx, binding)
+				_ = s.QueueTrust.Revoke(ctx, binding)
 			}
 		}
-		_, _ = s.inputQueue.Delete(entries[index].Location, items[index].ID)
+		_, _ = s.InputQueue.Delete(entries[index].Location, items[index].ID)
 	}
 }
 
@@ -95,7 +79,7 @@ func (s *Service) revokeRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s == nil || s.queueTrust == nil {
+	if s.QueueTrust == nil {
 		return nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -106,7 +90,7 @@ func (s *Service) revokeRoomQueueAdmission(
 	if err != nil {
 		return err
 	}
-	return s.queueTrust.Revoke(ctx, binding)
+	return s.QueueTrust.Revoke(ctx, binding)
 }
 
 func (s *Service) claimTrustedRoomQueueAdmission(
@@ -115,7 +99,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s == nil || s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.QueueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	item, ok := authoritativeRoomQueueItem(location, item)
@@ -139,7 +123,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 		if !roomdomain.IsMemberAgent(contextValue.Members, targetAgentID) {
 			return queueadmissionstore.Claim{}, false, errors.New("queued Room target is no longer a member")
 		}
-		agentValue, targetErr := s.agents.GetAgent(ctx, targetAgentID)
+		agentValue, targetErr := s.Agents.GetAgent(ctx, targetAgentID)
 		if targetErr != nil {
 			return queueadmissionstore.Claim{}, false, targetErr
 		}
@@ -151,7 +135,7 @@ func (s *Service) claimTrustedRoomQueueAdmission(
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}
-	return s.queueTrust.Claim(ctx, binding)
+	return s.QueueTrust.Claim(ctx, binding)
 }
 
 func authoritativeRoomQueueItem(

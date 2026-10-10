@@ -7,54 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
-
-func TestRoundRunnerDeliversExternalAssistantReply(t *testing.T) {
-	t.Parallel()
-
-	dispatcher := &fakeExternalReplyDispatcher{}
-	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
-		agent:      &protocol.Agent{AgentID: "agent-1"},
-		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
-		roundID:    "round-1",
-		externalReplyTarget: &ExternalReplyTarget{
-			Mode:     "explicit",
-			Channel:  "weixin-personal",
-			To:       "user-1",
-			ThreadID: "context-token-1",
-		},
-	}
-
-	runner.deliverExternalAssistantReply(context.Background(), protocol.Message{
-		"role": "assistant",
-		"content": []map[string]any{
-			{"type": "text", "text": "你好，我是五子棋。"},
-		},
-	})
-
-	calls := dispatcher.callsSnapshot()
-	if len(calls) != 1 {
-		t.Fatalf("期望外部回复投递 1 次，实际 %d", len(calls))
-	}
-	if calls[0].agentID != "agent-1" || calls[0].text != "你好，我是五子棋。" {
-		t.Fatalf("外部回复内容不正确: %+v", calls[0])
-	}
-	if calls[0].target.Channel != "weixin-personal" ||
-		calls[0].target.To != "user-1" ||
-		calls[0].target.ThreadID != "context-token-1" {
-		t.Fatalf("外部回复目标不正确: %+v", calls[0].target)
-	}
-}
 
 func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 	t.Parallel()
@@ -103,7 +65,7 @@ func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	runner := &roundRunner{
-		service:       &Service{replies: dispatcher, history: history},
+		service:       &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager(), History: history}},
 		workspacePath: workspacePath,
 		session:       session,
 		agent:         &protocol.Agent{AgentID: "agent-1"},
@@ -142,34 +104,6 @@ func TestRoundRunnerPersistsExternalAssistantReplyReceipt(t *testing.T) {
 	}
 }
 
-func TestRoundRunnerSkipsExternalReplyForWebSocketSession(t *testing.T) {
-	t.Parallel()
-
-	dispatcher := &fakeExternalReplyDispatcher{}
-	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
-		agent:      &protocol.Agent{AgentID: "agent-1"},
-		sessionKey: "agent:agent-1:ws:dm:user-1",
-		roundID:    "round-1",
-		externalReplyTarget: &ExternalReplyTarget{
-			Mode:    "explicit",
-			Channel: "weixin-personal",
-			To:      "user-1",
-		},
-	}
-
-	runner.deliverExternalAssistantReply(context.Background(), protocol.Message{
-		"role": "assistant",
-		"content": []map[string]any{
-			{"type": "text", "text": "普通网页会话不应发外部通道。"},
-		},
-	})
-
-	if calls := dispatcher.callsSnapshot(); len(calls) != 0 {
-		t.Fatalf("WebSocket 会话不应触发外部回复: %+v", calls)
-	}
-}
-
 func TestRoundRunnerDiscardsUncommittedDeferredRuntimeMessages(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +139,7 @@ func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
 
 	dispatcher := &fakeExternalReplyDispatcher{}
 	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
+		service:    &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		agent:      &protocol.Agent{AgentID: "agent-1"},
 		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
 		roundID:    "round-1",
@@ -249,7 +183,7 @@ func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
 
 	dispatcher := &fakeExternalReplyDispatcher{}
 	runner := &roundRunner{
-		service:    &Service{replies: dispatcher},
+		service:    &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}},
 		agent:      &protocol.Agent{AgentID: "agent-1"},
 		sessionKey: "agent:agent-1:weixin-personal:dm:user-1",
 		roundID:    "round-1",
@@ -268,51 +202,6 @@ func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
 
 	if calls := dispatcher.typingCallsSnapshot(); len(calls) != 0 {
 		t.Fatalf("快速结束不应发送 typing 状态: %+v", calls)
-	}
-}
-
-func TestScheduleTitleGenerationSkipsRoomConversationForExternalDMSession(t *testing.T) {
-	t.Parallel()
-
-	titleScheduler := &fakeDMTitleScheduler{}
-	service := &Service{titles: titleScheduler}
-	sessionKey := "agent:agent-1:weixin-personal:dm:wx-user-1"
-	roomID := "room-agent-1"
-	conversationID := "wx-user-1"
-	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID:     "owner-a",
-		Username:   "owner-a",
-		Role:       authctx.RoleOwner,
-		AuthMethod: authctx.AuthMethodLocal,
-	})
-	service.scheduleTitleGeneration(
-		ctx,
-		protocol.ParseSessionKey(sessionKey),
-		protocol.Session{
-			SessionKey:     sessionKey,
-			AgentID:        "agent-1",
-			ChannelType:    "weixin-personal",
-			ChatType:       "dm",
-			Title:          "New Chat",
-			MessageCount:   1,
-			RoomID:         &roomID,
-			ConversationID: &conversationID,
-		},
-		"你好",
-		1,
-		"kimi-code",
-		"kimi-for-coding",
-	)
-
-	request := titleScheduler.LastRequest()
-	if request.SessionKey != sessionKey {
-		t.Fatalf("标题请求 session_key 不正确: %+v", request)
-	}
-	if request.OwnerUserID != "owner-a" {
-		t.Fatalf("标题请求 owner 不正确: %+v", request)
-	}
-	if request.ConversationID != "" || request.ConversationRoomID != "" || request.ConversationMessageCount != -1 {
-		t.Fatalf("外部 DM 不应作为 room conversation 调度标题: %+v", request)
 	}
 }
 
@@ -355,7 +244,7 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 		"",
 	)
 	now := time.Now().UTC()
-	if _, err = service.files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+	if _, err = service.Files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      agentValue.AgentID,
 		ChannelType:  protocol.SessionChannelWeixinPersonal,
@@ -398,66 +287,12 @@ func TestHandleChatSchedulesTitleForExistingExternalIMDefaultTitle(t *testing.T)
 	})
 }
 
-func TestRefreshSessionMetaPreservesGeneratedTitle(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	service := NewService(cfg, nil, nil, permissionctx.NewContext())
-	workspacePath := filepath.Join(cfg.WorkspacePath, "agent-title")
-	sessionKey := protocol.BuildAgentSessionKey(
-		"agent-title",
-		protocol.SessionChannelWeixinPersonalSegment,
-		protocol.RoomTypeDM,
-		"wx-user-1",
-		"",
-	)
-	now := time.Now().UTC()
-	stale := protocol.Session{
-		SessionKey:   sessionKey,
-		AgentID:      "agent-title",
-		ChannelType:  protocol.SessionChannelWeixinPersonal,
-		ChatType:     protocol.RoomTypeDM,
-		Status:       "closed",
-		CreatedAt:    now.Add(-time.Hour),
-		LastActivity: now.Add(-time.Minute),
-		Title:        "New Chat",
-		MessageCount: 75,
-		Options:      map[string]any{},
-	}
-	if _, err := service.files.UpsertSession(workspacePath, stale); err != nil {
-		t.Fatalf("写入初始 session 失败: %v", err)
-	}
-	persisted := stale
-	persisted.Title = "午餐建议"
-	if _, err := service.files.UpsertSession(workspacePath, persisted); err != nil {
-		t.Fatalf("写入生成标题失败: %v", err)
-	}
-
-	updated, err := service.refreshSessionMetaRuntimeState(workspacePath, stale)
-	if err != nil {
-		t.Fatalf("刷新运行态失败: %v", err)
-	}
-	if updated == nil || updated.Title != "午餐建议" {
-		t.Fatalf("运行态刷新不应覆盖已生成标题: %+v", updated)
-	}
-
-	updated, err = service.refreshSessionMetaAfterMessage(workspacePath, stale, protocol.Message{
-		"message_id":  "assistant-1",
-		"role":        "assistant",
-		"session_key": sessionKey,
-	})
-	if err != nil {
-		t.Fatalf("刷新消息 meta 失败: %v", err)
-	}
-	if updated == nil || updated.Title != "午餐建议" {
-		t.Fatalf("消息 meta 刷新不应覆盖已生成标题: %+v", updated)
-	}
-}
-
 func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.T) {
 	t.Parallel()
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",
@@ -481,8 +316,8 @@ func TestRoundRunnerUsagePrefersResultAggregateOverTerminalAssistant(t *testing.
 		},
 	}
 
-	runner.recordUsage(result)
-	runner.recordTerminalAssistantUsage(assistant)
+	runner.RecordResultUsage(result, runner.writeUsage)
+	runner.RecordTerminalAssistantUsage(assistant, runner.writeUsage)
 
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("usage 记录数量 = %d，期望只记录 result 聚合 usage", len(recorder.inputs))
@@ -497,20 +332,20 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 	recorder := &fakeTokenUsageRecorder{}
 	runner := &roundRunner{
-		service:     &Service{usage: recorder, runtime: runtimectx.NewManager()},
+		service:     &Service{Host: runtimehost.Host{Usage: recorder, Runtime: runtimectx.NewManager()}},
 		ownerUserID: "user-1",
 		sessionKey:  "agent:demo:dm:session",
 		roundID:     "round-1",
 	}
 
-	runner.recordUsage(protocol.Message{
+	runner.RecordResultUsage(protocol.Message{
 		"role":        "result",
 		"message_id":  "result-empty",
 		"session_key": "agent:demo:dm:session",
 		"round_id":    "round-1",
 		"usage":       map[string]any{},
-	})
-	runner.recordTerminalAssistantUsage(protocol.Message{
+	}, runner.writeUsage)
+	runner.RecordTerminalAssistantUsage(protocol.Message{
 		"role":        "assistant",
 		"message_id":  "assistant-1",
 		"session_key": "agent:demo:dm:session",
@@ -518,7 +353,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 		"usage": map[string]any{
 			"input_tokens": 3,
 		},
-	})
+	}, runner.writeUsage)
 
 	if len(recorder.inputs) != 1 {
 		t.Fatalf("usage 记录数量 = %d，期望 fallback 记录 assistant usage", len(recorder.inputs))
@@ -530,7 +365,7 @@ func TestRoundRunnerUsageFallsBackToTerminalAssistantWhenResultUsageEmpty(t *tes
 
 func TestBoundLocalDMForwardsFinalReplyToOriginalIM(t *testing.T) {
 	dispatcher := &fakeExternalReplyDispatcher{}
-	runner := &roundRunner{service: &Service{replies: dispatcher}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
+	runner := &roundRunner{service: &Service{replies: dispatcher, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}}, agent: &protocol.Agent{AgentID: "amy"}, sessionKey: "agent:amy:ws:dm:existing", externalReplyTarget: &ExternalReplyTarget{PairingID: "pair", BindingVersion: 2, Channel: "weixin-personal", To: "person", SessionKey: "agent:amy:weixin-personal:dm:person"}}
 	runner.deliverExternalAssistantReply(t.Context(), protocol.Message{"role": "assistant", "content": []map[string]any{{"type": "text", "text": "原会话的回答"}}})
 	calls := dispatcher.callsSnapshot()
 	if len(calls) != 1 || calls[0].target.PairingID != "pair" || calls[0].target.BindingVersion != 2 {

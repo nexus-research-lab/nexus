@@ -28,8 +28,8 @@ func BuildAll(
 ) []sdktool.Tool {
 	if svc == nil ||
 		!sctx.IsMainAgent ||
-		strings.ToLower(strings.TrimSpace(sctx.ContextKind)) != configurationsvc.ContextKindAgent ||
-		strings.TrimSpace(sctx.ContextID) != strings.TrimSpace(sctx.CurrentAgentID) {
+		strings.ToLower(sctx.ContextKind) != configurationsvc.ContextKindAgent ||
+		sctx.ContextID != sctx.CurrentAgentID {
 		return nil
 	}
 	return []sdktool.Tool{authorization(svc, sctx)}
@@ -65,12 +65,12 @@ func authorization(svc contract.Service, sctx contract.ServerContext) sdktool.To
 					ctx, sctx.Actor(), stringArg(args, "flow_id"),
 				)
 			default:
-				return errorResult(errors.New("未知 Channel authorization action")), nil
+				return sdktool.ErrorResult(errors.New("未知 Channel authorization action")), nil
 			}
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

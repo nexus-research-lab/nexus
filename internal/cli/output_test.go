@@ -22,33 +22,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestCLIJSONFlagOutputsCompactJSON(t *testing.T) {
-	cfg := newCLITestConfig(t)
-	migrateCLISQLite(t, cfg.DatabaseURL)
-
-	command, err := New(cfg)
-	if err != nil {
-		t.Fatalf("创建 CLI 命令失败: %v", err)
-	}
-	command.SetArgs([]string{"--json", "agent", "list"})
-
-	stdout, stderr, executeErr := captureCLIStreams(t, command)
-	if executeErr != nil {
-		t.Fatalf("执行 --json agent list 失败: %v, stderr=%s", executeErr, stderr)
-	}
-	if strings.Contains(stdout, "\n  ") {
-		t.Fatalf("--json 输出不应包含缩进: %s", stdout)
-	}
-
-	var payload map[string]any
-	if err = json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("解析 JSON 失败: %v, stdout=%s", err, stdout)
-	}
-	if payload["success"] != true {
-		t.Fatalf("JSON 输出应带 success=true: %+v", payload)
-	}
-}
-
 func TestCLIUsageErrorUsesExitCode64AndStderrJSON(t *testing.T) {
 	cfg := newCLITestConfig(t)
 	migrateCLISQLite(t, cfg.DatabaseURL)

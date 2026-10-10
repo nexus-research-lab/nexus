@@ -347,12 +347,6 @@ func stringSliceContainsPrefix(items []string, prefix string) bool {
 	})
 }
 
-func buildTestSkillZip(t *testing.T, name string, title string) []byte {
-	t.Helper()
-
-	return buildTestSkillZipEntry(t, "skills/"+name+"/SKILL.md", name, title)
-}
-
 func buildTestSkillZipEntry(t *testing.T, entryName string, name string, title string, extraEntries ...string) []byte {
 	t.Helper()
 

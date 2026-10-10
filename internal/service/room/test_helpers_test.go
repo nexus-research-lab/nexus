@@ -15,20 +15,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 )
-
-type fakeRoomSkillCatalog map[string]skillspkg.Detail
-
-func (f fakeRoomSkillCatalog) GetSkillDetail(_ context.Context, skillName string, _ string) (*skillspkg.Detail, error) {
-	detail, ok := f[skillName]
-	if !ok {
-		return nil, os.ErrNotExist
-	}
-	return &detail, nil
-}
 
 func findConversationContext(
 	contexts []protocol.ConversationContextAggregate,
@@ -298,13 +287,6 @@ func assertRoomGoalMemberCleanup(t *testing.T, cleaner *fakeRoomGoalCleaner, ind
 	call := cleaner.memberCalls[index]
 	if call.agentID != wantAgentID || !sameStringSet(call.conversationIDs, wantConversationIDs) {
 		t.Fatalf("goal member cleanup[%d] = %#v, want agent=%s conversations=%#v", index, call, wantAgentID, wantConversationIDs)
-	}
-}
-
-func assertRuntimeClosedKeys(t *testing.T, got []string, want []string) {
-	t.Helper()
-	if !sameStringSet(got, want) {
-		t.Fatalf("runtime close keys = %#v, want %#v", got, want)
 	}
 }
 

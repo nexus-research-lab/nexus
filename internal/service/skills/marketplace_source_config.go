@@ -4,10 +4,12 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 func (s *Service) defaultExternalSkillSources() []externalSkillSource {
-	skillsShURL := strings.TrimRight(firstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), "/")
+	skillsShURL := strings.TrimRight(textutil.FirstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), "/")
 	return []externalSkillSource{
 		{
 			Key:       buildSkillSourceID(externalSourceKindClaudePlugins, defaultClaudePluginsSearchURL),
@@ -126,7 +128,7 @@ func parseConfiguredExternalSource(raw string) (externalSkillSource, bool) {
 		return externalSkillSource{}, false
 	}
 	kind := classifyExternalSourceKind(parsed)
-	name := firstNonEmpty(label, externalSourceDefaultName(kind, parsed))
+	name := textutil.FirstNonEmpty(label, externalSourceDefaultName(kind, parsed))
 	sourceURL = strings.TrimRight(parsed.String(), "/")
 	return externalSkillSource{
 		Key:     buildSkillSourceID(kind, sourceURL),

@@ -13,7 +13,7 @@ vi.mock("@/lib/api/conversation/team-api", () => ({
 vi.mock("@/lib/websocket/use-socket", () => ({useWebSocket: api.socket}));
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
-  useAuth: () => ({status: {authenticated: true, auth_method: "password", control_user_id: "user", organization_id: "org"}}),
+  useAuth: () => ({status: {authenticated: true, multiplayer_enabled: true, auth_method: "password", control_user_id: "user", organization_id: "org"}}),
 }));
 const bootstrap = {
   last_read_message_seq: 0,

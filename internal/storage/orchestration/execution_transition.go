@@ -115,7 +115,6 @@ func (r *Repository) ReplaceWithPlan(
 	command ReplaceWithPlanCommand,
 ) (*protocol.ExecutionSnapshot, error) {
 	command.ExecutionID = strings.TrimSpace(command.ExecutionID)
-	command.Reason = strings.TrimSpace(command.Reason)
 	if command.ExecutionID == "" || command.Reason == "" {
 		return nil, fmt.Errorf("%w: replacement requires current Execution and reason", ErrInvariant)
 	}
@@ -177,7 +176,7 @@ func (r *Repository) ReplaceWithPlan(
 		return nil, sql.ErrNoRows
 	}
 	if current.Version != command.ExpectedExecutionVersion ||
-		!currentExecutionStatus(current.Status) {
+		!current.Status.Current() {
 		return nil, ErrVersionConflict
 	}
 	if strings.TrimSpace(current.GoalID) != "" {
@@ -730,10 +729,4 @@ func planEvent(
 		Payload:        meta.Payload,
 		CreatedAt:      meta.CreatedAt,
 	}
-}
-
-func currentExecutionStatus(status protocol.ExecutionStatus) bool {
-	return status == protocol.ExecutionStatusActive ||
-		status == protocol.ExecutionStatusWaiting ||
-		status == protocol.ExecutionStatusPaused
 }

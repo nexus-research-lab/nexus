@@ -300,7 +300,7 @@ func validateInitialRunClaim(input InitialRunClaimInput) error {
 			terminal.FinishedAt == nil ||
 			strings.TrimSpace(terminal.Status) != automationdomain.RunStatusSkipped ||
 			terminal.StartedAt != nil || terminal.Attempts != 0 ||
-			strings.TrimSpace(terminal.DeliveryStatus) != automationdomain.DeliveryStatusNotAttempted ||
+			terminal.DeliveryStatus != automationdomain.DeliveryStatusNotAttempted ||
 			strings.TrimSpace(terminal.OwnerUserID) != ownerUserID ||
 			strings.TrimSpace(terminal.JobID) != jobID ||
 			strings.TrimSpace(terminal.RunID) != runID ||
@@ -495,7 +495,7 @@ WHERE job_id = %s
 		nullableString(input.LastError),
 		strings.TrimSpace(input.JobID),
 		strings.TrimSpace(input.OwnerUserID),
-		strings.TrimSpace(input.ExpectedRunID),
+		input.ExpectedRunID,
 	)
 	if err != nil {
 		return false, err
@@ -569,7 +569,7 @@ WHERE run_id = %s
 		input.FinishedAt.UTC(),
 		nullableString(input.ErrorMessage),
 		automationdomain.DeliveryStatusNotAttempted,
-		strings.TrimSpace(input.RunID),
+		input.RunID,
 		strings.TrimSpace(input.JobID),
 		strings.TrimSpace(input.OwnerUserID),
 		automationdomain.RunStatusPending,
@@ -600,7 +600,7 @@ WHERE run_id = %s
 			r.bind(2),
 			r.bind(3),
 		),
-		strings.TrimSpace(input.RunID),
+		input.RunID,
 		strings.TrimSpace(input.JobID),
 		strings.TrimSpace(input.OwnerUserID),
 	).Scan(&status)
@@ -658,7 +658,7 @@ WHERE job_id = %s
 		nullString(runtime.LastDeliveryStatus),
 		strings.TrimSpace(input.JobID),
 		strings.TrimSpace(input.OwnerUserID),
-		strings.TrimSpace(input.RunID),
+		input.RunID,
 	)
 	if err != nil {
 		return false, err

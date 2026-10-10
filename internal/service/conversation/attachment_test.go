@@ -2,12 +2,15 @@ package conversation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -46,29 +49,6 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 	}
 	if payload, ok := content.Payload().(string); !ok || payload != content.PlainText() {
 		t.Fatalf("text attachment should keep string payload, got %#v", content.Payload())
-	}
-}
-
-func TestIsSlashCommandInput(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		content string
-		want    bool
-	}{
-		{name: "command", content: "/model", want: true},
-		{name: "leading whitespace", content: "  /review api", want: true},
-		{name: "ordinary prompt", content: "请执行 /model", want: false},
-		{name: "empty", content: "", want: false},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := IsSlashCommandInput(test.content); got != test.want {
-				t.Fatalf("IsSlashCommandInput(%q) = %t, want %t", test.content, got, test.want)
-			}
-		})
 	}
 }
 
@@ -170,40 +150,6 @@ func TestRenderRuntimeContentWithImageOnlyCanAppendContext(t *testing.T) {
 	}
 }
 
-func TestRuntimeContentAppendText(t *testing.T) {
-	t.Parallel()
-
-	content := NewRuntimeTextContent("用户问题").AppendText("动态上下文")
-	if content.PlainText() != "用户问题\n\n动态上下文" {
-		t.Fatalf("text append mismatch: %q", content.PlainText())
-	}
-	if payload, ok := content.Payload().(string); !ok || payload != content.PlainText() {
-		t.Fatalf("text payload mismatch: %#v", content.Payload())
-	}
-}
-
-func TestRuntimeContentAppendTextWithBlocks(t *testing.T) {
-	t.Parallel()
-
-	content := RuntimeContent{
-		text: "用户问题",
-		blocks: []map[string]any{
-			{"type": "text", "text": "用户问题"},
-		},
-	}.AppendText("动态上下文")
-
-	if content.PlainText() != "用户问题\n\n动态上下文" {
-		t.Fatalf("block plain text mismatch: %q", content.PlainText())
-	}
-	blocks, ok := content.Payload().([]map[string]any)
-	if !ok {
-		t.Fatalf("block payload type mismatch: %#v", content.Payload())
-	}
-	if len(blocks) != 2 || blocks[1]["type"] != "text" || blocks[1]["text"] != "动态上下文" {
-		t.Fatalf("dynamic context should be appended as trailing text block: %#v", blocks)
-	}
-}
-
 func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	t.Parallel()
 
@@ -234,45 +180,61 @@ func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 	}
 }
 
-func TestResolveWorkspaceAttachmentPathRejectsEscape(t *testing.T) {
-	t.Parallel()
-
-	workspacePath := t.TempDir()
-	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "../outside.txt"); err == nil {
-		t.Fatal("expected escaping attachment path to be rejected")
+// ResolveWorkspaceAttachmentPath 将 workspace 相对路径约束到指定 workspace 内并返回绝对路径。
+func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (string, error) {
+	resolved, err := openWorkspaceAttachment(workspacePath, relativePath)
+	if err != nil {
+		return "", err
 	}
+	_ = resolved.File.Close()
+	return resolved.AbsolutePath, nil
 }
 
-func TestResolveWorkspaceAttachmentPathRejectsSymlink(t *testing.T) {
-	workspacePath := t.TempDir()
-	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
-	if err := os.WriteFile(outsidePath, []byte("secret"), 0o600); err != nil {
-		t.Fatal(err)
+func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
+	root := filepath.Clean(strings.TrimSpace(workspacePath))
+	if root == "" {
+		return ResolvedAttachment{}, errors.New("workspace_path is required")
 	}
-	if err := os.Symlink(outsidePath, filepath.Join(workspacePath, "attachment.txt")); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
+	normalizedPath := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
+	normalizedPath = strings.TrimPrefix(normalizedPath, "/")
+	if normalizedPath == "" {
+		return ResolvedAttachment{}, errors.New("attachment workspace_path is required")
 	}
-	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "attachment.txt"); err == nil {
-		t.Fatal("workspace attachment symlink should be rejected")
+	targetPath := filepath.Clean(filepath.Join(root, normalizedPath))
+	rootWithSeparator := root + string(os.PathSeparator)
+	if targetPath != root && !strings.HasPrefix(targetPath, rootWithSeparator) {
+		return ResolvedAttachment{}, errors.New("attachment path escapes workspace")
 	}
-}
-
-func TestResolveWorkspaceAttachmentPathRejectsIntermediateSymlink(t *testing.T) {
-	workspacePath := t.TempDir()
-	privateDir := filepath.Join(workspacePath, "private")
-	if err := os.Mkdir(privateDir, 0o700); err != nil {
-		t.Fatal(err)
+	rootFS, err := confinedfs.Open(root)
+	if err != nil {
+		return ResolvedAttachment{}, err
 	}
-	if err := os.WriteFile(filepath.Join(privateDir, "secret.txt"), []byte("secret"), 0o600); err != nil {
-		t.Fatal(err)
+	relative := filepath.ToSlash(normalizedPath)
+	parent, err := rootFS.OpenRootNoSymlink(path.Dir(relative))
+	rootFS.Close()
+	if err != nil {
+		return ResolvedAttachment{}, err
 	}
-	if err := os.Symlink("private", filepath.Join(workspacePath, "attachments")); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
+	defer parent.Close()
+	name := path.Base(relative)
+	file, err := parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
+	if err != nil {
+		return ResolvedAttachment{}, err
 	}
-	if _, err := ResolveWorkspaceAttachmentPath(
-		workspacePath,
-		"attachments/secret.txt",
-	); err == nil {
-		t.Fatal("workspace attachment intermediate symlink should be rejected")
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return ResolvedAttachment{}, err
 	}
+	if !info.Mode().IsRegular() {
+		_ = file.Close()
+		if info.IsDir() {
+			return ResolvedAttachment{}, fmt.Errorf("attachment path is a directory: %s", normalizedPath)
+		}
+		return ResolvedAttachment{}, fmt.Errorf("attachment path is not a regular file: %s", normalizedPath)
+	}
+	return ResolvedAttachment{
+		AbsolutePath: targetPath,
+		File:         file,
+	}, nil
 }

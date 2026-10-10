@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -111,8 +112,8 @@ func mergeExecutionRuntimeGraph(
 			submissionID := runtimeGraphMetadataString(runtimeNode, "submission_id")
 			allowed := agentNodeByRound[runtimeNode.AgentRoundID] != "" ||
 				lane == "coordination" ||
-				(lane == "work" && firstNonEmpty(agentNodeByAttempt[attemptID], agentNodeByRound[runtimeNode.AgentRoundID], agentNodeByWorkItem[workItemID]) != "") ||
-				(lane == "review" && firstNonEmpty(reviewNodeBySubmission[submissionID], reviewNodeByRound[runtimeNode.AgentRoundID], reviewNodeByWorkItem[workItemID]) != "")
+				(lane == "work" && textutil.FirstNonEmpty(agentNodeByAttempt[attemptID], agentNodeByRound[runtimeNode.AgentRoundID], agentNodeByWorkItem[workItemID]) != "") ||
+				(lane == "review" && textutil.FirstNonEmpty(reviewNodeBySubmission[submissionID], reviewNodeByRound[runtimeNode.AgentRoundID], reviewNodeByWorkItem[workItemID]) != "")
 			if allowed && runtimeNode.AgentRoundID != "" {
 				allowedAgentRound[runtimeNode.AgentRoundID] = struct{}{}
 			}
@@ -136,13 +137,13 @@ func mergeExecutionRuntimeGraph(
 			boundNodeID := ""
 			switch lane {
 			case "work":
-				boundNodeID = firstNonEmpty(
+				boundNodeID = textutil.FirstNonEmpty(
 					agentNodeByAttempt[runtimeGraphMetadataString(runtimeNode, "attempt_id")],
 					agentNodeByRound[runtimeNode.AgentRoundID],
 					agentNodeByWorkItem[workItemID],
 				)
 			case "review":
-				boundNodeID = firstNonEmpty(
+				boundNodeID = textutil.FirstNonEmpty(
 					reviewNodeBySubmission[runtimeGraphMetadataString(runtimeNode, "submission_id")],
 					reviewNodeByRound[runtimeNode.AgentRoundID],
 					reviewNodeByWorkItem[workItemID],
@@ -167,7 +168,7 @@ func mergeExecutionRuntimeGraph(
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
 			existingID := subagentNodeByTask[subjectID]
 			if existingID == "" {
-				toolUseID := strings.TrimSpace(runtimeGraphMetadataString(runtimeNode, "tool_use_id"))
+				toolUseID := runtimeGraphMetadataString(runtimeNode, "tool_use_id")
 				existingID = subagentNodeByToolUse[toolUseID]
 			}
 			if existingID != "" {
@@ -235,12 +236,12 @@ func mergeExecutionRuntimeGraph(
 	}
 	incomingRuntimeNode := make(map[string]struct{})
 	for _, runtimeEdge := range runtimeGraph.Edges {
-		sourceID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.SourceNodeID], runtimeEdge.SourceNodeID)
-		targetID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
+		sourceID := textutil.FirstNonEmpty(runtimeNodeProjection[runtimeEdge.SourceNodeID], runtimeEdge.SourceNodeID)
+		targetID := textutil.FirstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
 		if runtimeEdge.Kind == protocol.ExecutionRuntimeEdgeLoopBack {
 			sourceRuntimeNode := runtimeNodeByID[runtimeEdge.SourceNodeID]
 			segment := runtimeExecutionSegmentFromNode(sourceRuntimeNode)
-			if segmentOwnerID := firstNonEmpty(
+			if segmentOwnerID := textutil.FirstNonEmpty(
 				agentNodeByAttempt[segment.AttemptID],
 				agentNodeByWorkItem[segment.WorkItemID],
 			); segmentOwnerID != "" {
@@ -252,14 +253,14 @@ func mergeExecutionRuntimeGraph(
 			targetRuntimeNode := runtimeNodeByID[runtimeEdge.TargetNodeID]
 			segmentOwnerID := ""
 			if segment := runtimeExecutionSegmentFromNode(targetRuntimeNode); segment.valid() {
-				if segmentOwnerID = firstNonEmpty(
+				if segmentOwnerID = textutil.FirstNonEmpty(
 					agentNodeByAttempt[segment.AttemptID],
 					agentNodeByWorkItem[segment.WorkItemID],
 				); segmentOwnerID != "" && segmentOwnerID != targetID {
 					sourceID = segmentOwnerID
 				}
 			}
-			if exactParentID := firstNonEmpty(
+			if exactParentID := textutil.FirstNonEmpty(
 				parentNodeBySubject[runtimeGraphParentKey(targetRuntimeNode.AgentRoundID, targetRuntimeNode.ParentSubjectID)],
 				parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)],
 			); exactParentID != "" && exactParentID != targetID &&
@@ -327,12 +328,12 @@ func mergeExecutionRuntimeGraph(
 		if _, exists := incomingRuntimeNode[targetID]; exists {
 			continue
 		}
-		sourceID := firstNonEmpty(
+		sourceID := textutil.FirstNonEmpty(
 			parentNodeBySubject[runtimeGraphParentKey(runtimeNode.AgentRoundID, runtimeNode.ParentSubjectID)],
 			parentNodeBySubject[strings.TrimSpace(runtimeNode.ParentSubjectID)],
 		)
 		if segment := runtimeExecutionSegmentFromNode(runtimeNode); segment.valid() {
-			segmentOwnerID := firstNonEmpty(
+			segmentOwnerID := textutil.FirstNonEmpty(
 				agentNodeByAttempt[segment.AttemptID],
 				agentNodeByWorkItem[segment.WorkItemID],
 			)
@@ -1102,12 +1103,12 @@ func mergeExecutionGraphRun(
 		return
 	}
 	target.RuntimeNodeID = source.RuntimeNodeID
-	target.AgentRoundID = firstNonEmpty(source.AgentRoundID, target.AgentRoundID)
-	target.SubjectID = firstNonEmpty(source.SubjectID, target.SubjectID)
-	target.Status = firstNonEmpty(source.Status, target.Status)
-	target.ResultSummary = firstNonEmpty(source.ResultSummary, target.ResultSummary)
-	target.ErrorCode = firstNonEmpty(source.ErrorCode, target.ErrorCode)
-	target.ErrorSummary = firstNonEmpty(source.ErrorSummary, target.ErrorSummary)
+	target.AgentRoundID = textutil.FirstNonEmpty(source.AgentRoundID, target.AgentRoundID)
+	target.SubjectID = textutil.FirstNonEmpty(source.SubjectID, target.SubjectID)
+	target.Status = textutil.FirstNonEmpty(source.Status, target.Status)
+	target.ResultSummary = textutil.FirstNonEmpty(source.ResultSummary, target.ResultSummary)
+	target.ErrorCode = textutil.FirstNonEmpty(source.ErrorCode, target.ErrorCode)
+	target.ErrorSummary = textutil.FirstNonEmpty(source.ErrorSummary, target.ErrorSummary)
 	target.SummaryTruncated = target.SummaryTruncated || source.SummaryTruncated
 	if source.DurationMS > 0 {
 		target.DurationMS = source.DurationMS
@@ -1199,7 +1200,7 @@ func promoteRuntimeGraphRecoverySuccesses(
 		if node.Kind != protocol.ExecutionRuntimeNodeTool {
 			continue
 		}
-		ownerKey := firstNonEmpty(
+		ownerKey := textutil.FirstNonEmpty(
 			strings.TrimSpace(node.ParentSubjectID),
 			strings.TrimSpace(node.AgentRoundID),
 		)

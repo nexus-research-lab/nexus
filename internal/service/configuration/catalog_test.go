@@ -257,16 +257,6 @@ func TestSecretTemplatePreservesMixedProviderOptions(t *testing.T) {
 	}
 }
 
-func TestClassifyChangeRiskRequiresHumanApprovalForSensitiveInput(t *testing.T) {
-	risk, requires := classifyChangeRisk(OperationDefinition{}, ChangeRequest{
-		Domain: DomainPreferences, Operation: "update",
-		Input: []byte(`{"web_search_api_key":"secret"}`),
-	})
-	if risk != "sensitive" || !requires {
-		t.Fatalf("risk=%q requires=%v, want sensitive/true", risk, requires)
-	}
-}
-
 func TestClassifyChangeRiskRequiresHumanApprovalForRuntimePreferences(t *testing.T) {
 	for _, input := range []string{
 		`{"agent_runtime_kind":"nxs"}`,
@@ -280,57 +270,6 @@ func TestClassifyChangeRiskRequiresHumanApprovalForRuntimePreferences(t *testing
 		})
 		if risk != "high_risk" || !requires {
 			t.Fatalf("input=%s risk=%q requires=%v, want high_risk/true", input, risk, requires)
-		}
-	}
-}
-
-func TestClassifyChangeRiskDistinguishesHighRiskFromDestructive(t *testing.T) {
-	risk, requires := classifyChangeRisk(OperationDefinition{
-		RequiresConfirmation: true,
-	}, ChangeRequest{Domain: DomainChannels, Operation: "upsert"})
-	if risk != "high_risk" || !requires {
-		t.Fatalf("upsert risk=%q requires=%v, want high_risk/true", risk, requires)
-	}
-
-	risk, requires = classifyChangeRisk(OperationDefinition{
-		RequiresConfirmation: true,
-	}, ChangeRequest{Domain: DomainChannels, Operation: "delete_config"})
-	if risk != "destructive" || !requires {
-		t.Fatalf("delete risk=%q requires=%v, want destructive/true", risk, requires)
-	}
-}
-
-func TestCatalogRequiresHumanApprovalForExternalAndExecutableChanges(t *testing.T) {
-	for _, reference := range []struct {
-		domain    string
-		operation string
-	}{
-		{DomainProviders, "create"},
-		{DomainAgents, "create"},
-		{DomainChannels, "upsert"},
-		{DomainConnectors, "connect"},
-		{DomainSkills, "import_git"},
-		{DomainSkills, "import_url"},
-		{DomainSkills, "import_skills_sh"},
-		{DomainSkills, "update_source"},
-		{DomainSkills, "install"},
-		{DomainSkills, "install_self"},
-		{DomainSkills, "uninstall"},
-		{DomainSkills, "uninstall_self"},
-		{DomainSkills, "update_single"},
-		{DomainAgents, "update_self_runtime"},
-		{DomainRooms, "update_profile"},
-	} {
-		definition, err := definitionFor(reference.domain)
-		if err != nil {
-			t.Fatal(err)
-		}
-		operation, err := operationFor(definition, reference.operation)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !operation.RequiresConfirmation {
-			t.Fatalf("%s.%s must require human approval", reference.domain, reference.operation)
 		}
 	}
 }

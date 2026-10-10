@@ -33,7 +33,7 @@ vi.mock("./sidebar-list-rows", () => ({
 vi.mock("@/shared/auth/auth-context", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/shared/auth/auth-context")>(),
   useAuth: () => ({
-    status: { authenticated: true, auth_method: "password", control_user_id: "owner", organization_id: "org" },
+    status: { authenticated: true, multiplayer_enabled: true, auth_method: "password", control_user_id: "owner", organization_id: "org" },
     loading: false,
     isBootstrapped: true,
     error: null,

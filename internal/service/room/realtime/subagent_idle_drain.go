@@ -5,20 +5,20 @@ package realtime
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, roundValue *activeRoomRound) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	for _, slot := range roundValue.Slots {
-		if slot == nil || !s.runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
+		if slot == nil || !s.Runtime.HasSubagentHistory(slot.RuntimeSessionKey) {
 			continue
 		}
 		mapper := roomdomain.NewSlotMessageMapper(
@@ -34,11 +34,11 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 		mapper.SetMessageDecorator(func(message protocol.Message) {
 			s.decorateRoomMessage(roundValue, slot, message)
 		})
-		s.runtime.StartIdleMessageDrain(
+		s.Runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
 				return s.handleIdleSubagentMessage(
-					contextWithExactQueueOwner(drainCtx, roundValue.OwnerUserID),
+					runtimehost.ContextWithExactOwner(drainCtx, roundValue.OwnerUserID),
 					roundValue,
 					slot,
 					mapper,
@@ -60,10 +60,10 @@ func (s *Service) handleIdleSubagentMessage(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
 		return false
 	}
-	s.executionObserver().ObserveMessage(roomOrchestrationActor(roundValue, slot), incoming)
+	s.ExecutionObserver().ObserveMessage(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
-		s.loggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
+		s.LoggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
 			"session_key", roundValue.SessionKey,
 			"round_id", roundValue.RoundID,
 			"agent_id", slot.AgentID,
@@ -79,7 +79,7 @@ func (s *Service) handleIdleSubagentMessage(
 			if s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err) {
 				return false
 			}
-			s.loggerFor(ctx).Warn("写入 Room idle subagent 通知失败",
+			s.LoggerFor(ctx).Warn("写入 Room idle subagent 通知失败",
 				"session_key", roundValue.SessionKey,
 				"round_id", roundValue.RoundID,
 				"agent_id", slot.AgentID,
@@ -104,12 +104,12 @@ func (s *Service) handleIdleSubagentMessage(
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
 		return false
 	}
-	if slot.hasRunningSubagentTask() {
+	if slot.mutable.goal.HasRunningSubagentTask() {
 		return true
 	}
 	if !s.finalizeCompletedRoomGoalUsage(ctx, roundValue) &&
 		!roundValue.hasRunningSubagentTasks() {
-		s.loggerFor(ctx).Warn(
+		s.LoggerFor(ctx).Warn(
 			"Room child drain 后 Goal usage 尚未完成最终结算",
 			"session_key", roundValue.SessionKey,
 			"round_id", roundValue.RoundID,
@@ -133,11 +133,11 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	settledSubagentUsage := s.recordSubagentGoalUsageForSlot(ctx, slot, messageValue)
 	slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+		slot.mutable.goal.ClearSubagentUsagePending(settlement.TaskID, settlement.Observation)
 	}
 	s.startRoomSubagentUsageRetry(roundValue, slot)
 	if slot.hasSubagentHistory() {
-		s.runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
+		s.Runtime.MarkSubagentHistory(slot.RuntimeSessionKey)
 	}
 	if !roomSlotPublishesPublicOutput(slot) {
 		if !protocol.IsTranscriptNativeMessage(messageValue) {
@@ -151,7 +151,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 			return err
 		}
-		s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+		s.ExecutionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		actor := roomOrchestrationActor(roundValue, slot)
 		s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 		return nil
@@ -178,19 +178,19 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
 		return err
 	}
-	s.executionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
+	s.ExecutionObserver().ObserveArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	actor := roomOrchestrationActor(roundValue, slot)
 	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, &actor, messageValue)
 	return nil
 }
 
 func (s *Service) releaseRoundSubagentWait(roundValue *activeRoomRound) {
-	if s == nil || roundValue == nil {
+	if roundValue == nil {
 		return
 	}
 	if !roundValue.hasRunningSubagentTasks() &&
 		roundValue.RunningSubagents.CompareAndSwap(true, false) {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			roundValue.SessionKey,
 			roundValue.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -206,7 +206,8 @@ func (s *Service) dispatchPostRoundWorkOnce(
 	ctx context.Context,
 	roundValue *activeRoomRound,
 ) {
-	if s == nil || roundValue == nil || roundValue.RunningSubagents.Load() ||
+	if roundValue == nil ||
+		roundValue.RunningSubagents.Load() ||
 		!roundValue.postRoundDispatched.CompareAndSwap(false, true) {
 		return
 	}
@@ -219,7 +220,8 @@ func (s *Service) startRoomSubagentUsageRetry(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) {
-	if s == nil || roundValue == nil || slot == nil ||
+	if roundValue == nil ||
+		slot == nil ||
 		!slot.tryStartSubagentUsageRetry() {
 		return
 	}
@@ -232,7 +234,8 @@ func (s *Service) startRoomGoalUsageRetry(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 ) {
-	if s == nil || roundValue == nil || slot == nil ||
+	if roundValue == nil ||
+		slot == nil ||
 		!slot.tryStartGoalUsageRetry() {
 		return
 	}
@@ -245,13 +248,13 @@ func (s *Service) retryRoomSubagentUsage(
 ) {
 	defer s.finishRoomGoalUsageRetryWorker(roundValue, slot)
 
-	ctx := contextWithExactQueueOwner(context.Background(), roundValue.OwnerUserID)
+	ctx := runtimehost.ContextWithExactOwner(context.Background(), roundValue.OwnerUserID)
 	retryAttempt := 0
 	for {
 		unlockScope := s.lockRoomGoalUsageScope(ctx, slot)
 		pending := slot.subagentUsageObservationPendingSnapshot()
 		if len(pending) > 0 {
-			goalID := strings.TrimSpace(slot.childGoalIDForUsage())
+			goalID := slot.childGoalIDForUsage()
 			goalSessionKey := goalUsageSessionKeyForRoomSlot(slot, goalSessionKeyForSlot(slot))
 			for taskID, observation := range pending {
 				if _, err := s.persistSubagentGoalUsageObservationForSlot(
@@ -262,7 +265,7 @@ func (s *Service) retryRoomSubagentUsage(
 					goalID,
 					goalSessionKey,
 				); err != nil {
-					s.loggerFor(ctx).Warn(
+					s.LoggerFor(ctx).Warn(
 						"后台重试 Room nxs 子任务 Goal usage 失败",
 						"session_key", goalSessionKey,
 						"goal_id", goalID,
@@ -273,7 +276,7 @@ func (s *Service) retryRoomSubagentUsage(
 					)
 					continue
 				}
-				slot.clearSubagentUsageObservationPending(taskID, observation)
+				slot.mutable.goal.ClearSubagentUsagePending(taskID, observation)
 			}
 			if len(slot.subagentUsagePendingSnapshot()) > 0 {
 				unlockScope()

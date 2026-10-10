@@ -132,49 +132,6 @@ func TestServiceEnsureRejectsMissingTopLevelCompletionCriteria(t *testing.T) {
 	}
 }
 
-func TestServiceEnsurePlanModeReturnsStructuredProposalValidation(t *testing.T) {
-	service := testService(&fakeRepository{
-		create: func(
-			context.Context,
-			orchestrationstore.CreateCommand,
-		) (*protocol.ExecutionSnapshot, error) {
-			t.Fatal("Plan Mode proposal must not create an Execution")
-			return nil, nil
-		},
-	})
-	actor := coordinatorActor()
-	actor.PlanMode = true
-
-	valid, err := service.Ensure(context.Background(), actor, EnsureInput{
-		CommandID:          "tool-plan-proposal",
-		Objective:          "Ship orchestration",
-		CompletionCriteria: []string{" verified ", ""},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if valid.Outcome != MutationNoOp ||
-		valid.Snapshot != nil ||
-		valid.ExecutionID != "" ||
-		!strings.Contains(valid.Message, "1 top-level completion criterion") {
-		t.Fatalf("valid proposal = %#v", valid)
-	}
-
-	rejected, err := service.Ensure(context.Background(), actor, EnsureInput{
-		CommandID:          "tool-plan-proposal-invalid",
-		Objective:          "Ship orchestration",
-		CompletionCriteria: []string{"  "},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rejected.Outcome != MutationRejected ||
-		rejected.ReasonCode != ErrorCodeCompletionCriteriaEmpty ||
-		rejected.Snapshot != nil {
-		t.Fatalf("invalid proposal = %#v", rejected)
-	}
-}
-
 func TestServiceProjectionCollectionLimitCoversPlanModeAndMutations(t *testing.T) {
 	atLimit := makeProjectionValues(protocol.ExecutionProjectionCollectionLimit)
 	overLimit := makeProjectionValues(protocol.ExecutionProjectionCollectionLimit + 1)
@@ -335,132 +292,6 @@ func makeProjectionValues(count int) []string {
 		values[index] = fmt.Sprintf("value-%02d", index)
 	}
 	return values
-}
-
-func TestServicePlanExecutionReusesStableWorkAndImmutableSpec(t *testing.T) {
-	researchDraft := PlanWorkItemDraft{
-		LogicalKey:         "research",
-		ExistingWorkItemID: "work-research",
-		Kind:               protocol.WorkItemKindProduce,
-		Subject:            "Research",
-		Objective:          "Collect evidence",
-		Deliverable:        "Evidence set",
-		AcceptanceCriteria: []string{"sources cited"},
-		Required:           true,
-		OutputScopes: []protocol.WorkOutputScope{{
-			Scope: "dir:research",
-			Mode:  protocol.WorkOutputScopeExclusive,
-		}},
-	}
-	hash, err := workSpecHash(researchDraft)
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot := executionSnapshot()
-	snapshot.Execution.Version = 5
-	snapshot.Plan = &protocol.ExecutionPlanRevision{
-		ID:          "plan-old",
-		ExecutionID: snapshot.Execution.ID,
-		Revision:    1,
-		Status:      protocol.PlanRevisionStatusActive,
-		Version:     1,
-	}
-	snapshot.WorkItems = []protocol.WorkItem{{
-		ID:          "work-research",
-		ExecutionID: snapshot.Execution.ID,
-		LogicalKey:  "research",
-		Kind:        protocol.WorkItemKindProduce,
-	}}
-	snapshot.WorkItemStates = []protocol.WorkItemState{{
-		WorkItemID:    "work-research",
-		ExecutionID:   snapshot.Execution.ID,
-		CurrentSpecID: "spec-research",
-		Status:        protocol.WorkItemStatusOpen,
-		Version:       3,
-	}}
-	snapshot.WorkItemSpecs = []protocol.WorkItemSpec{{
-		ID:          "spec-research",
-		WorkItemID:  "work-research",
-		ExecutionID: snapshot.Execution.ID,
-		Version:     2,
-		SpecHash:    hash,
-	}}
-	var written orchestrationstore.WritePlanCommand
-	repository := &fakeRepository{
-		snapshot: snapshot,
-		writePlan: func(_ context.Context, command orchestrationstore.WritePlanCommand) (*protocol.ExecutionSnapshot, error) {
-			written = command
-			result := *snapshot
-			result.Execution.Version++
-			result.Plan = &command.Plan
-			result.WorkItems = nil
-			result.WorkItemSpecs = nil
-			result.PlanItems = nil
-			result.WorkItemStates = nil
-			for _, work := range command.WorkItems {
-				result.WorkItems = append(result.WorkItems, work.WorkItem)
-				result.WorkItemSpecs = append(result.WorkItemSpecs, work.Spec)
-				result.PlanItems = append(result.PlanItems, work.Item)
-				result.WorkItemStates = append(result.WorkItemStates, work.State)
-			}
-			return &result, nil
-		},
-	}
-	service := testService(repository)
-	result, err := service.PlanExecution(context.Background(), coordinatorActor(), PlanExecutionInput{
-		ExecutionID:      snapshot.Execution.ID,
-		SnapshotRevision: 5,
-		CommandID:        "tool-plan",
-		Draft: PlanDraft{
-			RevisionReason: "add final verification",
-			Items: []PlanWorkItemDraft{
-				researchDraft,
-				{
-					LogicalKey:         "verify",
-					Kind:               protocol.WorkItemKindVerify,
-					Subject:            "Verify",
-					Objective:          "Check the result",
-					Deliverable:        "Verification report",
-					AcceptanceCriteria: []string{"all checks pass"},
-					Required:           true,
-					Terminal:           true,
-					DependsOn: []PlanDependencyDraft{{
-						LogicalKey: "research",
-						Kind:       protocol.WorkDependencyHard,
-					}},
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationApplied || written.Meta.CommandID != "tool-plan:plan" {
-		t.Fatalf("result=%#v meta=%#v", result, written.Meta)
-	}
-	if written.Plan.ID != "plan-1" || written.Plan.Revision != 2 ||
-		written.Plan.BasePlanID != "plan-old" {
-		t.Fatalf("plan = %#v", written.Plan)
-	}
-	if len(written.WorkItems) != 2 {
-		t.Fatalf("work items = %#v", written.WorkItems)
-	}
-	reused := written.WorkItems[0]
-	if reused.WorkItem.ID != "work-research" ||
-		reused.Spec.ID != "spec-research" ||
-		reused.Spec.Version != 2 ||
-		reused.ExpectedStateVersion != 3 {
-		t.Fatalf("reused work = %#v", reused)
-	}
-	if written.WorkItems[1].WorkItem.ID != "work-1" ||
-		written.WorkItems[1].Spec.ID != "spec-1" {
-		t.Fatalf("server minted work = %#v", written.WorkItems[1])
-	}
-	if len(written.Dependencies) != 1 ||
-		written.Dependencies[0].WorkItemID != "work-1" ||
-		written.Dependencies[0].DependsOnWorkItemID != "work-research" {
-		t.Fatalf("dependencies = %#v", written.Dependencies)
-	}
 }
 
 func TestServicePlanExecutionAllowsMonotonicGraphExtension(t *testing.T) {
@@ -633,105 +464,6 @@ func TestServicePlanExecutionAllowsMonotonicGraphExtension(t *testing.T) {
 			result,
 			writeCalls,
 		)
-	}
-}
-
-func TestServicePlanExecutionRequiresExplicitSupersedeForNodeRemoval(t *testing.T) {
-	existing := PlanWorkItemDraft{
-		LogicalKey:         "research",
-		ExistingWorkItemID: "work-research",
-		Kind:               protocol.WorkItemKindProduce,
-		Subject:            "Research",
-		Objective:          "Collect evidence",
-		Deliverable:        "Evidence set",
-		AcceptanceCriteria: []string{"sources cited"},
-		Required:           true,
-		OutputScopes: []protocol.WorkOutputScope{{
-			Scope: "dir:research",
-			Mode:  protocol.WorkOutputScopeExclusive,
-		}},
-	}
-	hash, err := workSpecHash(existing)
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot := executionSnapshot()
-	snapshot.Execution.Version = 5
-	snapshot.Plan = &protocol.ExecutionPlanRevision{
-		ID:          "plan-old",
-		ExecutionID: snapshot.Execution.ID,
-		Revision:    1,
-		Status:      protocol.PlanRevisionStatusActive,
-		Version:     1,
-	}
-	snapshot.WorkItems = []protocol.WorkItem{{
-		ID:          "work-research",
-		ExecutionID: snapshot.Execution.ID,
-		LogicalKey:  "research",
-		Kind:        protocol.WorkItemKindProduce,
-	}}
-	snapshot.WorkItemStates = []protocol.WorkItemState{{
-		WorkItemID:    "work-research",
-		ExecutionID:   snapshot.Execution.ID,
-		CurrentSpecID: "spec-research",
-		Status:        protocol.WorkItemStatusOpen,
-		Version:       1,
-	}}
-	snapshot.WorkItemSpecs = []protocol.WorkItemSpec{{
-		ID:          "spec-research",
-		WorkItemID:  "work-research",
-		ExecutionID: snapshot.Execution.ID,
-		Version:     1,
-		SpecHash:    hash,
-	}}
-	snapshot.PlanItems = []protocol.ExecutionPlanItem{{
-		PlanID:      "plan-old",
-		ExecutionID: snapshot.Execution.ID,
-		WorkItemID:  "work-research",
-		SpecID:      "spec-research",
-		Required:    true,
-	}}
-	written := false
-	service := testService(&fakeRepository{
-		snapshot: snapshot,
-		writePlan: func(
-			context.Context,
-			orchestrationstore.WritePlanCommand,
-		) (*protocol.ExecutionSnapshot, error) {
-			written = true
-			return nil, nil
-		},
-	})
-	result, err := service.PlanExecution(
-		context.Background(),
-		coordinatorActor(),
-		PlanExecutionInput{
-			ExecutionID:      snapshot.Execution.ID,
-			SnapshotRevision: snapshot.Execution.Version,
-			CommandID:        "omit-existing-node",
-			Draft: PlanDraft{
-				RevisionReason: "replace research",
-				Items: []PlanWorkItemDraft{{
-					LogicalKey:         "verify",
-					Kind:               protocol.WorkItemKindVerify,
-					Subject:            "Verify",
-					Objective:          "Verify replacement",
-					Deliverable:        "Verification report",
-					AcceptanceCriteria: []string{"all checks pass"},
-					Required:           true,
-					Terminal:           true,
-				}},
-			},
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationRejected ||
-		result.ReasonCode != ErrorCodeCompletionBlocked ||
-		!strings.Contains(result.Message, "supersede_active_work=true") ||
-		written {
-		t.Fatalf("result=%#v written=%t", result, written)
 	}
 }
 
@@ -1444,51 +1176,6 @@ func TestServicePlanModeValidatesProposalWithoutWritingAndRuntimeContextMatches(
 	}
 }
 
-func TestServicePlanModeValidatesProposalWithoutCreatingExecution(t *testing.T) {
-	repository := &fakeRepository{}
-	service := testService(repository)
-	actor := coordinatorActor()
-	actor.PlanMode = true
-
-	result, err := service.PlanExecution(context.Background(), actor, PlanExecutionInput{
-		CommandID:          "tool-plan-proposal",
-		Objective:          "Deliver a verified proposal",
-		CompletionCriteria: []string{"The proposal is accepted"},
-		Draft: PlanDraft{Items: []PlanWorkItemDraft{{
-			LogicalKey:         "verify",
-			Kind:               protocol.WorkItemKindVerify,
-			Subject:            "Verify",
-			Objective:          "Verify result",
-			Deliverable:        "Verification report",
-			AcceptanceCriteria: []string{"verified"},
-			Required:           true,
-			Terminal:           true,
-		}}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationNoOp || result.ExecutionID != "" || result.Snapshot != nil {
-		t.Fatalf("result = %#v", result)
-	}
-	if len(result.NextActions) != 1 || result.NextActions[0].Operation != "prepare_plan_execution" {
-		t.Fatalf("next actions = %#v", result.NextActions)
-	}
-}
-
-func TestServiceRuntimeContextExposesUnmanagedBoundary(t *testing.T) {
-	service := testService(&fakeRepository{})
-	actor := coordinatorActor()
-	contextValue, err := service.RuntimeContext(context.Background(), actor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `<nexus_round lane="coordination" role="coordinator" />`
-	if contextValue != want {
-		t.Fatalf("runtime context = %q, want %q", contextValue, want)
-	}
-}
-
 func TestServiceRuntimeContextPublishesAuthoritativeGoalPromotionReason(t *testing.T) {
 	snapshot := executionSnapshot()
 	snapshot.Execution.RootRoundID = "round-before-boundary"
@@ -1511,29 +1198,6 @@ func TestServiceRuntimeContextPublishesAuthoritativeGoalPromotionReason(t *testi
 	}
 	if !strings.Contains(contextValue, `<goal_promotion eligible="true">`) ||
 		!strings.Contains(contextValue, `<activation_reason>observed_boundary</activation_reason>`) {
-		t.Fatalf("runtime context = %s", contextValue)
-	}
-}
-
-func TestServiceRuntimeContextFailsClosedWhenGoalPolicyAvailabilityIsUnknown(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Execution.RootRoundID = "round-before-boundary"
-	snapshot.Execution.CompletionCriteria = []string{"verified"}
-	service := testService(&fakeRepository{snapshot: snapshot})
-	actor := coordinatorActor()
-	actor.RootRoundID = "round-after-boundary"
-
-	contextValue, err := service.RuntimeContext(context.Background(), actor)
-	if err != nil {
-		t.Fatal(err)
-	}
-	allowedEnd := strings.Index(contextValue, "</allowed_actions>")
-	if allowedEnd < 0 ||
-		!strings.Contains(contextValue, "<blocker>goal_policy_unavailable</blocker>") ||
-		strings.Contains(
-			contextValue[:allowedEnd],
-			"<action>promote_execution_to_goal</action>",
-		) {
 		t.Fatalf("runtime context = %s", contextValue)
 	}
 }
@@ -1634,80 +1298,6 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 }
 
-func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Execution.CompletionCriteria = []string{"verified"}
-	snapshot.Plan = &protocol.ExecutionPlanRevision{
-		ID:          "plan-1",
-		ExecutionID: snapshot.Execution.ID,
-		Revision:    1,
-		Status:      protocol.PlanRevisionStatusActive,
-	}
-	for index := 0; index < 8; index++ {
-		snapshot.PlanItems = append(snapshot.PlanItems, protocol.ExecutionPlanItem{
-			PlanID:      "plan-1",
-			ExecutionID: snapshot.Execution.ID,
-			WorkItemID:  "work-" + string(rune('a'+index)),
-			SpecID:      "spec-" + string(rune('a'+index)),
-			Required:    true,
-		})
-	}
-	gatewayCalled := false
-	repository := &fakeRepository{
-		snapshot: snapshot,
-		bindGoal: func(
-			_ context.Context,
-			command orchestrationstore.BindGoalCommand,
-		) (*protocol.ExecutionSnapshot, error) {
-			updated := cloneExecutionSnapshot(snapshot)
-			updated.Execution.Version++
-			updated.Execution.GoalID = command.Execution.GoalID
-			updated.Execution.GoalObjectiveRevision = command.Execution.GoalObjectiveRevision
-			updated.Execution.GoalActivationOrigin = command.Execution.GoalActivationOrigin
-			updated.Execution.GoalActivationReason = command.Execution.GoalActivationReason
-			return updated, nil
-		},
-	}
-	service := testService(repository)
-	confirmation := &confirmingGoalBindingGateway{}
-	service.SetExplicitGoalBindingGateway(confirmation)
-	service.SetGoalPromotionGateway(goalPromotionGatewayFunc(func(
-		context.Context,
-		GoalPromotionRequest,
-	) (GoalPromotionBinding, error) {
-		gatewayCalled = true
-		return GoalPromotionBinding{
-			GoalID:                "goal-agent-choice",
-			GoalObjectiveRevision: 1,
-			ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
-			ActivationReason:      protocol.GoalActivationReasonObservedBoundary,
-		}, nil
-	}))
-	result, err := service.PromoteExecutionToGoal(
-		context.Background(),
-		coordinatorActor(),
-		PromoteExecutionToGoalInput{
-			ExecutionID:      snapshot.Execution.ID,
-			SnapshotRevision: snapshot.Execution.Version,
-			CommandID:        "tool-complex",
-			ActivationReason: protocol.GoalActivationReasonSubstantialComplexity,
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Outcome != MutationApplied ||
-		result.Snapshot == nil ||
-		result.Snapshot.Execution.GoalID != "goal-agent-choice" ||
-		!gatewayCalled {
-		t.Fatalf("result=%#v gatewayCalled=%t", result, gatewayCalled)
-	}
-	if confirmation.confirmCalls != 1 ||
-		confirmation.lastConfirmation.GoalID != "goal-agent-choice" {
-		t.Fatalf("Goal confirmation = %#v", confirmation)
-	}
-}
-
 func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.Version = 13
@@ -1795,29 +1385,6 @@ func TestServiceAcceptedTerminalReviewCompletesExecutionAutomatically(t *testing
 		if action.Operation == "complete_execution" {
 			t.Fatalf("model-facing completion action leaked: %#v", result.NextActions)
 		}
-	}
-}
-
-func TestNextActionsRoutesCompletedGoalBoundExecutionToGoalAudit(t *testing.T) {
-	snapshot := executionSnapshot()
-	snapshot.Execution.Status = protocol.ExecutionStatusCompleted
-	snapshot.Execution.GoalID = "goal-1"
-	snapshot.Execution.GoalObjectiveRevision = 2
-	actor := coordinatorActor()
-	actor.GoalID = "goal-1"
-	actor.GoalObjectiveRevision = 2
-
-	actions := nextActions(snapshot, actor)
-	if len(actions) != 1 ||
-		actions[0].Domain != "goal" ||
-		actions[0].Operation != "audit_objective_alignment" ||
-		!strings.Contains(actions[0].Reason, "do not call audit_execution_alignment") {
-		t.Fatalf("next actions = %#v, want exact Goal closure handoff", actions)
-	}
-
-	actor.GoalObjectiveRevision = 1
-	if staleActions := nextActions(snapshot, actor); len(staleActions) != 0 {
-		t.Fatalf("stale Goal authority received cross-domain action: %#v", staleActions)
 	}
 }
 

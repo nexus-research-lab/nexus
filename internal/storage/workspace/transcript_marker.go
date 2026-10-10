@@ -131,7 +131,7 @@ func findMatchingRoundMarker(
 	used []bool,
 	turn transcriptUserTurn,
 ) int {
-	content := strings.TrimSpace(turn.Content)
+	content := turn.Content
 	if content == "" {
 		return -1
 	}

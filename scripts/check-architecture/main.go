@@ -19,14 +19,15 @@ type packageInfo struct {
 
 func forbidden(from, to string) bool {
 	within := func(path, root string) bool { return path == root || strings.HasPrefix(path, root+"/") }
-	if from == "protocol" || from == "relay" {
+	if from == "protocol" || from == "relay" || from == "infra/textutil" {
 		return true
 	}
 	if from == "runtime" {
 		// Runtime owns bridge lifecycle, while confinedfs is the sole host
-		// filesystem boundary it may use for sandbox resources. Other infra and
-		// all service imports remain forbidden.
-		return to != "protocol" && to != "infra/confinedfs"
+		// filesystem boundary it may use for sandbox resources. textutil is a
+		// std-only leaf shared by every layer. Other infra and all service
+		// imports remain forbidden.
+		return to != "protocol" && to != "infra/confinedfs" && to != "infra/textutil"
 	}
 	if from == "app" && within(to, "app/server") {
 		return true
@@ -78,9 +79,12 @@ func main() {
 	if err == nil {
 		err = check(strings.NewReader(string(output)))
 	}
+	if err == nil {
+		err = checkSharedHelperCopies(".")
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Println("架构依赖检查通过")
+	fmt.Println("架构依赖与共享原语检查通过")
 }

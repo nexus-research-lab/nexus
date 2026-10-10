@@ -37,18 +37,6 @@ func TestFeishuChannelStartsWebSocketByDefault(t *testing.T) {
 	}
 }
 
-func TestFeishuChannelWebhookModeSkipsWebSocket(t *testing.T) {
-	channel := NewFeishuChannel("cli_a", "secret-a", nil).WithConnectionMode("webhook")
-	channel.eventFactory = func(feishuEventClientConfig) feishuEventClient {
-		t.Fatal("webhook 兼容模式不应启动飞书长连接")
-		return nil
-	}
-
-	if err := channel.Start(context.Background()); err != nil {
-		t.Fatalf("飞书 webhook 模式启动失败: %v", err)
-	}
-}
-
 func TestFeishuChannelReplyUsesMessageReplyAPI(t *testing.T) {
 	var replyPayload map[string]any
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {

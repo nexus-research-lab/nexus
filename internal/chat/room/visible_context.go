@@ -1,6 +1,9 @@
 package room
 
-import "github.com/nexus-research-lab/nexus/internal/protocol"
+import (
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
 
 // VisibleContextInput 描述一次 Room 成员被唤醒时可见的公区、私域和触发上下文。
 type VisibleContextInput struct {
@@ -33,23 +36,13 @@ func (trigger Trigger) WithPublicSource(messages []protocol.Message) Trigger {
 		return trigger
 	}
 	for _, message := range messages {
-		if normalizeAnyString(message["message_id"]) != trigger.MessageID || normalizeAnyString(message["role"]) != "user" {
+		if textutil.AnyString(message["message_id"]) != trigger.MessageID || textutil.AnyString(message["role"]) != "user" {
 			continue
 		}
-		trigger.SourceUserID = normalizeAnyString(message["author_user_id"])
-		trigger.SourceUsername = normalizeAnyString(message["author_username"])
-		trigger.SourceDisplayName = normalizeAnyString(message["author_display_name"])
+		trigger.SourceUserID = textutil.AnyString(message["author_user_id"])
+		trigger.SourceUsername = textutil.AnyString(message["author_username"])
+		trigger.SourceDisplayName = textutil.AnyString(message["author_display_name"])
 		break
 	}
 	return trigger
-}
-
-// BuildVisibleContext 构建 Room 成员本轮动态输入。
-func BuildVisibleContext(input VisibleContextInput) string {
-	return BuildVisibleContextPlan(input).Text
-}
-
-// BuildGuidedPublicInputContext 构造运行中 round 的公区增量引导文本。
-func BuildGuidedPublicInputContext(input VisibleContextInput) string {
-	return BuildGuidedPublicInputContextPlan(input).Text
 }

@@ -38,7 +38,7 @@ func (s *Service) authorizeOwnerScopedGoal(
 		return nil, fmt.Errorf("%w: complete Goal owner provenance is required", ErrGoalForbidden)
 	}
 	if authenticatedOwnerUserID, ok := authctx.CurrentUserID(ctx); ok &&
-		strings.TrimSpace(authenticatedOwnerUserID) != ownerUserID {
+		authenticatedOwnerUserID != ownerUserID {
 		return nil, fmt.Errorf("%w: Goal owner does not match the authenticated owner", ErrGoalForbidden)
 	}
 	current := item

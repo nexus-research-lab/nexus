@@ -19,38 +19,6 @@ const (
 	sandboxCrashStateEnv  = "NEXUS_SANDBOX_CRASH_STATE"
 )
 
-// TestSandboxCrashHelper is launched by TestSandboxCrashRestartRequiresExplicitReconcile
-// in a separate process. It deliberately exits without releasing its lease so
-// the parent can exercise the same durable-marker path a host restart sees.
-func TestSandboxCrashHelper(t *testing.T) {
-	if os.Getenv(sandboxCrashHelperEnv) != "1" || strings.TrimSpace(os.Getenv(sandboxCrashRootEnv)) == "" {
-		return
-	}
-	root := os.Getenv(sandboxCrashRootEnv)
-	if root == "" {
-		t.Fatal("crash helper root is empty")
-	}
-	lease, err := Acquire(context.Background(), Input{
-		OwnerUserID: "owner",
-		SessionKey:  "crashed-session",
-		RoundID:     "crashed-round",
-		Root:        root,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if lease.Path() == "" || lease.Marker() == nil {
-		t.Fatal("crash helper did not create a durable lease")
-	}
-	if os.Getenv(sandboxCrashStateEnv) == cleanupStateUnknown {
-		if err := lease.MarkCleanupUncertain(errors.New("helper descendants remain")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// Do not defer Release: os.Exit is the simulated host crash boundary.
-	os.Exit(0)
-}
-
 // TestSandboxCrashRestartRequiresExplicitReconcile verifies the restart
 // contract end to end: a crashed host leaves a marker, a fresh host discovers
 // it without adopting or deleting it, and only an explicit reconcile may
@@ -225,4 +193,33 @@ func sandboxCrashChildEnv(root, state string) []string {
 		sandboxCrashRootEnv+"="+root,
 		sandboxCrashStateEnv+"="+state,
 	)
+}
+
+func TestSandboxCrashHelper(t *testing.T) {
+	if os.Getenv(sandboxCrashHelperEnv) != "1" || strings.TrimSpace(os.Getenv(sandboxCrashRootEnv)) == "" {
+		return
+	}
+	root := os.Getenv(sandboxCrashRootEnv)
+	if root == "" {
+		t.Fatal("crash helper root is empty")
+	}
+	lease, err := Acquire(context.Background(), Input{
+		OwnerUserID: "owner",
+		SessionKey:  "crashed-session",
+		RoundID:     "crashed-round",
+		Root:        root,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lease.Path() == "" || lease.Marker() == nil {
+		t.Fatal("crash helper did not create a durable lease")
+	}
+	if os.Getenv(sandboxCrashStateEnv) == cleanupStateUnknown {
+		if err := lease.MarkCleanupUncertain(errors.New("helper descendants remain")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Do not defer Release: os.Exit is the simulated host crash boundary.
+	os.Exit(0)
 }

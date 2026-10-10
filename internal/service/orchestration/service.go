@@ -149,7 +149,6 @@ func (s *Service) Ensure(
 	input EnsureInput,
 ) (returned MutationResult, returnedErr error) {
 	defer func() { s.invalidateMutationResult(ctx, returned, returnedErr) }()
-	input.CommandID = strings.TrimSpace(input.CommandID)
 	if err := validateActor(actor); err != nil {
 		return RejectedResult(nil, err, nil), nil
 	}
@@ -616,9 +615,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 						evidence.PromotionPolicyUnavailable = true
 					} else {
 						evidence.AutomaticGoalDisabled = availability.AutomaticGoalDisabled
-						evidence.ConflictingGoalID = strings.TrimSpace(
-							availability.ConflictingGoalID,
-						)
+						evidence.ConflictingGoalID = availability.ConflictingGoalID
 					}
 				}
 			}
@@ -657,7 +654,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 				evidence.PromotionPolicyUnavailable = true
 			} else {
 				evidence.AutomaticGoalDisabled = availability.AutomaticGoalDisabled
-				evidence.ConflictingGoalID = strings.TrimSpace(availability.ConflictingGoalID)
+				evidence.ConflictingGoalID = availability.ConflictingGoalID
 			}
 		}
 	}

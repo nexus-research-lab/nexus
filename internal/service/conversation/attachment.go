@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // ResolvedAttachment 表示已经通过目录边界校验并固定 inode 的附件。
@@ -26,6 +26,38 @@ type ResolvedAttachment struct {
 
 // AttachmentPathResolver 把应用层附件解析成当前 runtime 可以读取的真实文件。
 type AttachmentPathResolver func(context.Context, protocol.ChatAttachment) (ResolvedAttachment, error)
+
+// OpenAgentWorkspaceAttachment 以附件所属 Agent 的 owner 打开其 workspace 内文件。
+//
+// Agent 有 owner 时当前真人必须是该 owner；最终 owner 为空时失败关闭。DM 与
+// Room 共用这一校验，避免两处副本的授权条件漂移。
+func OpenAgentWorkspaceAttachment(
+	ctx context.Context,
+	workspaceRoot string,
+	agentValue protocol.Agent,
+	relativePath string,
+) (ResolvedAttachment, error) {
+	ownerUserID := authctx.OwnerUserID(ctx)
+	if agentOwner := strings.TrimSpace(agentValue.OwnerUserID); agentOwner != "" {
+		if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
+			currentUserID != agentOwner {
+			return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
+		}
+		ownerUserID = agentOwner
+	}
+	if ownerUserID == "" {
+		return ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
+	}
+	absolutePath, file, err := workspacestore.New(workspaceRoot).OpenOwnerWorkspaceFile(
+		ownerUserID,
+		agentValue.WorkspacePath,
+		relativePath,
+	)
+	if err != nil {
+		return ResolvedAttachment{}, err
+	}
+	return ResolvedAttachment{AbsolutePath: absolutePath, File: file}, nil
+}
 
 // RuntimeContent 是 Nexus 应用层投递给 SDK runtime 的用户输入。
 type RuntimeContent struct {
@@ -169,65 +201,6 @@ func RenderRuntimeContentWithAttachments(
 	return RuntimeContent{
 		text:   plainText,
 		blocks: blocks,
-	}, nil
-}
-
-// ResolveWorkspaceAttachmentPath 将 workspace 相对路径约束到指定 workspace 内并返回绝对路径。
-func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (string, error) {
-	resolved, err := openWorkspaceAttachment(workspacePath, relativePath)
-	if err != nil {
-		return "", err
-	}
-	_ = resolved.File.Close()
-	return resolved.AbsolutePath, nil
-}
-
-func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
-	root := filepath.Clean(strings.TrimSpace(workspacePath))
-	if root == "" {
-		return ResolvedAttachment{}, errors.New("workspace_path is required")
-	}
-	normalizedPath := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
-	normalizedPath = strings.TrimPrefix(normalizedPath, "/")
-	if normalizedPath == "" {
-		return ResolvedAttachment{}, errors.New("attachment workspace_path is required")
-	}
-	targetPath := filepath.Clean(filepath.Join(root, normalizedPath))
-	rootWithSeparator := root + string(os.PathSeparator)
-	if targetPath != root && !strings.HasPrefix(targetPath, rootWithSeparator) {
-		return ResolvedAttachment{}, errors.New("attachment path escapes workspace")
-	}
-	rootFS, err := confinedfs.Open(root)
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	relative := filepath.ToSlash(normalizedPath)
-	parent, err := rootFS.OpenRootNoSymlink(path.Dir(relative))
-	rootFS.Close()
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	defer parent.Close()
-	name := path.Base(relative)
-	file, err := parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
-	if err != nil {
-		return ResolvedAttachment{}, err
-	}
-	info, err := file.Stat()
-	if err != nil {
-		_ = file.Close()
-		return ResolvedAttachment{}, err
-	}
-	if !info.Mode().IsRegular() {
-		_ = file.Close()
-		if info.IsDir() {
-			return ResolvedAttachment{}, fmt.Errorf("attachment path is a directory: %s", normalizedPath)
-		}
-		return ResolvedAttachment{}, fmt.Errorf("attachment path is not a regular file: %s", normalizedPath)
-	}
-	return ResolvedAttachment{
-		AbsolutePath: targetPath,
-		File:         file,
 	}, nil
 }
 

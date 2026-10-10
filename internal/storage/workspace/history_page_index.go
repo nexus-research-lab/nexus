@@ -1094,7 +1094,7 @@ func readWorkspaceJSONLAtContext(
 	workspacePath string,
 	target string,
 ) ([]map[string]any, error) {
-	if ownerUserID := strings.TrimSpace(store.ownerUserID); ownerUserID != "" {
+	if ownerUserID := store.ownerUserID; ownerUserID != "" {
 		parent, name, err := store.openOwnerWorkspaceFileParent(
 			ownerUserID,
 			workspacePath,

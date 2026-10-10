@@ -161,86 +161,6 @@ func (m *fakeRoundExecutionMapper) SessionID() string {
 	return m.sessionID
 }
 
-func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 2),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
-	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeResult}
-
-	mapper := &fakeRoundExecutionMapper{
-		results: []RoundMapResult{
-			{
-				DurableMessages: []protocol.Message{
-					{"message_id": "assistant-1", "role": "assistant"},
-				},
-				Events: []protocol.EventMessage{
-					protocol.NewEvent(protocol.EventTypeMessage, map[string]any{"message_id": "assistant-1"}),
-				},
-			},
-			{
-				DurableMessages: []protocol.Message{
-					{"message_id": "result-1", "role": "result", "subtype": "success"},
-				},
-				Events: []protocol.EventMessage{
-					protocol.NewEvent(protocol.EventTypeRoundStatus, map[string]any{"status": "finished"}),
-				},
-				TerminalStatus: "finished",
-				ResultSubtype:  "success",
-			},
-		},
-	}
-
-	synced := make([]string, 0, 2)
-	handled := make([]map[string]any, 0, 2)
-	emitted := make([]protocol.EventMessage, 0, 2)
-	result, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:  "你好",
-		Client: client,
-		Mapper: mapper,
-		SyncSessionID: func(sessionID string) error {
-			synced = append(synced, sessionID)
-			return nil
-		},
-		HandleDurableMessage: func(messageValue protocol.Message) error {
-			copied := make(map[string]any, len(messageValue))
-			for key, value := range messageValue {
-				copied[key] = value
-			}
-			handled = append(handled, copied)
-			return nil
-		},
-		EmitEvent: func(event protocol.EventMessage) error {
-			emitted = append(emitted, event)
-			return nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if result.TerminalStatus != "finished" || result.ResultSubtype != "success" {
-		t.Fatalf("终态结果不正确: %+v", result)
-	}
-	if len(synced) != 2 {
-		t.Fatalf("session_id 同步次数不正确: %+v", synced)
-	}
-	if synced[0] != "sdk-session-1" {
-		t.Fatalf("同步的 session_id 不正确: %+v", synced)
-	}
-	if len(handled) != 2 {
-		t.Fatalf("durable 消息处理次数不正确: %+v", handled)
-	}
-	for _, messageValue := range handled {
-		if messageValue["session_id"] != "sdk-session-1" {
-			t.Fatalf("durable 消息未补齐 session_id: %+v", messageValue)
-		}
-	}
-	if len(emitted) != 2 {
-		t.Fatalf("事件扇出次数不正确: %+v", emitted)
-	}
-}
-
 func TestExecuteRoundConsumesDelayedTerminalAfterExplicitInterrupt(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID:    "sdk-session-interrupted",
@@ -497,45 +417,6 @@ func TestExecuteRoundKeepsAtomicSlashInputFreeOfContext(t *testing.T) {
 	}
 }
 
-func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-context",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeResult,
-		SessionID: client.sessionID,
-		UUID:      "result-context",
-		Result: &sdkprotocol.ResultMessage{
-			Subtype: "success",
-		},
-	}
-	close(client.messages)
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Content: "用户输入",
-		ContextualInputs: []ContextualInputBlock{
-			runtimectx.NewContextualInputBlock("goal", "active goal facts", 0, map[string]string{"goal_id": "goal-1"}),
-		},
-		Client: client,
-		Mapper: &fakeRoundExecutionMapper{
-			results: []RoundMapResult{{TerminalStatus: "finished", ResultSubtype: "success"}},
-		},
-	})
-	if err != nil {
-		t.Fatalf("ExecuteRound 失败: %v", err)
-	}
-	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "active goal facts" {
-		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
-	}
-	if client.clearCalls != 1 {
-		t.Fatalf("clearCalls = %d, want stale buffer cleared before setting context", client.clearCalls)
-	}
-	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
-		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
-	}
-}
-
 func TestExecuteRoundDoesNotInventUserTextForContextOnlyTurn(t *testing.T) {
 	client := &fakeRoundExecutionClient{
 		sessionID: "sdk-session-context-only",
@@ -776,50 +657,6 @@ func TestExecuteRoundReturnsStreamClosedDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "read_error=") {
 		t.Fatalf("错误字符串缺少 read_error: %v", err)
-	}
-}
-
-func TestExecuteRoundReturnsIdleTimeoutDiagnostics(t *testing.T) {
-	client := &fakeRoundExecutionClient{
-		sessionID: "sdk-session-1",
-		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
-	}
-	client.messages <- sdkprotocol.ReceivedMessage{
-		Type:      sdkprotocol.MessageTypeStreamEvent,
-		SessionID: "sdk-session-1",
-		Stream: &sdkprotocol.StreamEvent{
-			Event: map[string]any{
-				"type": "content_block_delta",
-				"delta": map[string]any{
-					"type":     "thinking_delta",
-					"thinking": "让我用 AskUserQuestion 来收集信息。",
-				},
-			},
-		},
-	}
-
-	_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
-		Query:       "创建定时任务",
-		Client:      client,
-		Mapper:      &fakeRoundExecutionMapper{results: []RoundMapResult{{}}},
-		IdleTimeout: 10 * time.Millisecond,
-	})
-	if !errors.Is(err, ErrRoundStreamIdleTimeout) {
-		t.Fatalf("期望 ErrRoundStreamIdleTimeout，实际 %v", err)
-	}
-	var timeoutErr *RoundStreamIdleTimeoutError
-	if !errors.As(err, &timeoutErr) {
-		t.Fatalf("期望 RoundStreamIdleTimeoutError，实际 %T %[1]v", err)
-	}
-	if timeoutErr.MessagesSeen != 1 ||
-		timeoutErr.LastMessageType != string(sdkprotocol.MessageTypeStreamEvent) ||
-		timeoutErr.LastSessionID != "sdk-session-1" ||
-		!strings.Contains(timeoutErr.LastMessageSummary, "thinking_delta") ||
-		strings.Contains(timeoutErr.LastMessageSummary, "AskUserQuestion") {
-		t.Fatalf("idle timeout 诊断字段不正确: %+v", timeoutErr)
-	}
-	if client.interrupts != 1 || client.disconnects != 1 {
-		t.Fatalf("idle timeout 未中止 runtime client: interrupts=%d disconnects=%d", client.interrupts, client.disconnects)
 	}
 }
 

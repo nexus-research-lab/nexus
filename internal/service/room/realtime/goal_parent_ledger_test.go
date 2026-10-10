@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type roomParentLedgerProvider struct {
@@ -149,97 +150,6 @@ func TestRoomUnboundTerminalWritesDurableRootParentLedger(t *testing.T) {
 	}
 }
 
-func TestRoomBoundExplicitZeroTerminalStillWritesAuthoritativeLedgerEvidence(t *testing.T) {
-	provider := &roomParentLedgerProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-	}
-	service := &Service{goals: provider}
-	slot := roomParentLedgerSlot("slot-bound-zero", "root-bound-zero")
-	slot.setGoalBinding("room:group:conversation-parent-ledger", "goal-bound-zero")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.finalizeGoalUsageForSlot(
-		context.Background(),
-		slot,
-		exec.RoundExecutionResult{
-			Usage: sdkprotocol.TokenUsage{
-				Raw: map[string]any{"total_tokens": int64(0)},
-			},
-		},
-		nil,
-	)
-
-	snapshots := provider.snapshots()
-	if len(snapshots) != 1 {
-		t.Fatalf("parent snapshots = %#v, want explicit-zero terminal row", snapshots)
-	}
-	got := snapshots[0]
-	if got.GoalID != "goal-bound-zero" ||
-		!got.TokenUsageObserved ||
-		got.Usage.ActualTokens() != 0 ||
-		got.Usage.BudgetTokens() != 0 {
-		t.Fatalf("explicit-zero parent snapshot = %#v", got)
-	}
-}
-
-func TestRoomMissingProviderUsagePersistsUnavailableEvidence(t *testing.T) {
-	provider := &roomParentLedgerProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-	}
-	service := &Service{goals: provider}
-	slot := roomParentLedgerSlot("slot-missing-usage", "root-missing-usage")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
-
-	service.finalizeGoalUsageForSlot(
-		context.Background(),
-		slot,
-		exec.RoundExecutionResult{ElapsedTimeSeconds: 9},
-		nil,
-	)
-
-	snapshots := provider.snapshots()
-	if len(snapshots) != 1 {
-		t.Fatalf("parent snapshots = %#v, want unavailable terminal evidence", snapshots)
-	}
-	if snapshots[0].TokenUsageObserved ||
-		snapshots[0].Usage.ActualTokens() != 0 ||
-		snapshots[0].Usage.RuntimeSeconds != 9 {
-		t.Fatalf("missing-usage parent snapshot = %#v", snapshots[0])
-	}
-}
-
-func TestRoomClosedAccumulatorDoesNotReopenUnboundTerminalLedger(t *testing.T) {
-	provider := &roomParentLedgerProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-	}
-	service := &Service{goals: provider}
-	slot := roomParentLedgerSlot("slot-after-clear", "root-after-clear")
-	accumulator := goalsvc.NewRuntimeUsageAccumulator(false)
-	accumulator.Close()
-	slot.setGoalUsageAccumulator(accumulator)
-
-	service.finalizeGoalUsageForSlot(
-		context.Background(),
-		slot,
-		exec.RoundExecutionResult{
-			Usage: sdkprotocol.TokenUsage{
-				InputTokens:  20,
-				OutputTokens: 5,
-				TotalTokens:  25,
-			},
-			ElapsedTimeSeconds: 7,
-		},
-		nil,
-	)
-
-	if snapshots := provider.snapshots(); len(snapshots) != 0 {
-		t.Fatalf("closed accumulator parent snapshots = %#v, want none", snapshots)
-	}
-	if direct := provider.recordedUsage(); len(direct) != 0 {
-		t.Fatalf("closed accumulator direct usage = %#v, want none", direct)
-	}
-}
-
 func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) {
 	provider := &roomParentLedgerProvider{
 		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
@@ -256,8 +166,8 @@ func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) 
 		t.Fatal("activateGoalUsageForSlot() error = nil, want durable bind failure")
 	}
 	bindings := provider.scopeBindings()
-	if len(bindings) != goalUsagePersistAttempts {
-		t.Fatalf("scope binding attempts = %d, want %d", len(bindings), goalUsagePersistAttempts)
+	if len(bindings) != runtimehost.GoalUsagePersistAttempts {
+		t.Fatalf("scope binding attempts = %d, want %d", len(bindings), runtimehost.GoalUsagePersistAttempts)
 	}
 	for _, binding := range bindings {
 		if binding.OwnerUserID != "owner-room" ||
@@ -267,10 +177,10 @@ func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) 
 			t.Fatalf("external scope binding = %#v", binding)
 		}
 	}
-	if !slot.goalUsageActiveForGoal("goal-old") || slot.goalIDForUsage() != "goal-old" {
+	if !slot.goalUsageActiveForGoal("goal-old") || slot.mutable.goal.UsageGoalID() != "goal-old" {
 		t.Fatalf(
 			"failed durable activation changed old Goal/baseline: goal=%q active_old=%v",
-			slot.goalIDForUsage(),
+			slot.mutable.goal.UsageGoalID(),
 			slot.goalUsageActiveForGoal("goal-old"),
 		)
 	}

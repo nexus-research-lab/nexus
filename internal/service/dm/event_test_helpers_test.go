@@ -196,25 +196,6 @@ func assertContainsResultSubtype(t *testing.T, events []protocol.EventMessage, s
 	t.Fatalf("未找到 result.subtype=%s: %+v", subtype, events)
 }
 
-func assertNotContainsResultSubtype(t *testing.T, events []protocol.EventMessage, subtype string) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType != protocol.EventTypeMessage {
-			continue
-		}
-		if event.Data["role"] == "result" && event.Data["subtype"] == subtype {
-			t.Fatalf("空 result 不应形成公开消息: subtype=%s events=%+v", subtype, events)
-		}
-		if event.Data["role"] != "assistant" {
-			continue
-		}
-		summary, ok := event.Data["result_summary"].(map[string]any)
-		if ok && summary["subtype"] == subtype {
-			t.Fatalf("空 result 不应形成公开 assistant: subtype=%s events=%+v", subtype, events)
-		}
-	}
-}
-
 func assertNotContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
 	t.Helper()
 	for _, event := range events {
@@ -222,39 +203,6 @@ func assertNotContainsErrorEventForMessage(t *testing.T, events []protocol.Event
 			t.Fatalf("durable 错误结果不应重复广播绑定消息 %s 的 error 事件: %+v", messageID, events)
 		}
 	}
-}
-
-func assertStreamBlockIndex(t *testing.T, events []protocol.EventMessage, blockType string, expectedIndex int) {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType != protocol.EventTypeStream {
-			continue
-		}
-		contentBlock, ok := event.Data["content_block"].(map[string]any)
-		if !ok || contentBlock["type"] != blockType {
-			continue
-		}
-		if event.Data["index"] != expectedIndex {
-			t.Fatalf("%s stream index 不正确: got=%v want=%d event=%+v", blockType, event.Data["index"], expectedIndex, event)
-		}
-		return
-	}
-	t.Fatalf("未找到 block_type=%s 的 stream 事件: %+v", blockType, events)
-}
-
-func findAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {
-	t.Helper()
-	for _, event := range events {
-		if event.EventType != protocol.EventTypeMessage || event.MessageID != messageID {
-			continue
-		}
-		if event.Data["role"] != "assistant" {
-			continue
-		}
-		return protocol.Message(event.Data)
-	}
-	t.Fatalf("未找到 assistant message_id=%s 的 durable 消息: %+v", messageID, events)
-	return nil
 }
 
 func findLatestAssistantMessagePayload(t *testing.T, events []protocol.EventMessage, messageID string) protocol.Message {

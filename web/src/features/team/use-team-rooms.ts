@@ -13,11 +13,11 @@ import {
   isAuthOwnerScopeGenerationCurrent,
   subscribeAuthOwnerScopeGeneration,
 } from "@/shared/auth/auth-owner-generation";
-import { hasOrganizationAccess, useAuth } from "@/shared/auth/auth-context";
+import { hasTeamAccess, useAuth } from "@/shared/auth/auth-context";
 
 export function useTeamRooms() {
   const { status } = useAuth();
-  const canUseRelay = hasOrganizationAccess(status);
+  const canUseRelay = hasTeamAccess(status);
   const [rooms, setRooms] = useState<TeamRoomView[]>([]);
   const [isAvailable, setIsAvailable] = useState(false);
   const revision = useRef(0);

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -57,7 +58,7 @@ func (p *Processor) buildResultMessage(
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(messageID, "result_"+p.ctx.RoundID),
+		textutil.FirstNonEmpty(messageID, "result_"+p.ctx.RoundID),
 		"result",
 	)
 	payload["subtype"] = subtype
@@ -83,7 +84,7 @@ func (p *Processor) buildResultMessage(
 			resultText,
 			terminalReason,
 			errors,
-			normalizeString(result.StopReason),
+			textutil.AnyString(result.StopReason),
 		)
 		resultText = projection.result
 		terminalReason = projection.terminalReason
@@ -92,7 +93,7 @@ func (p *Processor) buildResultMessage(
 			stopReason = "error"
 		}
 		if strings.TrimSpace(resultText) == "" {
-			resultText = firstNonEmpty(errors...)
+			resultText = textutil.FirstNonEmpty(errors...)
 		}
 		if runtimeSubtype == "error_hook_stopped" {
 			resultText = hookStoppedDisplayText

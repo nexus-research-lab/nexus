@@ -157,15 +157,6 @@ func secretSlotShape() map[string]string {
 	}
 }
 
-// Definitions 返回配置域目录副本。
-func Definitions() []DomainDefinition {
-	definitions := slices.Clone(domainCatalog)
-	for index := range definitions {
-		definitions[index] = hydrateDefinition(definitions[index])
-	}
-	return definitions
-}
-
 func definitionFor(domain string) (DomainDefinition, error) {
 	domain = strings.ToLower(strings.TrimSpace(domain))
 	for _, definition := range domainCatalog {

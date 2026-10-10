@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
 
@@ -235,7 +236,7 @@ func (s *Service) updateSingleSkillRecord(
 	case "url":
 		return s.importSkillURL(
 			ctx,
-			firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL),
+			textutil.FirstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL),
 			manifest,
 			expectedVersion,
 		)
@@ -247,7 +248,7 @@ func (s *Service) updateSingleSkillRecord(
 		return s.importPrivateRegistrySkill(
 			ctx,
 			source,
-			firstNonEmpty(manifest.SourceSkillID, manifest.SourceRef),
+			textutil.FirstNonEmpty(manifest.SourceSkillID, manifest.SourceRef),
 			manifest.Name,
 			expectedVersion,
 		)
@@ -355,7 +356,7 @@ func (s *Service) checkURLSkillUpdate(ctx context.Context, record catalogRecord,
 	if currentHash == "" {
 		return false, errors.New("当前 skill 内容缺少 hash")
 	}
-	sourceURL := firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL)
+	sourceURL := textutil.FirstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL)
 	targetURL, err := s.validateExternalURL(ctx, sourceURL)
 	if err != nil {
 		return false, err

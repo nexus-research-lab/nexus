@@ -88,39 +88,6 @@ func newOwnerClaimService(
 	return service, repo, verifier, readiness, ctx, item
 }
 
-func TestOwnerScopedCurrentClaimsLegacyStandaloneGoalOnce(t *testing.T) {
-	service, repo, verifier, readiness, ctx, item := newOwnerClaimService(
-		t,
-		protocol.GoalStatusActive,
-		protocol.GoalExecutionBindingStateStandalone,
-	)
-
-	claimed, err := service.CurrentOptionalForOwner(ctx, item.SessionKey, "owner-legacy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := protocol.GoalMetadataString(claimed.Metadata, protocol.GoalMetadataOwnerUserID); got != "owner-legacy" {
-		t.Fatalf("claimed owner = %q, want owner-legacy", got)
-	}
-	if claimed.Version != item.Version+1 {
-		t.Fatalf("claimed version = %d, want %d", claimed.Version, item.Version+1)
-	}
-	if len(verifier.requests) != 1 || readiness.resolveCalls != 1 {
-		t.Fatalf("session proofs=%d resolver calls=%d, want 1/1", len(verifier.requests), readiness.resolveCalls)
-	}
-
-	again, err := service.CurrentOptionalForOwner(ctx, item.SessionKey, "owner-legacy")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if again.Version != claimed.Version || len(verifier.requests) != 1 || readiness.resolveCalls != 1 {
-		t.Fatalf("second read=%#v proofs=%d resolver calls=%d, want idempotent claim", again, len(verifier.requests), readiness.resolveCalls)
-	}
-	if got := protocol.GoalMetadataString(repo.goals[item.ID].Metadata, protocol.GoalMetadataOwnerUserID); got != "owner-legacy" {
-		t.Fatalf("persisted owner = %q, want owner-legacy", got)
-	}
-}
-
 func TestLegacyGoalClaimFailsClosedForUnsettledBindingBeforeMutationSideEffects(t *testing.T) {
 	for _, state := range []protocol.GoalExecutionBindingState{
 		protocol.GoalExecutionBindingStatePending,

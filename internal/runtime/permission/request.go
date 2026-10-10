@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -67,7 +68,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		Review:             review,
 		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
 		SessionKey:         sessionKey,
-		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
+		DispatchSessionKey: textutil.FirstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           toolName,
 		DecisionReason:     strings.TrimSpace(request.DecisionReason),
 		ToolInput:          toolInput,
@@ -185,7 +186,7 @@ func (c *Context) buildPermissionDecision(
 	pending *PendingRequest,
 	message map[string]any,
 ) sdkpermission.Decision {
-	decision := normalizeString(message["decision"])
+	decision := textutil.AnyString(message["decision"])
 	configurationSecrets := normalizeConfigurationSecrets(message["configuration_secrets"])
 	delete(message, "configuration_secrets")
 	defer clear(configurationSecrets)
@@ -242,7 +243,7 @@ func (c *Context) buildPermissionDecision(
 		)
 	}
 	return sdkpermission.Deny(
-		firstNonEmpty(normalizeString(message["message"]), "User denied permission"),
+		textutil.FirstNonEmpty(textutil.AnyString(message["message"]), "User denied permission"),
 		normalizeBool(message["interrupt"]),
 	)
 }
@@ -277,7 +278,7 @@ func buildPermissionEvent(pending *PendingRequest) protocol.EventMessage {
 	event.SessionKey = pending.DispatchSessionKey
 	event.RoomID = strings.TrimSpace(pending.Route.RoomID)
 	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
-	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
+	event.AgentID = textutil.FirstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
 	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
 	event.RoundID = strings.TrimSpace(pending.Route.RoundID)
 	event.AgentRoundID = strings.TrimSpace(pending.Route.AgentRoundID)
@@ -295,7 +296,7 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 	)
 	event.RoomID = strings.TrimSpace(pending.Route.RoomID)
 	event.ConversationID = strings.TrimSpace(pending.Route.ConversationID)
-	event.AgentID = firstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
+	event.AgentID = textutil.FirstNonEmpty(pending.Route.AgentID, agentIDFromSessionKey(pending.SessionKey))
 	event.MessageID = strings.TrimSpace(pending.Route.MessageID)
 	event.RoundID = strings.TrimSpace(pending.Route.RoundID)
 	event.AgentRoundID = strings.TrimSpace(pending.Route.AgentRoundID)
@@ -340,7 +341,7 @@ func buildQuestionAnswers(input map[string]any, userAnswers []map[string]any) ma
 			continue
 		}
 		questionPayload, _ := rawQuestions[questionIndex].(map[string]any)
-		questionText := normalizeString(questionPayload["question"])
+		questionText := textutil.AnyString(questionPayload["question"])
 		if questionText == "" {
 			continue
 		}
@@ -357,15 +358,15 @@ func deserializePermissionUpdates(raw any) []sdkpermission.Update {
 	items := normalizeListOfMaps(raw)
 	result := make([]sdkpermission.Update, 0, len(items))
 	for _, payload := range items {
-		updateType := normalizeString(payload["type"])
+		updateType := textutil.AnyString(payload["type"])
 		if updateType == "" {
 			continue
 		}
 		update := sdkpermission.Update{
 			Type:        updateType,
-			Behavior:    sdkpermission.Behavior(normalizeString(payload["behavior"])),
-			Mode:        sdkpermission.Mode(normalizeString(payload["mode"])),
-			Destination: sdkpermission.UpdateDestination(normalizeString(payload["destination"])),
+			Behavior:    sdkpermission.Behavior(textutil.AnyString(payload["behavior"])),
+			Mode:        sdkpermission.Mode(textutil.AnyString(payload["mode"])),
+			Destination: sdkpermission.UpdateDestination(textutil.AnyString(payload["destination"])),
 		}
 		update.Directories = normalizeStringSlice(payload["directories"])
 		update.Rules = deserializePermissionRules(payload["rules"])
@@ -378,13 +379,13 @@ func deserializePermissionRules(raw any) []sdkpermission.RuleValue {
 	items := normalizeListOfMaps(raw)
 	result := make([]sdkpermission.RuleValue, 0, len(items))
 	for _, payload := range items {
-		toolName := firstNonEmpty(normalizeString(payload["tool_name"]), normalizeString(payload["toolName"]))
+		toolName := textutil.FirstNonEmpty(textutil.AnyString(payload["tool_name"]), textutil.AnyString(payload["toolName"]))
 		if toolName == "" {
 			continue
 		}
 		result = append(result, sdkpermission.RuleValue{
 			ToolName:    toolName,
-			RuleContent: firstNonEmpty(normalizeString(payload["rule_content"]), normalizeString(payload["ruleContent"])),
+			RuleContent: textutil.FirstNonEmpty(textutil.AnyString(payload["rule_content"]), textutil.AnyString(payload["ruleContent"])),
 		})
 	}
 	return result
@@ -415,7 +416,7 @@ func normalizeStringSlice(raw any) []string {
 	case []any:
 		result := make([]string, 0, len(items))
 		for _, item := range items {
-			value := normalizeString(item)
+			value := textutil.AnyString(item)
 			if value != "" {
 				result = append(result, value)
 			}
@@ -431,23 +432,6 @@ func cloneMap(raw map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return maps.Clone(raw)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func normalizeString(value any) string {
-	typed, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(typed)
 }
 
 func normalizeBool(value any) bool {

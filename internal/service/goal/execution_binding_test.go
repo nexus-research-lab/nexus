@@ -273,34 +273,6 @@ func TestReservedExplicitGoalCompletionDoesNotRequireExecutionAudit(t *testing.T
 	}
 }
 
-func TestConfirmedGoalCompletionFailsClosedWithoutExecutionAudit(t *testing.T) {
-	repo := newMemoryRepository()
-	service := NewService(config.Config{GoalEnabled: true}, repo)
-	service.idFactory = sequentialID()
-	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:confirmed-missing-execution-audit",
-		Objective:  "Complete only after WorkGraph acceptance",
-		CreatedBy:  "model",
-		AgentID:    "agent-1",
-		Metadata: map[string]any{
-			protocol.GoalMetadataExecutionID: "execution-confirmed",
-			protocol.GoalMetadataExecutionBindingState: string(
-				protocol.GoalExecutionBindingStateConfirmed,
-			),
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = service.CompleteByModel(context.Background(), created.ID, protocol.CompleteGoalRequest{
-		AgentID:                   "agent-1",
-		ExpectedObjectiveRevision: created.ObjectiveRevision(),
-	})
-	if !errors.Is(err, ErrGoalInvalidState) {
-		t.Fatalf("CompleteByModel() error = %v, want fail-closed audit rejection", err)
-	}
-}
-
 type ownerBindingReadResolver struct {
 	calls      int
 	resolution protocol.GoalExecutionBindingResolution

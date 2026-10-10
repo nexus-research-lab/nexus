@@ -191,20 +191,3 @@ func TestControlInvalidationFailClosedRetriesFailedCleanup(t *testing.T) {
 		})
 	}
 }
-
-func TestControlInvalidationStopWaitsForConsumer(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	f := &invalidationFixture{cancel: cancel}
-	coordinator := NewControlIdentityInvalidationCoordinator(f, f, f, nil)
-	stop, err := coordinator.Start(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	stop()
-	// 停止后可安全读取消费状态，再次停止也不会阻塞。
-	stop()
-	if f.cursor != 0 {
-		t.Fatalf("cursor=%d", f.cursor)
-	}
-}

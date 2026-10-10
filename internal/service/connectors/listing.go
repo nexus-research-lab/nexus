@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/connectors/providers"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // ListConnectors 列出连接器目录。
@@ -34,7 +35,7 @@ func (s *Service) ListConnectors(ctx context.Context, ownerUserID string, query 
 		if needle != "" && !connectorMatches(entry, needle) {
 			continue
 		}
-		items = append(items, s.toInfoWithConfigError(entry, connectorFirstNonEmpty(states[entry.ConnectorID], "disconnected"), configErrors[entry.ConnectorID]))
+		items = append(items, s.toInfoWithConfigError(entry, textutil.FirstNonEmpty(states[entry.ConnectorID], "disconnected"), configErrors[entry.ConnectorID]))
 	}
 	// 动态 MCP 是目录的辅助投影；旧密文或单条动态配置异常不能摧毁
 	// 已经成功读取的内置 Connector 主快照。
@@ -68,7 +69,7 @@ func (s *Service) GetConnectorDetail(ctx context.Context, ownerUserID string, co
 	if err != nil {
 		return nil, err
 	}
-	detail := s.toDetail(ctx, ownerUserID, entry, connectorFirstNonEmpty(state, "disconnected"))
+	detail := s.toDetail(ctx, ownerUserID, entry, textutil.FirstNonEmpty(state, "disconnected"))
 	return &detail, nil
 }
 
@@ -97,7 +98,7 @@ func (s *Service) RequiredExtraKeys(connectorID string) []string {
 	if !ok {
 		return nil
 	}
-	providerID := connectorFirstNonEmpty(entry.Provider, entry.ConnectorID)
+	providerID := textutil.FirstNonEmpty(entry.Provider, entry.ConnectorID)
 	provider, err := providers.Get(providerID)
 	if err != nil {
 		return slices.Clone(entry.RequiresExtra)

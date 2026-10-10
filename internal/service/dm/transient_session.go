@@ -26,12 +26,9 @@ func (s *Service) CreateTransientSession(
 	ctx context.Context,
 	request TransientSessionRequest,
 ) (*protocol.Session, error) {
-	if s == nil {
-		return nil, errors.New("DM service is unavailable")
-	}
 	agentID := strings.TrimSpace(request.AgentID)
 	targetSessionKey := strings.TrimSpace(request.TargetSessionKey)
-	purpose := strings.TrimSpace(request.Purpose)
+	purpose := request.Purpose
 	parsed := protocol.ParseSessionKey(targetSessionKey)
 	allowedChannel := protocol.SessionChannelInternalSegment
 	if purpose == protocol.SessionPurposeWorkGraphEditor {
@@ -44,7 +41,7 @@ func (s *Service) CreateTransientSession(
 		strings.TrimSpace(parsed.ChatType) != protocol.RoomTypeDM {
 		return nil, errors.New("transient internal Session identity is invalid")
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +58,7 @@ func (s *Service) CreateTransientSession(
 	if targetSession.Options == nil {
 		targetSession.Options = map[string]any{}
 	}
-	targetSession.Title = strings.TrimSpace(request.Title)
+	targetSession.Title = request.Title
 	if targetSession.Title == "" {
 		targetSession.Title = "Internal task"
 	}
@@ -70,7 +67,7 @@ func (s *Service) CreateTransientSession(
 	if request.DisplayAfterUnixMilli > 0 {
 		targetSession.Options[protocol.OptionSessionDisplayAfterUnixMilli] = request.DisplayAfterUnixMilli
 	}
-	created, err := s.files.ForOwner(agentValue.OwnerUserID).UpsertSession(
+	created, err := s.Files.ForOwner(agentValue.OwnerUserID).UpsertSession(
 		agentValue.WorkspacePath,
 		targetSession,
 	)

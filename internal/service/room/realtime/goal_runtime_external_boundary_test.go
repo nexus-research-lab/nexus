@@ -13,6 +13,7 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalappserver "github.com/nexus-research-lab/nexus/internal/service/goal/appserver"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestRoomActiveGoalUpdateDoesNotResetDeferredActual(t *testing.T) {
@@ -70,7 +71,7 @@ func TestRoomExternalClearSettlesObservedActualBeforeBindingClear(t *testing.T) 
 		deleted.Usage.ActualTokensAreEstimated() {
 		t.Fatalf("deleted Goal usage = %#v, want settled observed actual 100", deleted)
 	}
-	if fixture.slot.goalIDForUsage() != "" || fixture.slot.goalUsageActive() {
+	if fixture.slot.mutable.goal.UsageGoalID() != "" || fixture.slot.goalUsageActive() {
 		t.Fatal("external clear left the Room slot Goal binding active")
 	}
 }
@@ -93,7 +94,7 @@ func TestRoomExternalCompleteKeepsBindingUntilTerminalThenFinalizes(t *testing.T
 	if completed.UsageFinalized {
 		t.Fatal("external completion finalized usage before the running Room slot terminal")
 	}
-	if fixture.slot.goalIDForUsage() != fixture.goal.ID || !fixture.slot.goalUsageActive() {
+	if fixture.slot.mutable.goal.UsageGoalID() != fixture.goal.ID || !fixture.slot.goalUsageActive() {
 		t.Fatal("external completion cleared the Room slot Goal binding before terminal usage")
 	}
 
@@ -141,7 +142,7 @@ type roomGoalBoundaryFixture struct {
 
 func (f roomGoalBoundaryFixture) recordAssistantUsage(inputTokens int64, outputTokens int64) {
 	message := roomGoalAssistantUsageMessage(inputTokens, outputTokens)
-	f.slot.rememberGoalAssistantMessage(message)
+	f.slot.mutable.goal.RememberGoalAssistantMessage(message)
 	f.room.recordGoalUsageFromSlotAssistantMessage(context.Background(), f.slot, message)
 }
 
@@ -172,8 +173,8 @@ func newRoomGoalBoundaryFixture(t *testing.T, suffix string) roomGoalBoundaryFix
 	goalService := goalsvc.NewService(config.Config{GoalEnabled: true}, repo)
 	goalService.SetExternalMutationAccountant(manager)
 	roomService := &Service{
-		goals:   goalService,
-		runtime: manager,
+		goals: goalService,
+		Host:  runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),
@@ -188,7 +189,7 @@ func newRoomGoalBoundaryFixture(t *testing.T, suffix string) roomGoalBoundaryFix
 		cleanup()
 		t.Fatal(err)
 	}
-	if slot.goalIDForUsage() != created.ID || !slot.goalUsageActive() {
+	if slot.mutable.goal.UsageGoalID() != created.ID || !slot.goalUsageActive() {
 		cleanup()
 		t.Fatalf("external create did not activate Room slot Goal %q", created.ID)
 	}

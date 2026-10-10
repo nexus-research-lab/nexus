@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -290,10 +291,10 @@ func runtimeGraphAssignmentBoundarySource(operation string) string {
 func runtimeGraphAssignmentBoundaryOperationForNode(
 	node protocol.ExecutionRuntimeNodeRun,
 ) string {
-	operation := strings.TrimSpace(runtimeGraphMetadataString(
+	operation := runtimeGraphMetadataString(
 		node,
 		runtimeGraphCommandOperationMetadataKey,
-	))
+	)
 	if runtimeGraphAssignmentBoundaryOperation(operation) && runtimeGraphIsCommandTransport(node) {
 		return operation
 	}
@@ -359,7 +360,7 @@ func recoverDMSelfAssignmentRuntimeSegments(
 			segmentsByAttempt[attempt.ID] = segment
 			attempts = append(attempts, runtimeSegmentAttempt{
 				segment:      segment,
-				agentID:      firstNonEmpty(attempt.ExecutorAgentID, item.OwnerAgentID),
+				agentID:      textutil.FirstNonEmpty(attempt.ExecutorAgentID, item.OwnerAgentID),
 				agentRoundID: strings.TrimSpace(attempt.AgentRoundID),
 				createdAt:    attempt.CreatedAt,
 			})

@@ -26,19 +26,3 @@ func IsMemberParticipationPaused(
 	}
 	return false
 }
-
-// HasMultipleAgentMembers 判断 Room 当前是否包含至少两个不同 Agent 成员。
-func HasMultipleAgentMembers(members []protocol.MemberRecord) bool {
-	agentIDs := make(map[string]struct{}, len(members))
-	for _, member := range members {
-		agentID := strings.TrimSpace(member.MemberAgentID)
-		if member.MemberType != protocol.MemberTypeAgent || agentID == "" {
-			continue
-		}
-		agentIDs[agentID] = struct{}{}
-		if len(agentIDs) > 1 {
-			return true
-		}
-	}
-	return false
-}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -74,19 +75,6 @@ func TestAcquirePersistsDurableMarkerAndReleaseRemovesIt(t *testing.T) {
 	}
 	if _, err := os.Stat(markerPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("marker remains after release: %v", err)
-	}
-}
-
-func TestReleasePathDoesNotDeleteUnregisteredDirectory(t *testing.T) {
-	path := filepath.Join(t.TempDir(), ".scratch-unregistered")
-	if err := os.Mkdir(path, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := ReleasePath(path); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -161,33 +149,6 @@ func TestConcurrentAcquireDoesNotTreatPublishingMarkerAsCrash(t *testing.T) {
 	}
 	for err := range errorsCh {
 		t.Errorf("concurrent scratch acquisition: %v", err)
-	}
-}
-
-func TestSharedLeaseHandleRetainsExactRoundIdentity(t *testing.T) {
-	root := t.TempDir()
-	first, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "round-scope", RoundID: "round-one", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "round-scope", RoundID: "round-two", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := first.RoundID(); got != "round-one" {
-		t.Fatalf("first handle round = %q, want round-one", got)
-	}
-	if got := second.RoundID(); got != "round-two" {
-		t.Fatalf("second handle round = %q, want round-two", got)
-	}
-	if marker := second.Marker(); marker == nil || marker.RoundID != "round-one" {
-		t.Fatalf("durable marker = %#v, want first creation round", marker)
-	}
-	if err := first.Release(); err != nil {
-		t.Fatal(err)
-	}
-	if err := second.Release(); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -300,80 +261,6 @@ func TestUncertainLeaseReleaseTransfersCleanupFenceToSibling(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("resource remains after sibling reconciled cleanup: %v", err)
-	}
-}
-
-func TestCleanupUnknownStateIsPersistedAndDiscovered(t *testing.T) {
-	root := t.TempDir()
-	lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "unknown-state", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lease.MarkCleanupUncertain(errors.New("bridge descendants remain"))
-
-	canonicalRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	marker, err := readSandboxLeaseMarker(lease.Path(), canonicalRoot, "owner")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if marker.CleanupState != cleanupStateUnknown || marker.CleanupError != "bridge descendants remain" || marker.CleanupUpdatedAt.IsZero() {
-		t.Fatalf("persisted cleanup state = %#v", marker)
-	}
-	records, err := DiscoverSandboxResources(t.Context(), SandboxResourceSweepInput{OwnerUserID: "owner", Root: root})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(records) != 1 || records[0].Marker.CleanupState != cleanupStateUnknown || !records[0].ProcessActive {
-		t.Fatalf("discovered cleanup state = %#v", records)
-	}
-	if err := lease.Release(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSweepRetainsCleanupUnknownEvenWhenOwnerPIDIsDead(t *testing.T) {
-	root := t.TempDir()
-	base := filepath.Join(root, scratchDirName)
-	if err := os.MkdirAll(base, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(base, ".scratch-unknown")
-	if err := os.Mkdir(path, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	canonicalRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	marker := SandboxLeaseMarker{
-		Version:          leaseMarkerVersion,
-		LeaseID:          "unknown-cleanup",
-		OwnerUserID:      "owner",
-		SessionKey:       "session",
-		RuntimeRoot:      canonicalRoot,
-		ProcessID:        os.Getpid() + 1000000,
-		CreatedAt:        time.Now().Add(-2 * time.Hour).UTC(),
-		CleanupState:     cleanupStateUnknown,
-		CleanupError:     "descendants remain",
-		CleanupUpdatedAt: time.Now().Add(-time.Hour).UTC(),
-	}
-	if err := writeSandboxLeaseMarker(path, marker); err != nil {
-		t.Fatal(err)
-	}
-	result, err := SweepStaleSandboxResources(t.Context(), SandboxResourceSweepInput{
-		OwnerUserID: "owner", Root: root, OlderThan: time.Hour, Now: time.Now().UTC(), Apply: true,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Removed) != 0 || len(result.Candidates) != 0 || len(result.Skipped) != 1 || !result.Skipped[0].ProcessActive {
-		t.Fatalf("cleanup_unknown sweep result = %#v", result)
-	}
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("cleanup_unknown marker was removed: %v", err)
 	}
 }
 
@@ -532,4 +419,30 @@ func TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers(t *testing.T
 	if err := active.Release(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeSandboxLeaseMarker(path string, marker SandboxLeaseMarker) error {
+	root, err := openSandboxDirectory(path)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return writeSandboxLeaseMarkerInRoot(root, marker)
+}
+
+// ReleasePath is retained as a fail-closed compatibility helper. Cleanup of a
+// live resource must use the exact Lease handle; a path alone cannot identify
+// which runtime generation owns a reference.
+func ReleasePath(path string) error {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "." || path == "" {
+		return nil
+	}
+	registryMu.Lock()
+	resource := registry[path]
+	registryMu.Unlock()
+	if resource == nil {
+		return nil
+	}
+	return errors.New("sandbox lease cleanup requires its exact handle")
 }

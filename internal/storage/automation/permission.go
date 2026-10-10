@@ -190,7 +190,7 @@ WHERE owner_user_id = %s
 			r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
 		),
 		automationdomain.RunStatusCancelled,
-		nullString(strings.TrimSpace(input.CancellationMessage)),
+		nullString(input.CancellationMessage),
 		automationdomain.DeliveryStatusNotAttempted,
 		strings.TrimSpace(input.Job.OwnerUserID),
 		strings.TrimSpace(input.Job.JobID),
@@ -1038,12 +1038,6 @@ func (r *Repository) ResolvePermissionRequest(
 	input PermissionRequestDecisionStoreInput,
 ) (*automationdomain.AutomationPermissionRequest, error) {
 	input.RequestID = strings.TrimSpace(input.RequestID)
-	input.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
-	input.Decision = strings.TrimSpace(input.Decision)
-	input.ResolvedByUserID = strings.TrimSpace(input.ResolvedByUserID)
-	input.TaskState = strings.TrimSpace(input.TaskState)
-	input.RunBlockState = strings.TrimSpace(input.RunBlockState)
-	input.DeniedMessage = strings.TrimSpace(input.DeniedMessage)
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err

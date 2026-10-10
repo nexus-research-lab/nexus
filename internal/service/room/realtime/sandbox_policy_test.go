@@ -10,6 +10,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 type sandboxTransitionClient struct {
@@ -47,7 +48,7 @@ func TestRoomSandboxTransitionCancelsApprovalAndClosesWithoutReplay(t *testing.T
 	sibling := &activeRoomSlot{AgentID: "agent-b"}
 	sibling.setClient(other)
 	sibling.setStatus("running")
-	service := &Service{permission: permissions, rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{"r": {Slots: map[string]*activeRoomSlot{"a": slot, "b": sibling}}})}
+	service := &Service{Host: runtimehost.Host{Permission: permissions}, rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{"r": {Slots: map[string]*activeRoomSlot{"a": slot, "b": sibling}}})}
 	if err := service.SetPermissionModeForAgent(ctx, "agent-a", sdkpermission.ModeBypassPermissions); err != nil {
 		t.Fatal(err)
 	}

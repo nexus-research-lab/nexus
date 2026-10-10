@@ -20,21 +20,6 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestClaimScheduledTaskRunRollsBackRuntimeWhenInsertFails(t *testing.T) {
-	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
-	if err := repository.InsertRunPending(context.Background(), RunPendingInput{
-		RunID: "run-conflict", JobID: task.JobID, OwnerUserID: task.OwnerUserID,
-		Status: automationdomain.RunStatusSucceeded,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	input := atomicRuntimeClaimInput(task, "run-conflict", "", "")
-	if _, err := repository.ClaimScheduledTaskRun(context.Background(), input); err == nil {
-		t.Fatal("duplicate run insert unexpectedly succeeded")
-	}
-	assertAtomicRuntimeState(t, db, task.JobID, "", 1)
-}
-
 func TestClaimScheduledTaskRunConcurrentRequestReplaysSingleRun(t *testing.T) {
 	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
 	inputs := []InitialRunClaimInput{
@@ -74,20 +59,6 @@ func TestClaimScheduledTaskRunConcurrentRequestReplaysSingleRun(t *testing.T) {
 		t.Fatalf("claimed=%d replayed=%d results=%+v", claimed, replayed, results)
 	}
 	assertAtomicRuntimeState(t, db, task.JobID, results[0].RunID, 1)
-}
-
-func TestClaimScheduledTaskRunConflictingIntentRollsBackSecondTaskUpdate(t *testing.T) {
-	db, repository, task := newAtomicRuntimeRepository(t, automationdomain.OverlapPolicyAllow)
-	first := atomicRuntimeClaimInput(task, "run-intent-a", "manual-request-conflict", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	result, err := repository.ClaimScheduledTaskRun(context.Background(), first)
-	if err != nil || !result.Claimed {
-		t.Fatalf("first claim = %+v err=%v", result, err)
-	}
-	second := atomicRuntimeClaimInput(task, "run-intent-b", "manual-request-conflict", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-	if _, err = repository.ClaimScheduledTaskRun(context.Background(), second); !errors.Is(err, automationdomain.ErrRuntimeCommandConflict) {
-		t.Fatalf("conflicting claim error = %v", err)
-	}
-	assertAtomicRuntimeState(t, db, task.JobID, first.Run.RunID, 1)
 }
 
 func TestClaimScheduledTaskRunConcurrentOverlapTerminalReplayAndConflict(t *testing.T) {

@@ -37,7 +37,7 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		var err error
 		ownerUserID, err = s.resolveTaskOwnerUserID(ctx, normalized.AgentID)
 		if err != nil {
@@ -80,7 +80,7 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(resolvedOwnerUserID) != strings.TrimSpace(ownerUserID) {
+	if resolvedOwnerUserID != ownerUserID {
 		return nil, errors.New("target Agent must be owned by the scheduled task owner")
 	}
 	deliveryCandidate := automationdomain.ScheduledTask{
@@ -625,7 +625,7 @@ func (s *Service) ConfirmTaskDeletionStoppedAtVersion(
 		return nil, err
 	}
 	ownerUserID, scoped := scopedOwnerUserID(ctx)
-	if !scoped || strings.TrimSpace(ownerUserID) == "" {
+	if !scoped || ownerUserID == "" {
 		return nil, errors.New("scheduled task deletion confirmation requires an owner scope")
 	}
 	if expectedVersion < 1 {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -143,7 +144,7 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		"session_key": sessionKey,
 		"agent_id":    parsed.AgentID,
 		"round_id":    roundID,
-		"session_id":  stringPointerValue(sessionValue.SessionID),
+		"session_id":  textutil.PointerValue(sessionValue.SessionID),
 		"role":        "assistant",
 		"timestamp":   now.UnixMilli(),
 		"content": []map[string]any{
@@ -154,24 +155,12 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		},
 		"is_complete": true,
 	}
-	resultMessage := protocol.Message{
-		"message_id":      c.idFactory("result"),
-		"session_key":     sessionKey,
-		"agent_id":        parsed.AgentID,
-		"round_id":        roundID,
-		"session_id":      stringPointerValue(sessionValue.SessionID),
-		"parent_id":       assistantMessage["message_id"],
-		"role":            "result",
-		"timestamp":       now.UnixMilli(),
-		"subtype":         "success",
-		"duration_ms":     0,
-		"duration_api_ms": 0,
-		"num_turns":       0,
-		"usage":           map[string]any{},
-		"total_cost_usd":  0.0,
-		"result":          strings.TrimSpace(text),
-		"is_error":        false,
-	}
+	resultMessage := protocol.NewHostResultMessage(c.idFactory("result"), sessionKey, parsed.AgentID, roundID, "success", text, false)
+	resultMessage["session_id"] = textutil.PointerValue(sessionValue.SessionID)
+	resultMessage["parent_id"] = assistantMessage["message_id"]
+	resultMessage["timestamp"] = now.UnixMilli()
+	resultMessage["usage"] = map[string]any{}
+	resultMessage["total_cost_usd"] = 0.0
 
 	if delivery, tracked := imProjectionMetadata(ctx); tracked {
 		roundID = "im_delivery_round_" + delivery.ID
@@ -366,11 +355,4 @@ func stringValue(value any) string {
 	default:
 		return ""
 	}
-}
-
-func stringPointerValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }

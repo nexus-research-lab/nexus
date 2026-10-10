@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels/typingloop"
@@ -49,7 +49,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		return
 	}
 	text := messageutil.ExtractAssistantDisplayText(assistant)
-	if strings.TrimSpace(text) == "" {
+	if text == "" {
 		return
 	}
 
@@ -57,7 +57,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 	defer cancel()
 	result, err := r.service.replies.DeliverExternalReply(deliverCtx, agentID, text, target)
 	if err != nil {
-		r.service.loggerFor(context.Background()).Error("DM assistant 外部通道回复投递失败",
+		r.service.LoggerFor(context.Background()).Error("DM assistant 外部通道回复投递失败",
 			"session_key", r.sessionKey,
 			"agent_id", agentID,
 			"round_id", r.roundID,
@@ -69,7 +69,7 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		return
 	}
 	r.persistExternalReplyReceipt(assistant, result)
-	r.service.loggerFor(context.Background()).Info("DM assistant 外部通道回复已投递",
+	r.service.LoggerFor(context.Background()).Info("DM assistant 外部通道回复已投递",
 		"session_key", r.sessionKey,
 		"agent_id", agentID,
 		"round_id", r.roundID,
@@ -78,12 +78,12 @@ func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assista
 		"thread_id", target.ThreadID,
 		"primary_platform_message_id", result.PrimaryPlatformMessageID,
 		"platform_message_ids", result.PlatformMessageIDs,
-		"chars", len([]rune(strings.TrimSpace(text))),
+		"chars", len([]rune(text)),
 	)
 }
 
 func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, result ExternalReplyResult) {
-	if r == nil || r.service == nil || r.service.history == nil {
+	if r == nil || r.service == nil || r.service.History == nil {
 		return
 	}
 	if strings.TrimSpace(r.workspacePath) == "" || strings.TrimSpace(r.session.SessionKey) == "" {
@@ -92,7 +92,7 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 
 	receipt := workspacestore.ExternalDeliveryReceipt{
 		RoundID:                  r.roundID,
-		MessageID:                dmdomain.NormalizeString(assistant["message_id"]),
+		MessageID:                textutil.AnyString(assistant["message_id"]),
 		Channel:                  result.Channel,
 		Target:                   result.To,
 		ThreadID:                 result.ThreadID,
@@ -100,12 +100,12 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		PlatformMessageIDs:       slices.Clone(result.PlatformMessageIDs),
 		Timestamp:                time.Now().UTC(),
 	}
-	if err := r.service.history.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
+	if err := r.service.History.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
 		r.workspacePath,
 		r.session.SessionKey,
 		receipt,
 	); err != nil {
-		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
+		r.service.LoggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
 			"message_id", receipt.MessageID,
@@ -139,7 +139,7 @@ func (r *roundRunner) externalReplyTypingTarget() (string, ExternalReplyTarget, 
 }
 
 func (r *roundRunner) logExternalTypingError(agentID string, target ExternalReplyTarget, active bool, err error) {
-	r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
+	r.service.LoggerFor(context.Background()).Warn("DM assistant 外部通道 typing 状态投递失败",
 		"session_key", r.sessionKey,
 		"agent_id", agentID,
 		"round_id", r.roundID,

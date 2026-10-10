@@ -6,15 +6,16 @@ package realtime
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
+	"time"
+	"unicode/utf8"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"slices"
-	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 // HandlePublicMessage 处理 Room 成员通过受控工具主动发布的公区消息。
@@ -148,7 +149,7 @@ func (s *Service) handlePublicMessage(
 		contextValue.Room.ID,
 		roomdomain.WrapMessageEvent(contextValue.Room.ID, contextValue.Conversation.ID, message, roundID),
 	)
-	s.loggerFor(ctx).Info("Room public message 已发布",
+	s.LoggerFor(ctx).Info("Room public message 已发布",
 		"room_id", contextValue.Room.ID,
 		"conversation_id", contextValue.Conversation.ID,
 		"message_id", messageID,
@@ -210,7 +211,7 @@ func (s *Service) publicMessageHasGoalCollaboration(
 	rootRoundID string,
 	slot *activeRoomSlot,
 ) bool {
-	if s == nil || s.publicHandoffs == nil || slot == nil {
+	if slot == nil {
 		return false
 	}
 	binding := goalCollaborationBindingForSlot(nil, slot)
@@ -306,7 +307,7 @@ func (s *Service) detectPublicMessageHandoffs(
 	targetAgentIDs []string,
 	goalCollaborationBinding *protocol.GoalCollaborationBinding,
 ) error {
-	if s.publicHandoffs == nil || contextValue == nil {
+	if contextValue == nil {
 		return nil
 	}
 	for _, targetAgentID := range targetAgentIDs {

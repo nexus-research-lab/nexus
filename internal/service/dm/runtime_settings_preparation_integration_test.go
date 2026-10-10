@@ -12,6 +12,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -45,7 +46,7 @@ func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
 		}})
 	}
 	feishu := []string{"feishu-docx"}
-	current, err := service.files.UpsertSession(workspacePath, protocol.Session{
+	current, err := service.Files.UpsertSession(workspacePath, protocol.Session{
 		SessionKey:    sessionKey,
 		AgentID:       cfg.DefaultAgentID,
 		SessionID:     &oldSessionID,
@@ -74,7 +75,7 @@ func TestPreparedRoomForkRejectsSupersededConnectorSelection(t *testing.T) {
 	service.SetRoomSessionStore(roomStore)
 	expected := protocol.SessionConnectorSelectionFromOptions(current.Options)
 	_, err = service.syncSDKSessionIDForOwner(
-		contextWithExactOwner(context.Background(), "__system__"),
+		runtimehost.ContextWithExactOwner(context.Background(), "__system__"),
 		"__system__",
 		workspacePath,
 		*current,
@@ -227,11 +228,11 @@ func TestPrepareConnectorRuntimeMaterializesNXSForkBeforeUserQuery(t *testing.T)
 	roomStore.sessions = map[string]protocol.Session{sessionKey: roomSnapshot}
 	workspaceSnapshot := roomSnapshot
 	workspaceSnapshot.Options = options
-	stored, err := service.files.UpsertSession(workspacePath, workspaceSnapshot)
+	stored, err := service.Files.UpsertSession(workspacePath, workspaceSnapshot)
 	if err != nil || stored == nil {
 		t.Fatalf("seed Session: item=%+v err=%v", stored, err)
 	}
-	ctx := contextWithExactOwner(context.Background(), "__system__")
+	ctx := runtimehost.ContextWithExactOwner(context.Background(), "__system__")
 	// Session 设置事务通知的是 SQL projection（configuration_version 为零）；
 	// 预备器必须先与 workspace runtime projection 合并后再建立版本栅栏。
 	if err = service.prepareConnectorRuntime(ctx, roomSnapshot); err != nil {

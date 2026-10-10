@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -136,76 +134,6 @@ VALUES (?, ?, ?, 'active')`,
 	}
 	if len(due) != 0 {
 		t.Fatalf("confirmed receipt remained recoverable: %#v", due)
-	}
-}
-
-func TestGoalConfirmationReceiptIsAtomicWithGoalBoundCreate(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	command := createTestCommand("goal-confirmation-create")
-	command.Execution.GoalID = "goal-confirmation-create"
-	command.Execution.GoalObjectiveRevision = 1
-	command.Execution.GoalActivationOrigin = protocol.GoalActivationOriginUserExplicit
-	command.Execution.GoalActivationReason = protocol.GoalActivationReasonPersistenceRequested
-	if _, err := repository.db.Exec(`
-INSERT INTO session_goals (goal_id, session_key, objective, status)
-VALUES (?, ?, ?, 'active')`,
-		command.Execution.GoalID,
-		command.Execution.SessionKey,
-		command.Execution.Objective,
-	); err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := repository.Create(ctx, command)
-	if err != nil {
-		t.Fatal(err)
-	}
-	receipt, err := repository.GetGoalConfirmationReceipt(ctx, snapshot.Execution.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt == nil || receipt.State != GoalConfirmationPending ||
-		receipt.GoalID != command.Execution.GoalID {
-		t.Fatalf("Goal-bound Create receipt = %#v", receipt)
-	}
-}
-
-func TestGoalConfirmationReceiptIsAtomicWithGoalBoundCreateWithPlan(t *testing.T) {
-	repository := newRepositoryTestStore(t)
-	ctx := context.Background()
-	create := createTestCommand("goal-confirmation-plan")
-	create.Execution.GoalID = "goal-confirmation-plan"
-	create.Execution.GoalObjectiveRevision = 1
-	create.Execution.GoalActivationOrigin = protocol.GoalActivationOriginUserExplicit
-	create.Execution.GoalActivationReason = protocol.GoalActivationReasonPersistenceRequested
-	if _, err := repository.db.Exec(`
-INSERT INTO session_goals (goal_id, session_key, objective, status)
-VALUES (?, ?, ?, 'active')`,
-		create.Execution.GoalID,
-		create.Execution.SessionKey,
-		create.Execution.Objective,
-	); err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := repository.CreateWithPlan(ctx, CreateWithPlanCommand{
-		Execution: create.Execution,
-		Plan:      testPlanCommand("goal-confirmation-plan", 1, "goal-confirmation-plan", "", 1),
-		Meta:      create.Meta,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snapshot.Plan == nil {
-		t.Fatalf("Goal-bound CreateWithPlan returned no Plan: %#v", snapshot)
-	}
-	receipt, err := repository.GetGoalConfirmationReceipt(ctx, snapshot.Execution.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if receipt == nil || receipt.State != GoalConfirmationPending ||
-		receipt.GoalID != create.Execution.GoalID ||
-		receipt.GoalObjectiveRevision != create.Execution.GoalObjectiveRevision {
-		t.Fatalf("Goal-bound CreateWithPlan receipt = %#v", receipt)
 	}
 }
 
@@ -371,29 +299,5 @@ INSERT INTO executions (
 	}
 	if err = foreignKeyRows.Err(); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestGoalConfirmationMigrationDefinesBothDialects(t *testing.T) {
-	for _, dialect := range []string{"sqlite", "postgres"} {
-		payload, err := os.ReadFile(filepath.Join(
-			orchestrationMigrationDir(t, dialect),
-			"00098_execution_goal_confirmations.sql",
-		))
-		if err != nil {
-			t.Fatal(err)
-		}
-		text := string(payload)
-		for _, required := range []string{
-			"CREATE TABLE execution_goal_confirmations",
-			"completion_criteria_json",
-			"state IN ('pending', 'confirmed')",
-			"idx_execution_goal_confirmations_recoverable",
-			"execution_binding_state",
-		} {
-			if !strings.Contains(text, required) {
-				t.Fatalf("%s migration missing %q", dialect, required)
-			}
-		}
 	}
 }

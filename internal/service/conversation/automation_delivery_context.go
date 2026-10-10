@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -55,7 +56,7 @@ func automationDeliveryHistoryCutoff(history []protocol.Message, currentRoundID 
 	}
 	for index, row := range history {
 		if protocol.MessageRole(row) == "user" &&
-			strings.TrimSpace(stringValue(row["round_id"])) == currentRoundID {
+			textutil.AnyString(row["round_id"]) == currentRoundID {
 			return index
 		}
 	}
@@ -67,20 +68,20 @@ func isAutomationDeliveryAssistant(row protocol.Message) bool {
 		return false
 	}
 	metadata := mapValue(row["metadata"])
-	return stringValue(metadata["im_delivery_id"]) == "" && stringValue(metadata["source"]) == "automation_delivery" &&
-		stringValue(metadata["job_id"]) != "" &&
-		stringValue(metadata["run_id"]) != ""
+	return textutil.AnyString(metadata["im_delivery_id"]) == "" && textutil.AnyString(metadata["source"]) == "automation_delivery" &&
+		textutil.AnyString(metadata["job_id"]) != "" &&
+		textutil.AnyString(metadata["run_id"]) != ""
 }
 
 func automationDeliveryContextualInput(row protocol.Message) (runtimectx.ContextualInputBlock, bool) {
 	metadata := mapValue(row["metadata"])
-	jobID := stringValue(metadata["job_id"])
-	runID := stringValue(metadata["run_id"])
-	result := strings.TrimSpace(message.ExtractAssistantDisplayText(row))
+	jobID := textutil.AnyString(metadata["job_id"])
+	runID := textutil.AnyString(metadata["run_id"])
+	result := message.ExtractAssistantDisplayText(row)
 	if jobID == "" || runID == "" || result == "" {
 		return runtimectx.ContextualInputBlock{}, false
 	}
-	taskName := stringValue(metadata["task_name"])
+	taskName := textutil.AnyString(metadata["task_name"])
 	taskLabel := jobID
 	if taskName != "" {
 		taskLabel = taskName

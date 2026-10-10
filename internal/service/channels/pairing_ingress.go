@@ -56,7 +56,7 @@ func (s *ControlService) ResolveIngressSession(ctx context.Context, request Ingr
 		// Group pairings may intentionally be account/topic wildcards. Their
 		// persisted key belongs to the wildcard row, while each concrete ingress
 		// still needs its own platform-scoped Session identity.
-		if active.AccountID != target.accountID || active.ThreadID != strings.TrimSpace(target.threadID) {
+		if active.AccountID != target.accountID || active.ThreadID != target.threadID {
 			concreteTarget := pairingSessionTargetFromIngress(target.ownerUserID, target)
 			// The concrete projection is an authorization child of this exact
 			// wildcard pairing. Carry the parent identity into every read/write so

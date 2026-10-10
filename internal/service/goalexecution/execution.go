@@ -107,7 +107,7 @@ func (c *executionCoordinator) Create(
 			return nil, fmt.Errorf("read current Execution before create_goal: %w", readErr)
 		}
 		if snapshot != nil && strings.TrimSpace(snapshot.Execution.GoalID) == "" &&
-			!executionTerminalForGoalCreate(snapshot.Execution.Status) {
+			!snapshot.Execution.Status.Terminal() {
 			return nil, fmt.Errorf(
 				"current WorkGraph %s already owns this execution scope; use promote_execution_to_goal with activation_reason=persistence_requested instead of create_goal",
 				strings.TrimSpace(snapshot.Execution.ID),
@@ -154,18 +154,6 @@ func (c *executionCoordinator) Create(
 	return created, nil
 }
 
-func executionTerminalForGoalCreate(status protocol.ExecutionStatus) bool {
-	switch status {
-	case protocol.ExecutionStatusCompleted,
-		protocol.ExecutionStatusFailed,
-		protocol.ExecutionStatusCancelled,
-		protocol.ExecutionStatusSuperseded:
-		return true
-	default:
-		return false
-	}
-}
-
 func reuseStandaloneExplicitGoalOrConflict(
 	request protocol.CreateGoalRequest,
 	objective string,
@@ -209,7 +197,7 @@ func (c *executionCoordinator) PrepareExplicitGoalBinding(
 	if err = validateGoalForExplicitBinding(*current, request); err != nil {
 		return nil, err
 	}
-	if existingGoalID := strings.TrimSpace(request.ExistingGoalID); existingGoalID != "" &&
+	if existingGoalID := request.ExistingGoalID; existingGoalID != "" &&
 		existingGoalID != strings.TrimSpace(current.ID) {
 		return nil, fmt.Errorf(
 			"%w: current Execution is bound to Goal %s, not active Goal %s",
@@ -251,7 +239,7 @@ func (c *executionCoordinator) PrepareExplicitGoalBinding(
 		)
 	}
 
-	candidateID := strings.TrimSpace(request.CandidateExecutionID)
+	candidateID := request.CandidateExecutionID
 	storedID := protocol.GoalReservedExecutionID(*current)
 	if request.ExistingExecution && storedID != "" && storedID != candidateID {
 		return nil, fmt.Errorf(
@@ -291,7 +279,7 @@ func (c *executionCoordinator) PrepareExplicitGoalBinding(
 		return nil, err
 	}
 	if request.ExistingExecution &&
-		strings.TrimSpace(request.ExistingGoalID) == strings.TrimSpace(updated.ID) {
+		request.ExistingGoalID == strings.TrimSpace(updated.ID) {
 		updated, err = c.goals.ConfirmObjectiveExecutionBinding(
 			ctx,
 			updated.ID,
@@ -503,7 +491,7 @@ func (c *executionCoordinator) RetargetGoalObjective(
 		protocol.GoalMetadataOwnerUserID,
 	)
 	if command.Source == protocol.GoalUpdateSourceUser {
-		ownerUserID := strings.TrimSpace(command.OwnerUserID)
+		ownerUserID := command.OwnerUserID
 		if ownerUserID == "" {
 			return nil, fmt.Errorf(
 				"%w: current owner identity is required",
@@ -548,9 +536,9 @@ func (c *executionCoordinator) RetargetGoalObjective(
 		return nil, fmt.Errorf("%w: prepared Goal objective transition is unavailable", goalsvc.ErrGoalInvalidState)
 	}
 	if transition.OldExecutionID != "" && !transition.OldExecutionFenced {
-		actorID := strings.TrimSpace(command.AgentID)
+		actorID := command.AgentID
 		if command.Source == protocol.GoalUpdateSourceUser {
-			actorID = strings.TrimSpace(command.OwnerUserID)
+			actorID = command.OwnerUserID
 		}
 		var predecessor *protocol.ExecutionSnapshot
 		if predecessor, err = c.executions.SupersedeGoalRevision(ctx, orchestrationsvc.GoalRevisionSupersedeInput{
@@ -564,7 +552,7 @@ func (c *executionCoordinator) RetargetGoalObjective(
 			Reason:                   transition.Reason,
 			Source:                   transition.Source,
 			ActorID:                  actorID,
-			RootRoundID:              strings.TrimSpace(command.RoundID),
+			RootRoundID:              command.RoundID,
 		}); err != nil {
 			return nil, fmt.Errorf("supersede old Goal objective WorkGraph: %w", err)
 		}
@@ -660,37 +648,6 @@ func explicitGoalActor(
 	}, objective, nil
 }
 
-func validateExplicitGoalExecutionCompatibility(
-	execution protocol.Execution,
-	actor orchestrationsvc.ActorContext,
-	objective string,
-) error {
-	if strings.TrimSpace(execution.SessionKey) != actor.SessionKey ||
-		execution.ScopeKind != actor.ScopeKind ||
-		(actor.ScopeKind == protocol.ExecutionScopeRoom &&
-			strings.TrimSpace(execution.ConversationID) != actor.ConversationID) {
-		return fmt.Errorf(
-			"%w: current Execution does not belong to the explicit Goal scope",
-			orchestrationsvc.ErrExplicitGoalScopeConflict,
-		)
-	}
-	if strings.TrimSpace(execution.Objective) != objective {
-		return fmt.Errorf(
-			"%w: current Execution objective %q does not match Goal objective %q",
-			orchestrationsvc.ErrExplicitGoalObjectiveConflict,
-			execution.Objective,
-			objective,
-		)
-	}
-	if strings.TrimSpace(execution.CoordinatorAgentID) != strings.TrimSpace(actor.AgentID) {
-		return fmt.Errorf(
-			"%w: only the current Execution coordinator may create its explicit Goal",
-			orchestrationsvc.ErrExplicitGoalBindingConflict,
-		)
-	}
-	return nil
-}
-
 func validateGoalForExplicitBinding(
 	goal protocol.Goal,
 	request orchestrationsvc.ExplicitGoalBindingRequest,
@@ -706,7 +663,7 @@ func validateGoalForExplicitBinding(
 	}); err != nil {
 		return err
 	}
-	if strings.TrimSpace(goal.Objective) != strings.TrimSpace(request.Objective) {
+	if strings.TrimSpace(goal.Objective) != request.Objective {
 		return fmt.Errorf(
 			"%w: active Goal objective %q differs from Execution objective %q",
 			orchestrationsvc.ErrExplicitGoalObjectiveConflict,
@@ -721,7 +678,7 @@ func validateGoalForExplicitActivation(
 	goal protocol.Goal,
 	request orchestrationsvc.ExplicitGoalActivationRequest,
 ) error {
-	requestOwnerUserID := strings.TrimSpace(request.OwnerUserID)
+	requestOwnerUserID := request.OwnerUserID
 	if requestOwnerUserID == "" {
 		return fmt.Errorf(
 			"%w: current owner identity is required for Goal binding",
@@ -744,7 +701,7 @@ func validateGoalForExplicitActivation(
 			orchestrationsvc.ErrExplicitGoalBindingConflict,
 		)
 	}
-	if strings.TrimSpace(goal.SessionKey) != strings.TrimSpace(request.SessionKey) {
+	if strings.TrimSpace(goal.SessionKey) != request.SessionKey {
 		return fmt.Errorf(
 			"%w: active Goal session differs from Execution session",
 			orchestrationsvc.ErrExplicitGoalScopeConflict,
@@ -757,7 +714,7 @@ func validateGoalForExplicitActivation(
 	}
 	if goalScope != request.ScopeKind ||
 		(goalScope == protocol.ExecutionScopeRoom &&
-			strings.TrimSpace(parsed.ConversationID) != strings.TrimSpace(request.ConversationID)) {
+			strings.TrimSpace(parsed.ConversationID) != request.ConversationID) {
 		return fmt.Errorf(
 			"%w: active Goal scope differs from Execution scope",
 			orchestrationsvc.ErrExplicitGoalScopeConflict,
@@ -765,7 +722,7 @@ func validateGoalForExplicitActivation(
 	}
 	if goalScope == protocol.ExecutionScopeRoom {
 		leadAgentID := goalsvc.RoomLeadAgentID(goal)
-		if leadAgentID == "" || leadAgentID != strings.TrimSpace(request.AgentID) {
+		if leadAgentID == "" || leadAgentID != request.AgentID {
 			return fmt.Errorf(
 				"%w: Room Goal lead does not match Execution coordinator",
 				orchestrationsvc.ErrExplicitGoalBindingConflict,
@@ -838,34 +795,6 @@ func explicitGoalCommandID(request protocol.CreateGoalRequest, objective string)
 		budget,
 	}, "\x00")))
 	return "explicit_goal_" + hex.EncodeToString(sum[:12])
-}
-
-func normalizeExplicitCriteria(values []string) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
-func goalMetadataCriteria(metadata map[string]any) []string {
-	value := metadata[protocol.GoalMetadataCompletionCriteria]
-	switch typed := value.(type) {
-	case []string:
-		return normalizeExplicitCriteria(typed)
-	case []any:
-		result := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if text, ok := item.(string); ok {
-				result = append(result, text)
-			}
-		}
-		return normalizeExplicitCriteria(result)
-	default:
-		return nil
-	}
 }
 
 func goalTokenBudgetMatches(left *int64, right *int64) bool {

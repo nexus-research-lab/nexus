@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // BuildSDKMessageLogSummary 生成适合调试视图的单行摘要。
@@ -211,7 +212,7 @@ func summarizeContentBlocks(blocks []sdkprotocol.ContentBlock) ([]string, string
 		switch blockType {
 		case "tool_use":
 			if toolUseBlock, ok := sdkprotocol.AsToolUseBlock(block); ok {
-				if toolName := FirstNonEmpty(toolUseBlock.Name, toolUseBlock.ID); toolName != "" {
+				if toolName := textutil.FirstNonEmpty(toolUseBlock.Name, toolUseBlock.ID); toolName != "" {
 					previewParts = append(previewParts, "tool_use:"+toolName)
 				}
 			}

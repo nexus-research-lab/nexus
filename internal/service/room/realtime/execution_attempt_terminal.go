@@ -26,10 +26,10 @@ func (s *Service) finishBoundRoomAttempt(
 	if binding == nil {
 		return nil
 	}
-	if s == nil || s.executionContext == nil {
+	if s.ExecutionContext == nil {
 		return errors.New("managed Execution Attempt terminalizer is unavailable")
 	}
-	terminalizer, ok := s.executionContext.(executionAttemptTerminalizer)
+	terminalizer, ok := s.ExecutionContext.(executionAttemptTerminalizer)
 	if !ok {
 		return errors.New("managed Execution Attempt terminalizer is unavailable")
 	}
@@ -45,7 +45,7 @@ func (s *Service) finishBoundRoomAttempt(
 	case "cancelled", "interrupted":
 		attemptStatus = protocol.WorkAttemptStatusInterrupted
 		if reason == "" {
-			reason = strings.TrimSpace(roomSlotInterruptReason(slot))
+			reason = roomSlotInterruptReason(slot)
 		}
 		if reason == "" {
 			reason = "Room slot interrupted"
@@ -59,7 +59,7 @@ func (s *Service) finishBoundRoomAttempt(
 		OwnerUserID:    roundValue.OwnerUserID,
 		SessionKey:     roundValue.SessionKey,
 		ExecutionID:    binding.ExecutionID,
-		WorkBinding:    cloneExecutionWorkBinding(binding),
+		WorkBinding:    binding.Clone(),
 		AgentID:        slot.AgentID,
 		Role:           roomExecutionActorRole(roundValue.CoordinatorAgentID, slot.AgentID),
 		ActorKind:      protocol.ExecutionActorAgent,

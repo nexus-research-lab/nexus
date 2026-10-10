@@ -49,8 +49,6 @@ func RunScript(
 	if runtime.GOOS != "linux" {
 		return errors.New("server script automation isolation is only available on Linux")
 	}
-
-	input.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
 	input.CWD = filepath.Clean(strings.TrimSpace(input.CWD))
 	if input.OwnerUserID == "" || input.CWD == "" || input.CWD == "." {
 		return errors.New("script isolation 缺少 owner 或 workspace")

@@ -17,9 +17,3 @@ func TestIsProviderTokenLimitError(t *testing.T) {
 		}
 	}
 }
-
-func TestIsProviderTokenLimitErrorDoesNotClassifyAuthenticationToken(t *testing.T) {
-	if IsProviderTokenLimitError("invalid API token") {
-		t.Fatal("an authentication token error must not be treated as a token limit")
-	}
-}

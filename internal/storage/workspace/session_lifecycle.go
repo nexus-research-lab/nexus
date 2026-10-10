@@ -198,7 +198,7 @@ func (s *SessionFileStore) beginSessionDeletion(
 	}
 	record := sessionLifecycleRecord{
 		SessionKey:           sessionKey,
-		OwnerUserID:          strings.TrimSpace(s.ownerUserID),
+		OwnerUserID:          s.ownerUserID,
 		WorkspacePath:        filepath.Clean(strings.TrimSpace(workspacePath)),
 		State:                sessionLifecycleStateDeleting,
 		Generation:           generation,
@@ -356,12 +356,12 @@ func (s *SessionFileStore) readSessionLifecycle(
 			strings.TrimSpace(record.SessionKey),
 		)
 	}
-	if strings.TrimSpace(s.ownerUserID) != "" &&
-		strings.TrimSpace(record.OwnerUserID) != strings.TrimSpace(s.ownerUserID) {
+	if s.ownerUserID != "" &&
+		strings.TrimSpace(record.OwnerUserID) != s.ownerUserID {
 		return nil, fmt.Errorf(
 			"%w: lifecycle owner requested=%q stored=%q",
 			ErrSessionStorageIdentityMismatch,
-			strings.TrimSpace(s.ownerUserID),
+			s.ownerUserID,
 			strings.TrimSpace(record.OwnerUserID),
 		)
 	}
@@ -591,7 +591,7 @@ func (s *SessionFileStore) openSessionLifecycleRoot(create bool) (*confinedfs.Ro
 }
 
 func (s *SessionFileStore) sessionLifecycleRootPaths() (string, string) {
-	if strings.TrimSpace(s.ownerUserID) != "" {
+	if s.ownerUserID != "" {
 		return s.paths.StateRoot, filepath.Join(
 			appfs.UserStateRootAt(s.paths.StateRoot, s.ownerUserID),
 			"session-lifecycle",

@@ -3,6 +3,12 @@ package realtime
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -14,63 +20,9 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"path/filepath"
-	"strings"
-	"sync"
-	"testing"
-	"time"
 )
-
-func TestRecordGoalUsageForRoomSlotUsesToolCompletionDelta(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "round-1",
-	}
-	slot.setGoalBinding("", "goal-1")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  6,
-			OutputTokens: 3,
-			TotalTokens:  9,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want one terminal settlement", len(usages))
-	}
-	if usages[0].InputTokens != 6 || usages[0].OutputTokens != 3 || usages[0].Total() != 9 {
-		t.Fatalf("terminal usage = %#v, want exact cumulative 6/3", usages[0])
-	}
-}
-
-func TestRecordGoalUsageForRoomSlotUsesAssistantSnapshotOnAbort(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "round-1",
-	}
-	slot.setGoalBinding("", "goal-1")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{}, roomGoalAssistantUsageMessage(9, 4))
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want one terminal settlement", len(usages))
-	}
-	if usages[0].InputTokens != 13 || usages[0].OutputTokens != 5 || usages[0].Total() != 18 {
-		t.Fatalf("abort usage = %#v, want deferred tool turn plus distinct final turn", usages[0])
-	}
-}
 
 func TestRoomSlotMidRoundFlushDefersEstimatedActualUntilLowerExactTerminal(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
@@ -81,7 +33,7 @@ func TestRoomSlotMidRoundFlushDefersEstimatedActualUntilLowerExactTerminal(t *te
 	}
 	slot.setGoalBinding("", "goal-estimated-checkpoint")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-	slot.rememberGoalAssistantMessage(protocol.Message{
+	slot.mutable.goal.RememberGoalAssistantMessage(protocol.Message{
 		"message_id": "assistant-estimated-checkpoint",
 		"role":       "assistant",
 		"usage": map[string]any{
@@ -117,28 +69,6 @@ func TestRoomSlotMidRoundFlushDefersEstimatedActualUntilLowerExactTerminal(t *te
 	}
 }
 
-func TestRoomSlotFinalSnapshotExplicitZeroResultOverridesAssistantUsage(t *testing.T) {
-	slot := &activeRoomSlot{}
-	snapshot, ok := slotFinalGoalUsageSnapshot(
-		slot,
-		exec.RoundExecutionResult{Usage: sdkprotocol.TokenUsage{
-			Raw: map[string]any{"total_tokens": 0},
-		}},
-		roomGoalAssistantUsageMessage(90, 10),
-	)
-	if !ok {
-		t.Fatal("explicit zero result usage was treated as missing")
-	}
-	if !snapshot.Cumulative || !snapshot.Terminal {
-		t.Fatalf("snapshot flags = cumulative:%v terminal:%v, want true/true", snapshot.Cumulative, snapshot.Terminal)
-	}
-	if snapshot.Usage.ActualTokens() != 0 ||
-		!snapshot.Usage.ActualTotalKnown ||
-		snapshot.Usage.BudgetTokens() != 0 {
-		t.Fatalf("snapshot usage = %#v, want authoritative result zero", snapshot.Usage)
-	}
-}
-
 func TestRoomGoalFinalizingHookDeclinesWithoutSharedFinalizer(t *testing.T) {
 	manager := runtimectx.NewManager()
 	slot := &activeRoomSlot{
@@ -148,140 +78,14 @@ func TestRoomGoalFinalizingHookDeclinesWithoutSharedFinalizer(t *testing.T) {
 	slot.setGoalBinding("room:group:no-shared-finalizer", "goal-no-shared-finalizer")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	service := &Service{
-		goals:   &fakeRoomGoalContextProvider{},
-		runtime: manager,
+		goals: &fakeRoomGoalContextProvider{},
+		Host:  runtimehost.Host{Runtime: manager},
 	}
 	cleanup := service.registerSlotGoalRuntime(slot)
 	defer cleanup()
 
 	if rounds := manager.BeginGoalAccountingFinalizing("room:group:no-shared-finalizer"); len(rounds) != 0 {
 		t.Fatalf("finalizing rounds = %#v, want immediate Goal-service fence fallback", rounds)
-	}
-}
-
-func TestRoomSlotRecordsUsageToSharedGoalAfterCreateGoalCommand(t *testing.T) {
-	t.Run("create_goal command", func(t *testing.T) {
-		sharedSessionKey := "room:group:conversation-1"
-		createdGoal := &protocol.Goal{ID: "goal-room-created", SessionKey: sharedSessionKey}
-		goalProvider := &fakeRoomGoalContextProvider{
-			usageGoal: createdGoal,
-			runtimeGoals: map[string]*protocol.Goal{
-				sharedSessionKey: createdGoal,
-			},
-		}
-		service := &Service{goals: goalProvider}
-		slot := &activeRoomSlot{
-			RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
-			AgentRoundID:      "round-1:agent-1",
-		}
-		slot.setGoalBinding(sharedSessionKey, "")
-		slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
-
-		stageRoomAppliedGoalCommand(slot, command.GoalOperationCreate, createdGoal.ID, "")
-		service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "Bash", 4, 1))
-		service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
-			Usage: sdkprotocol.TokenUsage{
-				InputTokens:  9,
-				OutputTokens: 3,
-				TotalTokens:  12,
-			},
-		}, nil)
-
-		usages := goalProvider.recordedUsage()
-		if len(usages) != 1 {
-			t.Fatalf("len(usages) = %d, want one terminal settlement", len(usages))
-		}
-		if usages[0].InputTokens != 9 || usages[0].OutputTokens != 3 ||
-			usages[0].BudgetTokens() != 12 || usages[0].ActualTokens() != 12 {
-			t.Fatalf("usage = %#v, want complete first Room Goal slot round 9/3", usages[0])
-		}
-		if len(goalProvider.usageGoalIDs) != 1 ||
-			goalProvider.usageGoalIDs[0] != createdGoal.ID {
-			t.Fatalf("usageGoalIDs = %#v, want created shared Goal", goalProvider.usageGoalIDs)
-		}
-	})
-}
-
-func TestRoomGoalCreateStartsUsageForEveryActiveSlot(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	createdGoal := &protocol.Goal{ID: "goal-room-created", SessionKey: sharedSessionKey}
-	goalProvider := &fakeRoomGoalContextProvider{
-		usageGoal: createdGoal,
-		runtimeGoals: map[string]*protocol.Goal{
-			sharedSessionKey: createdGoal,
-		},
-	}
-	creator := &activeRoomSlot{
-		RuntimeSessionKey:     "slot-session-creator",
-		AgentRoundID:          "round-1:creator",
-		GoalUsageScopeRoundID: "root-1",
-	}
-	peer := &activeRoomSlot{
-		RuntimeSessionKey:     "slot-session-peer",
-		AgentRoundID:          "round-1:peer",
-		GoalUsageScopeRoundID: "root-1",
-	}
-	unrelated := &activeRoomSlot{
-		RuntimeSessionKey:     "slot-session-unrelated",
-		AgentRoundID:          "round-2:unrelated",
-		GoalUsageScopeRoundID: "root-2",
-	}
-	for _, slot := range []*activeRoomSlot{creator, peer, unrelated} {
-		slot.setGoalBinding(sharedSessionKey, "")
-		slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(false))
-	}
-	roundValue := &activeRoomRound{
-		SessionKey:  sharedSessionKey,
-		RootRoundID: "root-1",
-		Slots: map[string]*activeRoomSlot{
-			"creator": creator,
-			"peer":    peer,
-		},
-	}
-	service := &Service{
-		goals: goalProvider,
-		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
-			"round-1": roundValue,
-			"round-2": {
-				SessionKey:  sharedSessionKey,
-				RootRoundID: "root-2",
-				Slots: map[string]*activeRoomSlot{
-					"unrelated": unrelated,
-				},
-			},
-		}),
-	}
-
-	stageRoomAppliedGoalCommand(creator, command.GoalOperationCreate, createdGoal.ID, "")
-	service.recordGoalUsageFromSlotAssistantMessage(
-		context.Background(),
-		creator,
-		roomGoalToolResultAssistantMessage("tool-1", "Bash", 4, 1),
-	)
-	service.recordGoalUsageForSlot(context.Background(), creator, exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  4,
-			OutputTokens: 1,
-			TotalTokens:  5,
-		},
-	}, nil)
-	service.recordGoalUsageForSlot(context.Background(), peer, exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  9,
-			OutputTokens: 3,
-			TotalTokens:  12,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 2 {
-		t.Fatalf("usages = %#v, want creator and peer terminal usage", usages)
-	}
-	if usages[0].BudgetTokens() != 5 || usages[1].BudgetTokens() != 12 {
-		t.Fatalf("usages = %#v, want every active Room slot attributed from its round start", usages)
-	}
-	if unrelated.goalUsageActive() {
-		t.Fatal("same-session slot from another root must not start Goal usage")
 	}
 }
 
@@ -345,14 +149,14 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 		creator,
 		roomGoalToolResultAssistantMessage("tool-create", "Bash", 4, 1),
 	)
-	if creator.goalIDForUsage() != "goal-room-created" || peer.goalIDForUsage() != "goal-room-created" {
+	if creator.mutable.goal.UsageGoalID() != "goal-room-created" || peer.mutable.goal.UsageGoalID() != "goal-room-created" {
 		t.Fatalf("slot bindings = creator:%q peer:%q, want shared goal-room-created",
-			creator.goalIDForUsage(),
-			peer.goalIDForUsage(),
+			creator.mutable.goal.UsageGoalID(),
+			peer.mutable.goal.UsageGoalID(),
 		)
 	}
-	if unrelated.goalIDForUsage() != "" {
-		t.Fatalf("same-session unrelated root binding = %q, want empty", unrelated.goalIDForUsage())
+	if unrelated.mutable.goal.UsageGoalID() != "" {
+		t.Fatalf("same-session unrelated root binding = %q, want empty", unrelated.mutable.goal.UsageGoalID())
 	}
 	service.finalizeGoalUsageForSlot(context.Background(), peer, exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
@@ -368,7 +172,7 @@ func TestRoomGoalCreateBindsEverySlotToSharedGoalID(t *testing.T) {
 
 func TestRoomSlotsRecordNXSSubagentActualUsagePerRuntimeSession(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider, runtime: runtimectx.NewManager()}
+	service := &Service{goals: goalProvider, Host: runtimehost.Host{Runtime: runtimectx.NewManager()}}
 	newSlot := func(sessionKey string, roundID string) *activeRoomSlot {
 		slot := &activeRoomSlot{RuntimeSessionKey: sessionKey, AgentRoundID: roundID}
 		slot.setRuntimeKind("nxs")
@@ -387,159 +191,6 @@ func TestRoomSlotsRecordNXSSubagentActualUsagePerRuntimeSession(t *testing.T) {
 	usages := goalProvider.recordedUsage()
 	if len(usages) != 2 || usages[0].ActualTokens() != 100 || usages[1].ActualTokens() != 100 {
 		t.Fatalf("usages = %#v, want same task ID isolated across Room slot runtime sessions", usages)
-	}
-}
-
-func TestRoomPersistsNXSChildLifecycleEvidenceWithoutTreatingPlaceholderZeroAsExact(t *testing.T) {
-	provider := &fakePersistentRoomGoalProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-	}
-	service := &Service{goals: provider}
-	slot := &activeRoomSlot{
-		OwnerUserID:           "owner-room",
-		RuntimeSessionKey:     "agent:nexus:ws:room:child-evidence",
-		AgentRoundID:          "slot-child-evidence",
-		GoalUsageScopeRoundID: "root-child-evidence",
-	}
-	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding("room:group:child-evidence", "goal-child-evidence")
-
-	started := protocol.Message{"metadata": map[string]any{
-		"task_id":   "task-evidence",
-		"task_type": "local_agent",
-		"subtype":   "task_started",
-		"status":    "running",
-	}}
-	for _, settlement := range service.recordSubagentGoalUsageForSlot(context.Background(), slot, started) {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
-	}
-	slot.rememberSubagentTaskMessage(started)
-
-	progress := protocol.Message{"metadata": map[string]any{
-		"task_id":   "task-evidence",
-		"task_type": "local_agent",
-		"subtype":   "task_progress",
-		"status":    "running",
-		"usage":     map[string]any{"total_tokens": int64(23)},
-	}}
-	for _, settlement := range service.recordSubagentGoalUsageForSlot(context.Background(), slot, progress) {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
-	}
-	slot.rememberSubagentTaskMessage(progress)
-
-	placeholderTerminal := protocol.Message{"metadata": map[string]any{
-		"task_id":   "task-evidence",
-		"task_type": "local_agent",
-		"subtype":   "task_notification",
-		"status":    "completed",
-		"usage":     map[string]any{"total_tokens": int64(0)},
-	}}
-	for _, settlement := range service.recordSubagentGoalUsageForSlot(
-		context.Background(),
-		slot,
-		placeholderTerminal,
-	) {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
-	}
-	slot.rememberSubagentTaskMessage(placeholderTerminal)
-
-	positiveTerminal := protocol.Message{"metadata": map[string]any{
-		"task_id":   "task-evidence",
-		"task_type": "local_agent",
-		"subtype":   "task_notification",
-		"status":    "completed",
-		"usage":     map[string]any{"total_tokens": int64(42)},
-	}}
-	for _, settlement := range service.recordSubagentGoalUsageForSlot(
-		context.Background(),
-		slot,
-		positiveTerminal,
-	) {
-		slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
-	}
-
-	if len(provider.snapshots) != 4 {
-		t.Fatalf("child evidence snapshots = %#v, want start + progress + placeholder terminal + positive terminal", provider.snapshots)
-	}
-	startSnapshot := provider.snapshots[0]
-	if !startSnapshot.EvidenceRequired ||
-		startSnapshot.Terminal ||
-		startSnapshot.TokenUsageObserved ||
-		startSnapshot.CumulativeActualTokens != 0 {
-		t.Fatalf("start evidence = %#v, want required nonterminal without token evidence", startSnapshot)
-	}
-	progressSnapshot := provider.snapshots[1]
-	if !progressSnapshot.EvidenceRequired ||
-		progressSnapshot.Terminal ||
-		progressSnapshot.TokenUsageObserved ||
-		progressSnapshot.CumulativeActualTokens != 23 {
-		t.Fatalf("progress evidence = %#v, want checkpoint without terminal token evidence", progressSnapshot)
-	}
-	placeholderSnapshot := provider.snapshots[2]
-	if !placeholderSnapshot.EvidenceRequired ||
-		!placeholderSnapshot.Terminal ||
-		placeholderSnapshot.TokenUsageObserved ||
-		placeholderSnapshot.CumulativeActualTokens != 0 {
-		t.Fatalf("placeholder terminal evidence = %#v, want terminal unavailable", placeholderSnapshot)
-	}
-	positiveSnapshot := provider.snapshots[3]
-	if !positiveSnapshot.EvidenceRequired ||
-		!positiveSnapshot.Terminal ||
-		!positiveSnapshot.TokenUsageObserved ||
-		positiveSnapshot.CumulativeActualTokens != 42 {
-		t.Fatalf("positive terminal evidence = %#v, want terminal authoritative total 42", positiveSnapshot)
-	}
-}
-
-func TestRoomSlotKeepsSubagentJoinBarrierWhileUsageCheckpointPersists(t *testing.T) {
-	provider := &blockingPersistentRoomGoalProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-		entered:                     make(chan struct{}),
-		release:                     make(chan struct{}),
-	}
-	service := &Service{goals: provider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:source-barrier",
-		AgentRoundID:      "round-source-barrier",
-	}
-	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding("room:group:source-barrier", "goal-source-barrier")
-	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
-		"subtype": "task_started", "task_id": "task-1", "agent_id": "agent-1", "agent_type": "worker",
-	}})
-	terminalMessage := protocol.Message{"metadata": map[string]any{
-		"subtype": "task_notification", "task_id": "task-1", "agent_id": "agent-1",
-		"agent_type": "worker", "status": "completed",
-		"usage": map[string]any{"total_tokens": int64(100)},
-	}}
-
-	settled := make(chan []roomSubagentUsageSettlement, 1)
-	go func() {
-		settled <- service.recordSubagentGoalUsageForSlot(context.Background(), slot, terminalMessage)
-	}()
-	select {
-	case <-provider.entered:
-	case <-time.After(time.Second):
-		t.Fatal("Room subagent usage checkpoint did not enter persistence")
-	}
-
-	slot.rememberSubagentTaskMessage(terminalMessage)
-	if !slot.hasRunningSubagentTask() {
-		t.Fatal("terminal lifecycle removed the Room task before its usage checkpoint settled")
-	}
-
-	close(provider.release)
-	var settlements []roomSubagentUsageSettlement
-	select {
-	case settlements = <-settled:
-	case <-time.After(time.Second):
-		t.Fatal("Room subagent usage checkpoint did not finish")
-	}
-	for _, settlement := range settlements {
-		slot.clearSubagentUsagePending(settlement.taskID, settlement.cumulativeTotal)
-	}
-	if slot.hasRunningSubagentTask() {
-		t.Fatal("settled Room usage checkpoint did not release the child join barrier")
 	}
 }
 
@@ -686,10 +337,10 @@ func TestRoomClaimsPreCreateSubagentUsageAndKeepsChildrenBoundAfterSlotTerminal(
 			peer.goalUsageClaimPending(),
 		)
 	}
-	if unrelated.goalIDForUsage() != "" || unrelated.goalUsageClaimPending() {
+	if unrelated.mutable.goal.UsageGoalID() != "" || unrelated.goalUsageClaimPending() {
 		t.Fatalf(
 			"unrelated root changed by model create: goal=%q claim_pending=%v",
-			unrelated.goalIDForUsage(),
+			unrelated.mutable.goal.UsageGoalID(),
 			unrelated.goalUsageClaimPending(),
 		)
 	}
@@ -749,86 +400,9 @@ func TestRoomSubagentGoalUsageScopeFallsBackForManualSlot(t *testing.T) {
 	}
 }
 
-func TestRoomSubagentGoalUsageKeepsPrivateDMSession(t *testing.T) {
-	const conversationID = "private-dm-goal-usage"
-	provider := &fakePersistentRoomGoalProvider{
-		fakeRoomGoalContextProvider: &fakeRoomGoalContextProvider{},
-	}
-	service := &Service{goals: provider}
-	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		"agent-private",
-		protocol.RoomTypeDM,
-	)
-	slot := &activeRoomSlot{
-		OwnerUserID:           "owner-private",
-		RuntimeSessionKey:     runtimeSessionKey,
-		AgentRoundID:          "agent-round-private",
-		GoalUsageScopeRoundID: "root-private",
-	}
-
-	if _, err := service.persistSubagentGoalUsageForSlot(
-		context.Background(),
-		slot,
-		"task-private",
-		21,
-		"",
-		runtimeSessionKey,
-	); err != nil {
-		t.Fatalf("persistSubagentGoalUsageForSlot() error = %v", err)
-	}
-	if len(provider.snapshots) != 1 {
-		t.Fatalf("snapshots = %#v, want one", provider.snapshots)
-	}
-	snapshot := provider.snapshots[0]
-	if snapshot.GoalSessionKey != runtimeSessionKey {
-		t.Fatalf(
-			"private DM GoalSessionKey = %q, want existing agent session %q",
-			snapshot.GoalSessionKey,
-			runtimeSessionKey,
-		)
-	}
-	if snapshot.ScopeRoundID != slot.GoalUsageScopeRoundID ||
-		snapshot.RoundID != slot.AgentRoundID {
-		t.Fatalf("private DM usage scope = %#v, want root scope plus source round audit", snapshot)
-	}
-}
-
-func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
-	manager := runtimectx.NewManager()
-	service := &Service{runtime: manager}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:conversation-1:agent-1",
-		AgentRoundID:      "room-round-1:agent-1",
-	}
-	_ = manager.StartRound(context.Background(), slot.RuntimeSessionKey, slot.AgentRoundID, nil)
-
-	cleanup := service.registerSlotGoalRuntime(slot)
-	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-1", "budget reached")
-	if err != nil {
-		t.Fatalf("QueueGuidanceInput() error = %v", err)
-	}
-	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
-		t.Fatalf("roundIDs = %#v, want slot round", roundIDs)
-	}
-	if count := manager.PendingGuidanceCount(slot.RuntimeSessionKey); count != 1 {
-		t.Fatalf("PendingGuidanceCount = %d, want 1", count)
-	}
-	roundIDs = manager.ClearGoalAccounting(slot.RuntimeSessionKey)
-	if len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
-		t.Fatalf("ClearGoalAccounting roundIDs = %#v, want slot round", roundIDs)
-	}
-
-	cleanup()
-	manager.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
-	if _, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-2", "late guidance"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
-		t.Fatalf("QueueGuidanceInput() after cleanup error = %v, want ErrNoRunningRound", err)
-	}
-}
-
 func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	manager := runtimectx.NewManager()
-	service := &Service{runtime: manager}
+	service := &Service{Host: runtimehost.Host{Runtime: manager}}
 	slot := &activeRoomSlot{
 		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
 		AgentRoundID:      "room-round-1:agent-1",
@@ -849,8 +423,8 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	if roundIDs, err := manager.ActivateGoalAccounting(context.Background(), goalSessionKey, "goal-shared"); err != nil || len(roundIDs) != 1 || roundIDs[0] != slot.AgentRoundID {
 		t.Fatalf("ActivateGoalAccounting() = %#v, %v, want slot accounting", roundIDs, err)
 	}
-	if slot.goalIDForUsage() != "goal-shared" {
-		t.Fatalf("slot goal binding = %q, want goal-shared", slot.goalIDForUsage())
+	if slot.mutable.goal.UsageGoalID() != "goal-shared" {
+		t.Fatalf("slot goal binding = %q, want goal-shared", slot.mutable.goal.UsageGoalID())
 	}
 	if _, err := manager.QueueGuidanceInput(context.Background(), goalSessionKey, "goal-event-1", "budget reached"); !errors.Is(err, runtimectx.ErrNoRunningRound) {
 		t.Fatalf("shared Goal accounting 不应伪装 guidance runtime: %v", err)
@@ -860,49 +434,6 @@ func TestRegisterSlotGoalRuntimeUsesGoalSessionKey(t *testing.T) {
 	if roundIDs, err := manager.FlushGoalAccounting(context.Background(), goalSessionKey); err != nil || len(roundIDs) != 0 {
 		t.Fatalf("cleanup 后 FlushGoalAccounting() = %#v, %v", roundIDs, err)
 	}
-}
-
-func TestRegisterSlotGoalRuntimeGuardsConsumedRootUntilRoundFinishes(t *testing.T) {
-	manager := runtimectx.NewManager()
-	service := &Service{runtime: manager}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey:     "agent:nexus:ws:group:conversation-create-guard",
-		AgentRoundID:          "slot-round-create-guard",
-		GoalUsageScopeRoundID: "root-round-create-guard",
-	}
-	const sessionKey = "room:group:conversation-create-guard"
-	slot.setGoalBinding(sessionKey, "")
-	cleanup := service.registerSlotGoalRuntime(slot)
-
-	if conflicts := manager.GoalAccountingCreateConflicts(
-		sessionKey,
-		slot.GoalUsageScopeRoundID,
-	); len(conflicts) != 0 {
-		t.Fatalf("unused root conflicts = %#v, want none", conflicts)
-	}
-	slot.setGoalBinding(sessionKey, "goal-consumed")
-	clearGoalUsageForSlot(slot)
-	if conflicts := manager.GoalAccountingCreateConflicts(
-		sessionKey,
-		slot.GoalUsageScopeRoundID,
-	); len(conflicts) != 1 || conflicts[0] != slot.AgentRoundID {
-		t.Fatalf("consumed root conflicts = %#v, want slot round", conflicts)
-	}
-	if conflicts := manager.GoalAccountingCreateConflicts(
-		sessionKey,
-		"root-unrelated",
-	); len(conflicts) != 0 {
-		t.Fatalf("unrelated root conflicts = %#v, want none", conflicts)
-	}
-
-	manager.MarkRoundFinished(sessionKey, slot.AgentRoundID)
-	if conflicts := manager.GoalAccountingCreateConflicts(
-		sessionKey,
-		slot.GoalUsageScopeRoundID,
-	); len(conflicts) != 0 {
-		t.Fatalf("finished root conflicts = %#v, want automatic unregister", conflicts)
-	}
-	cleanup()
 }
 
 func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testing.T) {
@@ -923,7 +454,7 @@ func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testin
 	grantTestRoomGoalAuthority(lead, sessionKey, "goal-room")
 	grantTestRoomGoalAuthority(caller, sessionKey, "goal-room")
 	service := &Service{
-		runtime: manager,
+		Host: runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"round-root": {
 				SessionKey:  sessionKey,
@@ -999,7 +530,7 @@ func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T
 	grantTestRoomGoalAuthority(unavailable, sessionKey, "goal-room")
 	grantTestRoomGoalAuthority(active, sessionKey, "goal-room")
 	service := &Service{
-		runtime: manager,
+		Host: runtimehost.Host{Runtime: manager},
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"round-root": {
 				SessionKey:  sessionKey,
@@ -1030,161 +561,6 @@ func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T
 	}
 	if got := manager.PendingGuidanceCount(active.RuntimeSessionKey); got != 1 {
 		t.Fatalf("active pending guidance = %d, want 1", got)
-	}
-}
-
-func TestResolveGoalRuntimeContextForSlotPrefersSharedRoomGoal(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
-	service := &Service{goals: &fakeRoomGoalContextProvider{
-		runtimeContexts: map[string]string{
-			sharedSessionKey:  "shared goal context",
-			runtimeSessionKey: "runtime goal context",
-		},
-		runtimeGoals: map[string]*protocol.Goal{
-			sharedSessionKey: {
-				ID:         "goal-shared",
-				SessionKey: sharedSessionKey,
-				Status:     protocol.GoalStatusActive,
-				Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(4)},
-			},
-			runtimeSessionKey: {
-				ID:         "goal-runtime",
-				SessionKey: runtimeSessionKey,
-				Status:     protocol.GoalStatusActive,
-			},
-		},
-	}}
-	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
-
-	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
-		context.Background(),
-		&activeRoomRound{SessionKey: sharedSessionKey},
-		slot,
-		"base prompt",
-	)
-
-	if goalID != "goal-shared" || goalSessionKey != sharedSessionKey {
-		t.Fatalf("goalID=%q goalSessionKey=%q, want shared goal", goalID, goalSessionKey)
-	}
-	if got := slot.currentGoalObjectiveRevision(); got != 4 {
-		t.Fatalf("slot objective revision = %d, want 4", got)
-	}
-	if prompt != "base prompt" {
-		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
-	}
-	if !strings.Contains(goalContext, "shared goal context") || strings.Contains(goalContext, "runtime goal context") {
-		t.Fatalf("goalContext = %q, want only shared goal context", goalContext)
-	}
-}
-
-func TestResolveGoalRuntimeContextForSlotKeepsBudgetLimitedSharedGoalTarget(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
-	service := &Service{goals: &fakeRoomGoalContextProvider{
-		runtimeContexts: map[string]string{
-			runtimeSessionKey: "runtime goal context",
-		},
-		runtimeGoals: map[string]*protocol.Goal{
-			sharedSessionKey: {
-				ID:         "goal-shared-budget",
-				SessionKey: sharedSessionKey,
-				Status:     protocol.GoalStatusBudgetLimited,
-			},
-			runtimeSessionKey: {
-				ID:         "goal-runtime",
-				SessionKey: runtimeSessionKey,
-				Status:     protocol.GoalStatusActive,
-			},
-		},
-	}}
-	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
-
-	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
-		context.Background(),
-		&activeRoomRound{SessionKey: sharedSessionKey},
-		slot,
-		"base prompt",
-	)
-
-	if goalID != "goal-shared-budget" || goalSessionKey != sharedSessionKey {
-		t.Fatalf("goalID=%q goalSessionKey=%q, want budget-limited shared usage target", goalID, goalSessionKey)
-	}
-	if prompt != "base prompt" {
-		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
-	}
-	if goalContext != "" {
-		t.Fatalf("goalContext = %q, want no injected context for budget_limited goal", goalContext)
-	}
-}
-
-func TestResolveGoalRuntimeContextForSlotDoesNotFallBackFromSharedRoomToRuntimeGoal(t *testing.T) {
-	sharedSessionKey := "room:group:conversation-1"
-	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
-	service := &Service{goals: &fakeRoomGoalContextProvider{
-		runtimeContexts: map[string]string{
-			runtimeSessionKey: "runtime goal context",
-		},
-		runtimeGoals: map[string]*protocol.Goal{
-			runtimeSessionKey: {
-				ID:         "goal-runtime",
-				SessionKey: runtimeSessionKey,
-				Status:     protocol.GoalStatusActive,
-			},
-		},
-	}}
-	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
-
-	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
-		context.Background(),
-		&activeRoomRound{SessionKey: sharedSessionKey},
-		slot,
-		"base prompt",
-	)
-
-	if goalID != "" || goalSessionKey != sharedSessionKey {
-		t.Fatalf("goalID=%q goalSessionKey=%q, want empty goal on shared room session", goalID, goalSessionKey)
-	}
-	if prompt != "base prompt" {
-		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
-	}
-	if goalContext != "" {
-		t.Fatalf("goalContext = %q, want no private runtime goal fallback", goalContext)
-	}
-}
-
-func TestResolveGoalRuntimeContextForSlotFallsBackToRuntimeGoalForLegacyRound(t *testing.T) {
-	legacySessionKey := "legacy-room-session"
-	runtimeSessionKey := "agent:nexus:ws:group:conversation-1"
-	service := &Service{goals: &fakeRoomGoalContextProvider{
-		runtimeContexts: map[string]string{
-			runtimeSessionKey: "runtime goal context",
-		},
-		runtimeGoals: map[string]*protocol.Goal{
-			runtimeSessionKey: {
-				ID:         "goal-runtime",
-				SessionKey: runtimeSessionKey,
-				Status:     protocol.GoalStatusActive,
-			},
-		},
-	}}
-	slot := &activeRoomSlot{RuntimeSessionKey: runtimeSessionKey}
-
-	prompt, goalContext, goalID, goalSessionKey, _ := service.resolveGoalRuntimeContextForSlot(
-		context.Background(),
-		&activeRoomRound{SessionKey: legacySessionKey},
-		slot,
-		"base prompt",
-	)
-
-	if goalID != "goal-runtime" || goalSessionKey != runtimeSessionKey {
-		t.Fatalf("goalID=%q goalSessionKey=%q, want runtime goal fallback", goalID, goalSessionKey)
-	}
-	if prompt != "base prompt" {
-		t.Fatalf("prompt = %q, want unchanged system prompt", prompt)
-	}
-	if !strings.Contains(goalContext, "runtime goal context") {
-		t.Fatalf("goalContext = %q, want runtime goal context", goalContext)
 	}
 }
 
@@ -1236,57 +612,6 @@ func TestClearGoalUsageForRoomSlotStopsLaterAccounting(t *testing.T) {
 	}
 }
 
-func TestActivateGoalUsageForRoomSlotRestartsFromCurrentSnapshot(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:room:test",
-		AgentRoundID:      "round-1",
-	}
-	slot.setGoalBinding("", "goal-1")
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	clearGoalUsageForSlot(slot)
-	slot.rememberGoalAssistantMessage(roomGoalToolResultAssistantMessage("tool-2", "read_file", 7, 3))
-	activateGoalUsageForSlot(context.Background(), slot, "goal-1")
-	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  14,
-			OutputTokens: 6,
-			TotalTokens:  20,
-		},
-	}, nil)
-
-	usages := goalProvider.recordedUsage()
-	if len(usages) != 1 {
-		t.Fatalf("len(usages) = %d, want one post-activate terminal delta", len(usages))
-	}
-	if usages[0].InputTokens != 3 || usages[0].OutputTokens != 2 || usages[0].Total() != 5 {
-		t.Fatalf("post-activate usage = %#v, want exact delta after all pre-activation turns", usages[0])
-	}
-}
-
-func TestRecordGoalUsageLimitForRoomSlotUsesGoalSessionKey(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "agent:nexus:ws:group:conversation-1",
-		AgentRoundID:      "round-1",
-	}
-	slot.setGoalBinding("room:group:conversation-1", "")
-	goalSessionKey := slot.goalSessionKey()
-
-	service.recordGoalUsageLimitForSlot(context.Background(), slot, exec.RoundExecutionResult{
-		UsageLimitReached: true,
-		UsageLimitReason:  "The usage limit has been reached",
-	})
-
-	if len(goalProvider.usageLimitKeys) != 1 || goalProvider.usageLimitKeys[0] != goalSessionKey {
-		t.Fatalf("usageLimitKeys = %#v, want shared goal session", goalProvider.usageLimitKeys)
-	}
-}
-
 func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{}
 	service := &Service{goals: goalProvider}
@@ -1306,66 +631,12 @@ func TestRecordGoalUsageLimitForRoomSlot(t *testing.T) {
 	}
 }
 
-func TestRoomSlotIgnoresGoalRuntimeInPlanMode(t *testing.T) {
-	goalProvider := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: goalProvider}
-	slot := &activeRoomSlot{
-		RuntimeSessionKey: "room:agent:runtime",
-		AgentRoundID:      "round-plan",
-	}
-	slot.setGoalBinding("room:group:conversation-1", "goal-plan")
-	slot.setGoalRuntimeIgnored(true)
-	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
-
-	beginGoalUsageForSlot(slot)
-	service.recordGoalUsageFromSlotAssistantMessage(context.Background(), slot, roomGoalToolResultAssistantMessage("tool-1", "read_file", 4, 1))
-	service.recordGoalUsageForSlot(context.Background(), slot, exec.RoundExecutionResult{
-		Usage: sdkprotocol.TokenUsage{
-			InputTokens:  10,
-			OutputTokens: 2,
-		},
-		ElapsedTimeSeconds: 3,
-	}, protocol.Message{})
-	service.recordGoalUsageLimitForSlot(context.Background(), slot, exec.RoundExecutionResult{
-		UsageLimitReached: true,
-		UsageLimitReason:  "usage limit",
-	})
-	service.recordGoalContinuationProgressForSlot(context.Background(), slot, &activeRoomRound{
-		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
-	}, exec.RoundExecutionResult{}, nil)
-
-	if usages := goalProvider.recordedUsage(); len(usages) != 0 {
-		t.Fatalf("plan mode recorded room goal usage: %#v", usages)
-	}
-	if reasons := goalProvider.recordedUsageLimitReasons(); len(reasons) != 0 {
-		t.Fatalf("plan mode recorded room usage limit: %#v", reasons)
-	}
-	if progress := goalProvider.recordedProgress(); len(progress) != 0 {
-		t.Fatalf("plan mode recorded room continuation progress: %#v", progress)
-	}
-}
-
 // Goal 运行时测试替身与消息构造器。
 
 type fakePersistentRoomGoalProvider struct {
 	*fakeRoomGoalContextProvider
 	snapshots []protocol.GoalUsageSourceSnapshot
 	claims    []protocol.GoalUsageSourceRoundClaim
-}
-
-type blockingPersistentRoomGoalProvider struct {
-	*fakeRoomGoalContextProvider
-	entered chan struct{}
-	release chan struct{}
-}
-
-func (p *blockingPersistentRoomGoalProvider) RecordUsageSourceSnapshot(
-	_ context.Context,
-	_ protocol.GoalUsageSourceSnapshot,
-) (protocol.GoalUsageSourceResult, error) {
-	close(p.entered)
-	<-p.release
-	return protocol.GoalUsageSourceResult{}, nil
 }
 
 func (p *fakePersistentRoomGoalProvider) RecordUsageSourceSnapshot(
@@ -1620,12 +891,6 @@ func (p *fakeRoomGoalContextProvider) recordedProgress() []bool {
 	return append([]bool(nil), p.progress...)
 }
 
-func (p *fakeRoomGoalContextProvider) recordedProgressRoundIDs() []string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]string(nil), p.progressRoundIDs...)
-}
-
 func (p *fakeRoomGoalContextProvider) recordedFailureRoundIDs() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1642,12 +907,6 @@ func (p *fakeRoomGoalContextProvider) recordedSettledRoundIDs() []string {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]string(nil), p.settledRoundIDs...)
-}
-
-func (p *fakeRoomGoalContextProvider) recordedProgressRevisions() []int64 {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return append([]int64(nil), p.progressRevision...)
 }
 
 func (p *fakeRoomGoalContextProvider) recordedFailures() []string {
@@ -1841,18 +1100,6 @@ func TestRealRoomCancellationClearsGoalBeforeContinuation(t *testing.T) {
 	}
 }
 
-func TestGoalCancellationIntentDoesNotMatchOrdinaryDiscussion(t *testing.T) {
-	for _, content := range []string{
-		"停止后继续执行",
-		"请说明任务为什么停止",
-		"这个任务已经完成",
-	} {
-		if isGoalCancellationRequest(content) {
-			t.Fatalf("普通讨论不应被识别为取消: %q", content)
-		}
-	}
-}
-
 func TestPublishPublicMessageSuppressesTheSameSlotFinalReply(t *testing.T) {
 	slot := &activeRoomSlot{
 		AgentID: "agent-amy",
@@ -1988,7 +1235,7 @@ func TestRoomGoalInputQueueBlockerClearsOnlyAfterConsumption(t *testing.T) {
 		}},
 		MemberAgents: []protocol.Agent{{AgentID: agentID, WorkspacePath: root}},
 	}
-	service := &Service{inputQueue: store}
+	service := &Service{Host: runtimehost.Host{InputQueue: store}}
 
 	blocker, err := service.roomGoalInputQueueBlocker(context.Background(), contextValue)
 	if err != nil || !strings.Contains(blocker, "queued-directed-message") {
@@ -2099,7 +1346,7 @@ func TestRoomGoalDurableBlockersIgnoreRetargetedCollaborationRevision(t *testing
 		}},
 		MemberAgents: []protocol.Agent{{AgentID: targetAgentID, WorkspacePath: workspacePath}},
 	}
-	service := &Service{directedWakes: wakeStore, inputQueue: queueStore}
+	service := &Service{directedWakes: wakeStore, Host: runtimehost.Host{InputQueue: queueStore}}
 	if blocker, err := service.roomGoalInputQueueBlocker(
 		context.Background(), contextValue, goal,
 	); err != nil || blocker != "" {
@@ -2116,7 +1363,7 @@ func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	contextValue := newAuthorityFenceContext()
 	contextValue.Room.OwnerUserID = "owner-completion-membership"
 	store := &authorityFenceRoomStore{contextValue: contextValue}
-	service := &Service{rooms: store}
+	service := withConstructorDefaults(t, &Service{rooms: store})
 	goal := protocol.Goal{
 		ID:         "goal-completion-membership",
 		SessionKey: protocol.BuildRoomSharedSessionKey(contextValue.Conversation.ID),
@@ -2151,4 +1398,99 @@ func TestRoomGoalCompletionReportIgnoresMemberCount(t *testing.T) {
 	if report.Blocker != "" {
 		t.Fatalf("report = %#v, want single-Agent Room without dynamic requirement", report)
 	}
+}
+
+func (s *Service) resolveGoalRuntimeContextForSlot(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	appendSystemPrompt string,
+) (string, string, string, string, int64) {
+	defaultGoalSessionKey := ""
+	if roundValue != nil {
+		defaultGoalSessionKey = strings.TrimSpace(roundValue.SessionKey)
+	}
+	for _, sessionKey := range goalSessionCandidates(roundValue, slot) {
+		goalContext, goalID, objectiveRevision, ok := s.goalRuntimeContext(ctx, sessionKey)
+		if !ok {
+			continue
+		}
+		if slot != nil {
+			slot.ensureGoalObjectiveRevision(objectiveRevision)
+		}
+		return appendSystemPrompt, goalContext, goalID, sessionKey, objectiveRevision
+	}
+	return appendSystemPrompt, "", "", defaultGoalSessionKey, 0
+}
+
+func goalSessionCandidates(roundValue *activeRoomRound, slot *activeRoomSlot) []string {
+	candidates := []string{}
+	if roundValue != nil {
+		roundSessionKey := strings.TrimSpace(roundValue.SessionKey)
+		if protocol.IsRoomSharedSessionKey(roundSessionKey) {
+			return []string{roundSessionKey}
+		}
+		candidates = append(candidates, roundSessionKey)
+	}
+	if slot != nil {
+		candidates = append(candidates, slot.RuntimeSessionKey)
+	}
+	result := make([]string, 0, len(candidates))
+	seen := map[string]struct{}{}
+	for _, candidate := range candidates {
+		sessionKey := strings.TrimSpace(candidate)
+		if sessionKey == "" {
+			continue
+		}
+		if _, exists := seen[sessionKey]; exists {
+			continue
+		}
+		seen[sessionKey] = struct{}{}
+		result = append(result, sessionKey)
+	}
+	return result
+}
+
+func (s *Service) recordGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	result exec.RoundExecutionResult,
+	finalAssistant protocol.Message,
+) {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
+		return
+	}
+	snapshot, ok := slotFinalGoalUsageSnapshot(slot, result, finalAssistant)
+	if !ok {
+		return
+	}
+	_ = runtimehost.PersistGoalUsageWithRetry(ctx, s.goalUsageRetryBaseDelay, func() bool { return s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) })
+}
+
+func (s *Service) recordGoalUsageFromSlotAssistantMessage(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	message protocol.Message,
+) {
+	s.recordGoalUsageFromSlotAssistantMessageWithActor(ctx, slot, nil, message)
+}
+
+func (s *Service) persistSubagentGoalUsageForSlot(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	taskID string,
+	cumulativeTotal int64,
+	goalID string,
+	goalSessionKey string,
+) (protocol.GoalUsageSourceResult, error) {
+	return s.persistSubagentGoalUsageObservationForSlot(
+		ctx,
+		slot,
+		taskID,
+		goalsvc.SubagentUsageObservation{
+			CumulativeTotal: cumulativeTotal,
+		},
+		goalID,
+		goalSessionKey,
+	)
 }

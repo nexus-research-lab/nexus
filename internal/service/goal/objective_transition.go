@@ -218,7 +218,7 @@ func (s *Service) PrepareObjectiveRetarget(
 			expectedVersion,
 			"objective_retarget_prepared",
 			command.Source,
-			strings.TrimSpace(command.RoundID),
+			command.RoundID,
 			map[string]any{
 				"transition_id":          command.TransitionID,
 				"old_objective_revision": command.ExpectedObjectiveRevision,
@@ -473,7 +473,7 @@ func validateObjectiveRetargetCommand(command ObjectiveRetargetCommand) error {
 		strings.TrimSpace(command.CommandID) == "" ||
 		strings.TrimSpace(command.TransitionID) == "" ||
 		strings.TrimSpace(command.SuccessorExecutionID) == "" ||
-		strings.TrimSpace(command.Reason) == "" ||
+		command.Reason == "" ||
 		command.ExpectedObjectiveRevision <= 0 {
 		return newGoalInvalidInputError("complete Goal objective transition identity is required")
 	}

@@ -7,6 +7,7 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 )
 
 // SearchTaskHistory 按名称、job_id、动作或审计 detail 搜索当前与历史任务候选。
@@ -104,7 +105,7 @@ func (s *Service) searchDeletedTaskHistory(
 		if item == nil {
 			item = &automationdomain.ScheduledTaskHistoryItem{
 				JobID:         jobID,
-				Name:          firstNonEmpty(stringFromTaskEventDetail(event.Detail, "name"), jobID),
+				Name:          textutil.FirstNonEmpty(stringFromTaskEventDetail(event.Detail, "name"), jobID),
 				AgentID:       strings.TrimSpace(event.AgentID),
 				Deleted:       true,
 				LatestAction:  strings.TrimSpace(event.Action),
@@ -114,7 +115,7 @@ func (s *Service) searchDeletedTaskHistory(
 			order = append(order, jobID)
 		}
 		if item.Name == jobID {
-			item.Name = firstNonEmpty(stringFromTaskEventDetail(event.Detail, "name"), item.Name)
+			item.Name = textutil.FirstNonEmpty(stringFromTaskEventDetail(event.Detail, "name"), item.Name)
 		}
 		if strings.TrimSpace(item.AgentID) == "" {
 			item.AgentID = strings.TrimSpace(event.AgentID)

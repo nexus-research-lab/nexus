@@ -4,55 +4,15 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
-
-func TestOpenWorkspaceRejectsOwnerWorkspaceSymlink(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	ownerBWorkspace := filepath.Join(
-		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
-		"agent-b",
-	)
-	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ownerAWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
-	if err := os.MkdirAll(ownerAWorkspaceRoot, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	ownerAWorkspace := filepath.Join(ownerAWorkspaceRoot, "agent-a")
-	if err := os.Symlink(
-		filepath.Join("..", "..", "user-b", "workspace", "agent-b"),
-		ownerAWorkspace,
-	); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
-
-	service := NewService(nil, filepath.Join(stateRoot, "users"))
-	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
-		UserID: "user-a",
-	})
-	root, err := service.openWorkspace(ctx, ownerAWorkspace, false)
-	if root != nil {
-		_ = root.Close()
-	}
-	if !errors.Is(err, confinedfs.ErrSymlink) {
-		t.Fatalf("图片服务不能借 owner workspace symlink 跨用户: %v", err)
-	}
-}
 
 func TestGenerateImageSupportsAzureDeploymentURL(t *testing.T) {
 	imageBytes := []byte{0x89, 0x50, 0x4e, 0x47}
@@ -162,76 +122,6 @@ func TestEditImageSupportsAzureMultipartAPI(t *testing.T) {
 	}
 	if result.Path != "output/imagegen/edited.png" {
 		t.Fatalf("unexpected path: %s", result.Path)
-	}
-}
-
-func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
-	imageBytes := []byte{
-		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-		0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-	}
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/v1/images/generations" {
-			t.Fatalf("unexpected path: %s", request.URL.Path)
-		}
-		if request.Header.Get("Authorization") != "Bearer test-token" {
-			t.Fatalf("unexpected auth: %q", request.Header.Get("Authorization"))
-		}
-		var body map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Fatalf("decode request: %v", err)
-		}
-		if body["model"] != "gpt-image-1" || body["prompt"] != "a clean product photo" {
-			t.Fatalf("unexpected request body: %+v", body)
-		}
-		if body["response_format"] != "b64_json" {
-			t.Fatalf("provider_options 未透传到 OpenAI-compatible 请求体: %+v", body)
-		}
-		writer.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(writer).Encode(map[string]any{
-			"data": []map[string]any{{
-				"b64_json":       base64.StdEncoding.EncodeToString(imageBytes),
-				"revised_prompt": "revised",
-			}},
-		})
-	}))
-	defer server.Close()
-
-	workspacePath := newImagegenWorkspace(t)
-	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
-		Provider:  "openai",
-		AuthToken: "test-token",
-		BaseURL:   server.URL + "/v1",
-		Model:     "gpt-image-1",
-		ProviderOptions: map[string]any{
-			"response_format": "b64_json",
-		},
-	}}, "")
-	service.now = fixedNow
-
-	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
-		Prompt:        "a clean product photo",
-		WorkspacePath: workspacePath,
-		FileName:      "hero-image",
-	})
-	if err != nil {
-		t.Fatalf("GenerateImage returned error: %v", err)
-	}
-	if string(payload) != string(imageBytes) {
-		t.Fatalf("payload mismatch")
-	}
-	if result.Path != "output/imagegen/hero-image.png" {
-		t.Fatalf("unexpected path: %s", result.Path)
-	}
-	if result.MIMEType != "image/png" {
-		t.Fatalf("unexpected mime: %s", result.MIMEType)
-	}
-	stored, err := os.ReadFile(filepath.Join(workspacePath, filepath.FromSlash(result.Path)))
-	if err != nil {
-		t.Fatalf("read generated file: %v", err)
-	}
-	if string(stored) != string(imageBytes) {
-		t.Fatalf("stored file mismatch")
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -22,7 +23,7 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 	entries []roomInputQueueEntry,
 	currentGoal *protocol.Goal,
 ) ([]roomInputQueueEntry, error) {
-	if s == nil || s.inputQueue == nil || contextValue == nil || len(entries) == 0 {
+	if contextValue == nil || len(entries) == 0 {
 		return entries, nil
 	}
 	kept := make([]roomInputQueueEntry, 0, len(entries))
@@ -54,11 +55,11 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 		); err != nil {
 			return nil, err
 		}
-		if _, err := s.inputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
+		if _, err := s.InputQueue.Delete(entry.Location, entry.Item.ID); err != nil {
 			return nil, err
 		}
 		changed = true
-		s.loggerFor(ctx).Info(
+		s.LoggerFor(ctx).Info(
 			"清理过期的 Room Goal collaboration queue",
 			"goal_id", binding.GoalID,
 			"objective_revision", binding.ObjectiveRevision,
@@ -68,7 +69,7 @@ func (s *Service) pruneStaleGoalCollaborationQueueEntries(
 	}
 	if changed {
 		if err := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-			s.loggerFor(ctx).Warn("广播 Room Goal queue 清理快照失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("广播 Room Goal queue 清理快照失败", "session_key", sessionKey, "err", err)
 		}
 	}
 	return kept, nil
@@ -88,7 +89,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
 	if err != nil || contextValue == nil {
 		if err != nil {
-			s.loggerFor(ctx).Error("读取 Room 待发送队列上下文失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Error("读取 Room 待发送队列上下文失败", "session_key", sessionKey, "err", err)
 		}
 		return
 	}
@@ -98,7 +99,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	s.releaseUndeliveredRoomGuidanceLocked(ctx, sessionKey, contextValue)
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Error("读取 Room 待发送队列失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Error("读取 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
 	entry, ok := s.findDispatchableInputQueueEntry(
@@ -115,8 +116,8 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	for _, candidate := range batch {
 		itemIDs = append(itemIDs, candidate.Item.ID)
 	}
-	if _, err = s.inputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
-		s.loggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
+	if _, err = s.InputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
+		s.LoggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
 	dispatchedItem := entry.Item
@@ -131,10 +132,10 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	if err == nil {
 		// 先广播新 slot，再移除前端队列占位，保证协作状态无空窗。
 		if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
-			s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
+			s.LoggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 		}
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
-			s.startSessionBackgroundTask(
+			s.StartSessionBackgroundTask(
 				sessionKey,
 				contextValue.Room.OwnerUserID,
 				func(taskCtx context.Context) {
@@ -144,7 +145,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		}
 		return
 	}
-	s.loggerFor(ctx).Error("派发 Room 待发送队列失败",
+	s.LoggerFor(ctx).Error("派发 Room 待发送队列失败",
 		"session_key", sessionKey,
 		"room_id", roomID,
 		"conversation_id", conversationID,
@@ -154,8 +155,8 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	invalidCapabilityEnvelope := errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope)
 	if !invalidCapabilityEnvelope {
 		for _, candidate := range batch {
-			if _, restoreErr := s.inputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
-				s.loggerFor(ctx).Error("恢复 Room 待发送队列项失败",
+			if _, restoreErr := s.InputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
+				s.LoggerFor(ctx).Error("恢复 Room 待发送队列项失败",
 					"session_key", sessionKey,
 					"item_id", candidate.Item.ID,
 					"err", restoreErr,
@@ -164,7 +165,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		}
 	}
 	if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
-		s.loggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
+		s.LoggerFor(ctx).Warn("广播恢复后的 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
 	}
 	message := "待发送消息派发失败"
 	if clientMessage, ok := protocol.ClientErrorMessage(err); ok {
@@ -172,7 +173,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, dispatchedItem.ID))
 	if invalidCapabilityEnvelope && s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			contextValue.Room.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -214,7 +215,7 @@ func (s *Service) releaseUndeliveredRoomGuidanceLocked(
 ) {
 	entries, err := s.roomInputQueueEntries(ctx, contextValue)
 	if err != nil {
-		s.loggerFor(ctx).Error("读取 Room 未消费引导失败", "session_key", sessionKey, "err", err)
+		s.LoggerFor(ctx).Error("读取 Room 未消费引导失败", "session_key", sessionKey, "err", err)
 		return
 	}
 	changed := false
@@ -227,13 +228,13 @@ func (s *Service) releaseUndeliveredRoomGuidanceLocked(
 		if activeSlot != nil && (boundRoundID == "" || boundRoundID == strings.TrimSpace(activeSlot.AgentRoundID)) {
 			continue
 		}
-		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
-			s.loggerFor(ctx).Error("恢复 Room 未消费引导失败", "session_key", sessionKey, "item_id", entry.Item.ID, "err", err)
+		if _, err = s.InputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+			s.LoggerFor(ctx).Error("恢复 Room 未消费引导失败", "session_key", sessionKey, "item_id", entry.Item.ID, "err", err)
 			continue
 		}
 		entry.Item.DeliveryPolicy = protocol.ChatDeliveryPolicyQueue
 		if syncErr := s.syncQueuedPublicUserMessage(ctx, sessionKey, contextValue, entry.Item, "", false); syncErr != nil {
-			s.loggerFor(ctx).Error("同步 Room 未消费引导展示状态失败",
+			s.LoggerFor(ctx).Error("同步 Room 未消费引导展示状态失败",
 				"session_key", sessionKey,
 				"item_id", entry.Item.ID,
 				"err", syncErr,
@@ -243,7 +244,7 @@ func (s *Service) releaseUndeliveredRoomGuidanceLocked(
 	}
 	if changed {
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
-			s.loggerFor(ctx).Warn("广播 Room 未消费引导恢复快照失败", "session_key", sessionKey, "err", err)
+			s.LoggerFor(ctx).Warn("广播 Room 未消费引导恢复快照失败", "session_key", sessionKey, "err", err)
 		}
 	}
 }
@@ -279,7 +280,7 @@ func (s *Service) dispatchInputQueueItemLocked(
 			)
 		}
 	}
-	dispatchCtx := contextWithExactQueueOwner(ctx, item.OwnerUserID)
+	dispatchCtx := runtimehost.ContextWithExactOwner(ctx, item.OwnerUserID)
 	claim, trustedQueue, err := s.claimTrustedRoomQueueAdmission(
 		dispatchCtx,
 		sessionKey,
@@ -309,8 +310,8 @@ func (s *Service) dispatchInputQueueItemLocked(
 	)
 	if err != nil {
 		if trustedQueue {
-			if releaseErr := s.queueTrust.Release(dispatchCtx, claim); releaseErr != nil {
-				s.loggerFor(ctx).Error("释放 Room queue configuration admission 失败",
+			if releaseErr := s.QueueTrust.Release(dispatchCtx, claim); releaseErr != nil {
+				s.LoggerFor(ctx).Error("释放 Room queue configuration admission 失败",
 					"session_key", sessionKey,
 					"item_id", item.ID,
 					"err", releaseErr,
@@ -320,8 +321,8 @@ func (s *Service) dispatchInputQueueItemLocked(
 		return err
 	}
 	if trustedQueue {
-		if consumeErr := s.queueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
-			s.loggerFor(ctx).Error("收口 Room queue configuration admission 失败",
+		if consumeErr := s.QueueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
+			s.LoggerFor(ctx).Error("收口 Room queue configuration admission 失败",
 				"session_key", sessionKey,
 				"item_id", item.ID,
 				"err", consumeErr,
@@ -491,8 +492,8 @@ func (s *Service) dispatchAgentWakeQueueItem(
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				item.GoalCollaborationBinding,
 			),
-			WorkBinding:   cloneExecutionWorkBinding(item.WorkBinding),
-			ReviewBinding: cloneExecutionReviewBinding(item.ReviewBinding),
+			WorkBinding:   item.WorkBinding.Clone(),
+			ReviewBinding: item.ReviewBinding.Clone(),
 		})
 	}
 	coordinatorAgentID := roomCoordinatorAgentID(item.SourceAgentID, contextValue)
@@ -525,7 +526,7 @@ func (s *Service) logicalPublicHandoffRootRoundID(
 	if (item.Source != protocol.InputQueueSourceAgentPublicMention &&
 		!(item.Source == protocol.InputQueueSourceAgentRoomMessage &&
 			protocol.NormalizeGoalCollaborationBinding(item.GoalCollaborationBinding) != nil)) ||
-		s == nil || s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
+		strings.TrimSpace(item.HandoffID) == "" {
 		return rootRoundID
 	}
 	handoff, ok, err := s.publicHandoffs.Get(item.OwnerUserID, conversationID, item.HandoffID)
@@ -568,7 +569,7 @@ func (s *Service) canDispatchInputQueueItem(
 		}
 		return len(s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, participatingAgentIDs)) == 0
 	}
-	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
+	return len(s.Runtime.GetRunningRoundIDs(sessionKey)) == 0
 }
 
 func (s *Service) findDispatchableInputQueueEntry(

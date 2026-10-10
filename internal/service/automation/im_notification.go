@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
@@ -34,7 +35,7 @@ func externalIMChannel(channel string) bool {
 }
 
 func automationIMHeader(job automationdomain.ScheduledTask) string {
-	name := firstNonEmpty(job.Name, job.JobID, "未命名任务")
+	name := textutil.FirstNonEmpty(job.Name, job.JobID, "未命名任务")
 	return fmt.Sprintf("【Nexus 定时任务 · %s】", name)
 }
 
@@ -57,7 +58,7 @@ func (s *Service) notifyAutomationPermissionRequest(
 	}
 	body := strings.Join([]string{
 		"需要权限确认",
-		firstNonEmpty(request.Title, "任务需要额外权限"),
+		textutil.FirstNonEmpty(request.Title, "任务需要额外权限"),
 		strings.TrimSpace(request.Description),
 		commands,
 	}, "\n")

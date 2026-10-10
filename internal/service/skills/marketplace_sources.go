@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
 
@@ -208,7 +209,7 @@ func (s *Service) ensureConfiguredSkillSources(ctx context.Context, sources []ex
 					Name:        source.Name,
 					Kind:        source.Kind,
 					URL:         source.URL,
-					Trust:       firstNonEmpty(source.Trust, externalSourceTrustCommunity),
+					Trust:       textutil.FirstNonEmpty(source.Trust, externalSourceTrustCommunity),
 					ManagedBy:   externalSourceManagedBySystem,
 					AuthType:    externalSourceAuthNone,
 					Enabled:     source.Enabled,
@@ -251,7 +252,7 @@ func externalSkillSourceInfoFromEntity(entity skillstore.SourceEntity) ExternalS
 		LastCheckedAt:        entity.LastCheckedAt,
 		LastError:            entity.LastError,
 		ManagedBy:            managedBy,
-		AuthType:             firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+		AuthType:             textutil.FirstNonEmpty(entity.AuthType, externalSourceAuthNone),
 		CredentialConfigured: strings.TrimSpace(entity.CredentialsEncrypted) != "",
 		Deletable:            managedBy == externalSourceManagedByUser && entity.Kind == externalSourceKindPrivateRegistry,
 	}
@@ -274,7 +275,7 @@ func (s *Service) externalSkillSourceFromEntity(entity skillstore.SourceEntity) 
 		Enabled:    entity.Enabled,
 		SortOrder:  entity.SortOrder,
 		ManagedBy:  sourceManagedBy(entity),
-		AuthType:   firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+		AuthType:   textutil.FirstNonEmpty(entity.AuthType, externalSourceAuthNone),
 		Credential: strings.TrimSpace(entity.CredentialsEncrypted),
 	}
 	return source

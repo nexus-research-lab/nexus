@@ -12,8 +12,8 @@ import (
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -23,7 +23,7 @@ func (s *Service) ensureSession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (protocol.Session, error) {
-	files := s.files.ForOwner(agentValue.OwnerUserID)
+	files := s.Files.ForOwner(agentValue.OwnerUserID)
 	item, _, err := files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
 	if err != nil {
 		return protocol.Session{}, err
@@ -98,19 +98,6 @@ func (s *Service) lookupRoomSession(
 	return s.roomStore.GetRoomSessionByKey(ctx, authctx.OwnerUserID(ctx), parsed)
 }
 
-func (s *Service) appendRuntimeHistoryMessage(
-	workspacePath string,
-	sessionValue protocol.Session,
-	message protocol.Message,
-) error {
-	return s.appendRuntimeHistoryMessageForOwner(
-		"",
-		workspacePath,
-		sessionValue,
-		message,
-	)
-}
-
 func (s *Service) appendRuntimeHistoryMessageForOwner(
 	ownerUserID string,
 	workspacePath string,
@@ -119,22 +106,15 @@ func (s *Service) appendRuntimeHistoryMessageForOwner(
 ) error {
 	metadata, _ := message["metadata"].(map[string]any)
 	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) &&
-		dmdomain.NormalizeString(metadata["source"]) != "echo" {
-		s.history.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
+		textutil.AnyString(metadata["source"]) != "echo" {
+		s.History.ForOwner(ownerUserID).RecordReplyPreview(sessionValue.SessionKey, message)
 		return nil
 	}
-	return s.history.ForOwner(ownerUserID).AppendOverlayMessage(
+	return s.History.ForOwner(ownerUserID).AppendOverlayMessage(
 		workspacePath,
 		sessionValue.SessionKey,
 		message,
 	)
-}
-
-func (s *Service) refreshSessionMetaAfterRoundMarker(
-	workspacePath string,
-	current protocol.Session,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaAfterRoundMarkerForOwner("", workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
@@ -150,15 +130,7 @@ func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
-}
-
-func (s *Service) refreshSessionMetaAfterMessage(
-	workspacePath string,
-	current protocol.Session,
-	message protocol.Message,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaAfterMessageForOwner("", workspacePath, current, message)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterMessageForOwner(
@@ -172,7 +144,7 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 		context.Background(),
 		workspacePath,
 		current,
-		dmdomain.NormalizeString(message["session_id"]),
+		textutil.AnyString(message["session_id"]),
 	)
 	nextSessionIDValue := ""
 	if nextSessionID != nil {
@@ -192,22 +164,7 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
-}
-
-func (s *Service) preferPersistableMessageSessionID(
-	ctx context.Context,
-	workspacePath string,
-	current protocol.Session,
-	messageSessionID string,
-) *string {
-	return s.preferPersistableMessageSessionIDForOwner(
-		"",
-		ctx,
-		workspacePath,
-		current,
-		messageSessionID,
-	)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) preferPersistableMessageSessionIDForOwner(
@@ -233,13 +190,6 @@ func (s *Service) preferPersistableMessageSessionIDForOwner(
 	return &trimmedSessionID
 }
 
-func (s *Service) refreshSessionMetaRuntimeState(
-	workspacePath string,
-	current protocol.Session,
-) (*protocol.Session, error) {
-	return s.refreshSessionMetaRuntimeStateForOwner("", workspacePath, current)
-}
-
 func (s *Service) refreshSessionMetaRuntimeStateForOwner(
 	ownerUserID string,
 	workspacePath string,
@@ -252,7 +202,7 @@ func (s *Service) refreshSessionMetaRuntimeStateForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
+	return s.Files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessionKey string) error {
@@ -260,11 +210,11 @@ func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessi
 	if strings.TrimSpace(parsed.AgentID) == "" {
 		return nil
 	}
-	agentValue, err := s.agents.GetAgent(ctx, parsed.AgentID)
+	agentValue, err := s.Agents.GetAgent(ctx, parsed.AgentID)
 	if err != nil {
 		return err
 	}
-	item, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+	item, _, err := s.Files.ForOwner(agentValue.OwnerUserID).FindSession(
 		[]string{agentValue.WorkspacePath},
 		sessionKey,
 	)
@@ -288,23 +238,6 @@ func closePersistedSessionMeta(current protocol.Session) protocol.Session {
 	return current
 }
 
-func (s *Service) recordRoundMarkerWithOptions(
-	workspacePath string,
-	sessionValue protocol.Session,
-	roundID string,
-	content string,
-	options workspacestore.RoundMarkerOptions,
-) error {
-	return s.recordRoundMarkerWithOptionsForOwner(
-		"",
-		workspacePath,
-		sessionValue,
-		roundID,
-		content,
-		options,
-	)
-}
-
 func (s *Service) recordRoundMarkerWithOptionsForOwner(
 	ownerUserID string,
 	workspacePath string,
@@ -313,7 +246,7 @@ func (s *Service) recordRoundMarkerWithOptionsForOwner(
 	content string,
 	options workspacestore.RoundMarkerOptions,
 ) error {
-	return s.history.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
+	return s.History.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
 		workspacePath,
 		sessionValue.SessionKey,
 		roundID,
@@ -421,7 +354,7 @@ func (s *sdkSessionSync) prepare() bool {
 	if s.nextSessionID == "" {
 		return false
 	}
-	currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(s.current.SessionID))
+	currentSessionID := textutil.PointerValue(s.current.SessionID)
 	s.sessionIDChanged = currentSessionID != s.nextSessionID
 	s.fingerprintChanged = runtimeFingerprintFromSession(s.current) != s.nextFingerprint
 	return s.sessionIDChanged || s.fingerprintChanged
@@ -439,7 +372,7 @@ func (s *sdkSessionSync) decideSessionPersistence() {
 
 func (s *sdkSessionSync) apply() {
 	if s.canPersistSession {
-		currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(s.current.SessionID))
+		currentSessionID := textutil.PointerValue(s.current.SessionID)
 		s.current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
 			s.current.TranscriptSessionIDs,
 			[]string{currentSessionID, s.nextSessionID},
@@ -477,7 +410,7 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err = s.syncRoomSession(current); err != nil {
 		return protocol.Session{}, err
 	}
-	files := s.service.files.ForOwner(s.ownerUserID)
+	files := s.service.Files.ForOwner(s.ownerUserID)
 	var updated *protocol.Session
 	if s.expectedConfigurationVersion > 0 {
 		updated, err = files.PatchSessionRuntimeAtVersion(
@@ -548,29 +481,7 @@ func (s *Service) canPersistSDKSessionIDForOwner(
 	current protocol.Session,
 	sessionID string,
 ) bool {
-	decision := sessionresumesvc.NewPolicy(
-		s.history.ForOwner(ownerUserID),
-	).CanPersist(workspacePath, sessionID)
-	if decision.Allowed {
-		return true
-	}
-	if decision.Err != nil {
-		s.loggerFor(ctx).Warn("检查 SDK session transcript 失败，暂不持久化 resume",
-			"session_key", current.SessionKey,
-			"workspace_path", workspacePath,
-			"sdk_session_id", decision.SessionID,
-			"reason", string(decision.Reason),
-			"err", decision.Err,
-		)
-		return false
-	}
-	s.loggerFor(ctx).Warn("SDK session transcript 尚未落盘，暂不持久化 resume",
-		"session_key", current.SessionKey,
-		"workspace_path", workspacePath,
-		"sdk_session_id", decision.SessionID,
-		"reason", string(decision.Reason),
-	)
-	return false
+	return s.CanPersistSDKSessionID(ctx, ownerUserID, workspacePath, sessionID, "session_key", current.SessionKey)
 }
 
 func (s *Service) clearReusableSDKSessionID(
@@ -593,7 +504,7 @@ func (s *Service) clearReusableSDKSessionID(
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
+	updated, err := s.Files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
 		workspacePath,
 		current,
 	)
@@ -620,24 +531,16 @@ func (s *Service) clearRoomSDKSessionID(ctx context.Context, current protocol.Se
 	return s.roomStore.UpdateRoomSessionRuntimeIdentity(ctx, roomSessionID, "", "")
 }
 
-func (s *Service) preservePersistedSessionTitle(
-	workspacePath string,
-	current protocol.Session,
-) (protocol.Session, error) {
-	return s.preservePersistedSessionTitleForOwner("", workspacePath, current)
-}
-
 func (s *Service) preservePersistedSessionTitleForOwner(
 	ownerUserID string,
 	workspacePath string,
 	current protocol.Session,
 ) (protocol.Session, error) {
-	if s == nil || s.files == nil ||
-		strings.TrimSpace(workspacePath) == "" ||
+	if strings.TrimSpace(workspacePath) == "" ||
 		strings.TrimSpace(current.SessionKey) == "" {
 		return current, nil
 	}
-	persisted, _, err := s.files.ForOwner(ownerUserID).FindSession(
+	persisted, _, err := s.Files.ForOwner(ownerUserID).FindSession(
 		[]string{workspacePath},
 		current.SessionKey,
 	)

@@ -14,12 +14,14 @@ import (
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -136,7 +138,7 @@ func (s *Service) prepareChatExecution(
 		return nil, err
 	}
 	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	deliveryPolicy := safeDMDeliveryPolicy(request)
+	deliveryPolicy := runtimehost.SafeDeliveryPolicy(request.DeliveryPolicy, request.TrustedConfigurationContext)
 	if !request.TrustedConfigurationContext && deliveryPolicy == protocol.ChatDeliveryPolicyGuide {
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
@@ -157,14 +159,6 @@ func (s *Service) prepareChatExecution(
 	}, nil
 }
 
-func safeDMDeliveryPolicy(request Request) protocol.ChatDeliveryPolicy {
-	policy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
-	if !request.TrustedConfigurationContext && policy == protocol.ChatDeliveryPolicyGuide {
-		return protocol.ChatDeliveryPolicyQueue
-	}
-	return policy
-}
-
 func (s *Service) resolveDMSession(
 	ctx context.Context,
 	parsed protocol.SessionKey,
@@ -175,7 +169,7 @@ func (s *Service) resolveDMSession(
 	if err != nil {
 		return nil, protocol.Session{}, err
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		return nil, protocol.Session{}, err
 	}
@@ -190,10 +184,10 @@ func (s *Service) resolveDMSession(
 }
 
 func (s *Service) resolveChatAgentID(ctx context.Context, parsed protocol.SessionKey, requestedAgentID string) (string, error) {
-	if agentID := dmdomain.FirstNonEmpty(parsed.AgentID, requestedAgentID); agentID != "" {
+	if agentID := textutil.FirstNonEmpty(parsed.AgentID, requestedAgentID); agentID != "" {
 		return agentID, nil
 	}
-	defaultAgent, err := s.agents.GetDefaultAgent(ctx)
+	defaultAgent, err := s.Agents.GetDefaultAgent(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -239,7 +233,7 @@ func (e *dmChatExecution) prepareRunner() error {
 	admissionBaseContext := e.ctx
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
-		e.service.admission,
+		e.service.Admission,
 	)
 	if err != nil {
 		return err
@@ -264,9 +258,9 @@ func (e *dmChatExecution) prepareRunner() error {
 }
 
 func (e *dmChatExecution) prepareRoundStart() error {
-	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
+	if err := e.service.EnsureQuotaAvailable(e.ctx); err != nil {
 		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
-			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
+			runtimehost.RecordGoalQuotaLimit(e.ctx, e.service.goals, e.service.LoggerFor(e.ctx), e.sessionKey, e.request.RoundID, err)
 		}
 		return err
 	}
@@ -297,10 +291,10 @@ func (e *dmChatExecution) runAcceptedRound() {
 	admissionBaseContext := e.ctx
 	admission, err := clientopts.BeginAgentRuntimeAdmission(
 		admissionBaseContext,
-		e.service.admission,
+		e.service.Admission,
 	)
 	if err != nil {
-		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+		defer e.service.Runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 		e.runner.failRuntimeStartup(err)
 		return
 	}
@@ -309,7 +303,7 @@ func (e *dmChatExecution) runAcceptedRound() {
 	e.ctx = admissionBaseContext
 	admission.Release()
 	if err != nil {
-		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+		defer e.service.Runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 		e.runner.failRuntimeStartup(err)
 		return
 	}
@@ -342,7 +336,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
 	}
-	expandedContent, err := e.service.expandRuntimeSlashPrompt(
+	expandedContent, err := e.service.ExpandRuntimeSlashPrompt(
 		runtimeCtx,
 		e.request.Content,
 	)
@@ -366,7 +360,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		e.request,
 	)
 	if err != nil {
-		e.service.loggerFor(runtimeCtx).Error("DM runtime client 初始化失败",
+		e.service.LoggerFor(runtimeCtx).Error("DM runtime client 初始化失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
 			"round_id", e.request.RoundID,
@@ -381,10 +375,10 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}
 	e.session = clientPreparation.session
 	if !runtimeContent.IsEmpty() && !slashInput {
-		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
+		runtimeContent = runtimeContent.AppendText(e.service.Agents.BuildRuntimeUserMessageSuffixForContext(
 			runtimeCtx,
 			e.agent,
-			"dm:"+strings.TrimSpace(e.sessionKey),
+			"dm:"+e.sessionKey,
 			clientPreparation.emotionEnabled,
 		))
 	}
@@ -437,23 +431,14 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		internal:                   e.request.Internal,
 		trustedExternalInteractive: e.request.TrustedExternalInteractiveContext,
 		externalReplyTarget:        e.request.ExternalReplyTarget,
-		executionOrigin:            strings.TrimSpace(e.request.ExecutionOrigin),
+		executionOrigin:            e.request.ExecutionOrigin,
 		deferredAssistant:          e.request.DeferredAssistant,
-		executionID:                strings.TrimSpace(e.request.ExecutionID),
+		executionID:                e.request.ExecutionID,
 		goalObjectiveRevision:      &atomic.Int64{},
-		goalUsage:                  goalsvc.NewRuntimeUsageAccumulator(false),
-		goalUsageStarted:           time.Now(),
+		GoalRoundState:             runtimehost.GoalRoundState{Usage: goalsvc.NewRuntimeUsageAccumulator(false), UsageStartedAt: time.Now()},
 		permissionHandler:          e.request.PermissionHandler,
-		automationRun:              cloneAutomationRunContext(e.request.AutomationRun),
+		automationRun:              e.request.AutomationRun.NormalizedCopy(),
 	}
-}
-
-func cloneAutomationRunContext(value *protocol.AutomationRunContext) *protocol.AutomationRunContext {
-	if value == nil {
-		return nil
-	}
-	result := value.Normalized()
-	return &result
 }
 
 func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
@@ -467,20 +452,20 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.runtimeModel = preparation.runtimeModel
 	r.toolSurfaceFingerprint = preparation.toolSurfaceFingerprint
 	r.forkSourceSessionID = preparation.forkSourceSessionID
-	r.goalContext = preparation.goalContext
-	r.goalIDForUsage = preparation.goalIDForUsage
-	r.childGoalIDForUsage = preparation.goalIDForUsage
+	r.Context = preparation.goalContext
+	r.IDForUsage = preparation.goalIDForUsage
+	r.ChildIDForUsage = preparation.goalIDForUsage
 	if preparation.goalObjectiveRevision != nil {
 		r.goalObjectiveRevision = preparation.goalObjectiveRevision
 	}
 	r.responsibilityState = preparation.responsibilityState
 	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
-	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
-		strings.TrimSpace(preparation.goalIDForUsage) != "",
+	r.Usage = goalsvc.NewRuntimeUsageAccumulator(
+		preparation.goalIDForUsage != "",
 	)
-	r.goalUsageStarted = time.Now()
-	r.goalUsageScopeConsumed = strings.TrimSpace(preparation.goalIDForUsage) != ""
+	r.UsageStartedAt = time.Now()
+	r.UsageScopeConsumed = preparation.goalIDForUsage != ""
 	r.permissionMode = preparation.permissionMode
 }
 
@@ -489,20 +474,20 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	if e.request.rewriteOverlayOnly && len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		return errors.New("overlay-only rewrite cannot remove runtime messages")
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" &&
+	if e.request.RewriteTargetRoundID != "" &&
 		!e.request.rewriteOverlayOnly &&
 		len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
-		if err := e.service.history.ForOwner(e.agent.OwnerUserID).InvalidateReplyPreview(runtimeCtx, e.sessionKey); err != nil {
+	if e.request.RewriteTargetRoundID != "" {
+		if err := e.service.History.ForOwner(e.agent.OwnerUserID).InvalidateReplyPreview(runtimeCtx, e.sessionKey); err != nil {
 			return err
 		}
 	}
-	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)
+	lease, hasLease := e.service.Runtime.CaptureClientLease(e.sessionKey, client)
 	if len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		if err := client.RemoveMessages(runtimeCtx, e.request.RewriteRemoveMessageUUIDs); err != nil {
-			e.service.loggerFor(runtimeCtx).Error("DM rewrite 删除 runtime 历史失败",
+			e.service.LoggerFor(runtimeCtx).Error("DM rewrite 删除 runtime 历史失败",
 				"session_key", e.sessionKey,
 				"agent_id", e.agent.AgentID,
 				"round_id", e.request.RoundID,
@@ -523,10 +508,10 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	}); err != nil {
 		if hasLease {
 			closeCtx, cancelClose := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
-			_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
+			_, closeErr := e.service.Runtime.CloseSessionIfLease(closeCtx, lease)
 			cancelClose()
 			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				e.service.loggerFor(runtimeCtx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
+				e.service.LoggerFor(runtimeCtx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
 					"session_key", e.sessionKey,
 					"agent_id", e.agent.AgentID,
 					"round_id", e.request.RoundID,
@@ -544,15 +529,15 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 }
 
 func (e *dmChatExecution) startRound() bool {
-	roundBase := contextWithExactOwner(context.WithoutCancel(e.ctx), e.agent.OwnerUserID)
+	roundBase := runtimehost.ContextWithExactOwner(context.WithoutCancel(e.ctx), e.agent.OwnerUserID)
 	roundCtx, cancel := context.WithCancel(roundBase)
-	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
+	if err := e.service.Runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		return false
 	}
 	e.roundCtx = roundCtx
 	e.roundCancel = cancel
 	roomID, conversationID := dmRoomPermissionRoute(e.sessionKey, e.session)
-	e.service.permission.BindSessionRoute(e.sessionKey, permissionctx.RouteContext{
+	e.service.Permission.BindSessionRoute(e.sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: e.sessionKey,
 		RoomID:             roomID,
 		ConversationID:     conversationID,
@@ -585,41 +570,41 @@ func (e *dmChatExecution) admitContinuationStart() error {
 // abortRegisteredRound removes only the just-registered physical round. No
 // provider interrupt is needed because admission runs before launch/query.
 func (e *dmChatExecution) abortRegisteredRound() {
-	if e == nil || e.service == nil || e.service.runtime == nil {
+	if e == nil || e.service == nil || e.service.Runtime == nil {
 		return
 	}
 	if e.roundCancel != nil {
 		e.roundCancel()
 	}
-	e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+	e.service.Runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 }
 
 func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string, string) {
 	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
 		return "", ""
 	}
-	return strings.TrimSpace(dmdomain.StringPointerValue(session.RoomID)),
-		strings.TrimSpace(dmdomain.StringPointerValue(session.ConversationID))
+	return textutil.PointerValue(session.RoomID),
+		textutil.PointerValue(session.ConversationID)
 }
 
 func (e *dmChatExecution) registerRunner() {
-	e.service.runtime.RegisterGoalAccountingIdentity(e.sessionKey, e.request.RoundID, e.runner.goalIDForAccounting)
-	e.service.runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
-	e.service.runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
-	e.service.runtime.RegisterGoalAccountingFinalize(e.sessionKey, e.request.RoundID, e.runner.beginGoalUsageFinalizing)
-	e.service.runtime.RegisterGoalAccountingActivate(e.sessionKey, e.request.RoundID, e.runner.activateGoalUsage)
+	e.service.Runtime.RegisterGoalAccountingIdentity(e.sessionKey, e.request.RoundID, e.runner.UsageGoalID)
+	e.service.Runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
+	e.service.Runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
+	e.service.Runtime.RegisterGoalAccountingFinalize(e.sessionKey, e.request.RoundID, e.runner.beginGoalUsageFinalizing)
+	e.service.Runtime.RegisterGoalAccountingActivate(e.sessionKey, e.request.RoundID, e.runner.activateGoalUsage)
 	e.runner.initializeGoalUsageCreateGuard()
-	e.service.runtime.RegisterGoalAccountingCreateGuard(
+	e.service.Runtime.RegisterGoalAccountingCreateGuard(
 		e.sessionKey,
 		e.request.RoundID,
 		e.request.RoundID,
-		e.runner.goalUsageScopeWasConsumed,
+		e.runner.GoalUsageScopeConsumed,
 	)
-	e.service.runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
+	e.service.Runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
 }
 
 func (e *dmChatExecution) logAcceptance() {
-	e.service.loggerFor(e.ctx).Info("受理 DM 会话消息",
+	e.service.LoggerFor(e.ctx).Info("受理 DM 会话消息",
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
 		"round_id", e.request.RoundID,
@@ -668,7 +653,7 @@ func (e *dmChatExecution) persistRound() error {
 		); err != nil {
 			// round marker 已是 durable acceptance point，后续派生状态失败
 			// 不能把已受理输入变成永远不会执行的幽灵消息。
-			e.service.loggerFor(e.runtimeContext()).Warn(
+			e.service.LoggerFor(e.runtimeContext()).Warn(
 				"DM 已受理后写入 Room conversation 活动状态失败",
 				"session_key", e.sessionKey,
 				"agent_id", e.agent.AgentID,
@@ -683,7 +668,7 @@ func (e *dmChatExecution) persistRound() error {
 		e.session,
 	)
 	if err != nil {
-		e.service.loggerFor(e.runtimeContext()).Warn(
+		e.service.LoggerFor(e.runtimeContext()).Warn(
 			"DM 已受理后刷新会话元数据失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
@@ -720,7 +705,7 @@ func (s *Service) markRoomConversationStarted(
 	sessionKey string,
 	activityAt time.Time,
 ) error {
-	if s == nil || s.roomActivity == nil {
+	if s.roomActivity == nil {
 		return nil
 	}
 	conversationID := dmRoomConversationID(protocol.ParseSessionKey(sessionKey))
@@ -743,18 +728,18 @@ func dmRoomConversationID(parsed protocol.SessionKey) string {
 }
 
 func (e *dmChatExecution) failPersistence(err error, cancelReason, refreshWarning, errorMessage string) error {
-	e.service.runtime.MarkRoundTerminal(e.sessionKey, e.request.RoundID)
-	defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+	e.service.Runtime.MarkRoundTerminal(e.sessionKey, e.request.RoundID)
+	defer e.service.Runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 	if closeErr := e.service.refreshSessionMetaRuntimeStateByKey(e.ctx, e.sessionKey); closeErr != nil {
-		e.service.loggerFor(e.ctx).Warn(refreshWarning,
+		e.service.LoggerFor(e.ctx).Warn(refreshWarning,
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
 			"round_id", e.request.RoundID,
 			"err", closeErr,
 		)
 	}
-	e.service.permission.CancelRequestsForSession(e.sessionKey, cancelReason)
-	e.service.loggerFor(e.ctx).Error(errorMessage,
+	e.service.Permission.CancelRequestsForSession(e.sessionKey, cancelReason)
+	e.service.LoggerFor(e.ctx).Error(errorMessage,
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
 		"round_id", e.request.RoundID,
@@ -802,7 +787,7 @@ func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 			e.request.Attachments,
 		)
 	}
-	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
+	if e.request.RewriteTargetRoundID != "" {
 		e.service.broadcastHistoryRewriteResync(
 			ctx,
 			e.sessionKey,

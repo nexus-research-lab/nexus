@@ -8,7 +8,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -20,8 +19,7 @@ func (s *Service) recordTrustedQueueAdmission(
 	item protocol.InputQueueItem,
 	trusted bool,
 ) error {
-	if !trusted || s == nil || s.queueTrust == nil ||
-		item.Source != protocol.InputQueueSourceUser {
+	if !trusted {
 		return nil
 	}
 	agentID := inputQueueLocationAgentID(location)
@@ -31,22 +29,7 @@ func (s *Service) recordTrustedQueueAdmission(
 	item.AgentID = agentID
 	item.SessionKey = strings.TrimSpace(location.SessionKey)
 	item.OwnerUserID = strings.TrimSpace(location.OwnerUserID)
-	binding, err := queueadmissionstore.NewBinding(location, item)
-	if err != nil {
-		return err
-	}
-	principal, ok := authctx.DirectHumanPrincipalBindingFromContext(ctx, binding.OwnerUserID)
-	if !ok {
-		return errors.New("trusted DM queue admission requires the authenticated owner principal")
-	}
-	return s.queueTrust.Record(ctx, queueadmissionstore.Admission{
-		Binding: binding,
-		Principal: queueadmissionstore.PrincipalBinding{
-			UserID:     principal.UserID,
-			AuthMethod: principal.AuthMethod,
-			SessionID:  principal.SessionID,
-		},
-	})
+	return s.RecordTrustedQueueAdmission(ctx, location, item)
 }
 
 func (s *Service) claimTrustedQueueAdmission(
@@ -55,7 +38,7 @@ func (s *Service) claimTrustedQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) (queueadmissionstore.Claim, bool, error) {
-	if s == nil || s.queueTrust == nil || item.Source != protocol.InputQueueSourceUser {
+	if s.QueueTrust == nil || item.Source != protocol.InputQueueSourceUser {
 		return queueadmissionstore.Claim{}, false, nil
 	}
 	agentID := inputQueueLocationAgentID(location)
@@ -63,7 +46,7 @@ func (s *Service) claimTrustedQueueAdmission(
 		strings.TrimSpace(location.SessionKey) != strings.TrimSpace(normalizedSessionKey) {
 		return queueadmissionstore.Claim{}, false, nil
 	}
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	agentValue, err := s.Agents.GetAgent(ctx, agentID)
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}
@@ -77,7 +60,7 @@ func (s *Service) claimTrustedQueueAdmission(
 	if err != nil {
 		return queueadmissionstore.Claim{}, false, err
 	}
-	return s.queueTrust.Claim(ctx, binding)
+	return s.QueueTrust.Claim(ctx, binding)
 }
 
 func (s *Service) revokeQueueAdmission(
@@ -85,7 +68,7 @@ func (s *Service) revokeQueueAdmission(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
-	if s == nil || s.queueTrust == nil ||
+	if s.QueueTrust == nil ||
 		item.Source != protocol.InputQueueSourceUser {
 		return nil
 	}
@@ -100,7 +83,7 @@ func (s *Service) revokeQueueAdmission(
 	if err != nil {
 		return err
 	}
-	return s.queueTrust.Revoke(ctx, binding)
+	return s.QueueTrust.Revoke(ctx, binding)
 }
 
 func inputQueueItemByID(

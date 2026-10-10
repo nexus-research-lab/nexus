@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
@@ -48,7 +49,7 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 			SessionKey: sessionKey,
 			Status:     protocol.GoalStatusComplete,
 		},
-		claimFailuresRemaining: goalUsagePersistAttempts * 2,
+		claimFailuresRemaining: runtimehost.GoalUsagePersistAttempts * 2,
 	}
 	service := &Service{
 		goals: provider,
@@ -86,8 +87,8 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 		t.Fatal("successful Room claim retry left the slot pending")
 	}
 	attempts := provider.claimAttemptCount()
-	if attempts != goalUsagePersistAttempts*2+1 {
-		t.Fatalf("Room claim attempts = %d, want %d failures plus one success", attempts, goalUsagePersistAttempts*2)
+	if attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
+		t.Fatalf("Room claim attempts = %d, want %d failures plus one success", attempts, runtimehost.GoalUsagePersistAttempts*2)
 	}
 	if successes := provider.claimSuccessCount(); successes != 1 {
 		t.Fatalf("successful Room claims after recovery = %d, want exactly 1", successes)
@@ -140,11 +141,11 @@ func TestTerminalRoomGoalUsageMustSettleBeforeCompletionOrContinuation(t *testin
 			"peer":   peer,
 		},
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			"room-round": roundValue,
 		}),
-	}
+	})
 
 	blocker := service.activeRoomGoalBlocker(
 		sessionKey,
@@ -233,7 +234,7 @@ func TestSharedRoomGoalFinalizerWaitsForEverySlotAndRunsOnce(t *testing.T) {
 			if !slot.goalUsageTerminalSettled() {
 				t.Fatalf("FinalizeUsageForGoal observed unsettled slot %s", name)
 			}
-			if slot.hasRunningSubagentTask() {
+			if slot.mutable.goal.HasRunningSubagentTask() {
 				t.Fatalf("FinalizeUsageForGoal observed running child in slot %s", name)
 			}
 		}
@@ -320,16 +321,16 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 				Status:     protocol.GoalStatusComplete,
 			},
 		},
-		failuresRemaining:         goalUsagePersistAttempts,
-		finalizeFailuresRemaining: goalUsagePersistAttempts,
+		failuresRemaining:         runtimehost.GoalUsagePersistAttempts,
+		finalizeFailuresRemaining: runtimehost.GoalUsagePersistAttempts,
 		persisted:                 make(chan struct{}),
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: provider,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),
-	}
+	})
 	accelerateRoomGoalUsageRetry(service)
 	terminalMessage := protocol.Message{"metadata": map[string]any{
 		"subtype": "task_notification", "task_id": "task-1", "agent_id": "agent-1",
@@ -340,10 +341,10 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 	settled := service.recordSubagentGoalUsageForSlot(context.Background(), slot, terminalMessage)
 	slot.rememberSubagentTaskMessage(terminalMessage)
 	for _, settlement := range settled {
-		slot.clearSubagentUsagePending(settlement.taskID, settlement.cumulativeTotal)
+		slot.clearSubagentUsagePending(settlement.TaskID, settlement.Observation.CumulativeTotal)
 	}
-	if len(settled) != 0 || !slot.hasRunningSubagentTask() {
-		t.Fatalf("failed synchronous persistence settled=%#v running=%v, want pending barrier", settled, slot.hasRunningSubagentTask())
+	if len(settled) != 0 || !slot.mutable.goal.HasRunningSubagentTask() {
+		t.Fatalf("failed synchronous persistence settled=%#v running=%v, want pending barrier", settled, slot.mutable.goal.HasRunningSubagentTask())
 	}
 	service.startRoomSubagentUsageRetry(roundValue, slot)
 
@@ -364,17 +365,17 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if slot.hasRunningSubagentTask() {
+	if slot.mutable.goal.HasRunningSubagentTask() {
 		t.Fatalf("background recovery left child barrier: %#v", slot.subagentUsagePendingSnapshot())
 	}
 	if got := provider.lastPersistedTotal(); got != 240 {
 		t.Fatalf("background persisted total = %d, want latest 240", got)
 	}
-	if attempts := provider.finalizeAttemptCount(); attempts != goalUsagePersistAttempts+1 {
+	if attempts := provider.finalizeAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts+1 {
 		t.Fatalf(
 			"background finalize attempts = %d, want %d failures plus one success",
 			attempts,
-			goalUsagePersistAttempts,
+			runtimehost.GoalUsagePersistAttempts,
 		)
 	}
 	if !service.finalizeCompletedRoomGoalUsage(context.Background(), roundValue) {
@@ -468,16 +469,16 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 				Status:     protocol.GoalStatusComplete,
 			},
 		},
-		parentUsageFailuresRemaining: goalUsagePersistAttempts * 2,
-		finalizeFailuresRemaining:    goalUsagePersistAttempts,
+		parentUsageFailuresRemaining: runtimehost.GoalUsagePersistAttempts * 2,
+		finalizeFailuresRemaining:    runtimehost.GoalUsagePersistAttempts,
 		parentUsagePersisted:         make(chan struct{}),
 	}
-	service := &Service{
+	service := withConstructorDefaults(t, &Service{
 		goals: provider,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
 			roundValue.RoundID: roundValue,
 		}),
-	}
+	})
 	accelerateRoomGoalUsageRetry(service)
 	result := exec.RoundExecutionResult{Usage: sdkprotocol.TokenUsage{
 		InputTokens:  90,
@@ -532,18 +533,18 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 	if len(usages) != 1 || usages[0].ActualTokens() != 100 || usages[0].BudgetTokens() != 100 {
 		t.Fatalf("persisted parent usage = %#v, want exact 100 once", usages)
 	}
-	if attempts := provider.parentUsageAttemptCount(); attempts != goalUsagePersistAttempts*2+1 {
+	if attempts := provider.parentUsageAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts*2+1 {
 		t.Fatalf(
 			"parent usage attempts = %d, want %d failures plus one background success",
 			attempts,
-			goalUsagePersistAttempts*2,
+			runtimehost.GoalUsagePersistAttempts*2,
 		)
 	}
-	if attempts := provider.finalizeAttemptCount(); attempts != goalUsagePersistAttempts+1 {
+	if attempts := provider.finalizeAttemptCount(); attempts != runtimehost.GoalUsagePersistAttempts+1 {
 		t.Fatalf(
 			"shared finalization attempts = %d, want %d failures plus one background success",
 			attempts,
-			goalUsagePersistAttempts,
+			runtimehost.GoalUsagePersistAttempts,
 		)
 	}
 
@@ -559,7 +560,7 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 
 func TestRoomPostRoundDispatchRunsOnceUnderRace(t *testing.T) {
 	base := &fakeRoomGoalContextProvider{}
-	service := &Service{goals: base}
+	service := withConstructorDefaults(t, &Service{goals: base})
 	roundValue := &activeRoomRound{
 		SessionKey: "room:group:post-round-once",
 		RoundID:    "round-post-round-once",
@@ -612,7 +613,7 @@ func TestRoomParentTerminalHandoffRestartsWorkerAfterSkippedStart(t *testing.T) 
 			Status:     protocol.GoalStatusComplete,
 		},
 	}
-	service := &Service{goals: provider}
+	service := withConstructorDefaults(t, &Service{goals: provider})
 	accelerateRoomGoalUsageRetry(service)
 
 	// 旧 worker 尚未清 flag，runRound 的 terminal start 因而先跳过。
@@ -715,9 +716,9 @@ func waitForRoomGoalUsageRetryStopped(t *testing.T, slot *activeRoomSlot) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		slot.mutable.goal.mu.RLock()
-		running := slot.mutable.goal.usageRetrying
-		slot.mutable.goal.mu.RUnlock()
+		slot.mutable.goal.Mu.RLock()
+		running := slot.mutable.goal.UsageRetrying
+		slot.mutable.goal.Mu.RUnlock()
 		if !running {
 			return
 		}

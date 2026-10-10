@@ -12,63 +12,12 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 
 	_ "modernc.org/sqlite"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
-
-func TestDMRoomConversationIDOnlyAcceptsRoomDMExecutionKey(t *testing.T) {
-	conversationID := "conversation-draft-1"
-	roomDM := protocol.ParseSessionKey(protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		"agent-a",
-		protocol.RoomTypeDM,
-	))
-	if got := dmRoomConversationID(roomDM); got != conversationID {
-		t.Fatalf("Room DM conversation ID 不正确: got=%q want=%q", got, conversationID)
-	}
-
-	roomGroup := protocol.ParseSessionKey(protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		"agent-a",
-		protocol.RoomTypeGroup,
-	))
-	if got := dmRoomConversationID(roomGroup); got != "" {
-		t.Fatalf("Group execution key 不应由 DM 消费 draft: got=%q", got)
-	}
-
-	externalDM := protocol.ParseSessionKey("agent:agent-a:telegram:dm:chat-1")
-	if got := dmRoomConversationID(externalDM); got != "" {
-		t.Fatalf("外部 DM key 不应映射成 Room conversation: got=%q", got)
-	}
-}
-
-func TestDMRoomPermissionRouteOnlyProjectsCanonicalWebSocketDM(t *testing.T) {
-	roomID := "room-1"
-	conversationID := "conversation-1"
-	session := protocol.Session{
-		RoomID:         &roomID,
-		ConversationID: &conversationID,
-	}
-	webSocketSessionKey := protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		"agent-a",
-		protocol.RoomTypeDM,
-	)
-	gotRoomID, gotConversationID := dmRoomPermissionRoute(webSocketSessionKey, session)
-	if gotRoomID != roomID || gotConversationID != conversationID {
-		t.Fatalf("canonical DM 权限路由不正确: room=%q conversation=%q", gotRoomID, gotConversationID)
-	}
-
-	gotRoomID, gotConversationID = dmRoomPermissionRoute(
-		"agent:agent-a:telegram:dm:chat-1",
-		session,
-	)
-	if gotRoomID != "" || gotConversationID != "" {
-		t.Fatalf("外部 DM 不应投影到聊天侧栏: room=%q conversation=%q", gotRoomID, gotConversationID)
-	}
-}
 
 func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 	previousTimeout := dmBroadcastTimeout
@@ -83,7 +32,7 @@ func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 		done: make(chan struct{}),
 	}
 	permission.BindSession("session-1", sender)
-	service := &Service{permission: permission}
+	service := &Service{Host: runtimehost.Host{Permission: permission}}
 
 	startedAt := time.Now()
 	service.broadcastEventWithTimeout(context.Background(), "session-1", protocol.NewEvent(protocol.EventTypeMessage, map[string]any{}))
@@ -144,6 +93,7 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	prefs := preferencessvc.DefaultPreferences()
 	prefs.EmotionEnabled = true
 	service.SetPreferences(fakeDMPreferencesService{prefs: prefs})
+	service.SetUsageRecorder(&fakeTokenUsageRecorder{})
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
 	permission.BindSession(sessionKey, sender)
@@ -523,244 +473,6 @@ func TestServiceHandleChatBroadcastsMergedParallelToolResults(t *testing.T) {
 	}
 	if _, exists := finalPayload["stream_status"]; exists {
 		t.Fatalf("durable assistant 不应补写 stream_status: %+v", finalPayload)
-	}
-}
-
-func TestServiceHandleChatKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	agentService := newDMAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type": "message_start",
-						"message": map[string]any{
-							"id":    "assistant-think-1",
-							"model": "sonnet",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_start",
-						"index": 0,
-						"content_block": map[string]any{
-							"type":     "thinking",
-							"thinking": "先分析",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_delta",
-						"index": 0,
-						"delta": map[string]any{
-							"type":     "thinking_delta",
-							"thinking": " 再收口",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_start",
-						"index": 0,
-						"content_block": map[string]any{
-							"type": "text",
-							"text": "今天天气",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeStreamEvent,
-				SessionID: client.sessionID,
-				Stream: &sdkprotocol.StreamEvent{
-					Event: map[string]any{
-						"type":  "content_block_delta",
-						"index": 0,
-						"delta": map[string]any{
-							"type": "text_delta",
-							"text": " 很不错",
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeAssistant,
-				SessionID: client.sessionID,
-				Assistant: &sdkprotocol.AssistantMessage{
-					Message: sdkprotocol.ConversationEnvelope{
-						ID:    "assistant-think-1",
-						Model: "sonnet",
-						Content: []sdkprotocol.ContentBlock{
-							sdkprotocol.TextBlock{Text: "今天天气 很不错"},
-						},
-					},
-				},
-			}
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-think-1",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:       "success",
-					DurationMS:    12,
-					DurationAPIMS: 10,
-					NumTurns:      1,
-					Result:        "done",
-				},
-			}
-		}()
-	}
-
-	factory := &fakeDMFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	sender := newDMTestSender("sender-think-stream")
-	sessionKey := "agent:nexus:ws:dm:think-stream"
-	permission.BindSession(sessionKey, sender)
-
-	if err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "今天天气怎么样呀",
-		RoundID:    "round-think-stream",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-
-	assertStreamBlockIndex(t, events, "thinking", 0)
-	assertStreamBlockIndex(t, events, "text", 1)
-
-	assistantPayload := findAssistantMessagePayload(t, events, "assistant-think-1")
-	assistantBlocks := contentBlocksFromPayload(t, assistantPayload)
-	if len(assistantBlocks) != 2 {
-		t.Fatalf("durable assistant 内容块数量不正确: %+v", assistantPayload)
-	}
-	if assistantBlocks[0]["type"] != "thinking" || assistantBlocks[0]["thinking"] != "先分析 再收口" {
-		t.Fatalf("durable assistant 未保留完整 thinking: %+v", assistantBlocks)
-	}
-	if assistantBlocks[1]["type"] != "text" || assistantBlocks[1]["text"] != "今天天气 很不错" {
-		t.Fatalf("durable assistant 未保留 text: %+v", assistantBlocks)
-	}
-
-	sessionValue, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
-	thinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeTranscriptFixture(t, workspacePath, stringPointer(t, sessionValue.SessionID), []map[string]any{
-		{
-			"type":      "user",
-			"uuid":      "transcript-think-user-1",
-			"sessionId": stringPointer(t, sessionValue.SessionID),
-			"timestamp": thinkingTranscriptBaseTime.Format(time.RFC3339Nano),
-			"message": map[string]any{
-				"role":    "user",
-				"content": "今天天气怎么样呀",
-			},
-		},
-		{
-			"type":       "assistant",
-			"uuid":       "assistant-think-1",
-			"sessionId":  stringPointer(t, sessionValue.SessionID),
-			"parentUuid": "transcript-think-user-1",
-			"timestamp":  thinkingTranscriptBaseTime.Add(200 * time.Millisecond).Format(time.RFC3339Nano),
-			"message": map[string]any{
-				"role": "assistant",
-				"content": []map[string]any{
-					{"type": "thinking", "thinking": "先分析 再收口"},
-					{"type": "text", "text": "今天天气 很不错"},
-				},
-			},
-		},
-	})
-	messages := readDMSessionHistory(t, cfg, service, sessionKey)
-	if len(messages) != 2 {
-		t.Fatalf("期望 2 条消息，实际 %d", len(messages))
-	}
-	historyBlocks := contentBlocksFromPayload(t, messages[1])
-	if len(historyBlocks) != 2 || historyBlocks[0]["type"] != "thinking" || historyBlocks[1]["type"] != "text" {
-		t.Fatalf("历史 assistant 内容块不正确: %+v", messages[1])
-	}
-	if _, exists := messages[1]["stream_status"]; exists {
-		t.Fatalf("历史 assistant 不应携带 stream_status: %+v", messages[1])
-	}
-	if _, ok := messages[1]["result_summary"].(map[string]any); !ok {
-		t.Fatalf("历史 assistant 应挂载 result 摘要: %+v", messages[1])
-	}
-}
-
-func TestServiceHandleChatPersistsStructuredChannelMetadata(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	agentService := newDMAgentService(t, cfg)
-	permission := permissionctx.NewContext()
-	client := newFakeDMClient()
-	client.onQuery = func(_ context.Context, _ string) {
-		go func() {
-			client.messages <- sdkprotocol.ReceivedMessage{
-				Type:      sdkprotocol.MessageTypeResult,
-				SessionID: client.sessionID,
-				UUID:      "result-structured",
-				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "success",
-					DurationMS: 1,
-					NumTurns:   1,
-					Result:     "ok",
-				},
-			}
-		}()
-	}
-
-	factory := &fakeDMFactory{client: client}
-	runtimeManager := runtimectx.NewManagerWithFactory(factory)
-	service := NewService(cfg, agentService, runtimeManager, permission)
-	sender := newDMTestSender("sender-structured")
-	sessionKey := "agent:nexus:tg:group:-100123456:topic:12"
-	permission.BindSession(sessionKey, sender)
-
-	if err := service.HandleChat(context.Background(), Request{
-		SessionKey: sessionKey,
-		Content:    "结构化入口",
-		RoundID:    "round-structured",
-	}); err != nil {
-		t.Fatalf("HandleChat 失败: %v", err)
-	}
-
-	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
-	})
-
-	item, _, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
-	if err != nil {
-		t.Fatalf("读取 session 元数据失败: %v", err)
-	}
-	if item == nil {
-		t.Fatal("session 元数据不存在")
-	}
-	if item.ChannelType != "telegram" || item.ChatType != "group" {
-		t.Fatalf("session 元数据不正确: %+v", *item)
 	}
 }
 

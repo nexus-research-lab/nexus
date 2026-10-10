@@ -39,8 +39,6 @@ func Apply(
 		}
 		return options, nil
 	}
-	input.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
-	input.RuntimeKind = strings.TrimSpace(input.RuntimeKind)
 	input.CWD = strings.TrimSpace(input.CWD)
 	if input.OwnerUserID == "" || input.RuntimeKind == "" || input.CWD == "" {
 		return agentclient.Options{}, errors.New("runtime isolation 缺少 owner、runtime 或 workspace")
@@ -178,7 +176,7 @@ func sortedEnvironmentNames(environment map[string]string) []string {
 }
 
 func buildAuditPolicy(input Input) (Policy, error) {
-	if appfs.UserPathSegment(input.OwnerUserID) != strings.TrimSpace(input.OwnerUserID) {
+	if appfs.UserPathSegment(input.OwnerUserID) != input.OwnerUserID {
 		return Policy{}, errors.New("owner user id 不能安全映射为 workspace 路径")
 	}
 	ownerRoot := appfs.UserDataRoot(input.OwnerUserID)

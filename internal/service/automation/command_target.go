@@ -36,7 +36,7 @@ func runtimeCommandSource(actor command.Actor) automationdomain.Source {
 	}
 	contextLabel := strings.TrimSpace(actor.SourceContextLabel)
 	if contextLabel == "" {
-		contextLabel = strings.TrimSpace(actor.AgentName)
+		contextLabel = actor.AgentName
 	}
 	return automationdomain.Source{
 		Kind:           automationdomain.SourceKindAgent,
@@ -45,7 +45,7 @@ func runtimeCommandSource(actor command.Actor) automationdomain.Source {
 		ContextID:      contextID,
 		ContextLabel:   contextLabel,
 		SessionKey:     strings.TrimSpace(actor.SessionKey),
-		SessionLabel:   strings.TrimSpace(actor.SessionLabel),
+		SessionLabel:   actor.SessionLabel,
 	}.Normalized()
 }
 

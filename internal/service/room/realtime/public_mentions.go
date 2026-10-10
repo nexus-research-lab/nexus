@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -51,7 +52,7 @@ func (s *Service) collectPublicMentionWakes(
 		// 只有 source slot 成功收尾才允许创建 target handoff。
 		return nil
 	}
-	content := strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	content := roomdomain.ExtractAssistantResultText(message)
 	if content == "" {
 		return nil
 	}
@@ -102,7 +103,7 @@ func (s *Service) collectPublicMentionWakes(
 	}
 	// 标注阶段会剥离 fanout 控制标记并重写 span；必须用清理后的正文
 	// 生成 queue trigger，避免隐藏标记进入目标 Agent 上下文。
-	content = strings.TrimSpace(roomdomain.ExtractAssistantResultText(message))
+	content = roomdomain.ExtractAssistantResultText(message)
 	if content == "" {
 		return nil
 	}
@@ -242,7 +243,7 @@ func (s *Service) startQueuedPublicMentionWakesLocked(ctx context.Context, round
 		return false
 	}
 	if err := s.startPublicMentionRoundLocked(ctx, roundValue, wakes, true); err != nil {
-		s.loggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
+		s.LoggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
 			"root", roomRootRoundID(roundValue),
@@ -297,7 +298,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			parentRound.OwnerUserID = currentContextValue.Room.OwnerUserID
 		}
 	}
-	ctx = contextWithExactQueueOwner(ctx, parentRound.OwnerUserID)
+	ctx = runtimehost.ContextWithExactOwner(ctx, parentRound.OwnerUserID)
 	admittedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
 		if binding := protocol.NormalizeGoalCollaborationBinding(
@@ -319,7 +320,7 @@ func (s *Service) startPublicMentionRoundLocked(
 					[]publicMentionWake{wake},
 					"interrupted",
 				)
-				s.loggerFor(ctx).Info(
+				s.LoggerFor(ctx).Info(
 					"拒绝过期的 Room Goal collaboration wake",
 					"goal_id", binding.GoalID,
 					"objective_revision", binding.ObjectiveRevision,
@@ -340,7 +341,7 @@ func (s *Service) startPublicMentionRoundLocked(
 					return err
 				}
 				s.terminalizeRejectedExecutionWake(parentRound, wake)
-				s.loggerFor(ctx).Info(
+				s.LoggerFor(ctx).Info(
 					"拒绝迟到的 Execution review return",
 					"review_dispatch_id",
 					wake.ReviewBinding.ReviewDispatchID,
@@ -364,7 +365,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				return err
 			}
 			s.terminalizeRejectedExecutionWake(parentRound, wake)
-			s.loggerFor(ctx).Info(
+			s.LoggerFor(ctx).Info(
 				"拒绝迟到的 Execution work dispatch",
 				"dispatch_id",
 				wake.WorkBinding.DispatchID,
@@ -400,7 +401,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			wakes,
 			"error",
 		)
-		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
+		s.LoggerFor(ctx).Warn("Room 唤醒达到跳数上限",
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
 			"root", roomRootRoundID(parentRound),
@@ -420,7 +421,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	claimedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
-		if s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
+		if strings.TrimSpace(wake.HandoffID) == "" {
 			claimedWakes = append(claimedWakes, wake)
 			continue
 		}
@@ -439,7 +440,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	wakes = claimedWakes
 	claimsTransferred := false
 	defer func() {
-		if claimsTransferred || s.publicHandoffs == nil {
+		if claimsTransferred {
 			return
 		}
 		for _, wake := range wakes {
@@ -452,7 +453,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				parentRound.ConversationID,
 				handoffID,
 			); releaseErr != nil {
-				s.loggerFor(ctx).Warn(
+				s.LoggerFor(ctx).Warn(
 					"释放未启动的 Room handoff claim 失败",
 					"handoff_id", handoffID,
 					"err", releaseErr,
@@ -484,7 +485,7 @@ func (s *Service) startPublicMentionRoundLocked(
 			wake.HandoffID,
 			"error",
 		); err != nil {
-			s.loggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
+			s.LoggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
 		}
 	}
 	if len(pendingSlots) == 0 {
@@ -523,7 +524,7 @@ func (s *Service) startPublicMentionRoundLocked(
 				wake.HandoffID,
 				roundID,
 			); err != nil {
-				s.loggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
+				s.LoggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
 			}
 		}
 	}
@@ -540,7 +541,7 @@ func (s *Service) resumeParentAfterRejectedGoalCollaboration(
 	for _, slot := range parentRound.Slots {
 		slot.clearPendingGoalCollaboration()
 	}
-	s.startSessionBackgroundTask(
+	s.StartSessionBackgroundTask(
 		parentRound.SessionKey,
 		parentRound.OwnerUserID,
 		func(taskCtx context.Context) {
@@ -561,7 +562,7 @@ func (s *Service) terminalizeRejectedExecutionWake(
 	parentRound *activeRoomRound,
 	wake publicMentionWake,
 ) {
-	if s == nil || s.publicHandoffs == nil || parentRound == nil ||
+	if parentRound == nil ||
 		strings.TrimSpace(wake.HandoffID) == "" {
 		return
 	}
@@ -749,16 +750,13 @@ func (s *Service) terminalizePublicMentionWakes(
 	wakes []publicMentionWake,
 	status string,
 ) {
-	if s == nil || s.publicHandoffs == nil {
-		return
-	}
 	for _, wake := range wakes {
 		handoffID := strings.TrimSpace(wake.HandoffID)
 		if handoffID == "" {
 			continue
 		}
 		if err := s.publicHandoffs.MarkTerminal(ownerUserID, conversationID, handoffID, status); err != nil {
-			s.loggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
+			s.LoggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
 				"conversation_id", conversationID,
 				"handoff_id", handoffID,
 				"status", status,
@@ -773,7 +771,7 @@ func (s *Service) logQueuedPublicMentionWakes(
 	parentRound *activeRoomRound,
 	sessionKey string,
 ) {
-	s.loggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
+	s.LoggerFor(ctx).Info("Room 公区 @ 目标均已进入队列",
 		"s", sessionKey,
 		"r", parentRound.Context.Room.ID,
 		"c", parentRound.Context.Conversation.ID,
@@ -818,7 +816,7 @@ func (s *Service) logMissingPublicMentionSlots(
 	contextValue *protocol.ConversationContextAggregate,
 	wakeCount int,
 ) {
-	s.loggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
+	s.LoggerFor(ctx).Warn("Room 公区 @ 没有可启动的目标 slot",
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
 		"c", contextValue.Conversation.ID,
@@ -914,11 +912,11 @@ func (s *Service) launchPublicMentionRound(
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
-	if err := s.runtime.StartRound(roundCtx, sessionKey, roundID, cancel); err != nil {
+	if err := s.Runtime.StartRound(roundCtx, sessionKey, roundID, cancel); err != nil {
 		s.finishRound(activeRound)
 		return false
 	}
-	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
+	s.LoggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
 		"c", contextValue.Conversation.ID,
@@ -960,7 +958,7 @@ func buildPublicMentionSlot(
 	msgID string,
 	index int,
 ) *activeRoomSlot {
-	triggerType := strings.TrimSpace(wake.TriggerType)
+	triggerType := wake.TriggerType
 	if triggerType == "" {
 		triggerType = "public_mention"
 	}
@@ -985,8 +983,8 @@ func buildPublicMentionSlot(
 		TimestampMS:           time.Now().UnixMilli(),
 		QueueSource:           normalizeWakeQueueSource(wake),
 		Trigger:               trigger,
-		WorkBinding:           cloneExecutionWorkBinding(wake.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(wake.ReviewBinding),
+		WorkBinding:           wake.WorkBinding.Clone(),
+		ReviewBinding:         wake.ReviewBinding.Clone(),
 	}
 	slot.setGoalCollaborationBinding(wake.GoalCollaborationBinding)
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
@@ -1005,7 +1003,7 @@ func normalizeWakeQueueSource(wake publicMentionWake) protocol.InputQueueSource 
 
 func roomSlotHiddenFromUser(slot *activeRoomSlot) bool {
 	return slot != nil && (slot.HiddenFromUser ||
-		strings.TrimSpace(slot.Trigger.TriggerType) == roomDirectedMessageTriggerType)
+		slot.Trigger.TriggerType == roomDirectedMessageTriggerType)
 }
 
 func roomWakeRoundID(wakes []publicMentionWake) string {
@@ -1098,7 +1096,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 		location, ok := locationsByAgentID[targetAgentID]
 		if !ok {
-			s.loggerFor(ctx).Warn("Room 公区 @ 目标正忙但缺少队列位置",
+			s.LoggerFor(ctx).Warn("Room 公区 @ 目标正忙但缺少队列位置",
 				"s", sessionKey,
 				"r", parentRound.RoomID,
 				"c", parentRound.ConversationID,
@@ -1152,10 +1150,10 @@ func (s *Service) queueBusyPublicMentionWakes(
 			GoalCollaborationBinding: cloneGoalCollaborationBinding(
 				wake.GoalCollaborationBinding,
 			),
-			WorkBinding:   cloneExecutionWorkBinding(wake.WorkBinding),
-			ReviewBinding: cloneExecutionReviewBinding(wake.ReviewBinding),
+			WorkBinding:   wake.WorkBinding.Clone(),
+			ReviewBinding: wake.ReviewBinding.Clone(),
 		}
-		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
+		queueItems, inserted, err := s.InputQueue.EnqueueBounded(location.Location, queuedItem, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -1182,7 +1180,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 			}
 		}
 		if deliveryPolicy == protocol.ChatDeliveryPolicyGuide && !isActiveDeliverySlot(busySlot) {
-			if _, err := s.inputQueue.UpdateDeliveryPolicy(
+			if _, err := s.InputQueue.UpdateDeliveryPolicy(
 				location.Location,
 				queuedItemID,
 				protocol.ChatDeliveryPolicyQueue,
@@ -1197,7 +1195,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		if busySlot != nil {
 			activeAgentRoundID = busySlot.AgentRoundID
 		}
-		s.loggerFor(ctx).Info(roomWakeQueuedLogMessage(wake, participationPaused),
+		s.LoggerFor(ctx).Info(roomWakeQueuedLogMessage(wake, participationPaused),
 			"s", sessionKey,
 			"qs", location.Location.SessionKey,
 			"r", parentRound.RoomID,
@@ -1220,7 +1218,7 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 	}
 	if dispatchQueued {
-		s.startSessionBackgroundTask(
+		s.StartSessionBackgroundTask(
 			sessionKey,
 			parentRound.OwnerUserID,
 			func(taskCtx context.Context) {
@@ -1240,6 +1238,6 @@ func (s *Service) queueBusyPublicMentionWakes(
 // nil runtime、旧 runtime 和未知能力都必须走持久化 queue，避免“已返回 hook
 // 但实际没有应用”的崩溃窗口造成消息丢失。
 func (s *Service) supportsRoomGuidanceAck(slot *activeRoomSlot) bool {
-	return s != nil && s.runtime != nil && slot != nil &&
-		s.runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
+	return s != nil && s.Runtime != nil && slot != nil &&
+		s.Runtime.SupportsHookResponseAck(slot.RuntimeSessionKey)
 }

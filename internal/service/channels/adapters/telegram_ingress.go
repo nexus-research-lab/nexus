@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
@@ -22,7 +23,7 @@ func (c *TelegramChannel) handleUpdate(ctx context.Context, update telegramUpdat
 		return nil
 	}
 
-	content := channelcontract.FirstNonEmpty(message.Text, message.Caption)
+	content := textutil.FirstNonEmpty(message.Text, message.Caption)
 	if content == "" {
 		return nil
 	}

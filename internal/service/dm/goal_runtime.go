@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	messageutil "github.com/nexus-research-lab/nexus/internal/message"
@@ -18,42 +18,31 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	goalruntimeusage "github.com/nexus-research-lab/nexus/internal/service/goal/runtimeusage"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 const (
-	goalUsagePersistAttempts       = 5
 	subagentUsageRetryInitialDelay = 320 * time.Millisecond
 	subagentUsageRetryMaxDelay     = 5 * time.Second
 )
-
-func (r *roundRunner) recordGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() {
-		return
-	}
-	snapshot, ok := r.finalGoalUsageSnapshot(result, finalAssistant)
-	if !ok {
-		return
-	}
-	r.recordGoalUsageSnapshot(ctx, snapshot)
-}
 
 func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundExecutionResult, finalAssistant protocol.Message) {
 	snapshot, _ := r.finalGoalUsageSnapshot(result, finalAssistant)
 	version := r.rememberTerminalGoalUsageSnapshot(snapshot)
 	if !r.ensureSubagentGoalUsageRoundClaimed(ctx) {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM terminal Goal usage 等待 round-start child 回补",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,
 		)
 		return
 	}
-	settled := r.settleTerminalGoalUsageSnapshotWithRetry(ctx, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, r.goalUsageRetryBaseDelay, func() bool { return r.settleTerminalGoalUsageSnapshot(ctx, snapshot) })
 	if !settled {
-		r.service.loggerFor(ctx).Warn(
+		r.service.LoggerFor(ctx).Warn(
 			"DM terminal Goal usage 未能持久化",
 			"session_key", r.sessionKey,
-			"goal_id", r.goalIDForUsage,
+			"goal_id", r.IDForUsage,
 			"round_id", r.roundID,
 		)
 		return
@@ -63,68 +52,19 @@ func (r *roundRunner) finalizeGoalUsage(ctx context.Context, result exec.RoundEx
 	}
 }
 
-func (r *roundRunner) settleTerminalGoalUsageSnapshotWithRetry(
-	ctx context.Context,
-	snapshot goalsvc.RuntimeUsageSnapshot,
-) bool {
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if r.settleTerminalGoalUsageSnapshot(ctx, snapshot) {
-			return true
-		}
-	}
-	return false
-}
-
-func (r *roundRunner) waitGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	baseDelay := 20 * time.Millisecond
-	if r != nil && r.goalUsageRetryBaseDelay > 0 {
-		baseDelay = r.goalUsageRetryBaseDelay
-	}
-	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
-}
-
 func (r *roundRunner) recordGoalUsageLimit(result exec.RoundExecutionResult) {
 	if r.service.goals == nil || r.ignoreGoalRuntime() || !result.UsageLimitReached {
 		return
 	}
-	r.goalUsageMu.Lock()
-	goalID := strings.TrimSpace(r.goalIDForUsage)
-	r.goalUsageMu.Unlock()
-	var err error
-	if goalID != "" {
-		if provider, ok := r.service.goals.(interface {
-			UsageLimitForGoal(context.Context, string, string, string) (*protocol.Goal, error)
-		}); ok {
-			_, err = provider.UsageLimitForGoal(context.Background(), goalID, r.roundID, result.UsageLimitReason)
-		} else {
-			_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
-		}
-	} else {
-		_, err = r.service.goals.UsageLimitForSession(context.Background(), r.sessionKey, r.roundID, result.UsageLimitReason)
-	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) && !errors.Is(err, goalsvc.ErrGoalInvalidState) {
-		r.service.loggerFor(context.Background()).Warn("标记 Goal usage limit 失败",
-			"session_key", r.sessionKey,
-			"goal_id", goalID,
-			"round_id", r.roundID,
-			"err", err,
-		)
-	}
+	r.Mu.RLock()
+	goalID := r.IDForUsage
+	r.Mu.RUnlock()
+	ctx := context.Background()
+	runtimehost.RecordGoalUsageLimit(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, goalID, r.roundID, result.UsageLimitReason)
 }
 
 func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
-	snapshot, ok := r.finalGoalUsageSnapshot(exec.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	snapshot, ok := r.finalGoalUsageSnapshot(exec.RoundExecutionResult{}, r.LastGoalAssistantMessage())
 	settlementBoundary := goalsvc.RuntimeUsageSettlementBoundary(ctx)
 	if !ok && !settlementBoundary {
 		return nil
@@ -140,24 +80,15 @@ func (r *roundRunner) flushGoalUsage(ctx context.Context) error {
 }
 
 func (r *roundRunner) clearGoalUsage() {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if r.goalUsage != nil {
-		r.goalUsage.Close()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if r.Usage != nil {
+		r.Usage.Close()
 	}
-	r.goalIDForUsage = ""
-	r.childGoalIDForUsage = ""
-	r.subagentUsageClaimPending = false
+	r.IDForUsage = ""
+	r.ChildIDForUsage = ""
+	r.UsageClaimPending = false
 	r.goalTokenUsageObserved = false
-}
-
-func (r *roundRunner) goalIDForAccounting() string {
-	if r == nil {
-		return ""
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return strings.TrimSpace(r.goalIDForUsage)
 }
 
 // beginGoalUsageFinalizing 用于外部 complete：保留当前 Goal 固定绑定，
@@ -169,42 +100,26 @@ func (r *roundRunner) beginGoalUsageFinalizing() bool {
 	if _, ok := r.service.goals.(dmGoalUsageFinalizationProvider); !ok {
 		return false
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if strings.TrimSpace(r.goalIDForUsage) == "" ||
-		r.goalUsage == nil ||
-		!r.goalUsage.Active() {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if strings.TrimSpace(r.IDForUsage) == "" ||
+		r.Usage == nil ||
+		!r.Usage.Active() {
 		return false
 	}
-	r.goalUsage.BeginFinalizing()
-	return r.goalUsage.Active()
+	r.Usage.BeginFinalizing()
+	return r.Usage.Active()
 }
 
 func (r *roundRunner) initializeGoalUsageCreateGuard() {
 	if r == nil {
 		return
 	}
-	r.goalUsageMu.Lock()
-	if strings.TrimSpace(r.goalIDForUsage) != "" {
-		r.goalUsageScopeConsumed = true
+	r.Mu.Lock()
+	if strings.TrimSpace(r.IDForUsage) != "" {
+		r.UsageScopeConsumed = true
 	}
-	r.goalUsageMu.Unlock()
-}
-
-func (r *roundRunner) goalUsageScopeWasConsumed() bool {
-	if r == nil {
-		return false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return r.goalUsageScopeConsumed
-}
-
-type dmGoalUsageScopeBinder interface {
-	BindUsageScopeFromNow(
-		context.Context,
-		protocol.GoalUsageScopeBinding,
-	) (protocol.GoalUsageScopeBindResult, error)
+	r.Mu.Unlock()
 }
 
 func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) error {
@@ -217,20 +132,20 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 	// a checkpoint provider call is blocked.
 	r.goalUsageBindingMu.Lock()
 	defer r.goalUsageBindingMu.Unlock()
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	if goalID != "" &&
-		strings.TrimSpace(r.goalIDForUsage) == goalID &&
-		r.goalUsage != nil &&
-		r.goalUsage.Active() {
-		r.goalUsageScopeConsumed = true
-		if strings.TrimSpace(r.childGoalIDForUsage) == "" {
-			r.childGoalIDForUsage = goalID
+		strings.TrimSpace(r.IDForUsage) == goalID &&
+		r.Usage != nil &&
+		r.Usage.Active() {
+		r.UsageScopeConsumed = true
+		if strings.TrimSpace(r.ChildIDForUsage) == "" {
+			r.ChildIDForUsage = goalID
 		}
 		return nil
 	}
 	if goalID != "" {
-		if binder, ok := r.service.goals.(dmGoalUsageScopeBinder); ok {
+		if binder, ok := r.service.goals.(runtimehost.GoalUsageScopeBinder); ok {
 			// Durable source checkpoint 与 from-now bind 必须共享同一临界区。
 			// 已经进入 pending 的 child observation 先按旧/空 Goal 语义落库，
 			// 再由 repository 在绑定事务内将绑定前 backlog 排除，并把仍在运行
@@ -248,75 +163,45 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 				GoalID:         goalID,
 				BoundAt:        time.Now().UTC(),
 			}
-			var err error
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-					return ctx.Err()
-				}
-				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
-					break
-				}
-				if errors.Is(err, goalsvc.ErrGoalInvalidState) {
-					// 非 SQL provider 没有 durable scope capability；保留兼容的
-					// in-memory Reset，不把能力缺失当成瞬时写失败。
-					err = nil
-					break
-				}
-			}
-			if err != nil {
+			if err := runtimehost.BindGoalUsageScopeFromNow(ctx, binder, r.goalUsageRetryBaseDelay, binding); err != nil {
 				// durable bind 是 Reset/consumed 的前置条件。失败时必须保持
 				// 原 Goal binding 与 accumulator baseline。
 				return err
 			}
 		}
 	}
-	usage, _ := runtimectx.GoalUsageFromRaw(r.goalLastAssistant["usage"])
+	usage, _ := runtimectx.GoalUsageFromRaw(r.LastAssistant["usage"])
 	snapshot := goalsvc.RuntimeUsageSnapshot{
 		Usage:          usage,
-		ElapsedSeconds: r.elapsedGoalUsageSeconds(),
-		TurnID:         dmdomain.NormalizeString(r.goalLastAssistant["message_id"]),
+		ElapsedSeconds: runtimehost.ElapsedSecondsSince(r.UsageStartedAt),
+		TurnID:         textutil.AnyString(r.LastAssistant["message_id"]),
 	}
-	r.goalIDForUsage = goalID
-	r.childGoalIDForUsage = goalID
+	r.IDForUsage = goalID
+	r.ChildIDForUsage = goalID
 	if goalID != "" {
-		r.goalUsageScopeConsumed = true
+		r.UsageScopeConsumed = true
 	}
-	r.subagentUsageClaimPending = false
-	if r.goalUsage == nil {
-		r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+	r.UsageClaimPending = false
+	if r.Usage == nil {
+		r.Usage = goalsvc.NewRuntimeUsageAccumulator(false)
 	}
-	r.goalUsage.Reset(snapshot)
+	r.Usage.Reset(snapshot)
 	r.goalTokenUsageObserved = false
 	return nil
-}
-
-func (r *roundRunner) rememberGoalAssistantMessage(message protocol.Message) {
-	if protocol.MessageRole(message) != "assistant" {
-		return
-	}
-	r.goalUsageMu.Lock()
-	r.goalLastAssistant = protocol.Clone(message)
-	r.goalUsageMu.Unlock()
-}
-
-func (r *roundRunner) lastGoalAssistantMessage() protocol.Message {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return protocol.Clone(r.goalLastAssistant)
 }
 
 func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Message) {
 	if protocol.MessageRole(message) != "assistant" {
 		return
 	}
-	receipts := r.consumeRuntimeCommandReceipts()
+	receipts := r.ConsumeCommandReceipts(r.commandReceipts)
 	if nexusmcp.HasDomain(receipts, command.DomainExecution) {
-		r.service.executionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
+		r.service.ExecutionObserver().ObserveCommandReceipts(r.orchestrationActor(), receipts)
 	}
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return
 	}
-	r.rememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
+	r.RememberGoalToolProgress(nexusmcp.HasGoalProgress(receipts))
 	snapshot := r.assistantGoalUsageSnapshot(message)
 	hasSuccessfulCreate := nexusmcp.HasAppliedOperation(
 		receipts, command.DomainGoal, command.GoalOperationCreate,
@@ -325,24 +210,24 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		receipts, command.DomainGoal, command.GoalOperationUpdate,
 	)
 	if hasSuccessfulCreate {
-		r.goalUsageMu.Lock()
-		r.goalUsageScopeConsumed = true
-		if r.goalUsage == nil || !r.goalUsage.Active() {
-			if r.goalUsage == nil {
-				r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(false)
+		r.Mu.Lock()
+		r.UsageScopeConsumed = true
+		if r.Usage == nil || !r.Usage.Active() {
+			if r.Usage == nil {
+				r.Usage = goalsvc.NewRuntimeUsageAccumulator(false)
 			}
 			// 模型在本轮中创建 Goal 时，本轮就是该 Goal 的第一段工作，
 			// 因此从 round 起点结算，而不是把 create_goal 时的累计量当作基线丢弃。
-			if backlog, ok := r.goalUsage.PrepareActivationFromRoundStart(); ok {
+			if backlog, ok := r.Usage.PrepareActivationFromRoundStart(); ok {
 				// 激活边界、delta 与 Goal 绑定必须在同一临界区内落库，
 				// 避免外部 Goal 切换把旧 baseline 的 backlog 写到新 Goal。
 				if _, persisted := r.persistGoalUsageDeltaLocked(context.Background(), backlog); persisted {
-					r.goalUsage.CommitDelta(backlog)
+					r.Usage.CommitDelta(backlog)
 				}
 			}
-			r.goalTokenUsageObserved = r.goalUsage.TokenUsageObserved()
+			r.goalTokenUsageObserved = r.Usage.TokenUsageObserved()
 		}
-		r.goalUsageMu.Unlock()
+		r.Mu.Unlock()
 		goalID := r.ensureModelCreatedGoalBinding(context.Background())
 		r.claimSubagentGoalUsageRound(context.Background(), goalID)
 	}
@@ -351,33 +236,22 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 		// update_goal 的 tool result 到达时，当前 provider turn 尚未生成最终回复。
 		// 优先使用结果返回的 exact Goal ID；旧 provider 才回退到本 round 固定
 		// binding。保持该绑定直到 terminal usage 完成最终对账后再关闭。
-		r.goalUsageMu.Lock()
+		r.Mu.Lock()
 		if goalID := nexusmcp.SuccessfulGoalCompletionID(
 			receipts,
-			r.goalIDForUsage,
+			r.IDForUsage,
 		); goalID != "" {
-			r.goalCompletionCandidateID = goalID
+			r.CompletionCandidateID = goalID
 		}
-		if r.goalUsage != nil {
-			r.goalUsage.BeginFinalizing()
+		if r.Usage != nil {
+			r.Usage.BeginFinalizing()
 		}
-		r.goalUsageMu.Unlock()
+		r.Mu.Unlock()
 	}
-}
-
-func (r *roundRunner) consumeRuntimeCommandReceipts() []nexusmcp.CommandReceipt {
-	if r == nil || r.commandReceipts == nil {
-		return nil
-	}
-	r.goalUsageMu.Lock()
-	receipts, sequence := r.commandReceipts.Since(r.commandReceiptSequence)
-	r.commandReceiptSequence = sequence
-	r.goalUsageMu.Unlock()
-	return receipts
 }
 
 func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionResult) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.goalIDForUsage) == "" {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.IDForUsage) == "" {
 		return
 	}
 	if strings.TrimSpace(r.inputOptions.Purpose) == "goal_continuation" && result.TerminalStatus == "error" {
@@ -385,54 +259,45 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 		if r.mapper != nil {
 			assistantText = messageutil.ExtractAssistantDisplayText(r.mapper.LastAssistantMessage())
 		}
-		reason := dmdomain.FirstNonEmpty(
+		reason := textutil.FirstNonEmpty(
 			strings.TrimSpace(result.ErrorMessage),
 			assistantText,
 			"Goal continuation runtime failed",
 		)
 		r.recordGoalMutation("记录 Goal 续跑失败原因失败", func() error {
-			_, err := r.service.goals.RecordContinuationFailure(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
+			_, err := r.service.goals.RecordContinuationRuntimeFailure(context.Background(), r.IDForUsage, goalsvc.ContinuationRuntimeIdentity{ReceiptRoundID: r.roundID, AuditRoundID: r.roundID}, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
 	}
 	if strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" {
 		r.recordGoalMutation("记录 Goal 显式活动失败", func() error {
-			_, err := r.service.goals.RecordGoalActivity(context.Background(), r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
+			_, err := r.service.goals.RecordGoalActivity(context.Background(), r.IDForUsage, r.roundID, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
 	}
 	if messageutil.AssistantMissedGoalCompletionCommand(
-		r.lastGoalAssistantMessage(), r.hasGoalCompletionCandidate(),
+		r.LastGoalAssistantMessage(), r.HasGoalCompletionCandidate(),
 	) {
 		reason := "assistant claimed goal completion without an applied nexus.command update_goal receipt"
 		r.recordGoalMutation("记录 Goal 完成命令漏调用失败", func() error {
-			_, err := r.service.goals.RecordCompletionCommandMiss(context.Background(), r.goalIDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
+			_, err := r.service.goals.RecordCompletionCommandMiss(context.Background(), r.IDForUsage, r.roundID, reason, r.currentGoalObjectiveRevision())
 			return err
 		})
 		return
 	}
 	progressed := r.hasGoalToolProgress()
-	if !progressed && r.hasRunningSubagentTask() {
+	if !progressed && r.HasRunningSubagentTask() {
 		r.recordGoalMutation("结算已启动 Goal 续跑回执失败", func() error {
-			return settleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.goalIDForUsage, r.roundID, r.currentGoalObjectiveRevision())
+			return runtimehost.SettleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.IDForUsage, r.roundID, r.currentGoalObjectiveRevision())
 		})
 		return
 	}
 	r.recordGoalMutation("记录 Goal 续跑进展失败", func() error {
-		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.goalIDForUsage, r.roundID, progressed, r.currentGoalObjectiveRevision())
+		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.IDForUsage, r.roundID, progressed, r.currentGoalObjectiveRevision())
 		return err
 	}, "progressed", progressed)
-}
-
-func (r *roundRunner) hasGoalCompletionCandidate() bool {
-	if r == nil {
-		return false
-	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return strings.TrimSpace(r.goalCompletionCandidateID) != ""
 }
 
 func (r *roundRunner) currentGoalObjectiveRevision() int64 {
@@ -446,43 +311,23 @@ func (r *roundRunner) hasGoalRoundBinding() bool {
 	if r == nil || r.ignoreGoalRuntime() || r.currentGoalObjectiveRevision() <= 0 {
 		return false
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return strings.TrimSpace(r.goalIDForUsage) != ""
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	return strings.TrimSpace(r.IDForUsage) != ""
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {
-	err := mutation()
-	if err == nil || goalsvc.IsExpectedMutationError(err) {
-		return
-	}
-	baseFields := []any{
-		"session_key", r.sessionKey,
-		"goal_id", r.goalIDForUsage,
-		"round_id", r.roundID,
-	}
-	baseFields = append(baseFields, fields...)
-	baseFields = append(baseFields, "err", err)
-	r.service.loggerFor(context.Background()).Warn(logMessage, baseFields...)
-}
-
-func (r *roundRunner) rememberGoalToolProgress(progressed bool) {
-	if !progressed {
-		return
-	}
-	r.goalUsageMu.Lock()
-	r.goalToolProgress = true
-	r.goalUsageMu.Unlock()
+	runtimehost.LogGoalMutationFailure(r.service.LoggerFor(context.Background()), logMessage, mutation(), r.sessionKey, r.IDForUsage, r.roundID, fields...)
 }
 
 func (r *roundRunner) hasGoalToolProgress() bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	return r.goalToolProgress
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	return r.ToolProgress
 }
 
 func (r *roundRunner) finalGoalUsageSnapshot(result exec.RoundExecutionResult, finalAssistant protocol.Message) (goalsvc.RuntimeUsageSnapshot, bool) {
-	return goalruntimeusage.FinalSnapshot(result, finalAssistant, r.elapsedGoalUsageSeconds())
+	return goalruntimeusage.FinalSnapshot(result, finalAssistant, runtimehost.ElapsedSecondsSince(r.UsageStartedAt))
 }
 
 // rememberTerminalGoalUsageSnapshot 保留 provider terminal 快照，直到 claim、
@@ -491,8 +336,8 @@ func (r *roundRunner) finalGoalUsageSnapshot(result exec.RoundExecutionResult, f
 func (r *roundRunner) rememberTerminalGoalUsageSnapshot(
 	snapshot goalsvc.RuntimeUsageSnapshot,
 ) uint64 {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	r.goalTerminalUsageVersion++
 	r.goalTerminalUsageSnapshot = snapshot
 	r.goalTerminalUsagePending = true
@@ -507,16 +352,16 @@ func (r *roundRunner) pendingTerminalGoalUsageSnapshot() (
 	uint64,
 	bool,
 ) {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	return r.goalTerminalUsageSnapshot, r.goalTerminalUsageVersion, r.goalTerminalUsagePending
 }
 
 // clearTerminalGoalUsageSnapshot 采用版本条件清除，防止较旧的并发重试成功
 // 抹掉随后到达、仍未持久化的新 terminal 累计快照。
 func (r *roundRunner) clearTerminalGoalUsageSnapshot(version uint64) bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	if r.goalTerminalUsagePending && r.goalTerminalUsageVersion == version {
 		r.goalTerminalUsagePending = false
 		return true
@@ -528,19 +373,19 @@ func (r *roundRunner) clearTerminalGoalUsageSnapshot(version uint64) bool {
 // 若旧 settlement 完成后已有更新 terminal 快照接力，必须保持 accumulator
 // 活跃，直到新版本也完成持久化。
 func (r *roundRunner) closeGoalUsageIfNoTerminalSnapshotPending() bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	if r.goalTerminalUsagePending {
 		return false
 	}
-	if r.goalUsage != nil {
-		r.goalUsage.Close()
+	if r.Usage != nil {
+		r.Usage.Close()
 	}
 	return true
 }
 
 func (r *roundRunner) assistantGoalUsageSnapshot(message protocol.Message) goalsvc.RuntimeUsageSnapshot {
-	return goalruntimeusage.AssistantSnapshot(message, r.elapsedGoalUsageSeconds())
+	return goalruntimeusage.AssistantSnapshot(message, runtimehost.ElapsedSecondsSince(r.UsageStartedAt))
 }
 
 func (r *roundRunner) recordGoalUsageSnapshot(ctx context.Context, snapshot goalsvc.RuntimeUsageSnapshot) {
@@ -554,25 +399,25 @@ func (r *roundRunner) tryRecordGoalUsageSnapshot(
 	if r.service.goals == nil || r.ignoreGoalRuntime() {
 		return true
 	}
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if r.goalUsage != nil {
-		usage, ok := r.goalUsage.PrepareDelta(snapshot)
-		if r.goalUsage.TokenUsageObserved() && r.goalUsage.Active() {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if r.Usage != nil {
+		usage, ok := r.Usage.PrepareDelta(snapshot)
+		if r.Usage.TokenUsageObserved() && r.Usage.Active() {
 			r.goalTokenUsageObserved = true
 		}
 		if !ok {
 			return true
 		}
 		if _, persisted := r.persistGoalUsageDeltaLocked(ctx, usage); persisted {
-			r.goalUsage.CommitDelta(usage)
+			r.Usage.CommitDelta(usage)
 			return true
 		}
 		return false
 	}
 	usage := snapshot.Usage
 	usage.RuntimeSeconds = snapshot.ElapsedSeconds
-	if isZeroGoalUsage(usage) {
+	if usage.IsZero() {
 		return true
 	}
 	_, persisted := r.persistGoalUsageDeltaLocked(ctx, usage)
@@ -599,8 +444,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 		return true
 	}
 	snapshot.Terminal = true
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	if snapshot.TokenUsageObserved {
 		r.goalTokenUsageObserved = true
 	}
@@ -609,17 +454,17 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 		usage    protocol.GoalUsage
 		hasDelta bool
 	)
-	if r.goalUsage != nil {
-		usage, hasDelta = r.goalUsage.PrepareDelta(snapshot)
-		if r.goalUsage.TokenUsageObserved() {
+	if r.Usage != nil {
+		usage, hasDelta = r.Usage.PrepareDelta(snapshot)
+		if r.Usage.TokenUsageObserved() {
 			r.goalTokenUsageObserved = true
 		}
 	} else {
 		usage = snapshot.Usage
 		usage.RuntimeSeconds = snapshot.ElapsedSeconds
-		hasDelta = !isZeroGoalUsage(usage)
+		hasDelta = !usage.IsZero()
 	}
-	goalID := strings.TrimSpace(r.goalIDForUsage)
+	goalID := strings.TrimSpace(r.IDForUsage)
 	finalizer, canFinalize := r.service.goals.(dmGoalUsageFinalizationProvider)
 	var report *protocol.GoalUsageReport
 	if canFinalize && goalID != "" {
@@ -649,8 +494,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 		}); err != nil {
 			return false
 		}
-		if hasDelta && r.goalUsage != nil {
-			r.goalUsage.CommitDelta(usage)
+		if hasDelta && r.Usage != nil {
+			r.Usage.CommitDelta(usage)
 		}
 		hasDelta = false
 		parentRecorded = true
@@ -658,8 +503,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 
 	if report != nil &&
 		protocol.NormalizeGoalStatus(report.Status) == protocol.GoalStatusComplete &&
-		len(r.subagentTasks) == 0 &&
-		len(r.subagentUsagePending) == 0 {
+		len(r.SubagentTasks) == 0 &&
+		len(r.SubagentUsagePending) == 0 {
 		if !r.goalTokenUsageObserved {
 			// 缺失 parent provider usage 只能落 durable unavailable evidence，
 			// 不能用零值建立 authoritative finalization fence。
@@ -669,8 +514,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 			if _, persisted := r.persistGoalUsageDeltaLocked(ctx, usage); !persisted {
 				return false
 			}
-			if r.goalUsage != nil {
-				r.goalUsage.CommitDelta(usage)
+			if r.Usage != nil {
+				r.Usage.CommitDelta(usage)
 			}
 			return true
 		}
@@ -689,8 +534,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 			}
 			return false
 		}
-		if hasDelta && r.goalUsage != nil {
-			r.goalUsage.CommitDelta(usage)
+		if hasDelta && r.Usage != nil {
+			r.Usage.CommitDelta(usage)
 		}
 		return true
 	}
@@ -703,8 +548,8 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 	if _, persisted := r.persistGoalUsageDeltaLocked(ctx, usage); !persisted {
 		return false
 	}
-	if r.goalUsage != nil {
-		r.goalUsage.CommitDelta(usage)
+	if r.Usage != nil {
+		r.Usage.CommitDelta(usage)
 	}
 	return true
 }
@@ -712,7 +557,7 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshot(
 // finalizeCompletedGoalUsageAfterSubagents 在 parent terminal 已结算且最后一个
 // child source checkpoint 已提交后，重试未完成的结算并建立最终 fence。
 func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Context) bool {
-	if r == nil || r.hasRunningSubagentTask() {
+	if r == nil || r.HasRunningSubagentTask() {
 		return false
 	}
 	if !r.ensureSubagentGoalUsageRoundClaimed(ctx) {
@@ -722,7 +567,7 @@ func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Conte
 	if !pending {
 		snapshot = goalsvc.RuntimeUsageSnapshot{Terminal: true}
 	}
-	settled := r.settleTerminalGoalUsageSnapshotWithRetry(ctx, snapshot)
+	settled := runtimehost.PersistGoalUsageWithRetry(ctx, r.goalUsageRetryBaseDelay, func() bool { return r.settleTerminalGoalUsageSnapshot(ctx, snapshot) })
 	if settled {
 		canClose := true
 		if pending {
@@ -740,8 +585,8 @@ func (r *roundRunner) finalizeCompletedGoalUsageAfterSubagents(ctx context.Conte
 }
 
 func (r *roundRunner) recordGoalUsageDelta(ctx context.Context, usage protocol.GoalUsage) *protocol.Goal {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
 	return r.recordGoalUsageDeltaLocked(ctx, usage)
 }
 
@@ -756,31 +601,17 @@ func (r *roundRunner) persistGoalUsageDeltaLocked(
 	ctx context.Context,
 	usage protocol.GoalUsage,
 ) (*protocol.Goal, bool) {
-	if r.service.goals == nil || r.ignoreGoalRuntime() || isZeroGoalUsage(usage) {
+	if r.ignoreGoalRuntime() {
 		return nil, false
 	}
-	goalID := strings.TrimSpace(r.goalIDForUsage)
-	var updated *protocol.Goal
-	var err error
-	if goalID != "" {
-		updated, err = r.service.goals.RecordUsageForGoal(ctx, goalID, usage, r.roundID)
-	} else {
-		updated, err = r.service.goals.RecordUsageForSession(ctx, r.sessionKey, usage, r.roundID)
+	goalID := strings.TrimSpace(r.IDForUsage)
+	updated, ok := runtimehost.RecordGoalUsageDelta(ctx, r.service.goals, r.service.LoggerFor(ctx), r.sessionKey, goalID, r.roundID, usage)
+	if updated == nil {
+		return nil, ok
 	}
-	if err != nil && !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
-		r.service.loggerFor(context.Background()).Warn("记录 Goal usage 失败",
-			"session_key", r.sessionKey,
-			"goal_id", goalID,
-			"round_id", r.roundID,
-			"err", err,
-		)
-	}
-	if err != nil || updated == nil {
-		return nil, err == nil
-	}
-	if goalID == "" && strings.TrimSpace(r.goalIDForUsage) == "" {
-		r.goalIDForUsage = strings.TrimSpace(updated.ID)
-		r.childGoalIDForUsage = strings.TrimSpace(updated.ID)
+	if goalID == "" && strings.TrimSpace(r.IDForUsage) == "" {
+		r.IDForUsage = strings.TrimSpace(updated.ID)
+		r.ChildIDForUsage = strings.TrimSpace(updated.ID)
 	}
 	return updated, true
 }
@@ -789,22 +620,22 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 	if r == nil || r.service == nil || r.service.goals == nil {
 		return ""
 	}
-	r.goalUsageMu.Lock()
-	goalID := strings.TrimSpace(r.goalIDForUsage)
-	childGoalID := strings.TrimSpace(r.childGoalIDForUsage)
+	r.Mu.Lock()
+	goalID := strings.TrimSpace(r.IDForUsage)
+	childGoalID := strings.TrimSpace(r.ChildIDForUsage)
 	if goalID != "" {
 		if childGoalID == "" {
-			r.childGoalIDForUsage = goalID
+			r.ChildIDForUsage = goalID
 		}
-		r.goalUsageMu.Unlock()
+		r.Mu.Unlock()
 		return goalID
 	}
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 
 	_, goal, err := r.service.goals.RuntimeContext(ctx, r.sessionKey)
 	if err != nil {
-		if !errors.Is(err, goalsvc.ErrGoalDisabled) && !errors.Is(err, goalsvc.ErrGoalNotFound) {
-			r.service.loggerFor(ctx).Warn(
+		if !goalsvc.IsAbsent(err) {
+			r.service.LoggerFor(ctx).Warn(
 				"读取 model 创建后的 Goal 绑定失败",
 				"session_key", r.sessionKey,
 				"round_id", r.roundID,
@@ -820,38 +651,38 @@ func (r *roundRunner) ensureModelCreatedGoalBinding(ctx context.Context) string 
 	if loadedGoalID == "" {
 		return ""
 	}
-	r.goalUsageMu.Lock()
-	if strings.TrimSpace(r.goalIDForUsage) == "" {
-		r.goalIDForUsage = loadedGoalID
+	r.Mu.Lock()
+	if strings.TrimSpace(r.IDForUsage) == "" {
+		r.IDForUsage = loadedGoalID
 	}
-	childGoalID = strings.TrimSpace(r.childGoalIDForUsage)
+	childGoalID = strings.TrimSpace(r.ChildIDForUsage)
 	if childGoalID == "" {
 		childGoalID = loadedGoalID
-		r.childGoalIDForUsage = childGoalID
+		r.ChildIDForUsage = childGoalID
 	}
 	goalID = childGoalID
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 	return goalID
 }
 
 func (r *roundRunner) claimSubagentGoalUsageRound(ctx context.Context, goalID string) {
 	if r == nil || r.service == nil || r.service.goals == nil ||
 		r.ignoreGoalRuntime() ||
-		!strings.EqualFold(strings.TrimSpace(r.runtimeKind), "nxs") {
+		!strings.EqualFold(r.runtimeKind, "nxs") {
 		return
 	}
 	goalID = strings.TrimSpace(goalID)
 	if goalID == "" {
 		return
 	}
-	r.goalUsageMu.Lock()
-	r.childGoalIDForUsage = goalID
-	r.subagentUsageClaimPending = true
-	r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	r.ChildIDForUsage = goalID
+	r.UsageClaimPending = true
+	r.Mu.Unlock()
 	if r.ensureSubagentGoalUsageRoundClaimed(ctx) {
 		return
 	}
-	r.service.loggerFor(ctx).Warn(
+	r.service.LoggerFor(ctx).Warn(
 		"回补 model 创建前的 nxs 子任务 Goal usage 失败",
 		"session_key", r.sessionKey,
 		"goal_id", goalID,
@@ -863,20 +694,11 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 	if r == nil || r.service == nil || r.service.goals == nil {
 		return true
 	}
-	r.goalUsageMu.Lock()
-	pending := r.subagentUsageClaimPending
-	goalID := strings.TrimSpace(r.childGoalIDForUsage)
-	r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	pending := r.UsageClaimPending
+	goalID := strings.TrimSpace(r.ChildIDForUsage)
+	r.Mu.Unlock()
 	if !pending {
-		return true
-	}
-	claimer, ok := r.service.goals.(interface {
-		ClaimUsageSourceRound(context.Context, protocol.GoalUsageSourceRoundClaim) (protocol.GoalUsageSourceResult, error)
-	})
-	if !ok {
-		r.goalUsageMu.Lock()
-		r.subagentUsageClaimPending = false
-		r.goalUsageMu.Unlock()
 		return true
 	}
 	claim := protocol.GoalUsageSourceRoundClaim{
@@ -888,43 +710,32 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 		GoalID:            goalID,
 		GoalSessionKey:    r.sessionKey,
 	}
-	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-			return false
-		}
-		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
-			continue
-		}
-		r.goalUsageMu.Lock()
-		r.subagentUsageClaimPending = false
-		r.goalUsageMu.Unlock()
-		return true
+	if !runtimehost.ClaimGoalUsageSourceRound(ctx, r.service.goals, r.goalUsageRetryBaseDelay, claim) {
+		return false
 	}
-	return false
+	r.Mu.Lock()
+	r.UsageClaimPending = false
+	r.Mu.Unlock()
+	return true
 }
 
 type dmGoalUsageSourceRecorder interface {
 	RecordUsageSourceSnapshot(context.Context, protocol.GoalUsageSourceSnapshot) (protocol.GoalUsageSourceResult, error)
 }
 
-type dmSubagentUsageSettlement struct {
-	taskID      string
-	observation goalsvc.SubagentUsageObservation
-}
-
 func (r *roundRunner) recordSubagentGoalUsage(
 	ctx context.Context,
 	message protocol.Message,
-) []dmSubagentUsageSettlement {
+) []runtimehost.SubagentUsageSettlement {
 	if r == nil || r.service == nil ||
-		!strings.EqualFold(strings.TrimSpace(r.runtimeKind), "nxs") {
+		!strings.EqualFold(r.runtimeKind, "nxs") {
 		return nil
 	}
-	observations := dmSubagentUsageObservations(r, message)
+	observations := r.SubagentUsageObservations(message)
 	if len(observations) == 0 {
 		return nil
 	}
-	settledSnapshots := make([]dmSubagentUsageSettlement, 0, len(observations))
+	settledSnapshots := make([]runtimehost.SubagentUsageSettlement, 0, len(observations))
 	recorder, persistent := r.service.goals.(dmGoalUsageSourceRecorder)
 	if persistent {
 		hadFailure := false
@@ -934,47 +745,37 @@ func (r *roundRunner) recordSubagentGoalUsage(
 		// state 不被慢 provider 调用阻塞。
 		r.goalUsageBindingMu.Lock()
 		for _, child := range observations {
-			r.goalUsageMu.Lock()
-			r.markSubagentUsageObservationPendingLocked(child.taskID, child.observation)
-			observation := r.subagentUsagePending[child.taskID]
-			currentGoalID := strings.TrimSpace(r.childGoalIDForUsage)
+			r.Mu.Lock()
+			r.MarkSubagentUsagePendingLocked(child.TaskID, child.Observation)
+			observation := r.SubagentUsagePending[child.TaskID]
+			currentGoalID := strings.TrimSpace(r.ChildIDForUsage)
 			if currentGoalID == "" {
-				currentGoalID = strings.TrimSpace(r.goalIDForUsage)
+				currentGoalID = strings.TrimSpace(r.IDForUsage)
 			}
-			snapshot := r.subagentUsageSourceSnapshotLocked(child.taskID, observation)
-			r.goalUsageMu.Unlock()
-			var (
-				result protocol.GoalUsageSourceResult
-				err    error
-			)
-			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-					break
-				}
-				result, err = recorder.RecordUsageSourceSnapshot(ctx, snapshot)
-				if err == nil {
-					break
-				}
-			}
+			snapshot := r.subagentUsageSourceSnapshotLocked(child.TaskID, observation)
+			r.Mu.Unlock()
+			result, err := runtimehost.RetryGoalUsage(ctx, r.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+				return recorder.RecordUsageSourceSnapshot(ctx, snapshot)
+			})
 			if err != nil {
 				hadFailure = true
-				r.service.loggerFor(ctx).Warn("记录 nxs 子任务 Goal usage 失败",
+				r.service.LoggerFor(ctx).Warn("记录 nxs 子任务 Goal usage 失败",
 					"session_key", r.sessionKey,
 					"goal_id", currentGoalID,
 					"round_id", r.roundID,
-					"task_id", child.taskID,
+					"task_id", child.TaskID,
 					"err", err,
 				)
 				continue
 			}
-			r.goalUsageMu.Lock()
-			r.clearSubagentUsageObservationPendingLocked(child.taskID, observation)
-			settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-				taskID:      child.taskID,
-				observation: observation,
+			r.Mu.Lock()
+			r.ClearSubagentUsagePendingLocked(child.TaskID, observation)
+			settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: observation,
 			})
 			r.rememberSubagentUsageResultBindingLocked(result)
-			r.goalUsageMu.Unlock()
+			r.Mu.Unlock()
 		}
 		r.goalUsageBindingMu.Unlock()
 		if hadFailure {
@@ -984,66 +785,39 @@ func (r *roundRunner) recordSubagentGoalUsage(
 	}
 
 	for _, child := range observations {
-		r.markSubagentUsageObservationPending(child.taskID, child.observation)
+		r.MarkSubagentUsagePending(child.TaskID, child.Observation)
 	}
-	r.goalUsageMu.Lock()
-	goalID := strings.TrimSpace(r.childGoalIDForUsage)
+	r.Mu.Lock()
+	goalID := strings.TrimSpace(r.ChildIDForUsage)
 	if goalID == "" {
-		goalID = strings.TrimSpace(r.goalIDForUsage)
+		goalID = strings.TrimSpace(r.IDForUsage)
 	}
 	attributed := goalID != "" && !r.ignoreGoalRuntime()
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 	for _, child := range observations {
-		if r.service.runtime == nil {
-			settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-				taskID:      child.taskID,
-				observation: child.observation,
+		if r.service.Runtime == nil {
+			settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+				TaskID:      child.TaskID,
+				Observation: child.Observation,
 			})
 			continue
 		}
-		delta := r.service.runtime.ObserveSubagentUsage(
+		delta := r.service.Runtime.ObserveSubagentUsage(
 			r.sessionKey,
-			child.taskID,
-			child.observation.CumulativeTotal,
+			child.TaskID,
+			child.Observation.CumulativeTotal,
 		)
 		if delta > 0 && attributed && r.service.goals != nil && !r.ignoreGoalRuntime() {
 			// 兼容测试/非 SQL provider：TaskUsage 只有 provider actual total，
 			// 没有 breakdown 时不得冒充预算 token。
 			r.recordGoalUsageDelta(ctx, protocol.GoalUsage{ActualTotalTokens: delta})
 		}
-		settledSnapshots = append(settledSnapshots, dmSubagentUsageSettlement{
-			taskID:      child.taskID,
-			observation: child.observation,
+		settledSnapshots = append(settledSnapshots, runtimehost.SubagentUsageSettlement{
+			TaskID:      child.TaskID,
+			Observation: child.Observation,
 		})
 	}
 	return settledSnapshots
-}
-
-func dmSubagentUsageObservations(runner *roundRunner, message protocol.Message) []dmSubagentUsageSettlement {
-	var knowsTask func(string) bool
-	if runner != nil {
-		knowsTask = runner.knowsSubagentTask
-	}
-	observations := goalruntimeusage.SubagentObservations(message, knowsTask)
-	result := make([]dmSubagentUsageSettlement, 0, len(observations))
-	for _, item := range observations {
-		result = append(result, dmSubagentUsageSettlement{taskID: item.TaskID, observation: item.Usage})
-	}
-	return result
-}
-
-func (r *roundRunner) persistSubagentUsageObservation(
-	ctx context.Context,
-	recorder dmGoalUsageSourceRecorder,
-	taskID string,
-	observation goalsvc.SubagentUsageObservation,
-) (protocol.GoalUsageSourceResult, error) {
-	r.goalUsageBindingMu.Lock()
-	defer r.goalUsageBindingMu.Unlock()
-	r.goalUsageMu.Lock()
-	snapshot := r.subagentUsageSourceSnapshotLocked(taskID, observation)
-	r.goalUsageMu.Unlock()
-	return recorder.RecordUsageSourceSnapshot(ctx, snapshot)
 }
 
 // persistSubagentUsageObservationLocked resolves the child Goal binding and
@@ -1065,9 +839,9 @@ func (r *roundRunner) subagentUsageSourceSnapshotLocked(
 	taskID string,
 	observation goalsvc.SubagentUsageObservation,
 ) protocol.GoalUsageSourceSnapshot {
-	goalID := strings.TrimSpace(r.childGoalIDForUsage)
+	goalID := strings.TrimSpace(r.ChildIDForUsage)
 	if goalID == "" {
-		goalID = strings.TrimSpace(r.goalIDForUsage)
+		goalID = strings.TrimSpace(r.IDForUsage)
 	}
 	return protocol.GoalUsageSourceSnapshot{
 		OwnerUserID:            r.ownerUserID,
@@ -1093,13 +867,13 @@ func (r *roundRunner) rememberSubagentUsageResultBindingLocked(
 		return
 	}
 	goalID := strings.TrimSpace(result.Goal.ID)
-	if strings.TrimSpace(r.goalIDForUsage) == "" {
-		r.goalIDForUsage = goalID
+	if strings.TrimSpace(r.IDForUsage) == "" {
+		r.IDForUsage = goalID
 	}
-	if strings.TrimSpace(r.childGoalIDForUsage) == "" {
-		r.childGoalIDForUsage = goalID
+	if strings.TrimSpace(r.ChildIDForUsage) == "" {
+		r.ChildIDForUsage = goalID
 	}
-	r.goalUsageScopeConsumed = true
+	r.UsageScopeConsumed = true
 }
 
 // flushPendingSubagentUsageBeforeBindLocked drains every observation that was
@@ -1110,29 +884,14 @@ func (r *roundRunner) flushPendingSubagentUsageBeforeBindLocked(
 	ctx context.Context,
 	recorder dmGoalUsageSourceRecorder,
 ) error {
-	for taskID, observation := range r.subagentUsagePending {
-		var (
-			result protocol.GoalUsageSourceResult
-			err    error
-		)
-		for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-			if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
-				return ctx.Err()
-			}
-			result, err = r.persistSubagentUsageObservationLocked(
-				ctx,
-				recorder,
-				taskID,
-				observation,
-			)
-			if err == nil {
-				break
-			}
-		}
+	for taskID, observation := range r.SubagentUsagePending {
+		result, err := runtimehost.RetryGoalUsage(ctx, r.goalUsageRetryBaseDelay, func() (protocol.GoalUsageSourceResult, error) {
+			return r.persistSubagentUsageObservationLocked(ctx, recorder, taskID, observation)
+		})
 		if err != nil {
 			return err
 		}
-		r.clearSubagentUsageObservationPendingLocked(taskID, observation)
+		r.ClearSubagentUsagePendingLocked(taskID, observation)
 		r.rememberSubagentUsageResultBindingLocked(result)
 	}
 	return nil
@@ -1148,13 +907,13 @@ func (r *roundRunner) startGoalUsageRetryWorker() {
 	if r.service != nil {
 		recorder, _ = r.service.goals.(dmGoalUsageSourceRecorder)
 	}
-	r.goalUsageMu.Lock()
-	if r.goalUsageRetryRunning {
-		r.goalUsageMu.Unlock()
+	r.Mu.Lock()
+	if r.UsageRetrying {
+		r.Mu.Unlock()
 		return
 	}
-	r.goalUsageRetryRunning = true
-	r.goalUsageMu.Unlock()
+	r.UsageRetrying = true
+	r.Mu.Unlock()
 	go r.retryPendingGoalUsage(recorder)
 }
 
@@ -1227,22 +986,22 @@ func (r *roundRunner) retryPendingSubagentUsageObservation(
 ) error {
 	r.goalUsageBindingMu.Lock()
 	defer r.goalUsageBindingMu.Unlock()
-	r.goalUsageMu.Lock()
-	observation, ok := r.subagentUsagePending[strings.TrimSpace(taskID)]
+	r.Mu.Lock()
+	observation, ok := r.SubagentUsagePending[strings.TrimSpace(taskID)]
 	if !ok {
-		r.goalUsageMu.Unlock()
+		r.Mu.Unlock()
 		return nil
 	}
 	snapshot := r.subagentUsageSourceSnapshotLocked(taskID, observation)
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 	result, err := recorder.RecordUsageSourceSnapshot(ctx, snapshot)
 	if err != nil {
 		return err
 	}
-	r.goalUsageMu.Lock()
-	r.clearSubagentUsageObservationPendingLocked(taskID, observation)
+	r.Mu.Lock()
+	r.ClearSubagentUsagePendingLocked(taskID, observation)
 	r.rememberSubagentUsageResultBindingLocked(result)
-	r.goalUsageMu.Unlock()
+	r.Mu.Unlock()
 	return nil
 }
 
@@ -1251,13 +1010,13 @@ func (r *roundRunner) pendingSubagentUsageForRetry() (
 	bool,
 	string,
 ) {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if len(r.subagentUsagePending) == 0 {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if len(r.SubagentUsagePending) == 0 {
 		return nil, true, r.subagentParentTerminal
 	}
-	pending := make([]string, 0, len(r.subagentUsagePending))
-	for taskID := range r.subagentUsagePending {
+	pending := make([]string, 0, len(r.SubagentUsagePending))
+	for taskID := range r.SubagentUsagePending {
 		pending = append(pending, taskID)
 	}
 	return pending, false, ""
@@ -1267,31 +1026,23 @@ func (r *roundRunner) pendingSubagentUsageForRetry() (
 // source 时退出。parent terminal 与 worker 退出共用同一把锁，避免终态刚标记、
 // 旧 worker 却清掉 running 标记后无人接力。
 func (r *roundRunner) stopGoalUsageRetryWhileParentActive() bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if len(r.subagentUsagePending) > 0 || r.subagentParentTerminal != "" {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if len(r.SubagentUsagePending) > 0 || r.subagentParentTerminal != "" {
 		return false
 	}
-	r.goalUsageRetryRunning = false
+	r.UsageRetrying = false
 	return true
 }
 
 func (r *roundRunner) stopGoalUsageRetryAfterSettlement() bool {
-	r.goalUsageMu.Lock()
-	defer r.goalUsageMu.Unlock()
-	if len(r.subagentTasks) > 0 || len(r.subagentUsagePending) > 0 {
+	r.Mu.Lock()
+	defer r.Mu.Unlock()
+	if len(r.SubagentTasks) > 0 || len(r.SubagentUsagePending) > 0 {
 		return false
 	}
-	r.goalUsageRetryRunning = false
+	r.UsageRetrying = false
 	return true
-}
-
-func (r *roundRunner) elapsedGoalUsageSeconds() int64 {
-	if r.goalUsageStarted.IsZero() {
-		return 0
-	}
-	elapsed := int64(time.Since(r.goalUsageStarted).Seconds())
-	return max(elapsed, 0)
 }
 
 func (r *roundRunner) ignoreGoalRuntime() bool {
@@ -1299,16 +1050,4 @@ func (r *roundRunner) ignoreGoalRuntime() bool {
 		return false
 	}
 	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(r.permissionMode))
-}
-
-func isZeroGoalUsage(usage protocol.GoalUsage) bool {
-	return usage.InputTokens == 0 &&
-		usage.OutputTokens == 0 &&
-		usage.CacheCreationInputTokens == 0 &&
-		usage.CacheReadInputTokens == 0 &&
-		usage.ReasoningTokens == 0 &&
-		usage.TotalTokens == 0 &&
-		usage.BudgetTotalTokens == 0 &&
-		usage.ActualTotalTokens == 0 &&
-		usage.RuntimeSeconds == 0
 }

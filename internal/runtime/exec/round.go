@@ -10,6 +10,7 @@ import (
 	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -242,11 +243,11 @@ func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (r
 		return roundReceiveOutcome{result: failureResult}, err
 	}
 	var terminalResult RoundExecutionResult
-	isTerminal := strings.TrimSpace(mapResult.TerminalStatus) != ""
+	isTerminal := mapResult.TerminalStatus != ""
 	if isTerminal {
 		terminalResult = terminalRoundResult(mapResult, e.assistantTerminalResult, incoming.Result, e.startedAt)
 	}
-	sessionID := resolveSessionID(
+	sessionID := textutil.FirstNonEmpty(
 		e.request.Mapper.SessionID(),
 		incoming.SessionID,
 		e.request.Client.SessionID(),

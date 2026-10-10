@@ -15,6 +15,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
@@ -59,8 +60,8 @@ func (h *Handler) handleControlMessage(
 ) {
 	message := controlMessage{
 		handler: h, ctx: ctx, sender: sender, inbound: inbound,
-		sessionKey: handlershared.StringValue(inbound["session_key"]),
-		msgType:    handlershared.StringValue(inbound["type"]),
+		sessionKey: textutil.AnyString(inbound["session_key"]),
+		msgType:    textutil.AnyString(inbound["type"]),
 		receivedAt: time.Now(),
 	}
 	message.logControlStage("received", message.receivedAt)
@@ -68,7 +69,7 @@ func (h *Handler) handleControlMessage(
 	if !ok {
 		return
 	}
-	msgType := handlershared.StringValue(inbound["type"])
+	msgType := textutil.AnyString(inbound["type"])
 	if msgType == "permission_response" {
 		if !h.permission.IsBound(sessionKey, sender) {
 			h.sendGatewayError(
@@ -219,7 +220,7 @@ func (m *controlMessage) handleChat() {
 // 它不会进入普通 chat/runtime 路径。
 func (m *controlMessage) handleSetGoal() {
 	clientRequestID, clientMessageID := m.clientIDs()
-	objective := strings.TrimSpace(m.stringValue("objective"))
+	objective := m.stringValue("objective")
 	if objective == "" {
 		m.reportChatFailure(clientRequestID, clientMessageID, errors.New("goal objective is required"))
 		return
@@ -240,7 +241,7 @@ func (m *controlMessage) handleSetGoal() {
 // before the mutation is allowed to outlive the WebSocket connection. The host
 // registry repeats authorization inside the detached job as a fail-closed fence.
 func (m *controlMessage) validateDetachedGoalCommand() error {
-	if strings.TrimSpace(m.stringValue("objective")) == "" {
+	if m.stringValue("objective") == "" {
 		return errors.New("goal objective is required")
 	}
 	if m.handler == nil || m.handler.hostCommands == nil {
@@ -401,7 +402,7 @@ func (h *Handler) authorizeHostCommand(
 		if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
 			return errors.New("host Slash requires a group Room")
 		}
-		if agentID := strings.TrimSpace(invocation.AgentID); agentID != "" &&
+		if agentID := invocation.AgentID; agentID != "" &&
 			!roomHasAgent(contextValue.Members, agentID) {
 			return errors.New("agent_id is not a Room member")
 		}
@@ -585,7 +586,7 @@ func (m *controlMessage) usesRoomRuntime() bool {
 }
 
 func (m *controlMessage) stringValue(key string) string {
-	return handlershared.StringValue(m.inbound[key])
+	return textutil.AnyString(m.inbound[key])
 }
 
 func (m *controlMessage) clientIDs() (string, string) {

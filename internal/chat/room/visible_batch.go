@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -37,7 +38,7 @@ func BuildPublicInputBatch(input PublicInputBatchInput) PublicInputBatch {
 	}
 	if len(candidates) > 0 {
 		boundary := candidates[len(candidates)-1]
-		batch.LastMessageID = normalizeAnyString(boundary["message_id"])
+		batch.LastMessageID = textutil.AnyString(boundary["message_id"])
 		batch.LastTimestamp = normalizeInt64(boundary["timestamp"])
 	}
 	return batch
@@ -50,7 +51,7 @@ func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) 
 	lastMessageID := strings.TrimSpace(cursor.LastMessageID)
 	if lastMessageID != "" {
 		for index, message := range history {
-			if normalizeAnyString(message["message_id"]) == lastMessageID {
+			if textutil.AnyString(message["message_id"]) == lastMessageID {
 				return slices.Clone(history[index+1:])
 			}
 		}
@@ -67,12 +68,12 @@ func publicMessagesAfterCursor(history []protocol.Message, cursor PublicCursor) 
 }
 
 func isVisiblePublicInputMessage(message protocol.Message, targetAgentID string) bool {
-	role := normalizeAnyString(message["role"])
+	role := textutil.AnyString(message["role"])
 	switch role {
 	case "user":
 		return extractHistoryText(message) != ""
 	case "assistant":
-		if normalizeAnyString(message["agent_id"]) == strings.TrimSpace(targetAgentID) {
+		if textutil.AnyString(message["agent_id"]) == strings.TrimSpace(targetAgentID) {
 			return false
 		}
 		return formatHistoryLine(message, nil) != ""

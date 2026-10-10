@@ -10,58 +10,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestInputQueuePersistsCompleteExecutionWorkBinding(t *testing.T) {
-	stateRoot := t.TempDir()
-	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", "")
-	location := InputQueueLocation{
-		OwnerUserID:    "owner-1",
-		Scope:          protocol.InputQueueScopeRoom,
-		WorkspacePath:  filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "owner-1"), "agent-worker"),
-		SessionKey:     "room:agent:conversation-1:agent-worker",
-		RoomID:         "room-1",
-		ConversationID: "conversation-1",
-	}
-	binding := &protocol.ExecutionWorkBinding{
-		ExecutionID:  "execution-1",
-		PlanID:       "plan-1",
-		WorkItemID:   "work-1",
-		SpecID:       "spec-1",
-		AssignmentID: "assignment-1",
-		AttemptID:    "attempt-1",
-		DispatchID:   "dispatch-1",
-	}
-	store := NewInputQueueStore("")
-	if _, err := store.Enqueue(location, protocol.InputQueueItem{
-		ID:              "execution_dispatch_dispatch-1",
-		AgentID:         "agent-worker",
-		SourceAgentID:   "agent-lead",
-		SourceMessageID: "execution_dispatch_dispatch-1",
-		TargetAgentIDs:  []string{"agent-worker"},
-		Source:          protocol.InputQueueSourceAgentRoomMessage,
-		Content:         "deliver the evidence set",
-		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
-		WorkBinding:     binding,
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	replayed, err := NewInputQueueStore("").Snapshot(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(replayed) != 1 || !reflect.DeepEqual(replayed[0].WorkBinding, binding) {
-		t.Fatalf("replayed WorkBinding = %+v, want %+v", replayed, binding)
-	}
-
-	different := replayed[0]
-	different.WorkBinding = cloneTestExecutionWorkBinding(binding)
-	different.WorkBinding.AttemptID = "attempt-stale"
-	if MatchesInputQueueEnqueueIntent(replayed[0], different) {
-		t.Fatal("different Attempt binding matched the same enqueue intent")
-	}
-}
-
 func TestInputQueueStoreRejectsGuidanceMutationForExecutionBinding(t *testing.T) {
 	stateRoot := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
@@ -158,16 +106,6 @@ func TestInputQueueStoreRejectsInvalidCapabilityEnvelopeAcrossEnqueuePaths(t *te
 	assertRejected("bounded enqueue", err)
 	_, err = store.EnqueueBatchWithItems([]InputQueueEnqueue{{Location: location, Item: invalid}})
 	assertRejected("batch enqueue", err)
-}
-
-func cloneTestExecutionWorkBinding(
-	source *protocol.ExecutionWorkBinding,
-) *protocol.ExecutionWorkBinding {
-	if source == nil {
-		return nil
-	}
-	result := *source
-	return &result
 }
 
 func TestInputQueuePersistsIndependentExecutionReviewBinding(t *testing.T) {

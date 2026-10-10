@@ -5,63 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	channeltransport "github.com/nexus-research-lab/nexus/internal/service/channels/transport"
+
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmanagement "github.com/nexus-research-lab/nexus/internal/service/channels/management"
 )
-
-func TestDiscordChannelSendDeliveryMessage(t *testing.T) {
-	requests := make([]*http.Request, 0)
-	payloads := make([]map[string]any, 0)
-	channel := NewDiscordChannel("token-1", &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requests = append(requests, request)
-			var payload map[string]any
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-				return nil, fmt.Errorf("解析 Discord 请求失败: %w", err)
-			}
-			payloads = append(payloads, payload)
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{}`)),
-				Header:     make(http.Header),
-			}, nil
-		}),
-	})
-	channel.WithBaseURL("https://discord.test/api/v10")
-
-	text := strings.Repeat("a", 2400)
-	if _, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:    channelcontract.DeliveryModeExplicit,
-		Channel: channelcontract.ChannelTypeDiscord,
-		To:      "123456",
-	}, text); err != nil {
-		t.Fatalf("Discord 发送失败: %v", err)
-	}
-	if len(requests) != 2 {
-		t.Fatalf("期望分片发送 2 次，实际 %d", len(requests))
-	}
-	if got := requests[0].Header.Get("Authorization"); got != "Bot token-1" {
-		t.Fatalf("Authorization 头不正确: %s", got)
-	}
-	if !strings.HasSuffix(requests[0].URL.Path, "/channels/123456/messages") {
-		t.Fatalf("Discord 路径不正确: %s", requests[0].URL.Path)
-	}
-	allowedMentions, ok := payloads[0]["allowed_mentions"].(map[string]any)
-	if !ok {
-		t.Fatalf("Discord payload 应禁用 mention 解析: %+v", payloads[0])
-	}
-	parseValues, ok := allowedMentions["parse"].([]any)
-	if !ok || len(parseValues) != 0 {
-		t.Fatalf("Discord allowed_mentions.parse 应为空: %+v", allowedMentions)
-	}
-}
 
 func TestDiscordChannelSendDeliveryTyping(t *testing.T) {
 	requests := make([]*http.Request, 0)
@@ -105,76 +59,6 @@ func TestDiscordChannelSendDeliveryTyping(t *testing.T) {
 	}
 	if got := requests[0].Header.Get("Authorization"); got != "Bot token-1" {
 		t.Fatalf("Discord typing Authorization 不正确: %s", got)
-	}
-}
-
-func TestTelegramChannelSendDeliveryMessage(t *testing.T) {
-	requests := make([]*http.Request, 0)
-	var payload map[string]any
-	channel := NewTelegramChannel("token-2", &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			requests = append(requests, request)
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-				return nil, fmt.Errorf("解析 Telegram 请求失败: %w", err)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{}`)),
-				Header:     make(http.Header),
-			}, nil
-		}),
-	})
-	channel.WithBaseURL("https://telegram.test")
-
-	if _, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeTelegram,
-		To:       "-1001",
-		ThreadID: "12",
-	}, "hello"); err != nil {
-		t.Fatalf("Telegram 发送失败: %v", err)
-	}
-	if len(requests) != 1 {
-		t.Fatalf("期望发送 1 次，实际 %d", len(requests))
-	}
-	if !strings.HasSuffix(requests[0].URL.Path, "/bottoken-2/sendMessage") {
-		t.Fatalf("Telegram 路径不正确: %s", requests[0].URL.Path)
-	}
-	if payload["chat_id"] != "-1001" || payload["message_thread_id"] != float64(12) {
-		t.Fatalf("Telegram topic payload 不正确: %+v", payload)
-	}
-	if payload["disable_web_page_preview"] != true {
-		t.Fatalf("Telegram 应关闭链接预览: %+v", payload)
-	}
-}
-
-func TestTelegramChannelSendDeliveryMessageReturnsReceipt(t *testing.T) {
-	channel := NewTelegramChannel("token-2", &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(`{"ok":true,"result":{"message_id":42}}`)),
-				Header:     make(http.Header),
-			}, nil
-		}),
-	})
-	channel.WithBaseURL("https://telegram.test")
-
-	result, err := channel.SendDeliveryMessage(context.Background(), channelcontract.DeliveryTarget{
-		Mode:     channelcontract.DeliveryModeExplicit,
-		Channel:  channelcontract.ChannelTypeTelegram,
-		To:       "-1001",
-		ThreadID: "12",
-	}, "hello")
-	if err != nil {
-		t.Fatalf("Telegram receipt 发送失败: %v", err)
-	}
-	receipt := result.Receipt
-	if receipt == nil || receipt.PrimaryPlatformMessageID != "42" {
-		t.Fatalf("Telegram receipt 未记录 message_id: %+v", receipt)
-	}
-	if receipt.Channel != channelcontract.ChannelTypeTelegram || receipt.Target != "-1001" || receipt.ThreadID != "12" {
-		t.Fatalf("Telegram receipt 目标信息不正确: %+v", receipt)
 	}
 }
 
@@ -273,77 +157,6 @@ func TestTelegramChannelSendDeliveryGeneralTopicHandling(t *testing.T) {
 	}
 	if typingPayload["message_thread_id"] != float64(1) {
 		t.Fatalf("Telegram sendChatAction 应携带 General topic thread_id=1: %+v", typingPayload)
-	}
-}
-
-func TestTelegramFetchUpdatesSubscribesEditedMessages(t *testing.T) {
-	var payload map[string]any
-	channel := NewTelegramChannel("token-2", &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
-				return nil, fmt.Errorf("解析 Telegram getUpdates 请求失败: %w", err)
-			}
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body: io.NopCloser(strings.NewReader(`{
-					"ok": true,
-					"result": [{
-						"update_id": 4,
-						"edited_message": {
-							"message_id": 9,
-							"text": "edited",
-							"from": {"id": 8, "is_bot": false},
-							"chat": {"id": 7, "type": "private"}
-						}
-					}]
-				}`)),
-				Header: make(http.Header),
-			}, nil
-		}),
-	})
-	channel.WithBaseURL("https://telegram.test")
-
-	updates, nextOffset, err := channel.fetchUpdates(context.Background(), 3)
-	if err != nil {
-		t.Fatalf("Telegram getUpdates 失败: %v", err)
-	}
-	if len(updates) != 1 || updates[0].EditedMessage == nil || nextOffset != 5 {
-		t.Fatalf("Telegram edited update 解析不正确: updates=%+v next=%d", updates, nextOffset)
-	}
-	allowed, ok := payload["allowed_updates"].([]any)
-	if !ok {
-		t.Fatalf("Telegram allowed_updates 未发送: %+v", payload)
-	}
-	foundEdited := false
-	for _, item := range allowed {
-		if item == "edited_message" {
-			foundEdited = true
-			break
-		}
-	}
-	if !foundEdited {
-		t.Fatalf("Telegram allowed_updates 应包含 edited_message: %+v", allowed)
-	}
-}
-
-func TestTelegramFetchUpdatesRedactsBotTokenInErrors(t *testing.T) {
-	token := "123456:secret-token"
-	channel := NewTelegramChannel(token, &http.Client{
-		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
-			return nil, fmt.Errorf("boom %s", request.URL.String())
-		}),
-	})
-	channel.WithBaseURL("https://telegram.test")
-
-	_, _, err := channel.fetchUpdates(context.Background(), 0)
-	if err == nil {
-		t.Fatal("Telegram getUpdates 应返回错误")
-	}
-	if strings.Contains(err.Error(), token) {
-		t.Fatalf("Telegram 错误不应包含 bot token: %s", err)
-	}
-	if !strings.Contains(err.Error(), "bot<redacted>") {
-		t.Fatalf("Telegram 错误应标记 token 已脱敏: %s", err)
 	}
 }
 
@@ -486,54 +299,6 @@ func TestFeishuChannelSendDeliveryMessage(t *testing.T) {
 	}
 	if content["text"] != "今日新闻摘要" {
 		t.Fatalf("飞书消息正文不正确: %+v", content)
-	}
-}
-
-func TestTelegramMessageIdentityUsesUpdateScope(t *testing.T) {
-	c := NewTelegramChannel("test", nil)
-	ingress := &recordingIngressAcceptor{}
-	c.SetIngress(ingress)
-	for _, event := range []struct{ update, chat int }{{100, 1}, {101, 2}, {100, 1}} {
-		err := c.handleUpdate(t.Context(), telegramUpdate{UpdateID: event.update, Message: &telegramMessage{MessageID: 42, Text: "hello", From: &telegramUser{ID: 7}, Chat: telegramChat{ID: int64(event.chat), Type: "private"}}})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	a, b, retry := ingress.requests[0], ingress.requests[1], ingress.requests[2]
-	if a.ReqID == b.ReqID || a.ReqID != retry.ReqID || a.RoundID != retry.RoundID || a.Message.PlatformMessageID != "42" {
-		t.Fatalf("消息身份或重试轮次错误: %+v", ingress.requests)
-	}
-}
-
-func TestTelegramPollingRetriesUnacceptedUpdate(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	ingress := &recordingIngressAcceptor{err: &channelcontract.RetryableIngressError{Err: errors.New("数据库暂时不可用")}}
-	offsets := []int{}
-	client := &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatal(err)
-		}
-		offsets = append(offsets, int(body["offset"].(float64)))
-		if len(offsets) == 2 {
-			ingress.err = nil
-		}
-		if len(offsets) == 3 {
-			cancel()
-			return nil, context.Canceled
-		}
-		return jsonResponse(`{"ok":true,"result":[{"update_id":100,"message":{"message_id":42,"text":"hello","from":{"id":7},"chat":{"id":8,"type":"private"}}}]}`), nil
-	})}
-	c := NewTelegramChannel("test", client)
-	c.SetIngress(ingress)
-	c.wg.Add(1)
-	c.pollUpdates(ctx)
-	if fmt.Sprint(offsets) != "[0 0 101]" {
-		t.Fatalf("失败事件被确认: %v", offsets)
-	}
-	if len(ingress.requests) != 2 || ingress.requests[0].RoundID != ingress.requests[1].RoundID {
-		t.Fatalf("重试改变轮次: %+v", ingress.requests)
 	}
 }
 

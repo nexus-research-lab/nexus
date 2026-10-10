@@ -7,20 +7,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func buildRoomDirectedMessageContext(
-	messages []protocol.RoomDirectedMessageRecord,
-	agentNameByID map[string]string,
-	targetAgentID string,
-) string {
-	lines := make([]string, 0, len(messages))
-	for _, message := range messages {
-		if line := formatRoomDirectedMessageLine(message, agentNameByID); line != "" {
-			lines = append(lines, line)
-		}
-	}
-	return wrapRoomDirectedMessageContext(lines, agentNameByID, targetAgentID)
-}
-
 func formatRoomDirectedMessageLine(
 	message protocol.RoomDirectedMessageRecord,
 	agentNameByID map[string]string,

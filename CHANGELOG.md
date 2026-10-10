@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- DM 与 Room 共享单 Agent 执行引擎：runtime 启动（含失效 resume 回退）、round 执行骨架、宿主 result 消息与 PostToolUse 引导协议只实现一次；中断收尾在各宿主内去重。
+- 后端按“DM 是 Room 的一种”收敛：每轮 Goal 状态、Goal 续跑、用量结算与重试、完成收据、`/goal` 建 Goal 与流诊断在 `service/runtimehost` 只实现一次；DM 与 Room realtime 装配不完整时启动即失败。
+- 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
+- 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。
+- AGENTS.md 精简为项目宪法，产品合同迁入 `docs/specs/`；规范与指南去重瘦身约 14%，按实现修正规范内部矛盾，修复失效链接并重建 `docs/README.md` 索引。
+
 ### Fixed
 
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
-
+- 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
+- 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
-
 - 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
 - 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
 - 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
@@ -20,9 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 修复 nexuscfg 全部 runtime 配置请求因携带多余 reconcile 字段而返回“请求参数错误”，恢复 inspect、plan、apply、history 与 review 的请求解析。修正配置 Skill 的排障指引，避免将通用接口错误或页面不可见直接归因于权限或版本缺失。
 
-- 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
+- 未部署 Relay 时自动隔离在线多人入口与请求；新增 `NEXUS_MULTIPLAYER_DISABLED=true` 显式关闭多人 Gateway、桌面代理及本机执行器，保留组织账号和本地 Room。
 
-- 优化部署用户目录与新建流程：创建改为独立弹窗，补齐焦点、字段校验、加载与未知结果核对反馈。
+- 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
 
 - IM 配对支持选择当前智能体已有的本地 DM 会话，复用原历史与执行 Session；改绑校验所属智能体，旧版本回信失效。
 
@@ -30,9 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 配对会话目标改为固定高度的锚定浮层，展开与选群不再撑动卡片；群聊与会话双栏选择，支持搜索和完整路径预览，简化独立聊天与改绑说明。
 
+- 会话历史时间靠右对齐，悬浮或键盘聚焦时在原位置显示操作图标，消除隐藏按钮的空白占位。
+
 - 修复 IM 配对会话目标误用群聊类型值，导致符合条件的本地群聊全部被过滤、只显示独立 IM 会话。
 
 - 整理频道配对卡片的信息层级：身份与操作对齐，智能体和会话目标等宽排列，活动时间收进技术详情。
+
+- 优化部署用户目录与新建流程：创建改为独立弹窗，补齐焦点、字段校验、加载与未知结果核对反馈。
 
 - App 登录表单底部补充“返回”按钮，与“登录”按钮等宽并排，可取消登录并回到本地工作台。
 

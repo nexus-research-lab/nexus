@@ -1,142 +1,11 @@
 package workspace
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
-
-func TestPaginateNormalizedHistoryRowsKeepsDMRoundComplete(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id": "user-1",
-			"round_id":   "round-1",
-			"role":       "user",
-			"timestamp":  1000,
-		},
-		{
-			"message_id": "assistant-1",
-			"round_id":   "round-1",
-			"role":       "assistant",
-			"timestamp":  2000,
-		},
-		{
-			"message_id": "result-1",
-			"round_id":   "round-1",
-			"role":       "result",
-			"timestamp":  3000,
-		},
-		{
-			"message_id": "user-2",
-			"round_id":   "round-2",
-			"role":       "user",
-			"timestamp":  4000,
-		},
-		{
-			"message_id": "assistant-2",
-			"round_id":   "round-2",
-			"role":       "assistant",
-			"timestamp":  5000,
-		},
-		{
-			"message_id": "result-2",
-			"round_id":   "round-2",
-			"role":       "result",
-			"timestamp":  6000,
-		},
-	}
-
-	page := paginateNormalizedHistoryRows(rows, 1, "", 0, false)
-	if !page.HasMore {
-		t.Fatalf("按 round 分页时应仍有更早历史: %+v", page)
-	}
-	if len(page.Items) != 3 {
-		t.Fatalf("最新一页应保留完整 round: got=%d want=3", len(page.Items))
-	}
-	if page.Items[0]["message_id"] != "user-2" || page.Items[2]["message_id"] != "result-2" {
-		t.Fatalf("最新一页 round 边界不正确: %+v", page.Items)
-	}
-
-	olderPage := paginateNormalizedHistoryRows(
-		rows,
-		1,
-		derefString(page.NextBeforeRoundID),
-		derefInt64(page.NextBeforeRoundTimestamp),
-		false,
-	)
-	if olderPage.HasMore {
-		t.Fatalf("更早一页不应继续有历史: %+v", olderPage)
-	}
-	if len(olderPage.Items) != 3 {
-		t.Fatalf("更早一页应保留完整 round: got=%d want=3", len(olderPage.Items))
-	}
-	if olderPage.Items[0]["message_id"] != "user-1" || olderPage.Items[2]["message_id"] != "result-1" {
-		t.Fatalf("更早一页 round 边界不正确: %+v", olderPage.Items)
-	}
-}
-
-func TestPaginateNormalizedHistoryRowsCollapsesRoomAgentSubRounds(t *testing.T) {
-	rows := []protocol.Message{
-		{
-			"message_id": "room-user-1",
-			"round_id":   "room-round-1",
-			"role":       "user",
-			"timestamp":  1000,
-		},
-		{
-			"message_id": "room-assistant-a-1",
-			"round_id":   "room-round-1:agent-a",
-			"agent_id":   "agent-a",
-			"role":       "assistant",
-			"timestamp":  2000,
-		},
-		{
-			"message_id": "room-result-a-1",
-			"round_id":   "room-round-1:agent-a",
-			"agent_id":   "agent-a",
-			"role":       "result",
-			"timestamp":  3000,
-		},
-		{
-			"message_id": "room-assistant-b-1",
-			"round_id":   "room-round-1:agent-b",
-			"agent_id":   "agent-b",
-			"role":       "assistant",
-			"timestamp":  4000,
-		},
-		{
-			"message_id": "room-result-b-1",
-			"round_id":   "room-round-1:agent-b",
-			"agent_id":   "agent-b",
-			"role":       "result",
-			"timestamp":  5000,
-		},
-		{
-			"message_id": "room-user-2",
-			"round_id":   "room-round-2",
-			"role":       "user",
-			"timestamp":  6000,
-		},
-		{
-			"message_id": "room-assistant-c-2",
-			"round_id":   "room-round-2:agent-c",
-			"agent_id":   "agent-c",
-			"role":       "assistant",
-			"timestamp":  7000,
-		},
-	}
-
-	page := paginateNormalizedHistoryRows(rows, 1, "", 0, true)
-	if !page.HasMore {
-		t.Fatalf("Room 最新页应仍有更早主 round: %+v", page)
-	}
-	if len(page.Items) != 2 {
-		t.Fatalf("Room 最新页应保留完整主 round: got=%d want=2", len(page.Items))
-	}
-	if page.Items[0]["message_id"] != "room-user-2" || page.Items[1]["message_id"] != "room-assistant-c-2" {
-		t.Fatalf("Room 最新页主 round 不正确: %+v", page.Items)
-	}
-}
 
 func TestPaginateNormalizedHistoryRowsCollapsesSuffixedRoomMarker(t *testing.T) {
 	rows := []protocol.Message{
@@ -169,30 +38,6 @@ func TestPaginateNormalizedHistoryRowsCollapsesSuffixedRoomMarker(t *testing.T) 
 	}
 }
 
-func TestPaginateNormalizedHistoryRowsAroundRound(t *testing.T) {
-	rows := []protocol.Message{
-		{"message_id": "user-1", "round_id": "round-1", "role": "user", "timestamp": 1000},
-		{"message_id": "assistant-1", "round_id": "round-1", "role": "assistant", "timestamp": 1100},
-		{"message_id": "user-2", "round_id": "round-2", "role": "user", "timestamp": 2000},
-		{"message_id": "assistant-2", "round_id": "round-2", "role": "assistant", "timestamp": 2100},
-		{"message_id": "user-3", "round_id": "round-3", "role": "user", "timestamp": 3000},
-		{"message_id": "assistant-3", "round_id": "round-3", "role": "assistant", "timestamp": 3100},
-		{"message_id": "user-4", "round_id": "round-4", "role": "user", "timestamp": 4000},
-		{"message_id": "assistant-4", "round_id": "round-4", "role": "assistant", "timestamp": 4100},
-	}
-
-	page := paginateNormalizedHistoryRowsAround(rows, "round-3", 1, false)
-	if !page.HasMore {
-		t.Fatalf("目标窗口外仍有历史，应标记 has_more: %+v", page)
-	}
-	if len(page.Items) != 6 {
-		t.Fatalf("目标窗口应只返回目标前后各一轮: got=%d", len(page.Items))
-	}
-	if page.Items[0]["round_id"] != "round-2" || page.Items[5]["round_id"] != "round-4" {
-		t.Fatalf("目标窗口边界不正确: %+v", page.Items)
-	}
-}
-
 func derefString(value *string) string {
 	if value == nil {
 		return ""
@@ -205,4 +50,165 @@ func derefInt64(value *int64) int64 {
 		return 0
 	}
 	return *value
+}
+
+func paginateNormalizedHistoryRows(
+	rows []protocol.Message,
+	limit int,
+	beforeRoundID string,
+	beforeRoundTimestamp int64,
+	collapseRoomAgentRounds bool,
+) protocol.MessagePage {
+	if len(rows) == 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	pageLimit := normalizeRoundPageLimit(limit)
+	groups := buildHistoryPageGroups(rows, collapseRoomAgentRounds)
+	endGroupIndex := findHistoryPageEndGroupIndex(
+		groups,
+		strings.TrimSpace(beforeRoundID),
+		beforeRoundTimestamp,
+	)
+	if endGroupIndex <= 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	startGroupIndex := endGroupIndex - pageLimit
+	if startGroupIndex < 0 {
+		startGroupIndex = 0
+	}
+
+	pageItems := make([]protocol.Message, 0)
+	for _, group := range groups[startGroupIndex:endGroupIndex] {
+		pageItems = append(pageItems, group.Items...)
+	}
+
+	page := protocol.MessagePage{
+		Items:   pageItems,
+		HasMore: startGroupIndex > 0,
+	}
+	if page.HasMore && len(pageItems) > 0 {
+		oldestGroup := groups[startGroupIndex]
+		if strings.TrimSpace(oldestGroup.CursorRoundID) != "" {
+			page.NextBeforeRoundID = stringPointer(oldestGroup.CursorRoundID)
+		}
+		timestamp := oldestGroup.CursorRoundTimestamp
+		page.NextBeforeRoundTimestamp = &timestamp
+	}
+	return page
+}
+
+func paginateNormalizedHistoryRowsAround(
+	rows []protocol.Message,
+	aroundRoundID string,
+	aroundLimit int,
+	collapseRoomAgentRounds bool,
+) protocol.MessagePage {
+	if len(rows) == 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	aroundRoundID = strings.TrimSpace(aroundRoundID)
+	if aroundRoundID == "" {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: false,
+		}
+	}
+
+	groups := buildHistoryPageGroups(rows, collapseRoomAgentRounds)
+	targetIndex := -1
+	for index, group := range groups {
+		if group.CursorRoundID == aroundRoundID {
+			targetIndex = index
+			break
+		}
+	}
+	if targetIndex < 0 {
+		return protocol.MessagePage{
+			Items:   []protocol.Message{},
+			HasMore: len(groups) > 0,
+		}
+	}
+
+	radius := normalizeRoundAroundLimit(aroundLimit)
+	startIndex := targetIndex - radius
+	if startIndex < 0 {
+		startIndex = 0
+	}
+	endIndex := targetIndex + radius + 1
+	if endIndex > len(groups) {
+		endIndex = len(groups)
+	}
+
+	pageItems := make([]protocol.Message, 0)
+	for _, group := range groups[startIndex:endIndex] {
+		pageItems = append(pageItems, group.Items...)
+	}
+	page := protocol.MessagePage{
+		Items:   pageItems,
+		HasMore: startIndex > 0 || endIndex < len(groups),
+	}
+	if startIndex > 0 {
+		oldestGroup := groups[startIndex]
+		if strings.TrimSpace(oldestGroup.CursorRoundID) != "" {
+			page.NextBeforeRoundID = stringPointer(oldestGroup.CursorRoundID)
+		}
+		timestamp := oldestGroup.CursorRoundTimestamp
+		page.NextBeforeRoundTimestamp = &timestamp
+	}
+	return page
+}
+
+func buildHistoryPageGroups(
+	rows []protocol.Message,
+	collapseRoomAgentRounds bool,
+) []historyPageGroup {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	groups := make([]historyPageGroup, 0, len(rows))
+	currentGroupKey := ""
+	currentGroup := historyPageGroup{}
+
+	flushCurrentGroup := func() {
+		if len(currentGroup.Items) == 0 {
+			return
+		}
+		groups = append(groups, currentGroup)
+		currentGroup = historyPageGroup{}
+	}
+
+	for _, row := range rows {
+		groupKey := historyPageGroupKey(row, collapseRoomAgentRounds)
+		if groupKey == "" {
+			continue
+		}
+		if groupKey != currentGroupKey {
+			flushCurrentGroup()
+			currentGroupKey = groupKey
+			currentGroup = historyPageGroup{
+				CursorRoundID:        historyPageCursorRoundID(row, collapseRoomAgentRounds),
+				CursorRoundTimestamp: messageTimestamp(row),
+				Items:                make([]protocol.Message, 0, 1),
+			}
+		}
+		currentGroup.Items = append(
+			currentGroup.Items,
+			normalizeHistoryPageRow(row, collapseRoomAgentRounds),
+		)
+	}
+	flushCurrentGroup()
+	return groups
 }

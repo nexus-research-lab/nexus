@@ -1,6 +1,6 @@
 # Browser 能力规范
 
-本文记录 Nexus Browser 的当前跨进程合同。Browser 是该能力在设置、MCP、后端与 Chromium 扩展中的唯一名称。
+Nexus Browser 的跨进程合同。Browser 是该能力在设置、MCP、后端与 Chromium 扩展中的唯一名称。
 
 ## 架构边界
 
@@ -21,37 +21,61 @@ runtime MCP browser
 ## 安装与状态
 
 - 桌面构建把扩展放在应用资源目录；设置页不下载或复制第二份扩展。
-- 安装入口优先打开已安装的 Google Chrome，其次打开 Microsoft Edge 的扩展程序页面，并在 Finder 或 Explorer 中定位同一扩展目录。
-- 状态接口区分未连接、已连接和协议不兼容；不兼容握手会保留扩展版本与协议版本，成功连接后立即清除。
-- 扩展弹窗显示当前活动页与控制状态；弹窗按钮和网页右键菜单通过 `nexus://launcher?initial=...` 打开 Launcher 草稿，用户仍需自行选择 Agent 或发送消息。
+- 安装入口优先打开已安装的 Google Chrome，其次 Microsoft Edge 的扩展程序页面，并在 Finder 或 Explorer 中定位同一扩展目录。
+- 状态接口区分未连接、已连接和协议不兼容；不兼容握手保留扩展版本与协议版本，成功连接后立即清除。
+- 扩展弹窗显示当前活动页与控制状态。弹窗按钮和网页右键菜单通过 `nexus://launcher?initial=...` 打开 Launcher 草稿；用户仍需自行选择 Agent 或发送消息。
+- `status.connected` 只表示连接对象存在，不能当作执行健康证明。
+  - `execution_state` 独立返回 `unverified`/`ready`/`busy`/`recovery_required`/`unresponsive`。
+  - `last_seen_at` 来自已验证连接的进度或 pong；超过 45 秒无新观测标记 `unresponsive`。
 
 ## 连接协议
 
 - WebSocket 路由固定为 `/nexus/v1/internal/browser/ws`，子协议为 `nexus.browser.v1`。
-- 扩展依次发送和接收 `browser.ready`、`browser.accepted`、`browser.command`、`browser.cancel`、`browser.progress`、`browser.result`、`browser.event`、`browser.ping` 与 `browser.pong`。
+- 消息类型：`browser.ready`、`browser.accepted`、`browser.command`、`browser.cancel`、`browser.progress`、`browser.result`、`browser.event`、`browser.ping`、`browser.pong`。
 - Handler 只接受 manifest 固定 ID 对应的 `chrome-extension://` Origin。
 - `browser.ready` 携带浏览器名称、稳定浏览器实例 ID 与当前扩展进程代次；代次变化时宿主立即废弃旧标签页引用。
-- 同一时刻只有一个扩展连接；新连接替换旧连接并结束旧连接上的等待请求。
-- 扩展0.8.6起，原生鼠标、滚轮、键盘输入以及原始 `Input.*` CDP 动作先执行 `Page.bringToFront` 激活目标标签，再计算位置、显示光标并派发输入；不能向后台页直接发滚轮后依赖超时重试。激活失败直接结束，不发送原生输入。
-- 当前协议版本为 `6`，配套扩展从 `0.8.5` 起提供命令生命周期保护；旧协议必须更新扩展，不能静默降级。
-- `browser.command` 的 `budget_ms` 是剩余毫秒预算；扩展以本地单调时钟累计排队和执行耗时。默认整条调用最多90秒，显式 `timeout_ms` 同时收紧宿主和扩展总预算，batch 继续共享宿主总预算，round 收尾最多15秒。两端不比较墙上时钟；网络传输延迟由宿主取消补足，取消不能撤销已交给 Chrome 的原生操作。
-- 扩展采用容量64的显式顺序队列；`list_tabs` 与健康消息绕过动作队列。原生 Chrome 调用一般最多15秒，脚本执行、截图与PDF调用受剩余总预算约束；光标发送、补注入共用1.5秒预算，隐藏也最多1.5秒，视觉反馈失败降级且迟到注入不继续发光标消息。
-- 宿主超时、取消或发送失败后，向原连接独立发送最多1秒的 `browser.cancel`；写锁等待也受调用 context 与写超时约束。扩展在出队、方法进入、Chrome调用及返回后检查命令生命周期；取消后不能继续后续副作用，断线使旧命令和异步事件处理失效。回执、阶段事件与标签事件在宿主按精确连接 ID 校验，不能由旧连接改写新状态。
-- 未开始命令取消后不执行；已开始命令取消或底层等待超时报告结果未知，隔离该 Session 与已知关联标签，后续冲突动作立即拒绝。隔离页尝试有界 debugger detach 以释放输入/调试状态，但成功 detach 也不自动清除隔离。其他 Session 可在调度器推进后继续，目录查询保持可用；用户核对页面并重新加载扩展后才恢复隔离会话，不自动重放原动作。
-- `browser.progress` 独立发送 queued/running/api_start/api_end/api_error/completed/cancelled/unknown，宿主通过装配注入的持久化 logger 记录请求 ID、连接 ID、阶段、Chrome 方法与耗时，不记录参数、页面正文或脚本。宿主另记录发送开始/结束、回执与超时。响应发送异常不能破坏调度器。
-- `status.connected` 仅表达连接对象存在；`execution_state` 独立返回 unverified/ready/busy/recovery_required/unresponsive，`last_seen_at` 来自已验证连接的进度或 pong。超过45秒无新观测标记 unresponsive；不能把 connected=true 当作执行健康证明。
+- 同一时刻只有一个扩展连接；新连接替换旧连接，并结束旧连接上的等待请求。
+- 当前协议版本为 `6`，配套扩展从 `0.8.5` 起提供命令生命周期保护。旧协议必须更新扩展，不能静默降级。
+- 扩展 0.8.6 起，原生鼠标、滚轮、键盘输入以及原始 `Input.*` CDP 动作先执行 `Page.bringToFront` 激活目标标签，再计算位置、显示光标并派发输入；激活失败直接结束，不发送原生输入，也不能向后台页发滚轮后依赖超时重试。
 
+### 预算与队列
+
+- `browser.command` 的 `budget_ms` 是剩余毫秒预算；扩展以本地单调时钟累计排队和执行耗时。两端不比较墙上时钟，网络传输延迟由宿主取消补足。
+- 默认整条调用最多 90 秒；显式 `timeout_ms` 同时收紧宿主和扩展总预算；batch 共享宿主总预算；round 收尾最多 15 秒。
+- 扩展使用容量 64 的显式顺序队列；`list_tabs` 与健康消息绕过动作队列。
+- 原生 Chrome 调用一般最多 15 秒；脚本执行、截图与 PDF 调用受剩余总预算约束。
+- 光标发送与补注入共用 1.5 秒预算，隐藏也最多 1.5 秒；视觉反馈失败时降级，迟到注入不再继续发光标消息。
+
+### 取消与隔离
+
+- 宿主超时、取消或发送失败后，向原连接独立发送最多 1 秒的 `browser.cancel`；写锁等待也受调用 context 与写超时约束。取消不能撤销已交给 Chrome 的原生操作。
+- 扩展在出队、方法进入、Chrome 调用及返回后检查命令生命周期；取消后不能继续后续副作用；断线使旧命令和异步事件处理失效。
+- 回执、阶段事件与标签事件在宿主按精确连接 ID 校验，旧连接不能改写新状态。
+- 未开始的命令取消后不执行。已开始的命令被取消或底层等待超时时：
+  - 报告结果未知，隔离该 Session 与已知关联标签，后续冲突动作立即拒绝；
+  - 隔离页尝试有界 debugger detach 以释放输入/调试状态，detach 成功也不自动清除隔离；
+  - 其他 Session 可在调度器推进后继续，目录查询保持可用；
+  - 用户核对页面并重新加载扩展后才恢复隔离会话，不自动重放原动作。
+
+### 诊断
+
+- `browser.progress` 独立发送 `queued`/`running`/`api_start`/`api_end`/`api_error`/`completed`/`cancelled`/`unknown`。
+- 宿主通过装配注入的持久化 logger 记录请求 ID、连接 ID、阶段、Chrome 方法与耗时，不记录参数、页面正文或脚本；另记录发送开始/结束、回执与超时。
+- 响应发送异常不能破坏调度器。
 
 ## Session 与标签页
 
 - 每个 runtime Session 保存自己的活动标签页与已归属标签页集合；宿主只复用扩展签发的 `tab_ref`，整数 `tab_id` 仅作结果展示。
-- `navigate`、`find_tab`、`attach_active` 和 `attach_tab` 建立 Session 归属；后续页面动作只能使用该 Session 的活动标签页。
-- `list_tabs scope=session` 只列出本 Session 标签页，`scope=all` 只用于发现浏览器标签页；模型必须把结果中的 `tab_ref` 交给 `attach_tab` 后才能操作发现的标签页。
 - `tab_ref` 同时绑定浏览器实例、扩展进程代次、标签页 ID 和标签页实例 token；关闭后复用的整数 ID、扩展重启前的引用或模型自行构造的引用都会失败关闭。
-- 扩展监听 `webNavigation.onCreatedNavigationTarget`；由已归属标签页创建的新标签页继承来源 Session 和标签组，并以 `browser.event/tab_created` 主动更新宿主活动页。事件丢失时，扩展侧 Session 租约会在下一次 `list_tabs` 中补回。
-- 扩展通过 `tab_updated`、`tab_activated` 与 `tab_removed` 事件同步受控页的导航、激活和关闭状态；宿主只接受当前 Session 已持有的不透明引用。
+- `navigate`、`find_tab`、`attach_active` 和 `attach_tab` 建立 Session 归属；后续页面动作只能使用该 Session 的活动标签页。
+- `list_tabs scope=session` 只列出本 Session 标签页；`scope=all` 只用于发现，模型必须把结果中的 `tab_ref` 交给 `attach_tab` 后才能操作发现的标签页。
+- 扩展监听 `webNavigation.onCreatedNavigationTarget`：已归属标签页创建的新标签页继承来源 Session 和标签组，并以 `browser.event/tab_created` 主动更新宿主活动页；事件丢失时，扩展侧 Session 租约在下一次 `list_tabs` 中补回。
+- 扩展通过 `tab_updated`、`tab_activated` 与 `tab_removed` 事件同步受控页的导航、激活和关闭；宿主只接受当前 Session 已持有的不透明引用。
 - 新建标签页按 Session 放入独立 Chrome 标签组；`close_session` 只关闭该 Session 已归属的标签页。
-- 标签页租约绑定当前 runtime round。round 结束时，扩展关闭本轮 Agent 新建且未标记的临时页，并对借用的用户页或 `deliverable` 结果页解除调试连接；Agent 新建的 `deliverable` 结果页同时移出 Nexus 临时标签组，借用页保留用户原有分组；`handoff` 页保留 Session 归属，供下一轮继续控制。
+- 标签页租约绑定当前 runtime round。round 结束时：
+  - 关闭本轮 Agent 新建且未标记的临时页；
+  - 对借用的用户页或 `deliverable` 结果页解除调试连接；Agent 新建的 `deliverable` 页同时移出 Nexus 临时标签组，借用页保留用户原有分组；
+  - `handoff` 页保留 Session 归属，供下一轮继续控制。
 
 ## Browser action
 
@@ -65,22 +89,40 @@ runtime MCP browser
 | 键盘与鼠标 | `clipboard`、`key_type`、`send_keys`、`press_key`、`mouse_click`、`double_click`、`hover`、`mouse_move`、`drag`、`scroll` |
 | 文件与图像 | `download`、`downloads`、`screenshot`、`save_as_pdf` |
 
-`click` 与其余鼠标 action 使用真实 CDP 输入事件；`click` 固定为左键单击，`mouse_click` 额外接受坐标、按钮与点击次数。DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref，鼠标 action 也可直接使用视口坐标。页面点击不得用 `evaluate` 调用 `element.click()` 绕过真实输入与可见指针。
+### 输入与目标
 
-`batch` 在宿主内顺序复用现有 action 和输入校验，不增加扩展线协议。它最多接受 20 个不需要消费中间结果的导航、等待、表单、键鼠或上传动作，默认在全部动作结束后只返回一次最终 AX 快照；失败会报告精确动作序号和已完成数量，禁止嵌套 `batch`、读取结果、调试、截图、下载或原始 CDP。
+- `click` 与其余鼠标 action 使用真实 CDP 输入事件。`click` 固定为左键单击；`mouse_click` 额外接受坐标、按钮与点击次数。
+- DOM action 接受 CSS selector 或最近一次 `snapshot` 返回的 `@e` ref；鼠标 action 也可直接使用视口坐标。
+- 页面点击不得用 `evaluate` 调用 `element.click()` 绕过真实输入与可见指针。
+- 需要 `cmd` 的 action 使用判别式输入：`network` 只接受 `start|stop|list|detail`，`console` 只接受 `start|stop|list`，`dialog` 只接受 `get|accept|dismiss`，`downloads` 只接受 `list|wait|show`，`clipboard` 只接受 `read|write`。MCP schema 在生成参数时约束组合，Browser service 执行前再次校验。
 
-`mark_tab` 的 `mark` 接受 `deliverable`、`handoff` 或 `none`。`deliverable` 在本轮结束后保留页面并交还用户，`handoff` 保留控制权供下一轮继续，`none` 恢复默认收尾策略。
+### `batch` 与 `mark_tab`
 
-需要 `cmd` 的 action 使用判别式输入约束：`network` 只接受 `start|stop|list|detail`，`console` 只接受 `start|stop|list`，`dialog` 只接受 `get|accept|dismiss`，`downloads` 只接受 `list|wait|show`，`clipboard` 只接受 `read|write`。MCP schema 在模型生成参数时约束组合，Browser service 在执行前再次校验。
+- `batch` 在宿主内顺序复用现有 action 和输入校验，不增加扩展线协议。
+  - 最多 20 个不需要消费中间结果的导航、等待、表单、键鼠或上传动作；禁止嵌套 `batch`、读取结果、调试、截图、下载或原始 CDP。
+  - 默认在全部动作结束后只返回一次最终 AX 快照；失败时报告精确动作序号和已完成数量。
+- `mark_tab` 的 `mark` 取值：`deliverable`（本轮结束后保留页面并交还用户）、`handoff`（保留控制权供下一轮继续）、`none`（恢复默认收尾策略）。
 
-扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针，因此安装前已打开的标签页无需刷新。标签页进入后台时立即隐藏指针，后台收到动作也不显示。首次操作从视口中部起步，普通移动与点击沿平滑弧线等待指针抵达后再发送 CDP 输入，抵达后轻微左右摆动并保持到本轮结束；拖拽只在起点和释放前同步，指针脚本不可用或 1.5 秒内未响应时继续执行原始 CDP 操作。
+### 可见指针
 
-`snapshot` 返回按页面顺序排列的紧凑可访问性文本，并优先保留可交互节点与页面结构。单次结果最多包含 300 个有效节点和 12 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。`page_content` 默认返回 12,000 个字符、允许显式提高到 200,000，并优先通过 `selector` 缩小正文范围；超过 runtime 内联预算的显式大结果继续使用 `read_result`。`evaluate` 会等待返回的 Promise 完成；Chrome 脚本执行使用 `timeout_ms` 或默认80秒，显式 `timeout_ms` 还约束整条调用。宿主等待结束不证明 Chrome 已停止或副作用未发生。
+- 扩展按需向网页顶层文档注入封闭 Shadow DOM，只在当前可见标签页显示不可交互的 Nexus 指针；安装前已打开的标签页无需刷新。
+- 标签页进入后台时立即隐藏指针，后台收到动作也不显示。
+- 首次操作从视口中部起步；普通移动与点击沿平滑弧线，指针抵达后再发送 CDP 输入，随后轻微左右摆动并保持到本轮结束；拖拽只在起点和释放前同步。
+- 指针脚本不可用或 1.5 秒内未响应时，继续执行原始 CDP 操作。
 
-MCP 结果把模型可见正文与界面结构化数据分开：`snapshot`、`page_content` 和 `batch` 使用无 JSON 转义的紧凑文字作为 `content`，完整 metadata 保留在 `structuredContent`，不会重复进入模型上下文。
+### 读取结果
+
+- `snapshot` 返回按页面顺序排列的紧凑可访问性文本，优先保留可交互节点与页面结构。
+  - 单次最多 300 个有效节点和 12 KB UTF-8 文本；超限时通过 `nodes`、`total_nodes` 与 `truncated` 明示裁剪。
+  - 同一文档的 `@e` ref 跨快照保持稳定，导航后立即失效。
+  - 首个快照和 `full=true` 返回 `snapshot_type=full`；后续在更紧凑时返回相对 `base_snapshot_id` 的 `diff`，无变化时返回 `unchanged`。
+- `page_content` 默认返回 12,000 个字符，可显式提高到 200,000，优先用 `selector` 缩小正文范围；超过 runtime 内联预算的显式大结果使用 `read_result`。
+- `evaluate` 等待返回的 Promise 完成；Chrome 脚本执行使用 `timeout_ms` 或默认 80 秒，显式 `timeout_ms` 还约束整条调用。
+- 宿主等待结束不证明 Chrome 已停止或副作用未发生。
+- `snapshot`、`page_content` 和 `batch` 的 MCP `content` 是无 JSON 转义的紧凑文字，完整 metadata 只放在 `structuredContent`，不重复进入模型上下文。
 
 ## 完整 CDP
 
-普通 Browser action 使用扩展内部固定的 CDP 方法。模型只有在用户于 Browser 设置中显式开启完整 CDP 后，才能通过 `cdp` action 调用任意方法；该偏好默认关闭并按用户持久化。
+普通 action 使用扩展内部固定的 CDP 方法。用户在 Browser 设置中显式开启完整 CDP 后，模型才能通过 `cdp` action 调用任意方法；该偏好默认关闭，按用户持久化。
 
 [PROTOCOL]: 变更 action、路由、消息类型、Session 归属或 CDP 开关时，必须同步更新本文、Browser 包 L2 头、扩展 README 与相关测试。

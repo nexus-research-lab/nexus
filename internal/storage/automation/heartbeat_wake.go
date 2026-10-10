@@ -47,7 +47,6 @@ func (r *Repository) AcceptHeartbeatWake(
 	input.OwnerUserID = strings.TrimSpace(input.OwnerUserID)
 	input.RequestID = strings.TrimSpace(input.RequestID)
 	input.IntentDigest = strings.TrimSpace(input.IntentDigest)
-	input.Mode = strings.TrimSpace(input.Mode)
 	if input.AcceptedAt.IsZero() {
 		input.AcceptedAt = time.Now().UTC()
 	} else {
