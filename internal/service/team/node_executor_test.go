@@ -807,3 +807,76 @@ func TestPublicExecutionStateUsesExactLocalSession(t *testing.T) {
 		t.Fatalf("解除等待未恢复运行: %s", phase)
 	}
 }
+
+func TestNodeExecutionStopsWhenRelayRequestsCancel(t *testing.T) {
+	ctx := t.Context()
+	db := newNodeTestDB(t)
+	var failed atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/v1/nodes/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": nodeToken{Token: "machine", ExpiresAt: time.Now().Add(time.Minute)}})
+		case "/api/relay/v1/node/deliveries/delivery/renew":
+			_, _ = w.Write([]byte(`{"code":"0000","data":{"cancel_requested":true}}`))
+		case "/api/relay/v1/node/deliveries/delivery/fail":
+			failed.Add(1)
+			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, AuthSessionCookieName: "nexus_session", ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, db)
+	nodes, err := NewNodeService(cfg, repo, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := nodes.keys.EncryptEnvelope([]byte("machine"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(ctx, teamstore.NodeGrant{Scope: "scope", OwnerUserID: "local-owner", NodeID: "node", RemoteURL: server.URL, CredentialEncrypted: secret, ExecutionEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.SetNodeState(ctx, *grant, "pending", "authorized"); err != nil {
+		t.Fatal(err)
+	}
+	grant.State = "authorized"
+	client, err := relaysvc.NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stops := 0
+	executor := &NodeExecutor{nodes: nodes, relay: client, logger: slog.Default(), active: map[string]string{}}
+	executor.stop = func(context.Context, roomrealtime.InterruptRequest) error { stops++; return nil }
+	executor.start = func(ctx context.Context, request roomrealtime.ChatRequest, admission func(context.Context) error) error {
+		if request.PublicInstructions != "用中文回复" {
+			t.Errorf("群说明未进入执行请求: %q", request.PublicInstructions)
+		}
+		return admission(ctx)
+	}
+	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "job", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", AgentID: "online", Scope: "scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.State = "ready"
+	job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_job"
+	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", RoomInstructions: "用中文回复"}
+	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
+		t.Fatal(err)
+	}
+	token, err := executor.machineToken(ctx, *grant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 准入续期即发现停止请求：不启动执行，本地记为取消并释放远端租约。
+	if err = executor.execute(ctx, *grant, *job, token, deliveryExecutionInput{content: "处理任务"}); err != nil {
+		t.Fatal(err)
+	}
+	current, err := repo.NodeJob(ctx, "local-owner", "job")
+	if err != nil || current == nil || current.State != "cancelled" || stops != 1 || failed.Load() != 1 {
+		t.Fatalf("停止请求未收口: %+v stops=%d fails=%d %v", current, stops, failed.Load(), err)
+	}
+}

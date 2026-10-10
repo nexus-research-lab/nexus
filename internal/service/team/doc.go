@@ -18,6 +18,8 @@
 // 领取为空时删除该 claiming 记录，不留下无来源的完成任务；Control 以 401 拒绝设备凭据时本地授权转 revoked，等本人下次入群重新登记。
 // pending 返回的 next_due_at 交给 duework 一次性定时器，覆盖其他节点崩溃后的租约到期；空闲无任务不设定时扫描。
 // 原生权限会话的变化信号唤醒租约维护，仅发送 running/waiting_input 白名单状态，不发送审批或工具正文。
+// 续租响应带 cancel_requested 时（真人请求停止）中断原生 round、本地记 cancelled 并 fail，Relay 统一记 request_cancelled；执行前发现则不启动 runtime。
+// 领取附带的 room_instructions 经 ChatRequest.PublicInstructions 进入 Room 提示词，与群消息同等可信，不授予权限。
 // 执行中的 5 秒计时只续租；只有原生输出事件或已知失败的 outbox 重试才 drain，不扫描正常空 outbox。
 // runtime 启动前按 上下文→准备 Room→续租→附件 顺序准备；确定性失败（含续租/附件被拒）ready→failed 并释放远端租约。
 // 已结束执行的输出恢复中，续租或发布被明确拒绝均收口 failed 并释放槽位；网络故障保留 draining，不重跑 runtime。

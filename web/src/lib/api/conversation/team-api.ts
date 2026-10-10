@@ -51,6 +51,8 @@ export interface TeamRoomView {
     name: string;
     description: string;
     avatar: string;
+    /** 群管理员为群内 Agent 设置的共同说明；私聊恒为空。 */
+    instructions?: string;
     coordinator_agent_id?: string;
     host_auto_reply_enabled: boolean;
     private_messages_enabled: boolean;
@@ -104,6 +106,8 @@ export interface TeamDeliveryStatus {
   agent_id: string;
   state: "pending" | "leased" | "completed" | "failed" | "cancelled";
   failure_code?: string;
+  /** 执行中任务已请求停止，等待执行节点中断并收口。 */
+  cancel_requested?: boolean;
 }
 
 export interface TeamRoomInvitation {
@@ -242,7 +246,7 @@ export function updateTeamRoomCoordinator(roomId: string, agentId: string, versi
   return updateTeamRoomSettings(roomId, { coordinator_agent_id: agentId }, version, commandId);
 }
 
-export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; coordinator_agent_id?: string; host_auto_reply_enabled?: boolean; dissolve?: boolean; hide_direct?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
+export function updateTeamRoomSettings(roomId: string, change: { name?: string; avatar?: string; instructions?: string; coordinator_agent_id?: string; host_auto_reply_enabled?: boolean; dissolve?: boolean; hide_direct?: boolean }, version: number, commandId: string): Promise<TeamRoomConfigurationMutation> {
   return requestApi<TeamRoomConfigurationMutation>(`${TEAM_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`, {
     body: { ...change, expected_configuration_version: version },
     headers: { "Idempotency-Key": commandId },

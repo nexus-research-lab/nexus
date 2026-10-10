@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- 在线群借鉴 Slack 智能体会话的停止按钮：消息作者可停止执行中的 Agent，执行节点在 5 秒续租内中断并显示“已取消”；停止中显示“正在停止”。
+- 群说明：群主可在群设置里为群内所有 Agent 设置共同说明（如回复语言、格式），以置顶群消息的可信度进入执行提示词，不授予权限。
+- 唤醒他人 Agent 超出 Relay 每小时额度时提示“唤醒他人 Agent 过于频繁”，并透传 `Retry-After`。
+
 ### Changed
 
 - DM 与 Room 共享单 Agent 执行引擎：runtime 启动（含失效 resume 回退）、round 执行骨架、宿主 result 消息与 PostToolUse 引导协议只实现一次；中断收尾在各宿主内去重。
@@ -22,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop 准备群执行时翻完全部成员页，不再只看首屏成员；同一请求只查询一次 Control 身份与 Agent 目录，登记与撤销串行执行。
 - 本机节点领取为空时不再留下无来源的“已完成”任务；Control 拒绝设备凭据后本地授权转为已撤销，不再无限重试；输出序号由存储层统一推进。服务端节点执行复用应用级 Relay 客户端与超时配置。
 - Relay 用户令牌按 Session 缓存至过期前 15 秒，团队请求不再每次往返 Control；Control 身份失效事件同步清除缓存。
+- 群设置的“未 @ 时由群主接管”开关此前被网关严格解码拒绝，现已透传到 Relay。
 - 删除只写不读的本地 Team 投影（迁移 00158 删除 `team_relay_*` 三张表）：Room 读写直连 Relay，Relay 是唯一权威，投影失败不再造成永久 503。
 - 本机节点执行：runtime 启动前的上下文、附件与续租拒绝统一本地失败并释放远端租约，不再卡在 ready；附件在启动 runtime 前准备；清理阶段不再把已完成任务改回失败；原节点被替换后的遗留任务可恢复；授权停用后恢复同一凭据时投递订阅不再永久空闲。
 - 共享文件上传有 2 分钟上限并接受任意 2xx；下载强制 `attachment`、`nosniff` 与 `sandbox` CSP，不再按远端 Content-Type 内联渲染。成员分页检测任意游标成环。

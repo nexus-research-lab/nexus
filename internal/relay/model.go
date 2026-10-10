@@ -78,6 +78,7 @@ type Room struct {
 	Name                   string    `json:"name"`
 	Description            string    `json:"description"`
 	Avatar                 string    `json:"avatar"`
+	Instructions           string    `json:"instructions"`
 	CoordinatorAgentID     string    `json:"coordinator_agent_id,omitempty"`
 	HostAutoReplyEnabled   bool      `json:"host_auto_reply_enabled"`
 	PrivateMessagesEnabled bool      `json:"private_messages_enabled"`
@@ -156,6 +157,8 @@ type DeliveryStatus struct {
 	AgentID        string `json:"agent_id"`
 	State          string `json:"state"`
 	FailureCode    string `json:"failure_code,omitempty"`
+	// CancelRequested 表示执行中任务已收到停止请求，尚待节点收口。
+	CancelRequested bool `json:"cancel_requested,omitempty"`
 }
 
 // RoomInvitation 是当前真人尚未处理的在线 Room 邀请。
@@ -198,6 +201,7 @@ type CreateRoomInput struct {
 	Name                   string   `json:"name"`
 	Description            string   `json:"description,omitempty"`
 	Avatar                 string   `json:"avatar,omitempty"`
+	Instructions           string   `json:"instructions,omitempty"`
 	PrivateMessagesEnabled bool     `json:"private_messages_enabled,omitempty"`
 	SkillNames             []string `json:"skill_names,omitempty"`
 	MemberUserIDs          []string `json:"member_user_ids,omitempty"`
@@ -228,8 +232,10 @@ type UpdateRoomInput struct {
 	HideDirect                   bool    `json:"hide_direct,omitempty"`
 	Dissolve                     bool    `json:"dissolve,omitempty"`
 	CoordinatorAgentID           *string `json:"coordinator_agent_id,omitempty"`
+	HostAutoReplyEnabled         *bool   `json:"host_auto_reply_enabled,omitempty"`
 	Name                         *string `json:"name,omitempty"`
 	Avatar                       *string `json:"avatar,omitempty"`
+	Instructions                 *string `json:"instructions,omitempty"`
 	ExpectedConfigurationVersion int64   `json:"expected_configuration_version"`
 }
 

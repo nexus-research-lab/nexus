@@ -460,6 +460,11 @@ func relayFailure(err error, mutation bool) (int, handlershared.FailureSpec) {
 		spec.Category = protocol.FailureCategoryRateLimited
 		spec.Effect = requestEffect(mutation, true)
 		spec.Detail = "团队请求过于频繁，请稍后再试"
+		// 唤醒他人 Agent 的额度记在发起人名下，单独提示便于前端说明原因。
+		if remote.Code == "agent_rate_limited" {
+			spec.Code = "team.agent_rate_limited"
+			spec.Detail = "唤醒他人 Agent 过于频繁，请稍后再试"
+		}
 		return http.StatusTooManyRequests, spec
 	}
 	switch remote.Code {

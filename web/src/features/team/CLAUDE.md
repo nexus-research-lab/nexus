@@ -64,3 +64,4 @@
 - markRead 单飞提交当前世代的本人消息阅读水位，旧响应受账号/Room 代次栅栏约束；只有页面可见、获得焦点且跟随最新时调用，不根据后台同步清除未读。
 
 - 成员续页由 team-api 在原 membership_version/epoch 下拼装；详情只带最近 100 条消息的投递状态，use-team-room 为已加载历史分批补读并按 delivery ID 合并。
+- 投递行对消息作者提供取消/停止：pending 显示“取消等待”，leased 显示“停止”；Relay 返回 `cancel_requested` 后显示“正在停止”，不本地猜测已停。群说明由群主在设置弹窗编辑，草稿保存确认后回到服务端快照。`team.agent_rate_limited` 映射为专用发送错误。

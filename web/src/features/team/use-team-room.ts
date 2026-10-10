@@ -40,7 +40,7 @@ export function useTeamRoom(roomId: string | null) {
   const canUseRelay = hasTeamAccess(status);
   const [room, setRoom] = useState<TeamRoomDetails | null>(null);
   const [messages, setMessages] = useState<TeamMessage[]>([]);
-  const [error, setError] = useState<"load" | "send" | "sync" | null>(null);
+  const [error, setError] = useState<"load" | "send" | "rate_limited" | "sync" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [historyBefore, setHistoryBefore] = useState(0);
@@ -472,7 +472,7 @@ export function useTeamRoom(roomId: string | null) {
         setPendingText(null);
       }
       await refreshDetails().catch(() => undefined);
-      if (roomRef.current) setError("send");
+      if (roomRef.current) setError(cause instanceof ApiRequestError && cause.failure?.code === "team.agent_rate_limited" ? "rate_limited" : "send");
       return false;
     } finally {
       sendingRef.current = false;

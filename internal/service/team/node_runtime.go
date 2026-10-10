@@ -20,6 +20,9 @@ import (
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
+// errDeliveryStopRequested 表示续期得知真人已请求停止；执行收尾中断本机 runtime 并以取消结算。
+var errDeliveryStopRequested = errors.New("真人已请求停止在线任务")
+
 // deliveryExecutionInput 是 runtime 启动前已核验的投递上下文与本机附件。
 type deliveryExecutionInput struct {
 	content       string
@@ -59,6 +62,17 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	}
 	e.logger.Info("在线 Agent 开始本机执行", nodeJobLogAttrs(grant, job)...)
 	observer := nodeObserver{executor: e, job: job, done: make(chan struct{}), failed: make(chan error, 1), output: make(chan struct{}, 1)}
+	stopRequested := false
+	// renew 统一识别真人停止请求；其余返回值保持原语义。
+	renew := func(ctx context.Context, executionState string) error {
+		renewed, err := e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, executionState)
+		if err == nil && renewed.CancelRequested {
+			stopRequested = true
+			e.logger.Info("在线 Agent 收到停止请求", nodeJobLogAttrs(grant, job)...)
+			return errDeliveryStopRequested
+		}
+		return err
+	}
 	defer func() {
 		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 		defer cancel()
@@ -79,7 +93,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			current.State = "failed"
 			if from == "running" && stopErr != nil {
 				current.State = "review_required"
-			} else if from == "running" && ctx.Err() != nil {
+			} else if from == "running" && (ctx.Err() != nil || stopRequested) {
 				current.State = "cancelled"
 			}
 			saveErr := e.nodes.store.SaveNodeJob(stopCtx, current, from, nil)
@@ -95,7 +109,7 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 	}()
 	job.Delivery.Messages = nil
 	admitted := false
-	err := e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: input.content, Attachments: input.attachments, PublicContext: input.publicContext, PublicAgentDirectory: directory, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
+	err := e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: input.content, Attachments: input.attachments, PublicContext: input.publicContext, PublicAgentDirectory: directory, PublicInstructions: job.Delivery.RoomInstructions, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
 		// Room 准备可能很慢；原生 round 注册后、任何 slot 启动前再次验证。
 		if err := admissionCtx.Err(); err != nil {
 			return err
@@ -108,13 +122,16 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			return err
 		}
 		token = fresh
-		if _, err = e.relay.RenewDelivery(admissionCtx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
+		if err = renew(admissionCtx, ""); err != nil {
 			return err
 		}
 		_, err = e.activeGrant(admissionCtx, grant)
 		admitted = err == nil
 		return err
 	})
+	if stopRequested {
+		return nil
+	}
 	if err != nil {
 		e.logFailure(ctx, "runtime_start", grant, job, err)
 		return err
@@ -178,7 +195,10 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			if executionState != publishedState {
 				changedState = executionState
 			}
-			if _, err = e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, changedState); err != nil {
+			if err = renew(ctx, changedState); err != nil {
+				if stopRequested {
+					return nil
+				}
 				e.logFailure(ctx, "renew_execution_lease", grant, job, err)
 				return err
 			}

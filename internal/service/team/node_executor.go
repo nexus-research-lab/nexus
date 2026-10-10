@@ -340,11 +340,15 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 	if _, err = e.activeGrant(ctx, grant); err != nil {
 		return err
 	}
-	if _, err = e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
+	renewed, err := e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, "")
+	if err != nil {
 		if nodeOutputRejected(err) {
 			return e.failBeforeExecution(ctx, grant, job, token.Token, stage, err)
 		}
 		return err
+	}
+	if renewed.CancelRequested {
+		return e.failBeforeExecution(ctx, grant, job, token.Token, stage, errDeliveryStopRequested)
 	}
 	stage = "prepare_attachments"
 	if input.attachments, err = e.prepareDeliveryAttachments(ctx, job, token.Token); err != nil {
@@ -359,8 +363,13 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 
 // failBeforeExecution 收口 runtime 启动前的确定性失败：本地 ready→failed 并释放远端租约。
 func (e *NodeExecutor) failBeforeExecution(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token, stage string, cause error) error {
-	e.logFailure(ctx, stage, grant, job, cause)
 	job.State = "failed"
+	if errors.Is(cause, errDeliveryStopRequested) {
+		job.State = "cancelled"
+		e.logger.Info("在线 Agent 执行前收到停止请求", nodeJobLogAttrs(grant, job)...)
+	} else {
+		e.logFailure(ctx, stage, grant, job, cause)
+	}
 	if err := e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
 		return err
 	}
