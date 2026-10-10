@@ -599,7 +599,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	if strings.Contains(string(wire), "PRIVATE_MEMORY") || strings.Contains(string(wire), "thinking") {
 		t.Fatal("私人执行信息进入共享输出")
 	}
-	if err = executor.execute(ctx, *grant, job, nodeToken{}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
+	if err = executor.execute(ctx, *grant, job, nodeToken{}, deliveryExecutionInput{content: "replay"}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
 		t.Fatalf("replayed tools: %d %v", starts, err)
 	}
 	// 已结束执行的恢复区分暂时故障与明确拒绝，不重跑 runtime。

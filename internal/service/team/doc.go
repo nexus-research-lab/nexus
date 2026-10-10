@@ -1,9 +1,8 @@
-// Package team 统一 Relay 权威结果与 Nexus 本地投影的同步流程。
+// Package team 负责本人 Agent 入群后的本机节点登记与在线投递执行。
 //
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
-// 成员清单：service.go 定义可信 Access、远端与投影端口、五类同步操作及 ErrProjection；membership.go 转发 Room 真人治理命令与有界成员/投递查询。
-// node.go / node_control.go 管理本人 Agent 入群后的本机自动登记、固定 Control 公共入口和持久回执对账。
+// 成员清单：node.go / node_control.go 管理本人 Agent 入群后的本机自动登记、固定 Control 公共入口和持久回执对账。
 // node.go 的消息历史查询限制每批 100 个引用，身份与组织作用域只从远程 Cookie 派生；一次请求内的身份与 Agent 目录由 nodeSession 共享，登记、撤销与入群授权经 provisionMu 串行。
 // Desktop 经固定远程 Gateway 读取群成员时按 relay.CollectRoomMembers 的栅栏翻完全部成员页。
 // node.go 的 PrepareRooms 独立核验当前群成员与本人本机 Agent，复用确定性 Room 并自动登记执行；暂停成员只准备会话，加入群不直接启动 runtime。
@@ -20,10 +19,10 @@
 // pending 返回的 next_due_at 交给 duework 一次性定时器，覆盖其他节点崩溃后的租约到期；空闲无任务不设定时扫描。
 // 原生权限会话的变化信号唤醒租约维护，仅发送 running/waiting_input 白名单状态，不发送审批或工具正文。
 // 执行中的 5 秒计时只续租；只有原生输出事件或已知失败的 outbox 重试才 drain，不扫描正常空 outbox。
+// runtime 启动前按 上下文→准备 Room→续租→附件 顺序准备；确定性失败（含续租/附件被拒）ready→failed 并释放远端租约。
 // 已结束执行的输出恢复中，续租或发布被明确拒绝均收口 failed 并释放槽位；网络故障保留 draining，不重跑 runtime。
 // 执行日志以 stage、node/job/delivery/source_message 身份关联；相同节点/Agent/阶段失败每分钟最多告警一次。禁止记录凭据、消息正文及远端错误正文。
-// 目录、建群、快照和增量必须完成投影才成功；消息远端已提交时本地失败仅记录，沿旧游标恢复。
 // 不隐式重发真人消息；机器消费者只重放固定 claim/output，不重跑未知工具。真人 HTTP/WSS 解析、身份交换和错误映射由 handler/team 持有。
 //
-// [PROTOCOL]: 变更时检查 handler/team、storage/teamrelay 与父级 AGENTS.md。
+// [PROTOCOL]: 变更时检查 storage/teamrelay 与父级 AGENTS.md。
 package team

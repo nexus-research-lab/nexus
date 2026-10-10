@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
@@ -20,6 +21,9 @@ import (
 func (c *Client) UploadDeliveryFile(ctx context.Context, token, deliveryID, leaseID, command, name string, data []byte) (relaycontract.MessageAttachment, error) {
 	var result relaycontract.MessageAttachment
 	hash := sha256.Sum256(data)
+	// 文件客户端没有全局超时；单次上传必须有上界，否则挂起会占住槽位并让租约过期。
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+relayAPIBase+"/node/deliveries/"+url.PathEscape(deliveryID)+"/files", bytes.NewReader(data))
 	if err != nil {
 		return result, err
@@ -33,7 +37,7 @@ func (c *Client) UploadDeliveryFile(ctx context.Context, token, deliveryID, leas
 	if err != nil {
 		return result, err
 	}
-	if response.StatusCode != http.StatusCreated {
+	if response.StatusCode < 200 || response.StatusCode > 299 {
 		return result, readRemoteError(response)
 	}
 	defer response.Body.Close()
@@ -71,10 +75,10 @@ func (c *Client) DeliveryFile(ctx context.Context, token, deliveryID, leaseID st
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("读取投递附件失败: HTTP %d", response.StatusCode)
+		return nil, readRemoteError(response)
 	}
+	defer response.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(response.Body, file.Size+1))
 	if err != nil {
 		return nil, err

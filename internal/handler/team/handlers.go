@@ -23,7 +23,6 @@ import (
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
-	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 // HandleCancelDelivery 由 Relay 核验发起人与领取状态，不在浏览器推断写权限。
@@ -75,12 +74,31 @@ type relayTokenExchanger interface {
 	VerifyOwnedAgents(context.Context, *authsvc.Principal, []string) error
 }
 
-// relayGateway 是不经本地投影、直接转发给 Relay 的调用。
+// relayGateway 是 Team gateway 的全部 Relay 调用；Relay 是在线 Room 的唯一权威，Nexus 不保存本地副本。
 type relayGateway interface {
 	Watch(context.Context, string, string, string, func(relaycontract.StreamUpdated) error) error
 	CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error)
 	MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error)
 	RoomFiles(context.Context, string, string, string, string, http.Header, int64, io.Reader) (*http.Response, error)
+	RoomMembers(context.Context, string, string, string, string, int64) (relaycontract.RoomMemberPage, error)
+	RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error)
+	ListRooms(context.Context, string) (relaycontract.RoomList, error)
+	CreateRoom(context.Context, string, string, relaycontract.CreateRoomInput) (relaycontract.RoomView, error)
+	GetRoom(context.Context, string, string) (relaycontract.RoomDetails, error)
+	ListInvitations(context.Context, string) (relaycontract.RoomInvitationList, error)
+	InviteUser(context.Context, string, string, string, relaycontract.InviteRoomMemberInput) (relaycontract.RoomMembershipMutation, error)
+	AddAgent(context.Context, string, string, string, relaycontract.AddRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	RemoveAgent(context.Context, string, string, string, string, relaycontract.RemoveRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateAgent(context.Context, string, string, string, string, relaycontract.UpdateRoomAgentInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateRoom(context.Context, string, string, string, relaycontract.UpdateRoomInput) (relaycontract.RoomConfigurationMutation, error)
+	AcceptInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	RejectInvitation(context.Context, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	RevokeInvitation(context.Context, string, string, string, string, relaycontract.ResolveRoomInvitationInput) (relaycontract.RoomMembershipMutation, error)
+	UpdateMember(context.Context, string, string, string, string, relaycontract.UpdateRoomMemberInput) (relaycontract.RoomMembershipMutation, error)
+	TransferOwnership(context.Context, string, string, string, relaycontract.TransferRoomOwnershipInput) (relaycontract.RoomMembershipMutation, error)
+	PostMessage(context.Context, string, string, string, relaycontract.CreateMessageInput) (relaycontract.MessageCommit, error)
+	Snapshot(context.Context, string, string, relaycontract.SnapshotOptions) (relaycontract.Snapshot, error)
+	Difference(context.Context, string, string, relaycontract.DifferenceOptions) (relaycontract.Difference, error)
 }
 
 type streamResetRequired struct {
@@ -94,17 +112,15 @@ type Handlers struct {
 	api    *handlershared.API
 	tokens relayTokenExchanger
 	relay  relayGateway
-	team   *teamsvc.Service
 }
 
 // New 创建 Team gateway handlers。
 func New(
 	api *handlershared.API,
 	tokens relayTokenExchanger,
-	service *teamsvc.Service,
 	relay relayGateway,
 ) *Handlers {
-	return &Handlers{api: api, tokens: tokens, relay: relay, team: service}
+	return &Handlers{api: api, tokens: tokens, relay: relay}
 }
 
 // HandleStream 把 Relay 的提交水位提示转发给同源浏览器；消息正文仍由 Difference 获取。
@@ -197,14 +213,14 @@ func (h *Handlers) HandleStream(writer http.ResponseWriter, request *http.Reques
 	_ = connection.Close(websocket.StatusInternalError, "team stream interrupted")
 }
 
-// HandleListRooms 返回当前用户已加入的在线 Room，并建立本地同步投影。
+// HandleListRooms 返回当前用户已加入的在线 Room。
 func (h *Handlers) HandleListRooms(writer http.ResponseWriter, request *http.Request) {
 	h.noStore(writer)
 	token, ok := h.exchangeToken(writer, request, false)
 	if !ok {
 		return
 	}
-	result, err := h.team.ListRooms(request.Context(), teamAccess(request, token))
+	result, err := h.relay.ListRooms(request.Context(), token)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
@@ -262,17 +278,12 @@ func (h *Handlers) HandleCreateRoom(writer http.ResponseWriter, request *http.Re
 			return
 		}
 	}
-	result, err := h.team.CreateRoom(request.Context(), teamAccess(request, token), idempotencyKey, input)
+	result, err := h.relay.CreateRoom(request.Context(), token, idempotencyKey, input)
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
 	}
 	h.api.WriteSuccess(writer, result)
-}
-
-func teamAccess(request *http.Request, token string) teamsvc.Access {
-	principal := authsvc.PrincipalFromContext(request.Context())
-	return teamsvc.Access{OwnerUserID: principal.UserID, DeploymentID: principal.DeploymentID, Token: token}
 }
 
 // HandlePostMessage 向 Team Conversation 幂等提交一条真人消息。
@@ -296,9 +307,7 @@ func (h *Handlers) HandlePostMessage(writer http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-	result, err := h.team.PostMessage(
-		request.Context(), teamAccess(request, token), conversationID, idempotencyKey, input,
-	)
+	result, err := h.relay.PostMessage(request.Context(), token, conversationID, idempotencyKey, input)
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
@@ -319,7 +328,7 @@ func (h *Handlers) HandleSnapshot(writer http.ResponseWriter, request *http.Requ
 	if !ok {
 		return
 	}
-	result, err := h.team.Snapshot(request.Context(), teamAccess(request, token), conversationID, options)
+	result, err := h.relay.Snapshot(request.Context(), token, conversationID, options)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
@@ -340,28 +349,12 @@ func (h *Handlers) HandleDifference(writer http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
-	result, err := h.team.Difference(request.Context(), teamAccess(request, token), streamID, options)
+	result, err := h.relay.Difference(request.Context(), token, streamID, options)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
 	}
 	h.api.WriteSuccess(writer, result)
-}
-
-func (h *Handlers) writeProjectionError(
-	writer http.ResponseWriter,
-	request *http.Request,
-	err error,
-	mutation bool,
-) {
-	h.api.BaseLogger().Error("Team 本地投影失败", "err", err)
-	h.api.WriteError(writer, request, http.StatusServiceUnavailable, handlershared.FailureSpec{
-		Code:     "team.local_projection_failed",
-		Category: protocol.FailureCategoryUnavailable,
-		Effect:   requestEffect(mutation, false),
-		Detail:   "团队消息正在同步，请稍后重试",
-		Cause:    err,
-	})
 }
 
 func (h *Handlers) noStore(writer http.ResponseWriter) {
@@ -440,10 +433,6 @@ func (h *Handlers) writeRelayError(
 	err error,
 	mutation bool,
 ) {
-	if errors.Is(err, teamsvc.ErrProjection) {
-		h.writeProjectionError(writer, request, err, mutation)
-		return
-	}
 	status, failure := relayFailure(err, mutation)
 	h.api.WriteError(writer, request, status, failure)
 }

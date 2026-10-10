@@ -339,7 +339,10 @@ func (s *NodeService) RecoverJob(ctx context.Context, cookie, id string) error {
 		return err
 	}
 	if grant == nil || grant.NodeID != job.NodeID {
-		return ErrNodeUnavailable
+		// 原节点已被替换：原生 round 已确认停止，旧凭据无法续租，本地收口，Relay 租约自然到期。
+		from := job.State
+		job.State = "failed"
+		return s.store.SaveNodeJob(ctx, job, from, nil)
 	}
 	if err = s.reconcile(ctx, session, grant); err != nil {
 		return err

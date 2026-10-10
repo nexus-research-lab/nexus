@@ -55,7 +55,6 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	sandboxstore "github.com/nexus-research-lab/nexus/internal/storage/sandbox"
-	teamrelaystore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 	workgraphworkflowstore "github.com/nexus-research-lab/nexus/internal/storage/workgraphworkflow"
 )
 
@@ -95,7 +94,6 @@ type AppServices struct {
 	MemoryMaintenance      *memorymaintenancesvc.Coordinator
 	Browser                *browsersvc.Service
 	Relay                  *relaysvc.Client
-	TeamRelay              *teamrelaystore.Repository
 	SlashCatalog           *slashcommandsvc.Catalog
 	SlashRegistry          *slashcommandsvc.Registry
 	ownsDB                 bool
@@ -541,7 +539,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		WorkGraphWorkflow:      workGraphWorkflowService,
 		MemoryMaintenance:      memoryMaintenance,
 		Browser:                browserService,
-		TeamRelay:              teamrelaystore.NewRepository(cfg, db),
 		SlashCatalog:           slashCommandCatalog,
 		SlashRegistry:          slashCommandRegistry,
 	}

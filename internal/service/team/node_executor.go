@@ -295,7 +295,15 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 		job.State = "failed"
 		if item != nil {
 			if item.NodeID != job.NodeID || item.AgentID != job.AgentID || item.ID == "" || item.LeaseID == "" {
-				return ErrNodeUnavailable
+				// 投递已租给本人其他设备或回执畸形：本机不持有租约，只收口本地记录，不能永久占用 Agent。
+				e.logFailure(ctx, stage, grant, job, ErrNodeUnavailable)
+				if from == "claiming" {
+					stage = "discard_foreign_claim"
+					return e.nodes.store.DiscardClaimingNodeJob(ctx, job)
+				}
+				job.State = "failed"
+				stage = "fail_foreign_claim"
+				return e.nodes.store.SaveNodeJob(ctx, &job, from, nil)
 			}
 			job.Delivery = item
 			if item.State == "leased" {
@@ -316,8 +324,9 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 		return nil
 	}
 	stage = "validate_delivery_context"
-	if job.Delivery == nil || len(job.Delivery.Messages) == 0 || job.Delivery.Messages[len(job.Delivery.Messages)-1].ID != job.Delivery.MessageID {
-		return ErrNodeUnavailable
+	input, err := deliveryInput(job)
+	if err != nil {
+		return e.failBeforeExecution(ctx, grant, job, token.Token, stage, err)
 	}
 	stage = "prepare_room"
 	room, err := e.prepare(ctx, grant.Scope+":"+job.Delivery.RoomID, job.LocalAgentID)
@@ -325,16 +334,39 @@ func (e *NodeExecutor) consume(ctx context.Context, grant teamstore.NodeGrant, j
 		return err
 	}
 	job.RoomID, job.ConversationID, job.RoundID = room.Room.ID, room.Conversation.ID, "relay_"+job.ID
-	// 先用原 claim 的租约重新鉴权，再 CAS 持久 running，最后才触碰 runtime。
+	// 先用原 claim 的租约重新鉴权并备齐附件，再 CAS 持久 running，最后才触碰 runtime；
+	// 此前的临时失败保持 ready 重试，Relay 明确拒绝则收口，不能永久占用 Agent。
 	stage = "renew_before_execution"
 	if _, err = e.activeGrant(ctx, grant); err != nil {
 		return err
 	}
 	if _, err = e.relay.RenewDelivery(ctx, token.Token, job.Delivery.ID, job.Delivery.LeaseID, ""); err != nil {
+		if nodeOutputRejected(err) {
+			return e.failBeforeExecution(ctx, grant, job, token.Token, stage, err)
+		}
+		return err
+	}
+	stage = "prepare_attachments"
+	if input.attachments, err = e.prepareDeliveryAttachments(ctx, job, token.Token); err != nil {
+		if nodeOutputRejected(err) {
+			return e.failBeforeExecution(ctx, grant, job, token.Token, stage, err)
+		}
 		return err
 	}
 	stage = "execute"
-	return e.execute(ctx, grant, job, token)
+	return e.execute(ctx, grant, job, token, input)
+}
+
+// failBeforeExecution 收口 runtime 启动前的确定性失败：本地 ready→failed 并释放远端租约。
+func (e *NodeExecutor) failBeforeExecution(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token, stage string, cause error) error {
+	e.logFailure(ctx, stage, grant, job, cause)
+	job.State = "failed"
+	if err := e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
+		return err
+	}
+	_, settleErr := e.relay.FailDelivery(ctx, token, job.Delivery.ID, job.Delivery.LeaseID, "")
+	e.logFailure(ctx, "fail_delivery", grant, job, settleErr)
+	return nil
 }
 
 func (e *NodeExecutor) drain(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token string) (resultErr error) {

@@ -73,7 +73,7 @@
 
 | 项目 | 实现归属 | 验收 |
 | --- | --- | --- |
-| Team 同步 | `internal/relay` 合同，`service/relay` 客户端，`service/team` 同步流程 | handler 契约、服务失败路径、仓储连续游标与幂等测试 |
+| Team 同步 | `internal/relay` 合同，`service/relay` 客户端，`handler/team` 直连 gateway | handler 契约与稳定失败映射测试 |
 | Execution 命令观察 | orchestration 操作事实，runtimehook 回执转换 | 回执转换与 Runtime Graph 回归 |
 | Session 删除 | deletion 协调，automation/orchestration 仓储事务内清理 | 中途失败回滚与 owner 隔离测试 |
 | 历史投影 | message 负责结果归属与合并，storage/workspace 负责存取与查询 | 混合 Agent 结果、重放与历史分页回归 |
@@ -82,10 +82,9 @@
 各项必须保持的行为：
 
 - Team 同步
-  - 远端消息已提交后，本地投影失败仍返回成功。
-  - 目录、建群、快照和增量投影失败不能确认成功。
+  - Relay 是在线消息唯一权威，Nexus 不保存消息副本或同步游标；浏览器游标只由 Snapshot/Difference 推进。
   - 身份与令牌只来自可信入口。
-  - 不新增隐式重发或后台消费者；投影恢复继续使用既有 Snapshot/Difference 与原游标，不能把结果未知当作未提交重试。
+  - 不新增隐式重发或后台消费者；结果未知不能当作未提交重试。
 - Execution 命令观察：请求身份、责任归属、拒绝状态、重放幂等与节点关联不变。
 - Session 删除
   - 删除协调器是既有跨表事务的唯一提交者；领域仓储接受同一个 `sql.Tx`，不自行提交，也不把现有事务拆成多个服务调用。
@@ -105,7 +104,7 @@
 ## 验证记录（2026-09-09）
 
 - 目标包与调用方测试及其 `go vet` 通过：app、CLI、Team handler/service、Relay、deletion、orchestration/runtimehook、DM、Room、session、automation、相关仓储、message 与 nexus-server。
-- `go test -race` 覆盖：Team 投影失败、Session 删除事务回滚和 owner 隔离、历史结果归属、运行回执转换及共享 Observer。
+- `go test -race` 覆盖：Session 删除事务回滚和 owner 隔离、历史结果归属、运行回执转换及共享 Observer。
 - `go test -run '^$' ./internal/... ./cmd/...` 验证全部内部包与命令入口可编译，不代表运行全部测试。
 - 架构门禁及其允许/禁止依赖测试通过；门禁按当前 Go 构建环境检查生产导入。
 - Go 格式、检查脚本语法和 `git diff --check` 通过。

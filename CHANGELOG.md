@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Desktop 准备群执行时翻完全部成员页，不再只看首屏成员；同一请求只查询一次 Control 身份与 Agent 目录，登记与撤销串行执行。
 - 本机节点领取为空时不再留下无来源的“已完成”任务；Control 拒绝设备凭据后本地授权转为已撤销，不再无限重试；输出序号由存储层统一推进。服务端节点执行复用应用级 Relay 客户端与超时配置。
 - Relay 用户令牌按 Session 缓存至过期前 15 秒，团队请求不再每次往返 Control；Control 身份失效事件同步清除缓存。
+- 删除只写不读的本地 Team 投影（迁移 00158 删除 `team_relay_*` 三张表）：Room 读写直连 Relay，Relay 是唯一权威，投影失败不再造成永久 503。
+- 本机节点执行：runtime 启动前的上下文、附件与续租拒绝统一本地失败并释放远端租约，不再卡在 ready；附件在启动 runtime 前准备；清理阶段不再把已完成任务改回失败；原节点被替换后的遗留任务可恢复；授权停用后恢复同一凭据时投递订阅不再永久空闲。
+- 共享文件上传有 2 分钟上限并接受任意 2xx；下载强制 `attachment`、`nosniff` 与 `sandbox` CSP，不再按远端 Content-Type 内联渲染。成员分页检测任意游标成环。
 
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
 

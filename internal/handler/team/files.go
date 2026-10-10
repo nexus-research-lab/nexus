@@ -31,10 +31,14 @@ func (h *Handlers) HandleRoomFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer response.Body.Close()
-	for _, name := range []string{"Content-Type", "Content-Disposition", "X-Content-Type-Options"} {
-		if value := response.Header.Get(name); value != "" {
-			w.Header().Set(name, value)
-		}
+	if fileID != "" {
+		// 上传者可控内容不能以可渲染类型落在 Nexus 源上；浏览器只经 fetch→Blob 保存。
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "sandbox")
+	} else if value := response.Header.Get("Content-Type"); value != "" {
+		w.Header().Set("Content-Type", value)
 	}
 	w.WriteHeader(response.StatusCode)
 	_, _ = io.Copy(w, io.LimitReader(response.Body, 33<<20))

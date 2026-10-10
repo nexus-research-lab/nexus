@@ -25,7 +25,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 type teamTokenStub struct {
@@ -95,34 +94,6 @@ type teamRelayStub struct {
 	watchUpdate       relaycontract.StreamUpdated
 	watchErr          error
 	watchExpireOnce   bool
-}
-
-type teamProjectorStub struct {
-	err             error
-	roomCalls       int
-	commitCalls     int
-	snapshotCalls   int
-	differenceCalls int
-}
-
-func (stub *teamProjectorStub) ProjectRoom(context.Context, string, string, relaycontract.RoomView) error {
-	stub.roomCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectCommit(context.Context, string, relaycontract.MessageCommit) error {
-	stub.commitCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectSnapshot(context.Context, string, relaycontract.Snapshot) error {
-	stub.snapshotCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectDifference(context.Context, string, relaycontract.Difference) error {
-	stub.differenceCalls++
-	return stub.err
 }
 
 func (stub *teamRelayStub) ListRooms(
@@ -413,28 +384,6 @@ func TestTeamStreamForwardsSnapshotReset(t *testing.T) {
 	}
 }
 
-func TestTeamDifferenceDoesNotHideProjectionFailure(t *testing.T) {
-	projector := &teamProjectorStub{err: errors.New("local database unavailable")}
-	recorder := teamRequest(
-		t,
-		newTeamTestRouterWithProjector(
-			&teamTokenStub{token: "token"},
-			&teamRelayStub{difference: relaycontract.Difference{StreamEpoch: "epoch-1"}},
-			projector,
-			teamTestPrincipal(),
-		),
-		http.MethodGet,
-		"/nexus/v1/team/sync-streams/stream-1/difference?after_seq=0&limit=100",
-		"",
-		false,
-	)
-	failure := decodeTeamFailure(t, recorder)
-	if recorder.Code != http.StatusServiceUnavailable ||
-		failure.Code != "team.local_projection_failed" || projector.differenceCalls != 1 {
-		t.Fatalf("status=%d failure=%+v projector=%+v", recorder.Code, failure, projector)
-	}
-}
-
 func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	sessionID := "session-1"
 	principal := &authsvc.Principal{
@@ -534,17 +483,16 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 		CurrentUserRole: "owner",
 	}
 	relay := &teamRelayStub{room: view, rooms: relaycontract.RoomList{Rooms: []relaycontract.RoomView{view}}}
-	projector := &teamProjectorStub{}
 	tokens := &teamTokenStub{token: "relay-token"}
-	router := newTeamTestRouterWithProjector(tokens, relay, projector, teamTestPrincipal())
+	router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
 	created := teamRequest(
 		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","member_user_ids":["user-2"],"agent_ids":["agent-1"],"coordinator_agent_id":"agent-1"}`, true,
 	)
 	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
 	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
 		relay.createRoomCalls != 1 || relay.listRoomsCalls != 1 ||
-		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
-		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
+		relay.idempotencyKey != "command-1" {
+		t.Fatalf("create=%d list=%d relay=%+v", created.Code, listed.Code, relay)
 	}
 	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) ||
 		!reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) || relay.roomInput.CoordinatorAgentID != "agent-1" {
@@ -869,20 +817,11 @@ func TestTeamRoomsRejectLocalPrincipalBeforeTokenExchange(t *testing.T) {
 
 func newTeamTestRouter(
 	tokens relayTokenExchanger,
-	relay relayClient,
-	principal *authsvc.Principal,
-) http.Handler {
-	return newTeamTestRouterWithProjector(tokens, relay, nil, principal)
-}
-
-func newTeamTestRouterWithProjector(
-	tokens relayTokenExchanger,
-	relay relayClient,
-	projector teamsvc.Projector,
+	relay relayGateway,
 	principal *authsvc.Principal,
 ) http.Handler {
 	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := New(api, tokens, teamsvc.New(relay, projector, api.BaseLogger()), relay)
+	handler := New(api, tokens, relay)
 	router := chi.NewRouter()
 	router.Use(handlershared.RequestContextMiddleware(api.BaseLogger()))
 	if principal != nil {
@@ -956,11 +895,6 @@ func decodeTeamFailure(t *testing.T, recorder *httptest.ResponseRecorder) protoc
 		t.Fatalf("decode failure: %v body=%s", err, recorder.Body.String())
 	}
 	return envelope.Data.Failure
-}
-
-type relayClient interface {
-	teamsvc.RelayClient
-	relayGateway
 }
 
 func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {

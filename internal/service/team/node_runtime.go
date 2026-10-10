@@ -20,7 +20,30 @@ import (
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
-func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token nodeToken) error {
+// deliveryExecutionInput 是 runtime 启动前已核验的投递上下文与本机附件。
+type deliveryExecutionInput struct {
+	content       string
+	publicContext []protocol.Message
+	attachments   []protocol.ChatAttachment
+}
+
+// deliveryInput 只做确定性校验；失败意味着同一投递永远无法执行。
+func deliveryInput(job teamstore.NodeJob) (deliveryExecutionInput, error) {
+	if job.Delivery == nil || len(job.Delivery.Messages) == 0 || job.Delivery.Messages[len(job.Delivery.Messages)-1].ID != job.Delivery.MessageID {
+		return deliveryExecutionInput{}, ErrNodeUnavailable
+	}
+	contextJSON, err := json.Marshal(job.Delivery.Messages)
+	if err != nil {
+		return deliveryExecutionInput{}, err
+	}
+	if len(contextJSON) > 2<<20 {
+		return deliveryExecutionInput{}, errors.New("在线任务上下文超过上限")
+	}
+	content, publicContext, err := deliveryRoomContext(job.Delivery, job.LocalAgentID)
+	return deliveryExecutionInput{content: content, publicContext: publicContext}, err
+}
+
+func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, job teamstore.NodeJob, token nodeToken, input deliveryExecutionInput) error {
 	// 领取时的群成员范围与 Control 当前公开身份取交集，绝不扩成本机可执行成员。
 	if len(job.Delivery.AgentIDs) > 0 {
 		fresh, err := e.machineTokenWithDirectory(ctx, grant, job.Delivery.AgentIDs)
@@ -30,19 +53,8 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 		token = fresh
 	}
 	directory := deliveryAgentDirectory(job.Delivery, token.Directory, job.LocalAgentID)
-	contextJSON, err := json.Marshal(job.Delivery.Messages)
-	if err != nil {
-		return err
-	}
-	if len(contextJSON) > 2<<20 {
-		return errors.New("在线任务上下文超过上限")
-	}
-	content, publicContext, err := deliveryRoomContext(job.Delivery, job.LocalAgentID)
-	if err != nil {
-		return err
-	}
 	job.State = "running"
-	if err = e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
+	if err := e.nodes.store.SaveNodeJob(ctx, &job, "ready", nil); err != nil {
 		return err
 	}
 	e.logger.Info("在线 Agent 开始本机执行", nodeJobLogAttrs(grant, job)...)
@@ -60,16 +72,16 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			return
 		}
 		_, grantErr := e.activeGrant(stopCtx, grant)
-		if current.State == "running" || stopErr != nil || (current.State == "draining" && errors.Is(grantErr, ErrNodeLogin)) {
+		e.logFailure(stopCtx, "stop_execution", grant, *current, stopErr)
+		// 已完成或仍可发布的任务不因停止信号失败而回退；只收口仍在运行的任务。
+		if current.State == "running" || (current.State == "draining" && errors.Is(grantErr, ErrNodeLogin)) {
 			from := current.State
 			current.State = "failed"
-			if ctx.Err() != nil && stopErr == nil && from == "running" {
+			if from == "running" && stopErr != nil {
+				current.State = "review_required"
+			} else if from == "running" && ctx.Err() != nil {
 				current.State = "cancelled"
 			}
-			if stopErr != nil {
-				current.State = "review_required"
-			}
-			e.logFailure(stopCtx, "stop_execution", grant, *current, stopErr)
 			saveErr := e.nodes.store.SaveNodeJob(stopCtx, current, from, nil)
 			e.logFailure(stopCtx, "cleanup_save_job", grant, *current, saveErr)
 			if saveErr == nil {
@@ -81,13 +93,9 @@ func (e *NodeExecutor) execute(ctx context.Context, grant teamstore.NodeGrant, j
 			e.logFailure(stopCtx, "fail_delivery", grant, *current, settleErr)
 		}
 	}()
-	attachments, err := e.prepareDeliveryAttachments(ctx, job, token.Token)
-	if err != nil {
-		return err
-	}
 	job.Delivery.Messages = nil
 	admitted := false
-	err = e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: content, Attachments: attachments, PublicContext: publicContext, PublicAgentDirectory: directory, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
+	err := e.start(ctx, roomrealtime.ChatRequest{SessionKey: protocol.BuildRoomSharedSessionKey(job.ConversationID), RoomID: job.RoomID, ConversationID: job.ConversationID, TargetAgentIDs: []string{job.LocalAgentID}, RoundID: job.RoundID, Content: input.content, Attachments: input.attachments, PublicContext: input.publicContext, PublicAgentDirectory: directory, UserMessageID: job.Delivery.MessageID, Internal: true, ExecutionOrigin: "relay", EventObserver: observer.observe}, func(admissionCtx context.Context) error {
 		// Room 准备可能很慢；原生 round 注册后、任何 slot 启动前再次验证。
 		if err := admissionCtx.Err(); err != nil {
 			return err

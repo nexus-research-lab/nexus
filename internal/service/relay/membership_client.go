@@ -178,12 +178,15 @@ func (c *Client) GetRoomWithMembers(ctx context.Context, token, roomID string) (
 
 // CollectRoomMembers 用首屏的世代与成员版本作为栅栏翻完剩余成员页；Desktop 经远程 Gateway 时复用同一规则。
 func CollectRoomMembers(result relaycontract.RoomDetails, next func(cursor, epoch string, version int64) (relaycontract.RoomMemberPage, error)) (relaycontract.RoomDetails, error) {
+	seen := map[string]bool{}
 	for result.NextMemberCursor != "" {
+		// 任何已出现过的游标都意味着远端分页成环，不能只比较相邻两页。
+		seen[result.NextMemberCursor] = true
 		page, err := next(result.NextMemberCursor, result.Conversation.StreamEpoch, result.Room.MembershipVersion)
 		if err != nil {
 			return relaycontract.RoomDetails{}, err
 		}
-		if page.NextCursor == result.NextMemberCursor {
+		if seen[page.NextCursor] {
 			return relaycontract.RoomDetails{}, errors.New("成员分页游标未推进")
 		}
 		result.Members = append(result.Members, page.Members...)
