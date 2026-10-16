@@ -180,6 +180,7 @@ final class SidecarSupervisor {
     applyPackagedConnectorConfig(to: &environment)
     applyBundledControlCommands(to: &environment)
     applyBundledNXSRuntime(to: &environment)
+    applyBundledCUARuntime(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = webOrigin
     return environment
@@ -255,6 +256,40 @@ final class SidecarSupervisor {
       return
     }
     startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
+      "source": "missing",
+    ])
+  }
+
+  private func applyBundledCUARuntime(to environment: inout [String: String]) {
+    let key = "NEXUS_COMPUTER_USE_BINARY"
+    if let override = environment[key],
+       !override.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+       FileManager.default.isExecutableFile(atPath: override) {
+      startupTimeline?.mark("sidecar.cua_runtime", metadata: [
+        "source": "override",
+        "path": override,
+      ])
+      return
+    }
+    // Do not inherit a stale package directory or another invalid path. The
+    // Computer Use service requires an executable binary and fails closed.
+    environment.removeValue(forKey: key)
+    guard locator.projectRoot == nil else {
+      startupTimeline?.mark("sidecar.cua_runtime", metadata: [
+        "source": "development",
+      ])
+      return
+    }
+    let cuaURL = locator.appRootURL.appendingPathComponent("bin/nexuscua")
+    if FileManager.default.isExecutableFile(atPath: cuaURL.path) {
+      environment[key] = cuaURL.path
+      startupTimeline?.mark("sidecar.cua_runtime", metadata: [
+        "source": "bundled",
+        "path": cuaURL.path,
+      ])
+      return
+    }
+    startupTimeline?.mark("sidecar.cua_runtime", metadata: [
       "source": "missing",
     ])
   }

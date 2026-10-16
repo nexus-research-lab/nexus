@@ -60,6 +60,7 @@ func buildSystemSkillNames() map[string]struct{} {
 		"automation":          {},
 		"nexus-configuration": {},
 		"nexus-product-guide": {},
+		"computer-use":        {},
 	}
 	for _, skillName := range agentsvc.ManagedSemanticSkillNames() {
 		result[skillName] = struct{}{}

@@ -34,9 +34,9 @@ func NewTool(handler Handler) sdktool.Tool {
 	inputSchema := inputSchema()
 	return sdktool.Tool{
 		Name: ToolName,
-		Description: "调用 Nexus 托管的 Goal、Execution、Automation 或 Subagent 命令。" +
+		Description: "调用 Nexus 托管的 Goal、Execution、Computer Use、Automation 或 Subagent 命令。" +
 			"先用 contract 获取操作目录和精确输入 schema，再用 inspect/invoke 或 plan/apply 执行。",
-		SearchHint:  "nexus goal execution automation subagent contract inspect invoke plan apply 目标 执行 自动化",
+		SearchHint:  "nexus goal execution computer use automation subagent contract inspect invoke plan apply 目标 执行 电脑 自动化",
 		AlwaysLoad:  true,
 		InputSchema: inputSchema,
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
@@ -64,7 +64,7 @@ func inputSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"domain": map[string]any{
-				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainSubagent},
+				"type": "string", "enum": []string{DomainAutomation, DomainGoal, DomainExecution, DomainComputer, DomainSubagent},
 			},
 			"action": map[string]any{
 				"description": "goal/execution：contract、inspect（固定读取，省略 operation）、invoke（提供 operation 和 request_id）；automation：contract、inspect（提供查询 operation）、plan、apply；subagent：contract、inspect（list）、invoke（其他 operation）。",

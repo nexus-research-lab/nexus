@@ -51,6 +51,21 @@
 - 隐藏路径、符号链接祖先、只读资源和宿主配置声明的受保护路径继续拒绝。
 - Read、Glob、Grep、ViewImage 等读取工具按各自读取审核规则处理，不属于写入白名单。
 
+### 3.4 Computer Use 桌面变更
+
+- Computer Use 的每个新 `perform_action` mutation 都通过当前 runtime session 的
+  `RequestPermissionWithID` 请求一次性宿主批准；同一 `request_id` 的已完成动作或
+  已被 sidecar 接纳但结果未知的重试只做对账，不重复弹审批。sidecar、macOS driver
+  和 `nexus.command` 都不能自行推断用户同意。
+- 批准载荷只包含动作种类、opaque element ref、坐标和数量等最小摘要；输入
+  文本与 `set_value` 值以脱敏标记进入审批事件，原始内容只沿当前调用送入
+  CUA，不进入普通审批投影或日志。
+- 拒绝、缺少 permission context 或缺少可信 runtime session identity 时，动作
+  在 sidecar dispatch 之前失败。批准只覆盖当前精确动作，不形成持久白名单。
+- sidecar 进程退出会结束本轮所有 session、observation、element ref 与待对账
+  mutation；下一次 Computer Use 调用只能在新的 sidecar epoch 中重新发现、选择
+  和观察目标，不能复用旧的 opaque state。
+
 ## 4. 重连规则
 
 - 断开：sender 解绑；pending request 不销毁；runtime client 不销毁。

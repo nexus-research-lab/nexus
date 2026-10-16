@@ -11,6 +11,7 @@
 | 模块边界 | [Internal 模块边界](./specs/internal-boundaries.md) |
 | 前端 | [工程与设计系统治理](./specs/frontend-engineering-spec.md) · [视觉与交互](../design.md) · [Agent 入口](../web/AGENTS.md) |
 | 权限与沙箱 | [帮我批准](./auto-review.md) · [桌面沙箱与一次性审批](./guides/desktop-sandbox.md) |
+| Computer Use | [macOS 开发接入](./guides/computer-use.md) |
 | Room Skill 编写 | [中文](./guides/room-skill-authoring.md) · [英文](./guides/room-skill-authoring.en.md) |
 | WorkGraph | [设计原则](./guides/workgraph-design-principles.zh-CN.md) · [实现方案](./guides/workgraph-implementation-design.zh-CN.md) · [代码解读](./guides/workgraph-code-reading-report.zh-CN.md) · [方法论模板](./guides/workgraph-methodology-templates.zh-CN.md) |
 | 运维 | [Linux Runtime 隔离](./operations/runtime-isolation.md) · [Control 部署与账号迁移](./operations/control-migration.md) |

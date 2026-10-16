@@ -200,6 +200,7 @@ export NEXUS_DESKTOP_VERSION="${APP_VERSION}"
 export NEXUS_DESKTOP_BUILD_NUMBER="${BUILD_NUMBER}"
 export NEXUS_DESKTOP_APP_BUILD_DIR="${APP_BUILD_DIR}"
 export NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}"
+export NEXUS_DESKTOP_BUNDLE_CUA_RUNTIME="${NEXUS_DESKTOP_BUNDLE_CUA_RUNTIME:-0}"
 export NEXUS_DESKTOP_TARGET_ARCH="${TARGET_ARCH}"
 export NEXUS_DESKTOP_NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-${TARGET_GOARCH}}"
 
@@ -230,6 +231,14 @@ if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
 fi
 if [[ -x "${APP_BUNDLE}/Contents/Resources/bin/rg" ]]; then
   require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/rg"
+fi
+CUA_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nexuscua"
+if is_enabled "${NEXUS_DESKTOP_BUNDLE_CUA_RUNTIME}" && [[ ! -x "${CUA_RUNTIME_PATH}" ]]; then
+  echo "missing bundled CUA runtime: ${CUA_RUNTIME_PATH}" >&2
+  exit 1
+fi
+if [[ -x "${CUA_RUNTIME_PATH}" ]]; then
+  require_macho_architecture "${CUA_RUNTIME_PATH}"
 fi
 
 plutil -lint "${APP_BUNDLE}/Contents/Info.plist" >/dev/null
@@ -263,6 +272,10 @@ rsync -a --delete --exclude ".DS_Store" "${APP_BUNDLE}/" "${STAGING_DIR}/${APP_N
 NXS_RUNTIME_BUNDLED=false
 if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
   NXS_RUNTIME_BUNDLED=true
+fi
+CUA_RUNTIME_BUNDLED=false
+if [[ -x "${CUA_RUNTIME_PATH}" ]]; then
+  CUA_RUNTIME_BUNDLED=true
 fi
 
 {
@@ -304,6 +317,7 @@ PACKAGE_DIST_NAME="${DIST_NAME}" \
 PACKAGE_ARTIFACT_FORMAT="${ARTIFACT_FORMAT}" \
 PACKAGE_NXS_RUNTIME_BUNDLED="${NXS_RUNTIME_BUNDLED}" \
 PACKAGE_NXS_RUNTIME_RELEASE="${NEXUS_DESKTOP_NXS_RELEASE:-${NEXUS_NXS_RUNTIME_RELEASE:-nxs-stable}}" \
+PACKAGE_CUA_RUNTIME_BUNDLED="${CUA_RUNTIME_BUNDLED}" \
 PACKAGE_RUNTIME_COMPATIBILITY_PATH="${RUNTIME_COMPATIBILITY_PATH}" \
 PACKAGE_SIGNING_KIND="${PACKAGE_SIGNING_KIND}" \
 PACKAGE_SIGNING_DEVELOPER_ID="${PACKAGE_SIGNING_DEVELOPER_ID}" \
@@ -347,6 +361,10 @@ const metadata = {
       relative_path: "Contents/Resources/bin/nxs",
       compatibility: env.PACKAGE_RUNTIME_COMPATIBILITY_PATH
         ? JSON.parse(fs.readFileSync(env.PACKAGE_RUNTIME_COMPATIBILITY_PATH, "utf8")) : null,
+    },
+    cua: {
+      bundled: env.PACKAGE_CUA_RUNTIME_BUNDLED === "true",
+      relative_path: "Contents/Resources/bin/nexuscua",
     },
   },
   artifact: {

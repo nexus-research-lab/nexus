@@ -20,6 +20,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
+	computercommand "github.com/nexus-research-lab/nexus/internal/mcp/command/computer"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	executionoperation "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/operation"
 	goalcontract "github.com/nexus-research-lab/nexus/internal/mcp/command/goal/contract"
@@ -30,6 +31,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
+	computerusesvc "github.com/nexus-research-lab/nexus/internal/service/computeruse"
 )
 
 const nexusMCPServerName = "nexus"
@@ -58,6 +60,7 @@ func NewServerBuilder(
 	goals goalcontract.Service,
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
+	computerUse *computerusesvc.Service,
 	builtInTools ToolBuilder,
 	workflowServices ...executioncontract.WorkflowService,
 ) func(context.Context, nexusmcp.RoundContext) (map[string]sdkmcp.ServerConfig, error) {
@@ -71,6 +74,7 @@ func NewServerBuilder(
 			goals,
 			execution,
 			permissions,
+			computerUse,
 			round,
 			workflowServices...,
 		)
@@ -170,6 +174,7 @@ func buildNexusCommandMCPTool(
 	goals goalcontract.Service,
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
+	computerUse *computerusesvc.Service,
 	round nexusmcp.RoundContext,
 	workflowServices ...executioncontract.WorkflowService,
 ) (sdktool.Tool, bool, error) {
@@ -242,6 +247,7 @@ func buildNexusCommandMCPTool(
 			goals,
 			execution,
 			permissions,
+			computerUse,
 			actor,
 			request,
 			workflowServices...,
@@ -396,6 +402,7 @@ func dispatchNexusCommand(
 	goals goalcontract.Service,
 	execution executioncontract.Service,
 	permissions *permissionctx.Context,
+	computerUse *computerusesvc.Service,
 	actor command.Actor,
 	request command.Request,
 	workflowServices ...executioncontract.WorkflowService,
@@ -412,9 +419,35 @@ func dispatchNexusCommand(
 		return HandleGoalCommand(ctx, goals, actor, request)
 	case command.DomainExecution:
 		return HandleExecutionCommand(ctx, execution, actor, request, workflowServices...)
+	case command.DomainComputer:
+		return HandleComputerCommand(ctx, computerUse, permissions, actor, request)
 	default:
 		return nil, fmt.Errorf("未知 Nexus command domain %q", request.Domain)
 	}
+}
+
+// HandleComputerCommand executes the bounded Computer Use surface for the
+// current owner and physical round. The adapter never accepts transport
+// credentials or native handles from command input.
+func HandleComputerCommand(
+	ctx context.Context,
+	svc *computerusesvc.Service,
+	permissions *permissionctx.Context,
+	actor command.Actor,
+	request command.Request,
+) (any, error) {
+	if svc == nil {
+		return nil, errors.New("Computer Use command service 尚未装配")
+	}
+	if !actor.Valid() || actor.RoundID != actor.LeaseRoundID {
+		return nil, errors.New("Computer Use command 缺少可信 round lease identity")
+	}
+	sessionKey := strings.TrimSpace(actor.LeaseSessionKey)
+	if sessionKey == "" {
+		sessionKey = strings.TrimSpace(actor.SessionKey)
+	}
+	operations := computercommand.BuildAllWithPermissions(svc, actor.OwnerUserID, actor.RoundID, sessionKey, permissions)
+	return command.HandleSemantic(ctx, actor, command.DomainComputer, "get_computer", operations, request)
 }
 
 func handleAutomationCommand(

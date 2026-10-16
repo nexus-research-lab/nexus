@@ -51,6 +51,8 @@ BOOTSTRAP_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexus-runtime-bootstrap"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
 NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
+BUNDLE_CUA_RUNTIME="${NEXUS_DESKTOP_BUNDLE_CUA_RUNTIME:-0}"
+CUA_RUNTIME_PATH="${NEXUS_DESKTOP_CUA_RUNTIME_PATH:-}"
 HOST_ARCH="$(uname -m)"
 
 case "${NEXUS_DESKTOP_TARGET_ARCH:-${HOST_ARCH}}" in
@@ -215,6 +217,16 @@ if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
   fi
 fi
 
+if is_enabled "${BUNDLE_CUA_RUNTIME}"; then
+  cua_output_path="${RESOURCES_DIR}/bin/nexuscua"
+  if [[ -z "${CUA_RUNTIME_PATH}" || ! -x "${CUA_RUNTIME_PATH}" ]]; then
+    echo "missing cached CUA runtime: ${CUA_RUNTIME_PATH:-<unset>}" >&2
+    exit 1
+  fi
+  echo "==> Using cached bundled CUA runtime"
+  cp "${CUA_RUNTIME_PATH}" "${cua_output_path}"
+fi
+
 require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
 require_macho_architecture "${MACOS_CONTENTS_DIR}/nexus-server"
 require_macho_architecture "${RESOURCES_DIR}/bin/nexusctl"
@@ -225,6 +237,9 @@ if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
 fi
 if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
   require_macho_architecture "${RESOURCES_DIR}/bin/rg"
+fi
+if [[ -x "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+  require_macho_architecture "${RESOURCES_DIR}/bin/nexuscua"
 fi
 
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
@@ -237,6 +252,9 @@ if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
 fi
 if [[ -f "${RESOURCES_DIR}/bin/rg" ]]; then
   chmod 0755 "${RESOURCES_DIR}/bin/rg"
+fi
+if [[ -f "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+  chmod 0755 "${RESOURCES_DIR}/bin/nexuscua"
 fi
 
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
@@ -278,6 +296,9 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   fi
   if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
     codesign_target "${RESOURCES_DIR}/bin/rg"
+  fi
+  if [[ -x "${RESOURCES_DIR}/bin/nexuscua" ]]; then
+    codesign_target "${RESOURCES_DIR}/bin/nexuscua"
   fi
   codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
   node "${ROOT_DIR}/scripts/desktop/bootstrap-manifest.mjs" write "${APP_BUNDLE}" "${BRIDGE_VERSION}"

@@ -564,18 +564,25 @@ External channel admission is a separate policy layer, not a substitute for thes
 
 ### 5.1 `nexus.command` transport
 
-- Goal, Execution, Automation, and Subagent share one model-visible, always-loaded
+- Goal, Execution, Computer Use, Automation, and Subagent share one model-visible, always-loaded
   MCP tool, `nexus.command`. Bundled Skills own model decisions.
 - The host captures owner, Agent, Session, Room role, Goal revision, WorkBinding,
   ReviewBinding, coordination authority, and Automation route in a physical-round
   server instance. The model submits only `domain`, `action`, `operation`, closed
   `input`, `request_id`, and the explicit revision/digest fields used by Automation.
-- `contract` loads only the requested operation schema; `inspect` performs one
-  actor-filtered read; `invoke` resolves the operation from the in-process directory.
+- `contract` loads only the requested operation schema; the fixed domain
+  `inspect` performs the actor-filtered read, while `invoke` resolves an
+  operation from the in-process directory. Computer Use keeps its fresh
+  observation operations in that bounded directory so the host can enforce
+  observation and request identity together.
   A mutation must load the fresh exact contract first.
-- Business input travels directly through the SDK `stream-json` MCP call. Nexus
-  creates no temporary input file, writable staging root, shell process,
-  environment capability, capability token, loopback broker, or command shim.
+- Business input travels directly through the SDK `stream-json` MCP call. For
+  Goal/Execution/Automation/Subagent, Nexus creates no temporary input file,
+  writable staging root, shell process, environment capability, capability
+  token, loopback broker, or command shim. Computer Use is the explicit
+  host-owned exception: its service may supervise a pinned local `nexus-cua`
+  sidecar over a private socket or named pipe, while keeping the endpoint,
+  token, native handles, and artifact root outside the model-visible contract.
 - The bridge replaces the per-round SDK server instance in place, so authority
   updates need no runtime restart.
 - The adapter validates required fields, closed objects, types, enums, patterns, and
@@ -601,6 +608,19 @@ input. Read operations map to `inspect` and never go through `invoke`.
 | `prepare_plan_execution` | Execution inspect → exact contract → `invoke` with the complete Plan input | Strictly validates and durably seals a complete proposal without materializing the WorkGraph. |
 | `plan_execution` | Exact contract → `invoke` with `{}` and a stable `request_id` | Atomically materializes only the host-bound sealed proposal under retry, CAS, and Goal-revision fences. |
 | Remaining Execution mutations | Execution inspect → exact contract → `invoke` with current business input and stable `request_id` | Schemas stay visible; current service state and exact bindings decide authority. |
+
+Computer Use uses the same round-scoped command envelope and does not expose a
+second MCP server:
+
+| Business operation | Exact tool sequence | Design boundary |
+| --- | --- | --- |
+| `get_computer` | `{"domain":"computer","action":"inspect"}` | Starts the supervised sidecar lazily, then returns capabilities and permission state. Disabled configuration fails closed. |
+| `list_applications` | Computer contract → `invoke` | Returns expiring discovery refs; the Agent cannot supply process handles. |
+| `select_target` | `list_applications` → Computer contract → `invoke` | Opens a bounded session for the current owner and round using an exact application selector. |
+| `observe` | Computer contract → `invoke` | Returns fresh opaque window/element refs and an optional bounded screenshot artifact. |
+| `perform_action` | `observe` → Computer contract → `invoke` | Requires the latest observation and a one-time allow from the current runtime permission context; retries reuse the same `request_id` to reconcile an indeterminate mutation. |
+| `verify_state` | Computer contract → `invoke` | Reads a bounded predicate against the selected window. |
+| `close_target` | Computer contract → `invoke` | Closes the session and discards round-local refs and pending mutation state. |
 
 A stable `request_id` identifies one semantic intent and is reused for retries.
 Changing operation, target, or input requires a new ID. No transport path is

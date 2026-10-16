@@ -62,6 +62,7 @@ func (s *CommandAttemptState) Reset(key string) {
 const (
 	CommandDomainGoal         = "goal"
 	CommandDomainExecution    = "execution"
+	CommandDomainComputer     = "computer"
 	GoalOperationCreate       = "create_goal"
 	GoalOperationRetarget     = "retarget_goal"
 	GoalOperationAudit        = "audit_objective_alignment"

@@ -9,6 +9,7 @@
 //   - subagent/：子任务 contract、同轮去重与宿主原生控制回连。
 //   - goal/：Goal 服务窄契约与固定语义操作。
 //   - execution/：Execution/WorkGraph 服务窄契约与固定语义操作。
+//   - computer/：round-scoped Computer Use 能力、opaque target/observation 与 mutation reconcile 操作。
 //
 // physical-round 共用上下文、重试状态和 typed receipt 位于父级 internal/mcp；
 // 托管 Goal/Execution Skill 绑定目录位于 internal/service/agent。

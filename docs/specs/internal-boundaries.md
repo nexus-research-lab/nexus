@@ -41,7 +41,8 @@
 `mcp/`、`connectors/`、`workspace/` 是能力域。
 
 - `mcp` 根包持有 physical-round 共用可信上下文与 command receipt。
-- `mcp/command` 持有 Goal/Execution/Automation/Subagent 的 `nexus.command` 工具协议和操作适配。
+- `mcp/command` 持有 Goal/Execution/Computer Use/Automation/Subagent 的 `nexus.command` 工具协议和操作适配；Computer Use 的 round-scoped 模型规则由 `skills/computer-use` 承载。
+- `mcp/command/computer` 只消费 `service/computeruse` 的窄接口；CUA sidecar 的 endpoint、token、native handle 和 artifact root 不进入 Agent input 或普通日志。
 - 宿主自有、与 Nexus 系统功能相关的进程内工具统一挂在单一 `nexus` MCP server 下；各业务包只构建工具定义与固定上下文。
 - 模型控制复用内置 Skill，业务输入直接进入宿主，不落临时 JSON。
 - `mcp/communication` 以 `list_targets` 与上下文感知的 `send_message` 统一 DM、跨会话和当前 Room 通讯；不设独立 Room MCP 工具包。
