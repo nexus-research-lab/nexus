@@ -36,7 +36,7 @@ func (r *Repository) ReserveWindowsSandbox(ctx context.Context, intent protocol.
 	if _, err := tx.ExecContext(ctx, `INSERT INTO windows_sandbox_scopes(owner_user_id,session_key) VALUES(`+b(1)+`,`+b(2)+`) ON CONFLICT DO NOTHING`, key.OwnerUserID, key.SessionKey); err != nil {
 		return err
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE windows_sandbox_scopes SET generation=`+b(1)+`,launch_order=`+b(2)+`,active_launch_id=`+b(3)+` WHERE owner_user_id=`+b(4)+` AND session_key=`+b(5)+` AND active_launch_id='' AND (generation<`+b(6)+` OR (generation=`+b(7)+` AND launch_order<`+b(8)+`)) AND NOT EXISTS(SELECT 1 FROM sandbox_scratch_recoveries WHERE owner_user_id=`+b(9)+` AND session_key=`+b(10)+` AND phase<>'complete')`, key.Generation, order, key.LaunchID, key.OwnerUserID, key.SessionKey, key.Generation, key.Generation, order, key.OwnerUserID, key.SessionKey)
+	result, err := tx.ExecContext(ctx, `UPDATE windows_sandbox_scopes SET generation=`+b(1)+`,launch_order=`+b(2)+`,active_launch_id=`+b(3)+` WHERE owner_user_id=`+b(4)+` AND session_key=`+b(5)+` AND active_launch_id='' AND (generation<`+b(6)+` OR (generation=`+b(7)+` AND launch_order<`+b(8)+`)) AND NOT EXISTS(SELECT 1 FROM sandbox_scratch_recoveries WHERE owner_user_id=`+b(9)+` AND session_key=`+b(10)+` AND phase<>'complete') AND NOT EXISTS(SELECT 1 FROM windows_scratch_recoveries WHERE owner_user_id=`+b(11)+` AND session_key=`+b(12)+` AND phase<>'complete')`, key.Generation, order, key.LaunchID, key.OwnerUserID, key.SessionKey, key.Generation, key.Generation, order, key.OwnerUserID, key.SessionKey, key.OwnerUserID, key.SessionKey)
 	if err != nil {
 		return err
 	}

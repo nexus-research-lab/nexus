@@ -91,6 +91,10 @@ func (h *windowsSandboxHost) Reserve(ctx context.Context, i windowssandbox.Inten
 		return nil, errors.New("Windows authorization projection exceeds control frame budget")
 	}
 	intent := protocol.WindowsSandboxIntent{Key: protocol.WindowsSandboxKey{OwnerUserID: h.binding.Owner, SessionKey: h.binding.Session, Generation: h.binding.Generation, LaunchID: i.LaunchID}, Version: 1, Purpose: h.binding.Purpose, LeaseID: h.binding.LeaseID, ScratchRoot: h.binding.ScratchRoot, PolicyDigest: h.binding.PolicyDigest, OptionsDigest: sha256.Sum256(body), CommandDigest: i.CommandDigest, HelperSHA256: i.HelperSHA256}
+	intent.ScratchBaseIdentity, intent.ScratchLeafIdentity, err = captureWindowsScratch(h.binding)
+	if err != nil {
+		return nil, err
+	}
 	h.intent, h.bridgeIntent = &intent, i
 	if err := h.store.ReserveWindowsSandbox(ctx, intent); err != nil {
 		return nil, err

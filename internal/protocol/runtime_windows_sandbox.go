@@ -11,15 +11,17 @@ type WindowsSandboxKey struct {
 }
 
 type WindowsSandboxIntent struct {
-	Key           WindowsSandboxKey `json:"key"`
-	Version       int               `json:"version"`
-	Purpose       string            `json:"purpose"`
-	LeaseID       string            `json:"lease_id"`
-	ScratchRoot   string            `json:"scratch_root"`
-	PolicyDigest  [32]byte          `json:"policy_digest"`
-	OptionsDigest [32]byte          `json:"options_digest"`
-	CommandDigest [32]byte          `json:"command_digest"`
-	HelperSHA256  string            `json:"helper_sha256"`
+	Key                 WindowsSandboxKey `json:"key"`
+	Version             int               `json:"version"`
+	Purpose             string            `json:"purpose"`
+	LeaseID             string            `json:"lease_id"`
+	ScratchRoot         string            `json:"scratch_root"`
+	ScratchBaseIdentity string            `json:"scratch_base_identity,omitempty"`
+	ScratchLeafIdentity string            `json:"scratch_leaf_identity,omitempty"`
+	PolicyDigest        [32]byte          `json:"policy_digest"`
+	OptionsDigest       [32]byte          `json:"options_digest"`
+	CommandDigest       [32]byte          `json:"command_digest"`
+	HelperSHA256        string            `json:"helper_sha256"`
 }
 
 type WindowsSandboxPrepared struct {
@@ -62,6 +64,16 @@ type WindowsSandboxRecoveryDiagnostic struct {
 	Resources          *WindowsSandboxResources
 	Reason             string
 	ReconciledPolicies int64
+}
+
+type WindowsScratchRecovery struct {
+	Key                WindowsSandboxKey `json:"key"`
+	LeaseID            string            `json:"lease_id"`
+	ScratchRoot        string            `json:"scratch_root"`
+	BaseIdentity       string            `json:"base_identity"`
+	LeafIdentity       string            `json:"leaf_identity"`
+	QuarantineIdentity string            `json:"quarantine_identity"`
+	Phase              string            `json:"phase"`
 }
 
 // WindowsSandboxPurposeOrder 在同一启动代次内保留 probe 与 runtime 的顺序，禁止重播早期用途。

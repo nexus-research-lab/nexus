@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strings"
 	"time"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -44,11 +45,14 @@ func resolveWindowsSandboxEndpoints(ctx context.Context, domains []string) ([]ru
 	}
 	endpoints := make([]runtimectx.WindowsSandboxNetworkEndpoint, 0, len(canonical))
 	for _, domain := range canonical {
-		addresses, err := net.DefaultResolver.LookupNetIP(bounded, "ip", domain)
+		if !strings.Contains(domain, ".") {
+			return nil, errors.New("Windows sandbox DNS requires an absolute multi-label domain")
+		}
+		addresses, err := net.DefaultResolver.LookupNetIP(bounded, "ip", domain+".")
 		if err != nil {
 			return nil, fmt.Errorf("resolve approved Windows sandbox domain %q: %w", domain, err)
 		}
-		if len(addresses) == 0 || len(addresses) > 64 {
+		if len(addresses) == 0 || len(addresses) > 16 {
 			return nil, fmt.Errorf("approved domain %q has an empty or oversized address set", domain)
 		}
 		fixed := make([]string, 0, len(addresses))

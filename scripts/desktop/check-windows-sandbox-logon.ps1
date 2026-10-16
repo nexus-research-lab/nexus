@@ -1,11 +1,12 @@
 # INPUT: 已核验临时账号 fixture、本地 SDK 源码与独立报告目录。
-# OUTPUT: 固定十项 LogonW 组合的真实退出码、逐项结果和可追溯二进制摘要。
+# OUTPUT: 固定 LogonW 十项对照或 AppContainer 十四项矩阵、真实退出码与二进制摘要。
 # POS: Windows P3 原生实验；任何失败/skip/缺失均非验收通过，不启用产品能力。
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$SDKSource,
     [Parameter(Mandatory)][string]$FixtureRoot,
-    [Parameter(Mandatory)][string]$ReportDirectory
+    [Parameter(Mandatory)][string]$ReportDirectory,
+    [ValidateSet('Reference','AppContainer')][string]$Candidate = 'Reference'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,12 +39,22 @@ New-Item -ItemType Directory -Path $ReportDirectory | Out-Null
 $names = @('powershell', 'descendant', 'named_event', 'runner_process_and_token', 'runner_thread_boundary',
     'runner_future_thread_boundary', 'host_process_and_token', 'host_thread_boundary', 'inherited_handle_boundary', 'filesystem_write_scope')
 $tests = @('TestWindowsCodexLogonBootstrap', 'TestWindowsCapabilityOnlyLogonBootstrap', 'TestWindowsCapabilityLogonBootstrap')
+if ($Candidate -eq 'AppContainer') {
+    $tests = @('TestWindowsAppContainerLogonBootstrap')
+    $names += @('descendant_stdio','powershell_files','network_default','filesystem_aliases')
+    . (Join-Path $PSScriptRoot 'windows-sandbox-fixture-grants.ps1')
+}
+$grants = @()
 $savedEnvironment = @{}
 foreach ($key in @('GOWORK', 'NEXUS_WINDOWS_TEST_ACCOUNT', 'NEXUS_WINDOWS_TEST_PASSWORD', 'NEXUS_WINDOWS_TEST_FIXTURE')) {
     $savedEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
 }
 $credential = $null
 $results = @()
+$harnessCommit = (& git -C $PSScriptRoot rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0) { throw 'The test harness must be a Git checkout.' }
+$harnessStatus = @(& git -C $PSScriptRoot status --porcelain)
+$harnessHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash.ToLowerInvariant()
 try {
     $env:GOWORK = 'off'
     Push-Location $SDKSource
@@ -55,6 +66,7 @@ try {
         & go test -c -o $builtBinary ./internal/tool/builtin/bash/sandboxexec *> (Join-Path $ReportDirectory 'build.log')
         if ($LASTEXITCODE -ne 0) { throw 'Native SDK test build failed; see build.log.' }
     } finally { Pop-Location }
+    if ($Candidate -eq 'AppContainer') { $grants = @(New-NexusFixtureAppContainerGrants $FixtureRoot $ReportDirectory) }
     $binary = Join-Path $FixtureRoot 'bin\sandbox-components.test.exe'
     Copy-Item -LiteralPath $builtBinary -Destination $binary
     $binaryHash = (Get-FileHash -LiteralPath $builtBinary -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -87,10 +99,12 @@ try {
     @{
         schemaVersion = 1; capturedAt = [DateTime]::UtcNow.ToString('o'); sdkCommit = $sourceCommit
         sourceDirty = $sourceDirty; binarySHA256 = $binaryHash; platform = [Environment]::OSVersion.VersionString
-        hostElevated = $false; results = $results; releaseAccepted = $false
+        hostElevated = $false; candidate = $Candidate; results = $results; releaseAccepted = $false
+        harnessCommit = $harnessCommit; harnessStatus = $harnessStatus; harnessSHA256 = $harnessHash
     } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $ReportDirectory 'report.json') -Encoding utf8
 } finally {
     foreach ($key in $savedEnvironment.Keys) { [Environment]::SetEnvironmentVariable($key, $savedEnvironment[$key], 'Process') }
     $credential = $null
+    if ($Candidate -eq 'AppContainer' -and $grants.Count -ne 0) { Remove-NexusFixtureAppContainerGrants $grants $ReportDirectory }
 }
 if (@($results | Where-Object { -not $_.passed }).Count -ne 0) { exit 1 }

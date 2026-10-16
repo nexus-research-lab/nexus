@@ -1,6 +1,6 @@
 module github.com/nexus-research-lab/nexus
 
-go 1.26.2
+go 1.26.6
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
@@ -53,3 +53,5 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/nexus-research-lab/nexus-agent-sdk-bridge => E:/Code/nexus/worktrees/desktop-sandbox/nexus-agent-sdk-bridge

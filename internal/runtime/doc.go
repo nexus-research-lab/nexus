@@ -3,6 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - windows_scratch_*.go：启动前原生目录身份、正常与持锁冷恢复共用quarantine阶段；只在SDK完整cleaned后按固定对象删除，缺失不补猜完成。
 //   - windows_sandbox_*.go：独立Windows持久Host、严格策略投影、原执行双摘要关联；正常live owner删除scratch后提交完成，冷恢复仅诊断或对账已有证明，未知原生租约继续阻断启动。
 //   - sandbox_process_recovery_scan.go：持锁分页处理原 pending 进程，失败保留记录、游标继续，取消保留未处理项；不重放任务或清除策略/资源 unknown。
 //   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消、精确 scratch 交接及终态退休；不拥有记忆领域规则。

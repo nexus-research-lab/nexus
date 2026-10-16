@@ -10,3 +10,5 @@
 // RENAME_EXCL 隔离原目录并核对移动后身份，SyncDirectory 支持宿主恢复提交。
 // 移动后报错可能已产生文件动作，调用者必须从同一回收目标对账，不能盲重试新目标。
 package confinedfs
+
+// quarantine_windows.go 固定volume/fileID128/creationTime，使用相对原父句柄且禁止DELETE共享的对象句柄，不覆盖移入回收区；拒绝reparse和多硬链，逐固定对象POSIX disposition并flush目录后才允许持久删除证明。

@@ -7,8 +7,6 @@ import (
 	"context"
 	"errors"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // configureWindowsSandboxLeaseCleanup 将同一资源的最后Release绑定到原Windows监督来源，不允许更换所有者。
@@ -34,16 +32,10 @@ func configureWindowsSandboxLeaseCleanup(lease *SandboxResourceLease, config *Wi
 		return errors.New("Windows scratch cannot borrow another platform cleanup")
 	}
 	resource.windowsCleanupSupervisor = config
-	var removed bool
-	var removedKey protocol.WindowsSandboxKey
+	proof := &windowsScratchLiveProof{}
 	resource.supervisedCleanup = func(resource *sandboxResource) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		// Release holds resource.mu. After a successful native removal, retry
-		// only the exact durable completion; absence of a path is never proof.
-		if removed {
-			return store.CompleteWindowsSandboxResources(ctx, removedKey)
-		}
 		latest, found, err := store.LatestWindowsSandbox(ctx, binding.Owner, binding.Session)
 		if err != nil {
 			return err
@@ -60,11 +52,7 @@ func configureWindowsSandboxLeaseCleanup(lease *SandboxResourceLease, config *Wi
 		if latest.Intent.ScratchRoot != binding.ScratchRoot {
 			return ErrSandboxCleanupPending
 		}
-		if err := removeSandboxResource(resource); err != nil {
-			return err
-		}
-		removed, removedKey = true, latest.Intent.Key
-		return store.CompleteWindowsSandboxResources(ctx, removedKey)
+		return cleanupWindowsScratch(ctx, config.Root, store, latest.Intent.Key, resource, proof)
 	}
 	return nil
 }

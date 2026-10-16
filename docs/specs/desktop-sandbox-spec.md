@@ -824,3 +824,5 @@ macOS `RecoverSandboxScratch` 在同 app 根独占实例锁、会话启动 gate 
 Windows 显式监督以原 owner/session/generation、随机 launch ID 和用途顺序保存 Reserve、prepared、单次 ClaimStart 及 cleaned/unknown；探测与 runtime 共用 scope 栅栏。策略回执绑定原 runtime launch、SDK execution ID、prepare/grant 双摘要，不借用 Darwin UID 或 launchd 字段。未知启动即使切换 Full Access 也不能绕过。
 
 Reserve 同事务保存 scratch pending 责任。正常最后 Release 仅在精确 cleaned 回执后用原 live owner 删除，再提交 complete；删除成功但提交失败只重试原完成记录，不用路径缺失推断成功。冷启动遇到 pending scratch 且无原进程内 owner 时拒绝替换。InspectWindowsSandboxRecovery 提供精确诊断；持实例锁的 RecoverWindowsSandbox 仅在执行 cleaned 且 scratch complete 时对账原关联策略。SDK 原生崩溃清理或原 scratch 删除证明缺失时继续保留 unknown，不重放任务，不从 PID 退出、复用或目录不存在构造恢复成功。原生冷恢复仍未完成验收。
+
+新增 Windows scratch 回收主链在 Reserve 前从原 live owner 捕获父/叶 volume、128位file ID与creation time；旧记录无此证明仍拒绝冷删除。RecoverWindowsSandboxScratch 持真实实例锁与会话 gate，仅在SDK完整cleaned、无进程内资源owner且精确scope空闲时建立持久quarantine意图。正常Release也走同一路径。NtCreateFile相对固定父句柄打开对象，不共享DELETE；原句柄无覆盖移动到固定私有回收区，持久prepared→quarantined→deleting→removed→complete。递归拒绝reparse和多硬链，逐对象POSIX disposition后关闭并flush原父/回收区目录；不支持这些原语的文件系统失败保留责任。live删除证明可重试数据库提交；若删除发生但removed尚未持久即宿主崩溃，路径缺失仍不能补造证明，继续unknown。此路径不恢复SDK本身未cleaned的原生租约，也不自动重放任务。
