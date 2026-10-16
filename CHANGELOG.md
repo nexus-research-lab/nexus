@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 扩展内置 PPTX Skill：增加模板 inventory、PPTX 容器与关系校验、页面重排和 PDF/PNG 视觉渲染工具，并补充 HTML-to-PPTX 与 OOXML 定点编辑工作流。
+
 - IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 
 - 在线群与真人私聊支持跨端持久已读水位及侧栏未读数；后台页面不会自动标记已读。
