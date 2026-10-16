@@ -4,8 +4,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/automation/types"
 	"testing"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/automation/types"
 )
 
 func TestComputeNextRunAt(t *testing.T) {

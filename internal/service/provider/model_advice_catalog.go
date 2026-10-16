@@ -19,7 +19,7 @@ type modelAdvice struct {
 	TextOnly        bool
 }
 
-// 能力只匹配精确模型 ID，不推断模型族；资料与核对边界见 docs/testing/provider-model-evidence.md。
+// 能力只匹配精确模型 ID，不推断模型族；资料与核对边界见 docs/specs/provider-model-guidance-spec.md。
 var modelAdviceCatalog = []modelAdvice{
 	chatAdvice(presetOpenAI, []string{"gpt-6-astra"}, true, "flagship", "", openAIModels),
 	chatAdvice(presetOpenAI, []string{"gpt-5.6-terra"}, true, "balanced", "", openAIModels),

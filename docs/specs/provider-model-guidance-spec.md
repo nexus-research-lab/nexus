@@ -40,8 +40,8 @@ to locally eligible, actually listed models; they never add or enable models or
 replace saved defaults. Azure deployment names and custom endpoints receive no
 provider-specific recommendation from name matching.
 
-See [official evidence and provider coverage](../testing/provider-model-evidence.md)
-for the dated research snapshot, endpoints, exact plan distinctions and review gaps.
+The dated research snapshot, endpoints, exact plan distinctions and review gaps are
+maintained with the provider catalog and this specification.
 Catalog changes must update sources/date/version together with regression coverage.
 
 ## Purpose eligibility
