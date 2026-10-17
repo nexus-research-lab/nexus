@@ -413,6 +413,9 @@ func (e *slotExecution) runtimeMCPServers(
 }
 
 func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.Mode) nexusmcp.RoundContext {
+	if e.subagentCommandAuthority == nil {
+		e.subagentCommandAuthority = new(bool)
+	}
 	goalAuthority := e.slot.ensureGoalAuthorityState()
 	responsibilityAuthority := e.ensureResponsibilityAuthorityState()
 	if responsibilityAuthority != nil {
@@ -432,30 +435,45 @@ func (e *slotExecution) runtimeCommandRoundContext(permissionMode sdkpermission.
 			),
 			e.round.ExecutionID,
 		),
-		WorkBinding:             e.slot.WorkBinding.Clone(),
-		WorkBindingState:        e.ensureWorkBindingState(),
-		ReviewBinding:           e.slot.ReviewBinding.Clone(),
-		CoordinatorAgentID:      strings.TrimSpace(e.round.CoordinatorAgentID),
-		RootRoundID:             e.round.RootRoundID,
-		AgentRoundID:            e.slot.AgentRoundID,
-		SourceContextType:       "room",
-		SourceContextID:         e.round.RoomID,
-		SourceContextLabel:      roomSourceContextLabel(e.round),
-		RoomID:                  e.round.RoomID,
-		ConversationID:          e.round.ConversationID,
-		PermissionMode:          permissionMode,
-		GoalAuthority:           goalAuthority,
-		ResponsibilityAuthority: responsibilityAuthority,
-		SDKSessionIdentity:      e.slot.ensureSDKSessionIdentityState(),
-		AutomationRun:           e.round.AutomationRun.NormalizedCopy(),
+		WorkBinding:              e.slot.WorkBinding.Clone(),
+		WorkBindingState:         e.ensureWorkBindingState(),
+		ReviewBinding:            e.slot.ReviewBinding.Clone(),
+		CoordinatorAgentID:       strings.TrimSpace(e.round.CoordinatorAgentID),
+		RootRoundID:              e.round.RootRoundID,
+		AgentRoundID:             e.slot.AgentRoundID,
+		SourceContextType:        "room",
+		SourceContextID:          e.round.RoomID,
+		SourceContextLabel:       roomSourceContextLabel(e.round),
+		RoomID:                   e.round.RoomID,
+		ConversationID:           e.round.ConversationID,
+		PermissionMode:           permissionMode,
+		GoalAuthority:            goalAuthority,
+		ResponsibilityAuthority:  responsibilityAuthority,
+		SDKSessionIdentity:       e.slot.ensureSDKSessionIdentityState(),
+		AutomationRun:            e.round.AutomationRun.NormalizedCopy(),
+		SubagentCommandAuthority: e.subagentCommandAuthority,
 	}
 	return nexusmcp.RoundContext{
+		// RoundID remains the Room root for command/message correlation. The
+		// command authority check uses CommandContext.AgentRoundID for the
+		// physical per-slot runtime lease.
 		SessionKey: e.round.SessionKey, RoundID: e.round.RootRoundID,
 		SubagentControl:   e.service.Runtime.BindSubagentControl(e.slot.RuntimeSessionKey, e.slot.AgentRoundID),
-		SourceContextType: roomCommandSourceContextType(e.round),
+		SourceContextType: roomCommandSourceContextTypeForSlot(e.round, e.slot),
 		SourceContextID:   e.round.RoomID, SourceContextLabel: roomSourceContextLabel(e.round),
 		CommandContext: commandContext, CommandReceipts: e.slot.ensureCommandReceiptState(),
 	}
+}
+
+// roomCommandSourceContextTypeForSlot preserves the ordinary Room trust route
+// for a managed Execution slot. Agent-to-Agent handoff rounds stay untrusted,
+// while a host-admitted WorkBinding/ReviewBinding is an exact responsibility
+// capability and must be allowed to reach the command authority check.
+func roomCommandSourceContextTypeForSlot(round *activeRoomRound, slot *activeRoomSlot) string {
+	if slot != nil && (slot.WorkBinding != nil || slot.ReviewBinding != nil) {
+		return "room"
+	}
+	return roomCommandSourceContextType(round)
 }
 
 func (e *slotExecution) runtimeBuilderContext() context.Context {

@@ -26,7 +26,6 @@ import type { Locale } from "@/shared/i18n/messages";
 import { AgentOptionsGallery } from "./ui-gallery-agent-options";
 import { TaskFormGallery } from "./ui-gallery-task-form";
 import { ComposerAttachmentsGallery } from "./ui-gallery-composer-attachments";
-import { WorkGraphGallery } from "./ui-gallery-workgraph";
 import { MessageSurfacesGallery } from "./ui-gallery-message-surfaces";
 import { ProductControlsGallery } from "./ui-gallery-product-controls";
 import { SettingsControlsGallery } from "./ui-gallery-settings-controls";
@@ -598,7 +597,6 @@ export function WorkspaceGallery({ locale }: { locale: Locale }) {
       <AgentOptionsGallery locale={locale} />
       <TaskFormGallery />
       <ComposerAttachmentsGallery locale={locale} />
-      <WorkGraphGallery locale={locale} />
       <PreviewSection
         description={galleryText(locale, "目录卡、内容区和动作全部来自 Workspace 公共原语。", "Catalog cards, content slots, and actions all come from Workspace primitives.")}
         eyebrow="01 · CATALOG"

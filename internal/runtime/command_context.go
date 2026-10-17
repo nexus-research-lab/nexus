@@ -74,6 +74,12 @@ type RuntimeCommandContext struct {
 	SDKSessionIdentity        *SDKSessionIdentityState
 	AutomationRun             *protocol.AutomationRunContext
 	WorkGraphPreviewID        string
+	// SubagentCommandAuthority is filled by the same Nexus MCP builder that
+	// constructs the command Actor. The execution context is rendered before
+	// the model sees the round, so this shared pointer keeps the model-facing
+	// admission projection aligned with the command surface's final source
+	// trust decision.
+	SubagentCommandAuthority *bool
 }
 
 // CurrentSDKSessionID 在 command 真正调用时读取动态 provider identity。
