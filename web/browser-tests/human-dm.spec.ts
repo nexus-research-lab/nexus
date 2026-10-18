@@ -19,6 +19,7 @@ test("human contact opens a DM, sends durable messages and accepts a group invit
  await context.route("**/*",async route=>{
   const req=route.request(),url=new URL(req.url()),path=url.pathname;
   const data=(value:unknown)=>route.fulfill({json:{data:value}});
+  if(path==="/nexus/v1/team/capabilities")return data({enabled:true});
   if(path==="/nexus/v1/auth/status")return data({...appShellRead("GET",path)!.data as object,auth_method:"password",control_user_id:"ui-fixture",organization_id:"org"});
   if(path==="/auth/v1/directory/members")return data([{user_id:"peer",username:"peer",display_name:"Alice",avatar:"3"}]);
   if(path==="/auth/v1/directory/agents" || path==="/auth/v1/agents")return data([]);
