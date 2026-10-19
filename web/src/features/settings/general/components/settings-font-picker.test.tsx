@@ -77,8 +77,8 @@ it("keeps presets usable while loading and after an empty catalog", async () => 
   render(<Form />);
   expect(screen.getByText("common.loading").getAttribute("role")).toBe("status");
   await userEvent.click(screen.getByRole("button", { name: "settings.reading.font" }));
-  await userEvent.click(screen.getByRole("option", { name: "settings.reading.serif" }));
-  expect(screen.getByLabelText("Selected font").textContent).toBe("serif");
+  await userEvent.click(screen.getByRole("option", { name: "settings.reading.default" }));
+  expect(screen.getByLabelText("Selected font").textContent).toBe("default");
   await act(async () => finish({ families: [] }));
   expect(screen.queryByText("common.loading")).toBeNull();
   expect(screen.queryByRole("textbox")).toBeNull();

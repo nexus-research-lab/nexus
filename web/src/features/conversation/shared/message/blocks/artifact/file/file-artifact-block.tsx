@@ -19,6 +19,7 @@ import {
   type FileArtifactProjection,
   projectFileArtifact,
 } from "./file-artifact-model";
+import { UiMiddleTruncate } from "@/shared/ui/display/middle-truncate";
 
 interface FileArtifactBlockProps {
   className?: string;
@@ -139,14 +140,10 @@ function FileArtifactOpenButton({
         <FileText aria-hidden="true" className={layout.fileIcon} />
       </span>
       <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            "message-cjk-code-font block truncate",
-            layout.fileName,
-          )}
-        >
-          {projection.fileName}
-        </span>
+        <UiMiddleTruncate
+          className={cn("message-cjk-code-font", layout.fileName)}
+          text={projection.fileName}
+        />
         <span className={cn("mt-0.5 flex min-w-0 items-center gap-1.5", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
           <FolderOpen aria-hidden="true" className="h-3 w-3 shrink-0 text-(--icon-muted)" />
           <span className="truncate">{projection.parentPath}</span>

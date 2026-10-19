@@ -24,7 +24,7 @@ interface UiBadgeStyleOptions {
 }
 
 const BADGE_BASE_CLASS_NAME =
-  "inline-flex shrink-0 items-center justify-center gap-1 border font-medium leading-none transition-[background,border-color,color] duration-(--motion-duration-fast)";
+  "inline-flex shrink-0 items-center justify-center gap-1 border font-medium leading-none tabular-nums transition-[background,border-color,color] duration-(--motion-duration-fast)";
 
 const BADGE_SHAPE_CLASS_MAP: Record<UiBadgeShape, string> = {
   rounded: "radius-control-xs",

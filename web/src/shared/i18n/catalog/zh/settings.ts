@@ -102,8 +102,6 @@ export const zhSettingsMessages = {
   "settings.reading.font_error": "未能读取系统字体，请检查字体访问权限或更新桌面应用后重试。",
   "settings.reading.font": "正文字体",
   "settings.reading.default": "默认字体",
-  "settings.reading.system": "系统字体",
-  "settings.reading.serif": "宋体",
   "settings.reading.size": "字号",
   "settings.reading.spacing": "行距",
   "settings.reading.reset": "恢复默认",

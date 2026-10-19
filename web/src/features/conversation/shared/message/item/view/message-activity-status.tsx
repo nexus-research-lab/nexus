@@ -148,7 +148,8 @@ export function MessageActivityStatus({
         >
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
-        <span className="min-w-0 truncate">{label}</span>
+        {/* 活动阶段切换时以 key 重挂载做一次淡入交接；同阶段旁白逐字更新不重播，只变透明度、不位移。 */}
+        <span className="ui-status-swap min-w-0 truncate" key={state}>{label}</span>
         {presentation.indicator ? (
           <span
             className="flex h-5 w-3 shrink-0 items-center justify-center opacity-70"

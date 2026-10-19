@@ -18,7 +18,7 @@ it.each([[10, 12], [30, 26]])("warns about %s before clamping to %s on blur", (e
  fireEvent.change(input, { target: { value: String(entered) } });
  expect(input.value).toBe(String(entered));
  expect(input.getAttribute("aria-invalid")).toBe("true");
- expect(useChatTypography.getState().typography.fontSize).toBe(16);
+ expect(useChatTypography.getState().typography.fontSize).toBe(DEFAULT_CHAT_TYPOGRAPHY.fontSize);
  const warning = hint.textContent;
  fireEvent.blur(input);
  expect(input.value).toBe(String(expected));
@@ -42,7 +42,7 @@ it("keeps the draft focused during IME confirmation and commits on ordinary Ente
  expect(document.activeElement).toBe(input);
  fireEvent.keyDown(input, { key: "Enter", which: 229 });
  expect(document.activeElement).toBe(input);
- expect(useChatTypography.getState().typography.fontSize).toBe(16);
+ expect(useChatTypography.getState().typography.fontSize).toBe(DEFAULT_CHAT_TYPOGRAPHY.fontSize);
  fireEvent.keyDown(input, { key: "Enter" });
  expect(document.activeElement).not.toBe(input);
  expect(input.value).toBe("12");
@@ -57,7 +57,7 @@ it("restores the current value after clearing and removes stale adjustment feedb
  const rangeHint = hint.textContent;
  fireEvent.change(input, { target: { value: "" } });
  fireEvent.blur(input);
- expect(input.value).toBe("16");
+ expect(input.value).toBe(String(DEFAULT_CHAT_TYPOGRAPHY.fontSize));
  fireEvent.change(input, { target: { value: "10" } });
  fireEvent.blur(input);
  expect(hint.textContent).not.toBe(rangeHint);

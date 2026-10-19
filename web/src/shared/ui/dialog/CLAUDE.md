@@ -23,3 +23,4 @@
 - 遮罩关闭是显式策略；迁移旧弹窗时不得借共享骨架改变原有关闭语义。
 - 业务弹窗不得自行注册全局 Escape、焦点循环或页面滚动锁。
 - `dialog.test.tsx` 是 Portal 模态的可执行行为合同：必须覆盖自动/显式命名、动态标题、相同标题的实例隔离、StrictMode 与嵌套 Portal，以及初始焦点、Tab 循环、嵌套关闭顺序、子浮层 Escape、遮罩策略、滚动锁计数和焦点归还。
+- `dialog-modal-runtime.ts` 在模态栈变化时给被栈顶覆盖、且不包含栈顶 DOM 的父模态根打上 `data-nested-dialog-open`；主题 recipe 只据此把父弹窗内容 `blur(2px)`，压暗仍由子弹窗遮罩负责。业务弹窗不得自行实现虚化。

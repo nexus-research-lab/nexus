@@ -25,7 +25,7 @@ type ChoiceVariantClassResolver = (
 ) => ChoiceClassList;
 
 const CHOICE_BASE_CLASS_NAME =
-  "inline-flex cursor-pointer items-center justify-center gap-2 border ui-type-weight-medium transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) has-[input:disabled]:cursor-not-allowed has-[input:disabled]:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] has-[input:focus]:ring-2 has-[input:focus]:ring-[color:var(--ring)]";
+  "ui-press inline-flex cursor-pointer items-center justify-center gap-2 border ui-type-weight-medium disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) has-[input:disabled]:cursor-not-allowed has-[input:disabled]:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] has-[input:focus]:ring-2 has-[input:focus]:ring-[color:var(--ring)]";
 
 const SURFACE_CHOICE_SIZE_CLASS_MAP: Record<UiChoiceSize, string> = {
   xs: "min-h-7 px-2 py-1 ui-type-metadata",
@@ -41,15 +41,16 @@ const SURFACE_CHOICE_ROUNDED_CLASS_MAP: Record<UiChoiceSize, string> = {
   lg: "radius-control-lg",
 };
 
+// 选中态只用低饱和填色 + 语义文字表达，描边退为透明：单闭合边界，避免一排选项里出现彩色框线。
 const CHOICE_ACTIVE_CLASS_MAP: Record<UiChoiceTone, string> = {
   primary:
-    "border-[color:color-mix(in_srgb,var(--primary)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--brand-action)",
+    "border-transparent bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-(--brand-action)",
   neutral:
     "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--text-strong)",
   danger:
-    "border-[color:color-mix(in_srgb,var(--destructive)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)] text-(--destructive)",
+    "border-transparent bg-[color:color-mix(in_srgb,var(--destructive)_9%,transparent)] text-(--destructive)",
   success:
-    "border-[color:color-mix(in_srgb,var(--success)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
+    "border-transparent bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
 };
 
 const CHOICE_INACTIVE_CLASS_NAME =

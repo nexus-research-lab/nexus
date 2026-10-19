@@ -105,8 +105,6 @@ export const enSettingsMessages = {
   "settings.reading.font_error": "Could not read system fonts. Check font access permission or update the desktop app and retry.",
   "settings.reading.font": "Text font",
   "settings.reading.default": "Default",
-  "settings.reading.system": "System",
-  "settings.reading.serif": "Serif",
   "settings.reading.size": "Font size",
   "settings.reading.spacing": "Line spacing",
   "settings.reading.reset": "Restore defaults",

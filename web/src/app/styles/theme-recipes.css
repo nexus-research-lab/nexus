@@ -88,6 +88,12 @@
     line-height: 1.25rem;
   }
 
+  /* metadata / caption 主要承载时间、计数、Token 与耗时；等宽数字让实时递增时整行不抖。 */
+  .ui-type-metadata,
+  .ui-type-caption {
+    font-variant-numeric: tabular-nums;
+  }
+
   .ui-type-metadata {
     font-size: var(--text-compact);
     font-weight: 400;
@@ -400,6 +406,84 @@
     animation-delay: var(--ui-enter-delay, 0ms);
   }
 
+  /*
+   * Disclosure 展开：Grid 行高 0fr → 1fr 加淡入，不需要 JS 测量高度。动画期间裁切溢出，
+   * 结束后恢复 visible，避免长期裁掉焦点环。消息流内的折叠区由滚动协调器统一测量，
+   * 连续高度变化会形成 ResizeObserver 反馈，因此对话 Feed 内保持瞬时展开。
+   */
+  @keyframes nexus-disclosure-expand {
+    from { grid-template-rows: 0fr; opacity: 0; }
+    to { grid-template-rows: 1fr; opacity: 1; }
+  }
+
+  @keyframes nexus-disclosure-expand-clip {
+    from, 99% { overflow: hidden; }
+    to { overflow: visible; }
+  }
+
+  .ui-disclosure-expand {
+    display: grid;
+    grid-template-rows: 1fr;
+  }
+
+  .ui-disclosure-expand > * {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  details[open] > .ui-disclosure-expand {
+    animation: nexus-disclosure-expand var(--motion-duration-normal) var(--motion-ease-standard);
+  }
+
+  details[open] > .ui-disclosure-expand > * {
+    animation: nexus-disclosure-expand-clip var(--motion-duration-normal) linear;
+  }
+
+  .nexus-chat-feed details[open] > .ui-disclosure-expand,
+  .nexus-chat-feed details[open] > .ui-disclosure-expand > * {
+    animation: none;
+  }
+
+  /* 嵌套弹窗：父弹窗内容轻微虚化，子弹窗自己的遮罩负责压暗，视线只落在栈顶。 */
+  [data-ui-dialog-root][data-nested-dialog-open] > * {
+    filter: blur(2px);
+    transition: filter var(--motion-duration-normal) var(--motion-ease-standard);
+  }
+
+  /* 状态文案交接：新文案淡入，几何不变，适合活动行这类固定占位的短状态。 */
+  @keyframes nexus-status-swap {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .ui-status-swap {
+    animation: nexus-status-swap var(--motion-duration-normal) var(--motion-ease-standard);
+  }
+
+  /* 骨架屏用 105° 斜向光带匀速扫过，比整块明暗脉冲更像“正在加载”而不是“卡住了”。 */
+  @keyframes nexus-skeleton-sweep {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+
+  .ui-skeleton-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ui-skeleton-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      color-mix(in srgb, var(--surface-panel-background) 72%, transparent) 50%,
+      transparent 65%
+    );
+    animation: nexus-skeleton-sweep 2s linear infinite;
+  }
+
   @keyframes nexus-source-cursor-blink {
     0%, 48% { opacity: 1; }
     52%, 100% { opacity: 0; }
@@ -417,6 +501,19 @@
 
   @media (prefers-reduced-motion: reduce) {
     .ui-source-write-cursor {
+      animation: none;
+    }
+
+    .ui-skeleton-sheen::after {
+      display: none;
+    }
+
+    details[open] > .ui-disclosure-expand,
+    details[open] > .ui-disclosure-expand > * {
+      animation: none;
+    }
+
+    .ui-status-swap {
       animation: none;
     }
 
@@ -845,7 +942,7 @@
     border-radius: var(--content-radius-inline);
     background: var(--content-inline-code-background);
     color: var(--content-inline-code-color);
-    font-size: 0.875em;
+    font-size: 0.85em;
     font-variant-ligatures: none;
     overflow-wrap: anywhere;
     white-space: pre-wrap;
@@ -1773,6 +1870,31 @@
 }
 
 @layer utilities {
+  /*
+   * 按钮按压：按下快速收缩到 97.5%，松手用弹簧曲线回弹。transform 不改变布局几何，
+   * 不会触发消息流测量；禁用态与 reduced-motion 下不形变。
+   */
+  .ui-press {
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard),
+      box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+      transform var(--motion-duration-spring) var(--motion-ease-spring);
+  }
+
+  .ui-press:not(:disabled):not([aria-disabled="true"]):active {
+    transform: scale(0.975);
+    transition-duration: var(--motion-duration-fast), var(--motion-duration-fast), var(--motion-duration-fast), var(--motion-duration-fast), 90ms;
+    transition-timing-function: ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ui-press:not(:disabled):not([aria-disabled="true"]):active {
+      transform: none;
+    }
+  }
+
   .soft-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -1792,20 +1914,28 @@
     container: nexus-chat-feed / inline-size;
   }
 
-  /* 京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
+  /* 聊天中文片段跟随阅读偏好字体；侧栏和工作区保持界面字体。 */
   .nexus-chat-feed .message-cjk-text {
-    font-family: var(--chat-cjk-font-family, var(--font-prose));
+    font-family: var(--chat-font-family, var(--font-sans));
     font-synthesis: style;
+    /* 方块字默认零字距会显得挤，留 0.02em 呼吸；只作用于中文 span，英文与代码保持原生字距。 */
+    letter-spacing: 0.02em;
   }
 
-  /*
-   * 京华老宋体只有常规字重，合成加粗发虚且与拉丁粗体不一致。沿用中文排版「宋体正文、黑体强调」的惯例：
-   * 加粗与标题里的中文切到界面黑体并使用真实 600 字重，标签与小标题才能和正文拉开层级。
-   */
+  /* 标题用 600 拉开层级，行内加粗只用 500，避免「标签：说明」密集排列时整屏都是黑块。 */
   .nexus-chat-feed .nexus-chat-markdown :is(strong, h1, h2, h3, h4, h5, h6) .message-cjk-text {
-    font-family: var(--font-sans);
-    font-synthesis: style;
     font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .nexus-chat-feed .nexus-chat-markdown strong,
+  .nexus-chat-feed .nexus-chat-markdown strong .message-cjk-text {
+    font-weight: 500;
+  }
+
+  /* 多行列表项之间留出约三分之一行，条目边界才可辨认。 */
+  .nexus-chat-feed .nexus-chat-markdown .markdown-list {
+    gap: 0.5em;
   }
 
   /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
@@ -1861,14 +1991,16 @@
     overflow-wrap: anywhere;
   }
 
+  /* 正文墨色取最强与次级之间（浅色主题约 #20201f）：纯黑在大段中文里发闷，次级灰又显得发虚；标题与加粗保留最强墨色。 */
   .nexus-chat-feed .nexus-markdown-body [data-markdown-anchor] {
     margin: 0;
-    color: var(--text-strong);
-    line-height: var(--chat-line-height, 1.65);
+    color: color-mix(in srgb, var(--text-strong) 65%, var(--text-default));
+    line-height: var(--chat-line-height, 1.7);
     text-wrap: pretty;
   }
 
   .nexus-chat-feed .nexus-markdown-body :is(h1, h2, h3, h4, h5, h6)[data-markdown-anchor] {
+    color: var(--text-strong);
     text-wrap: balance;
   }
 
@@ -1877,7 +2009,7 @@
     margin-bottom: -0.25rem;
     font-size: 1.375em;
     font-weight: 600;
-    line-height: var(--chat-line-height, 1.65);
+    line-height: var(--chat-line-height, 1.7);
   }
 
   .nexus-chat-feed .nexus-markdown-body h2[data-markdown-anchor] {
@@ -1885,7 +2017,7 @@
     margin-bottom: -0.25rem;
     font-size: 1.125em;
     font-weight: 600;
-    line-height: var(--chat-line-height, 1.65);
+    line-height: var(--chat-line-height, 1.7);
   }
 
   .nexus-chat-feed .nexus-markdown-body :is(h3, h4, h5, h6)[data-markdown-anchor] {
@@ -1893,7 +2025,7 @@
     margin-bottom: -0.25rem;
     font-size: 1em;
     font-weight: 600;
-    line-height: var(--chat-line-height, 1.65);
+    line-height: var(--chat-line-height, 1.7);
   }
 
   .nexus-chat-feed .nexus-markdown-body blockquote {
@@ -1910,7 +2042,7 @@
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
-    line-height: var(--chat-line-height, 1.65);
+    line-height: var(--chat-line-height, 1.7);
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item-body > [data-markdown-anchor] {
@@ -1926,10 +2058,10 @@
 
   /* 块间距取半个正文行高，随个人字号/行高设置等比缩放，而不是固定 12px。 */
   .nexus-chat-feed .nexus-markdown-body {
-    gap: calc(1em * var(--chat-line-height, 1.65) * 0.5);
+    gap: calc(1em * var(--chat-line-height, 1.7) * 0.5);
     font-family: var(--chat-font-family, var(--font-sans));
-    font-size: var(--chat-font-size, 16px);
-    line-height: var(--chat-line-height, 1.65);
+    font-size: var(--chat-font-size, 14px);
+    line-height: var(--chat-line-height, 1.7);
   }
 
   .nexus-chat-markdown .katex-display {

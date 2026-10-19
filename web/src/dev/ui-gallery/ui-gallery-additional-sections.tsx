@@ -46,6 +46,7 @@ import { UiBadge } from "@/shared/ui/display/badge";
 import { UiQRCode } from "@/shared/ui/display/qr-code";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiSkeleton, UiSkeletonCardList } from "@/shared/ui/display/skeleton";
+import { UiMiddleTruncate } from "@/shared/ui/display/middle-truncate";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { AnimatedHeroText, FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";
 import { FeedbackBanner } from "@/shared/ui/feedback/feedback-banner";
@@ -181,6 +182,13 @@ export function FoundationCompleteness({ locale }: { locale: Locale }) {
             <UiSkeleton className="h-3 w-4/5" />
           </div>
           <UiSkeletonCardList count={2} />
+        </PreviewCard>
+
+        <PreviewCard components={["UiMiddleTruncate"]}>
+          <div className="w-48 space-y-1 ui-type-supporting">
+            <UiMiddleTruncate text="quarterly_business_review_final_v3.xlsx" />
+            <UiMiddleTruncate text="README" />
+          </div>
         </PreviewCard>
 
         <PreviewCard components={["UiStateBlock", "UiQRCode"]}>
