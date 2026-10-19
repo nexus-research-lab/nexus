@@ -228,7 +228,6 @@ export function ComposerRoomModelControl({
         disabled={disabled || controller.saving}
         onClick={toggle}
         size="xs"
-        title={t("composer.session_model")}
         variant="ghost"
       >
         <span className="truncate">

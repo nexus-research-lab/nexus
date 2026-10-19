@@ -103,7 +103,6 @@ function ComposerPermissionControl({
         disabled={disabled || controller.busy}
         onClick={() => setIsOpen((current) => !current)}
         size="xs"
-        title={t("composer.session_permission")}
         tone={controller.isDangerousPermission ? "danger" : "default"}
         variant="text"
       >
@@ -169,7 +168,6 @@ function ComposerModelControl({
         disabled={disabled || controller.modelBusy}
         onClick={() => setIsOpen((current) => !current)}
         size="xs"
-        title={t("composer.session_model")}
         variant="ghost"
       >
         <span className="truncate">{controller.modelLabel}</span>

@@ -14,10 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
 - 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。
 - AGENTS.md 精简为项目宪法，产品合同迁入 `docs/specs/`；规范与指南去重瘦身约 14%，按实现修正规范内部矛盾，修复失效链接并重建 `docs/README.md` 索引。
+- 优化主侧栏折叠与展开按钮图标的视觉权重：尺寸由 20px（`h-5 w-5`）收敛为 16px（`h-4 w-4`），并将图标线宽细化至 `strokeWidth={1.5}`，与顶栏窗口控制区视觉平衡。
+- 优化聊天目录行删除按钮：尺寸由 28px（`size="sm"`）缩小为 24px（`size="xs"`），并将定位严格约束在标题行的元信息（日期）槽内部，悬停或聚焦时仅替换日期位置，不再跨行遮挡消息摘要或隐藏状态/未读徽标。
+- 优化主侧栏折叠后工作区顶栏标题排版：由 16px 粗体（`pageTitle`）调整为 13px 中等字重（`sectionTitle`），与侧栏列表项及顶栏会话标签保持视觉协调与层级一致。
+- 紧凑启动台（Launcher）顶部双层品牌 Header 垂直高度：由 112px（`h-28`）收敛为 96px（`h-24`），收紧第一行窗口控制/横向灯组与第二行品牌字标之间的纵向留白。
+- 优化会话顶栏在侧栏收起状态下的身份展示：侧栏折叠时移除顶栏左侧主头像并仅呈现会话标题，消除展开按钮与标题之间的冗余头像堆叠；侧栏未折叠时保持原有主头像展示。
+- 移除输入框底部及操作按钮上非必要的悬浮提示（Tooltip）：清理会话权限（如“当前 Session 权限”）、会话模型（如“当前 Session 模型”）、Agent 停止按钮、话题按钮等已有明确可见文字的控件上多余的 title 提示，避免鼠标划过时弹出的黑底气泡遮挡输入区域或正文。
 
 ### Fixed
 
+- 修复 macOS 桌面端启动台（Launcher）顶部横向灯组（spotlights）水平偏移错误导致与原生红黄绿窗口控制按钮（尤其是绿色缩放按钮）重叠穿插的问题，恢复其位于系统按钮保留区右侧（`--desktop-window-controls-inset`）的正确定位。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
+- 修复 macOS 桌面构建脚本（`build-macos-app.sh` 与 `build-macos-dev.sh`）硬编码 `corepack` 导致未安装 corepack 时构建中断的问题，优先解析系统与配置的 `pnpm`。
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
 - 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
 - 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。

@@ -218,20 +218,24 @@ check: check-go lint-web test-web typecheck-web ## Run basic validation checks
 test: check ## Alias of check
 
 app-build-dev: ## 构建 macOS 桌面开发版 shell
-	./scripts/desktop/build-macos-dev.sh
+	PNPM="$${PNPM:-$(PNPM)}" ./scripts/desktop/build-macos-dev.sh
 
 app-run-dev: ## 构建并运行 macOS 桌面开发版 shell
-	NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" ./scripts/desktop/run-macos-dev.sh
+	NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" \
+		PNPM="$${PNPM:-$(PNPM)}" \
+		./scripts/desktop/run-macos-dev.sh
 
 app-build: ## 构建 ad-hoc macOS .app
 	NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="$${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}" \
 		NEXUS_DESKTOP_NXS_RUNTIME_PATH="$${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}}" \
+		PNPM="$${PNPM:-$(PNPM)}" \
 		./scripts/desktop/build-macos-app.sh
 
 app-run: ## 构建并运行 ad-hoc macOS .app
 	NEXUS_NXS_COMMAND_PATH="$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}" \
 		NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="$${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}" \
 		NEXUS_DESKTOP_NXS_RUNTIME_PATH="$${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-$${NEXUS_NXS_COMMAND_PATH:-$(NXS_DEV_RUNTIME_PATH)}}" \
+		PNPM="$${PNPM:-$(PNPM)}" \
 		./scripts/desktop/run-macos-app.sh
 
 app-run-onboarding: ## 使用隔离状态构建并运行 macOS 首次初始化测试 App

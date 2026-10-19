@@ -192,7 +192,7 @@ export const GroupAgentExecutionShell = memo(GroupAgentExecutionShellInner);
 export function RoomAgentStopButton({isStopping = false, onClick}: {isStopping?: boolean; onClick: () => void}) {
   const {t} = useI18n();
   const label = t(isStopping ? "room.agent_stopping" : "room.agent_stop_action");
-  return <UiButton aria-busy={isStopping || undefined} aria-label={label} title={label}
+  return <UiButton aria-busy={isStopping || undefined} aria-label={label}
     data-room-agent-action="stop" disabled={isStopping} onClick={onClick} size="xs" tone="danger" variant="text">
     <Square aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
     <span className="hidden sm:inline">{t(isStopping ? "room.agent_stopping" : "room.agent_stop")}</span>

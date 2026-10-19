@@ -39,7 +39,7 @@ describe("WorkspaceSurfaceHeader", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByText("工作区").className).toContain("ui-type-page-title");
+    expect(screen.getByText("工作区").className).toContain("ui-type-section-title");
     expect(screen.getByText("工作区").getAttribute("title")).toBeNull();
     expect(screen.getByRole("button", { name: "新建" }).className).toContain("ui-type-caption");
     const identity = container.querySelector(".workspace-surface-header-identity-avatar")!;

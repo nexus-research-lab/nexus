@@ -82,7 +82,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
         compactTabsLabel={t("room.panels")}
-        leading={(
+        leading={widePanelCollapsed ? undefined : (
           <UiRoomAvatar
             avatar={roomAvatar}
             members={roomMembers.map((member) => ({
@@ -95,7 +95,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             title={headerTitle}
           />
         )}
-        leadingVariant="identity"
+        leadingVariant={widePanelCollapsed ? undefined : "identity"}
         onChangeTab={onChangeTab}
         navigationTrailing={(
           <GroupMemberAvatarStack

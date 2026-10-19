@@ -1,5 +1,5 @@
 // INPUT: Home 目录加载数量，以及已投影的会话、联系人、活动和操作数据。
-// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记；删除动作显示时元信息与状态让位。
+// OUTPUT: 复用共享原语的侧栏目录行，名称使用正常文字色、摘要使用弱文字色，公式仅在摘要中显示本地化内联标记；删除动作显示时替换日期位置。
 // POS: Home sidebar 行级视图；不拥有基础组件视觉 recipe 或业务数据获取。
 
 import {
@@ -94,7 +94,7 @@ function ConversationRowMeta({
     return null;
   }
   return (
-    <span className="flex h-5 w-10 shrink-0 items-center justify-end">
+    <span className="relative flex h-5 min-w-6 shrink-0 items-center justify-end">
       {timeLabel ? (
         <span
           className={cn(
@@ -107,12 +107,12 @@ function ConversationRowMeta({
       ) : null}
       {onDelete ? (
         <UiListActionButton
-          className="absolute top-1/2 -translate-y-1/2"
+          className="absolute right-0 top-1/2 -translate-y-1/2"
           onClick={(event) => {
             event.stopPropagation();
             onDelete();
           }}
-          size="sm"
+          size="xs"
           title={deleteLabel}
           tone="danger"
           type="button"
@@ -188,10 +188,7 @@ export function ConversationRow({
       ) : null}
       onClick={onClick}
       subtitleTrailing={(
-        <span className={cn(
-          "flex shrink-0 items-center gap-2 transition-opacity duration-(--motion-duration-fast)",
-          onDelete && "group-hover/item:opacity-0 group-focus-within/item:opacity-0 [@media(hover:none)]:opacity-0",
-        )}>
+        <span className="flex shrink-0 items-center gap-2">
           <ConversationRowStatus
             activityStatus={item.activityStatus}
             unreadCount={item.unreadCount ?? 0}
