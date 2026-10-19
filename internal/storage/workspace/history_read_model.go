@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 6 // 为 Room 增量读取保存原始尾轮检查点。
+	historyReadModelSchemaVersion = 7 // Room 尾轮检查点同时保存冻结 transcript 引用摘要。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000
@@ -191,7 +191,7 @@ func initializeHistoryReadModel(ctx context.Context, db *sql.DB) error {
 	}
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS history_read_message_keys (scope TEXT NOT NULL, generation TEXT NOT NULL, message_id TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(scope,generation,message_id)) WITHOUT ROWID`,
-		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
+		`CREATE TABLE IF NOT EXISTS history_read_tail (scope TEXT PRIMARY KEY, generation TEXT NOT NULL, rows_json BLOB NOT NULL, frozen_refs_json BLOB NOT NULL, rows_digest TEXT NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS history_read_scopes (
 			scope TEXT PRIMARY KEY,
 			schema_version INTEGER NOT NULL,
@@ -877,7 +877,7 @@ func (m *historyReadModel) persist(
 			return err
 		}
 	}
-	if err = persistHistoryReadTail(ctx, tx, access.Scope, generation, built.TailRows); err != nil {
+	if err = persistHistoryReadTail(ctx, tx, access.Scope, generation, built.TailRows, built.FrozenRefs); err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(

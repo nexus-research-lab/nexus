@@ -6,9 +6,10 @@
 //   - agent_history.go / agent_history_overlay.go / room_history.go：完整回复落盘后更新独立 Room SQL 摘要，群聊只接受公区写入；失败记日志，不重试 canonical 消息。
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / causal control ordering / pagination / last-write round_index /
 //     rewrite_tail（区分未物化 round 与损坏边界）/ fork marker 前缀 / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。
-//   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏。
+//   - history_page_index.go / agent_history_page_index.go / room_history_page_index.go：DM/Room 共用的 round 分页编排、有界 exact-scope rebuild admission、source preflight/resolver selection 依赖与删除栅栏；每次全量重建记录耗时、分组数与落盘结果。
 //   - history_read_model.go / history_message_detail.go：宿主 SQLite/B-Tree 派生读模型，以原子 generation、source/payload 校验、有界 metadata window、淘汰、整库版本重建和大型 Tool/图片按需 detail 提供按页读取；canonical 历史不迁移。
-//   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；已有依赖变化和跨轮修正回退重建。
+//   - room_history_incremental.go：在共用后台单飞任务中按 ledger 偏移读取追加，保留原始尾轮，原子更新尾部分页、导航与检查点；依赖身份替换和跨轮修正回退重建。
+//   - room_history_frozen_refs.go：为已离开尾轮的 transcript_ref 保存投影摘要；成员 transcript/overlay 只追加且已发布消息投影不变时继续增量，否则回退重建。
 //   - agent_history*.go：Agent 历史门面、K3 工具面换代后的分段 transcript lineage 读取、overlay 与共享模型。
 //   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试；transcript reader 与分页指纹共用修复入口。
 //   - transcript_*.go：基于文件身份/大小/mtime/首尾指纹且由普通、分段、显式读取共用的 JSONL 解析缓存、重复 UUID/自指链修复、reader、path、session、project、

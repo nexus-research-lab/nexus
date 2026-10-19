@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Room 历史增量读取在成员每轮追加 transcript 后必然失效、每次打开都全量重建的问题：读模型改为校验已发布消息的 transcript 投影摘要，只追加时继续增量；全量重建新增耗时、分组数与落盘结果日志；DM/Room 首屏历史加载期间显示加载状态，不再呈现为空会话。
 - 修复 Room WorkGraph 执行轮把业务根轮次误当成员 runtime lease，导致 `<subagent_admission eligible="true">` 与 `nexus.command` 的 Subagent authority 冲突；现在按成员 `AgentRoundID` 校验命令面，并让准入投影与实际命令面共用同一结果。
 - 修复 macOS 桌面端启动台（Launcher）顶部横向灯组（spotlights）水平偏移错误导致与原生红黄绿窗口控制按钮（尤其是绿色缩放按钮）重叠穿插的问题，恢复其位于系统按钮保留区右侧（`--desktop-window-controls-inset`）的正确定位。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
