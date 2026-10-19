@@ -93,7 +93,7 @@ func (m *Manager) supervisedProcessOptions(options bridge.Options, owner, sessio
 		if err != nil {
 			return supervision.Config{}, err
 		}
-		if currentLeaseID != binding.LeaseID || currentScratch != binding.Scratch {
+		if currentLeaseID != binding.LeaseID || !sandboxScratchBindingEqual(binding.Scratch, currentScratch) {
 			return supervision.Config{}, errors.New("supervised scratch identity changed before launch")
 		}
 		next := binding

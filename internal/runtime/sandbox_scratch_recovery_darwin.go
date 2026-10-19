@@ -141,7 +141,7 @@ func resumeSandboxScratchDeletion(ctx context.Context, processRoot *confinedfs.R
 			return err
 		}
 		identity, err := sandboxDirectoryIdentity(info)
-		if err != nil || identity != record.Scratch.BaseIdentity {
+		if err != nil || !sandboxIdentityStableEqual(record.Scratch.BaseIdentity, identity) {
 			return errors.New("scratch recovery parent identity mismatch")
 		}
 		_, err = verifiedRecoveryDirectory(quarantine, target, record.Scratch.LeafIdentity)
@@ -206,7 +206,7 @@ func verifiedRecoveryDirectory(root *confinedfs.Root, name, expected string) (os
 		return nil, err
 	}
 	identity, err := sandboxDirectoryIdentity(info)
-	if err != nil || identity != expected {
+	if err != nil || !sandboxIdentityStableEqual(expected, identity) {
 		return nil, errors.New("scratch recovery directory identity mismatch")
 	}
 	return info, nil

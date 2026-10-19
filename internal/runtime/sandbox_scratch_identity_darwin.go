@@ -1,7 +1,7 @@
 //go:build darwin
 
 // INPUT: 创建时保留的宿主 lease 句柄和原目录身份；不读取任务可写 marker。
-// OUTPUT: 放行前可持久保存的 parent/leaf 文件系统身份；替换或释放即拒绝。
+// OUTPUT: 放行前可持久保存的 parent/leaf 文件系统身份；替换或释放即拒绝，仅容忍 device 漂移。
 // POS: macOS 崩溃资源恢复的身份来源，不自行删除目录或清除 unknown。
 package runtime
 
@@ -27,6 +27,9 @@ func sandboxDirectoryIdentity(info os.FileInfo) (string, error) {
 	}
 	// Device and inode identify the filesystem object. Generation and birth time
 	// additionally distinguish reuse; mtime/ctime change during ordinary IO.
+	// macOS may renumber st_dev across OS updates without replacing the
+	// directory, so persisted comparisons treat device as diagnostic only
+	// (sandboxIdentityStableEqual).
 	return fmt.Sprintf("darwin-v1:%x:%x:%x:%x:%x", uint64(stat.Dev), stat.Ino, stat.Gen, stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
 }
 
@@ -70,7 +73,7 @@ func supervisedScratchBinding(lease *SandboxResourceLease) (protocol.SandboxProc
 		return empty, err
 	}
 	currentID, err := sandboxDirectoryIdentity(info)
-	if err != nil || currentID != baseID {
+	if err != nil || !sandboxIdentityStableEqual(baseID, currentID) {
 		return empty, errors.New("scratch parent identity changed")
 	}
 	leaf, err := current.OpenRootNoSymlink(name)
@@ -83,7 +86,7 @@ func supervisedScratchBinding(lease *SandboxResourceLease) (protocol.SandboxProc
 		return empty, err
 	}
 	currentID, err = sandboxDirectoryIdentity(info)
-	if err != nil || currentID != leafID {
+	if err != nil || !sandboxIdentityStableEqual(leafID, currentID) {
 		return empty, errors.New("scratch leaf identity changed")
 	}
 	return protocol.SandboxProcessScratch{BasePath: resource.root, LeafName: name, BaseIdentity: baseID, LeafIdentity: leafID}, nil

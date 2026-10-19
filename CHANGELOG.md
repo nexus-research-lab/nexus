@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 macOS 系统升级重编卷设备号后，pending scratch 恢复记录因身份严格比对 device 字段而永久阻塞启动；身份核验改为只要求 inode、generation 与 birth time 一致，device 保留为诊断字段。
 - 修复 macOS 桌面 sidecar 固定占用单一端口导致 CUA 特性包与已有 Nexus 实例冲突；首选端口被占用时自动选择受限的本机回退端口。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。

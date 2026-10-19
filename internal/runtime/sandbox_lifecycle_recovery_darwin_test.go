@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -88,5 +89,23 @@ func TestLifecycleRecoveryBatchPreservesFailure(t *testing.T) {
 	complete, err := m.RecoverPendingSandboxLifecycles(t.Context(), ownership, "", 2)
 	if err != nil || len(complete.Items) != 1 || !complete.Items[0].ResourcesComplete {
 		t.Fatalf("complete=%+v err=%v", complete, err)
+	}
+}
+
+// 运行时放宽 device 判等后，生命周期扫描必须把 device 漂移的 pending 记录
+// 走完 scratch 恢复，并通过数据库层严格一致性校验收口 resource_phase。
+func TestLifecycleRecoveryCompletesDeviceDriftedScratch(t *testing.T) {
+	f := newScratchRecoveryFixtureWithScratch(t, func(s protocol.SandboxProcessScratch) protocol.SandboxProcessScratch {
+		s.BaseIdentity = driftScratchIdentityDevice(s.BaseIdentity, 2)
+		s.LeafIdentity = driftScratchIdentityDevice(s.LeafIdentity, 2)
+		return s
+	})
+	forgetScratchLeaseForRecoveryTest(f.lease)
+	batch, err := f.manager.RecoverPendingSandboxLifecycles(t.Context(), f.guard, "", 64)
+	if err != nil || batch.HasMore || len(batch.Items) != 1 || batch.Items[0].Err != nil || !batch.Items[0].ResourcesComplete {
+		t.Fatalf("batch=%+v err=%v", batch, err)
+	}
+	if _, err := os.Stat(f.path); !os.IsNotExist(err) {
+		t.Fatal("source scratch remains", err)
 	}
 }

@@ -55,7 +55,7 @@ func configureSupervisedLeaseCleanup(lease *SandboxResourceLease, config *Sandbo
 			// this client floor proves this resource was never exposed to a process.
 			return removeSandboxResource(resource)
 		}
-		if process.Intent.Key.OwnerUserID != binding.Owner || process.Intent.Key.SessionKey != binding.Session || process.Intent.LeaseID != binding.LeaseID || process.Intent.Scratch != binding.Scratch {
+		if process.Intent.Key.OwnerUserID != binding.Owner || process.Intent.Key.SessionKey != binding.Session || process.Intent.LeaseID != binding.LeaseID || !sandboxScratchBindingEqual(process.Intent.Scratch, binding.Scratch) {
 			return errors.New("original supervised scratch launch does not match cleanup")
 		}
 		record, err := durable.PrepareScratchRecovery(ctx, process.Intent.Key)

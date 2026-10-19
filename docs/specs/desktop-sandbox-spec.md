@@ -522,6 +522,7 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 
 - 监督启动在 Host Reserve 写入启动意图前，从 Acquire 保存的原 parent/leaf 文件信息生成身份（device、inode、generation、birth time），与固定父路径和 leaf name 一同保存。
 - 每次 probe/runtime 启动工厂调用都重新打开当前目录核对原身份；已释放、cleanup unknown 或目录被替换时拒绝。
+- 身份核验与恢复只要求 inode、generation 与 birth time 一致；device 字段仍随身份持久化，但仅作诊断审计，不参与相等判断，以容忍 macOS 系统升级后的卷设备重编号。身份串格式或版本不符、任一稳定字段不同仍拒绝。
 - 身份不从任务可写的 `.nexus-sandbox-lease.json` 读取。原进程恢复保留完整身份，不重新采样。
 - 旧记录及非 macOS 路径保留空身份，不能据此自动删除资源。该字段是恢复的必要输入，不是删除已完成的证据。
 

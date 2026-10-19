@@ -51,6 +51,12 @@ type scratchRecoveryFixture struct {
 }
 
 func newScratchRecoveryFixture(t *testing.T) scratchRecoveryFixture {
+	return newScratchRecoveryFixtureWithScratch(t, nil)
+}
+
+// newScratchRecoveryFixtureWithScratch 允许在登记前改写持久身份，
+// 用于模拟 macOS 升级后 device 或稳定字段与磁盘现状不一致的旧记录。
+func newScratchRecoveryFixtureWithScratch(t *testing.T, mutateScratch func(protocol.SandboxProcessScratch) protocol.SandboxProcessScratch) scratchRecoveryFixture {
 	t.Helper()
 	h, store, intent := newProcessHostFixture(t)
 	statePath, err := filepath.EvalSymlinks(t.TempDir())
@@ -85,6 +91,9 @@ func newScratchRecoveryFixture(t *testing.T) scratchRecoveryFixture {
 	proof, err := supervisedScratchBinding(lease)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if mutateScratch != nil {
+		proof = mutateScratch(proof)
 	}
 	h.root = root
 	h.binding.Scratch = proof
@@ -323,5 +332,49 @@ func TestScratchAndPolicyRecoveryReconcilesOnlyOriginalBoundReceipts(t *testing.
 	}
 	if _, err := f.manager.sandboxStartupGeneration(t.Context(), "owner", "session"); !errors.Is(err, ErrSandboxCleanupPending) {
 		t.Fatalf("unbound historical unknown was ignored: %v", err)
+	}
+}
+
+// macOS 升级重编卷设备号后，持久身份的 device 与当前不同但目录未被替换：
+// 恢复必须完成并删除原目录；inode 级差异仍拒绝且保留原目录与 pending 栅栏。
+func TestScratchRecoveryToleratesDeviceRenumber(t *testing.T) {
+	for _, mode := range []string{"device", "inode"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newScratchRecoveryFixtureWithScratch(t, func(s protocol.SandboxProcessScratch) protocol.SandboxProcessScratch {
+				if mode == "device" {
+					s.BaseIdentity = driftScratchIdentityDevice(s.BaseIdentity, 2)
+					s.LeafIdentity = driftScratchIdentityDevice(s.LeafIdentity, 2)
+				} else {
+					s.BaseIdentity = bumpScratchIdentityInode(s.BaseIdentity)
+					s.LeafIdentity = bumpScratchIdentityInode(s.LeafIdentity)
+				}
+				return s
+			})
+			forgetScratchLeaseForRecoveryTest(f.lease)
+			result, err := f.manager.RecoverSandboxScratch(t.Context(), f.key, f.guard)
+			if mode == "device" {
+				if err != nil || result.Phase != protocol.SandboxScratchRecoveryComplete {
+					t.Fatalf("device renumber blocked recovery: %+v %v", result, err)
+				}
+				if _, err := os.Stat(f.path); !os.IsNotExist(err) {
+					t.Fatal("source scratch remains after device-renumber recovery", err)
+				}
+				pending, err := f.store.PendingScratchRecovery(t.Context(), "owner", "session")
+				if err != nil || pending {
+					t.Fatalf("pending fence after device-renumber recovery: %v %v", pending, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("stable-field drift accepted")
+			}
+			if _, err := os.Stat(f.path); err != nil {
+				t.Fatal("stable-field drift removed source", err)
+			}
+			pending, err := f.store.PendingScratchRecovery(t.Context(), "owner", "session")
+			if err != nil || !pending {
+				t.Fatalf("stable-field drift cleared fence: %v %v", pending, err)
+			}
+		})
 	}
 }

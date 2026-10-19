@@ -8,6 +8,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -144,5 +145,89 @@ func TestSupervisedScratchIdentityRejectsReleasedLease(t *testing.T) {
 	}
 	if _, err := supervisedScratchBinding(lease); err == nil {
 		t.Fatal("released lease produced proof")
+	}
+}
+
+func TestScratchIdentityPersistsGoldenFormat(t *testing.T) {
+	info, err := os.Stat(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	identity, err := sandboxDirectoryIdentity(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 持久格式必须保持 darwin-v1:dev:ino:gen:birthSec:birthNSec：
+	// 存储校验与旧记录兼容都依赖该形状，稳定字段解析必须能读回。
+	if !strings.HasPrefix(identity, "darwin-v1:") || strings.Count(identity, ":") != 5 {
+		t.Fatalf("identity format drifted: %s", identity)
+	}
+	if _, ok := scratchIdentityStableFields(identity); !ok {
+		t.Fatalf("generated identity does not parse: %s", identity)
+	}
+}
+
+// 正常 Release 的 cleanup 绑定核验同样只容忍 device 漂移：数据库保存原身份，
+// 绑定身份的 device 被重编后清理照常隔离删除原目录；inode 级差异仍拒绝。
+func TestSupervisedLeaseCleanupToleratesDeviceRenumber(t *testing.T) {
+	for _, mode := range []string{"device", "inode"} {
+		t.Run(mode, func(t *testing.T) {
+			h, store, intent := newProcessHostFixture(t)
+			lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "session", Root: t.TempDir()})
+			if err != nil {
+				t.Fatal(err)
+			}
+			proof, err := supervisedScratchBinding(lease)
+			if err != nil {
+				t.Fatal(err)
+			}
+			h.binding.Scratch = proof
+			h.binding.LeaseID = lease.Marker().LeaseID
+			if _, err := h.Reserve(t.Context(), intent); err != nil {
+				t.Fatal(err)
+			}
+			registration := supervision.Registration{Version: 1, BootID: intent.BootID, OwnerUID: intent.OwnerUID, CoalitionID: 19}
+			if err := h.Register(t.Context(), intent, registration); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.ClaimRelease(t.Context(), intent); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.Finish(t.Context(), intent, &supervision.Evidence{Registration: registration, Reason: "coalition_reaped", ObservedBootID: intent.BootID}); err != nil {
+				t.Fatal(err)
+			}
+			drifted := proof
+			if mode == "device" {
+				drifted.BaseIdentity = driftScratchIdentityDevice(drifted.BaseIdentity, 2)
+				drifted.LeafIdentity = driftScratchIdentityDevice(drifted.LeafIdentity, 2)
+			} else {
+				drifted.LeafIdentity = bumpScratchIdentityInode(drifted.LeafIdentity)
+			}
+			binding := sandboxProcessBinding{Owner: h.binding.Owner, Session: h.binding.Session, RuntimeKind: "nxs", Generation: h.binding.Generation, LeaseID: h.binding.LeaseID, Scratch: drifted}
+			if err := configureSupervisedLeaseCleanup(lease, &SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}, store, binding); err != nil {
+				t.Fatal(err)
+			}
+			leaf := lease.Path()
+			releaseErr := lease.Release()
+			if mode == "device" {
+				if releaseErr != nil {
+					t.Fatal(releaseErr)
+				}
+				if _, err := os.Stat(leaf); !os.IsNotExist(err) {
+					t.Fatal("source scratch remains after device-renumber cleanup", err)
+				}
+				pending, err := store.PendingScratchRecovery(t.Context(), "owner", "session")
+				if err != nil || pending {
+					t.Fatalf("pending fence after device-renumber cleanup: %v %v", pending, err)
+				}
+				return
+			}
+			if releaseErr == nil {
+				t.Fatal("stable-field drift accepted by cleanup")
+			}
+			if _, err := os.Stat(leaf); err != nil {
+				t.Fatal("stable-field drift removed source", err)
+			}
+		})
 	}
 }
