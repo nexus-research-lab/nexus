@@ -7,6 +7,7 @@ type DesktopBridgeKind =
   | "app.relocate_state_root"
   | "app.open_external_url"
   | "app.start_browser_extension_setup"
+  | "app.start_computer_use_permission_setup"
   | "app.get_workspace_file_applications"
   | "app.open_workspace_file"
   | "app.export_logs"
@@ -86,6 +87,10 @@ export interface DesktopBrowserExtensionSetupResult {
   opened: boolean;
 }
 
+export interface DesktopComputerUsePermissionSetupResult {
+  opened: boolean;
+}
+
 interface NativeDesktopBridge {
   invoke<TPayload, TResult>(message: DesktopBridgeRequest<TPayload>): Promise<TResult>;
 }
@@ -147,6 +152,14 @@ export async function openDesktopExternalURL(url: string): Promise<void> {
 export async function startDesktopBrowserExtensionSetup(): Promise<DesktopBrowserExtensionSetupResult> {
   return invokeDesktopBridge<Record<string, never>, DesktopBrowserExtensionSetupResult>(
     "app.start_browser_extension_setup",
+    {},
+  );
+}
+
+/** 打开 macOS 系统设置的隐私面板，引导用户手动授予屏幕录制等权限；宿主不代为授权。 */
+export async function startDesktopComputerUsePermissionSetup(): Promise<DesktopComputerUsePermissionSetupResult> {
+  return invokeDesktopBridge<Record<string, never>, DesktopComputerUsePermissionSetupResult>(
+    "app.start_computer_use_permission_setup",
     {},
   );
 }

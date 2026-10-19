@@ -137,6 +137,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       return ["opened": true]
     case "app.start_browser_extension_setup":
       return try startBrowserExtensionSetup()
+    case "app.start_computer_use_permission_setup":
+      return try startComputerUsePermissionSetup()
     case "app.get_workspace_file_applications":
       return try DesktopWorkspaceFileActions.applicationsPayload(
         for: request.stringPayload("path")
@@ -191,6 +193,17 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       throw DesktopBridgeError.invalidURL
     }
     try DesktopExternalURLPolicy.open(url)
+  }
+
+  /// Computer Use 权限引导只负责打开系统设置的隐私面板；授权本身必须由
+  /// 用户手动完成，宿主不写入 TCC。Screen Recording 是第一项必授权限，
+  /// 其余 Accessibility 与 Input Monitoring 入口在同一设置侧栏中。
+  private func startComputerUsePermissionSetup() throws -> [String: Any] {
+    let pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    guard let paneURL = URL(string: pane), NSWorkspace.shared.open(paneURL) else {
+      throw DesktopBridgeError.computerUsePermissionsPageUnavailable
+    }
+    return ["opened": true]
   }
 
   private func startBrowserExtensionSetup() throws -> [String: Any] {
@@ -450,6 +463,7 @@ private enum DesktopBridgeError: LocalizedError {
   case invalidResponse
   case browserExtensionUnavailable
   case browserExtensionsPageUnavailable
+  case computerUsePermissionsPageUnavailable
 
   var errorDescription: String? {
     switch self {
@@ -467,6 +481,8 @@ private enum DesktopBridgeError: LocalizedError {
       return "未找到 Nexus 浏览器扩展，请重新安装或更新 Nexus。"
     case .browserExtensionsPageUnavailable:
       return "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。"
+    case .computerUsePermissionsPageUnavailable:
+      return "无法打开 macOS 隐私设置，请在系统设置中手动进入 隐私与安全性。"
     }
   }
 }

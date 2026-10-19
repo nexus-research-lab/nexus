@@ -11,7 +11,7 @@ import {
   installComputerUseApi,
   setComputerUseEnabledApi,
 } from "@/lib/api/settings/runtime-api";
-import { openDesktopExternalURL } from "@/lib/desktop-bridge/desktop-bridge";
+import { startDesktopComputerUsePermissionSetup } from "@/lib/desktop-bridge/desktop-bridge";
 import type { CUAInstallationStatus } from "@/types/settings/preferences";
 
 export function useComputerUseSettingsController() {
@@ -79,9 +79,7 @@ export function useComputerUseSettingsController() {
 
   const onOpenPermissions = useCallback(async () => {
     try {
-      await openDesktopExternalURL(
-        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-      );
+      await startDesktopComputerUsePermissionSetup();
     } catch {
       setError(true);
     }
