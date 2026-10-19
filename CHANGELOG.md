@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Room 历史增量读取在成员每轮追加 transcript 后必然失效、每次打开都全量重建的问题：读模型改为校验已发布消息的 transcript 投影摘要，只追加时继续增量；全量重建新增耗时、分组数与落盘结果日志；DM/Room 首屏历史加载期间显示加载状态，不再呈现为空会话。
 - 修复 Room WorkGraph 执行轮把业务根轮次误当成员 runtime lease，导致 `<subagent_admission eligible="true">` 与 `nexus.command` 的 Subagent authority 冲突；现在按成员 `AgentRoundID` 校验命令面，并让准入投影与实际命令面共用同一结果。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
 - 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。

@@ -51,6 +51,10 @@ async function mockLoginRoute(page: Page, info: TestInfo, passwordLoginEnabled =
       } } });
       return;
     }
+    if (url.pathname === "/nexus/v1/team/capabilities" && method === "GET") {
+      await route.fulfill({ json: { data: { enabled: false } } });
+      return;
+    }
     if (url.pathname === "/auth/v1/login" && method === "POST") {
       loginBodies.push(request.postDataJSON());
       await loginResponse;

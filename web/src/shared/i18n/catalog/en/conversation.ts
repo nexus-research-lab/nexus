@@ -11,6 +11,7 @@ export const enConversationMessages = {
   "room.skill_remove_label": "Remove {name}",
   "room.save_unconfirmed": "Changes could not be confirmed. Check the current group settings.",
   "room.loading_conversation": "Loading conversation…",
+  "room.loading_conversation_detail": "Long conversations need a moment to prepare their history the first time they open.",
   "tasks.label": "Progress",
   "tasks.switch_agent": "Switch progress agent",
   "tasks.step_progress": "Step {current} / {total}",

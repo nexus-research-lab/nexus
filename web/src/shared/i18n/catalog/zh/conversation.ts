@@ -8,6 +8,7 @@ export const zhConversationMessages = {
   "room.skill_remove_label": "移除 {name}",
   "room.save_unconfirmed": "保存结果未确认，请检查群聊当前设置。",
   "room.loading_conversation": "加载对话…",
+  "room.loading_conversation_detail": "对话较长时，首次打开需要先整理历史记录。",
   "tasks.label": "进程",
   "tasks.switch_agent": "切换进程智能体",
   "tasks.step_progress": "第 {current} / {total} 步",
