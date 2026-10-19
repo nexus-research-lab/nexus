@@ -835,19 +835,22 @@
   }
 
   /* 正文内容默认不成卡；以下配方只给代码、引用、表格、媒体和文件动作提供最低限度的语义边界。 */
-  .content-inline-code,
-  .content-workspace-file {
-    max-width: 100%;
-    overflow: hidden;
+  /*
+   * inline code 保持真正的行内盒：长标识符随正文折行，每段折行都保留完整底色与圆角；
+   * 字号相对正文缩一档，抵消等宽字体更宽的字面，避免一行里的术语比正文更显眼。
+   */
+  .content-inline-code {
+    display: inline;
+    padding: 0.125em 0.3em;
     border-radius: var(--content-radius-inline);
-    border: 1px solid var(--content-inline-code-border);
     background: var(--content-inline-code-background);
     color: var(--content-inline-code-color);
-  }
-
-  .content-inline-code {
-    display: inline-flex;
-    padding: 1px 0.25rem;
+    font-size: 0.875em;
+    font-variant-ligatures: none;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   .content-divider,
@@ -880,8 +883,11 @@
   .content-workspace-file {
     display: inline-flex;
     align-items: center;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: var(--content-radius-inline);
+    border: 1px solid var(--content-workspace-file-border);
     background: var(--content-workspace-file-background);
-    border-color: var(--content-workspace-file-border);
     color: var(--primary);
     transition:
       background-color var(--motion-duration-fast) var(--motion-ease-standard),
@@ -906,7 +912,7 @@
     max-width: calc(100% - 0.5rem);
     overflow: hidden;
     margin-left: 0.5rem;
-    border-left: 4px solid var(--content-quote-border);
+    border-left: 2px solid var(--content-quote-border);
     background: transparent;
     padding: 0 0 0 1rem;
     color: var(--content-quote-color);
@@ -1709,14 +1715,17 @@
     box-shadow: var(--surface-card-shadow);
   }
 
-  /* 列表保留浏览器原生 marker；外层与条目内缩固定，序号和正文在不同缩放下仍稳定对齐。 */
+  /*
+   * 列表保留浏览器原生 marker；条目间距只由 gap 一处决定，列表与前后块的距离交给正文 Grid，
+   * 避免 gap、条目 margin 与列表 margin 叠加出忽大忽小的空白。缩进按 em 跟随正文字号。
+   */
   .markdown-list {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.25em;
     max-width: 100%;
-    margin: 0 0 0.75rem;
-    padding-left: 2rem;
+    margin: 0;
+    padding-left: 1.5em;
     color: color-mix(in srgb, var(--foreground) 90%, transparent);
     list-style-position: outside;
   }
@@ -1730,9 +1739,8 @@
   }
 
   .markdown-list-item {
-    margin-top: 0.25rem;
-    margin-bottom: 0;
-    padding-left: 0.5rem;
+    margin: 0;
+    padding-left: 0.25em;
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
@@ -1760,9 +1768,7 @@
   }
 
   .markdown-list-item-body>.markdown-list {
-    margin-top: 0.25rem;
-    margin-bottom: 0;
-    padding-bottom: 0.25rem;
+    margin-top: 0.25em;
   }
 }
 
@@ -1792,10 +1798,14 @@
     font-synthesis: style;
   }
 
-  /* 中文正文字体只有常规字重；仅为语义加粗补齐 600，避免普通正文整体变厚。 */
-  .nexus-chat-feed .nexus-chat-markdown strong .message-cjk-text {
-    font-synthesis: weight style;
-    font-weight: 500;
+  /*
+   * 京华老宋体只有常规字重，合成加粗发虚且与拉丁粗体不一致。沿用中文排版「宋体正文、黑体强调」的惯例：
+   * 加粗与标题里的中文切到界面黑体并使用真实 600 字重，标签与小标题才能和正文拉开层级。
+   */
+  .nexus-chat-feed .nexus-chat-markdown :is(strong, h1, h2, h3, h4, h5, h6) .message-cjk-text {
+    font-family: var(--font-sans);
+    font-synthesis: style;
+    font-weight: 600;
   }
 
   /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
@@ -1855,6 +1865,11 @@
     margin: 0;
     color: var(--text-strong);
     line-height: var(--chat-line-height, 1.65);
+    text-wrap: pretty;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body :is(h1, h2, h3, h4, h5, h6)[data-markdown-anchor] {
+    text-wrap: balance;
   }
 
   .nexus-chat-feed .nexus-markdown-body h1[data-markdown-anchor] {
@@ -1894,17 +1909,8 @@
     margin: 0;
   }
 
-  .nexus-chat-feed .nexus-markdown-body .markdown-list {
-    gap: 0.25rem;
-    margin: 0 0 0.75rem;
-  }
-
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
     line-height: var(--chat-line-height, 1.65);
-  }
-
-  .nexus-chat-feed .nexus-markdown-body .markdown-list-item + .markdown-list-item {
-    margin-top: 0.25rem;
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item-body > [data-markdown-anchor] {
@@ -1918,7 +1924,9 @@
     font-weight: 400;
   }
 
+  /* 块间距取半个正文行高，随个人字号/行高设置等比缩放，而不是固定 12px。 */
   .nexus-chat-feed .nexus-markdown-body {
+    gap: calc(1em * var(--chat-line-height, 1.65) * 0.5);
     font-family: var(--chat-font-family, var(--font-sans));
     font-size: var(--chat-font-size, 16px);
     line-height: var(--chat-line-height, 1.65);
