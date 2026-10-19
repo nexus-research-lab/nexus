@@ -42,6 +42,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
       roomPrepared = true;
       return route.fulfill({json: {data: []}});
     }
+    if (path === "/nexus/v1/team/capabilities") return route.fulfill({json: {data: {enabled: true}}});
     if (path === "/nexus/v1/auth/status") return route.fulfill({json: {data: {...appShellRead("GET", path)!.data as object, auth_method: "password", role: "owner", control_user_id: "ui-fixture", organization_id: "org"}}});
     if (path === "/nexus/v1/team/rooms") return route.fulfill({json: {data: {rooms: dissolved ? [] : [details]}}});
     if (path === "/nexus/v1/team/invitations") return route.fulfill({json: {data: {invitations: [], recovery_rooms: []}}});

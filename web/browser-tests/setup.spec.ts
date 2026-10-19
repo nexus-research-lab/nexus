@@ -38,6 +38,10 @@ test("setup shares access presentation and preserves validation, pending state a
         setup_enabled: setupEnabled, setup_required: true, username: null } } });
       return;
     }
+    if (url.pathname === "/nexus/v1/team/capabilities" && method === "GET") {
+      await route.fulfill({ json: { data: { enabled: false } } });
+      return;
+    }
     if (url.pathname === "/auth/v1/setup" && method === "POST") {
       submissions.push({ body: request.postDataJSON(), authorization: request.headers().authorization });
       await setupResponse;
