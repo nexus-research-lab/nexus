@@ -199,15 +199,116 @@ func TestRoomHistoryIncrementalKeepsTranscriptDependencies(t *testing.T) {
 		t.Fatal("dependencies lost or rebuilt")
 	}
 	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 2, "", 0, "", 0)
-	// 私有 overlay 改变时不得把旧公区投影当作已同步。
+	// 成员每轮都会追加私有 overlay/transcript；已发布引用的投影不变时必须继续增量。
 	if err = ownerHistory.AppendRoundMarker(workspacePath, privateSessionKey, "private-new", "next", 3000); err != nil {
 		t.Fatal(err)
 	}
 	appendRoomHistoryIndexRound(t, history, ownerUserID, conversationID, "root-final", "amy", 3000)
-	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err == nil {
-		t.Fatal("changed dependency accepted")
+	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err != nil {
+		t.Fatalf("append-only dependency rejected: %v", err)
+	}
+	advanced, _, err := readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil || advanced.Generation != before.Generation {
+		t.Fatal("append-only dependency rebuilt generation")
 	}
 	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 2, "", 0, "", 0)
+	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 10, "", 0, "", 0)
+
+	// 真实 Room 轮次：同一成员 transcript 追加新回复并由新 transcript_ref 引用。
+	if err = ownerHistory.AppendRoundMarker(workspacePath, privateSessionKey, "private-round-2", "继续公区任务", 3500); err != nil {
+		t.Fatal(err)
+	}
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type": "user", "uuid": "room-private-user", "sessionId": sessionID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"message":   map[string]any{"role": "user", "content": "处理公区任务"},
+		},
+		{
+			"type": "assistant", "uuid": "room-private-assistant", "sessionId": sessionID,
+			"parentUuid": "room-private-user", "timestamp": "2026-08-17T00:00:01Z",
+			"message": map[string]any{
+				"id": "room-assistant-1", "role": "assistant", "stop_reason": "end_turn",
+				"content": []map[string]any{{"type": "text", "text": "公区任务已完成。"}},
+			},
+		},
+		{
+			"type": "user", "uuid": "room-private-user-2", "sessionId": sessionID,
+			"parentUuid": "room-private-assistant", "timestamp": "2026-08-17T00:00:02Z",
+			"message": map[string]any{"role": "user", "content": "继续公区任务"},
+		},
+		{
+			"type": "assistant", "uuid": "room-private-assistant-2", "sessionId": sessionID,
+			"parentUuid": "room-private-user-2", "timestamp": "2026-08-17T00:00:03Z",
+			"message": map[string]any{
+				"id": "room-assistant-2", "role": "assistant", "stop_reason": "end_turn",
+				"content": []map[string]any{{"type": "text", "text": "第二轮已完成。"}},
+			},
+		},
+	})
+	if err = history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
+		"message_id": "room-user-2", "round_id": "root-second", "role": "user",
+		"content": "继续公区任务", "timestamp": int64(3500),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err = history.AppendTranscriptReference(
+		ownerUserID,
+		conversationID,
+		workspacePath,
+		privateSessionKey,
+		protocol.Message{
+			"message_id": "room-assistant-2", "session_id": sessionID,
+			"conversation_id": conversationID, "agent_id": "amy",
+			"round_id": "root-second:amy", "agent_round_id": "private-round-2",
+			"role": "assistant", "is_complete": true, "timestamp": int64(3600),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err != nil {
+		t.Fatalf("appended member transcript rejected: %v", err)
+	}
+	advanced, _, err = readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil || advanced.Generation != before.Generation {
+		t.Fatal("appended member transcript rebuilt generation")
+	}
+	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 10, "", 0, "", 0)
+	appendRoomHistoryIndexRound(t, history, ownerUserID, conversationID, "root-after-second", "amy", 3700)
+	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err != nil {
+		t.Fatalf("round after member transcript rejected: %v", err)
+	}
+	advanced, _, err = readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 10, "", 0, "", 0)
+
+	// 已发布消息的 transcript 投影变化时不得把旧公区分组当作已同步。
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type": "user", "uuid": "room-private-user", "sessionId": sessionID,
+			"timestamp": "2026-08-17T00:00:00Z",
+			"message":   map[string]any{"role": "user", "content": "处理公区任务"},
+		},
+		{
+			"type": "assistant", "uuid": "room-private-assistant", "sessionId": sessionID,
+			"parentUuid": "room-private-user", "timestamp": "2026-08-17T00:00:01Z",
+			"message": map[string]any{
+				"id": "room-assistant-1", "role": "assistant", "stop_reason": "end_turn",
+				"content": []map[string]any{{"type": "text", "text": "公区任务已改写。"}},
+			},
+		},
+	})
+	appendRoomHistoryIndexRound(t, history, ownerUserID, conversationID, "root-rewritten", "amy", 4000)
+	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err == nil {
+		t.Fatal("changed published transcript message accepted")
+	}
+	rejected, _, err := readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil || !snapshotsEqual(rejected.Sources, advanced.Sources) || rejected.GroupCount != advanced.GroupCount {
+		t.Fatal("rejected update advanced checkpoint")
+	}
+	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 10, "", 0, "", 0)
 }
 
 func TestRoomHistoryIncrementalRejectsReplacedAndPartialFiles(t *testing.T) {
@@ -271,4 +372,86 @@ func TestRoomHistoryIncrementalRejectsReplacedAndPartialFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoomHistoryIncrementalReprojectsTailWhenOnlyTranscriptAdvanced(t *testing.T) {
+	stateRoot := t.TempDir()
+	history := newRoomHistoryTestStore(t, stateRoot)
+	ownerUserID := testRoomOwnerUserID
+	conversationID := "room-index-running-member"
+	workspacePath := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, ownerUserID), "Amy")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	privateSessionKey := "agent:amy:ws:group:" + conversationID
+	sessionID := "5d928f9e-31bd-48a0-9cd5-21a804772002"
+	ownerHistory := history.agentHistory.ForOwner(ownerUserID)
+	writeAgentHistoryIndexSession(t, ownerHistory, workspacePath, protocol.Session{
+		SessionKey: privateSessionKey,
+		AgentID:    "amy",
+		SessionID:  &sessionID,
+	})
+	if err := ownerHistory.AppendRoundMarker(workspacePath, privateSessionKey, "private-round-1", "任务", 1000); err != nil {
+		t.Fatal(err)
+	}
+	writeTranscript := func(text string) {
+		t.Helper()
+		writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+			{
+				"type": "user", "uuid": "running-user", "sessionId": sessionID,
+				"timestamp": "2026-08-17T00:00:00Z",
+				"message":   map[string]any{"role": "user", "content": "任务"},
+			},
+			{
+				"type": "assistant", "uuid": "running-assistant", "sessionId": sessionID,
+				"parentUuid": "running-user", "timestamp": "2026-08-17T00:00:01Z",
+				"message": map[string]any{
+					"id": "running-assistant-1", "role": "assistant", "stop_reason": "end_turn",
+					"content": []map[string]any{{"type": "text", "text": text}},
+				},
+			},
+		})
+	}
+	writeTranscript("处理中")
+	if err := history.AppendInlineMessage(ownerUserID, conversationID, protocol.Message{
+		"message_id": "running-user-1", "round_id": "root-running", "role": "user",
+		"content": "任务", "timestamp": int64(1000),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := history.AppendTranscriptReference(ownerUserID, conversationID, workspacePath, privateSessionKey, protocol.Message{
+		"message_id": "running-assistant-1", "session_id": sessionID,
+		"conversation_id": conversationID, "agent_id": "amy",
+		"round_id": "root-running:amy", "agent_round_id": "private-round-1",
+		"role": "assistant", "is_complete": true, "timestamp": int64(1100),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	access := history.historyPageAccess(ownerUserID, conversationID)
+	built, err := access.Build(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = history.readModel.persist(ctx, access, built); err != nil {
+		t.Fatal(err)
+	}
+	db, err := history.readModel.database(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, _, err := readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// ledger 未追加、只有成员 transcript 推进时，尾轮必须按最新投影刷新而不是全量重建。
+	writeTranscript("处理完成，结论已更新")
+	if err = history.tryRefreshRoomHistoryTail(ctx, ownerUserID, conversationID, access.Scope); err != nil {
+		t.Fatalf("transcript-only advance rejected: %v", err)
+	}
+	after, _, err := readHistoryReadModelScope(ctx, db, access.Scope)
+	if err != nil || after.Generation != before.Generation || snapshotsEqual(after.Sources, before.Sources) {
+		t.Fatal("transcript-only advance did not publish incrementally")
+	}
+	assertRoomHistoryPageParity(t, history, ownerUserID, conversationID, nil, 10, "", 0, "", 0)
 }

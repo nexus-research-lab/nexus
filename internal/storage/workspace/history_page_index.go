@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -132,6 +133,7 @@ type historyPageIndexedGroup struct {
 
 type historyPageIndexBuild struct {
 	TailRows   []protocol.Message
+	FrozenRefs []roomFrozenTranscriptRef
 	Groups     []historyPageIndexedGroup
 	RoundIndex []protocol.SessionRoundIndexItem
 	Sources    []historyPageSourceSnapshot
@@ -161,8 +163,10 @@ type historyPageIndexSelection struct {
 }
 
 type historyPageIndexAccess struct {
-	Refresh         func(context.Context) (historyPageIndexBuild, bool)
-	Scope           string
+	Refresh func(context.Context) (historyPageIndexBuild, bool)
+	Scope   string
+	// LogAttrs 是 scope 哈希对应的可读身份（conversation_id / session_key），只用于日志。
+	LogAttrs        []any
 	ReadModel       *historyReadModel
 	OpenRoot        func(create bool) (*confinedfs.Root, error)
 	ValidateSources func(context.Context, []historyPageSourceSnapshot) (bool, error)
@@ -412,7 +416,9 @@ func (m *historyPageRebuildManager) run(
 			return
 		}
 	}
+	started := time.Now()
 	future.built, future.err = access.Build(buildCtx)
+	buildDuration := time.Since(started)
 	if future.built.Groups == nil {
 		future.built.Groups = []historyPageIndexedGroup{}
 	}
@@ -422,28 +428,72 @@ func (m *historyPageRebuildManager) run(
 	shouldPersist := future.err == nil && future.built.Cacheable &&
 		shouldPersistHistoryPageIndex(future.built)
 	persistBeforeReady := shouldPersist && historyPageBuildHasLargeDetails(future.built)
+	var persistErr error
+	persistStarted := time.Now()
 	if persistBeforeReady {
-		persistHistoryPageIndex(buildCtx, access, future.built)
+		persistErr = persistHistoryPageIndex(buildCtx, access, future.built)
 	}
 	// 普通 generation 仍让 waiter 只等待 canonical 投影；包含大型 detail
 	// 的 generation 必须先原子发布引用目标，避免首个页面重新内联大内容。
 	close(future.ready)
 	if shouldPersist && !persistBeforeReady {
-		persistHistoryPageIndex(buildCtx, access, future.built)
+		persistStarted = time.Now()
+		persistErr = persistHistoryPageIndex(buildCtx, access, future.built)
 	}
+	logHistoryPageRebuild(base, access, future, buildDuration, shouldPersist, persistErr, time.Since(persistStarted))
 	m.finish(access.Scope, future)
+}
+
+// logHistoryPageRebuild 为每次全量重建留下一条可检索记录；增量路径由 Refresh 自行记录。
+func logHistoryPageRebuild(
+	ctx context.Context,
+	access historyPageIndexAccess,
+	future *historyPageRebuildFuture,
+	buildDuration time.Duration,
+	persisted bool,
+	persistErr error,
+	persistDuration time.Duration,
+) {
+	var sourceBytes int64
+	for _, source := range future.built.Sources {
+		sourceBytes += source.Size
+	}
+	args := append([]any(nil), access.LogAttrs...)
+	args = append(args,
+		"groups", len(future.built.Groups),
+		"sources", len(future.built.Sources),
+		"source_bytes", sourceBytes,
+		"cacheable", future.built.Cacheable,
+		"disabled", future.built.Disabled,
+		"build_ms", buildDuration.Milliseconds(),
+		"persisted", persisted && persistErr == nil,
+	)
+	if persisted {
+		args = append(args, "persist_ms", persistDuration.Milliseconds())
+	}
+	logger := logx.FromContext(ctx)
+	switch {
+	case future.err != nil:
+		logger.Warn("历史读模型全量重建失败", append(args, "err", future.err)...)
+	case persistErr != nil:
+		logger.Warn("历史读模型全量重建未能落盘", append(args, "err", persistErr)...)
+	default:
+		logger.Info("历史读模型全量重建完成", args...)
+	}
 }
 
 func persistHistoryPageIndex(
 	ctx context.Context,
 	access historyPageIndexAccess,
 	built historyPageIndexBuild,
-) {
+) error {
 	if access.Persist != nil {
-		_ = access.Persist(ctx, built)
-	} else if access.ReadModel != nil {
-		_ = access.ReadModel.persist(ctx, access, built)
+		return access.Persist(ctx, built)
 	}
+	if access.ReadModel != nil {
+		return access.ReadModel.persist(ctx, access, built)
+	}
+	return nil
 }
 
 func (m *historyPageRebuildManager) finish(scope string, future *historyPageRebuildFuture) {

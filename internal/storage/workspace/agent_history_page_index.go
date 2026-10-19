@@ -32,6 +32,7 @@ func (s *AgentHistoryStore) historyPageAccess(
 	scope := historyPageScope(scopeParts...)
 	return historyPageIndexAccess{
 		Scope:     scope,
+		LogAttrs:  []any{"session_key", strings.TrimSpace(sessionValue.SessionKey)},
 		ReadModel: s.readModel,
 		OpenRoot: func(create bool) (*confinedfs.Root, error) {
 			return s.openAgentHistoryPageIndexRoot(
