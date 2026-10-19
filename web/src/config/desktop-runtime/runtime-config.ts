@@ -80,6 +80,17 @@ export function isDesktopRuntime(): boolean {
   return getDesktopRuntimeConfig()?.appMode === "desktop";
 }
 
+/** 宿主注入的平台标识（macOS 为 "macos"，Windows 为 "windows"）；非桌面宿主为 null。 */
+export function getDesktopPlatform(): string | null {
+  const platform = getDesktopRuntimeConfig()?.platform;
+  return platform ? platform.toLowerCase() : null;
+}
+
+/** Computer Use 目前只交付 macOS；其余平台（含旧宿主未注入 platform）一律隐藏入口。 */
+export function isMacDesktopRuntime(): boolean {
+  return isDesktopRuntime() && getDesktopPlatform() === "macos";
+}
+
 export function applyDesktopRuntimeDocumentFlags(): void {
   const runtimeConfig = getDesktopRuntimeConfig();
   if (runtimeConfig?.appMode !== "desktop") return;

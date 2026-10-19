@@ -14,7 +14,7 @@ import { UiDialogPortal, UiDialogBackdrop, UiDialogShell, UiDialogHeader } from 
 import { Navigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/shared/navigation/route-paths";
-import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { isDesktopRuntime, isMacDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -140,7 +140,7 @@ function SettingsSectionContent({
 		);
 	}
 	if (section === "computer-use") {
-		return isDesktopRuntime() ? (
+		return isMacDesktopRuntime() ? (
 			<ComputerUseSettingsSection />
 		) : (
 			<Navigate replace to={AppRouteBuilders.settings()} />

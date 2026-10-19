@@ -27,7 +27,7 @@ import {
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { createUiSearchMatcher } from "@/shared/ui/form/search-query";
 
-import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { isDesktopRuntime, isMacDesktopRuntime } from "@/config/desktop-runtime";
 import { useProjectPermissionsEnabled } from "@/hooks/settings/use-project-permissions-enabled";
 import { useAuth } from "@/shared/auth/auth-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -98,7 +98,7 @@ export function SettingsSidebarNavigation({
         (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
         (item.key !== "browser" || isDesktopRuntime()) &&
-        (item.key !== "computer-use" || isDesktopRuntime()) &&
+        (item.key !== "computer-use" || isMacDesktopRuntime()) &&
         (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),

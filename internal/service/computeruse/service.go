@@ -1082,8 +1082,26 @@ func NewProcessSupervisor(cfg config.Config) *ProcessSupervisor {
 	return NewProcessSupervisorWithBinaryPath(cfg, cfg.ComputerUseBinaryPath)
 }
 
+// cuaStateRoot anchors every local Computer Use artifact beside the SQLite
+// database file. DATABASE_URL may carry a sqlite:// scheme prefix; the DSN
+// normalization in storage intentionally rewrites those URLs into driver
+// form, so this anchors on the raw path instead of reusing it.
+func cuaStateRoot(cfg config.Config) string {
+	return filepath.Join(filepath.Dir(trimDatabaseScheme(cfg.DatabaseURL)), "computer-use")
+}
+
+// trimDatabaseScheme removes one optional sqlite:// scheme prefix while
+// keeping the remainder verbatim, so sqlite:///abs paths stay absolute.
+func trimDatabaseScheme(value string) string {
+	value = strings.TrimSpace(value)
+	if lower := strings.ToLower(value); strings.HasPrefix(lower, "sqlite://") {
+		return value[len("sqlite://"):]
+	}
+	return value
+}
+
 func NewProcessSupervisorWithBinaryPath(cfg config.Config, binaryPath string) *ProcessSupervisor {
-	stateRoot := filepath.Join(filepath.Dir(cfg.DatabaseURL), "computer-use")
+	stateRoot := cuaStateRoot(cfg)
 	return &ProcessSupervisor{
 		binaryPath: strings.TrimSpace(binaryPath),
 		stateRoot:  stateRoot,

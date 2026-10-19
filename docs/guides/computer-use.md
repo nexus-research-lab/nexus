@@ -1,35 +1,41 @@
-# Nexus Computer Use（macOS 开发接入）
+# Nexus Computer Use（macOS 接入）
 
 Nexus 通过 pinned 的 `nexus-cua` SDK/sidecar 使用原生桌面能力。模型只看到
 `nexus.command` 的 `computer` domain；endpoint、token、socket、native handle 和
-截图文件路径都由 Nexus 私有管理。
+截图文件路径都由 Nexus 私有管理。分发、启用与权限引导的规范见
+`docs/specs/computer-use-spec.md`。
 
-## 1. 准备 macOS runtime
+## 1. 常规启用（设置页）
 
-在 `nexus-cua` 工作区构建本机 sidecar：
+在 macOS 桌面端打开 设置 → 电脑操控（CUA）开关。未安装时，Nexus 会从
+`nexus-research-lab/nexus-cua` 的 GitHub latest Release 下载 macOS 安装包，完成
+SHA256 与 manifest 双重校验后安装到状态根的 `computer-use/versions/` 下，再启用并
+自动检查系统权限。启用但 Screen Recording / Accessibility / Input Control 任一未授予时，
+按设置页引导前往 系统设置 → 隐私与安全性 完成授权，然后「重新检查权限」。
 
-```bash
-cargo build --release --locked --package nexus-cua --bin nexuscua
-```
+安装与启用状态持久化在本地；重启 Nexus 后保持。该入口只在 macOS 桌面宿主显示。
 
-构建后先单独确认驱动和系统权限：
+## 2. 环境变量覆盖（开发/内置打包）
 
-```bash
-cargo run --locked --package nexus-cua -- doctor
-```
-
-macOS 需要由运行 sidecar 的稳定应用身份取得 `Screen Recording`、
-`Accessibility` 和前台输入对应的系统授权。`doctor` 返回的三类 permission state
-是当前事实；没有授权时不要通过其他工具绕过。
-
-## 2. 启用 Nexus
-
-在 Nexus 服务使用的环境中设置绝对路径：
+需要使用自建或随应用打包的 sidecar 时，在 Nexus 服务环境中设置绝对路径：
 
 ```env
 NEXUS_COMPUTER_USE_ENABLED=true
 NEXUS_COMPUTER_USE_BINARY=/absolute/path/to/nexuscua
 ```
+
+显式二进制路径优先于已安装版本。测试发布通道可用 `NEXUS_CUA_RELEASE_API_URL`
+覆盖 Release API；`NEXUS_CUA_ALLOW_UNACCEPTED_RELEASE=1` 仅限开发环境放行未验收候选。
+本地构建 sidecar：
+
+```bash
+cargo build --release --locked --package nexus-cua --bin nexuscua
+cargo run --locked --package nexus-cua -- doctor
+```
+
+macOS 需要由运行 sidecar 的稳定应用身份取得 `Screen Recording`、`Accessibility`
+和前台输入对应的系统授权。`doctor` 返回的三类 permission state 是当前事实；
+没有授权时不要通过其他工具绕过。
 
 默认关闭。Nexus 启动时不会启动 sidecar；本轮第一次调用 `computer` domain 时，
 它才会检查普通可执行文件、创建私有 endpoint/token/artifact root 并等待协议就绪。

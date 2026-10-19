@@ -1,5 +1,5 @@
-// INPUT: 设置导航查询、账户权限与入口选择动作。
-// OUTPUT: 验证筛选、空结果、清空恢复和入口点击。
+// INPUT: 设置导航查询、账户权限、宿主平台与入口选择动作。
+// OUTPUT: 验证筛选、空结果、清空恢复、入口点击和平台门禁。
 // POS: 设置侧栏搜索交互回归，不请求后端。
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,7 +9,10 @@ import { OPERATIONS_SECTIONS, parseSettingsSection } from "./settings-navigation
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
 
 const auth = vi.hoisted(() => ({ role: "member" }));
-afterEach(() => { auth.role = "member"; });
+afterEach(() => {
+  auth.role = "member";
+  delete window.__NEXUS_DESKTOP_RUNTIME__;
+});
 vi.mock("@/hooks/settings/use-project-permissions-enabled", () => ({ useProjectPermissionsEnabled: () => true }));
 const selectSection = vi.hoisted(() => vi.fn());
 const backToWorkspace = vi.hoisted(() => vi.fn());
@@ -104,4 +107,17 @@ it("keeps rail navigation unfiltered and preserves the panel search draft", asyn
   view.rerender(<SettingsSidebarNavigation variant="panel" onNavigate={onNavigate} />);
   expect((screen.getByRole("searchbox") as HTMLInputElement).value).toBe("不存在的设置");
   expect(screen.getByRole("status")).toBeTruthy();
+});
+
+it("电脑操控入口只在 macOS 桌面宿主显示，浏览器入口不限平台", () => {
+  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "macos" };
+  const macView = render(<SettingsSidebarNavigation variant="panel" />);
+  expect(screen.getByRole("button", { name: "电脑操控" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
+  macView.unmount();
+
+  window.__NEXUS_DESKTOP_RUNTIME__ = { app_mode: "desktop", platform: "windows" };
+  render(<SettingsSidebarNavigation variant="panel" />);
+  expect(screen.queryByRole("button", { name: "电脑操控" })).toBeNull();
+  expect(screen.getByRole("button", { name: "浏览器" })).toBeTruthy();
 });

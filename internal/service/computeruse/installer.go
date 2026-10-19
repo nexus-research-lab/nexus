@@ -85,7 +85,7 @@ type CUAInstaller struct {
 }
 
 func NewCUAInstaller(cfg config.Config) *CUAInstaller {
-	root := filepath.Join(filepath.Dir(cfg.DatabaseURL), "computer-use")
+	root := cuaStateRoot(cfg)
 	releaseURL := strings.TrimSpace(os.Getenv("NEXUS_CUA_RELEASE_API_URL"))
 	if releaseURL == "" {
 		releaseURL = defaultCUAReleaseAPIURL

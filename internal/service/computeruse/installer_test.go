@@ -13,8 +13,28 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
 )
+
+func TestCUAStateRootAnchorsBesideSQLiteDatabase(t *testing.T) {
+	databaseDir := t.TempDir()
+	installer := NewCUAInstaller(config.Config{
+		DatabaseURL: "sqlite://" + filepath.Join(databaseDir, "nexus.db"),
+	})
+	expected := filepath.Join(databaseDir, "computer-use")
+	if installer.root != expected {
+		t.Fatalf("installer root = %q, want %q", installer.root, expected)
+	}
+	supervisor := NewProcessSupervisor(config.Config{
+		DatabaseURL: filepath.Join(databaseDir, "nexus.db"),
+	})
+	if supervisor.stateRoot != expected {
+		t.Fatalf("supervisor stateRoot = %q, want %q", supervisor.stateRoot, expected)
+	}
+}
 
 func TestCUAInstallerDownloadsVerifiesAndPersistsRelease(t *testing.T) {
 	archiveName := "nexus-cua-v0.1.0-macos-universal-release.tar.gz"
