@@ -15,6 +15,7 @@ import {
   MonitorCog,
   Chrome,
   Cpu,
+  MousePointer2,
   FolderKanban,
   Palette,
   Settings2,
@@ -56,7 +57,8 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   "operations-providers": Cable,
   "operations-projects": FolderKanban,
   permissions: ShieldCheck,
-	browser: Chrome,
+  browser: Chrome,
+  "computer-use": MousePointer2,
   personal: UserRound,
   providers: Cable,
   "default-models": MonitorCog,
@@ -95,7 +97,8 @@ export function SettingsSidebarNavigation({
         (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
         (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
-				(item.key !== "browser" || isDesktopRuntime()) &&
+        (item.key !== "browser" || isDesktopRuntime()) &&
+        (item.key !== "computer-use" || isDesktopRuntime()) &&
         (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),

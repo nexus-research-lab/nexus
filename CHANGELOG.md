@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 扩展内置 PPTX Skill：增加模板 inventory、PPTX 容器与关系校验、页面重排和 PDF/PNG 视觉渲染工具，并补充 HTML-to-PPTX 与 OOXML 定点编辑工作流。
 - 接入可选 Nexus Computer Use 能力：round-scoped 的应用发现、目标选择、无障碍观察、截图与受限桌面动作通过 pinned nexus-cua sidecar 提供；`perform_action` 复用当前 runtime 的一次性真人审批，sidecar 崩溃后自动切换新 epoch 并丢弃旧 opaque state，runtime round 结束时自动关闭 CUA session。
+- 设置中的 CUA 开关会从 `nexus-research-lab/nexus-cua` GitHub Release 下载并校验对应 macOS 安装包，安装后再启动 sidecar，并引导用户完成系统权限授权。
 
 - IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 

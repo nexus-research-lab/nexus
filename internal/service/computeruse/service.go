@@ -78,21 +78,34 @@ type Factory func(nexuscua.Config) (Client, error)
 
 // Service owns the application-wide sidecar and the round-scoped CUA state.
 type Service struct {
-	mu         sync.Mutex
-	enabled    bool
-	owner      string
-	supervisor Supervisor
-	client     Client
-	rounds     map[string]*Round
+	mu                   sync.Mutex
+	enabled              bool
+	owner                string
+	supervisor           Supervisor
+	client               Client
+	rounds               map[string]*Round
+	installer            *CUAInstaller
+	configuredBinaryPath string
 }
 
 // NewService constructs a fail-closed service. ComputerUseEnabled is false by
 // default in config, so installing Nexus does not silently gain desktop input.
 func NewService(cfg config.Config) *Service {
+	installer := NewCUAInstaller(cfg)
+	binaryPath := strings.TrimSpace(cfg.ComputerUseBinaryPath)
+	if binaryPath == "" {
+		binaryPath = installer.InstalledBinaryPath()
+	}
+	enabled := cfg.ComputerUseEnabled
+	if installer.Enabled() {
+		enabled = true
+	}
 	return &Service{
-		enabled:    cfg.ComputerUseEnabled,
-		supervisor: NewProcessSupervisor(cfg),
-		rounds:     make(map[string]*Round),
+		enabled:              enabled,
+		supervisor:           NewProcessSupervisorWithBinaryPath(cfg, binaryPath),
+		rounds:               make(map[string]*Round),
+		installer:            installer,
+		configuredBinaryPath: binaryPath,
 	}
 }
 
@@ -100,6 +113,71 @@ func NewService(cfg config.Config) *Service {
 // verified sidecar lifecycle.
 func NewServiceWithSupervisor(enabled bool, supervisor Supervisor) *Service {
 	return &Service{enabled: enabled, supervisor: supervisor, rounds: make(map[string]*Round)}
+}
+
+// Install downloads and verifies the latest nexus-cua GitHub Release, then
+// switches future sidecar epochs to the new binary. Installation never turns
+// Computer Use on by itself; the settings toggle remains an explicit action.
+func (s *Service) Install(ctx context.Context) (CUAInstallationStatus, error) {
+	if s.installer == nil {
+		return CUAInstallationStatus{}, ErrCUANotInstalled
+	}
+	result, err := s.installer.Install(ctx)
+	if err != nil {
+		return s.InstallationStatus(), err
+	}
+	if err := s.replaceBinary(ctx, result.BinaryPath); err != nil {
+		return s.InstallationStatus(), err
+	}
+	s.mu.Lock()
+	s.configuredBinaryPath = result.BinaryPath
+	s.mu.Unlock()
+	return s.InstallationStatus(), nil
+}
+
+// InstallationStatus returns host installation state without exposing private
+// paths or sidecar transport credentials.
+func (s *Service) InstallationStatus() CUAInstallationStatus {
+	if s.installer == nil {
+		return CUAInstallationStatus{}
+	}
+	status := s.installer.Status()
+	s.mu.Lock()
+	status.Enabled = s.enabled
+	configured := s.configuredBinaryPath
+	s.mu.Unlock()
+	if !status.Installed && isExecutableRegularFile(configured) {
+		status.Installed = true
+		status.Source = "configured"
+		status.Message = ""
+	}
+	return status
+}
+
+// CheckPermissions starts the enabled sidecar if needed and reads the native
+// permission projection. The runtime never attempts to grant these permissions.
+func (s *Service) CheckPermissions(ctx context.Context) (nexuscua.PermissionStatus, error) {
+	s.mu.Lock()
+	if !s.enabled {
+		s.mu.Unlock()
+		return nexuscua.PermissionStatus{}, ErrDisabled
+	}
+	client := s.client
+	s.mu.Unlock()
+	if s.supervisor != nil {
+		started, err := s.supervisor.Start(ctx)
+		if err != nil {
+			return nexuscua.PermissionStatus{}, err
+		}
+		client = started
+		s.mu.Lock()
+		s.client = client
+		s.mu.Unlock()
+	}
+	if client == nil {
+		return nexuscua.PermissionStatus{}, ErrNotReady
+	}
+	return client.GetPermissionStatus(ctx, defaultCommandTimeout)
 }
 
 func (s *Service) Enabled() bool {
@@ -111,6 +189,18 @@ func (s *Service) Enabled() bool {
 // SetEnabled closes all active rounds before disabling admission. Re-enabling
 // starts a fresh sidecar epoch on the next round.
 func (s *Service) SetEnabled(ctx context.Context, enabled bool) error {
+	s.mu.Lock()
+	configured := s.configuredBinaryPath
+	installer := s.installer
+	s.mu.Unlock()
+	if enabled && installer != nil && installer.InstalledBinaryPath() == "" && !isExecutableRegularFile(configured) {
+		return ErrCUANotInstalled
+	}
+	if installer != nil && installer.InstalledBinaryPath() != "" {
+		if err := installer.SetEnabled(enabled); err != nil {
+			return err
+		}
+	}
 	s.mu.Lock()
 	if s.enabled == enabled {
 		s.mu.Unlock()
@@ -128,6 +218,28 @@ func (s *Service) SetEnabled(ctx context.Context, enabled bool) error {
 	s.owner = ""
 	s.mu.Unlock()
 	return s.closeRoundsAndStop(ctx, rounds)
+}
+
+func (s *Service) replaceBinary(ctx context.Context, path string) error {
+	if !isExecutableRegularFile(path) {
+		return errors.New("Computer Use 安装结果不是可执行普通文件")
+	}
+	s.mu.Lock()
+	rounds := s.takeRoundsLocked()
+	s.client = nil
+	s.owner = ""
+	s.mu.Unlock()
+	if err := s.closeRoundsAndStop(ctx, rounds); err != nil {
+		return err
+	}
+	setter, ok := s.supervisor.(interface{ SetBinaryPath(string) error })
+	if !ok {
+		return errors.New("Computer Use supervisor 不支持热切换安装包")
+	}
+	if err := setter.SetBinaryPath(path); err != nil {
+		return err
+	}
+	return nil
 }
 
 // SwitchOwner revokes the previous owner's rounds and starts the next owner
@@ -967,14 +1079,39 @@ type managedProcess struct {
 }
 
 func NewProcessSupervisor(cfg config.Config) *ProcessSupervisor {
+	return NewProcessSupervisorWithBinaryPath(cfg, cfg.ComputerUseBinaryPath)
+}
+
+func NewProcessSupervisorWithBinaryPath(cfg config.Config, binaryPath string) *ProcessSupervisor {
 	stateRoot := filepath.Join(filepath.Dir(cfg.DatabaseURL), "computer-use")
 	return &ProcessSupervisor{
-		binaryPath: cfg.ComputerUseBinaryPath,
+		binaryPath: strings.TrimSpace(binaryPath),
 		stateRoot:  stateRoot,
 		factory: func(value nexuscua.Config) (Client, error) {
 			return nexuscua.NewClient(value)
 		},
 	}
+}
+
+// SetBinaryPath changes the executable used by the next sidecar epoch. The
+// caller must stop the current process first so existing opaque refs cannot
+// survive an installation switch.
+func (s *ProcessSupervisor) SetBinaryPath(path string) error {
+	path = strings.TrimSpace(path)
+	if !isExecutableRegularFile(path) {
+		return errors.New("Computer Use binary path 必须指向可执行普通文件")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.process != nil {
+		select {
+		case <-s.process.done:
+		default:
+			return errors.New("Computer Use sidecar 仍在运行")
+		}
+	}
+	s.binaryPath = path
+	return nil
 }
 
 func (s *ProcessSupervisor) ArtifactRoot() string {

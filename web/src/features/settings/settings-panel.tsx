@@ -28,6 +28,7 @@ import { SettingsDefaultModelsSection } from "./default-models/settings-default-
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
+import { ComputerUseSettingsSection } from "./computer-use/computer-use-settings-section";
 import { isOperationsSection, type SettingsSectionKey } from "./settings-navigation-model";
 import { OrganizationPanel } from "./operations/organization-panel";
 import { SettingsSidebarNavigation } from "./settings-sidebar-navigation";
@@ -134,6 +135,13 @@ function SettingsSectionContent({
 	if (section === "browser") {
 		return isDesktopRuntime() ? (
 			<BrowserSettingsSection />
+		) : (
+			<Navigate replace to={AppRouteBuilders.settings()} />
+		);
+	}
+	if (section === "computer-use") {
+		return isDesktopRuntime() ? (
+			<ComputerUseSettingsSection />
 		) : (
 			<Navigate replace to={AppRouteBuilders.settings()} />
 		);

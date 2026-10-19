@@ -63,6 +63,11 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.browser.install_action"],
     ["settings.browser.cdp_title", "settings.browser.cdp_description"],
   ],
+  "computer-use": [
+    ["settings.computer_use.title", "settings.computer_use.description"],
+    ["settings.computer_use.open_permissions"],
+    ["settings.computer_use.check_permissions"],
+  ],
   personal: [
     ["settings.personal.role"],
     ["settings.personal.auth_method"],

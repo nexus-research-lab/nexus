@@ -23,7 +23,8 @@ export type SettingsSectionKey =
   | "appearance"
   | "workspace"
   | "permissions"
-	| "browser"
+  | "browser"
+  | "computer-use"
   | "personal"
   | "operations-organization"
   | "default-models"
@@ -53,7 +54,8 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
       { key: "appearance", labelKey: "settings.navigation.appearance" },
       { key: "workspace", labelKey: "settings.navigation.workspace" },
       { key: "permissions", labelKey: "settings.navigation.permissions" },
-		{ key: "browser", labelKey: "settings.navigation.browser" },
+      { key: "browser", labelKey: "settings.navigation.browser" },
+      { key: "computer-use", labelKey: "settings.navigation.computer_use" },
     ],
   },
   {
