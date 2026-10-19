@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Room WorkGraph 执行轮把业务根轮次误当成员 runtime lease，导致 `<subagent_admission eligible="true">` 与 `nexus.command` 的 Subagent authority 冲突；现在按成员 `AgentRoundID` 校验命令面，并让准入投影与实际命令面共用同一结果。
 - 修复 macOS 桌面端启动台（Launcher）顶部横向灯组（spotlights）水平偏移错误导致与原生红黄绿窗口控制按钮（尤其是绿色缩放按钮）重叠穿插的问题，恢复其位于系统按钮保留区右侧（`--desktop-window-controls-inset`）的正确定位。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
 - 修复 macOS 桌面构建脚本（`build-macos-app.sh` 与 `build-macos-dev.sh`）硬编码 `corepack` 导致未安装 corepack 时构建中断的问题，优先解析系统与配置的 `pnpm`。
@@ -75,6 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
 
 ### Added
+
+- 扩展内置 PPTX Skill：增加模板 inventory、PPTX 容器与关系校验、页面重排和 PDF/PNG 视觉渲染工具，并补充 HTML-to-PPTX 与 OOXML 定点编辑工作流。
 
 - IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
 

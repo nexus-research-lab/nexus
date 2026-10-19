@@ -36,7 +36,7 @@ func NewHandler(actor command.Actor, control runtimectx.SubagentControl) command
 	receipts := map[string]*receipt{}
 	operations := definitions()
 	return func(ctx context.Context, req command.Request) (any, error) {
-		if !actor.Valid() || strings.HasSuffix(actor.SourceContextType, "_untrusted") || strings.HasPrefix(actor.SourceContextType, "workgraph_") {
+		if !actor.SubagentCommandAuthority() {
 			return nil, errors.New("当前来源没有 Subagent command authority")
 		}
 		if req.Action == command.ActionContract {

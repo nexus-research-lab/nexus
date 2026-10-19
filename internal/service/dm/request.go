@@ -461,6 +461,7 @@ func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
 	r.responsibilityState = preparation.responsibilityState
 	r.sdkSessionIdentity = preparation.sdkSessionIdentity
 	r.commandReceipts = preparation.commandReceipts
+	r.subagentCommandAuthority = preparation.subagentCommandAuthority
 	r.Usage = goalsvc.NewRuntimeUsageAccumulator(
 		preparation.goalIDForUsage != "",
 	)

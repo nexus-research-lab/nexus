@@ -153,7 +153,8 @@ func clonePrincipal(principal *authctx.Principal) *authctx.Principal {
 }
 
 func isolatedWorkGraphMCPRound(sourceContextType string) bool {
-	switch strings.TrimSpace(sourceContextType) {
+	sourceContextType = strings.TrimSuffix(strings.TrimSpace(sourceContextType), "_untrusted")
+	switch sourceContextType {
 	case protocol.SessionPurposeWorkGraphEditor, protocol.SessionPurposeWorkGraphDistillation:
 		return true
 	default:
@@ -211,6 +212,9 @@ func buildNexusCommandMCPTool(
 	} else if !trustedCommandActor(ctx, record, actor) {
 		actor.SourceContextType = strings.TrimSuffix(actor.SourceContextType, "_untrusted") + "_untrusted"
 	}
+	if round.CommandContext.SubagentCommandAuthority != nil {
+		*round.CommandContext.SubagentCommandAuthority = actor.SubagentCommandAuthority()
+	}
 	actor.IsMainAgent = record.IsMain && trustedMainCommandActor(actor)
 	actor.GoalMutationAuthority = appgoal.ResolveCommandMutationAuthority(
 		ctx,
@@ -257,12 +261,16 @@ func normalizedAutomationRunContext(value *protocol.AutomationRunContext) *proto
 }
 
 func trustedCommandActor(ctx context.Context, agent *protocol.Agent, actor command.Actor) bool {
-	if agent == nil || actor.SessionKey == "" || actor.RoundID == "" || actor.RoundID != actor.LeaseRoundID {
+	if agent == nil || actor.SessionKey == "" || actor.RoundID == "" ||
+		actor.LeaseSessionKey == "" || actor.LeaseRoundID == "" {
 		return false
 	}
 	switch actor.SourceContextType {
 	case protocol.SessionPurposeWorkGraphEditor:
 		if _, _, _, ok := trustedPrincipal(ctx, actor.OwnerUserID); !ok {
+			return false
+		}
+		if actor.RoundID != actor.LeaseRoundID {
 			return false
 		}
 		parsed := protocol.ParseSessionKey(actor.SessionKey)
@@ -274,6 +282,9 @@ func trustedCommandActor(ctx context.Context, agent *protocol.Agent, actor comma
 			actor.SourceContextID == actor.AgentID
 	case protocol.SessionPurposeWorkGraphDistillation:
 		if _, _, _, ok := trustedPrincipal(ctx, actor.OwnerUserID); !ok {
+			return false
+		}
+		if actor.RoundID != actor.LeaseRoundID {
 			return false
 		}
 		parsed := protocol.ParseSessionKey(actor.SessionKey)
@@ -298,14 +309,21 @@ func trustedCommandActor(ctx context.Context, agent *protocol.Agent, actor comma
 		if _, _, _, ok := trustedPrincipal(ctx, actor.OwnerUserID); !ok {
 			return false
 		}
+		// Room commands keep the business root in Actor.RoundID; the runtime
+		// lease is owned by the member's physical AgentRoundID.
+		physicalRoundID := strings.TrimSpace(actor.Round.CommandContext.AgentRoundID)
+		if physicalRoundID == "" {
+			return false
+		}
 		_, ok := trustedRoute(
-			actor.AgentID, "room", actor.SessionKey, actor.RoundID,
+			actor.AgentID, "room", actor.SessionKey, physicalRoundID,
 			actor.LeaseSessionKey, actor.LeaseRoundID,
 		)
 		return ok && actor.SourceContextID != ""
 	case "agent_paired":
 		parsed := protocol.ParseSessionKey(actor.SessionKey)
-		return actor.SessionKey == actor.LeaseSessionKey && parsed.IsStructured &&
+		return actor.RoundID == actor.LeaseRoundID &&
+			actor.SessionKey == actor.LeaseSessionKey && parsed.IsStructured &&
 			parsed.Kind == protocol.SessionKeyKindAgent && parsed.ChatType == protocol.RoomTypeDM &&
 			strings.TrimSpace(parsed.AgentID) == actor.AgentID &&
 			protocol.NormalizeStoredChannelType(parsed.Channel) != protocol.SessionChannelWebSocket &&
