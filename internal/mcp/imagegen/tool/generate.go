@@ -28,14 +28,14 @@ func generate(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 				return sdktool.ErrorResult(err), nil
 			}
 			result, payload, err := svc.GenerateImage(scopedToolContext(ctx, sctx), imagegensvc.GenerateInput{
-				Prompt:            stringArg(args, "prompt"),
+				Prompt:            sdktool.StringArg(args, "prompt"),
 				WorkspacePath:     workspacePath,
-				Size:              stringArg(args, "size"),
-				Quality:           stringArg(args, "quality"),
-				Background:        stringArg(args, "background"),
-				OutputFormat:      stringArg(args, "output_format"),
+				Size:              sdktool.StringArg(args, "size"),
+				Quality:           sdktool.StringArg(args, "quality"),
+				Background:        sdktool.StringArg(args, "background"),
+				OutputFormat:      sdktool.StringArg(args, "output_format"),
 				OutputCompression: intPointerArg(args, "output_compression"),
-				FileName:          stringArg(args, "file_name"),
+				FileName:          sdktool.StringArg(args, "file_name"),
 			})
 			if err != nil {
 				return sdktool.ErrorResult(err), nil

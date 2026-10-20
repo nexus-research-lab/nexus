@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 
@@ -105,7 +104,7 @@ func sendMessage(
 	args map[string]any,
 	callContext *sdktool.CallContext,
 ) (any, error) {
-	switch destination := stringArg(args, "destination"); destination {
+	switch destination := sdktool.StringArg(args, "destination"); destination {
 	case destinationContact:
 		if err := allowOnly(args, "destination", "target_id", "content"); err != nil {
 			return nil, err
@@ -116,7 +115,7 @@ func sendMessage(
 			return nil, err
 		}
 		if sctx.CurrentRoomAvailable &&
-			stringArg(args, "target_id") == strings.TrimSpace(sctx.Actor.RoomID) {
+			sdktool.StringArg(args, "target_id") == strings.TrimSpace(sctx.Actor.RoomID) {
 			return nil, errors.New("当前 Room 必须使用 destination=current_room")
 		}
 		return sendToAddressBook(ctx, svc, sctx.Actor, communicationsvc.TargetTypeRoom, args)
@@ -154,9 +153,9 @@ func sendToAddressBook(
 	}
 	return svc.SendMessage(ctx, actor, communicationsvc.SendRequest{
 		TargetType:     targetType,
-		TargetID:       stringArg(args, "target_id"),
-		ConversationID: stringArg(args, "conversation_id"),
-		Content:        stringArg(args, "content"),
+		TargetID:       sdktool.StringArg(args, "target_id"),
+		ConversationID: sdktool.StringArg(args, "conversation_id"),
+		Content:        sdktool.StringArg(args, "content"),
 	})
 }
 
@@ -173,7 +172,7 @@ func sendToCurrentRoom(
 	if err := requireRoomScope(sctx); err != nil {
 		return nil, err
 	}
-	switch stringArg(args, "visibility") {
+	switch sdktool.StringArg(args, "visibility") {
 	case visibilityPrivate:
 		if err := allowOnly(
 			args,
@@ -209,13 +208,13 @@ func sendPrivateRoomMessage(
 		SourceAgentRoundID: sctx.CurrentAgentRoundID,
 		RootRoundID:        sctx.Actor.RoundID,
 		CommandID:          commandID,
-		Recipients:         stringListArg(args, "recipients"),
-		WakeTargets:        stringListArg(args, "wake_targets"),
-		Content:            stringArg(args, "content"),
-		WakePolicy:         protocol.RoomWakePolicy(stringArg(args, "wake_policy")),
-		ReplyRoute:         roomReplyRouteArg(objectArg(args, "reply_route")),
-		DelaySeconds:       intArg(args, "delay_seconds"),
-		CorrelationID:      stringArg(args, "correlation_id"),
+		Recipients:         sdktool.StringListArg(args, "recipients"),
+		WakeTargets:        sdktool.StringListArg(args, "wake_targets"),
+		Content:            sdktool.StringArg(args, "content"),
+		WakePolicy:         protocol.RoomWakePolicy(sdktool.StringArg(args, "wake_policy")),
+		ReplyRoute:         roomReplyRouteArg(sdktool.ObjectArg(args, "reply_route")),
+		DelaySeconds:       sdktool.IntArg(args, "delay_seconds"),
+		CorrelationID:      sdktool.StringArg(args, "correlation_id"),
 		GoalCollaborationBinding: currentGoalCollaborationBinding(
 			sctx.Actor,
 		),
@@ -253,8 +252,8 @@ func sendPublicRoomMessage(
 			SourceAgentID:      sctx.Actor.AgentID,
 			SourceAgentRoundID: sctx.CurrentAgentRoundID,
 			RootRoundID:        sctx.Actor.RoundID,
-			Content:            stringArg(args, "content"),
-			CorrelationID:      stringArg(args, "correlation_id"),
+			Content:            sdktool.StringArg(args, "content"),
+			CorrelationID:      sdktool.StringArg(args, "correlation_id"),
 			GoalCollaborationBinding: currentGoalCollaborationBinding(
 				sctx.Actor,
 			),
@@ -333,11 +332,11 @@ func roomCommandID(
 
 func roomReplyRouteArg(raw map[string]any) protocol.RoomReplyRoute {
 	route := protocol.RoomReplyRoute{
-		Mode:       protocol.RoomReplyRouteMode(stringArg(raw, "mode")),
-		Recipients: stringListArg(raw, "recipients"),
-		WakePolicy: protocol.RoomWakePolicy(stringArg(raw, "wake_policy")),
+		Mode:       protocol.RoomReplyRouteMode(sdktool.StringArg(raw, "mode")),
+		Recipients: sdktool.StringListArg(raw, "recipients"),
+		WakePolicy: protocol.RoomWakePolicy(sdktool.StringArg(raw, "wake_policy")),
 	}
-	if next := objectArg(raw, "next_reply_route"); next != nil {
+	if next := sdktool.ObjectArg(raw, "next_reply_route"); next != nil {
 		nextRoute := roomReplyRouteArg(next)
 		route.NextReplyRoute = &nextRoute
 	}
@@ -490,68 +489,4 @@ func replyRouteSchema() map[string]any {
 		"required":             []string{"mode"},
 		"additionalProperties": false,
 	}
-}
-
-func stringArg(args map[string]any, key string) string {
-	if args == nil {
-		return ""
-	}
-	value, _ := args[key].(string)
-	return strings.TrimSpace(value)
-}
-
-func stringListArg(args map[string]any, key string) []string {
-	if args == nil {
-		return nil
-	}
-	raw, ok := args[key]
-	if !ok {
-		return nil
-	}
-	values := []string{}
-	switch typed := raw.(type) {
-	case []string:
-		values = typed
-	case []any:
-		for _, item := range typed {
-			if value, ok := item.(string); ok {
-				values = append(values, value)
-			}
-		}
-	}
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value != "" && !slices.Contains(result, value) {
-			result = append(result, value)
-		}
-	}
-	return result
-}
-
-func objectArg(args map[string]any, key string) map[string]any {
-	value, _ := args[key].(map[string]any)
-	return value
-}
-
-func intArg(args map[string]any, key string) int {
-	switch value := args[key].(type) {
-	case int:
-		return value
-	case int64:
-		return int(value)
-	case float64:
-		if math.Trunc(value) == value {
-			return int(value)
-		}
-	}
-	return 0
-}
-
-func jsonResult(value any) sdktool.ToolResult {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return sdktool.ErrorResult(err)
-	}
-	return sdktool.ToolResult{Content: []map[string]any{{"type": "text", "text": string(payload)}}}
 }

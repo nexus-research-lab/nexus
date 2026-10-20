@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 	"strings"
 
@@ -32,10 +31,6 @@ type App struct {
 
 func (a *App) SetArgs(args []string) {
 	a.command.SetArgs(args)
-}
-
-func (a *App) SetIn(reader io.Reader) {
-	a.command.SetIn(reader)
 }
 
 func (a *App) PersistentFlags() *pflag.FlagSet {

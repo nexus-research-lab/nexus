@@ -31,15 +31,15 @@ func edit(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 				return sdktool.ErrorResult(err), nil
 			}
 			result, payload, err := svc.EditImage(scopedToolContext(ctx, sctx), imagegensvc.EditInput{
-				Prompt:            stringArg(args, "prompt"),
+				Prompt:            sdktool.StringArg(args, "prompt"),
 				WorkspacePath:     workspacePath,
-				ImagePath:         stringArg(args, "image_path"),
-				MaskPath:          stringArg(args, "mask_path"),
-				Size:              stringArg(args, "size"),
-				Quality:           stringArg(args, "quality"),
-				OutputFormat:      stringArg(args, "output_format"),
+				ImagePath:         sdktool.StringArg(args, "image_path"),
+				MaskPath:          sdktool.StringArg(args, "mask_path"),
+				Size:              sdktool.StringArg(args, "size"),
+				Quality:           sdktool.StringArg(args, "quality"),
+				OutputFormat:      sdktool.StringArg(args, "output_format"),
 				OutputCompression: intPointerArg(args, "output_compression"),
-				FileName:          stringArg(args, "file_name"),
+				FileName:          sdktool.StringArg(args, "file_name"),
 			})
 			if err != nil {
 				return sdktool.ErrorResult(err), nil

@@ -32,12 +32,6 @@ import {
   type UiSearchInputVariant,
 } from "@/shared/ui/form/form-control-styles";
 
-export type {
-  UiFormControlSize,
-  UiFormControlTextRole,
-  UiFormControlVariant,
-  UiSearchInputVariant,
-} from "@/shared/ui/form/form-control-styles";
 
 interface UiFieldProps {
   children: ReactNode;

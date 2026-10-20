@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - registry.go：仅 owner-main 私有 DM 可见的 start/status/cancel action 适配。
-//   - schema.go / helpers.go：拒绝额外身份/秘密字段的参数与 JSON 结果。
+//   - schema.go / helpers.go：拒绝额外身份/秘密字段的 schema 与 request/ref 投影；参数解析复用 sdktool。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级 doc.go（L2）
 package tool
