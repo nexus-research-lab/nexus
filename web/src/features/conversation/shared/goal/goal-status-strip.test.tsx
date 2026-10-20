@@ -45,7 +45,7 @@ describe("GoalStatusStrip", () => {
     const leading = container.querySelector('span[aria-hidden="true"]');
     const objective = screen.getByText("统一前端组件规范");
     const panel = container.querySelector("section");
-    const usage = container.querySelector(".tabular-nums");
+    const usage = screen.getByText("2,500 tokens").parentElement;
 
     expect(panel?.className).toContain("conversation-activity-chip");
     expect(panel?.className).toContain("px-3");
