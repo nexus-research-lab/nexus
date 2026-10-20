@@ -133,8 +133,20 @@ submit_for_notarization() {
 
 staple_notarization_ticket() {
   local package_path="$1"
+  local attempts="${NEXUS_DESKTOP_STAPLE_ATTEMPTS:-6}"
+  local attempt=1
+  local output
   echo "==> Stapling notarization ticket: ${package_path}"
-  xcrun stapler staple "${package_path}" >/dev/null
+  # 公证刚 Accepted 时票据可能尚未同步到 Apple CDN，stapler 会失败（CI 上见过 exit 68）；退避重试。
+  until output="$(xcrun stapler staple "${package_path}" 2>&1)"; do
+    if ((attempt >= attempts)); then
+      echo "${output}" >&2
+      return 1
+    fi
+    echo "stapler attempt ${attempt}/${attempts} failed; retrying in $((attempt * 20))s" >&2
+    sleep $((attempt * 20))
+    attempt=$((attempt + 1))
+  done
   xcrun stapler validate "${package_path}" >/dev/null
 }
 
