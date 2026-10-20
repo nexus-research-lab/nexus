@@ -5,11 +5,14 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
@@ -22,8 +25,17 @@ var ErrOrganizationMemberInvalid = errors.New("目标用户不属于当前组织
 // ErrAgentOwnerInvalid 表示 Agent 不属于当前真人或当前组织。
 var ErrAgentOwnerInvalid = errors.New("目标 Agent 不属于当前真人")
 
+// relayUserTokenMargin 是缓存令牌剩余有效期的下限，避免转发到 Relay 时恰好过期。
+const relayUserTokenMargin = 15 * time.Second
+
+type cachedRelayUserToken struct {
+	localOwnerKey, sessionID, token string
+	expiresAt                       time.Time
+}
+
 // ExchangeRelayUserToken 用当前已验证的 Control 远程 Session 换取 Relay 短令牌。
 // audience 固定在 Nexus 内部，调用方不能改写 Relay 令牌用途。
+// 令牌按 Session 缓存到过期前；Control 身份失效事件会同步清掉对应缓存。
 func (a *ControlAuthority) ExchangeRelayUserToken(
 	ctx context.Context,
 	principal *Principal,
@@ -33,7 +45,33 @@ func (a *ControlAuthority) ExchangeRelayUserToken(
 	}
 	controlUserID := strings.TrimSpace(principal.ControlUserID)
 	sessionID := strings.TrimSpace(*principal.SessionID)
+	key := controlUserID + "\x00" + sessionID
+	now := a.verifier.now().UTC()
+	a.leaseMu.RLock()
+	cached, ok := a.relayTokens[key]
+	a.leaseMu.RUnlock()
+	if ok && now.Add(relayUserTokenMargin).Before(cached.expiresAt) {
+		return cached.token, nil
+	}
+	// 同一 Session 的并发未命中合并为一次 Control 往返；共享调用不随首个请求取消，由 HTTP 超时兜底。
+	flight := a.relayTokenFlights.DoChan(key, func() (any, error) {
+		return a.fetchRelayUserToken(context.WithoutCancel(ctx), principal.UserID, controlUserID, sessionID)
+	})
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case result := <-flight:
+		if result.Err != nil {
+			return "", result.Err
+		}
+		return result.Val.(string), nil
+	}
+}
 
+func (a *ControlAuthority) fetchRelayUserToken(ctx context.Context, localOwnerKey, controlUserID, sessionID string) (string, error) {
+	a.leaseMu.RLock()
+	epoch := a.relayTokenEpoch
+	a.leaseMu.RUnlock()
 	var response struct {
 		PrincipalToken string `json:"principal_token"`
 	}
@@ -48,7 +86,39 @@ func (a *ControlAuthority) ExchangeRelayUserToken(
 	if token == "" || len(token) > 16*1024 {
 		return "", errors.New("Control 返回的 Relay Principal token 无效")
 	}
+	// Relay 负责验签；这里只读 exp 决定缓存时长，解析失败或超出 Control 上限时不缓存。
+	now := a.verifier.now().UTC()
+	if expiresAt, ok := principalTokenExpiry(token); ok && expiresAt.Sub(now) <= 5*time.Minute {
+		a.leaseMu.Lock()
+		if epoch == a.relayTokenEpoch {
+			for id, item := range a.relayTokens {
+				if !now.Before(item.expiresAt) {
+					delete(a.relayTokens, id)
+				}
+			}
+			a.relayTokens[controlUserID+"\x00"+sessionID] = cachedRelayUserToken{localOwnerKey: localOwnerKey, sessionID: sessionID, token: token, expiresAt: expiresAt}
+		}
+		a.leaseMu.Unlock()
+	}
 	return token, nil
+}
+
+func principalTokenExpiry(token string) (time.Time, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, false
+	}
+	var claims struct {
+		ExpiresAt int64 `json:"exp"`
+	}
+	if json.Unmarshal(payload, &claims) != nil || claims.ExpiresAt <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(claims.ExpiresAt, 0).UTC(), true
 }
 
 // VerifyOrganizationMembers 让 Control 在建群前裁决所有真人成员的组织归属。

@@ -83,17 +83,25 @@ func (r *Repository) PrepareNodeJob(ctx context.Context, item NodeJob) (*NodeJob
 	return r.ActiveNodeJob(ctx, item.OwnerUserID, item.LocalAgentID)
 }
 
-// SaveNodeJob 和可选输出同事务提交。旧状态不能覆盖新终态或接管另一台机器的执行。
-func (r *Repository) SaveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput) error {
-	return r.saveNodeJob(ctx, item, from, output, nil)
+// SaveNodeJob 和可选输出同事务提交，提交成功后把输出序号与字节数写回 job。
+// 旧状态不能覆盖新终态或接管另一台机器的执行。
+func (r *Repository) SaveNodeJob(ctx context.Context, job *NodeJob, from string, output *relaycontract.DeliveryOutput) error {
+	return r.saveNodeJob(ctx, job, from, output, nil)
 }
 
-func (r *Repository) SaveNodeFiles(ctx context.Context, item NodeJob, files []NodeFile) error {
-	output := relaycontract.DeliveryOutput{LeaseID: item.Delivery.LeaseID, Kind: "assistant", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: ""}}}}
-	return r.saveNodeJob(ctx, item, "running", &output, files)
+func (r *Repository) SaveNodeFiles(ctx context.Context, job *NodeJob, files []NodeFile) error {
+	output := relaycontract.DeliveryOutput{LeaseID: job.Delivery.LeaseID, Kind: "assistant", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: ""}}}}
+	return r.saveNodeJob(ctx, job, "running", &output, files)
 }
 
-func (r *Repository) saveNodeJob(ctx context.Context, item NodeJob, from string, output *relaycontract.DeliveryOutput, files []NodeFile) error {
+// DiscardClaimingNodeJob 删除 Relay 明确无可领取投递的空 claim；已领取或执行过的记录不受影响。
+func (r *Repository) DiscardClaimingNodeJob(ctx context.Context, job NodeJob) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM team_node_jobs WHERE id=`+r.dialect.Bind(1)+` AND owner_user_id=`+r.dialect.Bind(2)+` AND node_id=`+r.dialect.Bind(3)+` AND state='claiming'`, job.ID, job.OwnerUserID, job.NodeID)
+	return err
+}
+
+func (r *Repository) saveNodeJob(ctx context.Context, job *NodeJob, from string, output *relaycontract.DeliveryOutput, files []NodeFile) error {
+	item := *job
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
 		item.CandidateExecution = nil
@@ -170,7 +178,11 @@ func (r *Repository) saveNodeJob(ctx context.Context, item NodeJob, from string,
 			return err
 		}
 	}
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	*job = item
+	return nil
 }
 
 func (r *Repository) NextNodeOutput(ctx context.Context, jobID string) (*NodeOutput, error) {

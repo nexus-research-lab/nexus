@@ -53,8 +53,7 @@
 
 - 非零同步游标和快照续页必须原样传递 Relay 返回的 `stream_epoch`；世代失配由 WSS `stream.reset_required` 或 difference 触发全量快照。
 - WSS 只转发提交水位；正文由 difference/snapshot 恢复。
-- 同一 deployment 的 Conversation/Message 和 `room_seq` 在 Nexus 原数据库只保存一份；各 owner 只保存独立 `relay_seq` 恢复游标；共享消息与当前 owner 游标在同一事务中提交。
-- Room 创建/列表、snapshot 与 difference 只有本地投影成功后才确认。
+- Relay 是在线 Room 与消息的唯一权威；Nexus 只做鉴权 gateway，不保存消息副本、`room_seq` 或同步游标（00158 删除旧投影表）。
 - Relay 已提交的 message mutation 保持成功；Browser 必须从原 cursor 走 difference 补齐后再推进。
 
 - 元数据轮询由 `web/src/features/team/use-team-refresh.ts` 统一管理；成员治理新快照回传聊天资源。
@@ -62,7 +61,7 @@
 - 发送前由 `features/team/team-message-outbox.ts` 按 Organization、Control User 与 Conversation 持久保存命令；不同窗口使用独立命令键；恢复不自动重发；快照按本人精确回执对账。
 - Room 明确撤权时立即清除聊天资源和连接。
 
-- 在线 Agent 完整回复把 `author_agent_id/delivery_id/output_kind` 保留到共享消息投影；`author_user_id` 只表示真人所有者。
+- 在线 Agent 完整回复由 Relay 消息携带 `author_agent_id/delivery_id/output_kind`；`author_user_id` 只表示真人所有者。
 - UI 只有 `author_type=user` 才进入本人消息与发件箱确认路径；Agent 显示独立成员身份。
 - Node 授权和投递租约属于 Control/Relay；`service/team/node_executor.go` 主动领取并复用 Room runtime，不能把 pending/leased 直接显示为执行成功。
 

@@ -37,14 +37,15 @@ func (h *Handlers) verifyOwnedAgents(writer http.ResponseWriter, request *http.R
 func (h *Handlers) HandleAddAgent(writer http.ResponseWriter, request *http.Request) {
 	var input relaycontract.AddRoomAgentInput
 	roomID, key, ok := h.membershipMutationInput(writer, request, &input)
-	if !ok || h.verifyOwnedAgents(writer, request, []string{input.AgentID}) != nil {
-		return
-	}
-	token, ok := h.exchangeToken(writer, request, true)
 	if !ok {
 		return
 	}
-	result, err := h.team.AddAgent(request.Context(), teamAccess(request, token), roomID, key, input)
+	// 先确认远程身份，未登录请求不应触达 Control 的归属校验。
+	token, ok := h.exchangeToken(writer, request, true)
+	if !ok || h.verifyOwnedAgents(writer, request, []string{input.AgentID}) != nil {
+		return
+	}
+	result, err := h.relay.AddAgent(request.Context(), token, roomID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -63,7 +64,7 @@ func (h *Handlers) HandleRemoveAgent(writer http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-	result, err := h.team.RemoveAgent(request.Context(), teamAccess(request, token), roomID, agentID, key, input)
+	result, err := h.relay.RemoveAgent(request.Context(), token, roomID, agentID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -82,7 +83,7 @@ func (h *Handlers) HandleUpdateAgent(writer http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-	result, err := h.team.UpdateAgent(request.Context(), teamAccess(request, token), roomID, agentID, key, input)
+	result, err := h.relay.UpdateAgent(request.Context(), token, roomID, agentID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -100,7 +101,7 @@ func (h *Handlers) HandleUpdateRoom(writer http.ResponseWriter, request *http.Re
 	if !ok {
 		return
 	}
-	result, err := h.team.UpdateRoom(request.Context(), teamAccess(request, token), roomID, key, input)
+	result, err := h.relay.UpdateRoom(request.Context(), token, roomID, key, input)
 	if err != nil {
 		h.writeRelayError(writer, request, err, true)
 		return
@@ -120,7 +121,7 @@ func (h *Handlers) HandleGetRoom(writer http.ResponseWriter, request *http.Reque
 	if !ok {
 		return
 	}
-	result, err := h.team.GetRoom(request.Context(), teamAccess(request, token), roomID)
+	result, err := h.relay.GetRoom(request.Context(), token, roomID)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
@@ -135,7 +136,7 @@ func (h *Handlers) HandleListInvitations(writer http.ResponseWriter, request *ht
 	if !ok {
 		return
 	}
-	result, err := h.team.ListInvitations(request.Context(), teamAccess(request, token))
+	result, err := h.relay.ListInvitations(request.Context(), token)
 	if err != nil {
 		h.writeRelayError(writer, request, err, false)
 		return
@@ -147,6 +148,10 @@ func (h *Handlers) HandleListInvitations(writer http.ResponseWriter, request *ht
 func (h *Handlers) HandleInviteMember(writer http.ResponseWriter, request *http.Request) {
 	var input relaycontract.InviteRoomMemberInput
 	roomID, key, ok := h.membershipMutationInput(writer, request, &input)
+	if !ok {
+		return
+	}
+	token, ok := h.exchangeToken(writer, request, true)
 	if !ok {
 		return
 	}
@@ -165,11 +170,7 @@ func (h *Handlers) HandleInviteMember(writer http.ResponseWriter, request *http.
 		})
 		return
 	}
-	token, ok := h.exchangeToken(writer, request, true)
-	if !ok {
-		return
-	}
-	result, err := h.team.InviteUser(request.Context(), teamAccess(request, token), roomID, key, input)
+	result, err := h.relay.InviteUser(request.Context(), token, roomID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -193,13 +194,12 @@ func (h *Handlers) resolveInvitation(writer http.ResponseWriter, request *http.R
 	if !ok {
 		return
 	}
-	access := teamAccess(request, token)
 	var result relaycontract.RoomMembershipMutation
 	var err error
 	if accept {
-		result, err = h.team.AcceptInvitation(request.Context(), access, roomID, key, input)
+		result, err = h.relay.AcceptInvitation(request.Context(), token, roomID, key, input)
 	} else {
-		result, err = h.team.RejectInvitation(request.Context(), access, roomID, key, input)
+		result, err = h.relay.RejectInvitation(request.Context(), token, roomID, key, input)
 	}
 	h.writeMembershipResult(writer, request, result, err)
 }
@@ -219,7 +219,7 @@ func (h *Handlers) HandleRevokeInvitation(writer http.ResponseWriter, request *h
 	if !ok {
 		return
 	}
-	result, err := h.team.RevokeInvitation(request.Context(), teamAccess(request, token), roomID, userID, key, input)
+	result, err := h.relay.RevokeInvitation(request.Context(), token, roomID, userID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -238,7 +238,7 @@ func (h *Handlers) HandleUpdateMember(writer http.ResponseWriter, request *http.
 	if !ok {
 		return
 	}
-	result, err := h.team.UpdateMember(request.Context(), teamAccess(request, token), roomID, userID, key, input)
+	result, err := h.relay.UpdateMember(request.Context(), token, roomID, userID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -253,7 +253,7 @@ func (h *Handlers) HandleTransferOwnership(writer http.ResponseWriter, request *
 	if !ok {
 		return
 	}
-	result, err := h.team.TransferOwnership(request.Context(), teamAccess(request, token), roomID, key, input)
+	result, err := h.relay.TransferOwnership(request.Context(), token, roomID, key, input)
 	h.writeMembershipResult(writer, request, result, err)
 }
 
@@ -299,7 +299,7 @@ func (h *Handlers) HandleRoomDeliveryStatuses(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	result, err := h.team.RoomDeliveryStatuses(r.Context(), teamAccess(r, token), roomID, ids)
+	result, err := h.relay.RoomDeliveryStatuses(r.Context(), token, roomID, ids)
 	if err != nil {
 		h.writeRelayError(w, r, err, false)
 		return
@@ -320,7 +320,7 @@ func (h *Handlers) HandleRoomMembers(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.team.RoomMembers(r.Context(), teamAccess(r, token), roomID, cursor, epoch, version)
+	result, err := h.relay.RoomMembers(r.Context(), token, roomID, cursor, epoch, version)
 	if err != nil {
 		h.writeRelayError(w, r, err, false)
 		return

@@ -39,7 +39,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   service/    - 业务服务；service/room 只持久化 Room，实时编排在 service/room/realtime；DM 与 Room realtime 共用的宿主依赖和阶段在 service/runtimehost
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器；team 是浏览器到可选多人服务的认证 gateway
-  relay/      - Relay 独立跨仓合同；service/relay 是客户端，service/team 负责远端结果与本地投影同步
+  relay/      - Relay 独立跨仓合同；service/relay 是客户端，service/team 负责本机节点登记与执行；handler/team 直连 Relay
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的投影
   echo/ automation/ - 主动跟进与定时任务领域模型
   mcp/        - 宿主自有工具统一挂在单一 `nexus` MCP server；`nexus.command` 承载 Goal/Execution/Automation/Subagent
@@ -57,7 +57,7 @@ docs/       - README.md 是索引；guides/ 面向用户与作者，operations/ 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，公钥镜像位于 `.nexus/control-public`，用户数据位于 `.nexus/users/<owner>/`。
 - 启动只把当前 canonical 布局作为运行时读写路径；历史数据只能经 `internal/migration` 中版本化、可重试、不提供旧路径回读的迁移进入 canonical 布局，迁移必须允许跨版本直接升级。
 - 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`。
-- 账号、组织、订阅与在线 Team 的权威位于 `nexus-control`/Relay，Nexus 只保存本地投影；细节见 `docs/specs/online-team-spec.md`。目录布局与隔离细节见 `docs/specs/workspace-isolation-spec.md`。
+- 账号、组织、订阅与在线 Team 的权威位于 `nexus-control`/Relay，Nexus 只保存身份与额度投影，不保存在线消息副本；细节见 `docs/specs/online-team-spec.md`。目录布局与隔离细节见 `docs/specs/workspace-isolation-spec.md`。
 
 ## 后端依赖方向
 
