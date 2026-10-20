@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 暂停 Room 成员不再卡满 10 秒：此前暂停在持有派发锁时等待该成员 slot 收尾，而 slot 收尾需要同一把锁，中断只能等到超时才返回并记录失败；现在在锁内持久化暂停闸门后先释放锁再中断，后续派发与输出仍由数据库中的暂停状态把关。
+
 ## [0.2.4] - 2026-10-20
 
 ### Changed
