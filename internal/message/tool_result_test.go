@@ -2,6 +2,7 @@ package message
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -102,6 +103,58 @@ func TestProcessorPreservesPermissionErrorCode(t *testing.T) {
 	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
 	if blocks[1]["error_code"] != "permission_request_timeout" {
 		t.Fatalf("error_code 未按协议保留: %+v", blocks[1])
+	}
+}
+
+func TestProcessorRedactsTransientComputerObservationFromDurableMessage(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:cua-redaction",
+		AgentID:    "nexus",
+		RoundID:    "round-cua-redaction",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{
+						ID:    "tool-observe",
+						Name:  "mcp__nexus__command",
+						Input: json.RawMessage(`{"domain":"computer","operation":"observe"}`),
+					},
+				},
+			},
+		},
+	})
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeUser,
+		User: &sdkprotocol.UserMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolResultBlock{
+						ToolUseID: "tool-observe",
+						Content:   json.RawMessage(`{"observation_id":"obs-1","elements":[{"name":"Secret"}],"image_data":"base64","image_mime":"image/png","window_ref":"window-1"}`),
+					},
+				},
+			},
+		},
+	})
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	encoded, err := json.Marshal(blocks[1]["content"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(encoded)
+	if strings.Contains(content, "base64") || strings.Contains(content, "Secret") ||
+		strings.Contains(content, "image_mime") || strings.Contains(content, `"elements"`) {
+		t.Fatalf("transient observation content leaked into durable message: %s", content)
+	}
+	if !strings.Contains(content, `"elements_count":1`) {
+		t.Fatalf("durable observation summary missing: %s", content)
+	}
+	metadata := mapValue(blocks[1]["metadata"])
+	if metadata["cua_transient_content_redacted"] != true {
+		t.Fatalf("redaction metadata missing: %#v", metadata)
 	}
 }
 

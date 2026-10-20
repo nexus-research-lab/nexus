@@ -1102,6 +1102,8 @@ export const enConversationMessages = {
   "message.tool_superseded_without_detail": "This stale task was replaced by a newer objective and does not need submission.",
   "message.tool_detail_loading": "Loading the complete tool result…",
   "message.tool_detail_error": "The complete tool result could not be loaded.",
+  "message.tool_detail_error_identity": "Tool result {tool} ({ref}) could not be loaded.",
+  "message.tool_detail_retry": "Retry",
   "message.image_detail_loading": "Loading image…",
   "message.tool_invocation_failed": "{tool} call failed",
   "message.tool_run_history": "Execution trace",

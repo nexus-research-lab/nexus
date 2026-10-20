@@ -14,6 +14,7 @@ import type {
 import { ImageBlock } from "../artifact/image/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
+import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import { getSessionMessageDetailApi } from "@/lib/api/conversation/session-api";
@@ -41,14 +42,23 @@ export function ToolBlockResult({
           </p>
         ) : null}
         {detail.error && detail.toolResult.content != null ? (
-          <p className="mb-1 text-xs text-(--destructive)">
-            {t("message.tool_detail_error")}
-          </p>
+          <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-(--destructive)">
+            <span>
+              {t("message.tool_detail_error_identity", {
+                tool: toolResult.tool_use_id,
+                ref: toolResult.detail_ref ?? "",
+              })}
+            </span>
+            <UiButton onClick={detail.retry} size="xs" variant="text">
+              {t("message.tool_detail_retry")}
+            </UiButton>
+          </div>
         ) : null}
         <ToolResultContentView
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           detailError={detail.error}
           detailLoading={detail.loading}
+          onRetry={detail.retry}
           toolResult={detail.toolResult}
           workspaceAgentId={workspaceAgentId}
         />
@@ -61,12 +71,14 @@ function ToolResultContentView({
   detailError,
   detailLoading,
   onOpenWorkspaceFile,
+  onRetry,
   toolResult,
   workspaceAgentId,
 }: {
   detailError: boolean;
   detailLoading: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
+  onRetry: () => void;
   toolResult: ToolResultContent;
   workspaceAgentId?: string | null;
 }) {
@@ -105,7 +117,19 @@ function ToolResultContentView({
     return <p className="text-xs text-(--text-muted)">{t("message.tool_detail_loading")}</p>;
   }
   if (detailError && toolResult.content == null) {
-    return <p className="text-xs text-(--destructive)">{t("message.tool_detail_error")}</p>;
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-(--destructive)">
+        <span>
+          {t("message.tool_detail_error_identity", {
+            tool: toolResult.tool_use_id,
+            ref: toolResult.detail_ref ?? "",
+          })}
+        </span>
+        <UiButton onClick={onRetry} size="xs" variant="text">
+          {t("message.tool_detail_retry")}
+        </UiButton>
+      </div>
+    );
   }
 
   const content = toolResult.content;
@@ -146,6 +170,7 @@ function ToolResultContentView({
 function useToolResultDetail(toolResult: ToolResultContent): {
   error: boolean;
   loading: boolean;
+  retry: () => void;
   toolResult: ToolResultContent;
 } {
   const detailRef = toolResult.detail_ref?.trim() ?? "";
@@ -156,6 +181,7 @@ function useToolResultDetail(toolResult: ToolResultContent): {
     key: string;
     loading: boolean;
   }>({ content: undefined, error: false, key: "", loading: false });
+  const [retryToken, setRetryToken] = useState(0);
   const key = JSON.stringify([sessionKey, detailRef]);
 
   useEffect(() => {
@@ -176,7 +202,7 @@ function useToolResultDetail(toolResult: ToolResultContent): {
         }
       });
     return () => controller.abort();
-  }, [detailRef, key, sessionKey]);
+  }, [detailRef, key, retryToken, sessionKey]);
 
   const current = state.key === key ? state : {
     content: undefined,
@@ -186,6 +212,7 @@ function useToolResultDetail(toolResult: ToolResultContent): {
   return {
     error: current.error,
     loading: current.loading,
+    retry: () => setRetryToken((value) => value + 1),
     toolResult: current.content === undefined
       ? toolResult
       : { ...toolResult, content: current.content },

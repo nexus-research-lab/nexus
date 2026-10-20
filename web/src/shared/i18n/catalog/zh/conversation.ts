@@ -1099,6 +1099,8 @@ export const zhConversationMessages = {
   "message.tool_superseded_without_detail": "旧任务已被新目标替换，无需继续提交。",
   "message.tool_detail_loading": "正在加载完整工具结果…",
   "message.tool_detail_error": "完整工具结果加载失败。",
+  "message.tool_detail_error_identity": "工具结果 {tool}（{ref}）加载失败。",
+  "message.tool_detail_retry": "重试",
   "message.image_detail_loading": "图片加载中…",
   "message.tool_invocation_failed": "{tool} 调用失败",
   "message.tool_run_history": "执行过程",
