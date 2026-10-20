@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-20
+
 ### Changed
 
 - 借鉴 Claude 设计系统打磨基础组件：surface 按钮与选中态选项去掉彩色描边，只用填色表达层级；按钮与选项按下时轻微缩放并以弹簧曲线回弹；Disclosure 展开改为 Grid 高度过渡（对话流内保持瞬时）；活动状态切换阶段时淡入交接；骨架屏改为斜向扫光；附件与文件卡的长文件名保留扩展名；嵌套弹窗时父弹窗轻微虚化；时间、计数等元数据统一等宽数字。
