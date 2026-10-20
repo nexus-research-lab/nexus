@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 )
 
@@ -73,5 +74,24 @@ func TestComputerOperationContractIsClosedAndStable(t *testing.T) {
 	properties, ok := contract.Operations[0].InputSchema["properties"].(map[string]any)
 	if !ok || properties["kind"] == nil {
 		t.Fatalf("perform_action schema has no kind property: %#v", contract.Operations[0].InputSchema)
+	}
+}
+
+func TestRejectedPreservesCUARecoveryFields(t *testing.T) {
+	recovery := "retry_with_same_request_id"
+	result := rejected(&nexuscua.CUAError{
+		Code:           nexuscua.ErrorInternal,
+		Message:        "mutation outcome is unknown",
+		MutationStatus: nexuscua.MutationIndeterminate,
+		RecoveryAction: &recovery,
+	})
+	if result.StructuredContent["error_code"] != nexuscua.ErrorInternal {
+		t.Fatalf("error_code = %#v", result.StructuredContent["error_code"])
+	}
+	if result.StructuredContent["mutation_status"] != nexuscua.MutationIndeterminate {
+		t.Fatalf("mutation_status = %#v", result.StructuredContent["mutation_status"])
+	}
+	if result.StructuredContent["recovery_action"] != recovery {
+		t.Fatalf("recovery_action = %#v", result.StructuredContent["recovery_action"])
 	}
 }

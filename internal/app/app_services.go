@@ -233,6 +233,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		browserService.SetLogger(logger.With("component", "browser"))
 	}
 	computerUseService := computerusesvc.NewService(cfg)
+	computerUseService.SetLogger(logger.With("component", "computer-use"))
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	projectPermissionService := projectpermissionsvc.NewService(cfg)

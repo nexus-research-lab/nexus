@@ -308,6 +308,27 @@ func TestObserveAcceptsWindowRefReturnedByListWindows(t *testing.T) {
 	}
 }
 
+func TestActionViewPreservesEffectEvidenceAndForegroundRestoration(t *testing.T) {
+	value := nexuscua.ActionOutput{
+		DeliveryMode:           nexuscua.DeliveryForeground,
+		Dispatched:             true,
+		EffectStatus:           nexuscua.ActionEffectConfirmed,
+		EvidenceKind:           nexuscua.ActionEvidenceNativeReadback,
+		ForegroundRestoration:  nexuscua.ForegroundRestorationRestored,
+		ObservationInvalidated: true,
+	}
+	got := actionView(value).Data
+	for key, want := range map[string]any{
+		"effect_status":          value.EffectStatus,
+		"evidence_kind":          value.EvidenceKind,
+		"foreground_restoration": value.ForegroundRestoration,
+	} {
+		if got[key] != want {
+			t.Fatalf("%s = %#v, want %#v", key, got[key], want)
+		}
+	}
+}
+
 func TestActionApprovalRequiredOnlyForNewMutation(t *testing.T) {
 	service, client, _ := newFakeService(t)
 	round := prepareRound(t, service)

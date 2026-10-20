@@ -45,6 +45,15 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   retarget_goal: "调整 Goal 目标",
   audit_objective_alignment: "审计 Goal 对齐",
   update_goal: "更新 Goal 状态",
+  computer_contract: "读取电脑操控契约",
+  get_computer: "读取电脑操控状态",
+  list_applications: "列出应用",
+  select_target: "选择应用",
+  list_windows: "列出窗口",
+  observe: "观察窗口",
+  perform_action: "操作电脑",
+  verify_state: "验证状态",
+  close_target: "关闭目标",
 };
 
 const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
@@ -81,6 +90,15 @@ const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
   retarget_goal: "message.tool_goal_retarget",
   audit_objective_alignment: "message.tool_goal_audit_alignment",
   update_goal: "message.tool_goal_update",
+  get_computer: "message.tool_computer_get",
+  computer_contract: "message.tool_computer_contract",
+  list_applications: "message.tool_computer_list_applications",
+  select_target: "message.tool_computer_select_target",
+  list_windows: "message.tool_computer_list_windows",
+  observe: "message.tool_computer_observe",
+  perform_action: "message.tool_computer_perform_action",
+  verify_state: "message.tool_computer_verify_state",
+  close_target: "message.tool_computer_close_target",
 };
 
 const INPUT_SUMMARY_KEYS = [
@@ -189,7 +207,9 @@ export function getSemanticToolName(toolName: string, input?: unknown): string {
       return `${domain}_contract`;
     }
     if (action === "inspect") {
-      return domain === "goal" ? "get_goal" : "get_execution";
+      if (domain === "goal") return "get_goal";
+      if (domain === "computer") return "get_computer";
+      return "get_execution";
     }
     return operation ?? toolName;
   }
@@ -217,7 +237,7 @@ export function getSemanticToolName(toolName: string, input?: unknown): string {
 function isRuntimeCommandInput(record: Record<string, unknown> | null): record is Record<string, unknown> {
   const domain = getStringField(record, "domain");
   const action = getStringField(record, "action");
-  return (domain === "automation" || domain === "goal" || domain === "execution") &&
+  return (domain === "automation" || domain === "goal" || domain === "execution" || domain === "computer") &&
     action !== null;
 }
 

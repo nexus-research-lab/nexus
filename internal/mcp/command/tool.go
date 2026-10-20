@@ -137,7 +137,7 @@ func errorResult(err error) sdktool.ToolResult {
 	}
 }
 
-// HandleSemantic 执行 contract/inspect/invoke，并为成功的 mutation 记录可信回执。
+// HandleSemantic 执行 contract/inspect/invoke，并为每次 invoke 记录可信回执。
 func HandleSemantic(
 	ctx context.Context,
 	actor Actor,
@@ -178,9 +178,16 @@ func HandleSemantic(
 			RequestID: request.RequestID,
 			SessionID: actor.Round.CommandContext.CurrentSDKSessionID(),
 		})
-		if err == nil {
-			recordReceipt(actor, request.RequestID, domain, operation.Name, request.Input, result)
+		if err != nil {
+			result = Result{
+				StructuredContent: map[string]any{
+					"outcome": "rejected",
+					"message": err.Error(),
+				},
+				IsError: true,
+			}
 		}
+		recordReceipt(actor, request.RequestID, domain, operation.Name, request.Input, result)
 		return result, err
 	default:
 		return nil, fmt.Errorf("%s 只支持 contract、inspect、invoke", domain)
@@ -199,7 +206,7 @@ func recordReceipt(
 	input map[string]any,
 	result Result,
 ) {
-	if result.IsError || actor.Round.CommandReceipts == nil {
+	if actor.Round.CommandReceipts == nil {
 		return
 	}
 	receipt := nexusmcp.CommandReceipt{
@@ -209,6 +216,9 @@ func recordReceipt(
 		receipt.Outcome = stringValue(result.StructuredContent["outcome"])
 		receipt.Message = stringValue(result.StructuredContent["message"])
 		receipt.ReasonCode = stringValue(result.StructuredContent["reason_code"])
+		receipt.ErrorCode = stringValue(result.StructuredContent["error_code"])
+		receipt.MutationStatus = stringValue(result.StructuredContent["mutation_status"])
+		receipt.RecoveryAction = stringValue(result.StructuredContent["recovery_action"])
 		receipt.ExecutionID = stringValue(result.StructuredContent["execution_id"])
 		receipt.Changed = stringSliceValue(result.StructuredContent["changed"])
 		receipt.SnapshotRevision = int64Value(result.StructuredContent["snapshot_revision"])

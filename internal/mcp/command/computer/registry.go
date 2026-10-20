@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	"github.com/nexus-research-lab/nexus/internal/service/computeruse"
 )
@@ -534,9 +535,18 @@ func rejected(err error) command.Result {
 	if err != nil && strings.TrimSpace(err.Error()) != "" {
 		message = err.Error()
 	}
+	data := map[string]any{"outcome": "rejected", "message": message}
+	var cuaErr *nexuscua.CUAError
+	if errors.As(err, &cuaErr) {
+		data["error_code"] = cuaErr.Code
+		data["mutation_status"] = cuaErr.MutationStatus
+		if cuaErr.RecoveryAction != nil {
+			data["recovery_action"] = *cuaErr.RecoveryAction
+		}
+	}
 	return command.Result{
 		Content:           []map[string]any{{"type": "text", "text": message}},
-		StructuredContent: map[string]any{"outcome": "rejected", "message": message},
+		StructuredContent: data,
 		IsError:           true,
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -113,6 +114,14 @@ func NewService(cfg config.Config) *Service {
 // verified sidecar lifecycle.
 func NewServiceWithSupervisor(enabled bool, supervisor Supervisor) *Service {
 	return &Service{enabled: enabled, supervisor: supervisor, rounds: make(map[string]*Round)}
+}
+
+// SetLogger supplies the host logger used for bounded sidecar lifecycle
+// diagnostics. Raw sidecar output is never emitted.
+func (s *Service) SetLogger(logger *slog.Logger) {
+	if configured, ok := s.supervisor.(interface{ SetLogger(*slog.Logger) }); ok {
+		configured.SetLogger(logger)
+	}
 }
 
 // Install downloads and verifies the latest nexus-cua GitHub Release, then
@@ -1033,7 +1042,11 @@ func observationView(value nexuscua.WindowObservation) map[string]any {
 
 func actionView(value nexuscua.ActionOutput) ActionResult {
 	return ActionResult{Data: map[string]any{
-		"delivery_mode": value.DeliveryMode, "dispatched": value.Dispatched,
+		"delivery_mode":           value.DeliveryMode,
+		"dispatched":              value.Dispatched,
+		"effect_status":           value.EffectStatus,
+		"evidence_kind":           value.EvidenceKind,
+		"foreground_restoration":  value.ForegroundRestoration,
 		"observation_invalidated": value.ObservationInvalidated,
 	}}
 }
@@ -1163,12 +1176,41 @@ type ProcessSupervisor struct {
 	process    *managedProcess
 	client     Client
 	factory    Factory
+	logger     *slog.Logger
 }
 
 type managedProcess struct {
-	cmd  *exec.Cmd
-	done chan struct{}
-	err  error
+	cmd         *exec.Cmd
+	done        chan struct{}
+	err         error
+	stdoutStats *sidecarOutputStats
+	stderrStats *sidecarOutputStats
+}
+
+// sidecarOutputStats records only bounded counters. Sidecar output may contain
+// driver or application data and must never be copied into Nexus logs.
+type sidecarOutputStats struct {
+	mu    sync.Mutex
+	bytes int64
+	lines int64
+}
+
+func (s *sidecarOutputStats) Write(value []byte) (int, error) {
+	s.mu.Lock()
+	s.bytes += int64(len(value))
+	for _, char := range value {
+		if char == '\n' {
+			s.lines++
+		}
+	}
+	s.mu.Unlock()
+	return len(value), nil
+}
+
+func (s *sidecarOutputStats) snapshot() (int64, int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.bytes, s.lines
 }
 
 func NewProcessSupervisor(cfg config.Config) *ProcessSupervisor {
@@ -1201,7 +1243,17 @@ func NewProcessSupervisorWithBinaryPath(cfg config.Config, binaryPath string) *P
 		factory: func(value nexuscua.Config) (Client, error) {
 			return nexuscua.NewClient(value)
 		},
+		logger: slog.Default(),
 	}
+}
+
+func (s *ProcessSupervisor) SetLogger(logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	s.mu.Lock()
+	s.logger = logger
+	s.mu.Unlock()
 }
 
 // SetBinaryPath changes the executable used by the next sidecar epoch. The
@@ -1300,19 +1352,28 @@ func (s *ProcessSupervisor) Start(ctx context.Context) (Client, error) {
 		return nil, err
 	}
 	cmd := exec.Command(binaryPath, "serve", "--endpoint", endpoint, "--token-file", tokenFile, "--artifact-root", artifactRoot)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+	stdoutStats := &sidecarOutputStats{}
+	stderrStats := &sidecarOutputStats{}
+	cmd.Stdout = stdoutStats
+	cmd.Stderr = stderrStats
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	process := &managedProcess{cmd: cmd, done: make(chan struct{})}
+	process := &managedProcess{
+		cmd: cmd, done: make(chan struct{}),
+		stdoutStats: stdoutStats, stderrStats: stderrStats,
+	}
 	s.mu.Lock()
 	s.process = process
 	s.client = nil
 	s.endpoint = endpoint
 	s.tokenFile = tokenFile
 	s.artifact = artifactRoot
+	logger := s.logger
 	s.mu.Unlock()
+	if logger != nil {
+		logger.InfoContext(ctx, "Computer Use sidecar started")
+	}
 	go s.waitProcess(process)
 	client, err := factory(nexuscua.Config{Endpoint: endpoint, TokenFile: tokenFile})
 	if err != nil {
@@ -1377,6 +1438,7 @@ func (s *ProcessSupervisor) waitProcess(process *managedProcess) {
 	err := process.cmd.Wait()
 	s.mu.Lock()
 	process.err = normalizeProcessExit(err)
+	logger := s.logger
 	if s.process == process {
 		s.process = nil
 		s.client = nil
@@ -1384,6 +1446,17 @@ func (s *ProcessSupervisor) waitProcess(process *managedProcess) {
 	}
 	close(process.done)
 	s.mu.Unlock()
+	if logger != nil {
+		stdoutBytes, stdoutLines := process.stdoutStats.snapshot()
+		stderrBytes, stderrLines := process.stderrStats.snapshot()
+		logger.Warn("Computer Use sidecar exited",
+			"error", process.err,
+			"stdout_bytes", stdoutBytes,
+			"stdout_lines", stdoutLines,
+			"stderr_bytes", stderrBytes,
+			"stderr_lines", stderrLines,
+		)
+	}
 }
 
 func (s *ProcessSupervisor) stopManagedProcess(ctx context.Context, process *managedProcess) error {
