@@ -528,7 +528,14 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	r.mu.Unlock()
 	if old != "" {
 		if err := r.client.CloseSession(ctx, old, defaultCommandTimeout); err != nil {
-			return nil, fmt.Errorf("关闭旧 Computer Use session: %w", err)
+			// The runtime may have expired/reaped the session already.  Treat
+			// that as a successful local cleanup and continue opening the fresh
+			// target session; otherwise every retry keeps attempting to close the
+			// same dead opaque session forever.
+			if !isSessionUnavailable(err) {
+				return nil, fmt.Errorf("关闭旧 Computer Use session: %w", err)
+			}
+			r.invalidateSession()
 		}
 	}
 	r.mu.Lock()
@@ -559,6 +566,39 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	}, nil
 }
 
+// ListWindows exposes only the selected application's current top-level
+// window summaries. It deliberately runs before observe so callers can obtain
+// an exact title/ref when an application owns multiple windows.
+func (r *Round) ListWindows(ctx context.Context) (map[string]any, error) {
+	r.mu.Lock()
+	if err := r.ensureOpenLocked(); err != nil {
+		r.mu.Unlock()
+		return nil, err
+	}
+	if r.sessionID == "" || r.application == nil {
+		r.mu.Unlock()
+		return nil, ErrNoTarget
+	}
+	sessionID := r.sessionID
+	r.mu.Unlock()
+	windows, err := r.client.ListWindows(ctx, sessionID, nil, defaultCommandTimeout)
+	if err != nil {
+		r.handleSessionError(err)
+		return nil, err
+	}
+	values := make([]map[string]any, 0, len(windows))
+	for _, window := range windows {
+		values = append(values, map[string]any{
+			"window_ref": window.WindowRef,
+			"title":      window.Title,
+			"visible":    window.Visible,
+			"foreground": window.Foreground,
+			"minimized":  window.Minimized,
+		})
+	}
+	return map[string]any{"windows": values}, nil
+}
+
 type ObserveInput struct {
 	WindowSelector    string
 	IncludeScreenshot bool
@@ -586,13 +626,14 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 	r.mu.Unlock()
 	windows, err := r.client.ListWindows(ctx, sessionID, nil, defaultCommandTimeout)
 	if err != nil {
+		r.handleSessionError(err)
 		return Observation{}, err
 	}
 	var window *nexuscua.WindowSummary
 	if selector == "" && len(windows) == 1 {
 		window = &windows[0]
 	} else {
-		window, err = nexuscua.SelectWindow(windows, selector)
+		window, err = selectWindowByRefOrTitle(windows, selector)
 		if err != nil {
 			return Observation{}, err
 		}
@@ -606,6 +647,7 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 		IncludeScreenshot: input.IncludeScreenshot, Accessibility: accessibility,
 	}, defaultCommandTimeout)
 	if err != nil {
+		r.handleSessionError(err)
 		return Observation{}, err
 	}
 	r.mu.Lock()
@@ -634,6 +676,22 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 		}
 	}
 	return result, nil
+}
+
+func selectWindowByRefOrTitle(windows []nexuscua.WindowSummary, selector string) (*nexuscua.WindowSummary, error) {
+	matches := make([]int, 0, 1)
+	for index := range windows {
+		if string(windows[index].WindowRef) == selector {
+			matches = append(matches, index)
+		}
+	}
+	if len(matches) == 1 {
+		return &windows[matches[0]], nil
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("nexus-cua: window ref %q has %d matches", selector, len(matches))
+	}
+	return nexuscua.SelectWindow(windows, selector)
 }
 
 type ActionInput struct {
@@ -690,6 +748,7 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 		r.mu.Unlock()
 		output, err := r.client.ReconcileAction(ctx, pending, defaultCommandTimeout)
 		if err != nil {
+			r.handleSessionError(err)
 			return ActionResult{}, err
 		}
 		result := actionView(output)
@@ -737,6 +796,7 @@ func (r *Round) performAction(ctx context.Context, requestID string, input Actio
 			r.pending[requestID] = actionRequest
 			r.mu.Unlock()
 		}
+		r.handleSessionError(err)
 		return ActionResult{}, err
 	}
 	result := actionView(output)
@@ -820,6 +880,7 @@ func (r *Round) VerifyState(ctx context.Context, predicate map[string]any) (map[
 	}
 	value, err := r.client.VerifyState(ctx, nexuscua.VerifyStateInput{SessionID: sessionID, WindowRef: windowRef, Predicate: parsed}, defaultCommandTimeout)
 	if err != nil {
+		r.handleSessionError(err)
 		return nil, err
 	}
 	return map[string]any{"matched": value.Matched, "evidence": value.Evidence}, nil
@@ -846,7 +907,11 @@ func (r *Round) Close(ctx context.Context) error {
 	if sessionID == "" {
 		return nil
 	}
-	return r.client.CloseSession(ctx, sessionID, defaultCommandTimeout)
+	err := r.client.CloseSession(ctx, sessionID, defaultCommandTimeout)
+	if isSessionUnavailable(err) {
+		return nil
+	}
+	return err
 }
 
 func (r *Round) HasSession() bool {
@@ -863,6 +928,34 @@ func (r *Round) ensureOpenLocked() error {
 		return ErrNotReady
 	}
 	return nil
+}
+
+// invalidateSession drops all runtime-owned opaque references while keeping
+// the host round reusable. A runtime session can disappear independently due
+// to TTL expiry, sidecar restart, or an application-generation change. The
+// old session must never remain visible as active, and a later select_target
+// must be able to open a new one.
+func (r *Round) invalidateSession() {
+	r.mu.Lock()
+	r.sessionID = ""
+	r.application = nil
+	r.window = nil
+	r.observationID = ""
+	r.pending = make(map[string]*nexuscua.ActionRequest)
+	r.completed = make(map[string]ActionResult)
+	r.completedIDs = nil
+	r.mu.Unlock()
+}
+
+func (r *Round) handleSessionError(err error) {
+	if isSessionUnavailable(err) {
+		r.invalidateSession()
+	}
+}
+
+func isSessionUnavailable(err error) bool {
+	var cuaErr *nexuscua.CUAError
+	return errors.As(err, &cuaErr) && cuaErr.Code == nexuscua.ErrorSessionUnavailable
 }
 
 func (r *Round) readArtifact(path string) (string, string, error) {

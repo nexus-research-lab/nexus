@@ -35,7 +35,8 @@ cargo run --locked --package nexus-cua -- doctor
 
 macOS 需要由运行 sidecar 的稳定应用身份取得 `Screen Recording`、`Accessibility`
 和前台输入对应的系统授权。`doctor` 返回的三类 permission state 是当前事实；
-没有授权时不要通过其他工具绕过。
+没有授权时不要通过其他工具绕过。设置页会分别展示三项权限，用户点击某一项的「开启」
+按钮后进入对应系统设置页面；返回 Nexus 后页面会自动复查。
 
 默认关闭。Nexus 启动时不会启动 sidecar；本轮第一次调用 `computer` domain 时，
 它才会检查普通可执行文件、创建私有 endpoint/token/artifact root 并等待协议就绪。
@@ -47,10 +48,11 @@ macOS 需要由运行 sidecar 的稳定应用身份取得 `Screen Recording`、`
 
 1. `computer` `inspect` 读取 capabilities 和 permission state；
 2. `list_applications` 后用精确名称或 application id `select_target`；
-3. 每次动作前 `observe`，只使用最新的 window/element/observation refs；
-4. `perform_action` 每次等待当前 runtime session 的一次性真人批准；
-5. 动作后重新 `observe`，必要时 `verify_state`；
-6. 结束时 `close_target`。
+3. 多窗口应用先调用 `list_windows`，再把返回的 `window_ref` 或精确标题传给 `observe`；单窗口应用可直接 `observe`；
+4. 每次动作前 `observe`，只使用最新的 window/element/observation refs；
+5. `perform_action` 每次等待当前 runtime session 的一次性真人批准；
+6. 动作后重新 `observe`，必要时 `verify_state`；
+7. 结束时 `close_target`。
 
 动作结果未知时复用同一个顶层 `request_id` 对账，不能换 ID 重放。sidecar 崩溃或
 owner 切换会使当前 round 的 session、observation、element ref 和 pending mutation

@@ -61,10 +61,32 @@ func buildAll(service Service, owner, roundID, sessionKey string, permissions Pe
 		r.getComputer(),
 		r.listApplications(),
 		r.selectTarget(),
+		r.listWindows(),
 		r.observe(),
 		r.performAction(),
 		r.verifyState(),
 		r.closeTarget(),
+	}
+}
+
+func (r registry) listWindows() command.Operation {
+	return command.Operation{
+		Name:        "list_windows",
+		Description: "List the selected application's exact top-level windows and stable titles before observe; use window_ref or title as observe.window_selector when more than one window exists.",
+		SearchHint:  "computer list windows target window title 窗口 标题",
+		InputSchema: objectSchema(nil),
+		ReadOnly:    true,
+		ContextHandler: func(ctx context.Context, _ map[string]any, _ *command.CallContext) (command.Result, error) {
+			round, err := r.round(ctx)
+			if err != nil {
+				return rejected(err), nil
+			}
+			value, err := round.ListWindows(ctx)
+			if err != nil {
+				return rejected(err), nil
+			}
+			return structured(value), nil
+		},
 	}
 }
 

@@ -56,6 +56,8 @@ type fakeClient struct {
 	performCalls   int
 	reconcileCalls int
 	closeCalls     int
+	closeErr       error
+	listWindowsErr error
 	indeterminate  bool
 	observation    nexuscua.WindowObservation
 }
@@ -91,7 +93,7 @@ func (c *fakeClient) OpenSession(context.Context, nexuscua.OpenSessionInput, tim
 
 func (c *fakeClient) CloseSession(context.Context, nexuscua.SessionID, time.Duration) error {
 	c.closeCalls++
-	return nil
+	return c.closeErr
 }
 
 func (c *fakeClient) ListApps(context.Context, nexuscua.SessionID, time.Duration) ([]nexuscua.ApplicationSummary, error) {
@@ -99,6 +101,9 @@ func (c *fakeClient) ListApps(context.Context, nexuscua.SessionID, time.Duration
 }
 
 func (c *fakeClient) ListWindows(context.Context, nexuscua.SessionID, *nexuscua.AppRef, time.Duration) ([]nexuscua.WindowSummary, error) {
+	if c.listWindowsErr != nil {
+		return nil, c.listWindowsErr
+	}
 	return []nexuscua.WindowSummary{{WindowRef: "window-1", Title: "Fixture", Visible: true}}, nil
 }
 
@@ -261,6 +266,45 @@ func TestServiceReplacesRoundsAfterSupervisorRestart(t *testing.T) {
 	}
 	if supervisor.starts != 2 {
 		t.Fatalf("sidecar starts = %d, want two epochs", supervisor.starts)
+	}
+}
+
+func TestSelectTargetRecoversWhenOldRuntimeSessionAlreadyExpired(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round := prepareRound(t, service)
+	client.closeErr = &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable, Message: "expired"}
+
+	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+		t.Fatalf("SelectTarget after expired session = %v", err)
+	}
+	if !round.HasSession() {
+		t.Fatal("SelectTarget did not establish a replacement session")
+	}
+}
+
+func TestSessionUnavailableClearsRoundState(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round := prepareRound(t, service)
+	client.listWindowsErr = &nexuscua.CUAError{Code: nexuscua.ErrorSessionUnavailable, Message: "expired"}
+	if _, err := round.Observe(context.Background(), ObserveInput{}); err == nil {
+		t.Fatal("Observe unexpectedly succeeded")
+	}
+	if round.HasSession() {
+		t.Fatal("expired runtime session remained visible as active")
+	}
+}
+
+func TestObserveAcceptsWindowRefReturnedByListWindows(t *testing.T) {
+	service, _, _ := newFakeService(t)
+	round, err := service.Round(context.Background(), "owner-a", "round-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := round.SelectTarget(context.Background(), "Fixture"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := round.Observe(context.Background(), ObserveInput{WindowSelector: "window-1"}); err != nil {
+		t.Fatalf("Observe by listed window_ref = %v", err)
 	}
 }
 

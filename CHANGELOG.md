@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Computer Use `observe` 无法识别 `list_windows` 返回的
+  `window_ref`，现在优先按精确 ref 选择，再按精确标题或唯一标题片段选择。
+- 修复 CUA 权限引导只打开固定页面且缺少结果反馈的问题：设置页显示三项权限的实时状态，每项单独提供开启入口，返回 Nexus 后自动复查。
 - 修复 macOS 系统升级重编卷设备号后，pending scratch 恢复记录因身份严格比对 device 字段而永久阻塞启动；身份核验改为只要求 inode、generation 与 birth time 一致，device 保留为诊断字段。
 - 修复 macOS 桌面 sidecar 固定占用单一端口导致 CUA 特性包与已有 Nexus 实例冲突；首选端口被占用时自动选择受限的本机回退端口。
 - 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
