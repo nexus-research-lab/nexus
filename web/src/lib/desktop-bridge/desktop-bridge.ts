@@ -89,7 +89,13 @@ export interface DesktopBrowserExtensionSetupResult {
 
 export interface DesktopComputerUsePermissionSetupResult {
   opened: boolean;
+  permission?: "screen_capture" | "accessibility" | "input_control";
 }
+
+export type DesktopComputerUsePermission =
+  | "screen_capture"
+  | "accessibility"
+  | "input_control";
 
 interface NativeDesktopBridge {
   invoke<TPayload, TResult>(message: DesktopBridgeRequest<TPayload>): Promise<TResult>;
@@ -156,11 +162,16 @@ export async function startDesktopBrowserExtensionSetup(): Promise<DesktopBrowse
   );
 }
 
-/** 打开 macOS 系统设置的隐私面板，引导用户手动授予屏幕录制等权限；宿主不代为授权。 */
-export async function startDesktopComputerUsePermissionSetup(): Promise<DesktopComputerUsePermissionSetupResult> {
-  return invokeDesktopBridge<Record<string, never>, DesktopComputerUsePermissionSetupResult>(
+/** 打开当前 macOS 权限的隐私面板；授权必须由用户手动完成，宿主不代为授权。 */
+export async function startDesktopComputerUsePermissionSetup(
+  permission: DesktopComputerUsePermission = "screen_capture",
+): Promise<DesktopComputerUsePermissionSetupResult> {
+  return invokeDesktopBridge<
+    { permission: DesktopComputerUsePermission },
+    DesktopComputerUsePermissionSetupResult
+  >(
     "app.start_computer_use_permission_setup",
-    {},
+    { permission },
   );
 }
 

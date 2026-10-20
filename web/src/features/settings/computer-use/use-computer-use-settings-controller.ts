@@ -11,18 +11,52 @@ import {
   installComputerUseApi,
   setComputerUseEnabledApi,
 } from "@/lib/api/settings/runtime-api";
-import { startDesktopComputerUsePermissionSetup } from "@/lib/desktop-bridge/desktop-bridge";
-import type { CUAInstallationStatus } from "@/types/settings/preferences";
+import {
+  startDesktopComputerUsePermissionSetup,
+  type DesktopComputerUsePermission,
+} from "@/lib/desktop-bridge/desktop-bridge";
+import type {
+  CUAInstallationPermissionKey,
+  CUAInstallationStatus,
+} from "@/types/settings/preferences";
+
+const PERMISSION_ORDER: readonly CUAInstallationPermissionKey[] = [
+  "screen_capture",
+  "accessibility",
+  "input_control",
+];
+
+function nextMissingPermission(status: CUAInstallationStatus | null): CUAInstallationPermissionKey | null {
+  if (!status?.enabled) return null;
+  const permissions = status.permissions;
+  if (!permissions) return "screen_capture";
+  return PERMISSION_ORDER.find((permission) => {
+    const state = permissions[permission];
+    return state !== "granted" && state !== "not_applicable";
+  }) ?? null;
+}
 
 export function useComputerUseSettingsController() {
   const [status, setStatus] = useState<CUAInstallationStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const requestInFlight = useRef(false);
+  const permissionSetupPending = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
-      setStatus(await getComputerUseStatusApi());
+      const next = await getComputerUseStatusApi();
+      if (next.enabled) {
+        try {
+          setStatus(await checkComputerUsePermissionsApi());
+        } catch {
+          setStatus(next);
+          setError(true);
+          return;
+        }
+      } else {
+        setStatus(next);
+      }
       setError(false);
     } catch {
       setError(true);
@@ -48,6 +82,7 @@ export function useComputerUseSettingsController() {
         try {
           next = await checkComputerUsePermissionsApi();
         } catch {
+          permissionSetupPending.current = false;
           setError(true);
         }
       }
@@ -77,13 +112,37 @@ export function useComputerUseSettingsController() {
     }
   }, [refresh]);
 
-  const onOpenPermissions = useCallback(async () => {
+  const onOpenPermissions = useCallback(async (permission?: DesktopComputerUsePermission) => {
+    const nextPermission = permission ?? nextMissingPermission(status);
+    if (!nextPermission) return;
+    permissionSetupPending.current = true;
     try {
-      await startDesktopComputerUsePermissionSetup();
+      await startDesktopComputerUsePermissionSetup(nextPermission);
     } catch {
+      permissionSetupPending.current = false;
       setError(true);
     }
-  }, []);
+  }, [status]);
+
+  const onPermissionPageReturn = useCallback(() => {
+    if (
+      !permissionSetupPending.current
+      || requestInFlight.current
+      || status?.enabled !== true
+      || document.visibilityState === "hidden"
+    ) return;
+    permissionSetupPending.current = false;
+    void onCheckPermissions();
+  }, [onCheckPermissions, status?.enabled]);
+
+  useEffect(() => {
+    window.addEventListener("focus", onPermissionPageReturn);
+    document.addEventListener("visibilitychange", onPermissionPageReturn);
+    return () => {
+      window.removeEventListener("focus", onPermissionPageReturn);
+      document.removeEventListener("visibilitychange", onPermissionPageReturn);
+    };
+  }, [onPermissionPageReturn]);
 
   return {
     busy,

@@ -3,6 +3,7 @@
 // POS: macOS web/native trust boundary and the only rejection path visible to the embedded UI.
 
 import AppKit
+import ApplicationServices
 import UniformTypeIdentifiers
 import WebKit
 
@@ -138,7 +139,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     case "app.start_browser_extension_setup":
       return try startBrowserExtensionSetup()
     case "app.start_computer_use_permission_setup":
-      return try startComputerUsePermissionSetup()
+      let permission = request.stringPayload("permission")
+      return try startComputerUsePermissionSetup(permission: permission.isEmpty ? "screen_capture" : permission)
     case "app.get_workspace_file_applications":
       return try DesktopWorkspaceFileActions.applicationsPayload(
         for: request.stringPayload("path")
@@ -195,15 +197,36 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     try DesktopExternalURLPolicy.open(url)
   }
 
-  /// Computer Use 权限引导只负责打开系统设置的隐私面板；授权本身必须由
-  /// 用户手动完成，宿主不写入 TCC。Screen Recording 是第一项必授权限，
-  /// 其余 Accessibility 与 Input Monitoring 入口在同一设置侧栏中。
-  private func startComputerUsePermissionSetup() throws -> [String: Any] {
-    let pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+  /// Computer Use 权限引导一次只处理一个权限：先调用对应的 macOS 正式请求 API
+  /// 让当前 App 登记到系统列表，再打开对应隐私面板供用户点击允许。宿主不写入 TCC。
+  private func startComputerUsePermissionSetup(permission: String) throws -> [String: Any] {
+    let pane: String
+    switch permission {
+    case "screen_capture":
+      if !CGPreflightScreenCaptureAccess() {
+        _ = CGRequestScreenCaptureAccess()
+      }
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    case "accessibility":
+      if !AXIsProcessTrusted() {
+        _ = AXIsProcessTrustedWithOptions([
+          kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true,
+        ] as CFDictionary)
+      }
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    case "input_control":
+      if !CGPreflightPostEventAccess() {
+        _ = CGRequestPostEventAccess()
+      }
+      // CUA 的 Input Control 使用 CGEvent 发布事件，授权入口位于辅助功能列表。
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    default:
+      throw DesktopBridgeError.invalidComputerUsePermission
+    }
     guard let paneURL = URL(string: pane), NSWorkspace.shared.open(paneURL) else {
       throw DesktopBridgeError.computerUsePermissionsPageUnavailable
     }
-    return ["opened": true]
+    return ["opened": true, "permission": permission]
   }
 
   private func startBrowserExtensionSetup() throws -> [String: Any] {
@@ -464,6 +487,7 @@ private enum DesktopBridgeError: LocalizedError {
   case browserExtensionUnavailable
   case browserExtensionsPageUnavailable
   case computerUsePermissionsPageUnavailable
+  case invalidComputerUsePermission
 
   var errorDescription: String? {
     switch self {
@@ -483,6 +507,8 @@ private enum DesktopBridgeError: LocalizedError {
       return "无法打开浏览器扩展程序页面，请确认已安装 Google Chrome 或 Microsoft Edge。"
     case .computerUsePermissionsPageUnavailable:
       return "无法打开 macOS 隐私设置，请在系统设置中手动进入 隐私与安全性。"
+    case .invalidComputerUsePermission:
+      return "Computer Use 权限类型无效。"
     }
   }
 }

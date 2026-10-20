@@ -44,6 +44,8 @@ export interface CUAInstallationPermissions {
   input_control: CUAInstallationPermissionState;
 }
 
+export type CUAInstallationPermissionKey = keyof CUAInstallationPermissions;
+
 export interface CUAInstallationStatus {
   installed: boolean;
   enabled: boolean;
