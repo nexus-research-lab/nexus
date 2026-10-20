@@ -22,7 +22,7 @@ import (
 
 func TestMountTeamRoutesRequiresRelayURL(t *testing.T) {
 	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := teamhandler.New(api, nil, nil, nil)
+	handler := teamhandler.New(api, nil, nil)
 
 	disabled := &Server{
 		config:   config.Config{APIPrefix: "/nexus/v1"},
@@ -71,7 +71,7 @@ func TestTeamCapabilitiesAndDisabledRoutes(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			api := handlershared.NewAPI(nil)
-			s := &Server{config: config.Config{APIPrefix: "/nexus/v1", RelayURL: tc.url, MultiplayerDisabled: tc.disabled}, router: newPathParamRouter(), api: api, handlers: handlerSet{team: teamhandler.New(api, nil, nil, nil)}}
+			s := &Server{config: config.Config{APIPrefix: "/nexus/v1", RelayURL: tc.url, MultiplayerDisabled: tc.disabled}, router: newPathParamRouter(), api: api, handlers: handlerSet{team: teamhandler.New(api, nil, nil)}}
 			s.mountTeamRoutes()
 			response := httptest.NewRecorder()
 			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))

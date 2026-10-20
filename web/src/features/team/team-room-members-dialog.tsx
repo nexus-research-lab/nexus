@@ -22,6 +22,7 @@ import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiTextarea } from "@/shared/ui/form/form-control";
 import { UiBadge } from "@/shared/ui/display/badge";
 import {
   UiDialogBackdrop,
@@ -65,6 +66,8 @@ export function TeamRoomMembersDialog({
   const titleId = useId();
   const resource = useTeamRoomMembers(roomId, open, onChanged);
   const [settings, setSettings] = useState<{name: string; avatar: string} | null>(null);
+  // 群说明草稿；null 表示跟随服务端快照，保存确认后回到 null。
+  const [instructions, setInstructions] = useState<string | null>(null);
   const [departure, setDeparture] = useState<"leave" | "dissolve" | null>(null);
   const [memberType, setMemberType] = useState<"users" | "agents">("users");
   const [query, setQuery] = useState("");
@@ -149,6 +152,21 @@ export function TeamRoomMembersDialog({
                       />
                       <span>{t("room.host_auto_reply_label")}</span>
                     </label>
+                  </div>
+                  <div className="grid gap-2 border-t divider-subtle pt-3">
+                    <label className="dialog-label" htmlFor={`${titleId}-instructions`}>{t("team.instructions_label")}</label>
+                    <UiTextarea id={`${titleId}-instructions`} rows={4} maxLength={8192} controlSize="sm"
+                      disabled={!canChangeRoles || resource.busy || resource.hasPendingCommand}
+                      placeholder={t("team.instructions_placeholder")}
+                      value={instructions ?? resource.details.room.instructions ?? ""}
+                      onChange={(event) => setInstructions(event.target.value)} />
+                    <span className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{t("team.instructions_hint")}</span>
+                    {canChangeRoles && instructions !== null && instructions.trim() !== (resource.details.room.instructions ?? "") ? (
+                      <UiButton className="justify-self-end" size="sm" disabled={resource.busy}
+                        onClick={() => { void resource.setInstructions(instructions.trim()).then((ok) => { if (ok) setInstructions(null); }); }}>
+                        {t("team.instructions_save")}
+                      </UiButton>
+                    ) : null}
                   </div>
                 </> : null}
               </>}>

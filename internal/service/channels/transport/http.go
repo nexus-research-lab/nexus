@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/duework"
 )
 
 func DoJSON(
@@ -126,13 +127,7 @@ func retryAfter(header string, body []byte) time.Duration {
 		} `json:"parameters"`
 	}
 	_ = json.Unmarshal(body, &payload)
-	seconds := max(payload.RetryAfter, payload.Parameters.RetryAfter)
-	if value, err := strconv.ParseFloat(header, 64); err == nil {
-		seconds = max(seconds, value)
-	}
-	if deadline, err := http.ParseTime(header); err == nil {
-		seconds = max(seconds, time.Until(deadline).Seconds())
-	}
+	seconds := max(payload.RetryAfter, payload.Parameters.RetryAfter, duework.ParseRetryAfter(header).Seconds())
 	if seconds > 0 && seconds <= 86400 {
 		return time.Duration(seconds * float64(time.Second))
 	}

@@ -6,6 +6,10 @@ package duework
 import (
 	"context"
 	"errors"
+	"math/rand/v2"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -13,13 +17,26 @@ import (
 const (
 	defaultErrorRetry    = time.Second
 	defaultErrorRetryMax = 30 * time.Second
+	// 远端要求的等待只在合理范围内服从，防止异常响应把 worker 挂起数小时。
+	maxRetryDelay = 5 * time.Minute
 )
 
 // Result tells the driver when durable work can next become eligible.
 // HasMore asks the driver to yield once and immediately continue draining.
+// ResetBackoff accompanies an error from work that had been healthy for a
+// while (for example a long-lived connection that finally dropped): the
+// failure restarts from the minimum delay instead of inheriting old backoff.
 type Result struct {
-	HasMore   bool
-	NextDueAt *time.Time
+	HasMore      bool
+	NextDueAt    *time.Time
+	ResetBackoff bool
+}
+
+// RetryDelayer is implemented by errors carrying a server-requested minimum
+// delay, such as HTTP 429/503 Retry-After. The loop waits at least that long
+// and ignores Notify until the delay has elapsed.
+type RetryDelayer interface {
+	RetryDelay() time.Duration
 }
 
 // ReconcileFunc claims and processes one bounded slice of due durable work.
@@ -134,12 +151,22 @@ func (l *Loop) Run(ctx context.Context, reconcile ReconcileFunc) error {
 
 		wait := l.auditInterval
 		useTimer := wait > 0
+		var holdUntil time.Time
 		if err != nil {
 			if l.onError != nil {
 				l.onError(err)
 			}
-			if !useTimer || errorRetry < wait {
-				wait = errorRetry
+			if result.ResetBackoff {
+				errorRetry = l.errorRetry
+			}
+			// 等量抖动：保留一半下限，另一半随机，避免远端恢复时所有实例同刻重连。
+			delay := jitter(errorRetry)
+			if requested := retryDelay(err); requested > 0 {
+				delay = max(delay, requested)
+				holdUntil = l.now().Add(delay)
+				wait = delay
+			} else if !useTimer || delay < wait {
+				wait = delay
 			}
 			useTimer = true
 			errorRetry = nextBackoff(errorRetry, l.errorRetryMax)
@@ -168,14 +195,49 @@ func (l *Loop) Run(ctx context.Context, reconcile ReconcileFunc) error {
 		} else {
 			stopTimer(timer)
 		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-l.wake:
-			stopTimer(timer)
-		case <-timerC:
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-l.wake:
+				// 远端明确要求的等待期内，本地提示只合并到到期后的那一次对账。
+				if l.now().Before(holdUntil) {
+					continue
+				}
+				stopTimer(timer)
+			case <-timerC:
+			}
+			break
 		}
 	}
+}
+
+// ParseRetryAfter 按 RFC 9110 解析 Retry-After 的秒数或 HTTP-date；无效或已过期返回零。
+func ParseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if seconds, err := strconv.ParseFloat(value, 64); err == nil {
+		return max(time.Duration(seconds*float64(time.Second)), 0)
+	}
+	if deadline, err := http.ParseTime(value); err == nil {
+		return max(time.Until(deadline), 0)
+	}
+	return 0
+}
+
+func retryDelay(err error) time.Duration {
+	var delayer RetryDelayer
+	if !errors.As(err, &delayer) {
+		return 0
+	}
+	return min(max(delayer.RetryDelay(), 0), maxRetryDelay)
+}
+
+func jitter(delay time.Duration) time.Duration {
+	if delay <= 1 {
+		return delay
+	}
+	half := delay / 2
+	return half + rand.N(delay-half+1)
 }
 
 func (l *Loop) beginRun() bool {

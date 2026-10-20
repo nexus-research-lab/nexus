@@ -22,38 +22,42 @@ func (c *Client) CancelPendingDelivery(ctx context.Context, token, roomID, id st
 	err := c.do(ctx, http.MethodPost, "/rooms/"+url.PathEscape(roomID)+"/deliveries/"+url.PathEscape(id)+"/cancel", nil, token, "", nil, &result)
 	return result, err
 }
+
+// ClaimDelivery 以持久 claim ID 作幂等键；重放返回同一租约，没有待办时返回 nil。
 func (c *Client) ClaimDelivery(ctx context.Context, token, claimID, agentID string) (*relaycontract.Delivery, error) {
 	var result struct {
 		Delivery *relaycontract.Delivery `json:"delivery"`
 	}
-	err := c.do(ctx, http.MethodPost, "/node/deliveries/claim", nil, token, claimID, map[string]string{"agent_id": agentID}, &result)
+	err := c.command(ctx, http.MethodPost, "/node/deliveries/claim", token, claimID, map[string]string{"agent_id": agentID}, &result)
 	return result.Delivery, err
 }
-func (c *Client) SettleDelivery(ctx context.Context, token, id, leaseID string, failed bool, failureCodes ...string) (relaycontract.Delivery, error) {
-	action := "renew"
-	if failed {
-		action = "fail"
-	}
-	var result relaycontract.Delivery
-	input := map[string]string{"lease_id": leaseID}
-	if failed && len(failureCodes) == 1 && failureCodes[0] != "" {
-		input["failure_code"] = failureCodes[0]
-	}
-	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", input, &result)
-	return result, err
-}
-func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string, input relaycontract.DeliveryOutput) error {
-	var result relaycontract.MessageCommit
-	return c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/outputs", nil, token, outputID, input, &result)
-}
 
-// RenewDelivery 仅共享白名单运行状态，省略状态时保留原状态。
+// RenewDelivery 续租并只共享白名单运行状态；状态为空时 Relay 保留原状态。
 func (c *Client) RenewDelivery(ctx context.Context, token, id, leaseID, executionState string) (relaycontract.Delivery, error) {
-	var result relaycontract.Delivery
 	input := map[string]string{"lease_id": leaseID}
 	if executionState != "" {
 		input["execution_state"] = executionState
 	}
-	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/renew", nil, token, "", input, &result)
+	return c.settleDelivery(ctx, token, id, "renew", input)
+}
+
+// FailDelivery 以可选白名单失败码结束租约。
+func (c *Client) FailDelivery(ctx context.Context, token, id, leaseID, failureCode string) (relaycontract.Delivery, error) {
+	input := map[string]string{"lease_id": leaseID}
+	if failureCode != "" {
+		input["failure_code"] = failureCode
+	}
+	return c.settleDelivery(ctx, token, id, "fail", input)
+}
+
+func (c *Client) settleDelivery(ctx context.Context, token, id, action string, input map[string]string) (relaycontract.Delivery, error) {
+	var result relaycontract.Delivery
+	err := c.do(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/"+action, nil, token, "", input, &result)
 	return result, err
+}
+
+// DeliveryOutput 以持久 output ID 作幂等键提交一条完整输出。
+func (c *Client) DeliveryOutput(ctx context.Context, token, id, outputID string, input relaycontract.DeliveryOutput) error {
+	var result relaycontract.MessageCommit
+	return c.command(ctx, http.MethodPost, "/node/deliveries/"+url.PathEscape(id)+"/outputs", token, outputID, input, &result)
 }
