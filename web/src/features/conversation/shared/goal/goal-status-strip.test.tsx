@@ -45,8 +45,7 @@ describe("GoalStatusStrip", () => {
     const leading = container.querySelector('span[aria-hidden="true"]');
     const objective = screen.getByText("统一前端组件规范");
     const panel = container.querySelector("section");
-    // UiBadge 也带 tabular-nums，用量元信息以图标容器定位，避免命中状态徽标。
-    const usage = container.querySelector("svg.lucide-gauge-circle, svg.lucide-circle-gauge")?.parentElement;
+    const usage = screen.getByText("2,500 tokens").parentElement;
 
     expect(panel?.className).toContain("conversation-activity-chip");
     expect(panel?.className).toContain("px-3");

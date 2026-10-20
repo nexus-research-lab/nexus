@@ -11,10 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - 浏览器 UI 矩阵改为成对覆盖：Chromium 保留三主题 × 四宽度全组合、WebKit 保留三主题 × 两宽度，中英文交替分配，主题/语言/宽度两两组合仍全部覆盖；用例由 2628 降到 1314，CI 分片由 12 降到 8。组件测试在 CI 使用 4 个 worker；Telegram 轮询用例不再等待 2 秒真实退避。
 
-### Fixed
-
-- 修复 main 上因排版调整失效的两项前端测试：Goal 用量元信息不再误选同样等宽数字的状态徽标；会话删除按钮按“替换日期槽”的新布局断言对齐。
-
 ## [0.2.4] - 2026-10-20
 
 ### Changed

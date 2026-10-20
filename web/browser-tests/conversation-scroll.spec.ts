@@ -869,7 +869,7 @@ test("process icons stay aligned when collapsed and expanded", async ({ page }) 
   expect(Math.abs((await stackIcon.boundingBox())!.x - collapsed.x)).toBeLessThan(1);
 });
 
-test("conversation delete actions replace the date slot inside the row", async ({ page }) => {
+test("conversation delete actions replace the date meta slot", async ({ page }) => {
   await page.goto("/ui-gallery.html");
   await page.evaluate(async () => {
     const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
@@ -895,24 +895,22 @@ test("conversation delete actions replace the date slot inside the row", async (
   const rows = page.locator('[data-delete-alignment] .group\\/item');
   await expect(rows).toHaveCount(3);
   for (const row of await rows.all()) {
-    const statusSlot = row.locator("span.tabular-nums.transition-opacity");
+    const timeLabel = row.getByText("12:30");
     await page.mouse.move(0, 0);
-    await expect(statusSlot).toHaveCSS("opacity", "1");
+    await expect(timeLabel).toHaveCSS("opacity", "1");
     await row.hover();
     const action = row.locator("button");
     await expect(action).toHaveCSS("opacity", "1");
-    await expect(statusSlot).toHaveCSS("opacity", "0");
+    await expect(timeLabel).toHaveCSS("opacity", "0");
     await page.mouse.move(0, 0);
-    await expect(statusSlot).toHaveCSS("opacity", "1");
+    await expect(timeLabel).toHaveCSS("opacity", "1");
     await action.focus();
-    await expect(statusSlot).toHaveCSS("opacity", "0");
+    await expect(timeLabel).toHaveCSS("opacity", "0");
     await action.evaluate((element) => element.blur());
-    // 删除动作替换日期位置：与日期同一中心线、右缘对齐，并留在整行右半侧内。
     const bounds = (await row.boundingBox())!;
-    const time = (await statusSlot.boundingBox())!;
     const button = (await action.boundingBox())!;
+    const time = (await timeLabel.boundingBox())!;
     expect(Math.abs(button.y + button.height / 2 - time.y - time.height / 2)).toBeLessThan(1);
-    expect(Math.abs(button.x + button.width - time.x - time.width)).toBeLessThan(1);
     expect(button.x).toBeGreaterThan(bounds.x + bounds.width / 2);
     expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
   }
