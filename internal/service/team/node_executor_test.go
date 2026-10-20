@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -720,39 +721,69 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	}
 }
 
-func TestNodeCandidateMentionsStayWithTheirMessage(t *testing.T) {
-	ctx := t.Context()
-	repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
-	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "mentions", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	job.State = "running"
-	job.Delivery = &relaycontract.Delivery{LeaseID: "lease"}
-	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
-		t.Fatal(err)
-	}
-	observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
-	for index, target := range []string{"peer", ""} {
-		data := map[string]any{"role": "assistant", "is_complete": true, "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("reply %d", index)}}}
-		if target != "" {
-			data["agent_mentions"] = []protocol.AgentMention{{AgentID: target}, {AgentID: target}, {AgentID: "local"}}
-		}
-		if err = observer.apply(ctx, job, protocol.EventMessage{MessageID: fmt.Sprintf("message-%d", index), Data: data}); err != nil {
-			t.Fatal(err)
-		}
-		// 使用持久候选继续，避免仅在 observer 内存中保留目标。
-		job, err = repo.NodeJob(ctx, job.OwnerUserID, job.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	output, err := repo.NextNodeOutput(ctx, job.ID)
-	if err != nil || output == nil || len(output.Input.Mentions) != 1 || output.Input.Mentions[0].MemberID != "peer" {
-		t.Fatalf("旧消息的目标丢失或串到新消息: %+v %v", output, err)
-	}
-	if len(job.CandidateMentions) != 0 {
-		t.Fatal("无 @ 的新消息继承了旧目标", job.CandidateMentions)
+func TestNodeMentionsWakeOnlyWithSuccessfulFinal(t *testing.T) {
+	for _, status := range []string{"finished", "error", "interrupted"} {
+		t.Run(status, func(t *testing.T) {
+			ctx := t.Context()
+			repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
+			job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "mentions", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			job.State = "running"
+			job.Delivery = &relaycontract.Delivery{LeaseID: "lease"}
+			if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
+				t.Fatal(err)
+			}
+			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
+			// 中途 @ 后调工具、被新候选顶替的旧 @、以及无 @ 的最终消息。
+			for index, step := range []struct{ target, stop string }{{"peer", "tool_use"}, {"other", ""}, {"", ""}} {
+				data := map[string]any{"role": "assistant", "is_complete": true, "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("reply %d", index)}}}
+				if step.stop != "" {
+					data["stop_reason"] = step.stop
+				}
+				if step.target != "" {
+					data["agent_mentions"] = []protocol.AgentMention{{AgentID: step.target}, {AgentID: step.target}, {AgentID: "local"}}
+				}
+				if err = observer.apply(ctx, job, protocol.EventMessage{MessageID: fmt.Sprintf("message-%d", index), Data: data}); err != nil {
+					t.Fatal(err)
+				}
+				// 使用持久候选继续，避免仅在 observer 内存中保留目标。
+				job, err = repo.NodeJob(ctx, job.OwnerUserID, job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = observer.apply(ctx, job, protocol.EventMessage{EventType: protocol.EventTypeRoundStatus, Data: map[string]any{"is_terminal": true, "status": status}}); err != nil {
+				t.Fatal(err)
+			}
+			var finalMentions []string
+			for {
+				output, err := repo.NextNodeOutput(ctx, job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if output == nil {
+					break
+				}
+				if output.Input.Kind != "final" && len(output.Input.Mentions) > 0 {
+					t.Fatalf("中间输出提前携带 @: %+v", output.Input)
+				}
+				for _, mention := range output.Input.Mentions {
+					finalMentions = append(finalMentions, mention.MemberID)
+				}
+				if err = repo.AckNodeOutput(ctx, job.ID, output.Sequence); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := []string{"peer", "other"}
+			if status != "finished" {
+				want = nil
+			}
+			if !slices.Equal(finalMentions, want) {
+				t.Fatalf("%s 的唤醒目标 = %v，期望 %v", status, finalMentions, want)
+			}
+		})
 	}
 }
 

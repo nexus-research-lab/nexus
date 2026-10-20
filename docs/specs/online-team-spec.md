@@ -50,6 +50,7 @@
 - 群设置、退出、解散与组织管理员接管孤儿群由 Relay 鉴权；Nexus 不本地猜测治理权限。
 
 - 群聊消息只有显式 `@Agent` 或结构化目标才启动 Agent；未指定目标只持久化和广播。DM 保留唯一 Agent 回退。
+- Agent 回复中的 `@Agent` 与本地 Room 同语义：本轮全部完整回复的有效 @ 去重后只随成功的 final 输出提交给 Relay；中间 assistant 输出不携带结构化目标，失败、中断或取消的执行不唤醒任何 Agent。
 
 - 非零同步游标和快照续页必须原样传递 Relay 返回的 `stream_epoch`；世代失配由 WSS `stream.reset_required` 或 difference 触发全量快照。
 - WSS 只转发提交水位；正文由 difference/snapshot 恢复。

@@ -69,9 +69,14 @@ test("shared transport uses five bounded exponential reconnect attempts", async 
   );
   const config = resolveWebSocketConfig({ url: "ws://nexus.test" });
   assert.equal(config.maxReconnectAttempts, 5);
+  // 等量抖动：random=1 取指数退避上限，random=0 取其一半。
   assert.deepEqual(
-    [1, 2, 3, 4, 5].map((attempt) => getReconnectDelay(config, attempt)),
+    [1, 2, 3, 4, 5].map((attempt) => getReconnectDelay(config, attempt, () => 1)),
     [1_000, 2_000, 4_000, 8_000, 16_000],
+  );
+  assert.deepEqual(
+    [1, 2, 3, 4, 5].map((attempt) => getReconnectDelay(config, attempt, () => 0)),
+    [500, 1_000, 2_000, 4_000, 8_000],
   );
 });
 

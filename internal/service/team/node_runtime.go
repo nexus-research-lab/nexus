@@ -323,7 +323,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		}
 		if status == "finished" && !job.Failed && !job.CandidateSent && job.CandidateText != "" {
 			job.State = "draining"
-			err = o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution, job.CandidateMentions))
+			err = o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "final", job.CandidateText, job.CandidateExecution, job.PendingMentions...))
 		} else {
 			err = o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 		}
@@ -370,7 +370,7 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 	}
 	if job.CandidateID != "" && job.CandidateID != id && !job.CandidateSent {
-		if err := o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution, job.CandidateMentions)); err != nil {
+		if err := o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", job.CandidateText, job.CandidateExecution)); err != nil {
 			return err
 		}
 	}
@@ -399,27 +399,30 @@ func (o *nodeObserver) apply(ctx context.Context, job *teamstore.NodeJob, event 
 	if execution.Model != "" || execution.ResultSummary != nil {
 		job.CandidateExecution = &execution
 	}
-	// 先投递旧候选，再替换当前消息的目标；空目标也必须清掉旧值。
-	job.CandidateMentions = relayMentions(event.Data["agent_mentions"], job.LocalAgentID)
+	// 中间 assistant 输出不携带 @：本轮成功收口时才由 final 一次性唤醒，失败或中断不唤醒任何人。
+	job.PendingMentions = appendRelayMentions(job.PendingMentions, event.Data["agent_mentions"], job.LocalAgentID)
 	job.CandidateID, job.CandidateText = id, text
 	job.CandidateSent = event.Data["stop_reason"] == "tool_use"
 	if job.CandidateSent {
-		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution, job.CandidateMentions))
+		return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", outputText(job.Delivery.LeaseID, "assistant", text, job.CandidateExecution))
 	}
 	return o.executor.nodes.store.SaveNodeJob(ctx, job, "running", nil)
 }
 
-func relayMentions(value any, sourceAgentID string) []relaycontract.MessageMention {
+// appendRelayMentions 按首次出现顺序把本条消息的有效 @ 并入本轮待唤醒目标，排除自己并去重。
+func appendRelayMentions(pending []relaycontract.MessageMention, value any, sourceAgentID string) []relaycontract.MessageMention {
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return nil
+		return pending
 	}
 	var values []protocol.AgentMention
 	if err := json.Unmarshal(encoded, &values); err != nil {
-		return nil
+		return pending
 	}
-	seen := make(map[string]struct{}, len(values))
-	result := make([]relaycontract.MessageMention, 0, len(values))
+	seen := make(map[string]struct{}, len(pending)+len(values))
+	for _, mention := range pending {
+		seen[mention.MemberID] = struct{}{}
+	}
 	for _, value := range values {
 		id := strings.TrimSpace(value.AgentID)
 		if id == "" || id == sourceAgentID {
@@ -429,9 +432,9 @@ func relayMentions(value any, sourceAgentID string) []relaycontract.MessageMenti
 			continue
 		}
 		seen[id] = struct{}{}
-		result = append(result, relaycontract.MessageMention{MemberType: "agent", MemberID: id})
+		pending = append(pending, relaycontract.MessageMention{MemberType: "agent", MemberID: id})
 	}
-	return result
+	return pending
 }
 
 // deliveryRoomContext 只转换消息事实；触发选择和公区增量仍由 Room 机制处理。
