@@ -2042,7 +2042,7 @@ test("tool segments absorb completed questions but preserve active interactions"
       {
         id: "tool-run:tool-failed",
         kind: "tool_run",
-        phase: "complete",
+        phase: "error",
       },
       {
         id: "interactive-tool:tool-permission-boundary",
