@@ -20,7 +20,7 @@ import {
   type UiListRowVariant,
 } from "./list-row-styles";
 
-export type { UiListRowDensity, UiListRowVariant } from "./list-row-styles";
+export type { UiListRowDensity } from "./list-row-styles";
 
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;

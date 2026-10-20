@@ -4,10 +4,8 @@
 package tool
 
 import (
-	"encoding/json"
 	"strings"
 
-	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 )
 
@@ -60,14 +58,4 @@ func stringMapArg(args map[string]any, key string) map[string]string {
 		}
 	}
 	return result
-}
-
-func jsonResult(value any) sdktool.ToolResult {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return sdktool.ErrorResult(err)
-	}
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": string(payload)}},
-	}
 }

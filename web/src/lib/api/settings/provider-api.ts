@@ -246,18 +246,6 @@ export async function testProviderConfigApi(
   );
 }
 
-export async function testSubscriptionProviderConfigApi(
-  provider: string,
-): Promise<ProviderTestResult> {
-  return requestApi<ProviderTestResult>(
-    `${SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL}/${encodeURIComponent(provider)}/test`,
-    {
-      method: "POST",
-      timeout_ms: 180_000, // Model discovery, connectivity and bounded capability probes.
-    },
-  );
-}
-
 export async function testProviderModelApi(
   provider: string,
   modelId: string,

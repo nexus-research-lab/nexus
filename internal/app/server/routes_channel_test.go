@@ -16,7 +16,7 @@ import (
 func TestChannelCurrentLoginGETAndStartPOSTRemainSeparateRoutes(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-	server, err := New(cfg)
+	server, err := NewWithDesktopOwnership(cfg, nil, nil)
 	if err != nil {
 		t.Fatalf("create server: %v", err)
 	}

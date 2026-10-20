@@ -11,7 +11,7 @@
 - 展开态底部操作分隔线必须跨过右侧舞台留边并与侧栏外边界相交；收起态不渲染 Footer，也不得留下分隔线或占位。
 - 与主画布相邻且处于展开态的桌面侧栏通过 `data-shell-split-edge` 绘制唯一外缘 hairline；该线必须越过桌面顶部 inset、覆盖 Header/Footer 但不拦截 resize 热区，折叠态与移动端全宽目录不得绘制。
 - 消费接口由视图定义并保持窄小；新增状态先进入上层控制器投影。
-- `use-sidebar-update-version.ts` 只在桌面运行时且桥接可用时读取宿主持久化的可用版本，Web 环境不得渲染更新入口；`sidebar-update-indicator.tsx` 通过 `app.start_update` 直接启动原生下载、校验与安装链路，不得退回普通 Release 外链；`sidebar-utility-actions.tsx` 仅承载展开态底部操作，更新提示固定在右下角，收起态不渲染 Footer。
+- `use-sidebar-update-version.ts` 只在桌面运行时且桥接可用时读取宿主持久化的可用版本，Web 环境不得渲染更新入口；`sidebar-utility-actions.tsx` 仅承载展开态底部操作，更新提示固定在右下角并通过 `app.start_update` 直接启动原生下载、校验与安装链路，不得退回普通 Release 外链，收起态不渲染 Footer。
 - 桌面更新启动状态复用共享 Spinner 动效并保持侧栏既有 18px 图标几何；视图不得自行维护旋转或 reduced-motion class。
 
 - 底部左侧账号入口占满设置按钮之前的剩余宽度，头像与常规字重的用户名靠左，长名称省略并保留完整共享 Tooltip，整条区域可点击并向上展开账号名称与统一引导菜单；仅有效密码认证会话显示退出。右侧保留设置和桌面更新提示，不再提供独立帮助按钮。账号资料与退出可见性由 controller 投影，菜单复用 UiActionMenu，头像复用 UiAgentAvatar。

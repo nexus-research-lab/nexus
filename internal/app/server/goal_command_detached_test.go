@@ -66,7 +66,7 @@ func TestWebSocketSetGoalSurvivesDisconnectDuringObjectiveRewrite(t *testing.T) 
 	cfg.GoalMaxContinuationsPerRun = 5
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
-	server, err := New(cfg)
+	server, err := NewWithDesktopOwnership(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestWebSocketRoomSetGoalSurvivesDisconnectDuringObjectiveRewrite(t *testing
 	cfg.GoalMaxContinuationsPerRun = 5
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 
-	server, err := New(cfg)
+	server, err := NewWithDesktopOwnership(cfg, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
