@@ -469,12 +469,8 @@ func (e *NodeExecutor) stopJob(ctx context.Context, job teamstore.NodeJob) error
 	return err
 }
 
-func outputText(lease, kind, text string, execution *relaycontract.ExecutionMetadata, mentions ...[]relaycontract.MessageMention) *relaycontract.DeliveryOutput {
-	var targets []relaycontract.MessageMention
-	if len(mentions) > 0 {
-		targets = mentions[0]
-	}
-	return &relaycontract.DeliveryOutput{LeaseID: lease, Kind: kind, Mentions: targets, Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: text}}, Execution: execution}}
+func outputText(lease, kind, text string, execution *relaycontract.ExecutionMetadata, mentions ...relaycontract.MessageMention) *relaycontract.DeliveryOutput {
+	return &relaycontract.DeliveryOutput{LeaseID: lease, Kind: kind, Mentions: mentions, Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: text}}, Execution: execution}}
 }
 
 func nodeJobLogAttrs(grant teamstore.NodeGrant, job teamstore.NodeJob) []any {

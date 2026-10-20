@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 在线群里 Agent 中途写下 `@成员` 再调用工具时，被提及的 Agent 不再立即被唤醒；本轮全部有效 @ 只在成功给出最终回复后一起唤醒，执行失败、中断或被停止时不唤醒任何人，与本地群聊一致。
 - Relay 在线协作加固：WSS 订阅保留 Relay 部署路径前缀；写命令统一校验幂等键；投递续期与失败拆成独立方法；取消投递按 Relay 错误码映射而非一律 409。
 - 加 Agent 与邀请成员先校验远程登录再请求 Control，未登录返回 401 而非 502。
 - Desktop 准备群执行时翻完全部成员页，不再只看首屏成员；同一请求只查询一次 Control 身份与 Agent 目录，登记与撤销串行执行。

@@ -19,13 +19,14 @@ type NodeJob struct {
 	Delivery                                                     *relaycontract.Delivery
 	CandidateID, CandidateText                                   string
 	CandidateExecution                                           *relaycontract.ExecutionMetadata
-	CandidateMentions                                            []relaycontract.MessageMention
-	Sequence, OutputBytes                                        int
-	Failed                                                       bool
-	CandidateSent                                                bool
-	ArtifactIDs                                                  []string
-	ArtifactBytes                                                int64
-	FailureCode                                                  string
+	// PendingMentions 是本轮完整 assistant 消息累计的 @，只随成功的 final 输出提交。
+	PendingMentions       []relaycontract.MessageMention
+	Sequence, OutputBytes int
+	Failed                bool
+	CandidateSent         bool
+	ArtifactIDs           []string
+	ArtifactBytes         int64
+	FailureCode           string
 }
 
 type NodeOutput struct {
@@ -105,7 +106,7 @@ func (r *Repository) saveNodeJob(ctx context.Context, job *NodeJob, from string,
 	if item.State == "completed" {
 		item.CandidateID, item.CandidateText = "", ""
 		item.CandidateExecution = nil
-		item.CandidateMentions = nil
+		item.PendingMentions = nil
 	}
 	if output != nil {
 		item.Sequence++
