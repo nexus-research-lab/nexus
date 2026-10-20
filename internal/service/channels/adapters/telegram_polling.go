@@ -50,7 +50,7 @@ func (c *TelegramChannel) pollUpdates(ctx context.Context) {
 				lastErrText = errText
 				lastErrLoggedAt = now
 			}
-			timer := time.NewTimer(2 * time.Second)
+			timer := time.NewTimer(c.pollRetryDelay)
 			select {
 			case <-ctx.Done():
 				timer.Stop()
