@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
@@ -58,6 +59,8 @@ type TelegramChannel struct {
 	baseURL     string
 	ownerUserID string
 	logger      *slog.Logger
+	// pollRetryDelay 是轮询失败后的退避间隔；测试可在包内缩短。
+	pollRetryDelay time.Duration
 
 	mu      sync.RWMutex
 	ingress channelcontract.IngressAcceptor
@@ -74,6 +77,8 @@ func NewTelegramChannel(token string, client *http.Client) *TelegramChannel {
 		client:  client,
 		baseURL: "https://api.telegram.org",
 		logger:  logx.NewDiscardLogger(),
+
+		pollRetryDelay: 2 * time.Second,
 	}
 }
 

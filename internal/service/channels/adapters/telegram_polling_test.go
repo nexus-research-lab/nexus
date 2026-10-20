@@ -73,6 +73,7 @@ func TestTelegramPollingFailureDoesNotBlockOtherChats(t *testing.T) {
 				return jsonResponse(`{"ok":true,"result":[{"update_id":100,"message":{"message_id":42,"text":"bad","message_thread_id":77,"from":{"id":7},"chat":{"id":-10,"type":"supergroup"}}},{"update_id":101,"message":{"message_id":43,"text":"good","from":{"id":8},"chat":{"id":9,"type":"private"}}}]}`), nil
 			})
 			channel := NewTelegramChannel("test", &http.Client{Transport: transport})
+			channel.pollRetryDelay = time.Millisecond
 			channel.SetIngress(telegramPollingIngress(func(_ context.Context, request channelcontract.IngressRequest) (*channelcontract.IngressResult, error) {
 				if request.Content == "good" {
 					healthy++
