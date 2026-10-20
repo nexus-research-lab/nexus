@@ -1,5 +1,9 @@
 // Package sdktool 把 Nexus 内部 MCP 工具描述装配成 Agent SDK tool。
 //
+// 成员清单：
+//   - tool.go：工具描述、结果构造与 SDK 适配。
+//   - args.go：各 MCP 工具共用的入口参数解析（字符串裁剪一次，类型不符视为缺省）。
+//
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

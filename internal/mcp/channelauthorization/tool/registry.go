@@ -50,19 +50,19 @@ func authorization(svc contract.Service, sctx contract.ServerContext) sdktool.To
 				result any
 				err    error
 			)
-			switch stringArg(args, "action") {
+			switch sdktool.StringArg(args, "action") {
 			case actionStart:
 				result, err = svc.Start(ctx, sctx.Actor(), authorizationsvc.StartInput{
-					ChannelType: stringArg(args, "channel_type"),
-					AccountID:   stringArg(args, "account_id"),
+					ChannelType: sdktool.StringArg(args, "channel_type"),
+					AccountID:   sdktool.StringArg(args, "account_id"),
 				})
 			case actionStatus:
-				result, err = svc.Status(ctx, sctx.Actor(), stringArg(args, "flow_id"))
+				result, err = svc.Status(ctx, sctx.Actor(), sdktool.StringArg(args, "flow_id"))
 			case actionCancel:
-				result, err = svc.Cancel(ctx, sctx.Actor(), stringArg(args, "flow_id"))
+				result, err = svc.Cancel(ctx, sctx.Actor(), sdktool.StringArg(args, "flow_id"))
 			case actionRequestVerificationCode:
 				result, err = svc.RequestVerificationCode(
-					ctx, sctx.Actor(), stringArg(args, "flow_id"),
+					ctx, sctx.Actor(), sdktool.StringArg(args, "flow_id"),
 				)
 			default:
 				return sdktool.ErrorResult(errors.New("未知 Channel authorization action")), nil

@@ -4,7 +4,7 @@
 //
 // 成员：
 //   - registry.go：owner-main 私有 DM 可见性与四个 action 的薄适配。
-//   - schema.go / helpers.go：严格 schema 与纯 transport 渲染。
+//   - schema.go：严格 schema；参数解析与 JSON 渲染复用 sdktool。
 //
 // 验证码刻意不出现在任何 schema 中。
 //
