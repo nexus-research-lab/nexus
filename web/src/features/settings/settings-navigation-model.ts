@@ -23,6 +23,7 @@ export type SettingsSectionKey =
   | "appearance"
   | "workspace"
   | "permissions"
+  | "sandbox"
 	| "browser"
   | "personal"
   | "operations-organization"
@@ -53,6 +54,7 @@ export const SETTINGS_NAVIGATION_GROUPS: readonly SettingsNavigationGroup[] = [
       { key: "appearance", labelKey: "settings.navigation.appearance" },
       { key: "workspace", labelKey: "settings.navigation.workspace" },
       { key: "permissions", labelKey: "settings.navigation.permissions" },
+      { key: "sandbox", labelKey: "settings.navigation.sandbox" },
 		{ key: "browser", labelKey: "settings.navigation.browser" },
     ],
   },

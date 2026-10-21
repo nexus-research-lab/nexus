@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- 沙箱相关设置集中到新的“设置 › 沙箱”（仅桌面端）：桌面沙箱开关从“权限”移入，“检查沙箱支持”与“沙箱残留资源”从“运行时”移入，且不再要求先选择 nxs 引擎；依赖齐全的提示改为“可以开启桌面沙箱”，不再暗示新任务已在沙箱中运行。
+
 ### Fixed
 
 - 修复 macOS 升级后沙箱 scratch 所在卷的 `st_dev` 编号漂移导致恢复身份永久不匹配、启动栅栏无法解除的问题；身份格式保持不变，匹配仅忽略设备号漂移，仍严格校验 inode、generation 与创建时间。

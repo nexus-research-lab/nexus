@@ -115,12 +115,6 @@ export function useGeneralSettingsController() {
     },
     [updatePreferences],
   );
-  const handleDesktopSandboxEnabledChange = useCallback((checked: boolean) => {
-    updatePreferences((current) => ({
-      ...current,
-      desktop_sandbox_enabled: checked,
-    }));
-  }, [updatePreferences]);
   const handlePermissionModeChange = useCallback((value: string) => {
     updatePreferences((current) => ({
       ...current,
@@ -159,8 +153,6 @@ export function useGeneralSettingsController() {
       preferencesRecovery: recovery,
     },
     permissions: {
-      desktopSandboxEnabled: preferences.desktop_sandbox_enabled === true,
-      onDesktopSandboxEnabledChange: handleDesktopSandboxEnabledChange,
       preferencesFeedback: feedback,
       preferencesRecovery: recovery,
       onPermissionModeChange: handlePermissionModeChange,

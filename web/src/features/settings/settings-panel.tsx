@@ -27,6 +27,7 @@ import { ProviderSettingsPanel } from "./provider-settings/provider-settings-pan
 import { SettingsDefaultModelsSection } from "./default-models/settings-default-models-section";
 import { SettingsGeneralSection } from "./general/settings-general-section";
 import { SettingsRuntimeSection } from "./runtime/settings-runtime-section";
+import { SettingsSandboxSection } from "./sandbox/settings-sandbox-section";
 import { BrowserSettingsSection } from "./browser/browser-settings-section";
 import { isOperationsSection, type SettingsSectionKey } from "./settings-navigation-model";
 import { OrganizationPanel } from "./operations/organization-panel";
@@ -138,6 +139,13 @@ function SettingsSectionContent({
 			<Navigate replace to={AppRouteBuilders.settings()} />
 		);
 	}
+  if (section === "sandbox") {
+    return isDesktopRuntime() ? (
+      <SettingsSandboxSection />
+    ) : (
+      <Navigate replace to={AppRouteBuilders.settings()} />
+    );
+  }
   if (section === "workspace" && !isDesktopRuntime()) {
     return <Navigate replace to={AppRouteBuilders.settings()} />;
   }
