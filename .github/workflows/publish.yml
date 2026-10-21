@@ -494,7 +494,7 @@ jobs:
           release_json="$(mktemp)"
           release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
           status="$(
-            curl -fsS -o "${release_json}" -w "%{http_code}" \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "${release_api}" || true
@@ -521,7 +521,7 @@ jobs:
               continue
             fi
             echo "Deleting previous release asset: ${asset_name}"
-            curl -fsS -X DELETE \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X DELETE \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >/dev/null
@@ -536,7 +536,7 @@ jobs:
             release_json="$(mktemp)"
             release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${obsolete_tag}"
             status="$(
-              curl -fsS -o "${release_json}" -w "%{http_code}" \
+              curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "${release_api}" || true
@@ -550,7 +550,7 @@ jobs:
             fi
             release_id="$(jq -r '.id' "${release_json}")"
             echo "Deleting incorrect release ${obsolete_tag} (${release_id})"
-            curl -fsS -X DELETE \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X DELETE \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}" >/dev/null
@@ -564,7 +564,7 @@ jobs:
           release_json="$(mktemp)"
           release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
           status="$(
-            curl -fsS -o "${release_json}" -w "%{http_code}" \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "${release_api}" || true
@@ -585,7 +585,7 @@ jobs:
           fi
 
           payload="$(jq -n --rawfile body release_notes.md --arg name "${TAG}" '{name: $name, body: $body}')"
-          curl -fsS -X PATCH \
+          curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X PATCH \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -H "Content-Type: application/json" \
