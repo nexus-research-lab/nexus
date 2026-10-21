@@ -177,7 +177,10 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 		AppMode:       "desktop",
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
-		WebSearch:     WebSearchConfig{AllowPrivateNetwork: true},
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
+		WebSearch: WebSearchConfig{AllowPrivateNetwork: true},
 	})
 	if err == nil || !strings.Contains(err.Error(), "private-network") {
 		t.Fatalf("private WebSearch access was not rejected: %v", err)

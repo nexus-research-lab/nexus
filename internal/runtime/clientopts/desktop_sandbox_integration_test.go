@@ -30,6 +30,9 @@ func TestDesktopSandboxRealRuntimeNegotiation(t *testing.T) {
 	root := t.TempDir()
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: root, RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true, PermissionMode: sdkpermission.ModeDefault,
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
 		SkillDirectories: []string{t.TempDir()}, AdditionalDirectories: []string{t.TempDir()},
 	})
 	if err != nil {
@@ -37,6 +40,17 @@ func TestDesktopSandboxRealRuntimeNegotiation(t *testing.T) {
 	}
 	options.CLIPath = binary
 	options.Env["NEXUS_CONFIG_DIR"] = filepath.Join(root, "config")
+	if err := os.MkdirAll(options.Env["NEXUS_CONFIG_DIR"], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"commands", "agents", "skills"} {
+		if err := os.MkdirAll(filepath.Join(options.Env["NEXUS_CONFIG_DIR"], name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(options.Env["NEXUS_CONFIG_DIR"], "settings.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	options.Runtime.InitializeTimeout = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -92,6 +106,17 @@ func TestDesktopSandboxRealRuntimeWithHostResources(t *testing.T) {
 	}
 	options.CLIPath = binary
 	options.Env["NEXUS_CONFIG_DIR"] = filepath.Join(workspace, "config")
+	if err := os.MkdirAll(options.Env["NEXUS_CONFIG_DIR"], 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"commands", "agents", "skills"} {
+		if err := os.MkdirAll(filepath.Join(options.Env["NEXUS_CONFIG_DIR"], name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(options.Env["NEXUS_CONFIG_DIR"], "settings.json"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	options.Runtime.InitializeTimeout = 10 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

@@ -1,10 +1,9 @@
 # Desktop sandbox integration (experimental)
 
 This document describes implemented host wiring, not acceptance of the full App
-sandbox. Remaining design and delivery work is tracked in
-[the development plan](../explorations/desktop-sandbox/development-plan.md);
-the [documentation index](../explorations/desktop-sandbox/README.md) separates
-the current contract, dated assessment, acceptance evidence and historical experiments.
+sandbox. Remaining design and delivery work is stated at each capability boundary
+below; historical planning and experiment notes are not part of the shipped
+documentation set.
 
 ## Activation and scope
 
@@ -510,8 +509,8 @@ consumers. These ownership inputs participate in the process-policy fingerprint,
 so a changed root cannot reuse an old runtime. Claude does not receive this
 nxs-specific ownership claim.
 
-The [dated assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
-records the verified SDK baseline and its remaining IO paths. MCP servers,
+The verified SDK baseline and its remaining IO paths must be checked against the
+current SDK source and native evidence for the selected build. MCP servers,
 Connectors and the desktop UI retain their separate authorization. The feature
 must not be represented as fully accepted App isolation.
 
@@ -716,10 +715,9 @@ control.
 
 The Bridge module version and checksum are owned by `go.mod` and `go.sum`.
 Dependency publication, the configured nxs binary, and packaged application
-acceptance are separate delivery facts, recorded in the
-[assessment](../explorations/desktop-sandbox/current-assessment-2026-09-15.md)
-and [acceptance matrix](../testing/desktop-sandbox-acceptance.md). Dependency
-availability must not be inferred from a successful local workspace build.
+acceptance are separate delivery facts that must be checked in the current build
+and native evidence. Dependency availability must not be inferred from a
+successful local workspace build.
 
 ## Main integration compatibility
 
@@ -768,7 +766,7 @@ historical release or an external Provider; those remain separate acceptance evi
 
 ### Historical main integration
 
-The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished. [Acceptance evidence](../testing/desktop-sandbox-acceptance.md#2026-09-16main-同步与-bridge-兼容) records this integration separately from default sandbox rollout and platform acceptance.
+The local pinned Bridge `v0.1.34-0.20260916063139-6325d2acc450` combines the sandbox requirements above with main's MCP call-context contract: runtime `params._meta["claudecode/toolUseId"]` reaches the host callback unchanged. Missing metadata remains empty; business arguments cannot supply this identity. The combined module is locally verified and unpublished; this compatibility check remains separate from default sandbox rollout and platform acceptance.
 
 ### 宿主监督启动登记（显式装配）
 

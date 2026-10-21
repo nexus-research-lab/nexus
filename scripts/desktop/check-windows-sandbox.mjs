@@ -15,6 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // Includes native settings recovery, junction rejection and explicit P3 probes.
 const WINDOWS_NATIVE_SDK_COMMIT = "38221838946f17f87be9da4af5f10ddc95671edf";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
+const WINDOWS_LOCAL_NATIVE_EVIDENCE = process.env.NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE === "1";
 const WINDOWS_NATIVE_TESTS = [
   "TestWindowsPrivateDesktopLifecycle",
   "TestWindowsCommandPreservesArguments",
@@ -68,6 +69,19 @@ const WINDOWS_NATIVE_BRIDGE_TESTS = [
   "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
   "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
   "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing",
+];
+const WINDOWS_LOCAL_MXC_TESTS = [
+  "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
+  "TestWindowsMXCExecutionRunsInsideProcessContainer",
+  "TestWindowsMXCOptionalPlanUsesWorkspaceRoot",
+  "TestWindowsMXCPowerShellCommandUsesEncodedArguments",
+  "TestWindowsMXCConfigPassesNativeDryRun",
+  "TestWindowsMXCFilesystemDenialIsEnforced",
+  "TestWindowsMXCFilesystemWriteIsAllowed",
+  "TestWindowsMXCNetworkAllowlistUsesNexusProxy",
+  "TestWindowsMXCNetworkDenialIsEnforced",
+  "TestWindowsMXCAuxiliaryHTTPRejectsExternalProxy",
+  "TestWindowsMXCCancellationStopsSidecar",
 ];
 
 const argumentsList = process.argv.slice(2);
@@ -152,9 +166,10 @@ try {
   report.nexusCommit = run("nexus-revision", "git", ["rev-parse", "HEAD"]).trim();
   report.nexusWorktreeStatus = run("nexus-status", "git", ["status", "--porcelain"]).trim();
   const bridgeModule = JSON.parse(run("bridge-module", "go", ["list", "-mod=readonly", "-m", "-json", "github.com/nexus-research-lab/nexus-agent-sdk-bridge"]));
-  if (bridgeModule.Replace) throw new Error("Windows evidence requires the pinned remote Bridge module without replacement");
+  if (bridgeModule.Replace && !WINDOWS_LOCAL_NATIVE_EVIDENCE) throw new Error("Windows evidence requires the pinned remote Bridge module without replacement");
   report.bridgeVersion = bridgeModule.Version;
   report.bridgeSum = bridgeModule.Sum;
+  if (bridgeModule.Replace) report.bridgeReplacement = bridgeModule.Replace;
   if (nativeMode) {
     if (!path.isAbsolute(sdkSource)) {
       throw new Error("--native requires NEXUS_SANDBOX_SDK_SOURCE to be an absolute SDK checkout path");
@@ -165,12 +180,17 @@ try {
     const sdkRevision = run("sdk-revision", "git", ["rev-parse", "HEAD"], {}, sdkSource).trim();
     report.sdkSource = sdkSource;
     report.sdkCommit = sdkRevision;
-    if (sdkRevision !== WINDOWS_NATIVE_SDK_COMMIT) {
+    if (sdkRevision !== WINDOWS_NATIVE_SDK_COMMIT && !WINDOWS_LOCAL_NATIVE_EVIDENCE) {
       throw new Error(`SDK checkout must be ${WINDOWS_NATIVE_SDK_COMMIT}, got ${sdkRevision}`);
     }
     const sdkStatus = run("sdk-status", "git", ["status", "--porcelain"], {}, sdkSource).trim();
-    if (sdkStatus) {
+    if (sdkStatus && !WINDOWS_LOCAL_NATIVE_EVIDENCE) {
       throw new Error("SDK checkout must be clean for native evidence");
+    }
+    if (sdkStatus) report.sdkWorktreeStatus = sdkStatus;
+    report.localNativeEvidence = WINDOWS_LOCAL_NATIVE_EVIDENCE;
+    if (WINDOWS_LOCAL_NATIVE_EVIDENCE && !process.env.NEXUS_MXC_EXECUTABLE) {
+      throw new Error("local native evidence requires NEXUS_MXC_EXECUTABLE for MXC acceptance");
     }
   }
 
@@ -246,6 +266,31 @@ try {
       { GOOS: "windows", GOARCH: nativeGoarch },
       sdkSource,
     );
+    if (WINDOWS_LOCAL_NATIVE_EVIDENCE) {
+      const mxcEnvironment = { GOOS: "windows", GOARCH: nativeGoarch, NEXUS_REQUIRE_NATIVE_MXC: "1" };
+      if (!process.env.NEXUS_NXS_EXECUTABLE) {
+        const helper = path.join(reportDirectory, "nxs-mxc-file-helper.exe");
+        run("build-local-sdk-file-helper", "go", ["build", "-trimpath", "-mod=readonly", "-o", helper, "./cmd/nxs"], mxcEnvironment, sdkSource);
+        mxcEnvironment.NEXUS_NXS_EXECUTABLE = helper;
+      } else {
+        mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
+      }
+      runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
+      runGoTest(
+        "native-sdk-mxc-file-helper",
+        ["./internal/tool/builtin/file/sandboxfs"],
+        ["TestWindowsMXCFileHelperRoundTrip"],
+        mxcEnvironment,
+        sdkSource,
+      );
+      runGoTest(
+        "native-sdk-mxc-mcp-stdio",
+        ["./internal/tool/executor"],
+        ["TestWindowsMXCMCPStdioUsesTheCommandPolicy"],
+        mxcEnvironment,
+        sdkSource,
+      );
+    }
   }
 
   report.passed = true;

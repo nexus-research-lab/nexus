@@ -25,11 +25,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") {
 		return options, nil
 	}
-	// Windows remains opt-in until native acceptance; host preview still requires
-	// the complete SDK capability handshake and never claims release readiness.
-	if platform == "windows" && !input.WindowsSandboxPreview {
-		return options, nil
-	}
 	if platform != "darwin" && platform != "windows" {
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox is unsupported on %s", platform)
 	}

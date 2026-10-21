@@ -70,7 +70,8 @@ type AgentClientOptionsInput struct {
 	// production builder derives it from AppMode so desktop sessions cannot
 	// disable the sandbox through an environment switch.
 	DesktopSandboxEnabled bool
-	// WindowsSandboxPreview is a host-only development admission; it does not grant release acceptance.
+	// WindowsSandboxPreview controls only the legacy machine-Host supervisor;
+	// the product Windows command contract uses the SDK MXC backend by default.
 	WindowsSandboxPreview bool
 	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
@@ -206,11 +207,18 @@ func BuildAgentClientOptionsWithConfig(
 		effectiveRuntimeKind,
 	))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, toolSearchRuntimeEnv(effectiveRuntimeKind, input.ToolSearchEnabled))
-	visionConfig, err := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
-	if err != nil {
-		return agentclient.Options{}, nil, err
+	visionConfig, visionErr := resolveVisionRuntimeConfig(ctx, resolver, input, effectiveRuntimeKind)
+	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
+		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
+		if visionErr != nil {
+			// Auxiliary vision is optional for text sessions. Preserve the
+			// diagnostic in the nxs environment while clearing stale routes.
+			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = visionErr.Error()
+		}
+		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
+	} else if visionErr != nil {
+		return agentclient.Options{}, nil, visionErr
 	}
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildAutoMemoryRuntimeEnv(effectiveRuntimeKind, input.AutoMemoryDisabled))
@@ -243,7 +251,13 @@ func BuildAgentClientOptionsWithConfig(
 	// secret. This is input ownership only; it does not claim OS process or
 	// handle isolation from arbitrary descendants.
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, runtimeEnvFromConfig(runtimeConfig, effectiveRuntimeKind))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
+	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
+		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
+		if visionErr != nil {
+			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = visionErr.Error()
+		}
+		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
+	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	// Long-term memory is an nxs host-owned workspace boundary. Configuration
 	// capabilities may add their own broker keys, but cannot redirect memory or
