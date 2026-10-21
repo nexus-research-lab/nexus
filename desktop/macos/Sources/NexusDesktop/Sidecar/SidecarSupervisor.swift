@@ -180,6 +180,7 @@ final class SidecarSupervisor {
     applyPackagedConnectorConfig(to: &environment)
     applyBundledControlCommands(to: &environment)
     applyBundledNXSRuntime(to: &environment)
+    applyBundledToolSearchPath(to: &environment)
     let webOrigin = runtimeConfig.webURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = webOrigin
     return environment
@@ -257,6 +258,29 @@ final class SidecarSupervisor {
     startupTimeline?.mark("sidecar.nxs_runtime", metadata: [
       "source": "missing",
     ])
+  }
+
+  // Finder 启动的 App 只有系统 PATH；把包内 bin（rg 等 sidecar 工具）追加到末尾，
+  // 让沙箱诊断与 Agent 命令能找到随包依赖，同时不遮蔽用户 PATH 里的同名工具。
+  private func applyBundledToolSearchPath(to environment: inout [String: String]) {
+    guard locator.projectRoot == nil else {
+      return
+    }
+    let binURL = locator.appRootURL.appendingPathComponent("bin")
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: binURL.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+      return
+    }
+    environment["PATH"] = Self.appendingSearchPath(binURL.path, to: environment["PATH"])
+    startupTimeline?.mark("sidecar.tool_search_path", metadata: ["path": binURL.path])
+  }
+
+  static func appendingSearchPath(_ directory: String, to currentPath: String?) -> String {
+    let entries = (currentPath ?? "").split(separator: ":", omittingEmptySubsequences: true).map(String.init)
+    if entries.contains(directory) {
+      return entries.joined(separator: ":")
+    }
+    return (entries + [directory]).joined(separator: ":")
   }
 
   private func connectorCredentialsKeyMode(environment: [String: String]) -> DesktopKeychainMode {

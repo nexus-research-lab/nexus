@@ -86,7 +86,7 @@ func TestAppManagedAutoDreamSupervisedNative(t *testing.T) {
 		defer lease.Release()
 		leaseID, scratchPath := lease.Marker().LeaseID, lease.Path()
 		options, err := clientopts.BuildAgentClientOptions(ctx, nil, clientopts.AgentClientOptionsInput{
-			OwnerUserID: "owner", WorkspacePath: filepath.Join(root, "workspace"), RuntimeKind: "nxs", AppMode: "desktop",
+			OwnerUserID: "owner", WorkspacePath: filepath.Join(root, "workspace"), RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 			PermissionMode: permission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true,
 			SettingSources: []string{"user"}, SandboxResources: lease.Resources(),
 		})

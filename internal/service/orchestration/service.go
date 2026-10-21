@@ -66,6 +66,11 @@ type ActorContext struct {
 	AgentRoundID          string
 	PlanMode              bool
 	ObservationOnly       bool
+	// SubagentCommandAuthority is the host's final command-surface decision
+	// for this physical round. A nil pointer preserves compatibility for
+	// service-only projections that do not build an MCP surface; a non-nil
+	// false value must hide the subagent affordance from the model.
+	SubagentCommandAuthority *bool
 }
 
 // RuntimeGoalBinding 是 runtime 能力层从 trusted Execution identity 派生出的
@@ -568,13 +573,14 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	}
 	actor = s.effectiveRuntimeCoordinationActor(actor, snapshot)
 	options := ExecutionContextOptions{
-		ActorAgentID: strings.TrimSpace(actor.AgentID),
-		Role:         actor.Role,
-		ScopeKind:    actor.ScopeKind,
-		WorkBound:    actor.WorkBinding != nil,
-		ReviewBound:  actor.ReviewBinding != nil,
-		PlanMode:     actor.PlanMode,
-		ObserveOnly:  actor.ObservationOnly,
+		ActorAgentID:             strings.TrimSpace(actor.AgentID),
+		Role:                     actor.Role,
+		ScopeKind:                actor.ScopeKind,
+		WorkBound:                actor.WorkBinding != nil,
+		ReviewBound:              actor.ReviewBinding != nil,
+		PlanMode:                 actor.PlanMode,
+		ObserveOnly:              actor.ObservationOnly,
+		SubagentCommandAuthority: actor.SubagentCommandAuthority,
 	}
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil

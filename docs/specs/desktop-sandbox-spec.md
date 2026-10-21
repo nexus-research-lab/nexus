@@ -7,24 +7,16 @@ documentation set.
 
 ## Activation and scope
 
-Desktop execution derives the host sandbox contract from `NEXUS_APP_MODE=desktop`;
-there is no user-facing or process-environment on/off switch. Server deployments
-retain their existing runtime identity/isolation policy. Agent settings cannot
-set or clear the internal host policy marker.
+- The host sandbox contract is only available with `NEXUS_APP_MODE=desktop`, and is applied only when the owner's preference `desktop_sandbox_enabled` is on (Settings › Sandbox › Desktop sandbox). The preference defaults to off; with it off, desktop runtimes start without sandbox settings, scratch leases, host-path protection or network admission. There is no process-environment switch.
+- Windows desktop sessions require the same nxs capability handshake as macOS and use the SDK MXC ProcessContainer backend by default; when MXC is unavailable the session fails closed instead of falling back to an unrestricted backend. `NEXUS_WINDOWS_SANDBOX_PREVIEW` only selects the legacy machine-Host supervisor and does not skip the capability handshake; native Windows acceptance is still pending.
+- Server deployments keep their existing runtime identity/isolation policy.
+- Agent settings cannot set or clear the internal host policy marker.
+- DM, Room and background memory maintenance use the same client-options builder.
+- Restricted nxs sessions require negotiation of `required_sandbox_v1`, `sandbox_file_tools_v1`, `sandbox_search_tools_v1` and the per-area capabilities in [Per-area capabilities](#per-area-capabilities).
+- Restricted Claude sessions use the separate [Bridge `RequireClaudeNativeSandbox` contract](#restricted-claude-contract) with generated native `sandbox` settings (`enabled=true`, `failIfUnavailable=true`, `allowUnsandboxedCommands=false`). They claim no nxs capabilities and never use `--restricted` tool removal as command-sandbox proof.
+- An unsupported runtime fails. A desktop session never silently falls back to an unrestricted backend or accepts an unenforced policy.
+- Negotiation does not prove current dependencies or an installed effective policy. A capability acknowledgement does not prove that an older binary includes later policy fixes; fixed-version acceptance is separate.
 
-DM, Room and background memory maintenance use the same client-options builder.
-For restricted nxs sessions, it requires nxs `required_sandbox_v1`,
-`sandbox_file_tools_v1` and `sandbox_search_tools_v1` negotiation. Restricted
-Claude sessions use the separate Bridge `RequireClaudeNativeSandbox` contract
-and generated native `sandbox` settings (`enabled=true`,
-`failIfUnavailable=true`, `allowUnsandboxedCommands=false`); they do not claim
-nxs capabilities or use `--restricted` tool removal as a command-sandbox proof.
-An unsupported runtime fails instead of silently accepting an unenforced policy.
-Negotiation is not proof of current dependencies or an installed effective policy.
-Native file-tool capability is currently declared only by macOS nxs builds;
-Windows native execution is still incomplete and these desktop sessions fail
-closed before receiving a task. A desktop session therefore never silently
-falls back to an unrestricted backend when the selected contract is unavailable.
 
 The Windows Bridge lifecycle is implemented independently of SDK sandbox capability:
 runtime and CLI probe processes start suspended, join a kill-on-close Job, then resume

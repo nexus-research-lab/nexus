@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -52,6 +53,11 @@ type scratchRecoveryFixture struct {
 
 func newScratchRecoveryFixture(t *testing.T) scratchRecoveryFixture {
 	t.Helper()
+	return newScratchRecoveryFixtureWith(t, nil)
+}
+
+func newScratchRecoveryFixtureWith(t *testing.T, mutate func(*protocol.SandboxProcessScratch)) scratchRecoveryFixture {
+	t.Helper()
 	h, store, intent := newProcessHostFixture(t)
 	statePath, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -85,6 +91,9 @@ func newScratchRecoveryFixture(t *testing.T) scratchRecoveryFixture {
 	proof, err := supervisedScratchBinding(lease)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if mutate != nil {
+		mutate(&proof)
 	}
 	h.root = root
 	h.binding.Scratch = proof
@@ -270,6 +279,84 @@ func TestScratchRecoveryDoesNotGuessMissingOrReplacedQuarantine(t *testing.T) {
 			}
 		})
 	}
+}
+
+func rewriteScratchIdentityDevice(t *testing.T, identity string) string {
+	t.Helper()
+	fields := strings.Split(identity, ":")
+	if len(fields) != 6 {
+		t.Fatalf("unexpected identity %q", identity)
+	}
+	fields[1] = "10000ff"
+	return strings.Join(fields, ":")
+}
+
+func TestScratchRecoveryToleratesDeviceDrift(t *testing.T) {
+	drift := func(t *testing.T) func(*protocol.SandboxProcessScratch) {
+		return func(scratch *protocol.SandboxProcessScratch) {
+			scratch.BaseIdentity = rewriteScratchIdentityDevice(t, scratch.BaseIdentity)
+			scratch.LeafIdentity = rewriteScratchIdentityDevice(t, scratch.LeafIdentity)
+		}
+	}
+	t.Run("dev drift", func(t *testing.T) {
+		f := newScratchRecoveryFixtureWith(t, drift(t))
+		forgetScratchLeaseForRecoveryTest(f.lease)
+		result, err := f.manager.RecoverSandboxScratch(t.Context(), f.key, f.guard)
+		if err != nil || result.Phase != protocol.SandboxScratchRecoveryComplete {
+			t.Fatalf("recovery=%+v %v", result, err)
+		}
+		if _, err := os.Stat(f.path); !os.IsNotExist(err) {
+			t.Fatal("source scratch remains", err)
+		}
+		pending, err := f.store.PendingScratchRecovery(t.Context(), "owner", "session")
+		if err != nil || pending {
+			t.Fatalf("completion fence: %v %v", pending, err)
+		}
+		calls := 0
+		f.manager.factory = runtimeFactoryFunc(func(bridge.Options) Client { calls++; return &fakeRuntimeClient{} })
+		if _, err := f.manager.GetOrCreate(t.Context(), "session", bridge.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}); err != nil || calls != 1 {
+			t.Fatalf("cleanup-complete runtime rejected: %v calls=%d", err, calls)
+		}
+	})
+	t.Run("dev drift with replacement", func(t *testing.T) {
+		f := newScratchRecoveryFixtureWith(t, drift(t))
+		forgetScratchLeaseForRecoveryTest(f.lease)
+		if err := os.Rename(f.path, f.path+"-original"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(f.path, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.manager.RecoverSandboxScratch(t.Context(), f.key, f.guard); err == nil {
+			t.Fatal("replaced scratch recovered")
+		}
+		if _, err := os.Stat(f.path); err != nil {
+			t.Fatal("replacement removed", err)
+		}
+		calls := 0
+		f.manager.factory = runtimeFactoryFunc(func(bridge.Options) Client { calls++; return &fakeRuntimeClient{} })
+		if _, err := f.manager.GetOrCreate(t.Context(), "session", bridge.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}); !errors.Is(err, ErrSandboxCleanupPending) || calls != 0 {
+			t.Fatalf("pending cleanup admitted runtime: %v calls=%d", err, calls)
+		}
+	})
+	t.Run("parent dev drift with parent replacement", func(t *testing.T) {
+		f := newScratchRecoveryFixtureWith(t, drift(t))
+		forgetScratchLeaseForRecoveryTest(f.lease)
+		base := filepath.Dir(f.path)
+		if err := os.Rename(base, base+"-original"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(base, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.manager.RecoverSandboxScratch(t.Context(), f.key, f.guard); err == nil {
+			t.Fatal("replaced parent recovered")
+		}
+		pending, err := f.store.PendingScratchRecovery(t.Context(), "owner", "session")
+		if err != nil || !pending {
+			t.Fatalf("cleared replacement fence: %v %v", pending, err)
+		}
+	})
 }
 
 func TestScratchAndPolicyRecoveryReconcilesOnlyOriginalBoundReceipts(t *testing.T) {

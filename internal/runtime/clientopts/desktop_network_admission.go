@@ -212,6 +212,10 @@ func validateDesktopTypedRemoteMCP(
 // endpoint. An explicit host grant still replaces the copied Network object for
 // callers that have completed the separate domain-approval flow.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
+	return applyDesktopSandboxNetworkAdmissionForPlatform(options, input, runtime.GOOS)
+}
+
+func applyDesktopSandboxNetworkAdmissionForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
 	// Explicit Full Access has no restricted network contract. Windows desktop
 	// sessions use the SDK's MXC contract by default; the legacy machine Host
 	// preview is independent of this option projection.

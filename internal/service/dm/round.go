@@ -92,6 +92,7 @@ type roundRunner struct {
 	commandReceiptSequence      uint64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
+	subagentCommandAuthority    *bool
 	goalUsageBindingMu          sync.Mutex
 	goalUsageMu                 sync.Mutex
 	goalLastAssistant           protocol.Message
@@ -354,19 +355,20 @@ func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
 		agentID = strings.TrimSpace(r.agent.AgentID)
 	}
 	actor := orchestration.ActorContext{
-		OwnerUserID:           r.ownerUserID,
-		SessionKey:            r.sessionKey,
-		ExecutionID:           strings.TrimSpace(r.executionID),
-		GoalID:                strings.TrimSpace(r.goalIDForUsage),
-		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
-		AgentID:               agentID,
-		Role:                  orchestration.ExecutionActorCoordinator,
-		ActorKind:             protocol.ExecutionActorAgent,
-		ScopeKind:             protocol.ExecutionScopeDM,
-		RootRoundID:           r.roundID,
-		RuntimeRoundID:        r.roundID,
-		AgentRoundID:          r.agentRoundID,
-		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
+		OwnerUserID:              r.ownerUserID,
+		SessionKey:               r.sessionKey,
+		ExecutionID:              strings.TrimSpace(r.executionID),
+		GoalID:                   strings.TrimSpace(r.goalIDForUsage),
+		GoalObjectiveRevision:    r.currentGoalObjectiveRevision(),
+		AgentID:                  agentID,
+		Role:                     orchestration.ExecutionActorCoordinator,
+		ActorKind:                protocol.ExecutionActorAgent,
+		ScopeKind:                protocol.ExecutionScopeDM,
+		RootRoundID:              r.roundID,
+		RuntimeRoundID:           r.roundID,
+		AgentRoundID:             r.agentRoundID,
+		PlanMode:                 r.permissionMode == sdkpermission.ModePlan,
+		SubagentCommandAuthority: r.subagentCommandAuthority,
 	}
 	if r.responsibilityState != nil {
 		if snapshot, ok := r.responsibilityState.Load(); ok {

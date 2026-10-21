@@ -1,5 +1,9 @@
 // Package sdktool 把 Nexus 内部 MCP 工具描述装配成 Agent SDK tool。
 //
+// 成员清单：
+//   - tool.go：工具描述、结果构造与 SDK 适配。
+//   - args.go：各 MCP 工具共用的入口参数解析（字符串裁剪一次，类型不符视为缺省）。
+//
 // L2 | 父级: internal/mcp（L1 见 AGENTS.md）
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
@@ -7,6 +11,7 @@ package sdktool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	sdktools "github.com/nexus-research-lab/nexus-agent-sdk-bridge/tools"
@@ -26,6 +31,32 @@ type Tool struct {
 
 // ToolResult 表示 MCP 工具调用结果。
 type ToolResult = sdktools.Result
+
+// ErrorResult 把错误投影为单段文本的失败结果。
+func ErrorResult(err error) ToolResult {
+	return ToolResult{
+		Content: []map[string]any{{"type": "text", "text": err.Error()}},
+		IsError: true,
+	}
+}
+
+// JSONResult 把值编码为单段 JSON 文本；编码失败时返回 ErrorResult。
+func JSONResult(value any) ToolResult {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return ErrorResult(err)
+	}
+	return ToolResult{Content: []map[string]any{{"type": "text", "text": string(payload)}}}
+}
+
+// StructuredJSONResult 在 JSONResult 之外同时返回 StructuredContent。
+func StructuredJSONResult(value map[string]any) ToolResult {
+	result := JSONResult(value)
+	if !result.IsError {
+		result.StructuredContent = value
+	}
+	return result
+}
 
 // ToolAnnotations 表示工具元数据。
 type ToolAnnotations = sdktools.Annotations

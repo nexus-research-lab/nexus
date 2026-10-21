@@ -466,7 +466,8 @@ function TeamPageContent({ roomId }: { roomId: string | null }) {
   );
 }
 
-function DeliveryCancelButton({roomId, deliveryId}: {roomId: string; deliveryId: string}) {
+// 未领取的投递直接取消；执行中的投递只请求停止，由执行节点中断后收口。
+function DeliveryCancelButton({roomId, deliveryId, running}: {roomId: string; deliveryId: string; running: boolean}) {
   const {t} = useI18n();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -475,7 +476,7 @@ function DeliveryCancelButton({roomId, deliveryId}: {roomId: string; deliveryId:
     try { await cancelTeamDelivery(roomId, deliveryId); }
     catch { setFailed(true); }
     finally { setBusy(false); window.dispatchEvent(new Event("focus")); }
-  }}>{t("team.cancel_waiting")}</UiButton>{failed ? <span role="alert">{t("team.cancel_failed")}</span> : null}</>;
+  }}>{t(running ? "team.stop_delivery" : "team.cancel_waiting")}</UiButton>{failed ? <span role="alert">{t("team.cancel_failed")}</span> : null}</>;
 }
 
 function TeamMessageFeed({
@@ -587,11 +588,12 @@ function TeamMessageFeed({
               currentAgentName={agentsByID.get(delivery.agent_id)?.name ?? delivery.agent_id}
               currentAgentAvatar={agentsByID.get(delivery.agent_id)?.avatar}
               roundId={delivery.id} messages={[]} isLastRound isLoading={false} canRespondToPermissions={false}
-              assistantHeaderAction={delivery.state === "pending" && message.author_user_id === currentUserId ? <DeliveryCancelButton roomId={roomId} deliveryId={delivery.id} /> : undefined}
+              assistantHeaderAction={(delivery.state === "pending" || (delivery.state === "leased" && !delivery.cancel_requested)) && message.author_user_id === currentUserId
+                ? <DeliveryCancelButton roomId={roomId} deliveryId={delivery.id} running={delivery.state === "leased"} /> : undefined}
               assistantEmptyState={<div role="status">
                 {delivery.state === "pending" || delivery.state === "leased" ? (
                   <MessageActivityStatus className={ROOM_RESULT_ACTIVITY_ALIGNMENT_CLASS_NAME} stableSlot state={delivery.state === "pending" ? "sending" : delivery.execution_state === "waiting_input" ? "waiting_input" : "replying"}
-                    label={t(delivery.state === "leased" && delivery.execution_state ? `team.delivery_${delivery.execution_state}` : `team.delivery_${delivery.state}`)} />
+                    label={t(delivery.cancel_requested ? "team.delivery_stopping" : delivery.state === "leased" && delivery.execution_state ? `team.delivery_${delivery.execution_state}` : `team.delivery_${delivery.state}`)} />
                 ) : (
                   <span className={getUiTypographyClassName({role: "supporting", tone: "muted"})}>
                     {t(DELIVERY_FAILURE_KEYS[delivery.failure_code ?? ""] ?? (delivery.state === "completed" ? "team.node_job_completed" : `team.delivery_${delivery.state}`))}
@@ -722,6 +724,7 @@ function projectTeamMentions(content: string, mentions: NonNullable<TeamMessage[
 const TEAM_ERROR_KEYS = {
   load: "team.error_load",
   send: "team.error_send",
+  rate_limited: "team.error_rate_limited",
   sync: "team.error_sync",
 } as const;
 

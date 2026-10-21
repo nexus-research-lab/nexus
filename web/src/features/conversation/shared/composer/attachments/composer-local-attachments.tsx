@@ -29,6 +29,7 @@ import {
   COMPOSER_IMAGE_ATTACHMENT_PREVIEW_CLASS_NAME,
   COMPOSER_IMAGE_ATTACHMENT_REMOVE_CLASS_NAME,
 } from "../composer-styles";
+import { UiMiddleTruncate } from "@/shared/ui/display/middle-truncate";
 
 export function ComposerAttachmentList({
   attachments,
@@ -172,7 +173,7 @@ function ComposerFileAttachment({
   const Icon = isText ? FileText : FileIcon;
   const content = <>
     <Icon aria-hidden size={16} className="shrink-0 text-(--icon-default)" />
-    <span className="max-w-[120px] truncate">{attachment.file.name}</span>
+    <UiMiddleTruncate className="max-w-[120px]" text={attachment.file.name} />
     {isText ? <Eye aria-hidden className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" /> : null}
   </>;
   return (

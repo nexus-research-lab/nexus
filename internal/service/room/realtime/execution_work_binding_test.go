@@ -453,3 +453,75 @@ func assertRoomAttemptTerminalCall(
 		t.Fatalf("terminal call = %#v actor = %#v", call, actor)
 	}
 }
+
+func TestRoomRuntimeCommandContextUsesPhysicalAgentRoundForLeaseAuthority(t *testing.T) {
+	execution := &slotExecution{
+		round: &activeRoomRound{
+			SessionKey:     "room:group:conversation-1",
+			RootRoundID:    "room-root-round",
+			RoomID:         "room-1",
+			ConversationID: "conversation-1",
+		},
+		slot: &activeRoomSlot{
+			AgentRoundID:      "agent-round-1",
+			RuntimeSessionKey: "runtime-session-1",
+		},
+		service: &Service{},
+	}
+
+	contextValue := execution.runtimeCommandRoundContext("")
+	if contextValue.RoundID != "room-root-round" {
+		t.Fatalf("command round id = %q, want room root round", contextValue.RoundID)
+	}
+	if contextValue.CommandContext.RootRoundID != "room-root-round" {
+		t.Fatalf("command root round id = %q, want room root round", contextValue.CommandContext.RootRoundID)
+	}
+	if contextValue.CommandContext.AgentRoundID != "agent-round-1" {
+		t.Fatalf("command agent round id = %q, want physical agent round", contextValue.CommandContext.AgentRoundID)
+	}
+}
+
+func TestManagedRoomExecutionUsesTrustedCommandSourceRoute(t *testing.T) {
+	execution := &slotExecution{
+		round: &activeRoomRound{
+			SessionKey:      "room:group:conversation-1",
+			RootRoundID:     "room-root-round",
+			ExecutionOrigin: "handoff",
+			RoomID:          "room-1",
+			ConversationID:  "conversation-1",
+		},
+		slot: &activeRoomSlot{
+			AgentRoundID:      "agent-round-1",
+			RuntimeSessionKey: "runtime-session-1",
+			WorkBinding:       testRoomExecutionWorkBinding(),
+		},
+		service: &Service{},
+	}
+
+	contextValue := execution.runtimeCommandRoundContext("")
+	if contextValue.SourceContextType != "room" {
+		t.Fatalf("managed Room source context = %q, want room", contextValue.SourceContextType)
+	}
+}
+
+func TestUnboundRoomHandoffKeepsUntrustedCommandSourceRoute(t *testing.T) {
+	execution := &slotExecution{
+		round: &activeRoomRound{
+			SessionKey:      "room:group:conversation-1",
+			RootRoundID:     "room-root-round",
+			ExecutionOrigin: "handoff",
+			RoomID:          "room-1",
+			ConversationID:  "conversation-1",
+		},
+		slot: &activeRoomSlot{
+			AgentRoundID:      "agent-round-1",
+			RuntimeSessionKey: "runtime-session-1",
+		},
+		service: &Service{},
+	}
+
+	contextValue := execution.runtimeCommandRoundContext("")
+	if contextValue.SourceContextType != "room_handoff" {
+		t.Fatalf("unbound Room handoff source context = %q, want room_handoff", contextValue.SourceContextType)
+	}
+}

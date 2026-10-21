@@ -36,6 +36,34 @@ func NewContextualInputBlock(name string, content string, priority int, metadata
 	}
 }
 
+// GoalContextualInputs 把 Goal runtime 上下文投影为下一轮隐藏输入；空上下文不产出块。
+func GoalContextualInputs(contextText string, goalID string, sessionKey string) []ContextualInputBlock {
+	contextText = strings.TrimSpace(contextText)
+	if contextText == "" {
+		return nil
+	}
+	metadata := map[string]string{}
+	if goalID = strings.TrimSpace(goalID); goalID != "" {
+		metadata["goal_id"] = goalID
+	}
+	if sessionKey = strings.TrimSpace(sessionKey); sessionKey != "" {
+		metadata["session_key"] = sessionKey
+	}
+	return []ContextualInputBlock{
+		NewContextualInputBlock(ContextualInputNameGoal, contextText, ContextualInputPriorityGoal, metadata),
+	}
+}
+
+// ExecutionContextualInputs 把权威 WorkGraph 上下文投影为下一轮隐藏输入；空上下文不产出块。
+func ExecutionContextualInputs(content string) []ContextualInputBlock {
+	if content = strings.TrimSpace(content); content == "" {
+		return nil
+	}
+	return []ContextualInputBlock{
+		NewContextualInputBlock(ContextualInputNameExecution, content, ContextualInputPriorityExecution, nil),
+	}
+}
+
 type nextTurnContextClient interface {
 	SetNextTurnContext(context.Context, []ContextualInputBlock) error
 }

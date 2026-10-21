@@ -5,11 +5,38 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 )
+
+func TestDesktopTeamCapabilityIsolation(t *testing.T) {
+	for _, disabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(disabled), func(t *testing.T) {
+			calls := 0
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"data":{"enabled":false},"success":true,"code":"0000"}`))
+			}))
+			defer upstream.Close()
+			s := &Server{config: config.Config{AppMode: "desktop", APIPrefix: "/nexus/v1", RemoteURL: upstream.URL, MultiplayerDisabled: disabled}, api: handlershared.NewAPI(nil), router: newPathParamRouter()}
+			s.mountRemoteGateway()
+			s.mountTeamRoutes()
+			response := httptest.NewRecorder()
+			s.router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/nexus/v1/team/capabilities", nil))
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"enabled":false`) {
+				t.Fatalf("capability status=%d body=%s", response.Code, response.Body.String())
+			}
+			if (calls == 0) != disabled {
+				t.Fatalf("upstream calls=%d disabled=%v", calls, disabled)
+			}
+		})
+	}
+}
 
 func TestDesktopRemoteGatewayKeepsSessionOnLocalOrigin(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

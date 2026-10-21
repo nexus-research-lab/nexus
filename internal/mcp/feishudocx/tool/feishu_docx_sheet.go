@@ -23,13 +23,13 @@ func feishuDocxSheetList(svc contract.Service, sctx contract.ServerContext) sdkt
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ListSheets(ctx, stringValue(args["url"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -51,13 +51,13 @@ func feishuDocxSheetValues(svc contract.Service, sctx contract.ServerContext) sd
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.ReadSheetValues(ctx, stringValue(args["url"]), stringValue(args["range"]))
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }
@@ -85,7 +85,7 @@ func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkt
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
 			client, err := loadFeishuDocxClient(ctx, svc, sctx)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
 			result, err := client.FindSheet(
 				ctx,
@@ -99,9 +99,9 @@ func feishuDocxSheetFind(svc contract.Service, sctx contract.ServerContext) sdkt
 				boolValue(args["include_formulas"]),
 			)
 			if err != nil {
-				return errorResult(err), nil
+				return sdktool.ErrorResult(err), nil
 			}
-			return jsonResult(result), nil
+			return sdktool.JSONResult(result), nil
 		},
 	}
 }

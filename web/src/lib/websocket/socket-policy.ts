@@ -72,14 +72,17 @@ export function shouldQueueWebSocketMessage(
   return OFFLINE_QUEUE_MESSAGE_TYPES.has(message.type);
 }
 
+// 等量抖动：保留一半指数退避作为下限，另一半随机，避免服务重启后所有标签页同刻重连。
 export function getReconnectDelay(
   config: ResolvedWebSocketConfig,
   attempt: number,
+  random: () => number = Math.random,
 ): number {
-  return Math.min(
+  const backoff = Math.min(
     config.reconnectDelay * 2 ** Math.max(0, attempt - 1),
     config.maxReconnectDelay,
   );
+  return Math.round(backoff / 2 + random() * (backoff / 2));
 }
 
 interface TransportStaleInput {

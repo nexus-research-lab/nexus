@@ -39,6 +39,16 @@ func IsExpectedMutationError(err error) bool {
 	return false
 }
 
+// IsAbsent 识别 Goal 功能关闭或目标 Goal 不存在；读取上下文与记录用量的调用方据此静默跳过。
+func IsAbsent(err error) bool {
+	return errors.Is(err, ErrGoalDisabled) || errors.Is(err, ErrGoalNotFound)
+}
+
+// IsInactive 在 IsAbsent 之外还接受 Goal 已离开可计量状态；用于 usage limit 这类尽力标记。
+func IsInactive(err error) bool {
+	return IsAbsent(err) || errors.Is(err, ErrGoalInvalidState)
+}
+
 type goalInvalidInputError struct {
 	message string
 }

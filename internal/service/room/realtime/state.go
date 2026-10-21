@@ -341,6 +341,7 @@ type activeRoomRound struct {
 	TrustedConfigurationContext bool
 	PublicContext               []protocol.Message
 	PublicAgentDirectory        map[string]string
+	PublicInstructions          string
 	ExecutionOrigin             string
 	// trustedQueuedConfigurationContext marks only the runtime created from a
 	// successfully claimed direct-user queue admission.

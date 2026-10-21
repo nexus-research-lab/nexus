@@ -30,7 +30,7 @@ export function UiSkeleton({
     <span
       aria-hidden="true"
       className={cn(
-        "block rounded-full motion-safe:animate-pulse",
+        "ui-skeleton-sheen block rounded-full",
         SKELETON_TONE_CLASS_MAP[tone],
         className,
       )}

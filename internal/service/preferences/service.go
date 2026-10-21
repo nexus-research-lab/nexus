@@ -185,6 +185,9 @@ func (s *Service) updateLocked(
 	if request.BrowserCDPEnabled != nil {
 		current.BrowserCDPEnabled = *request.BrowserCDPEnabled
 	}
+	if request.DesktopSandboxEnabled != nil {
+		current.DesktopSandboxEnabled = *request.DesktopSandboxEnabled
+	}
 	if request.echoEnabled != nil {
 		current.EchoEnabled = *request.echoEnabled
 	}

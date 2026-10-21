@@ -30,7 +30,7 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 	}
 	for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
 		before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: kind}, Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{DenyWrite: []string{"/existing"}}}}
-		got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop"}, "darwin", filepath.Join(alias, "app"))
+		got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", filepath.Join(alias, "app"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,7 +56,7 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 			t.Fatal("caller policy mutated")
 		}
 		before.Runtime.PermissionMode = sdkpermission.ModeBypassPermissions
-		full, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop"}, "darwin", "relative-is-not-consumed")
+		full, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", "relative-is-not-consumed")
 		if err != nil || full.Sandbox != before.Sandbox || len(full.Tools.Deny) != 0 {
 			t.Fatalf("Full Access changed: %+v %v", full, err)
 		}
@@ -66,7 +66,7 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 func TestDesktopHostPathsIgnoreTaskStateRoot(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(appfs.NexusStateRootEnvName, root)
-	got, err := BuildAgentClientOptions(context.Background(), nil, AgentClientOptionsInput{AppMode: "desktop", RuntimeKind: "nxs", WorkspacePath: t.TempDir(), OwnerUserID: "owner", ExtraEnv: map[string]string{appfs.NexusStateRootEnvName: "/task-controlled"}})
+	got, err := BuildAgentClientOptions(context.Background(), nil, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, RuntimeKind: "nxs", WorkspacePath: t.TempDir(), OwnerUserID: "owner", ExtraEnv: map[string]string{appfs.NexusStateRootEnvName: "/task-controlled"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestDesktopHostPathsProtectExistingPrivateDirectoryTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 	options := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}, Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}}}
-	got, err := applyDesktopHostPaths(options, AgentClientOptionsInput{AppMode: "desktop"}, "darwin", app)
+	got, err := applyDesktopHostPaths(options, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", app)
 	if err != nil {
 		t.Fatal(err)
 	}

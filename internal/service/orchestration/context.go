@@ -27,18 +27,19 @@ const (
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
 type ExecutionContextOptions struct {
-	ActorAgentID            string
-	Role                    ExecutionActorRole
-	ScopeKind               protocol.ExecutionScopeKind
-	WorkBound               bool
-	ReviewBound             bool
-	PlanMode                bool
-	ObserveOnly             bool
-	GoalPromotionReasons    []protocol.GoalActivationReason
-	GoalPromotionBlockers   []string
-	RuntimeGraph            *protocol.ExecutionRuntimeGraph
-	RuntimeGraphRelation    string
-	RuntimeGraphUnavailable bool
+	ActorAgentID             string
+	Role                     ExecutionActorRole
+	ScopeKind                protocol.ExecutionScopeKind
+	WorkBound                bool
+	ReviewBound              bool
+	PlanMode                 bool
+	ObserveOnly              bool
+	SubagentCommandAuthority *bool
+	GoalPromotionReasons     []protocol.GoalActivationReason
+	GoalPromotionBlockers    []string
+	RuntimeGraph             *protocol.ExecutionRuntimeGraph
+	RuntimeGraphRelation     string
+	RuntimeGraphUnavailable  bool
 }
 
 // RenderUnmanagedExecutionContext 投影没有权威 WorkGraph 的普通轮状态。
@@ -950,14 +951,15 @@ func renderSubagentAdmissionBoundary(
 			options.ActorAgentID,
 		)
 	}
-	eligible := !options.PlanMode
+	eligible := !options.PlanMode &&
+		(options.SubagentCommandAuthority == nil || *options.SubagentCommandAuthority)
 	fmt.Fprintf(
 		output,
 		"\n  <subagent_admission eligible=\"%t\" command_domain=\"subagent\" operation=\"spawn\" candidate_assignment_count=\"%d\"",
 		eligible,
 		candidateCount,
 	)
-	if resolveErr == nil {
+	if resolveErr == nil && eligible {
 		fmt.Fprintf(
 			output,
 			" binding_mode=\"managed\" assignment_id=\"%s\" work_item_id=\"%s\" parent_attempt_id=\"%s\" />",

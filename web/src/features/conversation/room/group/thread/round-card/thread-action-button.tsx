@@ -29,7 +29,6 @@ export function ThreadActionButton({
       data-room-agent-action="thread"
       onClick={onClick}
       size="xs"
-      title={actionLabel}
       variant="text"
     >
       {t("room.thread_label")}

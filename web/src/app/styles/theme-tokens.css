@@ -54,6 +54,9 @@
   --motion-duration-layout: 300ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-ease-layout: cubic-bezier(0.32, 0.72, 0, 1);
+  /* 松手回弹：约 9% 轻微过冲后收敛，只用于按压反馈这类小幅 transform。 */
+  --motion-ease-spring: linear(0, 0.2459, 0.6526, 0.9468, 1.0764, 1.0915, 1.0585, 1.0219, 0.9993, 0.9914, 0.9921, 0.9957, 0.9988, 1.0004, 1);
+  --motion-duration-spring: 420ms;
   --scrollbar-thumb: rgba(11, 11, 11, 0.16);
   --scrollbar-thumb-hover: rgba(11, 11, 11, 0.28);
   --ambient-page-pattern-size: var(--nexus-page-pattern-size);
@@ -510,21 +513,14 @@
   --content-radius-control-xs: var(--radius-control-xs);
   --content-radius-control: var(--radius-control-sm);
   --content-radius-surface: var(--radius-surface-md);
-  --content-inline-code-background: color-mix(
-    in srgb,
-    var(--surface-panel-background) 78%,
-    var(--background)
-  );
+  /* inline code 是正文里的术语，只用一层极淡中性底色标出边界；不描边、不着色，密集出现时不抢正文。 */
+  --content-inline-code-background: color-mix(in srgb, var(--text-strong) 6%, transparent);
   --content-inline-code-border: color-mix(
     in srgb,
     var(--divider-subtle-color) 86%,
     transparent
   );
-  --content-inline-code-color: color-mix(
-    in srgb,
-    var(--primary) 78%,
-    var(--text-strong)
-  );
+  --content-inline-code-color: var(--text-default);
   --content-workspace-file-background: color-mix(
     in srgb,
     var(--primary) 8%,
@@ -702,15 +698,6 @@
     "Noto Sans CJK SC",
     ui-sans-serif,
     sans-serif;
-  --font-prose:
-    "KingHwaOldSong",
-    "Source Han Serif SC",
-    "Songti SC",
-    STSong,
-    "PingFang SC",
-    "PT Mono",
-    "Microsoft YaHei",
-    serif;
   --font-mono:
     "PT Mono",
     "SFMono-Regular",

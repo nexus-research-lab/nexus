@@ -46,7 +46,8 @@ func validateProcessIntent(i protocol.SandboxProcessIntent) error {
 }
 func validScratchIdentity(value string) bool {
 	fields := strings.Split(value, ":")
-	if len(fields) != 6 || fields[0] != "darwin-v1" {
+	// v2 is read-only legacy from an unreleased build; v1 is still written for downgrade compatibility.
+	if len(fields) != 6 || (fields[0] != "darwin-v1" && fields[0] != "darwin-v2") {
 		return false
 	}
 	for _, field := range fields[1:] {

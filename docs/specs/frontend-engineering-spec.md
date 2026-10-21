@@ -372,7 +372,7 @@ Composer 的间距配方
 - 公共控件调用方原则上只传布局 class；场景确需组合特殊表面时由设计规范、组件行为测试和浏览器验收判断，不使用源码正则冻结实现细节。
 - `frontend-token-contract.test.mjs` 通过既有 CSS 工具链和 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS；必需引用必须有声明，可选注入必须有 fallback，三主题的 canonical 别名不得缺失、循环或在同一声明块重复。明确进入 `color-mix()` 的公共控件颜色槽还需解析其别名并通过既有 DOM CSS 解析器的颜色校验，拒绝把已声明的渐变误用为颜色。检查不执行运行时表达式，也不把全局声明集合或解析器接受当作 DOM 继承、实际绘制或文字对比度证明；没有逐文件违规额度。
 - `npm run test:components` 与 `npm run test:contracts` 可分别定位日常失败；前者默认排除开发期 `src/dev/ui-gallery` 陈列测试，后者继续覆盖规范、边界、恢复和禁止项合同。`npm run test:ui-gallery` 只运行 Gallery 的 DOM 陈列合同，`npm run test:components:all` 用于需要一次覆盖全部 Vitest 文件的显式场景，`npm test` / `npm run test:standard` 必须串行覆盖日常两类测试。
-- `npm run check` / `npm run check:standard` 串行执行 lint、typecheck、日常合同/组件测试和生产构建；默认不启动真实浏览器，不把截图或视口矩阵混入普通打包门禁。Vitest 默认使用两个 fork worker，可用 `VITEST_MAX_WORKERS` 为本机资源或 CI 覆盖。
+- `npm run check` / `npm run check:standard` 串行执行 lint、typecheck、日常合同/组件测试和生产构建；默认不启动真实浏览器，不把截图或视口矩阵混入普通打包门禁。Vitest 默认使用两个 fork worker，可用 `VITEST_MAX_WORKERS` 为本机资源或 CI 覆盖；CI 的 4 核 runner 固定使用 4 个。
 - `npm run test:browser:smoke` 固定运行 `ui-gallery.spec.ts` 的 `light-zh-1440` Playwright 项目和一个 worker，供本地快速确认真实共享 UI 行为，不依赖业务后端；`npm run test:browser:full` 使用固定版本 Playwright 启动独立端口与依赖优化缓存的 Vite 服务器，执行完整真实浏览器合同。浏览器服务器固定使用 `browser-test` mode，避免并发开发或 SSR 合同检查使缓存失效并重建页面。`npm run check:ui` / 根目录 `make check-web-ui` 才覆盖日常门禁、Gallery DOM 合同和完整浏览器矩阵；根目录 `make check-web` 只覆盖标准前端门禁。浏览器依赖首次使用通过 `npx playwright install chromium webkit` 安装，Linux CI 使用 `--with-deps`。
 - `.github/workflows/frontend-check.yml` 对前端、规范与 Windows 原生主题变更运行同一套检查，失败不得通过跳过测试、增加重试或更新截图来消除。
 - `make app-check-ui` 在已解锁的 macOS 图形会话中编译独立 QA App，复用当前生产窗口与 WKWebView 源码，验证 Gallery 的原生输入、浮层、焦点及隐藏恢复。独立应用标识、偏好、状态根、端口和优化缓存隔离测试；不得启动产品 sidecar 或把旧安装包作为当前源码证据。源码清单、日志、报告与截图按运行保存，具体环境和边界见 `desktop/macos/README.md`；此入口不加入无图形会话的默认前端门禁，也不替代完整业务或 Windows 宿主检查。
@@ -396,9 +396,12 @@ HTML 入口，不经过登录态、业务 API 或产品路由，也不得加入 
 Provider 和 SVG Filter 等无独立界面的基础设施明确标注其真实消费路径。新增
 公开组件但没有登记时，Gallery 覆盖合同必须失败。
 
-`browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口。默认 Chromium 矩阵
-固定 light/dark/rain × 中文/英文 × 320/767/768/1440px；WebKit 使用同主题/语言
-与 320/1440px 的代表性矩阵。覆盖默认控件实际高度/字号/字重/图文间距、按钮禁用/忙碌、
+`browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口。矩阵采用成对覆盖：
+Chromium 保留 light/dark/rain × 320/767/768/1440px 全组合（12 个项目），WebKit
+保留三主题 × 320/1440px（6 个项目）；中/英文按主题与宽度交替分配，使主题×语言、
+语言×宽度、主题×宽度的每种组合都至少被覆盖一次，`light-zh-1440` 固定存在。
+新增维度或取值时必须维持该成对覆盖性质，不得退回完整笛卡尔积，也不得删减到
+任一两两组合缺失。覆盖默认控件实际高度/字号/字重/图文间距、按钮禁用/忙碌、
 真实 focus-visible、hover 几何、选择器/动作菜单键盘与禁用项、碰撞翻转和滚动重定位、模态滚动锁、
 初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还及正常/减少动效。
 受控 Workspace 标签另覆盖选择、创建、固定与键盘关闭后的活动项恢复；业务
@@ -434,7 +437,7 @@ owner 迁移检查后认领，其他 owner 的已绑定快照在认证绑定前�
 真实业务数据、第三方 CDN 或原生窗口手势已经验证。
 
 组件陈列面是验证夹具。截图随 HTML report 输出到 `playwright-report/`。
-CI 将完整浏览器矩阵按 `--shard` 分为十二个独立任务，保留全部用例并分别上传
+CI 将完整浏览器矩阵按 `--shard` 分为八个独立任务，保留全部用例并分别上传
 `frontend-browser-evidence-<shard>`；稳定的 `frontend` 汇总门禁只有在代码检查
 及全部浏览器分片成功后才能通过，失败、取消或跳过均不得视为成功。
 失败 trace/截图输出到 `test-results/`，CI 保留 14 天；它们是可复查的视觉

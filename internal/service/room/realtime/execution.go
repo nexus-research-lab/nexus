@@ -59,6 +59,7 @@ type slotExecution struct {
 	toolSurfaceFingerprint   string
 	forkSourceSessionID      string
 	runtimeIdentityCommitted bool
+	subagentCommandAuthority *bool
 }
 
 type roomRoundMapperAdapter struct {
@@ -326,6 +327,7 @@ func (s *Service) runSlot(
 
 func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
 	actor := roomOrchestrationActor(e.round, e.slot)
+	actor.SubagentCommandAuthority = e.subagentCommandAuthority
 	authority := e.ensureResponsibilityAuthorityState()
 	if authority != nil {
 		authority.SeedExecution(actor.ExecutionID)

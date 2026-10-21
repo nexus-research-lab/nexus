@@ -30,14 +30,9 @@ type Server struct {
 	closed      bool
 }
 
-// New 使用默认日志配置创建 HTTP server。
+// New 使用默认日志配置创建 HTTP server；跨包集成测试经此装配。
 func New(cfg config.Config) (*Server, error) {
-	return NewWithLogger(cfg, nil)
-}
-
-// NewWithLogger 创建带显式 logger 的 HTTP server。
-func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
-	return NewWithDesktopOwnership(cfg, logger, nil)
+	return NewWithDesktopOwnership(cfg, nil, nil)
 }
 
 // NewWithDesktopOwnership 只消费入口已持有的实例锁，在挂载路由前恢复原沙箱记录。

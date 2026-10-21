@@ -36,10 +36,10 @@ type MessageMetricCollectorMap = {
   ) => void;
 };
 
-// 与 Markdown 正文的字号和行高保持一致，避免虚拟列表初始估高跳动。
+// 与默认聊天排版（14px / 1.7）保持一致，避免虚拟列表初始估高跳动。
 const PROSE_FONT =
-  '400 16px "KingHwaOldSong", "Source Han Serif SC", "Songti SC", STSong, "PingFang SC", "PT Mono", "Microsoft YaHei", serif';
-const PROSE_LINE_HEIGHT = 28;
+  '400 14px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif';
+const PROSE_LINE_HEIGHT = 24;
 
 // 每轮固定结构：用户头部、Agent 头部、内边距和分隔线。
 const ROUND_CHROME_HEIGHT = 96;

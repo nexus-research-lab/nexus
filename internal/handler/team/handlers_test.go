@@ -25,7 +25,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
 type teamTokenStub struct {
@@ -95,34 +94,6 @@ type teamRelayStub struct {
 	watchUpdate       relaycontract.StreamUpdated
 	watchErr          error
 	watchExpireOnce   bool
-}
-
-type teamProjectorStub struct {
-	err             error
-	roomCalls       int
-	commitCalls     int
-	snapshotCalls   int
-	differenceCalls int
-}
-
-func (stub *teamProjectorStub) ProjectRoom(context.Context, string, string, relaycontract.RoomView) error {
-	stub.roomCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectCommit(context.Context, string, relaycontract.MessageCommit) error {
-	stub.commitCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectSnapshot(context.Context, string, relaycontract.Snapshot) error {
-	stub.snapshotCalls++
-	return stub.err
-}
-
-func (stub *teamProjectorStub) ProjectDifference(context.Context, string, relaycontract.Difference) error {
-	stub.differenceCalls++
-	return stub.err
 }
 
 func (stub *teamRelayStub) ListRooms(
@@ -413,49 +384,6 @@ func TestTeamStreamForwardsSnapshotReset(t *testing.T) {
 	}
 }
 
-func TestTeamDifferenceDoesNotHideProjectionFailure(t *testing.T) {
-	projector := &teamProjectorStub{err: errors.New("local database unavailable")}
-	recorder := teamRequest(
-		t,
-		newTeamTestRouterWithProjector(
-			&teamTokenStub{token: "token"},
-			&teamRelayStub{difference: relaycontract.Difference{StreamEpoch: "epoch-1"}},
-			projector,
-			teamTestPrincipal(),
-		),
-		http.MethodGet,
-		"/nexus/v1/team/sync-streams/stream-1/difference?after_seq=0&limit=100",
-		"",
-		false,
-	)
-	failure := decodeTeamFailure(t, recorder)
-	if recorder.Code != http.StatusServiceUnavailable ||
-		failure.Code != "team.local_projection_failed" || projector.differenceCalls != 1 {
-		t.Fatalf("status=%d failure=%+v projector=%+v", recorder.Code, failure, projector)
-	}
-}
-
-func TestTeamMessageKeepsCommittedSuccessWhenProjectionFails(t *testing.T) {
-	projector := &teamProjectorStub{err: errors.New("local database unavailable")}
-	relay := &teamRelayStub{commit: relaycontract.MessageCommit{
-		Message:     relaycontract.Message{ID: "message-1"},
-		StreamEpoch: "epoch-1",
-	}}
-	recorder := teamRequest(
-		t,
-		newTeamTestRouterWithProjector(
-			&teamTokenStub{token: "token"}, relay, projector, teamTestPrincipal(),
-		),
-		http.MethodPost,
-		"/nexus/v1/team/conversations/conversation-1/messages",
-		`{"content":{"version":1,"blocks":[{"type":"markdown","text":"hello"}]}}`,
-		true,
-	)
-	if recorder.Code != http.StatusOK || projector.commitCalls != 1 {
-		t.Fatalf("status=%d projector=%+v body=%s", recorder.Code, projector, recorder.Body.String())
-	}
-}
-
 func TestTeamHandlersUseAuthenticatedPrincipalAndFixedRelayToken(t *testing.T) {
 	sessionID := "session-1"
 	principal := &authsvc.Principal{
@@ -555,17 +483,16 @@ func TestTeamHandlersCreateAndListExplicitRooms(t *testing.T) {
 		CurrentUserRole: "owner",
 	}
 	relay := &teamRelayStub{room: view, rooms: relaycontract.RoomList{Rooms: []relaycontract.RoomView{view}}}
-	projector := &teamProjectorStub{}
 	tokens := &teamTokenStub{token: "relay-token"}
-	router := newTeamTestRouterWithProjector(tokens, relay, projector, teamTestPrincipal())
+	router := newTeamTestRouter(tokens, relay, teamTestPrincipal())
 	created := teamRequest(
 		t, router, http.MethodPost, "/nexus/v1/team/rooms", `{"name":"研发群","avatar":"room://avatar","member_user_ids":["user-2"],"agent_ids":["agent-1"],"coordinator_agent_id":"agent-1"}`, true,
 	)
 	listed := teamRequest(t, router, http.MethodGet, "/nexus/v1/team/rooms", "", false)
 	if created.Code != http.StatusOK || listed.Code != http.StatusOK ||
 		relay.createRoomCalls != 1 || relay.listRoomsCalls != 1 ||
-		relay.idempotencyKey != "command-1" || projector.roomCalls != 2 {
-		t.Fatalf("create=%d list=%d relay=%+v projector=%+v", created.Code, listed.Code, relay, projector)
+		relay.idempotencyKey != "command-1" {
+		t.Fatalf("create=%d list=%d relay=%+v", created.Code, listed.Code, relay)
 	}
 	if relay.roomInput.Avatar != "room://avatar" || !reflect.DeepEqual(relay.roomInput.MemberUserIDs, []string{"user-2"}) ||
 		!reflect.DeepEqual(relay.roomInput.AgentIDs, []string{"agent-1"}) || relay.roomInput.CoordinatorAgentID != "agent-1" {
@@ -749,6 +676,16 @@ func TestTeamHandlersFailClosedWithoutAuthenticatedPrincipal(t *testing.T) {
 		tokens.calls != 0 || relay.messageCalls != 0 {
 		t.Fatalf("status=%d failure=%+v token calls=%d relay calls=%d body=%s", recorder.Code, failure, tokens.calls, relay.messageCalls, recorder.Body.String())
 	}
+	// 未登录请求不能先触达 Control 归属校验，否则会被误报为上游 502。
+	for path, body := range map[string]string{
+		"/nexus/v1/team/rooms/room-1/agents":      `{"agent_id":"agent-1","expected_membership_version":1}`,
+		"/nexus/v1/team/rooms/room-1/invitations": `{"user_id":"user-2","expected_membership_version":1}`,
+	} {
+		recorder = teamRequest(t, router, http.MethodPost, path, body, true)
+		if recorder.Code != http.StatusUnauthorized || tokens.verifyCalls != 0 || relay.membershipCalls != 0 {
+			t.Fatalf("%s status=%d verify calls=%d body=%s", path, recorder.Code, tokens.verifyCalls, recorder.Body.String())
+		}
+	}
 }
 
 func TestTeamHandlersRequireStreamEpochForNonzeroCursor(t *testing.T) {
@@ -920,20 +857,11 @@ func TestTeamRoomsRejectLocalPrincipalBeforeTokenExchange(t *testing.T) {
 
 func newTeamTestRouter(
 	tokens relayTokenExchanger,
-	relay relayClient,
-	principal *authsvc.Principal,
-) http.Handler {
-	return newTeamTestRouterWithProjector(tokens, relay, nil, principal)
-}
-
-func newTeamTestRouterWithProjector(
-	tokens relayTokenExchanger,
-	relay relayClient,
-	projector teamsvc.Projector,
+	relay relayGateway,
 	principal *authsvc.Principal,
 ) http.Handler {
 	api := handlershared.NewAPI(slog.New(slog.NewTextHandler(io.Discard, nil)))
-	handler := New(api, tokens, teamsvc.New(relay, projector, api.BaseLogger()), relay)
+	handler := New(api, tokens, relay)
 	router := chi.NewRouter()
 	router.Use(handlershared.RequestContextMiddleware(api.BaseLogger()))
 	if principal != nil {
@@ -949,6 +877,7 @@ func newTeamTestRouterWithProjector(
 	router.Get("/nexus/v1/team/invitations", handler.HandleListInvitations)
 	router.Get("/nexus/v1/team/rooms/{room_id}", handler.HandleGetRoom)
 	router.Patch("/nexus/v1/team/rooms/{room_id}", handler.HandleUpdateRoom)
+	router.Post("/nexus/v1/team/rooms/{room_id}/agents", handler.HandleAddAgent)
 	router.Patch("/nexus/v1/team/rooms/{room_id}/agents/{agent_id}", handler.HandleUpdateAgent)
 	router.Post("/nexus/v1/team/rooms/{room_id}/invitations", handler.HandleInviteMember)
 	router.Post("/nexus/v1/team/rooms/{room_id}/invitations/accept", handler.HandleAcceptInvitation)
@@ -1008,11 +937,6 @@ func decodeTeamFailure(t *testing.T, recorder *httptest.ResponseRecorder) protoc
 	return envelope.Data.Failure
 }
 
-type relayClient interface {
-	teamsvc.RelayClient
-	relayStream
-}
-
 func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
 	for _, denied := range []bool{false, true} {
 		tokens := &teamTokenStub{token: "relay-token"}
@@ -1032,6 +956,18 @@ func TestTeamDirectRoomVerifiesPeerOrganization(t *testing.T) {
 			t.Fatalf("DM not forwarded: %d %+v", response.Code, relay.roomInput)
 		}
 	}
+}
+
+func (stub *teamRelayStub) CancelPendingDelivery(context.Context, string, string, string) (relaycontract.Delivery, error) {
+	return relaycontract.Delivery{}, nil
+}
+
+func (stub *teamRelayStub) MarkRead(context.Context, string, string, relaycontract.MarkReadInput) (relaycontract.ReadState, error) {
+	return relaycontract.ReadState{}, nil
+}
+
+func (stub *teamRelayStub) RoomFiles(context.Context, string, string, string, string, http.Header, int64, io.Reader) (*http.Response, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (stub *teamRelayStub) RoomDeliveryStatuses(context.Context, string, string, []string) ([]relaycontract.DeliveryStatus, error) {

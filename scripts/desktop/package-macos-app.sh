@@ -127,15 +127,44 @@ submit_for_notarization() {
     )
   fi
 
+  local attempts="${NEXUS_DESKTOP_NOTARY_ATTEMPTS:-3}"
+  local attempt=1
+  local log_path="${OUTPUT_DIR}/notarytool-submit.log"
   echo "==> Notarizing ${label}"
-  xcrun notarytool submit "${package_path}" "${auth_args[@]}" --wait
+  # 上传或轮询时的网络抖动会让 notarytool 非零退出；Apple 明确判定 Invalid/Rejected 时重试无意义，直接失败。
+  until xcrun notarytool submit "${package_path}" "${auth_args[@]}" --wait 2>&1 | tee "${log_path}"; do
+    if grep -Eq 'status: (Invalid|Rejected)' "${log_path}"; then
+      echo "notarization rejected for ${label}" >&2
+      return 1
+    fi
+    if ((attempt >= attempts)); then
+      return 1
+    fi
+    echo "notarytool attempt ${attempt}/${attempts} failed; retrying in $((attempt * 15))s" >&2
+    sleep $((attempt * 15))
+    attempt=$((attempt + 1))
+  done
+  rm -f "${log_path}"
 }
 
 staple_notarization_ticket() {
   local package_path="$1"
+  local attempts="${NEXUS_DESKTOP_STAPLE_ATTEMPTS:-6}"
+  local attempt=1
+  local output
   echo "==> Stapling notarization ticket: ${package_path}"
-  xcrun stapler staple "${package_path}" >/dev/null
-  xcrun stapler validate "${package_path}" >/dev/null
+  # 公证刚 Accepted 时票据可能尚未同步到 Apple CDN，stapler 会失败（CI 上见过 exit 68）；退避重试。
+  # staple 成功后 validate 也可能因同一原因返回 68（dmg 上见过），两步一起重试。
+  until output="$(xcrun stapler staple "${package_path}" 2>&1 && xcrun stapler validate "${package_path}" 2>&1)"; do
+    if ((attempt >= attempts)); then
+      echo "${output}" >&2
+      return 1
+    fi
+    # 首次重试至少等 30s：Accepted 后票据同步到 CDN 通常要半分钟以上，过早重试只会再撞一次 68。
+    echo "stapler attempt ${attempt}/${attempts} failed; retrying in $((attempt * 20 + 10))s" >&2
+    sleep $((attempt * 20 + 10))
+    attempt=$((attempt + 1))
+  done
 }
 
 notarize_app_bundle() {

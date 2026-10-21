@@ -133,10 +133,23 @@ require_macho_architecture() {
   fi
 }
 
+run_pnpm() {
+  if [[ -n "${PNPM:-}" ]] && command -v "${PNPM%% *}" >/dev/null 2>&1; then
+    ${PNPM} "$@"
+  elif command -v pnpm >/dev/null 2>&1; then
+    pnpm "$@"
+  elif command -v corepack >/dev/null 2>&1; then
+    corepack pnpm@9.15.2 "$@"
+  else
+    echo "Neither 'pnpm' nor 'corepack' found in PATH. Please install pnpm." >&2
+    exit 1
+  fi
+}
+
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
-pnpm install --frozen-lockfile --prefer-offline
-NEXUS_DESKTOP_BUILD=1 pnpm build
+run_pnpm install --frozen-lockfile --prefer-offline
+NEXUS_DESKTOP_BUILD=1 run_pnpm build
 
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"

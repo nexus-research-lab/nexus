@@ -4,12 +4,44 @@ import (
 	"context"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/mcp/command"
 	executioncontract "github.com/nexus-research-lab/nexus/internal/mcp/command/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
+
+func TestRoomCommandActorTrustUsesPhysicalAgentRound(t *testing.T) {
+	const (
+		ownerID        = "owner-1"
+		agentID        = "agent-1"
+		conversationID = "conversation-1"
+		roomID         = "room-1"
+		rootRoundID    = "room-root-round"
+		agentRoundID   = "agent-round-1"
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	leaseSessionKey := protocol.BuildRoomAgentSessionKey(conversationID, agentID, protocol.RoomTypeGroup)
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: ownerID, Role: authctx.RoleOwner, AuthMethod: authctx.AuthMethodPassword,
+	})
+	actor := command.Actor{
+		OwnerUserID: ownerID, AgentID: agentID,
+		SessionKey: sharedSessionKey, RoundID: rootRoundID,
+		LeaseSessionKey: leaseSessionKey, LeaseRoundID: agentRoundID,
+		SourceContextType: "room", SourceContextID: roomID,
+		Round: nexusmcp.RoundContext{CommandContext: runtimectx.RuntimeCommandContext{
+			AgentRoundID: agentRoundID,
+		}},
+	}
+	if !trustedCommandActor(ctx, &protocol.Agent{OwnerUserID: ownerID, AgentID: agentID}, actor) {
+		t.Fatal("Room actor with an exact physical AgentRoundID was rejected")
+	}
+	if !actor.SubagentCommandAuthority() {
+		t.Fatal("trusted Room actor did not retain Subagent command authority")
+	}
+}
 
 // Embedding the service interface is enough for contract generation: the test
 // never invokes a business mutation, while ResolveCommandContext still sees a

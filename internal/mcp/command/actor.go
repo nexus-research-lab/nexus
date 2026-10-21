@@ -64,6 +64,35 @@ func (a Actor) valid() bool {
 
 func (a Actor) Valid() bool { return a.valid() }
 
+// SubagentCommandAuthority reports the command-surface decision for the
+// actor. WorkGraph execution rounds may delegate to subagents, while the
+// hidden WorkGraph editor remains limited to its authoring command registry.
+func (a Actor) SubagentCommandAuthority() bool {
+	if !a.Valid() {
+		return false
+	}
+	source := strings.ToLower(strings.TrimSpace(a.SourceContextType))
+	if strings.HasSuffix(source, "_untrusted") {
+		return false
+	}
+	if strings.HasPrefix(source, "room_") {
+		return false
+	}
+	switch source {
+	case protocol.SessionPurposeWorkGraphEditor, protocol.SessionPurposeWorkGraphDistillation:
+		return false
+	case "automation_run":
+		// Scheduled Automation rounds are inspect-only by contract; they do
+		// not inherit the parent runtime's native Subagent command surface.
+		return false
+	case "room":
+		physicalRoundID := strings.TrimSpace(a.Round.CommandContext.AgentRoundID)
+		return physicalRoundID != "" && physicalRoundID == a.LeaseRoundID
+	default:
+		return true
+	}
+}
+
 // MutationAllowed 只允许可信交互来源修改 Automation；Goal/Execution 另由各自
 // exact authority 与 Plan Mode 门禁决定。
 func (a Actor) MutationAllowed() bool {

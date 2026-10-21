@@ -12,6 +12,7 @@ const zlib = require("zlib");
 const DEFAULT_RELEASE = "nxs-stable";
 const DEFAULT_REPO = "nexus-research-lab/nexus-agent-sdk-bridge";
 const USER_AGENT = "nexus-desktop-nxs-fetcher";
+const DOWNLOAD_ATTEMPTS = 4;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -232,7 +233,7 @@ class GitHubReleaseClient {
   }
 
   async downloadURL(rawURL, accept = "application/octet-stream") {
-    return downloadURL(rawURL, {
+    return downloadURLWithRetry(rawURL, {
       accept,
       token: this.token,
       redirectsRemaining: 5,
@@ -281,6 +282,30 @@ function runtimeManifestCandidates(manifest) {
   return candidates;
 }
 
+// GitHub release CDN 偶发超时、连接重置和 5xx；4xx（含 404 回退路径）直接抛出交给调用方。
+async function downloadURLWithRetry(rawURL, options) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await downloadURL(rawURL, options);
+    } catch (error) {
+      if (attempt >= DOWNLOAD_ATTEMPTS || !isRetryableDownloadError(error)) {
+        throw error;
+      }
+      const delayMs = attempt * 3000;
+      console.error(`download attempt ${attempt}/${DOWNLOAD_ATTEMPTS} failed (${error.message}); retrying in ${delayMs / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+function isRetryableDownloadError(error) {
+  const statusCode = error.statusCode;
+  if (!statusCode) {
+    return true;
+  }
+  return statusCode === 429 || statusCode >= 500;
+}
+
 function downloadURL(rawURL, options) {
   const url = new URL(rawURL);
   const transport = url.protocol === "http:" ? http : https;
@@ -298,7 +323,9 @@ function downloadURL(rawURL, options) {
       if (statusCode >= 300 && statusCode < 400 && location) {
         response.resume();
         if (options.redirectsRemaining <= 0) {
-          reject(new Error(`too many redirects while downloading ${rawURL}`));
+          const error = new Error(`too many redirects while downloading ${rawURL}`);
+          error.statusCode = statusCode;
+          reject(error);
           return;
         }
         downloadURL(new URL(location, url).toString(), {

@@ -34,21 +34,22 @@ import (
 
 // dmClientPreparation 收拢 runtime client 启动后的配置快照，避免扩展返回值参数组。
 type dmClientPreparation struct {
-	client                 runtimectx.Client
-	runtimeKind            string
-	runtimeProvider        string
-	runtimeModel           string
-	toolSurfaceFingerprint string
-	forkSourceSessionID    string
-	session                protocol.Session
-	emotionEnabled         bool
-	goalIDForUsage         string
-	goalContext            string
-	goalObjectiveRevision  *atomic.Int64
-	responsibilityState    *runtimectx.ResponsibilityAuthorityState
-	sdkSessionIdentity     *runtimectx.SDKSessionIdentityState
-	commandReceipts        *nexusmcp.CommandReceiptState
-	permissionMode         sdkpermission.Mode
+	client                   runtimectx.Client
+	runtimeKind              string
+	runtimeProvider          string
+	runtimeModel             string
+	toolSurfaceFingerprint   string
+	forkSourceSessionID      string
+	session                  protocol.Session
+	emotionEnabled           bool
+	goalIDForUsage           string
+	goalContext              string
+	goalObjectiveRevision    *atomic.Int64
+	responsibilityState      *runtimectx.ResponsibilityAuthorityState
+	sdkSessionIdentity       *runtimectx.SDKSessionIdentityState
+	commandReceipts          *nexusmcp.CommandReceiptState
+	subagentCommandAuthority *bool
+	permissionMode           sdkpermission.Mode
 }
 
 func sandboxResourcesFromLease(lease *runtimectx.SandboxResourceLease) *agentclient.SandboxResourcePolicy {
@@ -263,6 +264,7 @@ func (s *Service) ensureClient(
 		}
 	}
 	runtimeBuilderContext := runtimectx.WithRuntimeRoundLease(ctx, sessionKey, request.RoundID)
+	subagentCommandAuthority := new(bool)
 	runtimeCommandContext := runtimectx.RuntimeCommandContext{
 		Agent: agentValue, ScopeSessionKey: commandScopeSessionKey, RuntimeSessionKey: sessionKey,
 		ExecutionID:        executionID,
@@ -275,6 +277,7 @@ func (s *Service) ensureClient(
 		SDKSessionIdentity:        sdkSessionIdentity,
 		AutomationRun:             cloneAutomationRunContext(request.AutomationRun),
 		WorkGraphPreviewID:        workGraphPreviewID,
+		SubagentCommandAuthority:  subagentCommandAuthority,
 	}
 	configurationRuntimeEnv := map[string]string(nil)
 	if !request.runtimePreparationOnly && !scopedPolicyActive && s.configurationRuntimeEnv != nil {
@@ -389,7 +392,7 @@ func (s *Service) ensureClient(
 	var scratchLease *runtimectx.SandboxResourceLease
 	var scratchInput runtimectx.SandboxResourceInput
 	scratchLeaseOwned := false
-	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") &&
+	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") && runtimeSelection.DesktopSandboxEnabled &&
 		(strings.TrimSpace(runtimeSelection.RuntimeKind) == "" || strings.EqualFold(strings.TrimSpace(runtimeSelection.RuntimeKind), "nxs")) &&
 		permissionMode != sdkpermission.ModeBypassPermissions {
 		scratchInput = runtimectx.SandboxResourceInput{
@@ -409,7 +412,7 @@ func (s *Service) ensureClient(
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    s.config.AppMode,
-		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled,
+		DesktopSandboxEnabled:      s.config.DesktopSandboxEnabled && runtimeSelection.DesktopSandboxEnabled,
 		WindowsSandboxPreview:      s.config.WindowsSandboxPreview,
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
@@ -676,21 +679,22 @@ func (s *Service) ensureClient(
 		sdkSessionIdentity.Set(dmdomain.StringPointerValue(sessionItem.SessionID))
 	}
 	preparation := dmClientPreparation{
-		client:                 client,
-		runtimeKind:            strings.TrimSpace(string(options.Runtime.Kind)),
-		runtimeProvider:        runtimeProvider,
-		runtimeModel:           strings.TrimSpace(options.Model),
-		toolSurfaceFingerprint: toolSurfaceFingerprint,
-		forkSourceSessionID:    forkSourceSessionID,
-		session:                sessionItem,
-		emotionEnabled:         runtimeSelection.EmotionEnabled,
-		goalIDForUsage:         goalIDForUsage,
-		goalContext:            goalContext,
-		goalObjectiveRevision:  goalObjectiveRevision,
-		responsibilityState:    responsibilityState,
-		sdkSessionIdentity:     sdkSessionIdentity,
-		commandReceipts:        commandReceipts,
-		permissionMode:         permissionMode,
+		client:                   client,
+		runtimeKind:              strings.TrimSpace(string(options.Runtime.Kind)),
+		runtimeProvider:          runtimeProvider,
+		runtimeModel:             strings.TrimSpace(options.Model),
+		toolSurfaceFingerprint:   toolSurfaceFingerprint,
+		forkSourceSessionID:      forkSourceSessionID,
+		session:                  sessionItem,
+		emotionEnabled:           runtimeSelection.EmotionEnabled,
+		goalIDForUsage:           goalIDForUsage,
+		goalContext:              goalContext,
+		goalObjectiveRevision:    goalObjectiveRevision,
+		responsibilityState:      responsibilityState,
+		sdkSessionIdentity:       sdkSessionIdentity,
+		commandReceipts:          commandReceipts,
+		subagentCommandAuthority: subagentCommandAuthority,
+		permissionMode:           permissionMode,
 	}
 	return preparation, nil
 }

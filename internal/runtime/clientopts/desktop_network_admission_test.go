@@ -174,7 +174,7 @@ func TestDesktopSandboxNetworkAdmissionDoesNotOverrideClaudeNativeSandbox(t *tes
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		SandboxResources: &agentclient.SandboxResourcePolicy{
@@ -198,7 +198,7 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 			APIFormat: apiFormatResponses,
 		},
 	}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		ExtraEnv: map[string]string{
@@ -210,5 +210,33 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 	}
 	if got := options.Env["OPENAI_API_KEY"]; got != "resolved-session-secret" {
 		t.Fatalf("provider credential=%q want resolved session credential", got)
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionAppliesOnWindows(t *testing.T) {
+	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
+	// Full Access has no restricted network contract on Windows either.
+	fullAccess := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission}
+	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, fullAccess, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, fullAccess, "windows")
+	if err != nil || options.Sandbox != nil {
+		t.Fatalf("Windows Full Access must not receive restricted network settings: %#v err=%v", options.Sandbox, err)
+	}
+	// Restricted nxs sessions run the SDK MXC contract and keep the narrowed network admission.
+	restricted := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission,
+		SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir()}}
+	options, err = applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || options.Sandbox.Network == nil || len(options.Sandbox.Network.AllowedDomains) != 1 || options.Sandbox.Network.AllowedDomains[0] != "api.example.com" {
+		t.Fatalf("Windows MXC network settings=%#v", options.Sandbox)
 	}
 }

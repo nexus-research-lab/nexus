@@ -18,15 +18,17 @@
 
 - Fix duplicate SQLite/PostgreSQL migration numbering in desktop sandbox builds.
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
 - Add one-time sandbox escape approval for ordinary external Write/Edit actions. The approval is bound to the exact file operation and never creates a persistent directory whitelist; protected paths remain denied.
 - Carry one-shot sandbox escape and network approval scope on the exact tool result so the model can distinguish temporary approval from a persistent policy change.
+
+### Changed
+
+- 沙箱相关设置集中到新的“设置 › 沙箱”（仅桌面端）：桌面沙箱开关从“权限”移入，“检查沙箱支持”与“沙箱残留资源”从“运行时”移入，且不再要求先选择 nxs 引擎；依赖齐全的提示改为“可以开启桌面沙箱”，不再暗示新任务已在沙箱中运行。
+
+### Fixed
+
+- 修复 macOS 升级后沙箱 scratch 所在卷的 `st_dev` 编号漂移导致恢复身份永久不匹配、启动栅栏无法解除的问题；身份格式保持不变，匹配仅忽略设备号漂移，仍严格校验 inode、generation 与创建时间。
+- macOS 从 Finder 启动的桌面 App 不再在“检查沙箱支持”里误报“沙箱所需的本机依赖不齐全”：sidecar 把包内 `bin`（随包 `rg` 等工具）追加到 PATH 末尾，不遮蔽用户 PATH 中的同名工具。
 
 ### Changed
 
@@ -486,6 +488,133 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require a Control Organization in remote Principals, verify initial human members with Control before room creation, and keep online Room membership, messages, and synchronization inside that organization.
 - Reject online Agent membership unless Control confirms every Agent belongs to the signed-in human and current Organization.
 - Add a single-use Organization invitation link flow so invited users create their own account and Organization administrators manage only their current membership boundary.
+
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.2.5] - 2026-10-21
+
+### Added
+
+- 在线群借鉴 Slack 智能体会话的停止按钮：消息作者可停止执行中的 Agent，执行节点在 5 秒续租内中断并显示“已取消”；停止中显示“正在停止”。
+- 群说明：群主可在群设置里为群内所有 Agent 设置共同说明（如回复语言、格式），以置顶群消息的可信度进入执行提示词，不授予权限。
+- 唤醒他人 Agent 超出 Relay 每小时额度时提示“唤醒他人 Agent 过于频繁”，并透传 `Retry-After`。
+- 设置 › 权限新增“桌面沙箱”开关（偏好 `desktop_sandbox_enabled`），默认关闭；关闭时桌面 runtime 不装配沙箱合同、scratch 与网络准入，对新启动的会话生效。
+
+### Fixed
+
+- Windows 桌面端启动 nxs 会话不再报 “desktop sandbox network admission requires sandbox settings”：Windows 推迟沙箱后，网络准入阶段同样跳过。
+- 在线群里 Agent 中途写下 `@成员` 再调用工具时，被提及的 Agent 不再立即被唤醒；本轮全部有效 @ 只在成功给出最终回复后一起唤醒，执行失败、中断或被停止时不唤醒任何人，与本地群聊一致。
+- Relay 在线协作加固：WSS 订阅保留 Relay 部署路径前缀；写命令统一校验幂等键；投递续期与失败拆成独立方法；取消投递按 Relay 错误码映射而非一律 409。
+- 加 Agent 与邀请成员先校验远程登录再请求 Control，未登录返回 401 而非 502。
+- Desktop 准备群执行时翻完全部成员页，不再只看首屏成员；同一请求只查询一次 Control 身份与 Agent 目录，登记与撤销串行执行。
+- 本机节点领取为空时不再留下无来源的“已完成”任务；Control 拒绝设备凭据后本地授权转为已撤销，不再无限重试；输出序号由存储层统一推进。服务端节点执行复用应用级 Relay 客户端与超时配置。
+- Relay 用户令牌按 Session 缓存至过期前 15 秒，团队请求不再每次往返 Control；Control 身份失效事件同步清除缓存。
+- 群设置的“未 @ 时由群主接管”开关此前被网关严格解码拒绝，现已透传到 Relay。
+- 删除只写不读的本地 Team 投影（迁移 00158 删除 `team_relay_*` 三张表）：Room 读写直连 Relay，Relay 是唯一权威，投影失败不再造成永久 503。
+- 本机节点执行：runtime 启动前的上下文、附件与续租拒绝统一本地失败并释放远端租约，不再卡在 ready；附件在启动 runtime 前准备；清理阶段不再把已完成任务改回失败；原节点被替换后的遗留任务可恢复；授权停用后恢复同一凭据时投递订阅不再永久空闲。
+- 共享文件上传有 2 分钟上限并接受任意 2xx；下载强制 `attachment`、`nosniff` 与 `sandbox` CSP，不再按远端 Content-Type 内联渲染。成员分页检测任意游标成环。
+- 重试与连接韧性：后台 duework 与浏览器 WebSocket 重连改为等量抖动退避，服务重启后不再同刻重连；稳定运行的节点长连接断开后从最小退避重连；Relay 429/503 的 `Retry-After`（含网关非 JSON 页）被后台重试服从，浏览器 Team 请求透传 429 与 `Retry-After`。
+- 同一 Session 并发换取 Relay 令牌合并为一次 Control 往返；身份失效期间完成的换票不再写回缓存。入口 `X-Request-ID` 透传至 Relay 与 Control，跨服务日志可按同一 ID 关联。
+
+## [0.2.4] - 2026-10-20
+
+### Changed
+
+- 浏览器 UI 矩阵改为成对覆盖：Chromium 保留三主题 × 四宽度全组合、WebKit 保留三主题 × 两宽度，中英文交替分配，主题/语言/宽度两两组合仍全部覆盖；用例由 2628 降到 1314，CI 分片由 12 降到 8。组件测试在 CI 使用 4 个 worker；Telegram 轮询用例不再等待 2 秒真实退避。
+- 借鉴 Claude 设计系统打磨基础组件：surface 按钮与选中态选项去掉彩色描边，只用填色表达层级；按钮与选项按下时轻微缩放并以弹簧曲线回弹；Disclosure 展开改为 Grid 高度过渡（对话流内保持瞬时）；活动状态切换阶段时淡入交接；骨架屏改为斜向扫光；附件与文件卡的长文件名保留扩展名；嵌套弹窗时父弹窗轻微虚化；时间、计数等元数据统一等宽数字。
+- 对话 Markdown 排版降噪：行内代码改为正文同色、0.875em、无描边的淡底行内盒，长标识符可随正文折行；加粗与标题中的中文切到黑体真实 600 字重，层级清晰；列表缩进收窄、条目间距只由一处控制，块间距随个人字号/行高等比缩放；引用左边界由 4px 收细为 2px。
+- 对话正文降低密度：默认字号 16px→14px、行距 1.65→1.7，正文墨色略浅于标题（最深与次级墨色之间，标题与加粗保持最深），行内代码缩小并同步变浅，中文加 0.02em 字距；行内加粗降到 500 字重（标题保留 600），多行列表项间距加大。已在 设置 → 外观 保存过字号/行距的用户仍以自己的设置为准，可点「恢复默认」采用新值。
+- 对话中文正文改用系统无衬线（苹方/雅黑），与界面字体一致，移除京华老宋体；外观设置的「系统字体」「宋体」预设并入默认，已选过的设置自动回到默认。
+- DM 与 Room 共享单 Agent 执行引擎：runtime 启动（含失效 resume 回退）、round 执行骨架、宿主 result 消息与 PostToolUse 引导协议只实现一次；中断收尾在各宿主内去重。
+- 后端按“DM 是 Room 的一种”收敛：每轮 Goal 状态、Goal 续跑、用量结算与重试、完成收据、`/goal` 建 Goal 与流诊断在 `service/runtimehost` 只实现一次；DM 与 Room realtime 装配不完整时启动即失败。
+- 删除 494 处可证明冗余的 `strings.TrimSpace`，新增 `make check-normalization` 防回潮；`make check-architecture` 拒绝共享字符串原语的私有副本；清理死代码、仅测试使用的包装与重复 helper。Room 工作区附件与 DM 一样拒绝空 owner。
+- 删除 1,025 个无独有语句覆盖的 Go 测试与 41 个前端测试文件。
+- AGENTS.md 精简为项目宪法，产品合同迁入 `docs/specs/`；规范与指南去重瘦身约 14%，按实现修正规范内部矛盾，修复失效链接并重建 `docs/README.md` 索引。
+- 优化主侧栏折叠与展开按钮图标的视觉权重：尺寸由 20px（`h-5 w-5`）收敛为 16px（`h-4 w-4`），并将图标线宽细化至 `strokeWidth={1.5}`，与顶栏窗口控制区视觉平衡。
+- 优化聊天目录行删除按钮：尺寸由 28px（`size="sm"`）缩小为 24px（`size="xs"`），并将定位严格约束在标题行的元信息（日期）槽内部，悬停或聚焦时仅替换日期位置，不再跨行遮挡消息摘要或隐藏状态/未读徽标。
+- 优化主侧栏折叠后工作区顶栏标题排版：由 16px 粗体（`pageTitle`）调整为 13px 中等字重（`sectionTitle`），与侧栏列表项及顶栏会话标签保持视觉协调与层级一致。
+- 紧凑启动台（Launcher）顶部双层品牌 Header 垂直高度：由 112px（`h-28`）收敛为 96px（`h-24`），收紧第一行窗口控制/横向灯组与第二行品牌字标之间的纵向留白。
+- 优化会话顶栏在侧栏收起状态下的身份展示：侧栏折叠时移除顶栏左侧主头像并仅呈现会话标题，消除展开按钮与标题之间的冗余头像堆叠；侧栏未折叠时保持原有主头像展示。
+- 移除输入框底部及操作按钮上非必要的悬浮提示（Tooltip）：清理会话权限（如“当前 Session 权限”）、会话模型（如“当前 Session 模型”）、Agent 停止按钮、话题按钮等已有明确可见文字的控件上多余的 title 提示，避免鼠标划过时弹出的黑底气泡遮挡输入区域或正文。
+
+### Fixed
+
+- 暂停 Room 成员不再卡满 10 秒：此前暂停在持有派发锁时等待该成员 slot 收尾，而 slot 收尾需要同一把锁，中断只能等到超时才返回并记录失败；现在在锁内持久化暂停闸门后先释放锁再中断，后续派发与输出仍由数据库中的暂停状态把关。
+- 修复 Room 历史增量读取在成员每轮追加 transcript 后必然失效、每次打开都全量重建的问题：读模型改为校验已发布消息的 transcript 投影摘要，只追加时继续增量；全量重建新增耗时、分组数与落盘结果日志；DM/Room 首屏历史加载期间显示加载状态，不再呈现为空会话。
+- 修复 Room WorkGraph 执行轮把业务根轮次误当成员 runtime lease，导致 `<subagent_admission eligible="true">` 与 `nexus.command` 的 Subagent authority 冲突；现在按成员 `AgentRoundID` 校验命令面，并让准入投影与实际命令面共用同一结果。
+- 修复 macOS 桌面端启动台（Launcher）顶部横向灯组（spotlights）水平偏移错误导致与原生红黄绿窗口控制按钮（尤其是绿色缩放按钮）重叠穿插的问题，恢复其位于系统按钮保留区右侧（`--desktop-window-controls-inset`）的正确定位。
+- 精简配置 Skill 入口以满足分层大小限制，保留请求失败排障边界；为多页 Launcher 回归和浏览器 CI 分片预留完整执行时间。
+- 修复 macOS 桌面构建脚本（`build-macos-app.sh` 与 `build-macos-dev.sh`）硬编码 `corepack` 导致未安装 corepack 时构建中断的问题，优先解析系统与配置的 `pnpm`。
+- 修复 HTTP 内网访问时新建智能体因随机头像直接调用 crypto.randomUUID 而白屏，头像种子复用现有 UUID 兼容逻辑。
+- 恢复 nexus-server 的单文件 main.go 入口，支持 GoLand 直接运行该文件，同时保留运行时配套检查与 macOS 桌面实例锁。
+- 升级 Go 与 Docker 构建工具链至 1.26.6、pgx 至 5.9.2、x/text 至 0.41.0，修复可达依赖漏洞。
+- 可选视觉模型配置失效时保留诊断并降级，不再阻断纯文本聊天；清除继承环境中的旧视觉路由与凭据。
+- 修复权限请求注册与客户端重连重放的竞态，避免同一绑定重复收到审批请求。
+- 修复 IM 审批通知、沙箱迁移、桌面认证及加载动画测试的时序与平台假设，并增加 macOS 桌面选项和认证 CI 覆盖。
+- Windows 原生沙箱 CI 使用专用 SDK 读取凭据，缺失时明确报告配置要求。
+
+- 修复 nexuscfg 全部 runtime 配置请求因携带多余 reconcile 字段而返回“请求参数错误”，恢复 inspect、plan、apply、history 与 review 的请求解析。修正配置 Skill 的排障指引，避免将通用接口错误或页面不可见直接归因于权限或版本缺失。
+
+- 未部署 Relay 时自动隔离在线多人入口与请求；新增 `NEXUS_MULTIPLAYER_DISABLED=true` 显式关闭多人 Gateway、桌面代理及本机执行器，保留组织账号和本地 Room。
+
+- 精简新建用户弹窗说明，仅保留用户名格式和密码长度要求。
+
+- IM 配对支持选择当前智能体已有的本地 DM 会话，复用原历史与执行 Session；改绑校验所属智能体，旧版本回信失效。
+
+- 修复 IM 绑定群聊后误回传工具调用过程的问题：复用原成员会话，仅回传成功轮次的最终回答；修正群聊主动投递以公区 key 查询 Session 导致的 session not found。
+
+- 配对会话目标改为固定高度的锚定浮层，展开与选群不再撑动卡片；群聊与会话双栏选择，支持搜索和完整路径预览，简化独立聊天与改绑说明。
+
+- 会话历史时间靠右对齐，悬浮或键盘聚焦时在原位置显示操作图标，消除隐藏按钮的空白占位。
+
+- 修复 IM 配对会话目标误用群聊类型值，导致符合条件的本地群聊全部被过滤、只显示独立 IM 会话。
+
+- 整理频道配对卡片的信息层级：身份与操作对齐，智能体和会话目标等宽排列，活动时间收进技术详情。
+
+- 优化部署用户目录与新建流程：创建改为独立弹窗，补齐焦点、字段校验、加载与未知结果核对反馈。
+
+- App 登录表单底部补充“返回”按钮，与“登录”按钮等宽并排，可取消登录并回到本地工作台。
+
+- 恢复“设置 → 运营 → 部署用户”和主智能体 members 的独立 Web 用户管理：平台 owner/admin 无需组织，新账号不自动入组；同步修正旧 Skill 指引。
+- Widen the model options dialog, align capability controls, and retain the simple Automatic label.
+- Verify seven Provider capabilities independently, including executed tool round trips and production image adapters; keep failed checks separate from confirmed evidence and preserve chat when auxiliary vision is unavailable.
+
+- Telegram 单条入站失败不再阻塞整个 Bot：仅派发前错误最多尝试三次，未知执行不自动重跑；失败提示保留原聊天/话题，通知失败不回退消费游标。
+
+- IM 已受理但回执未落盘的消息可由宿主后台核验恢复，无需等待平台重投；未知执行保持待核验。
+- 在线群成员与投递详情按 100 条分页读取；成员续页校验原版本，加载历史时同步补齐该页投递进度。
+
+- 在线群首次只读取最近 100 条消息，按需加载更早历史并保持阅读位置。
+- IM 入站重投区分准备中断和未知受理；保留原轮次，只凭已持久化用户输入恢复回执，避免静默丢失和重复执行。
+
+- Telegram 入站以 update_id 隔离聊天内消息编号，重试期间保持原轮询游标和执行轮次。
+- Telegram / Discord 分段回复逐段保存已确认回执，后续发送失败不丢失部分结果；未知发送不自动重放。明确 HTTP 429 按平台等待时间有限重试。
+
+- `app-run-onboarding` 隔离 WebView Cookie 与网站存储，首次初始化测试不再继承日常 App 的远程登录态。
+- 在线 Agent 凭据解密失败日志补充具体错误与当前密钥指纹，并在订阅和机器令牌失败日志中标明密钥缺失或不匹配。
+
+### Added
+
+- 扩展内置 PPTX Skill：增加模板 inventory、PPTX 容器与关系校验、页面重排和 PDF/PNG 视觉渲染工具，并补充 HTML-to-PPTX 与 OOXML 定点编辑工作流。
+
+- IM 私聊配对可切换到本地 Room 的指定话题与成员，复用私域排队、回复和权限确认；改绑无需重新登录，旧任务保留且停止旧绑定回信。
+
+- 在线群与真人私聊支持跨端持久已读水位及侧栏未读数；后台页面不会自动标记已读。
+- 群内公开展示 Agent 执行中或等待拥有者处理，审批正文及工具信息保留在本机。
+
+- 用户与 Agent 的原头像选择器增加 Humation 随机头像（含背景配色），新建 Agent 和 Subagent 使用同套素材；附带 Nexus 徽章与终端配件，源码与素材随应用分发，无外部头像服务依赖。
+
+## [0.2.3] - 2026-09-24
+
+### Added
+
+- Added online Agent-to-Agent mentions and configurable host Agent auto-replies, reusing native Room member hints and parsing without executing remote members locally.
+- Added the built-in `caixun-work-hours` Skill for reviewing and submitting personal RichPMS work-hour reports.
+- Added `glm-5.3-flashx` capabilities and exact-model capability defaults for custom Providers while preserving explicit overrides.
 
 ## [0.2.0] - 2026-09-10
 

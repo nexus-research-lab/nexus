@@ -61,7 +61,8 @@ export function SidebarPanelToggleAction(
   return (
     <UtilityButton
       icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
-      iconClassName="h-5 w-5"
+      iconClassName="h-4 w-4"
+      strokeWidth={1.5}
       label={
         props.variant === "rail" ? props.labels.expand : props.labels.collapse
       }
@@ -180,12 +181,14 @@ function UtilityButton({
   iconClassName = "h-[18px] w-[18px]",
   label,
   onClick,
+  strokeWidth,
 }: {
   active?: boolean;
   icon: LucideIcon;
   iconClassName?: string;
   label: string;
   onClick: () => void;
+  strokeWidth?: number;
 }) {
   return (
     <UiIconButton
@@ -196,7 +199,7 @@ function UtilityButton({
       size="md"
       tooltip={label}
     >
-      <Icon aria-hidden="true" className={iconClassName} />
+      <Icon aria-hidden="true" className={iconClassName} strokeWidth={strokeWidth} />
     </UiIconButton>
   );
 }

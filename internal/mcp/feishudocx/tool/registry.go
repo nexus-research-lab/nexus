@@ -1,8 +1,6 @@
 package tool
 
 import (
-	"encoding/json"
-
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/feishudocx/contract"
@@ -46,22 +44,5 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 		feishuDocxWikiSpace(svc, sctx),
 		feishuDocxWikiNodes(svc, sctx),
 		feishuDocxWikiNode(svc, sctx),
-	}
-}
-
-func jsonResult(payload any) sdktool.ToolResult {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return errorResult(err)
-	}
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": string(data)}},
-	}
-}
-
-func errorResult(err error) sdktool.ToolResult {
-	return sdktool.ToolResult{
-		Content: []map[string]any{{"type": "text", "text": err.Error()}},
-		IsError: true,
 	}
 }

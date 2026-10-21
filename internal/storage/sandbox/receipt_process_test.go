@@ -139,7 +139,7 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, historical); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err != nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 153); err != nil {
 		t.Fatal(err)
 	}
 	if err := goose.Up(r.db, "../../../db/migrations/sqlite"); err != nil {
@@ -163,8 +163,16 @@ func TestReceiptProcessMigrationPreservesHistoricalAndRejectsLossyRollback(t *te
 	if err := r.Save(ctx, bound); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 146); err == nil {
+	if err := goose.DownTo(r.db, "../../../db/migrations/sqlite", 153); err == nil {
 		t.Fatal("discarded process binding during rollback")
+	}
+	// The refused rollback stops at the lifecycle guard after the empty Windows
+	// migrations step down; re-applying them must expose the same binding.
+	if version, err := goose.GetDBVersion(r.db); err != nil || version != 156 {
+		t.Fatalf("failed rollback stopped at %d %v", version, err)
+	}
+	if err := goose.Up(r.db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
 	}
 	got, found, err = r.Get(ctx, bound.OwnerUserID, bound.SessionKey, bound.Generation)
 	if err != nil || !found || !sameReceiptProcess(got.ProcessKey, &i.Key) {

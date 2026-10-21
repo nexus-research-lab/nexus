@@ -915,6 +915,25 @@ func TestRenderExecutionContextProjectsManagedAndRuntimeOnlySubagentModes(t *tes
 	}
 }
 
+func TestRenderExecutionContextHidesSubagentWhenCommandSurfaceIsDenied(t *testing.T) {
+	authority := false
+	rendered := RenderExecutionContext(assignedExecutionSnapshot(), ExecutionContextOptions{
+		ActorAgentID:             "agent-worker",
+		Role:                     ExecutionActorMember,
+		SubagentCommandAuthority: &authority,
+	})
+	if !strings.Contains(
+		rendered,
+		`<subagent_admission eligible="false" command_domain="subagent" operation="spawn" candidate_assignment_count="1"`,
+	) {
+		t.Fatalf("denied command surface still advertised subagent admission:\n%s", rendered)
+	}
+	allowed := rendered[strings.Index(rendered, "<allowed_actions>"):strings.Index(rendered, "</allowed_actions>")]
+	if strings.Contains(allowed, "<action>subagent/spawn</action>") {
+		t.Fatalf("denied command surface still exposed spawn action:\n%s", rendered)
+	}
+}
+
 func TestRenderExecutionContextProjectsLatestTerminalSubagentEvidence(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.Attempts = append(snapshot.Attempts, protocol.WorkAttempt{

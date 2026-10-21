@@ -869,7 +869,7 @@ test("process icons stay aligned when collapsed and expanded", async ({ page }) 
   expect(Math.abs((await stackIcon.boundingBox())!.x - collapsed.x)).toBeLessThan(1);
 });
 
-test("conversation delete actions align with the whole row", async ({ page }) => {
+test("conversation delete actions replace the date meta slot", async ({ page }) => {
   await page.goto("/ui-gallery.html");
   await page.evaluate(async () => {
     const reactPath = "/node_modules/.vite-browser-test/deps/react.js";
@@ -889,18 +889,28 @@ test("conversation delete actions align with the whole row", async ({ page }) =>
         key: kind, isActive: false, onClick: () => {}, onDelete: () => {},
         item: { id: kind, kind: kind === "person" ? "dm" : kind, directUserId: kind === "person" ? "user" : undefined,
           title: kind, summary: "Conversation preview", timeLabel: "12:30", members: [],
-          isPinned: false, lastActivityAt: 0, messageCount: 1, activityStatus: null, canDelete: true },
+          isPinned: false, lastActivityAt: 0, messageCount: 1, activityStatus: kind === "room" ? "waiting" : "working", unreadCount: 2, canDelete: true },
       }))));
   });
   const rows = page.locator('[data-delete-alignment] .group\\/item');
   await expect(rows).toHaveCount(3);
   for (const row of await rows.all()) {
+    const timeLabel = row.getByText("12:30");
+    await page.mouse.move(0, 0);
+    await expect(timeLabel).toHaveCSS("opacity", "1");
     await row.hover();
     const action = row.locator("button");
-    await expect(action).toBeVisible();
+    await expect(action).toHaveCSS("opacity", "1");
+    await expect(timeLabel).toHaveCSS("opacity", "0");
+    await page.mouse.move(0, 0);
+    await expect(timeLabel).toHaveCSS("opacity", "1");
+    await action.focus();
+    await expect(timeLabel).toHaveCSS("opacity", "0");
+    await action.evaluate((element) => element.blur());
     const bounds = (await row.boundingBox())!;
     const button = (await action.boundingBox())!;
-    expect(Math.abs(button.y + button.height / 2 - bounds.y - bounds.height / 2)).toBeLessThan(1);
+    const time = (await timeLabel.boundingBox())!;
+    expect(Math.abs(button.y + button.height / 2 - time.y - time.height / 2)).toBeLessThan(1);
     expect(button.x).toBeGreaterThan(bounds.x + bounds.width / 2);
     expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
   }

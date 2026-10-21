@@ -12,6 +12,7 @@ import { advanceAuthOwnerScopeGeneration, publishAuthOwnerScopeGeneration } from
 import { I18nProvider } from "@/shared/i18n/i18n-provider";
 import { GroupConversationHeader } from "./group-conversation-header";
 import { useRoomMemberManager } from "../../members/use-room-member-manager";
+import { useSidebarStore } from "@/store/sidebar";
 
 vi.mock("@/features/conversation/room/members/room-member-manager-dialog", () => ({
   RoomMemberManagerDialog: ({ isOpen, initialName, onClose, roomMembers }: ComponentProps<typeof RoomMemberManagerDialog>) =>
@@ -38,15 +39,11 @@ function deferred() {
 }
 function membersButton() { return screen.getByRole("button", { name: /Members|成员/ }); }
 
-it("uses one public 40px identity and coalesces member loading before opening and closing", async () => {
+it("coalesces member loading before opening and closing", async () => {
   const user = userEvent.setup();
   const pending = deferred();
   const prepare = vi.fn(() => pending.promise);
   render(view({ onOpenMemberManager: prepare }));
-  const avatar = screen.getByRole("img", { name: "Research" });
-  expect(avatar.className).toContain("h-10 w-10");
-  expect(avatar.className).not.toMatch(/h-full|radius-control-sm|shadow-none/);
-  expect(avatar.parentElement!.className).not.toMatch(/border|shadow|radius/);
   const trigger = membersButton();
   fireEvent.click(trigger);
   fireEvent.click(trigger);
@@ -145,14 +142,23 @@ it("keeps existing members available when the auxiliary catalog rejects and igno
   } finally { log.mockRestore(); }
 });
 
+it("renders avatar when sidebar is expanded, and removes avatar while showing title when collapsed", () => {
+  act(() => {
+    useSidebarStore.setState({ wide_panel_collapsed: false });
+  });
+  const { rerender } = render(view({ currentRoomTitle: "Research" }));
+  expect(screen.getByRole("img", { name: "Research" })).toBeTruthy();
+  expect(screen.queryByText("Research", { selector: ".ui-type-section-title" })).toBeNull();
 
-it("uses the same five-member mosaic and order as the sidebar room avatar", () => {
-  const roomMembers = ["e", "c", "a", "d", "b"].map((id) => ({
-    agent_id: id, name: id, avatar: `/${id}.png`, created_at: 1,
-    options: {}, status: "idle" as const, workspace_path: "/workspace",
-  }));
-  render(view({ roomMembers }));
-  const identity = screen.getByRole("img", { name: "Research" });
-  expect(Array.from(identity.querySelectorAll("img"), (img) => img.getAttribute("src")))
-    .toEqual(["/a.png", "/b.png", "/c.png", "/d.png", "/e.png"]);
+  act(() => {
+    useSidebarStore.setState({ wide_panel_collapsed: true });
+  });
+  rerender(view({ currentRoomTitle: "Research" }));
+  expect(screen.queryByRole("img", { name: "Research" })).toBeNull();
+  expect(screen.getByText("Research", { selector: ".ui-type-section-title" })).toBeTruthy();
+  act(() => {
+    useSidebarStore.setState({ wide_panel_collapsed: false });
+  });
 });
+
+

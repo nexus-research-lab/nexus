@@ -66,9 +66,8 @@ type RuntimeConfigForRuntimeResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
-	// DesktopSandboxEnabled is retained for internal/test option plumbing. The
-	// production builder derives it from AppMode so desktop sessions cannot
-	// disable the sandbox through an environment switch.
+	// DesktopSandboxEnabled 由宿主按用户偏好（默认关闭）与桌面模式共同决定；
+	// 仅在 AppMode=desktop 时生效，进程环境变量不能单独打开或关闭它。
 	DesktopSandboxEnabled bool
 	// WindowsSandboxPreview controls only the legacy machine-Host supervisor;
 	// the product Windows command contract uses the SDK MXC backend by default.
@@ -163,11 +162,6 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
-	// Desktop execution always enters the selected backend's restricted
-	// contract. Keep the explicit field for server/test callers, but do not let
-	// a false value disable the product default for desktop sessions.
-	input.DesktopSandboxEnabled = input.DesktopSandboxEnabled ||
-		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
 	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		input.AgentMCPServers,
 		effectiveRuntimeKind,

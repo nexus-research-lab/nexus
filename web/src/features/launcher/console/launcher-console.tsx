@@ -113,7 +113,7 @@ export function LauncherConsole({
     <>
       <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <header
-          className="launcher-console-header relative z-20 h-28 shrink-0"
+          className="launcher-console-header relative z-20 h-24 shrink-0"
           data-desktop-window-drag-region
         >
           <LottiePlayer

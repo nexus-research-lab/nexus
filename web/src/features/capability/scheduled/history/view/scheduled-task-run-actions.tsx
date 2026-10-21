@@ -132,7 +132,6 @@ function ScheduledRunArtifactButton({ run }: { run: ScheduledTaskRunItem }) {
         disabled={disabled}
         onClick={onAction}
         size="xs"
-        title={actionCopy.title}
         tone="primary"
         variant="text"
       >

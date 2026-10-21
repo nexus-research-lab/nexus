@@ -59,6 +59,11 @@ export const SETTINGS_SEARCH_ITEMS: Record<SettingsSectionKey, readonly (readonl
     ["settings.runtime.web_search_anysearch_content_types"],
     ["settings.runtime.web_search_anysearch_params"],
   ],
+  sandbox: [
+    ["settings.general.desktop_sandbox_title", "settings.general.desktop_sandbox_description"],
+    ["settings.runtime.sandbox_check", "settings.runtime.sandbox_check_description"],
+    ["settings.runtime.sandbox_recovery_title", "settings.runtime.sandbox_recovery_description"],
+  ],
   browser: [
     ["settings.browser.install_action"],
     ["settings.browser.cdp_title", "settings.browser.cdp_description"],

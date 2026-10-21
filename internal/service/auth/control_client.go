@@ -17,8 +17,11 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/infra/runtimeadmission"
 )
 
@@ -35,6 +38,10 @@ type ControlAuthority struct {
 	humanSessionMu   sync.RWMutex
 	leaseMu          sync.RWMutex
 	leases           map[string]controlCachedLease
+	relayTokens      map[string]cachedRelayUserToken
+	// relayTokenEpoch 在身份失效清缓存时递增；失效前发起的换票结果不得写回缓存。
+	relayTokenEpoch   uint64
+	relayTokenFlights singleflight.Group
 }
 
 type controlCachedLease struct {
@@ -67,6 +74,7 @@ func NewControlAuthority(
 		bindings:         newControlBindingStore(cfg.DatabaseDriver, db),
 		runtimeAdmission: runtimeAdmission,
 		leases:           make(map[string]controlCachedLease),
+		relayTokens:      make(map[string]cachedRelayUserToken),
 		verifier: controlPrincipalVerifier{
 			encodedKey: cfg.ControlPrincipalPublicKey,
 			keyFile:    cfg.ControlPrincipalPublicKeyFile,
@@ -279,6 +287,12 @@ func (a *ControlAuthority) deleteOwnerLeases(localOwnerKey string) {
 			delete(a.leases, key)
 		}
 	}
+	for key, token := range a.relayTokens {
+		if token.localOwnerKey == localOwnerKey {
+			delete(a.relayTokens, key)
+		}
+	}
+	a.relayTokenEpoch++
 }
 
 func (a *ControlAuthority) deleteSessionLeases(sessionID string) {
@@ -296,6 +310,12 @@ func (a *ControlAuthority) deleteSessionLeases(sessionID string) {
 			delete(a.leases, key)
 		}
 	}
+	for key, token := range a.relayTokens {
+		if token.sessionID == sessionID {
+			delete(a.relayTokens, key)
+		}
+	}
+	a.relayTokenEpoch++
 }
 
 func (a *ControlAuthority) state(ctx context.Context) (State, error) {
@@ -339,6 +359,10 @@ func (a *ControlAuthority) call(
 	request.Header.Set("Accept", "application/json")
 	if input != nil {
 		request.Header.Set("Content-Type", "application/json")
+	}
+	// Control 沿用入口请求 ID 写日志，跨服务排障按同一 ID 关联。
+	if requestID := logx.RequestID(ctx); requestID != "" {
+		request.Header.Set("X-Request-ID", requestID)
 	}
 	response, err := a.client.Do(request)
 	if err != nil {

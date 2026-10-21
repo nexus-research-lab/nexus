@@ -54,10 +54,9 @@ func (o *nodeObserver) captureFiles(ctx context.Context, job *teamstore.NodeJob,
 		job.ArtifactIDs = append(job.ArtifactIDs, block.ID)
 		job.ArtifactBytes += int64(len(data))
 		// ponytail: 单任务最多 32 MiB，冻结字节复用 SQLite outbox；更大产物再引入本机 blob 存储。
-		if err = o.executor.nodes.store.SaveNodeFiles(ctx, *job, []teamstore.NodeFile{{Name: filepath.Base(block.Path), Data: data}}); err != nil {
+		if err = o.executor.nodes.store.SaveNodeFiles(ctx, job, []teamstore.NodeFile{{Name: filepath.Base(block.Path), Data: data}}); err != nil {
 			return err
 		}
-		job.Sequence++
 	}
 	return nil
 }

@@ -61,6 +61,7 @@ type Config struct {
 	ControlPrincipalAudience         string
 	ControlRequestTimeoutSeconds     int
 	RelayURL                         string
+	MultiplayerDisabled              bool
 	RelayRequestTimeoutSeconds       int
 	BaseSystemPrompt                 string
 	MainAgentSystemPrompt            string
@@ -195,9 +196,8 @@ func Load() Config {
 		CacheFileDir:            cacheDir,
 		WebDistDir:              getEnv("WEB_DIST_DIR", ""),
 		AppMode:                 appMode,
-		// Desktop execution is always admitted through the sandbox contract.
-		// Keep the field for internal option plumbing and test injection, but do
-		// not expose a runtime on/off switch through the process environment.
+		// 桌面模式才允许沙箱；是否真正启用由用户偏好 desktop_sandbox_enabled 决定，
+		// 不通过进程环境变量暴露开关。
 		DesktopSandboxEnabled:       strings.EqualFold(strings.TrimSpace(appMode), "desktop"),
 		WindowsSandboxPreview:       mustBool(getEnv("NEXUS_WINDOWS_SANDBOX_PREVIEW", "false")),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
@@ -231,6 +231,7 @@ func Load() Config {
 		ControlPrincipalAudience:     getEnv("NEXUS_CONTROL_PRINCIPAL_AUDIENCE", "nexus-runtime"),
 		ControlRequestTimeoutSeconds: parseIntEnv(getEnv("NEXUS_CONTROL_REQUEST_TIMEOUT_SECONDS", "5"), 5),
 		RelayURL:                     strings.TrimSpace(getEnv("NEXUS_RELAY_URL", "")),
+		MultiplayerDisabled:          mustBool(getEnv("NEXUS_MULTIPLAYER_DISABLED", "false")),
 		RelayRequestTimeoutSeconds:   parseIntEnv(getEnv("NEXUS_RELAY_REQUEST_TIMEOUT_SECONDS", "5"), 5),
 		BaseSystemPrompt:             getEnv("BASE_SYSTEM_PROMPT", ""),
 		MainAgentSystemPrompt:        getEnv("MAIN_AGENT_SYSTEM_PROMPT", ""),

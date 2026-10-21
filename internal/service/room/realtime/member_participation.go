@@ -1,5 +1,5 @@
 // INPUT: Room Agent member 的暂停/恢复请求、可选 configuration_version、持久 Room contexts 与活跃 slots。
-// OUTPUT: 在全部 conversation 派发锁内以 CAS/authority epoch 持久化并中断，或恢复 queue/Goal/WorkGraph 调度。
+// OUTPUT: 在全部 conversation 派发锁内以 CAS/authority epoch 持久化，释放锁后中断，或恢复 queue/Goal/WorkGraph 调度。
 // POS: 持久成员参与状态与 Room realtime 调度之间的唯一控制面。
 package realtime
 
@@ -60,7 +60,8 @@ func partitionRoomParticipationTargets(
 }
 
 // SetRoomMemberParticipation 原子化“状态持久化”和 runtime 调度边界。
-// pause 持锁等待当前成员 slots 收口；resume 只有在释放全部锁后才唤醒待办。
+// pause 在锁内持久化闸门，释放锁后再等待当前成员 slots 收口（slot 收尾需要
+// 同一把派发锁）；resume 只有在释放全部锁后才唤醒待办。
 func (s *Service) SetRoomMemberParticipation(
 	ctx context.Context,
 	roomID string,
@@ -157,6 +158,10 @@ func (s *Service) setRoomMemberParticipation(
 		return nil, err
 	}
 	if paused {
+		// 闸门已持久化：后续派发与输出栅栏都读数据库真相源，不再需要持锁。
+		// 持锁等待会让 slot 收尾（forgetRoomSlotGuidance）拿不到派发锁，
+		// 中断只能等满超时才返回。
+		unlock()
 		interruptCtx, cancel := context.WithTimeout(
 			context.WithoutCancel(ctx),
 			roomMemberParticipationInterruptTimeout,

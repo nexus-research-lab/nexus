@@ -3,14 +3,13 @@ package tool
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/imagegen/contract"
 )
 
 func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context.Context {
-	ownerUserID := strings.TrimSpace(sctx.OwnerUserID)
+	ownerUserID := sctx.OwnerUserID
 	if ownerUserID == "" {
 		return ctx
 	}
@@ -23,7 +22,7 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 }
 
 func requireWorkspacePath(sctx contract.ServerContext) (string, error) {
-	workspacePath := strings.TrimSpace(sctx.WorkspacePath)
+	workspacePath := sctx.WorkspacePath
 	if workspacePath == "" {
 		return "", errors.New("Nexus 图片生成工具缺少当前 Agent workspace")
 	}

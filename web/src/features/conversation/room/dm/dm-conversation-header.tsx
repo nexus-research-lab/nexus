@@ -56,14 +56,14 @@ export const DmConversationHeader = memo(function DmConversationHeader({
     <WorkspaceSurfaceHeader
       activeTab={activeTab}
       compactTabsLabel={t("room.panels")}
-      leading={(
+      leading={widePanelCollapsed ? undefined : (
         <UiAgentAvatar
           avatar={currentAgentAvatar}
           name={headerTitle}
           size="md"
         />
       )}
-      leadingVariant="identity"
+      leadingVariant={widePanelCollapsed ? undefined : "identity"}
       onChangeTab={onChangeTab}
       tabs={roomTabs}
       tabsLeading={(

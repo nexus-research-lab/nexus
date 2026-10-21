@@ -28,15 +28,6 @@ function configure(provider: WebSearchProvider, extra: Partial<WebSearchSettings
   const controller = {
     loading: false,
     nxsRuntimeChecking: false,
-    sandboxChecking: false,
-    sandboxState: null,
-    onCheckSandbox: vi.fn(),
-    sandboxRecoveryApplying: false,
-    sandboxRecoveryChecking: false,
-    sandboxRecoveryError: false,
-    sandboxRecoverySummary: null,
-    onInspectSandboxResources: vi.fn(),
-    onReconcileSandboxResources: vi.fn(),
     preferencesBusy: false,
     runtimeKind: "nxs",
     toolSearchEnabled: false,
@@ -249,54 +240,11 @@ describe("runtime fields", () => {
   });
 });
 
-
-describe("sandbox diagnosis", () => {
-  it("keeps sandbox diagnosis without a redundant always-on setting", () => {
+describe("sandbox settings", () => {
+  it("leaves sandbox controls to the dedicated sandbox section", () => {
     configure("brave");
     renderSettings();
-    expect(screen.getByRole("button", { name: text("sandbox_check") })).toBeTruthy();
-    expect(screen.queryByRole("switch", { name: text("sandbox_check") })).toBeNull();
-  });
-
-  it("checks explicitly without changing the engine or tool preferences", async () => {
-    const user = userEvent.setup();
-    const controller = configure("brave");
-    renderSettings();
-    await user.click(screen.getByRole("button", { name: text("sandbox_check") }));
-    expect(controller.onCheckSandbox).toHaveBeenCalledOnce();
-    expect(controller.onRuntimeKindChange).not.toHaveBeenCalled();
-    expect(controller.onToolSearchChange).not.toHaveBeenCalled();
-  });
-
-  it.each(["unknown", "unsupported", "missing_dependencies", "dependencies_available"])("shows %s independently of engine selection", (state) => {
-    const controller = configure("brave");
-    useController.mockReturnValue({ ...controller, sandboxState: state });
-    renderSettings();
-    expect(screen.getByRole("status").textContent).toBe(text(`sandbox_${state}`));
-    expect(screen.getByRole("button", { name: text("sandbox_check") }).hasAttribute("disabled")).toBe(false);
-  });
-});
-
-describe("sandbox recovery", () => {
-  it("shows counts and keeps cleanup behind a separate explicit action", async () => {
-    const controller = configure("brave");
-    useController.mockReturnValue({
-      ...controller,
-      sandboxRecoverySummary: {
-        candidateCount: 2,
-        removedCount: 0,
-        resourceCount: 3,
-        unknownCount: 1,
-      },
-    });
-    renderSettings();
-    const summary = screen.getByRole("status");
-    expect(summary.textContent).toContain(text("sandbox_recovery_resources", { count: 3 }));
-    expect(summary.textContent).toContain(text("sandbox_recovery_unknown", { count: 1 }));
-    expect(screen.getByRole("button", { name: text("sandbox_recovery_apply") })).toBeTruthy();
-    expect(controller.onInspectSandboxResources).not.toHaveBeenCalled();
-    expect(controller.onReconcileSandboxResources).not.toHaveBeenCalled();
-    await userEvent.setup().click(screen.getByRole("button", { name: text("sandbox_recovery_apply") }));
-    expect(controller.onReconcileSandboxResources).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: text("sandbox_check") })).toBeNull();
+    expect(screen.queryByText(text("sandbox_recovery_title"))).toBeNull();
   });
 });
