@@ -138,7 +138,8 @@ staple_notarization_ticket() {
   local output
   echo "==> Stapling notarization ticket: ${package_path}"
   # 公证刚 Accepted 时票据可能尚未同步到 Apple CDN，stapler 会失败（CI 上见过 exit 68）；退避重试。
-  until output="$(xcrun stapler staple "${package_path}" 2>&1)"; do
+  # staple 成功后 validate 也可能因同一原因返回 68（dmg 上见过），两步一起重试。
+  until output="$(xcrun stapler staple "${package_path}" 2>&1 && xcrun stapler validate "${package_path}" 2>&1)"; do
     if ((attempt >= attempts)); then
       echo "${output}" >&2
       return 1
@@ -147,7 +148,6 @@ staple_notarization_ticket() {
     sleep $((attempt * 20))
     attempt=$((attempt + 1))
   done
-  xcrun stapler validate "${package_path}" >/dev/null
 }
 
 notarize_app_bundle() {
