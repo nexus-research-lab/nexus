@@ -3,6 +3,7 @@ package clientopts
 import (
 	"context"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -127,14 +128,17 @@ func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 }
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		WebSearch:     WebSearchConfig{AllowPrivateNetwork: true},
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
 	})
 	if err == nil || !strings.Contains(err.Error(), "private-network") {
 		t.Fatalf("private WebSearch access was not rejected: %v", err)
@@ -142,8 +146,8 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 }
 
 func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
 	t.Setenv("OPENAI_API_KEY", "inherited-host-secret")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
@@ -161,6 +165,9 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 		ExtraEnv: map[string]string{
 			"OPENAI_API_KEY": "task-override-must-not-win",
 		},
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -170,21 +177,51 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 	}
 }
 
-func TestDesktopSandboxNetworkAdmissionIsDeferredOnWindows(t *testing.T) {
-	for _, admission := range []*DesktopSandboxNetworkAdmission{nil, {AllowedDomains: []string{"api.example.com"}}} {
-		for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
-			input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission}
-			options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: kind}}, input, "windows")
-			if err != nil {
-				t.Fatal(err)
-			}
-			options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, input, "windows")
-			if err != nil {
-				t.Fatalf("%s admission=%v: Windows deferred sandbox rejected network admission: %v", kind, admission, err)
-			}
-			if options.Sandbox != nil {
-				t.Fatalf("%s: Windows must not receive sandbox network settings: %#v", kind, options.Sandbox)
-			}
-		}
+func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
+	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
+	restricted := AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission,
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
+	}
+	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || options.Sandbox.Network == nil || !slices.Equal(options.Sandbox.Network.AllowedDomains, []string{"api.example.com"}) {
+		t.Fatalf("Windows MXC network settings=%#v", options.Sandbox)
+	}
+
+	fullAccess := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission}
+	options, err = applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, fullAccess, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, fullAccess, "windows")
+	if err != nil || options.Sandbox != nil {
+		t.Fatalf("Windows Full Access received restricted network settings: %#v err=%v", options.Sandbox, err)
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionStillAppliesToDarwinFullAccess(t *testing.T) {
+	input := AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true,
+		DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}},
+	}
+	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, input, "darwin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, input, "darwin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || options.Sandbox.Network == nil || !slices.Equal(options.Sandbox.Network.AllowedDomains, []string{"api.example.com"}) {
+		t.Fatalf("macOS Full Access network admission changed: %#v", options.Sandbox)
 	}
 }

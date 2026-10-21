@@ -1,6 +1,6 @@
 // INPUT: Desktop host rollout flag, approval mode and explicitly mounted directories.
 // OUTPUT: 必需命令、原生文件、搜索、媒体、Skill、指令上下文与受控设置写入合同；其余路径保留既有选项。
-// POS: Common DM/Room/background sandbox policy assembly; backend negotiation is Bridge-owned.
+// POS: Common DM/Room/background sandbox policy assembly for macOS and Windows (SDK MXC); backend negotiation is Bridge-owned.
 package clientopts
 
 import (
@@ -25,14 +25,22 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") {
 		return options, nil
 	}
-	// Windows desktop sandbox rollout is intentionally deferred. Keep the
-	// existing Windows runtime contract untouched until its native boundary is
-	// validated; only macOS may claim the desktop sandbox capability today.
-	if desktopSandboxDeferredOn(platform) {
-		return options, nil
-	}
-	if platform != "darwin" {
+	if platform != "darwin" && platform != "windows" {
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox is unsupported on %s", platform)
+	}
+	if platform == "windows" && options.Runtime.Kind == agentclient.RuntimeNXS {
+		// Windows nxs runs on the SDK MXC ProcessContainer backend. Full Access
+		// carries no restricted resource contract and projects no sandbox policy;
+		// a restricted session must hold a host scratch lease before it may start.
+		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+			if input.SandboxResources != nil {
+				return agentclient.Options{}, fmt.Errorf("Windows Full Access cannot carry restricted resources")
+			}
+			return options, nil
+		}
+		if input.SandboxResources == nil {
+			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")
+		}
 	}
 	if options.Env == nil {
 		options.Env = make(map[string]string)
@@ -115,12 +123,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Sandbox.Resources = &resources
 	}
 	return options, nil
-}
-
-// desktopSandboxDeferredOn reports platforms whose desktop sandbox rollout is
-// deferred; every later sandbox stage must skip them as well.
-func desktopSandboxDeferredOn(platform string) bool {
-	return platform == "windows"
 }
 
 // cloneClaudeSandboxSettings preserves ordinary Claude sandbox presentation

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Windows 桌面沙箱改由 nxs SDK 的 MXC ProcessContainer 后端执行：受限会话需 nxs 与宿主 scratch 租约，完全放行不下发沙箱设置，受限 Claude 会话在 Windows 上直接拒绝；MXC 不可用时握手失败、不回退为无沙箱。
 - Windows 原生开发入口支持 make dev、dev-nxs 和独立服务启动，自动等待 Control 就绪，检查端口并在退出时清理本次启动的进程。
 
 ### Changed

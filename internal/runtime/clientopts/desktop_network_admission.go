@@ -216,9 +216,10 @@ func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input Agen
 }
 
 func applyDesktopSandboxNetworkAdmissionForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
-	// Windows defers the whole desktop sandbox contract, so applyDesktopSandbox
-	// installs no Sandbox settings there; a network grant has nothing to narrow.
-	if desktopSandboxDeferredOn(platform) {
+	// Windows Full Access projects no sandbox policy at all, so a host network
+	// grant has no restricted contract to narrow there; every other Windows
+	// mode keeps the shared admission path below.
+	if platform == "windows" && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 		return options, nil
 	}
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||

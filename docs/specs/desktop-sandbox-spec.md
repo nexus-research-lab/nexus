@@ -9,7 +9,7 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 ## Activation and scope
 
 - The host sandbox contract is only available with `NEXUS_APP_MODE=desktop`, and is applied only when the owner's preference `desktop_sandbox_enabled` is on (Settings › Sandbox › Desktop sandbox). The preference defaults to off; with it off, desktop runtimes start without sandbox settings, scratch leases, host-path protection or network admission. There is no process-environment switch.
-- Windows still defers the sandbox: even with the preference on, every sandbox stage (settings, host paths, network admission) is skipped there.
+- Windows desktop sessions use the nxs SDK MXC ProcessContainer backend (see the SDK `docs/sdk/windows-mxc.md`). Restricted sessions require nxs and a host scratch lease and receive the same nxs contract as macOS except the macOS-only MCP network/helper/stdio requirements; Full Access projects no sandbox settings or network admission; restricted Claude is rejected. When MXC is unavailable the capability handshake fails closed. Native Windows acceptance is still pending.
 - Server deployments keep their existing runtime identity/isolation policy.
 - Agent settings cannot set or clear the internal host policy marker.
 - DM, Room and background memory maintenance use the same client-options builder.
@@ -17,7 +17,7 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - Restricted Claude sessions use the separate [Bridge `RequireClaudeNativeSandbox` contract](#restricted-claude-contract) with generated native `sandbox` settings (`enabled=true`, `failIfUnavailable=true`, `allowUnsandboxedCommands=false`). They claim no nxs capabilities and never use `--restricted` tool removal as command-sandbox proof.
 - An unsupported runtime fails. A desktop session never silently falls back to an unrestricted backend or accepts an unenforced policy.
 - Negotiation does not prove current dependencies or an installed effective policy. A capability acknowledgement does not prove that an older binary includes later policy fixes; fixed-version acceptance is separate.
-- Only macOS nxs builds declare native file-tool capability. Windows native execution is incomplete, so Windows desktop sessions fail closed before receiving a task.
+- macOS nxs builds declare native file-tool capability through Seatbelt; Windows nxs builds declare it only when the MXC sidecar probe succeeds, otherwise Windows desktop sessions fail closed before receiving a task.
 
 ### Windows Bridge process lifecycle
 
