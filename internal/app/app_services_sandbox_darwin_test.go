@@ -67,7 +67,7 @@ func runAppSandboxShutdownCycle(t *testing.T, binary, root string, generation ui
 		t.Fatal(err)
 	}
 	options, err := clientopts.BuildAgentClientOptions(t.Context(), nil, clientopts.AgentClientOptionsInput{
-		OwnerUserID: "owner", WorkspacePath: filepath.Join(root, "workspace"), RuntimeKind: "nxs", AppMode: "desktop",
+		OwnerUserID: "owner", WorkspacePath: filepath.Join(root, "workspace"), RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 		PermissionMode: permission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true,
 		SettingSources: []string{"user"}, SandboxResources: lease.Resources(),
 	})

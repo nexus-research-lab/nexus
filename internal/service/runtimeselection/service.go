@@ -39,6 +39,7 @@ type Selection struct {
 	VisionProvider             string
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
+	DesktopSandboxEnabled      bool
 	EmotionEnabled             bool
 	AutoMemoryDisabled         bool
 	AutoDreamDisabled          bool
@@ -89,6 +90,7 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 	if ok {
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
+		selection.DesktopSandboxEnabled = prefs.DesktopSandboxEnabled
 		selection.EmotionEnabled = prefs.EmotionEnabled
 		selection.AutoMemoryDisabled = !prefs.AutoMemoryEnabledForRuntime(runtimeprovider.RuntimeKindNXS)
 		selection.AutoDreamDisabled = !prefs.AutoDreamEnabledForRuntime(runtimeprovider.RuntimeKindNXS)

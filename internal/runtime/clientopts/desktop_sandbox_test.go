@@ -13,8 +13,14 @@ import (
 
 func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		WorkspacePath: t.TempDir(), RuntimeKind: "claude", AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
+		WorkspacePath: t.TempDir(), RuntimeKind: "claude", AppMode: "desktop", DesktopSandboxEnabled: true, PermissionMode: sdkpermission.ModeDefault,
 	})
+	if runtime.GOOS == "windows" {
+		if err != nil || options.Sandbox != nil {
+			t.Fatalf("Windows must defer the Claude sandbox contract: options=%#v err=%v", options.Sandbox, err)
+		}
+		return
+	}
 	if runtime.GOOS != "darwin" {
 		if err == nil {
 			t.Fatal("unsupported Claude native sandbox was accepted")
@@ -238,5 +244,20 @@ func TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature(t *testing.T
 	}
 	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeKind("other")}}, input, "darwin"); err == nil {
 		t.Fatal("unsupported runtime silently accepted")
+	}
+}
+
+func TestDesktopSandboxIsOffUnlessExplicitlyEnabled(t *testing.T) {
+	for _, kind := range []string{"nxs", "claude"} {
+		options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+			WorkspacePath: t.TempDir(), RuntimeKind: kind, AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
+			DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}},
+		})
+		if err != nil {
+			t.Fatalf("%s: desktop runtime without sandbox preference failed: %v", kind, err)
+		}
+		if options.Sandbox != nil || options.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "" {
+			t.Fatalf("%s: desktop sandbox installed without explicit enablement: %#v", kind, options.Sandbox)
+		}
 	}
 }

@@ -106,7 +106,7 @@ func (h *Host) AcquireRuntimeScratch(
 	permissionMode sdkpermission.Mode,
 	input runtimectx.SandboxResourceInput,
 ) (*runtimectx.SandboxResourceLease, error) {
-	if !strings.EqualFold(h.Config.AppMode, "desktop") ||
+	if !strings.EqualFold(h.Config.AppMode, "desktop") || !selection.DesktopSandboxEnabled ||
 		(selection.RuntimeKind != "" && !strings.EqualFold(selection.RuntimeKind, "nxs")) ||
 		permissionMode == sdkpermission.ModeBypassPermissions {
 		return nil, nil
@@ -147,7 +147,7 @@ func (h *Host) BuildAgentRuntimeOptions(
 	selection := input.Selection
 	return clientopts.BuildAgentClientOptionsWithConfig(ctx, h.Providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    h.Config.AppMode,
-		DesktopSandboxEnabled:      h.Config.DesktopSandboxEnabled,
+		DesktopSandboxEnabled:      h.Config.DesktopSandboxEnabled && selection.DesktopSandboxEnabled,
 		WorkspacePath:              agent.WorkspacePath,
 		OwnerUserID:                agent.OwnerUserID,
 		IsMainAgent:                agent.IsMain,

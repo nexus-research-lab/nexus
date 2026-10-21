@@ -1,12 +1,14 @@
 /**
- * INPUT: 默认权限草稿、Preferences 可靠性反馈和恢复动作。
- * OUTPUT: 公共紧凑权限选择器、可读后果说明及完整的设置结果提示。
+ * INPUT: 默认权限草稿、桌面沙箱开关、Preferences 可靠性反馈和恢复动作。
+ * OUTPUT: 公共紧凑权限选择器、可读后果说明、桌面端沙箱开关及完整的设置结果提示。
  * POS: General 权限分区视图；不另建单行错误投影。
  */
 "use client";
 
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
-import { ShieldCheck } from "lucide-react";
+import { Box, ShieldCheck } from "lucide-react";
+
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 
 import {
   getAgentPermissionChoices,
@@ -24,7 +26,9 @@ import type {
 } from "../model/settings-preferences-model";
 
 import {
+  SettingsToggleRow,
   SETTINGS_CARD_CLASS_NAME,
+  SETTINGS_DIVIDER_CLASS_NAME,
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
@@ -33,6 +37,8 @@ import {
 } from "../../shared/settings-panel-ui";
 
 interface SettingsPermissionsSectionProps {
+  desktopSandboxEnabled?: boolean;
+  onDesktopSandboxEnabledChange?: (checked: boolean) => void;
   onPermissionModeChange: (value: string) => void;
   permissionMode: string;
   preferencesLoading: boolean;
@@ -42,6 +48,8 @@ interface SettingsPermissionsSectionProps {
 }
 
 export function SettingsPermissionsSection({
+  desktopSandboxEnabled = false,
+  onDesktopSandboxEnabledChange,
   onPermissionModeChange,
   permissionMode,
   preferencesLoading,
@@ -93,6 +101,19 @@ export function SettingsPermissionsSection({
             </p>
           </div>
         </div>
+        {onDesktopSandboxEnabledChange && isDesktopRuntime() ? (
+          <>
+            <div className={SETTINGS_DIVIDER_CLASS_NAME} />
+            <SettingsToggleRow
+              checked={desktopSandboxEnabled}
+              description={t("settings.general.desktop_sandbox_description")}
+              disabled={preferencesLoading || preferencesSaving}
+              icon={<Box className="h-3.5 w-3.5" />}
+              onChange={onDesktopSandboxEnabledChange}
+              title={t("settings.general.desktop_sandbox_title")}
+            />
+          </>
+        ) : null}
       </div>
     </section>
   );

@@ -48,6 +48,7 @@ export function buildPreferencesUpdatePayload(
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
     emotion_enabled: preferences.emotion_enabled,
     browser_cdp_enabled: preferences.browser_cdp_enabled,
+    desktop_sandbox_enabled: preferences.desktop_sandbox_enabled,
     runtime_settings: preferences.runtime_settings,
     web_search: preferences.web_search,
     web_search_api_key: preferences.web_search_api_key,
@@ -80,6 +81,7 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
     echo_enabled: preferences === null
       ? fallback.echo_enabled === true
       : preferences.echo_enabled === true,
+    desktop_sandbox_enabled: source.desktop_sandbox_enabled === true,
     runtime_settings: normalizeRuntimeSettings(
       source.runtime_settings,
       fallback.runtime_settings,

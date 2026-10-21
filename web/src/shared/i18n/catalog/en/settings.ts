@@ -198,6 +198,8 @@ export const enSettingsMessages = {
   "settings.general.auto_memory_description": "Let Agents extract and save information worth remembering from conversations.",
   "settings.general.auto_dream_title": "Automatic memory consolidation",
   "settings.general.auto_dream_description": "Let Agents merge duplicate memories and refresh long-term memory indexes in the background.",
+  "settings.general.desktop_sandbox_title": "Desktop sandbox",
+  "settings.general.desktop_sandbox_description": "Run Agent commands and file tools inside the desktop sandbox. Off by default; applies to newly started conversations.",
   "settings.general.emotion_title": "Emotion system",
   "settings.general.emotion_description": "Let Agents adjust their expression to the current state. Off by default.",
   "settings.general.echo_title": "Echo",

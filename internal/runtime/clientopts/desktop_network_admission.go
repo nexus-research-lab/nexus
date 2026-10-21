@@ -212,6 +212,15 @@ func validateDesktopTypedRemoteMCP(
 // endpoint. An explicit host grant still replaces the copied Network object for
 // callers that have completed the separate domain-approval flow.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
+	return applyDesktopSandboxNetworkAdmissionForPlatform(options, input, runtime.GOOS)
+}
+
+func applyDesktopSandboxNetworkAdmissionForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
+	// Windows defers the whole desktop sandbox contract, so applyDesktopSandbox
+	// installs no Sandbox settings there; a network grant has nothing to narrow.
+	if desktopSandboxDeferredOn(platform) {
+		return options, nil
+	}
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
 		(options.Runtime.Kind != agentclient.RuntimeNXS &&
 			(options.Runtime.Kind != agentclient.RuntimeClaude || input.DesktopSandboxNetworkAdmission == nil)) {

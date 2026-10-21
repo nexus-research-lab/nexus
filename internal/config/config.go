@@ -195,9 +195,8 @@ func Load() Config {
 		CacheFileDir:            cacheDir,
 		WebDistDir:              getEnv("WEB_DIST_DIR", ""),
 		AppMode:                 appMode,
-		// Desktop execution is always admitted through the sandbox contract.
-		// Keep the field for internal option plumbing and test injection, but do
-		// not expose a runtime on/off switch through the process environment.
+		// 桌面模式才允许沙箱；是否真正启用由用户偏好 desktop_sandbox_enabled 决定，
+		// 不通过进程环境变量暴露开关。
 		DesktopSandboxEnabled:       strings.EqualFold(strings.TrimSpace(appMode), "desktop"),
 		DesktopSessionToken:         getEnv("NEXUS_DESKTOP_SESSION_TOKEN", ""),
 		BrowserEnabled:              browserEnabled,

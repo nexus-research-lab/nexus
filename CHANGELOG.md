@@ -12,9 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 在线群借鉴 Slack 智能体会话的停止按钮：消息作者可停止执行中的 Agent，执行节点在 5 秒续租内中断并显示“已取消”；停止中显示“正在停止”。
 - 群说明：群主可在群设置里为群内所有 Agent 设置共同说明（如回复语言、格式），以置顶群消息的可信度进入执行提示词，不授予权限。
 - 唤醒他人 Agent 超出 Relay 每小时额度时提示“唤醒他人 Agent 过于频繁”，并透传 `Retry-After`。
+- 设置 › 权限新增“桌面沙箱”开关（偏好 `desktop_sandbox_enabled`），默认关闭；关闭时桌面 runtime 不装配沙箱合同、scratch 与网络准入，对新启动的会话生效。
 
 ### Fixed
 
+- Windows 桌面端启动 nxs 会话不再报 “desktop sandbox network admission requires sandbox settings”：Windows 推迟沙箱后，网络准入阶段同样跳过。
 - 在线群里 Agent 中途写下 `@成员` 再调用工具时，被提及的 Agent 不再立即被唤醒；本轮全部有效 @ 只在成功给出最终回复后一起唤醒，执行失败、中断或被停止时不唤醒任何人，与本地群聊一致。
 - Relay 在线协作加固：WSS 订阅保留 Relay 部署路径前缀；写命令统一校验幂等键；投递续期与失败拆成独立方法；取消投递按 Relay 错误码映射而非一律 409。
 - 加 Agent 与邀请成员先校验远程登录再请求 Control，未登录返回 401 而非 502。

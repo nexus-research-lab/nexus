@@ -72,7 +72,7 @@ func testDesktopSandboxMCPRoundTrip(t *testing.T, scenarios []string) {
 				desktopMCPToolResponse(w)
 			}))
 			defer provider.Close()
-			input := AgentClientOptionsInput{WorkspacePath: filepath.Join(root, "workspace"), OwnerUserID: "__system__", RuntimeKind: "nxs", AppMode: "desktop",
+			input := AgentClientOptionsInput{WorkspacePath: filepath.Join(root, "workspace"), OwnerUserID: "__system__", RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 				PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true, SettingSources: []string{},
 				SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: filepath.Join(root, "scratch")},
 			}

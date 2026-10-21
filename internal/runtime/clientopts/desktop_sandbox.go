@@ -28,7 +28,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	// Windows desktop sandbox rollout is intentionally deferred. Keep the
 	// existing Windows runtime contract untouched until its native boundary is
 	// validated; only macOS may claim the desktop sandbox capability today.
-	if platform == "windows" {
+	if desktopSandboxDeferredOn(platform) {
 		return options, nil
 	}
 	if platform != "darwin" {
@@ -115,6 +115,12 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		options.Sandbox.Resources = &resources
 	}
 	return options, nil
+}
+
+// desktopSandboxDeferredOn reports platforms whose desktop sandbox rollout is
+// deferred; every later sandbox stage must skip them as well.
+func desktopSandboxDeferredOn(platform string) bool {
+	return platform == "windows"
 }
 
 // cloneClaudeSandboxSettings preserves ordinary Claude sandbox presentation

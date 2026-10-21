@@ -62,7 +62,7 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 			var approvals, escapesDenied int
 			input := AgentClientOptionsInput{
 				WorkspacePath: workspace, OwnerUserID: "__system__", RuntimeKind: kind,
-				AppMode: "desktop", PermissionMode: sdkpermission.ModeDefault,
+				AppMode: "desktop", DesktopSandboxEnabled: true, PermissionMode: sdkpermission.ModeDefault,
 				AutoMemoryDisabled: true, AutoDreamDisabled: true,
 				SkillDirectories: []string{publicSkills},
 				PermissionHandler: func(_ context.Context, r sdkpermission.Request) (sdkpermission.Decision, error) {

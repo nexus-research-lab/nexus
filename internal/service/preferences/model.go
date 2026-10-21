@@ -16,20 +16,22 @@ import (
 
 // Preferences 表示当前用户的界面与运行默认偏好。
 type Preferences struct {
-	Version                         int64                       `json:"version"`
-	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
-	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
-	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
-	EmotionEnabled                  bool                        `json:"emotion_enabled,omitempty"`
-	BrowserCDPEnabled               bool                        `json:"browser_cdp_enabled,omitempty"`
-	EchoEnabled                     bool                        `json:"echo_enabled,omitempty"`
-	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
-	WebSearch                       WebSearchSettings           `json:"web_search"`
-	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
-	DefaultImageModelSelection      ModelSelection              `json:"default_image_model_selection,omitempty"`
-	DefaultVisionModelSelection     ModelSelection              `json:"default_vision_model_selection,omitempty"`
-	DefaultBackgroundModelSelection ModelSelection              `json:"default_background_model_selection,omitempty"`
-	UpdatedAt                       string                      `json:"updated_at,omitempty"`
+	Version                    int64                       `json:"version"`
+	ChatDefaultDeliveryPolicy  protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
+	AgentRuntimeKind           string                      `json:"agent_runtime_kind,omitempty"`
+	AgentSDKDiagnosticsEnabled bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
+	EmotionEnabled             bool                        `json:"emotion_enabled,omitempty"`
+	BrowserCDPEnabled          bool                        `json:"browser_cdp_enabled,omitempty"`
+	EchoEnabled                bool                        `json:"echo_enabled,omitempty"`
+	// DesktopSandboxEnabled 让桌面 runtime 进入沙箱合同；默认关闭，由用户在设置中显式开启。
+	DesktopSandboxEnabled           bool              `json:"desktop_sandbox_enabled,omitempty"`
+	RuntimeSettings                 RuntimeSettings   `json:"runtime_settings"`
+	WebSearch                       WebSearchSettings `json:"web_search"`
+	DefaultAgentOptions             protocol.Options  `json:"default_agent_options"`
+	DefaultImageModelSelection      ModelSelection    `json:"default_image_model_selection,omitempty"`
+	DefaultVisionModelSelection     ModelSelection    `json:"default_vision_model_selection,omitempty"`
+	DefaultBackgroundModelSelection ModelSelection    `json:"default_background_model_selection,omitempty"`
+	UpdatedAt                       string            `json:"updated_at,omitempty"`
 }
 
 // UpdateRequest 表示偏好更新请求。字段为 nil 时保留原值。
@@ -39,6 +41,7 @@ type UpdateRequest struct {
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
 	EmotionEnabled                  *bool                        `json:"emotion_enabled,omitempty"`
 	BrowserCDPEnabled               *bool                        `json:"browser_cdp_enabled,omitempty"`
+	DesktopSandboxEnabled           *bool                        `json:"desktop_sandbox_enabled,omitempty"`
 	RuntimeSettings                 *RuntimeSettings             `json:"runtime_settings,omitempty"`
 	WebSearch                       *WebSearchSettings           `json:"web_search,omitempty"`
 	WebSearchAPIKey                 *string                      `json:"web_search_api_key,omitempty"`
@@ -213,6 +216,7 @@ func normalizePreferences(item Preferences) Preferences {
 		EmotionEnabled:                  item.EmotionEnabled,
 		BrowserCDPEnabled:               item.BrowserCDPEnabled,
 		EchoEnabled:                     item.EchoEnabled,
+		DesktopSandboxEnabled:           item.DesktopSandboxEnabled,
 		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		WebSearch:                       webSearch,
 		DefaultAgentOptions:             options,
