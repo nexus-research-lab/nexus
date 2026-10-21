@@ -642,7 +642,7 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 	if selector == "" && len(windows) == 1 {
 		window = &windows[0]
 	} else {
-		window, err = selectWindowByRefOrTitle(windows, selector)
+		window, err = nexuscua.SelectWindow(windows, selector)
 		if err != nil {
 			return Observation{}, err
 		}
@@ -685,22 +685,6 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 		}
 	}
 	return result, nil
-}
-
-func selectWindowByRefOrTitle(windows []nexuscua.WindowSummary, selector string) (*nexuscua.WindowSummary, error) {
-	matches := make([]int, 0, 1)
-	for index := range windows {
-		if string(windows[index].WindowRef) == selector {
-			matches = append(matches, index)
-		}
-	}
-	if len(matches) == 1 {
-		return &windows[matches[0]], nil
-	}
-	if len(matches) > 1 {
-		return nil, fmt.Errorf("nexus-cua: window ref %q has %d matches", selector, len(matches))
-	}
-	return nexuscua.SelectWindow(windows, selector)
 }
 
 type ActionInput struct {
