@@ -131,7 +131,7 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
 	}
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		WebSearch:     WebSearchConfig{AllowPrivateNetwork: true},
@@ -155,7 +155,7 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 			APIFormat: apiFormatResponses,
 		},
 	}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		ExtraEnv: map[string]string{
@@ -167,5 +167,24 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 	}
 	if got := options.Env["OPENAI_API_KEY"]; got != "resolved-session-secret" {
 		t.Fatalf("provider credential=%q want resolved session credential", got)
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionIsDeferredOnWindows(t *testing.T) {
+	for _, admission := range []*DesktopSandboxNetworkAdmission{nil, {AllowedDomains: []string{"api.example.com"}}} {
+		for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
+			input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission}
+			options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: kind}}, input, "windows")
+			if err != nil {
+				t.Fatal(err)
+			}
+			options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, input, "windows")
+			if err != nil {
+				t.Fatalf("%s admission=%v: Windows deferred sandbox rejected network admission: %v", kind, admission, err)
+			}
+			if options.Sandbox != nil {
+				t.Fatalf("%s: Windows must not receive sandbox network settings: %#v", kind, options.Sandbox)
+			}
+		}
 	}
 }

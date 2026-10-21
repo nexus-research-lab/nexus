@@ -86,7 +86,7 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 		}
 	}
 	input := clientopts.AgentClientOptionsInput{
-		WorkspacePath: workspace, RuntimeKind: "nxs", AppMode: "desktop",
+		WorkspacePath: workspace, RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 		PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true,
 		SettingSources:   []string{"user"},
 		SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: scratch},

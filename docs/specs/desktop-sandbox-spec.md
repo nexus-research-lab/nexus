@@ -8,7 +8,8 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 
 ## Activation and scope
 
-- Desktop execution derives the host sandbox contract from `NEXUS_APP_MODE=desktop`. There is no user-facing or process-environment on/off switch.
+- The host sandbox contract is only available with `NEXUS_APP_MODE=desktop`, and is applied only when the owner's preference `desktop_sandbox_enabled` is on (Settings › Permissions › Desktop sandbox). The preference defaults to off; with it off, desktop runtimes start without sandbox settings, scratch leases, host-path protection or network admission. There is no process-environment switch.
+- Windows still defers the sandbox: even with the preference on, every sandbox stage (settings, host paths, network admission) is skipped there.
 - Server deployments keep their existing runtime identity/isolation policy.
 - Agent settings cannot set or clear the internal host policy marker.
 - DM, Room and background memory maintenance use the same client-options builder.

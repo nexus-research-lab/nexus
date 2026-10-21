@@ -104,7 +104,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	}
 	var scratchLease *runtimectx.SandboxResourceLease
 	scratchLeaseOwned := false
-	if strings.EqualFold(strings.TrimSpace(r.config.AppMode), "desktop") {
+	if strings.EqualFold(strings.TrimSpace(r.config.AppMode), "desktop") && selection.DesktopSandboxEnabled {
 		scratchLease, err = runtimectx.AcquireSandboxResource(ownerContext, runtimectx.SandboxResourceInput{
 			OwnerUserID: agentValue.OwnerUserID,
 			SessionKey:  "memory-maintenance:" + strings.TrimSpace(agentValue.AgentID),
@@ -121,7 +121,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
 		AppMode:               r.config.AppMode,
-		DesktopSandboxEnabled: r.config.DesktopSandboxEnabled,
+		DesktopSandboxEnabled: r.config.DesktopSandboxEnabled && selection.DesktopSandboxEnabled,
 		WorkspacePath:         agentValue.WorkspacePath,
 		OwnerUserID:           agentValue.OwnerUserID,
 		IsMainAgent:           agentValue.IsMain,

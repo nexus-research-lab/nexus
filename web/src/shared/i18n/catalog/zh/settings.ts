@@ -195,6 +195,8 @@ export const zhSettingsMessages = {
   "settings.general.auto_memory_description": "让 Agent 从对话中自动提取并保存值得长期保留的信息。",
   "settings.general.auto_dream_title": "自动整理记忆",
   "settings.general.auto_dream_description": "让 Agent 在后台合并重复记忆并更新长期记忆索引。",
+  "settings.general.desktop_sandbox_title": "桌面沙箱",
+  "settings.general.desktop_sandbox_description": "在桌面沙箱中运行 Agent 的命令与文件工具。默认关闭；对新启动的会话生效。",
   "settings.general.emotion_title": "情绪系统",
   "settings.general.emotion_description": "让 Agent 根据当前状态调整表达方式。默认关闭。",
   "settings.general.echo_title": "主动跟进",
