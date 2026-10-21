@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-21
+
 ### Added
 
 - 在线群借鉴 Slack 智能体会话的停止按钮：消息作者可停止执行中的 Agent，执行节点在 5 秒续租内中断并显示“已取消”；停止中显示“正在停止”。
