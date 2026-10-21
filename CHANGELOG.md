@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - 修复 macOS 升级后沙箱 scratch 所在卷的 `st_dev` 编号漂移导致恢复身份永久不匹配、启动栅栏无法解除的问题；身份格式保持不变，匹配仅忽略设备号漂移，仍严格校验 inode、generation 与创建时间。
+- macOS 从 Finder 启动的桌面 App 不再在“检查沙箱支持”里误报“沙箱所需的本机依赖不齐全”：sidecar 把包内 `bin`（随包 `rg` 等工具）追加到 PATH 末尾，不遮蔽用户 PATH 中的同名工具。
 
 ## [0.2.5] - 2026-10-21
 
