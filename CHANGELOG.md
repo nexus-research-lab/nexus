@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- 修复 macOS 升级后沙箱 scratch 所在卷的 `st_dev` 编号漂移导致恢复身份永久不匹配、启动栅栏无法解除的问题；新增 `darwin-v2` 身份并兼容读取旧 `darwin-v1` 记录，仅忽略设备号变化，仍严格校验 inode、generation 与创建时间。
+
 ## [0.2.5] - 2026-10-21
 
 ### Added

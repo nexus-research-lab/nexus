@@ -8,14 +8,25 @@ package runtime
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+type sandboxDirectoryIdentityParts struct {
+	version string
+	dev     uint64
+	ino     uint64
+	gen     uint64
+	sec     uint64
+	nsec    uint64
+}
 
 func sandboxDirectoryIdentity(info os.FileInfo) (string, error) {
 	if info == nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
@@ -25,9 +36,60 @@ func sandboxDirectoryIdentity(info os.FileInfo) (string, error) {
 	if !ok || stat.Ino == 0 {
 		return "", errors.New("scratch native directory identity unavailable")
 	}
-	// Device and inode identify the filesystem object. Generation and birth time
-	// additionally distinguish reuse; mtime/ctime change during ordinary IO.
-	return fmt.Sprintf("darwin-v1:%x:%x:%x:%x:%x", uint64(stat.Dev), stat.Ino, stat.Gen, stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
+	// Device numbers can change when macOS remounts a volume after an upgrade.
+	// The stable object fields remain sufficient to distinguish replacement.
+	return fmt.Sprintf("darwin-v2:%x:%x:%x:%x:%x", uint64(stat.Dev), stat.Ino, stat.Gen, stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
+}
+
+func parseSandboxDirectoryIdentity(value string) (sandboxDirectoryIdentityParts, error) {
+	var parts sandboxDirectoryIdentityParts
+	fields := strings.Split(value, ":")
+	if len(fields) != 6 {
+		return parts, errors.New("invalid scratch directory identity")
+	}
+	parts.version = fields[0]
+	if parts.version != "darwin-v1" && parts.version != "darwin-v2" {
+		return parts, errors.New("unsupported scratch directory identity")
+	}
+	start := 2
+	var err error
+	parts.dev, err = strconv.ParseUint(fields[1], 16, 64)
+	if err != nil {
+		return parts, errors.New("invalid scratch device identity")
+	}
+	values := []*uint64{&parts.ino, &parts.gen, &parts.sec, &parts.nsec}
+	for i, dst := range values {
+		if fields[start+i] == "" {
+			return parts, errors.New("invalid scratch directory identity")
+		}
+		parsed, err := strconv.ParseUint(fields[start+i], 16, 64)
+		if err != nil {
+			return parts, errors.New("invalid scratch directory identity")
+		}
+		*dst = parsed
+	}
+	return parts, nil
+}
+
+// sandboxDirectoryIdentityMatches accepts legacy v1 records while treating a
+// changed device number as migration drift. All object identity fields remain
+// strict, so a deleted-and-recreated directory is still rejected.
+func sandboxDirectoryIdentityMatches(expected, actual string) (matches, deviceDrift bool, err error) {
+	want, err := parseSandboxDirectoryIdentity(expected)
+	if err != nil {
+		return false, false, err
+	}
+	got, err := parseSandboxDirectoryIdentity(actual)
+	if err != nil {
+		return false, false, err
+	}
+	if want.ino != got.ino || want.gen != got.gen || want.sec != got.sec || want.nsec != got.nsec {
+		return false, false, nil
+	}
+	if want.dev != got.dev {
+		return true, true, nil
+	}
+	return true, false, nil
 }
 
 func supervisedScratchBinding(lease *SandboxResourceLease) (protocol.SandboxProcessScratch, error) {
@@ -70,8 +132,13 @@ func supervisedScratchBinding(lease *SandboxResourceLease) (protocol.SandboxProc
 		return empty, err
 	}
 	currentID, err := sandboxDirectoryIdentity(info)
-	if err != nil || currentID != baseID {
+	if err != nil {
+		return empty, err
+	}
+	if matches, drift, matchErr := sandboxDirectoryIdentityMatches(baseID, currentID); matchErr != nil || !matches {
 		return empty, errors.New("scratch parent identity changed")
+	} else if drift {
+		slog.Warn("sandbox scratch parent device identity drifted", "path", resource.root)
 	}
 	leaf, err := current.OpenRootNoSymlink(name)
 	if err != nil {
@@ -83,8 +150,13 @@ func supervisedScratchBinding(lease *SandboxResourceLease) (protocol.SandboxProc
 		return empty, err
 	}
 	currentID, err = sandboxDirectoryIdentity(info)
-	if err != nil || currentID != leafID {
+	if err != nil {
+		return empty, err
+	}
+	if matches, drift, matchErr := sandboxDirectoryIdentityMatches(leafID, currentID); matchErr != nil || !matches {
 		return empty, errors.New("scratch leaf identity changed")
+	} else if drift {
+		slog.Warn("sandbox scratch leaf device identity drifted", "path", resource.path)
 	}
 	return protocol.SandboxProcessScratch{BasePath: resource.root, LeafName: name, BaseIdentity: baseID, LeafIdentity: leafID}, nil
 }

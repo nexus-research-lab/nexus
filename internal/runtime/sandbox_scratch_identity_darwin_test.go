@@ -15,6 +15,24 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+func TestSandboxDirectoryIdentityMatchesDeviceDrift(t *testing.T) {
+	for _, tc := range []struct {
+		name, expected, actual string
+		want, drift            bool
+	}{
+		{"legacy device drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:3:4:5", true, true},
+		{"legacy to v2", "darwin-v1:100000e:2:3:4:5", "darwin-v2:1000010:2:3:4:5", true, true},
+		{"replacement", "darwin-v1:100000e:2:3:4:5", "darwin-v2:100000e:2:9:4:5", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, drift, err := sandboxDirectoryIdentityMatches(tc.expected, tc.actual)
+			if err != nil || got != tc.want || drift != tc.drift {
+				t.Fatalf("matches=%v drift=%v err=%v", got, drift, err)
+			}
+		})
+	}
+}
+
 func TestSupervisedScratchIdentityUsesOriginalDirectory(t *testing.T) {
 	for _, kind := range []string{"leaf", "parent"} {
 		t.Run(kind, func(t *testing.T) {

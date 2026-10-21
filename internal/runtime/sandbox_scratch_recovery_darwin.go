@@ -8,6 +8,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -141,8 +142,15 @@ func resumeSandboxScratchDeletion(ctx context.Context, processRoot *confinedfs.R
 			return err
 		}
 		identity, err := sandboxDirectoryIdentity(info)
-		if err != nil || identity != record.Scratch.BaseIdentity {
+		if err != nil {
+			return err
+		}
+		matches, drift, matchErr := sandboxDirectoryIdentityMatches(record.Scratch.BaseIdentity, identity)
+		if matchErr != nil || !matches {
 			return errors.New("scratch recovery parent identity mismatch")
+		}
+		if drift {
+			slog.Warn("sandbox scratch recovery parent device identity drifted", "path", record.Scratch.BasePath)
 		}
 		_, err = verifiedRecoveryDirectory(quarantine, target, record.Scratch.LeafIdentity)
 		if errors.Is(err, os.ErrNotExist) {
@@ -206,8 +214,15 @@ func verifiedRecoveryDirectory(root *confinedfs.Root, name, expected string) (os
 		return nil, err
 	}
 	identity, err := sandboxDirectoryIdentity(info)
-	if err != nil || identity != expected {
+	if err != nil {
+		return nil, err
+	}
+	matches, drift, matchErr := sandboxDirectoryIdentityMatches(expected, identity)
+	if matchErr != nil || !matches {
 		return nil, errors.New("scratch recovery directory identity mismatch")
+	}
+	if drift {
+		slog.Warn("sandbox scratch recovery directory device identity drifted", "name", name)
 	}
 	return info, nil
 }
