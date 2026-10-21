@@ -5,6 +5,7 @@
 - Pin the Bridge to the published Windows sandbox branch commit instead of a local `replace` directory, so the desktop sandbox branch builds outside the Windows workstation that produced it.
 - Keep main's released migration `00158_drop_team_relay_projection` and number the unreleased Windows sandbox migrations `00159`–`00161`, so databases already upgraded through v0.2.5 still apply them; sandbox storage tests use the current migration versions.
 - Optional vision configuration failures still degrade to `NEXUS_VISION_CONFIG_ERROR`, but cancellation and deadlines now propagate instead of being swallowed during session startup.
+- Windows 原生开发入口支持 make dev、dev-nxs 和独立服务启动，自动等待 Control 就绪，检查端口并在退出时清理本次启动的进程。
 
 - Persist Windows launch admission, prepared bindings, one-time start claims and cleanup outcomes with independent scope fences. Bind policy receipts to the original runtime execution and retain pending scratch across unknown outcomes; recovery only reconciles existing complete proof and does not infer cleanup from a missing PID or path.
 
