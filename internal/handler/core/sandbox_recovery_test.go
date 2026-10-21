@@ -280,3 +280,54 @@ func newSandboxRecoveryRequest(method, path, owner, body string) *http.Request {
 	}
 	return request
 }
+
+func TestSandboxBlockedSessionsAreOwnerScopedAndHidePaths(t *testing.T) {
+	t.Setenv("NEXUS_STATE_ROOT", t.TempDir())
+	manager := runtimectx.NewManager()
+	process := protocol.SandboxProcessKey{OwnerUserID: "owner", SessionKey: "dm-1", Generation: 1, LaunchID: strings.Repeat("a", 32)}
+	lifecycle := protocol.SandboxProcessKey{OwnerUserID: "owner", SessionKey: "room-1", Generation: 2, LaunchID: strings.Repeat("b", 32)}
+	other := protocol.SandboxProcessKey{OwnerUserID: "other", SessionKey: "dm-9", Generation: 1, LaunchID: strings.Repeat("c", 32)}
+	manager.RecordSandboxStartupRecovery(nil, []runtimectx.SandboxStartupRecoveryFailure{
+		{Key: process, Stage: runtimectx.SandboxStartupRecoveryProcess, Reason: "process root /private/secret changed"},
+		{Key: lifecycle, Stage: runtimectx.SandboxStartupRecoveryLifecycle, Reason: "open /Users/x/.nexus/users/owner/runtime/sandbox: no such file"},
+		{Key: other, Stage: runtimectx.SandboxStartupRecoveryLifecycle, Reason: "other owner"},
+	})
+	handlers := New(shared.NewAPI(logx.NewDiscardLogger()), nil, nil)
+	handlers.SetRuntimeManager(manager)
+
+	recorder := httptest.NewRecorder()
+	handlers.HandleSandboxResourceInspection(recorder, newSandboxRecoveryRequest(http.MethodGet, "/settings/runtime/sandbox/resources", "owner", ""))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("inspection status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Data sandboxRecoveryInspection `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	blocked := response.Data.BlockedSessions
+	if len(blocked) != 2 || blocked[0].SessionKey != "dm-1" || blocked[0].Discardable || blocked[1].SessionKey != "room-1" || !blocked[1].Discardable {
+		t.Fatalf("blocked sessions = %#v", blocked)
+	}
+	if body := recorder.Body.String(); strings.Contains(body, "/private/secret") || strings.Contains(body, "/Users/x") || strings.Contains(body, "dm-9") {
+		t.Fatalf("inspection leaked host error or another owner: %s", body)
+	}
+
+	for _, test := range []struct {
+		owner, launch string
+		want          int
+	}{
+		{"owner", process.LaunchID, http.StatusConflict},
+		{"other", lifecycle.LaunchID, http.StatusNotFound},
+		{"owner", strings.Repeat("f", 32), http.StatusNotFound},
+		{"owner", "", http.StatusNotFound},
+	} {
+		recorder := httptest.NewRecorder()
+		body := `{"launch_id":"` + test.launch + `"}`
+		handlers.HandleSandboxRecoveryDiscard(recorder, newSandboxRecoveryRequest(http.MethodPost, "/settings/runtime/sandbox/recovery/discard", test.owner, body))
+		if recorder.Code != test.want {
+			t.Fatalf("discard owner=%s launch=%s status=%d want %d: %s", test.owner, test.launch, recorder.Code, test.want, recorder.Body.String())
+		}
+	}
+}

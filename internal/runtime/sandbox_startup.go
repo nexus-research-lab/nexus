@@ -16,7 +16,7 @@ import (
 )
 
 // ErrSandboxCleanupPending 表示旧执行尚未证明收口，不能用新目录或后端绕过。
-var ErrSandboxCleanupPending = errors.New("previous sandbox runtime cleanup is unresolved")
+var ErrSandboxCleanupPending = errors.New("previous sandbox runtime cleanup is unresolved; open Settings › Sandbox › Sandbox residual resources to check this session")
 
 // sandboxStartupGeneration 在创建进程之前读取最新持久代次；只允许已收口的
 // generation 后继。相同宿主正在复用的 client 不进入这条重建路径。

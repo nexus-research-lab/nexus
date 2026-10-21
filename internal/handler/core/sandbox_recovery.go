@@ -1,12 +1,14 @@
-// INPUT: 已认证的 owner 请求、桌面 runtime sandbox durable marker。
-// OUTPUT: owner-scoped 的资源 inspect 与显式 stale-reconcile HTTP 响应。
+// INPUT: 已认证的 owner 请求、桌面 runtime sandbox durable marker 与启动恢复失败项。
+// OUTPUT: owner-scoped 的资源 inspect、显式 stale-reconcile 与启动恢复失败项放弃 HTTP 响应。
 // POS: 只提供诊断/恢复入口；不替代 runtime lease，也不自动删除 cleanup_unknown。
 package core
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -45,9 +47,26 @@ type sandboxRecoveryRequest struct {
 }
 
 type sandboxRecoveryInspection struct {
-	OwnerUserID string                  `json:"owner_user_id"`
-	Resources   []sandboxRecoveryRecord `json:"resources"`
+	OwnerUserID     string                        `json:"owner_user_id"`
+	Resources       []sandboxRecoveryRecord       `json:"resources"`
+	BlockedSessions []sandboxBlockedSessionRecord `json:"blocked_sessions"`
 }
+
+// sandboxBlockedSessionRecord is one record that startup recovery left
+// pending. The raw recovery error can contain host paths and stays in the
+// host log; the UI only needs the scope and whether the owner may discard it.
+type sandboxBlockedSessionRecord struct {
+	LaunchID    string `json:"launch_id"`
+	SessionKey  string `json:"session_key"`
+	Stage       string `json:"stage"`
+	Discardable bool   `json:"discardable"`
+}
+
+type sandboxRecoveryDiscardRequest struct {
+	LaunchID string `json:"launch_id"`
+}
+
+const sandboxRecoveryDiscardReason = "owner discarded the unrecoverable record from settings"
 
 type sandboxRecoveryResult struct {
 	OwnerUserID      string                  `json:"owner_user_id"`
@@ -76,8 +95,9 @@ func (h *Handlers) HandleSandboxResourceInspection(writer http.ResponseWriter, r
 		// inventory, not evidence that another root is safe to inspect.
 		if errors.Is(err, os.ErrNotExist) {
 			h.api.WriteSuccess(writer, sandboxRecoveryInspection{
-				OwnerUserID: owner,
-				Resources:   []sandboxRecoveryRecord{},
+				OwnerUserID:     owner,
+				Resources:       []sandboxRecoveryRecord{},
+				BlockedSessions: h.blockedSandboxSessions(owner),
 			})
 			return
 		}
@@ -85,9 +105,56 @@ func (h *Handlers) HandleSandboxResourceInspection(writer http.ResponseWriter, r
 		return
 	}
 	h.api.WriteSuccess(writer, sandboxRecoveryInspection{
-		OwnerUserID: owner,
-		Resources:   projectSandboxRecoveryRecords(records),
+		OwnerUserID:     owner,
+		Resources:       projectSandboxRecoveryRecords(records),
+		BlockedSessions: h.blockedSandboxSessions(owner),
 	})
+}
+
+func (h *Handlers) blockedSandboxSessions(owner string) []sandboxBlockedSessionRecord {
+	result := []sandboxBlockedSessionRecord{}
+	if h.runtime == nil {
+		return result
+	}
+	for _, failure := range h.runtime.SandboxStartupRecoveryFailures(owner) {
+		result = append(result, sandboxBlockedSessionRecord{
+			LaunchID:    failure.Key.LaunchID,
+			SessionKey:  failure.Key.SessionKey,
+			Stage:       string(failure.Stage),
+			Discardable: failure.Discardable(),
+		})
+	}
+	return result
+}
+
+// HandleSandboxRecoveryDiscard lets the owner close one record that startup
+// recovery could not finish, so its session can start again. Only terminal
+// (lifecycle-stage) records qualify; a record whose process may be alive is
+// rejected. The owner and scope come from the authenticated request and the
+// host's own failure list, never from a caller-supplied path.
+func (h *Handlers) HandleSandboxRecoveryDiscard(writer http.ResponseWriter, request *http.Request) {
+	writer.Header().Set("Cache-Control", "no-store")
+	var payload sandboxRecoveryDiscardRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	owner := currentOwnerUserID(request)
+	if owner == "" || h.runtime == nil || strings.TrimSpace(payload.LaunchID) == "" {
+		h.api.WriteFailure(writer, http.StatusNotFound, "沙箱恢复记录不存在")
+		return
+	}
+	err := h.runtime.DiscardSandboxStartupRecovery(request.Context(), owner, payload.LaunchID, sandboxRecoveryDiscardReason)
+	switch {
+	case err == nil:
+		h.api.WriteSuccess(writer, map[string]any{"launch_id": strings.TrimSpace(payload.LaunchID), "discarded": true})
+	case errors.Is(err, runtimectx.ErrSandboxRecoveryNotFound):
+		h.api.WriteFailure(writer, http.StatusNotFound, "沙箱恢复记录不存在")
+	case errors.Is(err, runtimectx.ErrSandboxRecoveryNotDiscardable):
+		h.api.WriteFailure(writer, http.StatusConflict, "原进程可能仍在运行，不能放弃该记录；请退出 Nexus 后重新启动再试")
+	default:
+		slog.Warn("sandbox startup recovery discard failed", "owner_user_id", owner, "launch_id", payload.LaunchID, "err", err)
+		h.api.WriteFailure(writer, http.StatusInternalServerError, "放弃沙箱恢复记录失败")
+	}
 }
 
 // HandleSandboxResourceReconcile performs an explicit owner-scoped stale

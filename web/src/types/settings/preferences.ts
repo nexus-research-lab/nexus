@@ -37,9 +37,17 @@ export interface SandboxResourceRecord {
   process_active: boolean;
 }
 
+export interface SandboxBlockedSessionRecord {
+  launch_id: string;
+  session_key: string;
+  stage: "process" | "lifecycle";
+  discardable: boolean;
+}
+
 export interface SandboxResourceInspection {
   owner_user_id: string;
   resources: SandboxResourceRecord[];
+  blocked_sessions?: SandboxBlockedSessionRecord[];
 }
 
 export interface SandboxResourceReconcileResult {

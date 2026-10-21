@@ -242,6 +242,10 @@ func (s *Server) mountCoreRoutes() {
 		s.prefixPath("/settings/runtime/sandbox/reconcile"),
 		s.handlers.core.HandleSandboxResourceReconcile,
 	)
+	s.router.Post(
+		s.prefixPath("/settings/runtime/sandbox/recovery/discard"),
+		s.handlers.core.HandleSandboxRecoveryDiscard,
+	)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
 

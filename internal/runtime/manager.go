@@ -61,6 +61,8 @@ type Manager struct {
 	ownerProcessReaper    OwnerProcessReaper
 	sandboxReceiptStore   SandboxPolicyReceiptStore
 	sandboxSupervisor     *SandboxProcessSupervisor
+	// sandboxRecovery 保存启动恢复未能收口的记录及宿主所有权，供 owner 显式处理。
+	sandboxRecovery       sandboxStartupRecoveryState
 	roundFinishedObserver func(string, string)
 	owners                map[string]*ownerLifecycle
 	shutdownDone          chan struct{}

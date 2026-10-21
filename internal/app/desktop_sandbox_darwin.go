@@ -1,7 +1,7 @@
 //go:build darwin
 
 // INPUT: 入口已持有的 sidecar 锁、随包可信 helper 与持久 Manager。
-// OUTPUT: 完成进程及资源两阶段恢复后才交付服务，错误保留原记录并阻止启动。
+// OUTPUT: 完成进程及资源两阶段恢复后才交付服务；失败项保留原记录、只阻断各自会话，并交给 owner 显式处理。
 // POS: App 默认桌面监督装配；任务不能选择 helper 或恢复身份。
 package app
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -58,7 +59,15 @@ func (s *AppServices) installDesktopSandbox(ctx context.Context, ownership runti
 	}
 	// 句柄在 Manager 完成关闭后释放；失败路径也沿 AppServices.Close 收口。
 	s.closeSandboxResources = sync.OnceValue(jobs.Close)
-	return recoverDesktopSandbox(ctx, s.Runtime, ownership)
+	// 恢复失败不阻断整个 App：未收口的持久记录继续按 owner/session 阻断各自会话，
+	// 其他会话照常准入；失败项交给 owner 在设置页显式处理。
+	failures, err := recoverDesktopSandbox(ctx, s.Runtime, ownership)
+	if err != nil {
+		slog.Error("desktop sandbox startup recovery left records pending; affected sessions stay fenced",
+			"failed_records", len(failures), "err", err)
+	}
+	s.Runtime.RecordSandboxStartupRecovery(ownership, failures)
+	return nil
 }
 
 type desktopSandboxRecovery interface {
@@ -67,13 +76,15 @@ type desktopSandboxRecovery interface {
 }
 
 // recoverDesktopSandbox 完成全部原生页后才处理资源；单项失败不能被页末覆盖。
-func recoverDesktopSandbox(ctx context.Context, manager desktopSandboxRecovery, ownership runtimectx.SandboxProcessRecoveryOwnership) error {
-	var failures []error
+// 返回的失败项保留原 key，供 owner 定位；错误汇总仍完整返回给调用方记录。
+func recoverDesktopSandbox(ctx context.Context, manager desktopSandboxRecovery, ownership runtimectx.SandboxProcessRecoveryOwnership) ([]runtimectx.SandboxStartupRecoveryFailure, error) {
+	var errs []error
+	var records []runtimectx.SandboxStartupRecoveryFailure
 	for _, lifecycle := range []bool{false, true} {
 		cursor := ""
 		for {
 			if err := ctx.Err(); err != nil {
-				return errors.Join(append(failures, err)...)
+				return records, errors.Join(append(errs, err)...)
 			}
 			var next string
 			var more bool
@@ -82,22 +93,32 @@ func recoverDesktopSandbox(ctx context.Context, manager desktopSandboxRecovery, 
 				var batch runtimectx.SandboxLifecycleRecoveryBatch
 				batch, err = manager.RecoverPendingSandboxLifecycles(ctx, ownership, cursor, 64)
 				next, more = batch.NextCursor, batch.HasMore
+				for _, item := range batch.Items {
+					if item.Err != nil {
+						records = append(records, runtimectx.SandboxStartupRecoveryFailure{Key: item.Key, Stage: runtimectx.SandboxStartupRecoveryLifecycle, Reason: item.Err.Error()})
+					}
+				}
 			} else {
 				var batch runtimectx.SandboxProcessRecoveryBatch
 				batch, err = manager.RecoverPendingSandboxProcesses(ctx, ownership, cursor, 64)
 				next, more = batch.NextCursor, batch.HasMore
+				for _, item := range batch.Items {
+					if item.Err != nil {
+						records = append(records, runtimectx.SandboxStartupRecoveryFailure{Key: item.Key, Stage: runtimectx.SandboxStartupRecoveryProcess, Reason: item.Err.Error()})
+					}
+				}
 			}
 			if err != nil {
-				failures = append(failures, err)
+				errs = append(errs, err)
 			}
 			if !more {
 				break
 			}
 			if next <= cursor {
-				return errors.Join(append(failures, errors.New("desktop sandbox recovery made no cursor progress"))...)
+				return records, errors.Join(append(errs, errors.New("desktop sandbox recovery made no cursor progress"))...)
 			}
 			cursor = next
 		}
 	}
-	return errors.Join(failures...)
+	return records, errors.Join(errs...)
 }

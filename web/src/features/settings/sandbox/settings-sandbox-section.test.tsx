@@ -1,5 +1,5 @@
 // INPUT: Real sandbox settings view with an isolated controller.
-// OUTPUT: Toggle, explicit diagnosis and preview-before-cleanup interactions.
+// OUTPUT: Toggle, explicit diagnosis, preview-before-cleanup and confirmed blocked-record discard.
 // POS: Sandbox view regression; API and preference transactions stay in controller tests.
 
 import { render, screen } from "@testing-library/react";
@@ -36,10 +36,12 @@ function configure() {
     onCheckSandbox: vi.fn(),
     sandboxRecoveryApplying: false,
     sandboxRecoveryChecking: false,
+    sandboxRecoveryDiscarding: false,
     sandboxRecoveryError: false,
     sandboxRecoverySummary: null,
     onInspectSandboxResources: vi.fn(),
     onReconcileSandboxResources: vi.fn(),
+    onDiscardBlockedSandboxRecords: vi.fn(),
   };
   useController.mockReturnValue(controller);
   return controller;
@@ -118,7 +120,10 @@ describe("sandbox recovery", () => {
     useController.mockReturnValue({
       ...controller,
       sandboxRecoverySummary: {
+        blockedCount: 0,
         candidateCount: 2,
+        discardableLaunchIds: [],
+        discardedCount: 0,
         removedCount: 0,
         resourceCount: 3,
         unknownCount: 1,
@@ -133,5 +138,30 @@ describe("sandbox recovery", () => {
     expect(controller.onReconcileSandboxResources).not.toHaveBeenCalled();
     await userEvent.setup().click(screen.getByRole("button", { name: text("sandbox_recovery_apply") }));
     expect(controller.onReconcileSandboxResources).toHaveBeenCalledOnce();
+  });
+
+  it("explains blocked sessions and discards only after confirmation", async () => {
+    const controller = configure();
+    useController.mockReturnValue({
+      ...controller,
+      sandboxRecoverySummary: {
+        blockedCount: 2,
+        candidateCount: 0,
+        discardableLaunchIds: ["b"],
+        discardedCount: 0,
+        removedCount: 0,
+        resourceCount: 0,
+        unknownCount: 0,
+      },
+    });
+    renderSettings();
+    expect(screen.getByRole("status").textContent).toContain(text("sandbox_recovery_blocked", { count: 2 }));
+    expect(screen.getByText(text("sandbox_recovery_blocked_hint"))).toBeTruthy();
+    expect(screen.queryByRole("button", { name: text("sandbox_recovery_apply") })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: text("sandbox_recovery_discard") }));
+    expect(controller.onDiscardBlockedSandboxRecords).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: text("sandbox_recovery_discard_confirm") }));
+    expect(controller.onDiscardBlockedSandboxRecords).toHaveBeenCalledOnce();
   });
 });

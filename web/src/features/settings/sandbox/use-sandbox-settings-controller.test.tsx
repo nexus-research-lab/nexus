@@ -5,8 +5,9 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useSandboxSettingsController } from "./use-sandbox-settings-controller";
 
-const mocks = vi.hoisted(() => ({ inspect: vi.fn(), read: vi.fn(), reconcile: vi.fn(), update: vi.fn() }));
+const mocks = vi.hoisted(() => ({ discard: vi.fn(), inspect: vi.fn(), read: vi.fn(), reconcile: vi.fn(), update: vi.fn() }));
 vi.mock("@/lib/api/settings/runtime-api", () => ({
+  discardSandboxRecoveryApi: mocks.discard,
   getNxsRuntimeStatusApi: mocks.read,
   inspectSandboxResourcesApi: mocks.inspect,
   reconcileSandboxResourcesApi: mocks.reconcile,
@@ -85,7 +86,10 @@ it("previews owner resources before exposing an explicit cleanup action", async 
   expect(mocks.inspect).toHaveBeenCalledOnce();
   expect(mocks.reconcile).toHaveBeenNthCalledWith(1, { older_than_seconds: 3600, apply: false });
   expect(result.current.sandboxRecoverySummary).toEqual({
+    blockedCount: 0,
     candidateCount: 1,
+    discardableLaunchIds: [],
+    discardedCount: 0,
     removedCount: 0,
     resourceCount: 2,
     unknownCount: 1,
@@ -96,7 +100,10 @@ it("previews owner resources before exposing an explicit cleanup action", async 
   expect(mocks.reconcile).toHaveBeenNthCalledWith(3, { older_than_seconds: 3600, apply: false });
   expect(mocks.inspect).toHaveBeenCalledTimes(2);
   expect(result.current.sandboxRecoverySummary).toEqual({
+    blockedCount: 0,
     candidateCount: 0,
+    discardableLaunchIds: [],
+    discardedCount: 0,
     removedCount: 1,
     resourceCount: 1,
     unknownCount: 1,
@@ -114,4 +121,35 @@ it("toggles the desktop sandbox through one preference update", () => {
     desktop_sandbox_enabled: true,
   });
   expect(mocks.read).not.toHaveBeenCalled();
+});
+
+it("discards only the records the server marked discardable, then re-inspects", async () => {
+  const preview = { owner_user_id: "owner", older_than_seconds: 3600, apply: false, candidates: [], removed: [], skipped: [] };
+  mocks.inspect
+    .mockResolvedValueOnce({
+      owner_user_id: "owner",
+      resources: [],
+      blocked_sessions: [
+        { launch_id: "a", session_key: "dm", stage: "process", discardable: false },
+        { launch_id: "b", session_key: "room", stage: "lifecycle", discardable: true },
+      ],
+    })
+    .mockResolvedValueOnce({
+      owner_user_id: "owner",
+      resources: [],
+      blocked_sessions: [{ launch_id: "a", session_key: "dm", stage: "process", discardable: false }],
+    });
+  mocks.reconcile.mockResolvedValue(preview);
+  mocks.discard.mockResolvedValue({ launch_id: "b", discarded: true });
+  const { result } = renderHook(useSandboxSettingsController);
+  await act(() => result.current.onInspectSandboxResources());
+  expect(result.current.sandboxRecoverySummary?.blockedCount).toBe(2);
+  expect(result.current.sandboxRecoverySummary?.discardableLaunchIds).toEqual(["b"]);
+
+  await act(() => result.current.onDiscardBlockedSandboxRecords());
+  expect(mocks.discard).toHaveBeenCalledExactlyOnceWith("b");
+  expect(mocks.inspect).toHaveBeenCalledTimes(2);
+  expect(result.current.sandboxRecoverySummary).toMatchObject({ blockedCount: 1, discardableLaunchIds: [], discardedCount: 1 });
+  expect(result.current.sandboxRecoveryError).toBe(false);
+  expect(mocks.update).not.toHaveBeenCalled();
 });
