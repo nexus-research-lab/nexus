@@ -36,9 +36,10 @@ func sandboxDirectoryIdentity(info os.FileInfo) (string, error) {
 	if !ok || stat.Ino == 0 {
 		return "", errors.New("scratch native directory identity unavailable")
 	}
-	// Device numbers can change when macOS remounts a volume after an upgrade.
-	// The stable object fields remain sufficient to distinguish replacement.
-	return fmt.Sprintf("darwin-v2:%x:%x:%x:%x:%x", uint64(stat.Dev), stat.Ino, stat.Gen, stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
+	// Device numbers can change when macOS remounts a volume after an upgrade;
+	// dev is recorded but advisory, matching ignores it. The stable object
+	// fields remain sufficient to distinguish replacement.
+	return fmt.Sprintf("darwin-v1:%x:%x:%x:%x:%x", uint64(stat.Dev), stat.Ino, stat.Gen, stat.Birthtimespec.Sec, stat.Birthtimespec.Nsec), nil
 }
 
 func parseSandboxDirectoryIdentity(value string) (sandboxDirectoryIdentityParts, error) {
@@ -48,6 +49,7 @@ func parseSandboxDirectoryIdentity(value string) (sandboxDirectoryIdentityParts,
 		return parts, errors.New("invalid scratch directory identity")
 	}
 	parts.version = fields[0]
+	// v2 is read-only legacy from an unreleased build; v1 is still written for downgrade compatibility.
 	if parts.version != "darwin-v1" && parts.version != "darwin-v2" {
 		return parts, errors.New("unsupported scratch directory identity")
 	}

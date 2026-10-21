@@ -8,6 +8,7 @@ package runtime
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -20,9 +21,18 @@ func TestSandboxDirectoryIdentityMatchesDeviceDrift(t *testing.T) {
 		name, expected, actual string
 		want, drift            bool
 	}{
-		{"legacy device drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:3:4:5", true, true},
-		{"legacy to v2", "darwin-v1:100000e:2:3:4:5", "darwin-v2:1000010:2:3:4:5", true, true},
-		{"replacement", "darwin-v1:100000e:2:3:4:5", "darwin-v2:100000e:2:9:4:5", false, false},
+		{"exact match", "darwin-v1:100000e:2:3:4:5", "darwin-v1:100000e:2:3:4:5", true, false},
+		{"device drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:3:4:5", true, true},
+		{"legacy v2 to v1 drift", "darwin-v2:100000e:2:3:4:5", "darwin-v1:1000010:2:3:4:5", true, true},
+		{"v1 to legacy v2 drift", "darwin-v1:100000e:2:3:4:5", "darwin-v2:1000010:2:3:4:5", true, true},
+		{"ino differs", "darwin-v1:100000e:2:3:4:5", "darwin-v1:100000e:9:3:4:5", false, false},
+		{"ino differs with drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:9:3:4:5", false, false},
+		{"gen differs", "darwin-v1:100000e:2:3:4:5", "darwin-v1:100000e:2:9:4:5", false, false},
+		{"gen differs with drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:9:4:5", false, false},
+		{"birth sec differs", "darwin-v1:100000e:2:3:4:5", "darwin-v1:100000e:2:3:9:5", false, false},
+		{"birth sec differs with drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:3:9:5", false, false},
+		{"birth nsec differs", "darwin-v1:100000e:2:3:4:5", "darwin-v1:100000e:2:3:4:9", false, false},
+		{"birth nsec differs with drift", "darwin-v1:100000e:2:3:4:5", "darwin-v1:1000010:2:3:4:9", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, drift, err := sandboxDirectoryIdentityMatches(tc.expected, tc.actual)
@@ -30,6 +40,44 @@ func TestSandboxDirectoryIdentityMatchesDeviceDrift(t *testing.T) {
 				t.Fatalf("matches=%v drift=%v err=%v", got, drift, err)
 			}
 		})
+	}
+}
+
+func TestSandboxDirectoryIdentityMatchesRejectsMalformed(t *testing.T) {
+	valid := "darwin-v1:100000e:2:3:4:5"
+	for name, pair := range map[string][2]string{
+		"expected wrong field count": {"darwin-v1:100000e:2:3:4", valid},
+		"actual wrong field count":   {valid, "darwin-v1:100000e:2:3:4"},
+		"expected unknown version":   {"linux-v1:100000e:2:3:4:5", valid},
+		"actual unknown version":     {valid, "linux-v1:100000e:2:3:4:5"},
+		"expected empty field":       {"darwin-v1:100000e:2::4:5", valid},
+		"actual empty field":         {valid, "darwin-v1:100000e:2::4:5"},
+		"expected non-hex field":     {"darwin-v1:100000e:zz:3:4:5", valid},
+		"actual non-hex field":       {valid, "darwin-v1:100000e:zz:3:4:5"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := sandboxDirectoryIdentityMatches(pair[0], pair[1]); err == nil {
+				t.Fatal("malformed identity accepted")
+			}
+		})
+	}
+}
+
+func TestSandboxDirectoryIdentitySelfMatch(t *testing.T) {
+	info, err := os.Stat(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := sandboxDirectoryIdentity(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(id, "darwin-v1:") {
+		t.Fatalf("unexpected identity format: %q", id)
+	}
+	matches, drift, err := sandboxDirectoryIdentityMatches(id, id)
+	if err != nil || !matches || drift {
+		t.Fatalf("self match: matches=%v drift=%v err=%v", matches, drift, err)
 	}
 }
 

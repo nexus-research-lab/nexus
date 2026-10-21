@@ -30,6 +30,7 @@ func TestProcessScratchIdentityValidation(t *testing.T) {
 		"relative parent":  func(i *protocol.SandboxProcessIntent) { i.Scratch.BasePath = "relative/sandbox" },
 		"other parent":     func(i *protocol.SandboxProcessIntent) { i.Scratch.BasePath = "/other" },
 		"invalid identity": func(i *protocol.SandboxProcessIntent) { i.Scratch.LeafIdentity = "darwin-v1:unknown" },
+		"unknown version":  func(i *protocol.SandboxProcessIntent) { i.Scratch.LeafIdentity = "linux-v1:1:3:0:123:456" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			bad := i
@@ -38,6 +39,11 @@ func TestProcessScratchIdentityValidation(t *testing.T) {
 				t.Fatal("invalid scratch accepted")
 			}
 		})
+	}
+	legacyV2 := i
+	legacyV2.Scratch.LeafIdentity = "darwin-v2:1:3:0:123:456"
+	if err := validateProcessIntent(legacyV2); err != nil {
+		t.Fatalf("rejected legacy v2 identity: %v", err)
 	}
 	legacy := processIntent()
 	if err := validateProcessIntent(legacy); err != nil {
