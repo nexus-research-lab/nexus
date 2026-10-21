@@ -11,7 +11,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.11.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.35-0.20260930093444-ede0861a1004
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.35-0.20261021054326-030dd54be7ae
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.2-beta.1
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pressly/goose/v3 v3.27.0
@@ -53,5 +53,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/nexus-research-lab/nexus-agent-sdk-bridge => E:/Code/nexus/worktrees/desktop-sandbox/nexus-agent-sdk-bridge

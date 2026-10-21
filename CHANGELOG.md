@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Pin the Bridge to the published Windows sandbox branch commit instead of a local `replace` directory, so the desktop sandbox branch builds outside the Windows workstation that produced it.
+- Keep main's released migration `00158_drop_team_relay_projection` and number the unreleased Windows sandbox migrations `00159`–`00161`, so databases already upgraded through v0.2.5 still apply them; sandbox storage tests use the current migration versions.
+- Optional vision configuration failures still degrade to `NEXUS_VISION_CONFIG_ERROR`, but cancellation and deadlines now propagate instead of being swallowed during session startup.
+
 - Persist Windows launch admission, prepared bindings, one-time start claims and cleanup outcomes with independent scope fences. Bind policy receipts to the original runtime execution and retain pending scratch across unknown outcomes; recovery only reconciles existing complete proof and does not infer cleanup from a missing PID or path.
 
 - Wire an explicit Windows sandbox host preview through App, DM, Room and memory maintenance. The preview loads the protected machine helper manifest, retains sidecar ownership and requires restricted nxs resource policies; Full Access stays an explicit separate path. Approved exact domains are resolved once into fixed public HTTPS endpoints for probe/runtime; provider credential channels, native capability acceptance and cold recovery remain incomplete. No native validation is claimed by this assembly change.
