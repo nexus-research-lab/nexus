@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type visionTestResolver struct {
@@ -75,6 +76,15 @@ func TestVisionAdmissionRetainsValidRouteAndMainFailures(t *testing.T) {
 	resolver.auxiliaryErr = ctx.Err()
 	if _, err = BuildAgentClientOptions(ctx, resolver, input); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation swallowed: %v", err)
+	}
+	deadlineCtx, cancelDeadline := context.WithDeadline(context.Background(), time.Now().Add(-time.Minute))
+	defer cancelDeadline()
+	if deadlineErr := deadlineCtx.Err(); !errors.Is(deadlineErr, context.DeadlineExceeded) {
+		t.Fatalf("deadline context did not expire: %v", deadlineErr)
+	}
+	resolver.auxiliaryErr = context.DeadlineExceeded
+	if _, err = BuildAgentClientOptions(deadlineCtx, resolver, input); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("deadline swallowed: %v", err)
 	}
 }
 

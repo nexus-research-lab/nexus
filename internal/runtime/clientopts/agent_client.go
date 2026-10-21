@@ -205,6 +205,9 @@ func BuildAgentClientOptionsWithConfig(
 	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
 		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
 		if visionErr != nil {
+			if visionRuntimeConfigCancelled(ctx, visionErr) {
+				return agentclient.Options{}, nil, fmt.Errorf("auxiliary vision config: %w", visionErr)
+			}
 			// Auxiliary vision is optional for text sessions. Preserve the
 			// diagnostic in the nxs environment while clearing stale routes.
 			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = visionErr.Error()
@@ -248,6 +251,9 @@ func BuildAgentClientOptionsWithConfig(
 	if runtimeProfileForKind(effectiveRuntimeKind).isNXS() {
 		visionEnv := visionRuntimeEnvFromConfig(visionConfig)
 		if visionErr != nil {
+			if visionRuntimeConfigCancelled(ctx, visionErr) {
+				return agentclient.Options{}, nil, fmt.Errorf("auxiliary vision config: %w", visionErr)
+			}
 			visionEnv["NEXUS_VISION_CONFIG_ERROR"] = visionErr.Error()
 		}
 		runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionEnv)
@@ -462,6 +468,16 @@ func cloneMCPServers(
 		return nil
 	}
 	return maps.Clone(current)
+}
+
+// visionRuntimeConfigCancelled reports vision resolution failures that must
+// propagate instead of being downgraded to the NEXUS_VISION_CONFIG_ERROR
+// diagnostic. Cancellation and deadlines belong to the caller's context, so
+// they cannot be treated as an optional-auxiliary configuration problem.
+func visionRuntimeConfigCancelled(ctx context.Context, err error) bool {
+	return errors.Is(err, context.Canceled) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		ctx.Err() != nil
 }
 
 // resolveVisionRuntimeConfig 只为 nxs 解析用户明确选择的辅助视觉模型。
