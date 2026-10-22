@@ -26,6 +26,7 @@ import {
   buildSessionEffortItems,
   buildSessionModelGroups,
   sessionEffortLabel,
+  sessionEffortLevels,
 } from "./composer-session-control-options";
 import {
   SESSION_MODEL_GROUP_LABEL_LAYOUT,
@@ -158,7 +159,7 @@ function SessionEffortEntryRow({
   onOpen: () => void;
 }) {
   const { t } = useI18n();
-  const supported = controller.effortLevels.length > 0;
+  const supported = sessionEffortLevels(controller).length > 0;
   const expanded = Boolean(effortSide?.expanded);
   return (
     <UiMenuActionRow
