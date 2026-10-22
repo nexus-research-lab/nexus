@@ -32,6 +32,16 @@ import type { SessionModelMenuShape } from "./composer-session-control-layout";
 export const RESET_SESSION_SETTING_VALUE = "__reset__";
 export const SESSION_EFFORT_AUTO_VALUE = "__auto__";
 
+/**
+ * controller 契约中 effortLevels 并非所有消费方都会提供（如测试 fixture、
+ * 未加载 providerOptions 的场景），这里统一做空值防御，避免渲染期 TypeError。
+ */
+export function sessionEffortLevels(
+  controller: Pick<ComposerSessionSettingsController, "effortLevels">,
+): readonly SessionEffortLevel[] {
+  return controller.effortLevels ?? [];
+}
+
 const SESSION_EFFORT_LABEL_KEYS = {
   low: "composer.session_effort_low",
   medium: "composer.session_effort_medium",
@@ -140,7 +150,7 @@ export function buildSessionEffortItems(
   controller: ComposerSessionSettingsController,
   t: ReturnType<typeof useI18n>["t"],
 ): UiActionMenuItem[] {
-  const levels: Array<SessionEffortLevel | ""> = ["", ...controller.effortLevels];
+  const levels: Array<SessionEffortLevel | ""> = ["", ...sessionEffortLevels(controller)];
   return levels.map((level) => ({
     checked: controller.effort === level,
     label: sessionEffortLabel(level, t),
@@ -163,7 +173,7 @@ export function applySessionEffortSelection(
     void controller.updateEffort("");
     return;
   }
-  const level = controller.effortLevels.find((candidate) => candidate === value);
+  const level = sessionEffortLevels(controller).find((candidate) => candidate === value);
   if (level) void controller.updateEffort(level);
 }
 
@@ -222,7 +232,7 @@ export function getSessionModelMenuShape(
   const groupSizes = (controller.providerOptions?.items ?? [])
     .map((provider) => provider.models.length)
     .filter((size) => size > 0);
-  const effortCount = controller.effortLevels.length;
+  const effortCount = sessionEffortLevels(controller).length;
   return {
     effortCount: effortCount > 0 ? effortCount + 1 : 0,
     // 强度入口常驻（不支持时置灰），与重置共两行。
