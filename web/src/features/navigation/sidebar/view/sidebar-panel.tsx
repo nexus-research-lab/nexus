@@ -3,11 +3,13 @@
  * OUTPUT: 展开/收起共用的主侧栏壳层及容纳中英文短标签的唯一紧凑导航轨。
  * POS: 主侧栏纯视图边界，不读取路由、Store 或业务 API。
  */
-import type {
-  ComponentType,
-  PointerEventHandler,
-  ReactNode,
-  RefObject,
+import {
+  useLayoutEffect,
+  useRef,
+  type ComponentType,
+  type PointerEventHandler,
+  type ReactNode,
+  type RefObject,
 } from "react";
 
 import { CapabilitySidebarPanel } from "@/features/capability/sidebar/capability-sidebar-panel";
@@ -95,6 +97,8 @@ export function SidebarPanel({
   utility,
 }: SidebarPanelProps) {
   const ActivePanelContent = PANEL_CONTENT[activeTab];
+  const directoryRef = useRef<HTMLDivElement | null>(null);
+  useScrollbarGutterVariable(directoryRef);
   const width = collapsed ? 0 : expandedWidth;
   const resizeEnabled = resizable && !collapsed;
 
@@ -184,6 +188,7 @@ export function SidebarPanel({
               <SidebarPinnedConversations {...pinnedConversations} />
             </nav>
             <div
+              ref={directoryRef}
               className={cn(
                 "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
                 collapsed && "pointer-events-none opacity-0",
@@ -197,6 +202,32 @@ export function SidebarPanel({
       </div>
     </>
   );
+}
+
+/**
+ * 目录滚动区用 `scrollbar-gutter: stable both-edges` 预留滚动条宽度；macOS 覆盖式滚动条为 0，
+ * Windows 与 Web 的经典滚动条则会把尾部动作往左推。这里把单侧预留宽度写成
+ * `--sidebar-directory-gutter`，让搜索行等需要与品牌栏/底栏对齐的元素自行抵消。
+ */
+function useScrollbarGutterVariable(ref: RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const sync = () => {
+      const gutter = Math.max(0, (element.offsetWidth - element.clientWidth) / 2);
+      element.style.setProperty("--sidebar-directory-gutter", `${gutter}px`);
+    };
+    sync();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    // 缩放或系统滚动条设置变化会改变预留宽度；宽度拖拽本身不改变它，重算成本可忽略。
+    const observer = new ResizeObserver(sync);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
 }
 
 function CapabilityPanel() {

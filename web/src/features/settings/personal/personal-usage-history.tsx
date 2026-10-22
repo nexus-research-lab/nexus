@@ -31,7 +31,7 @@ export function PersonalUsageHistory({ days: allDays }: { days: DailyTokenUsage[
         options={[{ value: "chart", label: t("settings.personal.chart") }, { value: "table", label: t("settings.personal.table") }]} />
       </div>
     </div>
-    <div className="ui-type-metadata flex flex-wrap gap-4 text-(--text-muted)">{series.map((item) => <span key={item.key} className="flex items-center gap-2"><span className={`h-2 w-2 rounded-sm ${item.color}`} />{item.label}</span>)}</div>
+    <div className="ui-type-metadata flex flex-wrap gap-4 text-(--text-muted)">{series.map((item) => <span key={item.key} className="flex items-center gap-2"><span className={`h-2 w-2 rounded-(--radius-control-xs) ${item.color}`} />{item.label}</span>)}</div>
     {view === "chart" ? <>
       <div className="flex gap-3">
         <div aria-hidden="true" className="ui-type-caption flex h-48 flex-col justify-between text-right tabular-nums text-(--text-muted)"><span>{formatTokens(maximum, locale)}</span><span>{formatTokens(maximum / 2, locale)}</span><span>0</span></div>
@@ -100,7 +100,7 @@ export function PersonalUsageHeatmap({ days }: { days: DailyTokenUsage[] }) {
             const dateLabel = new Date(`${day.date}T00:00:00Z`).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: "UTC" });
             const detail = day.value === undefined ? `${dateLabel} · ${t("settings.personal.activity_missing")}` : t("settings.personal.activity_detail", { date: dateLabel, value: formatTokens(day.value, locale) });
             return <UiTooltip key={day.date} label={detail}><UiButton aria-label={label}
-              className="aspect-square h-auto min-h-0 w-full min-w-0 rounded-sm border-0 p-0" variant="ghost"
+              className="aspect-square h-auto min-h-0 w-full min-w-0 rounded-(--radius-control-xs) border-0 p-0" variant="ghost"
               style={{backgroundColor: strength === 0 ? "var(--surface-interactive-hover-background)" : `color-mix(in srgb, var(--primary) ${strength * 100}%, var(--background))`}}
             >{null}</UiButton></UiTooltip>;
           })}

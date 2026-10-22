@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Session 设置、Agent 继承值与 Provider 模型目录。
- * OUTPUT: 模型/权限菜单共用选项、语义 Provider 元信息、编码与精确模型选择分派。
+ * OUTPUT: 模型/权限/思考强度菜单共用选项、按 Provider 分组的模型行、编码与精确选择分派。
  * POS: DM 直接菜单与 Room Agent 设置浮层之间的无状态共享层。
  */
 
@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 
 import { getAgentPermissionChoices, resolveRuntimePermissionMode } from "@/lib/agent-options";
-import { cn } from "@/shared/ui/class-name";
+import { UiBadge } from "@/shared/ui/display/badge";
+import type { SessionEffortLevel } from "@/types/capability/provider";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { useI18n } from "@/shared/i18n/i18n-context";
 import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
@@ -26,8 +27,18 @@ import type { UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
+import type { SessionModelMenuShape } from "./composer-session-control-layout";
 
 export const RESET_SESSION_SETTING_VALUE = "__reset__";
+export const SESSION_EFFORT_AUTO_VALUE = "__auto__";
+
+const SESSION_EFFORT_LABEL_KEYS = {
+  low: "composer.session_effort_low",
+  medium: "composer.session_effort_medium",
+  high: "composer.session_effort_high",
+  xhigh: "composer.session_effort_xhigh",
+  max: "composer.session_effort_max",
+} as const satisfies Record<SessionEffortLevel, string>;
 
 const SESSION_PERMISSION_DESCRIPTION_KEYS = {
   auto: "agent_options.advanced.permission.auto.description",
@@ -73,41 +84,87 @@ export function buildSessionPermissionItems(
   }));
 }
 
-export function buildSessionModelItems(
+export interface SessionModelGroup {
+  key: string;
+  /** 只有多个 Provider 时才显示分组名；单一来源不重复标注。 */
+  label: string | null;
+  items: UiActionMenuItem[];
+}
+
+// 按 Provider 分组投影模型；继承来源的模型标记“默认”，当前生效项打勾。
+export function buildSessionModelGroups(
   controller: ComposerSessionSettingsController,
-): UiActionMenuItem[] {
+  t: ReturnType<typeof useI18n>["t"],
+): SessionModelGroup[] {
   const currentProvider = controller.settings.provider
     || controller.inheritedProvider;
   const currentModel = controller.settings.model || controller.inheritedModel;
-  const items: UiActionMenuItem[] = [];
-  for (const provider of controller.providerOptions?.items ?? []) {
-    for (const model of provider.models) {
+  const providers = (controller.providerOptions?.items ?? [])
+    .filter((provider) => provider.models.length > 0);
+  return providers.map((provider) => ({
+    key: provider.provider,
+    label: providers.length > 1 ? provider.display_name || provider.provider : null,
+    items: provider.models.map((model) => {
       const active = currentProvider === provider.provider
         && currentModel === model.model_id;
-      items.push({
+      const inherited = controller.inheritedProvider === provider.provider
+        && controller.inheritedModel === model.model_id;
+      const name = model.display_name || model.model_id;
+      return {
         active,
         label: (
           <span className="flex min-w-0 items-center gap-2">
-            <UiTooltip label={model.display_name || model.model_id}><span className="min-w-0 flex-1 truncate" >
-              {model.display_name || model.model_id}
-            </span></UiTooltip>
-            <UiTooltip label={provider.display_name || provider.provider}><span
-              className={cn("max-w-[40%] shrink-0 truncate", getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" }))}
-
-            >
-              {provider.display_name || provider.provider}
-            </span></UiTooltip>
+            <UiTooltip label={name}>
+              <span className="min-w-0 truncate">{name}</span>
+            </UiTooltip>
+            {inherited ? (
+              <UiBadge size="xs">{t("composer.session_model_default")}</UiBadge>
+            ) : null}
           </span>
         ),
         trailing: active ? <Check className="h-3.5 w-3.5" /> : undefined,
-        value: encodeSessionModelValue(
-          provider.provider,
-          model.model_id,
-        ),
-      });
-    }
+        value: encodeSessionModelValue(provider.provider, model.model_id),
+      };
+    }),
+  }));
+}
+
+export function sessionEffortLabel(
+  effort: SessionEffortLevel | "",
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  return effort ? t(SESSION_EFFORT_LABEL_KEYS[effort]) : t("composer.session_effort_auto");
+}
+
+export function buildSessionEffortItems(
+  controller: ComposerSessionSettingsController,
+  t: ReturnType<typeof useI18n>["t"],
+): UiActionMenuItem[] {
+  const levels: Array<SessionEffortLevel | ""> = ["", ...controller.effortLevels];
+  return levels.map((level) => ({
+    checked: controller.effort === level,
+    label: sessionEffortLabel(level, t),
+    trailing: level === "" ? (
+      <span className={getUiTypographyClassName({ role: "metadata", tone: "muted", weight: "regular" })}>
+        {t("composer.session_effort_auto_hint")}
+      </span>
+    ) : level === "max" ? (
+      <UiBadge size="xs" tone="warning">{t("composer.session_effort_max_hint")}</UiBadge>
+    ) : undefined,
+    value: level || SESSION_EFFORT_AUTO_VALUE,
+  }));
+}
+
+export function applySessionEffortSelection(
+  controller: Pick<ComposerSessionSettingsController, "effortLevels" | "updateEffort">,
+  value: string,
+): void {
+  if (value === SESSION_EFFORT_AUTO_VALUE) {
+    void controller.updateEffort("");
+    return;
   }
-  return items;
+  const level = controller.effortLevels.find((candidate) => candidate === value);
+  if (level) void controller.updateEffort(level);
 }
 
 export function buildResetSessionSettingItem(
@@ -125,7 +182,7 @@ export function buildResetSessionSettingItem(
 // 继承值恢复与显式 override 只在这里分派；持久化/失败对账仍由控制器负责。
 export function applySessionModelSelection(
   controller: Pick<ComposerSessionSettingsController,
-    "inheritedProvider" | "inheritedModel" | "resetModel" | "updateModel">,
+    "resetModel" | "updateModel">,
   value: string,
 ): void {
   if (value === RESET_SESSION_SETTING_VALUE) {
@@ -134,11 +191,7 @@ export function applySessionModelSelection(
   }
   const [provider, model] = decodeSessionModelValue(value);
   if (!provider || !model) return;
-  if (provider === controller.inheritedProvider && model === controller.inheritedModel) {
-    void controller.resetModel();
-  } else {
-    void controller.updateModel(provider, model);
-  }
+  void controller.updateModel(provider, model);
 }
 
 function decodeSessionModelValue(value: string): [string, string] {
@@ -160,4 +213,20 @@ function decodeSessionModelValue(value: string): [string, string] {
 
 function encodeSessionModelValue(provider: string, model: string): string {
   return JSON.stringify([provider, model]);
+}
+
+/** 视图投影与估算共用同一份条目结构，避免高度和 DOM 漂移。 */
+export function getSessionModelMenuShape(
+  controller: ComposerSessionSettingsController,
+): SessionModelMenuShape {
+  const groupSizes = (controller.providerOptions?.items ?? [])
+    .map((provider) => provider.models.length)
+    .filter((size) => size > 0);
+  const effortCount = controller.effortLevels.length;
+  return {
+    effortCount: effortCount > 0 ? effortCount + 1 : 0,
+    // 强度入口常驻（不支持时置灰），与重置共两行。
+    footerCount: 2,
+    groupSizes,
+  };
 }

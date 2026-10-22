@@ -40,23 +40,48 @@ describe("ComposerSessionControls", () => {
     }
   });
 
-  it("retains exact Provider identity, inherited reset and full model labels", async () => {
+  it("groups models by Provider, marks the inherited default and keeps exact identity", async () => {
     const user = userEvent.setup();
     const controller = makeController();
     render(<Controls controller={controller} />);
     const open = () => user.click(screen.getByRole("button", { name: "composer.session_model" }));
     await open();
-    await user.click(screen.getByRole("menuitem", { name: "Base Provider" }));
-    expect(controller.resetModel).toHaveBeenCalledOnce();
+    // 多 Provider 时分组标题只出现一次，模型行不再重复 Provider 名称。
+    expect(screen.getByText("Other provider with a long name").parentElement?.className).toContain("ui-type-metadata");
+    await user.click(screen.getByRole("menuitem", { name: "Base composer.session_model_default" }));
+    // 继承判定由控制器负责：选回默认模型时清空覆盖并按需保留强度。
+    expect(controller.updateModel).toHaveBeenCalledWith("provider", "base");
     await open();
-    expect(screen.getByText("Other provider with a long name").className).toContain("ui-type-metadata");
-    expect(screen.getByText("Other provider with a long name").className).toContain("ui-type-tone-muted");
-    expect(screen.getByText("Base with a long name")).toBeTruthy();
-    await user.click(screen.getByRole("menuitem", { name: "Base with a long name Other provider with a long name" }));
+    await user.click(screen.getByRole("menuitem", { name: "Base with a long name" }));
     expect(controller.updateModel).toHaveBeenCalledWith("other", "base");
     await open();
     await user.click(screen.getByRole("menuitem", { name: "composer.session_reset_defaults" }));
-    expect(controller.resetModel).toHaveBeenCalledTimes(2);
+    expect(controller.resetModel).toHaveBeenCalledOnce();
+  });
+
+  it("opens the effort page for models with effort levels and writes the chosen level", async () => {
+    const user = userEvent.setup();
+    const controller = makeController({ effort: "high", effortLevels: ["low", "medium", "high", "max"] });
+    render(<Controls controller={controller} />);
+    expect(screen.getByRole("button", { name: "composer.session_model" }).textContent).toContain("composer.session_effort_high");
+    await user.click(screen.getByRole("button", { name: "composer.session_model" }));
+    await user.click(screen.getByRole("menuitem", { name: /composer\.session_effort/ }));
+    expect(screen.getByText("composer.session_effort_description")).toBeTruthy();
+    expect(screen.getByRole("menuitemcheckbox", { name: "composer.session_effort_high" }).getAttribute("aria-checked")).toBe("true");
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("menuitem", { name: "composer.session_reset_defaults" })).toBeTruthy();
+    await user.click(screen.getByRole("menuitem", { name: /composer\.session_effort/ }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "composer.session_effort_low" }));
+    expect(controller.updateEffort).toHaveBeenCalledWith("low");
+  });
+
+  it("keeps the effort entry visible but disabled when the model exposes no levels", async () => {
+    const user = userEvent.setup();
+    render(<Controls controller={makeController({ effortLevels: [] })} />);
+    await user.click(screen.getByRole("button", { name: "composer.session_model" }));
+    const entry = screen.getByRole("menuitem", { name: /composer\.session_effort/ });
+    expect(entry.textContent).toContain("composer.session_effort_unsupported");
+    expect(entry.getAttribute("aria-disabled")).toBe("true");
   });
 
   it.each([false, true])("preserves inherited permission semantics with roomWide=%s", async (roomWide) => {

@@ -16,6 +16,7 @@ import type {
   MessageDetailResponse,
   SessionRoundIndexItem,
 } from "@/types/conversation/history";
+import type { SessionEffortLevel } from "@/types/capability/provider";
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { applyDesktopRequestHeaders } from "@/config/desktop-runtime";
 import { requestApi } from "@/lib/api/core/http";
@@ -36,6 +37,8 @@ const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 export interface SessionRuntimeSettings {
   provider: string;
   model: string;
+  /** 空字符串表示交给 runtime 按模型默认强度。 */
+  effort: SessionEffortLevel | "";
   permission_mode: string;
   connector_ids: string[] | null;
 }

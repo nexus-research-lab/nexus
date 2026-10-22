@@ -69,6 +69,13 @@ export interface UserMessage extends BaseMessage {
   /** Room resolved targets；guided user 据此贴近实际消费它的 Agent。 */
   target_agent_ids?: string[];
   attachments?: MessageAttachment[];
+  /** 已配对外部 IM 发进群聊公区的消息来源；只用于展示，不参与路由。 */
+  external_source?: MessageExternalSource;
+}
+
+export interface MessageExternalSource {
+  channel: string;
+  name?: string;
 }
 
 export interface Usage {

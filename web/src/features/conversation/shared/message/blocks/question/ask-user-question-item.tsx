@@ -145,7 +145,6 @@ export function AskUserQuestionItem({
                 <Check
                   aria-hidden
                   className="ask-user-question-option-check h-4 w-4 shrink-0 text-(--text-muted)"
-                  strokeWidth={2.2}
                 />
               ) : null}
             </label>
@@ -174,7 +173,6 @@ export function AskUserQuestionItem({
               <Check
                 aria-hidden
                 className="ask-user-question-custom-answer-check h-4 w-4 shrink-0 text-(--text-muted)"
-                strokeWidth={2.2}
               />
             ) : null}
           </label>

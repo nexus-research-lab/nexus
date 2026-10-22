@@ -24,8 +24,11 @@ export function SidebarSearchField({
 }) {
   const { t } = useI18n();
 
+  // 右侧 8px 让 36px 尾部动作的中轴落在侧栏右缘内 26px，与品牌栏折叠按钮、底栏设置按钮同一垂线；
+  // 位于主侧栏目录时从右侧 8px 中扣掉滚动条预留宽度（macOS 为 0，Windows/Web 为经典细滚动条宽）；
+  // 只能收 padding 不能用负 margin，越过 padding box 会触发横向滚动或被裁切。
   return (
-    <div className="flex items-center gap-2 px-2.5 pb-1.5 max-[559px]:gap-3 max-[559px]:px-4 max-[559px]:pb-3">
+    <div className="flex items-center gap-2 pl-2.5 pr-[max(0px,calc(0.5rem-var(--sidebar-directory-gutter,0px)))] pb-1.5 max-[559px]:gap-3 max-[559px]:px-4 max-[559px]:pb-3">
       <UiSearchInput
         aria-label={label}
         className="flex-1 max-[559px]:h-12 max-[559px]:rounded-(--radius-control-lg) max-[559px]:px-4"
@@ -50,7 +53,7 @@ export function SidebarSearchAction({
   return (
     <UiIconButton
       className={cn(
-        "rounded-(--radius-control-md) [&>svg]:h-[18px] [&>svg]:w-[18px] max-[559px]:h-12 max-[559px]:w-12 max-[559px]:rounded-(--radius-control-lg)",
+        "rounded-(--radius-control-md) [&>svg]:h-4 [&>svg]:w-4 max-[559px]:h-12 max-[559px]:w-12 max-[559px]:rounded-(--radius-control-lg)",
         className,
       )}
       size="lg"

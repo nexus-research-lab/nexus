@@ -3,7 +3,7 @@
 - `UiActionMenu` 默认最小宽度为 160px，适合行尾短操作；带说明或复杂内容的消费者按需要显式传入 `minWidth`，弹层继续受视口约束。
 - `UiActionMenu` 的纯文字操作项居中；带自定义身份内容、图标、说明、尾部内容或勾选状态的条目左对齐，保持身份菜单和复杂选项的阅读基线。
 
-- `menu-styles.ts` 的 getMenuItemLayout 同时拥有 compact/default、单行/说明行的渲染尺寸与估算高度；UiMenuActionRow、Action Menu 估算和 Mention Option 共用，禁止分别维护相同数字。
+- `menu-styles.ts` 的 getMenuItemLayout 同时拥有 dense/compact/default、单行/说明行的渲染尺寸与估算高度；UiMenuActionRow、Action Menu 估算和 Mention Option 共用，禁止分别维护相同数字。
 - `getMenuContentHeight` 统一累加行、分隔线、上下内边距和条目间距；Action、Workspace 与 Room 模型菜单直接消费。分隔线外观由 `MENU_SEPARATOR_CLASS_NAME` 持有，不再各自推导 footer 高度。Action 行透传原生 ref，且不参与 flex 压缩，长菜单通过外层滚动保留有限行高。
 - `filter-select.tsx` 的 `UiFilterSelect` 是能力与联系人目录共用的具名筛选 Pattern：必填辅助名称，触发器只显示当前值与箭头，未筛选文案明确为全部分类/状态等；选项、值、命令和内容宽度由业务拥有，菜单与控件外观直接复用 `UiSelectMenu`；不接受前导图标或第二套按钮样式。交互和视觉合同见根目录 `design.md`。
 - `select-menu-model.ts` 只计算当前选项、键盘遍历、高度估算和锚点几何，不得返回视觉类；`select-menu-styles.ts` 独占菜单共用的尺寸、表面、标签换行和选中态视觉 recipe。业务需要组合多选或特殊 listbox 时可以复用 style recipe，但不得从 model 导入样式。
@@ -25,7 +25,7 @@
 - `menu-action-row.tsx` 是 Action Menu 与业务上下文菜单的唯一行级 DOM 所有者；它使用原生 button、普通 `role=menuitem` 或受控 `checked` 对应的 `menuitemcheckbox/aria-checked`、`aria-disabled`、有限密度和共享状态。业务只组合图标、标签、尾部内容与命令，不得重新导入菜单样式拼装按钮。
 - Action Menu 的可选数组默认值必须引用模块级稳定空值；禁止在参数默认值中写 `[]`，否则锚定层的定位状态更新会让回调引用反复失效并形成 render loop。
 - Action Menu 的重置等次级动作通过 `footerItems` 进入带分隔线的底部区域，不能混入主要选项伪装成普通值。
-- Action Menu 默认普通行最小 36px，带说明最小 48px；compact 分别为 32/44px。默认/紧凑正文采用 control/supporting，说明采用 metadata/muted，统一 regular；完整标签/说明随内容增高，权限菜单保持默认密度，不靠截断隐藏范围或失败原因。固定几何的 Mention 与上下文行仍沿同一 recipe 的 fixed 档位，不接受自由尺寸。
+- Action Menu 默认普通行最小 36px，带说明最小 48px；compact 分别为 32/44px，dense 为 28/40px（只给模型菜单这类条目多的长列表选择器）。默认正文采用 control，紧凑/dense 采用 supporting，说明采用 metadata/muted，统一 regular；完整标签/说明随内容增高，权限菜单保持默认密度，不靠截断隐藏范围或失败原因。固定几何的 Mention 与上下文行仍沿同一 recipe 的 fixed 档位，不接受自由尺寸。
 - Action、Select、Mention、Slash、级联模型与 Workspace 上下文菜单统一使用 4px 内容内边距和 2px 条目间距；间距由 `menu-styles.ts` 的共享列表合同提供，业务层不得按页面覆盖。浮层必须把间距计入内容高度，在自身上限内随条目增长，达到上限后才滚动。
 - `menu-styles.ts` 统一 Action、Select 与上下文菜单的行级圆角、焦点和状态层级；业务菜单不得复制整套条目样式。
 - 16px 外框配合 4px 内容内边距时，菜单行固定使用 12px 圆角，保证选中底面与外框同心。
@@ -51,3 +51,4 @@ Action Menu 可传入非交互 header 作为身份说明，位于动作区上方
 单选触发器的 `plain` 表面用于已有字段分隔的行内选择：透明、无边框，仍由公共 owner 提供 hover、focus 与 disabled 状态；消费者不得用后代选择器覆盖触发器内部样式。
 
 SelectMenu 外层允许收缩到所属 Grid/Flex 字段宽度；长选项在触发器内部截断，不能以 intrinsic min-width 覆盖相邻只读数据或动作。
+- Select 触发器文字统一左对齐；领域选择器弹出非 listbox 浮层（如配对会话目标的双栏 dialog）时复用 `SelectMenuTrigger` 并声明 `popup`，不另造外观相近的按钮。

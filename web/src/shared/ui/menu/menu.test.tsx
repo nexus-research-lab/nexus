@@ -46,7 +46,7 @@ describe("UiSelectMenu", () => {
     expect(option.getAttribute("type")).toBe("button");
     expect(option.getAttribute("aria-selected")).toBe("true");
     expect(option.getAttribute("data-active")).toBe("true");
-    expect(option.className).toContain("radius-control-lg");
+    expect(option.className).toContain("radius-control-md");
 
     await user.click(option);
     expect(onMouseDown).toHaveBeenCalledTimes(1);
@@ -508,7 +508,7 @@ describe("UiActionMenu", () => {
     expect(action.className).toContain("bg-(--surface-interactive-active-background)");
     expect(action.getAttribute("type")).toBe("button");
     expect(action.getAttribute("data-active")).toBe("true");
-    expect(action.className).toContain("radius-control-lg");
+    expect(action.className).toContain("radius-control-md");
     expect(action.className).toContain("text-(--destructive)");
     expect((disabledAction as HTMLButtonElement).disabled).toBe(true);
     expect(disabledAction.getAttribute("aria-disabled")).toBe("true");

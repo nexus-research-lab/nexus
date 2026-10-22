@@ -127,7 +127,7 @@ export function ConversationSessionNavigator({
                   aria-label={t("room.session_navigator_jump", {
                     title: item.title,
                   })}
-                  className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+                  className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-(--radius-control-xs) outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                   onKeyDown={handlePreviewKeyDown}
                   onClick={() => {
                     jumpToRound(item);

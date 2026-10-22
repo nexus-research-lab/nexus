@@ -65,7 +65,7 @@ function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
       className={status === "checking"
         ? getUiSpinnerClassName({ size: "sm" })
         : cn("h-3.5 w-3.5 shrink-0", presentation.className)}
-      strokeWidth={1.8}
+      strokeWidth={1.5}
     />
   );
 }
@@ -110,7 +110,7 @@ function UpdateSkillRow({
           {busy ? (
             <Loader2
               className={getUiSpinnerClassName({ size: "sm" })}
-              strokeWidth={1.8}
+              strokeWidth={1.5}
             />
           ) : null}
           {t("capability.skills_update")}
@@ -207,7 +207,7 @@ export function SkillsUpdateHighlight({
             className={model.actionDisabled
               ? getUiSpinnerClassName({ size: "sm" })
               : "h-3.5 w-3.5"}
-            strokeWidth={1.8}
+            strokeWidth={1.5}
           />
           {model.actionLabel}
         </UiButton>

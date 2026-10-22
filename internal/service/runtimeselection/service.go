@@ -30,9 +30,11 @@ type Service struct {
 
 // Selection 表示启动 runtime 前已经合并完成的选择。
 type Selection struct {
-	RuntimeKind                string
-	Provider                   string
-	Model                      string
+	RuntimeKind string
+	Provider    string
+	Model       string
+	// Effort 只来自 Session 显式覆盖；空值交给 runtime 按模型默认。
+	Effort                     string
 	FallbackFromExplicit       bool
 	BackgroundProvider         string
 	BackgroundModel            string
@@ -69,7 +71,9 @@ func NewServiceWithRuntimeConfigResolver(
 
 // Resolve 依次合并 Session 覆盖、普通 Agent 显式模型与用户全局默认；Nexus 主智能体不读取历史 Agent 模型。
 func (s *Service) Resolve(ctx context.Context, request Request) (Selection, error) {
-	selection := Selection{}
+	selection := Selection{
+		Effort: protocol.SessionRuntimeSettingsFromOptions(request.SessionOptions).Effort,
+	}
 	sessionProvider, sessionModel := explicitSessionModel(request.SessionOptions)
 	agentProvider, agentModel := explicitAgentModel(request.Agent)
 	hasExplicitSessionModel := sessionProvider != "" && sessionModel != ""

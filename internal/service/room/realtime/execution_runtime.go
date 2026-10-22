@@ -49,7 +49,7 @@ type preparedSlotRuntime struct {
 type roomRuntimePrompt struct {
 	// stable 是 execution contract、房间规则、技能和成员目录；这些变化才应使 prompt cache 前缀失效。
 	stable string
-	// dynamic 是 Agent runtime prompt；轮次与 Goal 上下文仍通过 user/contextual input 注入。
+	// dynamic 是 Agent runtime prompt；轮次、IM 回信与 Goal 上下文仍通过 user/contextual input 注入。
 	dynamic string
 }
 
@@ -361,11 +361,12 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		e.slot.setGoalContext(override)
 	}
 	if e.service.externalPrompt != nil {
+		// 回信说明只属于 IM 入站轮次；放进 system prompt 会让同一成员会话在 IM 与其他来源间切换时整段 prompt cache 失效。
 		prompt, err := e.service.externalPrompt(e.ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey)
 		if err != nil {
 			return roomRuntimePrompt{}, "", err
 		}
-		dynamicPrompt = runtimehost.JoinPromptSections(dynamicPrompt, prompt)
+		e.externalReplyContext = prompt
 	}
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }

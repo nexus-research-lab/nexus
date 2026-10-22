@@ -547,7 +547,7 @@ function TeamMessageFeed({
             const pendingInvitation = pending.find((item) => item.room.id === block.room_id && new Date(item.created_at).getTime() === new Date(block.invited_at ?? "").getTime());
             return pendingInvitation ? <TeamInvitationList key={index} {...invitations} invitations={[pendingInvitation]} recoveryRooms={[]}
               onRefresh={invitations.refresh} onResolve={invitations.resolve} onRecover={invitations.recover} /> : (
-            <div key={index} className="rounded-xl border divider-subtle p-4">
+            <div key={index} className="surface-radius-md border divider-subtle p-4">
               <span>{t("team.pending_invitations")} · {block.text}</span>
               <time className="ml-3" dateTime={message.created_at}>{formatMessageTime(new Date(message.created_at).getTime())}</time>
               <p className="mt-2">{t(block.invitee_user_id !== currentUserId ? "team.invitation_sent" : invitations.loading ? "team.loading" : invitations.failed ? "team.invitation_failed" : "team.invitation_closed")}</p>

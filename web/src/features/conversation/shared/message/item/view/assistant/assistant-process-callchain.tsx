@@ -64,7 +64,7 @@ function ProcessToggleButton({ process }: { process: AssistantProcessState }) {
       leading={(
         <Wrench
           className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)"
-          strokeWidth={1.8}
+          strokeWidth={1.5}
         />
       )}
       onClick={process.toggle}

@@ -102,7 +102,7 @@ export function AgentOptionsSkillsView({
   const { t } = useI18n();
 
   return (
-    <div className="agent-options-skills-container space-y-5 animate-in slide-in-from-right-4 duration-300">
+    <div className="agent-options-skills-container space-y-5 animate-in slide-in-from-right-4 duration-(--motion-duration-layout)">
       <SkillsLoadError
         failure={readFailure}
         loading={loading}

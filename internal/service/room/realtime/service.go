@@ -89,7 +89,9 @@ type ChatRequest struct {
 	UserMessageID         string
 	DeliveryPolicy        protocol.ChatDeliveryPolicy
 	BroadcastUserMessage  bool
-	Internal              bool
+	// ExternalSource 标记由已配对外部 IM 发进公区的用户消息（channel/name），只用于展示来源。
+	ExternalSource map[string]string
+	Internal       bool
 	// TrustedConfigurationContext 仅由 Nexus WebSocket 用户入口设置，后台/Agent wake/队列不得继承。
 	TrustedConfigurationContext bool
 	// ExecutionOrigin 由服务端调度器写入；非空值不会获得持久配置 capability。

@@ -517,7 +517,7 @@ function CCSwitchProviderRow({
         disabled={!item.can_sync || disabled}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-default)">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center radius-control-lg border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-default)">
         {item.app_type === "claude" ? "CC" : "CX"}
       </span>
       <span className="min-w-0 flex-1">

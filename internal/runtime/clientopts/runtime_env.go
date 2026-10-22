@@ -92,6 +92,7 @@ const nexusEnableAutoDreamEnvName = "NEXUS_ENABLE_AUTO_DREAM"
 const nexusDisableAutoDreamEnvName = "NEXUS_DISABLE_AUTO_DREAM"
 const firstPartyAnthropicAPIHost = "api.anthropic.com"
 const nexusDisableProjectInstructionsEnvName = "NEXUS_DISABLE_PROJECT_INSTRUCTIONS"
+const nexusWorkspaceInstructionFilesEnvName = "NEXUS_WORKSPACE_INSTRUCTION_FILES"
 const nexusCachedMicrocompactEnvName = "NEXUS_CACHED_MICROCOMPACT"
 const nexusMaxContextTokensEnvName = "NEXUS_MAX_CONTEXT_TOKENS"
 const nexusMaxOutputTokensEnvName = "NEXUS_MAX_OUTPUT_TOKENS"
@@ -398,6 +399,32 @@ func managedMemoryRuntimeEnv(runtimeKind string, workspacePath string) map[strin
 		nexusEnableRemoteMemoryEnvName: "",
 		nexusRemoteMemoryDirEnvName:    "",
 	}
+}
+
+// workspaceInstructionRuntimeEnv 把工作区人设文件交给 nxs 指令加载；显式空值压过继承环境。
+func workspaceInstructionRuntimeEnv(runtimeKind string, files []string) map[string]string {
+	if !runtimeProfileForKind(runtimeKind).isNXS() {
+		return nil
+	}
+	return map[string]string{nexusWorkspaceInstructionFilesEnvName: strings.Join(files, ",")}
+}
+
+// withWorkspaceInstructionPrompt 只给不认识工作区指令约定的 runtime 逐轮拼入人设文件。
+func withWorkspaceInstructionPrompt(runtimeKind string, prompt string, render func() (string, error)) (string, error) {
+	if render == nil || runtimeProfileForKind(runtimeKind).isNXS() {
+		return prompt, nil
+	}
+	workspacePrompt, err := render()
+	if err != nil {
+		return "", err
+	}
+	parts := make([]string, 0, 2)
+	for _, part := range []string{prompt, workspacePrompt} {
+		if part = strings.TrimSpace(part); part != "" {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, "\n\n---\n\n"), nil
 }
 
 // hostManagedScheduleRuntimeEnv 关闭仍内置调度器的第三方内核。

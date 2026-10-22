@@ -129,7 +129,7 @@ export function getSelectMenuButtonClassName({
   className?: string;
 }) {
   return cn(
-    "flex h-full w-full items-center justify-between gap-2 px-3 transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+    "flex h-full w-full items-center justify-between gap-2 px-3 text-left transition-[background,border-color,box-shadow] duration-(--motion-duration-fast) focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
     SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES[surface],
     roundedClassName,
     textClassName,

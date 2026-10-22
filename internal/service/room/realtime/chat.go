@@ -476,6 +476,9 @@ func newRoomUserMessage(
 	if len(attachments) > 0 {
 		result["attachments"] = attachments
 	}
+	if len(request.ExternalSource) > 0 {
+		result["external_source"] = maps.Clone(request.ExternalSource)
+	}
 	if request.Internal || request.InputOptions.HiddenFromUser {
 		result["hidden_from_user"] = true
 	}

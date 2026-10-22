@@ -39,6 +39,7 @@ func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
 		return nil
 	}
 	inputs := r.transportContextualInputs()
+	inputs = append(inputs, r.connectorContextualInputs()...)
 	inputs = append(inputs, runtimectx.AutomationRunContextualInputs(r.automationRun)...)
 	inputs = append(inputs, runtimectx.GoalContextualInputs(r.Context, r.IDForUsage, r.sessionKey)...)
 	return append(inputs, r.recoveryContext...)

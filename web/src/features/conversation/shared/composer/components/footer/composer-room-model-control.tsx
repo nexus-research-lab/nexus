@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * INPUT: Room 内各 Agent 的当前 Session 模型投影与更新动作。
- * OUTPUT: 同一模型列表在并排/逐级布局间保持焦点，尺寸服从公共视口边界，失效目标关闭。
+ * INPUT: Room 内各 Agent 的当前 Session 模型/思考强度投影与更新动作。
+ * OUTPUT: 同一模型列表在并排/逐级布局间保持焦点，强度子页原位进入/返回，尺寸服从公共视口边界，失效目标关闭。
  * POS: 群聊模型入口；保留用户选择的 Agent/Session 绑定，选项命令与 DM 共用，菜单与浮层合同归共享 owner。
  */
 
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronRight,
   LoaderCircle,
@@ -26,14 +25,10 @@ import { createPortal } from "react-dom";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useMediaQuery } from "@/shared/lib/react/use-media-query";
 import { isImeKeyboardEvent } from "@/shared/lib/browser/ime-keyboard-event";
-import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
-import {
-  UiActionMenuContent,
-  type UiActionMenuItem,
-} from "@/shared/ui/menu/action-menu";
 import { UiMenuActionRow } from "@/shared/ui/menu/menu-action-row";
 import { focusFirstMenuItem, handleMenuKeyDown } from "@/shared/ui/menu/menu-keyboard";
 import { MENU_LIST_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
@@ -52,16 +47,20 @@ import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
 import {
-  buildResetSessionSettingItem,
-  buildSessionModelItems,
+  applySessionEffortSelection,
   applySessionModelSelection,
+  getSessionModelMenuShape,
 } from "./composer-session-control-options";
+import {
+  SessionModelMenu,
+  SessionModelMenuHeader,
+  type SessionModelMenuView,
+} from "./composer-session-model-menu";
 
 import {
   getRoomModelMenuLayout,
   ROOM_MODEL_AGENT_MENU_WIDTH,
   ROOM_MODEL_CASCADE_QUERY,
-  ROOM_MODEL_HEADER_LAYOUT,
   ROOM_MODEL_MENU_GAP,
   SESSION_MODEL_MENU_WIDTH,
 } from "./composer-session-control-layout";
@@ -89,24 +88,22 @@ export function ComposerRoomModelControl({
   const canShowSideModels = useMediaQuery(ROOM_MODEL_CASCADE_QUERY);
   const [isOpen, setIsOpen] = useState(false);
   const [view, setView] = useState<RoomModelView>("agents");
+  const [modelView, setModelView] = useState<SessionModelMenuView>("models");
   const resetTarget = controller.resetTarget;
-  const modelItems = buildSessionModelItems(controller);
-  const resetItem = buildResetSessionSettingItem(
-    !controller.hasModelOverride,
-    t,
-  );
   const close = useCallback(() => {
     pendingFocusRef.current = null;
     lastFocusedRef.current = null;
     boundSessionRef.current = null;
     setIsOpen(false);
     setView("agents");
+    setModelView("models");
     resetTarget();
   }, [resetTarget]);
   const showSideModels = canShowSideModels && view === "models";
   const menuLayout = getRoomModelMenuLayout({
     agentCount: controller.targetViews.length,
-    modelCount: modelItems.length,
+    modelShape: getSessionModelMenuShape(controller),
+    modelView,
     modelsVisible: view === "models",
     sideBySide: showSideModels,
   });
@@ -197,6 +194,7 @@ export function ComposerRoomModelControl({
     }
     controller.selectTarget(agentId);
     setView("models");
+    setModelView("models");
   };
   const closeAndRestoreFocus = () => {
     close();
@@ -205,6 +203,12 @@ export function ComposerRoomModelControl({
   const backToAgents = () => {
     pendingFocusRef.current = "agents";
     setView("agents");
+    setModelView("models");
+  };
+  // 模型面板内部的子页切换：只换正文，焦点落回新正文首项。
+  const changeModelView = (next: SessionModelMenuView) => {
+    pendingFocusRef.current = "models";
+    setModelView(next);
   };
   const selectModel = (value: string) => {
     if (controller.target?.agentId !== returnAgentIdRef.current
@@ -213,6 +217,15 @@ export function ComposerRoomModelControl({
       return;
     }
     applySessionModelSelection(controller, value);
+    closeAndRestoreFocus();
+  };
+  const selectEffort = (value: string) => {
+    if (controller.target?.agentId !== returnAgentIdRef.current
+      || controller.target?.sessionKey !== boundSessionRef.current) {
+      closeAndRestoreFocus();
+      return;
+    }
+    applySessionEffortSelection(controller, value);
     closeAndRestoreFocus();
   };
 
@@ -263,7 +276,8 @@ export function ComposerRoomModelControl({
               || (event.key === "ArrowLeft" && modelMenuRef.current?.contains(event.target)))) {
               event.preventDefault();
               event.stopPropagation();
-              backToAgents();
+              if (modelView === "effort") changeModelView("models");
+              else backToAgents();
               return;
             }
             handleMenuKeyDown(event, closeAndRestoreFocus);
@@ -286,20 +300,22 @@ export function ComposerRoomModelControl({
             </RoomModelPanel>
           )}
           {view === "models" && (
-            <RoomModelOptions
-              key="models"
-              controller={controller}
-              disabled={disabled}
-              items={modelItems}
-              menuId={`${overlayId}-models`}
-              menuRef={modelMenuRef}
-              onBack={backToAgents}
-              onSelect={selectModel}
-              resetItem={resetItem}
-              showHeader={!showSideModels}
-              style={panelStyle}
-              width={showSideModels ? SESSION_MODEL_MENU_WIDTH : "100%"}
-            />
+            <RoomModelPanel key="models" style={panelStyle} width={showSideModels ? SESSION_MODEL_MENU_WIDTH : "100%"}>
+              <SessionModelMenu
+                ariaLabel={t("composer.room_model_agent", { name: controller.target?.name ?? "" })}
+                controller={controller}
+                disabled={disabled}
+                menuId={`${overlayId}-models`}
+                menuRef={modelMenuRef}
+                modelsHeader={showSideModels ? undefined : (
+                  <SessionModelMenuHeader onBack={backToAgents} title={controller.target?.name ?? ""} />
+                )}
+                onSelectEffort={selectEffort}
+                onSelectModel={selectModel}
+                onViewChange={changeModelView}
+                view={modelView}
+              />
+            </RoomModelPanel>
           )}
         </div>,
         portalContainer,
@@ -404,70 +420,6 @@ function RoomModelAgentList({
           </UiMenuActionRow>
         );
       })}
-    </div>
-  );
-}
-
-function RoomModelOptions({ controller, disabled, items, menuId, menuRef, onBack, onSelect, resetItem, showHeader, style, width }: {
-  controller: ComposerSessionSettingsController;
-  disabled: boolean;
-  items: UiActionMenuItem[];
-  menuId: string;
-  menuRef: RefObject<HTMLDivElement | null>;
-  onBack: () => void;
-  onSelect: (value: string) => void;
-  resetItem: UiActionMenuItem;
-  showHeader: boolean;
-  style: CSSProperties;
-  width: CSSProperties["width"];
-}) {
-  const { t } = useI18n();
-  return (
-    <RoomModelPanel style={style} width={width}>
-      {showHeader && <RoomModelHeader onBack={onBack} title={controller.target?.name ?? ""} />}
-      <div
-        aria-label={t("composer.room_model_agent", { name: controller.target?.name ?? "" })}
-        className="soft-scrollbar min-h-0 overflow-y-auto overscroll-contain p-1"
-        role="menu"
-        id={menuId}
-        ref={menuRef}
-        tabIndex={-1}
-      >
-        <UiActionMenuContent
-          density="compact"
-          disabled={disabled || controller.modelBusy}
-          footerItems={[resetItem]}
-          items={items}
-          onSelect={onSelect}
-        />
-      </div>
-    </RoomModelPanel>
-  );
-}
-
-function RoomModelHeader({
-  onBack,
-  title,
-}: {
-  onBack: () => void;
-  title: string;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className={ROOM_MODEL_HEADER_LAYOUT.className}>
-      <UiIconButton
-        aria-label={t("composer.session_settings_back")}
-        className="shrink-0"
-        onClick={onBack}
-        size="sm"
-        tooltip={t("composer.session_settings_back")}
-        variant="ghost"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-      </UiIconButton>
-      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-(--text-strong)">
-        {title}
-      </span>
     </div>
   );
 }

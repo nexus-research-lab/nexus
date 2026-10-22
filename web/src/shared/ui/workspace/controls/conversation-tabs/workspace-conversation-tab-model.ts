@@ -11,7 +11,7 @@ import {
 } from "./conversation-tabs-model";
 
 const TAB_BASE_CLASS_NAME =
-  "workspace-surface-header-conversation-tab group relative inline-flex h-8 flex-none snap-start items-center rounded-[var(--workspace-session-tab-radius)] border border-transparent text-compact font-normal transition-[width,background-color,border-color,color] duration-[145ms] ease-[cubic-bezier(0.25,0.1,0.25,1)]";
+  "workspace-surface-header-conversation-tab group relative inline-flex h-8 flex-none snap-start items-center rounded-[var(--workspace-session-tab-radius)] border border-transparent text-compact font-normal transition-[width,background-color,border-color,color] duration-(--motion-duration-fast) ease-(--motion-ease-standard)";
 interface WorkspaceConversationTabStatePresentation {
   closeClassName: string;
   indicatorClassName: string;

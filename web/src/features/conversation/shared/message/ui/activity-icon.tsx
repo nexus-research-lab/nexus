@@ -49,7 +49,7 @@ export function ToolActivityIcon({
   kind: ExecutionToolVisualKind;
 }) {
   const Icon = TOOL_ICON_MAP[kind];
-  return <Icon aria-hidden className={className} strokeWidth={1.8} />;
+  return <Icon aria-hidden className={className} strokeWidth={1.5} />;
 }
 
 export function ProcessActivityIconStack({
@@ -86,7 +86,7 @@ export function ProcessActivityIconStack({
           key={activity.key}
         >
           {activity.kind === "thinking" ? (
-            <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
+            <Brain aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
           ) : (
             <ToolActivityIcon className="h-3.5 w-3.5" kind={activity.kind} />
           )}

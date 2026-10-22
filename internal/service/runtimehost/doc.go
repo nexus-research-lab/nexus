@@ -9,6 +9,8 @@
 //   - round_mapper.go：把共用 message.EventMapper 适配为 exec.RoundMapper。
 //   - runtime_client.go：runtime 偏好与选择、Skill、nexus MCP 合并、desktop scratch、client 选项与 hook 装配，以及带失效 resume 回退的启动状态机 RuntimeConnect。
 //   - agent_round.go：单 Agent round 执行骨架 ExecuteAgentRound，以及 PostToolUse 引导协议与引导确认判定。
+//   - round_latency.go：每轮主线程首包耗时观测（system init、message_start、首个思考块、首个回答块）。
+//   - context_announcements.go：易变宿主事实（如 Connector 状态）按会话记录已告知快照，变化或 compact 后才重新告知。
 //   - goal.go：Goal 续跑准备/派发/失败回写、/goal 命令建 Goal、用量增量与上限标记、用量 scope 绑定与 round 认领、带退避的用量重试、完成收据读取、可信投递策略与 SDK 诊断日志装配。
 //
 // DM 是 Room 的一种：两者的 Service 都嵌入 Host，runtime 启动与单 Agent round 执行只实现一次；

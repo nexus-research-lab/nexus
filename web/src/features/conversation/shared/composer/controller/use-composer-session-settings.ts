@@ -31,7 +31,10 @@ import { getConnectorsApi } from "@/lib/api/capability/connector-api";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import { subscribeSessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { ProviderOptionsResponse } from "@/types/capability/provider";
+import type {
+  ProviderOptionsResponse,
+  SessionEffortLevel,
+} from "@/types/capability/provider";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
 import type {
@@ -50,6 +53,7 @@ import {
 
 const EMPTY_SETTINGS: SessionRuntimeSettings = {
   connector_ids: null,
+  effort: "",
   model: "",
   permission_mode: "",
   provider: "",
@@ -383,6 +387,13 @@ export function useComposerSessionSettings(
     target,
     providerOptions,
   );
+  const effectiveProvider = settings.provider || inheritedModel.provider;
+  const effectiveModel = settings.model || inheritedModel.model;
+  const effortLevels = resolveModelEffortLevels(
+    effectiveProvider,
+    effectiveModel,
+    providerOptions,
+  );
   const effectivePermissionMode =
     resolveRuntimePermissionMode(settings.permission_mode || inheritedPermission, scope?.runtimeKind ?? "");
   const inheritedConnectorIds = target?.defaultConnectorIds ?? [];
@@ -435,7 +446,9 @@ export function useComposerSessionSettings(
     connectorsLoading,
     enabledConnectorIds,
     ensureTargetsLoaded,
-    hasModelOverride: Boolean(settings.provider && settings.model),
+    effort: (settings.effort || "") as SessionEffortLevel | "",
+    effortLevels,
+    hasModelOverride: Boolean((settings.provider && settings.model) || settings.effort),
     hasPermissionOverride: Boolean(settings.permission_mode),
     inheritedModel: inheritedModel.model,
     isDangerousPermission: effectivePermissionMode === "bypassPermissions",
@@ -472,18 +485,33 @@ export function useComposerSessionSettings(
       : Promise.resolve(),
     resetModel: () => updateSettings("model", {
       ...settings,
+      effort: "",
       model: "",
       provider: "",
+    }),
+    // 强度与模型同属一个 Session 模型设置；空值交回 runtime 按模型默认。
+    updateEffort: (effort: SessionEffortLevel | "") => updateSettings("model", {
+      ...settings,
+      effort,
     }),
     resetPermission: () => updateSettings("permission", {
       ...settings,
       permission_mode: "",
     }),
-    updateModel: (provider: string, model: string) => updateSettings("model", {
-      ...settings,
-      model,
-      provider,
-    }),
+    // 选回继承模型时清空模型覆盖；强度只保留新模型仍支持的档位，避免把无效值带进下一次启动。
+    updateModel: (provider: string, model: string) => {
+      const inherits = provider === inheritedModel.provider && model === inheritedModel.model;
+      const keepsEffort = Boolean(settings.effort)
+        && resolveModelEffortLevels(provider, model, providerOptions).includes(
+          settings.effort as SessionEffortLevel,
+        );
+      return updateSettings("model", {
+        ...settings,
+        effort: keepsEffort ? settings.effort : "",
+        model: inherits ? "" : model,
+        provider: inherits ? "" : provider,
+      });
+    },
     updatePermission: (permissionMode: string) => updateSettings("permission", {
       ...settings,
       permission_mode: permissionMode,
@@ -561,6 +589,20 @@ function resolveModelLabel(
     (candidate) => candidate.model_id === modelValue,
   );
   return model?.display_name || modelValue || "—";
+}
+
+function resolveModelEffortLevels(
+  providerValue: string,
+  modelValue: string,
+  options: ProviderOptionsResponse | null,
+): SessionEffortLevel[] {
+  const provider = options?.items.find(
+    (candidate) => candidate.provider === providerValue,
+  );
+  const model = provider?.models.find(
+    (candidate) => candidate.model_id === modelValue,
+  );
+  return model?.guidance?.effort_levels ?? [];
 }
 
 function permissionModeLabel(
