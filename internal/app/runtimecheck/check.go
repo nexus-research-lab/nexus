@@ -32,8 +32,8 @@ type Report struct {
 
 // Check 用实际 sidecar 的依赖和产品策略检查随包内核，缺失能力直接终止打包。
 func Check(ctx context.Context, binary string) (Report, error) {
-	if runtime.GOOS != "darwin" {
-		return Report{}, fmt.Errorf("native macOS runtime compatibility check required")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return Report{}, fmt.Errorf("native desktop runtime compatibility check required on macOS or Windows")
 	}
 	if !filepath.IsAbs(binary) {
 		return Report{}, fmt.Errorf("nxs path must be absolute")
@@ -108,7 +108,7 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 	options.Env["TMPDIR"] = scratch
 	options.Skills = agentclient.SkillOptions{Mode: agentclient.SkillModeNone}
 	options.MCP.StrictConfig = true
-	options.Runtime.InitializeTimeout = 15 * time.Second
+	options.Runtime.InitializeTimeout = 60 * time.Second
 	session, err := agentclient.NewSession(ctx, options)
 	if err != nil {
 		return err

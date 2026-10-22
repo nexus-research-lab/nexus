@@ -1,5 +1,5 @@
 // INPUT: 宿主 canonical 状态根、已装配的桌面后端与权限模式。
-// OUTPUT: 受限 macOS 会话对 app 整树写入、私有目录及既有 sidecar 身份记录读写的拒绝规则。
+// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、私有目录及既有 sidecar 身份记录读写的拒绝规则。
 // POS: 统一 DM/Room/后台 options 装配；Full Access 是明确的无隔离例外。
 package clientopts
 
@@ -18,7 +18,7 @@ import (
 // applyDesktopHostPaths 只从宿主输入生成保护，不读取任务 Env 中的状态根。
 // 这是命令/文件工具策略，不宣称整个 SDK 进程、IPC 或第三方服务被隔离。
 func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptionsInput, platform, appRoot string) (agentclient.Options, error) {
-	if platform != "darwin" || !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") || options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+	if (platform != "darwin" && platform != "windows") || !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") || options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 		return options, nil
 	}
 	if options.Sandbox == nil || options.Sandbox.Filesystem == nil {

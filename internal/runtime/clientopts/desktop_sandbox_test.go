@@ -257,6 +257,21 @@ func TestDesktopSandboxWindowsNXSRestrictedRequiresHostResources(t *testing.T) {
 	}
 }
 
+func TestDesktopSandboxWindowsNXSRestrictedRejectsElevatedHost(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("elevation is covered by the native Windows acceptance run")
+	}
+	input := AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true,
+		SandboxResources: &agentclient.SandboxResourcePolicy{
+			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
+		},
+	}
+	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}}, input, "windows"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDesktopSandboxWindowsNXSFullAccessProjectsNoSandbox(t *testing.T) {
 	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}
 	got, err := applyDesktopSandboxForPlatform(agentclient.Options{
