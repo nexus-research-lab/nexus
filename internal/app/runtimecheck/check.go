@@ -32,8 +32,8 @@ type Report struct {
 
 // Check 用实际 sidecar 的依赖和产品策略检查随包内核，缺失能力直接终止打包。
 func Check(ctx context.Context, binary string) (Report, error) {
-	if runtime.GOOS != "darwin" {
-		return Report{}, fmt.Errorf("native macOS runtime compatibility check required")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return Report{}, fmt.Errorf("native desktop runtime compatibility check requires macOS or Windows")
 	}
 	if !filepath.IsAbs(binary) {
 		return Report{}, fmt.Errorf("nxs path must be absolute")
