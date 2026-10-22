@@ -57,7 +57,8 @@ describe("ComposerAttachmentList", () => {
     expect(onRemove).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
     await user.click(remove);
-    expect(onRemove).toHaveBeenCalledExactlyOnceWith("text-id");
+    // 移除先播放退出动画，再提交真实删除。
+    await waitFor(() => expect(onRemove).toHaveBeenCalledExactlyOnceWith("text-id"));
     expect(onSubmit).not.toHaveBeenCalled();
     await user.click(preview);
     expect(await screen.findByRole("dialog")).toBeTruthy();
@@ -85,10 +86,12 @@ describe("ComposerAttachmentList", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(preview));
     await user.click(screen.getByRole("button", { name: "Remove attachment: preview.png" }));
-    expect(onRemove).toHaveBeenCalledExactlyOnceWith("image-id");
+    // 移除先播放退出动画，再提交真实删除。
+    await waitFor(() => expect(onRemove).toHaveBeenCalledExactlyOnceWith("image-id"));
     expect(screen.queryByRole("dialog")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Remove attachment: archive.zip" }));
-    expect(onRemove).toHaveBeenLastCalledWith("file-id");
+    // 移除先播放退出动画，再提交真实删除。
+    await waitFor(() => expect(onRemove).toHaveBeenLastCalledWith("file-id"));
     expect(onSubmit).not.toHaveBeenCalled();
   });
 

@@ -9,6 +9,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type CSSProperties,
   type KeyboardEvent,
   type RefObject,
 } from "react";
@@ -288,11 +289,12 @@ function SlashCommandList({
             active={index === activeIndex}
             aria-disabled={!selectable}
             className={cn(
-              "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
+              "ui-stagger-in flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
               !selectable && "cursor-not-allowed opacity-(--disabled-opacity)",
             )}
             key={`${command.execution}:${command.name}`}
+            style={getStaggerStyle(index)}
             onMouseDown={(event) => {
               event.preventDefault();
             }}
@@ -311,7 +313,7 @@ function SlashCommandList({
                 : command.description || t("composer.slash_command_unavailable")}
             </span>
             {command.argument_hint ? (
-              <span className="max-w-[32%] shrink-0 truncate font-mono text-[9px] leading-4 text-(--text-soft)">
+              <span className="max-w-[32%] shrink-0 truncate font-mono text-2xs leading-4 text-(--text-soft)">
                 {command.argument_hint}
               </span>
             ) : null}
@@ -371,10 +373,11 @@ function SlashSkillList({
           <SelectMenuOptionRow
             active={index === activeIndex}
             className={cn(
-              "flex min-h-10 w-full items-center gap-2 px-2 py-1.5 text-left",
+              "ui-stagger-in flex min-h-10 w-full items-center gap-2 px-2 py-1.5 text-left",
               getMenuItemStateClassName({ active: index === activeIndex }),
             )}
             key={skill.name}
+            style={getStaggerStyle(index)}
             onMouseDown={(event) => {
               event.preventDefault();
             }}
@@ -407,7 +410,7 @@ function SlashSkillList({
               ) : null}
             </span>
             {!skill.locked && !skill.enabled_for_agent ? (
-              <span className="shrink-0 text-[9px] leading-4 text-(--text-soft)">
+              <span className="shrink-0 text-2xs leading-4 text-(--text-soft)">
                 {t("composer.skill_use_once")}
               </span>
             ) : null}
@@ -464,10 +467,11 @@ function SlashModelList({
         <SelectMenuOptionRow
           active={index === activeIndex}
           className={cn(
-            "flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
+            "ui-stagger-in flex min-h-7 w-full items-center gap-2 px-2 py-1 text-left",
             getMenuItemStateClassName({ active: index === activeIndex }),
           )}
           key={`${model.provider ?? "runtime"}:${model.id}`}
+          style={getStaggerStyle(index)}
           onMouseDown={(event) => {
             event.preventDefault();
           }}
@@ -480,7 +484,7 @@ function SlashModelList({
             {model.label}
           </span>
           {model.providerLabel ? (
-            <span className="max-w-[34%] shrink-0 truncate text-[9px] leading-4 text-(--text-soft)">
+            <span className="max-w-[34%] shrink-0 truncate text-2xs leading-4 text-(--text-soft)">
               {model.providerLabel}
             </span>
           ) : null}
@@ -559,4 +563,9 @@ function getSlashCommandPopoverPosition(
     placement: "top",
     preset: mode === "commands" ? "command-list" : "command-picker",
   });
+}
+
+// 候选项按序号错开淡入，序号上限由共享 recipe 截断，长列表不会越来越慢。
+function getStaggerStyle(index: number): CSSProperties {
+  return { "--ui-stagger-index": index } as CSSProperties;
 }

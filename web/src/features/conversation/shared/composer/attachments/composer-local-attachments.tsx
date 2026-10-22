@@ -15,6 +15,9 @@ import {
   X,
 } from "lucide-react";
 
+import { useEffect, useRef, useState } from "react";
+
+import { usePrefersReducedMotion } from "@/shared/lib/react/use-prefers-reduced-motion";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { UiRemovableChip } from "@/shared/ui/form/removable-chip";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -52,6 +55,8 @@ export function ComposerAttachmentList({
     setPreviewAttachmentId(null);
   }
 
+  const removal = useAnimatedRemoval(onRemove);
+
   if (attachments.length === 0) {
     return null;
   }
@@ -61,29 +66,32 @@ export function ComposerAttachmentList({
       <div className={COMPOSER_ATTACHMENT_ROW_CLASS_NAME}>
         {attachments.map((attachment) => {
           const namedRemoveLabel = `${removeLabel}: ${attachment.file.name}`;
-          if (attachment.kind === "image") {
-            return (
-              <ComposerImageAttachment
-                attachment={attachment}
-                key={attachment.id}
-                onPreview={() => setPreviewAttachmentId(attachment.id)}
-                onRemove={onRemove}
-                previewLabel={t("composer.preview_image", {
-                  name: attachment.file.name,
-                })}
-                removeLabel={namedRemoveLabel}
-              />
-            );
-          }
-          return (
+          const item = attachment.kind === "image" ? (
+            <ComposerImageAttachment
+              attachment={attachment}
+              onPreview={() => setPreviewAttachmentId(attachment.id)}
+              onRemove={removal.remove}
+              previewLabel={t("composer.preview_image", {
+                name: attachment.file.name,
+              })}
+              removeLabel={namedRemoveLabel}
+            />
+          ) : (
             <ComposerFileAttachment
               attachment={attachment}
-              key={attachment.id}
               onPreview={() => setPreviewAttachmentId(attachment.id)}
-              onRemove={onRemove}
+              onRemove={removal.remove}
               previewLabel={t("composer.preview_text", { name: attachment.file.name })}
               removeLabel={namedRemoveLabel}
             />
+          );
+          return (
+            <span
+              className={removal.leavingIds.has(attachment.id) ? "ui-chip-out inline-flex" : "ui-chip-in inline-flex"}
+              key={attachment.id}
+            >
+              {item}
+            </span>
           );
         })}
       </div>
@@ -93,6 +101,46 @@ export function ComposerAttachmentList({
       />
     </>
   );
+}
+
+// 与 `.ui-chip-out` 的时长一致；到时再真正移除，避免依赖可能不触发的 animationend。
+const CHIP_EXIT_MS = 120;
+
+/**
+ * 移除先播放缩小淡出再提交真实删除；减少动态效果时立即删除。
+ * 卸载时清掉计时器，未完成的退出动画不再回写已离开的草稿。
+ */
+function useAnimatedRemoval(onRemove: (id: string) => void) {
+  const reducedMotion = usePrefersReducedMotion();
+  const [leavingIds, setLeavingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => pending.forEach(clearTimeout);
+  }, []);
+
+  const remove = (id: string) => {
+    if (reducedMotion) {
+      onRemove(id);
+      return;
+    }
+    if (timers.current.has(id)) {
+      return;
+    }
+    setLeavingIds((current) => new Set(current).add(id));
+    timers.current.set(id, setTimeout(() => {
+      timers.current.delete(id);
+      setLeavingIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      onRemove(id);
+    }, CHIP_EXIT_MS));
+  };
+
+  return { leavingIds, remove };
 }
 
 function ComposerImageAttachment({
