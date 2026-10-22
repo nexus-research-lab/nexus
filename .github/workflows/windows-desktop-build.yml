@@ -39,8 +39,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # Windows desktop sandbox rollout is deferred; without the private SDK
-      # credential, skip the native sandbox evidence but still build the shell.
+      # Without the private SDK credential, skip native MXC evidence but still
+      # build the Windows shell.
       - name: Detect sandbox SDK credential
         id: sdk
         shell: pwsh
@@ -60,7 +60,7 @@ jobs:
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: 38221838946f17f87be9da4af5f10ddc95671edf
+          ref: 633e5a6ecdf6635f471e7c147e4ea35f9ff33ada
           path: .nexus-sandbox-sdk
           fetch-depth: 1
           persist-credentials: false

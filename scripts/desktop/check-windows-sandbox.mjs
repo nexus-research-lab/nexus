@@ -12,62 +12,28 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// Includes native settings recovery, junction rejection and explicit P3 probes.
-const WINDOWS_NATIVE_SDK_COMMIT = "38221838946f17f87be9da4af5f10ddc95671edf";
-const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
+// The Windows gate follows the SDK MXC backend. Legacy machine-host and
+// settings-journal tests belong to the retired backend and are not release
+// evidence for this path.
+const WINDOWS_NATIVE_SDK_COMMIT = "633e5a6ecdf6635f471e7c147e4ea35f9ff33ada";
+const WINDOWS_NATIVE_SDK_PACKAGES = [
+  "./internal/tool/builtin/bash/sandboxexec",
+  "./internal/tool/builtin/file/sandboxfs",
+  "./internal/tool/executor",
+];
 const WINDOWS_NATIVE_TESTS = [
-  "TestWindowsPrivateDesktopLifecycle",
-  "TestWindowsCommandPreservesArguments",
-  "TestWindowsCommandRejectsAmbiguousInputs",
-  "TestWindowsCommandEnvironmentIsExplicit",
-  "TestWindowsCommandCloseCanRetryWithoutReviving",
-  "TestWindowsCommandOwnerRejectsHost",
-  "TestWindowsCommandConcurrentCloseHonorsCancellation",
-  "TestWindowsCommandClosePreservesBorrowedHandles",
-  "TestWindowsCommandCloseCollectsUnassignedRoot",
-  "TestWindowsProcessCreationRejectsRetiredJob",
-  "TestWindowsProcessCreationRejectsCanceledAdmission",
-  "TestWindowsProcessCanceledStartCannotBeRevived",
-  "TestWindowsSandboxJobTerminatesAssignedSuspendedProcess",
-  "TestWindowsSandboxJobTerminatesRunningDescendants",
-  "TestWindowsRunnerHostExitTerminatesRunningDescendants",
-  "TestWindowsRunnerExecutionLifecycle",
-  "TestWindowsRunnerHostLifetime",
-  "TestWindowsRunnerPipePeerMatchesKernelIdentity",
-  "TestWindowsRunnerPipeRejectsHostExecutionIdentity",
-  "TestWindowsRunnerThreadProtectionRejectsHost",
-  "TestWindowsSandboxIdentityRejectsHostToken",
-  "TestWindowsBrokerIdentityRejectsCurrentAccount",
-  "TestWindowsHostDenialMergeIsIdempotent",
-  "TestWindowsTemporaryDirectoryRejectsHostIdentity",
-  "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
-  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
-  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
-  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken",
-];
-const WINDOWS_NATIVE_SETTINGS_TESTS = [
-  "TestSettingsBindingConcurrentUpdates",
-  "TestDocumentStoreWritesTwoDocuments",
-  "TestDocumentStoreRollsBackProvenlyAppliedDocuments",
-  "TestDocumentStoreBreaksHardlinkOnWrite",
-  "TestSettingsJournalIsClearedAfterSuccessfulUpdate",
-  "TestSettingsJournalCrossRootMixedStateFailsClosed",
-  "TestSettingsJournalDoesNotStoreDocumentPlaintext",
-  "TestSettingsJournalProcessExitRecovery/committed-0",
-  "TestSettingsJournalProcessExitRecovery/committed-1",
-  "TestSettingsJournalProcessExitRecovery/committed-2",
-  "TestWindowsSettingsJournalLongPath",
-  "TestWindowsSettingsJournalPublishPreservesExisting",
-];
-const WINDOWS_NATIVE_BRIDGE_TESTS = [
-  "TestWindowsJobAdmissionAndCleanup",
-  "TestWindowsProbeCancellationClosesJob",
-  "TestWindowsProbeRejectsLingeringOutput",
-  "TestWindowsHostCrashClosesRuntimeJob",
-  "TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets",
-  "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
-  "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
-  "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing",
+  "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
+  "TestWindowsMXCExecutionRunsInsideProcessContainer",
+  "TestWindowsMXCConfigPassesNativeDryRun",
+  "TestWindowsMXCFilesystemDenialIsEnforced",
+  "TestWindowsMXCFilesystemWriteIsAllowed",
+  "TestWindowsMXCNetworkDenialIsEnforced",
+  "TestWindowsMXCOutsideGrantsAreDefaultDenied",
+  "TestWindowsMXCDeniedSingleFileKeepsSiblingWritable",
+  "TestWindowsMXCCreatedProtectedFileIsReportedAsViolation",
+  "TestWindowsMXCCancellationStopsSidecar",
+  "TestWindowsMXCFileHelperRoundTrip",
+  "TestWindowsMXCMCPStdioUsesTheCommandPolicy",
 ];
 
 const argumentsList = process.argv.slice(2);
@@ -99,10 +65,8 @@ const report = {
   checks: [],
   ...(nativeMode
     ? {
-        sdkPackage: WINDOWS_NATIVE_SDK_PACKAGE,
+        sdkPackages: WINDOWS_NATIVE_SDK_PACKAGES,
         requiredNativeTests: WINDOWS_NATIVE_TESTS,
-        requiredSettingsTests: WINDOWS_NATIVE_SETTINGS_TESTS,
-        requiredBridgeTests: WINDOWS_NATIVE_BRIDGE_TESTS,
       }
     : {}),
 };
@@ -219,12 +183,6 @@ try {
       ],
       { GOOS: "windows", GOARCH: nativeGoarch },
     );
-    runGoTest(
-      "native-bridge-lifecycle",
-      ["github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport"],
-      WINDOWS_NATIVE_BRIDGE_TESTS,
-      { GOOS: "windows", GOARCH: nativeGoarch },
-    );
   }
 
   if (nativeMode) {
@@ -234,15 +192,8 @@ try {
     }
     runGoTest(
       "native-sdk-components",
-      [WINDOWS_NATIVE_SDK_PACKAGE],
+      WINDOWS_NATIVE_SDK_PACKAGES,
       WINDOWS_NATIVE_TESTS,
-      { GOOS: "windows", GOARCH: nativeGoarch },
-      sdkSource,
-    );
-    runGoTest(
-      "native-sdk-settings",
-      ["./internal/config/settings"],
-      WINDOWS_NATIVE_SETTINGS_TESTS,
       { GOOS: "windows", GOARCH: nativeGoarch },
       sdkSource,
     );
