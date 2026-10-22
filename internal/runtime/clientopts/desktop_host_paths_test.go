@@ -78,3 +78,30 @@ func TestDesktopHostPathsIgnoreTaskStateRoot(t *testing.T) {
 		t.Fatal("task environment replaced host authority")
 	}
 }
+
+func TestDesktopHostPathsProtectWindowsNXSState(t *testing.T) {
+	root := filepath.Clean(t.TempDir())
+	appRoot := filepath.Join(root, "app")
+	if err := os.MkdirAll(filepath.Join(appRoot, "data"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	options, err := applyDesktopHostPaths(
+		agentclient.Options{
+			Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
+			Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}},
+		},
+		AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true},
+		"windows",
+		appRoot,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	filesystem := options.Sandbox.Filesystem
+	if !slices.Contains(filesystem.DenyRead, filepath.Join(appRoot, "data")) {
+		t.Fatalf("Windows state data directory is readable: %#v", filesystem.DenyRead)
+	}
+	if !slices.Contains(filesystem.DenyWrite, appRoot) {
+		t.Fatalf("Windows app root is writable: %#v", filesystem.DenyWrite)
+	}
+}

@@ -38,6 +38,9 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 			}
 			return options, nil
 		}
+		if windowsDesktopSandboxElevated() {
+			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行，请以普通用户权限启动 Nexus")
+		}
 		if input.SandboxResources == nil {
 			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")
 		}
