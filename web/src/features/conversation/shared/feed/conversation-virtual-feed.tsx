@@ -145,7 +145,6 @@ export function ConversationVirtualFeed({
           const state = resolveConversationRound(source, item.index);
           return (
             <ConversationRound
-              isMobileLayout={isMobileLayout}
               key={state.nodeId}
               measureRef={virtualizer.measureElement}
               placeholderHeight={resolveConversationVirtualPlaceholderHeight(

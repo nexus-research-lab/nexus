@@ -5,7 +5,7 @@
  */
 import { useCallback, useLayoutEffect, useRef } from "react";
 
-import { useTextareaHeight } from "@/shared/lib/react/use-textarea-height";
+import { supportsNativeFieldSizing, useTextareaHeight } from "@/shared/lib/react/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { CommandCatalogData } from "@/types/generated/protocol";
@@ -157,7 +157,8 @@ export function useComposerController({
   }, [draftScopeKey, interactionIdentity]);
 
   const resetTextareaHeight = useCallback(() => {
-    if (textareaRef.current) {
+    // 原生按内容定高时清空正文即回缩，写入 0px 反而会把输入框压扁。
+    if (textareaRef.current && !supportsNativeFieldSizing()) {
       textareaRef.current.style.height = "0px";
     }
   }, []);

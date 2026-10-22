@@ -38,6 +38,11 @@ export function MessageDetailFrame({ children }: { children: ReactNode }) {
 
 const MessageDetailScrollContext = createContext(false);
 
+// 支持滚动时间轴时渐隐完全交给 CSS，滚动和流式增长不再为虚化方向触发 React 渲染。
+const NATIVE_SCROLL_FADE = typeof CSS !== "undefined"
+  && typeof CSS.supports === "function"
+  && CSS.supports("animation-timeline: scroll()");
+
 export function MessageDetailScroll({
   children,
   followContent = false,
@@ -69,7 +74,7 @@ function MessageDetailScrollRoot({
   const [fade, setFade] = useState<ScrollFade>("none");
   const updateFade = useCallback(() => {
     const element = scrollRef.current;
-    if (!element) {
+    if (!element || NATIVE_SCROLL_FADE) {
       return;
     }
     const nextFade = resolveScrollFade(element);

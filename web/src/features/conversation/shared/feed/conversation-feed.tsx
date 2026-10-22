@@ -71,7 +71,6 @@ function StaticConversationFeed({
         const state = resolveConversationRound(source, index);
         return (
           <ConversationRound
-            isMobileLayout={isMobileLayout}
             key={state.nodeId}
             renderer={renderer}
             source={source}
