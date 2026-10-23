@@ -30,6 +30,9 @@ const protocolSource = read(
   "desktop/windows/Nexus.Desktop/Runtime/DesktopProtocolRouter.cs",
 );
 const installerSource = fs.readFileSync(path.resolve(installerScriptPath), "utf8");
+const sidecarSupervisorSource = read(
+  "desktop/windows/Nexus.Desktop/Sidecar/SidecarSupervisor.cs",
+);
 
 const applicationMutex = capture(
   coordinatorSource,
@@ -65,5 +68,10 @@ assert.match(installerSource, /RestartApplications=no/);
 // needs its own protected installation and cannot elevate this mutable bundle.
 assert.match(installerSource, /^PrivilegesRequired=lowest\r?$/m);
 assert.match(installerSource, /^DefaultDirName=\{localappdata\}\\Programs\\[^\r\n]+\r?$/m);
+assert.match(sidecarSupervisorSource, /NEXUS_MXC_EXECUTABLE/);
+assert.match(
+  sidecarSupervisorSource,
+  /Path\.Combine\(locator\.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec\.exe"\)/,
+);
 
 console.log("Windows installer shutdown and per-user installation contracts verified");

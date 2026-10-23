@@ -178,6 +178,7 @@ internal sealed class SidecarSupervisor : IDisposable
         ApplyPackagedConnectorConfig(startInfo);
         ApplyBundledControlCommands(startInfo);
         ApplyBundledNXSRuntime(startInfo);
+        ApplyBundledMXCRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
     }
@@ -293,6 +294,47 @@ internal sealed class SidecarSupervisor : IDisposable
         }
 
         startupTimeline.Mark("sidecar.nxs_runtime", new Dictionary<string, string>
+        {
+            ["source"] = "missing",
+        });
+    }
+
+    private void ApplyBundledMXCRuntime(ProcessStartInfo startInfo)
+    {
+        const string environmentKey = "NEXUS_MXC_EXECUTABLE";
+        if (startInfo.Environment.TryGetValue(environmentKey, out string? overridePath) &&
+            !string.IsNullOrWhiteSpace(overridePath))
+        {
+            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "override",
+                ["path"] = overridePath,
+            });
+            return;
+        }
+
+        if (locator.IsDevelopment)
+        {
+            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "development",
+            });
+            return;
+        }
+
+        string mxcPath = Path.Combine(locator.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec.exe");
+        if (File.Exists(mxcPath))
+        {
+            startInfo.Environment[environmentKey] = mxcPath;
+            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
+            {
+                ["source"] = "bundled",
+                ["path"] = mxcPath,
+            });
+            return;
+        }
+
+        startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
         {
             ["source"] = "missing",
         });
