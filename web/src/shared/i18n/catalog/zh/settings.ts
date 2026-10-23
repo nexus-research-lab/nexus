@@ -116,6 +116,7 @@ export const zhSettingsMessages = {
   "settings.runtime.section_description": "选择 Agent 内核，并配置内核支持的搜索能力。",
   "settings.runtime.kernel_title": "运行引擎",
   "settings.runtime.sandbox_check": "检查沙箱支持",
+  "settings.runtime.sandbox_check_action": "检查",
   "settings.runtime.sandbox_checking": "检查中…",
   "settings.runtime.sandbox_check_description": "检查运行沙箱所需的本机支持。",
   "settings.runtime.sandbox_unknown": "暂时无法确认沙箱支持，可稍后重试。",
