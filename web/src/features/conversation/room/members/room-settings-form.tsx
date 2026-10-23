@@ -1,5 +1,5 @@
 // INPUT: Room 基础设置草稿、成员候选与字段更新/提交命令。
-// OUTPUT: 使用共享表单与选择原语的 Room 名称、群主和协作设置。
+// OUTPUT: 使用共享表单与选择原语的 Room 名称、群主/主持 Agent 和协作设置。
 // POS: Room 创建/管理弹窗的设置组合层；不拥有草稿状态或服务端提交。
 
 import { Crown } from "lucide-react";
@@ -41,54 +41,96 @@ export function RoomSettingsForm({
   state,
 }: RoomSettingsFormProps) {
   const { t } = useI18n();
-  const hostOptions = [
-    { label: t("room.host_unset"), value: "" },
-    ...selectedAgents.map((agent) => ({
-      label: agent.name,
-      value: agent.agent_id,
-    })),
-  ];
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-4">
       <p className="dialog-label">{t("room.settings_title")}</p>
       <RoomIdentityFields avatar={state.avatar} name={state.name} disabled={isCreating} fallbackTitle={avatarFallbackTitle}
         onAvatarChange={setters.setAvatar} onNameChange={setters.setName} onSubmit={canSubmit ? onSubmit : undefined} />
-      <div className="flex flex-col gap-2 border-t divider-subtle pt-3">
-        <div className="flex items-center gap-2">
-          <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
-            <Crown className="h-3.5 w-3.5 text-primary" />
-            <span>{t("room.host_label")}</span>
-          </div>
-          <UiSelectMenu
-            ariaLabel={t("room.host_select_label")}
-            className="min-w-0 flex-1"
-            disabled={selectedAgents.length === 0 || isCreating}
-            onChange={setters.setHostAgentId}
-            options={hostOptions}
-            size="sm"
-            surface="dialog"
-            value={state.hostAgentId}
-          />
-        </div>
-        <RoomSettingCheckbox
-          checked={state.hostAutoReplyEnabled}
-          className="mt-1.5"
-          disabled={!state.hostAgentId || isCreating}
-          label={t("room.host_auto_reply_label")}
-          onChange={setters.setHostAutoReplyEnabled}
-        />
-        <RoomSettingCheckbox
-          checked={state.privateMessagesEnabled}
-          disabled={isCreating}
-          label={t("room.private_messages_label")}
-          onChange={setters.setPrivateMessagesEnabled}
-        />
-      </div>
+      <RoomHostSettingsSection
+        agents={selectedAgents}
+        disabled={isCreating}
+        hostAgentId={state.hostAgentId}
+        hostAutoReplyEnabled={state.hostAutoReplyEnabled}
+        onHostAgentChange={setters.setHostAgentId}
+        onHostAutoReplyChange={setters.setHostAutoReplyEnabled}
+        onPrivateMessagesChange={setters.setPrivateMessagesEnabled}
+        privateMessagesEnabled={state.privateMessagesEnabled}
+      />
     </div>
   );
 }
 
-function RoomSettingCheckbox({
+export function RoomHostSettingsSection({
+  agents,
+  disabled = false,
+  hostAgentId,
+  hostAutoReplyEnabled,
+  label,
+  onHostAgentChange,
+  onHostAutoReplyChange,
+  onPrivateMessagesChange,
+  privateMessagesEnabled = false,
+  selectAriaLabel,
+  selectDisabled,
+}: {
+  agents: RoomMemberAgentOption[];
+  disabled?: boolean;
+  hostAgentId: string;
+  hostAutoReplyEnabled: boolean;
+  label?: string;
+  onHostAgentChange: (agentId: string) => void;
+  onHostAutoReplyChange: (enabled: boolean) => void;
+  onPrivateMessagesChange?: (enabled: boolean) => void;
+  privateMessagesEnabled?: boolean;
+  selectAriaLabel?: string;
+  selectDisabled?: boolean;
+}) {
+  const { t } = useI18n();
+  const hostOptions = [
+    { label: t("room.host_unset"), value: "" },
+    ...agents.map((agent) => ({
+      label: agent.name,
+      value: agent.agent_id,
+    })),
+  ];
+  return (
+    <div className="flex flex-col gap-2 border-t divider-subtle pt-3">
+      <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
+          <Crown className="h-3.5 w-3.5 text-primary" />
+          <span>{label ?? t("room.host_label")}</span>
+        </div>
+        <UiSelectMenu
+          ariaLabel={selectAriaLabel ?? t("room.host_select_label")}
+          className="min-w-0 flex-1"
+          disabled={selectDisabled ?? (agents.length === 0 || disabled)}
+          onChange={onHostAgentChange}
+          options={hostOptions}
+          size="sm"
+          surface="dialog"
+          value={hostAgentId}
+        />
+      </div>
+      <RoomSettingCheckbox
+        checked={hostAutoReplyEnabled}
+        className="mt-1.5"
+        disabled={!hostAgentId || disabled}
+        label={t("room.host_auto_reply_label")}
+        onChange={onHostAutoReplyChange}
+      />
+      {onPrivateMessagesChange ? (
+        <RoomSettingCheckbox
+          checked={privateMessagesEnabled}
+          disabled={disabled}
+          label={t("room.private_messages_label")}
+          onChange={onPrivateMessagesChange}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function RoomSettingCheckbox({
   checked,
   className,
   disabled,

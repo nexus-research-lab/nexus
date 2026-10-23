@@ -11,6 +11,8 @@ const CONTROL_AUTH_BASE_URL = getControlAuthBaseUrl();
 
 export interface AuthStatus {
   multiplayer_enabled?: boolean;
+  /** 能力探测本身失败（旧服务缺接口、网络或 5xx），区别于部署明确关闭。 */
+  multiplayer_unavailable?: boolean;
   web_access_disabled?: boolean;
   auth_required: boolean;
   password_login_enabled: boolean;
@@ -102,12 +104,13 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     method: "GET",
     notify_on_401: false,
   });
-  // 部署能力独立于组织身份；旧服务没有该接口时保持关闭，不探测邀请目录。
+  // 部署能力独立于组织身份；探测失败时保持关闭且标记不可用，由界面提示而不是猜测开启。
   const capabilities = await requestApi<{ enabled: boolean }>(`${AUTH_API_BASE_URL}/team/capabilities`, {
     method: "GET",
     notify_on_401: false,
-  }).catch(() => ({ enabled: false }));
+  }).catch(() => null);
   localStatus.multiplayer_enabled = capabilities?.enabled === true;
+  localStatus.multiplayer_unavailable = capabilities === null;
   if (!isDesktopRuntime()) {
     return localStatus;
   }
@@ -125,6 +128,7 @@ export async function getAuthStatus(): Promise<AuthStatus> {
     return {
       ...remoteStatus,
       multiplayer_enabled: localStatus.multiplayer_enabled,
+      multiplayer_unavailable: localStatus.multiplayer_unavailable,
       auth_required: false,
 	  control_user_id: localStatus.control_user_id ?? remoteStatus.user_id,
       setup_enabled: false,

@@ -170,13 +170,14 @@ describe("ComposerRoomModelControl", () => {
     expect(screen.getByRole("dialog").style.maxHeight).toBe("82px");
     await user.keyboard("{ArrowDown}{ArrowRight}");
     const menu = screen.getByRole("menuitem", { name: /^Base/ }).closest('[role="menu"]') as HTMLElement;
-    expect(screen.getByRole("dialog").style.maxHeight).toBe("159px");
-    expect(menu.parentElement?.style.maxHeight).toBe("159px");
+    // 模型菜单常驻思考强度入口（不支持时显示不可用），高度预算比纯模型列表多一行。
+    expect(screen.getByRole("dialog").style.maxHeight).toBe("177px");
+    expect(menu.parentElement?.style.maxHeight).toBe("177px");
     expect(screen.getByRole("button", { name: "Go back" })).toBeTruthy();
     rerender(<Harness extraModels={30} />);
     expect(screen.getByRole("dialog").style.maxHeight).toBe("242px");
     expect(menu.className).toContain("overflow-y-auto");
-    expect(within(menu).getAllByRole("menuitem")).toHaveLength(33);
+    expect(within(menu).getAllByRole("menuitem")).toHaveLength(34);
     await user.keyboard("{End}{Enter}");
     expect(commands.resetModel).toHaveBeenCalledExactlyOnceWith("pixel");
   });
@@ -258,7 +259,8 @@ describe("ComposerRoomModelControl", () => {
     await user.keyboard("{ArrowDown}{ArrowRight}");
     expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: /^Base/ }));
     const modelMenu = screen.getByRole("menuitem", { name: /^Base/ }).closest('[role="menu"]')!;
-    expect(within(modelMenu as HTMLElement).getAllByRole("menuitem")).toHaveLength(3);
+    // 两个模型、思考强度入口与重置。
+    expect(within(modelMenu as HTMLElement).getAllByRole("menuitem")).toHaveLength(4);
     await user.click(screen.getByRole("menuitem", { name: /^Base/ }));
     // 选回继承模型交给控制器判定为清空覆盖；重置入口仍走 resetModel。
     expect(commands.updateModel).toHaveBeenLastCalledWith("pixel", "provider", "base");

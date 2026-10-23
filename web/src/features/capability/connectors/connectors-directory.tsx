@@ -290,7 +290,6 @@ export function ConnectorsDirectory() {
             {t("capability.custom_mcp_add")}
           </UiButton>
         ) : undefined}
-        description={t("capability.connectors_intro_description")}
         title={t("capability.connectors_intro_title")}
       >
         <ConnectorsSearchBar

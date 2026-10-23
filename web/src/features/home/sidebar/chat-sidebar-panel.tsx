@@ -8,10 +8,12 @@ import { memo } from "react";
 
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { TeamInvitationList } from "@/features/team/team-invitation-list";
+import { TeamCapabilityNotice } from "@/features/team/team-capability-notice";
 import { HomeDirectoryRefreshErrorNotice } from "@/features/home/home-directory-refresh-error-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 import {
   SidebarSearchAction,
   SidebarSearchField,
@@ -41,6 +43,8 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       }
     : undefined;
 
+  const { scrollRef, fadeProps } = useScrollFade();
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
@@ -57,66 +61,75 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         value={controller.list.query}
       />
 
-      {controller.invitations.enabled ? <TeamInvitationList
-        busyRoomId={controller.invitations.busyRoomId}
-        errorRoomId={controller.invitations.errorRoomId}
-        invitations={controller.invitations.invitations}
-        failed={controller.invitations.failed}
-        loading={controller.invitations.loading}
-        recoveryRooms={controller.invitations.recoveryRooms}
-        onRecover={controller.invitations.recover}
-        onRefresh={controller.invitations.refresh}
-        onResolve={(invitation, resolution) => { void controller.invitations.resolve(invitation, resolution); }}
-      /> : null}
+      <TeamCapabilityNotice />
 
-      {controller.list.isLoading ? (
-        <SidebarListLoadingRows />
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
-          {controller.list.hasError && controller.list.hasLoaded ? (
-            <HomeDirectoryRefreshErrorNotice
-              className="mb-1"
-              onRetry={controller.list.retry}
-            />
-          ) : null}
-          {controller.list.items.length > 0 ? (
-            controller.list.items.map((item) => (
-              <ConversationRow
-                isActive={controller.list.isItemActive(item)}
-                item={item}
-                key={item.id}
-                onClick={() => controller.list.openConversation(item)}
-                onDelete={item.canDelete ? () => controller.deletion.request(item) : undefined}
+      <div
+        ref={scrollRef}
+        {...fadeProps}
+        className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
+      >
+        {controller.invitations.enabled ? <TeamInvitationList
+          className="mx-0"
+          busyRoomId={controller.invitations.busyRoomId}
+          errorRoomId={controller.invitations.errorRoomId}
+          invitations={controller.invitations.invitations}
+          failed={controller.invitations.failed}
+          loading={controller.invitations.loading}
+          recoveryRooms={controller.invitations.recoveryRooms}
+          onRecover={controller.invitations.recover}
+          onRefresh={controller.invitations.refresh}
+          onResolve={(invitation, resolution) => { void controller.invitations.resolve(invitation, resolution); }}
+        /> : null}
+
+        {controller.list.isLoading ? (
+          <SidebarListLoadingRows />
+        ) : (
+          <>
+            {controller.list.hasError && controller.list.hasLoaded ? (
+              <HomeDirectoryRefreshErrorNotice
+                className="mb-1"
+                onRetry={controller.list.retry}
               />
-            ))
-          ) : controller.list.hasError && !controller.list.hasLoaded ? (
-            <SidebarEmptyGuide
-              actionLabel={t("sidebar.retry")}
-              description={t("sidebar.directory_load_failed_description")}
-              impact={t("sidebar.directory_load_failed_impact")}
-              icon={CircleAlert}
-              onAction={controller.list.retry}
-              title={t("sidebar.directory_load_failed")}
-            />
-          ) : (
-            <SidebarEmptyGuide
-              actionLabel={controller.list.query
-                ? undefined
-                : t("home.rooms_empty_action")}
-              description={controller.list.query
-                ? t("sidebar.no_matching_conversations_description")
-                : t("home.rooms_empty_description")}
-              icon={MessageSquarePlus}
-              onAction={controller.list.query
-                ? undefined
-                : controller.create.open}
-              title={controller.list.query
-                ? t("sidebar.no_matching_conversations")
-                : t("home.rooms_empty_title")}
-            />
-          )}
-        </div>
-      )}
+            ) : null}
+            {controller.list.items.length > 0 ? (
+              controller.list.items.map((item) => (
+                <ConversationRow
+                  isActive={controller.list.isItemActive(item)}
+                  item={item}
+                  key={item.id}
+                  onClick={() => controller.list.openConversation(item)}
+                  onDelete={item.canDelete ? () => controller.deletion.request(item) : undefined}
+                />
+              ))
+            ) : controller.list.hasError && !controller.list.hasLoaded ? (
+              <SidebarEmptyGuide
+                actionLabel={t("sidebar.retry")}
+                description={t("sidebar.directory_load_failed_description")}
+                impact={t("sidebar.directory_load_failed_impact")}
+                icon={CircleAlert}
+                onAction={controller.list.retry}
+                title={t("sidebar.directory_load_failed")}
+              />
+            ) : (
+              <SidebarEmptyGuide
+                actionLabel={controller.list.query
+                  ? undefined
+                  : t("home.rooms_empty_action")}
+                description={controller.list.query
+                  ? t("sidebar.no_matching_conversations_description")
+                  : t("home.rooms_empty_description")}
+                icon={MessageSquarePlus}
+                onAction={controller.list.query
+                  ? undefined
+                  : controller.create.open}
+                title={controller.list.query
+                  ? t("sidebar.no_matching_conversations")
+                  : t("home.rooms_empty_title")}
+              />
+            )}
+          </>
+        )}
+      </div>
 
       <ConfirmDialog
         busy={controller.deletion.action !== null}
@@ -147,6 +160,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
         isCreating={controller.create.isCreating}
         isOpen={controller.create.isOpen}
         onlineAvailable={controller.create.onlineAvailable}
+        onlineNotice={<TeamCapabilityNotice className="mx-0 mb-0" />}
         onCancel={controller.create.cancel}
         onConfirm={controller.create.submit}
         users={controller.create.users}

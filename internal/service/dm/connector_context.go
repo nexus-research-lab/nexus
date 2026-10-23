@@ -64,8 +64,9 @@ func (r *roundRunner) connectorContextualInputs() []runtimectx.ContextualInputBl
 	if r == nil || r.service == nil || r.connectorContext == "" {
 		return nil
 	}
-	key := r.sessionKey + "\x00" + textutil.PointerValue(r.session.SessionID)
-	if !r.service.Announcements.Changed(key, runtimectx.ContextualInputNameConnectors, r.connectorContext) {
+	// 键必须与 runtimehost 的 compact 清理一致（RuntimeSessionKey = sessionKey），SDK 会话代次单独传入。
+	generation := textutil.PointerValue(r.session.SessionID)
+	if !r.service.Announcements.Changed(r.sessionKey, generation, runtimectx.ContextualInputNameConnectors, r.connectorContext) {
 		return nil
 	}
 	return []runtimectx.ContextualInputBlock{runtimectx.NewContextualInputBlock(

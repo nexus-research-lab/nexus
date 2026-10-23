@@ -113,12 +113,26 @@ export function RoomSurfaceHeader({
   );
 
   return (
+    <RoomConversationHeaderEdge tourAnchor={CONVERSATION_TOUR_ANCHORS.header}>
+      {header}
+    </RoomConversationHeaderEdge>
+  );
+}
+
+export function RoomConversationHeaderEdge({
+  children,
+  tourAnchor,
+}: {
+  children: React.ReactNode;
+  tourAnchor?: string;
+}) {
+  return (
     <div
       className="nexus-room-conversation-header-edge"
       data-room-conversation-header-edge="true"
-      data-tour-anchor={CONVERSATION_TOUR_ANCHORS.header}
+      data-tour-anchor={tourAnchor}
     >
-      {header}
+      {children}
     </div>
   );
 }

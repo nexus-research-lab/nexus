@@ -24,6 +24,18 @@
   initial-value: 0px;
 }
 
+@property --sidebar-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --sidebar-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 @layer components {
   /* 全站图标统一 1.5 细描边，与侧栏折叠控制同一笔重；显式加粗的勾选等强调线宽继续生效。 */
   svg.lucide[stroke-width="2"] {
@@ -609,6 +621,57 @@
   [data-message-detail-scroll]:has([data-message-detail-sticky-header="true"])[data-message-detail-fade="top"] {
     mask-image: none;
     -webkit-mask-image: none;
+  }
+
+  /*
+   * 侧栏等滚动容器的上下渐隐：
+   * 支持滚动时间轴的合成器直接按 scrollTop 推出渐隐；不支持时由 data-sidebar-fade 控制。
+   */
+  @supports (animation-timeline: scroll()) {
+    [data-sidebar-scroll] {
+      mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--sidebar-fade-top, 0px),
+        #000 calc(100% - var(--sidebar-fade-bottom, 0px)),
+        transparent 100%
+      );
+      -webkit-mask-image: linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 var(--sidebar-fade-top, 0px),
+        #000 calc(100% - var(--sidebar-fade-bottom, 0px)),
+        transparent 100%
+      );
+      animation: nexus-sidebar-fade-top linear both, nexus-sidebar-fade-bottom linear both;
+      animation-timeline: scroll(self), scroll(self);
+      animation-range: 0 1.25rem, calc(100% - 1.25rem) 100%;
+    }
+  }
+
+  @keyframes nexus-sidebar-fade-top {
+    from { --sidebar-fade-top: 0px; }
+    to { --sidebar-fade-top: 1.25rem; }
+  }
+
+  @keyframes nexus-sidebar-fade-bottom {
+    from { --sidebar-fade-bottom: 1.25rem; }
+    to { --sidebar-fade-bottom: 0px; }
+  }
+
+  [data-sidebar-scroll][data-sidebar-fade="both"] {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+  }
+
+  [data-sidebar-scroll][data-sidebar-fade="bottom"] {
+    mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.25rem), transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 1.25rem), transparent 100%);
+  }
+
+  [data-sidebar-scroll][data-sidebar-fade="top"] {
+    mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem, #000 100%);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem, #000 100%);
   }
 
   /* runtime 终态后 Markdown 仍可能排空平滑输出；正文完全展示前不提前露出页脚。 */

@@ -78,7 +78,6 @@ export function PairingsDirectory() {
               </UiButton>
             </div>
           )}
-          description={t("capability.pairings_intro_description")}
           title={t("capability.pairings_intro_title")}
         >
           {controller.loading && controller.items.length === 0 ? (

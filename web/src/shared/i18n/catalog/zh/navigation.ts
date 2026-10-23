@@ -166,6 +166,8 @@ export const zhNavigationMessages = {
   "team.direct_failed": "暂时无法打开私聊，请重试。",
   "team.directory_failed": "成员目录加载失败。",
   "team.no_people": "没有匹配的成员",
+  "team.capability_unavailable": "在线服务暂不可用",
+  "team.capability_unavailable_impact": "无法确认线上多人能力，在线群聊、私聊与邀请暂时隐藏，本地群聊不受影响。线上服务可能正在升级或版本过旧，请稍后重试。",
   "team.shared_room": "多人共享 Room",
   "team.shared_room_summary": "与团队成员共享的消息",
   "team.loading": "正在加载团队消息…",

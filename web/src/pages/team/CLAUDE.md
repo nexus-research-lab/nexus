@@ -51,13 +51,13 @@
 | 展示面 | 统一入口与状态 |
 | --- | --- |
 | 真人消息 | `MessageUserSection`；其他真人只增加身份信息，不重建气泡和复制动作 |
-| Agent 回复与未回复占位 | `MessageItem` / `room_result`；未回复时仍显示身份与任务状态 |
+| Agent 回复与未回复占位 | `RoomAgentResultCard`（封装 `MessageItem` / `room_result`）；未回复时仍显示身份与任务状态 |
 | Agent 操作条 | `RoomAgentExecutionActions` + `ThreadActionButton`，不把 Thread 放在真人名字旁 |
 | Thread 状态 | 原生执行状态决定活动态；公开 final/任务终态补读历史，历史加载不等于正在思考 |
-| Thread/辅助侧栏 | 原生尺寸约束、鼠标与键盘 resize；窄屏使用 Room overlay，隐藏重复 Thread 副标题 |
-| 顶部栏目 | 原生栏目模型与成员头像栈；在线只有一个共享会话，不提供假的新建/关闭会话按钮 |
+| Thread/辅助侧栏 | `RoomSidePanelContainer` + `RoomAuxiliaryTabContent`；窄屏使用 Room overlay，隐藏重复 Thread 副标题 |
+| 顶部栏目 | `RoomConversationHeaderEdge` + 原生栏目模型与成员头像栈；在线只有一个共享会话，不提供假的新建/关闭会话按钮 |
 | 输入与 @ | `ComposerPanel`、共享 mention picker/chip；候选浮层在整个输入壳上方 |
-| 群设置 | Room 共同表单原语；人员/Agent 分区，当前远程账户补齐本人头像 |
+| 群设置 | `RoomDialogColumns`、`RoomIdentityFields`、`RoomHostSettingsSection`、`RoomMemberDirectory`、`RoomMemberTypeTabs`、`RoomAgentParticipationButton`；当前远程账户补齐本人头像 |
 | 阅读与恢复 | 原生 follow-scroll；刷新保留消息，错误可重试，发送失败保留草稿 |
 | 消息附件 | 上传复用群文件 API，冻结引用到发件箱；支持无正文附件、消息下载和节点原生 Room 输入，上传失败不降级为纯文本 |
 | Slash 命令 | 共用补全 UI 和服务端产品命令定义，显式 @ 目标后进入原生 Room 展开；不远程调用宿主管理入口 |

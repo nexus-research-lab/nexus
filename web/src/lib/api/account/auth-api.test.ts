@@ -18,7 +18,13 @@ describe("getAuthStatus", () => {
     if (enabled === undefined) requestApi.mockRejectedValueOnce(new Error("not deployed"));
     else requestApi.mockResolvedValueOnce({ enabled });
     requestApi.mockResolvedValueOnce({ authenticated: true, user_id: "remote", organization_id: "org", auth_method: "password" });
-    await expect(getAuthStatus()).resolves.toMatchObject({ user_id: "local", organization_id: "org", multiplayer_enabled: false });
+    await expect(getAuthStatus()).resolves.toMatchObject({
+      user_id: "local",
+      organization_id: "org",
+      multiplayer_enabled: false,
+      // 部署明确关闭不提示；探测失败（旧服务 404、网络）才标记不可用。
+      multiplayer_unavailable: enabled === undefined,
+    });
   });
 
   it("keeps the Desktop local owner while projecting the remote account", async () => {

@@ -3,6 +3,8 @@
 - 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
 
 
+- 聊天与联系人侧栏的搜索框与提醒条固定在顶端不参与滚动；下方目录列表独立滚动（`scrollbar-stable-gutter` 预留滚动条宽度，列表内的加载占位与邀请列表不再自带水平边距），并通过 `useScrollFade` 与 `data-sidebar-scroll` 在滚动上下端呈现类似聊天内容的淡入淡出遮罩。
+
 - 聊天摘要使用共享 Markdown `summary` 入口并注入当前语言的公式标记；不在侧栏运行 KaTeX、展示公式滚动区或修改原始摘要。行高/截断仍由共享列表及目录密度负责。
 - `sidebar-directory.ts` 只提供共享 Home 目录；聊天和联系人入口都不得在侧栏订阅 Agent runtime。
 - `../home-directory-refresh-error-notice.tsx` 是 Launcher、聊天侧栏和联系人侧栏共用的 stale 目录恢复入口；它只提供安全重读，并通过 `UiInlineNotice` 获取提示与动作视觉，不得自建错误卡片。
