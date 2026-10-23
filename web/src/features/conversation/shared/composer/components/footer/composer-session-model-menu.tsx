@@ -158,7 +158,7 @@ function SessionEffortEntryRow({
   onOpen: () => void;
 }) {
   const { t } = useI18n();
-  const supported = controller.effortLevels.length > 0;
+  const supported = (controller.effortLevels ?? []).length > 0;
   const expanded = Boolean(effortSide?.expanded);
   return (
     <UiMenuActionRow

@@ -140,7 +140,7 @@ export function buildSessionEffortItems(
   controller: ComposerSessionSettingsController,
   t: ReturnType<typeof useI18n>["t"],
 ): UiActionMenuItem[] {
-  const levels: Array<SessionEffortLevel | ""> = ["", ...controller.effortLevels];
+  const levels: Array<SessionEffortLevel | ""> = ["", ...(controller.effortLevels ?? [])];
   return levels.map((level) => ({
     checked: controller.effort === level,
     label: sessionEffortLabel(level, t),
@@ -163,7 +163,7 @@ export function applySessionEffortSelection(
     void controller.updateEffort("");
     return;
   }
-  const level = controller.effortLevels.find((candidate) => candidate === value);
+  const level = (controller.effortLevels ?? []).find((candidate) => candidate === value);
   if (level) void controller.updateEffort(level);
 }
 
@@ -222,7 +222,7 @@ export function getSessionModelMenuShape(
   const groupSizes = (controller.providerOptions?.items ?? [])
     .map((provider) => provider.models.length)
     .filter((size) => size > 0);
-  const effortCount = controller.effortLevels.length;
+  const effortCount = (controller.effortLevels ?? []).length;
   return {
     effortCount: effortCount > 0 ? effortCount + 1 : 0,
     // 强度入口常驻（不支持时置灰），与重置共两行。

@@ -76,7 +76,8 @@ export function ComposerModelPicker({
     if (blocked) close();
   }, [blocked, close]);
 
-  const sideEffort = canShowSideEffort && effortOpen && controller.effortLevels.length > 0;
+  const effortLevels = controller.effortLevels ?? [];
+  const sideEffort = canShowSideEffort && effortOpen && effortLevels.length > 0;
   const inlineEffort = !canShowSideEffort && effortOpen;
   const shape = getSessionModelMenuShape(controller);
   const modelHeight = getSessionModelMenuContentHeight(shape, inlineEffort ? "effort" : "models");
@@ -139,7 +140,7 @@ export function ComposerModelPicker({
     if (moveFocus || inlineEffort) pendingFocusRef.current = "entry";
     setEffortOpen(false);
   };
-  const effortVisible = controller.effortLevels.length > 0 && Boolean(controller.effort);
+  const effortVisible = effortLevels.length > 0 && Boolean(controller.effort);
 
   return (
     <>
