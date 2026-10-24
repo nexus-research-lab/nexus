@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-24
+
 ### Added
 
 - 模型选择器新增“思考强度”：当前模型支持时（Claude Opus/Sonnet 4.6 及以后、OpenAI 推理系列、DeepSeek V4、GLM-5.3），在模型菜单底部的“思考强度 ›”行悬浮或点击，于模型面板左侧展开档位侧栏（窄窗口时原位进入）选择自动/低/中/高/最高；不支持的模型该行置灰并标注“当前模型不支持”，按会话保存，入口显示为“模型 · 强度”；换模型时不支持的档位自动回到“自动”，改强度会在下一轮重启该会话的运行时生效。模型菜单同时改为按 Provider 分组、标出默认模型，DM 浮层收窄到 288px，模型行改用更紧凑的 28px 行高。
