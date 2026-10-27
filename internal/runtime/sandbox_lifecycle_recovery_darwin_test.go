@@ -61,7 +61,7 @@ func TestLifecycleRecoveryBatchPreservesFailure(t *testing.T) {
 	store := &lifecycleFaultStore{Repository: repo, fail: keys[0], failure: failure, holding: &holding}
 	m := NewManager()
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: base.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: base.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	batch, err := m.RecoverPendingSandboxLifecycles(t.Context(), ownership, "", 2)

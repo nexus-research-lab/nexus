@@ -4,6 +4,7 @@
 package runtime
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestSupervisedReceiptKeepsOriginalProcessAcrossWarmStartup(t *testing.T) {
 	})
 	m := NewManagerWithFactory(factory)
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: filepath.Join(t.TempDir(), "bootstrap.exe"), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	options := bridge.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}
@@ -65,7 +66,7 @@ func TestSupervisedReceiptRejectsMissingOriginalProcess(t *testing.T) {
 	client := &receiptRuntimeClient{receipt: SandboxEffectivePolicyReceipt{Version: 1, RuntimeKind: bridge.RuntimeNXS, PolicyDigest: "test-policy", ConfirmedAt: time.Now().UTC()}}
 	m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return client }))
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: filepath.Join(t.TempDir(), "bootstrap.exe"), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	startup, err := m.BeginClientStartup(t.Context(), "session", "owner")

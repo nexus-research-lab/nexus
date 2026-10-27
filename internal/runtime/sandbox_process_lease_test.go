@@ -43,7 +43,7 @@ func TestSandboxProcessSupervisorScratchBinding(t *testing.T) {
 		return NewAgentClient(o)
 	}))
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := m.GetOrCreate(t.Context(), "session", options); err == nil || calls != 0 {

@@ -323,7 +323,10 @@ internal sealed class SidecarSupervisor : IDisposable
         }
 
         string mxcPath = Path.Combine(locator.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec.exe");
-        if (File.Exists(mxcPath))
+        string mxcRoot = Path.GetDirectoryName(mxcPath)!;
+        string ffiPath = Path.Combine(mxcRoot, "mxc_ffi.dll");
+        string proxyPath = Path.Combine(mxcRoot, "winhttp-proxy-shim.exe");
+        if (File.Exists(mxcPath) && File.Exists(ffiPath) && File.Exists(proxyPath))
         {
             startInfo.Environment[environmentKey] = mxcPath;
             startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
@@ -337,6 +340,9 @@ internal sealed class SidecarSupervisor : IDisposable
         startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
         {
             ["source"] = "missing",
+            ["executable"] = File.Exists(mxcPath).ToString(),
+            ["ffi"] = File.Exists(ffiPath).ToString(),
+            ["proxy"] = File.Exists(proxyPath).ToString(),
         });
     }
 

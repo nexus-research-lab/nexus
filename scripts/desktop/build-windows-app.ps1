@@ -217,10 +217,14 @@ Push-Location $rootDir
 $previousCgoEnabled = $env:CGO_ENABLED
 $previousGoos = $env:GOOS
 $previousGoarch = $env:GOARCH
+$previousGoWork = $env:GOWORK
 try {
   $env:CGO_ENABLED = if ($env:CGO_ENABLED) { $env:CGO_ENABLED } else { "0" }
   $env:GOOS = "windows"
   $env:GOARCH = $goArch
+  # Desktop bundles are built as an independent module. A repository go.work
+  # must not change the package's build graph.
+  $env:GOWORK = "off"
   $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
   $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
   go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
@@ -244,6 +248,7 @@ try {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
   if ($null -eq $previousGoarch) { Remove-Item Env:GOARCH -ErrorAction SilentlyContinue } else { $env:GOARCH = $previousGoarch }
+  if ($null -eq $previousGoWork) { Remove-Item Env:GOWORK -ErrorAction SilentlyContinue } else { $env:GOWORK = $previousGoWork }
   Pop-Location
 }
 

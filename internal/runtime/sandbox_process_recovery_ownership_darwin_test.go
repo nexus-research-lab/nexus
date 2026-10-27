@@ -37,7 +37,7 @@ func TestSandboxProcessRecoveryRequiresLiveMatchingOwnership(t *testing.T) {
 	h.root = root
 	m := NewManager()
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := h.Reserve(t.Context(), intent); err != nil {

@@ -143,7 +143,7 @@ func TestSupervisedScratchIntentPersistsAndRechecksIdentity(t *testing.T) {
 	h, store, intent := newProcessHostFixture(t)
 	manager := NewManager()
 	manager.SetSandboxPolicyReceiptStore(store)
-	if err := manager.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := manager.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "session", Root: t.TempDir()})

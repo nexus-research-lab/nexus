@@ -23,7 +23,7 @@ func TestSandboxProcessRecoveryExactScope(t *testing.T) {
 			ctx := t.Context()
 			m := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return &fakeRuntimeClient{} }))
 			m.SetSandboxPolicyReceiptStore(store)
-			if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: i.HelperSHA256}); err != nil {
+			if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: i.HelperSHA256}); err != nil {
 				t.Fatal(err)
 			}
 			if mode == "active_client" {

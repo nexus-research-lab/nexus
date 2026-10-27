@@ -73,5 +73,12 @@ assert.match(
   sidecarSupervisorSource,
   /Path\.Combine\(locator\.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec\.exe"\)/,
 );
+for (const component of ["mxc_ffi.dll", "winhttp-proxy-shim.exe"]) {
+  assert.match(
+    sidecarSupervisorSource,
+    new RegExp(`Path\.Combine\\(mxcRoot, "${component.replace(".", "\\.")}"\\)`),
+    `sidecar must validate bundled MXC component ${component}`,
+  );
+}
 
 console.log("Windows installer shutdown and per-user installation contracts verified");

@@ -466,6 +466,8 @@ if ([string]::IsNullOrWhiteSpace($AppBuildDir)) {
 if ([string]::IsNullOrWhiteSpace($OutputDir)) {
   $OutputDir = Join-Path $windowsDir ".build/package"
 }
+$AppBuildDir = [IO.Path]::GetFullPath($AppBuildDir)
+$OutputDir = [IO.Path]::GetFullPath($OutputDir)
 if ([string]::IsNullOrWhiteSpace($PackageName)) {
   $PackageName = "$AppName-windows-$appVersion-$resolvedBuildNumber"
 }

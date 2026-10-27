@@ -106,6 +106,14 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 	options.Env["NEXUS_CONFIG_DIR"] = filepath.Join(root, "config")
 	options.Env["CLAUDE_CONFIG_DIR"] = filepath.Join(root, "config")
 	options.Env["TMPDIR"] = scratch
+	// The desktop host injects the bundled MXC launcher through the process
+	// environment. Carry that explicit override into the isolated compatibility
+	// session so the check exercises the same native path as the shipped app.
+	for _, name := range []string{"NEXUS_MXC_EXECUTABLE", "NEXUS_REQUIRE_NATIVE_MXC"} {
+		if value := os.Getenv(name); value != "" {
+			options.Env[name] = value
+		}
+	}
 	options.Skills = agentclient.SkillOptions{Mode: agentclient.SkillModeNone}
 	options.MCP.StrictConfig = true
 	options.Runtime.InitializeTimeout = 60 * time.Second
