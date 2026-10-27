@@ -69,4 +69,15 @@ assert.match(installerSource, /RestartApplications=no/);
 assert.match(installerSource, /^PrivilegesRequired=lowest\r?$/m);
 assert.match(installerSource, /^DefaultDirName=\{localappdata\}\\Programs\\[^\r\n]+\r?$/m);
 
+// Closing must leave the WPF Closing callback before requesting a second close.
+const windowSource = read("desktop/windows/Nexus.Desktop/Window/MainWindow.xaml.cs");
+const closing = windowSource.slice(windowSource.indexOf("protected override void OnClosing"), windowSource.indexOf("protected override void OnClosed"));
+assert.doesNotMatch(closing, /\bClose\(\)/);
+assert.match(closing, /App\.RequestApplicationExit\(0\)/);
+const appSource = read("desktop/windows/Nexus.Desktop/App.xaml.cs");
+assert.match(appSource, /await sidecar\.StopAsync\(\)/);
+assert.match(appSource, /sidecar\?\.Dispose\(\);[\s\S]*singleInstance\?\.Dispose\(\)/);
+assert.doesNotMatch(coordinatorSource, /serverTask\?\.Wait\(/);
+assert.doesNotMatch(sidecarSupervisorSource, /GetProcessesByName/);
+
 console.log("Windows installer shutdown and per-user installation contracts verified");

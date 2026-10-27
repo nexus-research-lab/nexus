@@ -49,7 +49,7 @@ internal sealed class DesktopSingleInstanceCoordinator : IDisposable
                 {
                     await pipe.WaitForConnectionAsync(cancellation.Token);
                     using StreamReader reader = new(pipe, Encoding.UTF8);
-                    string message = await reader.ReadToEndAsync();
+                    string message = await reader.ReadToEndAsync(cancellation.Token);
                     startupTimeline.Mark("single_instance.activation_received");
                     await handleActivationAsync(message);
                 }
@@ -88,6 +88,14 @@ internal sealed class DesktopSingleInstanceCoordinator : IDisposable
         }
     }
 
+    public async Task StopServerAsync()
+    {
+        cancellation.Cancel();
+        if (serverTask is null) return;
+        try { await serverTask.WaitAsync(TimeSpan.FromSeconds(1)); }
+        catch (OperationCanceledException) { }
+    }
+
     public void Dispose()
     {
         cancellation.Cancel();
@@ -101,14 +109,8 @@ internal sealed class DesktopSingleInstanceCoordinator : IDisposable
         catch (ApplicationException)
         {
         }
-        try
-        {
-            serverTask?.Wait(500);
-        }
-        catch (AggregateException)
-        {
-        }
         mutex.Dispose();
-        cancellation.Dispose();
+        if (serverTask is null) cancellation.Dispose();
+        else _ = serverTask.ContinueWith(_ => cancellation.Dispose(), TaskScheduler.Default);
     }
 }

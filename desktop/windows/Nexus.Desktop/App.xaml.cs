@@ -24,6 +24,11 @@ public partial class App : System.Windows.Application
     private MainWindow? mainWindow;
     private DesktopWebRoute? pendingActivationRoute;
     private bool exitRequested;
+    private bool exitCleanupComplete;
+    private readonly CancellationTokenSource startupCancellation = new();
+    private Task<SidecarRuntimeConfig>? sidecarStartup;
+
+    internal static bool IsExitCleanupComplete => Current is App app && app.exitCleanupComplete;
 
     internal static bool IsExplicitExitRequested => Current is App app && app.exitRequested;
 
@@ -31,12 +36,41 @@ public partial class App : System.Windows.Application
     {
         if (Current is App app)
         {
+            if (app.exitRequested) return;
             app.exitRequested = true;
-            app.Shutdown(exitCode);
+            app.startupCancellation.Cancel();
+            // Leave OnClosing before the eventual Shutdown closes the window again.
+            app.Dispatcher.BeginInvoke(new Action(async () => await app.ExitAsync(exitCode)));
             return;
         }
 
         Current?.Shutdown(exitCode);
+    }
+
+    private async Task ExitAsync(int exitCode)
+    {
+        startupTimeline.Mark("app.exit_begin");
+        try
+        {
+            if (sidecarStartup is not null)
+            {
+                try { await sidecarStartup; }
+                catch (Exception) { /* Startup failure/cancellation still requires owned-process cleanup. */ }
+            }
+            if (sidecar is not null) await sidecar.StopAsync();
+            if (singleInstance is not null) await singleInstance.StopServerAsync();
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("app.exit_cleanup_failed", new Dictionary<string, string> { ["error"] = exception.Message });
+            DesktopDiagnosticsReport.WriteRuntimeIssue("shutdown-failure", exception.Message, null, startupTimeline);
+            exitCode = 1;
+        }
+        finally
+        {
+            exitCleanupComplete = true;
+            Shutdown(exitCode);
+        }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -65,11 +99,14 @@ public partial class App : System.Windows.Application
 
         try
         {
-            sidecar = new SidecarSupervisor(startupTimeline);
-            SidecarRuntimeConfig runtime = await sidecar.StartAsync();
+            sidecarStartup = Task.Run(async () =>
+            {
+                sidecar = new SidecarSupervisor(startupTimeline, startupCancellation.Token);
+                return await sidecar.StartAsync(startupCancellation.Token);
+            });
+            SidecarRuntimeConfig runtime = await sidecarStartup;
             if (exitRequested || Dispatcher.HasShutdownStarted)
             {
-                sidecar.Dispose();
                 return;
             }
             startupTimeline.Mark("sidecar.ready");
@@ -77,6 +114,7 @@ public partial class App : System.Windows.Application
 
             updateChecker = new DesktopUpdateChecker(startupTimeline);
             await updateChecker.ClearStaleUpdateCacheIfNeededAsync();
+            if (exitRequested) return;
             mainWindow = new MainWindow(runtime, startupTimeline, updateChecker);
             MainWindow = mainWindow;
             DesktopWebRoute launchRoute = pendingActivationRoute
@@ -101,15 +139,24 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        mainWindow?.DisposeWebView();
-        singleInstance?.Dispose();
-        sidecar?.Dispose();
-        base.OnExit(e);
+        try
+        {
+            mainWindow?.DisposeWebView();
+        }
+        finally
+        {
+            sidecar?.Dispose(); // Nonblocking Job close also covers OS session shutdown.
+            singleInstance?.Dispose(); // Release primary ownership only after backend cleanup.
+            base.OnExit(e);
+        }
     }
 
     protected override void OnSessionEnding(System.Windows.SessionEndingCancelEventArgs e)
     {
         exitRequested = true;
+        exitCleanupComplete = true;
+        startupCancellation.Cancel();
+        sidecar?.Dispose();
         base.OnSessionEnding(e);
     }
 

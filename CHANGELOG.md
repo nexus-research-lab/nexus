@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix Windows window-exit reentrancy and UI-thread shutdown waits. Own the backend with an atomic kill-on-close Job launch, keep the single-instance lock through cleanup, and validate saved process identity when recovering across package paths. Native Windows exit/relaunch acceptance remains pending.
+
+
 - Windows sandbox now uses the pinned nxs PSEC wrapper without bundled MXC binaries. Default restricted initialization allows three minutes, and sandbox checks explain elevated tokens and unsupported Windows versions. Native Windows acceptance and startup latency remain to be verified.
 
 

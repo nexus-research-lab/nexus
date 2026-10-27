@@ -80,6 +80,14 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Validate desktop shutdown ownership
+        shell: pwsh
+        run: |
+          node scripts/desktop/verify-windows-installer-contract.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop shutdown contract failed' }
+          dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Native desktop process ownership failed' }
+
       - name: Check Windows sandbox contracts and native components
         id: sandbox
         if: ${{ steps.sdk.outputs.available == 'true' }}

@@ -19,6 +19,14 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - Negotiation does not prove current dependencies or an installed effective policy. A capability acknowledgement does not prove that an older binary includes later policy fixes; fixed-version acceptance is separate.
 - macOS nxs builds declare native file-tool capability through Seatbelt; Windows nxs builds declare it only when the in-process PSEC probe succeeds, otherwise Windows desktop sessions fail closed before receiving a task.
 
+### Windows desktop shell shutdown
+
+- Window-close exit, tray exit and installer activation share one idempotent asynchronous exit coordinator. The `Closing` callback cancels the initial close; final shutdown occurs on a later dispatcher turn after backend cleanup. WPF uses explicit shutdown, and the single-instance mutex is retained until cleanup finishes or is recorded as failed.
+- The backend is created suspended with an atomic `PROC_THREAD_ATTRIBUTE_JOB_LIST` assignment to a shell-owned kill-on-close Job. Only its explicit stdin/stdout/stderr handles are inherited; execution resumes after ownership is established. Normal exit terminates the Job and waits for its active process count to reach zero within five seconds. Abnormal shell termination closes the Job through kernel handle cleanup. This is process ownership, not an SDK sandbox policy claim.
+- Startup recovery uses a held process handle plus PID, UTC creation time, executable path and state root recorded at launch. The executable may be at the previous package location. There is no same-name process sweep. Reused PIDs are left alone; missing ownership fields, unreadable records and identity-query errors fail closed and retain evidence. Legacy records without creation time require manual identification/exit of the old application.
+- Output draining and health polling are cancellable/bounded, and port waiting runs off the dispatcher. Shutdown failure writes `shutdown-failure-*.json` and retains the process receipt; closing a handle alone is not reported as confirmed cleanup.
+- `dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release` is Windows-native acceptance for inherited output/environment, tree termination and owner-crash cleanup. `-- identity-only` runs only platform-neutral receipt checks. Cross-compilation and source contracts do not replace native window-close, immediate relaunch, repackaging or PSEC nested-Job validation.
+
 ### Windows Bridge process lifecycle
 
 - Implemented independently of SDK sandbox capability.

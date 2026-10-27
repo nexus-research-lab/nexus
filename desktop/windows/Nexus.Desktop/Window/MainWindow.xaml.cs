@@ -1,3 +1,6 @@
+// INPUT: Window, tray and menu actions plus the application exit coordinator state.
+// OUTPUT: Window presentation and exit requests; Closing never recursively closes the window.
+// POS: Windows shell surface; application and backend cleanup are owned by App.
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -36,7 +39,6 @@ public partial class MainWindow : System.Windows.Window
     private bool flashingAttention;
     private bool closed;
     private bool closePromptShown;
-    private bool exitRequested;
     private bool webViewRecreateInFlight;
 
     internal MainWindow(
@@ -77,7 +79,7 @@ public partial class MainWindow : System.Windows.Window
         }
 
         e.Cancel = true;
-        if (closePromptShown)
+        if (App.IsExplicitExitRequested || closePromptShown)
         {
             return;
         }
@@ -101,8 +103,7 @@ public partial class MainWindow : System.Windows.Window
         }
         else if (action == "exit")
         {
-            exitRequested = true;
-            Close();
+            App.RequestApplicationExit(0);
         }
     }
 
@@ -116,7 +117,7 @@ public partial class MainWindow : System.Windows.Window
 
         if (System.Windows.Application.Current?.Dispatcher.HasShutdownStarted == false)
         {
-            System.Windows.Application.Current.Shutdown(0);
+            App.RequestApplicationExit(0);
         }
     }
 
@@ -319,7 +320,7 @@ public partial class MainWindow : System.Windows.Window
 
     private bool ShouldCloseForExit()
     {
-        return exitRequested || App.IsExplicitExitRequested;
+        return App.IsExitCleanupComplete;
     }
 
     private void HideToTray()
@@ -359,7 +360,6 @@ public partial class MainWindow : System.Windows.Window
             return;
         }
 
-        exitRequested = true;
         App.RequestApplicationExit(0);
     }
 

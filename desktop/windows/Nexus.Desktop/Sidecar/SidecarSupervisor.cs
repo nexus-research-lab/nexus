@@ -1,3 +1,6 @@
+// INPUT: Trusted desktop runtime configuration and durable sidecar identity.
+// OUTPUT: Job-owned backend startup, bounded asynchronous shutdown and conservative recovery.
+// POS: Windows sidecar lifecycle; native process primitives live in SidecarProcessLifetime.
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
@@ -11,7 +14,7 @@ namespace Nexus.Desktop.Sidecar;
 internal sealed class SidecarSupervisor : IDisposable
 {
     private const int OutputTailLineLimit = 200;
-    private const int StopTimeoutMilliseconds = 3000;
+    private const int StopTimeoutMilliseconds = 5000;
     private const int ReapTimeoutMilliseconds = 3000;
 
     private readonly DesktopStartupTimeline startupTimeline;
@@ -21,14 +24,17 @@ internal sealed class SidecarSupervisor : IDisposable
     private readonly List<string> stdoutTail = [];
     private readonly List<string> stderrTail = [];
     private Process? process;
+    private SidecarProcessLifetime? lifetime;
+    private Task? stopTask;
+    private Task? outputTask;
 
-    public SidecarSupervisor(DesktopStartupTimeline startupTimeline)
+    public SidecarSupervisor(DesktopStartupTimeline startupTimeline, CancellationToken cancellationToken = default)
     {
         this.startupTimeline = startupTimeline;
         locator = SidecarBundleLocator.Resolve();
         startupTimeline.Mark("sidecar.reap_begin");
         ReapOrphanedSidecars();
-        int port = SidecarPortAllocator.Allocate(startupTimeline);
+        int port = SidecarPortAllocator.Allocate(startupTimeline, cancellationToken);
         runtime = new SidecarRuntimeConfig(
             Port: port,
             SessionToken: DesktopSessionToken.Generate(),
@@ -43,85 +49,55 @@ internal sealed class SidecarSupervisor : IDisposable
         });
     }
 
-    public async Task<SidecarRuntimeConfig> StartAsync()
+    public async Task<SidecarRuntimeConfig> StartAsync(CancellationToken cancellationToken = default)
     {
         startupTimeline.Mark("sidecar.launch_begin");
         ProcessStartInfo startInfo = BuildStartInfo();
-        process = Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动 nexus-server。");
-        process.OutputDataReceived += (_, args) =>
-        {
-            if (!string.IsNullOrWhiteSpace(args.Data))
-            {
-                RecordOutputTail(stdoutTail, args.Data);
-                Trace.WriteLine($"[Nexus Sidecar stdout] {args.Data}");
-            }
-        };
-        process.ErrorDataReceived += (_, args) =>
-        {
-            if (!string.IsNullOrWhiteSpace(args.Data))
-            {
-                RecordOutputTail(stderrTail, args.Data);
-                Trace.WriteLine($"[Nexus Sidecar stderr] {args.Data}");
-            }
-        };
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
+        cancellationToken.ThrowIfCancellationRequested();
+        lifetime = SidecarProcessLifetime.Start(startInfo);
+        process = lifetime.Process;
+        outputTask = lifetime.CaptureOutputAsync(
+            line => RecordOutputTail(stdoutTail, line),
+            line => RecordOutputTail(stderrTail, line));
         startupTimeline.Mark("sidecar.process_started", new Dictionary<string, string>
         {
             ["pid"] = process.Id.ToString(),
         });
         WriteProcessRecord(process);
 
-        await WaitUntilHealthyAsync();
+        await WaitUntilHealthyAsync(cancellationToken);
         startupTimeline.Mark("sidecar.health_ready");
         return runtime;
     }
 
-    public void Dispose()
+    public Task StopAsync() => stopTask ??= StopOwnedProcessAsync();
+
+    private async Task StopOwnedProcessAsync()
     {
-        bool removeRecord = true;
+        if (lifetime is null) return;
+        startupTimeline.Mark("sidecar.stop_begin", new Dictionary<string, string> { ["pid"] = lifetime.Process.Id.ToString() });
         try
         {
-            if (process is { HasExited: false })
-            {
-                startupTimeline.Mark("sidecar.stop_begin", new Dictionary<string, string>
-                {
-                    ["pid"] = process.Id.ToString(),
-                });
-                process.Kill(entireProcessTree: true);
-                if (process.WaitForExit(StopTimeoutMilliseconds))
-                {
-                    startupTimeline.Mark("sidecar.stop_finished", new Dictionary<string, string>
-                    {
-                        ["pid"] = process.Id.ToString(),
-                        ["exit_code"] = process.ExitCode.ToString(),
-                    });
-                }
-                else
-                {
-                    removeRecord = false;
-                    startupTimeline.Mark("sidecar.stop_failed", new Dictionary<string, string>
-                    {
-                        ["pid"] = process.Id.ToString(),
-                    });
-                }
-            }
+            await lifetime.StopAsync(TimeSpan.FromMilliseconds(StopTimeoutMilliseconds));
+            RemoveProcessRecord();
+            startupTimeline.Mark("sidecar.stop_finished");
         }
-        catch (InvalidOperationException)
+        catch (Exception exception)
         {
-        }
-        catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or NotSupportedException)
-        {
-            removeRecord = false;
+            // Preserve the identity receipt until termination can be confirmed on the next launch.
+            startupTimeline.Mark("sidecar.stop_failed", new Dictionary<string, string> { ["error"] = exception.Message });
+            throw;
         }
         finally
         {
-            if (removeRecord)
-            {
-                RemoveProcessRecord();
-            }
-            process?.Dispose();
+            Dispose();
         }
+    }
+
+    public void Dispose()
+    {
+        lifetime?.Dispose();
+        lifetime = null;
     }
 
     private ProcessStartInfo BuildStartInfo()
@@ -321,160 +297,32 @@ internal sealed class SidecarSupervisor : IDisposable
     private void ReapOrphanedSidecars()
     {
         SidecarProcessRecord? record = ReadProcessRecord();
-        if (record is not null)
+        if (record is null) return;
+        if (record.Pid <= 0) throw new InvalidOperationException("旧后端进程记录无效，无法安全回收。");
+        Process orphan;
+        try { orphan = Process.GetProcessById(record.Pid); }
+        catch (ArgumentException) { RemoveProcessRecord(); return; }
+        using (orphan)
         {
-            ReapRecordedProcess(record);
-        }
-        ReapMatchingProcesses();
-    }
-
-    private void ReapRecordedProcess(SidecarProcessRecord record)
-    {
-        if (record.Pid <= 0 || !SamePath(record.ExecutablePath, locator.Command))
-        {
-            RemoveProcessRecord();
-            return;
-        }
-
-        try
-        {
-            using Process orphan = Process.GetProcessById(record.Pid);
-            if (!IsExpectedSidecar(orphan))
+            // Hold the process handle before checking identity; PID reuse must never select another process.
+            _ = orphan.Handle;
+            if (orphan.HasExited) { RemoveProcessRecord(); return; }
+            if (record.StartTimeUtcTicks == 0 || !SidecarProcessRecord.SamePath(record.StateRoot, DesktopPaths.RootDirectory))
+                throw new InvalidOperationException("旧后端的进程身份记录不完整，请退出旧版本 Nexus 后重试；未自动结束不明进程。");
+            if (orphan.StartTime.ToUniversalTime().Ticks != record.StartTimeUtcTicks)
             {
-                RemoveProcessRecord();
+                RemoveProcessRecord(); // The recorded process is gone; this PID now belongs to someone else.
                 return;
             }
-
-            startupTimeline.Mark("sidecar.reap_recorded", new Dictionary<string, string>
-            {
-                ["pid"] = orphan.Id.ToString(),
-            });
-            KillProcessTree(orphan);
-        }
-        catch (ArgumentException)
-        {
+            if (!record.Matches(orphan.Id, orphan.StartTime.ToUniversalTime().Ticks, orphan.MainModule?.FileName, DesktopPaths.RootDirectory))
+                throw new InvalidOperationException("旧后端的可执行路径与身份记录不符，无法安全回收。");
+            startupTimeline.Mark("sidecar.reap_recorded", new Dictionary<string, string> { ["pid"] = orphan.Id.ToString() });
+            // The held process handle identifies the old backend even when the new package lives elsewhere.
+            // Its own bridge Jobs close with it. Never enumerate and kill unrelated same-name processes.
+            orphan.Kill();
+            if (!orphan.WaitForExit(ReapTimeoutMilliseconds))
+                throw new TimeoutException("旧 Nexus 后端未在回收期限内退出，请检查 shell.log 后重试。");
             RemoveProcessRecord();
-        }
-        catch (InvalidOperationException)
-        {
-            RemoveProcessRecord();
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-        }
-    }
-
-    private void ReapMatchingProcesses()
-    {
-        if (!Path.IsPathFullyQualified(locator.Command))
-        {
-            return;
-        }
-
-        string processName = Path.GetFileNameWithoutExtension(locator.Command);
-        if (string.IsNullOrWhiteSpace(processName))
-        {
-            return;
-        }
-
-        foreach (Process candidate in Process.GetProcessesByName(processName))
-        {
-            using (candidate)
-            {
-                if (candidate.Id == Environment.ProcessId || !IsExpectedSidecar(candidate))
-                {
-                    continue;
-                }
-
-                startupTimeline.Mark("sidecar.reap_matching", new Dictionary<string, string>
-                {
-                    ["pid"] = candidate.Id.ToString(),
-                });
-                KillProcessTree(candidate);
-            }
-        }
-    }
-
-    private void KillProcessTree(Process target)
-    {
-        int pid = target.Id;
-        if (TryKillProcess(target, true, out string reason))
-        {
-            RemoveProcessRecord();
-            return;
-        }
-
-        try
-        {
-            using Process retry = Process.GetProcessById(pid);
-            if (!IsExpectedSidecar(retry))
-            {
-                RemoveProcessRecord();
-                return;
-            }
-
-            startupTimeline.Mark("sidecar.reap_retry", new Dictionary<string, string>
-            {
-                ["pid"] = pid.ToString(),
-                ["reason"] = reason,
-            });
-
-            if (TryKillProcess(retry, false, out reason))
-            {
-                RemoveProcessRecord();
-                return;
-            }
-        }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
-        {
-            RemoveProcessRecord();
-            return;
-        }
-        catch (System.ComponentModel.Win32Exception exception)
-        {
-            reason = exception.GetType().Name;
-        }
-
-        startupTimeline.Mark(
-            reason == "Timeout" ? "sidecar.reap_timeout" : "sidecar.reap_failed",
-            new Dictionary<string, string>
-            {
-                ["pid"] = pid.ToString(),
-                ["reason"] = reason,
-            });
-    }
-
-    private static bool TryKillProcess(Process target, bool entireProcessTree, out string reason)
-    {
-        try
-        {
-            target.Kill(entireProcessTree);
-            if (target.WaitForExit(ReapTimeoutMilliseconds))
-            {
-                reason = "";
-                return true;
-            }
-            reason = "Timeout";
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or
-                                           System.ComponentModel.Win32Exception or
-                                           NotSupportedException)
-        {
-            reason = exception.GetType().Name;
-        }
-        return false;
-    }
-
-    private bool IsExpectedSidecar(Process target)
-    {
-        try
-        {
-            string? executablePath = target.MainModule?.FileName;
-            return SamePath(executablePath, locator.Command);
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            return false;
         }
     }
 
@@ -483,12 +331,12 @@ internal sealed class SidecarSupervisor : IDisposable
         try
         {
             Directory.CreateDirectory(DesktopPaths.RootDirectory);
-            var record = new SidecarProcessRecord(startedProcess.Id, locator.Command);
+            var record = new SidecarProcessRecord(startedProcess.Id, startedProcess.MainModule?.FileName ?? locator.Command, startedProcess.StartTime.ToUniversalTime().Ticks, DesktopPaths.RootDirectory);
             File.WriteAllText(DesktopPaths.SidecarPIDFilePath, JsonSerializer.Serialize(record));
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
-            Trace.WriteLine($"[Nexus Sidecar] failed to write pid record: {exception.Message}");
+            throw new InvalidOperationException("无法保存后端身份记录，停止启动以避免无法恢复的残留。", exception);
         }
     }
 
@@ -505,9 +353,7 @@ internal sealed class SidecarSupervisor : IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
-            RemoveProcessRecord();
-            Trace.WriteLine($"[Nexus Sidecar] removed invalid pid record: {exception.Message}");
-            return null;
+            throw new InvalidOperationException("无法读取旧后端身份记录；已保留原记录，请检查后重试。", exception);
         }
     }
 
@@ -526,42 +372,28 @@ internal sealed class SidecarSupervisor : IDisposable
         }
     }
 
-    private static bool SamePath(string? left, string? right)
+    private async Task WaitUntilHealthyAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
-        {
-            return false;
-        }
-        try
-        {
-            return string.Equals(
-                Path.GetFullPath(left),
-                Path.GetFullPath(right),
-                StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
-    }
+        using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(2) };
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(45));
 
-    private async Task WaitUntilHealthyAsync()
-    {
-        using HttpClient client = new();
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(45);
-
-        while (DateTimeOffset.UtcNow < deadline)
+        while (!deadline.IsCancellationRequested)
         {
             if (process is { HasExited: true })
             {
-                process.WaitForExit();
+                if (outputTask is not null)
+                {
+                    try { await outputTask.WaitAsync(TimeSpan.FromMilliseconds(250), cancellationToken); }
+                    catch (TimeoutException) { /* A descendant may still own a pipe; shutdown will close the Job. */ }
+                }
                 startupTimeline.Mark("sidecar.process_exited", ProcessExitMetadata(process));
                 throw new InvalidOperationException("nexus-server 在启动完成前退出。");
             }
 
             try
             {
-                using HttpResponseMessage response = await client.GetAsync(runtime.HealthUrl);
+                using HttpResponseMessage response = await client.GetAsync(runtime.HealthUrl, deadline.Token);
                 if (response.IsSuccessStatusCode)
                 {
                     return;
@@ -572,9 +404,17 @@ internal sealed class SidecarSupervisor : IDisposable
                 // sidecar 尚未监听端口，继续等待。
             }
 
-            await Task.Delay(300);
+            catch (OperationCanceledException)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (deadline.IsCancellationRequested) break;
+            }
+
+            try { await Task.Delay(300, deadline.Token); }
+            catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); break; }
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         startupTimeline.Mark("sidecar.health_timeout", OutputMetadata());
         throw new TimeoutException("等待 nexus-server 健康检查超时。");
     }
@@ -628,5 +468,3 @@ internal sealed class SidecarSupervisor : IDisposable
         }
     }
 }
-
-internal sealed record SidecarProcessRecord(int Pid, string ExecutablePath);
