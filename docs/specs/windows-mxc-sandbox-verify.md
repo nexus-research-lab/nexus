@@ -1,5 +1,7 @@
 # Windows MXC 沙箱：验证清单（2026-10-27）
 
+> **2026-10-27 更新**：本清单基于旧的 `wxc-exec` 方案，其中 `NEXUS_MXC_EXECUTABLE` 等环境变量已不再使用。当前的验证步骤以 [windows-sandbox-psec-plan.md](windows-sandbox-psec-plan.md) 第 6 节为准；本文第 4 节的端到端场景仍然适用。
+
 > 风险说明和修复方案见 [windows-mxc-sandbox-risks.md](windows-mxc-sandbox-risks.md)。
 
 ## 0. 代码版本

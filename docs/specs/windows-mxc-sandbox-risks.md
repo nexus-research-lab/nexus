@@ -1,5 +1,7 @@
 # Windows MXC 沙箱：已知风险与修复方案
 
+> **2026-10-27 更新**：Windows 沙箱已改为直接调用系统进程安全环境（不再使用 `wxc-exec`），R2（ACL/进程残留）、R3（目录拒绝后缀）、R4（重复探测）、R5（命令行长度）已在新方案中按设计处理，但仍需在 Windows 上验证。开发计划与后续任务见 [windows-sandbox-psec-plan.md](windows-sandbox-psec-plan.md)。
+
 本文记录 2026-10-27 静态复核 Windows 桌面沙箱代码后发现的风险，以及每项风险建议的验证方法和修复方式。代码版本：
 
 | 仓库 | 分支 | 提交 |
