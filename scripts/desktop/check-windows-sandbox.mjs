@@ -17,7 +17,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // SDK sandbox branch. Keep this exact commit in lockstep with the handoff
 // branch; an older component-only commit makes the required MXC test filter
 // silently run zero tests.
-const WINDOWS_NATIVE_SDK_COMMIT = "66ee1815168d7f785f3a3f3373a0fcb2582a69c0";
+const WINDOWS_NATIVE_SDK_COMMIT = "5e6732bfeeffc17533346d242d697cfef1b7b9a7";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestWindowsPrivateDesktopLifecycle",

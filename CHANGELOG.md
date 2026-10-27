@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再当作不存在而跳过其中的拒绝规则。
 - 修复用户消息气泡两三个字就换行：85% 宽度上限改为以消息行为基准，不再随气泡自身收缩。
 - 修复微信等频道恢复正常收发后仍提示“频道连接异常”：启动成功会清除上次遗留的错误，通道实时就绪时不再显示旧错误。
 - 整理配对页：下拉框文字改为左对齐，会话目标与处理智能体使用同一种选择框样式并铺满卡片，技术详情改为一行一项的清单。

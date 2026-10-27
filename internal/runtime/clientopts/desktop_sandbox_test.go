@@ -228,6 +228,8 @@ func TestDesktopSandboxWindowsNXSRestrictedRequiresHostResources(t *testing.T) {
 	input := AgentClientOptionsInput{
 		AppMode:               "desktop",
 		DesktopSandboxEnabled: true,
+		WorkspacePath:         t.TempDir(),
+		SkillDirectories:      []string{t.TempDir()},
 		SandboxResources: &agentclient.SandboxResourcePolicy{
 			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
 		},
@@ -248,6 +250,12 @@ func TestDesktopSandboxWindowsNXSRestrictedRequiresHostResources(t *testing.T) {
 		}
 		if got.Sandbox.AllowUnsandboxedCommands == nil || *got.Sandbox.AllowUnsandboxedCommands {
 			t.Fatalf("mode %s: resource policy left unsandboxed commands enabled", mode)
+		}
+		// Project metadata reads are handled by the SDK's read-only file helper;
+		// a workspace-local read grant is already covered by the workspace and
+		// must not be added here.
+		if !reflect.DeepEqual(got.Sandbox.Filesystem.AllowRead, input.SkillDirectories) {
+			t.Fatalf("mode %s: read grants = %#v, want only skill directories", mode, got.Sandbox.Filesystem.AllowRead)
 		}
 	}
 	withoutResources := input
