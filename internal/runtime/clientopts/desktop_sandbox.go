@@ -47,7 +47,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 			options.Runtime.InitializeTimeout = 3 * time.Minute
 		}
 		if desktopSandboxProcessElevated() {
-			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus")
+			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus。也可以前往「设置 → 沙箱」关闭桌面沙箱，再重新发起会话继续使用 Nexus；关闭后，命令与文件工具将不再受桌面沙箱隔离。")
 		}
 		if input.SandboxResources == nil {
 			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")

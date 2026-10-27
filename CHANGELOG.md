@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Explain how to disable desktop sandboxing in Settings and start a new session when Windows sandbox support is unavailable, including the loss of sandbox isolation.
+
 - Fix Windows window-exit reentrancy and UI-thread shutdown waits. Own the backend with an atomic kill-on-close Job launch, keep the single-instance lock through cleanup, and validate saved process identity when recovering across package paths. Native Windows exit/relaunch acceptance remains pending.
 
 
