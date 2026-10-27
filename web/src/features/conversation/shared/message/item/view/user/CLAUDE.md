@@ -17,3 +17,5 @@ User 入口在消费侧声明消息、正文、附件和复制动作的最小结
 无气泡 User 正文必须与 Assistant 正文复用 `nexus-chat-message-body-rhythm`，桌面与窄栏的头部到正文、正文到消息尾部间距不得各自覆写。
 
 User 入口按 exact Session、Agent、Message、round 身份重建局部编辑/复制/折叠状态，不能把旧草稿带到另一个消息。触屏无 hover 时，消息动作保持可见且可操作。
+
+外部 IM 经配对发进群聊的消息带 `external_source`（渠道 + 发送者称呼），`user-message-content.tsx` 在气泡顶部与 Goal 标记同层显示“来自微信 · 名称”；只做展示，不参与对齐或动作判断。

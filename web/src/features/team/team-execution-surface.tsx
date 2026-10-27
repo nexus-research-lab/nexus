@@ -1,5 +1,5 @@
 // INPUT: 当前群内属于本机用户的真实执行绑定、Agent 和选中的 Room 栏目。
-// OUTPUT: 复用 Room 工作图、子智能体、工作区与简介的本机执行面板。
+// OUTPUT: 复用 Room 共享辅助面板内容层（工作图、子智能体、工作区与简介）的本机执行面板。
 // POS: 仅适配身份，不把远程成员 ID 当作本机资源，也不上传本机私有文件。
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
@@ -10,14 +10,10 @@ import type { Agent } from "@/types/agent/agent";
 import { useAgentStore } from "@/store/agent";
 import { useExistingAgentOptionsCommands } from "@/features/agents/options/use-existing-agent-options-commands";
 import { refreshHomeDirectory } from "@/features/home/home-directory-resource";
-import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
-import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import { projectConversationTaskRuns } from "@/features/conversation/shared/todos/todo-projection-model";
-import { RoomSubagentTaskSurface } from "@/features/conversation/room/surface/room-subagent-task-surface";
-import { RoomAgentAboutSurface } from "@/features/conversation/room/surface/room-agent-about-surface";
+import { RoomAuxiliaryTabContent } from "@/features/conversation/room/surface/room-auxiliary-tab-content";
 import { RoomAgentSwitcher } from "@/features/conversation/room/surface/room-agent-switcher";
-import { RoomWorkspaceView } from "@/features/conversation/room/workspace/room-workspace-view";
 import { RoomMobileOverlayFrame } from "@/features/conversation/room/surface/mobile/room-mobile-overlay-frame";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import { UiIconButton } from "@/shared/ui/button/button";
@@ -67,12 +63,26 @@ function BoundExecutionSurface({ agent, binding, tab, compact, activeWorkspacePa
     if (workspaceAgentId !== undefined && workspaceAgentId !== agent.agent_id) return;
     onOpenWorkspaceFile(path);
   };
-  const panels = {
-    workgraph: <ExecutionWorkGraphSurface agents={members} directory={buildExecutionAgentDirectory(members)} resource={resource} taskRuns={projectConversationTaskRuns(conversation.messages, sessionKey)} onOpenWorkspaceFile={openFile} />,
-    subagents: <RoomSubagentTaskSurface currentAgentId={agent.agent_id} roomMembers={members} source={{kind: "room", room_id: binding.room_id, conversation_id: binding.conversation_id}} layout={compact ? "mobile" : "desktop"} onOpenWorkspaceFile={openFile} onClose={onClose} />,
-    workspace: <RoomWorkspaceView agentId={agent.agent_id} roomMembers={members} isDm={false} compact={compact} activeWorkspacePath={activeWorkspacePath} composerDraftScopeKey={null} onOpenWorkspaceFile={openFile} />,
-    about: <RoomAgentAboutSurface agent={agent} roomMembers={members} roomId={binding.room_id} conversationId={binding.conversation_id} isVisible={tab === "about"} onValidateAgentName={options.validateAgentName} onSaveAgentOptions={async (...args) => { await options.saveAgentOptions(...args); refreshHomeDirectory(); }} />,
-    chat: null,
-  };
-  return <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{panels[tab]}</div>;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <RoomAuxiliaryTabContent
+        activeTab={tab}
+        activeWorkspacePath={activeWorkspacePath}
+        compact={compact}
+        composerDraftScopeKey={null}
+        conversationId={binding.conversation_id}
+        currentAgent={agent}
+        executionResource={resource}
+        executionTaskRuns={projectConversationTaskRuns(conversation.messages, sessionKey)}
+        isDm={false}
+        onClose={onClose}
+        onOpenWorkspaceFile={openFile}
+        onSaveAgentOptions={async (...args) => { await options.saveAgentOptions(...args); refreshHomeDirectory(); }}
+        onValidateAgentName={options.validateAgentName}
+        roomId={binding.room_id}
+        roomMembers={members}
+        subagentTaskSource={{kind: "room", room_id: binding.room_id, conversation_id: binding.conversation_id}}
+      />
+    </div>
+  );
 }

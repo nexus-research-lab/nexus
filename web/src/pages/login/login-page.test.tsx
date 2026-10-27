@@ -43,9 +43,10 @@ describe("Login page", () => {
     </Routes></Wrapper>);
     const back = screen.getByRole("button", { name: zhNavigationMessages["login.skip"] });
     const submit = screen.getByRole("button", { name: zhNavigationMessages["login.submit"] });
-    expect(back.closest("form")).toBe(submit.closest("form"));
-    expect(back.parentElement).toBe(submit.parentElement);
-    expect(back.parentElement?.className).toContain("grid-cols-2");
+    // 返回属于页面级动作：位于窗口控制之后的左上角，不进入凭证表单。
+    expect(back.closest("form")).toBeNull();
+    expect(submit.closest("form")).not.toBeNull();
+    expect(back.closest("[data-desktop-window-controls-leading]")).not.toBeNull();
     fireEvent.click(back);
     expect(screen.getByText("Workspace")).toBeTruthy();
     expect(auth.login).not.toHaveBeenCalled();

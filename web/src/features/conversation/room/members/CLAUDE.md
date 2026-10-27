@@ -2,7 +2,8 @@
 
 ## 职责边界
 
-- `room-dialog-layout.tsx` 提供本地与在线群管理共用的双栏、头像名称表单和固定高度成员目录；只组合视图，不持有权限、草稿或提交事务。
+- `room-dialog-layout.tsx` 提供本地与在线群管理共用的双栏、头像名称表单、固定高度成员目录、人员/Agent 分段页签（`RoomMemberTypeTabs`）、Agent 参与暂停/恢复按钮（`RoomAgentParticipationButton`）和目录空态（`RoomDirectoryEmptyState`）；只组合视图，不持有权限、草稿或提交事务。
+- `room-settings-form.tsx` 提供本地与在线群共用的主持/群主 Agent 选择与自动回复表单块（`RoomHostSettingsSection`、`RoomSettingCheckbox`）。
 
 - `create-room-dialog.tsx` 只负责弹窗生命周期、区块组合和提交入口，消费已经完整化的具体参数。
 - `room-member-manager-dialog.tsx` 统一桌面与手机入口的管理模式初始值、Agent 目录合并和提交关闭事务；各 Header/Surface 共用 `use-room-member-manager.ts` 的单飞目录准备与临时打开态。

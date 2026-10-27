@@ -9,7 +9,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.2.5
+TAG ?= 0.2.6
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 CONTROL_PORT ?= 8020
@@ -208,7 +208,7 @@ check-architecture: ## Check internal production dependency boundaries
 	go run ./scripts/check-architecture
 
 check-normalization: ## Reject strings.TrimSpace on values already proven trimmed on linux/darwin/windows
-	cd tools/trimcheck && go run . ../..
+	cd tools/trimcheck && GOWORK=off go run . ../..
 
 check-go-vet: check-architecture ## Run Go static analysis checks
 	go vet -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...

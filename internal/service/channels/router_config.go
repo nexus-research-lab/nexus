@@ -19,6 +19,11 @@ func (s *ControlService) LoadConfiguredChannels(ctx context.Context) error {
 		}
 		if err := s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, row.ConfigJSON, row.CredentialsEncrypted); err != nil {
 			_ = s.updateChannelConfigRuntimeState(ctx, row.OwnerUserID, row.ChannelType, ChannelConfigStatusError, err.Error())
+			continue
+		}
+		// 启动成功必须清掉上次进程留下的 error/last_error，否则错误态会一直粘住，界面持续误报连接异常。
+		if row.Status == ChannelConfigStatusError || row.LastError.Valid {
+			_ = s.updateChannelConfigRuntimeState(ctx, row.OwnerUserID, row.ChannelType, s.runtimeStatusFor(row.OwnerUserID, row.ChannelType), "")
 		}
 	}
 	return nil
@@ -184,16 +189,24 @@ func (s *ControlService) registerConfiguredChannel(
 	return s.router.RegisterAndStartForOwner(ctx, config.ownerUserID, channel)
 }
 
+func (s *ControlService) runtimeStatusFor(ownerUserID string, channelType string) string {
+	if s.router != nil && s.router.IsReadyForOwner(ownerUserID, channelType) {
+		return ChannelConfigStatusConnected
+	}
+	return ChannelConfigStatusConfigured
+}
+
 func (s *ControlService) connectionStateFor(ownerUserID string, channelType string, status string) string {
 	status = firstNonEmpty(status, ChannelConfigStatusConfigured)
 	if status == ChannelConfigStatusDisabled {
 		return "disabled"
 	}
-	if status == ChannelConfigStatusError {
-		return "error"
-	}
+	// 实时 readiness 优先于持久化的 error：通道已恢复收发时，旧错误只是历史，不能继续投影为异常。
 	if s.router != nil && s.router.IsReadyForOwner(ownerUserID, channelType) {
 		return "connected"
+	}
+	if status == ChannelConfigStatusError {
+		return "error"
 	}
 	if status == ChannelConfigStatusConnected {
 		return ChannelConfigStatusConfigured

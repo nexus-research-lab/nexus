@@ -20,6 +20,7 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiResourceState } from "@/shared/ui/display/resource-state";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { UiListRow } from "@/shared/ui/list/list-row";
+import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 
 export function HumanContactsDirectory({sidebar = false, afterSearch}: {sidebar?: boolean; afterSearch?: ReactNode} = {}) {
   const { status } = useAuth();
@@ -28,6 +29,7 @@ export function HumanContactsDirectory({sidebar = false, afterSearch}: {sidebar?
 }
 
 function HumanContactsContent({currentUserId, sidebar, afterSearch}: {currentUserId: string; sidebar: boolean; afterSearch?: ReactNode}) {
+  const { scrollRef, fadeProps } = useScrollFade();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -73,7 +75,11 @@ function HumanContactsContent({currentUserId, sidebar, afterSearch}: {currentUse
   if (sidebar) return <>
     <SidebarSearchField label={t("team.search_people")} value={query} onChange={setQuery} />
     {afterSearch}
-    <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 max-[559px]:px-3">
+    <div
+      ref={scrollRef}
+      {...fadeProps}
+      className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-2 pb-2 overscroll-contain max-[559px]:px-3"
+    >
       {feedback}
       {!loading && !failed && !visible.length ? <p>{t("team.no_people")}</p> : null}
       {visible.map((person) => <UiListRow key={person.user_id} aria-label={`${person.display_name || person.username} @${person.username}`} density="sidebarCompact" activeTone="sidebar" inactiveTone="muted"

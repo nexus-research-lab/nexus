@@ -14,18 +14,18 @@ export function GlassMagnifier({ children, underlay }: { children: ReactNode; un
 
   return (
     <span
-      className="group/glass relative isolate inline-flex h-9 shrink-0 items-center rounded-[12px] px-2"
+      className="group/glass relative isolate inline-flex h-9 shrink-0 items-center rounded-(--radius-surface-lg) px-2"
       ref={animation.rootRef}
       onPointerEnter={animation.onHoverStart}
       onPointerLeave={animation.onHoverEnd}
       onPointerCancel={animation.onHoverEnd}
       style={{ transform: animation.rootTransform }}
     >
-      {underlay ? <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[12px] opacity-0 transition-opacity duration-200 group-hover/glass:opacity-100">{underlay}</span> : null}
+      {underlay ? <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-(--radius-surface-lg) opacity-0 transition-opacity duration-(--motion-duration-fast) group-hover/glass:opacity-100">{underlay}</span> : null}
       {supported ? <GlassMagnifierFilter filterId={filterId} /> : null}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-[12px] ring-1 ring-black/5 dark:ring-white/10"
+        className="pointer-events-none absolute inset-0 rounded-(--radius-surface-lg) ring-1 ring-black/5 dark:ring-white/10"
         style={{
           backdropFilter: supported ? `url(#${filterId})` : "blur(16px)",
           WebkitBackdropFilter: supported ? `url(#${filterId})` : "blur(16px)",

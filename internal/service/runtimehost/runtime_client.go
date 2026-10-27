@@ -145,6 +145,7 @@ func (h *Host) BuildAgentRuntimeOptions(
 ) (agentclient.Options, *clientopts.RuntimeConfig, error) {
 	agent := input.Agent
 	selection := input.Selection
+	workspaceFiles, workspacePrompt := h.Agents.WorkspaceInstructions(agent)
 	return clientopts.BuildAgentClientOptionsWithConfig(ctx, h.Providers, clientopts.AgentClientOptionsInput{
 		AppMode:                    h.Config.AppMode,
 		DesktopSandboxEnabled:      h.Config.DesktopSandboxEnabled && selection.DesktopSandboxEnabled,
@@ -154,6 +155,7 @@ func (h *Host) BuildAgentRuntimeOptions(
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
+		Effort:                     selection.Effort,
 		BackgroundProvider:         selection.BackgroundProvider,
 		BackgroundModel:            selection.BackgroundModel,
 		VisionProvider:             selection.VisionProvider,
@@ -177,6 +179,8 @@ func (h *Host) BuildAgentRuntimeOptions(
 		AgentMCPServers:            agent.Options.MCPServers,
 		ExtraEnv:                   input.ExtraEnv,
 		ConfigurationEnv:           input.ConfigurationEnv,
+		WorkspaceInstructionFiles:  workspaceFiles,
+		WorkspaceInstructionPrompt: workspacePrompt,
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		AutoMemoryDisabled:         selection.AutoMemoryDisabled,
 		AutoDreamDisabled:          selection.AutoDreamDisabled,

@@ -331,10 +331,8 @@ func (s *IngressService) recoverIngress(ctx context.Context, request normalizedI
 				// DM 未知受理只核验原执行会话，不能再次派发。
 				request.sessionKey = request.permissionSessionKey()
 			} else {
-				if err := s.dispatchRoomIngress(ownerCtx, request); err != nil {
-					return false, err
-				}
-				return true, s.finishAcceptedIngress(ownerCtx, true, request)
+				// 群聊公区发言不是幂等命令；未知受理只在群聊共享会话里核验原轮次，不重放。
+				request.sessionKey = protocol.BuildRoomSharedSessionKey(route.conversationID)
 			}
 		}
 	}
@@ -351,7 +349,7 @@ func (s *IngressService) recoverIngress(ctx context.Context, request normalizedI
 		if round.RoundID != request.roundID || !round.HasUserMessage {
 			continue
 		}
-		if request.targetRoomType != protocol.RoomTypeDM {
+		if request.pairing == nil || request.pairing.TargetRoomID == "" {
 			if err := s.control.MarkIngressSessionMaterialized(ownerCtx, request.ownerUserID, request.sessionKey); err != nil {
 				return false, err
 			}

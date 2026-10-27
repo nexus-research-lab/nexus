@@ -4,6 +4,7 @@
  * POS: Home 联系人目录视图；不直接发起 bootstrap 请求；私聊准备按导航代次隔离，未知结果只进入目录核对。
  */
 import { HumanContactsDirectory } from "@/features/team/human-contacts-directory";
+import { TeamCapabilityNotice } from "@/features/team/team-capability-notice";
 import { CircleAlert, CirclePlus, Users2 } from "lucide-react";
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -18,6 +19,7 @@ import { projectMutationFailure, type MutationFailureEffect } from "@/lib/error-
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
+import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 import {
   SidebarSearchAction,
   SidebarSearchField,
@@ -33,6 +35,7 @@ import {
 } from "./sidebar-list-rows";
 
 export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelContent() {
+  const { scrollRef, fadeProps } = useScrollFade();
   const { t } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
@@ -146,68 +149,74 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
         value={query}
       />
       {contactTabs}
+      <TeamCapabilityNotice />
 
-
-      {isLoading ? (
-        <SidebarListLoadingRows />
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
-          {navigationFailure ? (
-            <UiInlineNotice
-              action={{
-                label: t(navigationFailure.effect === "not_applied" ? "sidebar.retry" : "sidebar.dm_check_directory"),
-                onClick: () => {
-                  if (navigationFailure.effect === "not_applied") {
-                    void openAgentDm(navigationFailure.agentId);
-                  } else {
-                    openRoute(AppRouteBuilders.home());
-                  }
-                },
-              }}
-              icon={<CircleAlert />}
-              message={t(navigationFailure.effect === "not_applied" ? "sidebar.dm_not_applied" : "sidebar.dm_check_impact")}
-              title={t("sidebar.dm_failed_title")}
-              tone={navigationFailure.effect === "not_applied" ? "danger" : "warning"}
-            />
-          ) : null}
-          {hasError && hasLoaded ? (
-            <HomeDirectoryRefreshErrorNotice
-              className="mb-1"
-              onRetry={refreshDirectory}
-            />
-          ) : null}
-          {filteredAgents.length > 0 ? (
-            filteredAgents.map((agent) => (
-              <ContactRow
-                agent={agent}
-                isActive={activeAgentId === agent.id}
-                key={agent.id}
-                onChat={() => {
-                  void openAgentDm(agent.id);
+      <div
+        ref={scrollRef}
+        {...fadeProps}
+        className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
+      >
+        {isLoading ? (
+          <SidebarListLoadingRows />
+        ) : (
+          <>
+            {navigationFailure ? (
+              <UiInlineNotice
+                action={{
+                  label: t(navigationFailure.effect === "not_applied" ? "sidebar.retry" : "sidebar.dm_check_directory"),
+                  onClick: () => {
+                    if (navigationFailure.effect === "not_applied") {
+                      void openAgentDm(navigationFailure.agentId);
+                    } else {
+                      openRoute(AppRouteBuilders.home());
+                    }
+                  },
                 }}
-                onOpenDirectory={() => openAgentDetail(agent.id)}
+                icon={<CircleAlert />}
+                message={t(navigationFailure.effect === "not_applied" ? "sidebar.dm_not_applied" : "sidebar.dm_check_impact")}
+                title={t("sidebar.dm_failed_title")}
+                tone={navigationFailure.effect === "not_applied" ? "danger" : "warning"}
               />
-            ))
-          ) : hasError && !hasLoaded ? (
-            <SidebarEmptyGuide
-              actionLabel={t("sidebar.retry")}
-              description={t("sidebar.directory_load_failed_description")}
-              impact={t("sidebar.directory_load_failed_impact")}
-              icon={CircleAlert}
-              onAction={refreshDirectory}
-              title={t("sidebar.directory_load_failed")}
-            />
-          ) : (
-            <SidebarEmptyGuide
-              actionLabel={t("sidebar.manage_contacts")}
-              description={t("sidebar.contacts_empty_description")}
-              icon={Users2}
-              onAction={openContactsDirectory}
-              title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
-            />
-          )}
-        </div>
-      )}
+            ) : null}
+            {hasError && hasLoaded ? (
+              <HomeDirectoryRefreshErrorNotice
+                className="mb-1"
+                onRetry={refreshDirectory}
+              />
+            ) : null}
+            {filteredAgents.length > 0 ? (
+              filteredAgents.map((agent) => (
+                <ContactRow
+                  agent={agent}
+                  isActive={activeAgentId === agent.id}
+                  key={agent.id}
+                  onChat={() => {
+                    void openAgentDm(agent.id);
+                  }}
+                  onOpenDirectory={() => openAgentDetail(agent.id)}
+                />
+              ))
+            ) : hasError && !hasLoaded ? (
+              <SidebarEmptyGuide
+                actionLabel={t("sidebar.retry")}
+                description={t("sidebar.directory_load_failed_description")}
+                impact={t("sidebar.directory_load_failed_impact")}
+                icon={CircleAlert}
+                onAction={refreshDirectory}
+                title={t("sidebar.directory_load_failed")}
+              />
+            ) : (
+              <SidebarEmptyGuide
+                actionLabel={t("sidebar.manage_contacts")}
+                description={t("sidebar.contacts_empty_description")}
+                icon={Users2}
+                onAction={openContactsDirectory}
+                title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
+              />
+            )}
+          </>
+        )}
+      </div>
       </>}
     </div>
   );

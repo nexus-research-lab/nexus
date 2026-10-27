@@ -57,7 +57,7 @@ export function PermissionRequestDetails({
               {field.label}
             </div>
             <pre className={cn(
-              "message-cjk-font m-0 max-h-32 min-h-11 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-3 py-2.5",
+              "message-cjk-font m-0 max-h-32 min-h-11 overflow-auto whitespace-pre-wrap break-all radius-control-md border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-3 py-2.5",
               getUiTypographyClassName({ role: "code", tone: "default" }),
             )}>
               {field.value || "—"}

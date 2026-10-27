@@ -315,7 +315,6 @@ export function WorkGraphDistillationsDirectory() {
     >
       {detailRouteContent ?? (
         <CapabilityPageLayout
-          description={t("capability.workgraph_intro_description")}
           title={t("capability.workgraph_intro_title")}
         >
           <CapabilityFilterBar className="sm:justify-between">

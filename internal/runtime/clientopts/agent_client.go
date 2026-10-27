@@ -101,10 +101,16 @@ type AgentClientOptionsInput struct {
 	AppendSystemPromptDynamic string
 	ResumeSessionID           string
 	MaxThinkingTokens         *int
-	MaxTurns                  *int
-	MCPServers                map[string]sdkmcp.ServerConfig
-	AgentMCPServers           map[string]any
-	ExtraEnv                  map[string]string
+	// Effort 是 Session 覆盖的思考强度；空值不下发，由 runtime 按模型默认。
+	Effort          string
+	MaxTurns        *int
+	MCPServers      map[string]sdkmcp.ServerConfig
+	AgentMCPServers map[string]any
+	ExtraEnv        map[string]string
+	// WorkspaceInstructionFiles 是交给 nxs 指令加载的工作区文件名（项目根相对、单段）。
+	// 其他 runtime 不认识这一约定，退回用 WorkspaceInstructionPrompt 逐轮拼进附加提示词。
+	WorkspaceInstructionFiles  []string
+	WorkspaceInstructionPrompt func() (string, error)
 	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
 	ConfigurationEnv           map[string]string
 	AgentSDKDiagnosticsEnabled bool
@@ -250,6 +256,7 @@ func BuildAgentClientOptionsWithConfig(
 	// capabilities may add their own broker keys, but cannot redirect memory or
 	// opt the runtime into a remote store.
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, managedMemoryRuntimeEnv(effectiveRuntimeKind, input.WorkspacePath))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceInstructionRuntimeEnv(effectiveRuntimeKind, input.WorkspaceInstructionFiles))
 	// Provider 所有权和后台唤醒归宿主，调用方环境不能在装配末尾撤销。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
@@ -261,6 +268,10 @@ func BuildAgentClientOptionsWithConfig(
 		input.AdditionalDirectories...,
 	)
 	writeDirectories := slices.Clone(input.AdditionalDirectories)
+	appendSystemPrompt, err := withWorkspaceInstructionPrompt(effectiveRuntimeKind, input.AppendSystemPrompt, input.WorkspaceInstructionPrompt)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
@@ -268,7 +279,7 @@ func BuildAgentClientOptionsWithConfig(
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		System: agentclient.SystemOptions{
-			Append:        input.AppendSystemPrompt,
+			Append:        appendSystemPrompt,
 			AppendStatic:  input.AppendSystemPromptStatic,
 			AppendDynamic: input.AppendSystemPromptDynamic,
 		},
@@ -311,6 +322,9 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	if input.MaxThinkingTokens != nil && *input.MaxThinkingTokens > 0 {
 		options.Runtime.MaxThinkingTokens = *input.MaxThinkingTokens
+	}
+	if effort := strings.TrimSpace(input.Effort); effort != "" {
+		options.Runtime.Effort = agentclient.EffortLevel(effort)
 	}
 	if input.MaxTurns != nil && *input.MaxTurns > 0 {
 		options.Runtime.MaxTurns = *input.MaxTurns

@@ -1,5 +1,5 @@
 // INPUT: Agent 配置、workspace 提示文件与运行时身份。
-// OUTPUT: Agent 基础提示、身份画像与 workspace 指令。
+// OUTPUT: Agent 基础提示与身份画像；workspace 人设文件名单（nxs 按名加载）及其逐轮渲染退路。
 // POS: Agent 服务的运行时 prompt 装配入口。
 package agent
 
@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -81,22 +82,32 @@ func (b *promptBuilder) Build(ctx context.Context, agentValue *protocol.Agent) (
 	scope := b.newBuildScope(agentValue)
 	sections := make([]string, 0, 8)
 	sections = appendPromptSection(sections, b.loadStaticPrompt(scope))
-	sections = appendPromptSection(sections, buildRuntimeScopeSection(ctx))
+	sections = appendPromptSection(sections, buildRuntimeScopeSection(ctx, agentValue.OwnerUserID))
 	for _, section := range buildAgentProfileSections(agentValue, scope) {
-		sections = appendPromptSection(sections, section)
-	}
-
-	fileSections, err := loadWorkspacePromptSections(scope)
-	if err != nil {
-		return "", err
-	}
-	for _, section := range fileSections {
 		sections = appendPromptSection(sections, section)
 	}
 	if len(sections) == 0 {
 		return "", nil
 	}
 	return strings.Join(sections, "\n\n---\n\n"), nil
+}
+
+// WorkspaceInstructions 返回交给 runtime 指令加载的工作区文件，以及非 nxs runtime 的逐轮渲染退路。
+// nxs 与 Claude Code 对 CLAUDE.md 的处理一致：进程启动时加载、compact 后重载、放进首条消息的提醒里，
+// 文件被改写不会让 system prompt 逐轮翻转、整段 prompt cache 失效。
+func (s *Service) WorkspaceInstructions(agentValue *protocol.Agent) ([]string, func() (string, error)) {
+	if s == nil || s.prompts == nil || agentValue == nil {
+		return nil, nil
+	}
+	scope := s.prompts.newBuildScope(agentValue)
+	render := func() (string, error) {
+		sections, err := loadWorkspacePromptSections(scope)
+		if err != nil {
+			return "", err
+		}
+		return strings.Join(sections, "\n\n---\n\n"), nil
+	}
+	return scope.workspaceInstructionFiles(), render
 }
 
 func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildScope {
@@ -126,6 +137,15 @@ func (scope promptBuildScope) workspacePromptFiles() []string {
 	return defaultWorkspacePromptFiles
 }
 
+// workspaceInstructionFiles 在人设文件前加上 Agent 档案 AGENTS.md；主智能体刻意没有该文件。
+func (scope promptBuildScope) workspaceInstructionFiles() []string {
+	files := scope.workspacePromptFiles()
+	if scope.isMainAgent {
+		return slices.Clone(files)
+	}
+	return append([]string{agentProfileFilePath}, files...)
+}
+
 func appendPromptSection(sections []string, section string) []string {
 	section = strings.TrimSpace(section)
 	if section == "" {
@@ -141,22 +161,24 @@ func isMainAgentPrompt(agentValue *protocol.Agent, defaultAgentID string) bool {
 	return agentValue.IsMain || strings.TrimSpace(agentValue.AgentID) == strings.TrimSpace(defaultAgentID)
 }
 
-func buildRuntimeScopeSection(ctx context.Context) string {
-	principal := authctx.PrincipalFromContext(ctx)
+// buildRuntimeScopeSection 只用 Agent owner 这一会话级稳定身份描述作用域。
+// 不读取请求主体的 username 等字段：同一会话会被 WebSocket、IM、定向唤醒、自动化等不同入口驱动，
+// 入口不同会让 system prompt 逐轮翻转，整段 prompt cache 随之失效。
+func buildRuntimeScopeSection(ctx context.Context, ownerUserID string) string {
+	userID := strings.TrimSpace(ownerUserID)
+	if userID == "" {
+		userID, _ = authctx.CurrentUserID(ctx)
+	}
 	state, hasState := authctx.StateFromContext(ctx)
-	userID, hasUserID := authctx.CurrentUserID(ctx)
 
 	lines := []string{"## Runtime Scope"}
 	switch {
-	case hasUserID:
+	case userID != "":
 		lines = append(lines,
 			"Mode: multi-user user scope",
 			"Current user_id: "+userID,
+			"Scope: this user only.",
 		)
-		if principal != nil && strings.TrimSpace(principal.Username) != "" {
-			lines = append(lines, "Current username: "+strings.TrimSpace(principal.Username))
-		}
-		lines = append(lines, "Scope: this user only.")
 	case hasState && state.AuthRequired:
 		lines = append(lines, "Mode: authenticated system scope")
 	default:

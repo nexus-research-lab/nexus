@@ -6,9 +6,14 @@ import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 export type UiMenuItemTone = "default" | "primary" | "danger";
-export type UiMenuItemDensity = "compact" | "default";
+export type UiMenuItemDensity = "dense" | "compact" | "default";
 
 const MENU_ITEM_LAYOUT = {
+  // 长列表选择器（如模型菜单）：单行条目多、一屏需要看全，行高再收一档。
+  dense: {
+    described: { fixed: "h-10", minimum: "min-h-10", spacing: "gap-2 px-2 py-0", height: 40 },
+    plain: { fixed: "h-7", minimum: "min-h-7", spacing: "gap-2 px-2 py-0", height: 28 },
+  },
   compact: {
     described: { fixed: "h-11", minimum: "min-h-11", spacing: "gap-2 px-2 py-0.5", height: 44 },
     plain: { fixed: "h-8", minimum: "min-h-8", spacing: "gap-2 px-2 py-0.5", height: 32 },
@@ -29,7 +34,7 @@ export function getMenuItemLayout({ density = "default", hasDescription = false,
   return {
     height: layout.height,
     className: cn(contentSized ? layout.minimum : layout.fixed, layout.spacing,
-      getUiTypographyClassName({ role: density === "compact" ? "supporting" : "control", weight: "regular" })),
+      getUiTypographyClassName({ role: density === "default" ? "control" : "supporting", weight: "regular" })),
   };
 }
 
@@ -48,7 +53,7 @@ export function getMenuContentHeight(itemHeights: readonly number[], separatorCo
 }
 
 export const MENU_ITEM_BASE_CLASS_NAME =
-  "w-full radius-control-lg text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
+  "w-full radius-control-md text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 export function getMenuItemStateClassName({
   active = false,

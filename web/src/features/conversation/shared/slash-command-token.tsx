@@ -17,7 +17,7 @@ export function SlashCommandToken({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center rounded-[5px] text-primary ring-1 ring-inset ring-primary/15",
+        "inline-flex max-w-full items-center rounded-(--content-radius-inline) text-primary ring-1 ring-inset ring-primary/15",
         variant === "composer"
           ? "-mx-1 bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--input-shell-background))] px-1 font-normal leading-6"
           : "bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-message-user-background))] px-1.5 py-0.5 align-middle text-[0.9em] font-medium leading-tight",

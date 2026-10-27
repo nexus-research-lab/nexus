@@ -37,6 +37,7 @@ type roundRunner struct {
 	session                     protocol.Session
 	agent                       *protocol.Agent
 	sessionKey                  string
+	connectorContext            string
 	roundID                     string
 	agentRoundID                string
 	userMessageID               string

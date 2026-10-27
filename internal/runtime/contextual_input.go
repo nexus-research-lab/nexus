@@ -19,7 +19,7 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// ContextualInputBlock 表示运行时拥有、绑定到下一条 user 且不进入 nxs transcript 的隐藏上下文。
+// ContextualInputBlock 表示运行时拥有、绑定到下一条 user 的隐藏上下文；nxs 将其记为 attachment 落盘，续接时原样重放。
 type ContextualInputBlock struct {
 	Name     string
 	Content  string
@@ -77,6 +77,7 @@ const (
 	ContextualInputNameRoundRecovery      = "round_recovery"
 	ContextualInputNameExecution          = "execution"
 	ContextualInputNameTransport          = "transport"
+	ContextualInputNameConnectors         = "connectors"
 	ContextualInputNameAutomation         = "automation"
 	ContextualInputNameAutomationDelivery = "automation_delivery"
 

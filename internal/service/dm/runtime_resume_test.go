@@ -441,28 +441,23 @@ func TestServiceHandleChatForksSDKSessionWhenSelectedConnectorChangesToolSurface
 	})
 
 	options := factory.LastOptions()
-	for _, want := range []string{
-		`"connector_id":"feishu-docx","configuration_state":"configured","selected_in_current_session":true`,
-		`"connector_id":"github","configuration_state":"configured","selected_in_current_session":false`,
-	} {
-		if !strings.Contains(options.System.AppendDynamic, want) {
-			t.Fatalf("fork runtime 动态上下文缺少 Connector 状态 %q: %s", want, options.System.AppendDynamic)
-		}
-	}
-	for _, want := range []string{
-		`<current_turn_connector_tools>`,
-		`"connector_id":"feishu-docx","server_alias":"nexus_feishu_docx"`,
-		`mcp__nexus_feishu_docx__read`,
-	} {
-		if !strings.Contains(options.System.AppendDynamic, want) {
-			t.Fatalf("fork runtime system prompt 缺少 Connector 工具事实 %q: %s", want, options.System.AppendDynamic)
-		}
+	// Connector 事实不进 system prompt（否则配置变化会让整段 prompt cache 失效），只在变化时随本轮上下文追加。
+	if strings.Contains(options.System.AppendDynamic, "connector") {
+		t.Fatalf("Connector 事实不应进入 system prompt: %s", options.System.AppendDynamic)
 	}
 	client.mu.Lock()
 	currentTurnPrompt := strings.Join(client.queryPrompts, "\n")
 	client.mu.Unlock()
-	if strings.Contains(currentTurnPrompt, `<current_turn_connector_tools>`) {
-		t.Fatalf("当前用户轮次重复注入 Connector 工具事实: %s", currentTurnPrompt)
+	for _, want := range []string{
+		`"connector_id":"feishu-docx","configuration_state":"configured","selected_in_current_session":true`,
+		`"connector_id":"github","configuration_state":"configured","selected_in_current_session":false`,
+		`<current_turn_connector_tools>`,
+		`"connector_id":"feishu-docx","server_alias":"nexus_feishu_docx"`,
+		`mcp__nexus_feishu_docx__read`,
+	} {
+		if strings.Count(currentTurnPrompt, want) != 1 {
+			t.Fatalf("本轮上下文应恰好携带一次 Connector 事实 %q: %s", want, currentTurnPrompt)
+		}
 	}
 	feishuConfig, ok := options.MCP.Servers["nexus_feishu_docx"].(sdkmcp.SDKServerConfig)
 	if !ok || feishuConfig.Instance == nil {

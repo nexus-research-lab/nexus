@@ -168,6 +168,8 @@ export const enNavigationMessages = {
   "team.direct_failed": "Could not open this conversation. Please retry.",
   "team.directory_failed": "Could not load people.",
   "team.no_people": "No matching people",
+  "team.capability_unavailable": "Online service unavailable",
+  "team.capability_unavailable_impact": "Multiplayer availability could not be confirmed, so online group chats, direct messages, and invitations are hidden. Local group chats still work. The server may be upgrading or outdated; try again later.",
   "team.shared_room": "Shared team Room",
   "team.shared_room_summary": "Messages shared with your team",
   "team.loading": "Loading team messages…",

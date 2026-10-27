@@ -1,9 +1,14 @@
-// INPUT: 群设置、成员目录与名称头像字段的视图和输入命令。
-// OUTPUT: 本地与在线 Room 共用的双栏、身份表单和固定高度成员目录。
+// INPUT: 群设置、成员目录、成员分类切换与 Agent 暂停控制的视图和输入命令。
+// OUTPUT: 本地与在线 Room 共用的双栏、身份表单、固定高度成员目录与行内控制原语。
 // POS: Room 管理视图组合；不持有成员权限、草稿或提交事务。
+import { Pause, Play } from "lucide-react";
 import type { ReactNode } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
+import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiInput, UiSearchInput } from "@/shared/ui/form/form-control";
+import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import { RoomAvatarPicker } from "./room-avatar-picker";
 
 export function RoomDialogColumns({ settings, children }: { settings: ReactNode; children: ReactNode }) {
@@ -41,4 +46,77 @@ export function RoomMemberDirectory({ header, query, onQueryChange, searchLabel,
       <div className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" data-room-member-selection-list="true">{children}</div>
     </div>
   </div>;
+}
+
+export function RoomMemberTypeTabs({
+  agentCount,
+  disabled = false,
+  onChange,
+  userCount,
+  value,
+}: {
+  agentCount: number;
+  disabled?: boolean;
+  onChange: (value: "users" | "agents") => void;
+  userCount: number;
+  value: "users" | "agents";
+}) {
+  const { t } = useI18n();
+  return (
+    <UiSegmentedControl
+      className="w-full"
+      density="compact"
+      disabled={disabled}
+      onChange={onChange}
+      options={[
+        { label: t("room.people_count", { count: userCount }), value: "users" },
+        { label: t("room.agents_count", { count: agentCount }), value: "agents" },
+      ]}
+      stretch
+      title={t("room.member_type")}
+      value={value}
+    />
+  );
+}
+
+export function RoomAgentParticipationButton({
+  disabled = false,
+  name,
+  onToggle,
+  paused,
+}: {
+  disabled?: boolean;
+  name: string;
+  onToggle: () => void;
+  paused: boolean;
+}) {
+  const { t } = useI18n();
+  const actionLabel = t(paused ? "room.resume_member" : "room.pause_member", { name });
+  const ParticipationIcon = paused ? Play : Pause;
+  return (
+    <UiChoiceButton
+      active={paused}
+      aria-label={actionLabel}
+      choiceSize="xs"
+      disabled={disabled}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      title={actionLabel}
+      tone="neutral"
+    >
+      <ParticipationIcon className="h-3 w-3" />
+      <span className="max-sm:hidden">{t(paused ? "room.resume_participation" : "room.pause_participation")}</span>
+    </UiChoiceButton>
+  );
+}
+
+export function RoomDirectoryEmptyState({ memberType }: { memberType: "users" | "agents" }) {
+  const { t } = useI18n();
+  return (
+    <p className={cn("px-3 py-8 text-center", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
+      {t(memberType === "users" ? "room.people_empty" : "room.agents_empty")}
+    </p>
+  );
 }

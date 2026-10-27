@@ -1,5 +1,5 @@
 // INPUT: 在线 Room、当前真人身份、Organization 目录与成员治理资源。
-// OUTPUT: 邀请、角色、撤销、移除和真人群主移交弹窗。
+// OUTPUT: 复用 Room 共享设置/目录原语的邀请、角色、撤销、移除和真人群主移交弹窗。
 // POS: Team Room Header 的成员管理表面；不解释 Relay 权限。
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
@@ -14,13 +14,10 @@ import {
 import type { LauncherAgentSummary } from "@/types/app/launcher";
 import type { TeamRoomMember, TeamRoomDetails } from "@/lib/api/conversation/team-api";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
-import { MoreHorizontal, Plus, Trash2, Pause, Play, Crown } from "lucide-react";
+import { MoreHorizontal, Plus, Trash2, Crown } from "lucide-react";
 import { UiActionMenu, type UiActionMenuItem } from "@/shared/ui/menu/action-menu";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { UiCheckbox } from "@/shared/ui/form/checkbox";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import { UiTextarea } from "@/shared/ui/form/form-control";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -33,7 +30,15 @@ import {
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
-import { RoomDialogColumns, RoomIdentityFields, RoomMemberDirectory } from "@/features/conversation/room/members/room-dialog-layout";
+import {
+  RoomAgentParticipationButton,
+  RoomDialogColumns,
+  RoomDirectoryEmptyState,
+  RoomIdentityFields,
+  RoomMemberDirectory,
+  RoomMemberTypeTabs,
+} from "@/features/conversation/room/members/room-dialog-layout";
+import { RoomHostSettingsSection } from "@/features/conversation/room/members/room-settings-form";
 import { UiInlineNotice } from "@/shared/ui/feedback/inline-notice";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
@@ -122,6 +127,12 @@ export function TeamRoomMembersDialog({
   const close = () => { if (!resource.busy) onClose(); };
   const saveSettings = () => { if (settings?.name.trim() && !resource.busy) void resource.settings(settings).then((ok) => { if (ok) setSettings(null); }); };
   const directoryCount = memberType === "users" ? visibleMembers.length + visibleCandidates.length : visibleAgents.length + visibleAgentCandidates.length;
+  const coordinatorOptions = agentMembers
+    .filter((member) => !member.agent_paused)
+    .map((member) => ({
+      agent_id: member.member_id,
+      name: onlineAgentNames.get(member.member_id) ?? member.member_id,
+    }));
   return (
     <>
       <UiDialogPortal>
@@ -137,22 +148,17 @@ export function TeamRoomMembersDialog({
                     onAvatarChange={(avatar) => setSettings({ name: settings?.name ?? resource.details!.room.name, avatar })}
                     onNameChange={(name) => setSettings({ name, avatar: settings?.avatar ?? resource.details!.room.avatar })}
                     onSubmit={canChangeRoles ? saveSettings : undefined} />
-                  <div className="grid gap-2 border-t divider-subtle pt-3">
-                    <span className="dialog-label">{t("team.coordinator_agent")}</span>
-                    <UiSelectMenu ariaLabel={t("team.coordinator_agent")} disabled={!canChangeRoles || resource.busy}
-                      options={[{ label: t("room.host_unset"), value: "" }, ...agentMembers.filter((member) => !member.agent_paused).map((member) => ({ label: onlineAgentNames.get(member.member_id) ?? member.member_id, value: member.member_id }))]}
-                      onChange={(value) => { void resource.setCoordinator(value); }} size="sm" surface="dialog"
-                      value={resource.details.room.coordinator_agent_id ?? ""} />
-                    <label className="flex items-center gap-2 text-xs font-medium text-(--text-default)">
-                      <UiCheckbox
-                        checked={resource.details.room.host_auto_reply_enabled}
-                        disabled={!canChangeRoles || resource.busy || !resource.details.room.coordinator_agent_id}
-                        checkboxSize="small"
-                        onChange={(event) => { void resource.setHostAutoReply(event.target.checked); }}
-                      />
-                      <span>{t("room.host_auto_reply_label")}</span>
-                    </label>
-                  </div>
+                  <RoomHostSettingsSection
+                    agents={coordinatorOptions}
+                    disabled={!canChangeRoles || resource.busy}
+                    hostAgentId={resource.details.room.coordinator_agent_id ?? ""}
+                    hostAutoReplyEnabled={Boolean(resource.details.room.host_auto_reply_enabled)}
+                    label={t("team.coordinator_agent")}
+                    onHostAgentChange={(value) => { void resource.setCoordinator(value); }}
+                    onHostAutoReplyChange={(enabled) => { void resource.setHostAutoReply(enabled); }}
+                    selectAriaLabel={t("team.coordinator_agent")}
+                    selectDisabled={!canChangeRoles || resource.busy}
+                  />
                   <div className="grid gap-2 border-t divider-subtle pt-3">
                     <label className="dialog-label" htmlFor={`${titleId}-instructions`}>{t("team.instructions_label")}</label>
                     <UiTextarea id={`${titleId}-instructions`} rows={4} maxLength={8192} controlSize="sm"
@@ -172,9 +178,14 @@ export function TeamRoomMembersDialog({
               </>}>
                 <RoomMemberDirectory query={query} onQueryChange={setQuery}
                   searchLabel={t(memberType === "users" ? "room.search_user_placeholder" : "room.search_agent_placeholder")}
-                  header={<UiSegmentedControl className="w-full" density="compact" stretch title={t("room.member_type")}
-                    options={[{ label: t("room.people_count", { count: members.length }), value: "users" }, { label: t("room.agents_count", { count: agentMembers.length }), value: "agents" }]}
-                    onChange={(value) => { setMemberType(value); setQuery(""); }} value={memberType} />}>
+                  header={
+                    <RoomMemberTypeTabs
+                      agentCount={agentMembers.length}
+                      onChange={(value) => { setMemberType(value); setQuery(""); }}
+                      userCount={members.length}
+                      value={memberType}
+                    />
+                  }>
                   {memberType === "users" ? <>
                     {visibleMembers.map((member) => {
                       const name = memberName(member.member_id);
@@ -199,13 +210,18 @@ export function TeamRoomMembersDialog({
                     {visibleAgents.map((member) => {
                       const name = onlineAgentNames.get(member.member_id) ?? member.member_id;
                       const isOwner = member.agent_owner_user_id === currentUserId;
-                      const ParticipationIcon = member.agent_paused ? Play : Pause;
                       return <UiListRow key={member.member_id} density="dense" title={name}
                         leading={<UiAgentAvatar avatar={agentDirectory.find((agent) => agent.agent_id === member.member_id)?.avatar} name={name} size="sm" />}
                         right={member.agent_paused && !isOwner ? <UiBadge size="xs" tone="warning">{t("team.agent_paused")}</UiBadge> : resource.details?.room.coordinator_agent_id === member.member_id ? <Crown aria-label={t("team.coordinator_agent")} role="img" className="h-4 w-4 shrink-0 text-(--accent)" /> : null}
                         actions={<>
-                          {isOwner ? <UiChoiceButton active={member.agent_paused} aria-label={t(member.agent_paused ? "room.resume_member" : "room.pause_member", { name })} choiceSize="xs" disabled={resource.busy}
-                            onClick={() => { void resource.setAgentPaused(member.member_id, !member.agent_paused); }} tone="neutral"><ParticipationIcon className="h-3 w-3" /><span className="max-sm:hidden">{t(member.agent_paused ? "room.resume_participation" : "room.pause_participation")}</span></UiChoiceButton> : null}
+                          {isOwner ? (
+                            <RoomAgentParticipationButton
+                              disabled={resource.busy}
+                              name={name}
+                              onToggle={() => { void resource.setAgentPaused(member.member_id, !member.agent_paused); }}
+                              paused={Boolean(member.agent_paused)}
+                            />
+                          ) : null}
                           {isOwner || canManage ? <UiIconButton aria-label={`${t("team.remove")}: ${name}`} disabled={resource.busy} size="xs" variant="ghost" onClick={() => { void resource.removeAgent(member.member_id); }}><Trash2 className="h-3.5 w-3.5" /></UiIconButton> : null}
                         </>} />;
                     })}
@@ -213,7 +229,7 @@ export function TeamRoomMembersDialog({
                       leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
                       actions={<UiIconButton aria-label={`${t("team.add_agent")}: ${agent.name}`} disabled={resource.busy || directoryFailed} size="xs" variant="ghost" onClick={() => { void resource.addAgent(agent); }}><Plus className="h-3.5 w-3.5" /></UiIconButton>} />)}
                   </>}
-                  {directoryCount === 0 && !resource.loading ? <p className={getUiTypographyClassName({ role: "supporting", tone: "muted" })}>{t(memberType === "users" ? "room.people_empty" : "room.agents_empty")}</p> : null}
+                  {directoryCount === 0 && !resource.loading ? <RoomDirectoryEmptyState memberType={memberType} /> : null}
                   {resource.loading && !resource.details ? <p role="status">{t("team.members_loading")}</p> : null}
                 </RoomMemberDirectory>
               </RoomDialogColumns>

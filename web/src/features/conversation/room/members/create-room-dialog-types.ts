@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 export interface RoomMemberAgentOption {
   agent_id: string;
   avatar?: string | null;
@@ -43,6 +45,8 @@ export interface CreateRoomDialogProps {
   isOpen: boolean;
   mode?: RoomDialogMode;
   onlineAvailable?: boolean;
+  /** 在线不可用时的说明插槽，占据位置切换器的位置；由调用方决定文案与恢复动作。 */
+  onlineNotice?: ReactNode;
   users?: RoomMemberUserOption[];
   onCancel: () => void;
   onConfirm: (submission: RoomDialogSubmission) => void | Promise<void>;

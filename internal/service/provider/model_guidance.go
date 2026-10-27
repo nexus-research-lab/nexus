@@ -1,5 +1,5 @@
 // INPUT: Provider route, remote model facts, officially sourced catalog, verified probes and user overrides.
-// OUTPUT: Read-only effective capabilities, provenance, purpose eligibility and recommendations.
+// OUTPUT: Read-only effective capabilities, provenance, purpose eligibility, recommendations and effort levels.
 // POS: Shared model projection for settings, onboarding, selectors and execution admission.
 package provider
 
@@ -36,6 +36,8 @@ type ModelGuidance struct {
 	Sources               map[string]string           `json:"sources"`
 	Eligibility           map[string]ModelEligibility `json:"eligibility"`
 	Recommendations       map[string]string           `json:"recommendations"`
+	// EffortLevels 是该模型在 Session 设置里可选的思考强度，空表示不开放强度选择。
+	EffortLevels []string `json:"effort_levels,omitempty"`
 }
 
 func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEntity) ModelGuidance {
@@ -114,6 +116,9 @@ func projectModelGuidance(item providerstore.Entity, model providerstore.ModelEn
 			PurposeImage:  eligible(image, "image_output_or_route_unavailable"),
 			PurposeEdit:   eligible(image && yes(c.ImageEditing) && imageRoute.APIFormat != APIFormatModelScopeImageGeneration && item.PresetKey != presetDoubao, "image_editing_not_confirmed"),
 		}, Recommendations: map[string]string{}}
+	if chat {
+		g.EffortLevels = modelEffortLevels(model.ModelID, c.Reasoning)
+	}
 	if entry != nil {
 		evidence := entry.Evidence
 		if !providerMatched {

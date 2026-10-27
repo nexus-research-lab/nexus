@@ -4,11 +4,8 @@
 
 import { ArrowLeft } from "lucide-react";
 
-import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
-import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
-import { RoomWorkspaceView } from "@/features/conversation/room/workspace/room-workspace-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -24,7 +21,7 @@ import type {
   AgentOptions,
 } from "@/types/agent/agent";
 
-import { RoomAgentAboutSurface } from "../room-agent-about-surface";
+import { RoomAuxiliaryTabContent } from "../room-auxiliary-tab-content";
 import { RoomMobileOverlayFrame } from "./room-mobile-overlay-frame";
 
 export type RoomMobileAuxiliaryTab = "about" | "workgraph" | "workspace";
@@ -83,7 +80,6 @@ export function RoomMobileAuxiliaryOverlay({
     : activeTab === "workgraph"
     ? t("room.workgraph")
     : t("room.about");
-  const agents = [...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id), currentAgent];
 
   return (
     <RoomMobileOverlayFrame key={activeTab} label={title} onClose={onClose}>
@@ -115,38 +111,28 @@ export function RoomMobileAuxiliaryOverlay({
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "workgraph" ? (
-          <ExecutionWorkGraphSurface
-            agents={agents}
-            directory={buildExecutionAgentDirectory(agents)}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            resource={executionResource}
-            taskRuns={executionTaskRuns}
-          />
-        ) : activeTab === "workspace" ? (
-          <RoomWorkspaceView
-            activeWorkspacePath={activeWorkspacePath}
-            agentId={currentAgent.agent_id}
-            composerDraftScopeKey={composerDraftScopeKey}
-            compact
-            isDm={isDm}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            roomMembers={roomMembers}
-          />
-        ) : (
-          <RoomAgentAboutSurface
-            isDm={isDm}
-            agent={currentAgent}
-            conversationId={conversationId}
-            isVisible
-            onSaveAgentOptions={onSaveAgentOptions}
-            onValidateAgentName={onValidateAgentName}
-            requestedAgentId={currentAgent.agent_id}
-            requestedTab="identity"
-            roomId={roomId}
-            roomMembers={roomMembers}
-          />
-        )}
+        <RoomAuxiliaryTabContent
+          aboutRequest={{
+            agent_id: currentAgent.agent_id,
+            key: 0,
+            tab: "identity",
+          }}
+          activeTab={activeTab}
+          activeWorkspacePath={activeWorkspacePath}
+          compact
+          composerDraftScopeKey={composerDraftScopeKey}
+          conversationId={conversationId}
+          currentAgent={currentAgent}
+          executionResource={executionResource}
+          executionTaskRuns={executionTaskRuns}
+          isDm={isDm}
+          onClose={onClose}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          onSaveAgentOptions={onSaveAgentOptions}
+          onValidateAgentName={onValidateAgentName}
+          roomId={roomId}
+          roomMembers={roomMembers}
+        />
       </div>
     </RoomMobileOverlayFrame>
   );

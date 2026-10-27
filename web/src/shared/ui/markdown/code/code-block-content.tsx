@@ -98,7 +98,7 @@ export function SyntaxHighlightedCode({
         fontFamily: MESSAGE_CODE_FONT_FAMILY,
         fontSize: "0.875rem",
         lineHeight: "1.625",
-        borderRadius: variant === "workspace" ? 0 : "var(--radius-md)",
+        borderRadius: variant === "workspace" ? 0 : "var(--content-radius-surface)",
         whiteSpace: "pre",
       }}
     >

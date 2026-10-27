@@ -1,6 +1,7 @@
 # Team
 
 - 在线资源必须同时具备部署 capabilities.enabled、远程登录和组织身份，统一由 hasTeamAccess 判断。未部署或显式关闭多人时不请求目录、邀请和订阅；组织身份本身不代表 Relay 已启用。
+- 能力探测失败（旧服务缺接口、网络、5xx）不猜测开启，由 `team-capability-notice.tsx` 在聊天目录、联系人目录与建群弹窗统一提示并重试 `refreshStatus`；部署明确 `enabled=false` 时不提示。
 
 - 在线 Room 和目录 WS 不关闭共享 transport 心跳；复用本地聊天的 ping/pong、退避和 focus/online 恢复。重连初始水位从旧 cursor 分页补读并按消息 ID 去重，epoch 改变重建快照，绝不自动重发未知消息。
 
@@ -18,10 +19,11 @@
 - 真人私聊移出列表复用 PATCH 的 hide_direct，保留原幂等命令直到确认。仅移出本人列表，双方历史不变；重新打开或收到新消息时恢复会话。
 
 
-- `team-workspace.tsx` 默认显示 Relay 群共享文件，复用公共 WorkspaceFileTree；本机 Agent 文件另列页签。上传按文件名和内容摘要生成稳定命令，不随失败重试变化；读错误不冒充空目录，上传未确认不被例行刷新清除，离开页面中止传输。当前支持有界上传/下载，不提供共享文件重命名、删除或编辑。
+- `team-workspace.tsx` 默认显示 Relay 群共享文件，复用公共 `WORKSPACE_PANEL_HEADER_*` 页头几何与 `WorkspaceFileTree`；本机 Agent 文件另列页签。上传按文件名和内容摘要生成稳定命令，不随失败重试变化；读错误不冒充空目录，上传未确认不被例行刷新清除，离开页面中止传输。当前支持有界上传/下载，不提供共享文件重命名、删除或编辑。
+- `team-message-feed.tsx` 承载在线 Room 消息轨道与本机/远端投递状态投影，统一通过 `MessageUserSection` 渲染真人消息、通过 `RoomAgentResultCard` 渲染 Agent 回复及未回复任务/投递卡片。
 - `POST /team-node/room` 为当前已加入的本人 Agent 准备确定性执行 Room；不需要 Node 授权或历史任务，不启动 runtime。工作图和子智能体沿原生会话空态展示，模型权限设置在第一轮前可用。成员与本机目录交集由服务端重新核验。
 
-- `team-execution-surface.tsx` 按已验证成员绑定复用 Room 工作图、子智能体、Agent 工作区与简介；只允许当前群 active Agent 与本机目录的交集，文件导航回到同一 Agent。本机工作区不冒充 Relay 共享目录。简介保存沿用 Agent Options 命令，工作图消费原生 execution_invalidated。
+- `team-execution-surface.tsx` 按已验证成员绑定直接复用 `RoomAuxiliaryTabContent`（工作图、子智能体、Agent 工作区与简介）；只允许当前群 active Agent 与本机目录的交集，文件导航回到同一 Agent。本机工作区不冒充 Relay 共享目录。简介保存沿用 Agent Options 命令，工作图消费原生 execution_invalidated。
 
 - `team-execution-thread.tsx` 在 Thread 打开前通过 TeamExecutionObserver 按绑定的 Conversation 去重订阅原生 useAgentConversation；连接和执行状态变化触发任务关联对账，流式 delta 不触发 HTTP，任务读取不设定时轮询。本机终态复用 Room Agent round 投影，避免任务持久化稍晚导致 UI 持续思考。Thread 按精确 round/Agent 读取过程与权限；窄屏复用 Room 模态外壳。远程成员不订阅本机执行流。
 - Thread 活动态复用 Room Agent round 投影，不以 session/history fetching 充当执行中。精确 delivery 的 final 或本机任务终态关闭活动提示，并补读当前轮持久历史；普通中间 assistant 回复不代表执行完成。

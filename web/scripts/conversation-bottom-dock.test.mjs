@@ -248,6 +248,8 @@ test("DM Composer keeps direct Session permission and model controls", async () 
   };
   const controller = {
     busy: false,
+    effort: "",
+    effortLevels: [],
     ensureTargetsLoaded: () => {},
     error: null,
     hasModelOverride: false,
@@ -263,6 +265,7 @@ test("DM Composer keeps direct Session permission and model controls", async () 
     resetModel: () => {},
     resetPermission: () => {},
     resetTarget: () => {},
+    updateEffort: () => {},
     saving: false,
     scope: {
       initialTargetId: target.agentId,

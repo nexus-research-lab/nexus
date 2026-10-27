@@ -9,6 +9,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
 import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
+import { useScrollFade } from "@/shared/lib/react/use-scroll-fade";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { CapabilitySidebarItemView } from "./capability-sidebar-item";
@@ -20,6 +21,7 @@ import {
 import { useCapabilitySummary } from "./use-capability-summary";
 
 export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
+  const { scrollRef, fadeProps } = useScrollFade();
   const { t } = useI18n();
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
@@ -46,7 +48,11 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
         value={query}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-[559px]:gap-1 max-[559px]:px-3">
+      <div
+        ref={scrollRef}
+        {...fadeProps}
+        className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2 overscroll-contain max-[559px]:gap-1 max-[559px]:px-3"
+      >
         {items.length > 0 ? items.map((item) => (
           <CapabilitySidebarItemView
             active={activeItemId === item.id}

@@ -119,6 +119,7 @@ export const enSettingsMessages = {
   "settings.runtime.section_description": "Choose the Agent kernel and configure its supported search capabilities.",
   "settings.runtime.kernel_title": "Runtime engine",
   "settings.runtime.sandbox_check": "Check sandbox support",
+  "settings.runtime.sandbox_check_action": "Check",
   "settings.runtime.sandbox_checking": "Checking…",
   "settings.runtime.sandbox_check_description": "Check local sandbox support.",
   "settings.runtime.sandbox_unknown": "Sandbox support could not be confirmed. Try again later.",

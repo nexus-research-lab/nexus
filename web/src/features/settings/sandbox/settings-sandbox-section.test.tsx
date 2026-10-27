@@ -90,7 +90,7 @@ describe("sandbox diagnosis", () => {
   it("keeps diagnosis as an action rather than a second switch", () => {
     configure();
     renderSettings();
-    expect(screen.getByRole("button", { name: text("sandbox_check") })).toBeTruthy();
+    expect(screen.getByRole("button", { name: text("sandbox_check_action") })).toBeTruthy();
     expect(screen.queryByRole("switch", { name: text("sandbox_check") })).toBeNull();
   });
 
@@ -98,7 +98,7 @@ describe("sandbox diagnosis", () => {
     const user = userEvent.setup();
     const controller = configure();
     renderSettings();
-    await user.click(screen.getByRole("button", { name: text("sandbox_check") }));
+    await user.click(screen.getByRole("button", { name: text("sandbox_check_action") }));
     expect(controller.onCheckSandbox).toHaveBeenCalledOnce();
     expect(controller.onDesktopSandboxEnabledChange).not.toHaveBeenCalled();
   });
@@ -108,7 +108,7 @@ describe("sandbox diagnosis", () => {
     useController.mockReturnValue({ ...controller, sandboxState: state });
     renderSettings();
     expect(screen.getByRole("status").textContent).toBe(text(`sandbox_${state}`));
-    expect(screen.getByRole("button", { name: text("sandbox_check") }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: text("sandbox_check_action") }).hasAttribute("disabled")).toBe(false);
   });
 });
 

@@ -2,17 +2,13 @@
 // OUTPUT: 按需首次挂载、右栏打开期间保留已访问内容的辅助工作面及具名键盘分隔条。
 // POS: 右栏内容装配；宽度限制与交互分别归布局模型、共享分隔条。
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useSyncExternalStore } from "react";
 
-import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
-import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { captureAuthOwnerScopeGeneration, subscribeAuthOwnerScopeGeneration } from "@/shared/auth/auth-owner-generation";
 import { useResettableState } from "@/shared/lib/react/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
-import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -22,11 +18,9 @@ import type {
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
-import { RoomAgentAboutSurface } from "../room-agent-about-surface";
-import { RoomSubagentTaskSurface } from "../room-subagent-task-surface";
-import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
+import { RoomAuxiliaryTabContent } from "../room-auxiliary-tab-content";
+import { RoomSidePanelContainer } from "./room-side-panel-container";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
-import { useRoomSidePanelResize } from "./use-room-side-panel-resize";
 
 interface RoomSurfaceAuxiliaryPanelProps {
   aboutRequest: RoomAgentAboutRequest;
@@ -97,108 +91,35 @@ export function RoomSurfaceAuxiliaryPanel({
   if (!visitedTabs.includes(activeSurfaceTab)) {
     setVisitedTabs([...visitedTabs, activeSurfaceTab]);
   }
-  const resize = useRoomSidePanelResize("auxiliary", sidePanelWidthPercent, onSidePanelWidthChange);
-  const executionAgents = [
-    ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
-    currentAgent,
-  ];
-  const executionDirectory = buildExecutionAgentDirectory(executionAgents);
-  const persistentPanels: Array<{
-    content: ReactNode;
-    key: "workgraph" | "workspace" | "about";
-  }> = [
-    {
-      key: "workgraph",
-      content: (
-        <ExecutionWorkGraphSurface
-          agents={executionAgents}
-          directory={executionDirectory}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          resource={executionResource}
-          taskRuns={executionTaskRuns}
-        />
-      ),
-    },
-    {
-      key: "workspace",
-      content: (
-        <RoomWorkspaceView
-          activeWorkspacePath={activeWorkspacePath}
-          agentId={currentAgent.agent_id}
-          composerDraftScopeKey={composerDraftScopeKey}
-          isDm={isDm}
-          roomMembers={roomMembers}
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-        />
-      ),
-    },
-    {
-      key: "about",
-      content: (
-        <RoomAgentAboutSurface
-            isDm={isDm}
-          agent={currentAgent}
-          conversationId={conversationId}
-          roomId={roomId}
-          roomMembers={roomMembers}
-          isVisible={activeSurfaceTab === "about"}
-          requestedAgentId={aboutRequest.agent_id}
-          requestedTab={aboutRequest.tab}
-          requestKey={aboutRequest.key}
-          onSaveAgentOptions={onSaveAgentOptions}
-          onValidateAgentName={onValidateAgentName}
-        />
-      ),
-    },
-  ];
 
   return (
-    <>
-      <PanelResizeHandle
-        ariaLabel={t("room.resize_auxiliary_panel")}
-        control={resize.control}
-        controls={resize.panelId}
-        onResizeStart={onStartSidePanelResize}
-        variant="gutter"
+    <RoomSidePanelContainer
+      ariaLabel={t("room.panels")}
+      kind="auxiliary"
+      onSidePanelWidthChange={onSidePanelWidthChange}
+      onStartSidePanelResize={onStartSidePanelResize}
+      sidePanelWidthPercent={sidePanelWidthPercent}
+    >
+      <RoomAuxiliaryTabContent
+        aboutRequest={aboutRequest}
+        activeTab={activeSurfaceTab}
+        activeWorkspacePath={activeWorkspacePath}
+        composerDraftScopeKey={composerDraftScopeKey}
+        conversationId={conversationId}
+        currentAgent={currentAgent}
+        executionResource={executionResource}
+        executionTaskRuns={executionTaskRuns}
+        isDm={isDm}
+        onClose={onClose}
+        onOpenWorkspaceFile={onOpenWorkspaceFile}
+        onSaveAgentOptions={onSaveAgentOptions}
+        onValidateAgentName={onValidateAgentName}
+        roomId={roomId}
+        roomMembers={roomMembers}
+        subagentRequest={subagentRequest}
+        subagentTaskSource={subagentTaskSource}
+        visitedTabs={visitedTabs}
       />
-
-      <section
-        aria-label={t("room.panels")}
-        id={resize.panelId}
-        ref={resize.panelRef}
-        className="nexus-room-surface-side-panel relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
-        style={{
-          width: `${sidePanelWidthPercent}%`,
-          ...resize.widthStyle,
-        }}
-      >
-        {persistentPanels.filter((panel) => visitedTabs.includes(panel.key)).map((panel) => (
-          <div
-            key={panel.key}
-            className={cn(
-              "flex h-full min-h-0 min-w-0 flex-1 flex-col",
-              activeSurfaceTab !== panel.key && "hidden",
-            )}
-          >
-            {panel.content}
-          </div>
-        ))}
-
-        {activeSurfaceTab === "subagents" && subagentTaskSource ? (
-          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-            <RoomSubagentTaskSurface
-              currentAgentId={currentAgent.agent_id}
-              onClose={onClose}
-              onOpenWorkspaceFile={onOpenWorkspaceFile}
-              requestKey={subagentRequest.key}
-              requestedHostAgentId={subagentRequest.hostAgentId}
-              requestedTaskToolUseId={subagentRequest.toolUseId}
-              roomMembers={roomMembers}
-              source={subagentTaskSource}
-            />
-          </div>
-        ) : null}
-      </section>
-    </>
+    </RoomSidePanelContainer>
   );
 }

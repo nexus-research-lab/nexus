@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前 Composer 可配置的 Session 目标、Agent 默认值与 runtime 类型。
- * OUTPUT: DM 直接配置当前 Session；Room 统一权限并按 Agent 配置模型。
+ * OUTPUT: DM 直接配置当前 Session 模型/思考强度与权限；Room 统一权限并按 Agent 配置模型与强度。
  * POS: Composer Footer 会话设置入口；临时菜单按精确 Session 重置，模型宽度/选择与 Room 共用 owner，不写回 Agent 默认配置。
  */
 
@@ -22,13 +22,11 @@ import { UiActionMenu } from "@/shared/ui/menu/action-menu";
 import type {
   ComposerSessionSettingsController,
 } from "../../controller/use-composer-session-settings";
+import { ComposerModelPicker } from "./composer-model-picker";
 import { ComposerRoomModelControl } from "./composer-room-model-control";
-import { SESSION_DIRECT_MODEL_MENU_WIDTH } from "./composer-session-control-layout";
 import {
   buildResetSessionSettingItem,
-  buildSessionModelItems,
   buildSessionPermissionItems,
-  applySessionModelSelection,
   RESET_SESSION_SETTING_VALUE,
 } from "./composer-session-control-options";
 
@@ -62,12 +60,7 @@ export function ComposerSessionControls({
   if (roomWide) {
     return <ComposerRoomModelControl controller={controller} disabled={disabled} />;
   }
-  return (
-    <ComposerModelControl
-      controller={controller}
-      disabled={disabled}
-    />
-  );
+  return <ComposerModelPicker controller={controller} disabled={disabled} />;
 }
 
 function ComposerPermissionControl({
@@ -130,61 +123,6 @@ function ComposerPermissionControl({
               ? ""
               : value,
           );
-        }}
-        placement="top"
-      />
-    </div>
-  );
-}
-
-function ComposerModelControl({
-  controller,
-  disabled,
-}: {
-  controller: ComposerSessionSettingsController;
-  disabled: boolean;
-}) {
-  const { t } = useI18n();
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [isOpen, setIsOpen] = useResettableState(false, controller.target?.sessionKey);
-  useEffect(() => {
-    if (disabled || controller.modelBusy) {
-      setIsOpen(false);
-    }
-  }, [controller.modelBusy, disabled, setIsOpen]);
-  const modelItems = buildSessionModelItems(controller);
-  const resetItem = buildResetSessionSettingItem(
-    !controller.hasModelOverride,
-    t,
-  );
-  return (
-    <div className="min-w-0">
-      <UiButton
-        ref={buttonRef}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        aria-label={t("composer.session_model")}
-        className="min-w-0 max-w-44"
-        disabled={disabled || controller.modelBusy}
-        onClick={() => setIsOpen((current) => !current)}
-        size="xs"
-        variant="ghost"
-      >
-        <span className="truncate">{controller.modelLabel}</span>
-        <ChevronDown className="h-3 w-3 shrink-0" />
-      </UiButton>
-      <UiActionMenu
-        align="end"
-        anchorRef={buttonRef}
-        ariaLabel={t("composer.session_model")}
-        density="compact"
-        footerItems={[resetItem]}
-        isOpen={isOpen && !disabled && !controller.modelBusy}
-        items={modelItems}
-        minWidth={SESSION_DIRECT_MODEL_MENU_WIDTH}
-        onClose={() => setIsOpen(false)}
-        onSelect={(value) => {
-          applySessionModelSelection(controller, value);
         }}
         placement="top"
       />

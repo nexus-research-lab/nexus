@@ -6,3 +6,4 @@
 - 唯一工程合同见 `docs/specs/frontend-engineering-spec.md`；真实 Login/Setup 浏览器测试拦截所有认证与初始化请求，不访问真实部署。
 
 - 品牌名遵循用户要求写为 Nexus，色彩与品牌背景几何保持共享访问入口所有权。
+- `AccessPageFrame` 的 `<main>` 整体是桌面窗口手势面（`data-desktop-window-drag-region`，控件按全局规则 no-drag），入口页无应用壳顶栏也能拖动窗口；可选 `headerAction` 只占左上角并通过 `data-desktop-window-controls-leading` 让出 traffic lights，不铺全宽顶栏。

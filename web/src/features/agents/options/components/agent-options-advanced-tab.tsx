@@ -59,7 +59,7 @@ export function AgentOptionsAdvancedTab({
   const isBypassPermissionMode = effectivePermissionMode === "bypassPermissions";
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200 [overflow-anchor:none]">
+    <div className="space-y-6 animate-in fade-in duration-(--motion-duration-fast) [overflow-anchor:none]">
       <section className="space-y-3">
         <SectionHeader
           description={t("agent_options.advanced.connector_access_hint")}

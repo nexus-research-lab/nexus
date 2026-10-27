@@ -37,6 +37,7 @@ export interface RoomDialogContentProps {
   isCreating: boolean;
   mode: RoomDialogMode;
   onlineAvailable: boolean;
+  onlineNotice: CreateRoomDialogProps["onlineNotice"];
   users: RoomMemberUserOption[];
   onCancel: () => void;
   onConfirm: (submission: RoomDialogSubmission) => void | Promise<void>;
@@ -79,6 +80,7 @@ export function resolveRoomDialogContentProps(
     isCreating: valueOrDefault(props.isCreating, false),
     mode: valueOrDefault(props.mode, "create"),
     onlineAvailable: valueOrDefault(props.onlineAvailable, false),
+    onlineNotice: props.onlineNotice,
     users: valueOrDefault(props.users, []),
     onCancel: props.onCancel,
     onConfirm: props.onConfirm,

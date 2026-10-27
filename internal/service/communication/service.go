@@ -205,6 +205,11 @@ func (s *Service) SendMessage(
 		strings.TrimSpace(request.TargetID) == strings.TrimSpace(actor.SessionKey) {
 		return nil, newInputError("当前外部私聊请直接使用 final reply")
 	}
+	if strings.EqualFold(strings.TrimSpace(request.TargetType), TargetTypeExternalSession) {
+		if err := s.rejectModelRoutedRoomReply(scoped, actor); err != nil {
+			return nil, err
+		}
+	}
 	if s.im != nil && request.TargetType == TargetTypeExternalSession {
 		scoped = withIMOrigin(scoped, actor)
 	}

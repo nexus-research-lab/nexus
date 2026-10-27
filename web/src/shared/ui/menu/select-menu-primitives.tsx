@@ -38,6 +38,8 @@ interface SelectMenuTriggerProps extends Omit<
   disabled: boolean;
   isOpen: boolean;
   menuId: string;
+  /** 触发器弹出的浮层语义；领域选择器（如双栏会话目标）弹出 dialog 时复用同一外观。 */
+  popup?: "dialog" | "listbox";
   styles: Pick<SelectMenuStyleProjection, "roundedClassName" | "textClassName">;
   surface: UiSelectMenuSurface;
 }
@@ -58,6 +60,7 @@ export function SelectMenuTrigger({
   disabled,
   isOpen,
   menuId,
+  popup = "listbox",
   styles,
   surface,
   title,
@@ -72,7 +75,7 @@ export function SelectMenuTrigger({
       aria-controls={isOpen ? menuId : undefined}
       aria-disabled={disabled}
       aria-expanded={isOpen}
-      aria-haspopup="listbox"
+      aria-haspopup={popup}
       aria-label={ariaLabel}
       className={getSelectMenuButtonClassName({
         roundedClassName: styles.roundedClassName,

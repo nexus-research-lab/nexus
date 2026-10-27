@@ -48,6 +48,7 @@ type dmClientPreparation struct {
 	commandReceipts          *nexusmcp.CommandReceiptState
 	subagentCommandAuthority *bool
 	permissionMode           sdkpermission.Mode
+	connectorContext         string
 }
 
 func (s *Service) ensureClient(
@@ -257,10 +258,8 @@ func (s *Service) ensureClient(
 	if scopedPolicyActive && scopedPolicy.DisableConnectors {
 		enabledConnectorIDs = []string{}
 	}
-	dynamicSystemPrompt = runtimehost.JoinPromptSections(
-		dynamicSystemPrompt,
-		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
-	)
+	// Connector 状态随配置与选择变化，不进 system prompt；由本轮上下文在变化时追加（见 connectorContextualInputs）。
+	connectorContext := s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs)
 	mcpContext := runtimectx.WithEnabledConnectorIDs(
 		runtimeBuilderContext,
 		enabledConnectorIDs,
@@ -298,8 +297,7 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
-	dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, connectorTurnContext)
+	connectorContext = runtimehost.JoinPromptSections(connectorContext, connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers))
 	runtimeSelection, err := s.ResolveAgentRuntimeSelection(ctx, agentValue, sessionItem.Options)
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -557,6 +555,7 @@ func (s *Service) ensureClient(
 		commandReceipts:          commandReceipts,
 		subagentCommandAuthority: subagentCommandAuthority,
 		permissionMode:           permissionMode,
+		connectorContext:         connectorContext,
 	}
 	return preparation, nil
 }
