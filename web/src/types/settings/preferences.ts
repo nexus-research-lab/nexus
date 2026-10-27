@@ -26,7 +26,7 @@ export interface NXSRuntimeStatus {
   path?: string;
   source?: "env" | string;
   can_download: boolean;
-  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string };
+  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string; message?: string };
   message?: string;
 }
 

@@ -1069,10 +1069,17 @@ func (c *agentClient) openSession(
 	ctx context.Context,
 	options bridge.Options,
 ) (*bridge.Session, error) {
-	if c.newSession != nil {
-		return c.newSession(ctx, options)
+	open := c.newSession
+	if open == nil {
+		open = bridge.NewSession
 	}
-	return bridge.NewSession(ctx, options)
+	session, err := open(ctx, options)
+	if err != nil {
+		if message := DesktopSandboxUnavailableMessage(err.Error()); message != "" {
+			return nil, fmt.Errorf("%s: %w", message, err)
+		}
+	}
+	return session, err
 }
 
 func (c *agentClient) closeBridgeSession(session *bridge.Session) error {

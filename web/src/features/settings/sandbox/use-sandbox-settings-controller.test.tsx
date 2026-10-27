@@ -115,3 +115,12 @@ it("toggles the desktop sandbox through one preference update", () => {
   });
   expect(mocks.read).not.toHaveBeenCalled();
 });
+
+it("shows the actionable diagnosis and clears it on the next failed check", async () => {
+  mocks.read.mockResolvedValueOnce({ sandbox: { state: "missing_dependencies", message: "请以普通用户身份重新启动 Nexus。" } }).mockRejectedValueOnce(new Error("offline"));
+  const { result } = renderHook(useSandboxSettingsController);
+  await act(() => result.current.onCheckSandbox());
+  expect(result.current.sandboxMessage).toBe("请以普通用户身份重新启动 Nexus。");
+  await act(() => result.current.onCheckSandbox());
+  expect(result.current.sandboxMessage).toBeNull();
+});

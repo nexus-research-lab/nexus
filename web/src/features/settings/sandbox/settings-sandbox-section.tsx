@@ -88,7 +88,7 @@ export function SettingsSandboxSection() {
           >
             {settings.sandboxState ? (
               <p role="status" className={resultClassName(SANDBOX_STATE_TONES[settings.sandboxState])}>
-                {t(`settings.runtime.sandbox_${settings.sandboxState}`)}
+                {settings.sandboxMessage || t(`settings.runtime.sandbox_${settings.sandboxState}`)}
               </p>
             ) : null}
           </SandboxActionRow>

@@ -46,3 +46,16 @@ func TestSandboxDiagnosisRealNXS(t *testing.T) {
 	}
 	t.Logf("sandbox diagnosis: %+v", got.Sandbox)
 }
+
+func TestSandboxDiagnosisActionableMessages(t *testing.T) {
+	for _, reason := range []string{"cannot run with an elevated administrator token", "this Windows build does not provide the process security environment API"} {
+		got := projectSandboxStatus(&bridgenxs.SandboxBackendStatus{Platform: "windows", BackendSupported: true, UnavailableReason: reason}, nil)
+		if got.State != "missing_dependencies" || got.Message == "" {
+			t.Fatalf("missing explanation: %+v", got)
+		}
+	}
+	got := projectSandboxStatus(&bridgenxs.SandboxBackendStatus{UnavailableReason: "secret diagnostic output"}, nil)
+	if got.Message != "" {
+		t.Fatal("unknown diagnostics leaked")
+	}
+}

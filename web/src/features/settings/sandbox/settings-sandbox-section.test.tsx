@@ -33,6 +33,7 @@ function configure() {
     preferencesRecovery: undefined,
     sandboxChecking: false,
     sandboxState: null,
+    sandboxMessage: null,
     onCheckSandbox: vi.fn(),
     sandboxRecoveryApplying: false,
     sandboxRecoveryChecking: false,

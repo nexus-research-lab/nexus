@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -362,6 +363,32 @@ func TestDesktopSandboxIsOffUnlessExplicitlyEnabled(t *testing.T) {
 		}
 		if options.Sandbox != nil || options.Env[protocol.NexusDesktopSandboxPolicyEnvName] != "" {
 			t.Fatalf("%s: desktop sandbox installed without explicit enablement: %#v", kind, options.Sandbox)
+		}
+	}
+}
+
+func TestWindowsSandboxInitializeBudget(t *testing.T) {
+	original := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = original })
+	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir()}}
+	for _, tc := range []struct {
+		platform         string
+		mode             sdkpermission.Mode
+		configured, want time.Duration
+	}{
+		{"windows", sdkpermission.ModeDefault, 0, 3 * time.Minute},
+		{"windows", sdkpermission.ModeDefault, 9 * time.Second, 9 * time.Second},
+		{"darwin", sdkpermission.ModeDefault, 0, 0},
+		{"windows", sdkpermission.ModeBypassPermissions, 0, 0},
+	} {
+		current := input
+		if tc.mode == sdkpermission.ModeBypassPermissions {
+			current.SandboxResources = nil
+		}
+		got, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: tc.mode, InitializeTimeout: tc.configured}}, current, tc.platform)
+		if err != nil || got.Runtime.InitializeTimeout != tc.want {
+			t.Fatalf("%+v: got %v, error %v", tc, got.Runtime.InitializeTimeout, err)
 		}
 	}
 }

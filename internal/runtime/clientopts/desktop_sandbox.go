@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -40,6 +41,10 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 				return agentclient.Options{}, fmt.Errorf("Windows Full Access cannot carry restricted resources")
 			}
 			return options, nil
+		}
+		// PSEC 初始化包含项目发现；仅为未显式配置的受限 Windows 会话扩展预算。
+		if options.Runtime.InitializeTimeout == 0 {
+			options.Runtime.InitializeTimeout = 3 * time.Minute
 		}
 		if desktopSandboxProcessElevated() {
 			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus")

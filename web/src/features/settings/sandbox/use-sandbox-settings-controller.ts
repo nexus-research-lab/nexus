@@ -44,15 +44,18 @@ export function useSandboxSettingsController() {
   }, [updatePreferences]);
   const [sandboxChecking, setSandboxChecking] = useState(false);
   const [sandboxState, setSandboxState] = useState<NXSSandboxDiagnosticState | null>(null);
+  const [sandboxMessage, setSandboxMessage] = useState<string | null>(null);
   const sandboxRequest = useRef(false);
   const onCheckSandbox = useCallback(async () => {
     if (sandboxRequest.current) return;
     sandboxRequest.current = true;
     setSandboxChecking(true);
     setSandboxState(null);
+    setSandboxMessage(null);
     try {
       const status = await getNxsRuntimeStatusApi(true);
       setSandboxState(status.sandbox?.state ?? "unknown");
+      setSandboxMessage(status.sandbox?.message ?? null);
     } catch {
       setSandboxState("unknown");
     } finally {
@@ -130,7 +133,7 @@ export function useSandboxSettingsController() {
   return {
     desktopSandboxEnabled: preferences.desktop_sandbox_enabled === true,
     onDesktopSandboxEnabledChange,
-    sandboxChecking, sandboxState, onCheckSandbox,
+    sandboxChecking, sandboxState, sandboxMessage, onCheckSandbox,
     sandboxRecoveryApplying,
     sandboxRecoveryChecking,
     sandboxRecoveryError,
