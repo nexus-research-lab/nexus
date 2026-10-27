@@ -589,3 +589,5 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 - `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox` 是显式桌面沙箱基线：脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败。完整验收记录由内部 CI 和本地维护。
 
 Explicit sandbox diagnosis exposes a safe, actionable message for elevated tokens and missing PSEC APIs. These messages also offer the explicit Settings → Sandbox opt-out followed by a new session, explaining that command/file-tool desktop sandbox isolation is then disabled; the error never disables the preference automatically. Unknown diagnostics retain the generic state; raw diagnostic output is not exposed. Session startup preserves the original error while adding the same explanation.
+
+PSEC API export presence and Windows build numbers are not availability guarantees. Default-deny ingress omits the optional table; explicit ingress/host-loopback allow negotiates schema 1.1 and NetworkIngress support, otherwise preparation fails without dropping policy. Create HRESULT 0x80070032 is presented as an unsupported creation request, not a missing downloadable dependency. Native diagnostics and enforcement acceptance remain separate.

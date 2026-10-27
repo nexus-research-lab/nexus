@@ -4,7 +4,7 @@
 
 ## 0. 代码版本
 
-Nexus 使用 `codex/windows-mxc-sandbox`；SDK 固定到 `622ec03c205ab38dac1b6b9be3503447d784601d`；bridge 保持 go.mod 的远程 pin。SDK checkout 必须干净，三处 Nexus pin 必须一致。
+Nexus 使用 `codex/windows-mxc-sandbox`；SDK 固定到 `3065492a7b81096d3821b9831805ffe62a7c9046`；bridge 保持 go.mod 的远程 pin。SDK checkout 必须干净，三处 Nexus pin 必须一致。
 
 ## 1. 重新编译 nxs（必须）
 
@@ -76,3 +76,17 @@ nexus-server check-desktop-runtime <新的 nxs.exe 绝对路径>
 - Windows 普通用户安全边界、实际端到端启动、安装包和 ARM64 验收尚未执行。
 - 准备期不存在的受保护目标执行后复核不等于事前阻止副作用。
 - CI 缺 API、required 测试 skip 或未执行均不得算通过。
+
+## 26300.9711 / 0x80070032 复测
+
+先拉取 SDK `3065492a` 或包含它的后续提交。无需启动 Nexus 即可运行：
+
+```powershell
+$env:GOWORK='off'
+go test -count=1 -v -run '^TestWindowsPSECDiagnostics$' ./internal/tool/builtin/bash/sandboxexec 2>&1 | Tee-Object psec-diagnostics.log
+go test -count=1 -v -run '^(TestMXC|TestEncodePSEC)' ./internal/tool/builtin/bash/sandboxexec
+```
+
+第一项打印 API、PSEC 版本、支持位、四层 Create/Close 结果。minimal 也失败时继续收集系统/令牌差异，不能仅凭错误码断言系统 Bug；仅 proxy 失败时先查 1.1/NetworkIngress 和请求兼容性。它不验证子进程隔离。之后按前文重建 nxs 并运行原生完整测试，旧二进制不会自动包含修复。
+
+核实 [Codex #53650](https://github.com/openai/codex/issues/53650) 后发现正文和两条评论实际均为 `0x80070005`（拒绝访问），不是 `0x80070032`（不支持请求）；相同 build/DLL 不能视为同因证明。Nexus 不建议安装第三方 DLL、提权或关闭系统安全防护。

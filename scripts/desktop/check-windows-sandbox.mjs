@@ -18,9 +18,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // lifecycle; native ProcessContainer acceptance runs locally as a standard
 // user through NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE. Keep this exact commit in
 // lockstep with the workflow checkout.
-const WINDOWS_NATIVE_SDK_COMMIT = "622ec03c205ab38dac1b6b9be3503447d784601d";
+const WINDOWS_NATIVE_SDK_COMMIT = "3065492a7b81096d3821b9831805ffe62a7c9046";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
+  "TestMXCRootGlobPreservesAbsoluteVolume",
+  "TestMXCPSECIngressRequiresVersion11",
+  "TestEncodePSECDefaultIngressOmitsExtension",
   "TestMXCPathContainmentBoundaries",
   "TestMXCDenyWriteInsideWorkspaceBecomesReadOnlyCarveout",
   "TestMXCDenyWriteOutsideGrantsIsDropped",
