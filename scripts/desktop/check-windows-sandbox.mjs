@@ -18,35 +18,30 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // lifecycle; native ProcessContainer acceptance runs locally as a standard
 // user through NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE. Keep this exact commit in
 // lockstep with the workflow checkout.
-const WINDOWS_NATIVE_SDK_COMMIT = "e8bad7a564a08e9871dbe7b4c58a3f1a67041843";
+const WINDOWS_NATIVE_SDK_COMMIT = "622ec03c205ab38dac1b6b9be3503447d784601d";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
-  "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
-  "TestMXCDenyPolicyMissingWorkspaceFileIsDeferred",
-  "TestMXCDenyPolicyExistingFileIsDeniedItself",
-  "TestMXCDenyPolicyExistingDirectoryIsDeniedItself",
-  "TestMXCDenyPolicyWriteOnlyDenyOverReadOnlyGrantIsDropped",
-  "TestMXCDenyPolicyWriteOnlyDenyInsideReadWriteGrantFails",
-  "TestMXCDenyPolicyReadDenyOnGrantAncestorFails",
-  "TestMXCDenyPolicyWriteDenyOverReadWriteGrantFails",
-  "TestMXCDenyPolicyMissingPathOutsideGrantsIsDropped",
-  "TestMXCDenyPolicySiblingWorkspaceBoundary",
-  "TestMXCDenyPolicyNearestExistingAncestorInsideGrant",
-  "TestMXCDenyPolicyReadDenyUsesReadOnlyGrants",
-  "TestMXCDenyPolicyDenyGlobCollapsesToStaticPrefix",
-  "TestMXCDenyPolicyGlobCoveringGrantRequiresConcretePaths",
   "TestMXCPathContainmentBoundaries",
+  "TestMXCDenyWriteInsideWorkspaceBecomesReadOnlyCarveout",
+  "TestMXCDenyWriteOutsideGrantsIsDropped",
+  "TestMXCDenyWriteEqualToGrantRemovesTheGrant",
+  "TestMXCDenyWriteCoveringGrantFailsClosed",
+  "TestMXCDenyReadBecomesDeniedPathAndOverridesReads",
+  "TestMXCReadOnlyWorkspaceAndExplicitReadGrants",
+  "TestMXCMandatoryProjectCommandsStayReadable",
+  "TestMXCNetworkPolicyProxyModeAllowsOnlyLoopback",
   "TestMXCNetworkPolicyWithoutAllowlistAllowsEgress",
-  "TestMXCNetworkPolicyAllowlistRequiresProxy",
-  "TestMXCNetworkPolicyLocalBindingOpensHostLoopbackOnly",
-  "TestMXCDenyPolicyKeepsProjectCommandsWriteDenial",
-  "TestMXCRecursiveDenyPathAddsOneSeparatorOnWindows",
+  "TestMXCUIRestrictionsFollowBuildSupport",
+  "TestMXCPSECSpecAlwaysCarriesRegistryRead",
+  "TestMXCLaunchRequestRoundTripsThroughEnvironmentChunks",
+  "TestMXCLaunchRequestRejectsOversizedPayloads",
+  "TestEncodePSECSpecMatchesSchemaSlots",
+  "TestEncodePSECSpecOmitsEmptyOptionalFields",
+  "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken",
 ];
-const WINDOWS_NATIVE_FILE_SDK_PACKAGE = "./internal/tool/builtin/file/sandboxfs";
-const WINDOWS_NATIVE_FILE_TESTS = ["TestOperationConfigDropsWriteDenialsOnlyForWindowsReads"];
 const WINDOWS_NATIVE_SETTINGS_TESTS = [
   "TestSettingsBindingConcurrentUpdates",
   "TestDocumentStoreWritesTwoDocuments",
@@ -71,7 +66,7 @@ const WINDOWS_NATIVE_BRIDGE_TESTS = [
   "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
   "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing",
 ];
-// These cases require the real MXC sidecar and are intentionally separate
+// These cases require the system PSEC API and are intentionally separate
 // from the component-only Windows checks above. They are enabled only for a
 // developer-provided local SDK checkout and executable.
 const WINDOWS_LOCAL_MXC_TESTS = [
@@ -79,16 +74,19 @@ const WINDOWS_LOCAL_MXC_TESTS = [
   "TestWindowsMXCExecutionRunsInsideProcessContainer",
   "TestWindowsMXCOptionalPlanUsesWorkspaceRoot",
   "TestWindowsMXCPowerShellCommandUsesEncodedArguments",
-  "TestWindowsMXCConfigPassesNativeDryRun",
+  "TestWindowsMXCProcessSecurityEnvironmentProbe",
   "TestWindowsMXCFilesystemDenialIsEnforced",
   "TestWindowsMXCFilesystemWriteIsAllowed",
   "TestWindowsMXCNetworkAllowlistUsesNexusProxy",
   "TestWindowsMXCNetworkDenialIsEnforced",
   "TestWindowsMXCAuxiliaryHTTPRejectsExternalProxy",
-  "TestWindowsMXCOutsideGrantsAreDefaultDenied",
+  "TestWindowsMXCOutsideGrantsAreReadOnly",
   "TestWindowsMXCDeniedSingleFileKeepsSiblingWritable",
   "TestWindowsMXCCreatedProtectedFileIsReportedAsViolation",
-  "TestWindowsMXCCancellationStopsSidecar",
+  "TestWindowsMXCCancellationStopsTheSandboxedTree",
+  "TestWindowsMXCForegroundExitEndsDescendants",
+  "TestWindowsMXCDoesNotMutateHostACLs",
+  "TestWindowsMXCDeniedDirectoryCoversItsSubtree",
 ];
 
 const argumentsList = process.argv.slice(2);
@@ -122,7 +120,6 @@ const report = {
     ? {
         sdkPackage: WINDOWS_NATIVE_SDK_PACKAGE,
         requiredNativeTests: WINDOWS_NATIVE_TESTS,
-        requiredFileTests: WINDOWS_NATIVE_FILE_TESTS,
         requiredSettingsTests: WINDOWS_NATIVE_SETTINGS_TESTS,
         requiredBridgeTests: WINDOWS_NATIVE_BRIDGE_TESTS,
       }
@@ -262,13 +259,6 @@ try {
       sdkSource,
     );
     runGoTest(
-      "native-sdk-file-policy",
-      [WINDOWS_NATIVE_FILE_SDK_PACKAGE],
-      WINDOWS_NATIVE_FILE_TESTS,
-      { GOOS: "windows", GOARCH: nativeGoarch },
-      sdkSource,
-    );
-    runGoTest(
       "native-sdk-settings",
       ["./internal/config/settings"],
       WINDOWS_NATIVE_SETTINGS_TESTS,
@@ -276,14 +266,10 @@ try {
       sdkSource,
     );
     if (process.env.NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE === "1") {
-      if (!process.env.NEXUS_MXC_EXECUTABLE) {
-        throw new Error("local native evidence requires NEXUS_MXC_EXECUTABLE for MXC acceptance");
-      }
       const mxcEnvironment = {
         GOOS: "windows",
         GOARCH: nativeGoarch,
         NEXUS_REQUIRE_NATIVE_MXC: "1",
-        NEXUS_MXC_EXECUTABLE: process.env.NEXUS_MXC_EXECUTABLE,
       };
       if (!process.env.NEXUS_NXS_EXECUTABLE) {
         const helper = path.join(reportDirectory, "nxs-mxc-file-helper.exe");
@@ -293,7 +279,7 @@ try {
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
       }
       runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
-      runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip"], mxcEnvironment, sdkSource);
+      runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip", "TestWindowsMXCFileHelperReadsWriteProtectedProjectMetadata"], mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-mcp-stdio", ["./internal/tool/executor"], ["TestWindowsMXCMCPStdioUsesTheCommandPolicy"], mxcEnvironment, sdkSource);
     }
   }

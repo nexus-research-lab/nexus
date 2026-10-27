@@ -60,7 +60,7 @@ jobs:
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: e8bad7a564a08e9871dbe7b4c58a3f1a67041843
+          ref: 622ec03c205ab38dac1b6b9be3503447d784601d
           path: .nexus-sandbox-sdk
           fetch-depth: 1
           persist-credentials: false
