@@ -39,6 +39,8 @@
 
 ## R2 取消或崩溃后可能残留进程和 ACL
 
+> 当前 PSEC 处理：新方案不修改宿主 ACL；包装进程持有 kill-on-close Job。已有 ACL 不变、取消和前台退出后后代清理的原生测试，尚待 Windows 执行。 以下保留旧方案风险分析（历史，non-normative）。
+
 **现象**：
 
 - 取消命令时，`internaltool.CancelProcessTree` 用 `taskkill /PID <wxc-exec> /T /F` 按父进程树强杀。ProcessContainer 里的工作进程不一定是 `wxc-exec` 的子进程，可能杀不到。
@@ -63,6 +65,8 @@
 
 ## R3 目录拒绝的结尾反斜杠语义没有依据
 
+> 当前 PSEC 处理：新策略直接下发 deniedPaths，不再添加目录后缀；目录子树拒绝由原生测试验收，尚未执行。 以下保留旧方案风险分析（历史，non-normative）。
+
 **现象**：`f4f0789c` 认为目录路径后面加 `\` 才能让拒绝覆盖整棵子树。`da4c85b9` 把原来误加的两个反斜杠改成了一个，但 MXC 的 schema（`deniedPaths?: string[]`）和 README 都没有提到这条规则。如果 MXC 并不按结尾反斜杠区分，"带 `\`"和"不带 `\`"可能都只拒绝了目录本身，子文件仍然可读写。
 
 **验证**：在普通用户下准备 `work\protected\secret.txt`，`readwritePaths=[work]`，再分别用 `deniedPaths=[work\protected]` 和 `[work\protected\]` 执行 `type work\protected\secret.txt` 和 `echo X> work\protected\new.txt`。两种写法都要记录结果。
@@ -77,6 +81,8 @@
 
 ## R4 每次文件操作重复探测，性能差
 
+> 当前 PSEC 处理：进程内 PSEC 探测通过 sync.Once 缓存；删除逐次探测子进程。策略单测通过，但初始化耗时和操作次数仍待 Windows 采样，尚不能证明超时已解决。 以下保留旧方案风险分析（历史，non-normative）。
+
 **现象**：一次文件 helper 操作（stat、read、read_dir 都算）会启动：`PrepareExecution` 里 `mxcUnavailableReasonWithEnvironment` 的 `wxc-exec --probe`、`prepareWindowsMXCExecution` 里再一次 `--probe`、`wxc-exec` 本体、`nxs --sandbox-file-helper`；构造 `sandboxfs.New` 时还会再探测一次。项目发现（commands、agents、settings、rules、instruction files）要做几十次文件操作，会话启动可能要好几秒，甚至撞上初始化超时。
 
 **修复方案**（SDK `internal/tool/builtin/bash/sandboxexec/windows_mxc_windows.go`）：
@@ -90,6 +96,8 @@
 ---
 
 ## R5 MXC 配置经命令行传递，有长度上限
+
+> 当前 PSEC 处理：启动配置通过 4 KiB 环境变量块传递，上限 1 MiB；编码往返和超限单测通过，原生大请求仍待验收。 以下保留旧方案风险分析（历史，non-normative）。
 
 **现象**：`prepareWindowsMXCExecution` 把完整的 MXC 配置（包括整份环境变量和全部授权/拒绝路径）做 base64 后，经 `--config-base64` 放进命令行。Windows 命令行上限是 32767 个字符，base64 还会把配置放大约 4/3。PATH 很长、环境变量多、授权目录多时，`CreateProcess` 会直接失败。
 
@@ -115,6 +123,8 @@
 ---
 
 ## R7 发版前必须确认的事项
+
+当前不分发第三方 MXC 二进制，旧方案的再分发与重签名项不再适用；系统兼容性、普通用户隔离及 ARM64 仍是原生验收项。
 
 | 事项 | 现状 | 需要做什么 |
 |---|---|---|

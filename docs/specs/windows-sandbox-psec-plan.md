@@ -1,5 +1,7 @@
 # Windows 桌面沙箱：改用进程安全环境（PSEC）的开发计划
 
+本文为 **non-normative 开发计划与历史交接**；当前合同以 [desktop-sandbox-spec.md](desktop-sandbox-spec.md) 和 SDK 文档为准。
+
 本文是 Windows 桌面沙箱从 `wxc-exec.exe` 迁移到"进程内调用系统 PSEC API"的开发计划和交接说明。阶段 1（SDK 核心）已经完成，阶段 2 及之后的任务按本文继续。
 
 | 仓库 | 分支 | 阶段 1 完成时的提交 |
@@ -90,7 +92,23 @@ nxs --sandbox-mxc-launch（包装进程，未受限）
 
 ---
 
-## 4. 阶段 2：待完成的开发任务
+## 2026-10-27 接续实施状态
+
+- T1：SDK 文档已更新，提交 `67ea1838`。
+- T2：SDK CI/发布已去掉 MXC 二进制，提交 `622ec03c`，已推送。原生 CI 未在本轮执行，不代表 runner 支持 PSEC。
+- T3：Nexus 构建、打包、签名列表、C# 注入和诊断均移除旧二进制依赖；安装器静态合同通过，Windows 打包待验。
+- T4：三处 SDK pin 统一到 `622ec03c205ab38dac1b6b9be3503447d784601d`，测试名单按当前 SDK 更新；Windows amd64/arm64 交叉构建门禁通过，`releaseAccepted=false`。
+- T5：Windows 受限会话默认初始化预算三分钟，保留显式值；诊断页与启动错误共用已知原因的中文提示。Go 定向测试通过。
+- T6：规范、风险说明、验证清单、CHANGELOG 已同步；不宣称原超时已被实测修复。
+- 本轮本机验证：SDK 策略/编码定向测试与 Windows amd64 定向 vet、Nexus `make check-go`/架构门禁、Windows 双架构交叉构建、安装器静态合同、两仓 workflow YAML 解析和前端 `npm run check` 均通过。未执行 Windows 原生测试、C#/PowerShell 原生构建或 CI runner 验收。
+- T7：待 Windows 实测项目发现操作次数和耗时；超过十秒才决定长驻 worker，当前未实施。
+- T8：保留旧 bridge 分支，不在本轮删除；ARM64 原生验收待设备。
+
+阶段 2 的代码接续已实施；下方任务列表保留原计划依据，所有原生验收标准仍未完成。
+
+---
+
+## 4. 阶段 2：原始开发任务与验收标准
 
 按顺序做；每项都写了改动位置和验收标准。
 

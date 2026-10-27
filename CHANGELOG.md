@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Windows sandbox now uses the pinned nxs PSEC wrapper without bundled MXC binaries. Default restricted initialization allows three minutes, and sandbox checks explain elevated tokens and unsupported Windows versions. Native Windows acceptance and startup latency remain to be verified.
+
+
 ### Added
 
 - Windows 桌面沙箱改由 nxs SDK 的 MXC ProcessContainer 后端执行：受限会话需 nxs 与宿主 scratch 租约，完全放行不下发沙箱设置，受限 Claude 会话在 Windows 上直接拒绝；MXC 不可用时握手失败、不回退为无沙箱。
