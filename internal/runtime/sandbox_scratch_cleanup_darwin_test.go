@@ -19,7 +19,7 @@ func TestSupervisedLastLeaseReleaseUsesDurableCleanup(t *testing.T) {
 	fault := &scratchFaultStore{Repository: repo, phase: protocol.SandboxScratchRecoveryComplete, after: true}
 	m := NewManager()
 	m.SetSandboxPolicyReceiptStore(fault)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	lease, err := Acquire(t.Context(), Input{OwnerUserID: "owner", SessionKey: "session", Root: t.TempDir()})

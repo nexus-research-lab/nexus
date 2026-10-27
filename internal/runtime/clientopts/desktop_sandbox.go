@@ -6,6 +6,7 @@ package clientopts
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -38,8 +39,8 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 			}
 			return options, nil
 		}
-		if windowsDesktopSandboxElevated() {
-			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行，请以普通用户权限启动 Nexus")
+		if windowsDesktopSandboxIsElevated() {
+			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus")
 		}
 		if input.SandboxResources == nil {
 			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")
@@ -92,12 +93,20 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if platform == "darwin" {
 		options.MCP.StrictConfig = true
 	}
+	allowRead := slices.Clone(input.SkillDirectories)
+	// nxs discovers project commands, hooks and settings below the workspace
+	// metadata directory during initialize. On Windows MXC this must be an
+	// explicit read grant; the project-files capability alone does not widen the
+	// native filesystem policy.
+	if strings.TrimSpace(input.WorkspacePath) != "" {
+		allowRead = appendDistinctStrings(allowRead, filepath.Join(input.WorkspacePath, ".nexus"))
+	}
 	options.Sandbox = &agentclient.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: platform == "darwin", RequireMCPHelpers: platform == "darwin", RequireMCPStdio: platform == "darwin", RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{
-			AllowRead:  slices.Clone(input.SkillDirectories),
+			AllowRead:  allowRead,
 			AllowWrite: slices.Clone(input.AdditionalDirectories),
 		},
 		Network: &agentclient.SandboxNetworkConfig{AllowedDomains: []string{}},

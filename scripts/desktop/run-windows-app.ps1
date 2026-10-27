@@ -8,6 +8,8 @@ param(
   [string]$BuildNumber = "",
   [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
   [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH,
+  [string]$BundleMXCRuntime = $env:NEXUS_DESKTOP_BUNDLE_MXC_RUNTIME,
+  [string]$MXCRuntimePath = $env:NEXUS_DESKTOP_MXC_RUNTIME_PATH,
   [switch]$SkipBuild,
   [switch]$Wait
 )
@@ -42,7 +44,9 @@ if (-not $SkipBuild) {
     -Version $Version `
     -BuildNumber $BuildNumber `
     -BundleNXSRuntime $BundleNXSRuntime `
-    -NXSRuntimePath $NXSRuntimePath
+    -NXSRuntimePath $NXSRuntimePath `
+    -BundleMXCRuntime $BundleMXCRuntime `
+    -MXCRuntimePath $MXCRuntimePath
 }
 
 $appExe = Join-Path $OutputDir (Resolve-ExecutableFileName $ExecutableName)

@@ -27,6 +27,9 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 	}
 	alias := filepath.Join(root, "alias")
 	if err := os.Symlink(state, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("Windows symlink aliases require the SeCreateSymbolicLinkPrivilege: %v", err)
+		}
 		t.Fatal(err)
 	}
 	for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
@@ -40,13 +43,13 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 			if !slices.Contains(got.Sandbox.Filesystem.DenyRead, record) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, record) {
 				t.Fatal("sidecar identity record unprotected")
 			}
-			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Edit(/"+record+")") {
+			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Edit(/"+filepath.ToSlash(record)+")") {
 				t.Fatal("Claude record write rule missing")
 			}
 			if !slices.Contains(got.Sandbox.Filesystem.DenyRead, filepath.Join(path, "data")) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, path) {
 				t.Fatalf("missing root %s", path)
 			}
-			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Read(/"+filepath.Join(path, "data")+"/**)") {
+			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Read(/"+filepath.ToSlash(filepath.Join(path, "data"))+"/**)") {
 				t.Fatal("Claude native file rule missing")
 			}
 		}
@@ -103,5 +106,28 @@ func TestDesktopHostPathsProtectWindowsNXSState(t *testing.T) {
 	}
 	if !slices.Contains(filesystem.DenyWrite, appRoot) {
 		t.Fatalf("Windows app root is writable: %#v", filesystem.DenyWrite)
+	}
+}
+
+func TestDesktopHostPathsApplyToWindowsRestrictedNXS(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows MXC host protection")
+	}
+	appRoot := filepath.Join(t.TempDir(), "state", "app")
+	options := agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
+		Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}},
+	}
+	got, err := applyDesktopHostPaths(options, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "windows", appRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := filepath.Join(appRoot, "data")
+	record := filepath.Join(filepath.Dir(appRoot), "NexusSidecar.pid.json")
+	if !slices.Contains(got.Sandbox.Filesystem.DenyRead, data) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, appRoot) {
+		t.Fatalf("Windows host app paths are not protected: %#v", got.Sandbox.Filesystem)
+	}
+	if !slices.Contains(got.Sandbox.Filesystem.DenyRead, record) || !slices.Contains(got.Sandbox.Filesystem.DenyWrite, record) {
+		t.Fatalf("Windows sidecar record is not protected: %#v", got.Sandbox.Filesystem)
 	}
 }

@@ -33,7 +33,7 @@ type Report struct {
 // Check 用实际 sidecar 的依赖和产品策略检查随包内核，缺失能力直接终止打包。
 func Check(ctx context.Context, binary string) (Report, error) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
-		return Report{}, fmt.Errorf("native desktop runtime compatibility check requires macOS or Windows")
+		return Report{}, fmt.Errorf("native desktop runtime compatibility check required on macOS or Windows")
 	}
 	if !filepath.IsAbs(binary) {
 		return Report{}, fmt.Errorf("nxs path must be absolute")
@@ -106,9 +106,17 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 	options.Env["NEXUS_CONFIG_DIR"] = filepath.Join(root, "config")
 	options.Env["CLAUDE_CONFIG_DIR"] = filepath.Join(root, "config")
 	options.Env["TMPDIR"] = scratch
+	// The desktop host injects the bundled MXC launcher through the process
+	// environment. Carry that explicit override into the isolated compatibility
+	// session so the check exercises the same native path as the shipped app.
+	for _, name := range []string{"NEXUS_MXC_EXECUTABLE", "NEXUS_REQUIRE_NATIVE_MXC"} {
+		if value := os.Getenv(name); value != "" {
+			options.Env[name] = value
+		}
+	}
 	options.Skills = agentclient.SkillOptions{Mode: agentclient.SkillModeNone}
 	options.MCP.StrictConfig = true
-	options.Runtime.InitializeTimeout = 15 * time.Second
+	options.Runtime.InitializeTimeout = 60 * time.Second
 	session, err := agentclient.NewSession(ctx, options)
 	if err != nil {
 		return err

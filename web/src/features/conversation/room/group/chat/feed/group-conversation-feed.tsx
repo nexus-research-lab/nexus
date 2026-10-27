@@ -84,7 +84,6 @@ function StaticGroupConversationFeed({
         const state = resolveGroupConversationRound(source, index);
         return (
           <GroupConversationRound
-            isMobileLayout={isMobileLayout}
             key={roundId}
             renderer={renderer}
             state={state}

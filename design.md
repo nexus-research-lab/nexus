@@ -98,7 +98,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | Launcher 品牌字（Striper / Panchang） | Launcher / 新会话的短欢迎语 | 对话正文、设置页、导航、长 CJK 标题 |
 | `--font-mono` | code、kbd、源码、纯文本预览 | 连续 prose 或导航 |
 
-字号阶梯：`10 / 11 / 12 / 13 / 14 / 16 / 20 / 24 / 36px`（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `15 / 17 / 22 / 28 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
+字号阶梯：`10 / 11 / 12 / 13 / 14 / 16 / 20 / 24 / 36px`，界面文字最小 10px（`text-2xs`），角标、快捷键与画布徽标不得写 `text-[9px]` 等阶梯外字号（头像字形与插画缩略除外）（Tailwind 主题键 `--text-2xs / xs / compact / sm / base / md / lg / xl / 2xl`）。这是与 `theme-tokens.css` 一致的唯一 App 阶梯；旧的 `15 / 17 / 22 / 28 / 42px` 界面尺度不得回流。对话正文是独立阅读层，遵循 §6.2。
 
 App chrome 使用 `shared/ui/typography/typography-styles.ts` 的语义角色，不在每个文件重新组合字号、行高、字重与字距：
 
@@ -145,19 +145,17 @@ Settings 不单独维护字号和字重：区块标题、设置项名称、说�
 圆角层级表达对象职责，组件不得自行挑选 `rounded-*`：
 
 ```css
-4px   micro        /* kbd、极小承载体 */
-6px   control-xs   /* micro / xs 控件 */
-8px   control-sm / surface-sm /* 紧凑控件、内容内小表面 */
-10px  control-md   /* 默认字段/按钮、目录头像、Tooltip */
-12px  control-lg / surface-md /* 大控件、独立内容面、user 消息壳 */
-16px  surface-lg   /* popover、dialog、sheet */
-20px  composer     /* 唯一的主输入焦点 */
-24px  shell        /* 认证、故障等独立壳 */
+4px   micro / control-xs /* kbd、极小承载体、micro / xs 控件 */
+6px   control-sm / surface-sm /* 紧凑控件、内容内小表面 */
+8px   control-md   /* 默认字段/按钮、菜单行、目录头像、Tooltip */
+10px  control-lg / surface-md /* 大控件、独立内容面、user 消息壳 */
+12px  surface-lg   /* popover、dialog、sheet，以及主输入框 Composer */
+16px  shell        /* 认证、故障等独立壳（surface-xl） */
 999px full         /* 状态点、真实 pill、明确要求的圆形头像或主图标动作 */
 ```
 
-- button、input、menu item 通过公共组件的 `size / variant` 选择 control 档位；不通过局部圆角放大普通按钮、筛选项或改成 pill。控件与表面尺度分别由 `--radius-control-* / --radius-surface-*` 定义，recipe 只引用 token。
-- 聊天 / 目录的人物头像是方形，圆角取 control 系（6–12px 随尺寸）；禁止 `full` 使头像近似圆形。紧凑选择器使用公共 Agent Avatar 的 `xxs`（16px）与 control-xs 圆角；回退只显示一个完整字符，页面不另写图片、微字号或边框。
+- button、input、menu item 通过公共组件的 `size / variant` 选择 control 档位；不通过局部圆角放大普通按钮、筛选项或改成 pill。控件与表面尺度分别由 `--radius-control-* / --radius-surface-*` 定义，recipe 只引用 token；Markdown 代码块与 Mermaid 等内容表面用 `--content-radius-surface`，内联 token / mention 用 `--content-radius-inline`。不再保留旧 `--radius-sm / md / lg`；Tailwind `rounded-sm / md / lg / xl` 在主题层映射到 control-xs / control-md / surface-lg / surface-xl，组件仍优先写语义 token，禁止 `rounded-[Npx]` 任意值（头像按尺寸分档与插画示意除外）。
+- 聊天 / 目录的人物头像是方形，圆角取 control 系（4–10px 随尺寸）；禁止 `full` 使头像近似圆形。紧凑选择器使用公共 Agent Avatar 的 `xxs`（16px）与 control-xs 圆角；回退只显示一个完整字符，页面不另写图片、微字号或边框。
 - 头像加载失败时原位显示完整字符的姓名缩写；只有图片地址变化才重新加载，不显示破图或循环重试。Agent 与 Room 各有唯一可访问名称，群头像内部成员图片只作装饰。群头像最多展示 9 名成员，允许 Header 显式限制为 4 名；双成员保留错位轻叠，三名及以上进入等格拼图。普通头像不缩放成拼图子项，多成员回退只显示一个完整字符并随格宽采用 6–14px 微字号；这是头像内部识别几何，不能用于普通名称或说明文字。
 - 常规 panel、rail、nav row 不使用外阴影；Composer 只用极轻边界与低透明阴影让白色 surface 脱离画布；menu / popover 使用同一档浮层阴影，dialog 只按尺寸加深同源阴影，不用内阴影、双描边、发光或毛玻璃。
 - 不新增无消费者的渐变；删除后信息层级不变的渐变默认删除。
@@ -227,7 +225,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 - 复选行由 `UiCheckboxRow` 提供整行原生命中：标准标题使用 control / medium，紧凑标题与两档说明使用 supporting（13px），说明为 muted。标准留白维持 16px / 12px、内容间距 12px；紧凑行最小高度 32px、水平留白 10px、内容间距 8px。长名称与说明允许换行，装饰图标不收缩；原生输入或所属 fieldset 禁用时整行无 hover，文字、图标与选择框各弱化一次。
 - 设置中的普通二元选项使用同一行：左侧图标、control 标题和 supporting / muted 说明，右侧固定尺寸 sm 开关。行内水平留白 16px、垂直留白 12px、内容与开关间距 12px；窄屏允许标题和说明换行，开关不压缩，也不另起一行重复“启用”。独立权限风险卡和嵌入模型表单的开关保留各自信息层级，说明仍必须关联到实际开关。
 - menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用下述同心行圆角和中性 hover / active 底面。
-- 菜单型浮层的外框为 16px 圆角、内容边缘 4px、行圆角 12px、行间距 2px，分隔线上下各留 4px；带说明行只增加自身高度。标题、搜索、图标网格与纯信息正文按内容语义使用 12–16px 留白，不套用菜单行节奏；这些值由共享 recipe 持有，业务不得局部覆盖。
+- 菜单型浮层的外框为 12px 圆角、内容边缘 4px、行圆角 8px、行间距 2px，分隔线上下各留 4px；带说明行只增加自身高度。标题、搜索、图标网格与纯信息正文按内容语义使用 12–16px 留白，不套用菜单行节奏；这些值由共享 recipe 持有，业务不得局部覆盖。
 - 单选菜单触发器的 xs / sm / md、lg 分别复用 metadata / supporting / control，均为正常字重；选项保持 13px supporting，xs 选项为 12px metadata。可选来源徽标在当前值和选项中都直接使用公共 Badge 的 xs / primary，不再另造微字号或颜色。触发器忽略输入法组合事件（含旧式 229 键码）及已被处理的键盘事件，避免确认候选字时误开关或切换选项。
 - 菜单中的二元选项使用公共 Action Menu 的受控 `checked`，由同一原生 `menuitemcheckbox` 行提供状态与激活；整行只有一个焦点和命令入口。名称、图标及尾部只放非交互内容，不嵌套 Switch、按钮或输入框。勾选标记由共享菜单持有，和普通动作共同参与方向键导航；点击、Enter、Space 激活一次后关闭并归还触发器。
 - 动作与级联菜单可见后进入首个可用项，方向键/Home/End 只在当前层级遍历，跳过禁用项；全部不可用时根菜单仍能接收退出键。点击/右方向键进入子菜单，左方向键/Escape 逐层返回；悬浮打开子菜单保持现有焦点。Tab/Shift+Tab 关闭菜单并从原触发器续接同一页面的相邻控件，在所属模态内保留循环边界；页面边界无相邻控件时先归还触发器。IME 与编辑控件的方向键不触发菜单导航，外部点击不抢回焦点。
@@ -254,7 +252,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 - rail 只表达位置、切换、未读和简短运行态；当前项用比 hover 清晰一档的中性灰底与更深文字，不靠蓝色、徽标、粗字重、大色块或填充图标。
 - 主侧栏导航轨在中英文中统一以 56px 为基础宽度，并将壳层左侧留白纳入可见轨宽共同居中；剩余宽度分配给右侧目录。一级动作占满轨道可用宽度。导航使用清楚的本地化短标签，完整领域名保留在页面标题或说明中；不得为了长全名撑宽导航、缩小字号或建立语言专属组件。32×32px 图标交互面、18px 图标与固定会话共用中心轴。折叠时整个侧栏收至 0 宽并退出键盘导航，只保留工作区顶栏的展开控制。
-- icon 统一 18–20px、单色、细描边、与文字同色；不建独立的彩色 icon 系统。
+- icon 统一单色、与文字同色、`1.5` 细描边（Lucide 默认 2 由全局 recipe 收细，只有勾选等明确强调保留显式加粗）；导航轨一级入口 18px，侧栏搜索旁创建、折叠与设置等工具图标 16px；不建独立的彩色 icon 系统。
 - 最近会话、文件或联系人保持纯文本列表；长内容截断，不额外添加摘要卡。
 - Nexus 主智能体与普通 DM 共用同一目录行，只保留“固定置顶、不可删除”两项产品差异；不得另建一级导航动作、专用 Focus 侧栏或第二套激活状态。
 - 品牌栏只承担品牌与侧栏收起；底栏右侧显示设置图标，左侧始终保留紧凑账号头像；账号名称、统一引导中心与有效退出放入向上展开的菜单。页面不再重复提供查看引导按钮，首次自动引导保留。折叠时侧栏和底部操作一起隐藏，工作区只保留展开控制。
@@ -348,11 +346,13 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 `nexus-chat-markdown` 是对话正文的唯一排版入口，`nexus-workspace-file-markdown` 是工作区文件的唯一排版入口；两者共享语义语法，但保持各自的阅读密度。
 
 - 对话正文默认 `14px / 1.7 / 400`，正文色为 `--text-strong` 与 `--text-default` 的 65/35 混合（浅色约 #20201f），只有标题与加粗使用 `--text-strong`（用户可在 设置 → 外观 调整字号与行距，偏好覆盖默认值）：中文片段额外 `letter-spacing: 0.02em`；中文与拉丁默认都使用 `--font-sans`（苹方/雅黑），不使用宋体（屏幕小字号下笔画噪点多、长文显乱），术语与 code 使用 `--font-mono`。
-- 正文直接子块间距取半个正文行高（默认约 13px），随个人字号/行高设置等比缩放；普通段落、列表不再叠加独立 margin，避免博客式大留白或块距忽大忽小。段落与列表项使用 `text-wrap: pretty`，标题使用 `text-wrap: balance`。
+- 轮次间距取 0.75 个正文行高、正文直接子块间距取半个正文行高（默认约 18px / 12px），随个人字号/行高设置等比缩放；普通段落、列表不再叠加独立 margin，避免博客式大留白或块距忽大忽小。段落与列表项使用 `text-wrap: pretty`，标题使用 `text-wrap: balance`。
+- Assistant 正文的文字块（段落、标题、列表、引用）左缩 4px 与头像光学对齐，右侧按 `clamp(0px, (100% - 384px) * 0.175, 56px)` 留止动区缩短长行；代码块、表格、媒体等结构块不缩进，贴满版心。
+- 用户气泡最多占版心 85%（宽屏另以 720px 封顶），窄栏回退为 `clamp(85%, 448px, 100%)`；比例只挂在消息行的直接 flex 子项上，不得挂在随内容收缩的气泡本身，否则百分比循环压缩会让短句逐字换行。
 - Assistant prose 默认无背景、无边框、无 bubble、无阴影；强调只用字重与文字色，不用蓝色或彩色底大面积强调；`em` 只表达语义强调。标题用 600，行内加粗只用 500，避免「标签：说明」密集排列时整屏发黑。多行列表项间距 0.5em。
 - 标题：`h1 1.375em / h2 1.125em / h3–h6 1em`（随正文字号缩放），均 `600`；上方 12px（h3+ 为 8px）、下方收紧 4px。不用 display serif、彩色标题、全大写或过度 letter-spacing。
 - `hr` 只分隔真正不同的主题；半像素细分隔线，不作为每段装饰。
-- 列表用浏览器原生 `disc` / `decimal` marker，缩进 `1.5em`，条目间距只由列表 `gap: 0.25em` 一处决定；有序列表用 tabular number，marker 用 `--text-default`，不是品牌蓝；嵌套列表只增加缩进，不形成层层 card。
+- 列表用浏览器原生 `disc` / `decimal` marker，缩进 `1.5em`，条目间距只由列表 `gap` 一处决定（对话正文 0.5em，其他 0.25em）；有序列表用 tabular number，marker 用 `--text-default`，不是品牌蓝；嵌套列表只增加缩进，不形成层层 card。
 - 长文件名统一 `UiMiddleTruncate`：主体省略、扩展名始终可见。
 - 链接用 Nexus 蓝文字，默认可辨识，hover / focus 再出下划线或局部底色；外部链接、workspace 文件、Agent mention 保留各自语义图标或标签。
 - quote 用 2px 中性左边界与次级文字色，背景透明；不用大面积蓝底或强制 italic。
@@ -427,12 +427,14 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 - `620px` 以下收紧消息壳、标题和列表列宽；优先保留正文宽度、点击区域、滚动位置和 Composer。
 - 列表 marker 始终占独立列，不用负 margin 压进正文。
-- hover / focus 用 `--motion-duration-fast: 160ms`；面板与 overlay 用 `--motion-duration-normal: 220ms`；侧栏等真实布局轴变化使用 `--motion-duration-layout: 300ms` 与 `--motion-ease-layout`，只过渡宽度和必要动作坐标，不缩放导航图标。其余动效统一 `--motion-ease-standard`。
+- 时长五档：按压与勾选的瞬态反馈用 `--motion-duration-instant: 60ms`，箭头翻转、标签与关闭按钮用 `--motion-duration-snap: 120ms`；hover / focus 用 `--motion-duration-fast: 160ms`；面板与 overlay 用 `--motion-duration-normal: 220ms`；侧栏等真实布局轴变化使用 `--motion-duration-layout: 300ms` 与 `--motion-ease-layout`，只过渡宽度和必要动作坐标，不缩放导航图标。其余动效统一 `--motion-ease-standard`，元素离场用 `--motion-ease-exit` 加速收尾。组件与 Tailwind 类只引用这些 token（`duration-(--motion-duration-*)`），不写 `duration-200`、`145ms` 或私有 cubic-bezier。
 - 内容流只允许三类动效：新轮次的微弱进入、过程项状态更新、展开 / 收起 detail；正文不做逐字弹跳或大范围 stagger。
 - 按压反馈：Button / IconButton / Choice 统一 `ui-press`，按下 `scale(0.975)`、松手用 `--motion-ease-spring`（约 9% 轻微过冲）回弹；只改 transform，不改布局几何，禁用态与减少动效时不形变。
 - Disclosure 展开用 Grid `0fr → 1fr` 加淡入（`--motion-duration-normal`），不用 JS 测高；对话 Feed 内的折叠区保持瞬时，避免连续高度变化干扰滚动协调器。
 - 活动状态切换阶段时文案只做一次淡入交接（`ui-status-swap`），不位移；同阶段旁白更新不重播。骨架屏用 105° 斜向光带 2s 匀速扫过，代替整块 pulse。
 - 嵌套弹窗：被上层模态覆盖的父弹窗内容 `blur(2px)`，压暗交给子弹窗自身遮罩。
+- 小件出入场：附件入场 `ui-chip-in`（0.8 倍、2px 模糊到落定，`--motion-ease-overshoot` 轻微过冲）；Slash 等同批出现的候选项用 `ui-stagger-in` 按序号错开 30ms，最多 8 档；移除附件先 `ui-chip-out` 缩小淡出再删除（snap 120ms + `--motion-ease-exit`，JS 删除时机与之同步）。减少动效时全部即时。
+- 详情滚动区上下渐隐由 CSS 滚动时间轴（`animation-timeline: scroll(self)`）直接驱动 1.5rem 羽化，不支持时回退到 JS 写入方向属性；有吸顶标题时不做顶部羽化。
 - 连续等待或运行状态只允许固定占位的局部指示器循环，状态正文、图标、按钮和容器不得流光、位移或整体 `pulse` 造成频闪；共享 `LoadingOrb` 只暴露 `active / preparing` 语义 variant，并在减少动效时停留在可读首帧。
 - `:focus-visible` 必须保留隔离线与 `--ring`；`prefers-reduced-motion` 下动画近乎即时。
 - Launcher 的装饰动画不承载业务信息，也不进入可访问树；减少动态效果时 Lottie 停留在静态首帧，标题和入口内容立即显示。Hero 标题允许轻微字符渐显，保持自然行内断词，不做逐字位移或缩放；容器进入后移除 transform，避免长期独立合成层。动效不得依赖字体测量或先隐藏整段可访问文本。

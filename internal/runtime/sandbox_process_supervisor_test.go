@@ -16,7 +16,7 @@ import (
 
 func TestSandboxProcessSupervisorBindsBeforeFactory(t *testing.T) {
 	h, store, intent := newProcessHostFixture(t)
-	config := SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}
+	config := SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}
 	ctx := t.Context()
 	var savedOptions bridge.Options
 	manager := NewManagerWithFactory(runtimeFactoryFunc(func(o bridge.Options) Client { savedOptions = o; return &fakeRuntimeClient{} }))
@@ -122,7 +122,7 @@ func TestSandboxProcessSupervisorRejectsRequestedFactory(t *testing.T) {
 	h, store, i := newProcessHostFixture(t)
 	m := NewManager()
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: i.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: i.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	injected := bridge.Options{ProcessSupervision: func(context.Context, supervision.Purpose) (supervision.Config, error) {
@@ -146,7 +146,7 @@ func TestSandboxProcessSupervisorReplacementUsesNextLiveGeneration(t *testing.T)
 	var created []bridge.Options
 	m := NewManagerWithFactory(runtimeFactoryFunc(func(o bridge.Options) Client { created = append(created, o); return &fakeRuntimeClient{} }))
 	m.SetSandboxPolicyReceiptStore(store)
-	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := m.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: h.root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	o := bridge.Options{Runtime: bridge.RuntimeOptions{Kind: bridge.RuntimeNXS}, Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}

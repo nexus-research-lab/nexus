@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func newProcessHostFixture(t *testing.T) (*sandboxProcessHost, *sandboxstore.Rep
 	}
 	store := sandboxstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	// 短路径只用于测试 Unix socket 长度规则；本测试不执行任务。
-	path, err := os.MkdirTemp("/tmp", "nsp-")
+	path, err := os.MkdirTemp(t.TempDir(), "nsp-")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,15 @@ func newProcessHostFixture(t *testing.T) (*sandboxProcessHost, *sandboxstore.Rep
 	return h, store, supervision.Intent{Version: 1, ID: id, BootID: "12345678-1234-1234-1234-123456789abc", OwnerUID: 501, JobLabel: "cn.nexus.runtime." + id, HelperSHA256: strings.Repeat("b", 64)}
 }
 
+func trustedBootstrapPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "bootstrap.exe")
+}
+
 func TestSandboxProcessHostExactLifecycle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory fsync semantics are not available for the legacy host-process fixture on Windows")
+	}
 	h, store, i := newProcessHostFixture(t)
 	ctx := t.Context()
 	paths, err := h.Reserve(ctx, i)
@@ -109,6 +118,9 @@ func TestSandboxProcessHostExactLifecycle(t *testing.T) {
 }
 
 func TestSandboxProcessHostRejectsUnsafePaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink fixture requires SeCreateSymbolicLinkPrivilege; MXC junction coverage runs in the native gate")
+	}
 	h, store, i := newProcessHostFixture(t)
 	ctx := t.Context()
 	outside := t.TempDir()

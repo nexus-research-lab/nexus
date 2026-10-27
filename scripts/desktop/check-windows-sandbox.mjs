@@ -12,28 +12,85 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// The Windows gate follows the SDK MXC backend. Legacy machine-host and
-// settings-journal tests belong to the retired backend and are not release
-// evidence for this path.
-const WINDOWS_NATIVE_SDK_COMMIT = "633e5a6ecdf6635f471e7c147e4ea35f9ff33ada";
-const WINDOWS_NATIVE_SDK_PACKAGES = [
-  "./internal/tool/builtin/bash/sandboxexec",
-  "./internal/tool/builtin/file/sandboxfs",
-  "./internal/tool/executor",
-];
+// Includes native settings recovery, junction rejection and explicit P3 probes.
+// The MXC command backend and its native acceptance tests are carried by the
+// SDK sandbox branch. Keep this exact commit in lockstep with the handoff
+// branch; an older component-only commit makes the required MXC test filter
+// silently run zero tests.
+const WINDOWS_NATIVE_SDK_COMMIT = "66ee1815168d7f785f3a3f3373a0fcb2582a69c0";
+const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
+  "TestWindowsPrivateDesktopLifecycle",
+  "TestWindowsCommandPreservesArguments",
+  "TestWindowsCommandRejectsAmbiguousInputs",
+  "TestWindowsCommandEnvironmentIsExplicit",
+  "TestWindowsCommandCloseCanRetryWithoutReviving",
+  "TestWindowsCommandOwnerRejectsHost",
+  "TestWindowsCommandConcurrentCloseHonorsCancellation",
+  "TestWindowsCommandClosePreservesBorrowedHandles",
+  "TestWindowsCommandCloseCollectsUnassignedRoot",
+  "TestWindowsProcessCreationRejectsRetiredJob",
+  "TestWindowsProcessCreationRejectsCanceledAdmission",
+  "TestWindowsProcessCanceledStartCannotBeRevived",
+  "TestWindowsSandboxJobTerminatesAssignedSuspendedProcess",
+  "TestWindowsSandboxJobTerminatesRunningDescendants",
+  "TestWindowsRunnerHostExitTerminatesRunningDescendants",
+  "TestWindowsRunnerExecutionLifecycle",
+  "TestWindowsRunnerHostLifetime",
+  "TestWindowsRunnerPipePeerMatchesKernelIdentity",
+  "TestWindowsRunnerPipeRejectsHostExecutionIdentity",
+  "TestWindowsRunnerThreadProtectionRejectsHost",
+  "TestWindowsSandboxIdentityRejectsHostToken",
+  "TestWindowsBrokerIdentityRejectsCurrentAccount",
+  "TestWindowsHostDenialMergeIsIdempotent",
+  "TestWindowsTemporaryDirectoryRejectsHostIdentity",
+  "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
+  "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken",
+];
+const WINDOWS_NATIVE_SETTINGS_TESTS = [
+  "TestSettingsBindingConcurrentUpdates",
+  "TestDocumentStoreWritesTwoDocuments",
+  "TestDocumentStoreRollsBackProvenlyAppliedDocuments",
+  "TestDocumentStoreBreaksHardlinkOnWrite",
+  "TestSettingsJournalIsClearedAfterSuccessfulUpdate",
+  "TestSettingsJournalCrossRootMixedStateFailsClosed",
+  "TestSettingsJournalDoesNotStoreDocumentPlaintext",
+  "TestSettingsJournalProcessExitRecovery/committed-0",
+  "TestSettingsJournalProcessExitRecovery/committed-1",
+  "TestSettingsJournalProcessExitRecovery/committed-2",
+  "TestWindowsSettingsJournalLongPath",
+  "TestWindowsSettingsJournalPublishPreservesExisting",
+];
+const WINDOWS_NATIVE_BRIDGE_TESTS = [
+  "TestWindowsJobAdmissionAndCleanup",
+  "TestWindowsProbeCancellationClosesJob",
+  "TestWindowsProbeRejectsLingeringOutput",
+  "TestWindowsHostCrashClosesRuntimeJob",
+  "TestClaudeNativeSandboxProbeUsesSettingsAndScrubsSecrets",
+  "TestClaudeNativeSandboxProbeFailsClosedWhenSettingsFlagIsMissing",
+  "TestClaudeRestrictedProbeRequiresAdvertisedFlagAndScrubsSecrets",
+  "TestClaudeRestrictedProbeFailsClosedWhenFlagIsMissing",
+];
+// These cases require the real MXC sidecar and are intentionally separate
+// from the component-only Windows checks above. They are enabled only for a
+// developer-provided local SDK checkout and executable.
+const WINDOWS_LOCAL_MXC_TESTS = [
   "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
   "TestWindowsMXCExecutionRunsInsideProcessContainer",
+  "TestWindowsMXCOptionalPlanUsesWorkspaceRoot",
+  "TestWindowsMXCPowerShellCommandUsesEncodedArguments",
   "TestWindowsMXCConfigPassesNativeDryRun",
   "TestWindowsMXCFilesystemDenialIsEnforced",
   "TestWindowsMXCFilesystemWriteIsAllowed",
+  "TestWindowsMXCNetworkAllowlistUsesNexusProxy",
   "TestWindowsMXCNetworkDenialIsEnforced",
+  "TestWindowsMXCAuxiliaryHTTPRejectsExternalProxy",
   "TestWindowsMXCOutsideGrantsAreDefaultDenied",
   "TestWindowsMXCDeniedSingleFileKeepsSiblingWritable",
   "TestWindowsMXCCreatedProtectedFileIsReportedAsViolation",
   "TestWindowsMXCCancellationStopsSidecar",
-  "TestWindowsMXCFileHelperRoundTrip",
-  "TestWindowsMXCMCPStdioUsesTheCommandPolicy",
 ];
 
 const argumentsList = process.argv.slice(2);
@@ -65,8 +122,10 @@ const report = {
   checks: [],
   ...(nativeMode
     ? {
-        sdkPackages: WINDOWS_NATIVE_SDK_PACKAGES,
+        sdkPackage: WINDOWS_NATIVE_SDK_PACKAGE,
         requiredNativeTests: WINDOWS_NATIVE_TESTS,
+        requiredSettingsTests: WINDOWS_NATIVE_SETTINGS_TESTS,
+        requiredBridgeTests: WINDOWS_NATIVE_BRIDGE_TESTS,
       }
     : {}),
 };
@@ -183,6 +242,12 @@ try {
       ],
       { GOOS: "windows", GOARCH: nativeGoarch },
     );
+    runGoTest(
+      "native-bridge-lifecycle",
+      ["github.com/nexus-research-lab/nexus-agent-sdk-bridge/internal/transport"],
+      WINDOWS_NATIVE_BRIDGE_TESTS,
+      { GOOS: "windows", GOARCH: nativeGoarch },
+    );
   }
 
   if (nativeMode) {
@@ -192,11 +257,39 @@ try {
     }
     runGoTest(
       "native-sdk-components",
-      WINDOWS_NATIVE_SDK_PACKAGES,
+      [WINDOWS_NATIVE_SDK_PACKAGE],
       WINDOWS_NATIVE_TESTS,
       { GOOS: "windows", GOARCH: nativeGoarch },
       sdkSource,
     );
+    runGoTest(
+      "native-sdk-settings",
+      ["./internal/config/settings"],
+      WINDOWS_NATIVE_SETTINGS_TESTS,
+      { GOOS: "windows", GOARCH: nativeGoarch },
+      sdkSource,
+    );
+    if (process.env.NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE === "1") {
+      if (!process.env.NEXUS_MXC_EXECUTABLE) {
+        throw new Error("local native evidence requires NEXUS_MXC_EXECUTABLE for MXC acceptance");
+      }
+      const mxcEnvironment = {
+        GOOS: "windows",
+        GOARCH: nativeGoarch,
+        NEXUS_REQUIRE_NATIVE_MXC: "1",
+        NEXUS_MXC_EXECUTABLE: process.env.NEXUS_MXC_EXECUTABLE,
+      };
+      if (!process.env.NEXUS_NXS_EXECUTABLE) {
+        const helper = path.join(reportDirectory, "nxs-mxc-file-helper.exe");
+        run("build-local-sdk-file-helper", "go", ["build", "-trimpath", "-mod=readonly", "-o", helper, "./cmd/nxs"], mxcEnvironment, sdkSource);
+        mxcEnvironment.NEXUS_NXS_EXECUTABLE = helper;
+      } else {
+        mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
+      }
+      runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
+      runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip"], mxcEnvironment, sdkSource);
+      runGoTest("native-sdk-mxc-mcp-stdio", ["./internal/tool/executor"], ["TestWindowsMXCMCPStdioUsesTheCommandPolicy"], mxcEnvironment, sdkSource);
+    }
   }
 
   report.passed = true;

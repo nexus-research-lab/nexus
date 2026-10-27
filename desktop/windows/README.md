@@ -28,13 +28,27 @@ winget install --id JRSoftware.InnoSetup -e
 pwsh scripts/desktop/build-windows-app.ps1
 ```
 
-也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` runtime，避免 Agent 启动时找不到 `nxs.exe`：
+也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` 和 MXC runtime，避免受限 Agent 启动时缺少后端：
 
 ```powershell
 make app-win-build
 make app-win-run
 make app-win-run APP_WIN_RUN_SKIP_BUILD=1
 ```
+
+MXC 二进制来自外部 `nexus-agent-sdk-go` 发布或构建产物。将包含
+`wxc-exec.exe`、`mxc_ffi.dll` 和 `winhttp-proxy-shim.exe` 的目录设置为
+`NEXUS_DESKTOP_MXC_RUNTIME_PATH`（也可直接指向 `wxc-exec.exe`），再运行 `make app-win-build`。
+构建会把三件套复制到 `Resources/bin/mxc/bin/x64`，缺少任一组件会立即失败。只构建不含 MXC 的开发壳时显式设置
+`APP_WIN_BUNDLE_MXC_RUNTIME=0`；这不提供受限 Windows 会话可用性。
+
+可直接用 SDK workflow 同源的 npm 包安装并验证 MXC：
+
+```powershell
+make app-win-install-mxc
+```
+
+脚本下载 `@microsoft/mxc-sdk@1.0.0`，复制三件套，执行 `wxc-exec.exe --probe`，并写入仓库 `.env.local`。应用启动时会再次执行能力探测；MXC 缺失或探测失败时保持沙箱能力不可用，不会回退成无隔离的受限会话。桌面沙箱偏好默认关闭；用户打开后，设置页应提示先安装 MXC。
 
 如需临时关闭随包预置 runtime：
 
@@ -68,9 +82,11 @@ pwsh scripts/desktop/package-windows-app.ps1
 
 package 脚本默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`。
 
+package 脚本默认要求 MXC 三件套，并将其布局写入 metadata；正式包还会对三个 MXC PE/DLL 文件执行与 Nexus 其他二进制相同的 Authenticode 签名。MXC SDK checkout、构建产物、签名证书和 Windows 实机均是外部发布依赖。
+
 package 脚本默认用 self-contained .NET 发布 shell，当前只构建 `win-x64`；安装器允许在 x64-compatible Windows 上运行，也就是 x64 Windows 和支持 x64 仿真的 Windows 11 ARM64。
 
-如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nxs.exe` 和安装器：
+如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nxs.exe`、MXC 三件套和安装器：
 
 ```powershell
 $env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 = "<base64 pfx>"

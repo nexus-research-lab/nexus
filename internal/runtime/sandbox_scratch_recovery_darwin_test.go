@@ -113,7 +113,7 @@ func newScratchRecoveryFixtureWith(t *testing.T, mutate func(*protocol.SandboxPr
 	}
 	manager := NewManager()
 	manager.SetSandboxPolicyReceiptStore(store)
-	if err := manager.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: root, HelperPath: "/trusted/bootstrap", HelperSHA256: intent.HelperSHA256}); err != nil {
+	if err := manager.SetSandboxProcessSupervisor(SandboxProcessSupervisor{Root: root, HelperPath: trustedBootstrapPath(t), HelperSHA256: intent.HelperSHA256}); err != nil {
 		t.Fatal(err)
 	}
 	return scratchRecoveryFixture{manager: manager, store: store, guard: guard, key: h.intent.Key, lease: lease, root: root, path: lease.Path()}
