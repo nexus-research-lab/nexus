@@ -6,11 +6,11 @@
 
 | 仓库 | 分支 | 提交 |
 |---|---|---|
-| nexus | `codex/windows-mxc-sandbox` | `024f6f472` 或更新（已合入 main v0.2.6） |
-| nexus-agent-sdk-go | `codex/desktop-sandbox-approvals` | `e8bad7a5`（已合入 main v0.1.37） |
+| nexus | `codex/windows-mxc-sandbox` | `700995d18` 或更新 |
+| nexus-agent-sdk-go | `codex/desktop-sandbox-approvals` | `e8bad7a5`（固定 pin；尚未进入 `origin/main`） |
 | nexus-agent-sdk-bridge | 不用改 | nexus 沿用 main 上的 pin |
 
-两个分支都已推送，在 Windows 上拉到上面这两个提交。
+两个提交都已推送；Windows 发布流水线必须显式 checkout 并编译 e8 pin，不能用未验证的 `nxs-stable` 替代。
 
 **本轮改动：**
 - 修复 `project: read commands directory failed … Access is denied`：只读文件 helper 在 Windows 上去掉写拒绝，命令仍然不能写 `.nexus/commands`；项目元数据读到权限错误时直接报错，不再静默跳过。

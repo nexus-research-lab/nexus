@@ -321,6 +321,28 @@ jobs:
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 
+      - name: Checkout pinned Windows sandbox SDK
+        uses: actions/checkout@v6
+        with:
+          repository: nexus-research-lab/nexus-agent-sdk-go
+          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
+          ref: e8bad7a564a08e9871dbe7b4c58a3f1a67041843
+          path: ${{ runner.temp }}\nexus-agent-sdk-go
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Build pinned Windows nxs runtime
+        shell: pwsh
+        run: |
+          $sdkDir = Join-Path "${{ runner.temp }}" "nexus-agent-sdk-go"
+          $nxsPath = Join-Path "${{ runner.temp }}\windows-runtime-cache" "nxs.exe"
+          $env:GOWORK = "off"
+          go -C $sdkDir build -mod=readonly -trimpath -o $nxsPath ./cmd/nxs
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to build pinned nxs runtime from e8bad7a5"
+          }
+          "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
+
       - name: Build Windows App Package
         shell: pwsh
         env:
