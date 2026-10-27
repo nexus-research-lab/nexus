@@ -35,6 +35,7 @@ public partial class MainWindow : System.Windows.Window
     private bool needsAttention;
     private bool flashingAttention;
     private bool closed;
+    private bool closePromptShown;
     private bool exitRequested;
     private bool webViewRecreateInFlight;
 
@@ -68,15 +69,41 @@ public partial class MainWindow : System.Windows.Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!ShouldCloseForExit())
+        if (ShouldCloseForExit())
         {
-            e.Cancel = true;
-            HideToTray();
+            webViewHost?.SetHostWindowInteractive(interactive: false, "exit");
+            base.OnClosing(e);
             return;
         }
 
-        webViewHost?.SetHostWindowInteractive(interactive: false, "exit");
-        base.OnClosing(e);
+        e.Cancel = true;
+        if (closePromptShown)
+        {
+            return;
+        }
+
+        closePromptShown = true;
+        string? action = NexusDialogWindow.Show(
+            this,
+            new NexusDialogOptions(
+                "关闭 Nexus",
+                "请选择关闭窗口后的操作。退出会停止本地服务并释放端口；最小化到托盘会继续在后台运行。",
+                [
+                    new NexusDialogAction("cancel", "取消", IsCancel: true),
+                    new NexusDialogAction("tray", "最小化到托盘"),
+                    new NexusDialogAction("exit", "退出 Nexus", NexusDialogActionTone.Primary, IsDefault: true),
+                ]));
+        closePromptShown = false;
+
+        if (action == "tray")
+        {
+            HideToTray();
+        }
+        else if (action == "exit")
+        {
+            exitRequested = true;
+            Close();
+        }
     }
 
     protected override void OnClosed(EventArgs e)
