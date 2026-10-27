@@ -68,17 +68,5 @@ assert.match(installerSource, /RestartApplications=no/);
 // needs its own protected installation and cannot elevate this mutable bundle.
 assert.match(installerSource, /^PrivilegesRequired=lowest\r?$/m);
 assert.match(installerSource, /^DefaultDirName=\{localappdata\}\\Programs\\[^\r\n]+\r?$/m);
-assert.match(sidecarSupervisorSource, /NEXUS_MXC_EXECUTABLE/);
-assert.match(
-  sidecarSupervisorSource,
-  /Path\.Combine\(locator\.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec\.exe"\)/,
-);
-for (const component of ["mxc_ffi.dll", "winhttp-proxy-shim.exe"]) {
-  assert.match(
-    sidecarSupervisorSource,
-    new RegExp(`Path\.Combine\\(mxcRoot, "${component.replace(".", "\\.")}"\\)`),
-    `sidecar must validate bundled MXC component ${component}`,
-  );
-}
 
 console.log("Windows installer shutdown and per-user installation contracts verified");

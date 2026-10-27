@@ -21,8 +21,6 @@ param(
   [string]$TimestampServer = $(if ($env:NEXUS_WINDOWS_TIMESTAMP_SERVER) { $env:NEXUS_WINDOWS_TIMESTAMP_SERVER } else { "http://timestamp.digicert.com" }),
   [string]$SignToolPath = $env:NEXUS_SIGNTOOL_PATH,
   [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
-  [string]$BundleMXCRuntime = $env:NEXUS_DESKTOP_BUNDLE_MXC_RUNTIME,
-  [string]$MXCRuntimePath = $env:NEXUS_DESKTOP_MXC_RUNTIME_PATH,
   [int]$SmokeTimeoutSeconds = 75,
   [switch]$SkipBuild,
   [switch]$SkipSmoke,
@@ -451,9 +449,7 @@ $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
 $packageSelfContained = Resolve-Bool $SelfContained $true
 $packageSelfContainedValue = $packageSelfContained.ToString().ToLowerInvariant()
 $bundleNXSRuntime = Resolve-Bool $BundleNXSRuntime $true
-$bundleMXCRuntime = Resolve-Bool $BundleMXCRuntime $true
 $bundleNXSRuntimeValue = $bundleNXSRuntime.ToString().ToLowerInvariant()
-$bundleMXCRuntimeValue = $bundleMXCRuntime.ToString().ToLowerInvariant()
 $createdAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $commitSha = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "HEAD") -fallback "unknown"
 $commitShort = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short", "HEAD") -fallback "unknown"
@@ -521,9 +517,7 @@ if ((-not $SkipBuild) -and $env:NEXUS_DESKTOP_PACKAGE_SKIP_BUILD -ne "1") {
     -Version $appVersion `
     -BuildNumber $resolvedBuildNumber `
     -SelfContained $packageSelfContainedValue `
-    -BundleNXSRuntime $bundleNXSRuntimeValue `
-    -BundleMXCRuntime $bundleMXCRuntimeValue `
-    -MXCRuntimePath $MXCRuntimePath
+    -BundleNXSRuntime $bundleNXSRuntimeValue
 }
 
 $appExe = Join-Path $AppBuildDir $executableFileName
@@ -535,16 +529,6 @@ $nxsRuntimePath = Join-Path $AppBuildDir "Resources/bin/nxs.exe"
 if ($bundleNXSRuntime -and (-not (Test-Path -LiteralPath $nxsRuntimePath))) {
   throw "Missing bundled nxs runtime: $nxsRuntimePath"
 }
-$mxcRuntimeRoot = Join-Path $AppBuildDir "Resources/bin/mxc/bin/x64"
-if ($bundleMXCRuntime) {
-  foreach ($mxcFile in @("wxc-exec.exe", "mxc_ffi.dll", "winhttp-proxy-shim.exe")) {
-    $mxcPath = Join-Path $mxcRuntimeRoot $mxcFile
-    if (-not (Test-Path -LiteralPath $mxcPath -PathType Leaf)) {
-      throw "Missing bundled MXC runtime component: $mxcPath"
-    }
-  }
-}
-
 if ($signingEnabled) {
   $shellBinaryBaseName = [System.IO.Path]::GetFileNameWithoutExtension($executableFileName)
   $signTargets = @(
@@ -553,10 +537,7 @@ if ($signingEnabled) {
     (Join-Path $AppBuildDir "Resources/nexus-server.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexuscfg.exe"),
-    (Join-Path $AppBuildDir "Resources/bin/nxs.exe"),
-    (Join-Path $mxcRuntimeRoot "wxc-exec.exe"),
-    (Join-Path $mxcRuntimeRoot "mxc_ffi.dll"),
-    (Join-Path $mxcRuntimeRoot "winhttp-proxy-shim.exe")
+    (Join-Path $AppBuildDir "Resources/bin/nxs.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
 
   foreach ($signTarget in $signTargets) {
@@ -642,11 +623,6 @@ $metadata = [ordered]@{
       bundled = (Test-Path -LiteralPath $nxsRuntimePath)
       release = $nxsRuntimeRelease
       relative_path = "Resources/bin/nxs.exe"
-    }
-    mxc = [ordered]@{
-      bundled = (Test-Path -LiteralPath (Join-Path $mxcRuntimeRoot "wxc-exec.exe"))
-      relative_path = "Resources/bin/mxc/bin/x64"
-      components = @("wxc-exec.exe", "mxc_ffi.dll", "winhttp-proxy-shim.exe")
     }
   }
   dependencies = [ordered]@{

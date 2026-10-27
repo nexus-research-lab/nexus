@@ -178,7 +178,6 @@ internal sealed class SidecarSupervisor : IDisposable
         ApplyPackagedConnectorConfig(startInfo);
         ApplyBundledControlCommands(startInfo);
         ApplyBundledNXSRuntime(startInfo);
-        ApplyBundledMXCRuntime(startInfo);
         startInfo.Environment["CONNECTOR_OAUTH_ALLOWED_ORIGINS"] = runtime.WebBaseUrl.TrimEnd('/');
         return startInfo;
     }
@@ -299,52 +298,6 @@ internal sealed class SidecarSupervisor : IDisposable
         });
     }
 
-    private void ApplyBundledMXCRuntime(ProcessStartInfo startInfo)
-    {
-        const string environmentKey = "NEXUS_MXC_EXECUTABLE";
-        if (startInfo.Environment.TryGetValue(environmentKey, out string? overridePath) &&
-            !string.IsNullOrWhiteSpace(overridePath))
-        {
-            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
-            {
-                ["source"] = "override",
-                ["path"] = overridePath,
-            });
-            return;
-        }
-
-        if (locator.IsDevelopment)
-        {
-            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
-            {
-                ["source"] = "development",
-            });
-            return;
-        }
-
-        string mxcPath = Path.Combine(locator.AppRoot, "bin", "mxc", "bin", "x64", "wxc-exec.exe");
-        string mxcRoot = Path.GetDirectoryName(mxcPath)!;
-        string ffiPath = Path.Combine(mxcRoot, "mxc_ffi.dll");
-        string proxyPath = Path.Combine(mxcRoot, "winhttp-proxy-shim.exe");
-        if (File.Exists(mxcPath) && File.Exists(ffiPath) && File.Exists(proxyPath))
-        {
-            startInfo.Environment[environmentKey] = mxcPath;
-            startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
-            {
-                ["source"] = "bundled",
-                ["path"] = mxcPath,
-            });
-            return;
-        }
-
-        startupTimeline.Mark("sidecar.mxc_runtime", new Dictionary<string, string>
-        {
-            ["source"] = "missing",
-            ["executable"] = File.Exists(mxcPath).ToString(),
-            ["ffi"] = File.Exists(ffiPath).ToString(),
-            ["proxy"] = File.Exists(proxyPath).ToString(),
-        });
-    }
 
     private static void PrepareDirectories()
     {

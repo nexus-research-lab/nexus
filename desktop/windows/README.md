@@ -28,7 +28,7 @@ winget install --id JRSoftware.InnoSetup -e
 pwsh scripts/desktop/build-windows-app.ps1
 ```
 
-也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` 和 MXC runtime，避免受限 Agent 启动时缺少后端：
+也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` runtime，避免受限 Agent 启动时缺少后端：
 
 ```powershell
 make app-win-build
@@ -36,19 +36,7 @@ make app-win-run
 make app-win-run APP_WIN_RUN_SKIP_BUILD=1
 ```
 
-MXC 二进制来自外部 `nexus-agent-sdk-go` 发布或构建产物。将包含
-`wxc-exec.exe`、`mxc_ffi.dll` 和 `winhttp-proxy-shim.exe` 的目录设置为
-`NEXUS_DESKTOP_MXC_RUNTIME_PATH`（也可直接指向 `wxc-exec.exe`），再运行 `make app-win-build`。
-构建会把三件套复制到 `Resources/bin/mxc/bin/x64`，缺少任一组件会立即失败。只构建不含 MXC 的开发壳时显式设置
-`APP_WIN_BUNDLE_MXC_RUNTIME=0`；这不提供受限 Windows 会话可用性。
-
-可直接用 SDK workflow 同源的 npm 包安装并验证 MXC：
-
-```powershell
-make app-win-install-mxc
-```
-
-脚本下载 `@microsoft/mxc-sdk@1.0.0`，复制三件套，执行 `wxc-exec.exe --probe`，并写入仓库 `.env.local`。应用启动时会再次执行能力探测；MXC 缺失或探测失败时保持沙箱能力不可用，不会回退成无隔离的受限会话。桌面沙箱偏好默认关闭；用户打开后，设置页应提示先安装 MXC。
+Windows 沙箱由 nxs 直接调用系统 processmodel.dll 的进程安全环境 API，不需要额外安装 MXC 二进制。需要 Windows 11 24H2（build 26100.9278）或更新受支持版本，并以普通用户运行。API 缺失或提权时能力关闭，受限会话失败关闭。原生验收见 [验证清单](../../docs/specs/windows-mxc-sandbox-verify.md)。
 
 如需临时关闭随包预置 runtime：
 

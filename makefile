@@ -30,10 +30,6 @@ HOST_SUDO ?= sudo
 APP_WIN_BUILD_NUMBER ?= $(shell pwsh -NoLogo -NoProfile -Command "Get-Date -Format yyyyMMddHHmmss")
 APP_WIN_OUTPUT_DIR ?=
 APP_WIN_BUNDLE_NXS_RUNTIME ?= 1
-APP_WIN_BUNDLE_MXC_RUNTIME ?= 1
-NEXUS_MXC_VERSION ?= 1.0.0
-NEXUS_DESKTOP_MXC_INSTALL_ROOT ?=
-NEXUS_MXC_ENV_FILE ?=
 APP_WIN_RUN_SKIP_BUILD ?=
 APP_WIN_RUN_WAIT ?=
 NXS_DEV_GOOS ?= $(shell go env GOOS)
@@ -288,13 +284,11 @@ build-dmg: app-dmg ## app-dmg 的别名
 app-check: app-smoke ## 构建并烟测 macOS .app
 
 app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)" -BundleMXCRuntime "$(APP_WIN_BUNDLE_MXC_RUNTIME)" -MXCRuntimePath "$(NEXUS_DESKTOP_MXC_RUNTIME_PATH)"
+	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)"
 
 app-win-run: ## 构建并运行 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)" -BundleMXCRuntime "$(APP_WIN_BUNDLE_MXC_RUNTIME)" -MXCRuntimePath "$(NEXUS_DESKTOP_MXC_RUNTIME_PATH)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
+	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
 
-app-win-install-mxc: ## 下载、验证并配置 Windows MXC runtime
-	pwsh scripts/desktop/install-windows-mxc.ps1 -Version "$(NEXUS_MXC_VERSION)" -InstallRoot "$(NEXUS_DESKTOP_MXC_INSTALL_ROOT)" -EnvFile "$(NEXUS_MXC_ENV_FILE)"
 
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1

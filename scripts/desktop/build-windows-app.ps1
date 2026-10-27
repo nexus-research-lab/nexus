@@ -8,9 +8,7 @@ param(
   [string]$BuildNumber = "",
   [string]$SelfContained = $env:NEXUS_DESKTOP_SELF_CONTAINED,
   [string]$BundleNXSRuntime = $env:NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME,
-  [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH,
-  [string]$BundleMXCRuntime = $env:NEXUS_DESKTOP_BUNDLE_MXC_RUNTIME,
-  [string]$MXCRuntimePath = $env:NEXUS_DESKTOP_MXC_RUNTIME_PATH
+  [string]$NXSRuntimePath = $env:NEXUS_DESKTOP_NXS_RUNTIME_PATH
 )
 
 $ErrorActionPreference = "Stop"
@@ -115,24 +113,6 @@ function Resolve-Bool([string]$value, [bool]$defaultValue) {
   throw "Invalid boolean value: $value"
 }
 
-function Resolve-MXCExecutable([string]$runtimePath) {
-  if ([string]::IsNullOrWhiteSpace($runtimePath)) {
-    return ""
-  }
-  if (Test-Path -LiteralPath $runtimePath -PathType Leaf) {
-    return (Resolve-Path -LiteralPath $runtimePath).Path
-  }
-  $candidate = Join-Path $runtimePath "mxc/bin/x64/wxc-exec.exe"
-  if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-    return (Resolve-Path -LiteralPath $candidate).Path
-  }
-  $candidate = Join-Path $runtimePath "wxc-exec.exe"
-  if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-    return (Resolve-Path -LiteralPath $candidate).Path
-  }
-  return ""
-}
-
 function Resolve-WindowsGoArch([string]$runtimeIdentifier) {
   switch ($runtimeIdentifier) {
     "win-x64" { return "amd64" }
@@ -183,7 +163,6 @@ $fileVersion = Convert-FileVersion $appVersion $resolvedBuildNumber
 $publishSelfContained = Resolve-Bool $SelfContained $true
 $publishSelfContainedValue = $publishSelfContained.ToString().ToLowerInvariant()
 $bundleNXSRuntime = Resolve-Bool $BundleNXSRuntime $false
-$bundleMXCRuntime = Resolve-Bool $BundleMXCRuntime $false
 $goArch = Resolve-WindowsGoArch $RuntimeIdentifier
 $gitCommit = Resolve-GitValue -rootDir $rootDir -arguments @("rev-parse", "--short=12", "HEAD") -fallback "unknown"
 $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -307,23 +286,6 @@ if ($bundleNXSRuntime) {
       throw "Failed to download bundled nxs runtime"
     }
   }
-}
-if ($bundleMXCRuntime) {
-  $mxcExecutable = Resolve-MXCExecutable $MXCRuntimePath
-  if ([string]::IsNullOrWhiteSpace($mxcExecutable)) {
-    throw "Missing MXC runtime; set NEXUS_DESKTOP_MXC_RUNTIME_PATH to the MXC directory or wxc-exec.exe"
-  }
-  $mxcRoot = Join-Path $resourcesBinDir "mxc/bin/x64"
-  New-Item -ItemType Directory -Force -Path $mxcRoot | Out-Null
-  $mxcSourceRoot = Split-Path -Parent $mxcExecutable
-  foreach ($mxcFile in @("wxc-exec.exe", "mxc_ffi.dll", "winhttp-proxy-shim.exe")) {
-    $source = Join-Path $mxcSourceRoot $mxcFile
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-      throw "Missing MXC runtime component: $source"
-    }
-    Copy-Item -Force $source (Join-Path $mxcRoot $mxcFile)
-  }
-  Write-Host "==> Bundled MXC runtime: $mxcRoot"
 }
 Copy-Item -Recurse -Force (Join-Path $rootDir "web/dist") (Join-Path $resourcesDir "Web")
 New-Item -ItemType Directory -Force -Path (Join-Path $resourcesDir "db") | Out-Null
