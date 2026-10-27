@@ -12,43 +12,41 @@ import { fileURLToPath } from "node:url";
 import { requirePassedTests } from "./sandbox-test-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// Includes native settings recovery, junction rejection and explicit P3 probes.
-// The MXC command backend and its native acceptance tests are carried by the
-// SDK sandbox branch. Keep this exact commit in lockstep with the handoff
-// branch; an older component-only commit makes the required MXC test filter
-// silently run zero tests.
-const WINDOWS_NATIVE_SDK_COMMIT = "5e6732bfeeffc17533346d242d697cfef1b7b9a7";
+// MXC is the only Windows sandbox backend. CI runs elevated, where MXC reports
+// itself unavailable, so the CI gate covers the platform-neutral MXC policy,
+// the read-only file helper policy, junction rejection and settings/bridge
+// lifecycle; native ProcessContainer acceptance runs locally as a standard
+// user through NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE. Keep this exact commit in
+// lockstep with the workflow checkout.
+const WINDOWS_NATIVE_SDK_COMMIT = "e8bad7a564a08e9871dbe7b4c58a3f1a67041843";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
-  "TestWindowsPrivateDesktopLifecycle",
-  "TestWindowsCommandPreservesArguments",
-  "TestWindowsCommandRejectsAmbiguousInputs",
-  "TestWindowsCommandEnvironmentIsExplicit",
-  "TestWindowsCommandCloseCanRetryWithoutReviving",
-  "TestWindowsCommandOwnerRejectsHost",
-  "TestWindowsCommandConcurrentCloseHonorsCancellation",
-  "TestWindowsCommandClosePreservesBorrowedHandles",
-  "TestWindowsCommandCloseCollectsUnassignedRoot",
-  "TestWindowsProcessCreationRejectsRetiredJob",
-  "TestWindowsProcessCreationRejectsCanceledAdmission",
-  "TestWindowsProcessCanceledStartCannotBeRevived",
-  "TestWindowsSandboxJobTerminatesAssignedSuspendedProcess",
-  "TestWindowsSandboxJobTerminatesRunningDescendants",
-  "TestWindowsRunnerHostExitTerminatesRunningDescendants",
-  "TestWindowsRunnerExecutionLifecycle",
-  "TestWindowsRunnerHostLifetime",
-  "TestWindowsRunnerPipePeerMatchesKernelIdentity",
-  "TestWindowsRunnerPipeRejectsHostExecutionIdentity",
-  "TestWindowsRunnerThreadProtectionRejectsHost",
-  "TestWindowsSandboxIdentityRejectsHostToken",
-  "TestWindowsBrokerIdentityRejectsCurrentAccount",
-  "TestWindowsHostDenialMergeIsIdempotent",
-  "TestWindowsTemporaryDirectoryRejectsHostIdentity",
-  "TestWindowsUnsupportedExecutionDoesNotPrepareResources",
+  "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
+  "TestMXCDenyPolicyMissingWorkspaceFileIsDeferred",
+  "TestMXCDenyPolicyExistingFileIsDeniedItself",
+  "TestMXCDenyPolicyExistingDirectoryIsDeniedItself",
+  "TestMXCDenyPolicyWriteOnlyDenyOverReadOnlyGrantIsDropped",
+  "TestMXCDenyPolicyWriteOnlyDenyInsideReadWriteGrantFails",
+  "TestMXCDenyPolicyReadDenyOnGrantAncestorFails",
+  "TestMXCDenyPolicyWriteDenyOverReadWriteGrantFails",
+  "TestMXCDenyPolicyMissingPathOutsideGrantsIsDropped",
+  "TestMXCDenyPolicySiblingWorkspaceBoundary",
+  "TestMXCDenyPolicyNearestExistingAncestorInsideGrant",
+  "TestMXCDenyPolicyReadDenyUsesReadOnlyGrants",
+  "TestMXCDenyPolicyDenyGlobCollapsesToStaticPrefix",
+  "TestMXCDenyPolicyGlobCoveringGrantRequiresConcretePaths",
+  "TestMXCPathContainmentBoundaries",
+  "TestMXCNetworkPolicyWithoutAllowlistAllowsEgress",
+  "TestMXCNetworkPolicyAllowlistRequiresProxy",
+  "TestMXCNetworkPolicyLocalBindingOpensHostLoopbackOnly",
+  "TestMXCDenyPolicyKeepsProjectCommandsWriteDenial",
+  "TestMXCRecursiveDenyPathAddsOneSeparatorOnWindows",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/broken",
 ];
+const WINDOWS_NATIVE_FILE_SDK_PACKAGE = "./internal/tool/builtin/file/sandboxfs";
+const WINDOWS_NATIVE_FILE_TESTS = ["TestOperationConfigDropsWriteDenialsOnlyForWindowsReads"];
 const WINDOWS_NATIVE_SETTINGS_TESTS = [
   "TestSettingsBindingConcurrentUpdates",
   "TestDocumentStoreWritesTwoDocuments",
@@ -124,6 +122,7 @@ const report = {
     ? {
         sdkPackage: WINDOWS_NATIVE_SDK_PACKAGE,
         requiredNativeTests: WINDOWS_NATIVE_TESTS,
+        requiredFileTests: WINDOWS_NATIVE_FILE_TESTS,
         requiredSettingsTests: WINDOWS_NATIVE_SETTINGS_TESTS,
         requiredBridgeTests: WINDOWS_NATIVE_BRIDGE_TESTS,
       }
@@ -259,6 +258,13 @@ try {
       "native-sdk-components",
       [WINDOWS_NATIVE_SDK_PACKAGE],
       WINDOWS_NATIVE_TESTS,
+      { GOOS: "windows", GOARCH: nativeGoarch },
+      sdkSource,
+    );
+    runGoTest(
+      "native-sdk-file-policy",
+      [WINDOWS_NATIVE_FILE_SDK_PACKAGE],
+      WINDOWS_NATIVE_FILE_TESTS,
       { GOOS: "windows", GOARCH: nativeGoarch },
       sdkSource,
     );

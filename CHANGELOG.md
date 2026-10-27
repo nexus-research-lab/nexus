@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows 原生开发入口支持 make dev、dev-nxs 和独立服务启动，自动等待 Control 就绪，检查端口并在退出时清理本次启动的进程。
 - `nexus-server check-desktop-runtime` 现在可在原生 Windows 宿主上验证随包 nxs，与 macOS 使用同一套三 profile 能力握手检查。
 
+### Changed
+
+- Windows 桌面沙箱受限会话与 macOS 使用同一套 MCP 约束：打开严格 MCP 配置，并要求 nxs 确认 MCP 网络、headers helper 与 stdio 能力；以管理员权限运行 Nexus 时受限会话直接拒绝，“检查沙箱支持”也报告不可用。
+
 ### Fixed
 
 - 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再当作不存在而跳过其中的拒绝规则。

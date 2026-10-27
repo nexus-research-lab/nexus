@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -242,8 +243,8 @@ func TestDesktopSandboxWindowsNXSRestrictedRequiresHostResources(t *testing.T) {
 		if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !got.Sandbox.RequireFileTools || !got.Sandbox.RequireSearchTools || !got.Sandbox.RequireMediaFiles || !got.Sandbox.RequireMediaNetwork || !got.Sandbox.RequireNotebookFiles || !got.Sandbox.RequireSkillFiles || !got.Sandbox.RequireContextFiles || !got.Sandbox.RequireProjectFiles || !got.Sandbox.RequireManagedPolicy || !got.Sandbox.RequireSettingsFiles || !got.Sandbox.RequireSettingsWrites || got.Sandbox.Enabled == nil || !*got.Sandbox.Enabled || got.Sandbox.FailIfUnavailable == nil || !*got.Sandbox.FailIfUnavailable {
 			t.Fatalf("mode %s: mandatory execution requirement lost: %#v", mode, got.Sandbox)
 		}
-		if got.Sandbox.RequireMCPNetwork || got.Sandbox.RequireMCPHelpers || got.Sandbox.RequireMCPStdio || got.MCP.StrictConfig {
-			t.Fatalf("mode %s: Windows claimed the macOS MCP contract: %#v", mode, got.Sandbox)
+		if !got.Sandbox.RequireMCPNetwork || !got.Sandbox.RequireMCPHelpers || !got.Sandbox.RequireMCPStdio || !got.MCP.StrictConfig {
+			t.Fatalf("mode %s: Windows MXC session lost the MCP contract: %#v", mode, got.Sandbox)
 		}
 		if got.Sandbox.Resources == nil || *got.Sandbox.Resources != *input.SandboxResources {
 			t.Fatalf("mode %s: host resources missing: %#v", mode, got.Sandbox)
@@ -266,17 +267,34 @@ func TestDesktopSandboxWindowsNXSRestrictedRequiresHostResources(t *testing.T) {
 }
 
 func TestDesktopSandboxWindowsNXSRestrictedRejectsElevatedHost(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("elevation is covered by the native Windows acceptance run")
-	}
 	input := AgentClientOptionsInput{
 		AppMode: "desktop", DesktopSandboxEnabled: true,
 		SandboxResources: &agentclient.SandboxResourcePolicy{
 			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
 		},
 	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}}, input, "windows"); err != nil {
-		t.Fatal(err)
+	restricted := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}
+	original := desktopSandboxProcessElevated
+	t.Cleanup(func() { desktopSandboxProcessElevated = original })
+
+	desktopSandboxProcessElevated = func() bool { return true }
+	if _, err := applyDesktopSandboxForPlatform(restricted, input, "windows"); err == nil || !strings.Contains(err.Error(), "管理员权限") {
+		t.Fatalf("elevated restricted Windows session was not rejected: %v", err)
+	}
+	fullAccess := restricted
+	fullAccess.Runtime.PermissionMode = sdkpermission.ModeBypassPermissions
+	fullAccessInput := input
+	fullAccessInput.SandboxResources = nil
+	if _, err := applyDesktopSandboxForPlatform(fullAccess, fullAccessInput, "windows"); err != nil {
+		t.Fatalf("elevation must not affect Windows Full Access: %v", err)
+	}
+	if _, err := applyDesktopSandboxForPlatform(restricted, input, "darwin"); err != nil && strings.Contains(err.Error(), "管理员权限") {
+		t.Fatalf("Windows elevation check leaked into macOS: %v", err)
+	}
+
+	desktopSandboxProcessElevated = func() bool { return false }
+	if _, err := applyDesktopSandboxForPlatform(restricted, input, "windows"); err != nil {
+		t.Fatalf("standard-user restricted Windows session rejected: %v", err)
 	}
 }
 

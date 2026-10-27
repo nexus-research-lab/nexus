@@ -9,7 +9,7 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 ## Activation and scope
 
 - The host sandbox contract is only available with `NEXUS_APP_MODE=desktop`, and is applied only when the owner's preference `desktop_sandbox_enabled` is on (Settings › Sandbox › Desktop sandbox). The preference defaults to off; with it off, desktop runtimes start without sandbox settings, scratch leases, host-path protection or network admission. There is no process-environment switch.
-- Windows desktop sessions use the nxs SDK MXC ProcessContainer backend (see the SDK `docs/sdk/windows-mxc.md`). Restricted sessions require nxs and a host scratch lease and receive the same nxs contract as macOS except the macOS-only MCP network/helper/stdio requirements; Full Access projects no sandbox settings or network admission; restricted Claude is rejected. When MXC is unavailable the capability handshake fails closed. Native Windows acceptance is still pending.
+- Windows desktop sessions use the nxs SDK MXC ProcessContainer backend (see the SDK `docs/sdk/windows-mxc.md`). Restricted sessions require nxs, a host scratch lease and a standard (non-elevated) user token, and receive the same nxs contract as macOS, including strict MCP configuration and the MCP network/helper/stdio requirements. An elevated process rejects restricted sessions before startup, and the SDK also reports MXC unavailable under an elevated token. Full Access projects no sandbox settings or network admission; restricted Claude is rejected. When MXC is unavailable the capability handshake fails closed. MXC denies reads and writes together, so the SDK drops write-only denials for its read-only file helper; project discovery can read `.nexus` metadata while commands still cannot write it. Native Windows acceptance is still pending.
 - Server deployments keep their existing runtime identity/isolation policy.
 - Agent settings cannot set or clear the internal host policy marker.
 - DM, Room and background memory maintenance use the same client-options builder.
@@ -27,7 +27,7 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - Native tests cover immediate descendants and host termination after admission.
 - Creation and Job assignment are separate operations; a crash between them can leave a suspended process.
 - This boundary does not authorize Windows SDK file/network execution and is not an atomic creation/resource-recovery receipt.
-- Native component gate: `node scripts/desktop/check-windows-sandbox.mjs --native`. With a specified local SDK, every required case must actually pass. Process exit must be shown by a kernel signal; a residual handle, a queryable PID/creation time or exit code 259 alone cannot prove liveness. Passing the gate does not grant Windows backend release acceptance.
+- Native component gate: `node scripts/desktop/check-windows-sandbox.mjs --native`. With a specified local SDK, every required case must actually pass. CI runs elevated, so the CI gate covers platform-neutral MXC policy, the read-only file helper policy, junction rejection and settings/Bridge lifecycle; native ProcessContainer acceptance runs with `NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE=1` from a standard-user interactive session. Process exit must be shown by a kernel signal; a residual handle, a queryable PID/creation time or exit code 259 alone cannot prove liveness. Passing the gate does not grant Windows backend release acceptance.
 
 ## Grants and mandatory policy
 

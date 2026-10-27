@@ -261,7 +261,7 @@ func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
 			"url":  "https://mcp.example.com/mcp",
 		},
 	}
-	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("remote MCP platform contract: %v", err)
 	}
 	if err := RejectDesktopSandboxRemoteMCP(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions); err != nil {
@@ -283,8 +283,16 @@ func TestRejectDesktopSandboxRemoteMCP(t *testing.T) {
 				"headersHelper": "/tmp/unattested-helper",
 			},
 		}, runtimeKindNXS, "desktop", true, mode)
-		if (err == nil) != (runtime.GOOS == "darwin") {
+		if (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 			t.Fatalf("mode %v helper platform contract: %v", mode, err)
+		}
+	}
+}
+
+func TestDesktopMCPContractPlatformCoversMacOSAndWindows(t *testing.T) {
+	for goos, want := range map[string]bool{"darwin": true, "windows": true, "linux": false, "freebsd": false} {
+		if got := desktopMCPContractPlatform(goos); got != want {
+			t.Fatalf("desktopMCPContractPlatform(%q) = %v, want %v", goos, got, want)
 		}
 	}
 }

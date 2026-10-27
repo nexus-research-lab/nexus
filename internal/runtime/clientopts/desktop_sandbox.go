@@ -19,6 +19,9 @@ func applyDesktopSandbox(options agentclient.Options, input AgentClientOptionsIn
 	return applyDesktopSandboxForPlatform(options, input, runtime.GOOS)
 }
 
+// desktopSandboxProcessElevated 是可替换的提权检测入口，测试据此覆盖拒绝分支。
+var desktopSandboxProcessElevated = windowsDesktopSandboxIsElevated
+
 func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
 	options.Env = maps.Clone(options.Env)
 	delete(options.Env, protocol.NexusDesktopSandboxPolicyEnvName)
@@ -38,7 +41,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 			}
 			return options, nil
 		}
-		if windowsDesktopSandboxIsElevated() {
+		if desktopSandboxProcessElevated() {
 			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus")
 		}
 		if input.SandboxResources == nil {
@@ -89,11 +92,9 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	}
 	yes := true
 	no := false
-	if platform == "darwin" {
-		options.MCP.StrictConfig = true
-	}
+	options.MCP.StrictConfig = true
 	options.Sandbox = &agentclient.SandboxSettings{
-		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: platform == "darwin", RequireMCPHelpers: platform == "darwin", RequireMCPStdio: platform == "darwin", RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
+		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireMCPHelpers: true, RequireMCPStdio: true, RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
 		// Explicit escape still passes the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{

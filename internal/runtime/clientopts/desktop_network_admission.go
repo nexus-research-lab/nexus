@@ -132,7 +132,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		if !ok {
 			continue
 		}
-		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) {
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !(desktopMCPContractPlatform(runtime.GOOS) && runtimeKind == runtimeKindNXS) {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 		}
 		serverType, _ := object["type"].(string)
@@ -141,7 +141,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 			continue
 		}
 		serverURL, _ := object["url"].(string)
-		if !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) && !admission.Allows(serverURL) {
+		if !(desktopMCPContractPlatform(runtime.GOOS) && runtimeKind == runtimeKindNXS) && !admission.Allows(serverURL) {
 			return agentMCPServerError(name, "桌面沙箱拒绝未获宿主域名准入的外部 HTTP/SSE MCP")
 		}
 	}
@@ -191,11 +191,11 @@ func validateDesktopTypedRemoteMCP(
 	permissionMode sdkpermission.Mode,
 	admission *DesktopSandboxNetworkAdmission,
 ) error {
-	if strings.TrimSpace(headersHelper) != "" && runtime.GOOS != "darwin" {
+	if strings.TrimSpace(headersHelper) != "" && !desktopMCPContractPlatform(runtime.GOOS) {
 		return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 	}
-	if runtime.GOOS == "darwin" || permissionMode == sdkpermission.ModeBypassPermissions {
-		// macOS helper 仍须经过独立命令合同；端点允许与 Full Access 都不替代它。
+	if desktopMCPContractPlatform(runtime.GOOS) || permissionMode == sdkpermission.ModeBypassPermissions {
+		// macOS/Windows helper 仍须经过独立命令合同；端点允许与 Full Access 都不替代它。
 		return nil
 	}
 	if admission == nil || !admission.Allows(serverURL) {

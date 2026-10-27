@@ -69,10 +69,10 @@ func TestDesktopSandboxRemoteMCPRequiresHostApprovedDomain(t *testing.T) {
 			"url":  "https://mcp.example.com/mcp",
 		},
 	}
-	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("endpoint contract: %v", err)
 	}
-	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("unapproved remote MCP error=%v", err)
 	}
 	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
@@ -84,10 +84,10 @@ func TestDesktopSandboxChecksHostOwnedTypedRemoteMCP(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"github": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer connector-secret"}},
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("host-owned remote MCP bypassed deny-all admission: %v", err)
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("unapproved host-owned remote MCP was admitted: %v", err)
 	}
 	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
@@ -99,7 +99,7 @@ func TestDesktopSandboxTypedMCPHelpersRequirePlatformContract(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"remote": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", HeadersHelper: "/tmp/untrusted-helper"},
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("typed helper platform contract: %v", err)
 	}
 }
