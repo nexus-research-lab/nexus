@@ -315,7 +315,7 @@ jobs:
           $nxsPath = Join-Path $cacheDir "nxs.exe"
           $ripgrepPath = Join-Path $cacheDir "rg.exe"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath
+          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath --skip-mxc
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to download nxs runtime"
           }
@@ -326,20 +326,23 @@ jobs:
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: 5b49bd458a0f66c2d4e7c25cf3aee352b4fe9fbd
+          ref: 8544ef3216e2cef43840222860159aad9f7077b6
           path: ${{ runner.temp }}\nexus-agent-sdk-go
           fetch-depth: 1
           persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Build pinned Windows nxs runtime
         shell: pwsh
         run: |
           $sdkDir = Join-Path "${{ runner.temp }}" "nexus-agent-sdk-go"
           $nxsPath = Join-Path "${{ runner.temp }}\windows-runtime-cache" "nxs.exe"
+          & (Join-Path $sdkDir "native/nxs-mxc/build.ps1") -Architecture amd64 -OutputDirectory (Split-Path -Parent $nxsPath)
           $env:GOWORK = "off"
           go -C $sdkDir build -mod=readonly -trimpath -o $nxsPath ./cmd/nxs
           if ($LASTEXITCODE -ne 0) {
-            throw "Failed to build pinned nxs runtime from 5b49bd45"
+            throw "Failed to build pinned nxs runtime from 8544ef32"
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 

@@ -1,5 +1,7 @@
 # Windows 桌面沙箱：改用进程安全环境（PSEC）的开发计划
 
+> Historical / non-normative: the Go PSEC implementation described below was replaced on 2026-10-29 by a bundled Rust adapter using Microsoft mxc-sdk. Current contract: [desktop-sandbox-spec.md](desktop-sandbox-spec.md); current build and acceptance: [windows-mxc-sandbox-verify.md](windows-mxc-sandbox-verify.md). Do not use the obsolete file lists or commands below for release.
+
 本文为 **non-normative 开发计划与历史交接**；当前合同以 [desktop-sandbox-spec.md](desktop-sandbox-spec.md) 和 SDK 文档为准。
 
 本文是 Windows 桌面沙箱从 `wxc-exec.exe` 迁移到"进程内调用系统 PSEC API"的开发计划和交接说明。阶段 1（SDK 核心）已经完成，阶段 2 及之后的任务按本文继续。

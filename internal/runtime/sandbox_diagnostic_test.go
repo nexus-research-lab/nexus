@@ -26,3 +26,12 @@ func TestSandboxUnsupportedCreateIsNotMissingDependency(t *testing.T) {
 		t.Fatalf("access denied misclassified: %s", got)
 	}
 }
+
+func TestSandboxRustHelperRepairMessage(t *testing.T) {
+	for _, reason := range []string{"Windows sandbox helper nxs-mxc.exe is missing", "Windows sandbox helper version mismatch"} {
+		got := DesktopSandboxUnavailableMessage(reason)
+		if !strings.Contains(got, "完整安装包") || !strings.Contains(got, "无需自行安装 Rust") || !strings.Contains(got, "设置 → 沙箱") {
+			t.Fatalf("unexpected message: %s", got)
+		}
+	}
+}

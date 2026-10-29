@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Bundle and sign the Rust nxs-mxc helper backed by pinned Microsoft mxc-sdk; update SDK build/release integration, runtime extraction, package metadata and missing-component guidance. End users need no Rust installation. Windows native isolation and exit/relaunch acceptance remain pending.
+
 - Pin Windows nxs to 5b49bd45 for generated Microsoft PSEC schema bindings, independent encoding diagnostics and atomic sandbox Job ownership. Require Job cleanup and fixture regression tests; native Windows acceptance and the reported 0x80070032 diagnosis remain pending.
 
 - Pin Windows nxs to 3065492a for absolute-drive deny-glob protection and PSEC ingress negotiation. Distinguish an unsupported PSEC Create request (0x80070032) from missing system APIs, and document native diagnostics without claiming the host issue resolved.

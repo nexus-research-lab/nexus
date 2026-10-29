@@ -18,15 +18,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // lifecycle; native ProcessContainer acceptance runs locally as a standard
 // user through NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE. Keep this exact commit in
 // lockstep with the workflow checkout.
-const WINDOWS_NATIVE_SDK_COMMIT = "5b49bd458a0f66c2d4e7c25cf3aee352b4fe9fbd";
+const WINDOWS_NATIVE_SDK_COMMIT = "8544ef3216e2cef43840222860159aad9f7077b6";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestMXCRootGlobPreservesAbsoluteVolume",
-  "TestMXCPSECIngressRequiresVersion11",
-  "TestEncodePSECDefaultIngressOmitsExtension",
-  "TestEncodePSECMatchesFlatcFixtures",
-  "TestWindowsPSECJobCleanupErrors",
-  "TestWindowsPSECJobOwnsSuspendedProcess",
+  "TestMXCCommandLinePreservesCMDScript",
+  "TestMXCCommandLinePreservesOrdinaryArgv",
   "TestMXCPathContainmentBoundaries",
   "TestMXCDenyWriteInsideWorkspaceBecomesReadOnlyCarveout",
   "TestMXCDenyWriteOutsideGrantsIsDropped",
@@ -37,12 +34,8 @@ const WINDOWS_NATIVE_TESTS = [
   "TestMXCMandatoryProjectCommandsStayReadable",
   "TestMXCNetworkPolicyProxyModeAllowsOnlyLoopback",
   "TestMXCNetworkPolicyWithoutAllowlistAllowsEgress",
-  "TestMXCUIRestrictionsFollowBuildSupport",
-  "TestMXCPSECSpecAlwaysCarriesRegistryRead",
   "TestMXCLaunchRequestRoundTripsThroughEnvironmentChunks",
   "TestMXCLaunchRequestRejectsOversizedPayloads",
-  "TestEncodePSECSpecMatchesSchemaSlots",
-  "TestEncodePSECSpecOmitsEmptyOptionalFields",
   "TestWindowsMXCEnvironmentPreservesExplicitEmptyPath",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/outside",
   "TestWindowsJunctionCannotAuthorizeWorkspaceIO/inside",
@@ -257,6 +250,7 @@ try {
     if (!nativeGoarch) {
       throw new Error(`unsupported native Windows Node architecture: ${process.arch}`);
     }
+    run("rust-wrapper-tests", "cargo", ["test", "--locked", "--manifest-path", "native/nxs-mxc/Cargo.toml"], {}, sdkSource);
     runGoTest(
       "native-sdk-components",
       [WINDOWS_NATIVE_SDK_PACKAGE],
@@ -280,6 +274,7 @@ try {
       if (!process.env.NEXUS_NXS_EXECUTABLE) {
         const helper = path.join(reportDirectory, "nxs-mxc-file-helper.exe");
         run("build-local-sdk-file-helper", "go", ["build", "-trimpath", "-mod=readonly", "-o", helper, "./cmd/nxs"], mxcEnvironment, sdkSource);
+        run("build-rust-mxc-helper", "pwsh", ["-NoProfile", "-File", path.join(sdkSource, "native/nxs-mxc/build.ps1"), "-Architecture", nativeGoarch, "-OutputDirectory", reportDirectory], {}, sdkSource);
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = helper;
       } else {
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;

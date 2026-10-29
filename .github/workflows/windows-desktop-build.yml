@@ -60,7 +60,7 @@ jobs:
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: 5b49bd458a0f66c2d4e7c25cf3aee352b4fe9fbd
+          ref: 8544ef3216e2cef43840222860159aad9f7077b6
           path: .nexus-sandbox-sdk
           fetch-depth: 1
           persist-credentials: false
@@ -69,6 +69,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5

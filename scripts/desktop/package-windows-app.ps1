@@ -529,6 +529,13 @@ $nxsRuntimePath = Join-Path $AppBuildDir "Resources/bin/nxs.exe"
 if ($bundleNXSRuntime -and (-not (Test-Path -LiteralPath $nxsRuntimePath))) {
   throw "Missing bundled nxs runtime: $nxsRuntimePath"
 }
+$mxcRuntimePath = Join-Path $AppBuildDir "Resources/bin/nxs-mxc.exe"
+if ($bundleNXSRuntime -and (-not (Test-Path -LiteralPath $mxcRuntimePath))) {
+  throw "Missing bundled Rust sandbox helper: $mxcRuntimePath"
+}
+if ($bundleNXSRuntime -and (-not (Test-Path -LiteralPath (Join-Path $AppBuildDir "Resources/bin/nxs-mxc-LICENSE.txt")))) {
+  throw "Missing bundled Microsoft MXC license"
+}
 if ($signingEnabled) {
   $shellBinaryBaseName = [System.IO.Path]::GetFileNameWithoutExtension($executableFileName)
   $signTargets = @(
@@ -537,7 +544,8 @@ if ($signingEnabled) {
     (Join-Path $AppBuildDir "Resources/nexus-server.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexusctl.exe"),
     (Join-Path $AppBuildDir "Resources/bin/nexuscfg.exe"),
-    (Join-Path $AppBuildDir "Resources/bin/nxs.exe")
+    (Join-Path $AppBuildDir "Resources/bin/nxs.exe"),
+    (Join-Path $AppBuildDir "Resources/bin/nxs-mxc.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
 
   foreach ($signTarget in $signTargets) {
@@ -623,6 +631,9 @@ $metadata = [ordered]@{
       bundled = (Test-Path -LiteralPath $nxsRuntimePath)
       release = $nxsRuntimeRelease
       relative_path = "Resources/bin/nxs.exe"
+      sandbox_helper = "Resources/bin/nxs-mxc.exe"
+      sandbox_backend = "microsoft-mxc-basecontainer-psec"
+      mxc_revision = "ad54c69452147bd4ca15d027388ad6074903dbff"
     }
   }
   dependencies = [ordered]@{

@@ -269,6 +269,11 @@ if ($bundleNXSRuntime) {
       throw "Missing cached nxs ripgrep sidecar: $cachedRipgrepPath"
     }
     Write-Host "==> Using cached bundled nxs runtime"
+    foreach ($sidecar in @("nxs-mxc.exe", "nxs-mxc-LICENSE.txt")) {
+      $source = Join-Path (Split-Path -Parent $resolvedNXSRuntimePath) $sidecar
+      if (-not (Test-Path -LiteralPath $source)) { throw "Missing cached Rust sandbox component: $source" }
+      Copy-Item -Force $source (Join-Path $resourcesBinDir $sidecar)
+    }
     Copy-Item -Force $resolvedNXSRuntimePath $nxsPath
     Copy-Item -Force (Resolve-Path -LiteralPath $cachedRipgrepPath).Path $nxsRipgrepPath
     if (-not (Test-Path -LiteralPath $nxsRipgrepPath)) {
