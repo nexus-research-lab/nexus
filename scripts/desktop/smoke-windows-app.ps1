@@ -472,6 +472,20 @@ function Test-AboutDialog([IntPtr]$Hwnd, [int]$ProcessId) {
   }
 }
 
+function Invoke-WindowCloseAction([System.Diagnostics.Process]$Process, [string]$ActionName) {
+  [void]$Process.CloseMainWindow()
+  Wait-Until {
+    try { [void](Find-NexusDialog $Process.Id); return $true } catch { return $false }
+  } 5 "window close choice"
+  $dialog = Find-NexusDialog $Process.Id
+  $button = Find-VisibleControl `
+    $dialog `
+    (New-AutomationNameCondition $ActionName) `
+    ([System.Windows.Automation.ControlType]::Button) `
+    "window close action: $ActionName"
+  $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
+
 $rootDir = Resolve-RootDir
 if ([string]::IsNullOrWhiteSpace($AppDir)) {
   $AppDir = Join-Path $rootDir "desktop/windows/.build/app/Nexus"
@@ -640,7 +654,7 @@ try {
       $current.Contains("reason=window_restored state=interactive")
   } 10 "window restore input activation"
   Write-Host "==> Closing app to tray"
-  [void]$process.CloseMainWindow()
+  Invoke-WindowCloseAction $process "最小化到托盘"
   Wait-Until {
     $log = Read-Log $logPath
     $markerIndex = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
@@ -678,6 +692,25 @@ try {
     $browser = Get-Process -Id $browserProcessId -ErrorAction SilentlyContinue
     return $null -eq $browser -or $browser.ProcessName -ne "msedgewebview2"
   } $TimeoutSeconds "WebView2 browser process cleanup"
+
+  Write-Host "==> Immediately reopening app after exit"
+  $marker = "windows_reopen_$([Guid]::NewGuid().ToString('N'))"
+  Add-Content -Path $logPath -Value "[$marker] smoke_start"
+  $process = Start-Process -FilePath $appExe -WorkingDirectory $AppDir -PassThru
+  Wait-Until {
+    $log = Read-Log $logPath
+    $index = $log.LastIndexOf("[$marker] smoke_start", [System.StringComparison]::Ordinal)
+    if ($index -lt 0) { return $false }
+    $current = $log.Substring($index)
+    return $current.Contains("event=sidecar.health_ready") -and
+      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher"))
+  } $TimeoutSeconds "reopened launcher web.ready"
+  Write-Host "==> Choosing exit from the window close dialog"
+  $exitTimer = [System.Diagnostics.Stopwatch]::StartNew()
+  Invoke-WindowCloseAction $process "退出 Nexus"
+  Wait-Until { $process.Refresh(); return $process.HasExited } 20 "window close exit"
+  Wait-Until { return @(Find-SidecarProcess $process.Id $AppDir).Count -eq 0 } 15 "reopened sidecar cleanup"
+  Write-Host "==> Window close exit and sidecar cleanup: $($exitTimer.ElapsedMilliseconds)ms"
 } finally {
   if (-not $process.HasExited) {
     Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue

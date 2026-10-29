@@ -80,8 +80,8 @@ assert.match(appSource, /sidecar\?\.Dispose\(\);[\s\S]*singleInstance\?\.Dispose
 assert.doesNotMatch(coordinatorSource, /serverTask\?\.Wait\(/);
 assert.doesNotMatch(sidecarSupervisorSource, /GetProcessesByName/);
 
-console.log("Windows installer shutdown and per-user installation contracts verified");
-
 assert.ok(read("scripts/desktop/build-windows-app.ps1").includes('"nxs-mxc.exe", "nxs-mxc-LICENSE.txt"'), "bundle Rust helper and license");
-assert.ok(installerSource.includes('(Join-Path $AppBuildDir "Resources/bin/nxs-mxc.exe")'), "sign Rust helper");
-assert.ok(installerSource.includes('Missing bundled Rust sandbox helper'), "reject incomplete sandbox package");
+assert.ok(read("scripts/desktop/package-windows-app.ps1").includes('(Join-Path $AppBuildDir "Resources/bin/nxs-mxc.exe")'), "sign Rust helper");
+assert.ok(read("scripts/desktop/package-windows-app.ps1").includes('Missing bundled Rust sandbox helper'), "reject incomplete sandbox package");
+
+console.log("Windows installer shutdown, Rust helper, and per-user installation contracts verified");

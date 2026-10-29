@@ -42,4 +42,4 @@ go test -count=1 -v -timeout=3m -run '^(TestWindowsMXC|TestMXC)' ./internal/tool
 
 用户报告 Go SDK 5b49bd45 的 PSEC Create/Close 全部通过，之后执行矩阵失败。
 因此不能继续称系统 PSEC API 不可用；此前 GitHub #53650 的 0x80070005 也不能
-解释该机器旧的 0x80070032。Rust 替换减少自研底层代码，尚待目标 Windows 验收。
+解释该机器旧的 0x80070032。Rust 替换减少自研底层代码；原生 SDK、完整应用启动和真实会话初始化必须分别验收。
