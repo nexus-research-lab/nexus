@@ -134,12 +134,14 @@ function Stop-OutputDirProcesses([string]$outputDir) {
     return
   }
 
-  $fullOutputDir = [System.IO.Path]::GetFullPath($outputDir)
+  $fullOutputDir = [System.IO.Path]::GetFullPath($outputDir).TrimEnd([char[]]"\/") + [System.IO.Path]::DirectorySeparatorChar
   $targets = @(
     Get-CimInstance Win32_Process |
       Where-Object {
-        ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
-        ($_.CommandLine -and $_.CommandLine.IndexOf($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+        # Command arguments may mention this directory in the build process itself.
+        # Only executables inside the output directory belong to the stale bundle.
+        $_.ProcessId -ne $PID -and $_.ExecutablePath -and
+          $_.ExecutablePath.StartsWith($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase)
       }
   )
   if ($targets.Count -eq 0) {
