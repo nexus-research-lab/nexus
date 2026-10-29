@@ -179,7 +179,7 @@ RUN test -x /usr/local/bin/claude && \
     '  },' \
     '  "read_only_roots": [' \
     '    "/opt/app",' \
-    '    "/home/agent/.nexus/app/platform-skills"' \
+    '    "/home/agent/.nexus/skills-public/platform-skills"' \
     '  ]' \
     '}' \
     > /etc/nexus/runtime-isolation.json && \
