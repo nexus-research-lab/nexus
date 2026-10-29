@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Update Windows sandbox runtime to restore writable TEMP/TMP before tool startup and keep independent shell calls running after an ordinary command failure. Add native acceptance for shell failure isolation and explicit cancellation.
+
 - Allow Windows window-close shutdown to drain runtimes and persist retirement through a parent pipe before bounded Job termination.
 
 - Pin Windows nxs to 5ecdae17: reuse runtime-owned read-only file workers, isolate recorder directory preparation and writes from model tool permissions, and preserve the underlying error when a runtime stream terminates. Add native worker reuse, policy-change and cancellation acceptance.
