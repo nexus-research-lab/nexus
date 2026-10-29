@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin Windows nxs to 5ecdae17: reuse runtime-owned read-only file workers, isolate recorder directory preparation and writes from model tool permissions, and preserve the underlying error when a runtime stream terminates. Add native worker reuse, policy-change and cancellation acceptance.
+
 - Bundle and sign the Rust nxs-mxc helper backed by pinned Microsoft mxc-sdk; update SDK build/release integration, runtime extraction, package metadata and missing-component guidance. End users need no Rust installation. Windows native isolation and exit/relaunch acceptance remain pending.
 
 - Pin Windows nxs to 5b49bd45 for generated Microsoft PSEC schema bindings, independent encoding diagnostics and atomic sandbox Job ownership. Require Job cleanup and fixture regression tests; native Windows acceptance and the reported 0x80070032 diagnosis remain pending.

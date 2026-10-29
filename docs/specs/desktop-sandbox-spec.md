@@ -37,6 +37,8 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - This boundary does not authorize Windows SDK file/network execution and is not an atomic creation/resource-recovery receipt.
 - Native component gate: `node scripts/desktop/check-windows-sandbox.mjs --native`. With a specified local SDK, every required case must actually pass. CI runs elevated, so the CI gate covers platform-neutral MXC policy, the read-only file helper policy, junction rejection and settings/Bridge lifecycle; native ProcessContainer acceptance runs with `NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE=1` from a standard-user interactive session. Process exit must be shown by a kernel signal; a residual handle, a queryable PID/creation time or exit code 259 alone cannot prove liveness. Passing the gate does not grant Windows backend release acceptance.
 
+Windows nxs owns file-read workers per runtime rather than per agent. Unchanged read policies may reuse a read-only worker; policy changes, cancellation and runtime closure retire it. Explicit deny-read policies retain per-operation installation to avoid stale filesystem path resolution. Recorder persistence has a separate restricted project-directory executor and does not enlarge model tool grants. The SDK defines the worker protocol and bootstrap details in `docs/sdk/windows-mxc.md`.
+
 ## Grants and mandatory policy
 
 - The host passes Skill directories as read resources and user-mounted directories as explicit sandbox write grants.

@@ -18,7 +18,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 // lifecycle; native ProcessContainer acceptance runs locally as a standard
 // user through NEXUS_ALLOW_LOCAL_NATIVE_EVIDENCE. Keep this exact commit in
 // lockstep with the workflow checkout.
-const WINDOWS_NATIVE_SDK_COMMIT = "93538fbe121a9f2583a6ebf6e9bc6e633dc80d05";
+const WINDOWS_NATIVE_SDK_COMMIT = "5ecdae176dbaeda9d1bcb86e549f65b6183e4c24";
 const WINDOWS_NATIVE_SDK_PACKAGE = "./internal/tool/builtin/bash/sandboxexec";
 const WINDOWS_NATIVE_TESTS = [
   "TestMXCRootGlobPreservesAbsoluteVolume",
@@ -280,7 +280,7 @@ try {
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
       }
       runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
-      runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip", "TestWindowsMXCFileHelperReadsWriteProtectedProjectMetadata"], mxcEnvironment, sdkSource);
+      runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip", "TestWindowsMXCFileHelperReadsWriteProtectedProjectMetadata", "TestWindowsMXCSessionReadWorker"], mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-mcp-stdio", ["./internal/tool/executor"], ["TestWindowsMXCMCPStdioUsesTheCommandPolicy"], mxcEnvironment, sdkSource);
     }
   }

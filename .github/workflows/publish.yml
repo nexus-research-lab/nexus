@@ -326,7 +326,7 @@ jobs:
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: 93538fbe121a9f2583a6ebf6e9bc6e633dc80d05
+          ref: 5ecdae176dbaeda9d1bcb86e549f65b6183e4c24
           path: ${{ runner.temp }}\nexus-agent-sdk-go
           fetch-depth: 1
           persist-credentials: false
@@ -342,7 +342,7 @@ jobs:
           $env:GOWORK = "off"
           go -C $sdkDir build -mod=readonly -trimpath -o $nxsPath ./cmd/nxs
           if ($LASTEXITCODE -ne 0) {
-            throw "Failed to build pinned nxs runtime from 93538fbe"
+            throw "Failed to build pinned nxs runtime from 5ecdae17"
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 
