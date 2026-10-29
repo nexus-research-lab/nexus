@@ -40,6 +40,44 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  sandbox_baseline:
+    name: Validate macOS desktop sandbox with real nxs
+    # Fork PRs cannot read the nxs release token.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Fetch paired nxs runtime
+        env:
+          NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
+          NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
+        run: |
+          node scripts/desktop/fetch-nxs-runtime.js \
+            --goos darwin \
+            --goarch arm64 \
+            --output "${RUNNER_TEMP}/nxs/nxs" \
+            --ripgrep-output "${RUNNER_TEMP}/nxs/rg"
+
+      # Real Seatbelt boundaries, capability handshake and MCP round trips.
+      # Scripted model fixtures only: no provider credentials or model calls.
+      - name: Run desktop sandbox baseline
+        run: |
+          NEXUS_SANDBOX_TEST_BINARY="${RUNNER_TEMP}/nxs/nxs" make check-desktop-sandbox
+
   build:
     name: Validate macOS ${{ matrix.display_name }} build, smoke, and package
     strategy:

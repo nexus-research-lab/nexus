@@ -1,4 +1,4 @@
-// INPUT: Agent、runtime 选择、权限、工具、Skill、提示词、MCP 与 desktop sandbox 资源。
+// INPUT: Agent、runtime 选择、权限、工具、Skill、提示词与 MCP。
 // OUTPUT: DM 与 Room 共用的 Agent runtime 选项装配，以及带失效 resume 回退的启动状态机。
 // POS: 宿主决定 session key、权限来源与提示词内容；这里只实现两个宿主相同的启动步骤。
 package runtimehost
@@ -9,10 +9,9 @@ import (
 	"log/slog"
 	"strings"
 
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
-
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"

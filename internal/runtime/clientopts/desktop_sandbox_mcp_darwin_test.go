@@ -50,7 +50,7 @@ func testDesktopSandboxMCPRoundTrip(t *testing.T, scenarios []string) {
 			if err := appfs.EnsureUserRuntimeLayoutAt(filepath.Join(root, "state"), "__system__"); err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range []string{"workspace", "config", "home", "scratch"} {
+			for _, name := range []string{"workspace", "config", "home"} {
 				if err := os.MkdirAll(filepath.Join(root, name), 0700); err != nil {
 					t.Fatal(err)
 				}
@@ -80,7 +80,8 @@ func testDesktopSandboxMCPRoundTrip(t *testing.T, scenarios []string) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				countFile := filepath.Join(root, "scratch", "stdio-calls")
+				// 无状态沙箱没有宿主 scratch；stdio MCP 只能写 workspace 与 TMPDIR。
+				countFile := filepath.Join(root, "workspace", "stdio-calls")
 				calls = func() int32 {
 					data, err := os.ReadFile(countFile)
 					if err != nil {

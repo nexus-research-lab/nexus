@@ -147,7 +147,8 @@ try {
     "TestConfigurationRevisionLegacyReceiptIsIncomparable",
     "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
   ]);
-  if (process.platform === "darwin") testGroup("host-app-shutdown", ["./internal/app"], [
+  if (process.platform === "darwin") testGroup("host-command-boundaries", ["./internal/runtime/clientopts"], [
+    "TestDesktopSandboxScriptedCommandBoundaries",
   ]);
   if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
     "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),

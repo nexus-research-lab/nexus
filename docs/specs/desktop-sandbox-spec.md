@@ -84,6 +84,8 @@ This spec states implemented host wiring. It is not acceptance of a full App san
 - Restricted nxs runs without a host resource contract. Writes are limited to the workspace, user-mounted directories, the SDK's temporary paths (`TMPDIR`, `/tmp/nexus`) and its debug/log locations; everything else is read-only unless explicitly denied.
 - A command that fails inside the sandbox may be rerun outside it only through the SDK's one-time `sandbox_escape` approval (`allowUnsandboxedCommands=true`). Full Access remains the only standing opt-out.
 - After connecting, the host checks that a desktop-sandbox runtime acknowledged every required Bridge capability and closes it otherwise (`internal/runtime/sandbox_admission.go`). Nothing about the effective policy is persisted.
+- Without a resource contract, nxs points `TMPDIR` at `<workspace>/.nexus/sandbox-tmp`. Tools that ignore `TMPDIR` and write to the per-user Darwin temp directory or `/tmp` directly (for example a bare `mktemp`) are denied, as they were under the old scratch lease.
+- Upgrading from the stateful model removes its leftovers once: SQL 00159 drops the launch, policy-receipt and scratch-recovery tables, and the file migration `20261029_remove_retired_sandbox_resources` deletes `app/processes` and the lease-marked leaves under `users/<owner>/runtime/sandbox`. Leaves are renamed to a tombstone before deletion so a partial failure is still recognized; any failure is logged and retried on the next start without blocking startup.
 - A crash leaves no sandbox state that can block a later session; the Bridge's kill-on-close process ownership and ordinary session cleanup remain the only process boundary. Detached descendants are not supervised.
 
 ## Per-area capabilities
@@ -413,4 +415,5 @@ These are internal fixes in the jointly released Nexus/nxs pair, not a new capab
 
 ## 实现约束
 
-- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox` 是显式桌面沙箱基线：脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败。完整验收记录由内部 CI 和本地维护。
+- `NEXUS_SANDBOX_TEST_BINARY=/absolute/nxs make check-desktop-sandbox` 是显式桌面沙箱基线：脱离 go.work 验证固定 Bridge 与真实 nxs，缺失或跳过必测用例即失败。其中 `TestDesktopSandboxScriptedCommandBoundaries` 以脚本化模型夹具驱动真实 Bash 调用，断言 TMPDIR/workspace 可写、宿主 app 树与凭据位置被拒绝，不需要 Provider 凭据。
+- macOS Desktop Build 工作流的 `sandbox_baseline` job 在 macos-15 上拉取 `nxs-stable` 配对运行时并执行上述基线；fork PR 读不到下载凭据时跳过。完整验收记录由内部 CI 和本地维护。
