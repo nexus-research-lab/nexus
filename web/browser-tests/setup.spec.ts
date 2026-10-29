@@ -65,7 +65,7 @@ test("setup shares access presentation and preserves validation, pending state a
   const heading = introduction.getByRole("heading", { level: 1 });
   expect(await heading.evaluate((element) => getComputedStyle(element).fontSize)).toBe(page.viewportSize()!.width < 640 ? "44px" : "64px");
   await expect.poll(() => page.locator("main").evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
-  expect(await panel.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("16px");
+  expect(await panel.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("12px");
   expect(await panel.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   await info.attach("setup-introduction", { body: await introduction.screenshot({ animations: "disabled" }), contentType: "image/png" });
 

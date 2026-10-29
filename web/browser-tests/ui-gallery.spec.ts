@@ -232,7 +232,7 @@ test("avatars preserve readable initials and rounded-square member geometry", as
     const bounds = avatar.getBoundingClientRect();
     return { width: bounds.width, height: bounds.height, radius: Number.parseFloat(getComputedStyle(avatar).borderTopLeftRadius) };
   }));
-  expect(agentMetrics).toEqual([22, 28, 40, 56, 64].map((width, index) => ({ width, height: width, radius: [6, 8, 10, 12, 12][index] })));
+  expect(agentMetrics).toEqual([22, 28, 40, 56, 64].map((width, index) => ({ width, height: width, radius: [4, 6, 8, 10, 10][index] })));
   for (const row of await fixture.locator("[data-gallery-room-avatars]").all()) {
     const roomSize = await row.getAttribute("data-gallery-room-avatars");
     for (const count of [1, 2, 4, 9]) {
@@ -689,7 +689,7 @@ test("private timelines share metadata and message editing preserves keyboard an
         radius: getComputedStyle(element.firstElementChild!).borderRadius,
         nameFont: getComputedStyle(element.querySelector(".ui-type-metadata")!).fontSize,
       }));
-      expect(metrics).toEqual({ alignment, radius: "12px", nameFont: "12px" });
+      expect(metrics).toEqual({ alignment, radius: "10px", nameFont: "12px" });
     }
     await expect.poll(() => timeline.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
     await capture(timeline, info, `private-timeline-${density}`);
@@ -1560,7 +1560,7 @@ test("theme tokens resolve and Tour highlights the real target without swallowin
   await launch.click();
   const highlight = page.locator(".tour-target-highlight");
   await expect(highlight).toBeVisible();
-  expect(await highlight.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
+  expect(await highlight.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("8px");
   await expect.poll(async () => {
     const anchor = (await target.boundingBox())!;
     const bounds = (await highlight.boundingBox())!;
@@ -1586,7 +1586,7 @@ test("Composer draft previews preserve files and keep removal as an independent 
   const shell = fixture.locator("[data-gallery-composer-shell]");
   await shell.scrollIntoViewIfNeeded();
   await expectInsideViewport(page, shell);
-  expect(await shell.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("20px");
+  expect(await shell.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("12px");
   const imagePreview = fixture.getByRole("button", { name: copy(info, "预览图片：preview-sample.svg", "Preview image: preview-sample.svg"), exact: true });
   const textPreview = fixture.getByRole("button", { name: copy(info, "预览文本：review-notes-with-a-long-filename.txt", "Preview text: review-notes-with-a-long-filename.txt"), exact: true });
   const thumbnail = imagePreview.locator("..");
@@ -1672,7 +1672,7 @@ test("Agent configuration reuses shared rows and cards without widening toggle h
   await expect(skill).toBeDisabled();
   expect(await skills.getByRole("switch").count()).toBe(1);
   for (const card of await skills.getByRole("article").all()) {
-    expect(await card.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
+    expect(await card.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("8px");
   }
   await skills.scrollIntoViewIfNeeded();
   await capture(skills, info, "agent-skill-cards");
@@ -1713,7 +1713,7 @@ test("catalog primary hit area preserves content and independent secondary actio
   const create = page.getByRole("button", { name: "Create catalog item", exact: true });
   await create.click();
   await expect(page.locator("[data-gallery-catalog-creations]")).toHaveText("1");
-  expect(await create.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("12px");
+  expect(await create.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("10px");
   const unavailable = page.getByRole("button", { name: "Disabled catalog creation", exact: true });
   await unavailable.scrollIntoViewIfNeeded();
   await expect(unavailable).toBeDisabled();
@@ -1832,7 +1832,7 @@ test("list density and surfaces share geometry and inert rows suppress hover", a
     const row = page.locator(`[data-gallery-row="${name}"]`);
     await row.scrollIntoViewIfNeeded();
     expect((await row.boundingBox())!.height).toBe(expectedHeight);
-    expect(await row.evaluate((element) => getComputedStyle(element).borderRadius)).toBe(narrow ? "12px" : "10px");
+    expect(await row.evaluate((element) => getComputedStyle(element).borderRadius)).toBe(narrow ? "12px" : "8px");
     await capture(row, info, `list-${name}`);
   }
   const flush = page.locator('[data-gallery-row="flush"]');
