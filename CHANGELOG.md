@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Windows 开发启动器增加独占端口绑定检查，避免系统监听端口枚举漏报时误启动服务。
+
 - 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再静默跳过其中的拒绝规则。
 - 修复 Windows 智能体初始化失败：沙箱临时目录移到工作区之外，提前创建所需的合成用户目录，并在凭据目录的中间目录不存在时仍保持拒绝。
 - 修复 Windows 打包清理会误结束构建命令自身：只结束输出目录内的可执行文件。

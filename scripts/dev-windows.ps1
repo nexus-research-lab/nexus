@@ -90,6 +90,15 @@ try {
     foreach ($port in $ports) {
         if ($port -lt 1 -or $port -gt 65535) { throw "Invalid port: $port" }
         if ($listeners.Port -contains $port) { throw "Port $port is already in use. Select another port in the make command." }
+        # Some Windows builds omit listeners from the IP Helper snapshot. An
+        # exclusive bind also catches wildcard/loopback conflicts before launch.
+        $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Any, $port)
+        $probe.Server.ExclusiveAddressUse = $true
+        try { $probe.Start() }
+        catch [Net.Sockets.SocketException] {
+            throw "Port $port is already in use or unavailable. Select another port in the make command."
+        }
+        finally { $probe.Stop() }
     }
     if ($control -and -not (Test-Path -LiteralPath "$ControlRoot/go.mod")) { throw "nexus-control not found: $ControlRoot" }
     $vite = Join-Path $root 'web/node_modules/vite/bin/vite.js'
