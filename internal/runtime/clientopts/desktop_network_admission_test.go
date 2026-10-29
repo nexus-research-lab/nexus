@@ -128,6 +128,9 @@ func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 }
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
@@ -143,6 +146,9 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 }
 
 func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T) {
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
 	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
 		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
@@ -172,6 +178,9 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 }
 
 func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
 	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
 	restricted := AgentClientOptionsInput{
 		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission, WorkspacePath: t.TempDir(),

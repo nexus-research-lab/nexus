@@ -49,3 +49,13 @@ func TestWindowsSandboxScratchRejectsLink(t *testing.T) {
 		t.Fatal("wrote outside workspace")
 	}
 }
+
+func TestWindowsSandboxRejectsElevatedProcess(t *testing.T) {
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return true }
+	defer func() { desktopSandboxProcessElevated = old }()
+	_, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}}, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, WorkspacePath: t.TempDir()}, "windows")
+	if err == nil {
+		t.Fatal("elevated process accepted")
+	}
+}

@@ -89,7 +89,7 @@ func TestDesktopHostPathsDenyUserSecretReads(t *testing.T) {
 			if slices.Contains(got.Sandbox.Filesystem.DenyWrite, secret) {
 				t.Fatalf("%s: secret path needlessly added to write denials: %s", kind, secret)
 			}
-			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Read(/"+secret+"/**)") {
+			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Read(/"+filepath.ToSlash(secret)+"/**)") {
 				t.Fatalf("Claude secret read rule missing: %s", secret)
 			}
 		}
