@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Integrate Windows MXC with the stateless main host using confined workspace scratch; clarify proxy approval versus connection success and add native delayed-approval/expired-request coverage.
+
 - Align browser geometry assertions with the current shared radius tokens and prevent deferred dialog autofocus from redirecting input after a user has selected a field.
 
 - Update Windows sandbox runtime to restore writable TEMP/TMP before tool startup and keep independent shell calls running after an ordinary command failure. Add native acceptance for shell failure isolation and explicit cancellation.
