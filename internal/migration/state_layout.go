@@ -615,8 +615,9 @@ func moveUnknownStateEntries(stateRoot string, systemRuntimeRoot string) error {
 		"shared-workspaces": {},
 		"workspace":         {},
 		// 桌面壳在 sidecar 启动前已经持有这些文件，启动中移动会破坏单实例锁语义。
-		"NexusDesktop.lock":     {},
-		"NexusSidecar.pid.json": {},
+		"NexusDesktop.lock":         {},
+		"NexusSidecar.pid.json":     {},
+		"NexusSidecar.pid.json.tmp": {},
 	}
 	hostNames := make(map[string]struct{}, len(stateLayoutHostEntries))
 	for _, name := range stateLayoutHostEntries {

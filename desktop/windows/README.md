@@ -36,7 +36,7 @@ make app-win-run
 make app-win-run APP_WIN_RUN_SKIP_BUILD=1
 ```
 
-Windows 沙箱由 nxs 直接调用系统 processmodel.dll 的进程安全环境 API，不需要额外安装 MXC 二进制。需要 Windows 11 24H2（build 26100.9278）或更新受支持版本，并以普通用户运行。API 缺失或提权时能力关闭，受限会话失败关闭。原生验收见 [验证清单](../../docs/specs/windows-mxc-sandbox-verify.md)。
+Windows 沙箱由 nxs 旁随包签名的 Rust helper `nxs-mxc.exe`（固定版本的 Microsoft mxc-sdk）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新受支持版本，并以普通用户运行。helper 缺失、API 不可用或提权时能力关闭，受限会话失败关闭。原生验收见 [验收清单](../../docs/testing/desktop-sandbox-acceptance.md)。
 
 如需临时关闭随包预置 runtime：
 

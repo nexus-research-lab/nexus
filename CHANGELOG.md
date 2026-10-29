@@ -7,55 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Fix Windows Agent initialization by placing sandbox scratch outside the workspace as required by the SDK resource contract; prepare synthetic profile directories and preserve credential denial when intermediate directories are absent.
-
-- Limit Windows bundle cleanup to executables inside the output directory, avoiding termination of the build command itself.
-
-- Integrate Windows MXC with the stateless main host using confined workspace scratch; clarify proxy approval versus connection success and add native delayed-approval/expired-request coverage.
-
-- Align browser geometry assertions with the current shared radius tokens and prevent deferred dialog autofocus from redirecting input after a user has selected a field.
-
-- Update Windows sandbox runtime to restore writable TEMP/TMP before tool startup and keep independent shell calls running after an ordinary command failure. Add native acceptance for shell failure isolation and explicit cancellation.
-
-- Allow Windows window-close shutdown to drain runtimes and persist retirement through a parent pipe before bounded Job termination.
-
-- Pin Windows nxs to 5ecdae17: reuse runtime-owned read-only file workers, isolate recorder directory preparation and writes from model tool permissions, and preserve the underlying error when a runtime stream terminates. Add native worker reuse, policy-change and cancellation acceptance.
-
-- Bundle and sign the Rust nxs-mxc helper backed by pinned Microsoft mxc-sdk; update SDK build/release integration, runtime extraction, package metadata and missing-component guidance. End users need no Rust installation. Windows native isolation and exit/relaunch acceptance remain pending.
-
-- Pin Windows nxs to 5b49bd45 for generated Microsoft PSEC schema bindings, independent encoding diagnostics and atomic sandbox Job ownership. Require Job cleanup and fixture regression tests; native Windows acceptance and the reported 0x80070032 diagnosis remain pending.
-
-- Pin Windows nxs to 3065492a for absolute-drive deny-glob protection and PSEC ingress negotiation. Distinguish an unsupported PSEC Create request (0x80070032) from missing system APIs, and document native diagnostics without claiming the host issue resolved.
-
-- Explain how to disable desktop sandboxing in Settings and start a new session when Windows sandbox support is unavailable, including the loss of sandbox isolation.
-
-- Fix Windows window-exit reentrancy and UI-thread shutdown waits. Own the backend with an atomic kill-on-close Job launch, keep the single-instance lock through cleanup, and validate saved process identity when recovering across package paths. Native Windows exit/relaunch acceptance remains pending.
-
-
-- Windows sandbox now uses the pinned nxs PSEC wrapper without bundled MXC binaries. Default restricted initialization allows three minutes, and sandbox checks explain elevated tokens and unsupported Windows versions. Native Windows acceptance and startup latency remain to be verified.
-
-
 ### Added
 
-- Windows 桌面沙箱改由 nxs SDK 的 MXC ProcessContainer 后端执行：受限会话需 nxs 与宿主 scratch 租约，完全放行不下发沙箱设置，受限 Claude 会话在 Windows 上直接拒绝；MXC 不可用时握手失败、不回退为无沙箱。
-- Windows 原生开发入口支持 make dev、dev-nxs 和独立服务启动，自动等待 Control 就绪，检查端口并在退出时清理本次启动的进程。
-- `nexus-server check-desktop-runtime` 现在可在原生 Windows 宿主上验证随包 nxs，与 macOS 使用同一套三 profile 能力握手检查。
+- Windows 桌面沙箱：受限 nxs 会话由随包签名的 Rust `nxs-mxc.exe`（固定版本 Microsoft mxc-sdk 的 MXC ProcessContainer）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新版本并以普通用户运行；组件缺失、系统 API 不可用或以管理员权限运行时受限会话直接拒绝，不回退为无沙箱执行。完全访问不下发沙箱设置；受限 Claude 会话在 Windows 上直接拒绝。
+- Windows 受限会话与 macOS 使用同一套 nxs 合同（含严格 MCP 配置与 MCP 网络 / headers helper / stdio 约束），使用原生 PowerShell；沙箱临时目录位于工作区之外，工具启动前恢复可写的 TEMP/TMP，普通命令失败不影响同一会话的其他调用。
+- “检查沙箱支持”与会话启动失败时给出可操作的说明（组件缺失、管理员权限、系统不支持），并提示可在“设置 › 沙箱”关闭沙箱后重新发起会话及其代价。
+- Windows 原生开发入口支持 `make dev`、`dev-nxs` 和独立服务启动，自动等待 Control 就绪、检查端口并在退出时清理本次启动的进程；`nexus-server check-desktop-runtime` 可在原生 Windows 上验证随包 nxs。
 
 ### Changed
 
-- Windows 桌面沙箱受限会话与 macOS 使用同一套 MCP 约束：打开严格 MCP 配置，并要求 nxs 确认 MCP 网络、headers helper 与 stdio 能力；以管理员权限运行 Nexus 时受限会话直接拒绝，“检查沙箱支持”也报告不可用。
+- macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
+- macOS 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前只能切换到完全访问）。
+- Windows 关闭窗口时先询问“最小化到托盘”或“退出”；退出时后端先排空运行时再结束其 Job，后端以原子方式加入桌面壳持有的 kill-on-close Job，单实例锁保持到清理完成；按保存的进程身份回收旧后端，不再按进程名扫描结束同名进程。
 
 ### Fixed
 
-- 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再当作不存在而跳过其中的拒绝规则。
-### Changed
-
-- macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复，未开启沙箱的用户不再受其影响。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
-- 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前受限 nxs 会话无法提权，只能切换到完全访问）。
+- 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再静默跳过其中的拒绝规则。
+- 修复 Windows 智能体初始化失败：沙箱临时目录移到工作区之外，提前创建所需的合成用户目录，并在凭据目录的中间目录不存在时仍保持拒绝。
+- 修复 Windows 打包清理会误结束构建命令自身：只结束输出目录内的可执行文件。
+- 修复 Windows 后端身份记录写入中断后桌面端永久无法启动：记录改为原子替换，读不到时提示需要删除的文件。
+- 修复对话框延迟自动聚焦会抢走用户已选中输入框的焦点。
 
 ### Security
 
-- 受限桌面沙箱默认禁止读取用户凭据位置：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.netrc`、`~/.git-credentials`、`~/.config/gh`、`~/.kube`、`~/.docker/config.json`、`~/Library/Keychains` 与 `~/Library/Cookies`；需要这些文件的命令走一次性沙箱外审批。
+- 受限桌面沙箱默认禁止读取用户凭据位置：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.netrc`、`~/.git-credentials`、`~/.config/gh`、`~/.config/gcloud`、`~/.azure`、`~/.kube`、`~/.docker/config.json`、`~/.pypirc`、`~/.cargo/credentials`、`~/Library/Keychains`、`~/Library/Cookies` 以及 Chrome/Firefox 用户资料目录；需要这些文件的命令在 macOS 上走一次性沙箱外审批。
+- 受限桌面沙箱不再能读取宿主 app 目录中除 Skill 投影外的任何条目（此前数据库备份等未登记目录在 macOS 上可读），也不能读写状态根下的本机 Control 目录。
 
 ## [0.2.6] - 2026-10-24
 

@@ -9,7 +9,7 @@ import (
 )
 
 func TestSandboxStartupExplanationPreservesCause(t *testing.T) {
-	cause := errors.New("this Windows build does not provide the process security environment API")
+	cause := errors.New("failed to load processmodel.dll: The specified module could not be found. (os error 126)")
 	client := &agentClient{newSession: func(context.Context, bridge.Options) (*bridge.Session, error) { return nil, cause }}
 	_, err := client.openSession(context.Background(), bridge.Options{})
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "当前 Windows 未提供桌面沙箱所需的系统 API") {

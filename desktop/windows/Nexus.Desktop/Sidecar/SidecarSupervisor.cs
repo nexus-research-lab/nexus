@@ -275,7 +275,6 @@ internal sealed class SidecarSupervisor : IDisposable
         });
     }
 
-
     private static void PrepareDirectories()
     {
         Directory.CreateDirectory(DesktopPaths.RootDirectory);
@@ -309,7 +308,7 @@ internal sealed class SidecarSupervisor : IDisposable
             _ = orphan.Handle;
             if (orphan.HasExited) { RemoveProcessRecord(); return; }
             if (record.StartTimeUtcTicks == 0 || !SidecarProcessRecord.SamePath(record.StateRoot, DesktopPaths.RootDirectory))
-                throw new InvalidOperationException("旧后端的进程身份记录不完整，请退出旧版本 Nexus 后重试；未自动结束不明进程。");
+                throw new InvalidOperationException($"旧后端的进程身份记录不完整，未自动结束不明进程。请退出旧版本 Nexus；若已无旧版本在运行，删除 {DesktopPaths.SidecarPIDFilePath} 后重试。");
             if (orphan.StartTime.ToUniversalTime().Ticks != record.StartTimeUtcTicks)
             {
                 RemoveProcessRecord(); // The recorded process is gone; this PID now belongs to someone else.
@@ -333,7 +332,10 @@ internal sealed class SidecarSupervisor : IDisposable
         {
             Directory.CreateDirectory(DesktopPaths.RootDirectory);
             var record = new SidecarProcessRecord(startedProcess.Id, startedProcess.MainModule?.FileName ?? locator.Command, startedProcess.StartTime.ToUniversalTime().Ticks, DesktopPaths.RootDirectory);
-            File.WriteAllText(DesktopPaths.SidecarPIDFilePath, JsonSerializer.Serialize(record));
+            // Replace atomically: a torn record would block every later launch, because unreadable records fail closed.
+            string temporary = DesktopPaths.SidecarPIDFilePath + ".tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(record));
+            File.Move(temporary, DesktopPaths.SidecarPIDFilePath, overwrite: true);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -354,7 +356,7 @@ internal sealed class SidecarSupervisor : IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
-            throw new InvalidOperationException("无法读取旧后端身份记录；已保留原记录，请检查后重试。", exception);
+            throw new InvalidOperationException($"无法读取旧后端身份记录；已保留原记录。请确认没有其他 Nexus 在运行后删除 {DesktopPaths.SidecarPIDFilePath} 再重试。", exception);
         }
     }
 

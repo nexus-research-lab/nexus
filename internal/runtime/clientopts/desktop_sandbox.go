@@ -1,9 +1,10 @@
 // INPUT: Desktop host rollout flag, approval mode and explicitly mounted directories.
 // OUTPUT: 必需命令、原生文件、搜索、媒体、Skill、指令上下文与受控设置写入合同；其余路径保留既有选项。
-// POS: Common DM/Room/background sandbox policy assembly for macOS and Windows (SDK MXC); backend negotiation is Bridge-owned.
+// POS: Common DM/Room/background sandbox policy assembly for macOS (Seatbelt) and Windows (nxs-mxc); backend negotiation is Bridge-owned.
 package clientopts
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"runtime"
@@ -14,6 +15,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 func applyDesktopSandbox(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
@@ -39,12 +41,12 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
-		// PSEC 初始化包含项目发现；仅为未显式配置的受限 Windows 会话扩展预算。
+		// Windows 受限初始化经沙箱文件 helper 完成项目发现；仅为未显式配置的会话扩展预算。
 		if options.Runtime.InitializeTimeout == 0 {
 			options.Runtime.InitializeTimeout = 3 * time.Minute
 		}
 		if desktopSandboxProcessElevated() {
-			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus。也可以前往「设置 → 沙箱」关闭桌面沙箱，再重新发起会话继续使用 Nexus；关闭后，命令与文件工具将不再受桌面沙箱隔离。")
+			return agentclient.Options{}, errors.New("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus。" + runtimectx.DesktopSandboxOptOutHint)
 		}
 	}
 	if options.Env == nil {

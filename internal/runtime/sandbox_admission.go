@@ -44,63 +44,51 @@ func sandboxRuntimeKind(kind bridge.RuntimeKind) bridge.RuntimeKind {
 	}
 }
 
+// nxsSandboxRequirements 是桌面 nxs 合同的唯一清单：设置开关、协商能力与缺失时的诊断名。
+var nxsSandboxRequirements = []struct {
+	name       string
+	required   func(*bridge.SandboxSettings) bool
+	capability bridge.Capability
+}{
+	{"sandbox", func(s *bridge.SandboxSettings) bool { return s.RequireSandbox }, bridge.CapabilityRequiredSandbox},
+	{"file_tools", func(s *bridge.SandboxSettings) bool { return s.RequireFileTools }, bridge.CapabilitySandboxFileTools},
+	{"search_tools", func(s *bridge.SandboxSettings) bool { return s.RequireSearchTools }, bridge.CapabilitySandboxSearchTools},
+	{"media_files", func(s *bridge.SandboxSettings) bool { return s.RequireMediaFiles }, bridge.CapabilitySandboxMediaFiles},
+	{"mcp_network", func(s *bridge.SandboxSettings) bool { return s.RequireMCPNetwork }, bridge.CapabilitySandboxMCPNetwork},
+	{"mcp_helpers", func(s *bridge.SandboxSettings) bool { return s.RequireMCPHelpers }, bridge.CapabilitySandboxMCPHelpers},
+	{"mcp_stdio", func(s *bridge.SandboxSettings) bool { return s.RequireMCPStdio }, bridge.CapabilitySandboxMCPStdio},
+	{"media_network", func(s *bridge.SandboxSettings) bool { return s.RequireMediaNetwork }, bridge.CapabilitySandboxMediaNetwork},
+	{"notebook_files", func(s *bridge.SandboxSettings) bool { return s.RequireNotebookFiles }, bridge.CapabilitySandboxNotebookFiles},
+	{"skill_files", func(s *bridge.SandboxSettings) bool { return s.RequireSkillFiles }, bridge.CapabilitySandboxSkillFiles},
+	{"context_files", func(s *bridge.SandboxSettings) bool { return s.RequireContextFiles }, bridge.CapabilitySandboxContextFiles},
+	{"project_files", func(s *bridge.SandboxSettings) bool { return s.RequireProjectFiles }, bridge.CapabilitySandboxProjectFiles},
+	{"managed_policy", func(s *bridge.SandboxSettings) bool { return s.RequireManagedPolicy }, bridge.CapabilitySandboxManagedPolicy},
+	{"settings_files", func(s *bridge.SandboxSettings) bool { return s.RequireSettingsFiles }, bridge.CapabilitySandboxSettingsFiles},
+	{"settings_writes", func(s *bridge.SandboxSettings) bool { return s.RequireSettingsWrites }, bridge.CapabilitySandboxSettingsWrites},
+}
+
 func requiredSandboxCapabilities(options bridge.Options) []bridge.Capability {
 	if options.Sandbox == nil {
 		return nil
 	}
-	result := make([]bridge.Capability, 0, 12)
-	if sandboxRuntimeKind(options.Runtime.Kind) == bridge.RuntimeNXS {
-		if options.Sandbox.RequireSandbox {
-			result = append(result, bridge.CapabilityRequiredSandbox)
+	switch sandboxRuntimeKind(options.Runtime.Kind) {
+	case bridge.RuntimeNXS:
+		result := make([]bridge.Capability, 0, len(nxsSandboxRequirements))
+		for _, requirement := range nxsSandboxRequirements {
+			if requirement.required(options.Sandbox) {
+				result = append(result, requirement.capability)
+			}
 		}
-		if options.Sandbox.RequireFileTools {
-			result = append(result, bridge.CapabilitySandboxFileTools)
+		return result
+	case bridge.RuntimeClaude:
+		if options.Sandbox.RequireClaudeNativeSandbox {
+			return []bridge.Capability{bridge.CapabilityClaudeNativeSandbox}
 		}
-		if options.Sandbox.RequireSearchTools {
-			result = append(result, bridge.CapabilitySandboxSearchTools)
+		if options.Sandbox.RequireClaudeRestricted {
+			return []bridge.Capability{bridge.CapabilityClaudeRestricted}
 		}
-		if options.Sandbox.RequireMediaFiles {
-			result = append(result, bridge.CapabilitySandboxMediaFiles)
-		}
-		if options.Sandbox.RequireMCPNetwork {
-			result = append(result, bridge.CapabilitySandboxMCPNetwork)
-		}
-		if options.Sandbox.RequireMCPHelpers {
-			result = append(result, bridge.CapabilitySandboxMCPHelpers)
-		}
-		if options.Sandbox.RequireMCPStdio {
-			result = append(result, bridge.CapabilitySandboxMCPStdio)
-		}
-		if options.Sandbox.RequireMediaNetwork {
-			result = append(result, bridge.CapabilitySandboxMediaNetwork)
-		}
-		if options.Sandbox.RequireNotebookFiles {
-			result = append(result, bridge.CapabilitySandboxNotebookFiles)
-		}
-		if options.Sandbox.RequireSkillFiles {
-			result = append(result, bridge.CapabilitySandboxSkillFiles)
-		}
-		if options.Sandbox.RequireContextFiles {
-			result = append(result, bridge.CapabilitySandboxContextFiles)
-		}
-		if options.Sandbox.RequireProjectFiles {
-			result = append(result, bridge.CapabilitySandboxProjectFiles)
-		}
-		if options.Sandbox.RequireManagedPolicy {
-			result = append(result, bridge.CapabilitySandboxManagedPolicy)
-		}
-		if options.Sandbox.RequireSettingsFiles {
-			result = append(result, bridge.CapabilitySandboxSettingsFiles)
-		}
-		if options.Sandbox.RequireSettingsWrites {
-			result = append(result, bridge.CapabilitySandboxSettingsWrites)
-		}
-	} else if sandboxRuntimeKind(options.Runtime.Kind) == bridge.RuntimeClaude && options.Sandbox.RequireClaudeNativeSandbox {
-		result = append(result, bridge.CapabilityClaudeNativeSandbox)
-	} else if sandboxRuntimeKind(options.Runtime.Kind) == bridge.RuntimeClaude && options.Sandbox.RequireClaudeRestricted {
-		result = append(result, bridge.CapabilityClaudeRestricted)
 	}
-	return result
+	return nil
 }
 
 // validateDesktopSandboxOptions rejects a hand-built desktop nxs configuration
@@ -119,51 +107,17 @@ func validateDesktopSandboxOptions(options bridge.Options) error {
 	if settings == nil {
 		return errors.New("desktop nxs sandbox settings are missing")
 	}
-	missing := make([]string, 0, 12)
-	if !settings.RequireSandbox {
-		missing = append(missing, "sandbox")
+	missing := make([]string, 0, len(nxsSandboxRequirements))
+	for _, requirement := range nxsSandboxRequirements {
+		if !requirement.required(settings) {
+			missing = append(missing, requirement.name)
+		}
 	}
-	if !settings.RequireFileTools {
-		missing = append(missing, "file_tools")
+	if !options.MCP.StrictConfig {
+		missing = append(missing, "mcp_strict_config")
 	}
-	if !settings.RequireSearchTools {
-		missing = append(missing, "search_tools")
-	}
-	if !settings.RequireMediaFiles {
-		missing = append(missing, "media_files")
-	}
-	if runtime.GOOS == "darwin" && (!settings.RequireMCPNetwork || !options.MCP.StrictConfig) {
-		missing = append(missing, "mcp_network")
-	}
-	if runtime.GOOS == "darwin" && (!settings.RequireMCPHelpers || !options.MCP.StrictConfig) {
-		missing = append(missing, "mcp_helpers")
-	}
-	if runtime.GOOS == "darwin" && (!settings.RequireMCPStdio || !options.MCP.StrictConfig) {
-		missing = append(missing, "mcp_stdio")
-	}
-	if !settings.RequireMediaNetwork {
-		missing = append(missing, "media_network")
-	}
-	if !settings.RequireNotebookFiles {
-		missing = append(missing, "notebook_files")
-	}
-	if !settings.RequireSkillFiles {
-		missing = append(missing, "skill_files")
-	}
-	if !settings.RequireContextFiles {
-		missing = append(missing, "context_files")
-	}
-	if !settings.RequireProjectFiles {
-		missing = append(missing, "project_files")
-	}
-	if !settings.RequireManagedPolicy {
-		missing = append(missing, "managed_policy")
-	}
-	if !settings.RequireSettingsFiles {
-		missing = append(missing, "settings_files")
-	}
-	if !settings.RequireSettingsWrites {
-		missing = append(missing, "settings_writes")
+	if runtime.GOOS == "windows" && settings.Resources == nil {
+		missing = append(missing, "resources")
 	}
 	if settings.Enabled == nil || !*settings.Enabled {
 		missing = append(missing, "enabled")

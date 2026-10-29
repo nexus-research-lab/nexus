@@ -3,7 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - sandbox_diagnostic.go：启动与诊断共用的已知沙箱环境错误提示。
+//   - sandbox_diagnostic.go：启动与诊断共用的已知 nxs-mxc/mxc-sdk 沙箱错误提示与关闭沙箱的出路说明。
 //   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消及终态退休；不拥有记忆领域规则。
 //   - client.go：Client 接口、Factory 与 agentClient（宿主管理 Agent runtime 的能力边界），
 //     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、取消换代中的
@@ -31,7 +31,7 @@
 //   - shutdown.go：宿主退出时永久关闭 Manager 准入，取消 round/后台任务，先等待在途启动和回执写入，再并行关闭全部 Session；重复调用等待同一结果，调用者超时不关闭仍有写入的数据库。
 //   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/本地媒体/远程图片网络/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
-//   - sandbox_admission.go：Connect 后核对桌面沙箱 runtime 完整确认宿主要求的 Bridge 能力，缺失即关闭新进程；不持久化，也不替代 OS 隔离证据。
+//   - sandbox_admission.go：以单一需求表核对桌面 nxs 合同（含 MCP 严格配置与 Windows 资源策略）并在 Connect 后确认 Bridge 能力，缺失即关闭新进程；不持久化，也不替代 OS 隔离证据。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。

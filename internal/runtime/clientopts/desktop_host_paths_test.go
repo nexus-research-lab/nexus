@@ -160,3 +160,35 @@ func TestDesktopHostPathsApplyToWindowsRestrictedNXS(t *testing.T) {
 		t.Fatalf("Windows sidecar record is not protected: %#v", got.Sandbox.Filesystem)
 	}
 }
+
+func TestDesktopHostPathsDenyUnregisteredAppEntriesAndControl(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := filepath.Join(root, "app")
+	for _, name := range []string{"debug", "computer-use", "platform-skills", "host-skills"} {
+		if err := os.MkdirAll(filepath.Join(app, name), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}, Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}}}
+	got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", app, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	denyRead := got.Sandbox.Filesystem.DenyRead
+	for _, path := range []string{filepath.Join(app, "debug"), filepath.Join(app, "computer-use"), filepath.Join(app, "backups"), filepath.Join(root, "control")} {
+		if !slices.Contains(denyRead, path) {
+			t.Fatalf("%s readable", path)
+		}
+	}
+	if !slices.Contains(got.Sandbox.Filesystem.DenyWrite, filepath.Join(root, "control")) {
+		t.Fatal("Control directory writable")
+	}
+	for _, path := range []string{app, filepath.Join(app, "platform-skills"), filepath.Join(app, "host-skills")} {
+		if slices.Contains(denyRead, path) {
+			t.Fatalf("Skill projection %s denied", path)
+		}
+	}
+}

@@ -21,7 +21,7 @@
 
 - [工作区隔离与多用户运行时](./specs/workspace-isolation-spec.md)
 - [运行时人工交互](./specs/permission-runtime-spec.md)
-- [桌面沙箱](./specs/desktop-sandbox-spec.md)
+- [桌面沙箱](./specs/desktop-sandbox-spec.md) · [原生验收清单](./testing/desktop-sandbox-acceptance.md)
 - [消息处理](./specs/message-processing-spec.md)
 - [失败解释与恢复](./specs/failure-recovery-spec.md)
 - [Session Key](./specs/session-key-spec.md)

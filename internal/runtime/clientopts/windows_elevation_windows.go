@@ -5,7 +5,6 @@ package clientopts
 import "golang.org/x/sys/windows"
 
 func windowsDesktopSandboxIsElevated() bool {
-	token := windows.GetCurrentProcessToken()
-	defer token.Close()
-	return token.IsElevated()
+	// The current-process token is a pseudo handle and must not be closed.
+	return windows.GetCurrentProcessToken().IsElevated()
 }

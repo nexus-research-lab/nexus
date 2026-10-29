@@ -82,6 +82,8 @@ dev dev-nxs run-control run-backend run-web prepare-dev-runtime-cli install:
 run-backend-go: run-backend
 gen-protocol-types:
 	go generate ./internal/protocol
+test-dev-windows: ## Check Windows dev launcher port guards
+	pwsh -NoLogo -NoProfile -File scripts/test-dev-windows.ps1
 else
 run-web: ## Run frontend in development mode
 	cd web && VITE_BACKEND_PORT=$(BACKEND_PORT) VITE_CONTROL_PORT=$(CONTROL_PORT) $(PNPM) exec vite --host 0.0.0.0 --port $(WEB_PORT)
@@ -288,7 +290,6 @@ app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
 
 app-win-run: ## 构建并运行 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
-
 
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1

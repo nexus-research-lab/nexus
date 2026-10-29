@@ -1,5 +1,5 @@
 // INPUT: 宿主 canonical 状态根、宿主用户目录、已装配的桌面后端与权限模式。
-// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、私有目录、既有 sidecar 身份记录及用户凭据目录的拒绝规则。
+// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、Skill 投影以外 app 条目、Control 目录、既有 sidecar 身份记录及用户凭据目录的拒绝规则。
 // POS: 统一 DM/Room/后台 options 装配；Full Access 是明确的无隔离例外。
 package clientopts
 
@@ -30,16 +30,19 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 	}
 	filesystem := *options.Sandbox.Filesystem
 	var privateRoots []string
-	// 与 canonical app 布局对应；Skill 投影仍须可读，但整个 app 树不可写。
+	// Skill 投影仍须可读，但整个 app 树不可写；其余 app 条目一律不可读。
 	for _, root := range roots {
-		// 原生宿主既有 sidecar 登记仍位于状态根；禁止任务读取或改写其信号身份。
-		recordAliases, err := desktopHostRootAliases(filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json"))
+		names, err := desktopHostPrivateAppEntries(root)
 		if err != nil {
 			return agentclient.Options{}, err
 		}
-		privateRoots = appendHostPaths(privateRoots, recordAliases...)
-		for _, name := range []string{"data", "config", "cache", "logs", "rooms", "processes", ".migrations", ".agents", "sidecar.lock"} {
-			aliases, err := desktopHostRootAliases(filepath.Join(root, name))
+		// 原生宿主 sidecar 登记与本机 Control 密钥位于状态根；禁止任务读取或改写。
+		paths := []string{filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json"), filepath.Join(filepath.Dir(root), "control")}
+		for _, name := range names {
+			paths = append(paths, filepath.Join(root, name))
+		}
+		for _, path := range paths {
+			aliases, err := desktopHostRootAliases(path)
 			if err != nil {
 				return agentclient.Options{}, err
 			}
@@ -79,6 +82,29 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 	return options, nil
 }
 
+// desktopHostPublicAppEntries 是 app 根下受限会话唯一可读的 Skill 投影。
+var desktopHostPublicAppEntries = []string{"platform-skills", "host-skills"}
+
+// desktopHostPrivateAppNames 覆盖尚未创建的 canonical 私有条目。
+var desktopHostPrivateAppNames = []string{"data", "config", "cache", "logs", "rooms", "backups", ".migrations", ".agents", "sidecar.lock"}
+
+// desktopHostPrivateAppEntries 拒绝固定私有条目与 app 根下现有的全部非 Skill 条目，
+// 使备份、调试输出等未登记目录不会因默认可读而暴露。
+func desktopHostPrivateAppEntries(root string) ([]string, error) {
+	names := slices.Clone(desktopHostPrivateAppNames)
+	entries, err := os.ReadDir(root)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("list desktop app directory: %w", err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !slices.Contains(desktopHostPublicAppEntries, name) && !slices.Contains(names, name) {
+			names = append(names, name)
+		}
+	}
+	return names, nil
+}
+
 // desktopUserSecretNames 是受限会话默认不可读的用户凭据位置（相对宿主用户目录）。
 // Seatbelt 默认放开全盘读取，这些内容一旦被命令读出就会进入模型上下文。
 // 需要它们的命令（如 ssh 推送）应走单次沙箱外执行审批。
@@ -91,8 +117,15 @@ var desktopUserSecretNames = []string{
 	".config/gh",
 	".kube",
 	".docker/config.json",
+	".config/gcloud",
+	".azure",
+	".pypirc",
+	".cargo/credentials",
+	".cargo/credentials.toml",
 	"Library/Keychains",
 	"Library/Cookies",
+	"Library/Application Support/Google/Chrome",
+	"Library/Application Support/Firefox",
 }
 
 // desktopUserSecretPaths 只从宿主进程的用户目录生成，不读取任务 Env 中的 HOME。
