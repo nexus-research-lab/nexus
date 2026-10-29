@@ -347,6 +347,12 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	if runtime.GOOS == "windows" && cfg.AppMode == "desktop" && os.Getenv("NEXUS_DESKTOP_PARENT_PIPE") == "1" {
+		removed, err := desktopinstance.CleanupWindowsScratch(stateRoot)
+		if err != nil {
+			logger.Warn("Windows scratch cleanup incomplete; retained entries will be retried on next startup", "removed", removed, "err", err)
+		}
+	}
 	// 平台 Skill 是 enforce runtime 的显式只读根，必须先完成原子发布，
 	// 再由 launcher 收紧 ACL；不能把首次发布推迟到并发的聊天请求中。
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {

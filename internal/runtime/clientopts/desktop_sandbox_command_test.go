@@ -66,6 +66,18 @@ func TestDesktopSandboxScriptedCommandBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	appProbe := filepath.Join(appData, "probe")
+	lateSecret := filepath.Join(appfs.AppDir(), "new-private", "secret")
+	npmSecret := filepath.Join(home, ".npmrc")
+	publicSkill := filepath.Join(appfs.PlatformSkillRoot(), "fixture.txt")
+	if err := os.MkdirAll(filepath.Dir(publicSkill), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(publicSkill, []byte("PUBLIC_SKILL"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(npmSecret, []byte(secretSentinel), 0600); err != nil {
+		t.Fatal(err)
+	}
 	probes := []struct {
 		name    string
 		command string
@@ -76,6 +88,7 @@ func TestDesktopSandboxScriptedCommandBoundaries(t *testing.T) {
 		{"workspace_write", `echo ok > ws_probe && echo WS_WRITE_OK`, "WS_WRITE_OK"},
 		{"secret_read", fmt.Sprintf(`cat '%s' 2>&1; echo SECRET_RC=$?`, secretFile), "SECRET_RC=1"},
 		{"app_write", fmt.Sprintf(`echo x > '%s' 2>&1; echo APP_RC=$?`, appProbe), "APP_RC=1"},
+		{"private_boundary", fmt.Sprintf(`cat '%s' >/dev/null 2>&1; a=$?; cat '%s' >/dev/null 2>&1; b=$?; p=$(cat '%s'); (echo overwrite > '%s') 2>/dev/null; c=$?; echo "LATE=$a NPM=$b SKILL=$p WRITE=$c"`, lateSecret, npmSecret, publicSkill, publicSkill), "LATE=1 NPM=1 SKILL=PUBLIC_SKILL WRITE=1"},
 	}
 
 	tool := "Bash"
@@ -86,6 +99,7 @@ func TestDesktopSandboxScriptedCommandBoundaries(t *testing.T) {
 		probes[2].command = `Set-Content ws_probe ok; 'WS_WRITE_OK'`
 		probes[3].command = fmt.Sprintf(`try { Get-Content '%s' -ErrorAction Stop; 'SECRET_RC=0' } catch { 'SECRET_RC=1' }`, secretFile)
 		probes[4].command = fmt.Sprintf(`try { Set-Content '%s' x -ErrorAction Stop; 'APP_RC=0' } catch { 'APP_RC=1' }`, appProbe)
+		probes[5].command = fmt.Sprintf(`$a=0; $b=0; try { Get-Content '%s' -ErrorAction Stop | Out-Null } catch { $a=1 }; try { Get-Content '%s' -ErrorAction Stop | Out-Null } catch { $b=1 }; $p=Get-Content '%s' -ErrorAction Stop; $c=0; try { Set-Content '%s' overwrite -ErrorAction Stop } catch { $c=1 }; "LATE=$a NPM=$b SKILL=$p WRITE=$c"`, lateSecret, npmSecret, publicSkill, publicSkill)
 	}
 
 	var mu sync.Mutex
@@ -127,7 +141,7 @@ func TestDesktopSandboxScriptedCommandBoundaries(t *testing.T) {
 	defer provider.Close()
 
 	input := AgentClientOptionsInput{
-		WorkspacePath: workspace, OwnerUserID: "__system__", RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
+		SkillDirectories: []string{appfs.PlatformSkillRoot()}, WorkspacePath: workspace, OwnerUserID: "__system__", RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 		PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true, SettingSources: []string{},
 		PermissionHandler: func(_ context.Context, r sdkpermission.Request) (sdkpermission.Decision, error) {
 			if r.Boundary == sdkpermission.BoundarySandboxEscape || r.Boundary == sdkpermission.BoundarySandboxNetwork {
@@ -147,6 +161,13 @@ func TestDesktopSandboxScriptedCommandBoundaries(t *testing.T) {
 		t.Fatal("stateless desktop sandbox must not carry host scratch resources")
 	}
 
+	// Model a host creating a new private directory after the policy was built.
+	if err := os.MkdirAll(filepath.Dir(lateSecret), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lateSecret, []byte(secretSentinel), 0600); err != nil {
+		t.Fatal(err)
+	}
 	options.CLIPath = binary
 	options.Runtime.InitializeTimeout = 90 * time.Second
 	options.Runtime.MaxTurns = 4

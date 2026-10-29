@@ -611,6 +611,7 @@ func moveUnknownStateEntries(stateRoot string, systemRuntimeRoot string) error {
 		"app":               {},
 		"control":           {},
 		"control-public":    {},
+		"skills-public":     {},
 		"users":             {},
 		"shared-workspaces": {},
 		"workspace":         {},

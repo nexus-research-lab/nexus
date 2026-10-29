@@ -54,7 +54,7 @@ docs/       - README.md 是索引；guides/ 面向用户与作者，operations/ 
 
 ## 状态根契约
 
-- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，公钥镜像位于 `.nexus/control-public`，用户数据位于 `.nexus/users/<owner>/`。
+- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`，独立 Control 数据位于 `.nexus/control`，公钥镜像位于 `.nexus/control-public`，只读 Skill 投影位于 `.nexus/skills-public`，用户数据位于 `.nexus/users/<owner>/`。
 - 启动只把当前 canonical 布局作为运行时读写路径；历史数据只能经 `internal/migration` 中版本化、可重试、不提供旧路径回读的迁移进入 canonical 布局，迁移必须允许跨版本直接升级。
 - 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`。
 - 账号、组织、订阅与在线 Team 的权威位于 `nexus-control`/Relay，Nexus 只保存身份与额度投影，不保存在线消息副本；细节见 `docs/specs/online-team-spec.md`。目录布局与隔离细节见 `docs/specs/workspace-isolation-spec.md`。

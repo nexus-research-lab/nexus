@@ -145,12 +145,12 @@ function run(name, command, args, environment = {}, cwd = root) {
   return result.stdout ?? "";
 }
 
-function runGoTest(name, packages, requiredTests, environment = {}, cwd = root) {
+function runGoTest(name, packages, requiredTests, environment = {}, cwd = root, timeout = "2m") {
   const parents = [...new Set(requiredTests.map((test) => test.split("/")[0]))];
   const output = run(
     name,
     "go",
-    ["test", "-mod=readonly", "-json", "-count=1", "-timeout=2m", ...packages, "-run", `^(${parents.join("|")})$`],
+    ["test", "-mod=readonly", "-json", "-count=1", `-timeout=${timeout}`, ...packages, "-run", `^(${parents.join("|")})$`],
     environment,
     cwd,
   );
@@ -271,7 +271,7 @@ try {
       } else {
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
       }
-      runGoTest("native-host-scripted-commands", ["./internal/runtime/clientopts"], ["TestDesktopSandboxScriptedCommandBoundaries"], { ...mxcEnvironment, NEXUS_SANDBOX_TEST_BINARY: mxcEnvironment.NEXUS_NXS_EXECUTABLE });
+      runGoTest("native-host-scripted-commands", ["./internal/runtime/clientopts"], ["TestDesktopSandboxScriptedCommandBoundaries"], { ...mxcEnvironment, NEXUS_SANDBOX_TEST_BINARY: mxcEnvironment.NEXUS_NXS_EXECUTABLE }, root, "6m");
       runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip", "TestWindowsMXCFileHelperReadsWriteProtectedProjectMetadata", "TestWindowsMXCSessionReadWorker"], mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-mcp-stdio", ["./internal/tool/executor"], ["TestWindowsMXCMCPStdioUsesTheCommandPolicy", "TestWindowsMXCNativeShellTool"], mxcEnvironment, sdkSource);

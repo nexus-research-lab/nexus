@@ -331,7 +331,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Build pinned Windows nxs runtime
         shell: pwsh

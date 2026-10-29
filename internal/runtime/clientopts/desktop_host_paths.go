@@ -1,5 +1,5 @@
 // INPUT: 宿主 canonical 状态根、宿主用户目录、已装配的桌面后端与权限模式。
-// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、Skill 投影以外 app 条目、Control 目录、既有 sidecar 身份记录及用户凭据目录的拒绝规则。
+// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、app 整树读取、Control 目录、既有 sidecar 身份记录及用户凭据目录的拒绝规则。
 // POS: 统一 DM/Room/后台 options 装配；Full Access 是明确的无隔离例外。
 package clientopts
 
@@ -30,14 +30,13 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 	}
 	filesystem := *options.Sandbox.Filesystem
 	var privateRoots []string
-	// Skill 投影仍须可读，但整个 app 树不可写；其余 app 条目一律不可读。
+	// Private roots remain denied even when new descendants appear after startup.
 	for _, root := range roots {
+		paths := []string{root, filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json"), filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json.tmp"), filepath.Join(filepath.Dir(root), "control")}
 		names, err := desktopHostPrivateAppEntries(root)
 		if err != nil {
 			return agentclient.Options{}, err
 		}
-		// 原生宿主 sidecar 登记与本机 Control 密钥位于状态根；禁止任务读取或改写。
-		paths := []string{filepath.Join(filepath.Dir(root), "NexusSidecar.pid.json"), filepath.Join(filepath.Dir(root), "control")}
 		for _, name := range names {
 			paths = append(paths, filepath.Join(root, name))
 		}
@@ -50,6 +49,13 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 		}
 	}
 	writeRoots := appendHostPaths(roots, privateRoots...)
+	for _, root := range roots {
+		aliases, err := desktopHostRootAliases(filepath.Join(filepath.Dir(root), "skills-public"))
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+		writeRoots = appendHostPaths(writeRoots, aliases...)
+	}
 	secretRoots, err := desktopUserSecretPaths(home)
 	if err != nil {
 		return agentclient.Options{}, err
@@ -82,24 +88,17 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 	return options, nil
 }
 
-// desktopHostPublicAppEntries 是 app 根下受限会话唯一可读的 Skill 投影。
-var desktopHostPublicAppEntries = []string{"platform-skills", "host-skills"}
-
-// desktopHostPrivateAppNames 覆盖尚未创建的 canonical 私有条目。
-var desktopHostPrivateAppNames = []string{"data", "config", "cache", "logs", "rooms", "backups", ".migrations", ".agents", "sidecar.lock"}
-
-// desktopHostPrivateAppEntries 拒绝固定私有条目与 app 根下现有的全部非 Skill 条目，
-// 使备份、调试输出等未登记目录不会因默认可读而暴露。
+// Enumeration preserves physical aliases of existing private child symlinks;
+// the whole-root rule above, not this list, protects future private entries.
 func desktopHostPrivateAppEntries(root string) ([]string, error) {
-	names := slices.Clone(desktopHostPrivateAppNames)
+	names := []string{"data", "config", "cache", "logs", "rooms", "backups", ".migrations", ".agents", "sidecar.lock"}
 	entries, err := os.ReadDir(root)
 	if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("list desktop app directory: %w", err)
+		return nil, err
 	}
 	for _, entry := range entries {
-		name := entry.Name()
-		if !slices.Contains(desktopHostPublicAppEntries, name) && !slices.Contains(names, name) {
-			names = append(names, name)
+		if !slices.Contains(names, entry.Name()) {
+			names = append(names, entry.Name())
 		}
 	}
 	return names, nil
@@ -120,12 +119,20 @@ var desktopUserSecretNames = []string{
 	".config/gcloud",
 	".azure",
 	".pypirc",
+	".npmrc",
+	".claude",
+	".claude.json",
+	".codex",
 	".cargo/credentials",
 	".cargo/credentials.toml",
 	"Library/Keychains",
 	"Library/Cookies",
 	"Library/Application Support/Google/Chrome",
 	"Library/Application Support/Firefox",
+	"Library/Application Support/Microsoft Edge",
+	"AppData/Local/Google/Chrome/User Data",
+	"AppData/Local/Microsoft/Edge/User Data",
+	"AppData/Roaming/Mozilla/Firefox",
 }
 
 // desktopUserSecretPaths 只从宿主进程的用户目录生成，不读取任务 Env 中的 HOME。

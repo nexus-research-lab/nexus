@@ -31,6 +31,7 @@ type workspaceFileMigration struct {
 }
 
 var workspaceFileMigrations = []workspaceFileMigration{
+	{name: "20261029_public_skill_projections", apply: migratePublicSkillProjections},
 	{name: legacyMemorySessionsMigrationName, apply: removeLegacyMemorySessions},
 	{name: legacyMemoryDirectoryMigrationName, apply: removeLegacyMemoryDirectories},
 	{name: retiredManagedSkillsMigrationName, apply: removeRetiredManagedSkills},

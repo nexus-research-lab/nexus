@@ -7,6 +7,7 @@
 //   - workspace_layout.go：按 owner 重排旧 workspace 并同步 Agent 路径。
 //   - skipped_state_layout.go：修复 v0.1.30 根目录迁移缺口并安全合并错误窗口的新数据。
 //   - permissions.go：统一桌面、普通服务与 Linux enforce 的迁移权限职责。
+//   - public_skills.go：将平台/宿主 Skill 投影迁至独立 skills-public 根，不覆盖冲突数据。
 //   - workspace_files.go：工作区文件迁移账本、顺序执行与完成标记。
 //   - agent_disabled_skill_schema.go：SQLite 旧版 00056 编号冲突的启动前 schema 与 Goose 账本兼容修复。
 //   - private_skill_schema.go：旧版私有 Skill 00061 与 Execution 迁移编号冲突的精确识别、账本迁移与顺序补跑。

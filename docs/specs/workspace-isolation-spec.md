@@ -120,10 +120,11 @@ launcher 至少校验：
 
 ### 6.1 `.nexus` 状态根
 
-`nexus_state_root` 固定为 `.nexus`，内部不再嵌套 `.nexus`。宿主控制面数据放在 `app/`，用户数据放在 `users/<owner_user_id>/`。新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。
+`nexus_state_root` 固定为 `.nexus`，内部不再嵌套 `.nexus`。宿主控制面数据放在 `app/`，用户数据放在 `users/<owner_user_id>/`。新增私有宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。供 runtime 读取的平台和宿主 Skill 投影单独放在 `skills-public/`，仅宿主可写。
 
 ```text
 .nexus/                               # nexus_state_root
+  skills-public/                      # 只读平台/宿主 Skill 投影，宿主维护
   app/                                # 宿主根，nexus-host 私有
     data/                             # app DB、迁移状态
     config/                           # Nexus 配置、密钥

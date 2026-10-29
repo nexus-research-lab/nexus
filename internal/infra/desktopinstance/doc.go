@@ -7,4 +7,5 @@
 // 调用方在任何迁移/恢复/数据库打开前 Acquire，在所有服务关闭后 Close。
 // 此锁只协调采用本协议的 sidecar，不能单独证明旧版未持锁的进程不存在。
 // parent_input.go 在父进程 stdin 管道 EOF 时通知宿主正常关闭并持久化 runtime 退休。
+// scratch_cleanup.go 在 Windows 原生壳取得独占所有权后、runtime 启动前清理专用临时目录；不在会话运行中删除。
 package desktopinstance

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Protect the entire private app tree, including newly created directories; migrate readable Skill projections to skills-public and cover package-manager, agent and browser credentials.
+- Clean disposable Windows workspace scratch only before runtime startup under desktop ownership, preserve migration safety across Windows path separators, and pin the Windows Rust toolchain.
+
+
 ### Added
 
 - Windows 桌面沙箱：受限 nxs 会话由随包签名的 Rust `nxs-mxc.exe`（固定版本 Microsoft mxc-sdk 的 MXC ProcessContainer）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新版本并以普通用户运行；组件缺失、系统 API 不可用或以管理员权限运行时受限会话直接拒绝，不回退为无沙箱执行。完全访问不下发沙箱设置；受限 Claude 会话在 Windows 上直接拒绝。
