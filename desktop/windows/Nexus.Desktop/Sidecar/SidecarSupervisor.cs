@@ -333,9 +333,7 @@ internal sealed class SidecarSupervisor : IDisposable
             Directory.CreateDirectory(DesktopPaths.RootDirectory);
             var record = new SidecarProcessRecord(startedProcess.Id, startedProcess.MainModule?.FileName ?? locator.Command, startedProcess.StartTime.ToUniversalTime().Ticks, DesktopPaths.RootDirectory);
             // Replace atomically: a torn record would block every later launch, because unreadable records fail closed.
-            string temporary = DesktopPaths.SidecarPIDFilePath + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(record));
-            File.Move(temporary, DesktopPaths.SidecarPIDFilePath, overwrite: true);
+            record.WriteAtomic(DesktopPaths.SidecarPIDFilePath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {

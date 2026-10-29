@@ -69,7 +69,26 @@ if (args.Length == 0 || args[0] == "identity-only")
         receipt.Matches(123, 456, oldExecutable, stateRoot + ".other") ||
         new SidecarProcessRecord(123, oldExecutable).Matches(123, 456, oldExecutable, stateRoot))
         throw new Exception("PID reuse, different paths/roots and legacy identities must not authorize termination");
-    Console.WriteLine("PASS recovery identity (platform-neutral)");
+    string recordDirectory = Path.Combine(Path.GetTempPath(), "nexus-record-" + Guid.NewGuid());
+    Directory.CreateDirectory(recordDirectory);
+    try
+    {
+        string recordPath = Path.Combine(recordDirectory, "pid.json");
+        receipt.WriteAtomic(recordPath);
+        Directory.CreateDirectory(recordPath + ".tmp");
+        try { (receipt with { Pid = 124 }).WriteAtomic(recordPath); throw new Exception("Blocked staging path accepted"); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        if (System.Text.Json.JsonSerializer.Deserialize<SidecarProcessRecord>(File.ReadAllText(recordPath)) != receipt)
+            throw new Exception("Failed staging replaced the durable identity");
+        Directory.Delete(recordPath + ".tmp");
+        File.WriteAllText(recordPath + ".tmp", "{partial");
+        var replacement = receipt with { Pid = 125 };
+        replacement.WriteAtomic(recordPath);
+        if (System.Text.Json.JsonSerializer.Deserialize<SidecarProcessRecord>(File.ReadAllText(recordPath)) != replacement || File.Exists(recordPath + ".tmp"))
+            throw new Exception("Atomic identity replacement did not recover stale staging");
+    }
+    finally { Directory.Delete(recordDirectory, recursive: true); }
+    Console.WriteLine("PASS recovery identity and atomic persistence (platform-neutral)");
     if (args.Length > 0) return;
 }
 
