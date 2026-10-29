@@ -26,6 +26,8 @@
 //   - legacy_memory.go：旧记忆会话目录与旧记忆根目录迁移。
 //   - legacy_memory_skill.go：旧版内置 memory-manager Skill 精确清理迁移。
 //   - retired_skills.go：已退役系统 Skill 清理迁移。
+//   - retired_sandbox_resources.go：旧版 macOS 桌面沙箱监督根与带租约标记 scratch 的尽力清理；失败只告警并下次重试。
+//   - SQL 00159：删除无状态沙箱后已无读取方的启动记录、策略回执与 scratch 恢复表。
 //   - provider_scope_recovery.go：桌面 App 本地 SQLite 的旧 Provider scope 数据补偿。
 //   - state_root.go / state_root_metadata.go：桌面整体状态根复制后的数据库、transcript、Room 与 Session 删除恢复路径提交。
 //   - room_files.go：旧 app/rooms 到用户 state/rooms 与 workspace/.rooms 的 owner 级迁移。

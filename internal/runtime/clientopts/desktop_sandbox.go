@@ -35,11 +35,8 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if platform == "windows" && options.Runtime.Kind == agentclient.RuntimeNXS {
 		// Windows nxs runs on the SDK MXC ProcessContainer backend. Full Access
 		// carries no restricted resource contract and projects no sandbox policy;
-		// a restricted session must hold a host scratch lease before it may start.
+		// restricted sessions prepare a confined workspace scratch without recovery records.
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-			if input.SandboxResources != nil {
-				return agentclient.Options{}, fmt.Errorf("Windows Full Access cannot carry restricted resources")
-			}
 			return options, nil
 		}
 		// PSEC 初始化包含项目发现；仅为未显式配置的受限 Windows 会话扩展预算。
@@ -48,9 +45,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		}
 		if desktopSandboxProcessElevated() {
 			return agentclient.Options{}, fmt.Errorf("Windows 桌面沙箱不能在管理员权限下运行；请以普通用户权限启动 Nexus。也可以前往「设置 → 沙箱」关闭桌面沙箱，再重新发起会话继续使用 Nexus；关闭后，命令与文件工具将不再受桌面沙箱隔离。")
-		}
-		if input.SandboxResources == nil {
-			return agentclient.Options{}, fmt.Errorf("Windows sandbox requires nxs and a host resource lease")
 		}
 	}
 	if options.Env == nil {
@@ -62,9 +56,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		// Access is an explicit user exception; restricted Claude keeps Bash and
 		// build commands but fails closed when Claude cannot install its OS
 		// sandbox. Native Claude sandbox is not supported by the Windows CLI.
-		if input.SandboxResources != nil {
-			return agentclient.Options{}, fmt.Errorf("Claude 原生沙箱不能携带 nxs host resource contract")
-		}
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
@@ -96,7 +87,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a supported runtime contract")
 	}
 	yes := true
-	no := false
 	options.MCP.StrictConfig = true
 	options.Sandbox = &agentclient.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: true, RequireMCPHelpers: true, RequireMCPStdio: true, RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
@@ -108,28 +98,20 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		},
 		Network: &agentclient.SandboxNetworkConfig{AllowedDomains: []string{}},
 	}
+	if platform == "windows" {
+		resources, err := prepareWindowsSandboxResources(input.WorkspacePath)
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+		options.Sandbox.Resources = resources
+		no := false
+		options.Sandbox.AllowUnsandboxedCommands = &no
+	}
 	// Full Access changes the command/file resource policy, but the nxs
 	// runtime, capability handshake and lifecycle remain installed. Carry the
 	// explicit escape in the SDK setting instead of dropping the environment.
 	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-		if input.SandboxResources != nil {
-			return agentclient.Options{}, fmt.Errorf("Full Access cannot carry a restricted sandbox resource policy")
-		}
 		options.Sandbox.Filesystem = &agentclient.SandboxFilesystemConfig{}
-	} else if input.SandboxResources != nil {
-		resources := *input.SandboxResources
-		if err := resources.Validate(); err != nil {
-			return agentclient.Options{}, fmt.Errorf("invalid desktop sandbox resources: %w", err)
-		}
-		if resources.WriteScope == agentclient.SandboxWriteScopeReadOnly && len(input.AdditionalDirectories) > 0 {
-			return agentclient.Options{}, fmt.Errorf("read-only desktop sandbox resources cannot carry write directory grants")
-		}
-		// Bridge's resource contract deliberately forbids an unsandboxed
-		// command escape. Keep the strict resource policy authoritative; the
-		// ordinary no-resource path may still expose the separate approval
-		// boundary above.
-		options.Sandbox.AllowUnsandboxedCommands = &no
-		options.Sandbox.Resources = &resources
 	}
 	return options, nil
 }

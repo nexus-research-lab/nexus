@@ -102,23 +102,6 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: autoDreamProviderUnavailableReason,
 		}, nil
 	}
-	var scratchLease *runtimectx.SandboxResourceLease
-	scratchLeaseOwned := false
-	if strings.EqualFold(strings.TrimSpace(r.config.AppMode), "desktop") && selection.DesktopSandboxEnabled {
-		scratchLease, err = runtimectx.AcquireSandboxResource(ownerContext, runtimectx.SandboxResourceInput{
-			OwnerUserID: agentValue.OwnerUserID,
-			SessionKey:  "memory-maintenance:" + strings.TrimSpace(agentValue.AgentID),
-			RoundID:     "auto-dream",
-		})
-		if err != nil {
-			return agentclient.AutoDreamResult{}, err
-		}
-		defer func() {
-			if !scratchLeaseOwned {
-				_ = scratchLease.Release()
-			}
-		}()
-	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
 		AppMode:               r.config.AppMode,
 		DesktopSandboxEnabled: r.config.DesktopSandboxEnabled && selection.DesktopSandboxEnabled,
@@ -138,7 +121,6 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		WebSearch:             selection.WebSearch,
 		RuntimeIsolationMode:  r.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:   r.config.RuntimeLauncherPath,
-		SandboxResources:      scratchLease.Resources(),
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",
@@ -148,8 +130,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
-	result, scratchLeaseOwned, err = r.runtime.TryAutoDream(ownerContext, "memory-maintenance:"+strings.TrimSpace(agentValue.AgentID), options, scratchLease)
-	return result, err
+	return r.runtime.TryAutoDream(ownerContext, "memory-maintenance:"+strings.TrimSpace(agentValue.AgentID), options)
 }
 
 func (r *runtimeDreamRunner) backgroundSelection(

@@ -1,5 +1,5 @@
-// INPUT: 宿主 canonical 状态根、已装配的桌面后端与权限模式。
-// OUTPUT: 受限 macOS/Windows nxs 会话对 app 整树写入、私有目录及既有 sidecar 身份记录读写的拒绝规则。
+// INPUT: 宿主 canonical 状态根、宿主用户目录、已装配的桌面后端与权限模式。
+// OUTPUT: 受限 macOS/Windows 会话对 app 整树写入、私有目录、既有 sidecar 身份记录及用户凭据目录的拒绝规则。
 // POS: 统一 DM/Room/后台 options 装配；Full Access 是明确的无隔离例外。
 package clientopts
 
@@ -17,14 +17,8 @@ import (
 
 // applyDesktopHostPaths 只从宿主输入生成保护，不读取任务 Env 中的状态根。
 // 这是命令/文件工具策略，不宣称整个 SDK 进程、IPC 或第三方服务被隔离。
-func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptionsInput, platform, appRoot string) (agentclient.Options, error) {
+func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptionsInput, platform, appRoot, home string) (agentclient.Options, error) {
 	if (platform != "darwin" && platform != "windows") || !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") || options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-		return options, nil
-	}
-	// Windows restricted desktop sessions currently support nxs only. Claude
-	// is rejected earlier, and its slash-based tool deny rules are not valid
-	// for Windows drive paths.
-	if platform == "windows" && options.Runtime.Kind != agentclient.RuntimeNXS {
 		return options, nil
 	}
 	if options.Sandbox == nil || options.Sandbox.Filesystem == nil {
@@ -52,8 +46,13 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 			privateRoots = appendHostPaths(privateRoots, aliases...)
 		}
 	}
-	filesystem.DenyRead = appendHostPaths(filesystem.DenyRead, privateRoots...)
 	writeRoots := appendHostPaths(roots, privateRoots...)
+	secretRoots, err := desktopUserSecretPaths(home)
+	if err != nil {
+		return agentclient.Options{}, err
+	}
+	privateRoots = appendHostPaths(privateRoots, secretRoots...)
+	filesystem.DenyRead = appendHostPaths(filesystem.DenyRead, privateRoots...)
 	filesystem.DenyWrite = appendHostPaths(filesystem.DenyWrite, writeRoots...)
 	settings := *options.Sandbox
 	settings.Filesystem = &filesystem
@@ -68,6 +67,38 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 		}
 	}
 	return options, nil
+}
+
+// desktopUserSecretNames 是受限会话默认不可读的用户凭据位置（相对宿主用户目录）。
+// Seatbelt 默认放开全盘读取，这些内容一旦被命令读出就会进入模型上下文。
+// 需要它们的命令（如 ssh 推送）应走单次沙箱外执行审批。
+var desktopUserSecretNames = []string{
+	".ssh",
+	".aws",
+	".gnupg",
+	".netrc",
+	".git-credentials",
+	".config/gh",
+	".kube",
+	".docker/config.json",
+	"Library/Keychains",
+	"Library/Cookies",
+}
+
+// desktopUserSecretPaths 只从宿主进程的用户目录生成，不读取任务 Env 中的 HOME。
+func desktopUserSecretPaths(home string) ([]string, error) {
+	if home == "" {
+		return nil, nil
+	}
+	var result []string
+	for _, name := range desktopUserSecretNames {
+		aliases, err := desktopHostRootAliases(filepath.Join(home, filepath.FromSlash(name)))
+		if err != nil {
+			return nil, err
+		}
+		result = appendHostPaths(result, aliases...)
+	}
+	return result, nil
 }
 
 // desktopHostRootAliases 固定词法/物理两种拼写，允许新状态根尚未创建。

@@ -34,7 +34,7 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 	}
 	for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
 		before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: kind}, Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{DenyWrite: []string{"/existing"}}}}
-		got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", filepath.Join(alias, "app"))
+		got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", filepath.Join(alias, "app"), "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,9 +60,38 @@ func TestDesktopHostPathsPreserveAliasesAndFullAccess(t *testing.T) {
 			t.Fatal("caller policy mutated")
 		}
 		before.Runtime.PermissionMode = sdkpermission.ModeBypassPermissions
-		full, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", "relative-is-not-consumed")
+		full, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", "relative-is-not-consumed", "/Users/someone")
 		if err != nil || full.Sandbox != before.Sandbox || len(full.Tools.Deny) != 0 {
 			t.Fatalf("Full Access changed: %+v %v", full, err)
+		}
+	}
+}
+
+func TestDesktopHostPathsDenyUserSecretReads(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := filepath.Join(root, "home")
+	if err := os.MkdirAll(filepath.Join(home, ".ssh"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []agentclient.RuntimeKind{agentclient.RuntimeNXS, agentclient.RuntimeClaude} {
+		before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: kind}, Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}}}
+		got, err := applyDesktopHostPaths(before, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "darwin", filepath.Join(root, "state", "app"), home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{filepath.Join(home, ".ssh"), filepath.Join(home, ".aws"), filepath.Join(home, "Library", "Keychains")} {
+			if !slices.Contains(got.Sandbox.Filesystem.DenyRead, secret) {
+				t.Fatalf("%s: secret path readable: %s", kind, secret)
+			}
+			if slices.Contains(got.Sandbox.Filesystem.DenyWrite, secret) {
+				t.Fatalf("%s: secret path needlessly added to write denials: %s", kind, secret)
+			}
+			if kind == agentclient.RuntimeClaude && !slices.Contains(got.Tools.Deny, "Read(/"+secret+"/**)") {
+				t.Fatalf("Claude secret read rule missing: %s", secret)
+			}
 		}
 	}
 }
@@ -95,7 +124,7 @@ func TestDesktopHostPathsProtectWindowsNXSState(t *testing.T) {
 		},
 		AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true},
 		"windows",
-		appRoot,
+		appRoot, "",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +147,7 @@ func TestDesktopHostPathsApplyToWindowsRestrictedNXS(t *testing.T) {
 		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS},
 		Sandbox: &agentclient.SandboxSettings{Filesystem: &agentclient.SandboxFilesystemConfig{}},
 	}
-	got, err := applyDesktopHostPaths(options, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "windows", appRoot)
+	got, err := applyDesktopHostPaths(options, AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true}, "windows", appRoot, "")
 	if err != nil {
 		t.Fatal(err)
 	}

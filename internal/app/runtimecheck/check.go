@@ -67,7 +67,7 @@ func Check(ctx context.Context, binary string) (Report, error) {
 		return Report{}, err
 	}
 	defer os.RemoveAll(root)
-	for _, profile := range []string{"workspace-write", "read-only", "full-access"} {
+	for _, profile := range []string{"restricted", "full-access"} {
 		if err := checkProfile(ctx, binary, filepath.Join(root, profile), profile); err != nil {
 			return Report{}, fmt.Errorf("bundled nxs is incompatible with this App (%s): %w", profile, err)
 		}
@@ -88,14 +88,10 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 	input := clientopts.AgentClientOptionsInput{
 		WorkspacePath: workspace, RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 		PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true,
-		SettingSources:   []string{"user"},
-		SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: scratch},
+		SettingSources: []string{"user"},
 	}
-	if profile == "read-only" {
-		input.SandboxResources.WriteScope = agentclient.SandboxWriteScopeReadOnly
-	} else if profile == "full-access" {
+	if profile == "full-access" {
 		input.PermissionMode = sdkpermission.ModeBypassPermissions
-		input.SandboxResources = nil
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, nil, input)
 	if err != nil {

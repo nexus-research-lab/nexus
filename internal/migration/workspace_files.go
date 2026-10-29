@@ -1,5 +1,5 @@
 // INPUT: Nexus 配置根、Agent workspace 根与迁移步骤。
-// OUTPUT: 按顺序执行尚未完成的文件迁移，并原子写入全局完成标记。
+// OUTPUT: 按顺序执行尚未完成的文件迁移，并原子写入全局完成标记；尽力型步骤失败时只告警并留待重试。
 // POS: 非数据库数据迁移的唯一账本；业务初始化器不保存迁移状态。
 package migration
 
@@ -15,6 +15,7 @@ const (
 	legacyMemoryDirectoryMigrationName = "20260710_remove_legacy_memory_directories"
 	retiredManagedSkillsMigrationName  = "20260712_remove_retired_managed_skills"
 	legacyMemoryManagerMigrationName   = "20260713_remove_legacy_memory_manager_skill"
+	retiredSandboxResourcesName        = "20261029_remove_retired_sandbox_resources"
 )
 
 type workspaceFileMigrationContext struct {
@@ -25,6 +26,8 @@ type workspaceFileMigrationContext struct {
 type workspaceFileMigration struct {
 	name  string
 	apply func(workspaceFileMigrationContext) (int, error)
+	// bestEffort 迁移失败只记录告警且不写完成标记，下次启动重试，不阻断启动。
+	bestEffort bool
 }
 
 var workspaceFileMigrations = []workspaceFileMigration{
@@ -32,6 +35,7 @@ var workspaceFileMigrations = []workspaceFileMigration{
 	{name: legacyMemoryDirectoryMigrationName, apply: removeLegacyMemoryDirectories},
 	{name: retiredManagedSkillsMigrationName, apply: removeRetiredManagedSkills},
 	{name: legacyMemoryManagerMigrationName, apply: removeLegacyMemoryManagerSkill},
+	{name: retiredSandboxResourcesName, apply: removeRetiredSandboxResources, bestEffort: true},
 }
 
 // RunWorkspaceFiles 执行所有尚未完成的工作区文件迁移。
@@ -53,6 +57,14 @@ func RunWorkspaceFiles(configRoot string, workspaceRoot string, logger *slog.Log
 			continue
 		}
 		affectedPaths, err := migration.apply(migrationContext)
+		if err != nil && migration.bestEffort {
+			logger.Warn("工作区文件迁移未完成，下次启动重试",
+				"migration", migration.name,
+				"affected_paths", affectedPaths,
+				"err", err,
+			)
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("执行工作区文件迁移 %s: %w", migration.name, err)
 		}

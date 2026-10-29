@@ -40,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再当作不存在而跳过其中的拒绝规则。
+### Changed
+
+- macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复，未开启沙箱的用户不再受其影响。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
+- 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前受限 nxs 会话无法提权，只能切换到完全访问）。
+
+### Security
+
+- 受限桌面沙箱默认禁止读取用户凭据位置：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.netrc`、`~/.git-credentials`、`~/.config/gh`、`~/.kube`、`~/.docker/config.json`、`~/Library/Keychains` 与 `~/Library/Cookies`；需要这些文件的命令走一次性沙箱外审批。
 
 ## [0.2.6] - 2026-10-24
 

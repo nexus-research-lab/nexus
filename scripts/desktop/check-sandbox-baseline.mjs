@@ -97,10 +97,9 @@ try {
     "TestBuildAgentClientOptionsPreservesHostProviderOwnership/extra",
     "TestBuildAgentClientOptionsPreservesHostProviderOwnership/configuration",
     "TestBuildClaudeOptionsDoNotClaimNXSProviderOwnership",
-    "TestDesktopSandboxPolicySeparatesResourcesAndFullAccess",
+    "TestDesktopSandboxPolicySeparatesGrantsAndFullAccess",
     "TestDesktopSandboxDoesNotAlterServerIsolationOrDisabledFeature",
     "TestDesktopSandboxRealRuntimeNegotiation",
-    "TestDesktopSandboxRealRuntimeWithHostResources",
     "TestSandboxApprovalKeepsScopeAndDisallowsPersistentRules",
     "TestUnknownApprovalBoundaryFailsBeforeCreatingPending",
     "TestCancelledApprovalDoesNotCreateNewPending",
@@ -109,11 +108,10 @@ try {
     "TestSandboxDiagnosisRealNXS",
   ]);
   testGroup("host-lifecycle", ["./internal/runtime", "./internal/app", "./internal/service/room/realtime"], [
-    "TestAppServicesClosePersistsSandboxRetirementBeforeDatabaseClose",
+    "TestAppServicesCloseRetiresRuntimeBeforeDatabaseClose",
     "TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites",
     "TestManagerShutdownRejectsNewWorkAndPreservesFailure",
     "TestManagerShutdownWaitsForLateFactory",
-    "TestManagerShutdownDrainsReceiptInsertionBeforeRetirement",
     "TestDesktopSandboxModeChangeRetiresInsteadOfHotUpdate",
     "TestManagerHandlesSandboxModeReplacementAsExpectedTransition",
     "TestManagerReplacesRuntimeForSandboxTransitions",
@@ -131,30 +129,6 @@ try {
     "TestProviderOwnershipChangeReplacesRuntime",
     ...["NEXUS_PROVIDER_MANAGED_BY_HOST", "NEXUS_SUBPROCESS_ENV_SCRUB", "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB", "NEXUS_AUTO_DREAM_WAKE_MODE"].map((key) => `TestProviderOwnershipChangeReplacesRuntime/${key}`),
     "TestProcessPolicyFingerprintAllowsProviderHotUpdateButRejectsIsolationChange",
-    "TestAcquireCreatesPrivatePolicyAndReleaseIsIdempotent",
-    "TestAcquirePersistsDurableMarkerAndReleaseRemovesIt",
-    "TestSandboxProcessMarkerUsesConservativeIdentityFallback",
-    "TestAcquireReusesActiveSessionLease",
-    "TestConcurrentAcquireDoesNotTreatPublishingMarkerAsCrash",
-    "TestSandboxCleanupUnknownSurvivesRestart",
-    ...["original", "legacy_replacement"].map((path) => `TestSandboxCleanupUnknownSurvivesRestart/${path}`),
-    "TestManagerSandboxRestartContinuesDurableGeneration",
-    ...["retired", "reconciled"].map((phase) => `TestManagerSandboxRestartContinuesDurableGeneration/${phase}`),
-    "TestManagerSandboxRestartRejectsUnresolvedReceiptBeforeFactory",
-    ...["confirmed", "retiring", "unknown"].map((phase) => `TestManagerSandboxRestartRejectsUnresolvedReceiptBeforeFactory/${phase}`),
-    "TestManagerSandboxRestartRejectsUnreadableAndExhaustedReceipt",
-    ...["unreadable", "exhausted"].map((reason) => `TestManagerSandboxRestartRejectsUnreadableAndExhaustedReceipt/${reason}`),
-    "TestManagerSandboxReceiptSurvivesCleanRestartAndIdleRecreation",
-    "TestSandboxResourceCleanupFailureFencesNewAcquisition",
-    "TestAcquireRejectsWriteScopeChangeForActiveSession",
-    "TestReleaseRetainsLeaseWhenScratchParentIsReplaced",
-    "TestSweepStaleSandboxResourcesRequiresExplicitApply",
-    "TestSweepStaleSandboxResourcesRetainsActiveAndMalformedMarkers",
-    "TestAgentClientCleanupUsesExactScratchHandle",
-    "TestClientStartupBindFailureDoesNotConsumeLease",
-    "TestClientStartupBindLeaseFailsClosedForUnsupportedClient",
-    "TestAgentClientBindSandboxLeaseRejectsClaudeRuntime",
-    "TestDiscardUncleanSessionCleansLeaseWithoutInstalledSession",
   ]);
   testGroup("host-websocket-cancellation", ["./internal/handler/shared"], [
     "TestWebSocketSenderCanceledBroadcastKeepsConnection",
@@ -173,8 +147,8 @@ try {
     "TestConfigurationRevisionLegacyReceiptIsIncomparable",
     "TestConfigurationReceiptReviewAndHumanReconcileDoesNotReplay",
   ]);
-  if (process.platform === "darwin") testGroup("host-app-shutdown", ["./internal/app"], [
-    "TestAppServicesCloseRealSandboxRuntimeAfterRestart",
+  if (process.platform === "darwin") testGroup("host-command-boundaries", ["./internal/runtime/clientopts"], [
+    "TestDesktopSandboxScriptedCommandBoundaries",
   ]);
   if (process.platform === "darwin") testGroup("host-mcp-roundtrip", ["./internal/runtime/clientopts"], [
     "TestDesktopSandboxRemoteMCPRoundTrip", ...["http", "sse", "http_helper", "sse_helper"].map((name) => `TestDesktopSandboxRemoteMCPRoundTrip/${name}`),

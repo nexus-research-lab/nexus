@@ -136,9 +136,6 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		WebSearch:     WebSearchConfig{AllowPrivateNetwork: true},
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
-		},
 	})
 	if err == nil || !strings.Contains(err.Error(), "private-network") {
 		t.Fatalf("private WebSearch access was not rejected: %v", err)
@@ -165,9 +162,6 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 		ExtraEnv: map[string]string{
 			"OPENAI_API_KEY": "task-override-must-not-win",
 		},
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
-		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,10 +174,7 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
 	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
 	restricted := AgentClientOptionsInput{
-		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission,
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: t.TempDir(),
-		},
+		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission, WorkspacePath: t.TempDir(),
 	}
 	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, restricted, "windows")
 	if err != nil {

@@ -59,7 +59,6 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 
 	errs := make([]error, 0, len(targets)+len(reapPlans))
 	for _, target := range targets {
-		sandboxPhaseErr := m.markSandboxReceiptRetiring(target)
 		var disconnectErr error
 		if target.client != nil {
 			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
@@ -70,8 +69,6 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
 		cleanupErr := errors.Join(disconnectErr, idleDrainErr, backgroundErr, roundErr)
-		sandboxTerminalPhaseErr := m.finalizeSandboxReceipt(target, cleanupErr)
-		cleanupErr = errors.Join(cleanupErr, sandboxPhaseErr, sandboxTerminalPhaseErr)
 		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 			errors.Is(disconnectErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
@@ -84,18 +81,9 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 			errs = append(errs, fmt.Errorf("close idle runtime session %s: %w", target.sessionKey, err))
 		}
 	}
-	reaperErrors := make(map[string]error, len(reapPlans))
 	for _, plan := range reapPlans {
 		if err := waitOwnerReap(ctx, plan.flight); err != nil {
-			reaperErrors[plan.ownerUserID] = err
 			errs = append(errs, fmt.Errorf("reap owner runtime processes: %w", err))
-		}
-	}
-	for _, target := range targets {
-		if err := reaperErrors[target.ownerUserID]; err != nil {
-			if receiptErr := m.markSandboxReceiptUnknownAfterReaper(target, err); receiptErr != nil {
-				errs = append(errs, fmt.Errorf("record sandbox reaper uncertainty: %w", receiptErr))
-			}
 		}
 	}
 	return len(targets), errors.Join(errs...)

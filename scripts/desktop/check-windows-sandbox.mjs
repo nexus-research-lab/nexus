@@ -219,18 +219,9 @@ try {
       throw new Error(`unsupported native Windows Node architecture: ${process.arch}`);
     }
     runGoTest(
-      "native-process-identity",
-      ["./internal/runtime"],
-      ["TestSandboxProcessMarkerUsesConservativeIdentityFallback", "TestWindowsSandboxProcessIdentityMatchesCurrentProcess", "TestWindowsSandboxProcessIdentityRejectsRetainedExitedProcess"],
-      { GOOS: "windows", GOARCH: nativeGoarch },
-    );
-    runGoTest(
       "native-host-resources",
       ["./internal/runtime", "./internal/runtime/clientopts", "./internal/infra/confinedfs"],
       [
-        "TestSandboxCrashRestartRequiresExplicitReconcile",
-        "TestSandboxCleanupUnknownSurvivesRestart",
-        "TestDesktopSandboxCopiesHostPreparedResources",
         "TestBuildAgentClientOptionsInstallsClaudeNativeContract",
         "TestReadFileSurvivesAtomicReplacement",
         "TestWindowsConfinedFSRejectsJunction",

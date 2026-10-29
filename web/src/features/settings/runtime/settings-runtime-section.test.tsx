@@ -245,6 +245,5 @@ describe("sandbox settings", () => {
     configure("brave");
     renderSettings();
     expect(screen.queryByRole("button", { name: text("sandbox_check") })).toBeNull();
-    expect(screen.queryByText(text("sandbox_recovery_title"))).toBeNull();
   });
 });

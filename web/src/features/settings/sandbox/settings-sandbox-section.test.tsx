@@ -1,5 +1,5 @@
 // INPUT: Real sandbox settings view with an isolated controller.
-// OUTPUT: Toggle, explicit diagnosis and preview-before-cleanup interactions.
+// OUTPUT: Toggle and explicit diagnosis.
 // POS: Sandbox view regression; API and preference transactions stay in controller tests.
 
 import { render, screen } from "@testing-library/react";
@@ -17,11 +17,7 @@ const useController = vi.hoisted(() => vi.fn());
 vi.mock("./use-sandbox-settings-controller", () => ({ useSandboxSettingsController: useController }));
 
 const messages: Record<string, string> = zhSettingsMessages;
-const text = (key: string, params: Record<string, string | number> = {}) =>
-  Object.entries(params).reduce(
-    (value, [name, replacement]) => value.replace(`{${name}}`, String(replacement)),
-    messages[`settings.runtime.${key}`],
-  );
+const text = (key: string) => messages[`settings.runtime.${key}`];
 
 function configure() {
   const controller = {
@@ -35,12 +31,6 @@ function configure() {
     sandboxState: null,
     sandboxMessage: null,
     onCheckSandbox: vi.fn(),
-    sandboxRecoveryApplying: false,
-    sandboxRecoveryChecking: false,
-    sandboxRecoveryError: false,
-    sandboxRecoverySummary: null,
-    onInspectSandboxResources: vi.fn(),
-    onReconcileSandboxResources: vi.fn(),
   };
   useController.mockReturnValue(controller);
   return controller;
@@ -110,29 +100,5 @@ describe("sandbox diagnosis", () => {
     renderSettings();
     expect(screen.getByRole("status").textContent).toBe(text(`sandbox_${state}`));
     expect(screen.getByRole("button", { name: text("sandbox_check_action") }).hasAttribute("disabled")).toBe(false);
-  });
-});
-
-describe("sandbox recovery", () => {
-  it("shows counts and keeps cleanup behind a separate explicit action", async () => {
-    const controller = configure();
-    useController.mockReturnValue({
-      ...controller,
-      sandboxRecoverySummary: {
-        candidateCount: 2,
-        removedCount: 0,
-        resourceCount: 3,
-        unknownCount: 1,
-      },
-    });
-    renderSettings();
-    const summary = screen.getByRole("status");
-    expect(summary.textContent).toContain(text("sandbox_recovery_resources", { count: 3 }));
-    expect(summary.textContent).toContain(text("sandbox_recovery_unknown", { count: 1 }));
-    expect(screen.getByRole("button", { name: text("sandbox_recovery_apply") })).toBeTruthy();
-    expect(controller.onInspectSandboxResources).not.toHaveBeenCalled();
-    expect(controller.onReconcileSandboxResources).not.toHaveBeenCalled();
-    await userEvent.setup().click(screen.getByRole("button", { name: text("sandbox_recovery_apply") }));
-    expect(controller.onReconcileSandboxResources).toHaveBeenCalledOnce();
   });
 });
