@@ -4,7 +4,7 @@
 
 ## 0. 代码版本
 
-Nexus 使用 `codex/windows-mxc-sandbox`；SDK 固定到 `3065492a7b81096d3821b9831805ffe62a7c9046`；bridge 保持 go.mod 的远程 pin。SDK checkout 必须干净，三处 Nexus pin 必须一致。
+Nexus 使用 `codex/windows-mxc-sandbox`；SDK 固定到 `5b49bd458a0f66c2d4e7c25cf3aee352b4fe9fbd`；bridge 保持 go.mod 的远程 pin。SDK checkout 必须干净，三处 Nexus pin 必须一致。
 
 ## 1. 重新编译 nxs（必须）
 
@@ -79,14 +79,25 @@ nexus-server check-desktop-runtime <新的 nxs.exe 绝对路径>
 
 ## 26300.9711 / 0x80070032 复测
 
-先拉取 SDK `3065492a` 或包含它的后续提交。无需启动 Nexus 即可运行：
+先拉取 SDK `5b49bd45` 或包含它的后续提交。无需启动 Nexus 即可运行：
 
 ```powershell
 $env:GOWORK='off'
-go test -count=1 -v -run '^TestWindowsPSECDiagnostics$' ./internal/tool/builtin/bash/sandboxexec 2>&1 | Tee-Object psec-diagnostics.log
-go test -count=1 -v -run '^(TestMXC|TestEncodePSEC)' ./internal/tool/builtin/bash/sandboxexec
+go test -count=1 -v -run '^TestWindowsPSEC(Diagnostics|FlatcMinimal)$' ./internal/tool/builtin/bash/sandboxexec 2>&1 | Tee-Object psec-diagnostics.log
+go test -count=1 -v -run '^(TestMXC|TestEncodePSEC|TestWindowsPSECJob)' ./internal/tool/builtin/bash/sandboxexec
 ```
 
 第一项打印 API、PSEC 版本、支持位、四层 Create/Close 结果。minimal 也失败时继续收集系统/令牌差异，不能仅凭错误码断言系统 Bug；仅 proxy 失败时先查 1.1/NetworkIngress 和请求兼容性。它不验证子进程隔离。之后按前文重建 nxs 并运行原生完整测试，旧二进制不会自动包含修复。
 
 核实 [Codex #53650](https://github.com/openai/codex/issues/53650) 后发现正文和两条评论实际均为 `0x80070005`（拒绝访问），不是 `0x80070032`（不支持请求）；相同 build/DLL 不能视为同因证明。Nexus 不建议安装第三方 DLL、提权或关闭系统安全防护。
+
+
+2026-10-28 审查补充：SDK 使用固定微软 schema 的生成式 Go 绑定，独立 flatc 样本
+验证编码语义。`TestWindowsPSECFlatcMinimal` 绕过 Go 编码器直接提交最小基准；
+它与 Go minimal 的差异用于定位，均失败不能直接断言 Windows Bug。
+SDK 子进程使用原子 JOB_LIST 归属，清理错误/超时不再返回成功。
+跨平台测试及交叉编译不代表 PSEC 与嵌套 Job 在目标 Windows 上通过。
+
+若旧 MXC 兼容路径可用，保存其完整命令、commit 和实际后端日志，区分 PSEC、旧
+SBOX 与 AppContainer。旧路径成功不能证明新 PSEC 合同可用，也不能作为自动修改
+宿主 ACL 或静默降级隔离的依据。生产 Rust 包装器尚未引入。

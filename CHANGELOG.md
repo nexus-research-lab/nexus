@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Pin Windows nxs to 5b49bd45 for generated Microsoft PSEC schema bindings, independent encoding diagnostics and atomic sandbox Job ownership. Require Job cleanup and fixture regression tests; native Windows acceptance and the reported 0x80070032 diagnosis remain pending.
+
 - Pin Windows nxs to 3065492a for absolute-drive deny-glob protection and PSEC ingress negotiation. Distinguish an unsupported PSEC Create request (0x80070032) from missing system APIs, and document native diagnostics without claiming the host issue resolved.
 
 - Explain how to disable desktop sandboxing in Settings and start a new session when Windows sandbox support is unavailable, including the loss of sandbox isolation.
