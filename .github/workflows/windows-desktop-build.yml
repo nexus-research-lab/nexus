@@ -82,6 +82,11 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install frontend dependencies for launcher checks
+        shell: pwsh
+        working-directory: web
+        run: corepack pnpm install --frozen-lockfile
+
       - name: Validate desktop shutdown ownership
         shell: pwsh
         run: |
