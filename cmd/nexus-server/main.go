@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -408,6 +409,9 @@ func runServer() error {
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	if runtime.GOOS == "windows" && os.Getenv("NEXUS_DESKTOP_PARENT_PIPE") == "1" {
+		desktopinstance.WatchParentInput(os.Stdin, stop)
+	}
 	defer stop()
 	go workspacepkg.WatchHostSkillLibrary(
 		ctx,

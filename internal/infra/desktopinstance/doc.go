@@ -1,4 +1,4 @@
-// Package desktopinstance 持有 macOS sidecar 的状态根独占锁。
+// Package desktopinstance 持有 macOS sidecar 状态根独占锁与 Windows 父进程关闭通知。
 //
 // L2 | 父级: internal/infra（L1 见 AGENTS.md）
 // desktop_instance_*.go 提供跨平台 AcquireForPlatform 入口，非 macOS 不获取锁。
@@ -7,4 +7,5 @@
 // 调用方在任何迁移/恢复/数据库打开前 Acquire，在所有服务关闭后 Close。
 // WithOwnership 核验目录/锁 inode，并在整个恢复回调期间保持句柄，阻止并发 Close。
 // 此锁只协调采用本协议的 sidecar，不能单独证明旧版未持锁的进程不存在。
+// parent_input.go 在父进程 stdin 管道 EOF 时通知宿主正常关闭并持久化 runtime 退休。
 package desktopinstance

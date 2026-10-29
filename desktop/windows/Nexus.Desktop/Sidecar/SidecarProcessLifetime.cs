@@ -19,13 +19,17 @@ internal sealed class SidecarProcessLifetime : IDisposable
     private const int JobListAttribute = 0x2000D;
 
     private readonly SafeFileHandle job;
+    private readonly AnonymousPipeServerStream stdin;
+    private readonly bool gracefulStop;
     private readonly AnonymousPipeServerStream stdout;
     private readonly AnonymousPipeServerStream stderr;
     public Process Process { get; }
 
-    private SidecarProcessLifetime(SafeFileHandle job, Process process, AnonymousPipeServerStream stdout, AnonymousPipeServerStream stderr)
+    private SidecarProcessLifetime(SafeFileHandle job, Process process, AnonymousPipeServerStream stdin, AnonymousPipeServerStream stdout, AnonymousPipeServerStream stderr, bool gracefulStop)
     {
         this.job = job;
+        this.stdin = stdin;
+        this.gracefulStop = gracefulStop;
         Process = process;
         this.stdout = stdout;
         this.stderr = stderr;
@@ -34,6 +38,7 @@ internal sealed class SidecarProcessLifetime : IDisposable
     public static SidecarProcessLifetime Start(ProcessStartInfo info)
     {
         SafeFileHandle job = CreateJobObjectW(IntPtr.Zero, null);
+        var stdin = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
         var stdout = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
         var stderr = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
         IntPtr attributes = IntPtr.Zero, handles = IntPtr.Zero, jobHandle = IntPtr.Zero, environment = IntPtr.Zero;
@@ -46,16 +51,13 @@ internal sealed class SidecarProcessLifetime : IDisposable
             var limits = new ExtendedLimitInformation();
             limits.Basic.LimitFlags = KillOnJobClose; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
             if (!SetInformationJobObject(job, 9, ref limits, (uint)Marshal.SizeOf<ExtendedLimitInformation>())) throw new Win32Exception();
-            var security = new SecurityAttributes { Length = Marshal.SizeOf<SecurityAttributes>(), InheritHandle = true };
-            using SafeFileHandle stdin = CreateFileW("NUL", 0x80000000, 3, ref security, 3, 0, IntPtr.Zero);
-            if (stdin.IsInvalid) throw new Win32Exception();
             IntPtr size = IntPtr.Zero;
             InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
             attributes = Marshal.AllocHGlobal(size);
             if (!InitializeProcThreadAttributeList(attributes, 2, 0, ref size)) throw new Win32Exception();
             attributesInitialized = true;
             handles = Marshal.AllocHGlobal(3 * IntPtr.Size);
-            Marshal.WriteIntPtr(handles, 0, stdin.DangerousGetHandle());
+            Marshal.WriteIntPtr(handles, 0, stdin.ClientSafePipeHandle.DangerousGetHandle());
             Marshal.WriteIntPtr(handles, IntPtr.Size, stdout.ClientSafePipeHandle.DangerousGetHandle());
             Marshal.WriteIntPtr(handles, 2 * IntPtr.Size, stderr.ClientSafePipeHandle.DangerousGetHandle());
             if (!UpdateProcThreadAttribute(attributes, 0, (IntPtr)HandleListAttribute, handles, (IntPtr)(3 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
@@ -66,7 +68,7 @@ internal sealed class SidecarProcessLifetime : IDisposable
             var startup = new StartupInfoEx();
             startup.Info.Size = Marshal.SizeOf<StartupInfoEx>();
             startup.Info.Flags = 0x100; // STARTF_USESTDHANDLES
-            startup.Info.Input = stdin.DangerousGetHandle();
+            startup.Info.Input = stdin.ClientSafePipeHandle.DangerousGetHandle();
             startup.Info.Output = stdout.ClientSafePipeHandle.DangerousGetHandle();
             startup.Info.Error = stderr.ClientSafePipeHandle.DangerousGetHandle();
             startup.Attributes = attributes;
@@ -79,15 +81,17 @@ internal sealed class SidecarProcessLifetime : IDisposable
             // Open the managed handle while the native handle still pins this process identity.
             _ = process.Handle;
             if (ResumeThread(child.Thread) == uint.MaxValue) throw new Win32Exception();
+            stdin.DisposeLocalCopyOfClientHandle();
             stdout.DisposeLocalCopyOfClientHandle();
             stderr.DisposeLocalCopyOfClientHandle();
-            return new SidecarProcessLifetime(job, process, stdout, stderr);
+            return new SidecarProcessLifetime(job, process, stdin, stdout, stderr, info.Environment.TryGetValue("NEXUS_DESKTOP_PARENT_PIPE", out string? parentPipe) && parentPipe == "1");
         }
         catch
         {
             if (child.Process != IntPtr.Zero) TerminateProcess(child.Process, 1);
             process?.Dispose();
             job.Dispose();
+            stdin.Dispose();
             stdout.Dispose();
             stderr.Dispose();
             throw;
@@ -119,6 +123,15 @@ internal sealed class SidecarProcessLifetime : IDisposable
 
     public async Task StopAsync(TimeSpan timeout)
     {
+        // EOF asks the Go host to drain runtimes and persist retirement before process exit.
+        // The Job remains owned until all descendants have stopped, including timeout fallback.
+        stdin.Dispose();
+        if (gracefulStop)
+        {
+            using var grace = new CancellationTokenSource(timeout);
+            try { await Process.WaitForExitAsync(grace.Token); }
+            catch (OperationCanceledException) when (grace.IsCancellationRequested) { }
+        }
         if (!TerminateJobObject(job, 1)) throw new Win32Exception();
         using var deadline = new CancellationTokenSource(timeout);
         await Process.WaitForExitAsync(deadline.Token);
@@ -134,6 +147,7 @@ internal sealed class SidecarProcessLifetime : IDisposable
     {
         // Also covers abrupt application shutdown; no UI-thread waits or tree enumeration.
         job.Dispose();
+        stdin.Dispose();
         stdout.Dispose();
         stderr.Dispose();
         Process.Dispose();

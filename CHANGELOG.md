@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Allow Windows window-close shutdown to drain runtimes and persist retirement through a parent pipe before bounded Job termination.
+
 - Pin Windows nxs to 5ecdae17: reuse runtime-owned read-only file workers, isolate recorder directory preparation and writes from model tool permissions, and preserve the underlying error when a runtime stream terminates. Add native worker reuse, policy-change and cancellation acceptance.
 
 - Bundle and sign the Rust nxs-mxc helper backed by pinned Microsoft mxc-sdk; update SDK build/release integration, runtime extraction, package metadata and missing-component guidance. End users need no Rust installation. Windows native isolation and exit/relaunch acceptance remain pending.

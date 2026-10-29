@@ -82,6 +82,10 @@ if (args.Length > 0)
             Console.WriteLine(Environment.GetEnvironmentVariable("NEXUS_LIFECYCLE_TEST"));
             Console.Error.WriteLine("stderr works");
             return;
+        case "graceful":
+            await Console.In.ReadToEndAsync();
+            await File.WriteAllTextAsync(args[1], "retired");
+            return;
         case "leaf":
             await Task.Delay(Timeout.Infinite);
             return;
@@ -122,6 +126,24 @@ try
         await owned.StopAsync(TimeSpan.FromSeconds(5));
     }
     Console.WriteLine("PASS output/environment/normal exit");
+
+    string retired = Path.Combine(root, "graceful-retired.txt");
+    var graceful = Self("graceful", retired);
+    graceful.Environment["NEXUS_DESKTOP_PARENT_PIPE"] = "1";
+    using (var owned = SidecarProcessLifetime.Start(graceful))
+    {
+        await owned.StopAsync(TimeSpan.FromSeconds(5));
+        if (!File.Exists(retired) || await File.ReadAllTextAsync(retired) != "retired")
+            throw new Exception("Sidecar was killed before graceful retirement");
+    }
+    var stuck = Self("leaf");
+    stuck.Environment["NEXUS_DESKTOP_PARENT_PIPE"] = "1";
+    using (var owned = SidecarProcessLifetime.Start(stuck))
+    {
+        await owned.StopAsync(TimeSpan.FromMilliseconds(500));
+        await ExpectExited(owned.Process);
+    }
+    Console.WriteLine("PASS graceful retirement and bounded forced fallback");
 
     int port;
     using (var reservation = new TcpListener(IPAddress.Loopback, 0))

@@ -124,6 +124,7 @@ internal sealed class SidecarSupervisor : IDisposable
         };
 
         startInfo.Environment["NEXUS_APP_MODE"] = "desktop";
+        startInfo.Environment["NEXUS_DESKTOP_PARENT_PIPE"] = "1";
         startInfo.Environment["NEXUS_APP_ROOT"] = locator.AppRoot;
         startInfo.Environment["NEXUS_STATE_ROOT"] = DesktopPaths.RootDirectory;
         if (DesktopStateRootStore.PreviousRootDirectory is string previousRoot)
