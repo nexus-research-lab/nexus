@@ -27,5 +27,5 @@
 // nxs Provider 与 AutoDream 唤醒的宿主所有权在所有环境合并后固定；ExtraEnv/ConfigurationEnv 不能撤销。
 // macOS 的持久化与 Connector MCP 认证 helper 由独立必需执行能力接纳，端点授权不扩张 helper 网络。
 // macOS stdio MCP 通过 RequireMCPStdio 独立要求受限进程，纳入替换指纹与有效策略回执。
-// desktop_windows_resources.go 在 workspace 内准备无租约 scratch，Windows MXC 仍收到显式资源策略。
+// desktop_windows_resources.go 在用户 runtime/tmp/sandbox 下按 workspace 标识准备不重叠的无租约 scratch，Windows MXC 仍收到显式资源策略。
 package clientopts

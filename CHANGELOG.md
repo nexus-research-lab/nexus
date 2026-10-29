@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix Windows Agent initialization by placing sandbox scratch outside the workspace as required by the SDK resource contract; prepare synthetic profile directories and preserve credential denial when intermediate directories are absent.
+
 - Limit Windows bundle cleanup to executables inside the output directory, avoiding termination of the build command itself.
 
 - Integrate Windows MXC with the stateless main host using confined workspace scratch; clarify proxy approval versus connection success and add native delayed-approval/expired-request coverage.

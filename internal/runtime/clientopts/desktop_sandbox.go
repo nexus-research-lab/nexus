@@ -35,7 +35,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	if platform == "windows" && options.Runtime.Kind == agentclient.RuntimeNXS {
 		// Windows nxs runs on the SDK MXC ProcessContainer backend. Full Access
 		// carries no restricted resource contract and projects no sandbox policy;
-		// restricted sessions prepare a confined workspace scratch without recovery records.
+		// restricted sessions prepare a confined runtime scratch without recovery records.
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
@@ -99,7 +99,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		Network: &agentclient.SandboxNetworkConfig{AllowedDomains: []string{}},
 	}
 	if platform == "windows" {
-		resources, err := prepareWindowsSandboxResources(input.WorkspacePath)
+		resources, err := prepareWindowsSandboxResources(input.WorkspacePath, input.OwnerUserID)
 		if err != nil {
 			return agentclient.Options{}, err
 		}

@@ -52,6 +52,16 @@ func applyDesktopHostPaths(options agentclient.Options, input AgentClientOptions
 		return agentclient.Options{}, err
 	}
 	privateRoots = appendHostPaths(privateRoots, secretRoots...)
+	if platform == "windows" {
+		privateRoots, err = windowsProtectionRoots(privateRoots)
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+		writeRoots, err = windowsProtectionRoots(writeRoots)
+		if err != nil {
+			return agentclient.Options{}, err
+		}
+	}
 	filesystem.DenyRead = appendHostPaths(filesystem.DenyRead, privateRoots...)
 	filesystem.DenyWrite = appendHostPaths(filesystem.DenyWrite, writeRoots...)
 	settings := *options.Sandbox
@@ -143,4 +153,28 @@ func appendHostPaths(base []string, extra ...string) []string {
 		}
 	}
 	return result
+}
+
+// windowsProtectionRoots preserves denial when PSEC cannot resolve a missing
+// intermediate directory: deny the first absent ancestor instead of dropping
+// the rule or creating directories in the user's home.
+func windowsProtectionRoots(paths []string) ([]string, error) {
+	var result []string
+	for _, path := range paths {
+		target := path
+		for {
+			parent := filepath.Dir(target)
+			if parent == target {
+				break
+			}
+			if _, err := os.Lstat(parent); err == nil {
+				break
+			} else if !os.IsNotExist(err) {
+				return nil, fmt.Errorf("resolve Windows protection parent: %w", err)
+			}
+			target = parent
+		}
+		result = appendHostPaths(result, target)
+	}
+	return result, nil
 }

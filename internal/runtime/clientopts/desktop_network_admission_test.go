@@ -182,6 +182,7 @@ func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
 	desktopSandboxProcessElevated = func() bool { return false }
 	t.Cleanup(func() { desktopSandboxProcessElevated = old })
 	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
+	t.Setenv("NEXUS_STATE_ROOT", t.TempDir())
 	restricted := AgentClientOptionsInput{
 		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission, WorkspacePath: t.TempDir(),
 	}

@@ -271,6 +271,7 @@ try {
       } else {
         mxcEnvironment.NEXUS_NXS_EXECUTABLE = process.env.NEXUS_NXS_EXECUTABLE;
       }
+      runGoTest("native-host-scripted-commands", ["./internal/runtime/clientopts"], ["TestDesktopSandboxScriptedCommandBoundaries"], { ...mxcEnvironment, NEXUS_SANDBOX_TEST_BINARY: mxcEnvironment.NEXUS_NXS_EXECUTABLE });
       runGoTest("native-sdk-mxc", [WINDOWS_NATIVE_SDK_PACKAGE], WINDOWS_LOCAL_MXC_TESTS, mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-file-helper", ["./internal/tool/builtin/file/sandboxfs"], ["TestWindowsMXCFileHelperRoundTrip", "TestWindowsMXCFileHelperReadsWriteProtectedProjectMetadata", "TestWindowsMXCSessionReadWorker"], mxcEnvironment, sdkSource);
       runGoTest("native-sdk-mxc-mcp-stdio", ["./internal/tool/executor"], ["TestWindowsMXCMCPStdioUsesTheCommandPolicy", "TestWindowsMXCNativeShellTool"], mxcEnvironment, sdkSource);
