@@ -35,6 +35,28 @@ static async Task ExpectExited(Process process)
     await process.WaitForExitAsync(timeout.Token);
 }
 
+// Process termination precedes asynchronous Winsock endpoint cleanup. Require the
+// exact port to become reusable within a bounded budget, while process exit is
+// checked separately; a single immediate bind can race kernel cleanup.
+static async Task ExpectPortReleased(int port)
+{
+    var elapsed = Stopwatch.StartNew();
+    while (true)
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, port);
+        try
+        {
+            listener.Start();
+            Console.WriteLine($"Port {port} reusable after {elapsed.ElapsedMilliseconds}ms");
+            return;
+        }
+        catch (SocketException error) when (error.SocketErrorCode == SocketError.AddressAlreadyInUse && elapsed.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            await Task.Delay(25);
+        }
+    }
+}
+
 if (args.Length == 0 || args[0] == "identity-only")
 {
     string oldExecutable = Path.Combine(Path.GetTempPath(), "old package", "nexus-server.exe");
@@ -68,7 +90,10 @@ if (args.Length > 0)
             using (Process leaf = Process.Start(Self("leaf"))!)
             {
                 listener.Start();
-                await File.WriteAllTextAsync(args[1], leaf.Id.ToString());
+                // Publish readiness only after the writer has closed its handle.
+                string pendingPid = args[1] + ".pending";
+                await File.WriteAllTextAsync(pendingPid, leaf.Id.ToString());
+                File.Move(pendingPid, args[1]);
                 await Task.Delay(Timeout.Infinite);
             }
             return;
@@ -112,10 +137,9 @@ try
         _ = descendant.Handle;
         await owned.StopAsync(TimeSpan.FromSeconds(5));
         await ExpectExited(descendant);
-        using var releasedPort = new TcpListener(IPAddress.Loopback, port);
-        releasedPort.Start();
+        await ExpectPortReleased(port);
     }
-    Console.WriteLine("PASS stop waits for all descendants and permits immediate same-port relaunch");
+    Console.WriteLine("PASS stop waits for all descendants and same-port reuse within 5s");
 
     string crashPid = Path.Combine(root, "crash.pid");
     using (Process owner = Process.Start(Self("owner", crashPid))!)
