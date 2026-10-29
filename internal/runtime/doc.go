@@ -3,8 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - sandbox_process_recovery_scan.go：持锁分页处理原 pending 进程，失败保留记录、游标继续，取消保留未处理项；不重放任务或清除策略/资源 unknown。
-//   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消、精确 scratch 交接及终态退休；不拥有记忆领域规则。
+//   - autodream.go：一次性 AutoDream control 经共享启动事务、后台取消及终态退休；不拥有记忆领域规则。
 //   - client.go：Client 接口、Factory 与 agentClient（宿主管理 Agent runtime 的能力边界），
 //     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、取消换代中的
 //     connect/config RPC、识别关闭态控制错误及隔离未收口的 SDK 会话；清理失败不被
@@ -31,19 +30,7 @@
 //   - shutdown.go：宿主退出时永久关闭 Manager 准入，取消 round/后台任务，先等待在途启动和回执写入，再并行关闭全部 Session；重复调用等待同一结果，调用者超时不关闭仍有写入的数据库。
 //   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/本地媒体/远程图片网络/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
-//   - sandbox_resources.go：宿主持有 owner/session 作用域的 scratch 租约，向 DM、Room 与后台 runtime 提供版本化资源策略；经 internal/infra/confinedfs 固定目录句柄完成创建、marker 读写、扫描与回收，Bridge 关闭成功后才回收，失败保留会话栅栏并把 cleanup_unknown 状态持久化；Windows marker 核验进程创建时间与内核存活信号，避免 PID 重用误回收或残留句柄把已退出进程误判为存活，查询失败保持未知。
-//   - sandbox_receipt_process.go：Connect 策略按 client 原始进程代次绑定 exact runtime launch；warm 复用保持原进程身份，缺失或不匹配拒绝连接。
-//   - sandbox_receipt.go：Connect 后核对当前桌面 runtime 实际确认的 Bridge 能力、策略摘要和 host lease 身份，并通过可选 SandboxPolicyReceiptStore 持久化 owner/session/generation 生命周期回执；回执只表达本次 runtime generation 的生效输入，不替代 OS/全 SDK 隔离证据。
-//   - sandbox_process_recovery.go：显式持锁回调覆盖整个恢复、核对同 app 根及目录 inode，在宿主已取得独占实例所有权的前提下，以会话 gate 和 exact key 恢复原进程登记；活动 client 拒绝恢复，不重放任务，不自动清除 policy/lease 栅栏。
-//   - sandbox_lifecycle_recovery_darwin.go：原生扫描后的独立有界资源/策略扫描，发现已终止进程的未完成后续步骤；失败保留并报告，不把分页结束当成恢复成功。
-//   - sandbox_scratch_cleanup_darwin.go：监督 lease 最后一次正常 Release 复用持久隔离删除流程，绑定原 supervisor 与资源身份，提交响应丢失可重试。
-//   - sandbox_scratch_recovery_darwin.go / sandbox_policy_recovery.go：持锁且无活动 client 时隔离原资源、持久删除阶段、仅收口 exact process 关联策略；pending 资源记录阻断新启动，macOS App 启动扫描已装配。
-//   - sandbox_scratch_identity_darwin.go / sandbox_scratch_identity_other.go：macOS 从 lease 创建时的 parent/leaf 身份生成持久资源证明，每次监督启动重新核验；其他平台不伪造证明。
-//   - sandbox_process_supervisor.go：宿主显式监督配置、factory 前的 exact 代次/已取得 scratch lease 绑定及各 probe/runtime 的独立 Host；普通热更新保留原 client 的监督身份，macOS App 默认装配已接入。
-//   - sandbox_process_host.go：原宿主目录内的长路径 socket、Bridge 显式监督启动的宿主数据库/受限目录适配，绑定 exact owner/session/generation 与 lease；放行一次，丢失响应按原记录收口，文件清理失败保留栅栏。显式 transport 已经由 Manager 配置接入。
-//   - sandbox_process_startup.go：消费宿主数据库启动事实；prepared/registered/released 即使没有策略回执也阻断新 factory，终态与策略回执共用代次下界，不读取用户可写的进程登记。
-//   - sandbox_startup_recovery*.go：记录启动恢复未收口的单项失败（只阻断各自会话）；macOS 允许 owner 显式放弃 lifecycle 阶段记录，process 阶段不可放弃。
-//   - sandbox_startup.go：创建新 client 前读取 exact owner/session 的最新持久回执并延续代次；confirmed/retiring/unknown 阻断重建。scratch 新建前以固定父目录句柄检查同 scope 的 cleanup_unknown，包括旧 stale 目录，防止重启换目录绕过失败栅栏。
+//   - sandbox_admission.go：Connect 后核对桌面沙箱 runtime 完整确认宿主要求的 Bridge 能力，缺失即关闭新进程；不持久化，也不替代 OS 隔离证据。
 //
 // 子包：exec/（轮次执行内核，ExecuteRound 主链）、trace/（SDK 消息调试字段与摘要）。
 // 系统消息到产品事件的投影统一由 internal/message 负责，runtime 不保留第二套展示语义。

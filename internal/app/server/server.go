@@ -11,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	teamsvc "github.com/nexus-research-lab/nexus/internal/service/team"
 )
 
@@ -32,16 +31,16 @@ type Server struct {
 
 // New 使用默认日志配置创建 HTTP server；跨包集成测试经此装配。
 func New(cfg config.Config) (*Server, error) {
-	return NewWithDesktopOwnership(cfg, nil, nil)
+	return NewWithLogger(cfg, nil)
 }
 
-// NewWithDesktopOwnership 只消费入口已持有的实例锁，在挂载路由前恢复原沙箱记录。
-func NewWithDesktopOwnership(cfg config.Config, logger *slog.Logger, ownership runtimectx.SandboxProcessRecoveryOwnership) (*Server, error) {
+// NewWithLogger 使用入口提供的日志器创建 HTTP server；nil 时使用默认配置。
+func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 	if logger == nil {
 		logger = newLogger(cfg)
 	}
 
-	appServices, err := app.NewAppServicesWithDesktopOwnership(cfg, logger, ownership)
+	appServices, err := app.NewAppServices(cfg, logger)
 	if err != nil {
 		return nil, err
 	}

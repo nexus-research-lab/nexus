@@ -1,5 +1,5 @@
-// INPUT: 共享应用资源、真实 SQLite 与提供沙箱回执的受控 runtime。
-// OUTPUT: 正常退出在数据库关闭前完成 runtime 回收并持久化终态。
+// INPUT: 共享应用资源、真实 SQLite 与受控 runtime。
+// OUTPUT: 正常退出在数据库关闭前完成 runtime 回收。
 // POS: AppServices 生命周期集成回归；不替代平台进程隔离验收。
 package app
 
@@ -12,11 +12,7 @@ import (
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtime "github.com/nexus-research-lab/nexus/internal/runtime"
-	sandboxstore "github.com/nexus-research-lab/nexus/internal/storage/sandbox"
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -35,31 +31,15 @@ func (c *shutdownClient) Disconnect(context.Context) error {
 	c.disconnected = true
 	return nil
 }
-func (*shutdownClient) EffectiveSandboxPolicyReceipt() *runtime.SandboxEffectivePolicyReceipt {
-	return &runtime.SandboxEffectivePolicyReceipt{
-		Version: 1, SessionID: "app-shutdown-runtime", RuntimeKind: bridge.RuntimeNXS,
-		PolicyDigest: "sha256:app-shutdown-policy", Phase: protocol.SandboxPolicyReceiptConfirmed,
-		CapabilityEvidence: "bridge_negotiated", IsolationEvidence: "not_attested", ConfirmedAt: time.Now().UTC(),
-	}
-}
-
-func TestAppServicesClosePersistsSandboxRetirementBeforeDatabaseClose(t *testing.T) {
+func TestAppServicesCloseRetiresRuntimeBeforeDatabaseClose(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "app.db")
 	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.Up(db, "../../db/migrations/sqlite"); err != nil {
-		t.Fatal(err)
-	}
-	store := sandboxstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	client := &shutdownClient{}
 	manager := runtime.NewManagerWithFactory(shutdownFactory{client})
-	manager.SetSandboxPolicyReceiptStore(store)
 	startup, err := manager.BeginClientStartup(t.Context(), "session", "owner")
 	if err != nil {
 		t.Fatal(err)
@@ -78,14 +58,8 @@ func TestAppServicesClosePersistsSandboxRetirementBeforeDatabaseClose(t *testing
 	if err := db.Ping(); err == nil {
 		t.Fatal("application-owned database remained open")
 	}
-	reopened, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reopened.Close()
-	snapshot, found, err := sandboxstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, reopened).Latest(t.Context(), "owner", "session")
-	if err != nil || !found || snapshot.Phase != protocol.SandboxPolicyReceiptRetired || !client.disconnected {
-		t.Fatalf("normal App exit left runtime unresolved: phase=%s found=%t disconnected=%t err=%v", snapshot.Phase, found, client.disconnected, err)
+	if !client.disconnected {
+		t.Fatal("normal App exit did not disconnect the runtime")
 	}
 }
 
@@ -104,17 +78,13 @@ func TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites(t *testing.
 	}) {
 		t.Fatal("background task was not started")
 	}
-	resourcesClosed := false
-	services := &AppServices{DB: db, Runtime: manager, ownsDB: true, closeSandboxResources: func() error { resourcesClosed = true; return nil }}
+	services := &AppServices{DB: db, Runtime: manager, ownsDB: true}
 	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
 	if err := services.Close(short); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Close=%v, want deadline", err)
 	}
 	<-canceled
-	if resourcesClosed {
-		t.Fatal("supervisor resources closed before runtime finished")
-	}
 	if err := db.Ping(); err != nil {
 		t.Fatalf("database closed while runtime still had writes: %v", err)
 	}
@@ -124,8 +94,5 @@ func TestAppServicesCloseTimeoutKeepsDatabaseForPendingRuntimeWrites(t *testing.
 	}
 	if err := db.Ping(); err == nil {
 		t.Fatal("database remained open after runtime finished")
-	}
-	if !resourcesClosed {
-		t.Fatal("supervisor resources leaked after runtime close")
 	}
 }

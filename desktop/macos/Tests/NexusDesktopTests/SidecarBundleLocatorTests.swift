@@ -63,10 +63,10 @@ final class SidecarBundleLocatorTests: XCTestCase {
     XCTAssertEqual(locator.arguments, [])
   }
 
-  func testDevelopmentLocatorRejectsMissingHelper() throws {
+  func testDevelopmentLocatorRejectsMissingServer() throws {
     let fixture = try makeFixture()
     defer { try? FileManager.default.removeItem(at: fixture.root) }
-    try FileManager.default.removeItem(at: fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/Resources/bin/nexus-runtime-bootstrap"))
+    try FileManager.default.removeItem(at: fixture.root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents/MacOS/nexus-server"))
     XCTAssertThrowsError(try SidecarBundleLocator.resolveDevelopment(projectRoot: fixture.root)) { error in
       guard case DesktopShellError.sidecarExecutableNotFound = error else {
         return XCTFail("Expected missing runtime, got \(error)")
@@ -84,12 +84,9 @@ final class SidecarBundleLocatorTests: XCTestCase {
     let distIndex = webRoot.appendingPathComponent("dist/index.html")
     try write("<!doctype html>", to: distIndex)
     let contents = root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents")
-    for relative in ["MacOS/nexus-server", "Resources/bin/nexus-runtime-bootstrap"] {
-      let binary = contents.appendingPathComponent(relative)
-      try write("fixture", to: binary)
-      try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
-    }
-    try write("{}", to: contents.appendingPathComponent("Resources/runtime-bootstrap.json"))
+    let binary = contents.appendingPathComponent("MacOS/nexus-server")
+    try write("fixture", to: binary)
+    try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
     return (root, webRoot, distIndex)
   }
 

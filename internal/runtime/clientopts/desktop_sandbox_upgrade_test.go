@@ -91,8 +91,6 @@ func TestDesktopSandboxRuntimeUpgradeAndRollback(t *testing.T) {
 			}
 			if phase.sandbox {
 				input.AppMode = "desktop"
-				input.SandboxResources = &agentclient.SandboxResourcePolicy{Version: 1,
-					WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: filepath.Join(root, "scratch")}
 			}
 			options, err := BuildAgentClientOptions(t.Context(), fakeRuntimeConfigResolver{config: &RuntimeConfig{
 				Provider: "upgrade-fixture", APIFormat: "anthropic_messages", BaseURL: upstream.URL,

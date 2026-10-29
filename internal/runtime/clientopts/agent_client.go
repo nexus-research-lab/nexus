@@ -120,10 +120,6 @@ type AgentClientOptionsInput struct {
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
-	// SandboxResources is a host-prepared, versioned resource contract. The
-	// builder only copies and validates it; scratch creation and cleanup remain
-	// owned by the runtime/session host.
-	SandboxResources *agentclient.SandboxResourcePolicy
 	// DesktopSandboxNetworkAdmission is a host-prepared exact-domain grant.
 	// A nil value means deny all sandbox network destinations. User/task
 	// settings must not manufacture this grant; changing it requires runtime
@@ -355,7 +351,8 @@ func BuildAgentClientOptionsWithConfig(
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
-	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir())
+	home, _ := os.UserHomeDir()
+	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir(), home)
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}

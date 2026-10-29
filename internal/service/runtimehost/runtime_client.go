@@ -6,13 +6,13 @@ package runtimehost
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	nexusmcp "github.com/nexus-research-lab/nexus/internal/mcp"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -99,25 +99,6 @@ func (h *Host) MergeNexusMCPServers(
 	return servers, nil
 }
 
-// AcquireRuntimeScratch 在桌面 nxs 非完全放行时申请 sandbox scratch；不需要时返回 nil。
-func (h *Host) AcquireRuntimeScratch(
-	ctx context.Context,
-	selection runtimeselectionsvc.Selection,
-	permissionMode sdkpermission.Mode,
-	input runtimectx.SandboxResourceInput,
-) (*runtimectx.SandboxResourceLease, error) {
-	if !strings.EqualFold(h.Config.AppMode, "desktop") || !selection.DesktopSandboxEnabled ||
-		(selection.RuntimeKind != "" && !strings.EqualFold(selection.RuntimeKind, "nxs")) ||
-		permissionMode == sdkpermission.ModeBypassPermissions {
-		return nil, nil
-	}
-	lease, err := runtimectx.AcquireSandboxResource(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("准备 desktop sandbox scratch: %w", err)
-	}
-	return lease, nil
-}
-
 // AgentRuntimeOptionsInput 是宿主为一次 Agent runtime 启动准备好的输入。
 type AgentRuntimeOptionsInput struct {
 	Agent                 *protocol.Agent
@@ -135,7 +116,6 @@ type AgentRuntimeOptionsInput struct {
 	MCPServers            map[string]sdkmcp.ServerConfig
 	ExtraEnv              map[string]string
 	ConfigurationEnv      map[string]string
-	Scratch               *runtimectx.SandboxResourceLease
 }
 
 // BuildAgentRuntimeOptions 用宿主配置与 Agent 设置补齐 runtime client 选项。
@@ -188,7 +168,6 @@ func (h *Host) BuildAgentRuntimeOptions(
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       h.Config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        h.Config.RuntimeLauncherPath,
-		SandboxResources:           input.Scratch.Resources(),
 	})
 }
 
@@ -225,35 +204,30 @@ func RetireRuntimeClient(startup *runtimectx.ClientStartup) (bool, error) {
 	return startup.RetireCurrent(closeCtx)
 }
 
-// RuntimeConnectAttempt 用当前选项与 scratch 启动一次 client；返回 scratch 所有权是否已交给 runtime。
+// RuntimeConnectAttempt 用当前选项启动一次 client。
 type RuntimeConnectAttempt func(
 	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
-	scratch *runtimectx.SandboxResourceLease,
-) (runtimectx.Client, bool, error)
+) (runtimectx.Client, error)
 
 // RuntimeConnect 描述一次带失效 resume 回退的 runtime 启动。
 type RuntimeConnect struct {
-	Startup      *runtimectx.ClientStartup
-	Options      *agentclient.Options
-	Scratch      *runtimectx.SandboxResourceLease
-	ScratchInput runtimectx.SandboxResourceInput
-	Logger       *slog.Logger
-	Attempt      RuntimeConnectAttempt
+	Startup *runtimectx.ClientStartup
+	Options *agentclient.Options
+	Logger  *slog.Logger
+	Attempt RuntimeConnectAttempt
 	// ClearResume 在旧 SDK session 失效后清除宿主持久化的 resume 身份；为 nil 时不回退重试。
 	ClearResume func() error
 }
 
-// Run 启动 runtime client。resume 的 transcript 已失效时，退休失败的 client、清除 resume、
-// 换一份 scratch 后以全新 SDK session 重试一次；fork 仍返回 source session 时视为失败。
-// 返回时 Scratch 已交给 runtime 或已释放。
+// Run 启动 runtime client。resume 的 transcript 已失效时，退休失败的 client、清除 resume
+// 后以全新 SDK session 重试一次；fork 仍返回 source session 时视为失败。
 func (c RuntimeConnect) Run(ctx context.Context) (runtimectx.Client, error) {
-	scratch := c.Scratch
-	client, transferred, err := c.Attempt(c.Startup, *c.Options, scratch)
+	client, err := c.Attempt(c.Startup, *c.Options)
 	if err != nil && c.ClearResume != nil &&
 		strings.TrimSpace(c.Options.Session.ResumeID) != "" &&
 		runtimectx.IsRuntimeTransportClosedError(err) {
-		client, scratch, transferred, err = c.retryWithoutResume(ctx, scratch, transferred, err)
+		client, err = c.retryWithoutResume(err)
 	}
 	if err == nil && c.Options.Session.Fork &&
 		strings.TrimSpace(client.SessionID()) == strings.TrimSpace(c.Options.Session.ResumeID) {
@@ -264,18 +238,10 @@ func (c RuntimeConnect) Run(ctx context.Context) (runtimectx.Client, error) {
 			c.Logger.Warn("清理启动失败的 runtime 返回错误", "startup_err", err, "cleanup_err", closeErr)
 		}
 	}
-	if scratch != nil && !transferred {
-		_ = scratch.Release()
-	}
 	return client, err
 }
 
-func (c RuntimeConnect) retryWithoutResume(
-	ctx context.Context,
-	scratch *runtimectx.SandboxResourceLease,
-	transferred bool,
-	cause error,
-) (runtimectx.Client, *runtimectx.SandboxResourceLease, bool, error) {
+func (c RuntimeConnect) retryWithoutResume(cause error) (runtimectx.Client, error) {
 	c.Logger.Warn("SDK session resume 失效，清除后重试",
 		"sdk_session_id", strings.TrimSpace(c.Options.Session.ResumeID),
 		"err", cause,
@@ -285,28 +251,13 @@ func (c RuntimeConnect) retryWithoutResume(
 		c.Logger.Warn("清理失效 resume 的 runtime 返回错误", "startup_err", cause, "cleanup_err", closeErr)
 	}
 	if !retired || errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
-		return nil, scratch, transferred, cause
+		return nil, cause
 	}
 	if err := c.ClearResume(); err != nil {
-		return nil, scratch, transferred, err
+		return nil, err
 	}
 	c.Options.Session.ResumeID = ""
 	c.Options.Session.ResumeAt = ""
 	c.Options.Session.Fork = false
-	if scratch != nil {
-		// 创建或绑定失败时 lease 尚未交给 runtime manager；先释放这份句柄再换新，
-		// 否则旧 scratch 目录会永久登记而无人可达。
-		if !transferred {
-			if err := scratch.Release(); err != nil {
-				return nil, nil, false, fmt.Errorf("清理失效 resume 的 desktop sandbox scratch: %w", err)
-			}
-		}
-		next, err := runtimectx.AcquireSandboxResource(ctx, c.ScratchInput)
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("重新准备 desktop sandbox scratch: %w", err)
-		}
-		scratch, transferred = next, false
-	}
-	client, transferred, err := c.Attempt(c.Startup, *c.Options, scratch)
-	return client, scratch, transferred, err
+	return c.Attempt(c.Startup, *c.Options)
 }

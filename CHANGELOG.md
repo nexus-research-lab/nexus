@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复，未开启沙箱的用户不再受其影响；旧版本留下的沙箱记录表不再读取。
+- 开启沙箱后，命令在沙箱内失败时可以通过一次性审批改为沙箱外执行（此前受限 nxs 会话无法提权，只能切换到完全访问）。
+
+### Security
+
+- 受限桌面沙箱默认禁止读取用户凭据位置：`~/.ssh`、`~/.aws`、`~/.gnupg`、`~/.netrc`、`~/.git-credentials`、`~/.config/gh`、`~/.kube`、`~/.docker/config.json`、`~/Library/Keychains` 与 `~/Library/Cookies`；需要这些文件的命令走一次性沙箱外审批。
+
 ## [0.2.6] - 2026-10-24
 
 ### Added

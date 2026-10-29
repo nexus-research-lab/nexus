@@ -38,7 +38,7 @@ func TestBuildAgentClientOptionsInstallsClaudeNativeContract(t *testing.T) {
 	}
 }
 
-func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
+func TestDesktopSandboxPolicySeparatesGrantsAndFullAccess(t *testing.T) {
 	input := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true,
 		SkillDirectories: []string{"/skills"}, AdditionalDirectories: []string{"/mounted"}}
 	for _, platform := range []string{"darwin"} {
@@ -62,6 +62,9 @@ func TestDesktopSandboxPolicySeparatesResourcesAndFullAccess(t *testing.T) {
 			}
 			if got.Sandbox == nil || !got.Sandbox.RequireSandbox || !got.Sandbox.RequireFileTools || !got.Sandbox.RequireSearchTools || !got.Sandbox.RequireMediaFiles || !got.Sandbox.RequireMediaNetwork || !got.Sandbox.RequireNotebookFiles || !got.Sandbox.RequireSkillFiles || !got.Sandbox.RequireContextFiles || !got.Sandbox.RequireProjectFiles || !got.Sandbox.RequireManagedPolicy || !got.Sandbox.RequireSettingsFiles || !got.Sandbox.RequireSettingsWrites || !*got.Sandbox.FailIfUnavailable {
 				t.Fatal("mandatory execution requirement lost")
+			}
+			if got.Sandbox.Resources != nil || got.Sandbox.AllowUnsandboxedCommands == nil || !*got.Sandbox.AllowUnsandboxedCommands {
+				t.Fatal("restricted nxs must keep the approval-gated escape and carry no host scratch contract")
 			}
 			if !reflect.DeepEqual(got.Sandbox.Filesystem.AllowRead, input.SkillDirectories) || !reflect.DeepEqual(got.Sandbox.Filesystem.AllowWrite, input.AdditionalDirectories) {
 				t.Fatal("resource/write grants were conflated")
@@ -142,90 +145,15 @@ func TestDesktopSandboxClaudeRestrictedPreservesOrdinarySettingsButRejectsNXSCon
 			t.Fatalf("mixed nxs Claude sandbox contract accepted: %#v", existing)
 		}
 	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}}, AgentClientOptionsInput{
-		AppMode:               "desktop",
-		DesktopSandboxEnabled: true,
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: "/tmp/scratch",
-		},
-	}, "darwin"); err == nil {
-		t.Fatal("Claude native sandbox accepted an nxs host resource contract")
-	}
 	gotWindows, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude, PermissionMode: sdkpermission.ModeBypassPermissions}}, AgentClientOptionsInput{
 		AppMode:               "desktop",
 		DesktopSandboxEnabled: true,
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: "/tmp/scratch",
-		},
 	}, "windows")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if gotWindows.Sandbox != nil {
 		t.Fatalf("Windows must defer the desktop sandbox contract: %#v", gotWindows.Sandbox)
-	}
-}
-
-func TestDesktopSandboxCopiesHostPreparedResources(t *testing.T) {
-	scratchRoot := t.TempDir()
-	input := AgentClientOptionsInput{
-		AppMode:               "desktop",
-		DesktopSandboxEnabled: true,
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version:     1,
-			WriteScope:  agentclient.SandboxWriteScopeWorkspaceWrite,
-			ScratchRoot: scratchRoot,
-		},
-	}
-	for _, mode := range []sdkpermission.Mode{sdkpermission.ModeDefault, sdkpermission.ModeAuto} {
-		before := agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: mode}}
-		got, err := applyDesktopSandboxForPlatform(before, input, "darwin")
-		if err != nil {
-			t.Fatalf("mode %s: %v", mode, err)
-		}
-		if got.Sandbox == nil || got.Sandbox.Resources == nil {
-			t.Fatalf("mode %s: resources missing", mode)
-		}
-		if got.Sandbox.Resources == input.SandboxResources {
-			t.Fatalf("mode %s: resource policy aliases caller", mode)
-		}
-		if *got.Sandbox.Resources != *input.SandboxResources {
-			t.Fatalf("mode %s: resources = %#v, want %#v", mode, got.Sandbox.Resources, input.SandboxResources)
-		}
-		if got.Sandbox.AllowUnsandboxedCommands == nil || *got.Sandbox.AllowUnsandboxedCommands {
-			t.Fatalf("mode %s: resource policy left unsandboxed commands enabled", mode)
-		}
-		got.Sandbox.Resources.ScratchRoot = "/tmp/changed"
-		if input.SandboxResources.ScratchRoot != scratchRoot {
-			t.Fatalf("mode %s: caller resource policy mutated", mode)
-		}
-	}
-}
-
-func TestDesktopSandboxRejectsInvalidOrFullAccessResources(t *testing.T) {
-	invalid := AgentClientOptionsInput{
-		AppMode:               "desktop",
-		DesktopSandboxEnabled: true,
-		SandboxResources:      &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "relative"},
-	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, invalid, "darwin"); err == nil {
-		t.Fatal("invalid host resources accepted")
-	}
-	fullAccess := invalid
-	fullAccess.SandboxResources = &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "/tmp/nexus-sandbox/session-b"}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, fullAccess, "darwin"); err == nil {
-		t.Fatal("Full Access silently accepted a restricted resource policy")
-	}
-	readOnlyWithWriteGrant := AgentClientOptionsInput{
-		AppMode:               "desktop",
-		DesktopSandboxEnabled: true,
-		AdditionalDirectories: []string{"/tmp/mounted"},
-		SandboxResources: &agentclient.SandboxResourcePolicy{
-			Version: 1, WriteScope: agentclient.SandboxWriteScopeReadOnly, ScratchRoot: "/tmp/nexus-sandbox/session-c",
-		},
-	}
-	if _, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, readOnlyWithWriteGrant, "darwin"); err == nil {
-		t.Fatal("read-only resource policy accepted an explicit write grant")
 	}
 }
 

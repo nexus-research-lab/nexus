@@ -79,9 +79,6 @@ func TestDesktopSandboxLiveProvider(t *testing.T) {
 					return sdkpermission.Allow(r.Input, nil), nil
 				},
 			}
-			if kind == "nxs" {
-				input.SandboxResources = &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: scratch}
-			}
 			options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{config: &RuntimeConfig{
 				Provider: "live-acceptance", APIFormat: "anthropic_messages", AuthToken: token, BaseURL: baseURL, Model: model,
 			}}, input)

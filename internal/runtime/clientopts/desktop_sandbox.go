@@ -43,9 +43,6 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		// Access is an explicit user exception; restricted Claude keeps Bash and
 		// build commands but fails closed when Claude cannot install its OS
 		// sandbox. Native Claude sandbox is not supported by the Windows CLI.
-		if input.SandboxResources != nil {
-			return agentclient.Options{}, fmt.Errorf("Claude 原生沙箱不能携带 nxs host resource contract")
-		}
 		if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
 			return options, nil
 		}
@@ -77,13 +74,13 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 		return agentclient.Options{}, fmt.Errorf("desktop sandbox requires a supported runtime contract")
 	}
 	yes := true
-	no := false
 	if platform == "darwin" {
 		options.MCP.StrictConfig = true
 	}
 	options.Sandbox = &agentclient.SandboxSettings{
 		RequireSandbox: true, RequireFileTools: true, RequireSearchTools: true, RequireMediaFiles: true, RequireMediaNetwork: true, RequireMCPNetwork: platform == "darwin", RequireMCPHelpers: platform == "darwin", RequireMCPStdio: platform == "darwin", RequireNotebookFiles: true, RequireSkillFiles: true, RequireContextFiles: true, RequireProjectFiles: true, RequireManagedPolicy: true, RequireSettingsFiles: true, RequireSettingsWrites: true, Enabled: &yes, FailIfUnavailable: &yes,
-		// Explicit escape still passes the independent SDK approval boundary.
+		// Like Codex escalation: a command that fails inside the sandbox may be
+		// rerun outside it, but only through the independent SDK approval boundary.
 		AllowUnsandboxedCommands: &yes,
 		Filesystem: &agentclient.SandboxFilesystemConfig{
 			AllowRead:  slices.Clone(input.SkillDirectories),
@@ -95,24 +92,7 @@ func applyDesktopSandboxForPlatform(options agentclient.Options, input AgentClie
 	// runtime, capability handshake and lifecycle remain installed. Carry the
 	// explicit escape in the SDK setting instead of dropping the environment.
 	if options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
-		if input.SandboxResources != nil {
-			return agentclient.Options{}, fmt.Errorf("Full Access cannot carry a restricted sandbox resource policy")
-		}
 		options.Sandbox.Filesystem = &agentclient.SandboxFilesystemConfig{}
-	} else if input.SandboxResources != nil {
-		resources := *input.SandboxResources
-		if err := resources.Validate(); err != nil {
-			return agentclient.Options{}, fmt.Errorf("invalid desktop sandbox resources: %w", err)
-		}
-		if resources.WriteScope == agentclient.SandboxWriteScopeReadOnly && len(input.AdditionalDirectories) > 0 {
-			return agentclient.Options{}, fmt.Errorf("read-only desktop sandbox resources cannot carry write directory grants")
-		}
-		// Bridge's resource contract deliberately forbids an unsandboxed
-		// command escape. Keep the strict resource policy authoritative; the
-		// ordinary no-resource path may still expose the separate approval
-		// boundary above.
-		options.Sandbox.AllowUnsandboxedCommands = &no
-		options.Sandbox.Resources = &resources
 	}
 	return options, nil
 }

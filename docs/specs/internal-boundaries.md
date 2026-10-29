@@ -33,7 +33,6 @@
   - `infra/duework`：后台 durable work 的合并唤醒、精确 deadline timer 与低频审计。
   - `infra/runtimeidentity`：Linux UID/GID、ACL、Landlock launcher。
   - `infra/confinedfs`：宿主目录 fd 边界。
-  - `infra/runtimebootstrap`：校验 macOS 随包监督 helper 的固定 Bridge 构建身份与签名后摘要。
   - `infra/textutil`：只依赖标准库的字符串取值原语叶子包（`FirstNonEmpty`/`PointerValue`/`AnyString`）；各包不得私有复制同构 helper。
 
 ## MCP 能力域

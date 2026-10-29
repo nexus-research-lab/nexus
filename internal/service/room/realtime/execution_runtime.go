@@ -43,7 +43,6 @@ type preparedSlotRuntime struct {
 	toolSurfaceFingerprint string
 	toolSurfaceComplete    bool
 	forkLegacyToolSurface  bool
-	scratchLease           *runtimectx.SandboxResourceLease
 }
 
 type roomRuntimePrompt struct {
@@ -124,10 +123,6 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	}
 	client, err := e.connectRuntime(&runtimeValue)
 	if err != nil {
-		// connectRuntime 在交给 RuntimeConnect 前失败时，scratch 仍归这里释放。
-		if runtimeValue.scratchLease != nil {
-			_ = runtimeValue.scratchLease.Release()
-		}
 		return nil, err
 	}
 	e.logger.Info("Room runtime 启动成功",
@@ -199,16 +194,6 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 			return preparedSlotRuntime{}, err
 		}
 	}
-	scratchLease, err := e.service.AcquireRuntimeScratch(e.ctx, selection, permissionMode, e.scratchInput())
-	if err != nil {
-		return preparedSlotRuntime{}, err
-	}
-	scratchLeaseOwned := false
-	defer func() {
-		if scratchLease != nil && !scratchLeaseOwned {
-			_ = scratchLease.Release()
-		}
-	}()
 	options, runtimeConfig, err := e.service.BuildAgentRuntimeOptions(e.ctx, runtimehost.AgentRuntimeOptionsInput{
 		Agent:                 e.agent,
 		Selection:             selection,
@@ -225,7 +210,6 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MCPServers:            mcpServers,
 		ExtraEnv:              e.service.roomRuntimeEnv(e.round, e.slot),
 		ConfigurationEnv:      configurationRuntimeEnv,
-		Scratch:               scratchLease,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -241,27 +225,17 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, fmt.Errorf("计算 Room runtime 工具面指纹: %w", err)
 	}
-	scratchLeaseOwned = true
 	return preparedSlotRuntime{
 		options:                options,
 		selection:              selection,
 		provider:               runtimeProvider,
 		toolSurfaceFingerprint: toolSurfaceFingerprint,
 		toolSurfaceComplete:    toolSurfaceComplete,
-		scratchLease:           scratchLease,
 		forkLegacyToolSurface: len(protocol.EffectiveSessionConnectorIDs(
 			e.agent.Options.ConnectorIDs,
 			sessionOptions,
 		)) > 0,
 	}, nil
-}
-
-func (e *slotExecution) scratchInput() runtimectx.SandboxResourceInput {
-	return runtimectx.SandboxResourceInput{
-		OwnerUserID: e.agent.OwnerUserID,
-		SessionKey:  e.slot.RuntimeSessionKey,
-		RoundID:     e.round.RootRoundID,
-	}
 }
 
 func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.Mode, error) {
@@ -603,16 +577,11 @@ func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runti
 		)
 	}
 
-	// RuntimeConnect 接管 scratch：成功时交给 runtime，失败时由它释放。
-	scratch := runtimeValue.scratchLease
-	runtimeValue.scratchLease = nil
 	client, err := runtimehost.RuntimeConnect{
-		Startup:      startup,
-		Options:      &runtimeValue.options,
-		Scratch:      scratch,
-		ScratchInput: e.scratchInput(),
-		Logger:       e.logger.With(roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...),
-		Attempt:      e.connectRuntimeOnce,
+		Startup: startup,
+		Options: &runtimeValue.options,
+		Logger:  e.logger.With(roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...),
+		Attempt: e.connectRuntimeOnce,
 		ClearResume: func() error {
 			if err := e.service.clearSlotSDKSessionID(e.ctx, e.slot); err != nil {
 				return err
@@ -661,27 +630,22 @@ func (e *slotExecution) reloadSlotRuntimeIdentity() (string, string, error) {
 func (e *slotExecution) connectRuntimeOnce(
 	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
-	scratchLease *runtimectx.SandboxResourceLease,
-) (runtimectx.Client, bool, error) {
+) (runtimectx.Client, error) {
 	e.logger.Info("准备启动 Room runtime", clientopts.RuntimeStartupLogFields(options)...)
 	previousClient := e.service.Runtime.SessionClient(e.slot.RuntimeSessionKey)
 	hadWarmSession := e.service.Runtime.HasSession(e.slot.RuntimeSessionKey)
-	client, err := startup.GetOrCreateWithLease(e.ctx, options, e.service.factory, scratchLease)
+	client, err := startup.GetOrCreateWithFactory(e.ctx, options, e.service.factory)
 	if err != nil {
-		return client, false, err
-	}
-	transferred, err := startup.BindSandboxLease(scratchLease)
-	if err != nil {
-		return client, transferred, err
+		return client, err
 	}
 	e.slot.setRuntimeKind(string(e.service.Runtime.RuntimeKind(e.slot.RuntimeSessionKey)))
 	e.slot.setClient(client)
 	if err = startup.Connect(e.ctx); err != nil {
-		return client, transferred, err
+		return client, err
 	}
 	reusedWarmSession := hadWarmSession && previousClient == client
 	e.slot.setContextColdStart(roomContextColdStart(options.Session.ResumeID, reusedWarmSession))
-	return client, transferred, nil
+	return client, nil
 }
 
 // roomContextColdStart 只把首次创建且没有可用 resume 的 slot 视为冷启动。

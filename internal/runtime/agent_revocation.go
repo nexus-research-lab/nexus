@@ -128,7 +128,6 @@ func (m *Manager) RevokeAgentSessions(
 
 	errs := make([]error, 0, len(targets)+len(waiting)+1)
 	for _, target := range targets {
-		sandboxPhaseErr := m.markSandboxReceiptRetiring(target)
 		var closeErr error
 		if target.client != nil {
 			closeErr = target.client.Disconnect(ctx)
@@ -137,8 +136,6 @@ func (m *Manager) RevokeAgentSessions(
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
 		cleanupErr := errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
-		sandboxTerminalPhaseErr := m.finalizeSandboxReceipt(target, cleanupErr)
-		cleanupErr = errors.Join(cleanupErr, sandboxPhaseErr, sandboxTerminalPhaseErr)
 		clientCleanupPending := errors.Is(closeErr, context.Canceled) ||
 			errors.Is(closeErr, context.DeadlineExceeded)
 		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
@@ -162,11 +159,6 @@ func (m *Manager) RevokeAgentSessions(
 	}
 	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {
 		errs = append(errs, fmt.Errorf("reap deleted Agent runtime processes: %w", reaperErr))
-		for _, target := range targets {
-			if receiptErr := m.markSandboxReceiptUnknownAfterReaper(target, reaperErr); receiptErr != nil {
-				errs = append(errs, fmt.Errorf("record deleted Agent sandbox reaper uncertainty: %w", receiptErr))
-			}
-		}
 	}
 	return len(targets) + len(waiting), errors.Join(errs...)
 }

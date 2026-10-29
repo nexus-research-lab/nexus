@@ -1,11 +1,11 @@
 /**
- * INPUT: 沙箱设置控制器提供的桌面沙箱偏好、诊断状态和残留资源摘要。
- * OUTPUT: 桌面沙箱开关、显式“检查”诊断与预览后回收的残留资源行；三行控件统一靠右、垂直居中，结果按语义 tone 展示。
+ * INPUT: 沙箱设置控制器提供的桌面沙箱偏好与诊断状态。
+ * OUTPUT: 桌面沙箱开关与显式“检查”诊断；两行控件统一靠右、垂直居中，结果按语义 tone 展示。
  * POS: 设置目录的沙箱分区，仅桌面端可见；不直接调用 API。
  */
 "use client";
 
-import { Box, Loader2, RotateCcw, ScanSearch, ShieldCheck, Trash2 } from "lucide-react";
+import { Box, Loader2, ScanSearch, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -92,16 +92,6 @@ export function SettingsSandboxSection() {
               </p>
             ) : null}
           </SandboxActionRow>
-          <div className={SETTINGS_DIVIDER_CLASS_NAME} />
-          <SandboxRecoveryRow
-            applying={settings.sandboxRecoveryApplying}
-            checking={settings.sandboxRecoveryChecking}
-            disabled={settings.loading}
-            error={settings.sandboxRecoveryError}
-            onInspect={() => void settings.onInspectSandboxResources()}
-            onReconcile={() => void settings.onReconcileSandboxResources()}
-            summary={settings.sandboxRecoverySummary}
-          />
         </div>
       </section>
     </div>
@@ -134,92 +124,5 @@ function SandboxActionRow({
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">{actions}</div>
     </div>
-  );
-}
-
-function SandboxRecoveryRow({
-  applying,
-  checking,
-  disabled,
-  error,
-  onInspect,
-  onReconcile,
-  summary,
-}: {
-  applying: boolean;
-  checking: boolean;
-  disabled: boolean;
-  error: boolean;
-  onInspect: () => void;
-  onReconcile: () => void;
-  summary: {
-    candidateCount: number;
-    removedCount: number;
-    resourceCount: number;
-    unknownCount: number;
-  } | null;
-}) {
-  const { t } = useI18n();
-  const busy = checking || applying;
-  const facts = summary ? [
-    t("settings.runtime.sandbox_recovery_resources", { count: summary.resourceCount }),
-    t("settings.runtime.sandbox_recovery_unknown", { count: summary.unknownCount }),
-    ...(summary.candidateCount > 0
-      ? [t("settings.runtime.sandbox_recovery_candidates", { count: summary.candidateCount })] : []),
-    ...(summary.removedCount > 0
-      ? [t("settings.runtime.sandbox_recovery_removed", { count: summary.removedCount })] : []),
-  ] : [];
-  return (
-    <SandboxActionRow
-      actions={(
-        <>
-          <UiButton
-            aria-busy={checking}
-            disabled={disabled || busy}
-            onClick={onInspect}
-            size="xs"
-            variant="surface"
-          >
-            {checking
-              ? <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
-              : <RotateCcw className="h-3 w-3" />}
-            {t(checking
-              ? "settings.runtime.sandbox_recovery_checking"
-              : "settings.runtime.sandbox_recovery_check")}
-          </UiButton>
-          {summary && summary.candidateCount > 0 ? (
-            <UiButton
-              aria-busy={applying}
-              disabled={disabled || busy}
-              onClick={onReconcile}
-              size="xs"
-              tone="danger"
-              variant="surface"
-            >
-              {applying
-                ? <Loader2 className={getUiSpinnerClassName({ size: "xs" })} />
-                : <Trash2 className="h-3 w-3" />}
-              {t(applying
-                ? "settings.runtime.sandbox_recovery_applying"
-                : "settings.runtime.sandbox_recovery_apply")}
-            </UiButton>
-          ) : null}
-        </>
-      )}
-      description={t("settings.runtime.sandbox_recovery_description")}
-      icon={<RotateCcw className="h-3.5 w-3.5" />}
-      title={t("settings.runtime.sandbox_recovery_title")}
-    >
-      {summary ? (
-        <p className={resultClassName(summary.unknownCount > 0 ? "warning" : "muted")} role="status">
-          {facts.join(" · ")}
-        </p>
-      ) : null}
-      {error ? (
-        <p className={resultClassName("danger")} role="alert">
-          {t("settings.runtime.sandbox_recovery_failed")}
-        </p>
-      ) : null}
-    </SandboxActionRow>
   );
 }
