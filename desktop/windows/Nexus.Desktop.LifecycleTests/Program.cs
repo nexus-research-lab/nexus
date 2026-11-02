@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
 using Nexus.Desktop.Sidecar;
 
 static ProcessStartInfo Self(params string[] args)
@@ -98,6 +100,9 @@ if (args.Length > 0)
     switch (args[0])
     {
         case "echo":
+            // Match the Go sidecar's UTF-8 output and the parent's pipe decoder;
+            // a no-window Windows child must not depend on the default code page.
+            Console.OutputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
             Console.WriteLine(Environment.GetEnvironmentVariable("NEXUS_LIFECYCLE_TEST"));
             Console.Error.WriteLine("stderr works");
             return;
@@ -141,7 +146,8 @@ try
         Task capture = owned.CaptureOutputAsync(output.Add, error.Add);
         await ExpectExited(owned.Process);
         await capture.WaitAsync(TimeSpan.FromSeconds(5));
-        if (!output.Contains("unicode 环境 and spaces") || !error.Contains("stderr works")) throw new Exception("Inherited output/environment round trip failed");
+        if (owned.Process.ExitCode != 0 || !output.Contains("unicode 环境 and spaces") || !error.Contains("stderr works"))
+            throw new Exception($"Inherited output/environment round trip failed: exitCode={owned.Process.ExitCode}, stdout={JsonSerializer.Serialize(output)}, stderr={JsonSerializer.Serialize(error)}");
         await owned.StopAsync(TimeSpan.FromSeconds(5));
     }
     Console.WriteLine("PASS output/environment/normal exit");
