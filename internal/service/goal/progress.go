@@ -1,5 +1,5 @@
-// INPUT: runtime round 的 durable receipt 身份、Agent 审计身份、进展/失败、Room collaboration handback 与 objective revision fence。
-// OUTPUT: 以 receipt round 结算 continuation plan，并以独立 audit round 写入 CAS 重试后的 Goal 进展状态和审计事件。
+// INPUT: runtime round 的 durable receipt 身份、Agent 审计身份、进展/失败/用户停止、Room collaboration handback 与 objective revision fence。
+// OUTPUT: 以 receipt round 结算 continuation plan，并以独立 audit round 写入 CAS 重试后的 Goal 进展状态和审计事件；用户停止直接挂起续跑并留下可推导原因的标记。
 // POS: Goal round 结果回写与 continuation receipt/audit 身份分离的唯一入口。
 package goal
 
@@ -129,6 +129,39 @@ func (s *Service) SettleContinuationPlan(ctx context.Context, goalID, roundID st
 		s.WakeAutoResume()
 	}
 	return err
+}
+
+// RecordContinuationUserStop settles the round's launch receipt, when one
+// exists, and suspends automatic continuation because the user explicitly
+// stopped the round. Ordinary user rounds have no receipt; they still suspend
+// so the post-round dispatcher cannot start a hidden continuation the user
+// just tried to stop. Explicit Goal activity or Resume clears the suspension.
+func (s *Service) RecordContinuationUserStop(ctx context.Context, goalID string, identity ContinuationRuntimeIdentity, expectedRevision ...int64) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	identity = identity.normalized()
+	if err := s.SettleContinuationPlan(ctx, strings.TrimSpace(goalID), identity.ReceiptRoundID, firstExpectedObjectiveRevision(expectedRevision)); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if _, planning := objectiveTransitionAwaitingPlan(*current); !planning {
+			if err := rejectPendingObjectiveTransition(*current, "record continuation user stop"); err != nil {
+				return nil, err
+			}
+		}
+		if !objectiveRevisionMatches(*current, firstExpectedObjectiveRevision(expectedRevision)) {
+			return nil, ErrGoalRevisionStale
+		}
+		return s.recordContinuationUserStopForLoadedGoal(ctx, current, identity.AuditRoundID)
+	})
 }
 
 // RecordCompletionCommandMiss 记录模型已声称目标完成但漏调 Goal 完成工具，并安排一次收尾重试。
@@ -307,6 +340,7 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 		goalContinuationSuppressionThreshold,
 	)
 	item.LastError = reason
+	item.Metadata = clearContinuationStoppedByUser(item.Metadata)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	payload := map[string]any{
@@ -314,6 +348,30 @@ func (s *Service) recordContinuationFailureForLoadedGoal(ctx context.Context, it
 		"reason":               reason,
 	}
 	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_failed", protocol.GoalUpdateSourceSystem, roundID, payload)
+	if err != nil {
+		return nil, err
+	}
+	s.clearWallClockGoal(*updated)
+	return updated, nil
+}
+
+func (s *Service) recordContinuationUserStopForLoadedGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return item, nil
+	}
+	if continuationStoppedByUser(item.Metadata) && goalContinuationSuppressed(*item) {
+		return item, nil
+	}
+	expectedVersion := item.Version
+	item.EmptyProgressCount = max(item.EmptyProgressCount, goalContinuationSuppressionThreshold)
+	item.Metadata = markContinuationStoppedByUser(item.Metadata)
+	item.Version++
+	item.UpdatedAt = s.nowFn()
+	payload := map[string]any{
+		"empty_progress_count": item.EmptyProgressCount,
+		"reason":               "user stopped the Goal round",
+	}
+	updated, err := s.persistGoalUpdateWithEvent(ctx, *item, expectedVersion, "continuation_stopped_by_user", protocol.GoalUpdateSourceUser, roundID, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -393,14 +451,15 @@ func (s *Service) recordGoalActivityForLoadedGoal(ctx context.Context, item *pro
 	if item.EmptyProgressCount == 0 &&
 		item.ContinuationCount == 0 &&
 		strings.TrimSpace(item.LastError) == "" &&
-		goalCompletionCommandRetryCount(item.Metadata) == 0 {
+		goalCompletionCommandRetryCount(item.Metadata) == 0 &&
+		!continuationStoppedByUser(item.Metadata) {
 		return item, nil
 	}
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.ContinuationCount = 0
 	item.LastError = ""
-	item.Metadata = clearContinuationReservations(clearCompletionCommandRetryMetadata(item.Metadata))
+	item.Metadata = clearContinuationStoppedByUser(clearContinuationReservations(clearCompletionCommandRetryMetadata(item.Metadata)))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	payload := map[string]any{
@@ -432,7 +491,7 @@ func (s *Service) recordRoomGoalCollaborationHandbackForLoadedGoal(
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.LastError = ""
-	item.Metadata = clearCompletionCommandRetryMetadata(item.Metadata)
+	item.Metadata = clearContinuationStoppedByUser(clearCompletionCommandRetryMetadata(item.Metadata))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.persistGoalUpdateWithEvent(
@@ -464,7 +523,7 @@ func (s *Service) resetContinuationProgress(ctx context.Context, item *protocol.
 	expectedVersion := item.Version
 	item.EmptyProgressCount = 0
 	item.LastError = ""
-	item.Metadata = clearCompletionCommandRetryMetadata(item.Metadata)
+	item.Metadata = clearContinuationStoppedByUser(clearCompletionCommandRetryMetadata(item.Metadata))
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
@@ -485,6 +544,7 @@ func (s *Service) noteEmptyContinuationProgress(ctx context.Context, item *proto
 	}
 	expectedVersion := item.Version
 	item.EmptyProgressCount++
+	item.Metadata = clearContinuationStoppedByUser(item.Metadata)
 	item.Version++
 	item.UpdatedAt = s.nowFn()
 	payload := map[string]any{
@@ -550,6 +610,32 @@ func clearCompletionCommandRetryMetadata(metadata map[string]any) map[string]any
 	}
 	copied := cloneMap(metadata)
 	delete(copied, goalCompletionCommandRetryMetadataKey)
+	if len(copied) == 0 {
+		return nil
+	}
+	return copied
+}
+
+func continuationStoppedByUser(metadata map[string]any) bool {
+	stopped, _ := metadata[protocol.GoalMetadataContinuationStoppedByUser].(bool)
+	return stopped
+}
+
+func markContinuationStoppedByUser(metadata map[string]any) map[string]any {
+	copied := cloneMap(metadata)
+	if copied == nil {
+		copied = map[string]any{}
+	}
+	copied[protocol.GoalMetadataContinuationStoppedByUser] = true
+	return copied
+}
+
+func clearContinuationStoppedByUser(metadata map[string]any) map[string]any {
+	if _, ok := metadata[protocol.GoalMetadataContinuationStoppedByUser]; !ok {
+		return metadata
+	}
+	copied := cloneMap(metadata)
+	delete(copied, protocol.GoalMetadataContinuationStoppedByUser)
 	if len(copied) == 0 {
 		return nil
 	}

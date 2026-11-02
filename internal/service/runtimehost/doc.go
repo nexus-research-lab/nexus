@@ -3,8 +3,9 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - recovery.go：DM/Room 共用的未知结果对账上下文、恢复身份复核与 canonical 队列扫描。
 //   - host.go：Host 依赖集合、注入方法，以及额度、执行上下文、Slash 展开、生图默认能力与日志等共用阶段。
-//   - goal_round.go：GoalRoundState，DM round 与 Room slot 共用的每轮 Goal 状态（一把 Mu）：子任务、待落库用量观察、完成收据、命令回执游标与 token 用量写入去重。
+//   - goal_round.go：GoalRoundState，DM round 与 Room slot 共用的每轮 Goal 状态（一把 Mu）：子任务及用户停止后的迟到任务停止门禁、待落库用量观察、完成收据、命令回执游标与 token 用量写入去重。
 //   - session.go：owner 后台任务、精确 owner 上下文、SDK session 可持久化判定、fork runtime 回收、工具面换代与队列条目恢复。
 //   - round_mapper.go：把共用 message.EventMapper 适配为 exec.RoundMapper。
 //   - runtime_client.go：runtime 偏好与选择、Skill、nexus MCP 合并、desktop scratch、client 选项与 hook 装配，以及带失效 resume 回退的启动状态机 RuntimeConnect。

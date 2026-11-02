@@ -65,7 +65,7 @@ transport retry、Provider retry、请求受理、Agent round 和工具过程是
 连接与重连：
 
 - WebSocket `onerror` 只是连接异常证据，不是业务终态。共享客户端最多 5 次指数退避重连；重试期间只在 Composer 工作栈显示“连接中断，正在恢复…”。
-- 重试耗尽进入 `unavailable`：持久提示必须说明连接尚未恢复、已显示的消息和当前输入仍保留但页面可能不是最新，并要求恢复后再发送。
+- 快速重试耗尽进入 `unavailable`：持久提示必须说明连接尚未恢复、已显示的消息和当前输入仍保留但页面可能不是最新，并要求恢复后再发送。启用自动重连时每 30 秒探测一次，连接成功后重置快速重试次数；主动断开、禁用重连和认证失败（4401）不启动后台探测。
 - 宿主广播不把来源请求的取消当作接收连接失效：发送前已取消的事件不进入连接；已接纳的帧使用连接独立的有界超时完成。旧连接退出或 interrupt 请求取消不得关闭刚重连的健康通道；真实传输失败仍使该连接失效。
 - 物理通道恢复后，先重放仍有效的 Session binding，再拉取当前 Session 的 durable 消息快照。
   - DM：以快照和随后实时事件按消息身份合并。
@@ -79,6 +79,8 @@ transport retry、Provider retry、请求受理、Agent round 和工具过程是
 - 用户消息、Goal、queue、permission 和 interrupt 的受理按 exact `client_request_id` 对账。ACK 丢失时客户端可重连和读取 durable 状态。
 - 正向 ACK、durable `client_message_id`、input queue snapshot 或后续 round 事实只清除精确匹配的请求故障，不能清除其他 Session 的状态。
 - 客户端不得自动重发 prompt、工具调用或任何可能产生副作用的命令。
+- 精确停止目标已自然结束时，WebSocket 返回原请求与轮次身份的幂等成功 ACK，不扩大为停止后继轮次；其他中断错误仍返回失败。
+- 无 durable 终态的历史轮次，其合成 interrupted 结果携带 `terminal_reason=interrupted_by_host`。下一条显式输入的恢复上下文排除当前轮次，说明此前结果未知，要求先核对文件、消息和外部调用等副作用。明确成功或中断的终态不改写为崩溃。
 
 错误展示：
 
@@ -383,6 +385,7 @@ A 完成后：
 - 多目标或无法安全归组的 guide：用户消息保留在原始公区位置，旁边只显示目标 Agent 头像/名称摘要，不为每个目标复制正文。
 - guide 的 ACK、fallback、`guided_input` 等控制事件合并为目标卡片的一行轻量状态；详细过程放入 Thread，不生成独立大气泡。
 - 尚未消费的用户 queue item 只出现在 composer 的待发送队列；消费后才进入时间线，且只进入一次。
+- 派发失败回滚按持久日志中的原位置恢复队列项，保留 QueueOrder 与身份；不得用普通 Enqueue 追加到队尾，或改变相对其他 Room 成员队列的排序时间。
 - 用户入队请求只有收到 `input_queue_ack` 后才能清空 composer。队列项即使在 ACK 前后被立即派发，重试也必须由持久化幂等记录返回原 `item_id`，不得创建第二轮。
 - Agent public handoff 的 `detected/queued/running` 不生成“系统发言”气泡。源消息中的 `@Agent` chip 是唯一的交接正文；目标卡片只显示排队/运行状态；目标 final reply 到达后才显示完整回复。
 - final reply 可用宿主 `handoff_reply` 注解在消息头展示非动作的“回应 `@成员`”因果。这里的 `@` 只是宿主投影的成员来源标识，不得进入正文、`agent_mentions`、mention URI、handoff detector 或 wake。
@@ -422,3 +425,11 @@ GET /nexus/v1/rooms/{room_id}/conversations/{conversation_id}/messages
 ## 实现约束
 
 - Room 主 Feed 只在原活动位置显示一条不可展开的当前工具头或通用 fallback，不读取 ToolUseSummary（见 §2.6）；具体过程进入 Thread 后才使用中文优先的可展开折叠栏。
+
+### 输入队列的停止与重启恢复
+
+队列派发先记录 `dispatch_pending` 并保留原位置，只有下游轮次受理成功后才消费条目。重启后仍存在的 claim 表示未知结果，必须向 runtime 注入先对账再继续的上下文，不得把缺少回执当作副作用未执行的证明。
+
+用户停止持久化目标队列的暂停门禁，快照用 `dispatch_paused` 投影。订阅、刷新、重启和重复入队请求均不能解除暂停；新的显式发送或队列项的“发送”操作恢复派发。宿主退出不设置用户暂停门禁。启动时扫描 canonical workspace 队列（不依赖会话已存在 meta 或浏览器订阅），在通常的身份、成员和派发门禁下恢复。
+
+用户停止同时关闭该物理父轮次的子任务继续运行入口：对已知运行子任务调用 StopTask，迟到的 task_started 也受同一停止门禁约束；终态与用量通知仍持久化。不得将该门禁应用到后继物理轮次。

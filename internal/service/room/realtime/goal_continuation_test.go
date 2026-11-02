@@ -712,3 +712,65 @@ func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvide
 		t.Fatalf("collaboration evidence = %#v, want no-reply ignored", goalProvider.collabEvidence)
 	}
 }
+
+func TestRoomGoalUserStopSuspendsContinuationOnEveryTerminalPath(t *testing.T) {
+	for _, path := range []string{"provider-acknowledged", "host-cancelled"} {
+		t.Run(path, func(t *testing.T) {
+			goalProvider := &fakeRoomGoalContextProvider{}
+			service := &Service{goals: goalProvider}
+			slot := &activeRoomSlot{
+				RuntimeSessionKey: "agent:nexus:ws:room:test",
+				AgentRoundID:      "agent_round_user_stop",
+			}
+			grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
+			markRoomSlotInterrupted(slot, "")
+			roundValue := &activeRoomRound{
+				RootRoundID:  "goal_continuation_user_stop",
+				InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
+			}
+
+			if path == "provider-acknowledged" {
+				service.recordGoalContinuationProgressForSlot(
+					context.Background(), slot, roundValue,
+					exec.RoundExecutionResult{TerminalStatus: "finished", ResultSubtype: "interrupted"}, nil,
+				)
+			} else {
+				service.recordGoalSlotInterrupted(context.Background(), slot, roundValue)
+			}
+
+			goalProvider.mu.Lock()
+			stops := append([]string(nil), goalProvider.userStopRoundIDs...)
+			goalProvider.mu.Unlock()
+			assertRecordedRoomGoalRoundIDs(t, "user stop audit", stops, "agent_round_user_stop")
+			assertRecordedRoomGoalRoundIDs(t, "settled receipt", goalProvider.recordedSettledRoundIDs(), "goal_continuation_user_stop")
+			if progress := goalProvider.recordedProgress(); len(progress) != 0 {
+				t.Fatalf("progress = %#v, want a user stop never counted as progress", progress)
+			}
+		})
+	}
+}
+
+func TestRoomGoalNonUserCancellationOnlySettlesContinuationReceipt(t *testing.T) {
+	goalProvider := &fakeRoomGoalContextProvider{}
+	service := &Service{goals: goalProvider}
+	slot := &activeRoomSlot{
+		RuntimeSessionKey: "agent:nexus:ws:room:test",
+		AgentRoundID:      "agent_round_paused_member",
+	}
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
+	markRoomSlotInterrupted(slot, "成员已暂停参与")
+	roundValue := &activeRoomRound{
+		RootRoundID:  "goal_continuation_paused_member",
+		InputOptions: sdkprotocol.OutboundMessageOptions{Purpose: "goal_continuation"},
+	}
+
+	service.recordGoalSlotInterrupted(context.Background(), slot, roundValue)
+
+	goalProvider.mu.Lock()
+	stops := len(goalProvider.userStopRoundIDs)
+	goalProvider.mu.Unlock()
+	if stops != 0 {
+		t.Fatalf("user stops = %d, want member pause treated as a non-user cancellation", stops)
+	}
+	assertRecordedRoomGoalRoundIDs(t, "settled receipt", goalProvider.recordedSettledRoundIDs(), "goal_continuation_paused_member")
+}

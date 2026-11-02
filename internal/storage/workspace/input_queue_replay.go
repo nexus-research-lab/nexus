@@ -18,6 +18,8 @@ var inputQueueReplayHandlers = map[string]inputQueueReplayHandler{
 	inputQueueActionDispatch: (*inputQueueReplay).remove,
 	inputQueueActionReorder:  (*inputQueueReplay).reorder,
 	inputQueueActionUpdate:   (*inputQueueReplay).update,
+	inputQueueActionPause:    (*inputQueueReplay).pause,
+	inputQueueActionRestore:  (*inputQueueReplay).restore,
 }
 
 func replayInputQueueRows(
@@ -33,6 +35,7 @@ func replayInputQueueRows(
 
 // inputQueueReplay 维护日志回放期间的实体索引与展示顺序。
 type inputQueueReplay struct {
+	paused    bool
 	location  InputQueueLocation
 	itemsByID map[string]protocol.InputQueueItem
 	order     []string
@@ -122,6 +125,7 @@ func (r *inputQueueReplay) items() []protocol.InputQueueItem {
 		if item.ExpiresAt > 0 && item.ExpiresAt <= now {
 			continue
 		}
+		item.DispatchPaused = r.paused
 		result = append(result, item)
 	}
 	return result
@@ -165,4 +169,11 @@ func inputQueueItemMatchesLocationOwner(
 	}
 	itemOwnerUserID := strings.TrimSpace(item.OwnerUserID)
 	return itemOwnerUserID == "" || itemOwnerUserID == ownerUserID
+}
+
+func (r *inputQueueReplay) restore(row map[string]any) {
+	r.enqueue(row)
+	// Room merges several physical queues by QueueOrder. Restoring one queue
+	// must not retimestamp its items relative to the other members' queues.
+	r.order = reorderInputQueueIDs(r.order, r.itemsByID, stringSliceFromAny(row["ordered_ids"]))
 }

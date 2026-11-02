@@ -3,6 +3,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - input_queue_recovery.go：持久化 dispatch pause/claim 与 owner-scoped canonical 队列发现；下游受理后才消费条目。
 //   - agent_history.go / agent_history_overlay.go / room_history.go：完整回复落盘后更新独立 Room SQL 摘要，群聊只接受公区写入；失败记日志，不重试 canonical 消息。
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / causal control ordering / pagination / last-write round_index /
 //     rewrite_tail（区分未物化 round 与损坏边界）/ fork marker 前缀 / 按 Agent 执行轮配对的 result_summary / 同 message_id 合并 Goal 完成收据 / external_delivery / 不为完成态 host control 伪造中断 assistant 的 unfinished_round）。
@@ -16,6 +17,7 @@
 //     可见性安全的 marker 对齐（含 reminder 提取后的空白 Goal 续跑）、guidance 与 root/source round 投影；
 //     投影与 rewrite/fork 共用边界，派生读模型升级时清除旧轮次归属。
 //   - 有界定向消息队列用 client_message_id 读取完整入队账本，已消费输入在恢复时不会重复派发。
+//     派发失败通过 RestoreDispatched 按日志中的原位置恢复，保留跨成员排序的 QueueOrder。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、携带非授权 Goal collaboration attribution、完整 Execution WorkBinding 或独立 ReviewBinding 的跨派发持久幂等入队、责任项禁止 guide/合并的 capability envelope fence、可返回规范化提交的原子批量登记、预检版本一致的整批 conversation guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / session_lifecycle.go / artifact_probe.go / jsonl.go：
 //     Session runtime 回写可按 configuration version 强制拒绝过期的后台 Connector 预备；

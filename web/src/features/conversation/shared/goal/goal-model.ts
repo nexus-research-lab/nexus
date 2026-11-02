@@ -288,7 +288,9 @@ function resolveGoalStatusTitle(
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
-    return input.t("goal.continuation_stopped_title");
+    return input.t(goalStoppedByUser(input.goal)
+      ? "goal.continuation_user_stopped_title"
+      : "goal.continuation_stopped_title");
   }
   return visibleStatus.label;
 }
@@ -299,7 +301,9 @@ function resolveGoalAttentionMessage(
   if (input.goal.status === "active" &&
     goalContinuationSuppressed(input.goal) &&
     !input.isGenerating) {
-    return input.t("goal.continuation_stopped_detail");
+    return input.t(goalStoppedByUser(input.goal)
+      ? "goal.continuation_user_stopped_detail"
+      : "goal.continuation_stopped_detail");
   }
   return null;
 }
@@ -454,6 +458,10 @@ function canResumeGoal(goal: Goal): boolean {
 
 function goalContinuationSuppressed(goal: Goal): boolean {
   return goal.continuation_state === "suspended";
+}
+
+function goalStoppedByUser(goal: Goal): boolean {
+  return goal.continuation_suspension_reason === "user_stopped";
 }
 
 function visibleGoalDialog(

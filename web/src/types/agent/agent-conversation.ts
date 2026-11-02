@@ -140,7 +140,7 @@ export type AgentConversationDeliveryPolicy = 'queue' | 'guide' | 'interrupt' | 
 export type AgentConversationDefaultDeliveryPolicy = 'queue' | 'interrupt';
 
 export type InputQueueScope = 'dm' | 'room';
-export type InputQueueSource = 'user' | 'agent_public_mention' | 'agent_room_directed_message';
+export type InputQueueSource = 'host_recovery' | 'user' | 'agent_public_mention' | 'agent_room_directed_message';
 export type RoomWakePolicy = 'none' | 'immediate' | 'delayed';
 export type RoomReplyRouteMode = 'public' | 'private' | 'none';
 
@@ -152,6 +152,9 @@ export interface RoomReplyRoute {
 }
 
 export interface InputQueueItem {
+  dispatch_paused?: boolean;
+  dispatch_pending?: boolean;
+  recovery_execution_id?: string;
   id: string;
   scope: InputQueueScope;
   session_key: string;

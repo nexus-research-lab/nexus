@@ -28,6 +28,9 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 			// 按幂等成功收口，禁止客户端因迟到错误把已完成执行重新暴露为可停止。
 			return nil
 		}
+		if err := s.pauseRoomRoundQueue(ctx, roundValue, []string{slot.AgentID}, slot.AgentRoundID); err != nil {
+			return err
+		}
 		return s.interruptActiveSlot(ctx, roundValue, slot, "")
 	}
 	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
@@ -35,7 +38,15 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 		if roundValue == nil {
 			return ErrTargetRoomRoundNotRunning
 		}
+		if err := s.pauseRoomRoundQueue(ctx, roundValue, nil); err != nil {
+			return err
+		}
 		return s.interruptActiveRound(ctx, roundValue, "")
+	}
+	for _, round := range s.activeRoundsForSession(sessionKey) {
+		if err := s.pauseRoomRoundQueue(ctx, round, nil); err != nil {
+			return err
+		}
 	}
 	return s.interruptRound(ctx, sessionKey, "", "", false)
 }

@@ -1,5 +1,5 @@
 // INPUT: Room slot 的 Goal 上下文、objective revision、parent/child usage 与运行结果。
-// OUTPUT: slot 级 Goal accounting、root receipt/agent audit 双身份结算、跨 runtime 的 child 回补、共享 finalization barrier、协作证据和 objective steering。
+// OUTPUT: slot 级 Goal accounting、root receipt/agent audit 双身份结算（含用户停止与宿主取消）、跨 runtime 的 child 回补、共享 finalization barrier、协作证据和 objective steering。
 // POS: Room runtime 与共享 Goal 领域之间的唯一投影入口。
 package realtime
 
@@ -216,6 +216,12 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		ReceiptRoundID: receiptRoundID,
 		AuditRoundID:   slot.AgentRoundID,
 	}
+	// A provider that honours the stop still returns a normal terminal result;
+	// the host interrupt request, not the result shape, identifies a user stop.
+	if roomSlotUserStopped(slot) {
+		s.recordSlotGoalUserStop(ctx, slot, goalID, runtimeIdentity, objectiveRevision)
+		return
+	}
 	if purpose == "goal_continuation" && result.TerminalStatus == "error" {
 		reason := cmp.Or(
 			strings.TrimSpace(result.ErrorMessage),
@@ -263,6 +269,72 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		)
 		return err
 	}, "progressed", hasProgress)
+}
+
+// recordGoalSlotInterrupted closes the Goal side of a host-cancelled slot.
+// A user stop suspends automatic continuation; any other cancellation of a
+// continuation round only settles the root launch receipt so lease recovery
+// cannot replay a round the host already terminated.
+func (s *Service) recordGoalSlotInterrupted(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	roundValue *activeRoomRound,
+) {
+	if s.goals == nil || slot == nil {
+		return
+	}
+	authority := slot.goalMutationAuthority()
+	if !authority.valid() {
+		return
+	}
+	currentAuthority, ok := slot.boundGoalAuthority()
+	if !ok || currentAuthority.GoalID != authority.GoalID ||
+		currentAuthority.ObjectiveRevision < authority.ObjectiveRevision {
+		return
+	}
+	receiptRoundID := ""
+	purpose := ""
+	if roundValue != nil {
+		receiptRoundID = roomRootRoundID(roundValue)
+		purpose = strings.TrimSpace(roundValue.InputOptions.Purpose)
+	}
+	runtimeIdentity := goalsvc.ContinuationRuntimeIdentity{
+		ReceiptRoundID: receiptRoundID,
+		AuditRoundID:   slot.AgentRoundID,
+	}
+	if roomSlotUserStopped(slot) {
+		s.recordSlotGoalUserStop(ctx, slot, authority.GoalID, runtimeIdentity, currentAuthority.ObjectiveRevision)
+		return
+	}
+	if purpose != "goal_continuation" {
+		return
+	}
+	s.recordSlotGoalMutation(ctx, slot, "结算已中断 Room Goal 续跑回执失败", func() error {
+		return runtimehost.SettleGoalContinuationAfterRuntime(
+			ctx,
+			s.goals,
+			authority.GoalID,
+			receiptRoundID,
+			currentAuthority.ObjectiveRevision,
+		)
+	})
+}
+
+func roomSlotUserStopped(slot *activeRoomSlot) bool {
+	return roomSlotInterruptReason(slot) == messageutil.InterruptWithoutMessage
+}
+
+func (s *Service) recordSlotGoalUserStop(
+	ctx context.Context,
+	slot *activeRoomSlot,
+	goalID string,
+	identity goalsvc.ContinuationRuntimeIdentity,
+	objectiveRevision int64,
+) {
+	s.recordSlotGoalMutation(ctx, slot, "记录用户停止 Room Goal 续跑失败", func() error {
+		_, err := s.goals.RecordContinuationUserStop(ctx, goalID, identity, objectiveRevision)
+		return err
+	})
 }
 
 func slotHasPendingGoalCollaboration(

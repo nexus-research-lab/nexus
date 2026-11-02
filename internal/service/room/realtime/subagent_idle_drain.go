@@ -349,3 +349,13 @@ func (s *Service) waitRoomSubagentUsageRetry(attempt int) bool {
 	<-timer.C
 	return true
 }
+
+func (s *Service) stopSlotSubagents(slot *activeRoomSlot) {
+	slot.mutable.goal.StopSubagents(func(taskID string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := s.Runtime.StopTask(ctx, slot.RuntimeSessionKey, taskID); err != nil {
+			s.LoggerFor(ctx).Error("Stop child task failed", "task_id", taskID, "agent_round_id", slot.AgentRoundID, "err", err)
+		}
+	})
+}

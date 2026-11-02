@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	"net"
 	"net/http"
 	"os"
@@ -113,11 +114,13 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startControlIdentityInvalidations,
 		s.startConfigurationRecovery,
 		s.startSessionDeletionRecovery,
+		s.startRootAttemptRecovery,
+		s.startRoomPublicHandoffs,
+		s.startInputQueueRecovery,
 		s.startChannels,
 		s.startIMReplyRecovery,
 		s.startEcho,
 		s.startAutomation,
-		s.startRoomPublicHandoffs,
 		s.startRoomDirectedWakes,
 		s.startTeamExecutor,
 		s.startOrchestrationRecovery,
@@ -644,4 +647,20 @@ func (s *Server) startIMReplyRecovery(ctx context.Context) (func(), error) {
 		}
 	}
 	return func() {}, nil
+}
+
+func (s *Server) startRootAttemptRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Orchestration == nil {
+		return nil, nil
+	}
+	return nil, s.services.Orchestration.RecoverRootAttempts(runtimehost.DeferRecoveryDispatch(ctx))
+}
+func (s *Server) startInputQueueRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil {
+		return nil, nil
+	}
+	if err := s.services.DM.RecoverInputQueues(ctx); err != nil {
+		return nil, err
+	}
+	return nil, s.services.RoomRealtime.RecoverInputQueues(ctx)
 }

@@ -912,6 +912,11 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		}
 		handoff.Status = "source_finished"
 	}
+	if handoff.Status == "started" && handoff.WorkBinding != nil {
+		// Startup root reconciliation has retired the unknown Attempt and queued
+		// coordinator inspection. Never re-run its old responsibility binding.
+		return s.publicHandoffs.MarkTerminal(ownerUserID, conversationID, handoff.HandoffID, "interrupted")
+	}
 	if handoff.Status == "started" &&
 		(handoff.WorkBinding != nil || handoff.ReviewBinding != nil ||
 			protocol.NormalizeGoalCollaborationBinding(handoff.GoalCollaborationBinding) != nil) {

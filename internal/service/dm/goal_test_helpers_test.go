@@ -45,6 +45,8 @@ type fakeGoalContextProvider struct {
 	startedErr          error
 	settledCalls        int
 	retryReasons        []string
+	userStopRoundIDs    []string
+	userStopRevisions   []int64
 }
 
 func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (string, *protocol.Goal, error) {
@@ -102,6 +104,14 @@ func (p *fakeGoalContextProvider) RecordContinuationRuntimeFailure(_ context.Con
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))
 	p.failureRevisions = append(p.failureRevisions, firstTestRevision(revisions))
+	return nil, nil
+}
+
+func (p *fakeGoalContextProvider) RecordContinuationUserStop(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, revisions ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.userStopRoundIDs = append(p.userStopRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
+	p.userStopRevisions = append(p.userStopRevisions, firstTestRevision(revisions))
 	return nil, nil
 }
 

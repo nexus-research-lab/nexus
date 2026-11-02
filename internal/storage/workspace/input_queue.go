@@ -20,10 +20,12 @@ import (
 
 const (
 	inputQueueActionEnqueue  = "enqueue"
+	inputQueueActionAccepted = "accepted_alias"
 	inputQueueActionDelete   = "delete"
 	inputQueueActionDispatch = "dispatch"
 	inputQueueActionReorder  = "reorder"
 	inputQueueActionUpdate   = "update"
+	inputQueueActionRestore  = "restore"
 )
 
 // ErrInputQueueCapacity 表示目标队列已达安全上限。
@@ -323,6 +325,22 @@ func (s *InputQueueStore) EnqueueIdempotent(
 		}, nil
 	}
 
+	// Multiple terminal receipts can need the same coordinator inspection.
+	// Coalesce only pending host recovery, never user messages or completed receipts.
+	if item.Source == protocol.InputQueueSourceHostRecovery && item.RecoveryExecutionID != "" {
+		pending := replayInputQueueRows(location, rows)
+		for _, existing := range pending {
+			if existing.Source == item.Source && existing.RecoveryExecutionID == item.RecoveryExecutionID {
+				if err := s.appendActionLocked(location, map[string]any{
+					"action": inputQueueActionAccepted, "item": existing,
+					"client_message_id": clientMessageID, "timestamp": now,
+				}); err != nil {
+					return InputQueueEnqueueResult{}, err
+				}
+				return InputQueueEnqueueResult{Item: existing, Items: pending, Duplicate: true}, nil
+			}
+		}
+	}
 	if item.ID == "" {
 		item.ID = NewInputQueueID()
 	}
@@ -359,7 +377,8 @@ func findAcceptedInputQueueEnqueue(
 		return protocol.InputQueueItem{}, false
 	}
 	for _, row := range rows {
-		if stringFromAny(row["action"]) != inputQueueActionEnqueue ||
+		action := stringFromAny(row["action"])
+		if (action != inputQueueActionEnqueue && action != inputQueueActionAccepted) ||
 			stringFromAny(row["client_message_id"]) != clientMessageID {
 			continue
 		}
@@ -386,14 +405,15 @@ func MatchesInputQueueEnqueueIntent(existing protocol.InputQueueItem, candidate 
 }
 
 type inputQueueEnqueueIntent struct {
-	Content        string
-	Attachments    []protocol.ChatAttachment
-	DeliveryPolicy protocol.ChatDeliveryPolicy
-	TargetAgentIDs []string
-	Source         protocol.InputQueueSource
-	OwnerUserID    string
-	WorkBinding    *protocol.ExecutionWorkBinding
-	ReviewBinding  *protocol.ExecutionReviewBinding
+	RecoveryExecutionID string
+	Content             string
+	Attachments         []protocol.ChatAttachment
+	DeliveryPolicy      protocol.ChatDeliveryPolicy
+	TargetAgentIDs      []string
+	Source              protocol.InputQueueSource
+	OwnerUserID         string
+	WorkBinding         *protocol.ExecutionWorkBinding
+	ReviewBinding       *protocol.ExecutionReviewBinding
 }
 
 func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEnqueueIntent {
@@ -401,14 +421,15 @@ func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEn
 	targetAgentIDs = slices.Clone(targetAgentIDs)
 	slices.Sort(targetAgentIDs)
 	return inputQueueEnqueueIntent{
-		Content:        strings.TrimSpace(item.Content),
-		Attachments:    protocol.NormalizeChatAttachments(item.Attachments, ""),
-		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
-		TargetAgentIDs: targetAgentIDs,
-		Source:         protocol.NormalizeInputQueueSource(string(item.Source)),
-		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
-		WorkBinding:    normalizeExecutionWorkBinding(item.WorkBinding),
-		ReviewBinding:  normalizeExecutionReviewBinding(item.ReviewBinding),
+		RecoveryExecutionID: item.RecoveryExecutionID,
+		Content:             strings.TrimSpace(item.Content),
+		Attachments:         protocol.NormalizeChatAttachments(item.Attachments, ""),
+		DeliveryPolicy:      protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
+		TargetAgentIDs:      targetAgentIDs,
+		Source:              protocol.NormalizeInputQueueSource(string(item.Source)),
+		OwnerUserID:         strings.TrimSpace(item.OwnerUserID),
+		WorkBinding:         normalizeExecutionWorkBinding(item.WorkBinding),
+		ReviewBinding:       normalizeExecutionReviewBinding(item.ReviewBinding),
 	}
 }
 
@@ -649,7 +670,7 @@ func (s *InputQueueStore) DispatchFirstDispatchable(
 		return nil, nil, err
 	}
 	for _, item := range items {
-		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
+		if item.DispatchPaused || protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
 			continue
 		}
 		next, err := s.removeLocked(location, item.ID, inputQueueActionDispatch)
@@ -856,4 +877,51 @@ func (s *InputQueueStore) Reorder(
 		return nil, err
 	}
 	return s.snapshotLocked(location)
+}
+
+// RestoreDispatched restores a failed dispatch at its original position. It uses
+// the durable pre-dispatch ordering, including explicit user reorders, rather
+// than timestamps that may be identical for adjacent items.
+func (s *InputQueueStore) RestoreDispatched(location InputQueueLocation, item protocol.InputQueueItem) ([]protocol.InputQueueItem, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rows, err := s.inputQueueRowsLocked(location)
+	if err != nil {
+		return nil, err
+	}
+	replay := newInputQueueReplay(location)
+	var originalOrder []string
+	for _, row := range rows {
+		if stringFromAny(row["action"]) == inputQueueActionDispatch &&
+			(stringFromAny(row["item_id"]) == item.ID || slices.Contains(stringSliceFromAny(row["item_ids"]), item.ID)) {
+			originalOrder = slices.Clone(replay.order)
+		}
+		replay.apply(row)
+	}
+	if _, exists := replay.itemsByID[item.ID]; exists {
+		return replay.items(), nil
+	}
+	item = normalizeInputQueueItem(location, item, time.Now().UnixMilli())
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return nil, err
+	}
+	// Keep subsequent user ordering intact; anchor to the nearest surviving
+	// successor from the original queue. If none survives, retain the tail.
+	order := slices.Clone(replay.order)
+	insertion := len(order)
+	if index := slices.Index(originalOrder, item.ID); index >= 0 {
+		for _, successor := range originalOrder[index+1:] {
+			if position := slices.Index(order, successor); position >= 0 {
+				insertion = position
+				break
+			}
+		}
+	}
+	order = slices.Insert(order, insertion, item.ID)
+	row := map[string]any{"action": inputQueueActionRestore, "item": item, "ordered_ids": order, "timestamp": time.Now().UnixMilli()}
+	if err := s.appendActionLocked(location, row); err != nil {
+		return nil, err
+	}
+	replay.apply(row)
+	return replay.items(), nil
 }

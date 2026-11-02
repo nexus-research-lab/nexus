@@ -447,6 +447,12 @@ func (m *controlMessage) handleInterrupt() {
 			RoundID:    roundID,
 		})
 	}
+	// An exact target may finish while its stop request is in flight. Acknowledge
+	// that outcome without retrying against a successor or hiding other errors.
+	if errors.Is(err, dmsvc.ErrTargetDMRoundNotRunning) ||
+		errors.Is(err, roomrealtime.ErrTargetRoomRoundNotRunning) {
+		err = nil
+	}
 	if err != nil {
 		m.reportGatewayFailure("interrupt_error", err, map[string]any{
 			"type":              m.msgType,

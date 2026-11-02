@@ -67,3 +67,20 @@ func TestManagerShutdownWaitsForLateFactory(t *testing.T) {
 		t.Fatalf("late client survived: disconnects=%d", client.disconnectCalls)
 	}
 }
+
+func TestManagerShutdownSetsRecoveryReasonBeforeCancellation(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	reason := make(chan string, 1)
+	if err := manager.StartRound(t.Context(), "session", "round", func() {
+		reason <- manager.GetInterruptReason("session", "round")
+		manager.MarkRoundFinished("session", "round")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.Close(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got := <-reason; got != InterruptHostShutdown {
+		t.Fatalf("cancel reason=%q", got)
+	}
+}

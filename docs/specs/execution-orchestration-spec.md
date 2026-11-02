@@ -192,7 +192,18 @@ Goal lifecycle status and automatic continuation are separate. An active Goal st
 - A provider/runtime terminal failure after a round starts stores `last_error` and
   suppresses immediately. A failure before runtime registration stays on the durable
   launch receipt and retries with bounded backoff, without changing Goal lifecycle.
-- Any counted Goal mutation or explicit user activity clears the streak.
+- An explicit user stop of a Goal-bound DM round or Room slot settles that round's
+  launch receipt and suppresses immediately, whether the provider acknowledges the
+  stop or the host cancels locally. It is neither progress nor an empty recoverable
+  turn, applies to ordinary user rounds too, and is classified by the host stop
+  request rather than the result shape. Other host cancellations of a continuation
+  round (interrupt-policy input, member pause) only settle the receipt, so lease
+  recovery never replays a round the host already ended.
+- Suppressed Goals also expose server-derived
+  `continuation_suspension_reason=no_progress|runtime_failure|user_stopped`;
+  `runtime_failure` takes precedence while `last_error` is set.
+- Any counted Goal mutation, explicit user activity, or Resume clears the streak and
+  the user-stop marker.
 
 Progress counting:
 
@@ -778,6 +789,8 @@ The Execution directory exposes exactly 12 operations through round-scoped
 | `audit_execution_alignment` | Append an optional visible three-state objective-alignment gate to a current Execution; terminal Execution rejects it. It transitions no work, reroutes, retries, starts no Goal, completes no Execution, and never satisfies Goal `audit_objective_alignment`. |
 | `promote_execution_to_goal` | Bind a compatible transient Execution to a newly created durable Goal, preserving Plan and history without copying the Plan, under objective, state, configuration, authority, and exact binding fences. |
 
+For an active Execution, coordinator `next_actions` recommends `take_over_work` when an open current Assignment has a failed/interrupted latest root Attempt and no unreviewed Submission. The recommendation requires reconciliation of existing outputs and side effects before replacement; it does not automatically wake the coordinator or replay work.
+
 `review_work` outcomes:
 
 - Acceptance unlocks dependents. An accepted decision atomically wakes the durable
@@ -1122,3 +1135,11 @@ layer cannot enforce.
   - 命名图永不保存 Tool、运行身份、Assignment、Attempt、结果、Artifact、Submission、Review 或 Acceptance。
   - 系统内置模板由 `internal/service/workgraphworkflow` 版本化维护，只读，不写 owner 数据、不伪造来源 Execution。
   - 固定 `/workgraph` 只启用当前请求协作；内置模板与 owner 命名图每次复用都创建 fresh Execution/Plan/Work Item identity，不新增通用 WorkGraph MCP。
+
+### 宿主重启与 root Attempt 对账
+
+启动时先分页扫描 active managed Execution，再开放恢复队列派发。遗留 running root、以及 outbox 已 delivered 的 pending root 收口为 interrupted；尚未投递的 pending root 仍归 outbox。已成功的 Attempt、Submission 与 Acceptance 不变。DM 的物理轮次结束也收口其精确绑定的 root，不借用后继轮次身份。
+
+无 Goal 的 active Execution 通过持久化、幂等的宿主恢复输入唤醒原协调者，先核对已有产物、外部副作用和待审提交，再决定是否 take_over_work。绑定 Goal 的执行仍由原 Goal continuation authority 驱动，普通恢复输入不绕过 Goal 暂停、预算或停止。用户停止不自动唤醒协调者；恢复队列仍遵守持久暂停门禁。成员非用户失败或意外中断可触发协调检查，显式恢复成员参与也可请求检查其 interrupted Assignment。旧 Attempt 不原地复活。
+
+成员终态中的恢复需求与 Attempt 一同持久化；低频审计补偿终态写入和恢复队列受理之间的失败窗口。多个原因指向同一 Execution 时合并尚未消费的恢复输入，并保留各原因的受理回执。旧绑定队列项若已由权威 Attempt 状态确认终态，则消费旧项，避免阻塞协调恢复。

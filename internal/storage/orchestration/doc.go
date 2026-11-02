@@ -3,6 +3,7 @@
 // 与只读投影见 docs/specs/execution-graph-spec.md。本头部只列存储边界。
 //
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
+//   - root_recovery.go：按游标分页扫描 active managed Execution，供启动 root 对账与恢复投递审计。
 //   - repository.go / commands.go / errors.go：事务、command 幂等、CAS 与稳定错误。
 //   - execution*.go / goal_retarget.go / evidence.go：Execution 创建、转换、Goal
 //     predecessor/successor binding（含不改写既有 terminal predecessor 的幂等 successor reservation）、持久证据与 owner/session managed history 查询。

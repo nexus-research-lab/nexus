@@ -116,13 +116,13 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	for _, candidate := range batch {
 		itemIDs = append(itemIDs, candidate.Item.ID)
 	}
-	if _, err = s.InputQueue.DispatchMany(entry.Location, itemIDs); err != nil {
+	if err = s.InputQueue.ClaimDispatch(entry.Location, entry.Item.ID); err != nil {
 		s.LoggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
 	dispatchedItem := entry.Item
 	err = s.dispatchInputQueueItemLocked(
-		ctx,
+		runtimehost.WithQueueRecovery(ctx, entry.Item.DispatchPending),
 		sessionKey,
 		roomID,
 		conversationID,
@@ -130,6 +130,9 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		dispatchedItem,
 	)
 	if err == nil {
+		if _, commitErr := s.InputQueue.DispatchMany(entry.Location, itemIDs); commitErr != nil {
+			s.LoggerFor(ctx).Error("Queue acceptance receipt failed; retain claim for reconciliation", "item_id", entry.Item.ID, "err", commitErr)
+		}
 		// 先广播新 slot，再移除前端队列占位，保证协作状态无空窗。
 		if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
 			s.LoggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", snapshotErr)
@@ -153,9 +156,12 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		"err", err,
 	)
 	invalidCapabilityEnvelope := errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope)
+	if invalidCapabilityEnvelope {
+		_, _ = s.InputQueue.DispatchMany(entry.Location, itemIDs)
+	}
 	if !invalidCapabilityEnvelope {
 		for _, candidate := range batch {
-			if _, restoreErr := s.InputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
+			if _, restoreErr := s.InputQueue.RestoreDispatched(candidate.Location, candidate.Item); restoreErr != nil {
 				s.LoggerFor(ctx).Error("恢复 Room 待发送队列项失败",
 					"session_key", sessionKey,
 					"item_id", candidate.Item.ID,
@@ -258,6 +264,16 @@ func (s *Service) dispatchInputQueueItemLocked(
 	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
+	current, checkErr := s.RecoveryInputCurrent(ctx, item)
+	if checkErr != nil {
+		return checkErr
+	}
+	if !current {
+		if item.WorkBinding != nil {
+			return s.markRoomQueueHandoffTerminalStatus(conversationID, item, "interrupted")
+		}
+		return nil
+	}
 	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
 		return err
 	}
@@ -363,6 +379,8 @@ func (s *Service) dispatchClaimedInputQueueItemLocked(
 	}
 	// dispatchNextInputQueueItemLocked 已持有 conversation 派发闸门。
 	return s.handleChatLocked(ctx, ChatRequest{
+		Internal:                          item.Source == protocol.InputQueueSourceHostRecovery,
+		ExecutionID:                       item.RecoveryExecutionID,
 		SessionKey:                        sessionKey,
 		RoomID:                            roomID,
 		ConversationID:                    conversationID,
@@ -555,7 +573,7 @@ func (s *Service) canDispatchInputQueueItem(
 	members []protocol.MemberRecord,
 	item protocol.InputQueueItem,
 ) bool {
-	if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
+	if item.DispatchPaused || protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
 		return false
 	}
 	targetAgentIDs := inputQueueTargetAgentIDs(item)

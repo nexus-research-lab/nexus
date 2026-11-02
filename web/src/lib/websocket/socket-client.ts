@@ -1,3 +1,6 @@
+// INPUT: WebSocket configuration and connection lifecycle events.
+// OUTPUT: Bounded fast retries followed by low-frequency recovery probes.
+// POS: Transport recovery only; business mutations are never replayed.
 import { notifyAuthRequired } from "@/lib/api/core/http-auth";
 import type {
   WebSocketConfig,
@@ -228,8 +231,15 @@ export class WebSocketClient {
 
   private attemptReconnect(): void {
     if (this.reconnectAttempts >= this.config.maxReconnectAttempts) {
-      console.error("[WebSocketClient] Max reconnect attempts reached");
       this.setState("failed");
+      // Keep recovery alive when a backend restart outlasts the fast retries.
+      // Explicit disconnect and authentication failures never enter this path.
+      this.clearReconnectTimer();
+      this.reconnectTimerId = window.setTimeout(() => {
+        this.reconnectTimerId = null;
+        this.setState("reconnecting");
+        this.createConnection();
+      }, 30_000);
       return;
     }
 

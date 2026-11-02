@@ -228,6 +228,10 @@ func (s *Service) HandleInputQueue(
 			return protocol.InputQueueMutationResult{}, err
 		}
 		if !enqueueResult.Duplicate {
+			if err := s.setRoomInputQueuePaused(ctx, contextValue, targetAgentIDs, false); err != nil {
+				return protocol.InputQueueMutationResult{}, err
+			}
+
 			if broadcastErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); broadcastErr != nil {
 				s.LoggerFor(ctx).Warn("广播已受理的 Room input_queue 快照失败",
 					"session_key", sessionKey,
@@ -341,6 +345,21 @@ func (s *Service) guideInputQueueItem(
 	}
 	if protocol.NormalizeGoalCollaborationBinding(entry.Item.GoalCollaborationBinding) != nil {
 		return errors.New("Goal collaboration handoff must remain an independently attributable queued round")
+	}
+	if entry.Item.DispatchPaused {
+		if err := s.setRoomInputQueuePaused(ctx, contextValue, inputQueueTargetAgentIDs(entry.Item), false); err != nil {
+			return err
+		}
+		if _, err := s.InputQueue.Reorder(entry.Location, []string{entry.Item.ID}); err != nil {
+			return err
+		}
+		if _, err := s.InputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+			return err
+		}
+		s.StartSessionBackgroundTask(sessionKey, entry.Item.OwnerUserID, func(ctx context.Context) {
+			s.dispatchNextInputQueueItem(ctx, sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+		})
+		return nil
 	}
 	if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
 		if _, err = s.InputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
@@ -791,8 +810,14 @@ func (s *Service) roomInputQueueEntries(ctx context.Context, contextValue *proto
 	if err != nil {
 		return nil, err
 	}
+	pausedAgents := map[string]bool{}
 	entries := make([]roomInputQueueEntry, 0)
 	for _, location := range locations {
+		paused, pauseErr := s.InputQueue.DispatchPaused(location.Location)
+		if pauseErr != nil {
+			return nil, pauseErr
+		}
+		pausedAgents[location.AgentID] = paused
 		items, snapshotErr := s.InputQueue.Snapshot(location.Location)
 		if snapshotErr != nil {
 			return nil, snapshotErr
@@ -804,6 +829,7 @@ func (s *Service) roomInputQueueEntries(ctx context.Context, contextValue *proto
 			})
 		}
 	}
+	projectRoomQueuePause(entries, pausedAgents)
 	sort.SliceStable(entries, func(i int, j int) bool {
 		left := entries[i].Item
 		right := entries[j].Item

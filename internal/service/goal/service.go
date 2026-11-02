@@ -213,6 +213,7 @@ func sanitizeExternalGoalMetadata(metadata map[string]any) map[string]any {
 	metadata = cloneMap(metadata)
 	for _, key := range []string{
 		protocol.GoalMetadataOwnerUserID,
+		protocol.GoalMetadataContinuationStoppedByUser,
 		protocol.GoalMetadataSourceObjective,
 		protocol.GoalMetadataObjectiveNormalized,
 		protocol.GoalMetadataExecutionID,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -458,5 +459,102 @@ func TestServiceResumeUsageLimitedGoalCannotReopenSameContinuationEpoch(t *testi
 	}
 	if current.Status != protocol.GoalStatusUsageLimited || current.ContinuationCount != 1 {
 		t.Fatalf("current = %#v, want exhausted epoch unchanged", current)
+	}
+}
+
+func TestServiceUserStopSettlesReceiptAndSuspendsContinuation(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{
+		GoalEnabled: true, GoalAutoContinueEnabled: true, GoalMaxContinuationsPerRun: 5,
+	}, repo)
+	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
+	service.nowFn = func() time.Time { return now }
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:user-stop", Objective: "stop means stop",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := service.PlanContinuationForSession(ctx, created.SessionKey, "round-before")
+	if err != nil || plan == nil {
+		t.Fatalf("plan = %#v, %v", plan, err)
+	}
+	if _, err = service.ClaimContinuationPlan(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.MarkContinuationPlanStarted(ctx, *plan); err != nil {
+		t.Fatal(err)
+	}
+
+	stopped, err := service.RecordContinuationUserStop(ctx, created.ID, continuationRuntimeIdentity(plan.RoundID), created.ObjectiveRevision())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stopped.Status != protocol.GoalStatusActive ||
+		stopped.ContinuationState() != protocol.GoalContinuationStateSuspended ||
+		stopped.ContinuationSuspensionReason() != protocol.GoalContinuationSuspensionUserStopped {
+		t.Fatalf("after user stop = status %q state %q reason %q", stopped.Status, stopped.ContinuationState(), stopped.ContinuationSuspensionReason())
+	}
+	if open, err := repo.GetOpenGoalContinuation(ctx, created.ID, created.ObjectiveRevision()); err != nil || open != nil {
+		t.Fatalf("open receipt after user stop = %#v, %v; want settled", open, err)
+	}
+	if next, err := service.PlanContinuationForSession(ctx, created.SessionKey, plan.RoundID); err != nil || next != nil {
+		t.Fatalf("plan right after user stop = %#v, %v; want none", next, err)
+	}
+	now = now.Add(goalContinuationStartedLease + time.Minute)
+	if replay, err := service.PlanContinuationForSession(ctx, created.SessionKey, ""); err != nil || replay != nil {
+		t.Fatalf("plan after started lease expiry = %#v, %v; want no replay of the stopped round", replay, err)
+	}
+	if again, err := service.RecordContinuationUserStop(ctx, created.ID, continuationRuntimeIdentity(plan.RoundID), created.ObjectiveRevision()); err != nil || again.Version != stopped.Version {
+		t.Fatalf("repeated user stop = %#v, %v; want idempotent", again, err)
+	}
+
+	resumed, err := service.Resume(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resumed.ContinuationState() != protocol.GoalContinuationStateReady || continuationStoppedByUser(resumed.Metadata) {
+		t.Fatalf("after resume = state %q metadata %#v; want ready without stop marker", resumed.ContinuationState(), resumed.Metadata)
+	}
+	next, err := service.PlanContinuationForSession(ctx, created.SessionKey, "")
+	if err != nil || next == nil {
+		t.Fatalf("plan after resume = %#v, %v; want a fresh continuation", next, err)
+	}
+	if next.RoundID == plan.RoundID {
+		t.Fatalf("resume replayed the stopped round %q", plan.RoundID)
+	}
+}
+
+func TestServiceNoProgressSuspensionClearsStaleUserStopMarker(t *testing.T) {
+	repo := newDurableMemoryGoalRepository()
+	service := NewService(config.Config{
+		GoalEnabled: true, GoalAutoContinueEnabled: true, GoalMaxContinuationsPerRun: 10,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:stale-stop", Objective: "reason stays accurate",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordContinuationUserStop(ctx, created.ID, continuationRuntimeIdentity("round-stop"), created.ObjectiveRevision()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Resume(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	var current *protocol.Goal
+	for index := range goalContinuationSuppressionThreshold {
+		current, err = service.RecordContinuationProgress(ctx, created.ID, fmt.Sprintf("round-empty-%d", index), false, created.ObjectiveRevision())
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if current.ContinuationSuspensionReason() != protocol.GoalContinuationSuspensionNoProgress {
+		t.Fatalf("suspension reason = %q, want no_progress", current.ContinuationSuspensionReason())
 	}
 }

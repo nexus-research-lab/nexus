@@ -113,6 +113,7 @@ func materializeUnfinishedRounds(rows []protocol.Message, activeRoundIDs map[str
 				"message_id":      "result_" + roundID,
 				"timestamp":       timestamp,
 				"subtype":         "interrupted",
+				"terminal_reason": "interrupted_by_host",
 				"duration_ms":     0,
 				"duration_api_ms": 0,
 				"num_turns":       0,

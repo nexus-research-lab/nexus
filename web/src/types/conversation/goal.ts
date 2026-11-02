@@ -1,6 +1,6 @@
 /**
  * INPUT: Goal REST responses and server-derived Goal/Execution binding view.
- * OUTPUT: Consumed DM/Room Goal resource, server-derived continuation lifecycle and clear-gate types; no unused event mirror.
+ * OUTPUT: Consumed DM/Room Goal resource, server-derived continuation lifecycle/suspension reason and clear-gate types; no unused event mirror.
  * POS: Consumed Goal HTTP transport types; creation uses the control command, and metadata is never a WorkGraph binding source.
  */
 export type GoalStatus =
@@ -16,6 +16,11 @@ export type GoalContinuationState =
   | "ready"
   | "recovering"
   | "suspended";
+
+export type GoalContinuationSuspensionReason =
+  | "no_progress"
+  | "runtime_failure"
+  | "user_stopped";
 
 export interface GoalUsage {
   input_tokens?: number;
@@ -41,6 +46,7 @@ export interface Goal {
   continuation_count: number;
   empty_progress_count: number;
   continuation_state: GoalContinuationState;
+  continuation_suspension_reason?: GoalContinuationSuspensionReason;
   version: number;
   created_by?: string;
   created_at: string;

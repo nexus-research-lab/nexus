@@ -385,3 +385,7 @@ reply_route=private 时，目标 Agent 的 final reply 物化为一条新的 dir
 - 同一宿主 command identity 只允许一条 directed-message 事实和一个 wake schedule；完成态重试不得复活 wake。
 - 同一目标 Agent 的多个 handoff 必须由 claim、guide/queue 和 active-slot 检查串行化，不能并发启动第二个 slot。
 - 回复路线由消息记录携带，不能从自然语言或默认约定推断。
+
+### 退出期间的成员工作
+
+宿主关闭在取消 runtime 前记录 `host_shutdown`。该原因不将来源 public handoff 批量取消；启动对账对绑定 WorkGraph 的旧 started handoff 终结旧投递，由 Execution root 对账安排协调者核对并接续，不能直接重开已终态的旧 Attempt。普通 Goal/review handoff 继续遵循各自原有回执与恢复规则。用户停止与成员参与暂停不得被解释成宿主退出。

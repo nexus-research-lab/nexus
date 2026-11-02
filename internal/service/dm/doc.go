@@ -4,6 +4,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
+//   - recovery.go：启动队列扫描、非 Goal Execution 协调恢复输入与精确 DM root Attempt 收口。
 //   - wiring.go：RequireWiring 在启动时校验生产必需依赖，业务方法不再为缺失依赖降级。
 //   - Service 嵌入 runtimehost.Host：Provider/admission/队列信任/用量/额度/执行上下文/MCP 工厂等共用依赖、注入方法与共用阶段只在 runtimehost 实现一次。
 //   - im_delivery_reply.go：IM 反馈持久幂等入队、派发前复核与一次领取；反馈新轮次不继承旧轮次权限。

@@ -3,6 +3,7 @@
 - `socket-policy.ts` 定义有效配置、共享通道身份、离线队列白名单、带等量抖动的退避和僵尸连接判定。
 - `socket-heartbeat.ts` 独占心跳 interval 与 timeout；连接客户端不得直接维护心跳计时器。
 - `socket-client.ts` 只维护单条连接、重连生命周期和待发送控制消息。
+- 快速重连耗尽后每 30 秒探测一次；主动断开、禁用重连和认证失败不探测，业务写请求不自动重放。
 - 心跳超时直接摘除旧连接回调并进入既有有界退避，不能等待半开连接的 close 事件；禁用重连仍保持失败态，不自动发送业务消息。
 - `session-binding-leases.ts` 负责共享物理连接上的 Session 逻辑租约、最后消费者解绑与重连重放。
 - `request-transport-leases.ts` 按 exact `client_request_id` 持有已发送请求的原 Session binding，在 React subscriber 全部卸载后继续收取 raw ACK/error；重复 acquire 不获得 release 权限，终态、硬超时或显式取消精确释放。

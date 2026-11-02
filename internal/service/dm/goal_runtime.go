@@ -1,5 +1,5 @@
 // INPUT: DM round 的模型结果、assistant/child 快照、usage 与 objective revision。
-// OUTPUT: revision 安全的 Goal usage、round-start child 回补、进展和终态回调。
+// OUTPUT: revision 安全的 Goal usage、round-start child 回补、进展和终态回调；用户停止与宿主中断按停止请求分类并结算续跑回执。
 // POS: DM runtime 结果到 Goal 状态机的结算投影层。
 package dm
 
@@ -254,6 +254,13 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.IDForUsage) == "" {
 		return
 	}
+	// A provider that honours the stop still returns a normal terminal result.
+	// Classify it by the host interrupt request, not by the result shape, so a
+	// user stop is never counted as progress or an empty recoverable turn.
+	if r.userStoppedRound() {
+		r.recordGoalUserStop()
+		return
+	}
 	if strings.TrimSpace(r.inputOptions.Purpose) == "goal_continuation" && result.TerminalStatus == "error" {
 		assistantText := ""
 		if r.mapper != nil {
@@ -298,6 +305,38 @@ func (r *roundRunner) recordGoalContinuationProgress(result exec.RoundExecutionR
 		_, err := r.service.goals.RecordContinuationProgress(context.Background(), r.IDForUsage, r.roundID, progressed, r.currentGoalObjectiveRevision())
 		return err
 	}, "progressed", progressed)
+}
+
+// recordGoalRoundInterrupted closes the Goal side of a host-cancelled round.
+// A user stop suspends automatic continuation; any other cancellation of a
+// continuation round (for example a new message with the interrupt policy)
+// only settles the launch receipt so lease recovery cannot replay it.
+func (r *roundRunner) recordGoalRoundInterrupted(interruptReason string) {
+	if r.service.goals == nil || r.ignoreGoalRuntime() || strings.TrimSpace(r.IDForUsage) == "" {
+		return
+	}
+	if strings.TrimSpace(interruptReason) == messageutil.InterruptWithoutMessage {
+		r.recordGoalUserStop()
+		return
+	}
+	if strings.TrimSpace(r.inputOptions.Purpose) != "goal_continuation" {
+		return
+	}
+	r.recordGoalMutation("结算已中断 Goal 续跑回执失败", func() error {
+		return runtimehost.SettleGoalContinuationAfterRuntime(context.Background(), r.service.goals, r.IDForUsage, r.roundID, r.currentGoalObjectiveRevision())
+	})
+}
+
+func (r *roundRunner) userStoppedRound() bool {
+	return r.service.Runtime != nil &&
+		r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID) == messageutil.InterruptWithoutMessage
+}
+
+func (r *roundRunner) recordGoalUserStop() {
+	r.recordGoalMutation("记录用户停止 Goal 续跑失败", func() error {
+		_, err := r.service.goals.RecordContinuationUserStop(context.Background(), r.IDForUsage, goalsvc.ContinuationRuntimeIdentity{ReceiptRoundID: r.roundID, AuditRoundID: r.roundID}, r.currentGoalObjectiveRevision())
+		return err
+	})
 }
 
 func (r *roundRunner) currentGoalObjectiveRevision() int64 {

@@ -10,6 +10,9 @@ import (
 	"sync"
 )
 
+// InterruptHostShutdown distinguishes recoverable process exit from user stop.
+const InterruptHostShutdown = "host_shutdown"
+
 // ErrRuntimeManagerClosed 表示宿主已经开始退出，不再接受执行或后台任务。
 var ErrRuntimeManagerClosed = errors.New("runtime manager is shutting down")
 
@@ -24,6 +27,11 @@ func (m *Manager) Close(ctx context.Context) error {
 		m.shutdownDone = make(chan struct{})
 		var cancellations []context.CancelFunc
 		for _, state := range m.sessions {
+			for _, round := range state.Rounds.items {
+				if round.running && round.interruption == "" {
+					round.interruption = InterruptHostShutdown
+				}
+			}
 			cancellations = append(cancellations, state.Rounds.cancelFuncs()...)
 			cancellations = append(cancellations, copyBackgroundCancels(state.BackgroundTasks)...)
 		}

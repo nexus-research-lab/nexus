@@ -28,7 +28,7 @@
 //     口径换算（含矛盾 provider 零 total 的 breakdown 回退）、跨 round 的 nxs child task 累计量去重，以及 runtime 权威上下文快照
 //     的归一化与按 Session/Agent 热缓存；跨进程恢复由 Session 服务负责。
 //   - lifecycle.go：session 关闭栅栏、保留失败结果与跨 core/exec 共用的 round 中断宽限。
-//   - shutdown.go：宿主退出时永久关闭 Manager 准入，取消 round/后台任务，先等待在途启动和回执写入，再并行关闭全部 Session；重复调用等待同一结果，调用者超时不关闭仍有写入的数据库。
+//   - shutdown.go：宿主退出时永久关闭 Manager 准入，标记 host_shutdown 后取消 round/后台任务，先等待在途启动和回执写入，再并行关闭全部 Session；重复调用等待同一结果，调用者超时不关闭仍有写入的数据库。
 //   - process_policy.go：进程策略指纹，显式纳入不进入普通 settings JSON 的文件/搜索/本地媒体/远程图片网络/Skill/设置写入能力与资源要求。
 //   - sandbox_policy.go：桌面托管沙箱跨 Full Access 边界时要求退休旧进程，不通过权限热更新伪装生效。
 //   - sandbox_admission.go：以单一需求表核对桌面 nxs 合同（含 MCP 严格配置与 Windows 资源策略）并在 Connect 后确认 Bridge 能力，缺失即关闭新进程；不持久化，也不替代 OS 隔离证据。

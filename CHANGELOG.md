@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- 修复 DM/Room 断点恢复：派发 claim 保留队列原位、停止门禁跨重启保留、启动扫描无需浏览器绑定；恢复 WorkGraph 根 Attempt 与非 Goal 协调推进，用户停止同步停止本轮子任务，未知副作用先对账。
+
+- Preserve queue order after dispatch failure, acknowledge already-ended exact stop targets, keep low-frequency WebSocket recovery, explain unknown outcomes of incomplete historical turns, and suggest coordinator takeover for failed or interrupted WorkGraph root attempts.
+
+- 停止正在自动续跑的 Goal 后，它不再立刻或在约 15 分钟后自行重新运行：DM 与 Room 的停止（包括 provider 未响应时的本地取消）都会结算本轮续跑并暂停自动续跑，直到用户点击“继续”；Goal 状态条会说明是“你停止了上一轮”。新消息打断、暂停成员参与等其他中断也不会再让已结束的续跑轮次被重放。
 - Windows 开发启动器增加独占端口绑定检查，避免系统监听端口枚举漏报时误启动服务。
 
 - 修复 Windows 桌面沙箱会话启动时报 “project: read commands directory failed … Access is denied”：项目命令、智能体与设置改由 nxs 的只读文件 helper 读取，沙箱内命令仍不能写入 `.nexus/commands` 等自动加载目录；设置文件读不到时直接报错，不再静默跳过其中的拒绝规则。

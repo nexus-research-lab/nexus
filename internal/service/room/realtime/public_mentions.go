@@ -1072,13 +1072,21 @@ func (s *Service) queueBusyPublicMentionWakes(
 	for _, agentID := range pausedAgentIDs {
 		pausedTargets[agentID] = struct{}{}
 	}
-	if len(busySlots) == 0 && len(pausedTargets) == 0 {
-		return wakes, nil
-	}
-
 	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, parentRound.Context)
 	if err != nil {
 		return nil, err
+	}
+	for agentID, entry := range locationsByAgentID {
+		paused, err := s.InputQueue.DispatchPaused(entry.Location)
+		if err != nil {
+			return nil, err
+		}
+		if paused {
+			pausedTargets[agentID] = struct{}{}
+		}
+	}
+	if len(busySlots) == 0 && len(pausedTargets) == 0 {
+		return wakes, nil
 	}
 	ready := make([]publicMentionWake, 0, len(wakes))
 	queued := false

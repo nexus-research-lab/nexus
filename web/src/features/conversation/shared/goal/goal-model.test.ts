@@ -36,6 +36,15 @@ describe("Goal presentation policy", () => {
     expect(status({ ...ACTIVE_GOAL, status: "paused", continuation_state: "suspended" }).statusLabel).toBe("Paused");
     expect(status({ ...ACTIVE_GOAL, empty_progress_count: 999 }).attentionMessage).toBeNull();
   });
+  it("explains a user-stopped suspension without blaming missing progress", () => {
+    const noProgress = status({ ...ACTIVE_GOAL, continuation_state: "suspended", continuation_suspension_reason: "no_progress" });
+    const userStopped = status({ ...ACTIVE_GOAL, continuation_state: "suspended", continuation_suspension_reason: "user_stopped" });
+    expect(userStopped.statusLabel).toBe("Auto-continue stopped");
+    expect(userStopped.attentionMessage).toContain("You stopped the last round");
+    expect(userStopped.attentionMessage).not.toContain("no qualifying progress");
+    expect(noProgress.attentionMessage).toContain("no qualifying progress");
+    expect(userStopped.actions).toEqual(noProgress.actions);
+  });
   it.each(["future", "constructor", "__proto__"])("handles unknown wire states %s conservatively", (state) => {
     const projected = status({ ...ACTIVE_GOAL, status: state as Goal["status"] });
     expect(projected.statusLabel).toBe("Status unknown");

@@ -317,10 +317,17 @@ func (s *Service) RunRecoveryCoordinator(
 	if batchSize <= 0 {
 		return errors.New("orchestration recovery coordinator requires positive batch size")
 	}
+	rootRecoveryCursor := ""
 	return s.recoveryLoop.Run(ctx, func(
 		runCtx context.Context,
 		now time.Time,
 	) (duework.Result, error) {
+		if err := s.reconcileRootRecoveryInputs(runCtx, &rootRecoveryCursor, batchSize); err != nil {
+			if observer.OnError != nil {
+				observer.OnError("root_recovery", err)
+			}
+			return duework.Result{}, err
+		}
 		result, err := s.reconcileRecoveries(runCtx, now, batchSize, observer)
 		if err != nil && observer.OnError != nil {
 			observer.OnError("orchestration_recovery", err)

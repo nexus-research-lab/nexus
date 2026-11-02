@@ -655,3 +655,30 @@ func TestBoundedDirectedInputRemainsAcceptedAfterDispatch(t *testing.T) {
 		t.Fatalf("恢复重放了已派发输入: %+v %v %v", items, inserted, err)
 	}
 }
+
+func TestRestoreDispatchedPreservesExplicitOrderAcrossRestart(t *testing.T) {
+	location := InputQueueLocation{WorkspacePath: t.TempDir(), SessionKey: "agent:a:ws:dm:restore", Scope: protocol.InputQueueScopeDM}
+	store := NewInputQueueStore("")
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := store.Enqueue(location, protocol.InputQueueItem{ID: id, Content: id, CreatedAt: 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.Reorder(location, []string{"c", "a", "b"}); err != nil {
+		t.Fatal(err)
+	}
+	item, _, err := store.DispatchFirstDispatchable(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restarted := NewInputQueueStore("")
+	for range 2 {
+		items, err := restarted.RestoreDispatched(location, *item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(items) != 3 || items[0].ID != "c" || items[1].ID != "a" || items[2].ID != "b" || items[0].QueueOrder != item.QueueOrder {
+			t.Fatalf("restored order = %#v", items)
+		}
+	}
+}

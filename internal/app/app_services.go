@@ -337,6 +337,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetTitleGenerator(titleService)
 	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
 	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
+	orchestrationService.SetExecutionRecoveryConsumer(appexecution.RecoveryConsumer{DM: dmService, Room: roomRealtime})
 	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)
 	orchestrationService.SetExecutionCancellationConsumer(
 		appexecution.NewCancellationConsumer(roomRealtime, runtimeManager),

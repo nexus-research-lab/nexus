@@ -76,6 +76,8 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 	case map[string]any:
 		return protocol.InputQueueItem{
 			ID:                       stringFromAny(typed["id"]),
+			DispatchPending:          boolValueAny(typed["dispatch_pending"]),
+			RecoveryExecutionID:      stringFromAny(typed["recovery_execution_id"]),
 			Scope:                    protocol.InputQueueScope(stringFromAny(typed["scope"])),
 			SessionKey:               stringFromAny(typed["session_key"]),
 			RoomID:                   stringFromAny(typed["room_id"]),

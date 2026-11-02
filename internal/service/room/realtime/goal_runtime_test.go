@@ -686,6 +686,7 @@ type fakeRoomGoalContextProvider struct {
 	beforeStarted          func()
 	settledCalls           int
 	settledRoundIDs        []string
+	userStopRoundIDs       []string
 	retryReasons           []string
 	releaseCalls           int
 	onPlan                 func()
@@ -756,6 +757,15 @@ func (p *fakeRoomGoalContextProvider) RecordContinuationRuntimeFailure(_ context
 	defer p.mu.Unlock()
 	p.failures = append(p.failures, strings.TrimSpace(reason))
 	p.failureRoundIDs = append(p.failureRoundIDs, strings.TrimSpace(identity.AuditRoundID))
+	p.settledCalls++
+	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
+	return nil, nil
+}
+
+func (p *fakeRoomGoalContextProvider) RecordContinuationUserStop(_ context.Context, _ string, identity goalsvc.ContinuationRuntimeIdentity, _ ...int64) (*protocol.Goal, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.userStopRoundIDs = append(p.userStopRoundIDs, strings.TrimSpace(identity.AuditRoundID))
 	p.settledCalls++
 	p.settledRoundIDs = append(p.settledRoundIDs, strings.TrimSpace(identity.ReceiptRoundID))
 	return nil, nil
@@ -1050,6 +1060,10 @@ func (p *cancellationGoalProvider) RecordContinuationRuntimeProgress(context.Con
 }
 
 func (p *cancellationGoalProvider) RecordContinuationRuntimeFailure(context.Context, string, goalsvc.ContinuationRuntimeIdentity, string, ...int64) (*protocol.Goal, error) {
+	return p.current, nil
+}
+
+func (p *cancellationGoalProvider) RecordContinuationUserStop(context.Context, string, goalsvc.ContinuationRuntimeIdentity, ...int64) (*protocol.Goal, error) {
 	return p.current, nil
 }
 

@@ -98,6 +98,9 @@ func (r *roundRunner) run(ctx context.Context) {
 	stopTyping := r.startExternalReplyTyping(ownerCtx)
 	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
+	if r.userStoppedRound() {
+		r.stopRoundSubagents()
+	}
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
 			r.finishInterrupted(result, r.service.Runtime.GetInterruptReason(r.sessionKey, r.roundID))
@@ -125,6 +128,14 @@ func (r *roundRunner) run(ctx context.Context) {
 		"result_subtype", result.ResultSubtype,
 		"error_message", strings.TrimSpace(result.ErrorMessage),
 	)
+	workStatus := protocol.WorkAttemptStatusSucceeded
+	if result.TerminalStatus == "error" {
+		workStatus = protocol.WorkAttemptStatusFailed
+	}
+	if result.TerminalStatus == "interrupted" {
+		workStatus = protocol.WorkAttemptStatusInterrupted
+	}
+	r.finishWorkAttempts(workStatus, result.ErrorMessage)
 	finalAssistant := r.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
 		r.deliverExternalAssistantReply(ownerCtx, finalAssistant)

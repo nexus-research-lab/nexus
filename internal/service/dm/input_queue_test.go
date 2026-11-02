@@ -483,11 +483,16 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 			t.Errorf("清理运行中 round 失败: %v", err)
 			return
 		}
-		collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
-			return event.EventType == protocol.EventTypeError &&
-				event.Data["message"] == "待发送消息派发失败"
-		})
-		// 错误事件在队列恢复落盘后发出；再穿过派发锁，确保清理临时目录前协程已经退出。
+		// Stopping retains the invalid input without attempting another dispatch.
+		_, location, err := service.resolveInputQueueLocation(context.Background(), sessionKey, "")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		paused, err := service.InputQueue.DispatchPaused(location)
+		if err != nil || !paused {
+			t.Errorf("queue stop gate = %v, %v", paused, err)
+		}
 		service.inputQueueDispatchMu.Lock()
 		service.inputQueueDispatchMu.Unlock()
 	})

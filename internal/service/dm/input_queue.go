@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -82,6 +83,15 @@ func (s *Service) HandleInputQueue(
 			request.TrustedConfigurationContext,
 		); err != nil {
 			return protocol.InputQueueMutationResult{}, err
+		}
+		if !enqueueResult.Duplicate {
+			if err := s.InputQueue.SetDispatchPaused(location, false); err != nil {
+				return protocol.InputQueueMutationResult{}, err
+			}
+			enqueueResult.Items, err = s.InputQueue.Snapshot(location)
+			if err != nil {
+				return protocol.InputQueueMutationResult{}, err
+			}
 		}
 		if _, pending := inputQueueItemByID(enqueueResult.Items, enqueueResult.Item.ID); pending {
 			s.broadcastInputQueueSnapshot(ctx, sessionKey, enqueueResult.Items)
@@ -177,6 +187,21 @@ func (s *Service) guideInputQueueItem(
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 		return nil
 	}
+	if selected.DispatchPaused {
+		if err := s.InputQueue.SetDispatchPaused(location, false); err != nil {
+			return err
+		}
+		if _, err := s.InputQueue.Reorder(location, []string{selected.ID}); err != nil {
+			return err
+		}
+		if _, err := s.InputQueue.UpdateDeliveryPolicy(location, selected.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
+			return err
+		}
+		s.StartSessionBackgroundTask(sessionKey, selected.OwnerUserID, func(ctx context.Context) {
+			s.dispatchNextInputQueueItemAtLocation(ctx, sessionKey, selected.AgentID, location)
+		})
+		return nil
+	}
 	if selected.Source == protocol.InputQueueSourceIMDeliveryReply {
 		return errors.New("IM 反馈必须按原会话队列独立处理")
 	}
@@ -241,7 +266,7 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.Runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
 		return false
 	}
-	item, items, err := s.InputQueue.DispatchFirstDispatchable(location)
+	item, items, err := s.InputQueue.ClaimFirstDispatchable(location)
 	if err != nil {
 		s.LoggerFor(ctx).Error("弹出 DM 待发送队列失败", "session_key", normalizedSessionKey, "err", err)
 		return false
@@ -250,8 +275,11 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		return false
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
-	dispatchCtx := contextWithQueueOwner(ctx, item.OwnerUserID)
+	dispatchCtx := runtimehost.WithQueueRecovery(contextWithQueueOwner(ctx, item.OwnerUserID), item.DispatchPending)
 	if item.Source == protocol.InputQueueSourceIMDeliveryReply {
+		if _, err := s.InputQueue.Dispatch(location, item.ID); err != nil {
+			return false
+		}
 		err := s.dispatchIMDeliveryReply(dispatchCtx, normalizedSessionKey, *item)
 		if err != nil {
 			s.LoggerFor(ctx).Error("IM feedback dispatch requires attention", "reply_id", item.ID, "err", err)
@@ -265,6 +293,20 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		return err == nil
 	}
 
+	current, checkErr := s.RecoveryInputCurrent(dispatchCtx, *item)
+	if checkErr != nil {
+		s.restoreFailedInputQueueDispatch(ctx, normalizedSessionKey, location, *item, checkErr)
+		return false
+	}
+	if !current {
+		if _, err := s.InputQueue.Dispatch(location, item.ID); err != nil {
+			return false
+		}
+		s.StartSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItemAtLocation(taskCtx, normalizedSessionKey, agentID, location)
+		})
+		return true
+	}
 	claim, trustedQueue, err := s.claimTrustedQueueAdmission(
 		dispatchCtx,
 		normalizedSessionKey,
@@ -286,6 +328,8 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		)
 	}
 	err = s.handleChat(dispatchCtx, Request{
+		Internal:                          item.Source == protocol.InputQueueSourceHostRecovery,
+		ExecutionID:                       item.RecoveryExecutionID,
 		SessionKey:                        normalizedSessionKey,
 		AgentID:                           textutil.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 		Content:                           item.Content,
@@ -300,6 +344,11 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		trustedQueuedConfigurationContext: trustedQueue,
 	}, chatExecutionInline)
 	if err == nil {
+		if remaining, commitErr := s.InputQueue.Dispatch(location, item.ID); commitErr != nil {
+			s.LoggerFor(ctx).Error("Queue acceptance receipt failed; retain claim for reconciliation", "item_id", item.ID, "err", commitErr)
+		} else {
+			s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, remaining)
+		}
 		if trustedQueue {
 			if consumeErr := s.QueueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
 				s.LoggerFor(ctx).Error("收口 DM queue configuration admission 失败",
@@ -346,7 +395,7 @@ func (s *Service) restoreFailedInputQueueDispatch(
 		"item_id", item.ID,
 		"err", dispatchErr,
 	)
-	if restored, restoreErr := s.InputQueue.Enqueue(location, item); restoreErr != nil {
+	if restored, restoreErr := s.InputQueue.RestoreDispatched(location, item); restoreErr != nil {
 		s.LoggerFor(ctx).Error("恢复 DM 待发送队列项失败",
 			"session_key", normalizedSessionKey,
 			"item_id", item.ID,

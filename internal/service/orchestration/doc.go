@@ -5,6 +5,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员地图：
+//   - root_recovery.go：启动 root 孤儿收口、DM 精确终态、成员恢复和非 Goal 协调恢复；后台审计从 terminal receipt 补偿队列写入失败。
 //   - service.go / errors.go / work_binding.go / coordination_round.go：装配、actor、
 //     Work/Review/Coordination capability 与 optimistic revision fence；终态历史读取不改本轮协调权限。
 //   - execution*.go / goal_retarget.go / plan_validation.go：Execution 生命周期、
@@ -13,7 +14,7 @@
 //     document、非权威 sealed proposal、跨 round exact binding、原子 materialization 与重启恢复。
 //   - command_plan.go / command_assignment.go / command_submission.go / command_review.go /
 //     command_control.go：按计划、分配与接管、提交、审核、阻塞与恢复及完成聚合命令和专用输入；
-//     commands.go 只保留共享授权、引用解析与结果投影，不改变原子命令和事务边界。
+//     commands.go 保留共享授权、引用解析、失败根 Attempt 的协调者接管建议与结果投影，不改变原子命令和事务边界。
 //   - runtimehook/：DM 与 Room 共用的 SDK hook 及运行观察适配；宿主提供可信 actor，适配器统一观察超时和失败日志。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go /
 //     room_attempt_terminal.go：Room work、review 和 physical cancellation outbox，

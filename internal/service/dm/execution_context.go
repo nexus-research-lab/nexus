@@ -6,11 +6,12 @@ package dm
 import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInputBlock {
 	if e.request.Internal || e.request.RewriteTargetRoundID != "" {
-		return nil
+		return runtimehost.QueueRecoveryInputs(e.ctx)
 	}
 	history, err := e.service.History.ReadMessages(e.agent.WorkspacePath, e.session, nil)
 	if err != nil {
@@ -23,7 +24,7 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 		return nil
 	}
 	// AgentHistoryStore 已按当前 DM Agent 隔离，因此不再要求历史行携带 agent_id。
-	inputs := conversationsvc.AutomationDeliveryContextualInputs(history, e.request.RoundID)
+	inputs := append(runtimehost.QueueRecoveryInputs(e.ctx), conversationsvc.AutomationDeliveryContextualInputs(history, e.request.RoundID)...)
 	if e.service.imReplies != nil {
 		deliveries, readErr := e.service.imReplies.List(e.ctx, e.agent.OwnerUserID, e.sessionKey, "", 0, 5)
 		if readErr == nil {
@@ -31,7 +32,7 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 		}
 	}
 
-	return append(inputs, conversationsvc.RoundRecoveryContextualInputs(history, "")...)
+	return append(inputs, conversationsvc.RoundRecoveryContextualInputs(history, "", e.request.RoundID)...)
 }
 
 func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {

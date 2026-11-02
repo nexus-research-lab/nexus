@@ -6,6 +6,7 @@ package orchestration
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -17,12 +18,14 @@ const roomAttemptTerminalMutationAttempts = 3
 
 // RoomAttemptTerminalInput 只接受 Room host 从 slot 观测到的物理终态。
 type RoomAttemptTerminalInput struct {
-	Binding           protocol.ExecutionWorkBinding
-	Status            protocol.WorkAttemptStatus
-	FailureReason     string
-	RuntimeSessionKey string
-	RoomSessionID     string
-	SDKSessionID      string
+	// RecoverInterrupted is set only for unexpected runtime interruption, never user stop or shutdown.
+	RecoverInterrupted bool
+	Binding            protocol.ExecutionWorkBinding
+	Status             protocol.WorkAttemptStatus
+	FailureReason      string
+	RuntimeSessionKey  string
+	RoomSessionID      string
+	SDKSessionID       string
 }
 
 // FinishRoomAttempt 终结 structured Room WorkBinding 的 root Attempt。正常 finished
@@ -87,6 +90,13 @@ func (s *Service) FinishRoomAttempt(
 		}
 
 		terminal := *attempt
+		terminal.Metadata = maps.Clone(attempt.Metadata)
+		if input.Status == protocol.WorkAttemptStatusFailed || input.RecoverInterrupted {
+			if terminal.Metadata == nil {
+				terminal.Metadata = map[string]any{}
+			}
+			terminal.Metadata["host_recovery_required"] = true
+		}
 		terminal.Status = input.Status
 		terminal.FailureReason = strings.TrimSpace(input.FailureReason)
 		switch input.Status {
@@ -145,7 +155,11 @@ func (s *Service) FinishRoomAttempt(
 			continue
 		}
 		if finishErr == nil {
+			s.WakeOrchestrationRecovery()
 			s.invalidateSnapshot(ctx, updated)
+			if (input.Status == protocol.WorkAttemptStatusFailed || input.RecoverInterrupted && input.Status == protocol.WorkAttemptStatusInterrupted) && actor.AgentID != updated.Execution.CoordinatorAgentID {
+				return s.queueRootRecovery(ctx, updated, "failed:"+binding.AttemptID)
+			}
 		}
 		return finishErr
 	}

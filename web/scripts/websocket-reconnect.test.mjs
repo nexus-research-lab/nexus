@@ -217,3 +217,56 @@ test("home directory uses shared event-driven refresh without fixed polling", as
   assert.match(notificationSocket, /if \(hasConnectedRef\.current\)/);
   assert.match(notificationSocket, /notifyRoomDirectoryUpdated\(\)/);
 });
+
+test("exhausted retries keep probing until recovery and disconnect cancels probes", async () => {
+  const originalWebSocket = globalThis.WebSocket;
+  const originalWindow = globalThis.window;
+  const sockets = [];
+  const timers = new Map();
+  let nextTimer = 0;
+  class FakeWebSocket {
+    static OPEN = 1;
+    constructor() { sockets.push(this); }
+    close() {}
+    send() {}
+  }
+  globalThis.WebSocket = FakeWebSocket;
+  globalThis.window = {
+    dispatchEvent() {},
+    setTimeout(callback, delay) { timers.set(++nextTimer, { callback, delay }); return nextTimer; },
+    clearTimeout(id) { timers.delete(id); },
+  };
+  try {
+    const { WebSocketClient } = await server.ssrLoadModule("/src/lib/websocket/socket-client.ts");
+    const states = [];
+    const client = new WebSocketClient({ url: "ws://localhost/test", heartbeatInterval: 0, maxReconnectAttempts: 1, reconnectDelay: 1 }, { onStateChange: state => states.push(state) });
+    const fire = () => {
+      const [id, timer] = timers.entries().next().value;
+      timers.delete(id);
+      timer.callback();
+    };
+    client.connect();
+    sockets.at(-1).onclose({ code: 1006 });
+    fire();
+    sockets.at(-1).onclose({ code: 1006 });
+    assert.equal(states.at(-1), "failed");
+    assert.equal(timers.values().next().value.delay, 30_000);
+    fire();
+    sockets.at(-1).onclose({ code: 1006 });
+    assert.equal(timers.values().next().value.delay, 30_000);
+    fire();
+    sockets.at(-1).readyState = FakeWebSocket.OPEN;
+    sockets.at(-1).onopen();
+    assert.equal(states.at(-1), "connected");
+    sockets.at(-1).onclose({ code: 1006 });
+    client.disconnect();
+    assert.equal(timers.size, 0);
+    client.connect();
+    sockets.at(-1).onclose({ code: 4401 });
+    assert.equal(timers.size, 0, "authentication failures must not probe");
+    client.disconnect();
+  } finally {
+    globalThis.WebSocket = originalWebSocket;
+    globalThis.window = originalWindow;
+  }
+});

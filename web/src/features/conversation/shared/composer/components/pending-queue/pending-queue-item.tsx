@@ -54,10 +54,10 @@ export function PendingQueueItem({
   const moveAnchorRef = useRef<HTMLButtonElement>(null);
   const canReorder = !isActionRunning && (canMoveUp || canMoveDown);
   const [isMoveMenuOpen, setMoveMenuOpen] = useResettableState(false, canReorder);
-  const guideAriaLabel = projection.isGuidanceWaiting
+  const guideAriaLabel = item.dispatch_paused ? t("composer.resume_queued") : projection.isGuidanceWaiting
     ? t("composer.cancel_guidance")
     : t("composer.mark_guidance");
-  const guideActionLabel = projection.isGuidanceWaiting
+  const guideActionLabel = item.dispatch_paused ? t("composer.resume_queued") : projection.isGuidanceWaiting
     ? t("composer.cancel_guide_action")
     : t("composer.guide_action");
 

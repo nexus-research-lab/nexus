@@ -322,6 +322,22 @@ func nextActions(
 		})
 	}
 	for _, assignment := range snapshot.Assignments {
+		if isCoordinator && snapshot.Execution.Status == protocol.ExecutionStatusActive &&
+			currentAssignment(assignment) && latestUnreviewedSubmission(snapshot, assignment.WorkItemID) == nil {
+			state := findStateByWorkID(snapshot, assignment.WorkItemID)
+			latest := latestRootAttemptForAssignment(snapshot, assignment.ID)
+			if state != nil && state.CurrentSpecID == assignment.SpecID &&
+				state.Status == protocol.WorkItemStatusOpen && latest != nil &&
+				(latest.Status == protocol.WorkAttemptStatusFailed || latest.Status == protocol.WorkAttemptStatusInterrupted) {
+				work := logicalWork(snapshot, assignment.WorkItemID)
+				actions = append(actions, NextAction{
+					Domain: "execution", Operation: "take_over_work", WorkItemID: work.ID,
+					LogicalKey: work.LogicalKey,
+					Reason:     "the current root Attempt failed or was interrupted; reconcile existing outputs and side effects before creating a replacement Assignment",
+				})
+				continue
+			}
+		}
 		if currentAssignment(assignment) &&
 			assignment.OwnerAgentID == actorAgentID &&
 			latestUnreviewedSubmission(snapshot, assignment.WorkItemID) == nil {

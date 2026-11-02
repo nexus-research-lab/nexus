@@ -9,6 +9,7 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimehost"
 )
 
 func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
@@ -16,6 +17,7 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 		return nil
 	}
 	inputs := runtimectx.GoalContextualInputs(e.slot.goalContext(), e.slot.mutable.goal.UsageGoalID(), goalSessionKeyForSlot(e.slot))
+	inputs = append(inputs, runtimehost.QueueRecoveryInputs(e.ctx)...)
 	if e.round != nil {
 		inputs = append(runtimectx.AutomationRunContextualInputs(e.round.AutomationRun), inputs...)
 	}
@@ -32,7 +34,7 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 	}
 	switch e.slot.Trigger.TriggerType {
 	case "public_chat", "room_host_default":
-		return append(inputs, conversationsvc.RoundRecoveryContextualInputs(e.history, e.slot.AgentID)...)
+		return append(inputs, conversationsvc.RoundRecoveryContextualInputs(e.history, e.slot.AgentID, e.slot.AgentRoundID, e.round.RootRoundID)...)
 	default:
 		return inputs
 	}

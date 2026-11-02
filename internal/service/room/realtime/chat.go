@@ -192,6 +192,11 @@ func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) (er
 	if err != nil {
 		return err
 	}
+	if !request.Internal && request.ExecutionOrigin != "queue" {
+		if err := s.setRoomInputQueuePaused(execution.ctx, execution.contextValue, execution.targetAgentIDs, false); err != nil {
+			return err
+		}
+	}
 	recordStage("cancel_goal", nil)
 	if err = s.cancelActiveRoomGoalForUser(execution.ctx, execution.sessionKey, request.Content); err != nil {
 		return err

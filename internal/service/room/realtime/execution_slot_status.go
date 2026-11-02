@@ -11,6 +11,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
 
@@ -115,6 +116,9 @@ func (s *Service) broadcastAgentRoundStatus(ctx context.Context, roundValue *act
 }
 
 func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
+	if roomSlotUserStopped(e.slot) {
+		e.service.stopSlotSubagents(e.slot)
+	}
 	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
@@ -355,6 +359,14 @@ func (s *Service) handleSlotCancelled(
 	mapper *roomdomain.SlotMessageMapper,
 	result exec.RoundExecutionResult,
 ) {
+	shutdown := s.Runtime.GetInterruptReason(slot.RuntimeSessionKey, slot.AgentRoundID) == runtimectx.InterruptHostShutdown ||
+		s.Runtime.GetInterruptReason(roundValue.SessionKey, roundValue.RoundID) == runtimectx.InterruptHostShutdown
+	if shutdown {
+		markRoomSlotInterrupted(slot, runtimectx.InterruptHostShutdown)
+	}
+	if roomSlotUserStopped(slot) {
+		s.stopSlotSubagents(slot)
+	}
 	if !s.markSlotCancelled(slot) {
 		return
 	}
@@ -389,12 +401,15 @@ func (s *Service) handleSlotCancelled(
 	if mapper != nil {
 		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.mutable.goal.LastGoalAssistantMessage())
 	}
+	s.recordGoalSlotInterrupted(ctx, slot, roundValue)
 	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
 		return
 	}
-	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "interrupted")
-	s.markPublicHandoffTerminal(ctx, roundValue, slot, "interrupted")
+	if !shutdown {
+		s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "interrupted")
+		s.markPublicHandoffTerminal(ctx, roundValue, slot, "interrupted")
+	}
 	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
 		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
 		return

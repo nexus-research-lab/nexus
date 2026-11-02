@@ -35,6 +35,7 @@ type GoalRoundState struct {
 	ToolProgress            bool
 	CommandReceiptSequence  uint64
 	SubagentTasks           map[string]struct{}
+	stopSubagent            func(string)
 	SubagentUsagePending    map[string]goalsvc.SubagentUsageObservation
 	UsageRetrying           bool
 	UsageClaimPending       bool
@@ -159,7 +160,14 @@ func (g *GoalRoundState) RememberSubagentTaskMessage(message protocol.Message) b
 	subtype := textutil.AnyString(metadata["subtype"])
 	terminal := messageutil.IsTerminalSubagentTaskStatus(textutil.AnyString(metadata["status"]))
 	g.Mu.Lock()
-	defer g.Mu.Unlock()
+	defer func() {
+		stop := g.stopSubagent
+		_, running := g.SubagentTasks[taskID]
+		g.Mu.Unlock()
+		if running && stop != nil {
+			stop(taskID)
+		}
+	}()
 	if g.SubagentTasks == nil {
 		g.SubagentTasks = map[string]struct{}{}
 	}
@@ -297,4 +305,23 @@ func ElapsedSecondsSince(startedAt time.Time) int64 {
 		return 0
 	}
 	return max(int64(time.Since(startedAt).Seconds()), 0)
+}
+
+// StopSubagents closes this physical round's child admission and cancels known
+// running tasks. Late task_started observations are stopped by the same gate.
+func (g *GoalRoundState) StopSubagents(stop func(string)) {
+	g.Mu.Lock()
+	if g.stopSubagent != nil {
+		g.Mu.Unlock()
+		return
+	}
+	g.stopSubagent = stop
+	ids := make([]string, 0, len(g.SubagentTasks))
+	for id := range g.SubagentTasks {
+		ids = append(ids, id)
+	}
+	g.Mu.Unlock()
+	for _, id := range ids {
+		stop(id)
+	}
 }

@@ -40,6 +40,7 @@ func (r *roundRunner) failRoundAtPhase(
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.LoggerFor(context.Background()).Error("DM round 执行失败", fields...)
 	displayError := exec.RoundErrorDisplayMessage(err)
+	r.finishWorkAttempts(protocol.WorkAttemptStatusFailed, displayError)
 	r.finalizeGoalUsage(context.Background(), result, r.LastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
@@ -157,6 +158,11 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 		r.finishDeferredFailure(echoDeferredStatusCancelled, errors.New(strings.TrimSpace(resultText)))
 		return
 	}
+	if r.userStoppedRound() {
+		r.stopRoundSubagents()
+	}
+	r.finishWorkAttempts(protocol.WorkAttemptStatusInterrupted, resultText)
+	r.recordGoalRoundInterrupted(resultText)
 	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
 	r.service.LoggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,

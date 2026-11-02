@@ -41,6 +41,17 @@ const (
 	GoalContinuationSuppressionThreshold = 2
 )
 
+// GoalContinuationSuspensionReason explains why an active Goal's automatic
+// continuation is suspended. It is derived from durable Goal fields and is
+// empty unless ContinuationState is suspended.
+type GoalContinuationSuspensionReason string
+
+const (
+	GoalContinuationSuspensionNoProgress     GoalContinuationSuspensionReason = "no_progress"
+	GoalContinuationSuspensionRuntimeFailure GoalContinuationSuspensionReason = "runtime_failure"
+	GoalContinuationSuspensionUserStopped    GoalContinuationSuspensionReason = "user_stopped"
+)
+
 // GoalUpdateSource 表示 Goal 状态变化来源。
 type GoalUpdateSource string
 
@@ -144,7 +155,11 @@ const (
 	// GoalMetadataOwnerUserID is server-owned authorization provenance for
 	// owner-scoped Goal reads and mutations. Request metadata cannot replace it.
 	GoalMetadataOwnerUserID = "owner_user_id"
-	GoalMetadataExecutionID = "execution_id"
+	// GoalMetadataContinuationStoppedByUser is server-owned. It marks that the
+	// current continuation suspension came from an explicit user stop and is
+	// cleared whenever the continuation streak is reset or re-suppressed.
+	GoalMetadataContinuationStoppedByUser = "continuation_stopped_by_user"
+	GoalMetadataExecutionID               = "execution_id"
 	// GoalMetadataExecutionMode distinguishes new Goal-only records from legacy
 	// explicit Goals whose command identity implied an Execution reservation.
 	// User metadata cannot write this field.
@@ -381,6 +396,21 @@ func (g Goal) ContinuationState() GoalContinuationState {
 	return GoalContinuationStateReady
 }
 
+// ContinuationSuspensionReason derives why automatic continuation is
+// suspended. A runtime failure keeps precedence over a stale stop marker.
+func (g Goal) ContinuationSuspensionReason() GoalContinuationSuspensionReason {
+	if g.ContinuationState() != GoalContinuationStateSuspended {
+		return ""
+	}
+	if strings.TrimSpace(g.LastError) != "" {
+		return GoalContinuationSuspensionRuntimeFailure
+	}
+	if stopped, _ := g.Metadata[GoalMetadataContinuationStoppedByUser].(bool); stopped {
+		return GoalContinuationSuspensionUserStopped
+	}
+	return GoalContinuationSuspensionNoProgress
+}
+
 // MarshalJSON publishes the server-derived continuation state with every Goal
 // REST and WebSocket projection without storing a denormalized state column.
 func (g Goal) MarshalJSON() ([]byte, error) {
@@ -388,11 +418,13 @@ func (g Goal) MarshalJSON() ([]byte, error) {
 	blocker, hasBlocker := GoalBlockerFromGoal(g)
 	return json.Marshal(struct {
 		*goalAlias
-		ContinuationState GoalContinuationState `json:"continuation_state"`
-		Blocker           *GoalBlocker          `json:"blocker,omitempty"`
+		ContinuationState            GoalContinuationState            `json:"continuation_state"`
+		ContinuationSuspensionReason GoalContinuationSuspensionReason `json:"continuation_suspension_reason,omitempty"`
+		Blocker                      *GoalBlocker                     `json:"blocker,omitempty"`
 	}{
-		goalAlias:         (*goalAlias)(&g),
-		ContinuationState: g.ContinuationState(),
+		goalAlias:                    (*goalAlias)(&g),
+		ContinuationState:            g.ContinuationState(),
+		ContinuationSuspensionReason: g.ContinuationSuspensionReason(),
 		Blocker: func() *GoalBlocker {
 			if !hasBlocker {
 				return nil

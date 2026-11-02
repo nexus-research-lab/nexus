@@ -48,7 +48,7 @@ export function ComposerPendingQueue({
     <UiDisclosure
       defaultOpen
       density="compact"
-      label={t("composer.pending_queue")}
+      label={t(inputQueueItems.some(item => item.dispatch_paused) ? "composer.pending_queue_paused" : "composer.pending_queue")}
       meta={<span className="tabular-nums">{inputQueueItems.length}</span>}
       onToggle={(event) => { if (!event.currentTarget.open) controller.actions.finishDrag(); }}
       summaryRole="caption"
@@ -59,7 +59,7 @@ export function ComposerPendingQueue({
       )}
     >
       <ol
-        aria-label={t("composer.pending_queue")}
+        aria-label={t(inputQueueItems.some(item => item.dispatch_paused) ? "composer.pending_queue_paused" : "composer.pending_queue")}
         className="soft-scrollbar flex max-h-28 flex-col divide-y divide-(--divider-subtle-color) overflow-y-auto overscroll-contain pr-1"
         onDragOver={(event) => {
           event.preventDefault();

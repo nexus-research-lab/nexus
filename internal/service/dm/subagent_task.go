@@ -6,6 +6,7 @@ package dm
 import (
 	"context"
 	"strings"
+	"time"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -171,4 +172,14 @@ func dmAnyString(value any) string {
 	default:
 		return ""
 	}
+}
+
+func (r *roundRunner) stopRoundSubagents() {
+	r.StopSubagents(func(taskID string) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := r.service.Runtime.StopTask(ctx, r.sessionKey, taskID); err != nil {
+			r.service.LoggerFor(ctx).Error("Stop child task failed", "task_id", taskID, "round_id", r.roundID, "err", err)
+		}
+	})
 }

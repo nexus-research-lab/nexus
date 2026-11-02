@@ -27,32 +27,36 @@ type InputQueueSource string
 const (
 	InputQueueSourceUser               InputQueueSource = "user"
 	InputQueueSourceIMDeliveryReply    InputQueueSource = "im_delivery_reply"
+	InputQueueSourceHostRecovery       InputQueueSource = "host_recovery"
 	InputQueueSourceAgentPublicMention InputQueueSource = "agent_public_mention"
 	InputQueueSourceAgentRoomMessage   InputQueueSource = "agent_room_directed_message"
 )
 
 // InputQueueItem 表示后端同步的待发送队列项。
 type InputQueueItem struct {
-	ID              string             `json:"id"`
-	Scope           InputQueueScope    `json:"scope"`
-	SessionKey      string             `json:"session_key"`
-	RoomID          string             `json:"room_id,omitempty"`
-	ConversationID  string             `json:"conversation_id,omitempty"`
-	AgentID         string             `json:"agent_id,omitempty"`
-	AgentRoundID    string             `json:"agent_round_id,omitempty"`
-	ClientMessageID string             `json:"client_message_id,omitempty"`
-	SourceAgentID   string             `json:"source_agent_id,omitempty"`
-	SourceMessageID string             `json:"source_message_id,omitempty"`
-	HandoffID       string             `json:"handoff_id,omitempty"`
-	TargetAgentIDs  []string           `json:"target_agent_ids,omitempty"`
-	Source          InputQueueSource   `json:"source"`
-	Content         string             `json:"content"`
-	Attachments     []ChatAttachment   `json:"attachments,omitempty"`
-	DeliveryPolicy  ChatDeliveryPolicy `json:"delivery_policy"`
-	ReplyRoute      RoomReplyRoute     `json:"reply_route,omitempty"`
-	OwnerUserID     string             `json:"owner_user_id,omitempty"`
-	RootRoundID     string             `json:"root_round_id,omitempty"`
-	HopIndex        int                `json:"hop_index,omitempty"`
+	DispatchPending     bool               `json:"dispatch_pending,omitempty"`
+	RecoveryExecutionID string             `json:"recovery_execution_id,omitempty"`
+	ID                  string             `json:"id"`
+	DispatchPaused      bool               `json:"dispatch_paused,omitempty"`
+	Scope               InputQueueScope    `json:"scope"`
+	SessionKey          string             `json:"session_key"`
+	RoomID              string             `json:"room_id,omitempty"`
+	ConversationID      string             `json:"conversation_id,omitempty"`
+	AgentID             string             `json:"agent_id,omitempty"`
+	AgentRoundID        string             `json:"agent_round_id,omitempty"`
+	ClientMessageID     string             `json:"client_message_id,omitempty"`
+	SourceAgentID       string             `json:"source_agent_id,omitempty"`
+	SourceMessageID     string             `json:"source_message_id,omitempty"`
+	HandoffID           string             `json:"handoff_id,omitempty"`
+	TargetAgentIDs      []string           `json:"target_agent_ids,omitempty"`
+	Source              InputQueueSource   `json:"source"`
+	Content             string             `json:"content"`
+	Attachments         []ChatAttachment   `json:"attachments,omitempty"`
+	DeliveryPolicy      ChatDeliveryPolicy `json:"delivery_policy"`
+	ReplyRoute          RoomReplyRoute     `json:"reply_route,omitempty"`
+	OwnerUserID         string             `json:"owner_user_id,omitempty"`
+	RootRoundID         string             `json:"root_round_id,omitempty"`
+	HopIndex            int                `json:"hop_index,omitempty"`
 	// GoalCollaborationBinding is host-only continuation provenance. It lets a
 	// completed Room handoff wake a fresh authorized Goal continuation without
 	// granting this queued Agent round Goal mutation capability.
@@ -189,7 +193,7 @@ func NormalizeInputQueueScope(value string) InputQueueScope {
 func NormalizeInputQueueSource(value string) InputQueueSource {
 	normalized := InputQueueSource(strings.ToLower(strings.TrimSpace(value)))
 	switch normalized {
-	case InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomMessage, InputQueueSourceIMDeliveryReply:
+	case InputQueueSourceHostRecovery, InputQueueSourceAgentPublicMention, InputQueueSourceAgentRoomMessage, InputQueueSourceIMDeliveryReply:
 		return normalized
 	default:
 		return InputQueueSourceUser

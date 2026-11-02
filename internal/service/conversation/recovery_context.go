@@ -1,10 +1,11 @@
 // INPUT: 当前会话的 durable history 与目标 Agent 身份。
-// OUTPUT: 仅包含稳定失败类别的下一轮隐藏恢复上下文。
+// OUTPUT: 包含稳定失败类别或未知执行结果的下一轮隐藏恢复上下文。
 // POS: 上一轮终态历史到当前用户轮可解释上下文的应用层边界。
 package conversation
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/textutil"
@@ -21,6 +22,7 @@ const (
 	recoveryRuntimeError         = "runtime_error"
 	recoveryServerError          = "server_error"
 	recoveryUnknown              = "unknown"
+	recoveryInterruptedByHost    = "interrupted_by_host"
 )
 
 type terminalOutcome struct {
@@ -30,10 +32,11 @@ type terminalOutcome struct {
 }
 
 // RoundRecoveryContextualInputs returns a hidden explanation of the latest failed
-// terminal outcome. A later successful or interrupted terminal suppresses older failures.
+// terminal outcome or incomplete historical turn. Exclude the current physical round;
+// a later successful or interrupted terminal suppresses older failures.
 // Pass an empty agentID for a history store that is already scoped to one Agent.
-func RoundRecoveryContextualInputs(history []protocol.Message, agentID string) []runtimectx.ContextualInputBlock {
-	outcome, ok := latestTerminalOutcome(history, agentID)
+func RoundRecoveryContextualInputs(history []protocol.Message, agentID string, currentRoundIDs ...string) []runtimectx.ContextualInputBlock {
+	outcome, ok := latestTerminalOutcome(history, agentID, currentRoundIDs)
 	if !ok || !outcome.failed {
 		return nil
 	}
@@ -54,11 +57,13 @@ func RoundRecoveryContextualInputs(history []protocol.Message, agentID string) [
 	}
 }
 
-func latestTerminalOutcome(history []protocol.Message, agentID string) (terminalOutcome, bool) {
+func latestTerminalOutcome(history []protocol.Message, agentID string, currentRoundIDs []string) (terminalOutcome, bool) {
 	agentID = strings.TrimSpace(agentID)
 	for index := len(history) - 1; index >= 0; index-- {
 		message := history[index]
-		if !matchesRecoveryAgent(message, agentID) {
+		if !matchesRecoveryAgent(message, agentID) ||
+			(slices.Contains(currentRoundIDs, textutil.AnyString(message["round_id"])) && textutil.AnyString(message["round_id"]) != "") ||
+			(slices.Contains(currentRoundIDs, textutil.AnyString(message["agent_round_id"])) && textutil.AnyString(message["agent_round_id"]) != "") {
 			continue
 		}
 		switch protocol.MessageRole(message) {
@@ -71,6 +76,11 @@ func latestTerminalOutcome(history []protocol.Message, agentID string) (terminal
 			if boolValue(message["is_complete"]) {
 				return terminalOutcome{}, true
 			}
+			return terminalOutcome{failed: true, reason: recoveryInterruptedByHost}, true
+		case "user":
+			if textutil.AnyString(message["round_id"]) != "" {
+				return terminalOutcome{failed: true, reason: recoveryInterruptedByHost}, true
+			}
 		}
 	}
 	return terminalOutcome{}, false
@@ -78,7 +88,8 @@ func latestTerminalOutcome(history []protocol.Message, agentID string) (terminal
 
 func terminalOutcomeFrom(terminal map[string]any, message protocol.Message) terminalOutcome {
 	subtype := textutil.AnyString(terminal["subtype"])
-	isError := boolValue(terminal["is_error"]) || subtype == "error"
+	isError := boolValue(terminal["is_error"]) || subtype == "error" ||
+		textutil.AnyString(terminal["terminal_reason"]) == recoveryInterruptedByHost
 	signals := []string{
 		textutil.AnyString(terminal["terminal_reason"]),
 		textutil.AnyString(terminal["stop_reason"]),
@@ -120,7 +131,8 @@ func normalizeRecoveryReason(outcome terminalOutcome) string {
 	}
 	reason := strings.ToLower(outcome.reason)
 	switch reason {
-	case recoveryAuthenticationFailed,
+	case recoveryInterruptedByHost,
+		recoveryAuthenticationFailed,
 		recoveryBillingError,
 		recoveryInvalidRequest,
 		recoveryMaxOutputTokens,
@@ -135,6 +147,9 @@ func normalizeRecoveryReason(outcome terminalOutcome) string {
 }
 
 func recoveryInstruction(reason string) string {
+	if reason == recoveryInterruptedByHost {
+		return "The preceding turn has no durable terminal outcome. Its execution outcome is unknown. Before continuing, reconcile files, sent messages, external calls and other side effects against authoritative receipts. Do not assume missing tool results mean the tools did not execute, and do not automatically replay side effects. Continue from the current instruction using verified progress."
+	}
 	description := map[string]string{
 		protocol.ProviderFailureContentFiltered: "The model provider's content-safety policy blocked the prior request or attempted response. The durable record cannot determine whether the trigger came from the latest input, accumulated conversation context, or attempted output.",
 		recoveryAuthenticationFailed:            "The prior model request failed authentication.",

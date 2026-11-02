@@ -26,6 +26,32 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if err != nil {
 		return err
 	}
+	// Serialize the durable stop gate with dispatch admission, but release it
+	// before waiting for a running round to drain.
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return err
+	}
+	running := s.Runtime.GetRunningRoundIDs(sessionKey)
+	targetActive := request.RoundID == ""
+	for _, id := range running {
+		if id == request.RoundID {
+			targetActive = true
+		}
+	}
+	if targetActive {
+		_, location, resolveErr := s.resolveInputQueueLocation(ctx, sessionKey, "")
+		if resolveErr == nil {
+			resolveErr = s.InputQueue.SetDispatchPaused(location, true)
+		}
+		if resolveErr != nil {
+			s.inputQueueDispatchMu.Unlock()
+			return resolveErr
+		}
+		if items, snapshotErr := s.InputQueue.Snapshot(location); snapshotErr == nil {
+			s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
+		}
+	}
+	s.inputQueueDispatchMu.Unlock()
 	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
 		return s.interruptExactRound(ctx, sessionKey, roundID)
 	}

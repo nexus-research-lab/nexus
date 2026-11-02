@@ -65,6 +65,14 @@ func (s *Service) handleChat(
 	if err != nil {
 		return err
 	}
+	if !request.Internal && request.ExecutionOrigin != "queue" {
+		if err := s.InputQueue.SetDispatchPaused(workspacestore.InputQueueLocation{
+			OwnerUserID: execution.agent.OwnerUserID, Scope: protocol.InputQueueScopeDM,
+			WorkspacePath: execution.agent.WorkspacePath, SessionKey: execution.sessionKey,
+		}, false); err != nil {
+			return err
+		}
+	}
 	execution.cancelEchoForUserActivity()
 	if handled, routeErr := execution.routeRunningInput(); handled || routeErr != nil {
 		return routeErr

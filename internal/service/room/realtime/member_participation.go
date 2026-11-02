@@ -185,12 +185,13 @@ func (s *Service) setRoomMemberParticipation(
 	}
 
 	unlock()
-	s.resumeRoomMemberWork(contexts)
+	s.resumeRoomMemberWork(contexts, normalizedAgentID)
 	return updated, nil
 }
 
 func (s *Service) resumeRoomMemberWork(
 	contexts []protocol.ConversationContextAggregate,
+	resumedAgentIDs ...string,
 ) {
 	for _, contextValue := range contexts {
 		contextValue := contextValue
@@ -203,6 +204,15 @@ func (s *Service) resumeRoomMemberWork(
 			sessionKey,
 			contextValue.Room.OwnerUserID,
 			func(taskCtx context.Context) {
+				if provider, ok := s.ExecutionContext.(interface {
+					ResumeMemberWork(context.Context, string, string, string) error
+				}); ok {
+					for _, member := range resumedAgentIDs {
+						if err := provider.ResumeMemberWork(taskCtx, contextValue.Room.OwnerUserID, sessionKey, member); err != nil {
+							s.LoggerFor(taskCtx).Error("Resume member WorkGraph failed", "err", err)
+						}
+					}
+				}
 				s.dispatchNextInputQueueItem(
 					taskCtx,
 					sessionKey,

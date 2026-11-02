@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	historyReadModelSchemaVersion = 7 // Room 尾轮检查点同时保存冻结 transcript 引用摘要。
+	historyReadModelSchemaVersion = 8 // 派生中断终态保留 interrupted_by_host 恢复原因。
 	historyReadModelFileName      = "history-read-model.v1.sqlite"
 	historyReadModelBusyTimeoutMS = 5000
 	historyReadModelMaxGroups     = 1_000_000

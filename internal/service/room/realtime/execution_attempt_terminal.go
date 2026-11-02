@@ -75,12 +75,13 @@ func (s *Service) finishBoundRoomAttempt(
 		ctx,
 		actor,
 		orchestrationsvc.RoomAttemptTerminalInput{
-			Binding:           *binding,
-			Status:            attemptStatus,
-			FailureReason:     reason,
-			RuntimeSessionKey: slot.RuntimeSessionKey,
-			RoomSessionID:     slot.RoomSessionID,
-			SDKSessionID:      slot.getSDKSessionID(),
+			RecoverInterrupted: attemptStatus == protocol.WorkAttemptStatusInterrupted && roomSlotInterruptReason(slot) == "",
+			Binding:            *binding,
+			Status:             attemptStatus,
+			FailureReason:      reason,
+			RuntimeSessionKey:  slot.RuntimeSessionKey,
+			RoomSessionID:      slot.RoomSessionID,
+			SDKSessionID:       slot.getSDKSessionID(),
 		},
 	)
 }
