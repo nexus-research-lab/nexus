@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- C8: Computer Use 对接支持小数归一化坐标的 SDK，模型工具继续使用整数坐标。
+
 - C1: Computer Use 窗口列表返回明确的 state（normal/minimized/offscreen/unknown），与新版 Runtime/SDK 同步。
 
 - Computer Use 指针动作统一使用 `0..1000` 归一化坐标；滚动必须指定目标点，参数上限与 Runtime 一致。开发时需要配套重建新版 CUA Runtime 与 SDK。

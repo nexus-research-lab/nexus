@@ -74,3 +74,6 @@ settings computer-use
 
 窗口发现返回 `state` 封闭枚举：`normal`、`minimized`、`offscreen`、`unknown`，
 不再返回 `minimized` 布尔值；未知状态不等同于可交互（C1）。
+
+C8：SDK 协议支持有限小数归一化坐标，Nexus 模型侧输入仍为整数；构造动作时
+显式转换为浮点值，裁剪/zoom 精度由 Runtime 与 SDK 保留。

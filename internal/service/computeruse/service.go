@@ -1133,17 +1133,17 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 		default:
 			return nil, fmt.Errorf("Computer Use click button 无效: %q", input.Button)
 		}
-		return nexuscua.ClickPoint{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, Button: button, Count: input.Count}, nil
+		return nexuscua.ClickPoint{Point: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, Button: button, Count: input.Count}, nil
 	case "move_pointer":
-		return nexuscua.MovePointer{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, DurationMS: input.DurationMS}, nil
+		return nexuscua.MovePointer{Point: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, DurationMS: input.DurationMS}, nil
 	case "type_text":
 		return nexuscua.TypeText{Text: nexuscua.NewSensitiveText(input.Text)}, nil
 	case "press_keys":
 		return nexuscua.PressKeys{Keys: append([]string(nil), input.Keys...)}, nil
 	case "scroll":
-		return nexuscua.Scroll{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, DeltaX: float64(input.DeltaX), DeltaY: float64(input.DeltaY)}, nil
+		return nexuscua.Scroll{Point: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, DeltaX: float64(input.DeltaX), DeltaY: float64(input.DeltaY)}, nil
 	case "drag":
-		return nexuscua.Drag{From: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, To: nexuscua.NormalizedPoint{X: input.ToX, Y: input.ToY}, DurationMS: input.DurationMS}, nil
+		return nexuscua.Drag{From: nexuscua.NormalizedPoint{X: float64(input.X), Y: float64(input.Y)}, To: nexuscua.NormalizedPoint{X: float64(input.ToX), Y: float64(input.ToY)}, DurationMS: input.DurationMS}, nil
 	default:
 		return nil, fmt.Errorf("Computer Use action kind 不受支持: %q", input.Kind)
 	}
