@@ -30,7 +30,7 @@ const (
 	protocolVersion       = nexuscua.ProtocolVersion
 	defaultCommandTimeout = 30 * time.Second
 	readinessTimeout      = 10 * time.Second
-	defaultSessionTTL     = 120
+	defaultSessionTTL     = 30 * 60
 	maxScreenshotBytes    = 16 << 20
 	maxActionKeys         = 32
 	maxActionTextBytes    = 32 << 10
@@ -472,6 +472,7 @@ func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 		"protocol_version":   capabilities.ProtocolVersion,
 		"runtime_version":    capabilities.RuntimeVersion,
 		"platform":           capabilities.Platform,
+		"primary_modifier":   capabilities.PrimaryModifier,
 		"capture_modes":      capabilities.CaptureModes,
 		"accessibility_tree": capabilities.AccessibilityTree,
 		"input_routes":       capabilities.InputRoutes,
@@ -505,6 +506,26 @@ func (r *Round) ListApplications(ctx context.Context) (map[string]any, error) {
 		})
 	}
 	return map[string]any{"complete": apps.Complete, "applications": values}, nil
+}
+
+// supportedRoundActions grants only operations exposed by this host. New runtime
+// capabilities, especially application termination, never widen an existing host grant.
+func supportedRoundActions(available []nexuscua.ActionKind) []nexuscua.ActionKind {
+	exposed := map[nexuscua.ActionKind]bool{
+		nexuscua.ActionFocusWindow: true, nexuscua.ActionFocusElement: true,
+		nexuscua.ActionInvokeElement: true, nexuscua.ActionClickPoint: true,
+		nexuscua.ActionSetValue: true, nexuscua.ActionToggleElement: true,
+		nexuscua.ActionSelectElement: true, nexuscua.ActionSetExpanded: true,
+		nexuscua.ActionMovePointer: true, nexuscua.ActionTypeText: true,
+		nexuscua.ActionPressKeys: true, nexuscua.ActionScroll: true, nexuscua.ActionDrag: true,
+	}
+	actions := make([]nexuscua.ActionKind, 0, len(exposed))
+	for _, action := range available {
+		if exposed[action] {
+			actions = append(actions, action)
+		}
+	}
+	return actions
 }
 
 func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]any, error) {
@@ -558,7 +579,7 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	r.mu.Unlock()
 	session, err := r.client.OpenSession(ctx, nexuscua.OpenSessionInput{Manifest: nexuscua.CapabilityManifest{
 		Mode: nexuscua.PermissionBounded, ApplicationRefs: []nexuscua.DiscoveryRef{selected.DiscoveryRef},
-		AllowedActions: capabilities.Actions, AllowForegroundInput: true, TTLSeconds: defaultSessionTTL,
+		AllowedActions: supportedRoundActions(capabilities.Actions), AllowForegroundInput: true, TTLSeconds: defaultSessionTTL,
 	}}, defaultCommandTimeout)
 	if err != nil {
 		return nil, err
@@ -572,6 +593,7 @@ func (r *Round) SelectTarget(ctx context.Context, selector string) (map[string]a
 	return map[string]any{
 		"name": selected.Name, "application_id": selected.ApplicationID,
 		"foreground": selected.Foreground, "session_active": true,
+		"ttl_seconds": defaultSessionTTL, "expires_at": session.ExpiresAt,
 	}, nil
 }
 
@@ -1059,6 +1081,14 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 	if len(input.Value) > maxActionTextBytes || len(input.Text) > maxActionTextBytes {
 		return nil, errors.New("Computer Use 文本动作超出上限")
 	}
+	if kind == "click_point" || kind == "move_pointer" || kind == "scroll" || kind == "drag" {
+		if input.X > 1000 || input.Y > 1000 || (kind == "drag" && (input.ToX > 1000 || input.ToY > 1000)) {
+			return nil, errors.New("Computer Use 坐标必须在 0..1000 内")
+		}
+	}
+	if kind == "scroll" && (input.DeltaX < -100000 || input.DeltaX > 100000 || input.DeltaY < -100000 || input.DeltaY > 100000) {
+		return nil, errors.New("Computer Use 滚动量必须在 -100000..100000 内")
+	}
 	switch kind {
 	case "focus_window":
 		return nexuscua.FocusWindow{}, nil
@@ -1103,17 +1133,17 @@ func buildAction(input ActionInput) (nexuscua.Action, error) {
 		default:
 			return nil, fmt.Errorf("Computer Use click button 无效: %q", input.Button)
 		}
-		return nexuscua.ClickPoint{Point: nexuscua.ScreenshotPoint{X: input.X, Y: input.Y}, Button: button, Count: input.Count}, nil
+		return nexuscua.ClickPoint{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, Button: button, Count: input.Count}, nil
 	case "move_pointer":
-		return nexuscua.MovePointer{Point: nexuscua.ScreenshotPoint{X: input.X, Y: input.Y}, DurationMS: input.DurationMS}, nil
+		return nexuscua.MovePointer{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, DurationMS: input.DurationMS}, nil
 	case "type_text":
 		return nexuscua.TypeText{Text: nexuscua.NewSensitiveText(input.Text)}, nil
 	case "press_keys":
 		return nexuscua.PressKeys{Keys: append([]string(nil), input.Keys...)}, nil
 	case "scroll":
-		return nexuscua.Scroll{DeltaX: float64(input.DeltaX), DeltaY: float64(input.DeltaY)}, nil
+		return nexuscua.Scroll{Point: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, DeltaX: float64(input.DeltaX), DeltaY: float64(input.DeltaY)}, nil
 	case "drag":
-		return nexuscua.Drag{From: nexuscua.ScreenshotPoint{X: input.X, Y: input.Y}, To: nexuscua.ScreenshotPoint{X: input.ToX, Y: input.ToY}, DurationMS: input.DurationMS}, nil
+		return nexuscua.Drag{From: nexuscua.NormalizedPoint{X: input.X, Y: input.Y}, To: nexuscua.NormalizedPoint{X: input.ToX, Y: input.ToY}, DurationMS: input.DurationMS}, nil
 	default:
 		return nil, fmt.Errorf("Computer Use action kind 不受支持: %q", input.Kind)
 	}

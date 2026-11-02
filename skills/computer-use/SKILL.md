@@ -28,6 +28,7 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 2. 使用 `list_applications`，再用 `select_target` 以返回的精确应用名称或稳定 application id 选择目标。
 3. 多窗口应用先调用 `list_windows`，再把返回的 `window_ref` 或精确标题传给 `observe`；单窗口应用可直接 `observe`。
 4. 每次动作前调用 `observe`，只使用该次返回的 window、element 和 observation ref。截图或无障碍树过期后重新观察。
+   点击、移动、拖拽和滚动目标点均使用截图左上角为原点的 `0..1000` 归一化坐标；不要传图片像素。滚动必须给出目标 x、y，正向 delta_y 向下滚动。快捷键优先使用 `mod`（macOS Command，Windows Control）。
 5. 动作使用 `perform_action`，把业务输入放在 contract 允许的 closed object 中；顶层生成新的 `request_id`。如果结果未知，复用同一个 request_id 重试以完成对账，不能换 ID 重放。
 6. 动作后重新 `observe`，需要确认状态时调用 `verify_state`。不要凭动作返回文本声称状态已改变。
 7. 任务结束调用 `close_target`，丢弃本轮的 session、observation、element 和 pending mutation 状态。

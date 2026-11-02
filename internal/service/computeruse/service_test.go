@@ -477,3 +477,30 @@ func TestCloseCleansRoundsAndSupervisor(t *testing.T) {
 		t.Fatalf("post-close Round error = %v", err)
 	}
 }
+
+func TestNormalizedActionsPreserveCoordinatesAndBoundScroll(t *testing.T) {
+	action, err := buildAction(ActionInput{Kind: "scroll", X: 750, Y: 250, DeltaY: 300})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scroll, ok := action.(nexuscua.Scroll)
+	if !ok || scroll.Point != (nexuscua.NormalizedPoint{X: 750, Y: 250}) || scroll.DeltaY != 300 {
+		t.Fatalf("unexpected normalized scroll: %#v", action)
+	}
+	for _, input := range []ActionInput{
+		{Kind: "click_point", X: 1001},
+		{Kind: "drag", X: 500, Y: 500, ToX: 1001},
+		{Kind: "scroll", X: 500, Y: 500, DeltaY: 100001},
+	} {
+		if _, err := buildAction(input); err == nil {
+			t.Fatalf("accepted out-of-bounds action: %s", input.Kind)
+		}
+	}
+}
+
+func TestRoundAuthorityDoesNotInheritUnexposedCapabilities(t *testing.T) {
+	actions := supportedRoundActions([]nexuscua.ActionKind{nexuscua.ActionClickPoint, nexuscua.ActionTerminateApplication, nexuscua.ActionSetWindowBounds})
+	if len(actions) != 1 || actions[0] != nexuscua.ActionClickPoint {
+		t.Fatalf("unexpected authority: %v", actions)
+	}
+}

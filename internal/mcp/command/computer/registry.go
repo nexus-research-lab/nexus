@@ -417,6 +417,9 @@ func (i actionInput) validate() error {
 			return errors.New("Computer Use drag 需要 x、y、to_x 和 to_y")
 		}
 	case "scroll":
+		if i.X == nil || i.Y == nil {
+			return errors.New("Computer Use scroll 需要目标 x 和 y")
+		}
 		if i.DeltaX == nil && i.DeltaY == nil {
 			return errors.New("Computer Use scroll 需要 delta_x 或 delta_y")
 		}
@@ -475,15 +478,15 @@ func actionSchema() map[string]any {
 		"value":       stringProperty("Value for set_value.", 0, 32768),
 		"text":        stringProperty("Text for type_text.", 0, 32768),
 		"expanded":    map[string]any{"type": "boolean"},
-		"x":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000},
-		"y":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000},
-		"to_x":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000},
-		"to_y":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000000},
+		"x":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
+		"y":           map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
+		"to_x":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
+		"to_y":        map[string]any{"type": "integer", "minimum": 0, "maximum": 1000, "description": "Normalized coordinate in 0..1000."},
 		"button":      enumProperty("Pointer button.", "left", "middle", "right"),
 		"count":       map[string]any{"type": "integer", "minimum": 1, "maximum": 3},
 		"duration_ms": map[string]any{"type": "integer", "minimum": 0, "maximum": 60000},
-		"delta_x":     map[string]any{"type": "integer", "minimum": -1000000, "maximum": 1000000},
-		"delta_y":     map[string]any{"type": "integer", "minimum": -1000000, "maximum": 1000000},
+		"delta_x":     map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000},
+		"delta_y":     map[string]any{"type": "integer", "minimum": -100000, "maximum": 100000},
 		"keys":        map[string]any{"type": "array", "maxItems": 32, "items": stringProperty("Key name.", 1, 128)},
 	}, "kind")
 }

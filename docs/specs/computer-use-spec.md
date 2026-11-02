@@ -20,6 +20,14 @@ settings computer-use
 - 设置入口只在 macOS 桌面宿主显示（宿主注入 `platform=macos`）；Web 与 Windows 隐藏入口，
   直接访问分区时重定向回常规设置。Windows 支持为未实现的 non-normative 计划。
 
+## Round 会话边界
+
+选定目标的 session 最长 30 分钟，round 关闭或能力禁用时立即关闭，返回值明确给出 TTL 和到期时间；不静默续期或延长已授予时长。到期后重新选择目标。授权动作只取当前宿主已暴露动作与 Runtime capabilities 的交集，不因 Runtime 新增退出应用等能力而自动扩大。当前仍保留逐动作审批；目标选择时分级授权及审批等待剔除尚待后续接入。
+
+## 动作坐标
+
+点击、移动、拖拽和滚动点统一使用 `0..1000` 归一化坐标，映射由 Runtime 完成。滚动必须显式传目标点，delta 为逻辑像素意图且受 ±100000 限制。Windows 滚轮以系统行/字符设置换算，应用实际滚动距离仍需观察确认。
+
 ## 分发与安装
 
 - 安装源固定为 `github.com/nexus-research-lab/nexus-cua` 的 latest Release；
