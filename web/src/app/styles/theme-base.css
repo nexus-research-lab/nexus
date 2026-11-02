@@ -156,7 +156,7 @@
     font-family: var(--font-mono);
     font-weight: 500;
     line-height: 1;
-    border-radius: 4px;
+    border-radius: var(--radius-control-xs);
     color: var(--text-kbd-color);
     background: var(--surface-kbd-background);
     box-shadow: var(--surface-kbd-shadow);

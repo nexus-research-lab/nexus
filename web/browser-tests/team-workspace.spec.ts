@@ -18,6 +18,7 @@ test("shared files work before any local execution", async ({page,context},info)
   await context.route("**/*",async(route)=>{
     const request=route.request();const url=new URL(request.url());const path=url.pathname;
     const ok=(data:unknown)=>route.fulfill({json:{data}});
+    if(path==="/nexus/v1/team/capabilities")return ok({enabled:true});
     if(path==="/nexus/v1/auth/status")return ok({...appShellRead("GET",path)!.data as object,auth_method:"password",control_user_id:"ui-fixture",organization_id:"org"});
     if(path==="/nexus/v1/team-node/room")return ok([]);
     if(path==="/nexus/v1/team-node")return ok({state:"disconnected",jobs:[],candidates:[],agent_ids:[]});

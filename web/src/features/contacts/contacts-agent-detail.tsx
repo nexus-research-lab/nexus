@@ -194,7 +194,6 @@ export function ContactsAgentDetail({
       aria-label={t("contacts.back_to_directory")}
       onClick={onBackToAgentDirectory}
       size="sm"
-      title={t("contacts.back_to_directory")}
       variant="ghost"
     >
       <ArrowLeft className="h-4 w-4" />

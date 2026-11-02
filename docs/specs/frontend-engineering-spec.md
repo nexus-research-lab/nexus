@@ -368,7 +368,7 @@ Widget 可认识 Agent、Room、Goal 等产品对象，但只组合下层合同�
 | `npm run check:ui` / `make check-web-ui` | 日常门禁 + Gallery DOM 合同 + 完整浏览器矩阵 |
 | `make check-web` | 仅标准前端门禁 |
 
-- Vitest 默认两个 fork worker，可用 `VITEST_MAX_WORKERS` 覆盖。
+- Vitest 默认两个 fork worker，可用 `VITEST_MAX_WORKERS` 覆盖；CI 的 4 核 runner 固定使用 4 个。
 - 浏览器服务器固定 `browser-test` mode，避免并发开发或 SSR 检查使缓存失效。首次安装 `npx playwright install chromium webkit`，Linux CI 加 `--with-deps`。
 - `frontend-token-contract.test.mjs` 用既有 CSS 工具链与 TypeScript AST 检查全部生产 CSS/TS 的静态 `var()`、Tailwind 简写和模板 CSS：
   - 必需引用须有声明，可选注入须有 fallback；
@@ -399,7 +399,7 @@ Gallery 入口 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`：
 
 `browser-tests/ui-gallery.spec.ts` 是浏览器行为真相入口：
 
-- 矩阵：Chromium 为 light/dark/rain × 中/英 × 320/767/768/1440px；WebKit 为同主题/语言 × 320/1440px。
+- 矩阵采用成对覆盖：Chromium 保留 light/dark/rain × 320/767/768/1440px 全组合（12 个项目），WebKit 保留三主题 × 320/1440px（6 个项目）；中/英按主题与宽度交替分配，使主题×语言、语言×宽度、主题×宽度的每种组合都至少被覆盖一次，`light-zh-1440` 固定存在。新增维度或取值时必须维持该成对覆盖性质，不得退回完整笛卡尔积，也不得删减到任一两两组合缺失。
 - 覆盖：控件实际高度/字号/字重/图文间距；按钮禁用/忙碌；真实 focus-visible；hover 几何；选择器/动作菜单键盘与禁用项；碰撞翻转与滚动重定位；模态滚动锁、初始焦点、Tab 循环、弹窗内浮层命中、逐层 Escape、焦点归还；正常/减少动效。
 - 受控 Workspace 标签：选择、创建、固定与键盘关闭后的活动项恢复。Room 持久化与最终替换规则由导航功能共置测试验证（§3.1）。
 - 表单：实际输入、原生选择、搜索清除与多行编辑；技术字段的等宽字体、验证码居中命中区与前导零保留；原生 FormData 验证展示角色不改写提交值。
@@ -416,7 +416,7 @@ Gallery 入口 `http://localhost:3000/ui-gallery.html?theme=light&locale=zh`：
 证据与 CI：
 
 - 截图随 HTML report 输出到 `playwright-report/`；失败 trace/截图输出到 `test-results/`，CI 保留 14 天。它们是复查证据，不是跨平台像素基线门禁。
-- CI 按 `--shard` 拆为十二个任务，保留全部用例，分别上传 `frontend-browser-evidence-<shard>`；`frontend` 汇总门禁只在代码检查及全部分片成功后通过，失败、取消或跳过均不算成功。
+- CI 按 `--shard` 拆为八个任务，保留全部用例，分别上传 `frontend-browser-evidence-<shard>`；`frontend` 汇总门禁只在代码检查及全部分片成功后通过，失败、取消或跳过均不算成功。
 - 提交说明写明实际检查的浏览器、主题、宽度和状态。Chromium/WebKit 自动化不等于 macOS/Windows 原生窗口 chrome 或完整业务页面已验收，这些按变更范围在实际宿主复查。
 
 ### 8.4 Gallery 夹具覆盖

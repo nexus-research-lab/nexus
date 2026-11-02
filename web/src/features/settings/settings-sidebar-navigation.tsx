@@ -7,6 +7,7 @@ import { useCallback, useState } from "react";
 
 import {
   ArrowLeft,
+  Box,
   Building2,
   Search,
   Cable,
@@ -57,7 +58,8 @@ const SETTINGS_SECTION_ICONS: Record<SettingsSectionKey, LucideIcon> = {
   "operations-providers": Cable,
   "operations-projects": FolderKanban,
   permissions: ShieldCheck,
-  browser: Chrome,
+  sandbox: Box,
+	browser: Chrome,
   "computer-use": MousePointer2,
   personal: UserRound,
   providers: Cable,
@@ -97,7 +99,8 @@ export function SettingsSidebarNavigation({
         (matcher.matches([t(item.labelKey), t(group.labelKey)]) || searchItems(item.key).length > 0) &&
         (item.key !== "operations-projects" || projectPermissionsEnabled) &&
         (item.key !== "workspace" || isDesktopRuntime()) &&
-        (item.key !== "browser" || isDesktopRuntime()) &&
+				(item.key !== "browser" || isDesktopRuntime()) &&
+        (item.key !== "sandbox" || isDesktopRuntime()) &&
         (item.key !== "computer-use" || isMacDesktopRuntime()) &&
         (!isOperationsSection(item.key) ||
           (!isDesktopRuntime() && canUseOperations(status?.role))),

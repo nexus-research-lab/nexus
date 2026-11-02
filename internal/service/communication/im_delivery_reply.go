@@ -26,6 +26,9 @@ func (s *Service) ReplyToDelivery(ctx context.Context, actor Actor, id, content 
 	if s.im == nil {
 		return nil, errors.New("IM 回传未装配")
 	}
+	if err := s.rejectModelRoutedRoomReply(scoped, actor); err != nil {
+		return nil, err
+	}
 	input, err := s.im.inputs.IMDeliveryInput(scoped, actor.OwnerUserID, actor.AgentID, actor.SessionKey, actor.RoundID, actor.InputContent)
 	if err != nil {
 		return nil, err

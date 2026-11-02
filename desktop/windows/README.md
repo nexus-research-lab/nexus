@@ -28,13 +28,15 @@ winget install --id JRSoftware.InnoSetup -e
 pwsh scripts/desktop/build-windows-app.ps1
 ```
 
-也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` runtime，避免 Agent 启动时找不到 `nxs.exe`：
+也可以通过 Makefile 构建或直接运行临时测试包；Makefile 目标默认会预置 `nxs` runtime，避免受限 Agent 启动时缺少后端：
 
 ```powershell
 make app-win-build
 make app-win-run
 make app-win-run APP_WIN_RUN_SKIP_BUILD=1
 ```
+
+Windows 沙箱由 nxs 旁随包签名的 Rust helper `nxs-mxc.exe`（固定版本的 Microsoft mxc-sdk）执行，用户无需安装 Rust 或 MXC。需要 Windows 11 24H2（build 26100.9278）或更新受支持版本，并以普通用户运行。helper 缺失、API 不可用或提权时能力关闭，受限会话失败关闭。原生验收见 [验收清单](../../docs/testing/desktop-sandbox-acceptance.md)。
 
 如需临时关闭随包预置 runtime：
 
@@ -68,9 +70,11 @@ pwsh scripts/desktop/package-windows-app.ps1
 
 package 脚本默认从 bridge runtime release 的 `nxs-stable` 通道下载并预置当前平台的 `nxs` runtime。可通过 `NEXUS_DESKTOP_NXS_RELEASE` 固定到某个 `nxs-v*` 版本。如目标 release 不是公开可匿名下载，需配置 `NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN`，或在 GitHub Actions 中配置 `NEXUS_NXS_RUNTIME_RELEASE_TOKEN` secret。临时关闭预置 runtime 可设置 `NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME=0`。
 
+package 脚本默认要求 MXC 三件套，并将其布局写入 metadata；正式包还会对三个 MXC PE/DLL 文件执行与 Nexus 其他二进制相同的 Authenticode 签名。MXC SDK checkout、构建产物、签名证书和 Windows 实机均是外部发布依赖。
+
 package 脚本默认用 self-contained .NET 发布 shell，当前只构建 `win-x64`；安装器允许在 x64-compatible Windows 上运行，也就是 x64 Windows 和支持 x64 仿真的 Windows 11 ARM64。
 
-如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nxs.exe` 和安装器：
+如需签名，配置以下环境变量后再运行 package 脚本；脚本会签 `Nexus.exe`、`Nexus.dll`、`Resources\nexus-server.exe`、`Resources\bin\nexusctl.exe`、`Resources\bin\nexuscfg.exe`、`Resources\bin\nxs.exe`、MXC 三件套和安装器：
 
 ```powershell
 $env:NEXUS_WINDOWS_SIGNING_CERT_PFX_BASE64 = "<base64 pfx>"
@@ -108,3 +112,15 @@ pwsh desktop/windows/.build/app/Nexus/register-nexus-protocol.ps1
 外观设置通过 `app.get_system_fonts` 读取 WPF Fonts.SystemFontFamilies 的本机字体家族目录。
 
 待人工确认（含提问）通过 `app.set_attention` 同步到宿主；后台或最小化时用 FlashWindowEx 闪烁任务栏，回到窗口或清空待处理请求时停止，不抢焦点。隐藏 WebView 只停止绘制，不暂停事件连接。
+
+## 退出与重启回归
+
+Windows 普通用户运行：
+
+```powershell
+dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
+```
+
+随后用打包桌面端验证：启动长命令和 stdio MCP → 点窗口 × → 选择退出 → 界面仍可响应 → `shell.log` 出现 `sidecar.stop_finished` → 原后端、nxs 及后代退出 → 端口 34343 释放 → 立即重启成功。另测取消关闭、最小化到托盘、连续点击退出、启动过程中退出、仅结束桌面壳进程，以及换输出目录重新打包后启动。PSEC 嵌套 Job 必须在支持该 API 的 Windows 主机测试。
+
+诊断位于当前状态目录 `app/logs/shell.log` 和 `shutdown-failure-*.json` / `startup-failure-*.json`。旧版 `NexusSidecar.pid.json` 若缺少启动时间，不能证明进程身份；新版本会保留记录并要求先识别、退出旧实例，不会按名称批量强杀。

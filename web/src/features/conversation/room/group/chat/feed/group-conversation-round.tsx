@@ -17,7 +17,6 @@ import {
 } from "./group-conversation-feed-model";
 
 interface GroupConversationRoundProps {
-  isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
   placeholderHeight?: number;
   renderer: GroupConversationRoundRenderer;
@@ -25,7 +24,6 @@ interface GroupConversationRoundProps {
 }
 
 export function GroupConversationRound({
-  isMobileLayout,
   measureRef,
   placeholderHeight,
   renderer,
@@ -55,7 +53,7 @@ export function GroupConversationRound({
   return (
     <div
       ref={measureRef}
-      className={`relative ${isMobileLayout ? "pb-4" : "pb-1"}`}
+      className="nexus-chat-round relative"
       style={resolvedPlaceholderHeight
         ? { minHeight: resolvedPlaceholderHeight }
         : undefined}

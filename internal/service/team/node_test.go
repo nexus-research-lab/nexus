@@ -94,7 +94,8 @@ func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
 	if err := prepare(); err != nil {
 		t.Fatal(err)
 	}
-	scope, _, _ := service.scope(ctx, "cookie")
+	session, _ := service.session(ctx, "cookie")
+	scope := session.scope
 	grant, err := repo.NodeGrant(ctx, scope, "local-owner")
 	if err != nil || grant == nil || !grant.ExecutionEnabled || grant.State != "authorized" {
 		t.Fatalf("入群未启用: %+v %v", grant, err)
@@ -115,7 +116,7 @@ func TestRoomMembershipProvisionsAndRecoversNode(t *testing.T) {
 		t.Fatal("不能在已有任务收尾前替换节点")
 	}
 	job.State = "completed"
-	if err := repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+	if err := repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := prepare(); err != nil || posts != 2 || deletes != 1 {
@@ -159,7 +160,8 @@ func TestRecoverJobRequiresExactStoppedRoundAndRemoteReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := authctx.WithPrincipal(t.Context(), &authctx.Principal{UserID: "local-owner"})
-	scope, _, err := svc.scope(ctx, "cookie")
+	session, err := svc.session(ctx, "cookie")
+	scope := session.scope
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +184,7 @@ func TestRecoverJobRequiresExactStoppedRoundAndRemoteReceipt(t *testing.T) {
 	job.RoundID = "round"
 	job.ConversationID = "conversation"
 	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease"}
-	if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 		t.Fatal(err)
 	}
 	client, _ := relaysvc.NewClient(remote.URL, time.Second)
@@ -368,7 +370,8 @@ func TestNodeGrantRecoversExactIntentWithoutExposingCredentials(t *testing.T) {
 		t.Fatalf("duplicate revoke=%d: %v", deletes, err)
 	}
 	// 旧 Control 的 404 不能被当作终止记录；保留冻结状态，不能创建新意图。
-	scope, owner, err := service.scope(ctx, "session")
+	session, err := service.session(ctx, "session")
+	scope, owner := session.scope, session.owner
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,4 +397,38 @@ func TestNodeGrantRecoversExactIntentWithoutExposingCredentials(t *testing.T) {
 
 func (s *NodeService) PrepareRoom(ctx context.Context, cookie, roomID string) ([]NodeRoomBinding, error) {
 	return s.PrepareRooms(ctx, cookie, []string{roomID})
+}
+
+func TestDesktopRoomReadPagesMembersThroughGateway(t *testing.T) {
+	remote := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > 0 || r.Header.Get("Content-Type") != "" {
+			t.Error("GET 不应携带正文")
+		}
+		var data any
+		switch r.URL.Path {
+		case "/nexus/v1/team/rooms/room":
+			details := relaycontract.RoomDetails{Members: []relaycontract.RoomMember{{Type: "agent", ID: "first"}}, NextMemberCursor: "c1"}
+			details.Room.MembershipVersion, details.Conversation.StreamEpoch = 3, "epoch"
+			data = details
+		case "/nexus/v1/team/rooms/room/members":
+			if q := r.URL.Query(); q.Get("after") != "c1" || q.Get("stream_epoch") != "epoch" || q.Get("membership_version") != "3" {
+				t.Errorf("成员分页缺少栅栏: %s", r.URL.RawQuery)
+			}
+			data = relaycontract.RoomMemberPage{Members: []relaycontract.RoomMember{{Type: "agent", ID: "second"}}}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer remote.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: remote.URL, AuthSessionCookieName: "session"}
+	service, err := NewNodeService(cfg, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	details, err := service.readRoomMembers(t.Context(), "cookie", "room")
+	if err != nil || len(details.Members) != 2 || details.Members[1].ID != "second" || details.NextMemberCursor != "" {
+		t.Fatalf("Desktop 未翻完成员页: %+v %v", details, err)
+	}
 }

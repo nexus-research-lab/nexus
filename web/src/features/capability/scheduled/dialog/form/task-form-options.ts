@@ -6,32 +6,9 @@ import type {
   ExecutionMode,
   PermissionMode,
   ReplyMode,
-  TargetType,
 } from "../scheduled-task-dialog-types";
 
 type Translate = I18nContextValue["t"];
-
-export function buildTargetTypeOptions(t: Translate): ChoiceDef<TargetType>[] {
-  return [
-    { key: "agent", label: t("capability.scheduled_dialog_target_type_agent") },
-    { key: "room", label: t("capability.scheduled_dialog_target_type_room") },
-  ];
-}
-
-export function buildDeliveryTargetTypeOptions(
-  t: Translate,
-): ChoiceDef<TargetType>[] {
-  return [
-    {
-      key: "agent",
-      label: t("capability.scheduled_dialog_delivery_target_type_agent"),
-    },
-    {
-      key: "room",
-      label: t("capability.scheduled_dialog_delivery_target_type_room"),
-    },
-  ];
-}
 
 export function buildExecutionModeOptions(
   t: Translate,
@@ -79,25 +56,4 @@ export function getPermissionModeHelp(
     (candidate) => candidate.value === permissionMode,
   );
   return option ? t(option.descriptionKey) : "";
-}
-
-export function getExecutionModeHelp(
-  executionMode: ExecutionMode,
-  t: Translate,
-): string {
-  const keys = {
-    dedicated: "capability.scheduled_dialog_execution_mode_dedicated_help",
-    existing: "capability.scheduled_dialog_execution_mode_existing_help",
-    main: "capability.scheduled_dialog_execution_mode_main_help",
-    temporary: "capability.scheduled_dialog_execution_mode_temporary_help",
-  } as const;
-  return t(keys[executionMode]);
-}
-
-export function getReplyModeHelp(replyMode: ReplyMode, t: Translate): string {
-  const keys = {
-    none: "capability.scheduled_dialog_reply_none_help",
-    selected: "capability.scheduled_dialog_reply_selected_help",
-  } as const;
-  return t(keys[replyMode]);
 }

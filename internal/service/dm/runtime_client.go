@@ -48,6 +48,7 @@ type dmClientPreparation struct {
 	commandReceipts          *nexusmcp.CommandReceiptState
 	subagentCommandAuthority *bool
 	permissionMode           sdkpermission.Mode
+	connectorContext         string
 }
 
 func (s *Service) ensureClient(
@@ -257,10 +258,8 @@ func (s *Service) ensureClient(
 	if scopedPolicyActive && scopedPolicy.DisableConnectors {
 		enabledConnectorIDs = []string{}
 	}
-	dynamicSystemPrompt = runtimehost.JoinPromptSections(
-		dynamicSystemPrompt,
-		s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs),
-	)
+	// Connector 状态随配置与选择变化，不进 system prompt；由本轮上下文在变化时追加（见 connectorContextualInputs）。
+	connectorContext := s.connectorRuntimeStatePrompt(ctx, agentValue.OwnerUserID, enabledConnectorIDs)
 	mcpContext := runtimectx.WithEnabledConnectorIDs(
 		runtimeBuilderContext,
 		enabledConnectorIDs,
@@ -298,8 +297,7 @@ func (s *Service) ensureClient(
 			return dmClientPreparation{}, err
 		}
 	}
-	connectorTurnContext := connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers)
-	dynamicSystemPrompt = runtimehost.JoinPromptSections(dynamicSystemPrompt, connectorTurnContext)
+	connectorContext = runtimehost.JoinPromptSections(connectorContext, connectorRuntimeToolPrompt(enabledConnectorIDs, mcpServers))
 	runtimeSelection, err := s.ResolveAgentRuntimeSelection(ctx, agentValue, sessionItem.Options)
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -332,21 +330,6 @@ func (s *Service) ensureClient(
 		toolPolicy,
 		s.RuntimeImagegenDefaultEnabled(ctx),
 	)
-	scratchInput := runtimectx.SandboxResourceInput{
-		OwnerUserID: agentValue.OwnerUserID,
-		SessionKey:  sessionKey,
-		RoundID:     request.RoundID,
-	}
-	scratchLease, err := s.AcquireRuntimeScratch(ctx, runtimeSelection, permissionMode, scratchInput)
-	if err != nil {
-		return dmClientPreparation{}, err
-	}
-	// 交给 RuntimeConnect 前的任何返回都由这里释放 scratch。
-	defer func() {
-		if scratchLease != nil {
-			_ = scratchLease.Release()
-		}
-	}()
 	options, _, err := s.BuildAgentRuntimeOptions(ctx, runtimehost.AgentRuntimeOptionsInput{
 		Agent:                 agentValue,
 		Selection:             runtimeSelection,
@@ -362,7 +345,6 @@ func (s *Service) ensureClient(
 		ResumeSessionID:       textutil.FirstNonEmpty(forkSourceSessionID, textutil.PointerValue(sessionItem.SessionID)),
 		MCPServers:            mcpServers,
 		ConfigurationEnv:      configurationRuntimeEnv,
-		Scratch:               scratchLease,
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -473,16 +455,12 @@ func (s *Service) ensureClient(
 		// 用户发起的 fork 不能静默退化为全新 SDK session。
 		clearResume = nil
 	}
-	connectScratch := scratchLease
-	scratchLease = nil
 	client, err := runtimehost.RuntimeConnect{
-		Startup:      startup,
-		Options:      &options,
-		Scratch:      connectScratch,
-		ScratchInput: scratchInput,
-		Logger:       s.LoggerFor(ctx).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
-		Attempt: func(startup *runtimectx.ClientStartup, options agentclient.Options, scratch *runtimectx.SandboxResourceLease) (runtimectx.Client, bool, error) {
-			return s.acquireRuntimeClient(ctx, startup, options, scratch)
+		Startup: startup,
+		Options: &options,
+		Logger:  s.LoggerFor(ctx).With("session_key", sessionKey, "agent_id", agentValue.AgentID),
+		Attempt: func(startup *runtimectx.ClientStartup, options agentclient.Options) (runtimectx.Client, error) {
+			return s.acquireRuntimeClient(ctx, startup, options)
 		},
 		ClearResume: clearResume,
 	}.Run(ctx)
@@ -557,6 +535,7 @@ func (s *Service) ensureClient(
 		commandReceipts:          commandReceipts,
 		subagentCommandAuthority: subagentCommandAuthority,
 		permissionMode:           permissionMode,
+		connectorContext:         connectorContext,
 	}
 	return preparation, nil
 }
@@ -915,27 +894,21 @@ func (s *Service) acquireRuntimeClient(
 	ctx context.Context,
 	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
-	scratchLease *runtimectx.SandboxResourceLease,
-) (runtimectx.Client, bool, error) {
-	client, err := startup.GetOrCreateWithLease(ctx, options, nil, scratchLease)
+) (runtimectx.Client, error) {
+	client, err := startup.GetOrCreateWithFactory(ctx, options, nil)
 	if err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "get_or_create", options, err)
-		return client, false, err
-	}
-	transferred, err := startup.BindSandboxLease(scratchLease)
-	if err != nil {
-		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "bind_sandbox_lease", options, err)
-		return client, false, err
+		return client, err
 	}
 	if err := startup.Connect(ctx); err != nil {
 		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "connect", options, err)
-		return client, transferred, err
+		return client, err
 	}
 	s.LoggerFor(ctx).Info("runtime client connected",
 		"session_key", startup.SessionKey(),
 		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
-	return client, transferred, nil
+	return client, nil
 }
 
 func (s *Service) logRuntimeStartupFailure(

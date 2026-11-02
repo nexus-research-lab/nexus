@@ -1,5 +1,7 @@
 // Package channels 编排 IM 通道的入站、路由、账号配置、登录与配对。
-// IM 绑定群聊复用原成员 Session，宿主回传最终答复，模型无需寻找外部投递渠道。
+// IM 绑定群聊时，外部消息以“外部用户”身份公开发进群聊并 @ 绑定 Agent，走普通 Room 公区轮次（app 可见、流式）；
+// 该根轮次内绑定 Agent 及被 @ 接手成员的公开最终回复都由宿主按 message_id 去重回传，接手成员带署名；
+// 这类轮次在通讯服务层拒绝 external_session/delivery_source 自行回传，记录只落群聊，不再写入 IM session。
 // 绑定目标接受本机真人 DM 和群聊成员会话；DM 直接走原 Session 的 HandleChat 与版本化回信，恢复只核验原 DM 轮次，不重跑。
 //
 // 入站 dispatch_phase 在副作用前以 CAS 推进；prepared 可重投并保留原轮次，dispatching 仅凭持久用户消息补受理回执。
@@ -9,7 +11,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - pairing_target.go / ingress_room.go：版本化的本地 Room 话题与单成员绑定、冻结返回地址、私域持久受理与完成回复去重；改绑和物理发送共用配对锁，旧任务不会向新绑定回信。
+//   - pairing_target.go / ingress_room.go：版本化的本地 Room 话题与单成员绑定、冻结返回地址、公区发言受理（未知受理只按群聊轮次索引核验、不重放）与完成回复去重；改绑和物理发送共用配对锁，旧任务不会向新绑定回信。
 //   - router.go：宿主内部投递历史注入独立摘要仓储，完成消息落盘后同步更新 DM/公区预览。
 //   - 已确认分段复用 im_deliveries.receipt_json 逐段持久化；取消后的落盘使用有界独立上下文，未知分段不重发。
 //   - im_delivery*.go：发送前持久来源、发送结果去重及精确 ingress 人类消息证据；pairing writer 同事务撤销旧回传资格。

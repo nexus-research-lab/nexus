@@ -1,3 +1,6 @@
+// INPUT: Window, tray and menu actions plus the application exit coordinator state.
+// OUTPUT: Window presentation and exit requests; Closing never recursively closes the window.
+// POS: Windows shell surface; application and backend cleanup are owned by App.
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -35,7 +38,7 @@ public partial class MainWindow : System.Windows.Window
     private bool needsAttention;
     private bool flashingAttention;
     private bool closed;
-    private bool exitRequested;
+    private bool closePromptShown;
     private bool webViewRecreateInFlight;
 
     internal MainWindow(
@@ -68,15 +71,40 @@ public partial class MainWindow : System.Windows.Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!ShouldCloseForExit())
+        if (ShouldCloseForExit())
         {
-            e.Cancel = true;
-            HideToTray();
+            webViewHost?.SetHostWindowInteractive(interactive: false, "exit");
+            base.OnClosing(e);
             return;
         }
 
-        webViewHost?.SetHostWindowInteractive(interactive: false, "exit");
-        base.OnClosing(e);
+        e.Cancel = true;
+        if (App.IsExplicitExitRequested || closePromptShown)
+        {
+            return;
+        }
+
+        closePromptShown = true;
+        string? action = NexusDialogWindow.Show(
+            this,
+            new NexusDialogOptions(
+                "关闭 Nexus",
+                "请选择关闭窗口后的操作。退出会停止本地服务并释放端口；最小化到托盘会继续在后台运行。",
+                [
+                    new NexusDialogAction("cancel", "取消", IsCancel: true),
+                    new NexusDialogAction("tray", "最小化到托盘"),
+                    new NexusDialogAction("exit", "退出 Nexus", NexusDialogActionTone.Primary, IsDefault: true),
+                ]));
+        closePromptShown = false;
+
+        if (action == "tray")
+        {
+            HideToTray();
+        }
+        else if (action == "exit")
+        {
+            App.RequestApplicationExit(0);
+        }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -89,7 +117,7 @@ public partial class MainWindow : System.Windows.Window
 
         if (System.Windows.Application.Current?.Dispatcher.HasShutdownStarted == false)
         {
-            System.Windows.Application.Current.Shutdown(0);
+            App.RequestApplicationExit(0);
         }
     }
 
@@ -292,7 +320,7 @@ public partial class MainWindow : System.Windows.Window
 
     private bool ShouldCloseForExit()
     {
-        return exitRequested || App.IsExplicitExitRequested;
+        return App.IsExitCleanupComplete;
     }
 
     private void HideToTray()
@@ -332,7 +360,6 @@ public partial class MainWindow : System.Windows.Window
             return;
         }
 
-        exitRequested = true;
         App.RequestApplicationExit(0);
     }
 

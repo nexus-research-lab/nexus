@@ -3,11 +3,11 @@
  * OUTPUT: 展开/收起共用的主侧栏壳层及容纳中英文短标签的唯一紧凑导航轨。
  * POS: 主侧栏纯视图边界，不读取路由、Store 或业务 API。
  */
-import type {
-  ComponentType,
-  PointerEventHandler,
-  ReactNode,
-  RefObject,
+import {
+  type ComponentType,
+  type PointerEventHandler,
+  type ReactNode,
+  type RefObject,
 } from "react";
 
 import { CapabilitySidebarPanel } from "@/features/capability/sidebar/capability-sidebar-panel";
@@ -185,7 +185,7 @@ export function SidebarPanel({
             </nav>
             <div
               className={cn(
-                "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
+                "sidebar-panel-directory flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pt-2.5 pb-0",
                 collapsed && "pointer-events-none opacity-0",
               )}
             >

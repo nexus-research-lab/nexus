@@ -67,9 +67,8 @@ type RuntimeConfigForRuntimeResolver interface {
 type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
-	// DesktopSandboxEnabled is retained for internal/test option plumbing. The
-	// production builder derives it from AppMode so desktop sessions cannot
-	// disable the sandbox through an environment switch.
+	// DesktopSandboxEnabled 由宿主按用户偏好（默认关闭）与桌面模式共同决定；
+	// 仅在 AppMode=desktop 时生效，进程环境变量不能单独打开或关闭它。
 	DesktopSandboxEnabled bool
 	AppMode               string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
@@ -102,10 +101,16 @@ type AgentClientOptionsInput struct {
 	AppendSystemPromptDynamic string
 	ResumeSessionID           string
 	MaxThinkingTokens         *int
-	MaxTurns                  *int
-	MCPServers                map[string]sdkmcp.ServerConfig
-	AgentMCPServers           map[string]any
-	ExtraEnv                  map[string]string
+	// Effort 是 Session 覆盖的思考强度；空值不下发，由 runtime 按模型默认。
+	Effort          string
+	MaxTurns        *int
+	MCPServers      map[string]sdkmcp.ServerConfig
+	AgentMCPServers map[string]any
+	ExtraEnv        map[string]string
+	// WorkspaceInstructionFiles 是交给 nxs 指令加载的工作区文件名（项目根相对、单段）。
+	// 其他 runtime 不认识这一约定，退回用 WorkspaceInstructionPrompt 逐轮拼进附加提示词。
+	WorkspaceInstructionFiles  []string
+	WorkspaceInstructionPrompt func() (string, error)
 	// ConfigurationEnv 只接受宿主按当前 runtime round 签发的 nexuscfg broker capability。
 	ConfigurationEnv           map[string]string
 	AgentSDKDiagnosticsEnabled bool
@@ -115,10 +120,6 @@ type AgentClientOptionsInput struct {
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
-	// SandboxResources is a host-prepared, versioned resource contract. The
-	// builder only copies and validates it; scratch creation and cleanup remain
-	// owned by the runtime/session host.
-	SandboxResources *agentclient.SandboxResourcePolicy
 	// DesktopSandboxNetworkAdmission is a host-prepared exact-domain grant.
 	// A nil value means deny all sandbox network destinations. User/task
 	// settings must not manufacture this grant; changing it requires runtime
@@ -161,11 +162,6 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
-	// Desktop execution always enters the selected backend's restricted
-	// contract. Keep the explicit field for server/test callers, but do not let
-	// a false value disable the product default for desktop sessions.
-	input.DesktopSandboxEnabled = input.DesktopSandboxEnabled ||
-		strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop")
 	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		input.AgentMCPServers,
 		effectiveRuntimeKind,
@@ -256,6 +252,7 @@ func BuildAgentClientOptionsWithConfig(
 	// capabilities may add their own broker keys, but cannot redirect memory or
 	// opt the runtime into a remote store.
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, managedMemoryRuntimeEnv(effectiveRuntimeKind, input.WorkspacePath))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceInstructionRuntimeEnv(effectiveRuntimeKind, input.WorkspaceInstructionFiles))
 	// Provider 所有权和后台唤醒归宿主，调用方环境不能在装配末尾撤销。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
@@ -267,6 +264,10 @@ func BuildAgentClientOptionsWithConfig(
 		input.AdditionalDirectories...,
 	)
 	writeDirectories := slices.Clone(input.AdditionalDirectories)
+	appendSystemPrompt, err := withWorkspaceInstructionPrompt(effectiveRuntimeKind, input.AppendSystemPrompt, input.WorkspaceInstructionPrompt)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	options := agentclient.Options{
 		CWD:                    strings.TrimSpace(input.WorkspacePath),
 		SettingSources:         slices.Clone(input.SettingSources),
@@ -274,7 +275,7 @@ func BuildAgentClientOptionsWithConfig(
 		IncludePartialMessages: true,
 		Env:                    runtimeEnv,
 		System: agentclient.SystemOptions{
-			Append:        input.AppendSystemPrompt,
+			Append:        appendSystemPrompt,
 			AppendStatic:  input.AppendSystemPromptStatic,
 			AppendDynamic: input.AppendSystemPromptDynamic,
 		},
@@ -318,6 +319,9 @@ func BuildAgentClientOptionsWithConfig(
 	if input.MaxThinkingTokens != nil && *input.MaxThinkingTokens > 0 {
 		options.Runtime.MaxThinkingTokens = *input.MaxThinkingTokens
 	}
+	if effort := strings.TrimSpace(input.Effort); effort != "" {
+		options.Runtime.Effort = agentclient.EffortLevel(effort)
+	}
 	if input.MaxTurns != nil && *input.MaxTurns > 0 {
 		options.Runtime.MaxTurns = *input.MaxTurns
 	}
@@ -347,7 +351,8 @@ func BuildAgentClientOptionsWithConfig(
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
-	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir())
+	home, _ := os.UserHomeDir()
+	options, err = applyDesktopHostPaths(options, input, runtime.GOOS, appfs.AppDir(), home)
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}

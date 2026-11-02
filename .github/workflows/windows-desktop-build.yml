@@ -39,21 +39,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Validate sandbox SDK credential
+      # Without the private SDK credential, skip native MXC evidence but still
+      # build the Windows shell.
+      - name: Detect sandbox SDK credential
+        id: sdk
         shell: pwsh
         env:
           SDK_READ_TOKEN: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:SDK_READ_TOKEN)) {
-            throw "Configure NEXUS_SANDBOX_SDK_READ_TOKEN with read access to nexus-agent-sdk-go. Private SDK validation cannot run without this credential."
+            Write-Output "::warning::NEXUS_SANDBOX_SDK_READ_TOKEN is not configured; skipping private SDK sandbox validation."
+            "available=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "available=true" >> $env:GITHUB_OUTPUT
           }
 
       - name: Checkout pinned sandbox SDK
+        if: ${{ steps.sdk.outputs.available == 'true' }}
         uses: actions/checkout@v6
         with:
           repository: nexus-research-lab/nexus-agent-sdk-go
           token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
-          ref: 38221838946f17f87be9da4af5f10ddc95671edf
+          ref: fed1bf3c01e949a7964c9a1bd60568c0a0ceb2c5
           path: .nexus-sandbox-sdk
           fetch-depth: 1
           persist-credentials: false
@@ -62,6 +69,8 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
+
+      - uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -73,8 +82,24 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Install frontend dependencies for launcher checks
+        shell: pwsh
+        working-directory: web
+        run: corepack pnpm install --frozen-lockfile
+
+      - name: Validate desktop shutdown ownership
+        shell: pwsh
+        run: |
+          node scripts/desktop/verify-windows-installer-contract.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop shutdown contract failed' }
+          dotnet run --project desktop/windows/Nexus.Desktop.LifecycleTests -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Native desktop process ownership failed' }
+          pwsh -NoProfile -File scripts/test-dev-windows.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Development launcher ownership failed' }
+
       - name: Check Windows sandbox contracts and native components
         id: sandbox
+        if: ${{ steps.sdk.outputs.available == 'true' }}
         shell: pwsh
         run: node scripts/desktop/check-windows-sandbox.mjs --native
         env:

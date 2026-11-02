@@ -218,7 +218,7 @@ export function WorkspaceTaskPanel({
           </span>
           <ChevronDown
             className={cn(
-              "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-200",
+              "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast)",
               isExpanded && "rotate-180",
             )}
           />
@@ -341,7 +341,7 @@ export function WorkspaceTaskPanel({
                       >
                         <ChevronDown
                           className={cn(
-                            "h-3.5 w-3.5 transition-transform duration-200",
+                            "h-3.5 w-3.5 transition-transform duration-(--motion-duration-fast)",
                             isDetailExpanded && "rotate-180",
                           )}
                         />

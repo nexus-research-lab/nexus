@@ -27,6 +27,7 @@ func (s *RoomHistoryStore) historyPageAccess(
 	)
 	return historyPageIndexAccess{
 		Scope:     scope,
+		LogAttrs:  []any{"conversation_id", strings.TrimSpace(conversationID)},
 		ReadModel: s.readModel,
 		Refresh: func(ctx context.Context) (historyPageIndexBuild, bool) {
 			return s.refreshRoomHistoryTail(ctx, ownerUserID, conversationID, scope)
@@ -318,13 +319,28 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 			}
 			continue
 		}
-		resolved, err := s.resolveRoomHistoryRowsContext(ctx, ownerUserID, conversationID, rawRows)
+		transcripts := roomTranscriptIndexCache{}
+		resolved, err := s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rawRows, transcripts)
 		if err != nil {
 			return historyPageIndexBuild{}, err
 		}
 		groups, err := buildHistoryPageIndexedGroups(ctx, resolved, true)
 		if err != nil {
 			return historyPageIndexBuild{}, err
+		}
+		tailRows := roomHistoryTailRows(rawRows, groups, resolved)
+		var frozenRefs []roomFrozenTranscriptRef
+		if len(tailRows) > 0 {
+			frozenRefs, err = s.collectRoomFrozenTranscriptRefs(
+				ctx,
+				ownerUserID,
+				rawRows[:len(rawRows)-len(tailRows)],
+				nil,
+				transcripts,
+			)
+			if err != nil {
+				return historyPageIndexBuild{}, err
+			}
 		}
 		roundIndex, err := s.readCanonicalRoundIndexContext(
 			ctx,
@@ -345,7 +361,8 @@ func (s *RoomHistoryStore) buildRoomHistoryPageIndexWithSourceLimit(
 		}
 		after := append([]historyPageSourceSnapshot{ledgerAfter}, dependenciesAfter...)
 		latest = historyPageIndexBuild{
-			TailRows:   roomHistoryTailRows(rawRows, groups, resolved),
+			TailRows:   tailRows,
+			FrozenRefs: frozenRefs,
 			Groups:     groups,
 			RoundIndex: roundIndex.Items,
 			Sources:    after,

@@ -3,17 +3,19 @@
  * OUTPUT: 在线模式分离真人与 Agent 的选择视图，以及逐 Agent 暂停/恢复按钮。
  * POS: Room 创建与管理弹窗的成员选择视图。
  */
-import { Check, Pause, Play, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { UiChoiceButton } from "@/shared/ui/form/choice";
-import { RoomMemberDirectory } from "./room-dialog-layout";
-import { UiSegmentedControl } from "@/shared/ui/form/segmented-control";
+import {
+  RoomAgentParticipationButton,
+  RoomDirectoryEmptyState,
+  RoomMemberDirectory,
+  RoomMemberTypeTabs,
+} from "./room-dialog-layout";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 import type { RoomMemberUserOption } from "./create-room-dialog-types";
@@ -59,20 +61,14 @@ export function RoomMemberSelector({
     <RoomMemberDirectory disabled={disabled} query={query} onQueryChange={onQueryChange}
       searchLabel={t(showsUsers ? "room.search_user_placeholder" : "room.search_agent_placeholder")} header={<>
         {separateUsers ? (
-          <UiSegmentedControl
-            className="w-full"
-            density="compact"
+          <RoomMemberTypeTabs
+            agentCount={agents.length}
             disabled={disabled}
             onChange={(value) => {
               setMemberType(value);
               onQueryChange("");
             }}
-            options={[
-              { label: t("room.people_count", { count: users.length }), value: "users" },
-              { label: t("room.agents_count", { count: agents.length }), value: "agents" },
-            ]}
-            stretch
-            title={t("room.member_type")}
+            userCount={users.length}
             value={memberType}
           />
         ) : (
@@ -99,11 +95,7 @@ export function RoomMemberSelector({
               selected={selectedAgentIds.has(agent.agent_id)}
             />
           ))}
-          {visibleCount === 0 ? (
-            <p className={cn("px-3 py-8 text-center", getUiTypographyClassName({ role: "supporting", tone: "muted" }))}>
-              {t(showsUsers ? "room.people_empty" : "room.agents_empty")}
-            </p>
-          ) : null}
+          {visibleCount === 0 ? <RoomDirectoryEmptyState memberType={showsUsers ? "users" : "agents"} /> : null}
     </RoomMemberDirectory>
   );
 }
@@ -162,11 +154,6 @@ function RoomMemberOption({
     { name: agent.name },
   );
   const SelectionIcon = selected ? Check : Plus;
-  const participationActionLabel = t(
-    participationPaused ? "room.resume_member" : "room.pause_member",
-    { name: agent.name },
-  );
-  const ParticipationIcon = participationPaused ? Play : Pause;
   return (
     <UiListRow
       active={selected}
@@ -189,21 +176,12 @@ function RoomMemberOption({
         </span>
       )}
       actions={canManageParticipation && selected ? (
-        <UiChoiceButton
-          active={participationPaused}
-          aria-label={participationActionLabel}
-          choiceSize="xs"
+        <RoomAgentParticipationButton
           disabled={disabled}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleParticipation(agent.agent_id);
-          }}
-          title={participationActionLabel}
-          tone="neutral"
-        >
-          <ParticipationIcon className="h-3 w-3" />
-          <span>{t(participationPaused ? "room.resume_participation" : "room.pause_participation")}</span>
-        </UiChoiceButton>
+          name={agent.name}
+          onToggle={() => onToggleParticipation(agent.agent_id)}
+          paused={participationPaused}
+        />
       ) : null}
       title={agent.name}
       tooltip={actionLabel}

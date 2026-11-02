@@ -1,6 +1,6 @@
 // INPUT: Room ledger 追加字节、已发布尾轮原始行和 SQLite 分页代际。
 // OUTPUT: 可验证的追加只重投影尾轮及新增轮次，并原子推进读模型进度。
-// POS: Room 历史的保守增量路径；已有引用变化、跨轮修正和文件替换回退 canonical 重建。
+// POS: Room 历史的保守增量路径；成员 transcript 追加按冻结引用摘要校验，已发布消息变化、跨轮修正和文件替换回退 canonical 重建。
 package workspace
 
 import (
@@ -69,15 +69,69 @@ func roomHistoryIncrementalRow(row protocol.Message) bool {
 		stringFromAny(row["round_id"]) != "" && messageTimestamp(row) > 0
 }
 
-func persistHistoryReadTail(ctx context.Context, tx *sql.Tx, scope, generation string, rows []protocol.Message) error {
+func persistHistoryReadTail(ctx context.Context, tx *sql.Tx, scope, generation string, rows []protocol.Message, frozen []roomFrozenTranscriptRef) error {
 	payload, err := marshalHistoryPageJSONBounded(rows, historyReadModelMaxGroupBytes)
 	if err != nil {
 		return err
 	}
-	digest := sha256.Sum256(payload)
-	_, err = tx.ExecContext(ctx, `INSERT INTO history_read_tail(scope,generation,rows_json,rows_digest) VALUES(?,?,?,?)
- ON CONFLICT(scope) DO UPDATE SET generation=excluded.generation, rows_json=excluded.rows_json, rows_digest=excluded.rows_digest`, scope, generation, payload, hex.EncodeToString(digest[:]))
+	if frozen == nil {
+		frozen = []roomFrozenTranscriptRef{}
+	}
+	frozenPayload, err := marshalHistoryPageJSONBounded(frozen, historyReadModelMaxPageBytes)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO history_read_tail(scope,generation,rows_json,frozen_refs_json,rows_digest) VALUES(?,?,?,?,?)
+ ON CONFLICT(scope) DO UPDATE SET generation=excluded.generation, rows_json=excluded.rows_json, frozen_refs_json=excluded.frozen_refs_json, rows_digest=excluded.rows_digest`, scope, generation, payload, frozenPayload, historyReadTailDigest(payload, frozenPayload))
 	return err
+}
+
+func historyReadTailDigest(rows []byte, frozen []byte) string {
+	hasher := sha256.New()
+	_, _ = fmt.Fprintf(hasher, "%d:", len(rows))
+	_, _ = hasher.Write(rows)
+	_, _ = fmt.Fprintf(hasher, "|%d:", len(frozen))
+	_, _ = hasher.Write(frozen)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// snapshotRoomHistoryDependencies 重新拍摄已发布 generation 的成员依赖。
+// 身份（含 transcript 解析路径）变化直接拒绝；只有内容推进的源返回为 changed，
+// 交给冻结引用摘要判断旧分组是否仍然成立。
+func (s *RoomHistoryStore) snapshotRoomHistoryDependencies(
+	ctx context.Context,
+	owner string,
+	previous []historyPageSourceSnapshot,
+) ([]historyPageSourceSnapshot, []historyPageSourceSnapshot, error) {
+	ownerHistory := s.agentHistory.ForOwner(owner)
+	current := make([]historyPageSourceSnapshot, 0, len(previous))
+	changed := make([]historyPageSourceSnapshot, 0)
+	for _, source := range previous {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		var next historyPageSourceSnapshot
+		var err error
+		switch source.Kind {
+		case historyPageSourceRoomPrivateOverlay:
+			next, err = ownerHistory.snapshotAgentHistoryOverlay(ctx, source.Kind, source.WorkspacePath, source.SessionKey)
+		case historyPageSourceTranscript:
+			next, err = ownerHistory.snapshotAgentHistoryTranscript(ctx, source.WorkspacePath, source.SessionID)
+		default:
+			return nil, nil, fmt.Errorf("unsupported room dependency %q: %w", source.Kind, errHistoryPageIndexInvalid)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if historyPageSourceKey(next) != historyPageSourceKey(source) {
+			return nil, nil, fmt.Errorf("referenced source replaced: %w", errHistoryPageIndexInvalid)
+		}
+		if next != source {
+			changed = append(changed, next)
+		}
+		current = append(current, next)
+	}
+	return current, changed, nil
 }
 
 func (s *RoomHistoryStore) refreshRoomHistoryTail(ctx context.Context, owner, conversation, scopeKey string) (historyPageIndexBuild, bool) {
@@ -115,24 +169,35 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	}
 	old := previous.Sources[0]
 	current, err := s.snapshotRoomHistoryLedger(ctx, owner, conversation)
-	if err != nil || current == old {
+	if err != nil {
 		return err
 	}
-	if !old.Exists || !current.Exists || old.FileIdentity != current.FileIdentity || current.Size <= old.Size || current.Size-old.Size > historyPageSourceMaxBytes {
+	if !old.Exists || !current.Exists || old.FileIdentity != current.FileIdentity || current.Size < old.Size || current.Size-old.Size > historyPageSourceMaxBytes {
 		return fmt.Errorf("source replaced, truncated or append budget exceeded: %w", errHistoryPageIndexInvalid)
 	}
-	expected := append([]historyPageSourceSnapshot{current}, previous.Sources[1:]...)
-	if valid, checkErr := s.validateRoomHistoryPageSources(ctx, owner, conversation, expected); checkErr != nil || !valid {
-		return fmt.Errorf("referenced source changed: %w", errHistoryPageIndexInvalid)
-	}
-	var payload []byte
-	var digest string
-	if err = db.QueryRowContext(ctx, `SELECT rows_json,rows_digest FROM history_read_tail WHERE scope=? AND generation=?`, scopeKey, previous.Generation).Scan(&payload, &digest); err != nil {
+	previousDependencies, changedDependencies, err := s.snapshotRoomHistoryDependencies(ctx, owner, previous.Sources[1:])
+	if err != nil {
 		return err
 	}
-	actualDigest := sha256.Sum256(payload)
-	if hex.EncodeToString(actualDigest[:]) != digest {
+	// 成员执行中 transcript 先于 ledger 推进；ledger 未变时仍按零追加重投影尾轮。
+	if current == old && len(changedDependencies) == 0 {
+		return nil
+	}
+	var payload, frozenPayload []byte
+	var digest string
+	if err = db.QueryRowContext(ctx, `SELECT rows_json,frozen_refs_json,rows_digest FROM history_read_tail WHERE scope=? AND generation=?`, scopeKey, previous.Generation).Scan(&payload, &frozenPayload, &digest); err != nil {
+		return err
+	}
+	if historyReadTailDigest(payload, frozenPayload) != digest {
 		return errHistoryPageIndexInvalid
+	}
+	var frozen []roomFrozenTranscriptRef
+	if err = json.Unmarshal(frozenPayload, &frozen); err != nil {
+		return fmt.Errorf("frozen transcript refs unavailable: %w", errHistoryPageIndexInvalid)
+	}
+	transcripts := roomTranscriptIndexCache{}
+	if err = s.verifyRoomFrozenTranscriptRefs(ctx, owner, frozen, changedDependencies, transcripts); err != nil {
+		return err
 	}
 	var boundaryTimestamp int64
 	if err = db.QueryRowContext(ctx, `SELECT cursor_timestamp FROM history_read_groups WHERE scope=? AND generation=? AND sequence=?`, scopeKey, previous.Generation, previous.GroupCount-1).Scan(&boundaryTimestamp); err != nil {
@@ -192,7 +257,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		return err
 	}
 	byKey := make(map[string]historyPageSourceSnapshot)
-	for _, source := range append(append([]historyPageSourceSnapshot(nil), previous.Sources[1:]...), addedSources...) {
+	for _, source := range append(append([]historyPageSourceSnapshot(nil), previousDependencies...), addedSources...) {
 		byKey[historyPageSourceKey(source)] = source
 	}
 	dependencies := make([]historyPageSourceSnapshot, 0, len(byKey))
@@ -200,11 +265,11 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 		dependencies = append(dependencies, source)
 	}
 	sortHistoryPageSources(dependencies)
-	expected = append([]historyPageSourceSnapshot{current}, dependencies...)
+	expected := append([]historyPageSourceSnapshot{current}, dependencies...)
 	if historyPageSourcesExceedLimit(expected, historyPageSourceMaxBytes) {
 		return errHistoryPageIndexResourceLimit
 	}
-	resolved, err := s.resolveRoomHistoryRowsContext(ctx, owner, conversation, raw)
+	resolved, err := s.resolveRoomHistoryRowsWithCache(ctx, owner, conversation, raw, transcripts)
 	if err != nil {
 		return err
 	}
@@ -238,6 +303,10 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	nextTail := roomHistoryTailRows(raw, groups, resolved)
 	if len(nextTail) == 0 {
 		return errHistoryPageIndexInvalid
+	}
+	nextFrozen, err := s.collectRoomFrozenTranscriptRefs(ctx, owner, raw[:len(raw)-len(nextTail)], frozen, transcripts)
+	if err != nil {
+		return err
 	}
 	roundItems, err := readHistoryReadModelRoundIndex(ctx, db, scopeKey)
 	if err != nil {
@@ -308,7 +377,7 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if err != nil {
 		return err
 	}
-	if err = persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail); err != nil {
+	if err = persistHistoryReadTail(ctx, tx, scopeKey, previous.Generation, nextTail, nextFrozen); err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE history_read_scopes SET sources_json=?,round_index_json=?,group_count=? WHERE scope=?`, sources, index, start+len(groups), scopeKey)
@@ -318,6 +387,6 @@ func (s *RoomHistoryStore) tryRefreshRoomHistoryTail(ctx context.Context, owner,
 	if err = tx.Commit(); err != nil {
 		return err
 	}
-	logx.FromContext(ctx).Info("Room 历史增量更新完成", "conversation_id", conversation, "source_bytes", current.Size, "appended_bytes", current.Size-old.Size, "replaced_groups", len(groups), "unchanged_groups", start, "duration_ms", time.Since(started).Milliseconds())
+	logx.FromContext(ctx).Info("Room 历史增量更新完成", "conversation_id", conversation, "source_bytes", current.Size, "appended_bytes", current.Size-old.Size, "replaced_groups", len(groups), "unchanged_groups", start, "changed_dependencies", len(changedDependencies), "duration_ms", time.Since(started).Milliseconds())
 	return nil
 }

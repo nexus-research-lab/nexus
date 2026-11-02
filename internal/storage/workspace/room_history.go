@@ -199,7 +199,20 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 	conversationID string,
 	rows []map[string]any,
 ) ([]protocol.Message, error) {
-	transcriptRowsByMessageID := make(map[string]map[string]protocol.Message)
+	return s.resolveRoomHistoryRowsWithCache(ctx, ownerUserID, conversationID, rows, roomTranscriptIndexCache{})
+}
+
+// roomTranscriptIndexCache 以 transcript ref 身份缓存成员 transcript 投影，
+// 让一次读模型构建同时完成行解析和冻结引用摘要，不重复读取大文件。
+type roomTranscriptIndexCache map[string]map[string]protocol.Message
+
+func (s *RoomHistoryStore) resolveRoomHistoryRowsWithCache(
+	ctx context.Context,
+	ownerUserID string,
+	conversationID string,
+	rows []map[string]any,
+	cache roomTranscriptIndexCache,
+) ([]protocol.Message, error) {
 	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		if err := ctx.Err(); err != nil {
@@ -215,7 +228,7 @@ func (s *RoomHistoryStore) resolveRoomHistoryRowsContext(
 			ctx,
 			ownerUserID,
 			protocol.Message(row),
-			transcriptRowsByMessageID,
+			cache,
 		)
 		if resolveErr != nil {
 			return nil, resolveErr
@@ -232,56 +245,17 @@ func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 	ctx context.Context,
 	ownerUserID string,
 	row protocol.Message,
-	cache map[string]map[string]protocol.Message,
+	cache roomTranscriptIndexCache,
 ) (protocol.Message, bool, error) {
-	if err := ctx.Err(); err != nil {
+	ref, ok := roomTranscriptRefFromRow(row)
+	if !ok || !s.paths.workspacePathIsConfinedForOwner(ownerUserID, ref.WorkspacePath) {
+		return nil, false, nil
+	}
+	messageIndex, err := s.loadRoomTranscriptIndex(ctx, ownerUserID, ref, cache)
+	if err != nil {
 		return nil, false, err
 	}
-	workspacePath := stringFromAny(row["workspace_path"])
-	privateSessionKey := stringFromAny(row["private_session_key"])
-	agentID := stringFromAny(row["agent_id"])
-	sessionID := stringFromAny(row["session_id"])
-	messageID := stringFromAny(row["message_id"])
-	if workspacePath == "" || privateSessionKey == "" || agentID == "" || sessionID == "" || messageID == "" {
-		return nil, false, nil
-	}
-	if !s.paths.workspacePathIsConfinedForOwner(ownerUserID, workspacePath) {
-		return nil, false, nil
-	}
-
-	cacheKey := buildRoomTranscriptCacheKey(workspacePath, privateSessionKey, agentID, sessionID)
-	messageIndex, exists := cache[cacheKey]
-	if !exists {
-		ownerHistory := s.agentHistory.ForOwner(ownerUserID)
-		overlayState, err := ownerHistory.readOverlayHistoryStateContext(
-			ctx,
-			workspacePath,
-			privateSessionKey,
-		)
-		if err != nil {
-			return nil, false, err
-		}
-		transcriptRows, err := ownerHistory.readTranscriptMessagesContext(
-			ctx,
-			workspacePath,
-			privateSessionKey,
-			agentID,
-			sessionID,
-			overlayState.RoundMarkers,
-			"",
-		)
-		if errors.Is(err, os.ErrNotExist) {
-			cache[cacheKey] = map[string]protocol.Message{}
-			return nil, false, nil
-		}
-		if err != nil {
-			return nil, false, err
-		}
-		messageIndex = indexRoomTranscriptMessages(transcriptRows)
-		cache[cacheKey] = messageIndex
-	}
-
-	transcriptMessage, ok := messageIndex[messageID]
+	transcriptMessage, ok := messageIndex[ref.MessageID]
 	if !ok {
 		return nil, false, nil
 	}
@@ -289,6 +263,77 @@ func (s *RoomHistoryStore) resolveTranscriptReferenceContext(
 	resolved := protocol.Clone(transcriptMessage)
 	overrideRoomTranscriptFields(resolved, row)
 	return resolved, true, nil
+}
+
+// roomTranscriptRef 是 ledger transcript_ref 行解析所需的完整身份。
+type roomTranscriptRef struct {
+	WorkspacePath     string
+	PrivateSessionKey string
+	AgentID           string
+	SessionID         string
+	MessageID         string
+}
+
+func roomTranscriptRefFromRow(row protocol.Message) (roomTranscriptRef, bool) {
+	ref := roomTranscriptRef{
+		WorkspacePath:     stringFromAny(row["workspace_path"]),
+		PrivateSessionKey: stringFromAny(row["private_session_key"]),
+		AgentID:           stringFromAny(row["agent_id"]),
+		SessionID:         stringFromAny(row["session_id"]),
+		MessageID:         stringFromAny(row["message_id"]),
+	}
+	if ref.WorkspacePath == "" || ref.PrivateSessionKey == "" || ref.AgentID == "" ||
+		ref.SessionID == "" || ref.MessageID == "" {
+		return roomTranscriptRef{}, false
+	}
+	return ref, true
+}
+
+func (ref roomTranscriptRef) cacheKey() string {
+	return buildRoomTranscriptCacheKey(ref.WorkspacePath, ref.PrivateSessionKey, ref.AgentID, ref.SessionID)
+}
+
+func (s *RoomHistoryStore) loadRoomTranscriptIndex(
+	ctx context.Context,
+	ownerUserID string,
+	ref roomTranscriptRef,
+	cache roomTranscriptIndexCache,
+) (map[string]protocol.Message, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cacheKey := ref.cacheKey()
+	if messageIndex, exists := cache[cacheKey]; exists {
+		return messageIndex, nil
+	}
+	ownerHistory := s.agentHistory.ForOwner(ownerUserID)
+	overlayState, err := ownerHistory.readOverlayHistoryStateContext(
+		ctx,
+		ref.WorkspacePath,
+		ref.PrivateSessionKey,
+	)
+	if err != nil {
+		return nil, err
+	}
+	transcriptRows, err := ownerHistory.readTranscriptMessagesContext(
+		ctx,
+		ref.WorkspacePath,
+		ref.PrivateSessionKey,
+		ref.AgentID,
+		ref.SessionID,
+		overlayState.RoundMarkers,
+		"",
+	)
+	if errors.Is(err, os.ErrNotExist) {
+		cache[cacheKey] = map[string]protocol.Message{}
+		return cache[cacheKey], nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	messageIndex := indexRoomTranscriptMessages(transcriptRows)
+	cache[cacheKey] = messageIndex
+	return messageIndex, nil
 }
 
 func buildRoomTranscriptReference(

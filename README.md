@@ -165,6 +165,8 @@ make dev
 
 `make dev` starts the sibling `nexus-control`, backend, and frontend. Control runs at `http://localhost:8020` and stores data in `~/.nexus/control` by default; the backend starts at `http://localhost:8010`, and the frontend dev server at `http://localhost:3000`.
 
+Windows development requires PowerShell 7 (pwsh), GNU Make, Go, Node.js and the pinned pnpm version. The same make dev command runs natively in PowerShell; Ctrl+C stops its child services. Ports can be changed with make dev BACKEND_PORT=8011 WEB_PORT=3001 CONTROL_PORT=8021. Keep nexus-control beside this checkout. make dev-nxs, run-control, run-backend, run-web, prepare-dev-runtime-cli and install also have native Windows implementations. Platform-specific packaging and shell-based validation targets retain their existing prerequisites.
+
 Only run `make run-control`, `make run-backend`, and `make run-web` in separate terminals when attaching individual debuggers. Server deployment uses the Docker `make start` flow above so `/auth/v1` always has the required same-origin gateway.
 
 ---

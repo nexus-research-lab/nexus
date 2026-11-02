@@ -32,8 +32,8 @@ type Report struct {
 
 // Check 用实际 sidecar 的依赖和产品策略检查随包内核，缺失能力直接终止打包。
 func Check(ctx context.Context, binary string) (Report, error) {
-	if runtime.GOOS != "darwin" {
-		return Report{}, fmt.Errorf("native macOS runtime compatibility check required")
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		return Report{}, fmt.Errorf("native desktop runtime compatibility check required on macOS or Windows")
 	}
 	if !filepath.IsAbs(binary) {
 		return Report{}, fmt.Errorf("nxs path must be absolute")
@@ -67,7 +67,7 @@ func Check(ctx context.Context, binary string) (Report, error) {
 		return Report{}, err
 	}
 	defer os.RemoveAll(root)
-	for _, profile := range []string{"workspace-write", "read-only", "full-access"} {
+	for _, profile := range []string{"restricted", "full-access"} {
 		if err := checkProfile(ctx, binary, filepath.Join(root, profile), profile); err != nil {
 			return Report{}, fmt.Errorf("bundled nxs is incompatible with this App (%s): %w", profile, err)
 		}
@@ -86,16 +86,12 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 		}
 	}
 	input := clientopts.AgentClientOptionsInput{
-		WorkspacePath: workspace, RuntimeKind: "nxs", AppMode: "desktop",
+		WorkspacePath: workspace, RuntimeKind: "nxs", AppMode: "desktop", DesktopSandboxEnabled: true,
 		PermissionMode: sdkpermission.ModeDefault, AutoMemoryDisabled: true, AutoDreamDisabled: true,
-		SettingSources:   []string{"user"},
-		SandboxResources: &agentclient.SandboxResourcePolicy{Version: 1, WriteScope: agentclient.SandboxWriteScopeWorkspaceWrite, ScratchRoot: scratch},
+		SettingSources: []string{"user"},
 	}
-	if profile == "read-only" {
-		input.SandboxResources.WriteScope = agentclient.SandboxWriteScopeReadOnly
-	} else if profile == "full-access" {
+	if profile == "full-access" {
 		input.PermissionMode = sdkpermission.ModeBypassPermissions
-		input.SandboxResources = nil
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, nil, input)
 	if err != nil {
@@ -108,7 +104,9 @@ func checkProfile(ctx context.Context, binary, root, profile string) error {
 	options.Env["TMPDIR"] = scratch
 	options.Skills = agentclient.SkillOptions{Mode: agentclient.SkillModeNone}
 	options.MCP.StrictConfig = true
-	options.Runtime.InitializeTimeout = 15 * time.Second
+	if options.Runtime.InitializeTimeout == 0 {
+		options.Runtime.InitializeTimeout = 60 * time.Second
+	}
 	session, err := agentclient.NewSession(ctx, options)
 	if err != nil {
 		return err

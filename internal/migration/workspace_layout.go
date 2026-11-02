@@ -485,15 +485,16 @@ func workspaceOwnerSourceNames(stateRoot string, ownerUserID string) []string {
 // 旧版本通常把 owner_user_id 原样拼进路径；迁移时仍兼容其中的斜杠，
 // 但拒绝绝对路径和 ..，避免数据库中的异常值把迁移操作带出旧 workspace 根。
 func isSafeLegacyOwnerPath(ownerUserID string) bool {
-	if filepath.IsAbs(ownerUserID) {
+	if filepath.IsAbs(ownerUserID) || filepath.VolumeName(ownerUserID) != "" {
 		return false
 	}
-	clean := filepath.Clean(ownerUserID)
+	normalized := filepath.FromSlash(ownerUserID)
+	clean := filepath.Clean(normalized)
 	if clean == "." || clean == ".." ||
 		strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
 		return false
 	}
-	return clean == ownerUserID
+	return clean == normalized
 }
 
 func stripLegacyOwnerPrefix(relative string, stateRoot string, ownerUserID string) string {

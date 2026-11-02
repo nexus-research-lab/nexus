@@ -80,10 +80,7 @@ struct SidecarBundleLocator {
     )
     let sidecarRoot = root.appendingPathComponent("desktop/macos/.build/sidecar-current/Contents")
     let serverURL = sidecarRoot.appendingPathComponent("MacOS/nexus-server")
-    let helperURL = sidecarRoot.appendingPathComponent("Resources/bin/nexus-runtime-bootstrap")
-    guard fileManager.isExecutableFile(atPath: serverURL.path),
-          fileManager.isExecutableFile(atPath: helperURL.path),
-          fileManager.fileExists(atPath: sidecarRoot.appendingPathComponent("Resources/runtime-bootstrap.json").path) else {
+    guard fileManager.isExecutableFile(atPath: serverURL.path) else {
       throw DesktopShellError.sidecarExecutableNotFound
     }
     return SidecarBundleLocator(

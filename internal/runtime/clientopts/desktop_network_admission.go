@@ -132,7 +132,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 		if !ok {
 			continue
 		}
-		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) {
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !(desktopMCPContractPlatform(runtime.GOOS) && runtimeKind == runtimeKindNXS) {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 		}
 		serverType, _ := object["type"].(string)
@@ -141,7 +141,7 @@ func RejectDesktopSandboxRemoteMCPWithNetworkAdmission(
 			continue
 		}
 		serverURL, _ := object["url"].(string)
-		if !(runtime.GOOS == "darwin" && runtimeKind == runtimeKindNXS) && !admission.Allows(serverURL) {
+		if !(desktopMCPContractPlatform(runtime.GOOS) && runtimeKind == runtimeKindNXS) && !admission.Allows(serverURL) {
 			return agentMCPServerError(name, "桌面沙箱拒绝未获宿主域名准入的外部 HTTP/SSE MCP")
 		}
 	}
@@ -191,11 +191,11 @@ func validateDesktopTypedRemoteMCP(
 	permissionMode sdkpermission.Mode,
 	admission *DesktopSandboxNetworkAdmission,
 ) error {
-	if strings.TrimSpace(headersHelper) != "" && runtime.GOOS != "darwin" {
+	if strings.TrimSpace(headersHelper) != "" && !desktopMCPContractPlatform(runtime.GOOS) {
 		return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 	}
-	if runtime.GOOS == "darwin" || permissionMode == sdkpermission.ModeBypassPermissions {
-		// macOS helper 仍须经过独立命令合同；端点允许与 Full Access 都不替代它。
+	if desktopMCPContractPlatform(runtime.GOOS) || permissionMode == sdkpermission.ModeBypassPermissions {
+		// macOS/Windows helper 仍须经过独立命令合同；端点允许与 Full Access 都不替代它。
 		return nil
 	}
 	if admission == nil || !admission.Allows(serverURL) {
@@ -212,6 +212,16 @@ func validateDesktopTypedRemoteMCP(
 // endpoint. An explicit host grant still replaces the copied Network object for
 // callers that have completed the separate domain-approval flow.
 func applyDesktopSandboxNetworkAdmission(options agentclient.Options, input AgentClientOptionsInput) (agentclient.Options, error) {
+	return applyDesktopSandboxNetworkAdmissionForPlatform(options, input, runtime.GOOS)
+}
+
+func applyDesktopSandboxNetworkAdmissionForPlatform(options agentclient.Options, input AgentClientOptionsInput, platform string) (agentclient.Options, error) {
+	// Windows Full Access projects no sandbox policy at all, so a host network
+	// grant has no restricted contract to narrow there; every other Windows
+	// mode keeps the shared admission path below.
+	if platform == "windows" && options.Runtime.PermissionMode == sdkpermission.ModeBypassPermissions {
+		return options, nil
+	}
 	if !input.DesktopSandboxEnabled || !strings.EqualFold(strings.TrimSpace(input.AppMode), "desktop") ||
 		(options.Runtime.Kind != agentclient.RuntimeNXS &&
 			(options.Runtime.Kind != agentclient.RuntimeClaude || input.DesktopSandboxNetworkAdmission == nil)) {

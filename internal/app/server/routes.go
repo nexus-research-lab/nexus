@@ -235,18 +235,6 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/runtime/computer-use/enable"), s.handlers.computerUse.HandleEnable)
 	s.router.Post(s.prefixPath("/settings/runtime/computer-use/disable"), s.handlers.computerUse.HandleDisable)
 	s.router.Post(s.prefixPath("/settings/runtime/computer-use/permissions/check"), s.handlers.computerUse.HandleCheckPermissions)
-	s.router.Get(
-		s.prefixPath("/settings/runtime/sandbox/resources"),
-		s.handlers.core.HandleSandboxResourceInspection,
-	)
-	s.router.Get(
-		s.prefixPath("/settings/runtime/sandbox/receipt"),
-		s.handlers.core.HandleSandboxPolicyReceipt,
-	)
-	s.router.Post(
-		s.prefixPath("/settings/runtime/sandbox/reconcile"),
-		s.handlers.core.HandleSandboxResourceReconcile,
-	)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
 

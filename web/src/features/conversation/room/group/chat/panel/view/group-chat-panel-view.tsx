@@ -26,6 +26,7 @@ import {
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
+import { ConversationHistoryLoadingState } from "@/features/conversation/shared/conversation-history-loading-state";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiSpinnerClassName } from "@/shared/ui/display/spinner-styles";
@@ -93,12 +94,15 @@ function ActiveGroupConversation({
   const interactionSurface = currentInteraction ? (
     <ComposerInteractionSurface {...model.composerInteraction} />
   ) : undefined;
-  const emptyIntroduction = !model.isSessionLoading
+  const timelineEmpty = model.feed.source.roundIds.length === 0
+    && model.feed.source.liveRoundIds.length === 0;
+  const leadingState = model.isSessionLoading && timelineEmpty
+    ? <ConversationHistoryLoadingState />
+    : !model.isSessionLoading
     && !model.viewport.isHistoryLoading
     && !model.composer.isLoading
     && model.composer.inputQueueItems.length === 0
-    && model.feed.source.roundIds.length === 0
-    && model.feed.source.liveRoundIds.length === 0
+    && timelineEmpty
     ? (
         <ConversationEmptyIntroduction
           kind="room"
@@ -134,7 +138,7 @@ function ActiveGroupConversation({
           <AgentHandoffStatusProvider statuses={model.handoffStatuses}>
             <GroupConversationFeed
               {...model.feed}
-              leadingContent={emptyIntroduction}
+              leadingContent={leadingState}
             />
           </AgentHandoffStatusProvider>
         </ConversationPanelViewport>

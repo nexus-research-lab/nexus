@@ -89,17 +89,19 @@ export function LoginPage() {
     return <Navigate replace to={controller.pageState.path} />;
   }
   return (
-    <AccessPageFrame introduction={<LoginIntroduction />}>
+    <AccessPageFrame
+      headerAction={isDesktopRuntime() ? <UiButton
+        variant="ghost"
+        size="sm"
+        disabled={controller.isSubmitting}
+        onClick={() => navigate(APP_ROUTE_PATHS.launcher, { replace: true })}
+      >
+        <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+        {t("login.skip")}
+      </UiButton> : undefined}
+      introduction={<LoginIntroduction />}
+    >
       <LoginAuthPanel
-        backAction={isDesktopRuntime() ? <UiButton
-          variant="surface"
-          size="lg"
-          disabled={controller.isSubmitting}
-          onClick={() => navigate(APP_ROUTE_PATHS.launcher, { replace: true })}
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          {t("login.skip")}
-        </UiButton> : undefined}
         registering={controller.registering}
         authFailure={controller.authFailure}
         formMode={controller.pageState.formMode}

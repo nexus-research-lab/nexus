@@ -1,5 +1,5 @@
-// INPUT: 当前 Room slot/round identity 与 Execution Orchestration provider。
-// OUTPUT: 每轮 query 前重新读取、按当前成员裁剪的 hidden execution context。
+// INPUT: 当前 Room slot/round identity、Execution Orchestration provider 与 IM 入站轮次的回信说明。
+// OUTPUT: 每轮 query 前重新读取、按当前成员裁剪的 hidden execution context，以及本轮 IM 回信上下文。
 // POS: Room runtime 不从聊天文本猜 WorkGraph 的 fail-closed 注入边界。
 package realtime
 
@@ -18,6 +18,14 @@ func (e *slotExecution) contextualInputs() []runtimectx.ContextualInputBlock {
 	inputs := runtimectx.GoalContextualInputs(e.slot.goalContext(), e.slot.mutable.goal.UsageGoalID(), goalSessionKeyForSlot(e.slot))
 	if e.round != nil {
 		inputs = append(runtimectx.AutomationRunContextualInputs(e.round.AutomationRun), inputs...)
+	}
+	if e.externalReplyContext != "" {
+		inputs = append(inputs, runtimectx.NewContextualInputBlock(
+			"im_delivery",
+			e.externalReplyContext,
+			runtimectx.ContextualInputPriorityAutomationDelivery,
+			nil,
+		))
 	}
 	if e.round == nil || e.round.Internal {
 		return inputs

@@ -19,6 +19,7 @@ import {
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationEmptyIntroduction } from "@/features/conversation/shared/conversation-empty-introduction";
+import { ConversationHistoryLoadingState } from "@/features/conversation/shared/conversation-history-loading-state";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/execution-process-panel";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
@@ -66,14 +67,20 @@ export function DmChatPanelView({
   const interactionSurface = currentInteraction ? (
     <ComposerInteractionSurface {...model.composerInteraction} />
   ) : undefined;
-  const emptyIntroduction = !model.embedded
+  const timelineEmpty = model.feed.source.roundIds.length === 0
+    && model.feed.source.liveRoundIds.length === 0;
+  const leadingState = !model.embedded
+    && model.sessionKey
+    && model.isSessionLoading
+    && timelineEmpty
+    ? <ConversationHistoryLoadingState />
+    : !model.embedded
     && model.sessionKey
     && !model.isSessionLoading
     && !model.viewport.isHistoryLoading
     && !model.composer.isLoading
     && model.composer.inputQueueItems.length === 0
-    && model.feed.source.roundIds.length === 0
-    && model.feed.source.liveRoundIds.length === 0
+    && timelineEmpty
     ? (
         <ConversationEmptyIntroduction
           agentAvatar={model.feed.renderer.currentAgentAvatar}
@@ -111,7 +118,7 @@ export function DmChatPanelView({
             {...model.feed}
             leadingContent={model.embeddedIntroduction
               ? <EmbeddedEditorIntroduction {...model.embeddedIntroduction} />
-              : emptyIntroduction}
+              : leadingState}
           />
         </ConversationPanelViewport>
       </ConversationPanelViewportArea>

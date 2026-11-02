@@ -427,14 +427,3 @@ func binaryResult(result map[string]any, contentType string) sdktool.ToolResult 
 		StructuredContent: metadata,
 	}
 }
-
-func jsonResult(result map[string]any) sdktool.ToolResult {
-	payload, err := json.Marshal(result)
-	if err != nil {
-		return sdktool.ErrorResult(err)
-	}
-	return sdktool.ToolResult{
-		Content:           []map[string]any{{"type": "text", "text": string(payload)}},
-		StructuredContent: result,
-	}
-}

@@ -40,7 +40,7 @@ describe("UiSkeleton", () => {
     const skeleton = screen.getByTestId("skeleton");
 
     expect(skeleton.getAttribute("aria-hidden")).toBe("true");
-    expect(skeleton.className.split(" ")).toContain("motion-safe:animate-pulse");
+    expect(skeleton.className.split(" ")).toContain("ui-skeleton-sheen");
     expect(skeleton.className).toContain("_76%");
 
     rerender(<UiSkeleton data-testid="skeleton" tone="subtle" />);

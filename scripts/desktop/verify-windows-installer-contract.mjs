@@ -30,6 +30,9 @@ const protocolSource = read(
   "desktop/windows/Nexus.Desktop/Runtime/DesktopProtocolRouter.cs",
 );
 const installerSource = fs.readFileSync(path.resolve(installerScriptPath), "utf8");
+const sidecarSupervisorSource = read(
+  "desktop/windows/Nexus.Desktop/Sidecar/SidecarSupervisor.cs",
+);
 
 const applicationMutex = capture(
   coordinatorSource,
@@ -66,4 +69,19 @@ assert.match(installerSource, /RestartApplications=no/);
 assert.match(installerSource, /^PrivilegesRequired=lowest\r?$/m);
 assert.match(installerSource, /^DefaultDirName=\{localappdata\}\\Programs\\[^\r\n]+\r?$/m);
 
-console.log("Windows installer shutdown and per-user installation contracts verified");
+// Closing must leave the WPF Closing callback before requesting a second close.
+const windowSource = read("desktop/windows/Nexus.Desktop/Window/MainWindow.xaml.cs");
+const closing = windowSource.slice(windowSource.indexOf("protected override void OnClosing"), windowSource.indexOf("protected override void OnClosed"));
+assert.doesNotMatch(closing, /\bClose\(\)/);
+assert.match(closing, /App\.RequestApplicationExit\(0\)/);
+const appSource = read("desktop/windows/Nexus.Desktop/App.xaml.cs");
+assert.match(appSource, /await sidecar\.StopAsync\(\)/);
+assert.match(appSource, /sidecar\?\.Dispose\(\);[\s\S]*singleInstance\?\.Dispose\(\)/);
+assert.doesNotMatch(coordinatorSource, /serverTask\?\.Wait\(/);
+assert.doesNotMatch(sidecarSupervisorSource, /GetProcessesByName/);
+
+assert.ok(read("scripts/desktop/build-windows-app.ps1").includes('"nxs-mxc.exe", "nxs-mxc-LICENSE.txt"'), "bundle Rust helper and license");
+assert.ok(read("scripts/desktop/package-windows-app.ps1").includes('(Join-Path $AppBuildDir "Resources/bin/nxs-mxc.exe")'), "sign Rust helper");
+assert.ok(read("scripts/desktop/package-windows-app.ps1").includes('Missing bundled Rust sandbox helper'), "reject incomplete sandbox package");
+
+console.log("Windows installer shutdown, Rust helper, and per-user installation contracts verified");

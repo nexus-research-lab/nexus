@@ -16,7 +16,6 @@ import {
 import { resolveConversationVirtualPlaceholderHeight } from "./use-conversation-virtual-scroll-policy";
 
 interface ConversationRoundProps {
-  isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
   placeholderHeight?: number;
   renderer: ConversationRoundRenderer;
@@ -25,7 +24,6 @@ interface ConversationRoundProps {
 }
 
 export function ConversationRound({
-  isMobileLayout,
   measureRef,
   placeholderHeight,
   renderer,
@@ -48,7 +46,7 @@ export function ConversationRound({
   return (
     <div
       ref={measureRef}
-      className={isMobileLayout ? "pb-4" : "pb-1"}
+      className="nexus-chat-round"
       style={resolvedPlaceholderHeight
         ? { minHeight: resolvedPlaceholderHeight }
         : undefined}

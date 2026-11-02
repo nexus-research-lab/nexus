@@ -50,6 +50,25 @@ func WithLogger(ctx context.Context, logger *slog.Logger) context.Context {
 	return context.WithValue(ctx, loggerContextKey, logger)
 }
 
+type requestIDContextKey struct{}
+
+// WithRequestID 记录已校验的传输诊断 ID；只用于日志关联和向下游服务透传 X-Request-ID。
+func WithRequestID(ctx context.Context, requestID string) context.Context {
+	if requestID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, requestIDContextKey{}, requestID)
+}
+
+// RequestID 读取当前请求的诊断 ID；不得用作授权、路由、缓存或幂等身份。
+func RequestID(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	requestID, _ := ctx.Value(requestIDContextKey{}).(string)
+	return requestID
+}
+
 // FromContext 读取请求级 logger。
 func FromContext(ctx context.Context) *slog.Logger {
 	if logger, ok := ctx.Value(loggerContextKey).(*slog.Logger); ok && logger != nil {

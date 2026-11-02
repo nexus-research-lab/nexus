@@ -18,8 +18,8 @@ const LIST_ROW_DENSITY_CLASS_NAMES: Record<UiListRowDensity, string> = {
   default: "min-h-[64px] px-2.5 py-2",
   compact: "min-h-12 px-3 py-2",
   dense: "min-h-10 px-2.5 py-1.5",
-  sidebar: "min-h-[60px] gap-2.5 px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-(--radius-lg) max-[559px]:px-3 max-[559px]:py-3",
-  sidebarCompact: "min-h-[54px] gap-2.5 py-1.5 pl-2 pr-[3px] max-[559px]:min-h-[72px] max-[559px]:gap-3 max-[559px]:rounded-(--radius-lg) max-[559px]:px-3 max-[559px]:py-2.5",
+  sidebar: "min-h-[60px] gap-2.5 px-2 py-2 max-[559px]:min-h-[80px] max-[559px]:gap-3 max-[559px]:rounded-(--radius-surface-lg) max-[559px]:px-3 max-[559px]:py-3",
+  sidebarCompact: "min-h-[54px] gap-2.5 py-1.5 pl-2 pr-[3px] max-[559px]:min-h-[72px] max-[559px]:gap-3 max-[559px]:rounded-(--radius-surface-lg) max-[559px]:px-3 max-[559px]:py-2.5",
 };
 
 const LIST_ROW_STATE_CLASS_NAMES = {

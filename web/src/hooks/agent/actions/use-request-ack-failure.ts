@@ -14,6 +14,8 @@ import {
   RequestAcceptanceUnknownError,
 } from "./use-pending-request-acks";
 
+// scripts/input-queue-ack.test.mjs 按文件路径加载本模块并从这里取错误类型。
+/** @public */
 export { RequestAcceptanceUnknownError } from "./use-pending-request-acks";
 
 interface UseRequestAckFailureOptions {

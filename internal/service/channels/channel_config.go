@@ -61,7 +61,9 @@ func (s *ControlService) ListChannels(ctx context.Context, ownerUserID string) (
 				view.HasCredentials = true
 				publicConfig["account_count"] = fmt.Sprintf("%d", len(view.Accounts))
 			}
-			view.LastError = nullStringValue(row.LastError)
+			if view.ConnectionState != "connected" {
+				view.LastError = nullStringValue(row.LastError)
+			}
 			view.UpdatedAt = &row.UpdatedAt
 		}
 		result = append(result, view)

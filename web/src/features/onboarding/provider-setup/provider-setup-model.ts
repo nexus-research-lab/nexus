@@ -145,16 +145,6 @@ export function selectInitialProviderSetupPreset(
   return firstConfigured ?? presets[0] ?? null;
 }
 
-export function providerSetupModelIsRequired(
-  format: ProviderPresetFormat,
-  existingProvider: ProviderConfigRecord | null,
-): boolean {
-  if (format.models_path.trim()) {
-    return false;
-  }
-  return !(existingProvider?.models ?? []).some((model) => model.enabled);
-}
-
 function isLLMFormat(format: ProviderPresetFormat): boolean {
   if (format.provider_kind) {
     return format.provider_kind === "llm";

@@ -125,7 +125,6 @@ export function ContactsDirectory({
         <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
           <WorkspaceContentHeader
             actions={headerTrailing}
-            description={t("contacts.description")}
             title={t("contacts.title")}
           />
           <div className="mb-3 space-y-2.5">

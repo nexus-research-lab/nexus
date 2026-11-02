@@ -269,7 +269,9 @@ func PublicAuthRoute(request *http.Request) bool {
 	case "/nexus/v1/health",
 		"/nexus/v1/system/version",
 		"/nexus/v1/runtime/options",
-		"/nexus/v1/auth/status":
+		"/nexus/v1/auth/status",
+		// 部署能力在登录前就要读取，只暴露 enabled 布尔值，不含身份或组织数据。
+		"/nexus/v1/team/capabilities":
 		return true
 	case "/nexus/v1/connectors/oauth/callback":
 		return request.Method == http.MethodPost

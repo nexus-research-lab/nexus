@@ -54,7 +54,7 @@ func authorization(
 				result any
 				err    error
 			)
-			switch stringArg(args, "action") {
+			switch sdktool.StringArg(args, "action") {
 			case actionStart:
 				result, err = svc.Start(ctx, sctx.Actor(), startRequest(args))
 			case actionStatus:

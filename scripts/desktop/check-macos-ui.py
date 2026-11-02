@@ -38,7 +38,7 @@ def build(output: Path) -> dict:
         plistlib.dump({"CFBundleIdentifier": bundle_id, "CFBundleExecutable": executable.name,
                       "CFBundleName": "Nexus Frontend QA", "CFBundlePackageType": "APPL",
                       "CFBundleVersion": "1", "CFBundleShortVersionString": "0.0.0",
-                      "LSMinimumSystemVersion": "14.0", "NSPrincipalClass": "NSApplication",
+                      "LSMinimumSystemVersion": "14.2", "NSPrincipalClass": "NSApplication",
                       "NSHighResolutionCapable": True,
                       "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}}, handle)
     sources = sorted(path for path in (ROOT / "desktop/macos/Sources/NexusDesktop").rglob("*.swift")
@@ -46,7 +46,7 @@ def build(output: Path) -> dict:
     sources.append(ROOT / "desktop/macos/UITests/FrontendHarness.swift")
     sdk = subprocess.check_output(["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
     command = ["xcrun", "swiftc", "-swift-version", "5", "-parse-as-library", "-module-name", "NexusFrontendQA",
-               "-target", platform.machine() + "-apple-macosx14.0", "-sdk", sdk,
+               "-target", platform.machine() + "-apple-macosx14.2", "-sdk", sdk,
                "-module-cache-path", str(output / "module-cache"), "-o", str(executable), *map(str, sources)]
     with (run / "build.log").open("w") as log:
         result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)

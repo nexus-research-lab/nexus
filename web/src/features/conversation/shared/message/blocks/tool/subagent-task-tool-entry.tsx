@@ -80,7 +80,6 @@ export function SubagentTaskToolEntry({
       data-subagent-task-tool-entry
       onClick={onOpen}
       size="md"
-      title={`${taskTitle} · ${model.statusText}`}
       variant="surface"
     >
       <UiSeededAvatar

@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
@@ -18,6 +19,8 @@ import (
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
+
+var permissionRequestSequence atomic.Uint64
 
 // RouteContext 描述运行时 session 到前端路由会话的映射。
 type RouteContext struct {
@@ -64,9 +67,13 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		review = &reviewCopy
 	}
 	return &PendingRequest{
-		Boundary:           request.Boundary,
-		Review:             review,
-		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
+		Boundary: request.Boundary,
+		Review:   review,
+		// UnixNano is not a uniqueness primitive on every supported host (and
+		// concurrent Windows requests frequently share the same tick). Keep the
+		// timestamp for ordering/debugging, then add a process-wide monotonic
+		// suffix so distinct pending requests can never overwrite each other.
+		RequestID:          fmt.Sprintf("perm_%d_%d", now.UnixNano(), permissionRequestSequence.Add(1)),
 		SessionKey:         sessionKey,
 		DispatchSessionKey: textutil.FirstNonEmpty(route.DispatchSessionKey, sessionKey),
 		ToolName:           toolName,

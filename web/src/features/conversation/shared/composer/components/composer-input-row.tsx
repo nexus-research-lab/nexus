@@ -168,7 +168,7 @@ export function ComposerInputRow({
             {segments.map((segment, index) => (
               <Fragment key={index}>
                 {segment.mentioned ? (
-                  <span className="rounded-[5px] bg-primary/10 text-primary ring-1 ring-inset ring-primary/15" data-composer-mention="true">{segment.text}</span>
+                  <span className="rounded-(--content-radius-inline) bg-primary/10 text-primary ring-1 ring-inset ring-primary/15" data-composer-mention="true">{segment.text}</span>
                 ) : index === 0 && slashCommandPresentation ? (
                   <><SlashCommandToken variant="composer">{slashCommandPresentation.command}</SlashCommandToken>{segment.text.slice(slashCommandPresentation.command.length)}</>
                 ) : segment.text}

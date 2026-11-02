@@ -28,8 +28,9 @@ func (s *ControlService) validatePairingRoom(ctx context.Context, agentID string
 	if err != nil {
 		return err
 	}
-	if value.Room.IsContactChannel || value.Room.ID != target.RoomID || (value.Room.RoomType != protocol.RoomTypeDM && (value.Room.RoomType != protocol.RoomTypeGroup || !value.Room.PrivateMessagesEnabled)) {
-		return errors.New("Room 不存在或未开启成员私域消息")
+	// 群聊绑定走公区发言，不再依赖成员私域消息开关。
+	if value.Room.IsContactChannel || value.Room.ID != target.RoomID || (value.Room.RoomType != protocol.RoomTypeDM && value.Room.RoomType != protocol.RoomTypeGroup) {
+		return errors.New("Room 不存在或不是可绑定的私聊/群聊")
 	}
 	for _, member := range value.Members {
 		if member.MemberAgentID == agentID && member.MemberType == protocol.MemberTypeAgent && !member.ParticipationPaused {

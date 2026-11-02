@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -211,6 +212,21 @@ func TestNodeExecutorWakesFromWebSocketWithoutTaskPolling(t *testing.T) {
 	if claims.Load() != 2 {
 		t.Fatalf("claim count = %d", claims.Load())
 	}
+	// 空 claim 没有来源投递，不能在任务面板留下"已完成"记录。
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		jobs, err := repo.NodeJobs(t.Context(), "local-owner", "scope")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(jobs) == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("空 claim 留下任务: %+v", jobs)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if err = nodes.setNodeState(t.Context(), *grant, "authorized", "revoked"); err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +237,41 @@ func TestNodeExecutorWakesFromWebSocketWithoutTaskPolling(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if reads.Load() != before || claims.Load() != 2 {
 		t.Fatal("revoked node continued reading or claiming")
+	}
+}
+
+func TestRejectedNodeCredentialRevokesLocalGrant(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, newNodeTestDB(t))
+	nodes, err := NewNodeService(cfg, repo, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := nodes.keys.EncryptEnvelope([]byte("machine"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(t.Context(), teamstore.NodeGrant{Scope: "scope", OwnerUserID: "local-owner", NodeID: "node", State: "pending", RemoteURL: server.URL, CredentialEncrypted: credential, AgentIDs: []string{"online"}, ExecutionEnabled: true})
+	if err == nil {
+		err = repo.SetNodeState(t.Context(), *grant, "pending", "authorized")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant.State = "authorized"
+	executor := &NodeExecutor{nodes: nodes, logger: slog.New(slog.NewTextHandler(io.Discard, nil)), active: map[string]string{}, loop: duework.New(duework.Options{})}
+	nodes.executor = executor
+	var workers sync.WaitGroup
+	if _, err = executor.reconcileJobs(t.Context(), []teamstore.NodeGrant{*grant}, map[string]nodeWatch{"node": {ctx: t.Context()}}, &workers); err != nil {
+		t.Fatal(err)
+	}
+	current, err := repo.NodeGrant(t.Context(), "scope", "local-owner")
+	if err != nil || current == nil || current.State != "revoked" || current.CredentialEncrypted != "" {
+		t.Fatalf("Control 拒绝凭据后本地授权未收口: %+v %v", current, err)
 	}
 }
 
@@ -477,7 +528,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		job.State = "ready"
 		job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_"+id
 		job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", Messages: []relaycontract.Message{{ID: "message", AuthorType: "user", Content: relaycontract.MessageContent{Version: 1, Blocks: []relaycontract.ContentBlock{{Type: "markdown", Text: "处理任务"}}}}}}
-		if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
+		if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
 			t.Fatal(err)
 		}
 		return *job
@@ -549,18 +600,18 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	if strings.Contains(string(wire), "PRIVATE_MEMORY") || strings.Contains(string(wire), "thinking") {
 		t.Fatal("私人执行信息进入共享输出")
 	}
-	if err = executor.execute(ctx, *grant, job, nodeToken{}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
+	if err = executor.execute(ctx, *grant, job, nodeToken{}, deliveryExecutionInput{content: "replay"}); !errors.Is(err, teamstore.ErrNodeConflict) || starts != 1 {
 		t.Fatalf("replayed tools: %d %v", starts, err)
 	}
 	// 已结束执行的恢复区分暂时故障与明确拒绝，不重跑 runtime。
 	for _, status := range []int{http.StatusServiceUnavailable, http.StatusUnauthorized, http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusConflict} {
 		pending := prepare(fmt.Sprintf("renew-%d", status), fmt.Sprintf("local-%d", status))
 		pending.State = "running"
-		if err := repo.SaveNodeJob(ctx, pending, "ready", nil); err != nil {
+		if err := repo.SaveNodeJob(ctx, &pending, "ready", nil); err != nil {
 			t.Fatal(err)
 		}
 		pending.State = "draining"
-		if err := repo.SaveNodeJob(ctx, pending, "running", outputText("lease", "assistant", "待交付结果", nil)); err != nil {
+		if err := repo.SaveNodeJob(ctx, &pending, "running", outputText("lease", "assistant", "待交付结果", nil)); err != nil {
 			t.Fatal(err)
 		}
 		renewStatus = status
@@ -587,7 +638,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	var wait sync.WaitGroup
 	for range 2 {
 		wait.Add(1)
-		go func() { defer wait.Done(); results <- repo.SaveNodeJob(ctx, concurrent, "ready", nil) }()
+		go func(item teamstore.NodeJob) { defer wait.Done(); results <- repo.SaveNodeJob(ctx, &item, "ready", nil) }(concurrent)
 	}
 	wait.Wait()
 	close(results)
@@ -605,7 +656,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	// 明确交付文件冻结到原 outbox，重复快照不再交付，普通工作文件不外发。
 	filesJob := prepare("files", "file-agent")
 	filesJob.State = "running"
-	if err = repo.SaveNodeJob(ctx, filesJob, "ready", nil); err != nil {
+	if err = repo.SaveNodeJob(ctx, &filesJob, "ready", nil); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "result.txt")
@@ -645,7 +696,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		t.Fatal("接受其他轮次产物")
 	}
 	filesJob.State = "draining"
-	if err = repo.SaveNodeJob(ctx, filesJob, "running", outputText("lease", "final", "完成", nil)); err != nil {
+	if err = repo.SaveNodeJob(ctx, &filesJob, "running", outputText("lease", "final", "完成", nil)); err != nil {
 		t.Fatal(err)
 	}
 	if err = executor.drain(ctx, *grant, filesJob, "machine"); err != nil {
@@ -659,7 +710,7 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	unstarted.State = "running"
-	if err = repo.SaveNodeJob(ctx, unstarted, "ready", nil); !errors.Is(err, teamstore.ErrNodeConflict) {
+	if err = repo.SaveNodeJob(ctx, &unstarted, "ready", nil); !errors.Is(err, teamstore.ErrNodeConflict) {
 		t.Fatalf("revoked start: %v", err)
 	}
 	if active, err := repo.ActiveNodeJob(ctx, "local-owner", "cancel-local"); err != nil || active != nil {
@@ -670,39 +721,69 @@ func TestNodeExecutionDurableOutputAndRevocationFence(t *testing.T) {
 	}
 }
 
-func TestNodeCandidateMentionsStayWithTheirMessage(t *testing.T) {
-	ctx := t.Context()
-	repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
-	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "mentions", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	job.State = "running"
-	job.Delivery = &relaycontract.Delivery{LeaseID: "lease"}
-	if err = repo.SaveNodeJob(ctx, *job, "claiming", nil); err != nil {
-		t.Fatal(err)
-	}
-	observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
-	for index, target := range []string{"peer", ""} {
-		data := map[string]any{"role": "assistant", "is_complete": true, "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("reply %d", index)}}}
-		if target != "" {
-			data["agent_mentions"] = []protocol.AgentMention{{AgentID: target}, {AgentID: target}, {AgentID: "local"}}
-		}
-		if err = observer.apply(ctx, job, protocol.EventMessage{MessageID: fmt.Sprintf("message-%d", index), Data: data}); err != nil {
-			t.Fatal(err)
-		}
-		// 使用持久候选继续，避免仅在 observer 内存中保留目标。
-		job, err = repo.NodeJob(ctx, job.OwnerUserID, job.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	output, err := repo.NextNodeOutput(ctx, job.ID)
-	if err != nil || output == nil || len(output.Input.Mentions) != 1 || output.Input.Mentions[0].MemberID != "peer" {
-		t.Fatalf("旧消息的目标丢失或串到新消息: %+v %v", output, err)
-	}
-	if len(job.CandidateMentions) != 0 {
-		t.Fatal("无 @ 的新消息继承了旧目标", job.CandidateMentions)
+func TestNodeMentionsWakeOnlyWithSuccessfulFinal(t *testing.T) {
+	for _, status := range []string{"finished", "error", "interrupted"} {
+		t.Run(status, func(t *testing.T) {
+			ctx := t.Context()
+			repo := teamstore.NewRepository(config.Config{DatabaseDriver: "sqlite"}, newNodeTestDB(t))
+			job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "mentions", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", Scope: "scope"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			job.State = "running"
+			job.Delivery = &relaycontract.Delivery{LeaseID: "lease"}
+			if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
+				t.Fatal(err)
+			}
+			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
+			// 中途 @ 后调工具、被新候选顶替的旧 @、以及无 @ 的最终消息。
+			for index, step := range []struct{ target, stop string }{{"peer", "tool_use"}, {"other", ""}, {"", ""}} {
+				data := map[string]any{"role": "assistant", "is_complete": true, "content": []map[string]any{{"type": "text", "text": fmt.Sprintf("reply %d", index)}}}
+				if step.stop != "" {
+					data["stop_reason"] = step.stop
+				}
+				if step.target != "" {
+					data["agent_mentions"] = []protocol.AgentMention{{AgentID: step.target}, {AgentID: step.target}, {AgentID: "local"}}
+				}
+				if err = observer.apply(ctx, job, protocol.EventMessage{MessageID: fmt.Sprintf("message-%d", index), Data: data}); err != nil {
+					t.Fatal(err)
+				}
+				// 使用持久候选继续，避免仅在 observer 内存中保留目标。
+				job, err = repo.NodeJob(ctx, job.OwnerUserID, job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err = observer.apply(ctx, job, protocol.EventMessage{EventType: protocol.EventTypeRoundStatus, Data: map[string]any{"is_terminal": true, "status": status}}); err != nil {
+				t.Fatal(err)
+			}
+			var finalMentions []string
+			for {
+				output, err := repo.NextNodeOutput(ctx, job.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if output == nil {
+					break
+				}
+				if output.Input.Kind != "final" && len(output.Input.Mentions) > 0 {
+					t.Fatalf("中间输出提前携带 @: %+v", output.Input)
+				}
+				for _, mention := range output.Input.Mentions {
+					finalMentions = append(finalMentions, mention.MemberID)
+				}
+				if err = repo.AckNodeOutput(ctx, job.ID, output.Sequence); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := []string{"peer", "other"}
+			if status != "finished" {
+				want = nil
+			}
+			if !slices.Equal(finalMentions, want) {
+				t.Fatalf("%s 的唤醒目标 = %v，期望 %v", status, finalMentions, want)
+			}
+		})
 	}
 }
 
@@ -715,7 +796,7 @@ func TestNodeTerminalStatusDistinguishesInterruption(t *testing.T) {
 				t.Fatal(err)
 			}
 			job.State = "running"
-			if err := repo.SaveNodeJob(t.Context(), *job, "claiming", nil); err != nil {
+			if err := repo.SaveNodeJob(t.Context(), job, "claiming", nil); err != nil {
 				t.Fatal(err)
 			}
 			observer := nodeObserver{executor: &NodeExecutor{nodes: &NodeService{store: repo}, logger: slog.Default()}, done: make(chan struct{})}
@@ -755,5 +836,78 @@ func TestPublicExecutionStateUsesExactLocalSession(t *testing.T) {
 	phase, signal = executor.deliveryExecutionState(job)
 	if phase != "running" || signal != changed {
 		t.Fatalf("解除等待未恢复运行: %s", phase)
+	}
+}
+
+func TestNodeExecutionStopsWhenRelayRequestsCancel(t *testing.T) {
+	ctx := t.Context()
+	db := newNodeTestDB(t)
+	var failed atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/auth/v1/nodes/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": nodeToken{Token: "machine", ExpiresAt: time.Now().Add(time.Minute)}})
+		case "/api/relay/v1/node/deliveries/delivery/renew":
+			_, _ = w.Write([]byte(`{"code":"0000","data":{"cancel_requested":true}}`))
+		case "/api/relay/v1/node/deliveries/delivery/fail":
+			failed.Add(1)
+			_, _ = w.Write([]byte(`{"code":"0000","data":{}}`))
+		default:
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	cfg := config.Config{DatabaseDriver: "sqlite", AppMode: "desktop", RemoteURL: server.URL, AuthSessionCookieName: "nexus_session", ConnectorCredentialsKey: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="}
+	repo := teamstore.NewRepository(cfg, db)
+	nodes, err := NewNodeService(cfg, repo, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret, err := nodes.keys.EncryptEnvelope([]byte("machine"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := repo.PrepareNodeGrant(ctx, teamstore.NodeGrant{Scope: "scope", OwnerUserID: "local-owner", NodeID: "node", RemoteURL: server.URL, CredentialEncrypted: secret, ExecutionEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.SetNodeState(ctx, *grant, "pending", "authorized"); err != nil {
+		t.Fatal(err)
+	}
+	grant.State = "authorized"
+	client, err := relaysvc.NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stops := 0
+	executor := &NodeExecutor{nodes: nodes, relay: client, logger: slog.Default(), active: map[string]string{}}
+	executor.stop = func(context.Context, roomrealtime.InterruptRequest) error { stops++; return nil }
+	executor.start = func(ctx context.Context, request roomrealtime.ChatRequest, admission func(context.Context) error) error {
+		if request.PublicInstructions != "用中文回复" {
+			t.Errorf("群说明未进入执行请求: %q", request.PublicInstructions)
+		}
+		return admission(ctx)
+	}
+	job, err := repo.PrepareNodeJob(ctx, teamstore.NodeJob{ID: "job", NodeID: "node", OwnerUserID: "local-owner", LocalAgentID: "local", AgentID: "online", Scope: "scope"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job.State = "ready"
+	job.RoomID, job.ConversationID, job.RoundID = "room", "conversation", "relay_job"
+	job.Delivery = &relaycontract.Delivery{ID: "delivery", LeaseID: "lease", MessageID: "message", RoomInstructions: "用中文回复"}
+	if err = repo.SaveNodeJob(ctx, job, "claiming", nil); err != nil {
+		t.Fatal(err)
+	}
+	token, err := executor.machineToken(ctx, *grant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 准入续期即发现停止请求：不启动执行，本地记为取消并释放远端租约。
+	if err = executor.execute(ctx, *grant, *job, token, deliveryExecutionInput{content: "处理任务"}); err != nil {
+		t.Fatal(err)
+	}
+	current, err := repo.NodeJob(ctx, "local-owner", "job")
+	if err != nil || current == nil || current.State != "cancelled" || stops != 1 || failed.Load() != 1 {
+		t.Fatalf("停止请求未收口: %+v stops=%d fails=%d %v", current, stops, failed.Load(), err)
 	}
 }

@@ -36,6 +36,7 @@ type runtimeProcessPolicy struct {
 	ExecutableArgs                []string                           `json:"executable_args"`
 	PathToExecutable              string                             `json:"path_to_executable"`
 	TransportType                 string                             `json:"transport_type"`
+	Effort                        string                             `json:"effort,omitempty"`
 	DirectConnect                 *runtimeDirectConnectShape         `json:"direct_connect,omitempty"`
 	Settings                      string                             `json:"settings"`
 	SettingsObject                map[string]any                     `json:"settings_object,omitempty"`
@@ -68,13 +69,15 @@ type runtimeProcessPolicy struct {
 
 func managedRuntimeProcessPolicyFingerprint(options agentclient.Options) string {
 	policy := runtimeProcessPolicy{
-		CLIPath:           strings.TrimSpace(options.CLIPath),
-		CWD:               strings.TrimSpace(options.CWD),
-		User:              strings.TrimSpace(options.User),
-		Executable:        strings.TrimSpace(options.Executable),
-		ExecutableArgs:    append([]string(nil), options.ExecutableArgs...),
-		PathToExecutable:  strings.TrimSpace(options.PathToExecutable),
-		TransportType:     fmt.Sprintf("%T", options.Transport),
+		CLIPath:          strings.TrimSpace(options.CLIPath),
+		CWD:              strings.TrimSpace(options.CWD),
+		User:             strings.TrimSpace(options.User),
+		Executable:       strings.TrimSpace(options.Executable),
+		ExecutableArgs:   append([]string(nil), options.ExecutableArgs...),
+		PathToExecutable: strings.TrimSpace(options.PathToExecutable),
+		TransportType:    fmt.Sprintf("%T", options.Transport),
+		// bridge 只在启动参数里下发 effort，没有热更新控制；变化时必须换进程才会生效。
+		Effort:            strings.TrimSpace(string(options.Runtime.Effort)),
 		Settings:          options.Settings,
 		SettingsObject:    options.SettingsObject,
 		Sandbox:           options.Sandbox,

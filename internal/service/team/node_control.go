@@ -33,13 +33,20 @@ func (s *NodeService) controlRequest(ctx context.Context, cookie, credential, me
 }
 
 func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, method, path string, input, output any) error {
-	data, err := json.Marshal(input)
+	var body io.Reader
+	if input != nil {
+		data, err := json.Marshal(input)
+		if err != nil {
+			return err
+		}
+		body = bytes.NewReader(data)
+	}
+	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+path, body)
 	if err != nil {
 		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, method, s.remoteURL+path, bytes.NewReader(data))
-	if err != nil {
-		return err
+	if body != nil {
+		request.Header.Set("Content-Type", "application/json")
 	}
 	if cookie != "" {
 		request.AddCookie(&http.Cookie{Name: s.cookieName, Value: cookie})
@@ -48,7 +55,6 @@ func (s *NodeService) remoteRequest(ctx context.Context, cookie, credential, met
 		request.Header.Set("Authorization", "Bearer "+credential)
 	}
 	request.Header.Set("Origin", s.origin)
-	request.Header.Set("Content-Type", "application/json")
 	response, err := s.httpClient.Do(request)
 	if err != nil {
 		return ErrNodeUnavailable

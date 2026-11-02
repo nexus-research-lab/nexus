@@ -36,6 +36,11 @@ export function hasTeamAccess(status: AuthStatus | null): boolean {
   return status?.multiplayer_enabled === true && isRemoteAccountAuthenticated(status) && Boolean(status.organization_id);
 }
 
+/** 已登录组织账号，但部署能力探测失败：在线入口不可用，需要向用户解释而不是静默隐藏。 */
+export function isTeamCapabilityUnavailable(status: AuthStatus | null): boolean {
+  return status?.multiplayer_unavailable === true && isRemoteAccountAuthenticated(status) && Boolean(status.organization_id);
+}
+
 export function useAuth() {
   const context = useContext(AUTH_CONTEXT);
   if (!context) {

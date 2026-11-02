@@ -45,6 +45,7 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 		switch key {
 		case protocol.OptionSessionProvider,
 			protocol.OptionSessionModel,
+			protocol.OptionSessionEffort,
 			protocol.OptionSessionPermissionMode,
 			protocol.OptionRuntimeRetainedTranscriptSessionIDs:
 			continue

@@ -12,6 +12,7 @@ const zlib = require("zlib");
 const DEFAULT_RELEASE = "nxs-stable";
 const DEFAULT_REPO = "nexus-research-lab/nexus-agent-sdk-bridge";
 const USER_AGENT = "nexus-desktop-nxs-fetcher";
+const DOWNLOAD_ATTEMPTS = 4;
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -58,6 +59,8 @@ async function main() {
   const executableName = goos === "windows" ? "nxs.exe" : "nxs";
   const runtimeBytes = extractExecutable(archiveBytes, archiveKind(asset), executableName);
 
+  const helperFiles = goos === "windows" && !args.skipMXC
+    ? ["nxs-mxc.exe", "nxs-mxc-LICENSE.txt"].map(name => [name, extractExecutable(archiveBytes, archiveKind(asset), name)]) : [];
   fs.mkdirSync(path.dirname(args.output), { recursive: true });
   fs.writeFileSync(args.output, runtimeBytes, { mode: 0o755 });
   fs.chmodSync(args.output, 0o755);
@@ -69,6 +72,7 @@ async function main() {
     fs.chmodSync(args.ripgrepOutput, 0o755);
   }
 
+  for (const [name, bytes] of helperFiles) fs.writeFileSync(path.join(path.dirname(args.output), name), bytes);
   console.log(`nxs runtime: ${args.output}`);
   if (args.ripgrepOutput) {
     console.log(`ripgrep sidecar: ${args.ripgrepOutput}`);
@@ -89,6 +93,9 @@ function parseArgs(values) {
       case "--help":
       case "-h":
         args.help = true;
+        break;
+      case "--skip-mxc":
+        args.skipMXC = true; // Bootstrap only: pinned source build supplies the helper before packaging.
         break;
       case "--output":
         args.output = requireValue(values, ++index, value);
@@ -129,6 +136,7 @@ function requireValue(values, index, flag) {
 function printHelp() {
   console.log(`Usage: node scripts/desktop/fetch-nxs-runtime.js --output <path> [--ripgrep-output <path>] [--goos darwin] [--goarch arm64]
 
+Windows archives must include nxs-mxc.exe and its license. --skip-mxc is only for source-build bootstrap.
 Downloads the nxs runtime from the bridge release manifest, verifies sha256, and writes the executable.
 
 Environment:
@@ -232,7 +240,7 @@ class GitHubReleaseClient {
   }
 
   async downloadURL(rawURL, accept = "application/octet-stream") {
-    return downloadURL(rawURL, {
+    return downloadURLWithRetry(rawURL, {
       accept,
       token: this.token,
       redirectsRemaining: 5,
@@ -281,6 +289,30 @@ function runtimeManifestCandidates(manifest) {
   return candidates;
 }
 
+// GitHub release CDN 偶发超时、连接重置和 5xx；4xx（含 404 回退路径）直接抛出交给调用方。
+async function downloadURLWithRetry(rawURL, options) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await downloadURL(rawURL, options);
+    } catch (error) {
+      if (attempt >= DOWNLOAD_ATTEMPTS || !isRetryableDownloadError(error)) {
+        throw error;
+      }
+      const delayMs = attempt * 3000;
+      console.error(`download attempt ${attempt}/${DOWNLOAD_ATTEMPTS} failed (${error.message}); retrying in ${delayMs / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+}
+
+function isRetryableDownloadError(error) {
+  const statusCode = error.statusCode;
+  if (!statusCode) {
+    return true;
+  }
+  return statusCode === 429 || statusCode >= 500;
+}
+
 function downloadURL(rawURL, options) {
   const url = new URL(rawURL);
   const transport = url.protocol === "http:" ? http : https;
@@ -298,7 +330,9 @@ function downloadURL(rawURL, options) {
       if (statusCode >= 300 && statusCode < 400 && location) {
         response.resume();
         if (options.redirectsRemaining <= 0) {
-          reject(new Error(`too many redirects while downloading ${rawURL}`));
+          const error = new Error(`too many redirects while downloading ${rawURL}`);
+          error.statusCode = statusCode;
+          reject(error);
           return;
         }
         downloadURL(new URL(location, url).toString(), {

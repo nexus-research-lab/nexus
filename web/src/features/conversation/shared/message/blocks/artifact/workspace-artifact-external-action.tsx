@@ -39,7 +39,6 @@ export function WorkspaceArtifactExternalActionButton({
         disabled={disabled}
         onClick={onAction}
         size={size}
-        title={copy.title}
         variant="text"
       >
         <ActionIcon className={size === "2xs" ? "h-3 w-3" : "h-3.5 w-3.5"} />

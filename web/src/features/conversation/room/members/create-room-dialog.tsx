@@ -65,6 +65,7 @@ function CreateRoomDialogContent({
   isCreating,
   mode,
   onlineAvailable,
+  onlineNotice,
   onCancel,
   onConfirm,
   users,
@@ -153,7 +154,7 @@ function CreateRoomDialogContent({
                     title={t("room.location")}
                     value={form.state.location}
                   />
-                ) : null}
+                ) : mode === "create" ? onlineNotice : null}
                 <RoomSettingsForm
                   avatarFallbackTitle={labels.title}
                   canSubmit={canSubmit}

@@ -46,6 +46,9 @@ jobs:
           corepack prepare pnpm@9.15.2 --activate
           pnpm install --frozen-lockfile
       - name: Standard lint, types, contracts, component behavior and production build
+        env:
+          # ubuntu-latest 提供 4 核；本地默认仍为 2，避免开发机并发过高。
+          VITEST_MAX_WORKERS: "4"
         run: pnpm run check:standard
 
   browser:
@@ -55,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     defaults:
       run:
         working-directory: web

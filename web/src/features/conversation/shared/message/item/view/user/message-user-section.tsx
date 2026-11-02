@@ -90,7 +90,7 @@ function MessageUserSectionContent({
       <div className="w-full">
         <div className={cn("flex min-w-0", alignment === "left" ? "justify-start" : "justify-end", layout.row)}>
           <div
-            className={cn("group relative w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full", alignment === "left" ? "mr-auto" : "ml-auto")}
+            className={cn("nexus-chat-user-frame group relative w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full", alignment === "left" ? "mr-auto" : "ml-auto")}
             data-editing={String(editor.isEditing)}
           >
             {author ? <div className={cn("nexus-chat-message-header mb-2 flex min-w-0 items-center gap-2", alignment === "left" ? "justify-start" : "justify-end")}>

@@ -134,12 +134,14 @@ function Stop-OutputDirProcesses([string]$outputDir) {
     return
   }
 
-  $fullOutputDir = [System.IO.Path]::GetFullPath($outputDir)
+  $fullOutputDir = [System.IO.Path]::GetFullPath($outputDir).TrimEnd([char[]]"\/") + [System.IO.Path]::DirectorySeparatorChar
   $targets = @(
     Get-CimInstance Win32_Process |
       Where-Object {
-        ($_.ExecutablePath -and $_.ExecutablePath.StartsWith($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase)) -or
-        ($_.CommandLine -and $_.CommandLine.IndexOf($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+        # Command arguments may mention this directory in the build process itself.
+        # Only executables inside the output directory belong to the stale bundle.
+        $_.ProcessId -ne $PID -and $_.ExecutablePath -and
+          $_.ExecutablePath.StartsWith($fullOutputDir, [System.StringComparison]::OrdinalIgnoreCase)
       }
   )
   if ($targets.Count -eq 0) {
@@ -160,7 +162,7 @@ $projectPath = Join-Path $windowsDir "Nexus.Desktop/Nexus.Desktop.csproj"
 $appVersion = Resolve-AppVersion $rootDir $Version
 $resolvedBuildNumber = Resolve-BuildNumber $rootDir $BuildNumber
 $fileVersion = Convert-FileVersion $appVersion $resolvedBuildNumber
-$publishSelfContained = Resolve-Bool $SelfContained $false
+$publishSelfContained = Resolve-Bool $SelfContained $true
 $publishSelfContainedValue = $publishSelfContained.ToString().ToLowerInvariant()
 $bundleNXSRuntime = Resolve-Bool $BundleNXSRuntime $false
 $goArch = Resolve-WindowsGoArch $RuntimeIdentifier
@@ -196,10 +198,14 @@ Push-Location $rootDir
 $previousCgoEnabled = $env:CGO_ENABLED
 $previousGoos = $env:GOOS
 $previousGoarch = $env:GOARCH
+$previousGoWork = $env:GOWORK
 try {
   $env:CGO_ENABLED = if ($env:CGO_ENABLED) { $env:CGO_ENABLED } else { "0" }
   $env:GOOS = "windows"
   $env:GOARCH = $goArch
+  # Desktop bundles are built as an independent module. A repository go.work
+  # must not change the package's build graph.
+  $env:GOWORK = "off"
   $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
   $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
   go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
@@ -223,6 +229,7 @@ try {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
   if ($null -eq $previousGoarch) { Remove-Item Env:GOARCH -ErrorAction SilentlyContinue } else { $env:GOARCH = $previousGoarch }
+  if ($null -eq $previousGoWork) { Remove-Item Env:GOWORK -ErrorAction SilentlyContinue } else { $env:GOWORK = $previousGoWork }
   Pop-Location
 }
 
@@ -264,6 +271,11 @@ if ($bundleNXSRuntime) {
       throw "Missing cached nxs ripgrep sidecar: $cachedRipgrepPath"
     }
     Write-Host "==> Using cached bundled nxs runtime"
+    foreach ($sidecar in @("nxs-mxc.exe", "nxs-mxc-LICENSE.txt")) {
+      $source = Join-Path (Split-Path -Parent $resolvedNXSRuntimePath) $sidecar
+      if (-not (Test-Path -LiteralPath $source)) { throw "Missing cached Rust sandbox component: $source" }
+      Copy-Item -Force $source (Join-Path $resourcesBinDir $sidecar)
+    }
     Copy-Item -Force $resolvedNXSRuntimePath $nxsPath
     Copy-Item -Force (Resolve-Path -LiteralPath $cachedRipgrepPath).Path $nxsRipgrepPath
     if (-not (Test-Path -LiteralPath $nxsRipgrepPath)) {

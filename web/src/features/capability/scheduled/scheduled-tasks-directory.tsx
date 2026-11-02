@@ -464,7 +464,6 @@ export function ScheduledTasksDirectory() {
               </UiButton>
             </div>
           )}
-          description={t("capability.scheduled_intro_description")}
           className="flex h-full min-h-0 flex-col pb-0"
           title={t("capability.scheduled_intro_title")}
         >

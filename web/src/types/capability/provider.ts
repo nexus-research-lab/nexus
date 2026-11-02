@@ -38,7 +38,11 @@ export interface ModelGuidance {
   sources: Record<string, string>;
   eligibility: Record<ModelPurpose, { available: boolean; reason?: string }>;
   recommendations: Partial<Record<ModelPurpose, string>>;
+  /** Session 可选思考强度（由低到高）；缺省表示该模型不开放强度选择。 */
+  effort_levels?: SessionEffortLevel[];
 }
+
+export type SessionEffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface ProviderModelRecord {
  capability_tests?: Partial<Record<keyof ProviderModelCapabilities, ProviderCapabilityTest>>;

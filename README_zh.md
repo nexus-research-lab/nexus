@@ -163,6 +163,8 @@ make dev
 
 `make dev` 会同时启动同级的 `nexus-control`、后端与前端。Control 在 `http://localhost:8020`，默认数据目录为 `~/.nexus/control`；后端在 `http://localhost:8010`，前端开发服务在 `http://localhost:3000`。
 
+Windows 开发需要 PowerShell 7（pwsh）、GNU Make、Go、Node.js 和项目固定版本的 pnpm。在 PowerShell 中同样执行 make dev；Ctrl+C 会停止本次启动的子服务。可用 make dev BACKEND_PORT=8011 WEB_PORT=3001 CONTROL_PORT=8021 修改端口。nexus-control 应放在本仓同级目录。dev-nxs、run-control、run-backend、run-web、prepare-dev-runtime-cli 和 install 也支持 Windows 原生启动。平台专用打包和基于 shell 的检查命令仍需各自的运行环境。
+
 只有需要分别挂调试器时，才在三个终端依次运行 `make run-control`、`make run-backend` 和 `make run-web`。服务器部署统一使用上面的 Docker `make start`，避免缺少 `/auth/v1` 同源网关的手工源码部署。
 
 

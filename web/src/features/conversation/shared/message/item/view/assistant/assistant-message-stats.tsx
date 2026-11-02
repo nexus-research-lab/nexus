@@ -71,7 +71,7 @@ export function AssistantMessageStats({
     : [];
 
   return (
-    <div className="nexus-chat-message-stats min-w-0 pt-1.5 text-xs text-(--text-muted)">
+    <div className="nexus-chat-message-stats min-w-0 pt-1.5 text-xs tabular-nums text-(--text-muted)">
       {receiptItems.length > 0 ? (
         <div
           className="flex min-w-0 items-center gap-1.5 leading-tight text-[color:color-mix(in_srgb,var(--success)_82%,var(--text-default)_18%)]"

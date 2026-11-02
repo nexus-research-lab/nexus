@@ -61,7 +61,6 @@ export function SidebarPanelToggleAction(
   return (
     <UtilityButton
       icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
-      iconClassName="h-5 w-5"
       label={
         props.variant === "rail" ? props.labels.expand : props.labels.collapse
       }
@@ -119,7 +118,7 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
   }] : [])];
 
   return (
-    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 px-2">
+    <div className="sidebar-panel-footer shell-region-footer relative -mr-1.5 flex h-12 shrink-0 items-center justify-end gap-2 pl-2 pr-4">
       <UiButton
         ref={anchorRef}
         data-tour-anchor={SIDEBAR_TOUR_ANCHORS.restart}
@@ -177,15 +176,17 @@ export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
 function UtilityButton({
   active,
   icon: Icon,
-  iconClassName = "h-[18px] w-[18px]",
+  iconClassName = "h-4 w-4",
   label,
   onClick,
+  strokeWidth,
 }: {
   active?: boolean;
   icon: LucideIcon;
   iconClassName?: string;
   label: string;
   onClick: () => void;
+  strokeWidth?: number;
 }) {
   return (
     <UiIconButton
@@ -196,7 +197,7 @@ function UtilityButton({
       size="md"
       tooltip={label}
     >
-      <Icon aria-hidden="true" className={iconClassName} />
+      <Icon aria-hidden="true" className={iconClassName} strokeWidth={strokeWidth} />
     </UiIconButton>
   );
 }

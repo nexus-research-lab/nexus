@@ -188,9 +188,14 @@ func TestIMRoomBindingQueuesOneMemberAndStopsOldRepliesAfterSwitch(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
+	found := false
 	for _, entry := range history {
 		if strings.Contains(fmt.Sprint(entry), request.Content) {
-			t.Fatal("私域输入泄漏到公区")
+			found = true
+			break
 		}
+	}
+	if !found {
+		t.Fatal("外部群聊输入未写入公区历史")
 	}
 }

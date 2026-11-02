@@ -109,7 +109,7 @@ function WorkspaceSurfaceIdentity({
         </div>
       ) : null}
       {title ? (
-        <UiTooltip label={title}><div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "pageTitle", tone: "strong" }))} >
+        <UiTooltip label={title}><div className={cn("min-w-0 truncate", getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }))} >
           {title}
         </div></UiTooltip>
       ) : null}

@@ -6,12 +6,10 @@ package runtime
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestManagerShutdownRejectsNewWorkAndPreservesFailure(t *testing.T) {
@@ -67,69 +65,5 @@ func TestManagerShutdownWaitsForLateFactory(t *testing.T) {
 	}
 	if client.disconnectCalls != 1 || manager.SessionClient("session") != nil {
 		t.Fatalf("late client survived: disconnects=%d", client.disconnectCalls)
-	}
-}
-
-type shutdownReceiptStore struct {
-	entered, release chan struct{}
-	phase            protocol.SandboxPolicyReceiptPhase
-	saved            atomic.Bool
-}
-
-func (s *shutdownReceiptStore) Latest(context.Context, string, string) (protocol.SandboxPolicyReceiptSnapshot, bool, error) {
-	return protocol.SandboxPolicyReceiptSnapshot{}, false, nil
-}
-func (s *shutdownReceiptStore) Save(_ context.Context, snapshot protocol.SandboxPolicyReceiptSnapshot) error {
-	close(s.entered)
-	<-s.release
-	s.phase = snapshot.Phase
-	s.saved.Store(true)
-	return nil
-}
-func (s *shutdownReceiptStore) UpdatePhase(_ context.Context, _, _ string, _ uint64, phase protocol.SandboxPolicyReceiptPhase, _ string) error {
-	if !s.saved.Load() {
-		return errors.New("terminal update raced initial receipt insertion")
-	}
-	s.phase = phase
-	return nil
-}
-
-func TestManagerShutdownDrainsReceiptInsertionBeforeRetirement(t *testing.T) {
-	store := &shutdownReceiptStore{entered: make(chan struct{}), release: make(chan struct{})}
-	client := &receiptRuntimeClient{receipt: SandboxEffectivePolicyReceipt{
-		Version: 1, SessionID: "runtime", RuntimeKind: bridge.RuntimeNXS,
-		PolicyDigest: "sha256:shutdown", Phase: protocol.SandboxPolicyReceiptConfirmed,
-		CapabilityEvidence: "bridge_negotiated", IsolationEvidence: "not_attested", ConfirmedAt: time.Now().UTC(),
-	}}
-	manager := NewManagerWithFactory(runtimeFactoryFunc(func(bridge.Options) Client { return client }))
-	manager.SetSandboxPolicyReceiptStore(store)
-	startup, err := manager.BeginClientStartup(t.Context(), "session", "owner")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := startup.GetOrCreateWithFactory(t.Context(), bridge.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner"}}, nil); err != nil {
-		t.Fatal(err)
-	}
-	connected := make(chan error, 1)
-	go func() {
-		err := startup.Connect(t.Context())
-		startup.Close()
-		connected <- err
-	}()
-	<-store.entered
-	short, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
-	defer cancel()
-	if err := manager.Close(short); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("Close did not wait for pending receipt: %v", err)
-	}
-	close(store.release)
-	if err := <-connected; err != nil {
-		t.Fatal(err)
-	}
-	if err := manager.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	if store.phase != protocol.SandboxPolicyReceiptRetired || client.disconnectCalls != 1 {
-		t.Fatalf("phase=%s disconnects=%d", store.phase, client.disconnectCalls)
 	}
 }

@@ -19,7 +19,6 @@ import {
 import { UiTooltip } from "@/shared/ui/overlay/tooltip";
 
 export type {
-  UiButtonShape,
   UiButtonSize,
   UiButtonTone,
   UiButtonVariant,

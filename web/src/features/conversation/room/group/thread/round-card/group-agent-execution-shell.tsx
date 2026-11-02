@@ -6,7 +6,7 @@
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
-import { memo, useMemo, type ReactNode } from "react";
+import { memo, useMemo, type ComponentProps, type ReactNode } from "react";
 
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
@@ -32,6 +32,90 @@ import {
   projectRoomAgentExecutionMessages,
 } from "./group-agent-execution-model";
 import { ThreadActionButton } from "./thread-action-button";
+
+export interface RoomAgentResultCardProps {
+  activityState?: ComponentProps<typeof MessageItem>["activityState"];
+  agentAvatar?: string | null;
+  agentMentionDirectory?: AgentMentionDirectory;
+  agentName: string;
+  canRespondToPermissions?: boolean;
+  compact?: boolean;
+  emptyState?: ReactNode;
+  headerAction?: ReactNode;
+  headerActions?: ReactNode;
+  isLastRound?: boolean;
+  isLoading?: boolean;
+  messages: AssistantMessage[];
+  onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
+  onOpenWorkspaceFile?: (path: string) => void;
+  onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  pendingPermissions?: PendingPermission[];
+  replyTarget?: { name: string; avatar?: string | null; message?: string };
+  roundId: string;
+  unresolvedToolStatus?: "stopped" | "error";
+  workspaceAgentId?: string;
+}
+
+/** 本地与在线 Room 统一复用的 Agent 结果卡片展示面。 */
+export function RoomAgentResultCard({
+  activityState,
+  agentAvatar,
+  agentMentionDirectory,
+  agentName,
+  canRespondToPermissions,
+  compact,
+  emptyState,
+  headerAction,
+  headerActions,
+  isLastRound,
+  isLoading = false,
+  messages,
+  onOpenAgentContact,
+  onOpenSubagentTask,
+  onOpenWorkspaceFile,
+  onPermissionResponse,
+  pendingPermissions,
+  replyTarget,
+  roundId,
+  unresolvedToolStatus,
+  workspaceAgentId,
+}: RoomAgentResultCardProps) {
+  const resolvedHeaderAction = headerAction ?? (
+    headerActions ? (
+      <RoomAgentExecutionActions>{headerActions}</RoomAgentExecutionActions>
+    ) : undefined
+  );
+  return (
+    <MessageItem
+      activityState={activityState}
+      agentMentionDirectory={agentMentionDirectory}
+      animateEntry={false}
+      assistantContentMode="room_result"
+      assistantEmptyState={emptyState}
+      assistantHeaderAction={resolvedHeaderAction}
+      assistantReplyTarget={replyTarget}
+      canRespondToPermissions={canRespondToPermissions}
+      compact={compact}
+      currentAgentAvatar={agentAvatar}
+      currentAgentName={agentName}
+      isLastRound={isLastRound}
+      isLoading={isLoading}
+      messages={messages}
+      onOpenAgentContact={onOpenAgentContact}
+      onOpenSubagentTask={onOpenSubagentTask}
+      onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onPermissionResponse={onPermissionResponse}
+      pendingPermissions={pendingPermissions}
+      roundId={roundId}
+      unresolvedToolStatus={unresolvedToolStatus}
+      workspaceAgentId={workspaceAgentId}
+    />
+  );
+}
 
 interface GroupAgentExecutionShellProps {
   agentAvatar: string | null;
@@ -137,12 +221,13 @@ function GroupAgentExecutionShellInner({
           data-conversation-agent-boundary
         />
       ) : null}
-      <MessageItem
+      <RoomAgentResultCard
+        activityState={activityState}
+        agentAvatar={agentAvatar}
         agentMentionDirectory={agentMentionDirectory}
-        animateEntry={false}
-        assistantContentMode="room_result"
-        assistantHeaderAction={showThread || showStop || terminalLabel ? (
-          <RoomAgentExecutionActions>
+        agentName={agentName}
+        headerActions={showThread || showStop || terminalLabel ? (
+          <>
             {terminalLabel ? (
               <span className={cn("px-2", getUiTypographyClassName({ role: "metadata", tone: "muted" }))}>
                 {terminalLabel}
@@ -164,11 +249,8 @@ function GroupAgentExecutionShellInner({
                 onClick={onClickThread}
               />
             ) : null}
-          </RoomAgentExecutionActions>
+          </>
         ) : undefined}
-        currentAgentAvatar={agentAvatar}
-        currentAgentName={agentName}
-        activityState={activityState}
         isLastRound
         isLoading={isLoading}
         messages={projectedMessages}
@@ -192,7 +274,7 @@ export const GroupAgentExecutionShell = memo(GroupAgentExecutionShellInner);
 export function RoomAgentStopButton({isStopping = false, onClick}: {isStopping?: boolean; onClick: () => void}) {
   const {t} = useI18n();
   const label = t(isStopping ? "room.agent_stopping" : "room.agent_stop_action");
-  return <UiButton aria-busy={isStopping || undefined} aria-label={label} title={label}
+  return <UiButton aria-busy={isStopping || undefined} aria-label={label}
     data-room-agent-action="stop" disabled={isStopping} onClick={onClick} size="xs" tone="danger" variant="text">
     <Square aria-hidden="true" className="h-3.5 w-3.5 fill-current" />
     <span className="hidden sm:inline">{t(isStopping ? "room.agent_stopping" : "room.agent_stop")}</span>

@@ -109,7 +109,7 @@ export function ExecutionNodeAvatar({
             "text-(--icon-default)",
             dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
-          strokeWidth={1.8}
+          strokeWidth={1.5}
         />
       ) : kind === "gate" ? (
         <ShieldCheck
@@ -118,7 +118,7 @@ export function ExecutionNodeAvatar({
             "text-(--icon-default)",
             dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
-          strokeWidth={1.8}
+          strokeWidth={1.5}
         />
       ) : agent ? (
         <UiAgentAvatar
@@ -151,7 +151,7 @@ export function ExecutionNodeAvatar({
             "text-(--icon-default)",
             dock ? "h-3.5 w-3.5" : nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
           )}
-          strokeWidth={1.8}
+          strokeWidth={1.5}
         />
       ) : (
         <span

@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { TranslationKey } from "@/shared/i18n/messages";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { buildAgentSelectionOptions, includeUnavailableAgentSelection, type AgentSelectionOption } from "@/lib/agent-selection-options";
 
@@ -294,7 +294,7 @@ function PairingRow({
         </div>
       </div>
 
-      <div className="grid max-w-[720px] items-start gap-3 px-3 pb-3 sm:grid-cols-2">
+      <div className="grid items-start gap-3 px-3 pb-3 sm:grid-cols-2">
         <UiField className="min-w-0" htmlFor={agentFieldId} label={t("capability.pairing_agent")}>
           <UiSelectMenu
             ariaLabel={t("capability.pairing_select_row_agent")}
@@ -311,7 +311,6 @@ function PairingRow({
       </div>
 
       <UiDisclosure
-        contentClassName="grid gap-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]"
         density="compact"
         inset="sm"
         label={t("capability.pairing_details")}
@@ -319,17 +318,11 @@ function PairingRow({
         summaryTone="muted"
         variant="section"
       >
-          <PairingTechnicalField label={t("capability.pairing_binding_key")} value={bindingKey} />
-          <div className="min-w-0">
-            <div className={cn(
-              "flex h-6 items-center gap-1.5",
-              getUiTypographyClassName({
-                role: "caption",
-                tone: "soft",
-                weight: "semibold",
-              }),
-            )}>
-              <span>IM Session</span>
+        {/* 技术详情按“标签 | 值”单列排布：长标识独占一行截断，时间并入同一行，不再三栏挤压。 */}
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-1.5">
+          <PairingDetailRow label={t("capability.pairing_binding_key")} mono value={bindingKey} />
+          <PairingDetailRow
+            action={(
               <UiIconButton
                 disabled={busy || !sessionKey}
                 onClick={() => void onCopySessionKey(item)}
@@ -340,52 +333,54 @@ function PairingRow({
               >
                 <Copy className="h-3.5 w-3.5" />
               </UiIconButton>
-            </div>
-            <UiTooltip label={sessionKey || t("capability.pairing_no_session")}><div
-              className={cn(
-                "truncate",
-                getUiTypographyClassName({ role: "code", tone: "default" }),
-              )}
-
-            >
-              {sessionKey || t("capability.pairing_no_session")}
-            </div></UiTooltip>
-          </div>
-          <div className={cn(
-            "min-w-0",
-            getUiTypographyClassName({ role: "metadata", tone: "muted" }),
-          )}>
-            <div>{t("capability.pairing_source")}: {item.source === "ingress" ? t("capability.pairing_first_message") : item.source}</div>
-            {item.last_message_at ? <div>{t("capability.pairing_last_message")}: {formatPairingTime(item.last_message_at, locale)}</div> : null}
-            <div>{t("capability.pairing_updated")}: {formatPairingTime(item.updated_at, locale)}</div>
-          </div>
+            )}
+            label="IM Session"
+            mono={Boolean(sessionKey)}
+            value={sessionKey || t("capability.pairing_no_session")}
+          />
+          <PairingDetailRow
+            label={t("capability.pairing_source")}
+            value={item.source === "ingress" ? t("capability.pairing_first_message") : item.source}
+          />
+          <PairingDetailRow
+            label={t("capability.pairing_activity")}
+            value={[
+              item.last_message_at ? `${t("capability.pairing_last_message")} ${formatPairingTime(item.last_message_at, locale)}` : null,
+              `${t("capability.pairing_updated")} ${formatPairingTime(item.updated_at, locale)}`,
+            ].filter(Boolean).join(" · ")}
+          />
+        </dl>
       </UiDisclosure>
     </UiPanel>
   );
 }
 
-function PairingTechnicalField({ label, value }: { label: string; value: string }) {
+function PairingDetailRow({
+  action,
+  label,
+  mono = false,
+  value,
+}: {
+  action?: ReactNode;
+  label: string;
+  mono?: boolean;
+  value: string;
+}) {
   return (
-    <div className="min-w-0">
-      <div className={cn(
-        "flex h-6 items-center",
-        getUiTypographyClassName({
-          role: "caption",
-          tone: "soft",
-          weight: "semibold",
-        }),
-      )}>
-        {label}
-      </div>
-      <UiTooltip label={value}><div
-        className={cn(
-          "truncate",
-          getUiTypographyClassName({ role: "code", tone: "default" }),
-        )}
-      >
-        {value}
-      </div></UiTooltip>
-    </div>
+    <>
+      <dt className={getUiTypographyClassName({ role: "metadata", tone: "soft" })}>{label}</dt>
+      <dd className="flex min-w-0 items-center gap-1">
+        <UiTooltip label={value}>
+          <span className={cn(
+            "min-w-0 truncate",
+            getUiTypographyClassName(mono ? { role: "code", tone: "muted" } : { role: "metadata", tone: "muted" }),
+          )}>
+            {value}
+          </span>
+        </UiTooltip>
+        {action}
+      </dd>
+    </>
   );
 }
 

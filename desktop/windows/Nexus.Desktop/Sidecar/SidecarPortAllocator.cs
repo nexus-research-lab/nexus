@@ -10,7 +10,7 @@ internal static class SidecarPortAllocator
     private const int PortRetryCount = 100;
     private const int PortRetryIntervalMilliseconds = 200;
 
-    public static int Allocate(DesktopStartupTimeline? startupTimeline = null)
+    public static int Allocate(DesktopStartupTimeline? startupTimeline = null, CancellationToken cancellationToken = default)
     {
         if (IsAvailable(DesktopLoopbackPort))
         {
@@ -24,7 +24,8 @@ internal static class SidecarPortAllocator
         // 旧 sidecar 正在响应退出信号时，给固定本地端口一个短暂释放窗口。
         for (int attempt = 1; attempt <= PortRetryCount; attempt++)
         {
-            Thread.Sleep(PortRetryIntervalMilliseconds);
+            if (cancellationToken.WaitHandle.WaitOne(PortRetryIntervalMilliseconds))
+                cancellationToken.ThrowIfCancellationRequested();
             if (IsAvailable(DesktopLoopbackPort))
             {
                 startupTimeline?.Mark("sidecar.port_wait_ready", new Dictionary<string, string>

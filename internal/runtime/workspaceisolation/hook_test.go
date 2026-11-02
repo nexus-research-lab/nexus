@@ -181,7 +181,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		{name: "quoted numeric windows rooted path", command: `type "\0"`, denied: runtime.GOOS == "windows"},
 		{name: "numeric windows rooted path nine", command: `type '\9'`, denied: runtime.GOOS == "windows"},
 		{name: "windows root path", command: `type \`, denied: runtime.GOOS == "windows"},
-		{name: "bash escaped backslash traversal", command: `type ..\..\other\secret`, denied: false},
+		{name: "bash escaped backslash traversal", command: `type ..\..\other\secret`, denied: runtime.GOOS == "windows"},
 		{
 			name:    "outside path containing equals",
 			command: "type " + filepath.Join(filepath.Dir(workspace), "outside", "file=name"),

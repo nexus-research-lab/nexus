@@ -140,15 +140,18 @@ export function UiDisclosure({
         {meta ? <span className="min-w-0 shrink truncate">{meta}</span> : null}
         <ChevronDown
           aria-hidden="true"
-          className="h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-fast) group-open/disclosure:rotate-180"
+          className="h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-(--motion-duration-snap) group-open/disclosure:rotate-180"
         />
       </summary>
-      <div className={cn(
-        CONTENT_CLASS_NAMES[variant][density],
-        variant === "section" && inset === "sm" && "px-3",
-        contentClassName,
-      )}>
-        {children}
+      {/* 外层 Grid 只负责展开动效，正文边界仍由内层 content 持有。 */}
+      <div className="ui-disclosure-expand">
+        <div className={cn(
+          CONTENT_CLASS_NAMES[variant][density],
+          variant === "section" && inset === "sm" && "px-3",
+          contentClassName,
+        )}>
+          {children}
+        </div>
       </div>
     </details>
   );

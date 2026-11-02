@@ -47,6 +47,8 @@ type slotExecution struct {
 	forkSourceSessionID      string
 	runtimeIdentityCommitted bool
 	subagentCommandAuthority *bool
+	// externalReplyContext 是 IM 入站轮次的回信说明；按轮注入 user 侧上下文，不进 system prompt。
+	externalReplyContext string
 }
 
 func (e *slotExecution) writeUsage(message protocol.Message) bool {

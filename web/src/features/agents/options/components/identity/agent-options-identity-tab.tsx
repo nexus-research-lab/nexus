@@ -113,7 +113,7 @@ export function AgentOptionsIdentityTab({
   return (
     <div
       className={cn(
-        "animate-in slide-in-from-right-4 duration-300 motion-reduce:animate-none",
+        "animate-in slide-in-from-right-4 duration-(--motion-duration-layout) motion-reduce:animate-none",
         isInline
           ? "flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden"
           : "space-y-6",

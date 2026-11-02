@@ -7,7 +7,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `composer-textarea.ts`: 原生光标行查询与草稿末尾聚焦/滚动；DOM 副作用不进入纯状态模型
 
 - `use-composer-controller.ts`: 组合草稿、附件、提及、加号 Plan 与 Slash 共用入口、Slash 目录、历史和各动作协议
-- `use-composer-session-settings.ts`: 读取、缓存并更新 Session 的模型、权限与 Connector 覆盖，投影 Agent/全局继承结果；Room 模型入口打开时补齐成员摘要，保存期间阻止新一轮提交
+- `use-composer-session-settings.ts`: 读取、缓存并更新 Session 的模型、思考强度、权限与 Connector 覆盖；强度与模型同属 model 设置事务，选回继承模型时清空模型覆盖并只保留新模型支持的强度，投影 Agent/全局继承结果；Room 模型入口打开时补齐成员摘要，保存期间阻止新一轮提交
 - `use-composer-local-directories.ts`: 为桌面 DM/Room 读取、选择、移除并保存 Session 级本机工作文件夹；Room 将同一目录快照投影给全部成员 runtime
 - `use-composer-draft.ts`: 将正文、附件、输入模式、Goal 负责人和 Mention 目标绑定到包含 Session ID 的 Room/DM 内存草稿胶囊，并独立管理瞬时弹层状态
 - `use-composer-message-submit.ts`: 按资格判断、附件准备、投递和收尾阶段提交消息；附件准备也属于异常捕获边界。共置测试覆盖准备失败、明确拒绝与受理未知时的草稿所有权。

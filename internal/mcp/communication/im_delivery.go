@@ -55,7 +55,7 @@ func parseDeliveryQuery(args map[string]any) (communicationsvc.DeliverySourceQue
 			}
 		}
 	}
-	scope := stringArg(args, "scope")
+	scope := sdktool.StringArg(args, "scope")
 	if _, present := args["scope"]; present && scope == "" {
 		return q, false, errors.New("empty target scope")
 	}
@@ -68,8 +68,8 @@ func parseDeliveryQuery(args map[string]any) (communicationsvc.DeliverySourceQue
 	if scope != "delivery_sources" {
 		return q, false, errors.New("unknown target scope")
 	}
-	q.DeliveryID = stringArg(args, "delivery_id")
-	q.Query = stringArg(args, "query")
+	q.DeliveryID = sdktool.StringArg(args, "delivery_id")
+	q.Query = sdktool.StringArg(args, "query")
 	if _, present := args["delivery_id"]; present && q.DeliveryID == "" {
 		return q, true, errors.New("empty delivery_id")
 	}
@@ -140,5 +140,5 @@ func sendDeliveryReply(ctx context.Context, svc *communicationsvc.Service, actor
 	if svc == nil {
 		return nil, errors.New("平台通讯服务未装配")
 	}
-	return svc.ReplyToDelivery(ctx, actor, stringArg(args, "target_id"), stringArg(args, "content"), refs)
+	return svc.ReplyToDelivery(ctx, actor, sdktool.StringArg(args, "target_id"), sdktool.StringArg(args, "content"), refs)
 }

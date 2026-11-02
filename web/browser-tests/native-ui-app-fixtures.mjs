@@ -27,6 +27,11 @@ const READS = new Map([
 ]);
 
 export function appShellRead(method, pathname) {
+  // getAuthStatus() unconditionally probes deployment multiplayer capability since 91877a042.
+  // Default to disabled; suites that need multiplayer override this route explicitly.
+  if (method === "GET" && pathname === "/nexus/v1/team/capabilities") {
+    return { data: { enabled: false } };
+  }
   if (method === "GET" && pathname === "/nexus/v1/team/commands") {
     return {data:{status:"ready",commands:[{name:"browser",description:"Browser",execution:"runtime",enabled:true}]}};
   }

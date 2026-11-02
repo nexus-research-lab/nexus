@@ -1,5 +1,5 @@
 // INPUT: 宿主注入的外部输入回复与权限适配器。
-// OUTPUT: 仅按持久 root 和成员身份关联的私域完成回复及权限处理。
+// OUTPUT: 仅按持久 root 关联的公区完成回复及权限处理。
 // POS: Room 保持调度权，外部 transport 不参与公区事件或成员选择。
 package realtime
 
@@ -24,8 +24,12 @@ func (s *Service) SetExternalInputHooks(
 }
 
 // deliverExternalCompletion 只由整轮成功终态调用；单条 assistant 完成不代表最终答复。
+// 只回传公区可见的回复：私域定向唤醒的产出不属于群聊对话，不能经外部通道泄出。
 func (e *slotExecution) deliverExternalCompletion(result exec.RoundExecutionResult, value protocol.Message) error {
 	if !result.CompletedByAssistant || roomSlotTerminalStatus(result) != "finished" || e.slot.shouldSuppressOutput() || e.service.externalReply == nil || roomdomain.IsNoReplyAssistantMessage(value) {
+		return nil
+	}
+	if e.slot.Trigger.TriggerType == roomDirectedMessageTriggerType {
 		return nil
 	}
 	return e.service.externalReply(e.ctx, roomRootRoundID(e.round), e.slot.AgentID, e.slot.RuntimeSessionKey, roomdomain.StripNoReplyMarker(value))

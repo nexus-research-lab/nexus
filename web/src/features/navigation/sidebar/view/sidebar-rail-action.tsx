@@ -28,9 +28,9 @@ interface SidebarRailActionProps extends Omit<
 
 const BUTTON_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
   primary:
-    "flex h-[50px] w-full flex-col items-center justify-center gap-0.5 rounded-[12px]",
+    "flex h-[50px] w-full flex-col items-center justify-center gap-0.5 radius-control-lg",
   pinned:
-    "absolute inset-0 cursor-grab rounded-[12px] active:cursor-grabbing",
+    "absolute inset-0 cursor-grab radius-control-lg active:cursor-grabbing",
 };
 
 const ICON_FRAME_LAYOUT_CLASS_NAMES: Record<SidebarRailActionLayout, string> = {
@@ -75,7 +75,7 @@ export function SidebarRailAction({
     >
       <span
         className={cn(
-          "flex h-8 w-8 items-center justify-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
+          "flex h-8 w-8 items-center justify-center radius-control-lg transition-[background,color] duration-(--motion-duration-fast)",
           ICON_FRAME_LAYOUT_CLASS_NAMES[layout],
           active
             ? SIDEBAR_SELECTION_CLASS_NAME

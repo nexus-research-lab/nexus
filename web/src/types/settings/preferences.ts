@@ -26,7 +26,7 @@ export interface NXSRuntimeStatus {
   path?: string;
   source?: "env" | string;
   can_download: boolean;
-  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string };
+  sandbox?: { state: NXSSandboxDiagnosticState; platform?: string; message?: string };
   message?: string;
 }
 
@@ -55,27 +55,6 @@ export interface CUAInstallationStatus {
   release_url?: string;
   message?: string;
   permissions?: CUAInstallationPermissions;
-}
-
-export interface SandboxResourceRecord {
-  marker: {
-    cleanup_state?: "active" | "cleanup_unknown" | string;
-  };
-  process_active: boolean;
-}
-
-export interface SandboxResourceInspection {
-  owner_user_id: string;
-  resources: SandboxResourceRecord[];
-}
-
-export interface SandboxResourceReconcileResult {
-  owner_user_id: string;
-  older_than_seconds: number;
-  apply: boolean;
-  candidates: SandboxResourceRecord[];
-  removed: SandboxResourceRecord[];
-  skipped: SandboxResourceRecord[];
 }
 
 export interface ModelSelectionPreference {
@@ -139,6 +118,8 @@ export interface UserPreferences {
   emotion_enabled?: boolean;
   browser_cdp_enabled?: boolean;
   echo_enabled?: boolean;
+  /** Desktop app only; off by default and opted in from Permissions settings. */
+  desktop_sandbox_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;
@@ -155,6 +136,7 @@ export interface UpdateUserPreferencesParams {
   agent_sdk_diagnostics_enabled?: boolean;
   emotion_enabled?: boolean;
   browser_cdp_enabled?: boolean;
+  desktop_sandbox_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;

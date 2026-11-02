@@ -9,14 +9,15 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { ChevronDown, Target } from "lucide-react";
+import { ChevronDown, MessageCircle, Target } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
-import type { AgentMention } from "@/types/conversation/message/entity";
+import type { AgentMention, MessageExternalSource } from "@/types/conversation/message/entity";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
 import { ContentRenderer } from "../content/content-renderer";
 import { MessageUserAttachments } from "./message-user-attachments";
@@ -82,6 +83,9 @@ export function UserMessageContent({
       ref={expansion.anchorRef as RefObject<HTMLDivElement>}
       data-goal-control={String(presentation.goal)}
     >
+      {presentation.externalSource ? (
+        <UserMessageExternalSource source={presentation.externalSource} />
+      ) : null}
       {presentation.goal ? (
         <span className="mb-1.5 inline-flex items-center gap-1 self-start text-xs font-semibold text-(--text-muted)">
           <Target className="h-3.5 w-3.5" />
@@ -106,7 +110,7 @@ export function UserMessageContent({
             <div ref={measuredContentRef}>
               <ContentRenderer
                 className={cn(
-                  "nexus-chat-user-content w-fit max-w-[min(100%,760px)] self-end break-words text-left text-(--text-strong)",
+                  "nexus-chat-user-content w-fit max-w-full self-end break-words text-left text-(--text-strong)",
                   contentClassName,
                 )}
                 content={content}
@@ -146,5 +150,29 @@ export function UserMessageContent({
         workspaceAgentId={workspaceAgentId}
       />
     </div>
+  );
+}
+
+const EXTERNAL_CHANNEL_LABEL_KEYS: Record<string, TranslationKey> = {
+  dingtalk: "capability.pairing_channel_dingtalk",
+  discord: "capability.pairing_channel_discord",
+  feishu: "capability.pairing_channel_feishu",
+  telegram: "capability.pairing_channel_telegram",
+  wechat: "capability.pairing_channel_wechat",
+  "weixin-personal": "capability.pairing_channel_weixin_personal",
+};
+
+/** 外部 IM 发进群聊的消息在气泡顶部标明来源渠道与发送者，和 Goal 标记同一层级。 */
+function UserMessageExternalSource({ source }: { source: MessageExternalSource }) {
+  const { t } = useI18n();
+  const labelKey = EXTERNAL_CHANNEL_LABEL_KEYS[source.channel];
+  const channel = labelKey ? t(labelKey) : source.channel;
+  return (
+    <span className="mb-1.5 inline-flex max-w-full items-center gap-1 self-start text-xs font-semibold text-(--text-muted)">
+      <MessageCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">
+        {t("message.external_source", { channel })}{source.name ? ` · ${source.name}` : ""}
+      </span>
+    </span>
   );
 }

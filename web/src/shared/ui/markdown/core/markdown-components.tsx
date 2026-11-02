@@ -170,11 +170,7 @@ export function createMarkdownComponents(
       }
 
       return (
-        <span className="content-inline-code message-code-font align-baseline text-[0.9rem] leading-[1.25]">
-          <span className="max-w-full whitespace-pre-wrap break-words">
-            {presentation.value}
-          </span>
-        </span>
+        <code className="content-inline-code message-code-font">{presentation.value}</code>
       );
     },
     p({ children }) {

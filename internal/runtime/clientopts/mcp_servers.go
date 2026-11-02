@@ -83,7 +83,7 @@ func MergeAgentMCPServers(
 	return merged, nil
 }
 
-// RejectDesktopSandboxRemoteMCP 让 macOS MCP/helper 分别进入独立的网络与命令合同。
+// RejectDesktopSandboxRemoteMCP 让 macOS/Windows MCP/helper 分别进入独立的网络与命令合同。
 // 其他平台仍在能力未实现时拒绝，端点授权不扩张普通工具网络。
 func RejectDesktopSandboxRemoteMCP(
 	configured map[string]any,
@@ -101,16 +101,22 @@ func RejectDesktopSandboxRemoteMCP(
 		if !ok {
 			continue
 		}
-		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && runtime.GOOS != "darwin" {
+		if helper, _ := object["headersHelper"].(string); strings.TrimSpace(helper) != "" && !desktopMCPContractPlatform(runtime.GOOS) {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝未受宿主管理的 MCP headers helper；需要受信任 helper 准入")
 		}
 		serverType, _ := object["type"].(string)
 		serverType = strings.ToLower(strings.TrimSpace(serverType))
-		if runtime.GOOS != "darwin" && permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
+		if !desktopMCPContractPlatform(runtime.GOOS) && permissionMode != sdkpermission.ModeBypassPermissions && (serverType == "http" || serverType == "sse") {
 			return agentMCPServerError(name, "桌面沙箱当前拒绝外部 HTTP/SSE MCP；需要宿主显式网络域名准入")
 		}
 	}
 	return nil
+}
+
+// desktopMCPContractPlatform 报告 nxs 在该平台上提供 MCP 网络、helper 与 stdio
+// 的强制合同：macOS 走 Seatbelt，Windows 走 MXC ProcessContainer。
+func desktopMCPContractPlatform(goos string) bool {
+	return goos == "darwin" || goos == "windows"
 }
 
 func sortedConfiguredMCPNames(configured map[string]any) []string {

@@ -51,7 +51,7 @@ export const UI_GALLERY_COVERAGE_GROUPS: readonly UiGalleryCoverageGroup[] = [
     components: [
       "UiAgentAvatar", "UiRoomAvatar", "UiSeededAvatar", "UiBadge", "UiCounterBadge",
       "UiResourceState", "UiStateBlock", "UiSkeleton", "UiSkeletonCardList",
-      "UiQRCode",
+      "UiQRCode", "UiMiddleTruncate",
     ],
   },
   {

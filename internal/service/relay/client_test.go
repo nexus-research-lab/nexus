@@ -14,13 +14,15 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	relaycontract "github.com/nexus-research-lab/nexus/internal/relay"
 )
 
 func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
 	const token = "relay-user-token"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/ws/relay" || request.Header.Get("Authorization") != "Bearer "+token ||
+		// WSS 与 HTTP 一样保留部署前缀。
+		if request.URL.Path != "/relay/ws/relay" || request.Header.Get("Authorization") != "Bearer "+token ||
 			request.URL.Query().Get("stream_id") != "stream-1" ||
 			request.URL.Query().Get("stream_epoch") != "epoch-1" {
 			http.Error(writer, "invalid websocket request", http.StatusBadRequest)
@@ -39,7 +41,7 @@ func TestClientWatchesCommittedStreamUpdates(t *testing.T) {
 		}
 	}))
 	t.Cleanup(server.Close)
-	client, err := NewClient(server.URL, time.Second)
+	client, err := NewClient(server.URL+"/relay/", time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,6 +376,29 @@ func TestClientReturnsRelayErrorEnvelope(t *testing.T) {
 	var remoteError *relaycontract.RemoteError
 	if !errors.As(err, &remoteError) || remoteError.StatusCode != http.StatusConflict ||
 		remoteError.Code != "full_snapshot_required" || remoteError.RequestID != "req-1" {
+		t.Fatalf("Difference() error = %#v", err)
+	}
+}
+
+func TestClientForwardsRequestIDAndHonorsGatewayRateLimit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("X-Request-ID") != "trace-1" {
+			t.Errorf("X-Request-ID = %q", request.Header.Get("X-Request-ID"))
+		}
+		// 网关限流页不是 Relay JSON 信封，仍要保留状态与等待时长。
+		writer.Header().Set("Retry-After", "7")
+		writer.WriteHeader(http.StatusTooManyRequests)
+		_, _ = writer.Write([]byte("<html>slow down</html>"))
+	}))
+	t.Cleanup(server.Close)
+	client, err := NewClient(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := logx.WithRequestID(context.Background(), "trace-1")
+	_, err = client.Difference(ctx, "token", "stream-1", relaycontract.DifferenceOptions{Limit: 100})
+	var remoteError *relaycontract.RemoteError
+	if !errors.As(err, &remoteError) || remoteError.StatusCode != http.StatusTooManyRequests || remoteError.RetryDelay() != 7*time.Second {
 		t.Fatalf("Difference() error = %#v", err)
 	}
 }

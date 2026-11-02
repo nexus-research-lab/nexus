@@ -6,6 +6,7 @@ L3 | 父级: web/src/shared
 
 - `auth-context.ts` 只定义认证状态契约、Context 与消费 Hook。
 - `hasTeamAccess` 要求多人部署能力、远程登录与组织身份同时成立，不用于判断组织管理权限。
+- `isTeamCapabilityUnavailable` 只表示“组织账号已登录但能力探测失败”，用于提示，不授予任何在线访问。
 - `auth-owner-identity.ts` 只把可信认证事实投影为既有 owner scope 字符串，并判断持久 marker 格式；不读写存储、不清空状态，不把客户端隔离标识变成服务端授权身份。
 - `auth-owner-generation.ts` 只提供进程内 owner generation capture/fence 与清理完成后的订阅发布；推进、旧连接摘除和最终发布由 `app/auth/` 按此顺序独占，消费者只能判断回调是否仍属于当前 owner。
 

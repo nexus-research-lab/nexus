@@ -977,7 +977,7 @@ export function ExecutionWorkGraphCanvas({
               <div
                 aria-hidden="true"
                 className={cn(
-                  "pointer-events-auto absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-[border-color,background-color,box-shadow,opacity] duration-150",
+                  "pointer-events-auto absolute z-0 rounded-(--radius-surface-xl) border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)] transition-[border-color,background-color,box-shadow,opacity] duration-(--motion-duration-fast)",
                   hovered
                     && "border-[color:color-mix(in_srgb,var(--primary)_48%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_4%,var(--surface-control-background))] ring-2 ring-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
                 )}
@@ -1261,10 +1261,10 @@ export function ExecutionWorkGraphCanvas({
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
                 className={cn(
-                  "absolute z-10 transition-[left,top,transform,border-color,box-shadow,opacity,filter] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
+                  "absolute z-10 transition-[left,top,transform,border-color,box-shadow,opacity,filter] duration-(--motion-duration-layout) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
                   nodePresentation === "summary"
-                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-(--surface-control-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))]"
-                    : "grid place-items-center rounded-[16px]",
+                    ? "grid grid-cols-[auto_minmax(0,1fr)] items-start gap-2 overflow-hidden rounded-(--radius-surface-lg) border border-(--surface-control-border) bg-(--surface-panel-background) px-3 py-2 text-left shadow-(--surface-control-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--surface-control-border))]"
+                    : "grid place-items-center rounded-(--radius-surface-xl)",
                   selected
                     && nodePresentation === "summary"
                     && "border-(--primary) ring-2 ring-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]",
@@ -1316,11 +1316,11 @@ export function ExecutionWorkGraphCanvas({
                           {summaryHeading}
                         </span>
                         {item?.terminal ? (
-                          <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-muted-background))] px-1.5 py-0.5 text-[9px] font-medium leading-3 text-(--primary)">
+                          <span className="shrink-0 rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,var(--surface-muted-background))] px-1.5 py-0.5 text-2xs font-medium leading-3 text-(--primary)">
                             {t("execution.workflow_terminal_short")}
                           </span>
                         ) : item?.required ? (
-                          <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[9px] font-medium leading-3 text-(--text-soft)">
+                          <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-medium leading-3 text-(--text-soft)">
                             {t("execution.required")}
                           </span>
                         ) : null}
@@ -1356,7 +1356,7 @@ export function ExecutionWorkGraphCanvas({
                     : t("execution.collapse_node")}
                   aria-pressed={collapsed}
                   className={cn(
-                    "absolute z-20 flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full border border-(--surface-control-border) bg-(--surface-panel-background) px-1 text-[9px] font-semibold tabular-nums text-(--text-soft) shadow-sm transition hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
+                    "absolute z-20 flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full border border-(--surface-control-border) bg-(--surface-panel-background) px-1 text-2xs font-semibold tabular-nums text-(--text-soft) shadow-sm transition hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)",
                     traceActive && !traced && "opacity-25",
                   )}
                   data-execution-collapse-node={node.id}

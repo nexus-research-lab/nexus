@@ -73,7 +73,7 @@ export function MermaidView({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-(--divider-subtle-color)",
+        "flex min-w-0 flex-col overflow-hidden rounded-(--content-radius-surface) border border-(--divider-subtle-color)",
         getMermaidContainerClassName(compact, constrainHeight),
         className,
       )}

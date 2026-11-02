@@ -71,7 +71,6 @@ export function ChannelsDirectory() {
               {t("capability.refresh")}
             </UiButton>
           )}
-          description={t("capability.channels_intro_description")}
           title={t("capability.channels_intro_title")}
         >
           <CapabilityFilterBar>

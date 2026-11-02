@@ -31,4 +31,26 @@ describe("sidebar formula previews", () => {
     fireEvent.click(screen.getByText("Nova"));
     expect(onClick).toHaveBeenCalledOnce();
   });
+
+  it("renders a compact delete button in the date meta slot and stops row click propagation", () => {
+    const onClick = vi.fn();
+    const onDelete = vi.fn();
+    const deletableItem: SidebarConversationItem = {
+      ...item,
+      canDelete: true,
+    };
+    render(
+      <I18N_CONTEXT.Provider value={{ locale: "zh", setLocale: vi.fn(), t: (key) => MESSAGES.zh[key] ?? key }}>
+        <ConversationRow isActive={false} item={deletableItem} onClick={onClick} onDelete={onDelete} />
+      </I18N_CONTEXT.Provider>,
+    );
+
+    const deleteBtn = screen.getByRole("button", { name: "删除" });
+    expect(deleteBtn.className).toContain("h-6 w-6");
+    expect(deleteBtn.className).toContain("absolute right-0");
+
+    fireEvent.click(deleteBtn);
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onClick).not.toHaveBeenCalled();
+  });
 });

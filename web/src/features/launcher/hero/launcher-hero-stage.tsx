@@ -131,7 +131,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
           <FadeSlideIn delayMs={440} durationMs={420} yOffset={10}>
             <div
               data-tour-anchor={LAUNCHER_TOUR_ANCHORS.composer}
-              className="relative mx-auto flex h-[54px] w-full max-w-[420px] min-w-0 items-center gap-2 rounded-2xl px-4 focus-within:ring-2 focus-within:ring-[color:var(--ring)]"
+              className="relative mx-auto flex h-[54px] w-full max-w-[420px] min-w-0 items-center gap-2 rounded-(--radius-surface-lg) px-4 focus-within:ring-2 focus-within:ring-[color:var(--ring)]"
               style={{
                 background: "var(--launcher-input-fill)",
                 boxShadow: "inset 0 0 0 1px var(--launcher-input-stroke), 0 12px 26px rgba(48, 63, 88, 0.10)",

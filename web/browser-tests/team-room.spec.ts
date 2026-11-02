@@ -42,6 +42,7 @@ test("online room settings and dissolution use the real dialog and revoke the co
       roomPrepared = true;
       return route.fulfill({json: {data: []}});
     }
+    if (path === "/nexus/v1/team/capabilities") return route.fulfill({json: {data: {enabled: true}}});
     if (path === "/nexus/v1/auth/status") return route.fulfill({json: {data: {...appShellRead("GET", path)!.data as object, auth_method: "password", role: "owner", control_user_id: "ui-fixture", organization_id: "org"}}});
     if (path === "/nexus/v1/team/rooms") return route.fulfill({json: {data: {rooms: dissolved ? [] : [details]}}});
     if (path === "/nexus/v1/team/invitations") return route.fulfill({json: {data: {invitations: [], recovery_rooms: []}}});
@@ -71,7 +72,8 @@ test("online room settings and dissolution use the real dialog and revoke the co
   });
   const params = new URLSearchParams({room_id: room.id, theme: String(info.project.metadata.theme), locale: String(info.project.metadata.locale)});
   await page.goto(`/app.html?desktop_route=${encodeURIComponent(`/team?${params}`)}`);
-  await expect(page.getByText("Research Agent", {exact: true})).toBeVisible();
+  // Cold Vite module compilation on CI precedes the room snapshot and directory loads.
+  await expect(page.getByText("Research Agent", {exact: true})).toBeVisible({timeout: 15_000});
   await expect(page.getByText("Completed result", {exact: true})).toBeVisible();
   const editor = page.getByPlaceholder(text("发送消息到群聊", "Message room"));
   await editor.fill("@");

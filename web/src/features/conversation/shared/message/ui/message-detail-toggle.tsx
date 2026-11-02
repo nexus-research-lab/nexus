@@ -58,7 +58,7 @@ export function MessageDetailToggle({
       <ChevronRight
         aria-hidden="true"
         className={cn(
-          "h-3.5 w-3.5 shrink-0 transition-transform duration-(--motion-duration-fast)",
+          "h-3.5 w-3.5 shrink-0 transition-transform duration-(--motion-duration-snap)",
           expanded && "rotate-90",
         )}
       />

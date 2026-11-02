@@ -2,7 +2,7 @@
 // OUTPUT: 证明动态/显式标题和实例隔离，以及 Portal 模态的焦点圈、关闭顺序、遮罩策略、滚动锁和焦点归还合同。
 // POS: Dialog primitive DOM 行为测试；业务确认结果和具体文案由 feature 测试负责。
 
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StrictMode, useState } from "react";
@@ -53,6 +53,19 @@ afterEach(() => {
 });
 
 describe("UiDialog modal behavior", () => {
+  it("does not steal focus after the user has already selected a dialog control", () => {
+    vi.useFakeTimers();
+    try {
+      render(<TestDialog onClose={() => {}} />);
+      const selected = screen.getByRole("button", { name: "最后一个操作" });
+      selected.focus();
+      act(() => { vi.runOnlyPendingTimers(); });
+      expect(document.activeElement).toBe(selected);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not dismiss or move focus while the keyboard is composing text", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

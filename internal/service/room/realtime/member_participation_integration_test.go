@@ -115,6 +115,7 @@ func TestRealtimeServicePausesOneMemberAndResumesPreservedWork(t *testing.T) {
 		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == pausedAgent.AgentID
 	})
 
+	pauseStartedAt := time.Now()
 	updated, err := service.SetRoomMemberParticipation(
 		ctx,
 		roomContext.Room.ID,
@@ -123,6 +124,10 @@ func TestRealtimeServicePausesOneMemberAndResumesPreservedWork(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("暂停成员参与失败: %v", err)
+	}
+	// 中断应随 slot 收尾立即完成；接近 10s 中断超时说明派发锁与 slot 收尾互相等待。
+	if elapsed := time.Since(pauseStartedAt); elapsed > 5*time.Second {
+		t.Fatalf("暂停成员等待中断超时: %s", elapsed)
 	}
 	if !roomMemberParticipationPaused(updated.Members, pausedAgent.AgentID) {
 		t.Fatalf("暂停状态未持久化: %+v", updated.Members)

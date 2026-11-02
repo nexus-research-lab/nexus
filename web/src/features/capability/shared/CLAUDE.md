@@ -1,7 +1,7 @@
 # 能力页共享语法
 
 - `capability-page-layout.tsx` 只拥有能力域的页面编排、筛选节奏、目录网格、分区标题、详情页内容轴/二级导航、对象身份区、阅读列/配置侧栏和无品牌身份框；不得解释 Skill、Connector、Channel、WorkGraph 或定时任务状态。
-- 页面标题、用途说明和主动作必须通过 `CapabilityPageLayout` 进入全站 `WorkspaceContentHeader`；业务页面不得复制 Header、用绝对定位模拟右侧动作，或在移动端重复页面身份。
+- 页面标题和主动作必须通过 `CapabilityPageLayout` 进入全站 `WorkspaceContentHeader`；目录页保持统一单标题，不展示冗余二级副标题；业务页面不得复制 Header、用绝对定位模拟右侧动作，或在移动端重复页面身份。
 - `actions` 在桌面进入内容 Header 右侧，通过 `shared/lib/react/page-header-actions-context.ts` 读取宿主目标后由本页 Portal 投影到移动端页头；两种布局必须渲染同一个动作节点和业务行为。挂载点变化或消失时迁移当前动作，不保留旧目标内容，也不反向依赖 App Provider。
 - 搜索与筛选只组合共享 Form/Menu/Navigation 原语；Skill、Connector 与 Pairing 等目录的内容模式和状态筛选统一使用跨领域 `UiDirectoryTabs`，由它固定单行、中性底线和自适应宽度，不得在业务页复制撑满规则、胶囊外观或带 Capability 名称的转发组件；目录只组合 `UiListRow` 或所属领域卡片，不在本文件保存请求和筛选状态。
 - `CAPABILITY_DIRECTORY_ROW_CLASS_NAME` 只保留目录行的内容高度与内边距；独立目录边界通过 `UiListRow variant="outlined"` 选择。边框、表面和交互反馈仍归公共 ListRow，计划中等静态条目不显示可点击的 hover 状态。

@@ -6,6 +6,7 @@ package nxsruntime
 import (
 	"context"
 	bridgenxs "github.com/nexus-research-lab/nexus-agent-sdk-bridge/runtimes/nxs"
+	nexusruntime "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // RuntimeStatus 表示 nxs runtime 在当前主机上的可用状态。
@@ -43,6 +44,7 @@ func runtimeStatusMessage(status bridgenxs.Status) string {
 
 // SandboxStatus 独立报告诊断结论，不授予执行或变更审批模式。
 type SandboxStatus struct {
+	Message  string `json:"message,omitempty"`
 	State    string `json:"state"`
 	Platform string `json:"platform,omitempty"`
 }
@@ -66,6 +68,9 @@ func projectSandboxStatus(diagnosis *bridgenxs.SandboxBackendStatus, err error) 
 		return result
 	}
 	result.Platform = diagnosis.Platform
+	if !diagnosis.DependenciesAvailable {
+		result.Message = nexusruntime.DesktopSandboxUnavailableMessage(diagnosis.UnavailableReason)
+	}
 	switch {
 	case !diagnosis.BackendSupported:
 		result.State = "unsupported"

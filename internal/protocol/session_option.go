@@ -32,6 +32,8 @@ const (
 	OptionSessionProvider = "session_provider"
 	// OptionSessionModel 表示当前 Nexus Session 显式覆盖的模型。
 	OptionSessionModel = "session_model"
+	// OptionSessionEffort 表示当前 Nexus Session 显式覆盖的思考强度。
+	OptionSessionEffort = "session_effort"
 	// OptionSessionPermissionMode 表示当前 Nexus Session 显式覆盖的权限模式。
 	OptionSessionPermissionMode = "session_permission_mode"
 	// OptionSessionConnectorIDs 表示当前 Nexus Session 显式挂载的 Connector。
@@ -75,13 +77,24 @@ func SessionPurpose(session Session) string {
 // SessionRuntimeSettings 表示当前 Nexus Session 的运行时覆盖。
 //
 // Provider 与 Model 必须同时为空或同时有值；空值表示继续继承 Agent / 用户默认值。
+// Effort 为空表示交给 runtime 按模型默认；它与模型同归目标 Agent Session。
 // Room 中模型归目标 Agent Session，权限由服务端同步到同一 Conversation 的全部主 Session。
 type SessionRuntimeSettings struct {
 	Provider       string `json:"provider"`
 	Model          string `json:"model"`
+	Effort         string `json:"effort"`
 	PermissionMode string `json:"permission_mode"`
 	// ConnectorIDs 为 nil 时继承 Agent 默认值；空数组表示当前 Session 显式不挂载。
 	ConnectorIDs *[]string `json:"connector_ids"`
+}
+
+// SessionEffortLevels 是宿主接受的思考强度全集，按强度从低到高排列；
+// 具体模型只开放其中一部分，由 Provider 模型目录投影。
+var SessionEffortLevels = []string{"low", "medium", "high", "xhigh", "max"}
+
+// IsSessionEffortLevel 判断思考强度是否属于宿主协议全集。
+func IsSessionEffortLevel(value string) bool {
+	return slices.Contains(SessionEffortLevels, value)
 }
 
 // SessionConnectorSelection 是 Session Connector 覆盖的可比较快照。
@@ -132,6 +145,7 @@ func SessionRuntimeSettingsFromOptions(options map[string]any) SessionRuntimeSet
 	settings := SessionRuntimeSettings{
 		Provider:       sessionOptionString(options[OptionSessionProvider]),
 		Model:          sessionOptionString(options[OptionSessionModel]),
+		Effort:         sessionOptionString(options[OptionSessionEffort]),
 		PermissionMode: sessionOptionString(options[OptionSessionPermissionMode]),
 	}
 	if raw, exists := options[OptionSessionConnectorIDs]; exists {
@@ -154,6 +168,7 @@ func WithSessionRuntimeSettings(
 	}
 	setSessionOption(result, OptionSessionProvider, settings.Provider)
 	setSessionOption(result, OptionSessionModel, settings.Model)
+	setSessionOption(result, OptionSessionEffort, settings.Effort)
 	setSessionOption(result, OptionSessionPermissionMode, settings.PermissionMode)
 	if settings.ConnectorIDs == nil {
 		delete(result, OptionSessionConnectorIDs)

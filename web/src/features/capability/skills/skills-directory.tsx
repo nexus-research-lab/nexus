@@ -112,7 +112,6 @@ export function SkillsDirectory() {
                 onOpenSources={sources.openManager}
               />
             )}
-            description={t("capability.skills_intro_description")}
             headerAnchor={SKILLS_TOUR_ANCHORS.header}
             title={t("capability.skills_intro_title")}
           >

@@ -95,6 +95,11 @@ export function useDialogModalBehavior<T extends HTMLElement>({
         return;
       }
 
+      // A user or an autofocus control may have already moved focus inside
+      // before this deferred callback. Never redirect their ongoing input.
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== root && root.contains(document.activeElement)) {
+        return;
+      }
       const autoFocusTarget =
         initialFocusRef?.current ??
         root.querySelector<HTMLElement>("[data-autofocus='true'], [autofocus]") ??

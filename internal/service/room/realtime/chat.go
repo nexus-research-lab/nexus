@@ -476,6 +476,9 @@ func newRoomUserMessage(
 	if len(attachments) > 0 {
 		result["attachments"] = attachments
 	}
+	if len(request.ExternalSource) > 0 {
+		result["external_source"] = maps.Clone(request.ExternalSource)
+	}
 	if request.Internal || request.InputOptions.HiddenFromUser {
 		result["hidden_from_user"] = true
 	}
@@ -749,6 +752,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		ExecutionOrigin:                   e.request.ExecutionOrigin,
 		PublicContext:                     e.request.PublicContext,
 		PublicAgentDirectory:              e.request.PublicAgentDirectory,
+		PublicInstructions:                e.request.PublicInstructions,
 		trustedQueuedConfigurationContext: e.request.trustedQueuedConfigurationContext,
 		InputOptions:                      e.request.InputOptions,
 		PermissionMode:                    e.request.PermissionMode,

@@ -158,7 +158,6 @@ export function GroupConversationVirtualFeed({
           const state = resolveGroupConversationRound(source, item.index);
           return (
             <GroupConversationRound
-              isMobileLayout={isMobileLayout}
               key={state.roundId}
               measureRef={virtualizer.measureElement}
               placeholderHeight={resolveConversationVirtualPlaceholderHeight(

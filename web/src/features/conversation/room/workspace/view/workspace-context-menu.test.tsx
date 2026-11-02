@@ -221,7 +221,7 @@ describe("WorkspaceContextMenu", () => {
     );
     expect(submenuTrigger).toBeTruthy();
     expect(submenuTrigger?.tagName).toBe("BUTTON");
-    expect(submenuTrigger?.className).toContain("radius-control-lg");
+    expect(submenuTrigger?.className).toContain("radius-control-md");
 
     await user.click(submenuTrigger!);
     expect(submenuTrigger?.getAttribute("aria-expanded")).toBe("true");

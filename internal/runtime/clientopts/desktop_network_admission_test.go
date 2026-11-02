@@ -3,6 +3,7 @@ package clientopts
 import (
 	"context"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -68,10 +69,10 @@ func TestDesktopSandboxRemoteMCPRequiresHostApprovedDomain(t *testing.T) {
 			"url":  "https://mcp.example.com/mcp",
 		},
 	}
-	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("endpoint contract: %v", err)
 	}
-	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("unapproved remote MCP error=%v", err)
 	}
 	if err := RejectDesktopSandboxRemoteMCPWithNetworkAdmission(configured, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
@@ -83,10 +84,10 @@ func TestDesktopSandboxChecksHostOwnedTypedRemoteMCP(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"github": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", Headers: map[string]string{"Authorization": "Bearer connector-secret"}},
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("host-owned remote MCP bypassed deny-all admission: %v", err)
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"other.example.com"}}); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("unapproved host-owned remote MCP was admitted: %v", err)
 	}
 	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeDefault, &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"mcp.example.com"}}); err != nil {
@@ -98,7 +99,7 @@ func TestDesktopSandboxTypedMCPHelpersRequirePlatformContract(t *testing.T) {
 	servers := map[string]sdkmcp.ServerConfig{
 		"remote": sdkmcp.HTTPServerConfig{URL: "https://mcp.example.com/mcp", HeadersHelper: "/tmp/untrusted-helper"},
 	}
-	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != (runtime.GOOS == "darwin") {
+	if err := RejectDesktopSandboxTypedMCPServersWithNetworkAdmission(servers, runtimeKindNXS, "desktop", true, sdkpermission.ModeBypassPermissions, nil); (err == nil) != desktopMCPContractPlatform(runtime.GOOS) {
 		t.Fatalf("typed helper platform contract: %v", err)
 	}
 }
@@ -127,11 +128,14 @@ func TestDesktopSandboxNetworkAdmissionIsCopiedIntoSettings(t *testing.T) {
 }
 
 func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
 	_, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		WebSearch:     WebSearchConfig{AllowPrivateNetwork: true},
@@ -142,8 +146,11 @@ func TestDesktopSandboxRejectsWebSearchPrivateNetwork(t *testing.T) {
 }
 
 func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("完整桌面沙箱装配仅在 macOS 启用")
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
+	if runtime.GOOS != "darwin" && runtime.GOOS != "windows" {
+		t.Skip("完整桌面沙箱装配仅在 macOS 与 Windows 启用")
 	}
 	t.Setenv("OPENAI_API_KEY", "inherited-host-secret")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{
@@ -155,7 +162,7 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 			APIFormat: apiFormatResponses,
 		},
 	}, AgentClientOptionsInput{
-		AppMode:       "desktop",
+		AppMode: "desktop", DesktopSandboxEnabled: true,
 		RuntimeKind:   runtimeKindNXS,
 		WorkspacePath: t.TempDir(),
 		ExtraEnv: map[string]string{
@@ -167,5 +174,55 @@ func TestDesktopProviderCredentialIsProjectedOnlyFromResolvedConfig(t *testing.T
 	}
 	if got := options.Env["OPENAI_API_KEY"]; got != "resolved-session-secret" {
 		t.Fatalf("provider credential=%q want resolved session credential", got)
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionAppliesToWindowsMXC(t *testing.T) {
+	old := desktopSandboxProcessElevated
+	desktopSandboxProcessElevated = func() bool { return false }
+	t.Cleanup(func() { desktopSandboxProcessElevated = old })
+	admission := &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}}
+	t.Setenv("NEXUS_STATE_ROOT", t.TempDir())
+	restricted := AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission, WorkspacePath: t.TempDir(),
+	}
+	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeDefault}}, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, restricted, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || options.Sandbox.Network == nil || !slices.Equal(options.Sandbox.Network.AllowedDomains, []string{"api.example.com"}) {
+		t.Fatalf("Windows MXC network settings=%#v", options.Sandbox)
+	}
+
+	fullAccess := AgentClientOptionsInput{AppMode: "desktop", DesktopSandboxEnabled: true, DesktopSandboxNetworkAdmission: admission}
+	options, err = applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, fullAccess, "windows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, fullAccess, "windows")
+	if err != nil || options.Sandbox != nil {
+		t.Fatalf("Windows Full Access received restricted network settings: %#v err=%v", options.Sandbox, err)
+	}
+}
+
+func TestDesktopSandboxNetworkAdmissionStillAppliesToDarwinFullAccess(t *testing.T) {
+	input := AgentClientOptionsInput{
+		AppMode: "desktop", DesktopSandboxEnabled: true,
+		DesktopSandboxNetworkAdmission: &DesktopSandboxNetworkAdmission{AllowedDomains: []string{"api.example.com"}},
+	}
+	options, err := applyDesktopSandboxForPlatform(agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS, PermissionMode: sdkpermission.ModeBypassPermissions}}, input, "darwin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	options, err = applyDesktopSandboxNetworkAdmissionForPlatform(options, input, "darwin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if options.Sandbox == nil || options.Sandbox.Network == nil || !slices.Equal(options.Sandbox.Network.AllowedDomains, []string{"api.example.com"}) {
+		t.Fatalf("macOS Full Access network admission changed: %#v", options.Sandbox)
 	}
 }

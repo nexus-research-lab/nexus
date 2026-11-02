@@ -7,7 +7,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 - `composer-attachments.ts`: 以有序规则表统一附件分类、文件选择过滤、批量校验和上传投影
 - `composer-local-attachment-model.ts`: 管理剪贴板动作、本地标识、批次投影和待发送附件模型
 - `use-composer-attachments.ts`: 按动作表执行粘贴策略，消费草稿胶囊中的受控附件，并管理错误翻译和发送前准备生命周期
-- `composer-local-attachments.tsx`: 展示可点击图片缩略图，以及共享 RemovableChip 承载的文本/普通文件胶囊；移除名称包含文件名，原生 title 只显示文件名，不保留私有中文类型表
+- `composer-local-attachments.tsx`: 展示可点击图片缩略图，以及共享 RemovableChip 承载的文本/普通文件胶囊；附件以 `ui-chip-in` 入场，移除先播放 130ms `ui-chip-out` 再提交删除（减少动效时立即删除）；移除名称包含文件名，原生 title 只显示文件名，不保留私有中文类型表
 - `composer-attachment-preview-dialog.tsx`: 图片与文本共用一个 Dialog/Header，由公共 Header 自动生成并关联实例标题；正文按附件 ID 隔离，仅显示文件名，保留图片灯箱和最多 512 KiB 的只读文本预览
 - `use-composer-local-file-url.ts`: 独占图片缩略图和灯箱使用的 Object URL 创建与释放；File 替换时同步隐藏旧 URL，再由 effect 分配新资源
 

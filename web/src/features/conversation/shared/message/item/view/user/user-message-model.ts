@@ -3,10 +3,11 @@
 // POS: User-message semantic projection; reading geometry belongs to message-reading-layout.
 
 import { formatMessageTime } from "../../../message-time";
-import type { UserMessage } from "@/types/conversation/message/entity";
+import type { MessageExternalSource, UserMessage } from "@/types/conversation/message/entity";
 
 export interface UserMessagePresentation {
   displayContent: string;
+  externalSource: MessageExternalSource | null;
   goal: boolean;
   guided: boolean;
   hasContent: boolean;
@@ -23,6 +24,7 @@ export function projectUserMessagePresentation(
     : content;
   return {
     displayContent,
+    externalSource: message.external_source?.channel ? message.external_source : null,
     goal,
     guided: message.delivery_policy === "guide",
     hasContent: Boolean(displayContent),

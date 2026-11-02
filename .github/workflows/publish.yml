@@ -315,9 +315,34 @@ jobs:
           $nxsPath = Join-Path $cacheDir "nxs.exe"
           $ripgrepPath = Join-Path $cacheDir "rg.exe"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath
+          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath --skip-mxc
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to download nxs runtime"
+          }
+          "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
+
+      - name: Checkout pinned Windows sandbox SDK
+        uses: actions/checkout@v6
+        with:
+          repository: nexus-research-lab/nexus-agent-sdk-go
+          token: ${{ secrets.NEXUS_SANDBOX_SDK_READ_TOKEN }}
+          ref: fed1bf3c01e949a7964c9a1bd60568c0a0ceb2c5
+          path: ${{ runner.temp }}\nexus-agent-sdk-go
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@1.99.1
+
+      - name: Build pinned Windows nxs runtime
+        shell: pwsh
+        run: |
+          $sdkDir = Join-Path "${{ runner.temp }}" "nexus-agent-sdk-go"
+          $nxsPath = Join-Path "${{ runner.temp }}\windows-runtime-cache" "nxs.exe"
+          & (Join-Path $sdkDir "native/nxs-mxc/build.ps1") -Architecture amd64 -OutputDirectory (Split-Path -Parent $nxsPath)
+          $env:GOWORK = "off"
+          go -C $sdkDir build -mod=readonly -trimpath -o $nxsPath ./cmd/nxs
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to build pinned nxs runtime from fed1bf3c"
           }
           "NEXUS_DESKTOP_NXS_RUNTIME_PATH=$nxsPath" >> $env:GITHUB_ENV
 
@@ -494,7 +519,7 @@ jobs:
           release_json="$(mktemp)"
           release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
           status="$(
-            curl -fsS -o "${release_json}" -w "%{http_code}" \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "${release_api}" || true
@@ -521,7 +546,7 @@ jobs:
               continue
             fi
             echo "Deleting previous release asset: ${asset_name}"
-            curl -fsS -X DELETE \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X DELETE \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" >/dev/null
@@ -536,7 +561,7 @@ jobs:
             release_json="$(mktemp)"
             release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${obsolete_tag}"
             status="$(
-              curl -fsS -o "${release_json}" -w "%{http_code}" \
+              curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 "${release_api}" || true
@@ -550,7 +575,7 @@ jobs:
             fi
             release_id="$(jq -r '.id' "${release_json}")"
             echo "Deleting incorrect release ${obsolete_tag} (${release_id})"
-            curl -fsS -X DELETE \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X DELETE \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${release_id}" >/dev/null
@@ -564,7 +589,7 @@ jobs:
           release_json="$(mktemp)"
           release_api="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}"
           status="$(
-            curl -fsS -o "${release_json}" -w "%{http_code}" \
+            curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -o "${release_json}" -w "%{http_code}" \
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               "${release_api}" || true
@@ -585,7 +610,7 @@ jobs:
           fi
 
           payload="$(jq -n --rawfile body release_notes.md --arg name "${TAG}" '{name: $name, body: $body}')"
-          curl -fsS -X PATCH \
+          curl -fsS --retry 5 --retry-connrefused --retry-delay 3 -X PATCH \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             -H "Content-Type: application/json" \

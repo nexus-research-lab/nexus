@@ -35,7 +35,7 @@ function MermaidViewLoadingFallback({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
+        "flex min-w-0 flex-col overflow-hidden rounded-(--content-radius-surface) border border-(--divider-subtle-color) bg-(--surface-panel-background)",
         getMermaidContainerClassName(compact, constrainHeight),
         className,
       )}

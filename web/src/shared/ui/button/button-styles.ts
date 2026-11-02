@@ -38,7 +38,7 @@ const NEUTRAL_ACTIVE_ICON_CLASS_NAME =
   "aria-[checked=true]:text-(--icon-strong) aria-[current=page]:text-(--icon-strong) aria-[expanded=true]:text-(--icon-strong) aria-[pressed=true]:text-(--icon-strong)";
 
 const BUTTON_BASE_CLASS_NAME =
-  "inline-flex items-center justify-center gap-2 border ui-type-weight-medium transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
+  "ui-press inline-flex items-center justify-center gap-2 border ui-type-weight-medium disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
   "2xs": "min-h-6 px-1.5 py-0.5 ui-type-caption",
@@ -58,23 +58,24 @@ const BUTTON_ROUNDED_CLASS_MAP: Record<UiButtonSize, string> = {
 
 const SEMANTIC_GHOST_CLASS_MAP: Record<Exclude<UiButtonTone, "default">, string> = {
   primary:
-    "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
+    "border-transparent bg-transparent text-(--brand-action) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
   danger:
-    "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
+    "border-transparent bg-transparent text-(--destructive) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
   success:
-    "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_22%,var(--surface-interactive-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
+    "border-transparent bg-transparent text-(--success) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_8%,var(--surface-interactive-hover-background))]",
 };
 
 const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone, string>> = {
+  // surface 只靠填色成形，不叠加描边：单闭合边界，密集排列时不会出现一圈圈彩框；需要边界时选 outline。
   surface: {
     default:
-      "border-(--modal-btn-secondary-border) bg-(--modal-btn-secondary-background) text-(--text-default) [&:not(:disabled):hover]:border-(--modal-btn-secondary-hover-border) [&:not(:disabled):hover]:bg-(--modal-btn-secondary-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
+      "border-transparent bg-(--modal-btn-secondary-background) text-(--text-default) [&:not(:disabled):hover]:bg-(--modal-btn-secondary-hover-background) [&:not(:disabled):hover]:text-(--text-strong)",
     primary:
-      "border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--modal-btn-secondary-background))] text-(--brand-action) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--brand-action)_34%,var(--modal-btn-secondary-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_12%,var(--modal-btn-secondary-hover-background))]",
+      "border-transparent bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--modal-btn-secondary-background))] text-(--brand-action) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--brand)_12%,var(--modal-btn-secondary-hover-background))]",
     danger:
-      "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-(--modal-btn-secondary-background) text-(--destructive) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
+      "border-transparent bg-(--modal-btn-secondary-background) text-(--destructive) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
     success:
-      "border-[color:color-mix(in_srgb,var(--success)_22%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--success)_8%,var(--modal-btn-secondary-background))] text-(--success) [&:not(:disabled):hover]:border-[color:color-mix(in_srgb,var(--success)_32%,var(--modal-btn-secondary-hover-border))] [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_12%,var(--modal-btn-secondary-hover-background))]",
+      "border-transparent bg-[color:color-mix(in_srgb,var(--success)_8%,var(--modal-btn-secondary-background))] text-(--success) [&:not(:disabled):hover]:bg-[color:color-mix(in_srgb,var(--success)_12%,var(--modal-btn-secondary-hover-background))]",
   },
   outline: {
     default:
@@ -115,7 +116,7 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
 };
 
 const ICON_BUTTON_BASE_CLASS_NAME =
-  "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
+  "ui-press inline-flex items-center justify-center border disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
   "2xs": "h-5 w-5",

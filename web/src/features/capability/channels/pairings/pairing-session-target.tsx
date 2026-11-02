@@ -3,7 +3,7 @@
  * OUTPUT: 独立 IM / 精确 Room 话题的选择草稿与版本化更新。
  * POS: 配对会话目标编辑；读取失败保留草稿，不自动选择或提交其他话题。
  */
-import { Check, ChevronDown, MessageCircle, UserRound, Users } from "lucide-react";
+import { Check, MessageCircle, UserRound, Users } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
@@ -19,9 +19,13 @@ import type { RoomAggregate, RoomContextAggregate } from "@/types/conversation/r
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiField, UiSearchInput } from "@/shared/ui/form/form-control";
+import { SelectMenuTrigger, SelectMenuTriggerContent } from "@/shared/ui/menu/select-menu-primitives";
+import { getSelectMenuSizeConfig } from "@/shared/ui/menu/select-menu-styles";
 import { matchesUiSearchFields } from "@/shared/ui/form/search-query";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
+
+const TRIGGER_STYLES = getSelectMenuSizeConfig("sm");
 export function PairingSessionTarget({ item, busy, onUpdate }: {
   item: PairingView;
   busy: boolean;
@@ -72,7 +76,7 @@ export function PairingSessionTarget({ item, busy, onUpdate }: {
       const result = await listRooms(1000);
       const topics = roomId ? await getRoomContexts(roomId) : [];
       if (current !== generation.current) return;
-      setRooms(result.filter(({ room, members }) => (room.room_type === "dm" || (room.room_type === "room" && room.private_messages_enabled))
+      setRooms(result.filter(({ room, members }) => (room.room_type === "dm" || room.room_type === "room")
         && members.some((member) => member.member_agent_id === item.agent_id && !member.participation_paused)));
       setContexts(topics);
     } catch { if (current === generation.current) setFailed(true); }
@@ -106,12 +110,16 @@ export function PairingSessionTarget({ item, busy, onUpdate }: {
     : t("capability.pairing_target_independent");
   return <div className="min-w-0 space-y-3">
     <UiField htmlFor={`${id}-toggle`} label={t("capability.pairing_target")}>
-      <UiButton ref={anchorRef} id={`${id}-toggle`} className="w-full justify-between" type="button" size="sm" variant="surface"
-        aria-label={`${t("capability.pairing_target")} · ${targetLabel}`} aria-expanded={open} aria-controls={open ? overlayId : undefined} aria-haspopup="dialog"
-        disabled={busy} onClick={() => open ? setOpen(false) : void loadRooms()}>
-        <span className="min-w-0 flex-1 truncate text-center">{targetLabel}</span>
-        <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 text-(--text-muted) ${open ? "rotate-180" : ""}`} />
-      </UiButton>
+      {/* 与处理智能体选择共用 Select 触发器外观，两列控件同高同材质；浮层仍是双栏会话 dialog。 */}
+      <div className={`relative w-full min-w-0 ${TRIGGER_STYLES.heightClassName}`}>
+        <SelectMenuTrigger ariaLabel={`${t("capability.pairing_target")} · ${targetLabel}`} buttonRef={anchorRef} id={`${id}-toggle`}
+          disabled={busy} isOpen={open} menuId={overlayId} popup="dialog" styles={TRIGGER_STYLES} surface="surface"
+          onClick={() => open ? setOpen(false) : void loadRooms()}>
+          <SelectMenuTriggerContent isOpen={open}>
+            <span className="min-w-0 flex-1 truncate text-(--text-strong)">{targetLabel}</span>
+          </SelectMenuTriggerContent>
+        </SelectMenuTrigger>
+      </div>
     </UiField>
     {open && portalContainer ? createPortal(<div ref={overlayRef} id={overlayId} role="dialog" aria-label={t("capability.pairing_target")}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES} style={overlayStyle}

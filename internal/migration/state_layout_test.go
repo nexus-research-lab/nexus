@@ -530,7 +530,7 @@ func assertLayoutMigrationMarker(t *testing.T, markerPath string) {
 	if err != nil {
 		t.Fatalf("读取状态布局迁移标记权限失败: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("状态布局迁移标记权限错误: %o", info.Mode().Perm())
 	}
 }

@@ -2,6 +2,9 @@
  * INPUT: textarea 当前正文、浏览器真实排版结果与最小/最大高度约束。
  * OUTPUT: 正文、原生输入或宽度变化时同步更新的有界高度，超出上限后只滚动内部正文。
  * POS: 共享无 React 状态 textarea 测量入口；文字、设计尺寸和编辑权限由消费者持有。
+ *
+ * 支持 `field-sizing: content` 的浏览器由排版引擎直接按内容定高（含字体、换行与 IME 组合），
+ * 不再每次输入先压到 0 再读 scrollHeight；不支持时才走 JS 测量回退。
  */
 import {
   RefObject,
@@ -15,6 +18,13 @@ interface UseTextareaHeightOptions {
   minHeight?: number;
   /** Maximum height in px, element scrolls beyond this (default 128) */
   maxHeight?: number;
+}
+
+/** 浏览器能否原生按内容定高；jsdom 等无 CSS.supports 的环境走测量回退。 */
+export function supportsNativeFieldSizing(): boolean {
+  return typeof CSS !== "undefined"
+    && typeof CSS.supports === "function"
+    && CSS.supports("field-sizing", "content");
 }
 
 export function useTextareaHeight(
@@ -35,6 +45,15 @@ export function useTextareaHeight(
     }
     const { maxHeight: currentMaxHeight, minHeight: currentMinHeight } =
       optionsRef.current;
+    if (supportsNativeFieldSizing()) {
+      // 清掉回退路径或外部重置留下的内联高度，否则会压过 field-sizing 的内容高度。
+      el.style.setProperty("field-sizing", "content");
+      el.style.height = "";
+      el.style.minHeight = `${currentMinHeight}px`;
+      el.style.maxHeight = `${currentMaxHeight}px`;
+      el.style.overflowY = "auto";
+      return;
+    }
     const style = window.getComputedStyle(el);
     const borderY = (parseFloat(style.borderTopWidth) || 0)
       + (parseFloat(style.borderBottomWidth) || 0);

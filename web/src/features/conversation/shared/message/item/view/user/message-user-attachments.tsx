@@ -12,6 +12,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiMiddleTruncate } from "@/shared/ui/display/middle-truncate";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
@@ -78,9 +79,7 @@ function MessageUserAttachment({
   const content = (
     <>
       <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="min-w-0 truncate">
-        {attachmentView.displayName}
-      </span>
+      <UiMiddleTruncate text={attachmentView.displayName} />
       <span className={`shrink-0 ${getUiTypographyClassName({ role: "caption", tone: "soft" })}`}>
         {t(presentation.labelKey)}
       </span>

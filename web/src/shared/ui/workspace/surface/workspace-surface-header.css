@@ -2,8 +2,8 @@
   --workspace-header-cluster-gap: 12px;
   --workspace-header-control-gap: 4px;
   --workspace-header-control-height: 36px;
-  --workspace-header-view-tab-radius: 8px;
-  --workspace-session-tab-radius: 8px;
+  --workspace-header-view-tab-radius: var(--radius-control-md);
+  --workspace-session-tab-radius: var(--radius-control-md);
   container-name: workspace-surface-header;
   container-type: inline-size;
   box-shadow: none;
@@ -240,7 +240,7 @@
   content: "";
   opacity: 1;
   transform: translateY(-50%);
-  transition: opacity 120ms ease;
+  transition: opacity var(--motion-duration-snap) var(--motion-ease-standard);
 }
 
 .workspace-surface-header-session-tabs-viewport

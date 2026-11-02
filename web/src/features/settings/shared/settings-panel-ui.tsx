@@ -22,10 +22,6 @@ export const SETTINGS_SECTION_TITLE_CLASS_NAME = cn(
   getUiTypographyClassName({ role: "sectionTitle", tone: "strong" }),
 );
 export const SETTINGS_CARD_CLASS_NAME = "overflow-hidden surface-radius-md border border-(--divider-subtle-color) bg-transparent";
-export const SETTINGS_GROUP_CLASS_NAME = cn(
-  SETTINGS_CARD_CLASS_NAME,
-  "bg-[color:color-mix(in_srgb,var(--surface-control-background)_64%,transparent)]",
-);
 // 卡片内部的分隔线与行内容保持相同的水平留白。
 export const SETTINGS_DIVIDER_CLASS_NAME = "mx-4 border-t border-(--divider-subtle-color)";
 

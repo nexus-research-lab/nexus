@@ -73,6 +73,8 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 	}
 	observer := h.ExecutionObserver()
 	observer.Begin(actor)
+	latency := newRoundLatency(round.Logger)
+	defer latency.Report()
 	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          round.Content,
 		AtomicInput:      round.AtomicInput,
@@ -90,6 +92,8 @@ func (h *Host) ExecuteAgentRound(ctx context.Context, round AgentRound) (exec.Ro
 			current := round.Actor()
 			observer.ObserveMessage(current, incoming)
 			observer.ObserveCompactBoundary(current, round.RuntimeSessionKey, round.AgentRoundID, incoming)
+			h.Announcements.ForgetAfterCompact(round.RuntimeSessionKey, incoming)
+			latency.Observe(incoming)
 			if round.ObserveMessage != nil {
 				round.ObserveMessage(incoming)
 			}

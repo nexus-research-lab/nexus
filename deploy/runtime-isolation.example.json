@@ -15,6 +15,6 @@
   },
   "read_only_roots": [
     "/opt/nexus",
-    "/var/lib/nexus/app/platform-skills"
+    "/var/lib/nexus/skills-public/platform-skills"
   ]
 }

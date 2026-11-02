@@ -7,6 +7,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiRoomAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { getUiTypographyClassName } from "@/shared/ui/typography/typography-styles";
 
 import type { TeamRoomInvitation, TeamRoomRecovery } from "@/lib/api/conversation/team-api";
@@ -21,7 +22,10 @@ export function TeamInvitationList({
   onResolve,
   recoveryRooms,
   onRecover,
+  className,
 }: {
+  /** 放进已有水平内边距的容器（如侧栏滚动列表）时用于去掉默认外边距。 */
+  className?: string;
   busyRoomId: string | null;
   errorRoomId: string | null;
   invitations: TeamRoomInvitation[];
@@ -36,7 +40,7 @@ export function TeamInvitationList({
   const [recovery, setRecovery] = useState<TeamRoomRecovery | null>(null);
   if (invitations.length === 0 && recoveryRooms.length === 0 && !failed && !recovery) return null;
   return (
-    <section aria-label={t("team.pending_invitations")} className="mx-2 mb-2 space-y-1.5">
+    <section aria-label={t("team.pending_invitations")} className={cn("mx-2 mb-2 space-y-1.5", className)}>
       <div className="flex items-center justify-between">
       <p className={`px-1 ${getUiTypographyClassName({ role: "supporting", tone: "muted", weight: "medium" })}`}>
         {t("team.pending_invitations")}

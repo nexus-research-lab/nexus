@@ -90,7 +90,7 @@ function CompactSystemEvent({
         data-timeline-anchor
         data-timeline-anchor-mode="box"
       >
-        <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
+        <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
       </span>
       <span className="flex min-w-0 items-baseline gap-1.5">
         <span className="shrink-0">{block.label}</span>
@@ -170,7 +170,7 @@ function ApiRetrySystemEvent({
           data-timeline-anchor
           data-timeline-anchor-mode="box"
         >
-          <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.8} />
+          <Icon aria-hidden className="h-3.5 w-3.5" strokeWidth={1.5} />
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
           <span>{t("message.api_retrying")}</span>
@@ -182,7 +182,7 @@ function ApiRetrySystemEvent({
               "h-3.5 w-3.5 shrink-0 transition-transform",
               expanded && "rotate-90",
             )}
-            strokeWidth={1.8}
+            strokeWidth={1.5}
           />
         </span>
       </button>

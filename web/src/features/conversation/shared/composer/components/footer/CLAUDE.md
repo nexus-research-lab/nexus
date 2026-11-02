@@ -6,11 +6,13 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 - `composer-footer.tsx`: 以输入壳命名容器装配动作、Session 设置、Goal 标记、状态、元数据和提交动作，并在中心显示可按容器宽度收敛的 随当前内核切换的 `Powered by Nexus` / `Powered by Claude`
 - `composer-footer-actions.tsx`: 构造附件、本机文件夹、Goal 动作菜单、当前 Session Connector 显式开关并按动作表分派命令
+- `composer-model-picker.tsx`: DM 模型入口与浮层；入口显示“模型 · 强度”（仅有强度覆盖时追加）。视口放得下时强度档位作为侧栏级联在模型面板左侧（悬浮强度入口展开、悬浮其他行收起，点击/方向键进入并落焦，Escape/右方向键回到入口）；放不下时在模型面板内原位进入，Escape/左方向键返回。选择后关闭并归还入口焦点。
+- `composer-session-model-menu.tsx`: DM 浮层与 Room 模型面板共用的菜单正文：多 Provider 时按 Provider 分组并只显示一次分组名，继承来源的模型带“默认”标记；底部依次是常驻的思考强度入口（当前模型未开放档位时置灰并标注不支持）与重置。`SessionEffortMenu` 是唯一档位面板：一句代价说明，列出“自动”与该模型开放的档位，最高档以警示徽标提示用量；作原位子页时由调用方传返回栏，作侧栏时不带。
 - `composer-session-controls.tsx`: 为 DM 装配直接模型/权限菜单，为 Room 装配统一权限与右侧模型入口；领先权限入口共用一条装配分支。直接菜单按 target.sessionKey 重置，busy/disabled 关闭后不得自动恢复。DM 选择继承权限写空 override，Room 仍显式写所选模式。
 - `composer-room-model-control.tsx`: 复用公共锚定浮层、菜单键盘和 Action Menu 内容，按 Room Agent 级联其当前 Session 模型；定位完成才给 Agent 菜单初始焦点，点击/右方向键进入模型，左方向键或首个 Escape 返回原 Agent，第二次 Escape 才退出。悬浮只更新级联目标，不抢焦点；选择和 Tab 退出归还入口。行高估算共用 getMenuItemLayout，领域只拥有菜单宽度与级联结构。
-- `composer-session-control-layout.ts` 统一 DM/Room 模型的 256px 内容宽度、Room 返回栏 recipe 和可见面板总高。双栏是否可用由两列内容、公共间距和视口留白组成的媒体查询决定，订阅使用公共 useMediaQuery；定位/限宽继续交给 Overlay，单栏 Panel 填满约束后的宽度。宽窄两种布局只渲染同一份 RoomModelOptions，保留真实列表 DOM、焦点和滚动；返回栏计入整体限高，正文独立滚动，不让两套选项 JSX 漂移。
+- `composer-session-control-layout.ts` 统一 DM/Room 模型的 256px 内容宽度、Room 返回栏 recipe 和可见面板总高。双栏是否可用由两列内容、公共间距和视口留白组成的媒体查询决定，订阅使用公共 useMediaQuery；定位/限宽继续交给 Overlay，单栏 Panel 填满约束后的宽度。宽窄两种布局只渲染同一份 SessionModelMenu，保留真实列表 DOM、焦点和滚动；Room 的思考强度始终在模型面板内原位进入，Escape/左方向键先回模型页再回 Agent；DM 强度侧栏宽度与并排媒体查询也在这里定义；返回栏计入整体限高，正文独立滚动，不让两套选项 JSX 漂移。
 - Room 菜单为用户选中的 Agent/Session 保存临时绑定，目标失效或换 Session 时关闭；提交前还要对上当前控制器目标，不因目录刷新把迟到点击落到另一个 Session。持久设置和失败对账仍完全归控制器。布局变化只在原焦点节点已移除且焦点掉到 body 时恢复，不抢外部控件或上层模态焦点。
-- `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型/权限选项，并唯一分派模型值的解码、继承重置与显式更新；控制器继续拥有持久化/失败对账，非法值不能变成清空配置。模型名占剩余空间，Provider 元信息最多占 40%，两者保留完整原文提示；Provider 元信息直接使用公共 metadata/muted，复合标签继续保持单行几何，不能回到私有 10px 淡字。
+- `composer-session-control-options.tsx`: 统一投影 DM 与 Room 共用的模型分组/权限/思考强度选项与菜单形状，并唯一分派模型值的解码与强度选择；继承判定交给控制器，非法值不能变成清空配置。模型名保留完整原文提示，分组名直接使用公共 metadata/muted，复合标签保持单行几何，不能回到私有 10px 淡字。
 - `composer-context-usage*.ts*`: 把 runtime 每轮快照投影为模型控件左侧的只读上下文占用环；Room 入口显示最高占用，唯一详情浮层逐 Agent 展示各自快照；详情按实际内容展开到公共 preset/视口上限，标题固定、列表内部滚动，不用估算行高裁切成员；入口关闭 IconButton 自动 Tooltip，只读详情开关保持原焦点
 - `composer-footer-status.tsx`: 展示唯一的当前运行状态；只把 model 的语义 tone 和 indicator 交给共享 Typography/LoadingOrb，不让状态正文整体 pulse
 - `composer-footer-metadata.tsx`: 展示字符数和历史位置
@@ -18,7 +20,7 @@ L6 | 父级: web/src/features/conversation/shared/composer/components
 
 Footer 不解释 Composer 发送资格；它只消费控制器已经派生的状态。新增状态必须进入有序候选表，不能扩展 JSX 条件链。
 Footer 的普通动作、模型/权限触发器和返回动作必须使用共享 `UiButton` / `UiIconButton`；只有同时承担菜单行布局、悬浮选择或数据可视化的复合控件可以保留专用 button DOM，不能复制圆角、hover、focus 或 disabled recipe。
-模型与权限控制只写 Session 覆盖；空值表示继承。DM 不重复显示 Agent 目标，直接展示权限与模型；Room 权限复用同一直接菜单，由后端事务同步到当前 Conversation 的全部主 Agent Session，Room 模型则在右侧先列 Agent。横向空间足够时，悬浮或点击 Agent 直接在右侧级联模型选项；空间不足时点击后在同一浮层逐级进入。模型目标只存在于浮层内部并在关闭后忘记，不能暗示它参与消息路由。具体模型/权限列表不添加“跟随默认”伪选项，统一在底部提供重置；权限项用语义图标、标题和单行短说明，保持 288px 默认密度，模型项保持单行并使用 256px 紧凑密度，Room Agent 选择面板再窄一档。运行中禁用设置，失效事件到达后按 Session key 精确重读。
+模型、思考强度与权限控制只写 Session 覆盖；空值表示继承（强度为空即交给 runtime 按模型默认）。可选强度只来自 Provider 模型目录的 `guidance.effort_levels`，前端不按模型名猜档位；换模型时控制器只保留新模型仍支持的强度。DM 不重复显示 Agent 目标，直接展示权限与模型；Room 权限复用同一直接菜单，由后端事务同步到当前 Conversation 的全部主 Agent Session，Room 模型则在右侧先列 Agent。横向空间足够时，悬浮或点击 Agent 直接在右侧级联模型选项；空间不足时点击后在同一浮层逐级进入。模型目标只存在于浮层内部并在关闭后忘记，不能暗示它参与消息路由。具体模型/权限列表不添加“跟随默认”伪选项，统一在底部提供重置；权限项用语义图标、标题和单行短说明，保持 288px 默认密度；模型菜单（模型行、强度入口/档位、重置）使用共享 dense 密度（28px 行），DM 浮层 288px、Room 模型面板 256px，Room Agent 选择面板再窄一档。运行中禁用设置，失效事件到达后按 Session key 精确重读。
 普通模式两侧使用等分的 `minmax(0, 1fr)` 保证品牌相对输入壳物理居中；品牌颜色必须浅于普通 `text-soft`，但不得影响两侧操作的对比度。窄壳响应只通过 `nexus-chat-composer` 容器查询完成。Goal 模式不沿用等分三列：控制与提交共享第一行，运行状态独占第二行并居中，品牌退场；460px 以下再把提交动作放入独立第三行。“目标”标签始终保持单行，只允许收敛 scope 等说明，不得裁切负责人、取消、状态或提交动作。
 上下文占用只消费 runtime 在 round 终态推送的权威快照，不轮询 transcript，也不由前端估算。DM 显示当前 Session；Room 按 Agent ID 保存并在同一个弹层逐行展示各自最近快照，入口圆环使用最高占用提示风险，不能暗示当前消息只发给某个 Agent。入口直接使用 `UiIconButton size="sm"` 的 28px 命中区，首个快照到达前保留同宽的不可交互槽位；发送与停止动作统一为 32px 圆形图标按钮，避免 round 终态改变 Footer 几何而使 Composer 跳动。
 上下文压缩沿用运行状态指示器；正文流与停止按钮已经表达回复进行中，Composer 不再重复显示“回复中”文案或动效，只保留可执行的停止快捷键提示。停止提示只在 DM Composer 明确提供停止能力时显示，Room 的停止按钮由 Agent slot 头部渲染。

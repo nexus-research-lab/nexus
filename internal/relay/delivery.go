@@ -23,7 +23,11 @@ type Delivery struct {
 	LeaseID        string     `json:"lease_id"`
 	LeaseExpiresAt *time.Time `json:"lease_expires_at"`
 	FailureCode    string     `json:"failure_code,omitempty"`
-	Messages       []Message  `json:"messages,omitempty"`
+	// CancelRequested 随续期返回：真人已请求停止，节点中断本机执行后以 fail 收口。
+	CancelRequested bool `json:"cancel_requested,omitempty"`
+	// RoomInstructions 只随领取下发，是群管理员设置的共同说明，可信度等同群消息。
+	RoomInstructions string    `json:"room_instructions,omitempty"`
+	Messages         []Message `json:"messages,omitempty"`
 }
 
 type DeliveryOutput struct {

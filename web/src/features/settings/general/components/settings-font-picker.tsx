@@ -63,7 +63,7 @@ export function SettingsFontPicker({ value, onChange }: { value: string; onChang
     return () => { active = false; };
   }, [desktop, canReadFonts, readFonts]);
 
-  const presets = ["default", "system", "serif"] as const;
+  const presets = ["default"] as const;
   const names = [...new Set([...families, value])]
     .filter((name) => name && !presets.some((preset) => preset === name))
     .sort((a, b) => a.localeCompare(b));

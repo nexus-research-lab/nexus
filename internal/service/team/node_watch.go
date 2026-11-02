@@ -13,6 +13,11 @@ import (
 	teamstore "github.com/nexus-research-lab/nexus/internal/storage/teamrelay"
 )
 
+const (
+	inactiveWatchRecheck  = 30 * time.Second
+	stableWatchConnection = time.Minute
+)
+
 type nodeWatch struct {
 	credential string
 	ctx        context.Context
@@ -53,9 +58,8 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 	_ = retry.Run(ctx, func(ctx context.Context, _ time.Time) (duework.Result, error) {
 		current, err := e.activeGrant(ctx, grant)
 		if err != nil {
-			// 正常切换/停用等待外层移除订阅，不把旧 watcher 当认证故障反复重试。
 			if errors.Is(err, ErrNodeInactive) {
-				return duework.Result{}, nil
+				return e.inactiveWatch(), nil
 			}
 			return duework.Result{}, err
 		}
@@ -64,6 +68,7 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 			return duework.Result{}, err
 		}
 		// Relay 提前请求换票，保持原 WS 和任务不变；每次仍重验本机授权。
+		connectedAt := time.Now()
 		err = e.relay.WatchDeliveries(ctx, token.Token, func(ctx context.Context) (string, error) {
 			current, err := e.activeGrant(ctx, grant)
 			if err != nil {
@@ -76,8 +81,16 @@ func (e *NodeExecutor) watchNode(ctx context.Context, grant teamstore.NodeGrant)
 			return nil
 		})
 		if errors.Is(err, ErrNodeInactive) {
-			return duework.Result{}, nil
+			return e.inactiveWatch(), nil
 		}
-		return duework.Result{}, err
+		// 稳定运行过的长连接断开是新故障，从最小退避重连，不继承历史失败的长等待。
+		return duework.Result{ResetBackoff: time.Since(connectedAt) >= stableWatchConnection}, err
 	})
+}
+
+// inactiveWatch 让主循环按最新授权移除或替换订阅；授权同凭据恢复时，本 watcher 自行定期复查，不永久空闲。
+func (e *NodeExecutor) inactiveWatch() duework.Result {
+	e.loop.Notify()
+	next := time.Now().Add(inactiveWatchRecheck)
+	return duework.Result{NextDueAt: &next}
 }

@@ -10,3 +10,4 @@
 - `inset="sm"` 只用于卡片内部 section 与卡片左右边界对齐，不允许业务层重新拼 summary padding。
 - `className` 与 `contentClassName` 只补外部 margin、grid、space、滚动和换行布局，不得重写基础视觉状态。
 - Canvas 命中区、浏览器原生文件预览等非普通 App disclosure 必须在所属 L4 文档明确例外，不能复制本组件样式。
+- 正文外层固定一个 `ui-disclosure-expand` Grid 包装，打开时由 recipe 做 `0fr → 1fr` 加淡入；对话 Feed 内与减少动效时保持瞬时。`contentClassName` 仍作用于内层正文，不得改写包装层。
