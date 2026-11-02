@@ -71,3 +71,6 @@ settings computer-use
   「开启」按钮，按钮只调用对应的 macOS 权限请求 API 并打开对应隐私面板。用户返回 Nexus
   后页面自动复查，三项全部通过后明确显示“权限已全部开启”。权限状态同时经 `get_computer`
   提供给模型，未授权时模型应停止并说明。
+
+窗口发现返回 `state` 封闭枚举：`normal`、`minimized`、`offscreen`、`unknown`，
+不再返回 `minimized` 布尔值；未知状态不等同于可交互（C1）。

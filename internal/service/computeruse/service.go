@@ -624,7 +624,7 @@ func (r *Round) ListWindows(ctx context.Context) (map[string]any, error) {
 			"title":      window.Title,
 			"visible":    window.Visible,
 			"foreground": window.Foreground,
-			"minimized":  window.Minimized,
+			"state":      window.State,
 		})
 	}
 	return map[string]any{"windows": values}, nil

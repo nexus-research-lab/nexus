@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- C1: Computer Use 窗口列表返回明确的 state（normal/minimized/offscreen/unknown），与新版 Runtime/SDK 同步。
+
 - Computer Use 指针动作统一使用 `0..1000` 归一化坐标；滚动必须指定目标点，参数上限与 Runtime 一致。开发时需要配套重建新版 CUA Runtime 与 SDK。
 
 - macOS 桌面沙箱对齐 Codex 的无状态模型：每条命令独立套用 Seatbelt 策略，删除宿主 scratch 租约、监督启动记录、策略回执、启动崩溃恢复与随包 `nexus-runtime-bootstrap` helper，“设置 › 沙箱”不再有残留资源回收入口。App 启动不再依赖沙箱恢复。升级后自动删除旧版留下的沙箱记录表、`app/processes` 与带租约标记的 scratch 目录；清理失败只记日志、下次启动重试，不阻止 App 启动。
