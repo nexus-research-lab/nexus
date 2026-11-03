@@ -9,6 +9,8 @@
 // recovery. The model input boundary normalizes key casing and Return/Esc aliases.
 // Error Content and structured receipts both retain mutation status and recovery
 // fields; background capture errors spell out both metadata-only observe options.
+// Unknown thumbnail states guide one focus recovery; indeterminate mutations
+// permit one reconciliation and must not be bypassed by a new target or launch.
 // Capability output distinguishes authorization kinds from restore_window's model alias.
 // launch.go adapts separately approved application lifecycle commands.
 package computer

@@ -43,7 +43,7 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 - 只使用宿主返回的 opaque refs；不能提交 PID、窗口句柄、AX/UIA 对象、路径、socket、token 或任意 native handle。
 - 输入、文本和截图遵守 contract 返回的长度与数量上限。不要把敏感文本写入普通回复或日志。
 - 常规动作使用 select_target 已批准的会话范围；退出应用及宿主标记的敏感操作仍需单独审批。被拒绝或权限不足时停止并说明原因。审批后 stale 必须重新观察，不自动重放。
-- 最小化窗口先用 `include_screenshot=false, accessibility="disabled"` 观察，再执行 `restore_window`，恢复后截图。
+- 只有明确返回 `state=minimized` 才使用 `restore_window`；`window_status` 来自观察前的窗口发现，`unknown/offscreen`、小尺寸或台前调度缩略图都不能证明最小化。台前调度恢复使用 `focus_window`。最小化窗口先用 `include_screenshot=false, accessibility="disabled"` 观察，再执行 `restore_window`，恢复后截图。
 - `session_active=true` 仅表示应用授权仍在，不保证已有可用于动作的 observation。观察失败或尚未观察时，先修复观察，不要反复 `select_target`。
 - `stale_observation` 不是应用授权到期。失败的动作尝试也可能消耗旧观察；重新观察后根据当前画面决定下一步，不能机械重放。只有 `not_dispatched` 才能确定该尝试未执行。
 - macOS 后台窗口（包括台前调度缩略窗口）若返回 `target_unavailable` 且 `recovery_action="focus_window"`，对同一 `window_ref` 先做一次 `include_screenshot=false, accessibility="disabled"` 的元数据观察，再在已批准的范围内执行一次 `focus_window`，然后重新截图和读取无障碍树。禁止用未成功的观察直接执行动作；一次恢复仍失败就报告具体错误，不能反复聚焦或重新授权。此流程不解除 `user_active`。
@@ -51,5 +51,6 @@ Computer Use 只通过当前回合的 `nexus.command` 使用。先读取固定�
 - macOS 两次动作之间的人工输入会等待连续空闲 2 秒（单次最多等 5 秒），保留应用授权，但输入之前的观察失效。重新观察后可继续；`busy` 且 `recovery_action="wait_for_idle_then_observe"` 时最多重新观察并尝试一次，持续忙碌就说明正在等用户空闲，不能无限重试。
 - `user_active` 表示原生动作执行期间用户接管：停止自动动作并说明，不因等待或重新观察而恢复，不自动换 session。用户明确要求继续后再走新的 select_target 授权；可能已执行一部分的动作先对账。
 - session 过期重新 select_target；回合授权上限到达后开始新回合，不静默续期。
+- `indeterminate` 只用原 request_id 对账一次；仍未知就停止并报告，不通过新 ID、重开 target 或 launch_application 绕过待对账状态。
 - 每个 mutation 只对应一个稳定 request_id；目标、动作或输入改变时必须换 ID。
 - 不要自动点击系统权限弹窗。Screen Capture、Accessibility 或 Input Control 未授予时，说明用户需要在系统设置中授权后再试。

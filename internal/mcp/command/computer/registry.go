@@ -1,5 +1,5 @@
 // INPUT: trusted round owner/identity and the host-owned Computer Use service.
-// OUTPUT: bounded computer operations with screenshot defaults and normalized key input for nexus.command.
+// OUTPUT: bounded computer operations with window-state recovery, screenshot defaults and normalized key input for nexus.command.
 // POS: the only model-facing adapter for Nexus Computer Use.
 package computer
 
@@ -192,7 +192,7 @@ func (r registry) selectTarget() command.Operation {
 func (r registry) observe() command.Operation {
 	return command.Operation{
 		Name:        "observe",
-		Description: "Capture a fresh observation for the selected window; screenshots default to true. Metadata-only recovery requires BOTH include_screenshot=false and accessibility=disabled. Use fresh observation_id and element_ref values only before the next mutation.",
+		Description: "Capture a fresh observation for the selected window; screenshots default to true. Metadata-only recovery requires BOTH include_screenshot=false and accessibility=disabled. window_status is the preceding discovery state: unknown or thumbnail bounds do not mean minimized. Recover background/Stage Manager windows with focus_window, not restore_window. Use fresh observation_id and element_ref values only before the next mutation.",
 		SearchHint:  "computer observe screenshot accessibility window observation 观察 截图 无障碍窗口",
 		InputSchema: observeSchema(),
 		ReadOnly:    true,
@@ -660,6 +660,9 @@ func rejected(err error) command.Result {
 		data["error_code"] = cuaErr.Code
 		data["mutation_status"] = cuaErr.MutationStatus
 		data["retryable"] = cuaErr.Retryable
+		if cuaErr.MutationStatus == nexuscua.MutationIndeterminate {
+			data["recovery_hint"] = "The action may have partially executed. Reuse its original request_id once to reconcile without redispatch. If the result remains indeterminate, stop and report it. Do not bypass pending mutation state with a new request_id, target session, or application launch."
+		}
 		if cuaErr.RecoveryAction != nil {
 			data["recovery_action"] = *cuaErr.RecoveryAction
 			if *cuaErr.RecoveryAction == "focus_window" && cuaErr.MutationStatus != nexuscua.MutationIndeterminate {

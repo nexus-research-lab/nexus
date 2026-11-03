@@ -26,7 +26,7 @@ settings computer-use
 
 `select_target` 先确认精确应用、动作集合、前台输入开关与时长，默认不允许前台输入。常规操作使用本次授权，敏感操作审批规则见 permission-runtime-spec §3.4。`get_computer` 返回 Runtime `action_limits` 及由其生成的 `action_schema`；Runtime 始终执行最终参数校验。
 
-新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。恢复最小化窗口前可 `observe` 且 `include_screenshot=false`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
+新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。仅在明确的 `state=minimized` 时使用恢复动作；此前先 `observe` 且 `include_screenshot=false, accessibility="disabled"`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
 
 `session_active` 只表示已选应用的授权会话存在。尚未成功观察时，动作返回缺少 observation，
 不误报未选目标。macOS 后台/台前调度窗口返回 `target_unavailable` 并指示 `focus_window` 时，
@@ -38,6 +38,12 @@ settings computer-use
 原窗口消失时仅在唯一候选窗口下自动选择，多窗口不能按旧标题猜测。默认包含截图，
 显式 `include_screenshot=false` 保留元数据恢复路径。按键在 MCP 输入边界忽略大小写，
 Return/Esc 分别规范为 enter/escape；Runtime 保留最终支持范围校验。
+显式观察的 `window_status` 保留观察前 `list_windows` 的 state、foreground、visible，
+并标记来源；它是 best-effort 发现状态，不与截图原子同步，也不复用到动作后观察。
+`unknown/offscreen` 和缩略图尺寸均不能证明最小化；台前调度恢复使用 `focus_window`。
+原生窗口查找在派发前失败时返回 `not_dispatched`，不会创建虚假的待对账动作。
+`indeterminate` 只允许原 request_id 做一次无重放对账；仍未知就停止并报告，不能
+换 ID、重开 target 或启动应用来绕过待对账状态。
 动作失败可能已消耗 observation，`stale_observation` 不表示 session 到期。
 错误的模型可见 Content 与宿主 StructuredContent 同时保留 error_code、mutation_status、
 retryable 和 recovery_action。后台截图失败额外明确元数据恢复必须同时传
@@ -48,7 +54,7 @@ retryable 和 recovery_action。后台截图失败额外明确元数据恢复必
 
 ## 动作后观察与接管
 
-固定的 `v0.2.0-rc.3` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
+固定的 `v0.2.0-rc.4` SDK/Runtime 支持 `observe_after`。Nexus 在目标授权时读取能力，
 每次动作沿用最近 `observe` 的截图、AX 和 `application_scene` 选项，让一次动作请求
 返回新的观察；新的 guard 替换已消耗的旧 guard。场景观察仅包含锚点显示器上的同一应用。
 Runtime 有界稳定等待不证明业务完成，必要时仍执行 `verify_state`。

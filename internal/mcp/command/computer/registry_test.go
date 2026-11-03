@@ -167,7 +167,8 @@ func TestBackgroundCaptureFailureExplainsMetadataRecoveryToModel(t *testing.T) {
 			t.Fatal(err)
 		}
 		if status == nexuscua.MutationIndeterminate {
-			if modelData["recovery_hint"] != nil {
+			hint, _ := modelData["recovery_hint"].(string)
+			if strings.Contains(hint, "focus_window") || !strings.Contains(hint, "once to reconcile without redispatch") || !strings.Contains(hint, "stop and report") {
 				t.Fatal("indeterminate mutation suggested automatic focus replay")
 			}
 		} else if hint, _ := modelData["recovery_hint"].(string); !strings.Contains(hint, "include_screenshot=false AND accessibility=disabled") {

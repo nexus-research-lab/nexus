@@ -8,6 +8,8 @@
 // actions report missing observation without asking for a new target grant.
 // Omitted window selectors reuse the exact current window while it exists;
 // a missing window is replaced automatically only when there is one candidate.
+// Explicit observations expose preceding discovery state without inferring
+// minimization from thumbnail bounds; post-action reads do not reuse that state.
 // Closing a round revokes its runtime session before waiting for active mutations;
 // a session opened concurrently with close is immediately revoked on return.
 // Supported runtimes return a post-action observation using the previous read

@@ -1,5 +1,5 @@
 // INPUT: Nexus round identity and the pinned typed nexus-cua client.
-// OUTPUT: owner-scoped Computer Use sessions, exact-window continuity, distinct observation readiness, bounded observations, and one-shot mutation reconciliation.
+// OUTPUT: owner-scoped Computer Use sessions, exact-window continuity, distinct observation readiness, best-effort window state, bounded observations, and one-shot mutation reconciliation.
 // POS: Nexus' only Computer Use service boundary; transport credentials and sidecar process details stay below this package.
 package computeruse
 
@@ -775,6 +775,16 @@ func (r *Round) Observe(ctx context.Context, input ObserveInput) (Observation, e
 	result, err := r.projectObservation(value)
 	if err != nil {
 		return Observation{}, err
+	}
+	// The discovery state is best-effort and precedes capture. Do not infer
+	// minimized state from transformed Stage Manager geometry, or attach this
+	// pre-action state to later observe_after results.
+	result.Data["window_status"] = map[string]any{
+		"state": window.State, "foreground": window.Foreground, "visible": window.Visible,
+		"source": "list_windows_before_observe",
+	}
+	if window.State == nexuscua.WindowUnknown || window.State == nexuscua.WindowOffscreen {
+		result.Data["window_state_hint"] = "Unknown/offscreen state and small bounds do not prove minimization. For background or Stage Manager capture recovery, use a metadata observation (include_screenshot=false AND accessibility=disabled), then one authorized focus_window and observe again. Use restore_window only for an explicitly minimized window."
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

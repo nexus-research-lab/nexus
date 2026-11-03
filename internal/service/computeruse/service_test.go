@@ -169,6 +169,43 @@ func (c *fakeClient) VerifyState(context.Context, nexuscua.VerifyStateInput, tim
 	return nexuscua.VerificationOutput{Matched: true, Evidence: "fixture"}, nil
 }
 
+func TestMetadataObservationPreservesUnknownWindowState(t *testing.T) {
+	service, client, _ := newFakeService(t)
+	round := prepareRound(t, service)
+	client.windows = []nexuscua.WindowSummary{{
+		WindowRef: "window-1", State: nexuscua.WindowUnknown, Visible: true,
+		ScreenBounds: nexuscua.ScreenRect{Width: 131, Height: 160},
+	}}
+	observation, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := observation.Data["window_status"].(map[string]any)
+	if status["state"] != nexuscua.WindowUnknown || status["foreground"] != false || status["source"] != "list_windows_before_observe" {
+		t.Fatalf("lost discovery evidence: %#v", status)
+	}
+	if client.lastObserve.IncludeScreenshot || client.lastObserve.Accessibility != nexuscua.AccessibilityDisabled {
+		t.Fatal("metadata recovery unexpectedly requested capture or AX")
+	}
+	if !strings.Contains(observation.Data["window_state_hint"].(string), "one authorized focus_window") {
+		t.Fatal("unknown thumbnail state lacks focus recovery guidance")
+	}
+	client.actionError = &nexuscua.CUAError{Code: nexuscua.ErrorTargetUnavailable, MutationStatus: nexuscua.MutationNotDispatched}
+	if _, err := round.PerformAction(context.Background(), "restore-failed", ActionInput{Kind: "restore_window"}); err == nil {
+		t.Fatal("preflight rejection unexpectedly succeeded")
+	}
+	client.actionError = nil
+	if _, err := round.Observe(context.Background(), ObserveInput{Accessibility: "disabled"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := round.PerformAction(context.Background(), "focus-recovery", ActionInput{Kind: "focus_window"}); err != nil {
+		t.Fatalf("known preflight rejection blocked recovery: %v", err)
+	}
+	if client.openCalls != 1 || client.reconcileCalls != 0 {
+		t.Fatal("recovery reopened authority or treated preflight as indeterminate")
+	}
+}
+
 func (c *fakeClient) PerformAction(_ context.Context, input nexuscua.PerformActionInput, _ time.Duration) (nexuscua.ActionOutput, *nexuscua.ActionRequest, error) {
 	c.performCalls++
 	c.lastInput = input
