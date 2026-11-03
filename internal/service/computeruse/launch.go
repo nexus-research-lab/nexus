@@ -1,5 +1,5 @@
-// INPUT: fresh runtime launch catalog and host approval for one exact application.
-// OUTPUT: bounded launch results and reconciliation under the original request ID.
+// INPUT: fresh runtime launch catalog, optional name/id query, and exact application approval.
+// OUTPUT: filtered discovery and bounded launch reconciliation under the original request ID.
 // POS: round-owned application lifecycle; never retries an unknown launch as new.
 package computeruse
 
@@ -18,7 +18,7 @@ type launchClient interface {
 	ReconcileLaunch(context.Context, *nexuscua.LaunchRequest, time.Duration) (nexuscua.ApplicationLaunchOutput, error)
 }
 
-func (r *Round) ListLaunchableApplications(ctx context.Context) (map[string]any, error) {
+func (r *Round) ListLaunchableApplications(ctx context.Context, query string) (map[string]any, error) {
 	r.mutationMu.Lock()
 	defer r.mutationMu.Unlock()
 	r.mu.Lock()
@@ -38,13 +38,19 @@ func (r *Round) ListLaunchableApplications(ctx context.Context) (map[string]any,
 	if len(catalog.Applications) > 1024 {
 		return nil, errors.New("Computer Use launch catalog 超出上限")
 	}
-	r.mu.Lock()
-	r.launchables = make(map[nexuscua.LaunchRef]nexuscua.LaunchableApplication, len(catalog.Applications))
+	applications := make([]nexuscua.LaunchableApplication, 0, len(catalog.Applications))
 	for _, app := range catalog.Applications {
+		if matchesApplicationQuery(app.Name, app.ApplicationID, query) {
+			applications = append(applications, app)
+		}
+	}
+	r.mu.Lock()
+	r.launchables = make(map[nexuscua.LaunchRef]nexuscua.LaunchableApplication, len(applications))
+	for _, app := range applications {
 		r.launchables[app.LaunchRef] = app
 	}
 	r.mu.Unlock()
-	return map[string]any{"applications": catalog.Applications, "complete": catalog.Complete}, nil
+	return map[string]any{"applications": applications, "complete": catalog.Complete, "query": query}, nil
 }
 
 func (r *Round) LaunchApplication(ctx context.Context, requestID string, input nexuscua.LaunchApplicationInput, approve func(nexuscua.LaunchableApplication) error) (map[string]any, error) {

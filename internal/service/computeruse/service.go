@@ -1,4 +1,4 @@
-// INPUT: Nexus round identity and the pinned typed nexus-cua client.
+// INPUT: Nexus round identity, bounded application queries, and the pinned typed nexus-cua client.
 // OUTPUT: owner-scoped Computer Use sessions, exact-window continuity, distinct observation readiness, best-effort window state, bounded observations, and one-shot mutation reconciliation.
 // POS: Nexus' only Computer Use service boundary; transport credentials and sidecar process details stay below this package.
 package computeruse
@@ -504,7 +504,7 @@ func (r *Round) GetComputer(ctx context.Context) (map[string]any, error) {
 	}, nil
 }
 
-func (r *Round) ListApplications(ctx context.Context) (map[string]any, error) {
+func (r *Round) ListApplications(ctx context.Context, query string) (map[string]any, error) {
 	r.mu.Lock()
 	if err := r.ensureOpenLocked(); err != nil {
 		r.mu.Unlock()
@@ -517,13 +517,22 @@ func (r *Round) ListApplications(ctx context.Context) (map[string]any, error) {
 	}
 	values := make([]map[string]any, 0, len(apps.Applications))
 	for _, app := range apps.Applications {
+		if !matchesApplicationQuery(app.Name, app.ApplicationID, query) {
+			continue
+		}
 		values = append(values, map[string]any{
 			"name": app.Name, "application_id": app.ApplicationID,
 			"foreground": app.Foreground, "discovery_ref": app.DiscoveryRef,
 			"provenance": app.Provenance,
 		})
 	}
-	return map[string]any{"complete": apps.Complete, "applications": values}, nil
+	return map[string]any{"complete": apps.Complete, "applications": values, "query": query}, nil
+}
+
+// Query only narrows discovery output; it never selects an app or grants authority.
+func matchesApplicationQuery(name, applicationID, query string) bool {
+	query = strings.ToLower(query)
+	return strings.Contains(strings.ToLower(name), query) || strings.Contains(strings.ToLower(applicationID), query)
 }
 
 // supportedRoundActions grants only operations exposed by this host. New runtime

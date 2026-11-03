@@ -13,4 +13,6 @@
 // permit one reconciliation and must not be bypassed by a new target or launch.
 // Capability output distinguishes authorization kinds from restore_window's model alias.
 // launch.go adapts separately approved application lifecycle commands.
+// Both app catalogs support a bounded name/id query to avoid unrelated result
+// pagination. Pre-dispatch stale/running-app failures explain recovery within authority.
 package computer

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Filter Computer Use app discovery by name or application id to avoid catalog pagination, and clarify recovery after stale observations or an app starting concurrently.
+
 - Expose discovery window state in Computer Use observations, distinguish Stage Manager thumbnails from minimized windows, and bound recovery of unknown mutation results.
 
 - Preserve Computer Use recovery fields in model-visible error text and explain both required options for background-window metadata recovery.

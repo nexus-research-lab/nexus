@@ -16,6 +16,8 @@
 // options. Successful mutation evidence survives read failures; replay caches
 // retain no screenshots or accessibility trees. User takeover remains latched
 // until another explicit target approval, including after fresh observations.
+// Running and launchable discovery accept name/id queries without selecting or
+// granting authority; filtered launch catalogs retain only returned opaque refs.
 // authority.go defines approved target scope and deadlines; launch.go owns
 // launch discovery, approval and reconciliation without granting input authority.
 package computeruse

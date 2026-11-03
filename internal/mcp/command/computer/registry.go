@@ -1,5 +1,5 @@
 // INPUT: trusted round owner/identity and the host-owned Computer Use service.
-// OUTPUT: bounded computer operations with window-state recovery, screenshot defaults and normalized key input for nexus.command.
+// OUTPUT: bounded computer operations with filtered app discovery, recovery hints, screenshot defaults and normalized key input.
 // POS: the only model-facing adapter for Nexus Computer Use.
 package computer
 
@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	nexuscua "github.com/nexus-research-lab/nexus-cua/sdk/go"
@@ -138,22 +139,44 @@ func (r registry) getComputer() command.Operation {
 func (r registry) listApplications() command.Operation {
 	return command.Operation{
 		Name:        "list_applications",
-		Description: "Discover currently available desktop applications and their opaque discovery references. Discovery references expire and must not be persisted by the Agent.",
+		Description: "Discover running desktop applications. Prefer query with the known app name or application id to avoid a full catalog. Matching is case-insensitive substring search; select_target still requires one exact returned identity. Discovery references expire and must not be persisted.",
 		SearchHint:  "computer applications desktop app list 应用 列表 macOS",
-		InputSchema: objectSchema(nil),
+		InputSchema: applicationQuerySchema(),
 		ReadOnly:    true,
-		ContextHandler: func(ctx context.Context, _ map[string]any, _ *command.CallContext) (command.Result, error) {
+		ContextHandler: func(ctx context.Context, input map[string]any, _ *command.CallContext) (command.Result, error) {
+			query, err := parseApplicationQuery(input)
+			if err != nil {
+				return rejected(err), nil
+			}
 			round, err := r.round(ctx)
 			if err != nil {
 				return rejected(err), nil
 			}
-			value, err := round.ListApplications(ctx)
+			value, err := round.ListApplications(ctx, query)
 			if err != nil {
 				return rejected(err), nil
 			}
 			return structured(value), nil
 		},
 	}
+}
+
+func applicationQuerySchema() map[string]any {
+	return objectSchema(map[string]any{"query": stringProperty("Optional case-insensitive substring of application name or stable application id; omit to list all.", 0, 256)})
+}
+
+func parseApplicationQuery(input map[string]any) (string, error) {
+	var parsed struct {
+		Query string `json:"query"`
+	}
+	if err := decodeInput(input, &parsed); err != nil {
+		return "", err
+	}
+	parsed.Query = strings.TrimSpace(parsed.Query)
+	if utf8.RuneCountInString(parsed.Query) > 256 {
+		return "", errors.New("Computer Use application query 超出 256 字符上限")
+	}
+	return parsed.Query, nil
 }
 
 func (r registry) selectTarget() command.Operation {
@@ -665,6 +688,14 @@ func rejected(err error) command.Result {
 		}
 		if cuaErr.RecoveryAction != nil {
 			data["recovery_action"] = *cuaErr.RecoveryAction
+			if cuaErr.MutationStatus == nexuscua.MutationNotDispatched {
+				switch {
+				case cuaErr.Code == nexuscua.ErrorStaleObservation:
+					data["recovery_hint"] = "This observation is outdated; the target grant has not expired. Keep the same target, observe once, and choose the next action from fresh state. If input keeps invalidating observations, wait for user idle instead of repeatedly polling or requesting authorization."
+				case *cuaErr.RecoveryAction == "discover_applications":
+					data["recovery_hint"] = "Refresh list_applications with query set to the intended app name or id, then select_target for its exact running identity. Do not repeat launch_application; selecting a running app still requires its own target grant."
+				}
+			}
 			if *cuaErr.RecoveryAction == "focus_window" && cuaErr.MutationStatus != nexuscua.MutationIndeterminate {
 				data["recovery_hint"] = "For the same selected window, call observe with include_screenshot=false AND accessibility=disabled. Then perform one authorized focus_window and observe again. Do not reopen the target session. If recovery fails again, report the error."
 			}

@@ -24,6 +24,12 @@ settings computer-use
 
 首次使用 Computer Use 为本物理回合建立最多 30 分钟的授权上限。选定目标的 session TTL 取请求时长、该回合剩余上限与 Runtime `action_limits.max_session_ttl_seconds` 的最小值；审批等待也扣除，不静默续期。round 结束或禁用时立即关闭；session 过期需重新 `select_target`，回合上限到达则需新回合。
 
+`list_applications` 和 `list_launchable_applications` 接受可选 `query`（最多 256 字符），
+按名称或稳定 application id 做不区分大小写的子串筛选；省略仍返回完整发现结果。
+筛选不选择应用、不授予权限，也不把 Runtime 的 `complete=false` 改成 true。
+启动目录仅保留本次返回的 launch_ref，后续仍校验精确安装身份并审批。
+已知目标时优先筛选，避免无关应用目录触发模型侧大文本分页。
+
 `select_target` 先确认精确应用、动作集合、前台输入开关与时长，默认不允许前台输入。常规操作使用本次授权，敏感操作审批规则见 permission-runtime-spec §3.4。`get_computer` 返回 Runtime `action_limits` 及由其生成的 `action_schema`；Runtime 始终执行最终参数校验。
 
 新增 `restore_window`、`set_window_bounds`、`set_range_value`、`press_point` 和单独审批的 `terminate_application`。仅在明确的 `state=minimized` 时使用恢复动作；此前先 `observe` 且 `include_screenshot=false, accessibility="disabled"`，恢复后再截图。可启动应用通过 `list_launchable_applications` 发现，`launch_application` 仅启动并对未知结果按原 ID 对账，随后仍需 `select_target` 授权。
@@ -45,6 +51,10 @@ Return/Esc 分别规范为 enter/escape；Runtime 保留最终支持范围校验
 `indeterminate` 只允许原 request_id 做一次无重放对账；仍未知就停止并报告，不能
 换 ID、重开 target 或启动应用来绕过待对账状态。
 动作失败可能已消耗 observation，`stale_observation` 不表示 session 到期。
+未派发的 stale 错误向模型明确保留 target、重新观察并重新决策；持续输入导致再次
+失效时等待用户空闲，不能循环重试或重新授权。未派发的 `discover_applications`
+恢复指引要求查询已运行应用并选择精确身份，不再重复启动。这些提示不覆盖
+indeterminate 的原 ID 对账规则。
 错误的模型可见 Content 与宿主 StructuredContent 同时保留 error_code、mutation_status、
 retryable 和 recovery_action。后台截图失败额外明确元数据恢复必须同时传
 `include_screenshot=false` 与 `accessibility="disabled"`；只禁用 AX 不会禁用截图。

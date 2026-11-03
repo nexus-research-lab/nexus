@@ -1,5 +1,5 @@
-// INPUT: model launch reference and the host-owned permission channel.
-// OUTPUT: launch catalog and approved, reconciled launch operations.
+// INPUT: optional application-name query, model launch reference and host permission channel.
+// OUTPUT: filtered launch catalog and approved, reconciled launch operations.
 // POS: model-facing lifecycle adapter; application identity comes from runtime discovery.
 package computer
 
@@ -12,14 +12,18 @@ import (
 )
 
 func (r registry) listLaunchableApplications() command.Operation {
-	return command.Operation{Name: "list_launchable_applications", Description: "List installed launchable applications and short-lived launch_ref values.",
-		InputSchema: objectSchema(nil), ReadOnly: true,
-		ContextHandler: func(ctx context.Context, _ map[string]any, _ *command.CallContext) (command.Result, error) {
+	return command.Operation{Name: "list_launchable_applications", Description: "Find installed launchable applications and short-lived launch_ref values. When the app is known, pass query (name or application id) to avoid paging through the full catalog. This does not launch or grant authority.",
+		InputSchema: applicationQuerySchema(), ReadOnly: true,
+		ContextHandler: func(ctx context.Context, input map[string]any, _ *command.CallContext) (command.Result, error) {
+			query, err := parseApplicationQuery(input)
+			if err != nil {
+				return rejected(err), nil
+			}
 			round, err := r.round(ctx)
 			if err != nil {
 				return rejected(err), nil
 			}
-			result, err := round.ListLaunchableApplications(ctx)
+			result, err := round.ListLaunchableApplications(ctx, query)
 			if err != nil {
 				return rejected(err), nil
 			}

@@ -176,3 +176,28 @@ func TestBackgroundCaptureFailureExplainsMetadataRecoveryToModel(t *testing.T) {
 		}
 	}
 }
+
+func TestRecoverableModelHintsDoNotOverrideUnknownMutation(t *testing.T) {
+	for _, tc := range []struct {
+		code           nexuscua.ErrorCode
+		recovery, want string
+	}{
+		{nexuscua.ErrorStaleObservation, "observe_window", "target grant has not expired"},
+		{nexuscua.ErrorInvalidRequest, "discover_applications", "Do not repeat launch_application"},
+	} {
+		for _, status := range []nexuscua.MutationStatus{nexuscua.MutationNotDispatched, nexuscua.MutationIndeterminate} {
+			result := rejected(&nexuscua.CUAError{Code: tc.code, MutationStatus: status, RecoveryAction: &tc.recovery})
+			var model map[string]any
+			if err := json.Unmarshal([]byte(result.Content[0]["text"].(string)), &model); err != nil {
+				t.Fatal(err)
+			}
+			hint, _ := model["recovery_hint"].(string)
+			if status == nexuscua.MutationNotDispatched && !strings.Contains(hint, tc.want) {
+				t.Fatalf("missing bounded recovery hint: %s", hint)
+			}
+			if status == nexuscua.MutationIndeterminate && !strings.Contains(hint, "once to reconcile without redispatch") {
+				t.Fatal("ordinary recovery overrode unknown mutation guidance")
+			}
+		}
+	}
+}
