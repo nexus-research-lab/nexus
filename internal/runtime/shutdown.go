@@ -7,11 +7,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"sync"
 )
 
 // InterruptHostShutdown distinguishes recoverable process exit from user stop.
-const InterruptHostShutdown = "host_shutdown"
+const InterruptHostShutdown = protocol.InterruptHostShutdown
 
 // ErrRuntimeManagerClosed 表示宿主已经开始退出，不再接受执行或后台任务。
 var ErrRuntimeManagerClosed = errors.New("runtime manager is shutting down")

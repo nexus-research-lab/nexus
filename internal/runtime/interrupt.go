@@ -5,17 +5,18 @@ package runtime
 
 import (
 	"context"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"strings"
 	"time"
 )
 
 const interruptForceCancelDelay = 150 * time.Millisecond
 const clientInterruptReasonSubmit = "interrupt"
-const clientInterruptWithoutMessage = "__nexus_interrupt_without_message__"
+const clientInterruptWithoutMessage = protocol.InterruptWithoutMessage
 
-// clientInterruptHostControl mirrors message.InterruptHostControlWithoutMessage;
-// like a user stop it must not reach the provider as a submit interrupt.
-const clientInterruptHostControl = "__nexus_interrupt_host_control__"
+// clientInterruptHostControl must, like a user stop, never reach the provider
+// as a submit interrupt.
+const clientInterruptHostControl = protocol.InterruptHostControlWithoutMessage
 
 const exactRoundCancellationUnavailableDetail = "exact runtime round cancellation is unavailable"
 

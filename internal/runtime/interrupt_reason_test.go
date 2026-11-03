@@ -13,7 +13,4 @@ func TestClientInterruptWireReasonKeepsExplicitStopsSilent(t *testing.T) {
 	if got := clientInterruptWireReason("收到新的用户消息，上一轮已停止"); got != clientInterruptReasonSubmit {
 		t.Fatalf("submit interrupt wire reason = %q", got)
 	}
-	if clientInterruptHostControl != "__nexus_interrupt_host_control__" {
-		t.Fatal("runtime host control sentinel drifted from message.InterruptHostControlWithoutMessage")
-	}
 }

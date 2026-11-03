@@ -54,7 +54,7 @@ func (s *Service) finishBoundRoomAttempt(
 		// Keep the internal sentinel and any user-stop attribution off a host
 		// control stop (Goal pause, Team remote cancel).
 		if reason == messageutil.InterruptHostControlWithoutMessage {
-			reason = "host_control_stop"
+			reason = protocol.WorkAttemptReasonHostControlStop
 		}
 	default:
 		if reason == "" {

@@ -144,9 +144,9 @@ func (s *Service) recoverRootExecution(ctx context.Context, execution protocol.E
 const (
 	hostRestartAttemptStatus = protocol.WorkAttemptStatusInterrupted
 	hostRestartAttemptReason = "host_restart: reconcile unknown side effects before takeover"
-	// hostShutdownAttemptReason mirrors runtime.InterruptHostShutdown, which DM
-	// and Room record as the failure reason of roots cancelled by host exit.
-	hostShutdownAttemptReason = "host_shutdown"
+	// hostShutdownAttemptReason is the failure reason DM and Room record on roots
+	// cancelled by host exit.
+	hostShutdownAttemptReason = protocol.InterruptHostShutdown
 )
 
 // executionHasHostInterruptedRoot reports a current Assignment whose latest root

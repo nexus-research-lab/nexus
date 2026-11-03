@@ -41,10 +41,6 @@ func (s *Service) QueueExecutionRecovery(ctx context.Context, e protocol.Executi
 	return nil
 }
 
-// hostControlStopAttemptReason records a Goal pause, automation cancel or Echo
-// stop on the Attempt without the internal sentinel or a user-stop attribution.
-const hostControlStopAttemptReason = "host_control_stop"
-
 type dmAttemptTerminalizer interface {
 	FinishDMRoundAttempts(context.Context, orchestrationsvc.ActorContext, protocol.WorkAttemptStatus, string) error
 }
@@ -55,7 +51,7 @@ func (r *roundRunner) finishWorkAttempts(status protocol.WorkAttemptStatus, reas
 		reason = message.InterruptWithoutMessage
 	} else if r.explicitlyStoppedRound() {
 		status = protocol.WorkAttemptStatusInterrupted
-		reason = hostControlStopAttemptReason
+		reason = protocol.WorkAttemptReasonHostControlStop
 	}
 	provider, ok := r.service.ExecutionContext.(dmAttemptTerminalizer)
 	if !ok {
